@@ -491,13 +491,11 @@ f_rcpt( snet, env, ac, av )
     if ( high_mx_pref ) {
 	switch( address_local( addr )) {
 
-	case ADDRESS_EXTERNAL:
-	case ADDRESS_NOT_FOUND:
+	case ADDRESS_NOT_LOCAL:
 	    snet_writef( snet,
 		"%d Requested action not taken: User not found.\r\n", 550 );
 	    return( 1 );
 
-	case ADDRESS_BAD_FORMAT:
 	case ADDRESS_SYSERROR:
 	default:
 	    snet_writef( snet,

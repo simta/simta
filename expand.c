@@ -103,67 +103,22 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	switch ( address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
 		&seen )) {
 
+	case ADDRESS_EXCLUDE:
+	    free( i->st_data );
+	    i->st_data = NULL;
+	    break;
+
+	case ADDRESS_FINAL:
+	    /* the address is a terminal local address */
+	    break;
+
+	default:
+	    syslog( LOG_ERR, "expand address_expand switch: unreachable code" );
 	case ADDRESS_SYSERROR:
 	    /* XXX expansion terminal failure */
 	    free( i->st_data );
 	    i->st_data = NULL;
 	    return( 1 );
-
-	case ADDRESS_BAD_FORMAT:
-	    if ( rcpt_error( expn->e_rcpt_parent, "bad address format: ",
-		    i->st_key, NULL ) != 0 ) {
-		/* XXX expansion terminal failure */
-		/* rcpt_error syslogs errors */
-		free( i->st_data );
-		i->st_data = NULL;
-		return( 1 );
-	    }
-
-	    free( i->st_data );
-	    i->st_data = NULL;
-	    break;
-
-	case ADDRESS_SEEN:
-	    free( i->st_data );
-	    i->st_data = NULL;
-	    break;
-
-	case ADDRESS_EXTERNAL:
-	    /* the address is out of our domain */
-	    break;
-
-	case ADDRESS_EXPANDED:
-	    /* the address is non-terminal */
-
-	    free( i->st_data );
-	    i->st_data = NULL;
-	    break;
-
-	case ADDRESS_LOCAL:
-	    /* the address is a terminal local address */
-	    break;
-
-	case ADDRESS_NOT_FOUND:
-	    if ( rcpt_error( expn->e_rcpt_parent, "address not found: ",
-		    i->st_key, NULL ) != 0 ) {
-		/* XXX expansion terminal failure */
-		/* rcpt_error syslogs errors */
-		free( i->st_data );
-		i->st_data = NULL;
-		return( 1 );
-	    }
-
-	    free( i->st_data );
-	    i->st_data = NULL;
-	    break;
-
-	default:
-	    /* this should be unreachable code */
-	    syslog( LOG_ERR, "expand address_expand switch: unreachable code" );
-	    /* XXX expansion terminal failure */
-	    free( i->st_data );
-	    i->st_data = NULL;
-	    break;
 	}
     }
 

@@ -42,7 +42,7 @@ LDAP				*ld = NULL;
     int
 ldap_address_local( char *addr )
 {
-    return( ADDRESS_NOT_FOUND );
+    return( ADDRESS_NOT_LOCAL );
 }
 
 
@@ -436,7 +436,7 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 
     if ( count == 0 ) {
 	/* no entries found */
-	return( ADDRESS_NOT_FOUND );
+	return( LDAP_NOT_FOUND );
     }
 
     if (( entry = ldap_first_entry( ld, res )) == NULL ) {

@@ -105,7 +105,7 @@ address_local( char *addr )
 
     /* Check for domain in domain table */
     if (( at = strchr( addr, '@' )) == NULL ) {
-	return( ADDRESS_BAD_FORMAT );
+	return( ADDRESS_NOT_LOCAL );
     }
 
     *at = '\0';
@@ -113,7 +113,7 @@ address_local( char *addr )
 
     if (( host = (struct host*)ll_lookup( simta_hosts, domain )) == NULL ) {
 	*at = '@';
-	return( ADDRESS_EXTERNAL );
+	return( ADDRESS_NOT_LOCAL );
     }
 
     /* Search for user using expansion table */
@@ -160,7 +160,7 @@ address_local( char *addr )
     }
 
     *at = '@';
-    return( ADDRESS_NOT_FOUND );
+    return( ADDRESS_NOT_LOCAL );
 }
 
 
@@ -171,6 +171,7 @@ address_expand( char *address, struct recipient *rcpt,
     int			ret;
     int			len;
     char		*user;
+    char		*at;
     char		*domain;
     char		*tmp;
     struct passwd	*passwd;
@@ -205,7 +206,7 @@ address_expand( char *address, struct recipient *rcpt,
 	/* addr correct, check if we have seen it already */
 	if ( ll_lookup( *seen, user ) != NULL ) {
 	    free( user );
-	    return( ADDRESS_SEEN );
+	    return( ADDRESS_EXCLUDE );
 
 	} else {
 	    /* Add user address to seen list */
@@ -220,7 +221,11 @@ address_expand( char *address, struct recipient *rcpt,
     case 0:
 	/* address is not syntactically correct, or correctable */
 	free( user );
-	return( ADDRESS_BAD_FORMAT );
+	if ( rcpt_error( rcpt, "bad address format: ", address, NULL ) != 0 ) {
+	    /* rcpt_error syslogs syserrors */
+	    return( ADDRESS_SYSERROR );
+	}
+	return( ADDRESS_EXCLUDE );
 
     default:
 	syslog( LOG_ERR, "address_expand is_emailaddr 1: %m" );
@@ -229,19 +234,19 @@ address_expand( char *address, struct recipient *rcpt,
     }
 
     /* Get user and domain, addres should now be valid */
-    if (( domain = strchr( user, '@' )) == NULL ) {
+    if (( at = strchr( user, '@' )) == NULL ) {
 	syslog( LOG_ERR, "address_expand strchr: @ not found!" );
 	free( user );
 	return( ADDRESS_SYSERROR );
     }
 
-    *domain = '\0';
-    domain++;
+    *at = '\0';
+    domain = at + 1;
 
     /* Check to see if domain is off the local host */
     if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
 	free( user );
-        return( ADDRESS_EXTERNAL );
+        return( ADDRESS_FINAL );
     }
 
     /* At this point, we should have a valid address destined for
@@ -341,7 +346,7 @@ address_expand( char *address, struct recipient *rcpt,
 		    } else {
 			/* one or more addresses found in alias db */
 			free( user );
-			return( ADDRESS_EXPANDED );
+			return( ADDRESS_EXCLUDE );
 		    }
 		}
 	    }
@@ -384,7 +389,7 @@ address_expand( char *address, struct recipient *rcpt,
 			}
 
 			/* tho the .forward is bad, it expanded */
-			return( ADDRESS_EXPANDED );
+			return( ADDRESS_EXCLUDE );
 		    }
 
 		    buf[ len - 1 ] = '\0';
@@ -463,30 +468,36 @@ address_expand( char *address, struct recipient *rcpt,
 		    return( ADDRESS_SYSERROR );
 		}
 
-		return( ADDRESS_EXPANDED );
+		return( ADDRESS_EXCLUDE );
 
 	    } else {
 		/* No .forward, it's a local address */
 		free( user );
-		return( ADDRESS_LOCAL );
+		return( ADDRESS_FINAL );
 	    }
 	}
 
 #ifdef HAVE_LDAP
         else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
-	    switch ( ldap_expand( address, rcpt, expansion, seen )) {
+	    at = '@';
 
-	    case ADDRESS_EXPANDED:
+	    switch ( ldap_expand( user, rcpt, expansion, seen )) {
+
+	    case LDAP_EXCLUDE:
 		free( user );
-		return( ADDRESS_EXPANDED );
+		return( ADDRESS_EXCLUDE );
 
-	    case ADDRESS_NOT_FOUND:
+	    case LDAP_FINAL:
+		free( user );
+		return( ADDRESS_FINAL );
+
+	    case LDAP_NOT_FOUND:
+		at = '\0';
 		continue;
 
 	    default:
 		syslog( LOG_ERR, "address_expand default ldap switch" );
-
-	    case ADDRESS_SYSERROR:
+	    case LDAP_SYSERROR:
 		/* XXX make sure a syslog LOG_ERR occurs up the chain */
 		free( user );
 		return( ADDRESS_SYSERROR );
@@ -496,5 +507,12 @@ address_expand( char *address, struct recipient *rcpt,
 
     }
 
-    return( ADDRESS_NOT_FOUND );
+    free( user );
+
+    if ( rcpt_error( rcpt, "address not found: ", address, NULL ) != 0 ) {
+	/* rcpt_error syslogs syserrors */
+	return( ADDRESS_SYSERROR );
+    }
+
+    return( ADDRESS_EXCLUDE );
 }
