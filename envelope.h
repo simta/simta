@@ -23,6 +23,7 @@ struct recipient {
 struct envelope {
     struct sockaddr_in	*e_sin;
     char		*e_hostname;
+    char		*e_punt;
     char		e_expanded[ MAXHOSTNAMELEN ];
     char		*e_helo;
     char		*e_dir;
