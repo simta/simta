@@ -52,6 +52,14 @@ q_file_create( char *id )
 }
 
 
+    void
+q_file_free ( struct q_file *q )
+{
+    free( q->q_id );
+    free( q );
+}
+
+
     /* return pointer to a struct host_q with hq->hq_name = hostname
      * return NULL if syserror
      */
@@ -71,4 +79,31 @@ host_q_create( char *hostname )
     }
 
     return( hq );
+}
+
+
+    void
+queue_cleanup( struct host_q *hq )
+{
+    struct stab_entry		**qs;
+    struct stab_entry		*qs_remove;
+    struct q_file		*q;
+
+    qs = &hq->hq_qfiles;
+
+    while ( *qs != NULL ) {
+	q = (struct q_file*)((*qs)->st_data);
+
+	if ( q->q_remove != 0 ) {
+	    /* reorder linked list, and free node to be removed */
+	    qs_remove = *qs;
+	    *qs = (*qs)->st_next;
+
+	    q_file_free( q );
+	    free( qs_remove );
+
+	} else {
+	    qs = &((*qs)->st_next);
+	}
+    }
 }

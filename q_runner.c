@@ -240,6 +240,10 @@ main( int argc, char *argv[] )
 	}
     }
 
+#ifdef DEBUG
+    ll_walk( host_stab, host_stab_stdout );
+#endif /* DEBUG */
+
     return( 0 );
 }
 
@@ -329,7 +333,7 @@ deliver_local( struct host_q *hq )
 	}
     }
 
-    /* XXX queue_cleanup( hq ) */
+    queue_cleanup( hq );
 
     return( 0 );
 }
@@ -464,7 +468,7 @@ deliver_remote( struct host_q *hq )
 	}
     }
 
-    /* XXX queue_cleanup( hq ) */
+    queue_cleanup( hq );
 
     return( 0 );
 }
