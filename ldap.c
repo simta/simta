@@ -24,7 +24,7 @@
 
 #include "ll.h"
 #include "envelope.h"
-#include "address.h"
+#include "expand.h"
 #include "ldap.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
@@ -286,13 +286,14 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
      * expansion (not system) errors should be reported back to the sender
      * using rcpt_error(...);
      *
+     * rcpt_error(...) is used to create a bounce for an address
+     *
      * add_address(...) is used to add a new email address to the expansion
      * list.
      */
 
     int
-ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
-	struct stab_entry **seen )
+ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 {
     int			x;
     int			whiteout;

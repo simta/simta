@@ -27,7 +27,6 @@
 #include "ll.h"
 #include "envelope.h"
 #include "expand.h"
-#include "address.h"
 #include "header.h"
 #include "simta.h"
 #include "bdb.h"
@@ -39,6 +38,8 @@
 
 DB		*dbp = NULL;
 
+void expansion_stab_stdout( void * );
+
     void
 expansion_stab_stdout( void *string )
 {
@@ -46,49 +47,86 @@ expansion_stab_stdout( void *string )
 }
 
 
-/* Creates an entry in STAB with a key of ADDRESS and a data pointer
- * to an expansion structure:
- *
- *	expn->e_expn = ADDRESS;
- *	expn->e_rcpt_parent = RCPT;
- * 
- * Return values:
- *	-1	system error
- *	 0	success
- */
+    /*
+     * return non-zero if there is a syserror  
+     */
 
     int
-add_address( struct stab_entry **stab, char *address, struct recipient *rcpt )
+add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
+	int addr_type )
 {
-    char		*data;
-    struct expn		*expn;
+    char			*address;
+    struct exp_addr		*e;
 
-    if (( data = strdup( address )) == NULL ) {
+    if (( address = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "add_address: strdup: %m" );
-	return( -1 );
+	return( 1 );
     }
 
-    if (( expn = (struct expn*)malloc( sizeof( struct expn ))) == NULL ) {
+    /* make sure we understand what type of address this is, and error check
+     * it's syntax if applicable.
+     */
+
+    switch ( addr_type ) {
+
+    case ADDRESS_TYPE_EMAIL:
+	/* verify and correct address syntax */
+	switch ( is_emailaddr( &address )) {
+	case 1:
+	    /* addr correct, check if we have seen it already */
+	    break;
+
+	case 0:
+	    /* address is not syntactically correct, or correctable */
+	    free( address );
+	    if ( rcpt_error( addr_rcpt, "bad email address format: ",
+		    address, NULL ) != 0 ) {
+		/* rcpt_error syslogs syserrors */
+		return( 1 );
+	    }
+	    return( 0 );
+
+	default:
+	    syslog( LOG_ERR, "add_address is_emailaddr: %m" );
+	    free( address );
+	    return( 1 );
+	}
+
+    #ifdef HAVE_LDAP
+    case ADDRESS_TYPE_LDAP:
+	break;
+    #endif /* HAVE_LDAP */
+
+    default:
+	syslog( LOG_ERR, "add_address bad type" );
+	free( address );
+	return( 1 );
+    }
+
+    /* check to see if address is in the expansion list already */
+    if ( ll_lookup( exp->exp_addr_list, address ) != NULL ) {
+	free( address );
+	return( 0 );
+    }
+
+    if (( e = (struct exp_addr*)malloc( sizeof( struct exp_addr ))) == NULL ) {
 	syslog( LOG_ERR, "add_address: malloc: %m" );
-	goto error1;
+	free( address );
+	return( 1 );
     }
 
-    expn->e_expn = data;
-    expn->e_rcpt_parent = rcpt;
+    e->e_addr = address;
+    e->e_addr_rcpt = addr_rcpt;
+    e->e_addr_type = addr_type;
 
-    if ( ll_insert_tail( stab, data, expn ) != 0 ) {
+    if ( ll_insert_tail( &(exp->exp_addr_list), address, e ) != 0 ) {
 	syslog( LOG_ERR, "add_address: ll_insert_tail: %m" );
-	goto error2;
+	free( address );
+	free( e );
+	return( 1 );
     }
 
     return( 0 );
-
-error2:
-    free( expn );
-
-error1:
-    free( data );
-    return( -1 );
 }
 
 
@@ -177,18 +215,15 @@ address_local( char *addr )
 
 
     int
-address_expand( char *address, struct recipient *rcpt,
-	struct stab_entry **expansion, struct stab_entry **seen )
+address_expand( struct expand *exp, struct exp_addr *e_addr )
 {
-    int			ret;
-    int			len;
-    char		*user;
     char		*at;
     char		*domain;
-    char		*tmp;
-    struct passwd	*passwd;
-    struct host		*host;
+    struct host		*host = NULL;
     struct stab_entry	*i;
+    int			ret;
+    int			len;
+    struct passwd	*passwd;
     FILE		*f;
     DBC			*dbcp = NULL;
     DBT			key;
@@ -197,68 +232,34 @@ address_expand( char *address, struct recipient *rcpt,
     /* XXX buf should be large enough to accomodate any valid email address */
     char		buf[ 1024 ];
 
-    syslog( LOG_DEBUG, "address_expand: address %s from rcpt %s\n", address,
-	    rcpt->r_rcpt );
+    syslog( LOG_DEBUG, "address_expand: address %s from rcpt %s\n",
+	    e_addr->e_addr, e_addr->e_addr_rcpt->r_rcpt );
 
-    /*
-     * Check/correct address for valid syntax
-     * Check seen list for address
-     * Add address to seen list
-     * Check to see if the address has a local domain
-     */
+    switch ( e_addr->e_addr_type ) {
 
-    if (( user = strdup( address )) == NULL ) {
-	syslog( LOG_ERR, "address_expand: strdup: %m" );
-	return( ADDRESS_SYSERROR );
-    }
+    case ADDRESS_TYPE_EMAIL:
+	/* Get user and domain, addres should now be valid */
+	if (( at = strchr( e_addr->e_addr, '@' )) == NULL ) {
+	    syslog( LOG_ERR, "address_expand strchr: @ not found!" );
+	    return( ADDRESS_SYSERROR );
+	}
 
-    /* verify and correct user address, check if it's been seen already */
-    switch ( is_emailaddr( &user )) {
-    case 1:
-	/* addr correct, check if we have seen it already */
-	if ( ll_lookup( *seen, user ) != NULL ) {
-	    free( user );
-	    return( ADDRESS_EXCLUDE );
+	domain = at + 1;
 
-	} else {
-	    /* Add user address to seen list */
-	    if ( add_address( seen, user, rcpt ) != 0 ) {
-		/* add_address syslogs syserrors */
-		free( user );
-		return( ADDRESS_SYSERROR );
-	    }
+	/* Check to see if domain is off the local host */
+	if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
+	    return( ADDRESS_FINAL );
 	}
 	break;
 
-    case 0:
-	/* address is not syntactically correct, or correctable */
-	free( user );
-	if ( rcpt_error( rcpt, "bad address format: ", address, NULL ) != 0 ) {
-	    /* rcpt_error syslogs syserrors */
-	    return( ADDRESS_SYSERROR );
-	}
-	return( ADDRESS_EXCLUDE );
+#ifdef HAVE_LDAP
+    case ADDRESS_TYPE_LDAP:
+	goto ldap_exclusive;
+#endif /*  HAVE_LDAP */
 
     default:
-	syslog( LOG_ERR, "address_expand is_emailaddr 1: %m" );
-	free( user );
+	syslog( LOG_ERR, "address_expand bad address type" );
 	return( ADDRESS_SYSERROR );
-    }
-
-    /* Get user and domain, addres should now be valid */
-    if (( at = strchr( user, '@' )) == NULL ) {
-	syslog( LOG_ERR, "address_expand strchr: @ not found!" );
-	free( user );
-	return( ADDRESS_SYSERROR );
-    }
-
-    *at = '\0';
-    domain = at + 1;
-
-    /* Check to see if domain is off the local host */
-    if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
-	free( user );
-        return( ADDRESS_FINAL );
     }
 
     /* At this point, we should have a valid address destined for
@@ -271,15 +272,16 @@ address_expand( char *address, struct recipient *rcpt,
             /* check alias file */
 	    memset( &key, 0, sizeof( DBT ));
 	    memset( &value, 0, sizeof( DBT ));
-	    key.data = user;
-	    key.size = strlen( user ) + 1;
+	    *at = '\0';
+	    key.data = e_addr->e_addr;
+	    key.size = strlen( key.data ) + 1;
 
 	    if ( dbp == NULL ) {
 		if (( ret = db_open_r( &dbp, SIMTA_ALIAS_DB, NULL )) != 0 ) {
 		    syslog( LOG_ERR, "address_expand: db_open_r: %s",
 			    db_strerror( ret ));
 		    /* XXX return syserror, or try next expansion? */
-		    free( user );
+		    *at = '@';
 		    return( ADDRESS_SYSERROR );
 		}
 	    }
@@ -289,60 +291,20 @@ address_expand( char *address, struct recipient *rcpt,
 		if ( ret != DB_NOTFOUND ) {
 		    syslog( LOG_ERR, "address_expand: db_cursor_set: %s",
 			    db_strerror( ret ));
-		    free( user );
+		    *at = '@';
 		    return( ADDRESS_SYSERROR );
 		}
 
 		/* not in alias db, try next expansion */
+		*at = '@';
 		continue;
 	    }
 
-	    /* until the db says we have no more entries, we:
-	     *     - verify that the given address is syntactically correct
-	     *     - check to see if the given address is in the seen list
-	     *     - add it to the expansion list, if correct and not seen
-	     *     - get the next address from the db
-	     */
-
 	    for ( ; ; ) {
-		if (( tmp = strdup((char*)value.data )) == NULL ) {
-		    syslog( LOG_ERR, "address_expand: strdup: %m" );
-		    free( user );
-		    return( ADDRESS_SYSERROR );
-		}
-
-		switch ( is_emailaddr( &tmp )) {
-		case 1:
-		    /* address correct, check if it's already been seen */
-		    if ( ll_lookup( *seen, tmp ) == NULL ) {
-			/* Add address from alias file to expansion list */
-			if ( add_address( expansion, tmp, rcpt ) != 0 ) {
-			    /* add_address syslogs syserrors */
-			    free( tmp );
-			    free( user );
-			    return( ADDRESS_SYSERROR );
-			}
-		    }
-		    free( tmp );
-		    break;
-
-		case 0:
-		    /* address is not syntactically correct, or correctable */
-		    if ( rcpt_error( rcpt, address, " alias db bad address: ",
-			    tmp ) != 0 ) {
-			/* rcpt_error syslogs syserrors */
-			free( tmp );
-			free( user );
-			return( ADDRESS_SYSERROR );
-		    }
-
-		    free( tmp );
-		    continue;
-
-		default:
-		    syslog( LOG_ERR, "address_expand is_emailaddr 2: %m" );
-		    free( tmp );
-		    free( user );
+		if ( add_address( exp, (char*)value.data,
+			e_addr->e_addr_rcpt,  ADDRESS_TYPE_EMAIL ) != 0 ) {
+		    /* add_address syslogs errors */
+		    *at = '@';
 		    return( ADDRESS_SYSERROR );
 		}
 
@@ -352,12 +314,12 @@ address_expand( char *address, struct recipient *rcpt,
 		    if ( ret != DB_NOTFOUND ) {
 			syslog( LOG_ERR, "address_expand: db_cursor_next: %s",
 				db_strerror( ret ));
-			free( user );
+			*at = '@';
 			return( ADDRESS_SYSERROR );
 
 		    } else {
 			/* one or more addresses found in alias db */
-			free( user );
+			*at = '@';
 			return( ADDRESS_EXCLUDE );
 		    }
 		}
@@ -365,7 +327,11 @@ address_expand( char *address, struct recipient *rcpt,
 
         } else if ( strcmp( i->st_key, "password" ) == 0 ) {
             /* Check password file */
-	    if (( passwd = getpwnam( user )) == NULL ) {
+	    *at = '\0';
+	    passwd = getpwnam( e_addr->e_addr );
+	    *at = '@';
+
+	    if ( passwd == NULL ) {
 		/* not in passwd file, try next expansion */
 		continue;
 	    }
@@ -377,7 +343,6 @@ address_expand( char *address, struct recipient *rcpt,
 		/* a .forward file exists */
 		if (( f = fopen( fname, "r" )) == NULL ) {
 		    syslog( LOG_ERR, "address_expand fopen: %s: %m", fname );
-		    free( user );
 		    return( ADDRESS_SYSERROR );
 		}
 
@@ -386,7 +351,6 @@ address_expand( char *address, struct recipient *rcpt,
 
 		    if (( buf[ len - 1 ] ) != '\n' ) {
 			/* XXX here we have a .forward line too long */
-			free( user );
 
 			if ( fclose( f ) != 0 ) {
 			    syslog( LOG_ERR, "address_expand fclose %s: %m",
@@ -394,7 +358,7 @@ address_expand( char *address, struct recipient *rcpt,
 			    return( ADDRESS_SYSERROR );
 			}
 
-			if ( rcpt_error( rcpt, address,
+			if ( rcpt_error( e_addr->e_addr_rcpt, e_addr->e_addr,
 				" .forward: line too long", NULL ) != 0 ) {
 			    /* rcpt_error syslogs syserrors */
 			    return( ADDRESS_SYSERROR );
@@ -406,9 +370,9 @@ address_expand( char *address, struct recipient *rcpt,
 
 		    buf[ len - 1 ] = '\0';
 
-		    if (( tmp = strdup( buf )) == NULL ) {
-			syslog( LOG_ERR, "address_expand: strdup: %m" );
-			free( user );
+		    if ( add_address( exp, buf,
+			    e_addr->e_addr_rcpt,  ADDRESS_TYPE_EMAIL ) != 0 ) {
+			/* add_address syslogs errors */
 
 			if ( fclose( f ) != 0 ) {
 			    syslog( LOG_ERR, "address_expand fclose %s: %m",
@@ -417,102 +381,39 @@ address_expand( char *address, struct recipient *rcpt,
 
 			return( ADDRESS_SYSERROR );
 		    }
-
-		    switch ( is_emailaddr( &tmp )) {
-		    case 1:
-			/* address correct, check if it's already been seen */
-			if ( ll_lookup( *seen, tmp ) == NULL ) {
-			    /* Add .forward address to expansion list */
-			    if ( add_address( expansion, tmp, rcpt ) != 0 ) {
-				/* add_address syslogs syserrors */
-				free( tmp );
-				free( user );
-
-				if ( fclose( f ) != 0 ) {
-				    syslog( LOG_ERR,
-					    "address_expand fclose %s: %m",
-					    fname );
-				}
-
-				return( ADDRESS_SYSERROR );
-			    }
-			}
-			free( tmp );
-			break;
-
-		    case 0:
-			/* address is not correct, or correctable */
-			free( tmp );
-
-			if ( rcpt_error( rcpt, address,
-				" .forward bad address: ", tmp ) != 0 ) {
-			    /* rcpt_error syslogs syserrors */
-			    free( user );
-
-			    if ( fclose( f ) != 0 ) {
-				syslog( LOG_ERR,
-					"address_expand fclose %s: %m", fname );
-			    }
-
-			    return( ADDRESS_SYSERROR );
-			}
-
-			continue;
-
-		    default:
-			syslog( LOG_ERR, "address_expand is_emailaddr 3: %m" );
-			free( tmp );
-			free( user );
-
-			if ( fclose( f ) != 0 ) {
-			    syslog( LOG_ERR, "address_expand fclose %s: %m",
-				    fname );
-			}
-
-			return( ADDRESS_SYSERROR );
-		    }
-		}
-
-		free( user );
-
-		if ( fclose( f ) != 0 ) {
-		    syslog( LOG_ERR, "address_expand fclose %s: %m", fname );
-		    return( ADDRESS_SYSERROR );
 		}
 
 		return( ADDRESS_EXCLUDE );
 
 	    } else {
 		/* No .forward, it's a local address */
-		free( user );
 		return( ADDRESS_FINAL );
 	    }
 	}
 
 #ifdef HAVE_LDAP
         else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
-	    at = '@';
-
-	    switch ( ldap_expand( user, rcpt, expansion, seen )) {
+ldap_exclusive:
+	    switch ( ldap_expand( exp, e_addr )) {
 
 	    case LDAP_EXCLUDE:
-		free( user );
 		return( ADDRESS_EXCLUDE );
 
 	    case LDAP_FINAL:
 		/* XXX if its in the db, can it be terminal? */
-		free( user );
 		return( ADDRESS_FINAL );
 
 	    case LDAP_NOT_FOUND:
-		at = '\0';
+		if ( host == NULL ) {
+		    /* data is exclusively for ldap */
+		    break;
+		}
 		continue;
 
 	    default:
 		syslog( LOG_ERR, "address_expand default ldap switch" );
 	    case LDAP_SYSERROR:
 		/* XXX make sure a syslog LOG_ERR occurs up the chain */
-		free( user );
 		return( ADDRESS_SYSERROR );
 	    }
 	}
@@ -520,9 +421,8 @@ address_expand( char *address, struct recipient *rcpt,
 
     }
 
-    free( user );
-
-    if ( rcpt_error( rcpt, "address not found: ", address, NULL ) != 0 ) {
+    if ( rcpt_error( e_addr->e_addr_rcpt, "address not found: ",
+	    e_addr->e_addr, NULL ) != 0 ) {
 	/* rcpt_error syslogs syserrors */
 	return( ADDRESS_SYSERROR );
     }

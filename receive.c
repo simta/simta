@@ -35,21 +35,18 @@ extern SSL_CTX	*ctx;
 #include "ll.h"
 #include "simta.h"
 #include "envelope.h"
-#include "address.h"
+#include "expand.h"
 #include "receive.h"
 #include "denser.h"
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
-#include "expand.h"
 #include "mx.h"
 #include "simta.h"
 #include "line_file.h"
 #include "header.h"
 
 extern char		*version;
-struct stab_entry	*expansion = NULL;
-struct stab_entry	*seen = NULL;
 struct host_q		*hq_receive = NULL;
 
 struct command {

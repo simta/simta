@@ -44,7 +44,6 @@
 #include "bounce.h"
 #include "expand.h"
 #include "ll.h"
-#include "address.h"
 #include "simta.h"
 
 int				simta_expand_debug = 0;
@@ -58,26 +57,30 @@ int				simta_expand_debug = 0;
     int
 expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
+    struct expand		exp;
+    struct recipient		*r;
+    struct stab_entry		*i;
+    struct exp_addr		*e_addr;
     char			*domain;
     SNET			*snet;
     struct message		*m;
     struct host_q		*hq;
     struct stab_entry		*host_stab = NULL;
-    struct stab_entry		*expansion = NULL;
-    struct stab_entry		*seen = NULL;
-    struct stab_entry		*i;
-    struct expn			*expn;
-    struct recipient		*r;
     struct envelope		*env;
     struct timeval              tv;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
     char			d_fast[ MAXPATHLEN ];
 
+    memset( &exp, 0, sizeof( struct expand ));
+    exp.exp_env = unexpanded_env;
+    simta_rcpt_errors = 0;
+
     /* add all of the addresses in the rcpt list into the expansion list */
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( add_address( &expansion, r->r_rcpt, r ) != 0 ) {
+	if ( add_address( &exp, r->r_rcpt, r, ADDRESS_TYPE_EMAIL ) != 0 ) {
 	    /* add_address syslogs errors */
+	    /* XXX free */
 	    return( 1 );
 	}
     }
@@ -94,13 +97,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
      * of the addresses in expanded envelope(s).
      */ 
 
-    simta_rcpt_errors = 0;
+    for ( i = exp.exp_addr_list; i != NULL; i = i->st_next ) {
+	e_addr = (struct exp_addr*)i->st_data;
 
-    for ( i = expansion; i != NULL; i = i->st_next ) {
-	expn = (struct expn*)i->st_data;
-
-	switch ( address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
-		&seen )) {
+	switch ( address_expand( &exp, e_addr )) {
 
 	case ADDRESS_EXCLUDE:
 	    /* the address is not a terminal local address */
@@ -126,11 +126,13 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    unexpanded_env->e_id );
 
     /* Create one expanded envelope for every host we expanded address for */
-    for ( i = expansion; i != NULL; i = i->st_next ) {
+    for ( i = exp.exp_addr_list; i != NULL; i = i->st_next ) {
 	if ( i->st_data == NULL ) {
 	    /* not a terminal expansion, do not add */
 	    continue;
 	}
+
+	/* XXX Check to see that we only write out TYPE_EMAIL addresses? */
 
 	/* If envelope is marked for punt, create one host entry
 	 * for punt machine.  Otherwise, create host queue entry.
@@ -311,7 +313,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
     /* XXX free host_stab */
     /* XXX free expansion */
-    /* XXX free seen */
 
     return( 0 );
 }

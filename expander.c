@@ -37,7 +37,6 @@
 #include "line_file.h"
 #include "ml.h"
 #include "smtp.h"
-#include "address.h"
 #include "expand.h"
 #include "simta.h"
 

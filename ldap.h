@@ -18,8 +18,7 @@ struct list {
 #define LDAP_NOT_FOUND		2
 #define LDAP_FINAL		3
 #define LDAP_EXCLUDE		4
-int	ldap_expand ___P(( char *, struct recipient *, struct stab_entry **,
-		struct stab_entry ** ));
+int	ldap_expand ___P(( struct expand *, struct exp_addr * ));
 
 /* return codes for ldap_address_local */
 #define LDAP_LOCAL		2
