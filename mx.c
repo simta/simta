@@ -40,16 +40,21 @@ get_mx( DNSR *dnsr, char *host )
     }
 
     /* Check for vaild result */
+    if ( simta_debug ) fprintf( stderr, "mx on %s?", host );
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+	if ( simta_debug ) fprintf( stderr, "...no\n" );
+
 	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
 		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 
 	    /* No MX - Check for A of address */
+	    if ( simta_debug ) fprintf( stderr, "a on %s?", host );
 	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
 		syslog( LOG_ERR, "dnsr_query %s failed", host );
 		goto error;
 	    }
 	    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+		if ( simta_debug ) fprintf( stderr, "...no\n" );
 		if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
 			|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 		    goto error;
@@ -57,30 +62,39 @@ get_mx( DNSR *dnsr, char *host )
 		    syslog( LOG_ERR, "dnsr_query %s failed", host );
 		    goto error;
 		}
+	    } else {
+		if ( simta_debug ) fprintf( stderr, "...yes\n" );
 	    }
 	} else {
+	    if ( simta_debug ) dnsr_perror( dnsr, "mx" );
 	    syslog( LOG_ERR, "dnsr_query %s failed", host );
 	    goto error;
 	}
 
     } else {
-	if ( simta_debug ) fprintf( stderr, "found MX\n" );
+	if ( simta_debug ) fprintf( stderr, "...yes\n" );
 
         /* Check for valid A record in MX */
         /* XXX - Should we search for A if no A returned in MX? */
+
+	if ( simta_debug ) fprintf( stderr, "Valid a record?" );
         for ( i = 0; i < result->r_ancount; i++ ) {
             if ( result->r_answer[ i ].rr_ip != NULL ) {
+		if ( simta_debug ) fprintf( stderr, "...yes\n" );
                 break;
             }
         }
         if ( i > result->r_ancount ) {
+	    if ( simta_debug ) fprintf( stderr, "...no\n" );
 
 	    /* No valid MX - Check for A of address */
 	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
 		syslog( LOG_ERR, "dnsr_query %s failed", host );
 		goto error;
 	    }
+	    if ( simta_debug ) fprintf( stderr, "requeset a record\n" );
 	    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+		if ( simta_debug ) fprintf( stderr, "...no\n" );
 		if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
 			|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 		    goto error;
@@ -88,11 +102,14 @@ get_mx( DNSR *dnsr, char *host )
 		    syslog( LOG_ERR, "dnsr_query %s failed", host );
 		    goto error;
 		}
+	    } else {
+		if ( simta_debug ) fprintf( stderr, "...yes\n" );
 	    }
+
         }
     }
 
-    return( 0 );
+    return( result );
 
 error:
     free( result );
