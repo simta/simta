@@ -305,20 +305,9 @@ header_file_out( struct line_file *lf, FILE *file )
     int
 header_timestamp( struct envelope *env, FILE *file )
 {
-    struct sockaddr_in		sin;
     time_t			clock;
     struct tm			*tm;
     char			daytime[ 30 ];
-
-    if ( env->e_sin != NULL ) {
-	memcpy( &sin, env->e_sin, sizeof( struct sockaddr_in )); 
-
-    } else {
-	/* XXX local IP addr? */
-	memset( &sin, 0, sizeof( struct sockaddr_in ));
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = INADDR_ANY;
-    }
 
     if ( time( &clock ) < 0 ) {
 	return( -1 );
@@ -333,9 +322,8 @@ header_timestamp( struct envelope *env, FILE *file )
     }
 
     /* Received header */
-    if ( fprintf( file, "Received: FROM %s ([%s])\n\tBY %s ID %s ;\n\t%s %s\n",
-	    env->e_mail, inet_ntoa( sin.sin_addr ), simta_hostname,
-	    env->e_id, daytime, tz( tm )) < 0 ) {
+    if ( fprintf( file, "Received: FROM %s\n\tBY %s ID %s ;\n\t%s %s\n",
+	    env->e_mail, simta_hostname, env->e_id, daytime, tz( tm )) < 0 ) {
 	return( -1 );
     }
 
@@ -588,8 +576,9 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    prepend_len = len;
 	}
 
-	sprintf( prepend_line, "%s: %s",
-		simta_headers[ HEAD_MESSAGE_ID ].h_key, env->e_id );
+	sprintf( prepend_line, "%s: <%s@%s>",
+		simta_headers[ HEAD_MESSAGE_ID ].h_key, env->e_id,
+		simta_hostname );
 
 	if (( simta_headers[ HEAD_MESSAGE_ID ].h_line =
 		line_prepend( lf, prepend_line )) == NULL ) {
