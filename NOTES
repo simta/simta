@@ -128,3 +128,8 @@ Exiting cname:
 
 Truncated record ( MX ):
     simtatest5.rsug.itd.umich.edu
+
+Bad records:
+	test1.rsug.itd.umich.edu	valid glue records
+	test2.rsug.itd.umich.edu	invalid glue records
+	test3.rsug.itd.umich.edu	
