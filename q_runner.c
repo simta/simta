@@ -98,6 +98,17 @@ bounce( struct envelope *env, SNET *message )
 	return( -1 );
     }
 
+    if (( env->e_mail != NULL ) && ( *env->e_mail != '\0' )) {
+	if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
+	    return( -1 );
+	}
+
+    } else {
+	if ( env_recipient( bounce_env, SIMTA_POSTMASTER ) != 0 ) {
+	    return( -1 );
+	}
+    }
+
     sprintf( dfile_fname, "%s/D%s", FAST_DIR, bounce_env->e_id );
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
@@ -110,19 +121,6 @@ bounce( struct envelope *env, SNET *message )
 	syslog( LOG_ERR, "fdopen %s: %m", dfile_fname );
 	close( dfile_fd );
 	goto cleanup;
-    }
-
-    if (( env->e_mail != NULL ) && ( *env->e_mail != '\0' )) {
-	if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
-	    fclose( dfile );
-	    goto cleanup;
-	}
-
-    } else {
-	if ( env_recipient( bounce_env, SIMTA_POSTMASTER ) != 0 ) {
-	    fclose( dfile );
-	    goto cleanup;
-	}
     }
 
     fprintf( dfile, "Headers\n" );

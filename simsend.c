@@ -24,12 +24,16 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <pwd.h>
+#include <fcntl.h>
 
 #include <snet.h>
 
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"
+
+/* XXX need for FAST_DIR.  really need a simta.h */
+#include "queue.h"
 
 #define	TEST_DIR	"local"
 
@@ -53,6 +57,9 @@ main( int argc, char *argv[] )
     int			ignore_dot = 0;
     int			x;
     int			header;
+    int			dfile_fd;
+    char		dfile_fname[ MAXPATHLEN ];
+    FILE		*dfile = NULL;
 
     /* ignore a good many options */
     opterr = 0;
@@ -129,6 +136,11 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
+    if ( env_gettimeofday_id( env ) != 0 ) {
+	perror( "env_gettimeofday_id" );
+	exit( 1 );
+    }
+
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {
 	if ( env_recipient( env, argv[ x ] ) != 0 ) {
@@ -173,8 +185,30 @@ main( int argc, char *argv[] )
 		}
 
 		/* open Dfile */
+		sprintf( dfile_fname, "%s/D%s", FAST_DIR, env->e_id );
+
+		if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
+			O_EXCL, 0600 ))
+			< 0 ) {
+		    fprintf( stderr, "open %s: ", dfile_fname );
+		    perror( NULL );
+		    return( -1 );
+		}
+
+		if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
+		    perror( "fdopen" );
+		    goto cleanup;
+		}
+
 		/* print headers to Dfile */
+		if ( header_file_out( lf, dfile ) != 0 ) {
+		    perror( "header_file_out" );
+		    fclose( dfile );
+		    goto cleanup;
+		}
+
 		/* print line to Dfile */
+		fprintf( dfile, "%s\n", line );
 		header = 0;
 
 	    } else {
@@ -186,12 +220,20 @@ main( int argc, char *argv[] )
 
 	} else {
 	    /* print line to Dfile */
+	    fprintf( dfile, "%s\n", line );
 	}
     }
 
     if ( snet_close( snet_stdin ) != 0 ) {
 	perror( "snet_close" );
-	exit( 1 );
+
+	if ( dfile == NULL ) {
+	    exit( 1 );
+
+	} else {
+	    fclose( dfile );
+	    goto cleanup;
+	}
     }
 
     if ( header == 1 ) {
@@ -206,12 +248,45 @@ main( int argc, char *argv[] )
 	}
 
 	/* open Dfile */
+	sprintf( dfile_fname, "%s/D%s", FAST_DIR, env->e_id );
+
+	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
+		O_EXCL, 0600 ))
+		< 0 ) {
+	    fprintf( stderr, "open %s: ", dfile_fname );
+	    perror( NULL );
+	    return( -1 );
+	}
+
+	if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
+	    perror( "fdopen" );
+	    goto cleanup;
+	}
+
 	/* print headers to Dfile */
+	if ( header_file_out( lf, dfile ) != 0 ) {
+	    perror( "header_file_out" );
+	    fclose( dfile );
+	    goto cleanup;
+	}
     }
 
     /* close Dfile */
+    if ( fclose( dfile ) != 0 ) {
+	perror( "fclose" );
+	goto cleanup;
+    }
 
     /* store Efile */
+    if ( env_outfile( env, FAST_DIR ) != 0 ) {
+	perror( "env_outfile" );
+	goto cleanup;
+    }
 
     return( 0 );
+
+cleanup:
+    unlink( dfile_fname );
+
+    return( -1 );
 }
