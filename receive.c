@@ -40,6 +40,7 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
+#include "red.h"
 #include "bdb.h"
 #include "denser.h"
 #include "queue.h"
@@ -96,7 +97,7 @@ struct command {
 
 static int	mail_filter( int, char ** );
 static int	rfc_2821_trimaddr( int, char *, char **, char ** );
-static int	local_address( char *addr, char *domain, struct host *host );
+static int	local_address( char *, char *, struct simta_red *);
 static int	hello( struct envelope *, char * );
 static int	f_helo( SNET *, struct envelope *, int, char *[] );
 static int	f_ehlo( SNET *, struct envelope *, int, char *[] );
@@ -477,9 +478,9 @@ f_rcpt_usage( SNET *snet )
     static int
 f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 {
-    int			rc;
-    char		*addr, *domain;
-    struct host		*host;
+    int				rc;
+    char			*addr, *domain;
+    struct simta_red		*red;
 
     /* Must already have "MAIL FROM:", and no valid message */
     if (( env->e_mail == NULL ) ||
@@ -613,7 +614,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	}
 
-	if (( host = host_local( domain )) == NULL ) {
+	if (( red = host_local( domain )) == NULL ) {
 	    if ( simta_global_relay == 0 ) {
 		syslog( LOG_INFO,
 		    "Receive %s: To <%s> Rejected: Domain not local "
@@ -652,7 +653,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	     * response SHOULD be returned.
 	     */
 
-	    switch( local_address( addr, domain, host )) {
+	    switch( local_address( addr, domain, red )) {
 	    case NOT_LOCAL:
 		syslog( LOG_INFO,
 		    "Receive %s: To <%s> Rejected: User not local: "
@@ -1627,12 +1628,13 @@ closeconnection:
 
 
     static int
-local_address( char *addr, char *domain, struct host *host )
+local_address( char *addr, char *domain, struct simta_red *red )
 {
+    int			n_required_found = 0;
     int			rc;
     char		*at;
     struct passwd	*passwd;
-    struct expansion	*expansion_list;
+    struct action	*action;
     DBT			value;
 
     if (( at = strchr( addr, '@' )) == NULL ) {
@@ -1642,14 +1644,13 @@ local_address( char *addr, char *domain, struct host *host )
     /* If host is configured to be a high pref mx ( done by hand ),
      * do not check for local address.
      */
-    if ( host->h_type == HOST_MX ) {
+    if ( red->red_host_type == RED_HOST_TYPE_SECONDARY_MX ) {
 	return( MX_ADDRESS );
     }
 
     /* Search for user using expansion table */
-    for ( expansion_list = host->h_expansion; expansion_list != NULL;
-	    expansion_list = expansion_list->e_next ) {
-	switch ( expansion_list->e_type ) {
+    for ( action = red->red_receive; action != NULL; action = action->a_next ) {
+	switch ( action->a_action ) {
 	case EXPANSION_TYPE_ALIAS:
 	    /* check alias file */
 	    if ( simta_dbp == NULL ) {
@@ -1666,7 +1667,13 @@ local_address( char *addr, char *domain, struct host *host )
 	    *at = '@';
 
 	    if ( rc == 0 ) {
-		return( LOCAL_ADDRESS );
+		if ( action->a_flags == ACTION_SUFFICIENT ) {
+		    return( LOCAL_ADDRESS );
+		} else {
+		    n_required_found++;
+		}
+	    } else if ( action->a_flags == ACTION_REQUIRED ) {
+		return( NOT_LOCAL );
 	    }
 	    break;
 
@@ -1677,7 +1684,13 @@ local_address( char *addr, char *domain, struct host *host )
 	    *at = '@';
 
 	    if ( passwd != NULL ) {
-		return( LOCAL_ADDRESS );
+		if ( action->a_flags == ACTION_SUFFICIENT ) {
+		    return( LOCAL_ADDRESS );
+		} else {
+		    n_required_found++;
+		}
+	    } else if ( action->a_flags == ACTION_REQUIRED ) {
+		return( NOT_LOCAL );
 	    }
 	    break;
 
@@ -1696,10 +1709,18 @@ local_address( char *addr, char *domain, struct host *host )
 		return( LOCAL_ERROR );
 
 	    case LDAP_NOT_LOCAL:
+		if ( action->a_flags == ACTION_REQUIRED ) {
+		    return( NOT_LOCAL );
+		}
 		continue;
 
 	    case LDAP_LOCAL:
-		return( LOCAL_ADDRESS );
+		if ( action->a_flags == ACTION_SUFFICIENT ) {
+		    return( LOCAL_ADDRESS );
+		} else {
+		    n_required_found++;
+		}
+		break;
 
 	    case LDAP_LOCAL_RBL:
 		return( LOCAL_ADDRESS_RBL );
@@ -1711,6 +1732,10 @@ local_address( char *addr, char *domain, struct host *host )
 	    /* unknown lookup */
 	    panic( "local_address: expansion type out of range" );
 	}
+    }
+
+    if ( n_required_found != 0 ) {
+	return( LOCAL_ADDRESS );
     }
 
     return( NOT_LOCAL );

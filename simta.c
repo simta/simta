@@ -31,6 +31,7 @@
 #include <strings.h>
 #include <syslog.h>
 
+#include "red.h"
 #include "denser.h"
 #include "ll.h"
 #include "queue.h"
@@ -57,10 +58,11 @@
 int			(*simta_local_mailer)(int, char *, struct recipient *);
 struct host_q		*simta_null_q = NULL;
 struct host_q		*simta_punt_q = NULL;
-struct stab_entry	*simta_hosts = NULL;
-struct host		*simta_default_host = NULL;
-struct host		*simta_low_pref_mx_domain = NULL;
+struct simta_red	*simta_default_host = NULL;
+struct simta_red	*simta_red_hosts = NULL;
+struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_use_alias_db = 0;
 int			simta_umich_imap_letters = 0;
 int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
@@ -141,17 +143,19 @@ simta_sender( void )
     int
 simta_read_config( char *fname )
 {
+    int			red_code;
     int			lineno = 0;
     int			fd;
     int			ac;
     extern int		simta_debug;
     char		*endptr;
     char		*line;
+    char		*c;
     ACAV		*acav;
     char		**av;
     SNET		*snet;
     char		*domain;
-    struct host		*host;
+    struct simta_red	*red;
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
@@ -193,75 +197,151 @@ simta_read_config( char *fname )
 	    goto error;
 	}
 
+	/* @hostname RED OPTION */
 	if ( *av[ 0 ] == '@' ) {
-	    if ( strlen( av[ 0 ] + 1 ) > DNSR_MAX_HOSTNAME ) {
-		printf( "len: %d\n", strlen( av[ 0 ] + 1 ));
+	    domain = av[ 0 ] + 1;
+	    if ( strlen( domain ) > DNSR_MAX_HOSTNAME ) {
+		printf( "len: %d\n", strlen( domain ));
 		fprintf( stderr, "%s: line %d: domain name too long\n",
 		    fname, lineno );
 		goto error;
 	    }
 	    /* XXX - need to lower-case domain */
-	    if (( domain = strdup( av[ 0 ] + 1 )) == NULL ) {
-		perror( "strdup" );
+
+	    /* RED code parse */
+	    red_code = 0;
+	    for ( c = av[ 1 ]; *c != '\0'; c++ ) {
+		switch ( *c ) {
+		case 'R':
+		    if ( red_code & RED_CODE_r ) {
+			fprintf( stderr, "%s: line %d: R and r illegal\n",
+			    fname, lineno );
+			goto error;
+		    }
+		    red_code |= RED_CODE_R;
+		    break;
+
+		case 'r':
+		    if ( red_code & RED_CODE_R ) {
+			fprintf( stderr, "%s: line %d: R and r illegal\n",
+			    fname, lineno );
+			goto error;
+		    }
+		    red_code |= RED_CODE_r;
+		    break;
+
+		case 'E':
+		    red_code |= RED_CODE_E;
+		    break;
+
+		default:
+		    fprintf( stderr, "%s: line %d: bad RED arg: %s\n",
+			fname, lineno, av[ 1 ]);
+		    goto error;
+		}
+	    }
+
+	    if (( red = simta_red_add_host( domain,
+		    RED_HOST_TYPE_LOCAL )) == NULL ) {
+		perror( "malloc" );
 		goto error;
 	    }
-	    if (( host = add_host( domain, HOST_LOCAL )) == NULL ) {
-		goto error;
-	    }
 
-	    if ( strcasecmp( av[ 1 ], "BOUNCE" ) == 0 ) {
-		if ( ac != 2 ) {
+	    if ( strcasecmp( av[ 2 ], "ALIAS" ) == 0 ) {
+		if ( ac != 3 ) {
 		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		    goto error;
 		}
-		if ( simta_debug ) printf( "%s -> BOUNCE\n", domain );
 
-	    } else if ( strcasecmp( av[ 1 ], "REFUSE" ) == 0 ) {
-		if ( ac != 2 ) {
+		if ( red_code & RED_CODE_r ) {
+		    if ( simta_red_add_action( red, RED_CODE_r,
+			    EXPANSION_TYPE_ALIAS ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		} else if ( red_code & RED_CODE_R ) {
+		    if ( simta_red_add_action( red, RED_CODE_R,
+			    EXPANSION_TYPE_ALIAS ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		}
+
+		if ( red_code & RED_CODE_E ) {
+		    if ( simta_red_add_action( red, RED_CODE_E,
+			    EXPANSION_TYPE_ALIAS ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		}
+
+	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
+		if ( ac != 3 ) {
 		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		    goto error;
 		}
-		if ( simta_debug ) printf( "%s -> REFUSE\n", domain );
 
-	    } else if ( strcasecmp( av[ 1 ], "ALIAS" ) == 0 ) {
-		if ( ac != 2 ) {
-		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		    goto error;
+		if ( red_code & RED_CODE_r ) {
+		    if ( simta_red_add_action( red, RED_CODE_r,
+			    EXPANSION_TYPE_PASSWORD ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		} else if ( red_code & RED_CODE_R ) {
+		    if ( simta_red_add_action( red, RED_CODE_R,
+			    EXPANSION_TYPE_PASSWORD ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
 		}
-		if ( simta_debug ) printf( "%s -> ALIAS\n", domain );
 
-	    } else if ( strcasecmp( av[ 1 ], "PASSWORD" ) == 0 ) {
-		if ( ac != 2 ) {
-		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		    goto error;
+		if ( red_code & RED_CODE_E ) {
+		    if ( simta_red_add_action( red, RED_CODE_E,
+			    EXPANSION_TYPE_PASSWORD ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
 		}
-		if ( simta_debug ) printf( "%s -> PASSWORD\n", domain );
 
 #ifdef HAVE_LDAP
-	    } else if ( strcasecmp( av[ 1 ], "LDAP" ) == 0 ) {
-		if ( ac != 3 ) {
+	    } else if ( strcasecmp( av[ 2 ], "LDAP" ) == 0 ) {
+		if ( ac != 4 ) {
 		    fprintf( stderr, "%s: line %d: expected 2 argument\n",
 			fname, lineno );
 		    goto error;
 		}
-		if ( simta_ldap_config( av[ 2 ] ) != 0 ) {
+		if ( simta_ldap_config( av[ 3 ] ) != 0 ) {
 		    goto error;
 		}
 
-		if ( add_expansion( host, EXPANSION_TYPE_LDAP ) != 0 ) {
-		    perror( "add_expansion" );
-		    goto error;
+		if ( red_code & RED_CODE_r ) {
+		    if ( simta_red_add_action( red, RED_CODE_r,
+			    EXPANSION_TYPE_LDAP ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		} else if ( red_code & RED_CODE_R ) {
+		    if ( simta_red_add_action( red, RED_CODE_R,
+			    EXPANSION_TYPE_LDAP ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
 		}
 
-		if ( simta_debug ) printf( "%s -> LDAP\n", domain );
+		if ( red_code & RED_CODE_E ) {
+		    if ( simta_red_add_action( red, RED_CODE_E,
+			    EXPANSION_TYPE_LDAP ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		}
 #endif /* HAVE_LDAP */
+
 	    } else {
 		fprintf( stderr, "%s: line %d: unknown keyword: %s\n",
-		    fname, lineno, av[ 1 ] );
+		    fname, lineno, av[ 2 ] );
 		goto error;
 	    }
 
@@ -540,8 +620,8 @@ simta_read_config( char *fname )
 	    simta_max_failed_rcpts++;
 
 	} else if ( strcasecmp( av[ 0 ], "LOW_PREF_MX" ) == 0 ) {
-	   if ( simta_low_pref_mx_domain != NULL ) {
-	       fprintf( stderr, "%s: line %d: duplicate low_pref_mx\n",
+	   if ( simta_secondary_mx != NULL ) {
+	       fprintf( stderr, "%s: line %d: duplicate secondary_mx\n",
 		   fname, lineno );
 	       goto error;
 	   }
@@ -550,22 +630,20 @@ simta_read_config( char *fname )
 		   fname, lineno );
 	       goto error;
 	   }
-	   /* Do not allow local host to be low_pref_mx */
+	   /* Do not allow local host to be secondary_mx */
 	   if ( strcasecmp( simta_hostname, av[ 1 ] ) == 0 ) {
 	       fprintf( stderr, "%s: line %d: invalid host",
 		   fname, lineno );
 	       goto error;
 	   }
-	   if (( simta_low_pref_mx_domain =
-		   malloc( sizeof( struct host ))) == NULL ) {
+
+	   if (( red = simta_red_add_host( av[ 1 ],
+		    RED_HOST_TYPE_SECONDARY_MX)) == NULL ) {
 	       perror( "malloc" );
 	       goto error;
 	   }
-	   memset( simta_low_pref_mx_domain, 0, sizeof( struct host ));
-	   simta_low_pref_mx_domain->h_type = HOST_MX;
-	   strcpy( simta_low_pref_mx_domain->h_name, av[ 1 ] );
 	   if ( simta_debug ) printf( "LOW_PREF_MX: %s\n",
-	       simta_low_pref_mx_domain->h_name );
+		   simta_secondary_mx->red_host_name );
 
 	} else {
 	    fprintf( stderr, "%s: line %d: unknown keyword: %s\n",
@@ -591,7 +669,7 @@ error:
     int
 simta_config( char *base_dir )
 {
-    struct host		*host = NULL;
+    struct simta_red	*red = NULL;
     char		path[ MAXPATHLEN + 1 ];
 
     if ( simta_punt_host != NULL ) {
@@ -625,16 +703,15 @@ simta_config( char *base_dir )
 
     simta_max_bounce_lines = SIMTA_BOUNCE_LINES;
 
-    if (( host = add_host( simta_hostname, HOST_LOCAL )) == NULL ) {
+    if (( red = simta_red_add_host( simta_hostname,
+	    RED_HOST_TYPE_LOCAL )) == NULL ) {
 	return( -1 );
     }
-    simta_default_host = host;
+    simta_default_host = red;
 
-    /* Add list of expansions */
+    /* Add list of default expansions to default host */
     if ( access( SIMTA_ALIAS_DB, R_OK ) == 0 ) {
-	if ( add_expansion( host, EXPANSION_TYPE_ALIAS ) != 0 ) {
-	    return( -1 );
-	}
+	simta_use_alias_db = 1;
     } else {
 	if ( simta_verbose != 0 ) {
 	    fprintf( stderr, "simta_config access %s: ", SIMTA_ALIAS_DB );
@@ -644,7 +721,8 @@ simta_config( char *base_dir )
 		SIMTA_ALIAS_DB );
     }
 
-    if ( add_expansion( host, EXPANSION_TYPE_PASSWORD ) != 0 ) {
+    if ( simta_red_action_default( red ) != 0 ) {
+	perror( "malloc" );
 	return( -1 );
     }
 

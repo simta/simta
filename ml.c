@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <sysexits.h>
 #include <netdb.h>
+#include <string.h>
 
 #include <snet.h>
 
@@ -119,7 +120,7 @@ procmail( int f, char *sender, struct recipient *recipient )
 
 	procmail_argv[ 2 ] = sender;
 
-	if (( at = index( recipient->r_rcpt, '@' )) != NULL ) {
+	if (( at = strchr( recipient->r_rcpt, '@' )) != NULL ) {
 	    *at = '\0';
 	    procmail_argv[ 4 ] = recipient->r_rcpt;
 	} else {
@@ -265,7 +266,7 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	maillocal_argv[ 2 ] = sender;
 	maillocal_argv[ 4 ] = recipient->r_rcpt;
 
-	if (( at = index( recipient->r_rcpt, '@' )) != NULL ) {
+	if (( at = strchr( recipient->r_rcpt, '@' )) != NULL ) {
 	    *at = '\0';
 	    maillocal_argv[ 4 ] = recipient->r_rcpt;
 	} else {

@@ -29,6 +29,7 @@
 
 #include <snet.h>
 
+#include "red.h"
 #include "wildcard.h"
 #include "denser.h"
 #include "ll.h"
@@ -584,7 +585,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     SNET                        *snet_dfile = NULL;
     SNET			*snet_lock;
     char                        dfile_fname[ MAXPATHLEN ];
-    struct host			*host;
+    struct simta_red		*red;
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env_deliver;
@@ -598,8 +599,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
      * remote host if we have not done so already.
      */
     if ( deliver_q->hq_status == HOST_UNKNOWN ) {
-	host = host_local( deliver_q->hq_hostname );
-	if (( host == NULL ) || ( host->h_type == HOST_MX )) {
+	if ((( red = host_local( deliver_q->hq_hostname )) == NULL ) ||
+		( red->red_host_type = RED_HOST_TYPE_SECONDARY_MX )) {
 	    deliver_q->hq_status = HOST_MX;
 	} else if (( simta_dnsr != NULL ) &&
 		( simta_dnsr->d_errno == DNSR_ERROR_TIMEOUT )) {
@@ -1121,8 +1122,9 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 			    DNSR_TYPE_MX ) {
 			if (( strcasecmp( simta_hostname,
 		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 )
-				|| (( simta_low_pref_mx_domain != NULL ) &&
-				( strcasecmp( simta_low_pref_mx_domain->h_name,
+				|| (( simta_secondary_mx != NULL ) &&
+				( strcasecmp(
+				simta_secondary_mx->red_host_name,
 		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ))) {
 			    hq->hq_no_punt = 1;
 			    d->d_mx_preference_cutoff =

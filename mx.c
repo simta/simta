@@ -25,6 +25,7 @@ extern SSL_CTX  *ctx;
 
 #include <snet.h>
 
+#include "red.h"
 #include "ll.h"
 #include "denser.h"
 #include "queue.h"
@@ -75,6 +76,7 @@ get_mx( char *hostname )
 {
     int                 i;
     struct dnsr_result	*result = NULL;
+    struct simta_red	*red;
 
     if ( simta_dnsr == NULL ) {
         if (( simta_dnsr = dnsr_new( )) == NULL ) {
@@ -107,10 +109,18 @@ get_mx( char *hostname )
 	    case DNSR_TYPE_CNAME:
 		if ( strcasecmp( simta_hostname,
 			result->r_answer[ i ].rr_cname.cn_name ) == 0 ) {
-		    if ( add_host( result->r_answer[ i ].rr_name,
-			    HOST_LOCAL ) != 0 ) {
-			dnsr_free_result( result );
-			return( NULL );
+		    if (( red = simta_red_lookup_host(
+			    result->r_answer[ i ].rr_cname.cn_name ))
+			    == NULL ) {
+			if (( red = simta_red_add_host(
+				result->r_answer[ i ].rr_name,
+				RED_HOST_TYPE_LOCAL )) == NULL ) {
+			    dnsr_free_result( result );
+			    return( NULL );
+			}
+			if ( simta_red_action_default( red ) != 0 ) {
+			    return( -1 );
+			}
 		    }
 		}
 		break;
@@ -120,10 +130,18 @@ get_mx( char *hostname )
 			result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
 			&& ( result->r_answer[ i ].rr_mx.mx_preference <=
 			result->r_answer[ 0 ].rr_mx.mx_preference )) {
-		    if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
-			    HOST_LOCAL ) != 0 ) {
-			dnsr_free_result( result );
-			return( NULL );
+		    if (( red = simta_red_lookup_host(
+			    result->r_answer[ i ].rr_mx.mx_exchange ))
+			    == NULL ) {
+			if (( red = simta_red_add_host(
+				result->r_answer[ i ].rr_mx.mx_exchange,
+				RED_HOST_TYPE_LOCAL )) == NULL ) {
+			    dnsr_free_result( result );
+			    return( NULL );
+			}
+			if ( simta_red_action_default( red ) != 0 ) {
+			    return( -1 );
+			}
 		    }
 		}
 		break;
@@ -140,16 +158,18 @@ get_mx( char *hostname )
     return( result );
 }
 
-    struct host *
+
+    struct simta_red *
 host_local( char *hostname )
 {
-    int			i, cname_offset = 0;
-    struct host		*host;
+    int			i;
+    int			cname_offset = 0;
+    struct simta_red	*red;
     struct dnsr_result	*result;
 
     /* Check for hostname in host table */
-    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	return( host );
+    if (( red = simta_red_lookup_host( hostname )) != NULL ) {
+	return( red );
     }
 
     if (( result = get_mx( hostname )) == NULL ) {
@@ -163,13 +183,13 @@ host_local( char *hostname )
     }
 
     /* Check to see if host has been added to host table */
-    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
+    if (( red = simta_red_lookup_host( hostname )) != NULL ) {
 	dnsr_free_result( result );
-	return( host );
+	return( red );
     }
 
-    /* Check for low_pref_mx */
-    if ( simta_low_pref_mx_domain != NULL ) {
+    /* Check for secondary */
+    if ( simta_secondary_mx != NULL ) {
 	for ( i = 0; i < result->r_ancount; i++ ) {
 	    switch( result->r_answer[ i ].rr_type ) {
 	    case DNSR_TYPE_CNAME:
@@ -177,13 +197,13 @@ host_local( char *hostname )
 		break;
 
 	    case DNSR_TYPE_MX:
-		if (( strcasecmp( simta_low_pref_mx_domain->h_name,
+		if (( strcasecmp( simta_secondary_mx->red_host_name,
 			result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
 			&& ( result->r_answer[ i ].rr_mx.mx_preference >
 			result->r_answer[
 			cname_offset ].rr_mx.mx_preference )) {
 		    dnsr_free_result( result );
-		    return( simta_low_pref_mx_domain );
+		    return( simta_secondary_mx );
 		}
 		break;
 
@@ -316,69 +336,6 @@ check_hostname( char *hostname )
     return( 1 );
 }
 
-    struct host *
-add_host( char *hostname, int type )
-{
-    struct host		*host;
-
-    /* Look for hostname in host table */
-    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	syslog( LOG_DEBUG, "add_host: %s already added", hostname );
-	return( host );
-    }
-
-    if ( strlen( hostname ) > DNSR_MAX_HOSTNAME ) {
-	syslog( LOG_DEBUG, "add_host: %s: hostname too long", hostname );
-	return( NULL );
-    }
-
-    if (( host = malloc( sizeof( struct host ))) == NULL ) {
-	syslog( LOG_ERR, "add_host: malloc: %m" );
-	return( NULL );
-    }
-    memset( host, 0, sizeof( struct host ));
-
-    host->h_type = type;
-    strcpy( host->h_name, hostname );
-
-    /* Add host to host list */
-    if ( ll_insert( &simta_hosts, hostname, host, NULL ) != 0 ) {
-	syslog( LOG_ERR, "add_host: ll_insert failed" );
-	goto error;
-    }
-
-    syslog( LOG_DEBUG, "add_host: added %s", host->h_name );
-    return( host );
-
-error:
-    free( host );
-    return( NULL );
-}
-
-    int
-add_expansion( struct host *host, int type )
-{
-    struct expansion	*expansion;
-    struct expansion	*p;
-
-    if (( expansion = malloc( sizeof( struct expansion ))) == NULL ) {
-	syslog( LOG_ERR, "add_expansion: malloc: %m" );
-	return( -1 );
-    }
-    memset( expansion, 0, sizeof( struct expansion ));
-
-    expansion->e_type = type;
-
-    if ( host->h_expansion == NULL ) {
-	host->h_expansion = expansion;
-    } else {
-	for ( p = host->h_expansion; p->e_next != NULL; p = p->e_next );
-	p->e_next = expansion;
-    }
-
-    syslog( LOG_DEBUG, "add_expansion: %s: added %d", host->h_name, type );
-    return( 0 );
-}
 
 /* The simplest way to get started using the ORDB to protect your mail relay
  * against theft of service by spammers, is to arrange for it to make a DNS

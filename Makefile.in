@@ -23,26 +23,26 @@ SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
 SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o \
 		queue.c ml.o smtp.o expand.o mx.o bounce.o \
-		q_cleanup.o tls.o wildcard.o
+		q_cleanup.o tls.o wildcard.o red.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o header.o \
 		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
-		smtp.c ml.o mx.o wildcard.o
+		smtp.c ml.o mx.o wildcard.o red.o
 SIMLOGOBJ=	simlog.o
 EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
 SIMRBLOBJ=	@EXPANDER_OBJ@ simrbl.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
 SIMREVERSEOBJ=	@EXPANDER_OBJ@ simreverse.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
 QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o ml.o \
-		smtp.o simta.o mx.o wildcard.o
+		smtp.o simta.o mx.o wildcard.o red.o
 SIMALIASOBJ=	simalias.o argcargv.o bdb.o
 SLAOBJ=		sla.o
 

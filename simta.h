@@ -32,6 +32,7 @@
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
+extern int				simta_use_alias_db;
 extern int				simta_umich_imap_letters;
 extern int				simta_filesystem_cleanup;
 extern int				sitma_smtp_extension;
@@ -72,9 +73,6 @@ extern char				*simta_user_rbl_url;
 extern char				*simta_queue_filter;
 extern struct host_q			*simta_null_q;
 extern struct host_q			*simta_punt_q;
-extern struct stab_entry		*simta_hosts;
-extern struct host			*simta_default_host;
-extern struct host                      *simta_low_pref_mx_domain;
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern int				(*simta_local_mailer)(int, char *,

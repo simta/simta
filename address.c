@@ -22,6 +22,7 @@
 
 #include <db.h>
 
+#include "red.h"
 #include "mx.h"
 #include "denser.h"
 #include "line_file.h"
@@ -286,8 +287,8 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
     int
 address_expand( struct expand *exp, struct exp_addr *e_addr )
 {
-    struct host		*host = NULL;
-    struct expansion	*expansion_list;
+    struct simta_red		*red = NULL;
+    struct action		*action;
 
     switch ( e_addr->e_addr_type ) {
     case ADDRESS_TYPE_EMAIL:
@@ -300,7 +301,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 			e_addr->e_addr );
 		return( ADDRESS_SYSERROR );
 	    } else {
-		host = simta_default_host;
+		red = simta_default_host;
 	    }
 	} else {
 	    if ( strlen( e_addr->e_addr_at + 1 ) > MAXHOSTNAMELEN ) {
@@ -310,10 +311,11 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 	    }
 
 	    /* Check to see if domain is off the local host */
-	    if ((( host = host_local( e_addr->e_addr_at + 1 )) == NULL ) 
-		    || ( host->h_type == HOST_MX )) {
+	    if ((( red = host_local( e_addr->e_addr_at + 1 )) == NULL ) 
+		    || ( red->red_host_type == RED_HOST_TYPE_SECONDARY_MX ) ||
+		    ( red->red_expand == NULL )) {
 		syslog( LOG_DEBUG,
-			"address_expand <%s> FINAL: domain not local",
+			"address_expand <%s> FINAL: expansion complete",
 			e_addr->e_addr );
 		return( ADDRESS_FINAL );
 	    }
@@ -335,9 +337,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
      */
 
     /* Expand user using expansion table for domain */
-    for ( expansion_list = host->h_expansion; expansion_list != NULL;
-	    expansion_list = expansion_list->e_next ) {
-	switch ( expansion_list->e_type) {
+    for ( action = red->red_expand; action != NULL; action = action->a_next ) {
+	switch ( action->a_action ) {
 	/* Other types might include files, pipes, etc */
 	case EXPANSION_TYPE_ALIAS:
 	    switch ( alias_expand( exp, e_addr )) {
@@ -403,7 +404,7 @@ ldap_exclusive:
 	    case LDAP_NOT_FOUND:
 		syslog( LOG_DEBUG, "address_expand <%s>: not in ldap db",
 			e_addr->e_addr );
-		if ( host == NULL ) {
+		if ( red == NULL ) {
 		    /* data is exclusively for ldap, and it didn't find it */
 		    goto not_found;
 		}

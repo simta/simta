@@ -37,22 +37,6 @@ struct deliver {
     int				d_cur_dnsr_result_ip;
 };
 
-struct host_list {
-    char			*h_name;
-    struct stab_entry		*h_addresses;
-};
-
-struct host {
-    int         		h_type;		/* Type of host */
-    char			h_name[ DNSR_MAX_HOSTNAME + 1 ];
-    struct expansion		*h_expansion;	/* Ordered list of expansion */
-};
-
-struct expansion {
-    int				e_type;
-    struct expansion		*e_next;
-};
-
 struct host_q {
     struct host_q		*hq_next;
     struct host_q		*hq_deliver;
