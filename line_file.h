@@ -24,9 +24,7 @@ struct line_file {
 #define ___P(x)         ()
 #endif /* __STDC__ */
 
-/* public */
-struct line_file *line_file_create ___P(( void ));
-void	line_file_free ___P(( struct line_file * ));
-struct line *line_append ___P(( struct line_file *, char * ));
-struct line *line_prepend ___P(( struct line_file *, char * ));
-void	line_free ___P(( struct line * ));
+struct line_file	*line_file_create ___P(( void ));
+void			line_file_free ___P(( struct line_file * ));
+struct line		*line_append ___P(( struct line_file *, char * ));
+struct line		*line_prepend ___P(( struct line_file *, char * ));

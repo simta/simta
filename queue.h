@@ -15,11 +15,9 @@
 /* states for host_q->hq_status */
 #define HOST_NULL	0
 #define HOST_LOCAL	1
-#define HOST_REMOTE	2
+#define HOST_MX		2
 #define HOST_BOUNCE	3
 #define HOST_DOWN	4
-
-#define HOST_MX		5
 
 struct host_list {
     char			*h_name;
@@ -46,7 +44,6 @@ struct message {
     struct message		*m_next;
     char			*m_id;
     char			*m_dir;
-    int				m_mail_loop;
     struct timespec		m_etime;
 };
 

@@ -30,21 +30,17 @@ line_file_create( void )
 
 
     void
-line_free( struct line *line )
-{
-    if ( line != NULL ) {
-	line_free( line->line_next );
-	free( line->line_data );
-	free( line );
-    }
-}
-
-
-    void
 line_file_free( struct line_file *lf )
 {
+    struct line		*l;
+
     if ( lf != NULL ) {
-	line_free( lf->l_first );
+	while (( l = lf->l_first ) != NULL ) {
+	    lf->l_first = l->line_next;
+	    free( l->line_data );
+	    free( l );
+	}
+
 	free( lf );
     }
 }

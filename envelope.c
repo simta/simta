@@ -121,6 +121,8 @@ env_free( struct envelope *env )
 	free( env->e_mail );
     }
 
+    line_file_free( env->e_err_text );
+
     free( env );
 }
 
@@ -140,8 +142,11 @@ env_reset( struct envelope *env )
 
     /* XXX reset env->e_hostname? */
 
+    line_file_free( env->e_err_text );
+
     env_rcpt_free( env );
 
+    env->e_err_text = NULL;
     env->e_rcpt = NULL;
     *env->e_id = '\0';
     env->e_flags = 0;

@@ -185,7 +185,7 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 	    hq->hq_status = HOST_NULL;
 
 	} else {
-	    hq->hq_status = HOST_REMOTE;
+	    hq->hq_status = HOST_MX;
 	}
     }
 
@@ -210,9 +210,11 @@ q_runner( struct host_q **host_q )
 	deliver_q = NULL;
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
-	    if ((( hq->hq_status == HOST_LOCAL ) ||
-		    ( hq->hq_status == HOST_REMOTE )) &&
-		    ( hq->hq_entries > 0 )) {
+	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
+		hq->hq_deliver = NULL;
+
+	    } else if (( hq->hq_status == HOST_LOCAL ) ||
+		    ( hq->hq_status == HOST_MX )) {
 		/* hq is expanded and has at least one message */
 		dq = &deliver_q;
 
@@ -226,19 +228,19 @@ q_runner( struct host_q **host_q )
 		hq->hq_deliver = *dq;
 		*dq = hq;
 
-	    } else {
+	    } else if (( hq->hq_status == HOST_DOWN ) ||
+		    ( hq->hq_status == HOST_BOUNCE )) {
 		hq->hq_deliver = NULL;
 
-		if (( hq->hq_status == HOST_BOUNCE ) ||
-			( hq->hq_status == HOST_DOWN )) {
-		    if ( q_deliver( deliver_q ) != 0 ) {
-			return( -1 );
-		    }
+		if ( q_deliver( hq ) != 0 ) {
+		    return( -1 );
 		}
+
+	    } else {
+		syslog( LOG_ERR, "q_runner: host_type out of range" );
 	    }
 	}
 
-	/* DELIVER DELIVER_Q */
 	/* deliver all mail in every expanded queue */
 	while ( deliver_q != NULL ) {
 	    if ( q_deliver( deliver_q ) != 0 ) {
@@ -411,8 +413,8 @@ q_deliver( struct host_q *hq )
             }
         }
 
-    } else if ( hq->hq_status == HOST_REMOTE ) {
-        /* HOST_REMOTE sent is used to count how many messages have been
+    } else if ( hq->hq_status == HOST_MX ) {
+        /* HOST_MX sent is used to count how many messages have been
          * sent to a SMTP host.
          */
         sent = 0;
@@ -536,7 +538,7 @@ q_deliver( struct host_q *hq )
                 sent++;
             }
 
-        } else if ( hq->hq_status == HOST_REMOTE ) {
+        } else if ( hq->hq_status == HOST_MX ) {
             if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
                 syslog( LOG_ERR, "q_deliver snet_attach: %m" );
                 return( -1 );
