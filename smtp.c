@@ -23,6 +23,7 @@
 
 #include <snet.h>
 
+#include <assert.h>
 #include <inttypes.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -355,15 +356,15 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
     hq->hq_status = HOST_DOWN;
 
     /* MAIL FROM: */
-    if ( *(d->d_env->e_mail) == '\0' ) {
-	if ( snet_writef( snet, "MAIL FROM: <>\r\n" ) < 0 ) {
+    if ( d->d_env->e_mail == NULL ) {
+	if ( snet_writef( snet, "MAIL FROM:<>\r\n" ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 		    hq->hq_hostname );
 	    return( SMTP_BAD_CONNECTION );
 	}
 
     } else {
-	if ( snet_writef( snet, "MAIL FROM: <%s>\r\n",
+	if ( snet_writef( snet, "MAIL FROM:<%s>\r\n",
 		d->d_env->e_mail ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 		    hq->hq_hostname );
@@ -398,7 +399,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 
     switch ( *line ) {
     case '2':
-	if ( *(d->d_env->e_mail) == '\0' ) {
+	if ( d->d_env->e_mail == NULL ) {
 	    syslog( LOG_INFO, "smtp_send %s %s MAIL FROM <> OK", d->d_env->e_id,
 		    hq->hq_hostname );
 	} else {
@@ -437,7 +438,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 
     /* RCPT TOs: */
     for ( r = d->d_env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( snet_writef( snet, "RCPT TO: <%s>\r\n", r->r_rcpt ) < 0 ) {
+	if ( snet_writef( snet, "RCPT TO:<%s>\r\n", r->r_rcpt ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 		    hq->hq_hostname );
 	    return( SMTP_BAD_CONNECTION );
@@ -473,7 +474,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 	 */
 
 	if ( *line == '2' ) {
-	    syslog( LOG_INFO, "smtp_send %s %s RCPT TO <%s> OK: %s",
+	    syslog( LOG_INFO, "smtp_send %s %s RCPT TO:<%s> OK: %s",
 		    d->d_env->e_id, hq->hq_hostname, r->r_rcpt, line );
 	    r->r_delivered = R_DELIVERED;
 	    d->d_success++;
@@ -488,7 +489,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 	    }
 
 	} else {
-	    syslog( LOG_NOTICE, "smtp_send %s %s bad RCPT TO <%s> banner: %s",
+	    syslog( LOG_NOTICE, "smtp_send %s %s bad RCPT TO:<%s> banner: %s",
 		    d->d_env->e_id, hq->hq_hostname, r->r_rcpt, line );
 	    if (( strncmp( line, "552", (size_t)3 ) == 0 ) ||
 		    ( *line == '4' )) {

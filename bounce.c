@@ -187,8 +187,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 
     /* dfile message headers */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
-    if (( bounce_env->e_mail == NULL ) || ( *bounce_env->e_mail == '\0' )) {
-	/* XXX ERROR */
+    if ( bounce_env->e_mail == NULL ) {
 	fprintf( dfile, "To: %s\n", simta_postmaster );
     } else {
 	fprintf( dfile, "To: %s\n", bounce_env->e_mail );
@@ -268,7 +267,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     bounce_env->e_dir = simta_dir_fast;
 
-    if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' ) ||
+    if (( env->e_mail == NULL ) || 
 	    ( strcasecmp( env->e_mail, simta_postmaster ) == 0 )) {
         if ( env_recipient( bounce_env, simta_postmaster ) != 0 ) {
             goto cleanup1;
@@ -329,7 +328,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     }
 
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
-    if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
+    if ( env->e_mail == NULL ) {
 	fprintf( dfile, "To: %s\n", simta_postmaster );
     } else {
 	fprintf( dfile, "To: %s\n", env->e_mail );

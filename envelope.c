@@ -192,7 +192,7 @@ env_sender( struct envelope *env, char *e_mail )
 	return( 1 );
     }
 
-    if ( e_mail != NULL ) {
+    if (( e_mail != NULL ) && ( *e_mail != '\0' )) {
 	if (( env->e_mail = strdup( e_mail )) == NULL ) {
 	    syslog( LOG_ERR, "env_sender strdup: %m" );
 	    return( 1 );
