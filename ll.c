@@ -74,6 +74,34 @@ ll_insert( struct stab_entry **stab, char *key, void *data,
     return( 0 );
 }
 
+    /*****     ll_insert_tail     *****/
+    /* This function inserts a given node to the tail of a given stab table */
+
+    int
+ll_insert_tail( struct stab_entry **stab, char *key, void *data )
+{
+    struct stab_entry	*st;
+    struct stab_entry	**i;
+
+    if (( st = (struct stab_entry*)malloc( sizeof( struct stab_entry )))
+	    == NULL ) {
+	return( 1 );
+    }
+    memset( st, 0, sizeof( struct stab_entry ));
+
+    st->st_key = key;
+    st->st_data = data;
+
+    /* Move to tail of table */
+    for ( i = stab; (*i)->st_next != NULL; i = &((*i)->st_next) ) {
+    }
+
+    (*i)->st_next = st;
+    st->st_next = NULL; 
+
+    return( 0 );
+}
+
 
     /*****     ll_remove     *****/
     /* This function removes a given node from a stab table */

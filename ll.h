@@ -23,7 +23,8 @@ void	*ll_lookup ___P(( struct stab_entry*, char * ));
 int	ll_default_compare ___P(( char *, char * ));
 int	ll_insert ___P(( struct stab_entry **, char *, void *,
 		int(*)( char *, char * )));
-void	*ll_remove ___P(( struct stab_entry **, char * ));
+int 	ll_insert_tail ___P(( struct stab_entry **stab, char *key, void *data );
+void	*ll_remove ___P(( struct stab_entry **, char * )));
 void	ll_walk ___P(( struct stab_entry *, void (*)( void *)));
 
 int	ll__insert ___P(( struct stab_entry **, void *,
