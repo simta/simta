@@ -20,7 +20,6 @@
 
 char	*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 
-
     char*
 simta_gethostname( void )
 {

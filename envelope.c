@@ -82,7 +82,6 @@ env_create( char *id )
     return( env );
 }
 
-
     void
 rcpt_free( struct recipient *r )
 {
@@ -307,6 +306,7 @@ env_outfile( struct envelope *e, char *dir )
 
     e->e_etime.tv_sec = sb.st_mtime;
 
+    /* sync? */
     if ( fclose( tff ) != 0 ) {
 	syslog( LOG_ERR, "fclose: %m" );
 	goto cleanup;
