@@ -686,7 +686,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     /* RCPT TOs: */
 
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
+	if ( snet_writef( snet, "RCPT TO: <%s>\r\n", r->r_rcpt ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 		    hq->hq_hostname );
 
@@ -699,7 +699,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	}
 
 #ifdef DEBUG
-    printf( "--> RCPT TO: %s\n", r->r_rcpt );
+    printf( "--> RCPT TO: <%s>\n", r->r_rcpt );
 #endif /* DEBUG */
 
 	/* read reply banner */
