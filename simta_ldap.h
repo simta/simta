@@ -10,19 +10,11 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
-/* this library is a linked list implamentation of a symbol table */
-
 struct list {
     char		*l_string;
     struct list		*l_next;
 };
-struct ldap_search_list {
-    LDAPURLDesc                 *lds_plud;      /* url parsed description */
-    int                         lds_rdn_pref;   /* TRUE / FALSE */
-    int                         lds_search_type;/* one of USER, GROUP, ALL */
-    char                        *lds_string;	/* uri string */
-    struct ldap_search_list     *lds_next;	/* next uri */
-};
+
 /* lds search types */
 #define LDS_USER            0x01
 #define LDS_GROUP_ERRORS    0x02
