@@ -109,16 +109,12 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct stab_entry		*i = NULL;
     struct expn			*expn;
     struct recipient		*r;
-    struct recipient		*remove;
-    struct recipient		**r_sort;
     struct envelope		*env_p;
     int				failed_expansions = 0, rc = 0;
     int				expansions = 0;
     char			*domain = NULL;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
-    char			d_slow[ MAXPATHLEN ];
-    char			*unexpanded_dir = NULL;
     SNET			*snet = NULL;
 
     /* Create paths */
@@ -248,92 +244,39 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
-    /* Create bounces */
-    if (( snet = snet_open( d_original, O_RDWR, 0, 1024 * 1024 ))
-            == NULL ) {
-        syslog( LOG_ERR, "snet_open: %m" );
-        return( -1 );
-    }
-    if ( bounce( unexpanded_env, snet ) != 0 ) {
-	syslog( LOG_ERR, "bounce failed\n" );
-	return( -1 );
-    }
-    if ( snet_close( snet ) != 0 ) {
-	syslog( LOG_ERR, "snet_close: %m" );
-	return( -1 );
-    }
-
-    if ( failed_expansions == 0 ) {
-	/* all rcpts expanded */
-
-	/* truncate unexpanded Efile so no other q_runner gets it */
-	if ( unexpanded_env->e_dir != SIMTA_DIR_FAST ) {
-	    if ( truncate( e_original, (off_t)0 ) != 0 ) {
-		syslog( LOG_ERR, "truncate %s: %m", e_original );
-		return( -1 );
-	    }
-	}
-
-	/* unlink original unexpanded Efile */
-	if ( unlink( e_original ) != 0 ) {
-	    syslog( LOG_ERR, "unlink %s: %m", e_original );
-	}
-
-	/* unlink original unexpanded Dfile */
-	if ( unlink( d_original ) != 0 ) {
-	    syslog( LOG_ERR, "unlink %s: %m", d_original );
-	}
-
-    } else {
-	unexpanded_dir = unexpanded_env->e_dir;
-
-	if ( unexpanded_dir != SIMTA_DIR_SLOW ) {
-	    sprintf( d_slow, "%s/D%s", SIMTA_DIR_SLOW, unexpanded_env->e_id );
-	    if ( link( d_original, d_slow ) != 0 ) {
-		syslog( LOG_ERR, "link %s %s: %m", d_original, d_slow );
-	    }
-	}
-
-	if ( expansions > 0 ) {
-	    /* remove any recipients that don't need to be tried later */
-	    r_sort = &(unexpanded_env->e_rcpt);
-
-	    while ( *r_sort != NULL ) {
-		if ((*r_sort)->r_delivered != SIMTA_EXPANSION_FAILED ) {
-		    remove = *r_sort;
-		    *r_sort = (*r_sort)->r_next;
-		    rcpt_free( remove );
-		} else {
-		    r_sort = &((*r_sort)->r_next);
-		}
-	    }
-	}
-
-	/* write out env to SLOW */
-	if ( env_outfile( unexpanded_env, SIMTA_DIR_SLOW ) != 0 ) {
+    if ( failed_expansions ) {
+	/* Create bounces */
+	if (( snet = snet_open( d_original, O_RDWR, 0, 1024 * 1024 ))
+		== NULL ) {
+	    syslog( LOG_ERR, "snet_open: %m" );
 	    return( -1 );
 	}
-
-	if ( unexpanded_dir != SIMTA_DIR_SLOW ) {
-	    /* truncate & unlink original Efile */
-	    if ( unexpanded_env->e_dir != SIMTA_DIR_FAST ) {
-		if ( truncate( e_original, (off_t)0 ) != 0 ) {
-		    syslog( LOG_ERR, "truncate %s: %m", e_original );
-		    return( -1 );
-		}
-	    }
-
-	    /* unlink original unexpanded Efile */
-	    if ( unlink( e_original ) != 0 ) {
-		syslog( LOG_ERR, "unlink %s: %m", e_original );
-	    }
-
-	    /* unlink original Dfile */
-	    if ( unlink( d_original ) != 0 ) {
-		syslog( LOG_ERR, "unlink %s: %m", d_original );
-		return( -1 );
-	    }
+	if ( bounce( unexpanded_env, snet ) != 0 ) {
+	    syslog( LOG_ERR, "bounce failed\n" );
+	    return( -1 );
 	}
+	if ( snet_close( snet ) != 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+    }
+
+    /* truncate unexpanded Efile so no other q_runner gets it */
+    if ( unexpanded_env->e_dir != SIMTA_DIR_FAST ) {
+	if ( truncate( e_original, (off_t)0 ) != 0 ) {
+	    syslog( LOG_ERR, "truncate %s: %m", e_original );
+	    return( -1 );
+	}
+    }
+
+    /* unlink original unexpanded Efile */
+    if ( unlink( e_original ) != 0 ) {
+	syslog( LOG_ERR, "unlink %s: %m", e_original );
+    }
+
+    /* unlink original unexpanded Dfile */
+    if ( unlink( d_original ) != 0 ) {
+	syslog( LOG_ERR, "unlink %s: %m", d_original );
     }
 
 #ifdef DEBUG

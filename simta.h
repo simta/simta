@@ -38,7 +38,6 @@ extern struct host_q		*simta_null_q;
 extern struct stab_entry	*simta_hosts;
 char				*simta_postmaster;
 
-
 char	*simta_sender ___P(( void ));
 char	*simta_resolvconf ___P(( void ));
 int	simta_init_hosts ___P(( void ));
