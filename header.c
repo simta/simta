@@ -29,6 +29,7 @@
 #define	MAILBOX_FROM_VERIFY	1
 #define	MAILBOX_FROM_CORRECT	2
 #define	MAILBOX_SENDER		3
+#define	MAILBOX_TO_CORRECT	4
 
 
 struct line_token {
@@ -609,6 +610,8 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     /* RFC 2822:
      *
+     * address         =   mailbox / group
+     * group           =   display-name ":" [mailbox-list / CFWS] ";" [CFWS]
      * mailbox-list    =   (mailbox *("," mailbox))
      * mailbox         =   name-addr / addr-spec
      * name-addr       =   [display-name] angle-addr
@@ -781,23 +784,7 @@ parse_addr( struct line **start_line, char **start, int mode )
 	free( local.t_end_line->line_data );
 	local.t_end_line->line_data = buf;
 
-	next_c = domain.t_end + 1;
-	next_l = domain.t_end_line;
-
-	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "unbalanced )\n" );
-	    }
-	    return( 1 );
-	}
-
-    } else if ( *next_c != '@' ) {
-	fprintf( stderr, "'@' expected\n" );
-	return( 1 );
-
-    } else {
+    } else if ( *next_c == '@' ) {
 	next_c++;
 
 	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
@@ -826,9 +813,15 @@ parse_addr( struct line **start_line, char **start, int mode )
 	    }
 	}
 
-	next_c = domain.t_end + 1;
-	next_l = domain.t_end_line;
+    } else {
+	fprintf( stderr, "'@' expected\n" );
+	return( 1 );
+    }
 
+    next_c = domain.t_end + 1;
+    next_l = domain.t_end_line;
+
+    if ( **start == '<' ) {
 	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	    if ( result > 0 ) {
 		fprintf( stderr, "unbalanced \(\n" );
@@ -837,47 +830,13 @@ parse_addr( struct line **start_line, char **start, int mode )
 	    }
 	    return( 1 );
 	}
-    }
 
-    if ( **start == '<' ) {
 	if (( next_c == NULL ) || ( *next_c != '>' )) {
 	    fprintf( stderr, "> expected\n" );
 	    return( 1 );
 	}
 
 	next_c++;
-
-	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "unbalanced )\n" );
-	    }
-	    return( 1 );
-	}
-    }
-
-    if ( next_c != NULL ) {
-	if ( *next_c != ',' ) {
-	    fprintf( stderr, "illegal words after address\n" );
-	    return( 1 );
-	}
-
-	next_c++;
-
-	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "unbalanced )\n" );
-	    }
-	    return( 1 );
-	}
-
-	if ( next_c == NULL ) {
-	    fprintf( stderr, "address expected after ,\n" );
-	    return( 1 );
-	}
     }
 
     *start = next_c;
@@ -978,36 +937,12 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 	    if (( next_c == NULL ) || ( *next_c == ',' ) ||
 		    ( *next_c == '@' )) {
 
-		/* SINGLE_ADDR: email_addr ( NULL ) -> SINGLE_ADDR_DONE )
-		 * SINGLE_ADDR: email_addr [ ( , ) -> START ] )
-		 */
+		/* SINGLE_ADDR: email_addr ( NULL ) -> AA_LEFT ) */
 	
 		c = local.t_start;
 		l = local.t_start_line;
 
-		if (( result = parse_addr( &l, &c, mode )) != 0 ) {
-		    return( result );
-		}
-	
-		if ( c == NULL ) {
-		    /* SINGLE_ADDR_DONE */
-		    return( 0 );
-	
-		}
-
-		/* c != NULL means more than one address on the line */
-		if ( mode == MAILBOX_SENDER ) {
-		    fprintf( stderr, "Sender header is a single address\n" );
-		    return( 1 );
-
-		} else if ( mode == MAILBOX_FROM_CORRECT ) {
-		    simta_generate_sender = 1;
-		}
-
-		/* START */
-		continue;
-
-	    } else  {
+	    } else {
 		while ( *next_c != '<' ) {
 
 		    /*
@@ -1040,11 +975,11 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 			return( 1 );
 		    }
 		}
-	    }
 
-	    /* set c, l, fall through to AA_LEFT */
-	    c = next_c;
-	    l = next_l;
+		/* set c, l, fall through to AA_LEFT */
+		c = next_c;
+		l = next_l;
+	    }
 	}
 
 	/*
@@ -1056,9 +991,38 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 	    return( result );
 	}
 
+	if (( result = skip_cfws( &l, &c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "unbalanced )\n" );
+	    }
+	    return( 1 );
+	}
+
 	if ( c == NULL ) {
-	    /* AA_LEFT_DONE */
 	    return( 0 );
+	} 
+
+	if ( *c != ',' ) {
+	    fprintf( stderr, "illegal words after address\n" );
+	    return( 1 );
+	}
+
+	c++;
+
+	if (( result = skip_cfws( &l, &c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "unbalanced )\n" );
+	    }
+	    return( 1 );
+	}
+
+	if ( c == NULL ) {
+	    fprintf( stderr, "address expected after ,\n" );
+	    return( 1 );
 	}
 
 	/* c != NULL means more than one address on the line */
