@@ -189,7 +189,7 @@ simta_config( char *conf_fname, char *base_dir )
     }
 
     if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_PASSWORD,
-	    EXPANSION_TYPE_ALIAS ) != 0 ) {
+	    EXPANSION_TYPE_PASSWORD ) != 0 ) {
 	fprintf( stderr, "simta_config ll_insert_tail: " );
 	perror( NULL );
 	return( -1 );
