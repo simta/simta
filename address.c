@@ -112,6 +112,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 
     case ADDRESS_TYPE_EMAIL:
 	/* verify and correct address syntax */
+#ifdef notdef
 	switch ( is_emailaddr( address )) {
 	case 1:
 	    /* addr correct, check if we have seen it already */
@@ -130,6 +131,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	default:
 	    panic( "add_address addr_type out of range" );
 	}
+#endif /* notdef */
 	break;
 
 #ifdef HAVE_LDAP
