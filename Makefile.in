@@ -26,7 +26,6 @@ SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o tz.o header.o \
 		simta.o ll.o nlist.o address.o bdb.o bounce.o queue.o expand.o \
 		smtp.c ml.o mx.o
 SIMLOGOBJ=	simlog.o
-DIPOBJ=		dip.o mx.o ll.o
 EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \
 		envelope.o tz.o ml.o simta.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o nlist.o q_cleanup.o mx.o
@@ -82,9 +81,6 @@ install : all FRC
 	for i in ${MAN1TARGETS}; do \
 	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
 	done
-
-dip : denser/denser.o ${DIPOBJ}
-	${CC} ${CFLAGS} ${LDFLAGS} -o dip ${DIPOBJ} ${LIBPATH} ${LIBS}
 
 simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
@@ -174,7 +170,6 @@ clean :
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
 	rm -f ${TARGETS}
 	rm -f simlog
-	rm -f dip
 
 realclean : clean
 	rm -rf autom4te.cache
