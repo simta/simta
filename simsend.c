@@ -15,10 +15,14 @@
 #include <sysexits.h>
 #include <pwd.h>
 
-#include <net.h>
+
+#include <krb.h>
+
+#include <snet.h>
 #include "rfc822.h"
 #include "rcptlist.h"
 #include "simsend.h"
+#include "base64.h"
 
 char            *host = "smtp";
 
@@ -26,22 +30,21 @@ char            *host = "smtp";
 #define OPT_RCPTHEADERS		( 1 << 1 )
 #define OPT_VERBOSE		( 1 << 2 )
 
-
     int
 transmit_headers( net, d_head, options )
-    NET			*net;
+    SNET			*net;
     struct datalines	*d_head;
     int			options;
 {
     char 		*line;
 
-    if ( net_writef( net, "DATA\r\n" ) < 0 ) {
-	perror( "net_writef" );
+    if ( snet_writef( net, "DATA\r\n" ) < 0 ) {
+	perror( "snet_writef" );
 	exit( EX_IOERR );
     }
 
-    if (( line = net_getline( net, NULL )) == NULL ) {
-	perror( "net_getline" );
+    if (( line = snet_getline( net, NULL )) == NULL ) {
+	perror( "snet_getline" );
 	exit( EX_IOERR );
     }
     if ( options & OPT_VERBOSE ) printf("<<< %s\n", line );
@@ -51,8 +54,9 @@ transmit_headers( net, d_head, options )
     return( 0 );
 }
 
+void	(*logger)( char * );
 
-    NET	*
+    SNET	*
 smtp_connect( port, ourhostname, options )
     unsigned short	port;
     int			options;
@@ -64,7 +68,7 @@ smtp_connect( port, ourhostname, options )
     int 		i, s;
     struct hostent	*hp;
     struct servent	*se;
-    NET			*net;
+    SNET			*net;
     
     if ( port == 0 ) {
 	if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
@@ -100,56 +104,67 @@ smtp_connect( port, ourhostname, options )
             continue;
         }
 
-        if (( net = net_attach( s, 1024 * 1024 )) == NULL ) {
-            perror( "net_attach" );
+        if (( net = snet_attach( s, 1024 * 1024 )) == NULL ) {
+            perror( "snet_attach" );
             exit( EX_OSERR );
         }
 
-        if (( line = net_getline( net, NULL )) == NULL ) {
-            perror( "net_getline" );
+        if (( line = snet_getline_multi( net, logger, NULL )) == NULL ) {
+            perror( "snet_getline_multi" );
             exit( EX_IOERR );
         }
-	if ( options & OPT_VERBOSE )  printf( "<<< %s\n", line );
 
         if ( *line != '2' ) {
             fprintf( stderr, "%s\n", line );
-            close( s );
+	    snet_close( net );
             continue;
         } else {
             break;
         }
     }
-    if ( net_writef( net, "HELO %s\r\n", ourhostname ) < 0 ) {
-	perror( "net_writef" );
-	exit( EX_IOERR );
-    }
-    if ( options & OPT_VERBOSE )  printf( ">>> HELO %s\n", ourhostname);
 
-    if (( line = net_getline( net, NULL )) == NULL ) {
-	perror( "net_getline" );
+    if ( snet_writef( net, "EHLO %s\r\n", ourhostname ) < 0 ) {
+	perror( "snet_writef" );
 	exit( EX_IOERR );
     }
-    if ( options & OPT_VERBOSE )  printf( "<<< %s\n", line );
+    if ( options & OPT_VERBOSE )  printf( ">>> EHLO %s\n", ourhostname);
+
+    /*
+     * To do AUTH, we need to send EHLO and parse the extended response.
+     * We can check the banner for ESMTP, right?  If we are talking to
+     * an ESMTP server, and the server supports AUTH with a protocol we
+     * know, then we should AUTH.
+     */
+
+    if (( line = snet_getline_multi( net, logger , NULL)) == NULL ) {
+	perror( "snet_getline" );
+	exit( EX_IOERR );
+    }
+    if ( *line != '2' ) {
+	/* XXX if EHLO has failed, try HELO */
+	fprintf( stderr, "%s\n", line );
+	snet_close( net );
+	exit( 1 );
+    }
+
+    auth_krb4( net, ( options & OPT_VERBOSE ) != 0 );
 
     return( net );
 }
 
     int
-read_headers( d_head, d_tail, d_to, d_cc, rcpthead, sender, 
-						ourhostname, options )
+read_headers( d_head, rcpthead, sender, options )
     struct datalines	**d_head;
+    struct rcptlist	**rcpthead;
+    char		*sender;
+    int			options;
+{
     struct datalines    **d_tail;
     struct datalines	**d_to;
     struct datalines	**d_cc;
-    struct rcptlist	*rcpthead;
-    char		*sender;
-    char		*ourhostname;
-    int			options;
-{
-
     int 		dot, state;
     int 		keyheaders=0;
-    char 		buf[ 8182 ], *to_field;
+    char 		buf[ 8192 ], *to_field;
     struct rcptlist	*r;
     int			h_to = 0;
     int			h_cc = 0;
@@ -176,6 +191,11 @@ read_headers( d_head, d_tail, d_to, d_cc, rcpthead, sender,
     */
 
     dot = 0;
+    /*
+     * We're calling fgets() here, but we're not doing line too long checking.
+     * Either we should check for that case, or we should use snet_getline()
+     * to avoid the issue.  XXX
+     */
     while ( fgets( buf, sizeof( buf ), stdin ) != NULL ) {
         if ( ! ( options & OPT_IGNOREDOTS ) ) {
             if ( *buf == '.' ) {
@@ -217,7 +237,7 @@ read_headers( d_head, d_tail, d_to, d_cc, rcpthead, sender,
 
 	rcptlist_items = rcptlist_len = 0;
 
-        for ( r = rcpthead; r != NULL; r = r->r_next ) {
+        for ( r = *rcpthead; r != NULL; r = r->r_next ) {
 	    rcptlist_items++;
 	    rcptlist_len += strlen( r->r_rcpt );
 	}
@@ -230,8 +250,8 @@ read_headers( d_head, d_tail, d_to, d_cc, rcpthead, sender,
 	    return( -1 );
 	}
 
-	sprintf( to_field, "To: %s", rcpthead->r_rcpt );
-	for ( r = rcpthead->r_next; r!= NULL; r = r->r_next ) {
+	sprintf( to_field, "To: %s", (*rcpthead)->r_rcpt );
+	for ( r = (*rcpthead)->r_next; r!= NULL; r = r->r_next ) {
 	    strcat( to_field, ", " );
 	    strcat( to_field, r->r_rcpt );
 	}
@@ -257,7 +277,7 @@ read_headers( d_head, d_tail, d_to, d_cc, rcpthead, sender,
 
     int
 transmit_envelope( net, rcpthead, sender, options )
-    NET			*net;
+    SNET			*net;
     struct rcptlist	*rcpthead;
     char		*sender;
     int			options;
@@ -269,14 +289,14 @@ transmit_envelope( net, rcpthead, sender, options )
 
     /* do the MAIL FROM and RCPT TO transactions. */
 
-    if ( net_writef( net, "MAIL FROM: %s\r\n", sender ) < 0 ) {
-	perror( "net_writef" );
+    if ( snet_writef( net, "MAIL FROM:<%s>\r\n", sender ) < 0 ) {
+	perror( "snet_writef" );
 	exit( EX_IOERR );
     }
     if ( options & OPT_VERBOSE )  printf( ">>> MAIL FROM: %s\n", sender );
     
-    if (( line = net_getline( net, NULL )) == NULL ) {
-	perror( "net_getline" );
+    if (( line = snet_getline( net, NULL )) == NULL ) {
+	perror( "snet_getline" );
 	exit( EX_IOERR );
     }
     if ( options & OPT_VERBOSE )  printf( "<<< %s\n", line );
@@ -287,14 +307,14 @@ transmit_envelope( net, rcpthead, sender, options )
     }
 
     for ( r = rcpthead; r != NULL; r = r->r_next ) {
-	if ( net_writef( net, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
-	    perror( "net_writef" );
+	if ( snet_writef( net, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
+	    perror( "snet_writef" );
 	    exit( EX_IOERR );
 	}
-	if ( options & OPT_VERBOSE )  printf( ">>> RCPT TO: %s\n", r->r_rcpt );
+	if ( options & OPT_VERBOSE )  printf( ">>> RCPT TO:<%s>\n", r->r_rcpt );
 
-	if (( line = net_getline( net, NULL )) == NULL ) {
-	    perror( "net_getline" );
+	if (( line = snet_getline( net, NULL )) == NULL ) {
+	    perror( "snet_getline" );
 	    exit( EX_IOERR );
 	}
 	if ( options & OPT_VERBOSE )  printf( "<<< %s\n", line );
@@ -309,7 +329,7 @@ transmit_envelope( net, rcpthead, sender, options )
 
     int
 read_body( net, options )
-    NET		*net;
+    SNET		*net;
     int		options;
 {
 
@@ -321,6 +341,11 @@ read_body( net, options )
 
     state = ST_BEGIN;
 
+    /*
+     * Here we *do* check for line that are too long.  This code should match
+     * the read code in read_headers().  If that changes to snet_getline(),
+     * then this should, too.  XXX
+     */
     while ( fgets( buf, sizeof( buf ), stdin ) != NULL ) {
 	if ( ( state == ST_BEGIN ) && ( ! ( options & OPT_IGNOREDOTS ) ) ) {
 	    if ( *buf == '.' ) {
@@ -328,8 +353,8 @@ read_body( net, options )
 		    break;
 		} else {
 		    /* Hidden dot algorithm */
-		    if ( net_writef( net, "." ) < 0 ) {
-		       perror( "net_writef" );
+		    if ( snet_writef( net, "." ) < 0 ) {
+		       perror( "snet_writef" );
 		       exit( EX_IOERR );
 		    }
 		}
@@ -339,20 +364,20 @@ read_body( net, options )
 	if ( buf[ strlen( buf ) - 1 ] == '\n' ) {
 	    state = ST_BEGIN;
 	    buf[ strlen( buf ) - 1 ] = '\0';
-	    if ( net_writef( net, "%s\r\n", buf ) < 0 ) {
-	        perror( "net_writef" );
+	    if ( snet_writef( net, "%s\r\n", buf ) < 0 ) {
+	        perror( "snet_writef" );
 		exit( EX_IOERR );
 	    }
 	} else {
 	    state = ST_TRUNC;
-	    if ( net_writef( net, "%s", buf ) < 0 ) {
-	        perror( "net_writef" );
+	    if ( snet_writef( net, "%s", buf ) < 0 ) {
+	        perror( "snet_writef" );
 		exit( EX_IOERR );
 	    }
 	}
     }
-    if ( net_writef( net, "\r\n.\r\n" ) < 0 ) {
-	perror( "net_writef" );
+    if ( snet_writef( net, "\r\n.\r\n" ) < 0 ) {
+	perror( "snet_writef" );
 	exit( EX_IOERR );
     }
     if ( options & OPT_VERBOSE )  printf( ">>> .\n" );
@@ -360,6 +385,13 @@ read_body( net, options )
     return( 0 );
 }
 
+
+    void
+smtp_logger( char *msg )
+{
+    printf( "<<< %s\n", msg );
+    return;
+}
 
     int
 main( argc, argv )
@@ -374,13 +406,10 @@ main( argc, argv )
     char		ourhostname[ MAXHOSTNAMELEN ];
     char		*sender = NULL;
     struct datalines	*d_head = NULL;
-    struct datalines	*d_tail = NULL;
-    struct datalines	*d_to = NULL;
-    struct datalines	*d_cc = NULL;
     struct passwd	*pw;
     struct rcptlist	*rcpthead = NULL;
     struct rcptlist	*rcpttail = NULL;
-    NET			*net;
+    SNET			*net;
 
 
     while (( c = getopt( argc, argv, "f:h:ip:tVv" )) != -1 ) {
@@ -409,6 +438,7 @@ main( argc, argv )
             exit( EX_OK );
 	case 'v':
 	    options |= OPT_VERBOSE;
+	    logger = smtp_logger;
 	    break;
         default:
             err++;
@@ -416,48 +446,77 @@ main( argc, argv )
         }
     }
 
-    if ( err ) {
-        fprintf( stderr, "Usage: %s [ -V ] [ -p port ] user\n", argv[ 0 ] );
-        exit( EX_USAGE );
-    }
+    /*
+     * If we're given -t, is it legal to still have command line
+     * rcpts?  XXX
+     */
     if ( ( !(options & OPT_RCPTHEADERS ) ) && ( optind == argc ) ) {
-        fprintf( stderr, "Usage: %s [ -V ] [ -p port ] user\n", argv[ 0 ] );
+	err++;
+    }
+
+    if ( err ) {
+        fprintf( stderr, "Usage: %s [ -i ] [ -t ] [ -v ] [ -V ]\n", argv[ 0 ] );
+	fprintf( stderr, "\t[ -h host ] [ -p port ]\n" );
+	fprintf( stderr, "\t[ -f from-address ] to-address ...\n" );
         exit( EX_USAGE );
     }
 
+    /*
+     * Really, this should be a config file, so that we can configure
+     * a "masqurade" hostname.
+     */
     if ( gethostname( ourhostname, MAXHOSTNAMELEN ) < 0 ) {
 	/* Should I really exit here?? */
         perror( "gethostname" );
 	exit( EX_TEMPFAIL );
     }
 
+    /*
+     * Do this by UID, not by login name, since we can be called by, for
+     * instance, cron.  XXX Might try both.
+     */
     if (( pw = getpwuid( getuid() )) == NULL ) {
 	fprintf( stderr, "Who are you?\n" );
 	exit( EX_CONFIG );
     }
 
     if ( sender == NULL ) {
-	if ( ( sender = (char *)malloc( strlen( pw->pw_name ) + 
-				strlen( ourhostname ) + 1 + 1 )) == NULL ) {
+	if (( sender = (char *)malloc( strlen( pw->pw_name ) + 
+		strlen( ourhostname ) + 1 + 1 )) == NULL ) {
 	    perror( "malloc" );
 	    exit( EX_TEMPFAIL );
 	}
 	strcpy( sender, pw->pw_name );
     }
 
+    /*
+     * This is not right.  In the getopt code, we only allocate enough
+     * space for optarg, not for optarg@ourhostname.  XXX
+     */
     strcat( sender, "@" );
     strcat( sender, ourhostname );
 
     /* get rcpts from command line */
     for (; optind < argc; optind++ ) {
         if ( r_append( argv[ optind ], &rcpthead, &rcpttail ) < 0 ) {
-	    fprintf( stderr, "Fuck...\n");
+	    perror( "r_append" );
 	    exit( 1 );
 	}
     }
 
-    read_headers( &d_head, &d_tail, &d_to, &d_cc, rcpthead, sender, 
-						    ourhostname, options );
+    /*
+     * This routine does error checking and returns error to the caller,
+     * however, the return value is not checked.
+     *
+     * This code is supposed to be used as simsendmail *and* as subroutines
+     * for simta to send mail.  As such, it needs to have an error reporting
+     * scheme that matches both.  For most daemons (i.e. simta), that means
+     * that nothing gets printed to stderr, all errors are reported only to
+     * the caller.  For simsendmail, all errors are reported to the user on
+     * stderr.  Discuss.  XXX
+     */
+    read_headers( &d_head, &rcpthead, sender, options );
+
     if ( ( net = smtp_connect( port, ourhostname, options ) ) < 0 ) { 
         /* syslog */
 	exit( EX_TEMPFAIL );
