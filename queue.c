@@ -1104,7 +1104,12 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		return( 1 );
 	    }
 
-	    if ( d->d_dnsr_result->r_ancount != 0 ) {
+	    /* Check to make sure the MX entry doesn't have 0 entries, and
+	     * that it doesn't conatin a single CNAME entry only */
+	    if (( d->d_dnsr_result->r_ancount != 0 ) &&
+		    (( d->d_dnsr_result->r_ancount != 1 ) ||
+		    ( d->d_dnsr_result->r_answer[ 0 ].rr_type !=
+		    DNSR_TYPE_CNAME ))) {
 		/* check remote host's mx entry for our local hostname and
 		 * loew_pref_mx_domain if configured.
 		 * If we find one, we never punt mail destined for this host,
@@ -1112,16 +1117,19 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		 * lower mx_preference than for what was matched.
 		 */
 		for ( i = 0; i < d->d_dnsr_result->r_ancount; i++ ) {
-		    if (( strcasecmp( simta_hostname,
-	    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 )
-			    || (( simta_low_pref_mx_domain != NULL ) &&
-			    ( strcasecmp( simta_low_pref_mx_domain->h_name,
-	    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ))) {
-			hq->hq_no_punt = 1;
-			d->d_mx_preference_cutoff =
-				d->d_dnsr_result->r_answer[ i 
-				].rr_mx.mx_preference;
-			break;
+		    if ( d->d_dnsr_result->r_answer[ i ].rr_type ==
+			    DNSR_TYPE_MX ) {
+			if (( strcasecmp( simta_hostname,
+		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 )
+				|| (( simta_low_pref_mx_domain != NULL ) &&
+				( strcasecmp( simta_low_pref_mx_domain->h_name,
+		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ))) {
+			    hq->hq_no_punt = 1;
+			    d->d_mx_preference_cutoff =
+				    d->d_dnsr_result->r_answer[ i 
+				    ].rr_mx.mx_preference;
+			    break;
+			}
 		    }
 		}
 
