@@ -28,6 +28,7 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
+#include "address.h"
 #include "receive.h"
 #include "envelope.h"
 #include "auth.h"
@@ -420,7 +421,9 @@ f_rcpt( snet, env, ac, av )
 
     /* no config file, no DNS, use our hostname */
     if ( strcasecmp( domain, env->e_hostname ) != 0 ) {
-	snet_writef( snet, "%d User not local; please try <%s>\r\n", 551, addr );
+	/* XXX Is 551 correct?  550 is for policy */
+	snet_writef( snet, "%d User not local; please try <%s>\r\n",
+	    551, addr );
 	return( 1 );
     }
 
@@ -430,6 +433,24 @@ f_rcpt( snet, env, ac, av )
      * check the passwd and alias file.  Other configurations use "mailer"
      * specific checks.
      */
+
+    /* rfc 2821 section 3.7
+     * A relay SMTP server is usually the target of a DNS MX record that
+     * designates it, rather than the final delivery system.  The relay
+     * server may accept or reject the task of relaying the mail in the same
+     * way it accepts or rejects mail for a local user.  If it accepts the
+     * task, it then becomes an SMTP client, establishes a transmission
+     * channel to the next SMTP server specified in the DNS (according to
+     * the rules in section 5), and sends it the mail.  If it declines to
+     * relay mail to a particular address for policy reasons, a 550 response
+     * SHOULD be returned.
+     */
+
+    if ( address_local( addr ) != 0 ) {
+	snet_writef( snet, "%d Requested action not taken: User not found.\r\n",
+	    550 );
+	return( 1 );
+    }
 
     if (( r = (struct recipient *)malloc( sizeof(struct recipient))) == NULL ) {
 	syslog( LOG_ERR, "f_rcpt: malloc: %m" );
