@@ -28,6 +28,7 @@ struct envelope {
     char		*e_dir;
     char		*e_mail;
     struct recipient	*e_rcpt;
+    struct line_file	*e_err_text;
     char		e_id[ 30 ];
     int			e_flags;
     int			e_old_dfile;

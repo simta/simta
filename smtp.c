@@ -52,397 +52,6 @@ stdout_logger( char *line )
 }
 
 
-    /* return 0 if the begenning characters of line match code */
-    int
-smtp_eval( char *code, char *line )
-{
-    int			x;
-
-    for ( x = 0; *(code + x) != '\0'; x++ ) {
-	if ( *(code + x) != *(line + x) ) {
-	    return( 1 );
-	}
-    }
-
-    return( 0 );
-}
-
-
-    int
-smtp_quit( SNET *snet, char *hostname, void (*logger)(char *))
-{
-    char			*line;
-
-    /* say QUIT */
-    if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
-	if ( errno != EIO ) {
-	    syslog( LOG_ERR, "snet_writef: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	syslog( LOG_NOTICE, "smtp_quit %s: failed writef", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-#ifdef DEBUG
-    printf( "--> QUIT\n" );
-#endif /* DEBUG */
-
-    /* read reply banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_NOTICE, "smtp_quit %s: unexpected EOF", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-    if ( smtp_eval( SMTP_DISCONNECT, line ) != 0 ) {
-	syslog( LOG_NOTICE, "smtp_quit %s: bad banner: %s", hostname, line );
-    }
-
-    if ( snet_close( snet ) != 0 ) {
-	syslog( LOG_NOTICE, "snet_close: %m" );
-	return( SMTP_ERR_SYSCALL );
-    }
-
-    return( 0 );
-}
-
-
-    int
-smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
-	void (*logger)(char *))
-{
-    char		*line;
-    struct recipient	*r;
-
-    /* MAIL FROM: */
-    if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
-	if ( snet_writef( snet, "MAIL FROM: <>\r\n" ) < 0 ) {
-	    if ( errno != EIO ) {
-		syslog( LOG_ERR, "snet_writef: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
-
-	    if ( snet_close( snet ) < 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    return( SMTP_ERR_NO_BOUNCE );
-	}
-
-#ifdef DEBUG
-    printf( "--> MAIL FROM: <>\n" );
-#endif /* DEBUG */
-
-    } else {
-	if ( snet_writef( snet, "MAIL FROM: <%s>\r\n", env->e_mail ) < 0 ) {
-	    if ( errno != EIO ) {
-		syslog( LOG_ERR, "snet_writef: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
-
-	    if ( snet_close( snet ) < 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    return( SMTP_ERR_NO_BOUNCE );
-	}
-
-#ifdef DEBUG
-    printf( "--> MAIL FROM: <%s>\n", env->e_mail );
-#endif /* DEBUG */
-    }
-
-    /* read reply banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	if ( smtp_eval( SMTP_FAILED_FROM, line ) == 0 ) {
-	    return( SMTP_ERR_BOUNCE_MESSAGE );
-
-	} else {
-	    syslog( LOG_NOTICE, "smtp_send %s: bad banner: %s", hostname,
-		    line );
-
-	    if ( smtp_quit( snet, hostname, logger ) < 0 ) {
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    return( SMTP_ERR_NO_BOUNCE );
-	}
-    }
-
-    /* RCPT TO: */
-    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
-	    if ( errno != EIO ) {
-		syslog( LOG_ERR, "snet_writef: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
-
-	    if ( snet_close( snet ) < 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    return( SMTP_ERR_NO_BOUNCE );
-	}
-
-#ifdef DEBUG
-    printf( "--> RCPT TO: %s\n", r->r_rcpt );
-#endif /* DEBUG */
-
-	/* read reply banner */
-	if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	    syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
-
-	    if ( snet_close( snet ) < 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    return( SMTP_ERR_NO_BOUNCE );
-	}
-
-	if ( smtp_eval( SMTP_OK, line ) == 0 ) {
-	    r->r_delivered = R_DELIVERED;
-	    env->e_success++;
-
-	} else if ( smtp_eval( SMTP_USER_UNKNOWN, line ) == 0 ) {
-	    r->r_delivered = R_FAILED;
-	    env->e_failed++;
-
-	} else if ( smtp_eval( SMTP_TEMPFAIL, line ) == 0 ) {
-	    if ( env->e_old_dfile != 0 ) {
-		r->r_delivered = R_FAILED;
-		env->e_failed++;
-
-	    } else {
-		r->r_delivered = R_TEMPFAIL;
-		env->e_tempfail++;
-	    }
-
-	} else {
-	    syslog( LOG_NOTICE, "host %s: bad banner: %s", env->e_expanded,
-		    line );
-
-	    if ( snet_close( snet ) < 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    return( SMTP_ERR_NO_BOUNCE );
-	}
-
-	if ( r->r_delivered == R_FAILED ) {
-	    if (( r->r_text = line_file_create()) == NULL ) {
-		syslog( LOG_ERR, "line_file_create: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-
-	    if ( line_append( r->r_text, line ) == NULL ) {
-		syslog( LOG_ERR, "line_append: %m" );
-		return( SMTP_ERR_SYSCALL );
-	    }
-	}
-
-	while ( *(line + 3) == '-' ) {
-	    /* read reply banner */
-	    if (( line = snet_getline( snet, NULL )) == NULL ) {
-		syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
-
-		if ( snet_close( snet ) < 0 ) {
-		    syslog( LOG_ERR, "snet_close: %m" );
-		    return( SMTP_ERR_SYSCALL );
-		}
-
-		return( SMTP_ERR_NO_BOUNCE );
-	    }
-
-	    if ( r->r_delivered == R_FAILED ) {
-		if ( line_append( r->r_text, line ) == NULL ) {
-		    syslog( LOG_ERR, "line_append: %m" );
-		    return( SMTP_ERR_SYSCALL );
-		}
-	    }
-
-	    if ( logger != NULL ) {
-		(*logger)( line );
-	    }
-	}
-    }
-
-    if ( env->e_success == 0 ) {
-	/* no one to send message to */
-	return( 0 );
-    }
-
-    if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
-	if ( errno != EIO ) {
-	    syslog( LOG_ERR, "snet_writef: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-#ifdef DEBUG
-    printf( "--> DATA\n" );
-#endif /* DEBUG */
-
-    /* read reply banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-    if ( smtp_eval( SMTP_DATAOK, line ) != 0 ) {
-	syslog( LOG_NOTICE, "smtp_send %s: bad banner: %s", hostname, line );
-
-	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-    /* send message */
-    while (( line = snet_getline( message, NULL )) != NULL ) {
-	if ( *line == '.' ) {
-	    /* don't send EOF */
-	    if ( snet_writef( snet, ".%s\r\n", line ) < 0 ) {
-		if ( errno != EIO ) {
-		    syslog( LOG_ERR, "snet_writef: %m" );
-		    return( SMTP_ERR_SYSCALL );
-		}
-
-		syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
-
-		if ( snet_close( snet ) < 0 ) {
-		    syslog( LOG_ERR, "snet_close: %m" );
-		    return( SMTP_ERR_SYSCALL );
-		}
-
-		return( SMTP_ERR_NO_BOUNCE );
-	    }
-
-#ifdef DEBUG
-	    printf( "--> .%s\n", line );
-#endif /* DEBUG */
-
-	} else {
-	    if ( snet_writef( snet, "%s\r\n", line ) < 0 ) {
-		if ( errno != EIO ) {
-		    syslog( LOG_ERR, "snet_writef: %m" );
-		    return( SMTP_ERR_SYSCALL );
-		}
-
-		syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
-
-		if ( snet_close( snet ) < 0 ) {
-		    syslog( LOG_ERR, "snet_close: %m" );
-		    return( SMTP_ERR_SYSCALL );
-		}
-
-		return( SMTP_ERR_NO_BOUNCE );
-	    }
-
-#ifdef DEBUG
-	    printf( "--> %s\n", line );
-#endif /* DEBUG */
-
-	}
-    }
-
-    if ( snet_writef( snet, "%s\r\n", SMTP_EOF ) < 0 ) {
-	if ( errno != EIO ) {
-	    syslog( LOG_ERR, "snet_writef: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-#ifdef DEBUG
-    printf( "--> .\n" );
-#endif /* DEBUG */
-
-    /* read reply banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	/* XXX check for message failure */
-
-	syslog( LOG_NOTICE, "smtp_send %s: bad banner: %s", hostname, line );
-
-	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-    return( 0 );
-}
-
-
     int
 smtp_connect( SNET **snetp, struct host_q *hq )
 {
@@ -616,7 +225,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( _smtp_quit( snet, hq ) < 0 ) {
+	if ( smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -723,7 +332,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( _smtp_quit( snet, hq ) < 0 ) {
+	if ( smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -761,7 +370,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	}
 
 	if ( *(line + 3) == '-' ) {
-	    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    if (( line = snet_getline( snet, &tv )) == NULL ) {
 		syslog( LOG_NOTICE, "smtp_connect %s: unexpected EOF",
 			hq->hq_hostname );
 
@@ -774,7 +383,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( _smtp_quit( snet, hq ) < 0 ) {
+	if ( smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -864,12 +473,11 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 		    return( SMTP_ERR_SYSCALL );
 		}
 
-		hq->hq_status = HOST_DOWN;
 		return( SMTP_ERR_REMOTE );
 	    }
 	}
 
-	if ( _smtp_quit( snet, hq ) < 0 ) {
+	if ( smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -944,9 +552,70 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
 
     int
-_smtp_send ( SNET *snet, struct host_q *hq, struct envelope *env,
-	SNET *snet_dfile )
+smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 {
+    char		*line;
+    struct recipient	*r;
+    struct timeval	tv;
+
+    /* MAIL FROM: */
+    if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
+	if ( snet_writef( snet, "MAIL FROM: <>\r\n" ) < 0 ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_send snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    hq->hq_status = HOST_DOWN;
+	    return( SMTP_ERR_REMOTE );
+	}
+
+#ifdef DEBUG
+    printf( "--> MAIL FROM: <>\n" );
+#endif /* DEBUG */
+
+    } else {
+	if ( snet_writef( snet, "MAIL FROM: <%s>\r\n", env->e_mail ) < 0 ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_send snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    hq->hq_status = HOST_DOWN;
+	    return( SMTP_ERR_REMOTE );
+	}
+
+#ifdef DEBUG
+    printf( "--> MAIL FROM: <%s>\n", env->e_mail );
+#endif /* DEBUG */
+    }
+
+    /* read reply banner */
+
+    tv.tv_sec = SMTP_TIME_MAIL;
+    tv.tv_usec = 0;
+
+    if (( line = snet_getline( snet, &tv )) == NULL ) {
+	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	hq->hq_status = HOST_DOWN;
+	return( SMTP_ERR_REMOTE );
+    }
+
+    if ( smtp_logger != NULL ) {
+	(*smtp_logger)( line );
+    }
 
     /* MAIL
      *	    S: 2*
@@ -961,19 +630,248 @@ _smtp_send ( SNET *snet, struct host_q *hq, struct envelope *env,
      *		- try next message
      */
 
-    /* RCPT
-     *	    S: 2* (but see section 3.4 for discussion of 251 and 551)
-     *
-     *	    E: 552, 4* : tmp system failure
-     *		- if old dfile, capture error text in struct rcpt
-     *		- if old dfile, bounce current rcpt in struct rcpt
-     *		- try next rcpt
-     *
-     *	    E: 5*, *: perm address failure
-     *		- capture error text in struct rcpt
-     *		- bounce current rcpt
-     *		- try next rcpt
-     */
+    if ( *line == '4' ) {
+	hq->hq_status = HOST_DOWN;
+
+	syslog( LOG_NOTICE, "smtp_send %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
+	if ( *(line + 3) == '-' ) {
+	    if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
+		    == NULL ) {
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_REMOTE );
+	    }
+	}
+
+	if ( smtp_quit( snet, hq ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_REMOTE );
+
+    } else if ( *line != '2' ) {
+
+	syslog( LOG_NOTICE, "smtp_send %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
+	/* capture error message */
+	if (( env->e_err_text = line_file_create()) == NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_file_create %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	if ( line_append( env->e_err_text, line ) == NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_append %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	while (*(line + 3) == '-' ) {
+	    if (( line = snet_getline( snet, &tv )) == NULL ) {
+		syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+			hq->hq_hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		hq->hq_status = HOST_DOWN;
+		return( SMTP_ERR_REMOTE );
+	    }
+
+	    if ( smtp_logger != NULL ) {
+		(*smtp_logger)( line );
+	    }
+
+	    if ( line_append( env->e_err_text, line ) == NULL ) {
+		syslog( LOG_ERR, "smtp_send: line_append %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+	}
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_MESSAGE );
+    }
+
+    if ( *(line + 3) == '-' ) {
+	if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
+		== NULL ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    hq->hq_status = HOST_DOWN;
+	    return( SMTP_ERR_REMOTE );
+	}
+    }
+
+    /* RCPT TOs: */
+
+    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_REMOTE );
+	}
+
+#ifdef DEBUG
+    printf( "--> RCPT TO: %s\n", r->r_rcpt );
+#endif /* DEBUG */
+
+	/* read reply banner */
+
+	tv.tv_sec = SMTP_TIME_RCPT;
+	tv.tv_usec = 0;
+
+	if (( line = snet_getline( snet, &tv )) == NULL ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    hq->hq_status = HOST_DOWN;
+	    return( SMTP_ERR_REMOTE );
+	}
+
+	if ( smtp_logger != NULL ) {
+	    (*smtp_logger)( line );
+	}
+
+	/* RCPT
+	 *	    S: 2* (but see section 3.4 for discussion of 251 and 551)
+	 *
+	 *	    E: 552, 4* : tmp system failure
+	 *		- if old dfile, capture error text in struct rcpt
+	 *		- if old dfile, bounce current rcpt in struct rcpt
+	 *		- try next rcpt
+	 *
+	 *	    E: 5*, *: perm address failure
+	 *		- capture error text in struct rcpt
+	 *		- bounce current rcpt
+	 *		- try next rcpt
+	 */
+
+	if ( *line == '2' ) {
+	    r->r_delivered = R_DELIVERED;
+	    env->e_success++;
+
+	} else if ((( strncmp( line, "552", (size_t)3 ) == 0 ) ||
+		( *line == '4' )) && ( env->e_old_dfile == 0 )) {
+	    /* note RFC 2821 response code 552 exception */
+
+	    r->r_delivered = R_TEMPFAIL;
+	    env->e_tempfail++;
+
+	} else {
+	    r->r_delivered = R_FAILED;
+	    env->e_failed++;
+	}
+
+	if ( r->r_delivered == R_FAILED ) {
+	    if (( r->r_text = line_file_create()) == NULL ) {
+		syslog( LOG_ERR, "smtp_send: line_file_create: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    if ( line_append( r->r_text, line ) == NULL ) {
+		syslog( LOG_ERR, "smtp_send: line_append: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+	}
+
+	while ( *(line + 3) == '-' ) {
+	    /* read reply banner */
+	    if (( line = snet_getline( snet, &tv )) == NULL ) {
+		syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+			hq->hq_hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		hq->hq_status = HOST_DOWN;
+		return( SMTP_ERR_REMOTE );
+	    }
+
+	    if ( r->r_delivered == R_FAILED ) {
+		if ( line_append( r->r_text, line ) == NULL ) {
+		    syslog( LOG_ERR, "smtp_send: line_append: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+	    }
+
+	    if ( smtp_logger != NULL ) {
+		(*smtp_logger)( line );
+	    }
+	}
+    }
+
+    if ( env->e_success == 0 ) {
+	/* no one to send message to */
+	/* XXX return code correct? */
+	return( 0 );
+    }
+
+    /* say DATA */
+
+    if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
+	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_send snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	hq->hq_status = HOST_DOWN;
+	return( SMTP_ERR_REMOTE );
+    }
+
+#ifdef DEBUG
+    printf( "--> DATA\n" );
+#endif /* DEBUG */
+
+    tv.tv_sec = SMTP_TIME_DATA_INIT;
+    tv.tv_usec = 0;
+
+    if (( line = snet_getline( snet, &tv )) == NULL ) {
+	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+		hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	hq->hq_status = HOST_DOWN;
+	return( SMTP_ERR_REMOTE );
+    }
+
+    if ( smtp_logger != NULL ) {
+	(*smtp_logger)( line );
+    }
 
     /* DATA
      *	    S: 3*
@@ -988,6 +886,169 @@ _smtp_send ( SNET *snet, struct host_q *hq, struct envelope *env,
      *		- try next message
      */
 
+    if ( *line == '4' ) {
+	hq->hq_status = HOST_DOWN;
+
+	syslog( LOG_NOTICE, "smtp_send %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
+	if ( *(line + 3) == '-' ) {
+	    if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
+		    == NULL ) {
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_REMOTE );
+	    }
+	}
+
+	if ( smtp_quit( snet, hq ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_REMOTE );
+
+    } else if ( *line != '3' ) {
+
+	syslog( LOG_NOTICE, "smtp_send %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
+	/* capture error message */
+	if (( env->e_err_text = line_file_create()) == NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_file_create %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	if ( line_append( env->e_err_text, line ) == NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_append %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	while (*(line + 3) == '-' ) {
+	    if (( line = snet_getline( snet, &tv )) == NULL ) {
+		syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+			hq->hq_hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		hq->hq_status = HOST_DOWN;
+		return( SMTP_ERR_REMOTE );
+	    }
+
+	    if ( smtp_logger != NULL ) {
+		(*smtp_logger)( line );
+	    }
+
+	    if ( line_append( env->e_err_text, line ) == NULL ) {
+		syslog( LOG_ERR, "smtp_send: line_append %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+	}
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_MESSAGE );
+    }
+
+    if ( *(line + 3) == '-' ) {
+	if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
+		== NULL ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    hq->hq_status = HOST_DOWN;
+	    return( SMTP_ERR_REMOTE );
+	}
+    }
+
+    /* send message */
+
+    while (( line = snet_getline( message, NULL )) != NULL ) {
+	if ( *line == '.' ) {
+	    /* don't send EOF */
+	    if ( snet_writef( snet, ".%s\r\n", line ) < 0 ) {
+		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
+			hq->hq_hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_REMOTE );
+	    }
+
+#ifdef DEBUG
+	    printf( "--> .%s\n", line );
+#endif /* DEBUG */
+
+	} else {
+	    if ( snet_writef( snet, "%s\r\n", line ) < 0 ) {
+		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
+			hq->hq_hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_REMOTE );
+	    }
+
+#ifdef DEBUG
+	    printf( "--> %s\n", line );
+#endif /* DEBUG */
+	}
+    }
+
+    if ( snet_writef( snet, "%s\r\n", SMTP_EOF ) < 0 ) {
+	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_REMOTE );
+    }
+
+#ifdef DEBUG
+    printf( "--> .\n" );
+#endif /* DEBUG */
+
+    tv.tv_sec = SMTP_TIME_DATA_EOF;
+    tv.tv_usec = 0;
+
+    if (( line = snet_getline( snet, &tv )) == NULL ) {
+	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+		hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	hq->hq_status = HOST_DOWN;
+	return( SMTP_ERR_REMOTE );
+    }
+
+    if ( smtp_logger != NULL ) {
+	(*smtp_logger)( line );
+    }
+
     /* DATA_EOF
      *	    S: 2*
      *
@@ -1000,6 +1061,94 @@ _smtp_send ( SNET *snet, struct host_q *hq, struct envelope *env,
      *		- bounce current mesage
      *		- try next message
      */
+
+    if ( *line == '4' ) {
+	hq->hq_status = HOST_DOWN;
+
+	syslog( LOG_NOTICE, "smtp_send %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
+	if ( *(line + 3) == '-' ) {
+	    if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
+		    == NULL ) {
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_REMOTE );
+	    }
+	}
+
+	if ( smtp_quit( snet, hq ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_REMOTE );
+
+    } else if ( *line != '2' ) {
+
+	syslog( LOG_NOTICE, "smtp_send %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
+	/* capture error message */
+	if (( env->e_err_text = line_file_create()) == NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_file_create %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	if ( line_append( env->e_err_text, line ) == NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_append %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	while (*(line + 3) == '-' ) {
+	    if (( line = snet_getline( snet, &tv )) == NULL ) {
+		syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+			hq->hq_hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		hq->hq_status = HOST_DOWN;
+		return( SMTP_ERR_REMOTE );
+	    }
+
+	    if ( smtp_logger != NULL ) {
+		(*smtp_logger)( line );
+	    }
+
+	    if ( line_append( env->e_err_text, line ) == NULL ) {
+		syslog( LOG_ERR, "smtp_send: line_append %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+	}
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_MESSAGE );
+    }
+
+    if ( *(line + 3) == '-' ) {
+	if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
+		== NULL ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_send: snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    hq->hq_status = HOST_DOWN;
+	    return( SMTP_ERR_REMOTE );
+	}
+    }
 
     return( 0 );
 }
@@ -1098,7 +1247,7 @@ smtp_rset( SNET *snet, struct host_q *hq )
 	    }
 	}
 
-	if ( _smtp_quit( snet, hq ) < 0 ) {
+	if ( smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -1125,7 +1274,7 @@ smtp_rset( SNET *snet, struct host_q *hq )
 
 
     int
-_smtp_quit ( SNET *snet, struct host_q *hq )
+smtp_quit( SNET *snet, struct host_q *hq )
 {
     char			*line;
     struct timeval		tv;

@@ -709,7 +709,7 @@ q_deliver( struct host_q *hq )
                         SMTP_ERR_SYSCALL ) {
                     return( -1 );
 
-                } else if ( result == SMTP_ERR_NO_BOUNCE ) {
+                } else if ( result == SMTP_ERR_REMOTE ) {
                     break;
                 }
             }
@@ -736,7 +736,6 @@ q_deliver( struct host_q *hq )
                         return( -1 );
                     }
 
-
 		    if ( snet_close( snet_lock ) != 0 ) {
 			syslog( LOG_ERR, "snet_close: %m" );
 			return( -1 );
@@ -746,11 +745,11 @@ q_deliver( struct host_q *hq )
                 }
             }
 
-            if (( result = smtp_send( snet, hq->hq_hostname, &env, dfile_snet,
-		    logger )) == SMTP_ERR_SYSCALL ) {
+            if (( result = smtp_send( snet, hq, &env, dfile_snet ))
+		    == SMTP_ERR_SYSCALL ) {
                 return( -1 );
 
-            } else if ( result == SMTP_ERR_NO_BOUNCE ) {
+            } else if ( result == SMTP_ERR_REMOTE ) {
                 /* message not sent */
 		/* XXX message rejection or down server? */
 
@@ -771,7 +770,10 @@ q_deliver( struct host_q *hq )
 	    }
 
             sent++;
-        }
+
+        } else if ( result == SMTP_ERR_MESSAGE ) {
+	    /* XXX also possible to fail/tempfail + old dfile all rcpts */
+	}
 
         if ( env.e_failed > 0 ) {
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
@@ -869,7 +871,7 @@ q_deliver( struct host_q *hq )
     }
 
     if ( snet != NULL ) {
-        if (( result = _smtp_quit( snet, hq )) < 0 ) {
+        if (( result = smtp_quit( snet, hq )) < 0 ) {
             return( -1 );
         }
     }
