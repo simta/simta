@@ -39,11 +39,58 @@
 
 #include "queue.h"
 #include "envelope.h"
+#include "bounce.h"
 #include "expand.h"
 #include "ll.h"
 #include "address.h"
 #include "simta.h"
 
+struct envelope * new_host_env( struct stab_entry **host_stab, char *domain,
+    char *e_mail, char *d_original );
+
+    struct envelope * 
+new_host_env( struct stab_entry **host_stab, char *domain, char *e_mail,
+    char *d_original )
+{
+    char			d_fast[ MAXPATHLEN ];
+    struct timeval              tv;
+    struct envelope		*env_p = NULL;
+
+    /* Create envelope and add it to list */
+    if (( env_p = env_create( NULL )) == NULL ) {
+	syslog( LOG_ERR, "expand: env_create: %m" );
+	return( NULL );
+    }
+
+    /* fill in env */
+    env_p->e_dir = SIMTA_DIR_FAST;
+    env_p->e_mail = e_mail;
+    /* XXX - is this right? */
+    strcpy( env_p->e_expanded, domain );
+
+    if ( gettimeofday( &tv, NULL ) != 0 ) {
+	syslog( LOG_ERR, "gettimeofday: %m" );
+	return( NULL );
+    }
+    sprintf( env_p->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
+		(unsigned long)tv.tv_usec );
+
+    /* Dfile: link Dold_id SIMTA_DIR_FAST/Dnew_id */
+    sprintf( d_fast, "%s/D%s", SIMTA_DIR_FAST, env_p->e_id );
+
+    if ( link( d_original, d_fast ) != 0 ) {
+	syslog( LOG_ERR, "link %s %s: %m", d_original, d_fast );
+	return( NULL );
+    }
+
+    /* Add host */
+    if ( ll_insert( host_stab, domain, env_p, NULL ) != 0 ) {
+	syslog( LOG_ERR, "expand: ll_insert: %m" );
+	return( NULL );
+    }
+
+    return( env_p );
+}
 
     /* return 0 on success
      * return -1 on syserror
@@ -55,7 +102,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
     struct message		*m;
     struct host_q		*hq;
-    struct timeval		tv;
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*expansion = NULL;
     struct stab_entry		*seen = NULL;
@@ -71,8 +117,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
     char			d_slow[ MAXPATHLEN ];
-    char			d_fast[ MAXPATHLEN ];
-    char			*unexpanded_dir;
+    char			*unexpanded_dir = NULL;
+    SNET			*snet = NULL;
 
     /* Create paths */
     sprintf( d_original, "%s/D%s", unexpanded_env->e_dir,
@@ -83,16 +129,20 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     /* expand unexpanded_env->e_rcpt addresses */
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
 	/* expand r->rcpt */
-	if ( address_expand( r->r_rcpt, r, &expansion, &seen ) <= 0 ) {
+	rc = address_expand( r->r_rcpt, r, &expansion, &seen );
+	if ( rc < 0 ) {
 	    /* if expansion for recipient r fails, we mark it and
 	     * note that we've failed at least one expansion.
 	     */ 
 	    failed_expansions++;
 	    r->r_delivered = SIMTA_EXPANSION_FAILED;
 	    if ( simta_debug ) printf( "expanding %s failed\n", r->r_rcpt );
-        } else {
+        } else if ( rc == 0 ) {
+	    /* bounce */
 	    expansions++;
-	    r->r_delivered = SIMTA_EXPANSION_SUCCESS;
+	} else {
+	    /* expansion */
+	    expansions += rc;
 	    if ( simta_debug != 0 ) {
 		if ( expansion == NULL ) {
 		    printf( "expanding %s succeded ERROR!\n", r->r_rcpt );
@@ -103,11 +153,12 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
+    /* Turn the crank on expansion list */
     for ( i = expansion; i != NULL; i = i->st_next ) {
 	expn = (struct expn*)i->st_data;
-	ret = address_expand( i->st_key,
-	    expn->e_rcpt_parent, &expansion, &seen );
-	if ( ret != 0 ) {
+	rc = address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
+	    &seen );
+	if (( rc != 0 ) || (( rc == 0 ) && ( expn->e_deliverd == R_FAILED ))) {
 	    free( i->st_data );
 	    i->st_data = NULL;
 	}
@@ -124,47 +175,27 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
 	domain++;
 
-	if ( simta_debug ) printf( "%s in host_stab?...", domain );
-	if (( env_p = ll_lookup( host_stab, domain )) == NULL ) {
-	    /* Create envelope and add it to list */
-	    if (( env_p = env_create( NULL )) == NULL ) {
-		syslog( LOG_ERR, "expand: env_create: %m" );
+	/* If envelope is marked for punt, create one host entry
+	 * for punt machine.  Otherwise, create host queue entry.
+	 */
+	if ( unexpanded_env->e_punt != NULL ) {
+	    if ( simta_debug ) printf( "punting to %s\n",
+		unexpanded_env->e_punt );
+	    if (( env_p = new_host_env( &host_stab, unexpanded_env->e_punt,
+		    unexpanded_env->e_mail, d_original )) == NULL ) {
 		return( -1 );
 	    }
-
-	    /* fill in env */
-	    env_p->e_dir = SIMTA_DIR_FAST;
-	    env_p->e_mail = unexpanded_env->e_mail;
-	    /* XXX - is this right? */
-	    strcpy( env_p->e_expanded, domain );
-
-	    if ( gettimeofday( &tv, NULL ) != 0 ) {
-		syslog( LOG_ERR, "gettimeofday: %m" );
-		return( -1 );
-	    }
-	    sprintf( env_p->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
-			(unsigned long)tv.tv_usec );
-
-	    /* Dfile: link Dold_id SIMTA_DIR_FAST/Dnew_id */
-	    sprintf( d_fast, "%s/D%s", SIMTA_DIR_FAST, env_p->e_id );
-
-	    if ( link( d_original, d_fast ) != 0 ) {
-		syslog( LOG_ERR, "link %s %s: %m", d_original, d_fast );
-		return( -1 );
-	    }
-
-	    /* Add host */
-	    if ( ll_insert( &host_stab, domain, env_p, NULL ) != 0 ) {
-		syslog( LOG_ERR, "expand: ll_insert: %m" );
-		return( -1 );
-	    }
-	    if (( env_p = ll_lookup( host_stab, domain )) == NULL ) {
-		syslog( LOG_ERR, "epxand: ll_lookup: %m\n" );
-		return( -1 );
-	    }
-	    if ( simta_debug ) printf( "no - added to host_stab\n" );
 	} else {
-	    if ( simta_debug ) printf( "yes\n" );
+	    if ( simta_debug ) printf( "%s in host_stab?...", domain );
+	    if (( env_p = ll_lookup( host_stab, domain )) == NULL ) {
+		if (( env_p = new_host_env( &host_stab, domain,
+			unexpanded_env->e_mail, d_original )) == NULL ) {
+		    return( -1 );
+		}
+		if ( simta_debug ) printf( "no - added to host_stab\n" );
+	    } else {
+		if ( simta_debug ) printf( "yes\n" );
+	    }
 	}
 
 	if (( r = (struct recipient *)malloc( sizeof( struct recipient )))
@@ -216,6 +247,21 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
+    /* Create bounces */
+    if (( snet = snet_open( d_original, O_RDWR, 0, 1024 * 1024 ))
+            == NULL ) {
+        syslog( LOG_ERR, "snet_open: %m" );
+        return( -1 );
+    }
+    if ( bounce( unexpanded_env, snet ) != 0 ) {
+	syslog( LOG_ERR, "bounce failed\n" );
+	return( -1 );
+    }
+    if ( snet_close( snet ) != 0 ) {
+	syslog( LOG_ERR, "snet_close: %m" );
+	return( -1 );
+    }
+
     if ( failed_expansions == 0 ) {
 	/* all rcpts expanded */
 
@@ -252,11 +298,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    r_sort = &(unexpanded_env->e_rcpt);
 
 	    while ( *r_sort != NULL ) {
-		if ((*r_sort)->r_delivered == SIMTA_EXPANSION_SUCCESS ) {
+		if ((*r_sort)->r_delivered != SIMTA_EXPANSION_FAILED ) {
 		    remove = *r_sort;
 		    *r_sort = (*r_sort)->r_next;
 		    rcpt_free( remove );
-
 		} else {
 		    r_sort = &((*r_sort)->r_next);
 		}
