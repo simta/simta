@@ -587,7 +587,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	host = host_local( deliver_q->hq_hostname );
 	if (( host == NULL ) || ( host->h_type == HOST_MX )) {
 	    deliver_q->hq_status = HOST_MX;
-	} else if ( simta_dnsr->d_errno == DNSR_ERROR_TIMEOUT ) {
+	} else if (( simta_dnsr != NULL ) &&
+		( simta_dnsr->d_errno == DNSR_ERROR_TIMEOUT )) {
 	    deliver_q->hq_status = HOST_DOWN;
 	} else {
 	    deliver_q->hq_status = HOST_LOCAL;
