@@ -212,7 +212,7 @@ f_mail( snet, env, ac, av )
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
-    if ( env->e_flags & E_READY ) {
+    if (( env->e_flags & E_READY ) != 0 ) {
 	env_reset( env );
     }
 
@@ -702,7 +702,7 @@ f_quit( snet, env, ac, av )
     struct host_q		*hq_stab = NULL;
 
     /* check for an accepted message */
-    if ( !( env->e_flags & E_READY )) {
+    if ( ( env->e_flags & E_READY ) != 0 ) {
 
 	/*
 	 * Deliver a pending message without fork()ing.
@@ -828,7 +828,7 @@ f_starttls( snet, env, ac, av )
      * Client MUST NOT attempt to start a TLS session if a TLS
      * session is already active.  No mention of what to do if it does...
      */
-    if ( env->e_flags & E_TLS ) {
+    if (( env->e_flags & E_TLS ) != 0 ) {
 	syslog( LOG_ERR, "f_starttls: called twice" );
 	return( -1 );
     }
@@ -859,7 +859,7 @@ f_starttls( snet, env, ac, av )
     X509_free( peer );
 
     env_reset( env );
-    env->e_flags = E_TLS;
+    env->e_flags = env->e_flags | E_TLS;
 
     return( 0 );
 }
@@ -1041,7 +1041,7 @@ receive( fd, sin )
     }
 
     /* XXX check for an accepted message */
-    if ( env->e_flags & E_READY ) {
+    if (( env->e_flags & E_READY ) != 0 ) {
 	struct host_q		*hq_stab = NULL;
 
 	/*
