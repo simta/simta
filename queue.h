@@ -60,4 +60,5 @@ void	q_stab_stdout ___P(( struct host_q * ));
 struct	message	*message_create ___P(( char * ));
 void	message_free ___P(( struct message * ));
 void	message_stdout ___P(( struct message * ));
+int	message_slow ___P(( struct message * ));
 int	message_queue ___P(( struct host_q *, struct message * ));

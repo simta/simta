@@ -51,6 +51,7 @@ extern SSL_CTX	*ctx;
 extern char		*version;
 struct stab_entry	*expansion = NULL;
 struct stab_entry	*seen = NULL;
+struct host_q		*hq_receive = NULL;
 
 struct command {
     char	*c_name;
@@ -234,7 +235,6 @@ f_mail( snet, env, ac, av )
     char		*addr, *domain;
     DNSR		*dnsr;
     struct dnsr_result	*result;
-    struct host_q	*hq = NULL;
 
     /*
      * Contrary to popular belief, it is not an error to give more than
@@ -247,11 +247,11 @@ f_mail( snet, env, ac, av )
 	 * Deliver a pending message without fork()ing.
 	 */
 	if ( simta_debug ) printf( "calling expand\n" );
-	if ( expand( &hq, env ) !=0 ) {
+	if ( expand( &hq_receive, env ) !=0 ) {
 	    syslog( LOG_ERR, "f_quit: expand failed\n" );
 	    return( -1 );
 	}
-	if (  q_runner( &hq ) != 0 ) {
+	if ( q_runner( &hq_receive ) != 0 ) {
 	    syslog( LOG_ERR, "f_quit: q_runner failed\n" );
 	    return( -1 );
 	}
@@ -767,7 +767,6 @@ f_quit( snet, env, ac, av )
     char			*av[];
 {
 
-    struct host_q		*hq = NULL;
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -788,12 +787,12 @@ f_quit( snet, env, ac, av )
 	 * Deliver a pending message without fork()ing.
 	 */
 	if ( simta_debug ) printf( "f_quit: calling expand\n" );
-	if ( expand( &hq, env ) !=0 ) {
+	if ( expand( &hq_receive, env ) !=0 ) {
 	    syslog( LOG_ERR, "f_quit: expand failed\n" );
 	    return( -1 );
 	}
 	if ( simta_debug ) printf( "f_quit: calling q_runner\n" );
-	if (  q_runner( &hq ) != 0 ) {
+	if ( q_runner( &hq_receive ) != 0 ) {
 	    syslog( LOG_ERR, "f_quit: q_runner failed\n" );
 	    return( -1 );
 	}
@@ -1136,23 +1135,49 @@ receive( fd, sin )
     /* XXX check for an accepted message */
     if (( env->e_flags & E_READY ) != 0 ) {
 
-	struct host_q		*hq = NULL;
 
 	/*
 	 * Deliver a pending message without fork()ing.
 	 */
-	if ( expand( &hq, env ) !=0 ) {
+	if ( expand( &hq_receive, env ) !=0 ) {
 	    /* What do we do in an error? */
 	    syslog( LOG_ERR, "command loop: expand failed\n" );
 	    exit( 1 );
 	}
 
-	if (  q_runner( &hq ) != 0 ) {
+	if ( q_runner( &hq_receive ) != 0 ) {
 	    syslog( LOG_ERR, "command loop: q_runner failed\n" );
 	    exit( 1 );
 	}
     }
 
     exit( 1 );
+}
 
+
+
+    int
+deliver_env( struct envelope *env )
+{
+    /*
+     * Deliver a pending message without fork()ing.
+     */
+
+    if ( expand( &hq_receive, env ) != 0 ) {
+	/* What do we do in an error? */
+	syslog( LOG_ERR, "deliver_env: expand failed\n" );
+
+	if ( env_slow( env ) != 0 ) {
+	    syslog( LOG_ERR, "deliver_env: env_slow failed\n" );
+	}
+
+	return( 1 );
+    }
+
+    if ( q_runner( &hq_receive ) != 0 ) {
+	syslog( LOG_ERR, "deliver_env: q_runner failed\n" );
+	return( 1 );
+    }
+
+    return( 0 );
 }

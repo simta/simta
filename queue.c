@@ -55,6 +55,48 @@ int	q_deliver ___P(( struct host_q * ));
 int	deliver_local ___P(( struct envelope *, int ));
 
 
+    int
+message_slow( struct message *m )
+{
+    char                        dfile_fname[ MAXPATHLEN ];
+    char                        dfile_slow[ MAXPATHLEN ];
+    char                        efile_fname[ MAXPATHLEN ];
+    char                        efile_slow[ MAXPATHLEN ];
+
+    /* move message to SLOW if it isn't there already */
+    if ( strcmp( m->m_dir, simta_dir_slow ) != 0 ) {
+	sprintf( efile_fname, "%s/E%s", m->m_dir, m->m_id );
+	sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
+	sprintf( dfile_slow, "%s/D%s", simta_dir_slow, m->m_id );
+	sprintf( efile_slow, "%s/E%s", simta_dir_slow, m->m_id );
+
+	if ( link( dfile_fname, dfile_slow ) != 0 ) {
+	    syslog( LOG_ERR, "message_slow link %s %s: %m", dfile_fname,
+		    dfile_slow );
+	    return( -1 );
+	}
+
+	if ( link( efile_fname, efile_slow ) != 0 ) {
+	    syslog( LOG_ERR, "message_slow link %s %s: %m", efile_fname,
+		    efile_slow );
+	    return( -1 );
+	}
+
+	if ( unlink( efile_fname ) != 0 ) {
+	    syslog( LOG_ERR, "message_slow unlink %s: %m", efile_fname );
+	    return( -1 );
+	}
+
+	if ( unlink( dfile_fname ) != 0 ) {
+	    syslog( LOG_ERR, "message_slow unlink %s: %m", dfile_fname );
+	    return( -1 );
+	}
+    }
+
+    return( 0 );
+}
+
+
     void
 message_stdout( struct message *m )
 {
