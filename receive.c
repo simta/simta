@@ -62,7 +62,7 @@ char			*receive_hello = NULL;
 
 #define	RECEIVE_OK		0x0000
 #define	RECEIVE_SYSERROR	0x0001
-#define	RECEIVE_BADCONNECTION	0x0010
+#define	RECEIVE_CLOSECONNECTION	0x0010
 #define	RECEIVE_LINE_LENGTH	0x0100
 
 /* return codes for address_expand */
@@ -129,7 +129,7 @@ f_helo( snet, env, ac, av )
     if ( ac != 2 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_helo snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -141,7 +141,7 @@ f_helo( snet, env, ac, av )
     if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
 	    av[ 1 ]) < 0 ) {
 	syslog( LOG_ERR, "f_helo snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     syslog( LOG_INFO, "f_helo %s", av[ 1 ]);
@@ -168,7 +168,7 @@ f_ehlo( snet, env, ac, av )
     if ( ac != 2 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -204,12 +204,12 @@ f_ehlo( snet, env, ac, av )
 	if ( snet_writef( snet, "%d-%s Hello %s\r\n", 250, simta_hostname,
 		av[ 1 ]) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 
 	if ( snet_writef( snet, "%d STARTTLS\r\n", 250 ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	syslog( LOG_INFO, "f_ehlo %s start_tls", av[ 1 ]);
 
@@ -217,7 +217,7 @@ f_ehlo( snet, env, ac, av )
 	if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
 		av[ 1 ]) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	syslog( LOG_INFO, "f_ehlo %s", av[ 1 ]);
     }
@@ -226,7 +226,7 @@ f_ehlo( snet, env, ac, av )
     if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
 	    av[ 1 ]) < 0 ) {
 	syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
     syslog( LOG_INFO, "f_ehlo %s", av[ 1 ]);
 #endif /* HAVE_LIBSSL */
@@ -276,7 +276,7 @@ f_mail( snet, env, ac, av )
     if ( ac != 2 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -288,7 +288,7 @@ f_mail( snet, env, ac, av )
 	/* not a correct address */
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -304,7 +304,7 @@ f_mail( snet, env, ac, av )
 	    if ( snet_writef( snet, "%d Requested action not taken: "
 		    "bad address syntax\r\n", 553 ) < 0 ) {
 		syslog( LOG_ERR, "f_mail snet_writef: %m" );
-		return( RECEIVE_BADCONNECTION );
+		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    return( RECEIVE_OK );
 	}
@@ -319,7 +319,7 @@ f_mail( snet, env, ac, av )
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-		    return( RECEIVE_BADCONNECTION );
+		    return( RECEIVE_CLOSECONNECTION );
 		}
 		syslog( LOG_ERR, "f_mail check_host %s: unknown host", domain );
 		return( RECEIVE_OK );
@@ -361,7 +361,7 @@ f_mail( snet, env, ac, av )
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_mail snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     return( RECEIVE_OK );
@@ -382,7 +382,7 @@ f_rcpt( snet, env, ac, av )
     if ( ac != 2 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -391,7 +391,7 @@ f_rcpt( snet, env, ac, av )
     if (( env->e_mail == NULL ) || (( env->e_flags & E_READY ) != 0 )) {
 	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -400,7 +400,7 @@ f_rcpt( snet, env, ac, av )
 	syslog( LOG_ERR, "f_rcpt smtp_trimaddr error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -421,7 +421,7 @@ f_rcpt( snet, env, ac, av )
 	    if ( snet_writef( snet, "%d Requested action not taken\r\n",
 		    553 ) < 0 ) {
 		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_BADCONNECTION );
+		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    return( RECEIVE_OK );
 	}
@@ -437,7 +437,7 @@ f_rcpt( snet, env, ac, av )
 	if ( snet_writef( snet, "%d Requested action not taken\r\n",
 		553 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -468,7 +468,7 @@ f_rcpt( snet, env, ac, av )
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-		    return( RECEIVE_BADCONNECTION );
+		    return( RECEIVE_CLOSECONNECTION );
 		}
 		syslog( LOG_ERR, "f_mail check_host %s: unknown host", domain );
 		return( RECEIVE_OK );
@@ -499,7 +499,7 @@ f_rcpt( snet, env, ac, av )
 	    if ( snet_writef( snet, "551 User not local; please try <%s>\r\n",
 		    addr ) < 0 ) {
 		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_BADCONNECTION );
+		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    return( RECEIVE_OK );
 	}
@@ -533,7 +533,7 @@ f_rcpt( snet, env, ac, av )
 			"%d Requested action not taken: User not found.\r\n",
 			550 ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_BADCONNECTION );
+		    return( RECEIVE_CLOSECONNECTION );
 		}
 		return( RECEIVE_OK );
 
@@ -544,7 +544,7 @@ f_rcpt( snet, env, ac, av )
 			"%d Requested action aborted: "
 			"local error in processing.\r\n", 451 ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_BADCONNECTION );
+		    return( RECEIVE_CLOSECONNECTION );
 		}
 		return( RECEIVE_SYSERROR );
 
@@ -560,7 +560,7 @@ f_rcpt( snet, env, ac, av )
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
@@ -600,7 +600,7 @@ f_data( snet, env, ac, av )
     if ( ac != 1 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -617,7 +617,7 @@ f_data( snet, env, ac, av )
     if (( env->e_mail == NULL ) || (( env->e_flags & E_READY ) != 0 )) {
 	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -625,7 +625,7 @@ f_data( snet, env, ac, av )
     if ( env->e_rcpt == NULL ) {
 	if ( snet_writef( snet, "%d no valid recipients\r\n", 554 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -678,7 +678,7 @@ f_data( snet, env, ac, av )
     if ( snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n",
 	    354 ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
-	err = RECEIVE_BADCONNECTION;
+	err = RECEIVE_CLOSECONNECTION;
 	goto cleanup;
     }
 
@@ -769,7 +769,7 @@ f_data( snet, env, ac, av )
 
     if ( line == NULL ) {	/* EOF */
 	syslog( LOG_INFO, "f_data %s: connection dropped", env->e_id );
-	err = RECEIVE_BADCONNECTION;
+	err = RECEIVE_CLOSECONNECTION;
     }
 
     if ( err != 0 ) {
@@ -807,7 +807,7 @@ f_data( snet, env, ac, av )
      */
     if ( snet_writef( snet, "%d OK (%s)\r\n", 250, env->e_id ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
-	err = RECEIVE_BADCONNECTION;
+	err = RECEIVE_CLOSECONNECTION;
 	goto cleanup;
     }
 
@@ -836,7 +836,7 @@ cleanup:
     case RECEIVE_LINE_LENGTH:
 	if ( snet_writef( snet, "554 line too long\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -860,7 +860,7 @@ f_quit( snet, env, ac, av )
     if ( ac != 1 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_quit snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -868,11 +868,11 @@ f_quit( snet, env, ac, av )
     if ( snet_writef( snet, "221 %s Service closing transmission channel\r\n",
 	    simta_hostname ) < 0 ) {
 	syslog( LOG_ERR, "f_quit snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     syslog( LOG_INFO, "f_quit OK" );
-    return( RECEIVE_BADCONNECTION );
+    return( RECEIVE_CLOSECONNECTION );
 }
 
 
@@ -899,7 +899,7 @@ f_rset( snet, env, ac, av )
     if ( ac != 1 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rset snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
@@ -913,7 +913,7 @@ f_rset( snet, env, ac, av )
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_rset snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     syslog( LOG_INFO, "f_rset OK" );
@@ -930,7 +930,7 @@ f_noop( snet, env, ac, av )
 {
     if ( snet_writef( snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
 	syslog( LOG_ERR, "f_noop snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
     syslog( LOG_INFO, "f_noop OK" );
     return( RECEIVE_OK );
@@ -946,7 +946,7 @@ f_help( snet, env, ac, av )
 {
     if ( snet_writef( snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
 	syslog( LOG_ERR, "f_help snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
     return( RECEIVE_OK );
 }
@@ -983,7 +983,7 @@ f_vrfy( snet, env, ac, av )
 {
     if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_vrfy snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
     return( RECEIVE_OK );
 }
@@ -998,7 +998,7 @@ f_expn( snet, env, ac, av )
 {
     if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_expn snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
     return( RECEIVE_OK );
 }
@@ -1029,14 +1029,14 @@ f_starttls( snet, env, ac, av )
 	syslog( LOG_ERR, "f_starttls: syntax_error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
 
     if ( snet_writef( snet, "%d Ready to start TLS\r\n", 220 ) < 0 ) {
 	syslog( LOG_ERR, "f_starttls snet_writef: %m" );
-	return( RECEIVE_BADCONNECTION );
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     /* XXX Begin TLS - hope this works */
@@ -1045,7 +1045,7 @@ f_starttls( snet, env, ac, av )
 		ERR_error_string( ERR_get_error(), NULL ));
 	if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_SYSERROR );
     }
@@ -1055,7 +1055,7 @@ f_starttls( snet, env, ac, av )
 		"starttls SSL_get_peer_certificate: no peer certificate" );
 	if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_SYSERROR );
     }
@@ -1202,7 +1202,6 @@ smtp_receive( fd, sin )
 	 * This routine needs to be revised to take rfc822 quoting into
 	 * account.  E.g.  MAIL FROM:<"foo \: bar"@umich.edu>
 	 */
-
 	if (( ac = acav_parse2821( acav, line, &av )) < 0 ) {
 	    syslog( LOG_ERR, "receive argcargv: %m" );
 	    goto syserror;
@@ -1242,7 +1241,7 @@ smtp_receive( fd, sin )
 	case RECEIVE_SYSERROR:
 	    goto syserror;
 
-	case RECEIVE_BADCONNECTION:
+	case RECEIVE_CLOSECONNECTION:
 	    goto closeconnection;
 
 	case RECEIVE_OK:
