@@ -645,19 +645,16 @@ main( int ac, char **av )
 
 	    switch ( p_remove->p_type ) {
 	    case CHILD_Q_LOCAL:
-		simta_process_type = SIMTA_PROCESS_TYPE_Q_RUNNER;
 		p_name = "local q_runner";
 		q_runner_local--;
 		break;
 
 	    case CHILD_Q_SLOW:
-		simta_process_type = SIMTA_PROCESS_TYPE_Q_RUNNER;
 		p_name = "slow q_runner";
 		q_runner_slow--;
 		break;
 
 	    case CHILD_RECEIVE:
-		simta_process_type = SIMTA_PROCESS_TYPE_RECEIVE;
 		p_name = "connect receive";
 		connections--;
 		break;
@@ -675,6 +672,8 @@ main( int ac, char **av )
 
 		switch ( exitstatus ) {
 		case EXIT_OK:
+		    syslog( LOG_NOTICE, "Child %d: %s exited: %d", pid,
+			    p_name, exitstatus );
 		    break;
 
 		default:
@@ -863,14 +862,17 @@ simta_daemon_child( int type, int s )
 
 	switch ( type ) {
 	case CHILD_Q_LOCAL:
+	    simta_process_type = SIMTA_PROCESS_TYPE_Q_RUNNER;
 	    exit( q_runner_dir( simta_dir_local ));
 	    break;
 
 	case CHILD_Q_SLOW:
+	    simta_process_type = SIMTA_PROCESS_TYPE_Q_RUNNER;
 	    exit( q_runner_dir( simta_dir_slow ));
 	    break;
 
 	case CHILD_RECEIVE:
+	    simta_process_type = SIMTA_PROCESS_TYPE_RECEIVE;
 	    exit( smtp_receive( fd, &sin ));
 	    break;
 

@@ -949,8 +949,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		    ldap_memfree( dn );
 		    free( senderbuf );
 		    return( LDAP_SYSERROR );
-		} else {
-		    ldap_value_free( permitted );
 		}
 	    }
 

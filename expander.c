@@ -87,15 +87,23 @@ main( int argc, char *argv[])
 	exit( EX_DATAERR );
     }
 
-    if (( env = env_create( sender )) == NULL ) {
-	perror( "malloc" );
-	return( 1 );
-    }
+    do {
+	nextargc++;
 
-    if ( env_recipient( env, argv[ nextargc + 1 ]) != 0 ) {
-	perror( "malloc" );
-	return( 1 );
-    }
+	if (( env = env_create( sender )) == NULL ) {
+	    perror( "malloc" );
+	    return( 1 );
+	}
 
-    return( expand( &hq, env ));
+	if ( env_recipient( env, argv[ nextargc ]) != 0 ) {
+	    perror( "malloc" );
+	    return( 1 );
+	}
+
+	if ( expand( &hq, env ) != 0 ) {
+	    return( 1 );
+	}
+    } while ( nextargc < argc - 1 );
+
+    return( 0 );
 }
