@@ -24,6 +24,8 @@
 #define	SIMTA_BOUNCE_LINES	100
 #define	SIMTA_VERSION_STRING	"V0"
 #define SIMTA_ALIAS_DB		"/etc/alias.db"
+#define SIMTA_MAX_RUNNERS_SLOW	3
+#define SIMTA_MAX_RUNNERS_LOCAL	3
 
 
 /* global variables */

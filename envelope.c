@@ -64,7 +64,7 @@ env_create( char *id )
 
     /* XXX const val should be dynamic or #defined */
     if ( strlen( id ) > 29 ) {
-	syslog( "LOG_ERR, "env_create %s: id too long", id );
+	syslog( LOG_ERR, "env_create %s: id too long", id );
 	return( NULL );
     }
 

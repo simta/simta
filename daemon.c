@@ -174,8 +174,8 @@ main( ac, av )
     }
 
     /* XXX make these options, etc */
-    q_runner_local_max = 5;
-    q_runner_slow_max = 5;
+    q_runner_local_max = SIMTA_MAX_RUNNERS_LOCAL;
+    q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 5;
 
     while (( c = getopt( ac, av, "b:C:cdM:m:p:rs:V" )) != -1 ) {
