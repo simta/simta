@@ -704,6 +704,9 @@ simta_ldap_address_local( char *name, char *domain )
 
     rc = simta_local_search (noattrs, dup_name, domain, &count);
     free (dup_name);
+    if ( rc != 0 ) {
+	return( rc );
+    }
 
     return( (count > 0) ? LDAP_LOCAL : LDAP_NOT_LOCAL );
 }
