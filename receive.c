@@ -1131,7 +1131,10 @@ smtp_receive( fd, sin )
 	    syslog( LOG_INFO, "receive %s: connection rejected: %s",
 		dnsr_err2string( dnsr_errno( simta_dnsr )),
 		inet_ntoa( sin->sin_addr ));
-	    goto syserror;
+	    snet_writef( snet, "421 Error checking reverse address: %s\r\n",
+		    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	    goto closeconnection;
+
 	} else {
 	    if ( simta_ignore_reverse == 0 ) {
 		syslog( LOG_INFO, "receive %s: connection rejected: "
@@ -1157,7 +1160,7 @@ smtp_receive( fd, sin )
 	    STRING_UNKNOWN ) == 0 ) {
 	syslog( LOG_INFO, "receive connection refused %s: access denied",
 		inet_ntoa( sin->sin_addr ));
-	snet_writef( snet, "421 Access Denied\r\n" );
+	snet_writef( snet, "421 Access Denied - remote access restricted\r\n" );
 	goto closeconnection;
     }
 #endif /* HAVE_LIBWRAP */
@@ -1167,15 +1170,15 @@ smtp_receive( fd, sin )
     }
     receive_sin = sin;
 
-    if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
-	    "ready\r\n", 220, simta_hostname ) < 0 ) {
-	goto closeconnection;
-    }
-
     if (( acav = acav_alloc( )) == NULL ) {
 	syslog( LOG_ERR, "receive argcargv_alloc: %m" );
 	value = RECEIVE_SYSERROR;
 	goto syserror;
+    }
+
+    if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
+	    "ready\r\n", 220, simta_hostname ) < 0 ) {
+	goto closeconnection;
     }
 
     tv.tv_sec = simta_receive_wait;
