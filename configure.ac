@@ -12,6 +12,11 @@ AC_PREFIX_DEFAULT(/usr/local)
 AC_PROG_CC
 AC_PROG_INSTALL
 
+if test x_$GCC = x_yes; then
+    OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes -Wmissing-prototypes -Wconversion"}
+fi
+AC_SUBST(OPTOPTS)
+
 CHECK_SSL
 
 AC_CHECK_LIB([nsl], [inet_ntoa])

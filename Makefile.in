@@ -1,27 +1,19 @@
 ################## Some of this may need to be edited ##################
 
-DESTDIR=/usr/local
-MANDIR=${DESTDIR}/man
-BINDIR=${DESTDIR}/bin
-ETCDIR=${DESTDIR}/etc
-SBINDIR=${DESTDIR}/sbin
+DESTDIR=@prefix@
+MANDIR=@mandir@
+BINDIR=@bindir@
+ETCDIR=@sysconfdir@
+SBINDIR=@sbindir@
 
+# XXX make this a command line option, not a configure item
 SIMTALOG=LOG_MAIL
 
-# Stock compiler:
-#CC=	cc
-
-# For gcc:
-CC=	gcc
+CC=@CC@
 # These options might work on your system:
-OPTOPTS=-Wall -Wstrict-prototypes -Wmissing-prototypes -Wconversion
+OPTOPTS= @OPTOPTS@
 
-# For most platforms:
-#INSTALL=	install
-
-# For Solaris:
-INSTALL=	/usr/ucb/install
-ADDLIBS=	-lsocket -lnsl
+INSTALL=@INSTALL@
 
 ################ Nothing below should need editing ###################
 
@@ -35,7 +27,7 @@ DEFS=	-DLOG_SIMTA=${SIMTALOG} -DTLS -DSOLARIS
 CFLAGS=	${DEFS} ${OPTOPTS} ${INCPATH}
 TAGSFILE=	tags
 LIBPATH=	-Llibsnet/.libs -L/usr/local/openssl/lib
-LIBS=	${ADDLIBS} -lsnet -lssl -lcrypto
+LIBS=	-lsnet @LIBS@
 
 TARGETS=	simta tlsconnect
 

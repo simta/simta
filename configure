@@ -2027,6 +2027,11 @@ test -z "$INSTALL_SCRIPT" && INSTALL_SCRIPT='${INSTALL}'
 test -z "$INSTALL_DATA" && INSTALL_DATA='${INSTALL} -m 644'
 
 
+if test x_$GCC = x_yes; then
+    OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes -Wmissing-prototypes -Wconversion"}
+fi
+
+
 
     echo "$as_me:$LINENO: checking for ssl" >&5
 echo $ECHO_N "checking for ssl... $ECHO_C" >&6
@@ -2795,6 +2800,7 @@ s,@OBJEXT@,$OBJEXT,;t t
 s,@INSTALL_PROGRAM@,$INSTALL_PROGRAM,;t t
 s,@INSTALL_SCRIPT@,$INSTALL_SCRIPT,;t t
 s,@INSTALL_DATA@,$INSTALL_DATA,;t t
+s,@OPTOPTS@,$OPTOPTS,;t t
 s,@TLSDEFS@,$TLSDEFS,;t t
 s,@HAVE_SSL@,$HAVE_SSL,;t t
 s,@subdirs@,$subdirs,;t t
