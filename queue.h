@@ -20,6 +20,12 @@
 #define	Q_REMOVE	1
 #define	Q_REORDER	2
 
+/* states for host_q->hq_status */
+#define HOST_NULL	0
+#define HOST_LOCAL	1
+#define HOST_REMOTE	2
+#define HOST_BOUNCE	3
+
 struct q_file {
     char			*q_id;
     char			*q_expanded;
@@ -39,7 +45,7 @@ struct q_file {
 
 struct host_q {
     char			*hq_name;
-    int				hq_local;
+    int				hq_status;
     struct stab_entry		*hq_qfiles;
 };
 

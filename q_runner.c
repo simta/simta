@@ -308,14 +308,22 @@ main( int argc, char *argv[] )
     for ( hs = host_stab; hs != NULL; hs = hs->st_next ) {
 	hq = (struct host_q*)hs->st_data;
 
-	if (( hq->hq_name == NULL ) || ( *hq->hq_name == '\0' )) {
+	if ( hq->hq_status == HOST_NULL ) {
 	    /* XXX NULL host queue.  Add DNS code */
 
-	} else if ( hq->hq_local != 0 ) {
+	} else if ( hq->hq_status == HOST_LOCAL ) {
 	    deliver_local( hq );
 
-	} else {
+	} else if ( hq->hq_status == HOST_REMOTE ) {
 	    deliver_remote( hq );
+
+	} else if ( hq->hq_status == HOST_BOUNCE ) {
+	    /* XXX deliver_bounce( hq ); */
+
+	} else {
+	    /* big error */
+	    syslog( LOG_ERR, "q_runner: unreachable code" );
+	    exit( 1 );
 	}
     }
 
@@ -602,7 +610,8 @@ deliver_remote( struct host_q *hq )
 		syslog( LOG_ALERT, "Hostname %s is not a remote host",
 			hq->hq_name );
 
-		/* XXX bounce entire host queue */
+		hq->hq_status = HOST_BOUNCE;
+		/* XXX deliver_bounce( hq ); */
 		return;
 	    }
 	}

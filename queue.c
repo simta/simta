@@ -138,7 +138,13 @@ host_q_lookup( struct stab_entry **host_stab, char *host )
 
 	/* XXX DNS test for local queues */
 	if ( strcasecmp( localhostname, hq->hq_name ) == 0 ) {
-	    hq->hq_local = 1;
+	    hq->hq_status = HOST_LOCAL;
+
+	} else if (( host == NULL ) || ( *host == '\0' )) {
+	    hq->hq_status = HOST_NULL;
+
+	} else {
+	    hq->hq_status = HOST_REMOTE;
 	}
     }
 
