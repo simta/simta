@@ -59,6 +59,7 @@ struct host_q		*simta_null_q = NULL;
 struct host_q		*simta_punt_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
 struct host		*simta_default_host = NULL;
+struct host		*simta_low_pref_mx_domain = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
@@ -218,23 +219,6 @@ simta_read_config( char *fname )
 		    goto error;
 		}
 		if ( simta_debug ) printf( "%s -> REFUSE\n", domain );
-
-	    } else if ( strcasecmp( av[ 1 ], "LOW_PREF_MX" ) == 0 ) {
-		if ( ac != 2 ) {
-		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		    goto error;
-		}
-		/* Do not allow local host to be low_pref_mx */
-		if ( strcasecmp( simta_hostname, domain ) == 0 ) {
-		    fprintf( stderr, "%s: line %d: invalid host",
-			fname, lineno );
-		    goto error;
-		}
-
-		host->h_type = HOST_MX;
-
-		if ( simta_debug ) printf( "%s -> LOW_PREF_MX\n", domain );
 
 	    } else if ( strcasecmp( av[ 1 ], "ALIAS" ) == 0 ) {
 		if ( ac != 2 ) {
@@ -502,6 +486,34 @@ simta_read_config( char *fname )
 	    }
 	    /* Add 1 to include max in failed rcpt count */
 	    simta_max_failed_rcpts++;
+
+	} else if ( strcasecmp( av[ 0 ], "LOW_PREF_MX" ) == 0 ) {
+	   if ( simta_low_pref_mx_domain != NULL ) {
+	       fprintf( stderr, "%s: line %d: duplicate low_pref_mx\n",
+		   fname, lineno );
+	       goto error;
+	   }
+	   if ( ac != 2 ) {
+	       fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		   fname, lineno );
+	       goto error;
+	   }
+	   /* Do not allow local host to be low_pref_mx */
+	   if ( strcasecmp( simta_hostname, av[ 1 ] ) == 0 ) {
+	       fprintf( stderr, "%s: line %d: invalid host",
+		   fname, lineno );
+	       goto error;
+	   }
+	   if (( simta_low_pref_mx_domain =
+		   malloc( sizeof( struct host ))) == NULL ) {
+	       perror( "malloc" );
+	       goto error;
+	   }
+	   memset( simta_low_pref_mx_domain, 0, sizeof( struct host ));
+	   simta_low_pref_mx_domain->h_type = HOST_MX;
+	   strcpy( simta_low_pref_mx_domain->h_name, av[ 1 ] );
+	   if ( simta_debug ) printf( "LOW_PREF_MX: %s\n",
+	       simta_low_pref_mx_domain->h_name );
 
 	} else {
 	    fprintf( stderr, "%s: line %d: unknown keyword: %s\n",

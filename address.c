@@ -310,7 +310,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 	    }
 
 	    /* Check to see if domain is off the local host */
-	    if (( host = host_local( e_addr->e_addr_at + 1 )) == NULL ) {
+	    if ((( host = host_local( e_addr->e_addr_at + 1 )) == NULL ) 
+		    || ( host->h_type == HOST_MX )) {
 		syslog( LOG_DEBUG,
 			"address_expand <%s> FINAL: domain not local",
 			e_addr->e_addr );

@@ -123,6 +123,7 @@ get_mx( char *hostname )
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
+
     if ( simta_dns_config && result->r_ancount > 0 ) {
 	/* Check to see if hostname is mx'ed to us
 	 * Only do dynamic configuration when exchange matches our
@@ -170,27 +171,59 @@ get_mx( char *hostname )
     struct host *
 host_local( char *hostname )
 {
+    int			i;
     struct host		*host;
     struct dnsr_result	*result;
 
-    /* Look for hostname in host table */
+    /* Check for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
 	return( host );
     }
 
-    /* Check DNS */
-    if (( result = get_mx( hostname )) != NULL ) {
-	if ( result->r_ancount > 0 ) {
-	    dnsr_free_result( result );
-	    /* Look for hostname in host table */
-	    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-		return( host );
+    if (( result = get_mx( hostname )) == NULL ) {
+	return( NULL );
+    }
+
+    /* Check for an answer */
+    if ( result->r_ancount == 0 ) {
+	dnsr_free_result( result );
+	return( NULL );
+    }
+
+    /* Check to see if host has been added to host table */
+    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
+	dnsr_free_result( result );
+	return( host );
+    }
+
+    /* Check for low_pref_mx */
+    if ( simta_low_pref_mx_domain != NULL ) {
+	for ( i = 0; i < result->r_ancount; i++ ) {
+	    switch( result->r_answer[ i ].rr_type ) {
+	    case DNSR_TYPE_CNAME:
+		break;
+
+	    case DNSR_TYPE_MX:
+		if (( strcasecmp( simta_low_pref_mx_domain->h_name,
+			result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
+			&& ( result->r_answer[ i ].rr_mx.mx_preference >
+			result->r_answer[ 0 ].rr_mx.mx_preference )) {
+		    dnsr_free_result( result );
+		    return( simta_low_pref_mx_domain );
+		}
+		break;
+
+	    default:
+		syslog( LOG_DEBUG,
+		    "host_local: %s: uninteresting dnsr type: %d",
+		    result->r_answer[ i ].rr_name, 
+		    result->r_answer[ i ].rr_type );
+		break;
 	    }
-	} else {
-	    dnsr_free_result( result );
 	}
     }
 
+    dnsr_free_result( result );
     return( NULL );
 }
 

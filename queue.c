@@ -570,6 +570,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     SNET                        *snet_dfile = NULL;
     SNET			*snet_lock;
     char                        dfile_fname[ MAXPATHLEN ];
+    struct host			*host;
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env_deliver;
@@ -583,12 +584,13 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
      * remote host if we have not done so already.
      */
     if ( deliver_q->hq_status == HOST_UNKNOWN ) {
-	if ( host_local( deliver_q->hq_hostname ) != NULL ) {
-	    deliver_q->hq_status = HOST_LOCAL;
+	host = host_local( deliver_q->hq_hostname );
+	if (( host == NULL ) || ( host->h_type == HOST_MX )) {
+	    deliver_q->hq_status = HOST_MX;
 	} else if ( simta_dnsr->d_errno == DNSR_ERROR_TIMEOUT ) {
 	    deliver_q->hq_status = HOST_DOWN;
 	} else {
-	    deliver_q->hq_status = HOST_MX;
+	    deliver_q->hq_status = HOST_LOCAL;
 	}
     }
 
@@ -1062,29 +1064,34 @@ connect_cleanup:
 next_dnsr_host( struct deliver *d, struct host_q *hq )
 {
     char			*ip;
+    int 			i;
 
     if ( d->d_dnsr_result == NULL ) {
+	hq->hq_no_punt = 0;
+	d->d_mx_preference_cutoff = 0;
+	d->d_cur_dnsr_result = 0;
+
 	switch ( hq->hq_status ) {
 
 	case HOST_DOWN:
 	    if ((( d->d_dnsr_result = get_mx( hq->hq_hostname )) != NULL ) &&
 		    ( d->d_dnsr_result->r_ancount != 0 )) {
-		/* check remote host's mx entry for our local hostname.
-		 * If we find it, we never punt mail destined for this host,
+
+		/* check remote host's mx entry for our local hostname and
+		 * loew_pref_mx_domain if configured.
+		 * If we find one, we never punt mail destined for this host,
 		 * and we only try remote delivery to mx entries that have a
-		 * lower mx_preference than we do.
+		 * lower mx_preference than for what was matched.
 		 */
-		hq->hq_no_punt = 0;
-		d->d_mx_preference_cutoff = 0;
-		for ( d->d_cur_dnsr_result = 0;
-			d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
-			d->d_cur_dnsr_result++ ) {
-		    if ( strcasecmp( simta_hostname,
-			    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
-			    ].rr_mx.mx_exchange ) == 0 ) {
+		for ( i = 0; i < d->d_dnsr_result->r_ancount; i++ ) {
+		    if (( strcasecmp( simta_hostname,
+	    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 )
+			    || (( simta_low_pref_mx_domain != NULL ) &&
+			    ( strcasecmp( simta_low_pref_mx_domain->h_name,
+	    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ))) {
 			hq->hq_no_punt = 1;
 			d->d_mx_preference_cutoff =
-				d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
+				d->d_dnsr_result->r_answer[ i 
 				].rr_mx.mx_preference;
 			break;
 		    }
@@ -1119,7 +1126,6 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		}
 	    }
 
-	    d->d_cur_dnsr_result = 0;
 	    break;
 
 	case HOST_PUNT_DOWN:
@@ -1133,7 +1139,6 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		d->d_dnsr_result = NULL;
 		return( 1 );
 	    }
-	    d->d_cur_dnsr_result = 0;
 	    break;
 
 	default:

@@ -69,6 +69,7 @@ extern struct host_q			*simta_null_q;
 extern struct host_q			*simta_punt_q;
 extern struct stab_entry		*simta_hosts;
 extern struct host			*simta_default_host;
+extern struct host                      *simta_low_pref_mx_domain;
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern int				(*simta_local_mailer)(int, char *,
