@@ -26,6 +26,7 @@
 #include <pwd.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sysexits.h>
 
 #include <snet.h>
 
@@ -61,7 +62,7 @@ catch_sigint( int sigint )
 	unlink( dfile_fname );
     }
 
-    exit( 1 );
+    exit( EX_TEMPFAIL );
 }
 
 
@@ -79,6 +80,7 @@ main( int argc, char *argv[] )
     int			ignore_dot = 0;
     int			x;
     int			header;
+    int			result;
     FILE		*dfile = NULL;
 
     /* ignore a good many options */
@@ -96,7 +98,7 @@ main( int argc, char *argv[] )
 		case 's':
 		    /* 501 Permission denied */
 		    printf( "501 Mode not supported\n" );
-		    exit( 1 );
+		    exit( EX_USAGE );
 		    break;
 
 		case 'D':
@@ -110,7 +112,7 @@ main( int argc, char *argv[] )
 		case 'v':
 		    /* -bv verify names only */
 		    printf( "Mode not supported\n" );
-		    exit( 1 );
+		    exit( EX_USAGE );
 		    break;
 
 		case 'm':
@@ -147,24 +149,24 @@ main( int argc, char *argv[] )
 		"[ -i ] "
 		"[ -o option ] "
 		"[[ -- ] to-address ...]\n", argv[ 0 ] );
-	exit( 1 );
+	exit( EX_USAGE );
     }
 
     /* XXX no -t option, so no facility for header recipients */
     if ( optind == argc ) {
 	fprintf( stderr, "%s: no recipients\n", argv[ 0 ]);
-	exit( 1 );
+	exit( EX_USAGE );
     }
 
     /* create envelope */
     if (( env = env_create( NULL )) == NULL ) {
 	perror( "env_create" );
-	exit( 1 );
+	exit( EX_TEMPFAIL );
     }
 
     if ( env_gettimeofday_id( env ) != 0 ) {
 	perror( "env_gettimeofday_id" );
-	exit( 1 );
+	exit( EX_TEMPFAIL );
     }
 
     env->e_mail = simta_sender();
@@ -173,20 +175,20 @@ main( int argc, char *argv[] )
     for ( x = optind; x < argc; x++ ) {
 	if ( env_recipient( env, argv[ x ] ) != 0 ) {
 	    perror( "env_recipient" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL );
 	}
     }
 
     /* create line_file for headers */
     if (( lf = line_file_create()) == NULL ) {
 	perror( "line_file_create" );
-	exit( 1 );
+	exit( EX_TEMPFAIL );
     }
 
     /* need to read stdin in a line-oriented fashon */
     if (( snet_stdin = snet_attach( 0, 1024 * 1024 )) == NULL ) {
 	perror( "snet_attach" );
-	exit( 1 );
+	exit( EX_TEMPFAIL );
     }
 
     /* start in header mode */
@@ -202,7 +204,7 @@ main( int argc, char *argv[] )
     /* catch SIGINT and cleanup */
     if ( signal( SIGINT, catch_sigint ) == SIG_ERR ) {
 	perror( "signal" );
-	exit( 1 );
+	exit( EX_TEMPFAIL );
     }
 
     while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
@@ -213,7 +215,7 @@ main( int argc, char *argv[] )
 		goto cleanup;
 	    }
 
-	    exit( 1 );
+	    exit( EX_DATAERR );
 	}
 
 	if ( ignore_dot == 0 ) {
@@ -226,8 +228,13 @@ main( int argc, char *argv[] )
 	if ( header == 1 ) {
 
 	    if ( header_end( lf, line ) != 0 ) {
-		if ( header_correct( lf, env ) != 0 ) {
-		    exit( 1 );
+		if (( result = header_correct( lf, env )) != 0 ) {
+		    if ( result > 0 ) {
+			exit( EX_DATAERR );
+
+		    } else {
+			exit( EX_TEMPFAIL );
+		    }
 		}
 
 		/* open Dfile */
@@ -276,7 +283,7 @@ main( int argc, char *argv[] )
 		    if (( *wsp != ' ' ) && ( *wsp != '\t' )) {
 			if (( l = line_append( lf, line )) == NULL ) {
 			    perror( "line_append" );
-			    exit( 1 );
+			    exit( EX_TEMPFAIL );
 			}
 
 			break;
@@ -294,7 +301,7 @@ main( int argc, char *argv[] )
 	perror( "snet_close" );
 
 	if ( dfile == NULL ) {
-	    exit( 1 );
+	    exit( EX_TEMPFAIL );
 
 	} else {
 	    fclose( dfile );
@@ -303,8 +310,13 @@ main( int argc, char *argv[] )
     }
 
     if ( header == 1 ) {
-	if ( header_correct( lf, env ) != 0 ) {
-	    exit( 1 );
+	if (( result = header_correct( lf, env )) != 0 ) {
+	    if ( result > 0 ) {
+		exit( EX_DATAERR );
+
+	    } else {
+		exit( EX_TEMPFAIL );
+	    }
 	}
 
 	/* open Dfile */
