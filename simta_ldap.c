@@ -553,7 +553,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 		    }
 
 		    /* insert word */
-		    for ( insert = user; *insert != '\0', insert++ ) {
+		    for ( insert = user; *insert != '\0'; insert++ ) {
 			if (( *insert == '.' ) || ( *insert == '_' )) {
 			    *d = ' ';
 			} else {
@@ -579,7 +579,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 		    }
 
 		    /* insert word */
-		    for ( insert = domain; *insert != '\0', insert++ ) {
+		    for ( insert = domain; *insert != '\0'; insert++ ) {
 			*d = *insert;
 			d++;
 		    }
