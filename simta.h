@@ -40,6 +40,7 @@ extern int				simta_max_received_headers;
 extern int				simta_max_bounce_lines;
 extern int				simta_smtp_outbound_attempts;
 extern int				simta_smtp_outbound_delivered;
+extern int				simta_dns_config;
 extern int				simta_global_relay;
 extern int				simta_debug;
 extern int				simta_expand_debug;
@@ -59,7 +60,7 @@ extern char				simta_ename_slow[];
 extern char				*simta_punt_host;
 extern struct host_q			*simta_null_q;
 extern struct stab_entry		*simta_hosts;
-extern struct stab_entry		*simta_default_host;
+extern struct host			*simta_default_host;
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern int				(*simta_local_mailer)(int, char *,
@@ -71,6 +72,7 @@ char	*simta_sender ( void );
 char	*simta_resolvconf ( void );
 int	simta_init_hosts ( void );
 int	simta_config( char *, char * );
+int     simta_domain_config( char * );
 
 /*****     bounce.c     *****/
 

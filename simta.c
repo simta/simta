@@ -14,10 +14,12 @@
 
 #include <sys/param.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 
 #include <snet.h>
 
+#include <fcntl.h>
 #include <netdb.h>
 #include <assert.h>
 #include <unistd.h>
@@ -35,6 +37,7 @@
 #include "envelope.h"
 #include "ml.h"
 #include "simta.h"
+#include "argcargv.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -43,12 +46,12 @@
 
 /* global variables */
 
-
 int			(*simta_local_mailer)(int, char *, struct recipient *);
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
-struct stab_entry	*simta_default_host = NULL;
+struct host		*simta_default_host = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_dns_config = 0;
 int			simta_no_sync = 0;
 int			simta_max_received_headers = 100;
 int			simta_max_bounce_lines;
@@ -94,8 +97,10 @@ struct nlist		simta_nlist[] = {
     { "max_received_headers",				NULL,	0 },
 #define	NLIST_MAIL_FILTER				7
     { "mail_filter",					NULL,	0 },
+#define	NLIST_DOMAIN_CONFIG				8
+    { "domain",						NULL,	0 },
 #ifdef HAVE_LDAP
-#define	NLIST_LDAP					8
+#define	NLIST_LDAP					9
     { "ldap",						NULL,	0 },
 #endif /* HAVE_LDAP */
     { NULL,						NULL,	0 },
@@ -292,6 +297,13 @@ simta_config( char *conf_fname, char *base_dir )
 	    simta_mail_filter = simta_nlist[ NLIST_MAIL_FILTER ].n_data;
 	}
 
+	if ( simta_nlist[ NLIST_DOMAIN_CONFIG ].n_data != NULL ) {
+	    if ( simta_domain_config(
+		    simta_nlist[ NLIST_DOMAIN_CONFIG ].n_data ) != 0 ) {
+		return( -1 );
+	    }
+	}
+
 #ifdef HAVE_LDAP
 	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
 	    if ( simta_ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) != 0 ) {
@@ -369,3 +381,68 @@ simta_config( char *conf_fname, char *base_dir )
 
     return( 0 );
 }
+
+    int
+simta_domain_config( char * fname )
+{
+    ACAV		*acav;
+    int			ac;
+    char		**av;
+    int			lineno = 0;
+    int			fd;
+    char		*line;
+    char		*rval;
+    char		*lval;
+    SNET		*snet;
+    struct nlist	*n;
+
+    /* open fname */
+    if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
+	fprintf( stderr, "simta_domain_config: open %s: ", fname );
+	perror( NULL );
+	return( -1 );
+    }
+
+    if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
+	perror( "simta_domain_config: snet_attach" );
+	close( fd );
+	return( -1 );
+    }
+
+    if (( acav = acav_alloc( )) == NULL ) {
+	perror( "simta_domain_config: acav_alloc" );
+	snet_close( snet );
+	return( -1 );
+    }
+
+    while (( line = snet_getline( snet, NULL )) != NULL ) {
+	lineno++;
+
+	if (( line[ 0 ] == '\0' ) || ( line[ 0 ] == '#' )) {
+	    /* blank line or comment */
+	    continue;
+	}
+
+	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
+	    perror( "simta_domain_config: acav_parse:" );
+	    goto error;
+	}
+
+	fprintf( stderr, "%d: host: %s\n", lineno, acav[ 0 ] );
+
+    }
+
+    if ( snet_close( snet ) != 0 ) {
+	perror( "simta_domain_config: snet_close" );
+	return( -1 );
+    }
+
+    acav_free( acav );
+    return( 0 );
+
+error:
+    snet_close( snet );
+    acav_free( acav );
+    return( -1 );
+}
+
