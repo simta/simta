@@ -737,7 +737,7 @@ smtp_quit( SNET *snet, struct host_q *hq )
     char			*line;
     struct timeval		tv;
 
-    /* mark it down unless it's a BOUNCE, mark it up if we actually succeed */
+    /* mark it down if it's UP, change it back later if we succeed */
     if ( hq->hq_status == HOST_MX ) {
 	hq->hq_status = HOST_DOWN;
     }
@@ -779,7 +779,6 @@ smtp_quit( SNET *snet, struct host_q *hq )
 	}
 
 	if ( hq->hq_status == HOST_DOWN ) {
-	    /* we're up if we're not BOUNCEing */
 	    hq->hq_status = HOST_MX;
 	}
 	return;
