@@ -46,11 +46,10 @@ void	stdout_logger ___P(( char * ));
 int	smtp_eval ___P(( char *, char * ));
 
 int	smtp_connect ___P(( SNET **, struct host_q * ));
+int	smtp_rset ___P(( SNET *, struct host_q * ));
 int	_smtp_send ___P(( SNET *, struct host_q *, struct envelope *, SNET * ));
-int	_smtp_rset ___P(( SNET *, struct host_q * ));
 int	_smtp_quit ___P(( SNET *, struct host_q * ));
 
-int	smtp_rset ___P(( SNET *, char *, void (*)(char *)));
 int	smtp_quit ___P(( SNET *, char *, void (*)(char *)));
 int	smtp_send ___P(( SNET *, char *, struct envelope *, SNET *,
 		void (*)(char *)));

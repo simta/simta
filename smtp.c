@@ -69,58 +69,6 @@ smtp_eval( char *code, char *line )
 
 
     int
-smtp_rset( SNET *snet, char *hostname, void (*logger)(char *))
-{
-    char			*line;
-
-    /* say RSET */
-    if ( snet_writef( snet, "RSET\r\n" ) < 0 ) {
-	if ( errno != EIO ) {
-	    syslog( LOG_ERR, "snet_writef: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	syslog( LOG_NOTICE, "smtp_rset %s: failed writef", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-#ifdef DEBUG
-    printf( "--> RSET\n" );
-#endif /* DEBUG */
-
-    /* read reply banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_NOTICE, "smtp_rset %s: unexpected EOF", hostname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	syslog( LOG_NOTICE, "smtp_rset %s: bad banner: %s", hostname, line );
-
-	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_NO_BOUNCE );
-    }
-
-    return( 0 );
-}
-
-
-    int
 smtp_quit( SNET *snet, char *hostname, void (*logger)(char *))
 {
     char			*line;
@@ -677,6 +625,9 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     } else if ( *line != '2' ) {
 	hq->hq_status = HOST_BOUNCE;
 
+	syslog( LOG_NOTICE, "smtp_connect %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
 	/* capture error message */
 	if (( hq->hq_err_text = line_file_create()) == NULL ) {
 	    syslog( LOG_ERR, "smtp_connect: line_file_create %m" );
@@ -734,6 +685,9 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     if ( *remote_host == '\0' ) {
 	hq->hq_status = HOST_BOUNCE;
 
+	syslog( LOG_NOTICE, "smtp_connect %s: bad SMTP banner, "
+		"expecting remote hostname: %s", hq->hq_hostname, line );
+
 	if (( hq->hq_err_text = line_file_create()) == NULL ) {
 	    syslog( LOG_ERR, "smtp_connect: line_file_create %m" );
 	    return( SMTP_ERR_SYSCALL );
@@ -751,8 +705,23 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
-	syslog( LOG_NOTICE, "smtp_connect %s: bad SMTP banner, "
-		"expecting remote hostname: %s", hq->hq_hostname, line );
+	while (*(line + 3) == '-' ) {
+	    if (( line = snet_getline( snet, &tv )) == NULL ) {
+		syslog( LOG_NOTICE, "smtp_connect %s: unexpected EOF",
+			hq->hq_hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_connect: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_REMOTE );
+	    }
+
+	    if ( smtp_logger != NULL ) {
+		(*smtp_logger)( line );
+	    }
+	}
 
 	if ( _smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
@@ -909,6 +878,9 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     } else if ( *line != '2' ) {
 	hq->hq_status = HOST_BOUNCE;
 
+	syslog( LOG_NOTICE, "smtp_connect %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
 	/* capture error message */
 	if (( hq->hq_err_text = line_file_create()) == NULL ) {
 	    syslog( LOG_ERR, "smtp_connect: line_file_create %m" );
@@ -1034,8 +1006,49 @@ _smtp_send ( SNET *snet, struct host_q *hq, struct envelope *env,
 
 
     int
-_smtp_rset ( SNET *snet, struct host_q *hq )
+smtp_rset( SNET *snet, struct host_q *hq )
 {
+    char			*line;
+    struct timeval		tv;
+
+    /* say RSET */
+    if ( snet_writef( snet, "RSET\r\n" ) < 0 ) {
+	syslog( LOG_NOTICE, "smtp_rset %s: failed writef", hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_rset snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	hq->hq_status = HOST_DOWN;
+	return( SMTP_ERR_REMOTE );
+    }
+
+#ifdef DEBUG
+    printf( "--> RSET\n" );
+#endif /* DEBUG */
+
+    /* read reply banner */
+
+    tv.tv_sec = SMTP_TIME_RSET;
+    tv.tv_usec = 0;
+
+    if (( line = snet_getline( snet, &tv )) == NULL ) {
+	syslog( LOG_NOTICE, "smtp_rset %s: unexpected EOF", hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_rset: snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	hq->hq_status = HOST_DOWN;
+	return( SMTP_ERR_REMOTE );
+    }
+
+    if ( smtp_logger != NULL ) {
+	(*smtp_logger)( line );
+    }
+
     /* RSET
      *	    S: 2*
      *
@@ -1044,6 +1057,68 @@ _smtp_rset ( SNET *snet, struct host_q *hq )
      *		- close connection
      *		- bounce queue
      */
+
+    if ( *line != '2' ) {
+	hq->hq_status = HOST_BOUNCE;
+
+	syslog( LOG_NOTICE, "smtp_rset %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
+	/* capture error message */
+	if (( hq->hq_err_text = line_file_create()) == NULL ) {
+	    syslog( LOG_ERR, "smtp_connect: line_file_create %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	if ( line_append( hq->hq_err_text, line ) == NULL ) {
+	    syslog( LOG_ERR, "smtp_connect: line_append %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	while (*(line + 3) == '-' ) {
+	    if (( line = snet_getline( snet, &tv )) == NULL ) {
+		syslog( LOG_NOTICE, "smtp_connect %s: unexpected EOF",
+			hq->hq_hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_connect: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_REMOTE );
+	    }
+
+	    if ( smtp_logger != NULL ) {
+		(*smtp_logger)( line );
+	    }
+
+	    if ( line_append( hq->hq_err_text, line ) == NULL ) {
+		syslog( LOG_ERR, "smtp_connect: line_append %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+	}
+
+	if ( _smtp_quit( snet, hq ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_REMOTE );
+    }
+
+    if ( *(line + 3) == '-' ) {
+	if (( line = snet_getline_multi( snet, smtp_logger, &tv )) == NULL ) {
+	    syslog( LOG_NOTICE, "smtp_rset %s: unexpected EOF",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_rset: snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    hq->hq_status = HOST_DOWN;
+	    return( SMTP_ERR_REMOTE );
+	}
+    }
 
     return( 0 );
 }

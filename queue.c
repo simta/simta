@@ -705,7 +705,7 @@ q_deliver( struct host_q *hq )
             }
 
             if ( sent != 0 ) {
-                if (( result = smtp_rset( snet, hq->hq_hostname, logger )) ==
+                if (( result = smtp_rset( snet, hq )) ==
                         SMTP_ERR_SYSCALL ) {
                     return( -1 );
 
