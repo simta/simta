@@ -307,6 +307,10 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
 #ifdef HAVE_LDAP
         case EXPANSION_TYPE_LDAP:
+	    if ( e_addr->e_addr_at == NULL ) {
+		continue;
+	    }
+
 ldap_exclusive:
 	    switch ( simta_ldap_expand( exp, e_addr )) {
 	    case LDAP_EXCLUDE:
