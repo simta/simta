@@ -43,7 +43,6 @@ main( int argc, char *argv[])
 {
     extern int          optind;
     extern char         *optarg;
-    char		*error_txt;
     char		c;
     char		*server = NULL;
     int			rc;
@@ -117,17 +116,13 @@ main( int argc, char *argv[])
 	exit( SIMRBL_EXIT_ERROR );
     }
 
-    if (( rc = check_rbl( &addr, simta_rbl_domain, &error_txt )) < 0 ) {
+    if (( rc = check_rbl( &addr, simta_rbl_domain )) < 0 ) {
 	if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
 	exit( SIMRBL_EXIT_ERROR );
     }
 
     if ( rc == 0 ) {
 	if ( !quiet ) printf( "blocked\n" );
-	if ( error_txt != NULL ) {
-	    if ( !quiet ) printf( "%s\n", error_txt );
-	    free( error_txt );
-	}
 	exit( SIMRBL_EXIT_BLOCKED );
     } else {
 	if ( !quiet ) printf( "not blocked\n" );

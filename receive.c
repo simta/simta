@@ -544,6 +544,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	if ( recieve_failed_rcpts == simta_max_failed_rcpts ) {
 	    syslog( LOG_INFO, "Receive %s: Rejected:"
 		" Too many failed recepients", env->e_id );
+	    recieve_failed_rcpts++;
 	}
 	if ( snet_writef( snet, "%d Requested action aborted: "
 		"Too many failed recipients.\r\n", 451 ) < 0 ) {
@@ -670,7 +671,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    if ( receive_remote_rbl_status == RECEIVE_RBL_UNKNOWN ) {
 			/* Check and save RBL status */
 			switch ( check_rbl( &(receive_sin->sin_addr),
-				simta_user_rbl_domain, NULL )) {
+				simta_user_rbl_domain )) {
 			case 0:
 			    receive_remote_rbl_status = RECEIVE_RBL_BLOCKED;
 			    break;
@@ -695,7 +696,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			snet_writef( snet,
 			    "550 No access from IP %s.  See %s\r\n",
 			    inet_ntoa( receive_sin->sin_addr ),
-			    simta_rbl_url );
+			    simta_user_rbl_url );
 			return( RECEIVE_OK );
 		    }
 		}
@@ -1362,7 +1363,6 @@ int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 smtp_receive( int fd, struct sockaddr_in *sin )
 {
     SNET				*snet;
-    char				*rbl_err_txt;
     struct envelope			*env = NULL;
     ACAV				*acav = NULL;
     int					ac;
@@ -1417,7 +1417,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		    "invalid reverse", inet_ntoa( sin->sin_addr ));
 		snet_writef( snet,
 		    "421 No access from IP %s.  See %s\r\n",
-		    inet_ntoa( receive_sin->sin_addr ),
+		    inet_ntoa( sin->sin_addr ),
 		    simta_reverse_url );
 		goto closeconnection;
 
@@ -1429,14 +1429,13 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     }
 
     if ( simta_rbl_domain != NULL ) {
-	switch( check_rbl( &(sin->sin_addr), simta_rbl_domain, &rbl_err_txt )) {
+	switch( check_rbl( &(sin->sin_addr), simta_rbl_domain )) {
 	case 0:
 	    syslog( LOG_NOTICE,
 		"Receive: Rejected IP %s by %s",
 		inet_ntoa( sin->sin_addr ), simta_rbl_domain );
 	    snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
-		inet_ntoa( receive_sin->sin_addr ), simta_rbl_url );
-	    free( rbl_err_txt );
+		inet_ntoa( sin->sin_addr ), simta_rbl_url );
 	    goto closeconnection;
 
 	case 1:

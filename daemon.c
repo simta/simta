@@ -152,7 +152,7 @@ main( int ac, char **av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
-    while (( c = getopt( ac, av, " ab:cCdD:f:Im:M:p:qQ:rRs:Vw:x:y:z:" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:I:m:M:p:qQ:rRs:Vw:x:y:z:" ))
 	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
@@ -189,6 +189,7 @@ main( int ac, char **av )
 
 	case 'I' :
 	    simta_ignore_reverse = 1;
+	    simta_reverse_url = optarg;
 	    break;
 
 	case 'M' :

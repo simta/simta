@@ -61,34 +61,6 @@ get_a( char *hostname )
     return( result );
 }
 
-    struct dnsr_result *
-get_txt( char *hostname )
-{
-    struct dnsr_result	*result;
-
-    if ( simta_dnsr == NULL ) {
-        if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "get_a: dnsr_new: %m" );
-	    return( NULL );
-	}
-    }
-
-    /* Check for TXT */
-    if (( dnsr_query( simta_dnsr, DNSR_TYPE_TXT, DNSR_CLASS_IN,
-	    hostname )) < 0 ) {
-	syslog( LOG_ERR, "get_txt: dnsr_query: %s: %s", hostname,
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	return( NULL );
-    }
-    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "get_txt: dnsr_result: %s: %s", hostname, 
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	return( NULL );
-    }
-
-    return( result );
-}
-
 /* rfc 2821 3.6
  * Only resolvable, fully-qualified, domain names (FQDNs) are permitted
  * when domain names are used in SMTP.  In other words, names that can
@@ -438,9 +410,8 @@ add_expansion( struct host *host, int type )
  * your configuration.
  */
     int 
-check_rbl( struct in_addr *in, char *domain, char **txt )
+check_rbl( struct in_addr *in, char *domain )
 {
-    int			i;
     char		*reverse_ip;
     struct dnsr_result	*result;
 
@@ -463,45 +434,6 @@ check_rbl( struct in_addr *in, char *domain, char **txt )
     }
     dnsr_free_result( result );
 
-    if ( txt == NULL ) {
-	return( 0 );
-    }
-
-    if (( result = get_txt( reverse_ip )) == NULL ) {
-	free( reverse_ip );
-	return( -1 );
-    }
     free( reverse_ip );
-
-    if ( result->r_ancount <= 0 ) {
-	*txt = NULL;
-    } else {
-	for ( i = 0; i < result->r_ancount; i++ ) {
-	    switch( result->r_answer[ i ].rr_type ) {
-	    case DNSR_TYPE_TXT:
-		if (( *txt = strdup( result->r_answer[ i ].rr_txt.t_txt ))
-			== NULL ) {
-		    syslog( LOG_ERR, "check_rbl: strdup: %m" );
-		    goto error;
-		}
-		goto done;
-
-	    default:
-		syslog( LOG_DEBUG, "check_rbl: %s: uninteresting dnsr type: %d",
-		    result->r_answer[ i ].rr_name, 
-		    result->r_answer[ i ].rr_type );
-		break;
-	    }
-	}
-	*txt = NULL;
-    }
-done:
-    if ( simta_debug ) printf( "blocked: %s\n", *txt );
-    dnsr_free_result( result );
-
     return( 0 );
-
-error:
-    dnsr_free_result( result );
-    return( -1 );
 }
