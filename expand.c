@@ -62,26 +62,26 @@ expand_and_deliver( struct host_q **hq_stab, struct envelope *unexpanded_env )
     syslog( LOG_DEBUG, "expand_and_deliver %s", unexpanded_env->e_id );
 
     switch ( expand( hq_stab, unexpanded_env )) {
-	case 0:
-	    q_runner( hq_stab );
-	    if ( simta_fast_files > 0 ) {
-		syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
-		return( EXPAND_FATAL );
-	    }
-	    syslog( LOG_DEBUG, "expand_and_deliver returning OK" );
-	    return( EXPAND_OK );
+    case 0:
+	q_runner( hq_stab );
+	if ( simta_fast_files > 0 ) {
+	    syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
+	    return( EXPAND_FATAL );
+	}
+	syslog( LOG_DEBUG, "expand_and_deliver returning OK" );
+	return( EXPAND_OK );
 
-	default:
-	    syslog( LOG_ERR, "expand_and_deliver expand value out of range" );
-	case 1:
-	case -1:
-	    env_slow( unexpanded_env );
-	    if ( simta_fast_files > 0 ) {
-		syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
-		return( EXPAND_FATAL );
-	    }
-	    syslog( LOG_DEBUG, "expand_and_deliver returning syserror" );
-	    return( EXPAND_SYSERROR );
+    default:
+	syslog( LOG_ERR, "expand_and_deliver expand value out of range" );
+    case 1:
+    case -1:
+	env_slow( unexpanded_env );
+	if ( simta_fast_files > 0 ) {
+	    syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
+	    return( EXPAND_FATAL );
+	}
+	syslog( LOG_DEBUG, "expand_and_deliver returning syserror" );
+	return( EXPAND_SYSERROR );
     }
 }
 

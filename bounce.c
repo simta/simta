@@ -266,8 +266,8 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
             goto cleanup1;
         }
 
-	/* if the mail is undeliverable, and the postmaster is a
-	 * recipient, we need to put the bounce in the dead queue.
+	/* if the postmaster is a recipient,
+	 * we need to put the bounce in the dead queue.
 	 */
 	for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ((( env->e_flags & ENV_BOUNCE ) ||
@@ -287,27 +287,27 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
-        syslog( LOG_ERR, "bounce open %s: %m", dfile_fname );
+        syslog( LOG_ERR, "bounce %s open %s: %m", env->e_id, dfile_fname );
         goto cleanup2;
     }
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
-        syslog( LOG_ERR, "bounce fdopen %s: %m", dfile_fname );
+        syslog( LOG_ERR, "bounce %s fdopen %s: %m", env->e_id, dfile_fname );
         close( dfile_fd );
         goto cleanup3;
     }
     if ( time( &clock ) < 0 ) {
-        syslog( LOG_ERR, "bounce time: %m" );
+        syslog( LOG_ERR, "bounce %s time: %m", env->e_id );
         close( dfile_fd );
         goto cleanup3;
     }
     if (( tm = localtime( &clock )) == NULL ) {
-        syslog( LOG_ERR, "bounce localtime: %m" );
+        syslog( LOG_ERR, "bounce %s localtime: %m", env->e_id );
         close( dfile_fd );
         goto cleanup3;
     }
     if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
             == 0 ) {
-        syslog( LOG_ERR, "bounce strftime: %m" );
+        syslog( LOG_ERR, "bounce %s strftime: %m", env->e_id );
         close( dfile_fd );
         goto cleanup3;
     }
@@ -324,9 +324,14 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
 
+    if ( env->e_flags & ENV_UNEXPANDED ) {
+        fprintf( dfile, "There was a local error in processing the "
+		" recipients of your message\n" );
+    }
+
     if ( env->e_flags & ENV_OLD ) {
-        fprintf( dfile, "It was over three days old.\n" );
-        fprintf( dfile, "\n" );
+        fprintf( dfile, "This message has been undeliverable for at least "
+		"three days.\n" );
     }
 
     if ( hq->hq_err_text != NULL ) {
@@ -404,7 +409,7 @@ cleanup4:
     message_free( m );
 cleanup3:
     if ( unlink( dfile_fname ) != 0 ) {
-	syslog( LOG_ERR, "bounce unlink %s: %m", dfile_fname );
+	syslog( LOG_ERR, "bounce %s unlink %s: %m", env->e_id, dfile_fname );
     }
 cleanup2:
     env_reset( bounce_env );

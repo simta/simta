@@ -314,16 +314,19 @@ q_runner( struct host_q **host_q )
     int
 q_run( struct host_q **host_q )
 {
+    SNET			*snet_lock;
+    SNET			*snet;
+    struct envelope		*env_bounce;
     struct host_q		*hq;
     struct host_q		*deliver_q;
     struct host_q		**dq;
     struct message		*unexpanded;
-    SNET			*snet_lock;
     struct envelope		*env;
     struct envelope		env_local;
     int				result;
-
-    syslog( LOG_DEBUG, "q_run started" );
+    struct stat			sb;
+    char                        dfile_fname[ MAXPATHLEN ];
+    struct timeval              tv;
 
     for ( ; ; ) {
 	/* build the deliver_q by number of messages */
@@ -406,6 +409,66 @@ q_run( struct host_q **host_q )
 	    /* expand message */
 	    result = expand( host_q, env );
 
+	    if ( result != 0 ) {
+		/* message not expandable */
+		if ( strcasecmp( env->e_dir, simta_dir_slow ) == 0 ) {
+		    sprintf( dfile_fname, "%s/D%s", unexpanded->m_dir,
+			    unexpanded->m_id );
+
+		    if ( stat( dfile_fname, &sb ) != 0 ) {
+			syslog( LOG_ERR, "q_run stat %s: %m", dfile_fname );
+			goto oldfile_error;
+		    }
+
+		    if ( gettimeofday( &tv, NULL ) != 0 ) {
+			syslog( LOG_ERR, "q_run gettimeofday: %m" );
+			goto oldfile_error;
+		    }
+
+		    /* consider Dfiles old if they're over 3 days */
+		    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
+oldfile_error:
+			syslog( LOG_DEBUG, "q_run %s: old unexpandable "
+				"message, bouncing", env->e_id );
+			env->e_flags = ( env->e_flags | ENV_UNEXPANDED );
+			env->e_flags = ( env->e_flags | ENV_BOUNCE );
+			env->e_flags = ( env->e_flags | ENV_OLD );
+
+			if (( snet = snet_open( dfile_fname, O_RDWR, 0,
+				1024 * 1024 )) == NULL ) {
+			    syslog( LOG_DEBUG, "q_run %s snet_open: %m",
+				    env->e_id );
+
+			} else {
+			    if (( env_bounce = bounce( hq, env, snet ))
+				    == NULL ) {
+				syslog( LOG_DEBUG, "q_run %s bounce: error",
+					env->e_id );
+			    } else {
+				if ( env_bounce->e_message != NULL ) {
+				    message_queue( simta_null_q,
+					    env_bounce->e_message );
+				}
+
+				if ( env_unlink( env ) != 0 ) {
+				    syslog( LOG_DEBUG, "q_run %s env_unlink: "
+					    "error", env->e_id );
+				    env_unlink( env_bounce );
+				}
+			    }
+			}
+
+ 		    } else {
+			syslog( LOG_DEBUG, "q_run %s: not expandable, not old",
+				env->e_id );
+		    }
+
+		} else {
+		    env_slow( env );
+		}
+	    }
+
+	    /* clean up */
 	    if ( snet_lock != NULL ) {
 		/* release lock */
 		if ( snet_close( snet_lock ) != 0 ) {
@@ -413,7 +476,6 @@ q_run( struct host_q **host_q )
 		}
 	    }
 
-	    /* clean up */
 	    if ( unexpanded->m_env != NULL ) {
 		env_free( unexpanded->m_env );
 	    } else {
@@ -421,12 +483,7 @@ q_run( struct host_q **host_q )
 	    }
 	    message_free( unexpanded );
 
-	    if ( result != 0 ) {
-		/* message not expandable, try the next one */
-/* XXX CHECK FOR OLD UNEXPANDED MESSAGE AND BOUNCE */
-		continue;
-
-	    } else {
+	    if ( result == 0 ) {
 		/* at least one address was expanded.  try to deliver it */
 		break;
 	    }
@@ -610,7 +667,7 @@ q_deliver( struct host_q *hq )
 	env_deliver->e_tempfail = 0;
 	unlinked = 0;
 
-	/* open Dfile to deliver & check to see if it's geriatric */
+	/* open Dfile to deliver */
         sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
 
         if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
@@ -744,7 +801,7 @@ smtp_cleanup:
 	    }
 
 	    if ( gettimeofday( &tv, NULL ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver gettimeofday" );
+		syslog( LOG_ERR, "q_deliver gettimeofday: %m" );
 		goto oldfile_error;
 	    }
 
@@ -892,10 +949,11 @@ message_cleanup:
 	    env_bounce = NULL;
 	}
 
+	if ( unlinked == 0 ) {
+	    env_slow( m->m_env );
+	}
+
 	if ( m->m_env != NULL ) {
-	    if ( unlinked == 0 ) {
-		env_slow( m->m_env );
-	    }
 	    env_free( m->m_env );
 	} else {
 	    env_reset( env_deliver );

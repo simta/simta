@@ -724,7 +724,7 @@ env_slow( struct envelope *env )
     char                        efile_fname[ MAXPATHLEN ];
 
     /* move message to SLOW if it isn't there already */
-    if ( strcmp( env->e_dir, simta_dir_slow ) != 0 ) {
+    if ( strcasecmp( env->e_dir, simta_dir_slow ) != 0 ) {
 	sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
 	sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 	sprintf( dfile_slow, "%s/D%s", simta_dir_slow, env->e_id );
