@@ -188,7 +188,9 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 {
     struct host_q		*hq;
 
-    /* create NULL host queue for unexpanded messages */
+    /* create NULL host queue for unexpanded messages.  we always need to
+     * have a NULL queue for error reporting. 
+     */
     if ( simta_null_q == NULL ) {
 	if (( simta_null_q = (struct host_q*)malloc(
 		sizeof( struct host_q ))) == NULL ) {
