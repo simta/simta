@@ -720,6 +720,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
+    /* mark message as ready to roll */
+    env->e_flags = env->e_flags | E_READY;
+    syslog( LOG_INFO, "f_data %s: accepted", env->e_id );
+
     /*
      * We could perhaps check that snet_writef() gets a good return.
      * However, if we've already fully instanciated the message in the
@@ -737,9 +741,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    /* mark message as ready to roll */
-    env->e_flags = env->e_flags | E_READY;
-    syslog( LOG_INFO, "f_data %s: accepted", env->e_id );
     return( RECEIVE_OK );
 }
 
