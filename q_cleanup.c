@@ -333,9 +333,9 @@ q_clean( char *dir, struct envelope **messages )
 	    }
 
 	    if ( *entry->d_name == 'E' ) {
-		env->e_flags = env->e_flags | ENV_EFILE;
+		env->e_flags = env->e_flags | ENV_FLAG_EFILE;
 	    } else {
-		env->e_flags = env->e_flags | ENV_DFILE;
+		env->e_flags = env->e_flags | ENV_FLAG_DFILE;
 	    }
 
 	} else if (( simta_filesystem_cleanup ) && ( *entry->d_name == 't' )) {
@@ -366,14 +366,14 @@ q_clean( char *dir, struct envelope **messages )
     for ( env_p = messages; *env_p != NULL; ) {
 	env = *env_p;
 
-	if (( env->e_flags & ENV_DFILE ) == 0 ) {
+	if (( env->e_flags & ENV_FLAG_DFILE ) == 0 ) {
 	    syslog( LOG_ALERT, "q_clean: %s/E%s: Missing Dfile\n", dir,
 		    env->e_id );
 	    bad_filesystem++;
 	    *env_p = env->e_next;
 	    env_free( env );
 
-	} else if (( env->e_flags & ENV_EFILE ) == 0 ) {
+	} else if (( env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
 	    syslog( LOG_ALERT, "q_clean %s/D%s: Missing Efile\n", dir,
 		    env->e_id );
 	    if ( simta_filesystem_cleanup ) {

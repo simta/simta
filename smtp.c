@@ -49,100 +49,9 @@ void	(*smtp_logger)(char *) = stdout_logger;
 void	(*smtp_logger)(char *) = NULL;
 #endif /* DEBUG */
 
-    int 
-_smtp_connect_try( SNET **snetp, struct sockaddr_in *sin, struct host_q *hq )
-{
-
-    int	    ret;
-
-    if (( *snetp = _smtp_connect_snet( sin, hq->hq_hostname )) == NULL ) {
-	/* XXX - When do we retrun SMTP_BAD_CNNECTION or SMTP_ERROR? */
-	return( SMTP_BAD_CONNECTION );
-    }
-
-    if (( ret = smtp_reply( SMTP_CONNECT, *snetp, hq, NULL ))
-	    != SMTP_OK ) {
-	goto error;
-    }
-
-    /* say EHLO */
-    if ( snet_writef( *snetp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
-	syslog( LOG_NOTICE, "_smtp_connect_try %s: failed writef",
-	    hq->hq_hostname );
-	goto error;
-    }
-
-    if (( ret = smtp_reply( SMTP_EHLO, *snetp, hq, NULL )) == SMTP_OK ) {
-	return( SMTP_OK );
-    }
-
-    if ( ret == SMTP_ERROR ) {
-	/* say HELO */
-	/* RFC 2821 2.2.1
-	 * (However, for compatibility with older conforming implementations,
-	 * SMTP clients and servers MUST support the original HELO mechanisms
-	 * as a fallback.)
-	 *
-	 * RFC 2821 3.2
-	 * For a particular connection attempt, if the server returns a
-	 * "command not recognized" response to EHLO, the client SHOULD be
-	 * able to fall back and send HELO.
-	 */
-
-	if ( snet_writef( *snetp, "HELO %s\r\n", simta_hostname ) < 0 ) {
-	    syslog( LOG_NOTICE, "_smtp_connect_try %s: failed writef",
-		hq->hq_hostname );
-	    goto error;
-	}
-	if (( ret = smtp_reply( SMTP_HELO, *snetp, hq, NULL )) == SMTP_OK ) {
-	    return( SMTP_OK );
-	}
-    }
-
-error:
-    if ( snet_close( *snetp ) != 0 ) {
-	syslog( LOG_WARNING, "_smtp_connect_try %s: snet_close: %m",
-	    hq->hq_hostname );
-    }
-    *snetp = NULL;
-
-    return( ret );
-}
-
-    SNET *
-_smtp_connect_snet( struct sockaddr_in *sin, char *hostname )
-{
-    int		s;
-    SNET 	*snet;
-
-    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
-	syslog( LOG_ERR, "_smtp_connect_snet %s socket: %m", hostname );
-	return( NULL );
-    }
-
-    if ( connect( s, (struct sockaddr*)sin,
-	    sizeof( struct sockaddr_in )) < 0 ) {
-	syslog( LOG_ERR, "_smtp_connect_snet %s connect: %m", hostname );
-	goto error;
-    }
-
-    if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "_smtp_connect_snet %s snet_attach: %m", hostname );
-	goto error;
-    }
-
-    return( snet );
-
-error:
-    if ( close( s ) != 0 ) {
-	syslog( LOG_ERR, "_smtp_connect_snet %s close: %m", hostname );
-    }
-    return( NULL );
-}
-
 
     int
-smtp_consume_banner( struct line_file **err_text, SNET *snet,
+smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 	struct timeval *tv, char *line, char *error )
 {
     int				ret = SMTP_ERROR;
@@ -172,7 +81,7 @@ smtp_consume_banner( struct line_file **err_text, SNET *snet,
 	}
 
 	while (*(line + 3) == '-' ) {
-	    if (( line = snet_getline( snet, tv )) == NULL ) {
+	    if (( line = snet_getline( d->d_snet_smtp, tv )) == NULL ) {
 		syslog( LOG_ERR,
 			"smtp_consume_banner snet_getline: unexpected EOF" );
 		return( SMTP_BAD_CONNECTION );
@@ -221,7 +130,8 @@ smtp_consume_banner( struct line_file **err_text, SNET *snet,
 
 consume:
     if ( *(line + 3) == '-' ) {
-	if (( line = snet_getline_multi( snet, smtp_logger, tv )) == NULL ) {
+	if (( line = snet_getline_multi( d->d_snet_smtp, smtp_logger, tv ))
+		== NULL ) {
 	    syslog( LOG_NOTICE, "smtp_consume_banner: unexpected EOF" );
 	    return( SMTP_BAD_CONNECTION );
 	}
@@ -240,7 +150,7 @@ stdout_logger( char *line )
 
 
     int
-smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
+smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 {
     int				smtp_reply;
     char			*line;
@@ -288,7 +198,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	panic( "smtp_reply smtp_command out of range" );
     }
 
-    if (( line = snet_getline( snet, &tv )) == NULL ) {
+    if (( line = snet_getline( d->d_snet_smtp, &tv )) == NULL ) {
 	syslog( LOG_NOTICE, "smtp_reply %s: unexpected EOF", hq->hq_hostname );
 	return( SMTP_BAD_CONNECTION );
     }
@@ -335,7 +245,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 				"smtp_reply %s illegal hostname in banner: %s",
 				hq->hq_hostname, line );
 			if (( smtp_reply = smtp_consume_banner(
-				&(hq->hq_err_text), snet, &tv, line,
+				&(hq->hq_err_text), d, &tv, line,
 				"Illegal hostname in banner" )) != SMTP_OK ) {
 			    return( smtp_reply );
 			}
@@ -367,11 +277,11 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 		syslog( LOG_WARNING,
 			"Deliver.SMTP %s: Mail Loop %s [%s]: %s",
 			hq->hq_hostname, hq->hq_smtp_hostname, 
-			inet_ntoa( hq->hq_sin.sin_addr ), line );
+			inet_ntoa( d->d_sin.sin_addr ), line );
 
 		/* Loop - connected to self */
 		if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text),
-			snet, &tv, line, "Mail loop detected" )) != SMTP_OK ) {
+			d, &tv, line, "Mail loop detected" )) != SMTP_OK ) {
 		    return( smtp_reply );
 		}
 
@@ -381,7 +291,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Connection Accepted %s [%s]: %s",
 		    hq->hq_hostname, hq->hq_smtp_hostname, 
-		    inet_ntoa( hq->hq_sin.sin_addr ), line );
+		    inet_ntoa( d->d_sin.sin_addr ), line );
 
 	    break;
 
@@ -413,12 +323,12 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 
 	/* 2xx is actually an error for DATA */
 	case SMTP_DATA:
-	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
+	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Message Tempfailed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( hq->hq_sin.sin_addr ), line );
-	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
+		    inet_ntoa( d->d_sin.sin_addr ), line );
+	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
@@ -426,14 +336,14 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Message Accepted %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( hq->hq_sin.sin_addr ), line );
+		    inet_ntoa( d->d_sin.sin_addr ), line );
 	    break;
 
 	default:
 	    panic( "smtp_reply smtp_command out of range" );
 	}
 
-	return( smtp_consume_banner( NULL, snet, &tv, line, NULL ));
+	return( smtp_consume_banner( NULL, d, &tv, line, NULL ));
 
     /* 3xx is success for DATA,
      * fall through to case default for all other commands
@@ -441,7 +351,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
     case '3':
 	if ( smtp_command == SMTP_DATA ) {
 	    /* consume success banner */
-	    return( smtp_consume_banner( NULL, snet, &tv, line, NULL ));
+	    return( smtp_consume_banner( NULL, d, &tv, line, NULL ));
 	}
 
     default:
@@ -453,7 +363,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_CONNECT:
 	    syslog( LOG_NOTICE, "smtp_reply %s tempfail CONNECT reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP CONNECT reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
@@ -462,7 +372,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_HELO:
 	    syslog( LOG_NOTICE, "smtp_reply %s tempfail HELO reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP HELO reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
@@ -471,17 +381,17 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_EHLO:
 	    syslog( LOG_NOTICE, "smtp_reply %s tempfail EHLO reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP EHLO reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
 
 	case SMTP_MAIL:
-	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
+	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_INFO, "Deliver.SMTP %s: From <%s> Tempfailed: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
-	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
+	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP MAIL FROM reply" ));
 
 	case SMTP_RCPT:
@@ -489,31 +399,31 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    d->d_n_rcpt_tempfail++;
 	    syslog( LOG_INFO, "Deliver.SMTP %s: To <%s> Tempfailed: %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, line );
-	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), snet, &tv,
+	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), d, &tv,
 		    line, "Bad SMTP RCPT TO reply" ));
 
 	case SMTP_DATA:
-	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
+	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Message Tempfailed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( hq->hq_sin.sin_addr ), line );
-	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
+		    inet_ntoa( d->d_sin.sin_addr ), line );
+	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
-	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
+	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Message Tempfailed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( hq->hq_sin.sin_addr ), line );
-	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
+		    inet_ntoa( d->d_sin.sin_addr ), line );
+	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA_EOF reply" ));
 
 	case SMTP_RSET:
 	    syslog( LOG_NOTICE, "smtp_reply %s tempfail RSET reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP RSET reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
@@ -522,7 +432,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_QUIT:
 	    syslog( LOG_NOTICE, "smtp_reply %s tempfail QUIT reply: %s",
 		    hq->hq_hostname, line );
-	    return( smtp_consume_banner( NULL, snet, &tv, line, NULL ));
+	    return( smtp_consume_banner( NULL, d, &tv, line, NULL ));
 
 	default:
 	    panic( "smtp_reply smtp_command out of range" );
@@ -532,10 +442,17 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
     case '5':
 	switch ( smtp_command ) {
 	case SMTP_CONNECT:
-	    hq->hq_status = HOST_BOUNCE;
-	    syslog( LOG_NOTICE, "smtp_reply %s failed CONNECT reply: %s",
-		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+	    if ( hq->hq_status == HOST_DOWN ) {
+		hq->hq_status = HOST_BOUNCE;
+		syslog( LOG_NOTICE, "smtp_reply %s failed CONNECT reply: %s",
+			hq->hq_hostname, line );
+	    } else {
+		syslog( LOG_WARNING,
+			"smtp_reply %s punt failed CONNECT reply: %s",
+			hq->hq_hostname, line );
+	    }
+
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP CONNECT reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
@@ -544,7 +461,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_HELO:
 	    syslog( LOG_NOTICE, "smtp_reply %s failed HELO reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP HELO reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
@@ -553,17 +470,17 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_EHLO:
 	    syslog( LOG_NOTICE, "smtp_reply %s failed EHLO reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( NULL, snet,
+	    if (( smtp_reply = smtp_consume_banner( NULL, d,
 		    &tv, line, NULL )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
 
 	case SMTP_MAIL:
-	    d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
+	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_INFO, "Deliver.SMTP %s: From <%s> Rejected: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
-	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
+	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP MAIL FROM reply" ));
 
 	case SMTP_RCPT:
@@ -571,31 +488,31 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    d->d_n_rcpt_failed++;
 	    syslog( LOG_INFO, "Deliver.SMTP %s: To <%s> Rejected: %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, line );
-	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), snet, &tv,
+	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), d, &tv,
 		    line, "Bad SMTP RCPT TO reply" ));
 
 	case SMTP_DATA:
-	    d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
+	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Message Failed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( hq->hq_sin.sin_addr ), line );
-	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
+		    inet_ntoa( d->d_sin.sin_addr ), line );
+	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
-	    d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
+	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Message Failed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( hq->hq_sin.sin_addr ), line );
-	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
+		    inet_ntoa( d->d_sin.sin_addr ), line );
+	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA_EOF reply" ));
 
 	case SMTP_RSET:
 	    syslog( LOG_NOTICE, "smtp_reply %s failed RSET reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP RSET reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
@@ -604,7 +521,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_QUIT:
 	    syslog( LOG_NOTICE, "smtp_reply %s failed QUIT reply: %s",
 		    hq->hq_hostname, line );
-	    return( smtp_consume_banner( NULL, snet, &tv, line, NULL ));
+	    return( smtp_consume_banner( NULL, d, &tv, line, NULL ));
 
 	default:
 	    syslog( LOG_DEBUG, "smtp_reply %d out of range", smtp_command );
@@ -617,181 +534,71 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 }
 
 
-    int
-smtp_connect( SNET **snetp, struct host_q *hq )
+    int 
+smtp_connect( struct host_q *hq, struct deliver *d )
 {
-    int				i, j;
-    char			*ip;
-    SNET			*snet = NULL;
-    struct dnsr_result		*result, *result_ip;
+    int		r;
 
-    assert( *snetp == NULL );
-
-    hq->hq_status = HOST_DOWN;
-
-    if (( result = get_dnsr_result( hq->hq_hostname )) == NULL ) {
-        return( SMTP_ERROR );
+    if (( r = smtp_reply( SMTP_CONNECT, hq, d )) != SMTP_OK ) {
+	return( r );
     }
 
-    if ( result->r_ancount == 0 ) {
-	if ( hq->hq_err_text == NULL ) {
-	    if (( hq->hq_err_text = line_file_create()) == NULL ) {
-		syslog( LOG_ERR, "smtp_connect line_file_create: %m" );
-		goto done;
-	    }
-	}
-	if ( line_append( hq->hq_err_text, "Host does not exist", COPY ) ==
-		NULL ) {
-	    syslog( LOG_ERR, "smtp_connect line_append: %m" );
-	    goto done;
-	}
-	hq->hq_status = HOST_BOUNCE;
-        goto done;
-    }
-
-    for ( i = 0; i < result->r_ancount; i++ ) {
-	memset( &(hq->hq_sin), 0, sizeof( struct sockaddr_in ));
-	hq->hq_sin.sin_family = AF_INET;
-	hq->hq_sin.sin_port = htons( SIMTA_SMTP_PORT );
-
-        switch( result->r_answer[ i ].rr_type ) {
-        case DNSR_TYPE_MX:
-            if ( result->r_answer[ i ].rr_ip != NULL ) {
-                memcpy( &(hq->hq_sin.sin_addr.s_addr),
-			&(result->r_answer[ i ].rr_ip->ip_ip ),
-			sizeof( struct in_addr ));
-		if ( _smtp_connect_try( &snet, &(hq->hq_sin), hq )
-			== SMTP_OK ) {
-		    goto done;
-		}
-            } else {  
-                if (( result_ip =
-                        get_a( result->r_answer[ i ].rr_mx.mx_exchange ))
-                        == NULL ) {
-                    continue;
-                }
-                for ( j = 0; j < result_ip->r_ancount; j++ ) {
-		    switch( result_ip->r_answer[ j ].rr_type ) {
-		    case DNSR_TYPE_A:
-			memcpy( &(hq->hq_sin.sin_addr.s_addr),
-				&(result_ip->r_answer[ j ].rr_a ),
-				sizeof( struct in_addr ));
-			ip = inet_ntoa( hq->hq_sin.sin_addr );
-			if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
-				( strcmp( ip, "0.0.0.0" ) == 0 )) {
-			    syslog( LOG_DEBUG,
-				"smtp_connect %s: skipping invalid MX IP: %s",
-				hq->hq_hostname, ip );
-			    continue;
-			}
-			if ( _smtp_connect_try( &snet, &(hq->hq_sin), hq )
-				== SMTP_OK ) {
-			    dnsr_free_result( result_ip );
-			    goto done;
-			}
-			break;
-
-		    default:
-			syslog( LOG_DEBUG,
-			    "smtp_connect %s: uninteresting dnsr rr type: %d",
-			    result_ip->r_answer[ j ].rr_name,
-			    result_ip->r_answer[ j ].rr_type );
-			continue;
-		    }
-                }       
-                dnsr_free_result( result_ip );
-            }
-            break;
-
-        case DNSR_TYPE_A:
-            memcpy( &(hq->hq_sin.sin_addr.s_addr),
-		    &(result->r_answer[ i ].rr_a ), sizeof( struct in_addr ));
-	    ip = inet_ntoa( hq->hq_sin.sin_addr );
-	    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
-		    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
-		syslog( LOG_DEBUG,
-		    "smtp_connect %s: skipping invalid A record: %s",
-		    hq->hq_hostname, ip );
-		continue;
-	    }
-	    if ( _smtp_connect_try( &snet, &(hq->hq_sin), hq ) == SMTP_OK ) {
-		goto done;
-	    }
-	    break;
-
-        default:
-            syslog( LOG_DEBUG,
-		"smtp_connect %s: uninteresting dnsr rr type: %d",
-		result->r_answer[ i ].rr_name,
-		result->r_answer[ i ].rr_type );
-            continue;
-        }
-    }
-
-    if ( simta_punt_host != NULL ) {
-	dnsr_free_result( result );
-	if (( result = get_a( simta_punt_host )) == NULL ) {
-	    return( SMTP_ERROR );
-	}
-	for ( i = 0; i < result->r_ancount; i++ ) {
-	    memset( &(hq->hq_sin), 0, sizeof( struct sockaddr_in ));
-	    hq->hq_sin.sin_family = AF_INET;
-	    hq->hq_sin.sin_port = htons( SIMTA_SMTP_PORT );
-	    if ( result->r_answer[ i ].rr_type == DNSR_TYPE_A ) {
-		memcpy( &(hq->hq_sin.sin_addr.s_addr),
-			&(result->r_answer[ i ].rr_a ),
-			sizeof( struct in_addr ));
-		if ( _smtp_connect_try( &snet, &(hq->hq_sin), hq )
-			== SMTP_OK ) {
-		    syslog( LOG_DEBUG, "host %s punted to %s",
-			hq->hq_hostname, simta_punt_host );
-		    goto done;
-		}
-		break;
-	    } else {
-		syslog( LOG_DEBUG,
-		    "smtp_connect %s: uninteresting dnsr rr type: %d",
-		    result->r_answer[ i ].rr_name,
-		    result->r_answer[ i ].rr_type );
-		continue;
-	    }
-	}
-    }
-
-done:
-    dnsr_free_result( result );
-    if ( snet != NULL ) {
-	hq->hq_status = HOST_MX;
-	*snetp = snet;
-	return( SMTP_OK );
-    } else {
+    /* say EHLO */
+    if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
+	syslog( LOG_NOTICE, "smtp_connect %s: failed writef", hq->hq_hostname );
 	return( SMTP_BAD_CONNECTION );
     }
+
+    if (( r = smtp_reply( SMTP_EHLO, hq, d )) == SMTP_OK ) {
+	return( SMTP_OK );
+    }
+
+    if ( r == SMTP_ERROR ) {
+	/* say HELO */
+	/* RFC 2821 2.2.1
+	 * (However, for compatibility with older conforming implementations,
+	 * SMTP clients and servers MUST support the original HELO mechanisms
+	 * as a fallback.)
+	 *
+	 * RFC 2821 3.2
+	 * For a particular connection attempt, if the server returns a
+	 * "command not recognized" response to EHLO, the client SHOULD be
+	 * able to fall back and send HELO.
+	 */
+
+	if ( snet_writef( d->d_snet_smtp, "HELO %s\r\n", simta_hostname )
+		< 0 ) {
+	    syslog( LOG_NOTICE, "smtp_connect %s: failed writef",
+		hq->hq_hostname );
+	    return( SMTP_BAD_CONNECTION );
+	}
+	r = smtp_reply( SMTP_HELO, hq, d );
+    }
+
+    return( r );
 }
 
 
-
     int
-smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
+smtp_send( struct host_q *hq, struct deliver *d )
 {
     int			smtp_result;
     char		*line;
 
     /* MAIL FROM: */
-    if ( snet_writef( snet, "MAIL FROM:<%s>\r\n", d->d_env->e_mail ) < 0 ) {
+    if ( snet_writef( d->d_snet_smtp, "MAIL FROM:<%s>\r\n",
+	    d->d_env->e_mail ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hq->hq_hostname );
-	hq->hq_status = HOST_DOWN;
 	return( SMTP_BAD_CONNECTION );
     }
 
-    if (( smtp_result = smtp_reply( SMTP_MAIL, snet, hq, d )) != SMTP_OK ) {
-	hq->hq_status = HOST_DOWN;
+    if (( smtp_result = smtp_reply( SMTP_MAIL, hq, d )) != SMTP_OK ) {
 	return( smtp_result );
     }
 
     /* check to see if the sender failed */
-    if (( d->d_env->e_flags & ENV_BOUNCE ) ||
-	    ( d->d_env->e_flags & ENV_TEMPFAIL )) {
+    if (( d->d_env->e_flags & ENV_FLAG_BOUNCE ) ||
+	    ( d->d_env->e_flags & ENV_FLAG_TEMPFAIL )) {
 	return( SMTP_OK );
     }
 
@@ -801,84 +608,85 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
     for ( d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
 	    d->d_rcpt = d->d_rcpt->r_next ) {
 	if( *(d->d_rcpt->r_rcpt) != '\0' ) {
-	    if ( snet_writef( snet, "RCPT TO:<%s>\r\n",
+	    if ( snet_writef( d->d_snet_smtp, "RCPT TO:<%s>\r\n",
 		    d->d_rcpt->r_rcpt ) < 0 ) {
 		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 			hq->hq_hostname );
-		hq->hq_status = HOST_DOWN;
 		return( SMTP_BAD_CONNECTION );
 	    }
 
 	} else {
-	    if ( snet_writef( snet, "RCPT TO:<postmaster>\r\n" ) < 0 ) {
+	    if ( snet_writef( d->d_snet_smtp, "RCPT TO:<postmaster>\r\n" )
+		    < 0 ) {
 		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 			hq->hq_hostname );
-		hq->hq_status = HOST_DOWN;
 		return( SMTP_BAD_CONNECTION );
 	    }
 	}
 
-	if (( smtp_result = smtp_reply( SMTP_RCPT, snet, hq, d )) != SMTP_OK ) {
-	    hq->hq_status = HOST_DOWN;
+	if (( smtp_result = smtp_reply( SMTP_RCPT, hq, d )) != SMTP_OK ) {
 	    return( smtp_result );
+	}
+
+	if (( hq->hq_status == HOST_PUNT_DOWN ) &&
+		( d->d_rcpt->r_status != R_ACCEPTED )) {
+	    /* punt hosts must accept all rcpts */
+	    syslog( LOG_WARNING,
+		    "smtp_send %s %s %s: punt host refused address",
+		    d->d_env->e_id, hq->hq_hostname, d->d_rcpt->r_rcpt );
+	    return( SMTP_OK );
 	}
     }
 
     if ( d->d_n_rcpt_accepted == 0 ) {
 	/* no rcpts succeded */
 	d->d_delivered = 1;
-	syslog( LOG_NOTICE, "smtp_send %s %s %s: no valid recipients",
-		d->d_env->e_id, hq->hq_hostname, d->d_env->e_id );
+	syslog( LOG_NOTICE, "smtp_send %s %s: no valid recipients",
+		d->d_env->e_id, hq->hq_hostname );
 	return( SMTP_OK );
     }
 
     /* say DATA */
-    if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
+    if ( snet_writef( d->d_snet_smtp, "DATA\r\n" ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hq->hq_hostname );
-	hq->hq_status = HOST_DOWN;
 	return( SMTP_BAD_CONNECTION );
     }
 
-    if (( smtp_result = smtp_reply( SMTP_DATA, snet, hq, d )) != SMTP_OK ) {
-	hq->hq_status = HOST_DOWN;
+    if (( smtp_result = smtp_reply( SMTP_DATA, hq, d )) != SMTP_OK ) {
 	return( smtp_result );
     }
 
     /* check to see if DATA failed */
-    if (( d->d_env->e_flags & ENV_BOUNCE ) ||
-	    ( d->d_env->e_flags & ENV_TEMPFAIL )) {
+    if (( d->d_env->e_flags & ENV_FLAG_BOUNCE ) ||
+	    ( d->d_env->e_flags & ENV_FLAG_TEMPFAIL )) {
 	return( SMTP_OK );
     }
 
     /* send message */
-    while (( line = snet_getline( d->d_dfile_snet, NULL )) != NULL ) {
+    while (( line = snet_getline( d->d_snet_dfile, NULL )) != NULL ) {
 	if ( *line == '.' ) {
 	    /* don't send EOF */
-	    if ( snet_writef( snet, ".%s\r\n", line ) < 0 ) {
+	    if ( snet_writef( d->d_snet_smtp, ".%s\r\n", line ) < 0 ) {
 		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 			hq->hq_hostname );
-		hq->hq_status = HOST_DOWN;
 		return( SMTP_BAD_CONNECTION );
 	    }
 
 	} else {
-	    if ( snet_writef( snet, "%s\r\n", line ) < 0 ) {
+	    if ( snet_writef( d->d_snet_smtp, "%s\r\n", line ) < 0 ) {
 		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 			hq->hq_hostname );
-		hq->hq_status = HOST_DOWN;
 		return( SMTP_BAD_CONNECTION );
 	    }
 	}
     }
 
-    if ( snet_writef( snet, ".\r\n" ) < 0 ) {
+    if ( snet_writef( d->d_snet_smtp, ".\r\n" ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hq->hq_hostname );
-	hq->hq_status = HOST_DOWN;
 	return( SMTP_BAD_CONNECTION );
     }
 
-    if (( smtp_result = smtp_reply( SMTP_DATA_EOF, snet, hq, d )) != SMTP_OK ) {
-	hq->hq_status = HOST_DOWN;
+    if (( smtp_result = smtp_reply( SMTP_DATA_EOF, hq, d )) != SMTP_OK ) {
 	return( smtp_result );
     }
 
@@ -887,35 +695,28 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 
 
     int
-smtp_rset( SNET *snet, struct host_q *hq )
+smtp_rset( struct host_q *hq, struct deliver *d )
 {
-    int				smtp_result;
-
     /* say RSET */
-    if ( snet_writef( snet, "RSET\r\n" ) < 0 ) {
+    if ( snet_writef( d->d_snet_smtp, "RSET\r\n" ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_rset %s: failed writef", hq->hq_hostname );
-	hq->hq_status = HOST_DOWN;
 	return( SMTP_BAD_CONNECTION );
     }
 
-    if (( smtp_result = smtp_reply( SMTP_RSET, snet, hq, NULL )) != SMTP_OK ) {
-	hq->hq_status = HOST_DOWN;
-    }
-
-    return( smtp_result );
+    return( smtp_reply( SMTP_RSET, hq, d ));
 }
 
 
     void
-smtp_quit( SNET *snet, struct host_q *hq )
+smtp_quit( struct host_q *hq, struct deliver *d )
 {
     /* say QUIT */
-    if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
+    if ( snet_writef( d->d_snet_smtp, "QUIT\r\n" ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_quit %s: failed writef", hq->hq_hostname );
 	return;
     }
 
-    smtp_reply( SMTP_QUIT, snet, hq, NULL );
+    smtp_reply( SMTP_QUIT, hq, d );
 
     return;
 }

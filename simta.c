@@ -56,6 +56,7 @@
 
 int			(*simta_local_mailer)(int, char *, struct recipient *);
 struct host_q		*simta_null_q = NULL;
+struct host_q		*simta_punt_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
 struct host		*simta_default_host = NULL;
 unsigned int		simta_bounce_seconds = 259200;

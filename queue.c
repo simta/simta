@@ -4,6 +4,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -39,7 +42,9 @@
 
 void	q_deliver ( struct host_q **, struct host_q * );
 void	deliver_local( struct deliver *d );
-void	deliver_remote( struct deliver *d, SNET **, struct host_q * );
+void	deliver_remote( struct deliver *d, struct host_q * );
+void	hq_clear_errors( struct host_q * );
+int	next_dnsr_host( struct deliver *, struct host_q * );
 
 
     void
@@ -129,6 +134,19 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 	simta_null_q->hq_next = *host_q_head;
 	*host_q_head = simta_null_q;
 	simta_null_q->hq_status = HOST_NULL;
+
+	if ( simta_punt_host != NULL ) {
+	    if (( simta_punt_q = (struct host_q*)malloc(
+		    sizeof( struct host_q ))) == NULL ) {
+		syslog( LOG_ERR, "host_q_create_or_lookup malloc: %m" );
+		return( NULL );
+	    }
+	    memset( simta_punt_q, 0, sizeof( struct host_q ));
+
+	    /* don't add this host to the host_q or a conflict could occur */
+	    simta_punt_q->hq_hostname = simta_punt_host;
+	    simta_punt_q->hq_status = HOST_PUNT;
+	}
     }
 
     if ( hostname == NULL ) {
@@ -169,6 +187,16 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 }
 
 
+    void
+hq_clear_errors( struct host_q *hq )
+{
+    if ( hq->hq_err_text != NULL ) {
+	line_file_free( hq->hq_err_text );
+	hq->hq_err_text = NULL;
+    }
+}
+
+
     int
 queue_envelope( struct host_q **host_q_head, struct envelope *env )
 {
@@ -180,9 +208,14 @@ queue_envelope( struct host_q **host_q_head, struct envelope *env )
 	return( 0 );
     }
 
-    if (( hq = host_q_create_or_lookup( host_q_head, env->e_hostname ))
-	    == NULL ) {
-	return( 1 );
+    if ( env->e_flags & ENV_FLAG_PUNT ) {
+	hq = simta_punt_q;
+
+    } else {
+	if (( hq = host_q_create_or_lookup( host_q_head, env->e_hostname ))
+		== NULL ) {
+	    return( 1 );
+	}
     }
 
     /* sort queued envelopes by access time */
@@ -318,6 +351,11 @@ q_runner( struct host_q **host_q )
 	    q_deliver( host_q, deliver_q );
 	}
 
+	/* punt any undelivered mail, if possible */
+	if (( simta_punt_q != NULL ) && ( simta_punt_q->hq_entries > 0 )) {
+	    q_deliver( host_q, simta_punt_q );
+	}
+
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
 	    if (( unexpanded = simta_null_q->hq_env_head ) == NULL ) {
@@ -367,7 +405,7 @@ q_runner( struct host_q **host_q )
 			close( dfile_fd );
 
 		    } else {
-			unexpanded->e_flags |= ENV_BOUNCE;
+			unexpanded->e_flags |= ENV_FLAG_BOUNCE;
 			if (( snet_dfile = snet_attach( dfile_fd,
 				1024 * 1024 )) == NULL ) {
 			    close( dfile_fd );
@@ -521,7 +559,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 {
     int                         dfile_fd;
     SNET                        *snet_dfile = NULL;
-    SNET                        *snet_smtp = NULL;
     SNET			*snet_lock;
     char                        dfile_fname[ MAXPATHLEN ];
     struct recipient		**r_sort;
@@ -536,6 +573,13 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     /* XXX epcjr and mcneal - determine if the host is local in the sense
      * that we use the local mailer or the SMTP outbounder here.
      */
+
+    /* always try to punt the mail */
+    if ( deliver_q->hq_status == HOST_PUNT_DOWN ) {
+	deliver_q->hq_status = HOST_PUNT;
+    }
+
+    memset( &d, 0, sizeof( struct deliver ));
 
     /* process each envelope in the queue */
     while ( deliver_q->hq_env_head != NULL ) {
@@ -572,9 +616,15 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    goto message_cleanup;
         }
 
-	memset( &d, 0, sizeof( struct deliver ));
+	/* don't memset entire structure because we reuse connection data */
 	d.d_env = env_deliver;
 	d.d_dfile_fd = dfile_fd;
+	d.d_n_rcpt_accepted = 0;
+	d.d_n_rcpt_failed = 0;
+	d.d_n_rcpt_tempfail = 0;
+	d.d_attempt = 0;
+	d.d_delivered = 0;
+	d.d_unlinked = 0;
 
 	switch ( deliver_q->hq_status ) {
         case HOST_LOCAL:
@@ -582,20 +632,22 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    break;
 
         case HOST_MX:
+        case HOST_PUNT:
 	    if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
 		syslog( LOG_ERR, "q_deliver snet_attach: %m" );
 		goto message_cleanup;
 	    }
-	    d.d_dfile_snet = snet_dfile;
+	    d.d_snet_dfile = snet_dfile;
 
-	    deliver_remote( &d, &snet_smtp, deliver_q );
+	    deliver_remote( &d, deliver_q );
 	    break;
 
         case HOST_DOWN:
+        case HOST_PUNT_DOWN:
 	    break;
 
         case HOST_BOUNCE:
-	    env_deliver->e_flags |= ENV_BOUNCE;
+	    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    break;
 
 	default:
@@ -609,13 +661,13 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 * a message: it is not nessecary to check a message's age
 	 * for bounce purposes when it is already slated for deletion.
 	 */
-	if ((( env_deliver->e_flags & ENV_BOUNCE ) == 0 ) &&
+	if ((( env_deliver->e_flags & ENV_FLAG_BOUNCE ) == 0 ) &&
 		(( d.d_delivered == 0 ) ||
 		( d.d_n_rcpt_tempfail != 0 ))) {
 	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
 		    syslog( LOG_NOTICE, "q_deliver %s: old message, bouncing",
 			    env_deliver->e_id );
-		    env_deliver->e_flags |= ENV_BOUNCE;
+		    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    } else {
 		syslog( LOG_DEBUG, "q_deliver %s: not old",
 			env_deliver->e_id );
@@ -625,8 +677,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	/* bounce the message if the host is bad, the message is bad, or
 	 * if some recipients are bad.
 	 */
-	if (( env_deliver->e_flags & ENV_BOUNCE ) ||
-		( d.d_n_rcpt_failed > 0 )) {
+	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) ||
+		(( d.d_delivered ) && ( d.d_n_rcpt_failed > 0 ))) {
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
 		panic( "q_deliver lseek fail" );
@@ -655,7 +707,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 * a bounce for the entire message, or if we've successfully
 	 * delivered the message and no recipients tempfailed.
 	 */
-        if (( env_deliver->e_flags & ENV_BOUNCE ) ||
+        if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) ||
 		(( d.d_delivered != 0 ) &&
 		( d.d_n_rcpt_tempfail == 0 ))) {
 	    if ( env_truncate_and_unlink( env_deliver, snet_lock ) != 0 ) {
@@ -664,7 +716,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 
 	    d.d_unlinked = 1;
 
-	    if ( env_deliver->e_flags & ENV_BOUNCE ) {
+	    if ( env_deliver->e_flags & ENV_FLAG_BOUNCE ) {
 		syslog( LOG_INFO, "Deliver %s: Message Deleted: Bounced",
 			env_deliver->e_id );
 	    } else {
@@ -742,10 +794,16 @@ message_cleanup:
 	}
 
 	if ( d.d_unlinked == 0 ) {
-	    env_slow( env_deliver );
+	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q )) {
+		env_deliver->e_flags |= ENV_FLAG_PUNT;
+		queue_envelope( host_q, env_deliver );
+	    } else {
+		env_slow( env_deliver );
+		env_free( env_deliver );
+	    }
+	} else {
+	    env_free( env_deliver );
 	}
-
-	env_free( env_deliver );
 
         if ( snet_dfile == NULL ) {
 	    if ( dfile_fd > 0 ) {
@@ -768,72 +826,16 @@ message_cleanup:
 	}
     }
 
-    if ( snet_smtp != NULL ) {
+    if ( d.d_snet_smtp != NULL ) {
 	syslog( LOG_DEBUG, "q_deliver: calling smtp_quit" );
-        smtp_quit( snet_smtp, deliver_q );
-	if ( snet_close( snet_smtp ) != 0 ) {
+        smtp_quit( deliver_q, &d );
+	if ( snet_close( d.d_snet_smtp ) != 0 ) {
 	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
 	}
-    }
-
-    return;
-}
-
-
-    void
-deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
-{
-    int				smtp_error;
-
-    syslog( LOG_NOTICE, "deliver_remote %s: attempting remote delivery",
-	    d->d_env->e_id );
-
-    /* open outbound SMTP connection, or say RSET */
-    if ( *snet_smtp == NULL ) {
-	simta_smtp_outbound_attempts++;
-	syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_connect( %s )",
-		d->d_env->e_id, deliver_q->hq_hostname );
-	if (( smtp_error = smtp_connect( snet_smtp, deliver_q )) !=
-		SMTP_OK ) {
-	    goto smtp_cleanup;
+	if ( d.d_dnsr_result_ip != NULL ) {
+	    dnsr_free_result( d.d_dnsr_result_ip );
 	}
-    } else {
-	syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_reset",
-		d->d_env->e_id );
-	if (( smtp_error = smtp_rset( *snet_smtp, deliver_q ))
-		!= SMTP_OK ) {
-	    goto smtp_cleanup;
-	}
-    }
-
-    d->d_attempt = 1;
-    syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_send",
-	    d->d_env->e_id );
-
-    if (( smtp_error = smtp_send( *snet_smtp, deliver_q, d )) == SMTP_OK ) {
-	simta_smtp_outbound_delivered++;
-	return;
-    }
-
-smtp_cleanup:
-    if ( *snet_smtp != NULL ) {
-	switch ( smtp_error ) {
-	default:
-	case SMTP_ERROR:
-	    if ( snet_eof( *snet_smtp ) != 0 ) {
-		syslog( LOG_DEBUG, "deliver_remote %s: call smtp_quit",
-			d->d_env->e_id );
-		smtp_quit( *snet_smtp, deliver_q );
-	    }
-
-	case SMTP_BAD_CONNECTION:
-	    syslog( LOG_DEBUG, "deliver_remote %s: call snet_close",
-		    d->d_env->e_id );
-	    if ( snet_close( *snet_smtp ) < 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
-	    }
-	    *snet_smtp = NULL;
-	}
+	dnsr_free_result( d.d_dnsr_result );
     }
 
     return;
@@ -898,4 +900,304 @@ lseek_fail:
     d->d_delivered = 1;
 
     return;
+}
+
+
+    void
+deliver_remote( struct deliver *d, struct host_q *hq )
+{
+    int				r_smtp;
+    int				s;
+
+    syslog( LOG_NOTICE, "deliver_remote %s: attempting remote delivery",
+	    d->d_env->e_id );
+
+    switch ( hq->hq_status ) {
+    case HOST_MX:
+	hq->hq_status = HOST_DOWN;
+	break;
+
+    case HOST_PUNT:
+	hq->hq_status = HOST_PUNT_DOWN;
+    	break;
+
+    default:
+	panic( "deliver_remote: status out of range" );
+    }
+
+    for ( ; ; ) {
+	if ( d->d_snet_smtp == NULL ) {
+	    /* need to build SMTP connection */
+	    if ( next_dnsr_host( d, hq ) != 0 ) {
+		if ( d->d_dnsr_result_ip != NULL ) {
+		    dnsr_free_result( d->d_dnsr_result_ip );
+		    d->d_dnsr_result_ip = NULL;
+		    d->d_cur_dnsr_result++;
+		    continue;
+		}
+
+		dnsr_free_result( d->d_dnsr_result );
+		d->d_dnsr_result = NULL;
+		return;
+	    }
+
+	    /* build snet */
+	    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
+		syslog( LOG_ERR, "deliver_remote %s socket: %m",
+			hq->hq_hostname );
+		goto connect_cleanup;
+	    }
+
+	    if ( connect( s, (struct sockaddr*)&(d->d_sin),
+		    sizeof( struct sockaddr_in )) < 0 ) {
+		syslog( LOG_ERR, "deliver_remote %s connect: %m",
+			hq->hq_hostname );
+		close( s );
+		goto connect_cleanup;
+	    }
+
+	    if (( d->d_snet_smtp = snet_attach( s, 1024 * 1024 )) == NULL ) {
+		syslog( LOG_ERR, "deliver_remote %s snet_attach: %m",
+			hq->hq_hostname );
+		close( s );
+		goto connect_cleanup;
+	    }
+
+	    simta_smtp_outbound_attempts++;
+	    syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_connect %s",
+		    d->d_env->e_id, hq->hq_hostname );
+
+	    hq_clear_errors( hq );
+
+	    if (( r_smtp = smtp_connect( hq, d )) != SMTP_OK ) {
+		goto smtp_cleanup;
+	    }
+
+	} else {
+	    /* already have SMTP connection, say RSET and send message */
+	    syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_reset",
+		    d->d_env->e_id );
+	    if (( r_smtp = smtp_rset( hq, d )) != SMTP_OK ) {
+		goto smtp_cleanup;
+	    }
+	}
+
+	d->d_attempt = 1;
+	syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_send",
+		d->d_env->e_id );
+
+	if (( r_smtp = smtp_send( hq, d )) == SMTP_OK ) {
+	    if (( hq->hq_status == HOST_PUNT_DOWN ) &&
+		    ( d->d_delivered == 0 )) {
+		env_clear_errors( d->d_env );
+	    }
+
+	    switch ( hq->hq_status ) {
+	    case HOST_DOWN:
+		hq->hq_status = HOST_MX;
+		break;
+
+	    case HOST_PUNT_DOWN:
+		hq->hq_status = HOST_PUNT;
+		break;
+
+	    default:
+		panic( "deliver_remote: status out of range" );
+	    }
+
+	    simta_smtp_outbound_delivered++;
+	    return;
+	}
+
+	env_clear_errors( d->d_env );
+
+smtp_cleanup:
+	if ( r_smtp == SMTP_ERROR ) {
+	    smtp_quit( hq, d );
+	}
+
+	snet_close( d->d_snet_smtp );
+	d->d_snet_smtp = NULL;
+
+	if ( hq->hq_status == HOST_PUNT_DOWN ) {
+	    hq_clear_errors( hq );
+	}
+
+	if ( hq->hq_status == HOST_BOUNCE ) {
+	    if ( d->d_dnsr_result_ip != NULL ) {
+		dnsr_free_result( d->d_dnsr_result_ip );
+		dnsr_free_result( d->d_dnsr_result );
+	    } else if ( d->d_dnsr_result != NULL ) {
+		dnsr_free_result( d->d_dnsr_result );
+	    }
+	    return;
+	}
+
+connect_cleanup:
+	if ( d->d_dnsr_result_ip != NULL ) {
+	    d->d_cur_dnsr_result_ip++;
+	} else {
+	    d->d_cur_dnsr_result++;
+	}
+    }
+}
+
+
+    int
+next_dnsr_host( struct deliver *d, struct host_q *hq )
+{
+    char			*ip;
+
+    if ( d->d_dnsr_result == NULL ) {
+	switch ( hq->hq_status ) {
+	case HOST_DOWN:
+	    if (( d->d_dnsr_result = get_dnsr_result( hq->hq_hostname ))
+		    == NULL ) {
+		return( 1 );
+	    }
+
+	    if ( d->d_dnsr_result->r_ancount == 0 ) {
+		if ( hq->hq_err_text == NULL ) {
+		    if (( hq->hq_err_text = line_file_create()) == NULL ) {
+			syslog( LOG_ERR,
+				"next_dnsr_host line_file_create: %m" );
+			dnsr_free_result( d->d_dnsr_result );
+			d->d_dnsr_result = NULL;
+			return( 1 );
+		    }
+		}
+		if ( line_append( hq->hq_err_text, "Host does not exist",
+			COPY ) == NULL ) {
+		    syslog( LOG_ERR, "next_dnsr_host line_append: %m" );
+		    dnsr_free_result( d->d_dnsr_result );
+		    d->d_dnsr_result = NULL;
+		    return( 1 );
+		}
+		hq->hq_status = HOST_BOUNCE;
+		d->d_env->e_flags |= ENV_FLAG_BOUNCE;
+		dnsr_free_result( d->d_dnsr_result );
+		d->d_dnsr_result = NULL;
+		return( 1 );
+	    }
+
+	    d->d_cur_dnsr_result = 0;
+	    break;
+
+	case HOST_PUNT_DOWN:
+	    if (( d->d_dnsr_result = get_a( simta_punt_host )) == NULL ) {
+		return( 1 );
+	    }
+	    if ( d->d_dnsr_result->r_ancount == 0 ) {
+		syslog( LOG_WARNING,
+			"next_dnsr_host: punt host has 0 DNS entries" );
+		dnsr_free_result( d->d_dnsr_result );
+		d->d_dnsr_result = NULL;
+		return( 1 );
+	    }
+	    d->d_cur_dnsr_result = 0;
+	    break;
+
+	default:
+	    panic( "next_dnsr_host: varaible out of range" );
+	}
+    }
+
+    /* here you have dnsr information */
+    memset( &(d->d_sin), 0, sizeof( struct sockaddr_in ));
+    d->d_sin.sin_family = AF_INET;
+    d->d_sin.sin_port = htons( SIMTA_SMTP_PORT );
+
+    if ( d->d_dnsr_result_ip == NULL ) {
+	for ( ; d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
+		d->d_cur_dnsr_result++ ) {
+	    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type ==
+		    DNSR_TYPE_A ) {
+		memcpy( &(d->d_sin.sin_addr.s_addr),
+			&(d->d_dnsr_result->r_answer[
+			d->d_cur_dnsr_result ].rr_a ),
+			sizeof( struct in_addr ));
+		if ( hq->hq_status == HOST_DOWN ) {
+		    /* prevent spammers from using obviously fake addresses */
+		    ip = inet_ntoa( d->d_sin.sin_addr );
+		    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
+			    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
+			syslog( LOG_DEBUG,
+				"next_dnsr_host %s: skipping invalid "
+				"A record: %s", hq->hq_hostname, ip );
+			continue;
+		    }
+		}
+		return( 0 );
+
+	    } else if (( d->d_dnsr_result->r_answer[
+		    d->d_cur_dnsr_result ].rr_type == DNSR_TYPE_MX )
+		    && ( hq->hq_status == HOST_DOWN )) {
+		if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
+			].rr_ip != NULL ) {
+		    memcpy( &(d->d_sin.sin_addr.s_addr),
+			    &(d->d_dnsr_result->r_answer[
+			    d->d_cur_dnsr_result ].rr_ip->ip_ip ),
+			    sizeof( struct in_addr ));
+		    return( 0 );
+
+		} else {
+		    if (( d->d_dnsr_result_ip =
+			    get_a( d->d_dnsr_result->r_answer[
+			    d->d_cur_dnsr_result ].rr_mx.mx_exchange ))
+			    == NULL ) {
+			continue;
+		    }
+
+		    if ( d->d_dnsr_result_ip->r_ancount == 0 ) {
+			dnsr_free_result( d->d_dnsr_result_ip );
+			d->d_dnsr_result_ip = NULL;
+			continue;
+		    }
+
+		    d->d_cur_dnsr_result_ip = 0;
+		    break;
+		}
+
+	    } else {
+		syslog( LOG_DEBUG,
+			"next_dnsr_host %s: uninteresting dnsr rr type:"
+			" %d", d->d_dnsr_result->r_answer[
+			d->d_cur_dnsr_result ].rr_name,
+			d->d_dnsr_result->r_answer[
+			d->d_cur_dnsr_result ].rr_type );
+		continue;
+	    }
+	}
+    }
+
+    if ( d->d_dnsr_result_ip != NULL ) {
+	for ( ; d->d_cur_dnsr_result_ip < d->d_dnsr_result_ip->r_ancount;
+		d->d_cur_dnsr_result_ip++ ) {
+	    if ( d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip
+		    ].rr_type == DNSR_TYPE_A ) {
+		memcpy( &(d->d_sin.sin_addr.s_addr),
+			&(d->d_dnsr_result_ip->r_answer[
+			d->d_cur_dnsr_result_ip ].rr_a ),
+			sizeof( struct in_addr ));
+		ip = inet_ntoa( d->d_sin.sin_addr );
+		if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
+			( strcmp( ip, "0.0.0.0" ) == 0 )) {
+		    syslog( LOG_DEBUG,
+			"next_dnsr_host %s: skipping invalid MX IP: %s",
+			hq->hq_hostname, ip );
+		} else {
+		    return( 0 );
+		}
+	    } else {
+		syslog( LOG_DEBUG,
+		    "next_dnsr_host %s: uninteresting dnsr rr type: %d",
+		    d->d_dnsr_result_ip->r_answer[
+			    d->d_cur_dnsr_result_ip ].rr_name,
+		    d->d_dnsr_result_ip->r_answer[
+			    d->d_cur_dnsr_result_ip ].rr_type );
+	    }
+	}
+    }
+
+    return( 1 );
 }

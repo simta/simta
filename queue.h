@@ -11,18 +11,28 @@
 #define HOST_MX		2
 #define HOST_BOUNCE	3
 #define HOST_DOWN	4
+#define HOST_PUNT	5
+#define HOST_PUNT_DOWN	6
 
 struct deliver {
     struct envelope		*d_env;
     struct recipient		*d_rcpt;
     int				d_dfile_fd;
-    SNET			*d_dfile_snet;
     int				d_n_rcpt_accepted;
     int				d_n_rcpt_failed;
     int				d_n_rcpt_tempfail;
     int				d_attempt;
     int				d_delivered;
     int				d_unlinked;
+
+    /* SMTP connection variables */
+    struct dnsr_result		*d_dnsr_result;
+    struct dnsr_result		*d_dnsr_result_ip;
+    struct sockaddr_in		d_sin;
+    SNET			*d_snet_smtp;
+    SNET			*d_snet_dfile;
+    int				d_cur_dnsr_result;
+    int				d_cur_dnsr_result_ip;
 };
 
 struct host_list {
@@ -46,7 +56,6 @@ struct host_q {
     struct host_q		*hq_deliver;
     char			*hq_hostname;
     char			*hq_smtp_hostname;
-    struct sockaddr_in		hq_sin;
     int				hq_status;
     int				hq_entries;
     int				hq_from;

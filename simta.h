@@ -65,6 +65,7 @@ extern char				simta_hostname[];
 extern char				*simta_punt_host;
 extern char				*simta_rbl_domain;
 extern struct host_q			*simta_null_q;
+extern struct host_q			*simta_punt_q;
 extern struct stab_entry		*simta_hosts;
 extern struct host			*simta_default_host;
 char					*simta_postmaster;

@@ -265,7 +265,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
      * we need to put the bounce in the dead queue.
      */
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ((( env->e_flags & ENV_BOUNCE ) ||
+	if ((( env->e_flags & ENV_FLAG_BOUNCE ) ||
 		( r->r_status == R_FAILED ))) {
 	    if ( *(r->r_rcpt) == '\0' ) {
 		bounce_env->e_dir = simta_dir_dead;
@@ -334,7 +334,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 		"recipients of your message\n\n" );
     }
 
-    if ( env->e_flags & ENV_OLD ) {
+    if ( env->e_age == ENV_AGE_OLD ) {
         fprintf( dfile, "This message is old and undeliverable.\n\n" );
     }
 
@@ -370,7 +370,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	    bounce_env->e_rcpt->r_rcpt );
 
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	if (( env->e_flags & ENV_BOUNCE ) || ( r->r_status == R_FAILED )) {
+	if (( env->e_flags & ENV_FLAG_BOUNCE ) || ( r->r_status == R_FAILED )) {
 	    syslog( LOG_INFO, "Bounce %s: %s: Bouncing address <%s>",
 		    env->e_id, bounce_env->e_id, r->r_rcpt );
             fprintf( dfile, "address %s\n", r->r_rcpt );

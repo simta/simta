@@ -32,14 +32,11 @@
 #define	SIMTA_SMTP_PORT		25
 
 void	stdout_logger ( char * );
-int	smtp_reply( int, SNET*, struct host_q *, struct deliver * );
-int	smtp_consume_banner ( struct line_file **, SNET *,
+int	smtp_reply( int, struct host_q *, struct deliver * );
+int	smtp_consume_banner ( struct line_file **, struct deliver *,
 		struct timeval *, char *, char * );
 
-
-int	smtp_connect ( SNET **, struct host_q * );
-int	smtp_rset ( SNET *, struct host_q * );
-int	smtp_send ( SNET *, struct host_q *, struct deliver * );
-void	smtp_quit ( SNET *, struct host_q * );
-SNET *  _smtp_connect_snet( struct sockaddr_in *, char * );
-int     _smtp_connect_try( SNET **, struct sockaddr_in *, struct host_q * );
+int	smtp_connect( struct host_q *, struct deliver * );
+int	smtp_rset( struct host_q *, struct deliver * );
+int	smtp_send( struct host_q *, struct deliver * );
+void	smtp_quit( struct host_q *, struct deliver * );

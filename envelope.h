@@ -23,18 +23,23 @@ struct envelope {
     char		*e_dir;
     char		*e_mail;
     ino_t		e_dinode;
+    int			e_age;
     int			e_flags;
     struct timespec	e_last_attempt;
     char		*e_hostname;
     char		*e_id;
 };
 
-#define ENV_ON_DISK		(1<<1)
-#define ENV_EFILE		(1<<2)
-#define ENV_DFILE		(1<<3)
-#define ENV_OLD			(1<<4)
-#define ENV_BOUNCE		(1<<5)
-#define ENV_TEMPFAIL		(1<<6)
+#define ENV_AGE_UNKNOWN		0
+#define ENV_AGE_OLD		1
+#define ENV_AGE_NOT_OLD		2
+
+#define ENV_FLAG_ON_DISK	(1<<1)
+#define ENV_FLAG_EFILE		(1<<2)
+#define ENV_FLAG_DFILE		(1<<3)
+#define ENV_FLAG_BOUNCE		(1<<4)
+#define ENV_FLAG_TEMPFAIL	(1<<5)
+#define ENV_FLAG_PUNT		(1<<6)
 
 struct envelope	*env_create( char * );
 struct envelope	*env_dup( struct envelope * );
@@ -42,6 +47,7 @@ void		env_rcpt_free( struct envelope * );
 void		env_free( struct envelope * );
 void		env_reset( struct envelope * );
 void		rcpt_free( struct recipient * );
+void		env_clear_errors( struct envelope * );
 int		env_is_old( struct envelope *, int );
 int		env_id( struct envelope * );
 int		env_set_id( struct envelope *, char * );

@@ -77,18 +77,26 @@ env_is_old( struct envelope *env, int dfile_fd )
     struct timeval              tv_now;
     struct stat			sb;
 
-    if ( fstat( dfile_fd, &sb ) != 0 ) {
-	syslog( LOG_ERR, "env_is_old fstat %s/D%s: %m", env->e_dir, env->e_id );
-	return( 0 );
+    if ( env->e_age == ENV_AGE_UNKNOWN ) {
+	if ( fstat( dfile_fd, &sb ) != 0 ) {
+	    syslog( LOG_ERR, "env_is_old fstat %s/D%s: %m", env->e_dir,
+		    env->e_id );
+	    return( 0 );
+	}
+
+	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "env_is_old gettimeofday: %m" );
+	    return( 0 );
+	}
+
+	if (( tv_now.tv_sec - sb.st_mtime ) > ( simta_bounce_seconds )) {
+	    env->e_age = ENV_AGE_OLD;
+	} else {
+	    env->e_age = ENV_AGE_NOT_OLD;
+	}
     }
 
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "env_is_old gettimeofday: %m" );
-	return( 0 );
-    }
-
-    if (( tv_now.tv_sec - sb.st_mtime ) > ( simta_bounce_seconds )) {
-	env->e_flags |= ENV_OLD;
+    if ( env->e_age == ENV_AGE_OLD ) {
 	return( 1 );
     }
 
@@ -196,6 +204,31 @@ env_rcpt_free( struct envelope *env )
     }
 
     env->e_rcpt = NULL;
+}
+
+
+    void
+env_clear_errors( struct envelope *env )
+{
+    struct recipient		*r;
+
+    if ( env->e_err_text != NULL ) {
+	line_file_free( env->e_err_text );
+	env->e_err_text = NULL;
+    }
+
+    env->e_flags = ( env->e_flags & ( ~ENV_FLAG_BOUNCE ));
+    env->e_flags = ( env->e_flags & ( ~ENV_FLAG_TEMPFAIL ));
+
+    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+	if ( r->r_err_text != NULL ) {
+	    line_file_free( r->r_err_text );
+	    r->r_err_text = NULL;
+	}
+	r->r_status = 0;
+    }
+
+    return;
 }
 
 
@@ -489,7 +522,7 @@ env_outfile( struct envelope *e )
     syslog( LOG_DEBUG, "env_outfile %s %s %s", e->e_dir, e->e_id,
 	    e->e_hostname ? e->e_hostname : "" );
 
-    e->e_flags |= ENV_ON_DISK;
+    e->e_flags |= ENV_FLAG_ON_DISK;
 
     if ( simta_no_sync == 0 ) {
 	sync();
@@ -911,7 +944,7 @@ env_unlink( struct envelope *env )
 	return( -1 );
     }
 
-    env->e_flags = ( env->e_flags & ( ~ENV_ON_DISK ));
+    env->e_flags = ( env->e_flags & ( ~ENV_FLAG_ON_DISK ));
 
     if ( env->e_dir == simta_dir_fast ) {
 	simta_fast_files--;
