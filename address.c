@@ -266,6 +266,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
     /* XXX buf should be large enough to accomodate any valid email address */
     char		buf[ 1024 ];
 
+    syslog( LOG_DEBUG, "address_expand starting" );
+
     switch ( e_addr->e_addr_type ) {
 
     case ADDRESS_TYPE_EMAIL:
