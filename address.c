@@ -90,22 +90,23 @@ address_string_recipients( struct expand *exp, char *line,
 	struct exp_addr *e_addr, char *from )
 {
     char				*start;
+    char				*comma;
     char				*end;
     char				*email_start;
     char				swap;
 
-    for ( ; ; ) {
-	if (( start = skip_cws( line )) == NULL ) {
-	    return( 0 );
-	}
+    if (( start = skip_cws( line )) == NULL ) {
+	return( 0 );
+    }
 
+    for ( ; ; ) {
 	if (( *start != '"' ) && ( *start != '<' )) {
 	    if (( end = token_dot_atom( start )) == NULL ) {
 		return( 0 );
 	    }
 
 	    if ( *(end+1) == '@' ) {
-		/* Consume sender@domain */
+		/* Consume sender@domain [,]*/
 		email_start = start;
 		start = end + 2;
 
@@ -130,13 +131,25 @@ address_string_recipients( struct expand *exp, char *line,
 		}
 
 		*end = swap;
+
+		if (( comma = skip_cws( end )) == NULL ) {
+		    return( 0 );
+		}
+
+		if ( *comma != ',' ) {
+		    return( 0 );
+		}
+
+		if (( start = skip_cws( comma + 1 )) == NULL ) {
+		    return( 0 );
+		}
+
+		continue;
 	    }
 
 	    if (( start = skip_cws( end + 1 )) == NULL ) {
 		return( 0 );
 	    }
-
-	    continue;
 	}
 
 	while ( *start != '<' ) {
@@ -156,7 +169,7 @@ address_string_recipients( struct expand *exp, char *line,
 	    }
 	}
 
-	email_start = start;
+	email_start = start + 1;
 	for ( end = start + 1; *end != '>'; end++ ) {
 	    if ( *end == '\0' ) {
 		return( 0 );
@@ -173,15 +186,17 @@ address_string_recipients( struct expand *exp, char *line,
 
 	*end = '>';
 
-	if (( start = skip_cws( end + 1 )) == NULL ) {
+	if (( comma = skip_cws( end + 1 )) == NULL ) {
 	    return( 0 );
 	}
 
-	if ( *start != ',' ) {
+	if ( *comma != ',' ) {
 	    return( 0 );
 	}
 
-	start++;
+	if (( start = skip_cws( comma + 1 )) == NULL ) {
+	    return( 0 );
+	}
     }
 
     return( 0 );
