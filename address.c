@@ -466,9 +466,9 @@ address_expand( char *address, struct recipient *rcpt,
 		    /* Check to see if we have seen this address before to
 		     * prevent it from being expanded again 
 		     */
-		    if ( ll_lookup( *expansion, temp ) == NULL ) {
+		    if ( ll_lookup( *seen, temp ) == NULL ) {
 			/* Add address to expansion list */
-			if ( add_address( seen, temp, rcpt ) != 0 ) {
+			if ( add_address( expansion, temp, rcpt ) != 0 ) {
 			    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 			    return( -1 );
 			}
