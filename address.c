@@ -461,7 +461,8 @@ cleanup_forward:
     int
 alias_expand( struct expand *exp, struct exp_addr *e_addr )
 {
-    int			ret;
+    int			ret = ALIAS_NOT_FOUND;
+    char		address[ SIMTA_MAX_LINE_LEN ];
     DBC			*dbcp = NULL;
     DBT			key;
     DBT			value;
@@ -471,7 +472,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 		!= 0 ) {
 	    syslog( LOG_ERR, "alias_expand: db_open_r: %s",
 		    db_strerror( ret ));
-	    return( ALIAS_NOT_FOUND );
+	    goto done;
 	}
     }
 
@@ -481,11 +482,14 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 
     if ( e_addr->e_addr_at != NULL ) {
 	*(e_addr->e_addr_at) = '\0';
-	key.data = e_addr->e_addr;
+	strcpy( e_addr->e_addr_at, address );
+	*(e_addr->e_addr_at) = '@';
     } else {
-	key.data = "postmaster";
+	strcpy( "postmaster", address );
     }
 
+    /* XXX - Is there a limit on key length? */
+    key.data = &address;
     key.size = strlen( key.data ) + 1;
 
     if (( ret = db_cursor_set( simta_dbp, &dbcp, &key, &value ))
@@ -493,29 +497,21 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	if ( ret != DB_NOTFOUND ) {
 	    syslog( LOG_ERR, "alias_expand: db_cursor_set: %s",
 		    db_strerror( ret ));
-	    if ( e_addr->e_addr_at != NULL ) {
-		*(e_addr->e_addr_at) = '@';
-	    }
-	    return( ALIAS_NOT_FOUND );
+	    goto done;
 	}
 
 	/* not in alias db, try next expansion */
 	syslog( LOG_DEBUG, "alias_expand <%s>: not in alias db",
 		e_addr->e_addr );
-	if ( e_addr->e_addr_at != NULL ) {
-	    *(e_addr->e_addr_at) = '@';
-	}
-	return( ALIAS_NOT_FOUND );
+	goto done;
     }
 
     for ( ; ; ) {
 	if ( add_address( exp, (char*)value.data,
 		e_addr->e_addr_errors,  ADDRESS_TYPE_EMAIL ) != 0 ) {
 	    /* add_address syslogs errors */
-	    if ( e_addr->e_addr_at != NULL ) {
-		*(e_addr->e_addr_at) = '@';
-	    }
-	    return( ALIAS_SYSERROR );
+	    ret = ALIAS_SYSERROR;
+	    goto done;
 	}
 
 	syslog( LOG_DEBUG, "alias_expand <%s> EXPANDED <%s>: alias db",
@@ -527,21 +523,24 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 		!= 0 ) {
 	    if ( ret != DB_NOTFOUND ) {
 		syslog( LOG_ERR, "alias_expand: db_cursor_next: %s",
-			db_strerror( ret ));
-		if ( e_addr->e_addr_at != NULL ) {
-		    *(e_addr->e_addr_at) = '@';
-		}
-		return( ALIAS_NOT_FOUND );
-
+		    db_strerror( ret ));
+		goto done;
 	    } else {
 		/* one or more addresses found in alias db */
-		if ( e_addr->e_addr_at != NULL ) {
-		    *(e_addr->e_addr_at) = '@';
-		}
-		return( ALIAS_EXCLUDE );
+		ret = ALIAS_EXCLUDE;
+		goto done;
 	    }
 	}
     }
+
+done:
+    if ( dbcp != NULL ) {
+	if ( db_cursor_close( dbcp ) != 0 ) {
+	    syslog( LOG_ERR, "alias_expand: db_cursor_close: %s",
+		db_strerror( ret ));
+	}
+    }
+    return( ret );
 }
 
 #ifdef HAVE_LDAP
