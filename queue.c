@@ -595,18 +595,23 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    break;
 
         case HOST_BOUNCE:
+	    env_deliver->e_flags |= ENV_BOUNCE;
 	    break;
 
 	default:
 	    panic( "q_deliver host_status out of range" );
 	}
 
-	/* check the age of the envelope if the envelope has any tempfails or
-	 * the host is HOST_DOWN, if we're not already bouncing the envelope
+	/* check the age of the original message unless we've created
+	 * a bounce for the entire message, or if we've successfully
+	 * delivered the message and no recipients tempfailed.
+	 * note that this is the exact opposite of the test to delete
+	 * a message: it is not nessecary to check a message's age
+	 * for bounce purposes when it is already slated for deletion.
 	 */
-	if ((( d.d_n_rcpt_tempfail > 0 ) ||
-		( deliver_q->hq_status == HOST_DOWN )) &&
-		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
+	if ((( env_deliver->e_flags & ENV_BOUNCE ) == 0 ) &&
+		(( d.d_delivered == 0 ) ||
+		( d.d_n_rcpt_tempfail != 0 ))) {
 	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
 		    syslog( LOG_NOTICE, "q_deliver %s: old message, bouncing",
 			    env_deliver->e_id );
@@ -620,8 +625,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	/* bounce the message if the host is bad, the message is bad, or
 	 * if some recipients are bad.
 	 */
-	if (( deliver_q->hq_status == HOST_BOUNCE ) ||
-		( env_deliver->e_flags & ENV_BOUNCE ) ||
+	if (( env_deliver->e_flags & ENV_BOUNCE ) ||
 		( d.d_n_rcpt_failed > 0 )) {
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
@@ -651,8 +655,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 * a bounce for the entire message, or if we've successfully
 	 * delivered the message and no recipients tempfailed.
 	 */
-        if (( deliver_q->hq_status == HOST_BOUNCE ) ||
-		( env_deliver->e_flags & ENV_BOUNCE ) ||
+        if (( env_deliver->e_flags & ENV_BOUNCE ) ||
 		(( d.d_delivered != 0 ) &&
 		( d.d_n_rcpt_tempfail == 0 ))) {
 	    if ( env_truncate_and_unlink( env_deliver, snet_lock ) != 0 ) {
@@ -661,8 +664,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 
 	    d.d_unlinked = 1;
 
-	    if (( deliver_q->hq_status == HOST_BOUNCE ) ||
-		    ( env_deliver->e_flags & ENV_BOUNCE )) {
+	    if ( env_deliver->e_flags & ENV_BOUNCE ) {
 		syslog( LOG_INFO, "Deliver %s: Message Deleted: Bounced",
 			env_deliver->e_id );
 	    } else {
