@@ -162,16 +162,12 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	}
 
 #ifdef HAVE_LDAP
-	/* pturgyan note that I'm using strcasecmp, and this is incorrect.
-	 * it is merely a placeholder for your improved technology.
-	 */
-
 	if (( addr_type == ADDRESS_TYPE_EMAIL ) &&
 		( exp->exp_env->e_mail != NULL )) {
 	    /* compare the address in hand with the sender */
-	    if ( strcasecmp( address, exp->exp_env->e_mail ) == 0 ) {
+	    if ( simta_mbx_compare( address, exp->exp_env->e_mail ) == 0 ) {
 		/* here we have a match */
-		e->e_addr_status = STATUS_EMAIL_SENDER;
+		e->e_addr_status |= STATUS_EMAIL_SENDER;
 	    }
 	}
 #endif /* HAVE_LDAP */
@@ -195,11 +191,11 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
     }
 
 #ifdef HAVE_LDAP
-    if ( e->e_addr_status == STATUS_EMAIL_SENDER ) {
-	/* XXX color to root */
-    } else if (( e->e_addr_status == STATUS_LDAP_EXCLUSIVE ) ||
-	    ( e->e_addr_x_children != NULL )) {
-	/* XXX check exclusive conditionals */
+    if (( e->e_addr_status & STATUS_EMAIL_SENDER ) != 0 ) {
+	for ( parent = exp->exp_parent; parent != NULL;
+		parent = parent->e_addr_parent ) {
+	    parent->e_addr_status |= STATUS_EMAIL_SENDER;
+	}
     }
 #endif /* HAVE_LDAP */
 

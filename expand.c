@@ -86,6 +86,18 @@ expand_and_deliver( struct host_q **hq_stab, struct envelope *unexpanded_env )
 }
 
 
+    void
+exp_addr_prune( struct exp_addr *e_addr )
+{
+    if ( e_addr != NULL ) {
+	e_addr->e_addr_status =
+		( e_addr->e_addr_status & ( !STATUS_TERMINAL ));
+	exp_addr_prune( e_addr->e_addr_peer );
+	exp_addr_prune( e_addr->e_addr_child );
+    }
+}
+
+
     /* return 0 on success
      * return 1 on syserror
      * return -1 on fata errors (leaving fast files behind in error)
@@ -190,8 +202,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		break;
 
 	    case ADDRESS_FINAL:
-		e_addr->e_addr_status =
-			( e_addr->e_addr_status | STATUS_TERMINAL );
+		e_addr->e_addr_status |= STATUS_TERMINAL;
 		/* the address is a terminal local address */
 		break;
 
@@ -208,15 +219,20 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     for ( i = exp.exp_addr_list; i != NULL; i = i->st_next ) {
 	e_addr = (struct exp_addr*)i->st_data;
 
+#ifdef HAVE_LDAP
+	/* prune exclusive groups the sender is not a member of */
+	if ((( e_addr->e_addr_status & STATUS_EMAIL_SENDER ) == 0 ) &&
+		(( e_addr->e_addr_status & STATUS_LDAP_EXCLUSIVE ) != 0 )) {
+	    e_addr->e_addr_status =
+		    ( e_addr->e_addr_status & ( !STATUS_TERMINAL ));
+	    exp_addr_prune( e_addr->e_addr_child );
+	}
+#endif /* HAVE_LDAP */
+
 	if (( e_addr->e_addr_status & STATUS_TERMINAL ) == 0 ) {
 	    /* not a terminal expansion, do not add */
 	    continue;
 	}
-
-#ifdef HAVE_LDAP
-	/* XXX LDAP prune exclusive groups the sender is not a member of */
-	/* XXX LDAP Check to see that we only write out TYPE_EMAIL addresses? */
-#endif /* HAVE_LDAP */
 
 	if ( e_addr->e_addr_type == ADDRESS_TYPE_EMAIL ) {
 	    if (( domain = strchr( i->st_key, '@' )) == NULL ) {
@@ -229,6 +245,11 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	} else if ( e_addr->e_addr_type == ADDRESS_TYPE_DEAD ) {
 	    domain = NULL;
 	    env = env_dead;
+
+	} else {
+	    /* not a terminal expansion, do not add */
+	    syslog( LOG_WARNING, "expand unknown address type output" );
+	    continue;
 	}
 
 	if ( env == NULL ) {
