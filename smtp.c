@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <sys/param.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -38,8 +39,7 @@
 #include "argcargv.h"
 #include "timeval.h"
 #include "simta.h"
-
-#define	DNSR_WORKS
+#include "mx.h"
 
 #ifdef DEBUG
 void	(*smtp_logger)(char *) = stdout_logger;
@@ -66,101 +66,40 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     struct sockaddr_in		sin;
     int				s;
     struct timeval		tv;
-#ifdef DNSR_WORKS
-    int				i;
     DNSR			*dnsr;
     struct dnsr_result		*result;
-#else /* DNSR_WORKS */
-    struct hostent		*hp;
-#endif /* DNSR_WORKS */
 
-#ifdef DNSR_WORKS
-
-#ifdef DEBUG
-    printf( "smtp_connect dsnr: %s\n", hq->hq_hostname );
-#endif /* DEBUG */
+    if ( simta_debug ) fprintf( stderr, "smtp_connect dnsr: %s\n", hq->hq_hostname );
 
     if (( dnsr = dnsr_new( )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_new: %s",
-	    dnsr_err2string( dnsr_errno( dnsr )));
+	syslog( LOG_ERR, "dnsr_new: %m" );
 	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
 
-    /* Try to get MX */
-    if (( dnsr_query( dnsr, (uint16_t)DNSR_TYPE_MX, (uint16_t)DNSR_CLASS_IN,
-	    hq->hq_hostname )) < 0 ) {
-        syslog( LOG_ERR, "smtp_connect: dnsr_query %s failed",
-		hq->hq_hostname );
+    if (( result = get_mx( dnsr, hq->hq_hostname )) == NULL ) {
+	if ( simta_debug ) fprintf( stderr, "smtp_connect: get_mx failed\n" );
 	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
+    if ( simta_debug ) fprintf( stderr, "smtp_connect: get_mx success\n" );
 
-    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
 
-        /* No MX - Try to get A */
-        if (( dnsr_query( dnsr, (uint16_t)DNSR_TYPE_A, (uint16_t)DNSR_CLASS_IN,
-		hq->hq_hostname )) < 0 ) {    
-            syslog( LOG_ERR, "smtp_connect: dnsr_query %s failed",
-		    hq->hq_hostname );
-	    hq->hq_status = HOST_DOWN;
-            return( SMTP_ERR_REMOTE );
-        }       
-        if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-            syslog( LOG_ERR, "smtp_connect: dnsr_query %s failed",
-		    hq->hq_hostname );
-	    hq->hq_status = HOST_DOWN;
-            return( SMTP_ERR_REMOTE );
-        }
+#ifdef DEBUG
+    if ( result->r_answer[ 0 ].rr_ip == NULL ) {
+	printf( "dnsr is broke\n" );
+    }
+#endif /* DEBUG */
 
-	/* Got an A record */
-	memcpy( &(sin.sin_addr.s_addr),
-		&(result->r_answer[ 0 ].rr_a.a_address), sizeof( int ));
+    if ( result->r_answer[ 0 ].rr_type == DNSR_TYPE_MX ) {
+	memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ 0 ].rr_ip->ip_ip ),
+	    sizeof( struct in_addr ));
     } else {
-
-	/* Got an MX record */
-        /* Check for valid A record in MX */
-        /* XXX - Should we search for A if no A returned in MX? */
-        for ( i = 0; i < result->r_ancount; i++ ) {
-            if ( result->r_answer[ i ].rr_ip != NULL ) {
-                break;
-            }
-        }
-        if ( i > result->r_ancount ) {
-            syslog( LOG_ERR, "smtp_connect: %s: no valid A record for MX",
-		    hq->hq_hostname );
-	    hq->hq_status = HOST_DOWN;
-            return( SMTP_ERR_REMOTE );
-        }
-
-#ifdef DEBUG
-	if ( result->r_answer[ i ].rr_ip == NULL ) {
-	    printf( "dnsr is broke\n" );
-	}
-#endif /* DEBUG */
-
-	memcpy( &(sin.sin_addr.s_addr),
-		&(result->r_answer[ i ].rr_ip->ip_ip ),
-		sizeof( struct in_addr ));
+	memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ 0 ].rr_a ),
+	    sizeof( struct in_addr ));
     }
+    if ( simta_debug ) fprintf( stderr, "%s\n", inet_ntoa( sin.sin_addr ));
 
-#else /* DNSR_WORKS */
-
-    if (( hp = gethostbyname( hq->hq_hostname )) == NULL ) {
-	syslog( LOG_NOTICE, "smtp_connect: gethostbyname %s: %s",
-		hq->hq_hostname, hstrerror( h_errno ));
-	hq->hq_status = HOST_DOWN;
-	return( SMTP_ERR_REMOTE );
-    }
-
-    memcpy( &(sin.sin_addr.s_addr), hp->h_addr_list[ 0 ],
-	    (unsigned int)hp->h_length );
-
-#endif /* DNSR_WORKS */
-
-#ifdef DEBUG
-    printf( "smtp_connect dsnr done\n" );
-#endif /* DEBUG */
 
     if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
 	syslog( LOG_ERR, "smtp_connect: socket: %m" );
@@ -170,12 +109,15 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     sin.sin_family = AF_INET;
     sin.sin_port = htons( SIMTA_SMTP_PORT );
 
+    if ( simta_debug ) fprintf( stderr, "smtp_connect: calling connect\n" );
     if ( connect( s, (struct sockaddr*)&sin,
 	    sizeof( struct sockaddr_in )) < 0 ) {
+	perror( "smtp_connect: connect: %m" );
 	syslog( LOG_ERR, "smtp_connect: connect: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
 
+    if ( simta_debug ) fprintf( stderr, "smtp_connect: calling snet_attach\n" );
     if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect: snet_attach: %m" );
 	return( SMTP_ERR_SYSCALL );
