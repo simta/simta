@@ -102,7 +102,7 @@ get_mx( char *hostname )
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
-    if ( result->r_ancount > 0 ) {
+    if ( simta_dns_config && result->r_ancount > 0 ) {
 	/* Check to see if hostname is mx'ed to us
 	 * Only do dynamic configuration when exchange matches our
 	 * actual host name and is highest preference MX.  Others must be
@@ -140,11 +140,14 @@ get_mx( char *hostname )
 		break;
 	    }
 	}
-	return( result );
     }
-    dnsr_free_result( result );
 
-    return( NULL );
+    if ( result->r_ancount > 0 ) {
+	return( result );
+    } else {
+	dnsr_free_result( result );
+	return( NULL );
+    }
 }
 
     struct host *
@@ -169,6 +172,7 @@ host_local( char *hostname )
     }
     dnsr_free_result( result );
 
+    /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
 	syslog( LOG_ERR, "host_local: %s found in DNS", hostname );
 	return( host );
@@ -282,37 +286,30 @@ get_dnsr_result( char *hostname )
     return( NULL );
 }
 
-    int
+    struct host *
 add_host( char *hostname, int type )
 {
     struct host		*host;
 
     /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	return( 0 );
+	syslog( LOG_ERR, "add_host: %s already added", hostname );
+	return( host );
+    }
+
+    if ( strlen( hostname ) > DNSR_MAX_HOSTNAME ) {
+	syslog( LOG_ERR, "add_host: %s: hostname too long", hostname );
+	return( NULL );
     }
 
     if (( host = malloc( sizeof( struct host ))) == NULL ) {
 	syslog( LOG_ERR, "add_host: malloc: %m" );
-	return( -1 );
+	return( NULL );
     }
     memset( host, 0, sizeof( struct host ));
 
     host->h_type = type;
-    /* XXX - Must cleanup */
-    host->h_name = strdup( hostname );
-
-    /* Add list of expansions */
-    if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_ALIAS,
-	    EXPANSION_TYPE_ALIAS ) != 0 ) {
-	syslog( LOG_ERR, "add_host: ll_insert_tail failed" );
-	goto error;
-    }
-    if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_PASSWORD,
-	    EXPANSION_TYPE_PASSWORD ) != 0 ) {
-	syslog( LOG_ERR, "add_host: ll_insert_tail failed" );
-	goto error;
-    }
+    strcpy( host->h_name, hostname );
 
     /* Add host to host list */
     if ( ll_insert( &simta_hosts, hostname, host, NULL ) != 0 ) {
@@ -321,9 +318,34 @@ add_host( char *hostname, int type )
     }
 
     syslog( LOG_ERR, "add_host: added %s", host->h_name );
-    return( 0 );
+    return( host );
 
 error:
     free( host );
-    return( -1 );
+    return( NULL );
+}
+
+    int
+add_expansion( struct host *host, int type )
+{
+    struct expansion	*expansion;
+    struct expansion	*p;
+
+    if (( expansion = malloc( sizeof( struct expansion ))) == NULL ) {
+	syslog( LOG_ERR, "add_expansion: malloc: %m" );
+	return( -1 );
+    }
+    memset( expansion, 0, sizeof( struct expansion ));
+
+    expansion->e_type = type;
+
+    if ( host->h_expansion == NULL ) {
+	host->h_expansion = expansion;
+    } else {
+	for ( p = host->h_expansion; p->e_next != NULL; p = p->e_next );
+	p->e_next = expansion;
+    }
+
+    syslog( LOG_ERR, "add_expansion: %s: added %d", host->h_name, type );
+    return( 0 );
 }

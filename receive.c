@@ -1240,7 +1240,7 @@ local_address( char *addr, char *domain, struct host *host )
     int			rc;
     char		*at;
     struct passwd	*passwd;
-    struct stab_entry	*s;
+    struct expansion	*expansion_list;
     DBT			value;
 
     if (( at = strchr( addr, '@' )) == NULL ) {
@@ -1248,8 +1248,9 @@ local_address( char *addr, char *domain, struct host *host )
     }
 
     /* Search for user using expansion table */
-    for ( s = host->h_expansion; s != NULL; s = s->st_next ) {
-	switch ((int)(s->st_data)) {
+    for ( expansion_list = host->h_expansion; expansion_list != NULL;
+	    expansion_list = expansion_list->e_next ) {
+	switch ( expansion_list->e_type ) {
 	case EXPANSION_TYPE_ALIAS:
 	    /* check alias file */
 	    if ( simta_dbp == NULL ) {

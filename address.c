@@ -211,7 +211,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 address_expand( struct expand *exp, struct exp_addr *e_addr )
 {
     struct host		*host = NULL;
-    struct stab_entry	*s;
+    struct expansion	*expansion_list;
 
     switch ( e_addr->e_addr_type ) {
     case ADDRESS_TYPE_EMAIL:
@@ -258,8 +258,9 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
      */
 
     /* Expand user using expansion table for domain */
-    for ( s = host->h_expansion; s != NULL; s = s->st_next ) {
-	switch ((int)(s->st_data)) {
+    for ( expansion_list = host->h_expansion; expansion_list != NULL;
+	    expansion_list = expansion_list->e_next ) {
+	switch ( expansion_list->e_type) {
 	/* Other types might include files, pipes, etc */
 	case EXPANSION_TYPE_ALIAS:
 	    switch ( alias_expand( exp, e_addr )) {

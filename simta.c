@@ -39,6 +39,7 @@
 #include "ml.h"
 #include "simta.h"
 #include "argcargv.h"
+#include "mx.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -132,6 +133,7 @@ simta_read_config( char *fname )
     char		**av;
     SNET		*snet;
     char		domain[ DNSR_MAX_HOSTNAME + 1 ];
+    struct host		*host;
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
@@ -182,6 +184,9 @@ simta_read_config( char *fname )
 	    }
 	    /* XXX - need to lower-case domain */
 	    strcpy( domain, av[ 0 ] + 1 );
+	    if (( host = add_host( domain, HOST_LOCAL )) == NULL ) {
+		goto error;
+	    }
 
 	    if ( strcasecmp( av[ 1 ], "BOUNCE" ) == 0 ) {
 		if ( ac != 2 ) {
@@ -231,32 +236,15 @@ simta_read_config( char *fname )
 		    goto error;
 		}
 		if ( simta_ldap_config( av[ 2 ] ) != 0 ) {
-		    return( -1 );
+		    goto error;
 		}
-		/* XXX add hosts that ldap will resolv for to simta_hosts */
-		if (( host = malloc( sizeof( struct host ))) == NULL ) {
-		    perror( "simta_config malloc" );
-		    return( -1 );
+
+		if ( add_expansion( host, EXPANSION_TYPE_LDAP ) != 0 ) {
+		    perror( "add_expansion" );
+		    goto error;
 		}
-		memset( host, 0, sizeof( struct host ));
-		host->h_type = HOST_MX;
-		host->h_expansion = NULL;
-		/* XXX hardcoded "umich.edu" for ldap searchdomain for now */
-		host->h_name = "umich.edu";
-		/* add ldap to host expansion table */
-		if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_LDAP,
-			EXPANSION_TYPE_LDAP ) != 0 ) {
-		    perror( "simta_config ll_insert_tail" );
-		    return( -1 );
-		}
-		if ( ll_insert( &simta_hosts, host->h_name, host,
-			NULL ) != 0 ) {
-		    fprintf( stderr, "simta_config ll_insert: " );
-		    perror( NULL );
-		    return( -1 );
-		}
+
 		if ( simta_debug ) printf( "%s -> LDAP\n", domain );
-		}
 #endif /* HAVE_LDAP */
 	    } else {
 		fprintf( stderr, "%s: line %d: unknown keyword: %s\n",
@@ -459,46 +447,26 @@ simta_config( char *base_dir )
     /* set up simta_hosts stab */
     simta_hosts = NULL;
 
-    /* Add localhost to hosts list */
-    if (( host = malloc( sizeof( struct host ))) == NULL ) {
-	perror( "simta_config malloc" );
+    if (( host = add_host( simta_hostname, HOST_LOCAL )) == NULL ) {
 	return( -1 );
     }
-    memset( host, 0, sizeof( struct host ));
-
     simta_default_host = host;
-    host->h_type = HOST_LOCAL;
-    host->h_expansion = NULL;
-    host->h_name = simta_hostname;
 
     /* Add list of expansions */
     if ( access( SIMTA_ALIAS_DB, R_OK ) == 0 ) {
-	if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_ALIAS,
-		EXPANSION_TYPE_ALIAS ) != 0 ) {
-	    perror( "simta_config ll_insert_tail" );
+	if ( add_expansion( host, EXPANSION_TYPE_ALIAS ) != 0 ) {
 	    return( -1 );
 	}
-
     } else {
 	if ( simta_verbose != 0 ) {
 	    fprintf( stderr, "simta_config access %s: ", SIMTA_ALIAS_DB );
 	    perror( NULL );
 	}
-
 	syslog( LOG_INFO, "simta_config access %s: %m, not using alias db",
 		SIMTA_ALIAS_DB );
     }
 
-    if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_PASSWORD,
-	    EXPANSION_TYPE_PASSWORD ) != 0 ) {
-	fprintf( stderr, "simta_config ll_insert_tail: " );
-	perror( NULL );
-	return( -1 );
-    }
-
-    if ( ll_insert( &simta_hosts, host->h_name, host, NULL ) != 0 ) {
-	fprintf( stderr, "simta_config ll_insert: " );
-	perror( NULL );
+    if ( add_expansion( host, EXPANSION_TYPE_PASSWORD ) != 0 ) {
 	return( -1 );
     }
 
