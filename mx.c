@@ -329,7 +329,6 @@ dnsr_connect( char *hostname, int *s )
 	}
     }
 
-error:
     dnsr_free_result( result );
     return( -1 );
 
