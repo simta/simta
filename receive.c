@@ -688,8 +688,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    if ( receive_remote_rbl_status == RECEIVE_RBL_BLOCKED ) {
 			recieve_failed_rcpts++;
 			syslog( LOG_INFO,
-				"Receive %s: To <%s> From <%s> Rejected IP "
-				"%s by %s",
+				"Receive %s: To <%s> Rejected: From <%s>"
+				"Relay [%s] by %s",
 				env->e_id, addr, env->e_mail,
 				inet_ntoa( receive_sin->sin_addr ),
 				simta_rbl_domain );
@@ -1413,7 +1413,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
 	} else {
 	    if ( simta_ignore_reverse == 0 ) {
-		syslog( LOG_NOTICE, "receive %s: connection rejected: "
+		syslog( LOG_NOTICE, "Receive: Rejected: Relay [%s] "
 		    "invalid reverse", inet_ntoa( sin->sin_addr ));
 		snet_writef( snet,
 		    "421 No access from IP %s.  See %s\r\n",
@@ -1432,7 +1432,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	switch( check_rbl( &(sin->sin_addr), simta_rbl_domain )) {
 	case 0:
 	    syslog( LOG_NOTICE,
-		"Receive: Rejected IP %s by %s",
+		"Receive: Rejected: Relay [%s] by %s",
 		inet_ntoa( sin->sin_addr ), simta_rbl_domain );
 	    snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
 		inet_ntoa( sin->sin_addr ), simta_rbl_url );
