@@ -42,6 +42,7 @@ extern char	*version;
 extern int	debug;
 struct stab_entry	*expansion = NULL;
 struct stab_entry	*seen = NULL;
+extern struct stab_entry	*hosts;
 
 struct command {
     char	*c_name;
@@ -68,6 +69,7 @@ static int	hello ___P(( struct envelope *, char * ));
 static char	*smtp_trimaddr ___P(( char *, char * ));
 
 int get_mx( DNSR *dnsr, char *host );
+int mx_local( struct envelope *env, DNSR *dnsr, char *domain );
 
     int
 get_mx( DNSR *dnsr, char *host )
@@ -109,6 +111,39 @@ get_mx( DNSR *dnsr, char *host )
     }
 
     return( 0 );
+}
+
+/*
+ * < 0	error
+ *   0  not MX'ed to local host
+ *   1  highest level preference MX
+ *   2  lower level preference MX
+ */
+    int
+mx_local( struct envelope *env, DNSR *dnsr, char *domain )
+{
+	int 	i;
+
+	/* Look for domain in host table */
+	if ( ll_lookup( hosts, domain ) != NULL ) {
+	    return( 1 );
+	}
+
+	/* Look for local host in MX's */
+	for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
+	    if ( strcasecmp( env->e_hostname,
+		    dnsr->d_result->answer[ i ].r_mx.exchange ) == 0 ) {
+		/* Check preference */
+		if ( dnsr->d_result->answer[ i ].r_mx.preference ==
+			dnsr->d_result->answer[ 0 ].r_mx.preference ) {
+		    return( 1 );
+		} else {
+		    return( 2 );
+		}
+	    }
+	}
+
+	return( 0 );
 }
 
     static int
@@ -326,6 +361,7 @@ f_rcpt( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    int			high_mx_pref;
     char		*addr, *domain;
     struct recipient	*r;
     DNSR		*dnsr;
@@ -384,6 +420,7 @@ f_rcpt( snet, env, ac, av )
 
     if ( strncasecmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
 	/* DNS check for invalid domain */
+	/* XXX - this should be an optional check */
 	if (( dnsr = dnsr_open( )) == NULL ) {
 	    syslog( LOG_ERR, "dnsr_open failed" );
 	    snet_writef( snet,
@@ -407,13 +444,31 @@ f_rcpt( snet, env, ac, av )
      */
     /* XXX check config file, check MXes */
 
-    /* no config file, no DNS, use our hostname */
-    if ( strcasecmp( domain, env->e_hostname ) != 0 ) {
+    switch ( mx_local( env, dnsr, domain )) {
+    case 1:
+	high_mx_pref = 1;
+	break;
+
+    case 2:
+	high_mx_pref = 0;
+	break;
+
+    default:
 	/* XXX Is 551 correct?  550 is for policy */
 	snet_writef( snet, "%d User not local; please try <%s>\r\n",
 	    551, addr );
 	return( 1 );
     }
+    /* XXX Do we still need to do this? */
+    /* no config file, no DNS, use our hostname */
+    /*
+    if ( strcasecmp( domain, env->e_hostname ) != 0 ) {
+	// XXX Is 551 correct?  550 is for policy
+	snet_writef( snet, "%d User not local; please try <%s>\r\n",
+	    551, addr );
+	return( 1 );
+    }
+    */
 
     /*
      * For local mail, we now have 5 minutes (rfc1123 5.3.2) to decline
@@ -434,18 +489,20 @@ f_rcpt( snet, env, ac, av )
      * SHOULD be returned.
      */
 
-    switch( address_local( addr )) {
-    case 0:
-	snet_writef( snet, "%d Requested action not taken: User not found.\r\n",
-	    550 );
-	return( 1 );
-    case 1:
-	break;
-    default:
-	snet_writef( snet,
-	    "%d-3 Requested action aborted: local error in processing.\r\n",
-	    451 );
-	return( 1 );
+    if ( high_mx_pref ) {
+	switch( address_local( addr )) {
+	case 0:
+	    snet_writef( snet, "%d Requested action not taken: User not found.\r\n",
+		550 );
+	    return( 1 );
+	case 1:
+	    break;
+	default:
+	    snet_writef( snet,
+		"%d-3 Requested action aborted: local error in processing.\r\n",
+		451 );
+	    return( 1 );
+	}
     }
 
     if (( r = (struct recipient *)malloc( sizeof(struct recipient)))
@@ -880,7 +937,6 @@ receive( fd, sin )
 	exit( 1 );
     }
 
-
     /* Verify A record matches IP */
     {
 	/* XXX - how should this be checked? */
@@ -895,7 +951,6 @@ receive( fd, sin )
 	    snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
-
 	    exit( 1 );
 	}
     }
