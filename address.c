@@ -5,7 +5,12 @@
 #include <strings.h>
 #include <pwd.h>
 
+#include <BerkeleyDB/db.h>
+
 #include "address.h"
+#include "bdb.h"
+
+#define DATABASE "/Volumes/Local/Users/editor/src/simta/simta-aliases.db"
 
 /*
  * Return values:
@@ -17,8 +22,11 @@
     int
 address_local( char *address )
 {
+    int			ret;
     char		*user, *p;	
     struct passwd	*passwd;
+    DB			*dbp = NULL;
+    DBT			value;
 
     if (( user = strdup( address )) == NULL ) {
 	return( -1 );
@@ -30,16 +38,28 @@ address_local( char *address )
     *p = '\0';
 
     /* XXX check alias file */
+    if (( ret = db_open_r( &dbp, DATABASE, NULL )) != 0 ) {
+	free( user );
+	return( -1 );
+    }
+    if (( ret = db_get( dbp, user, &value )) == 0 ) {
+	free( user );
+	return( 0 );
+    }
+    if (( ret = db_close( dbp )) != 0 ) {
+	free( user );
+	return( -1 );
+    }
 
     /* Check password file */
-    if (( passwd = getpwnam( user )) == NULL ) {
+    if (( passwd = getpwnam( user )) != NULL ) {
 	free( user );
-	return( 1 );
+	return( 0 );
     }
 
     /* XXX do we check .forward? */
     free( user );
-    return( 0 );
+    return( 1 );
 }
 
 /*
