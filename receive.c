@@ -632,6 +632,7 @@ f_rcpt( snet, env, ac, av )
     return( RECEIVE_OK );
 }
 
+
     int
 f_data( snet, env, ac, av )
     SNET			*snet;
