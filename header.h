@@ -12,8 +12,10 @@ struct header {
     char		*h_data;
 };
 
+
 /* public */
 int	header_timestamp ___P(( struct envelope *, FILE * ));
 int	header_end ___P(( struct line_file *, char * ));
 int	header_correct ___P(( int, struct line_file *, struct envelope * ));
 int	header_file_out ___P(( struct line_file *, FILE * ));
+int	is_emailaddr ___P(( char ** ));

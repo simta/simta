@@ -42,13 +42,20 @@ struct line_token {
     struct line		*t_end_line;
 };
 
+char	*token_domain_literal ___P(( char * ));
+char	*token_quoted_string ___P(( char * ));
+char	*token_dot_atom ___P(( char * ));
+char	*skip_ws ___P(( char * ));
+int	line_token_dot_atom ___P(( struct line_token *, struct line *,
+	char * ));
+int	line_token_quoted_string ___P(( struct line_token *, struct line *,
+	char * ));
+int	line_token_domain_literal ___P(( struct line_token *, struct line *,
+	char * ));
 void	header_stdout ___P(( struct header[] ));
 void	header_exceptions ___P(( struct line_file * ));
 char	*skip_cfws ___P(( struct line **, char ** ));
 int	is_dot_atom_text ___P(( int ));
-int	line_token_da ___P(( struct line_token *, struct line *, char * ));
-int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
-int	line_token_dl ___P(( struct line_token *, struct line *, char * ));
 int	parse_addr ___P(( struct envelope *, struct line **, char **, int ));
 int	parse_mailbox_list ___P(( struct envelope *, struct line *, char *,
 	int ));
@@ -681,6 +688,124 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
      */
 
 
+    /*
+     * [ WSP ] ( dot-atom-text | quoted-string ) [ WSP ]
+     *
+     * [ WSP ] ( dot-atom-text | quoted-string ) [ WSP ] '@'
+     *		[ WSP ] ( dot-atom-text | domain-literal ) [ WSP ]
+     *
+     * return -1 on syserror
+     * return 0 if address is not syntactically correct, or correctable
+     * return 1 if address was correct, or corrected
+     *
+     */
+
+    int
+is_emailaddr( char **addr )
+{
+    char				*start;
+    char				*end;
+    char				*at;
+    char				*eol;
+    char				*domain;
+    char				*new;
+    char				*r;
+    char				*w;
+    size_t				len;
+
+    /* find start and end of local part */
+
+    start = skip_ws( *addr );
+
+    if ( *start == '"' ) {
+	if (( end = token_quoted_string( start )) == NULL ) {
+	    return( 0 );
+	}
+
+    } else {
+	if (( end = token_dot_atom( start )) == NULL ) {
+	    return( 0 );
+	}
+    }
+
+    /* next token can be '@' followed by a domain, or '\0' and we'll
+     * append simta_localdomain. anything else return 0.
+     */
+
+    at = skip_ws( end + 1 );
+
+    if ( *at == '@' ) {
+	start = skip_ws( at + 1 );
+
+	if ( *start == '[' ) {
+	    if (( end = token_domain_literal( start )) == NULL ) {
+		return( 0 );
+	    }
+
+	} else {
+	    if (( end = token_dot_atom( start )) == NULL ) {
+		return( 0 );
+	    }
+	}
+
+	eol = skip_ws( end + 1 );
+
+	if ( *eol != '\0' ) {
+	    return( 0 );
+	}
+
+    } else if ( *at == '\0' ) {
+	if (( domain = simta_local_domain()) == NULL ) {
+	    return( -1 );
+	}
+
+	len = end - start;
+	len += 3;
+	len += strlen( domain );
+
+	if (( new = (char*)malloc( len )) == NULL ) {
+	    return( -1 );
+	}
+
+	w = new;
+
+	for ( r = start; r != end + 1; r++ ) {
+	    *w = *r;
+	    w++;
+	}
+
+	*w = '@';
+	w++;
+
+	for ( r = domain; *r != '\0'; r++ ) {
+	    *w = *r;
+	    w++;
+	}
+
+	*w = '\0';
+
+	free( *addr );
+	*addr = new;
+
+    } else {
+	return( 0 );
+    }
+
+    return( 1 );
+}
+
+
+    char *
+skip_ws( char *start )
+{
+    while (( *start == ' ' ) || ( *start == '\t' )) {
+	start++;
+    }
+
+    return( start );
+}
+
+
     int
 parse_addr( struct envelope *env, struct line **start_line, char **start,
 	int mode )
@@ -728,13 +853,13 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	return( 1 );
 
     } else if ( *next_c == '"' ) {
-	if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
+	if ( line_token_quoted_string( &local, next_l, next_c ) != 0 ) {
 	    fprintf( stderr, "line %d: unbalanced \"\n", next_l->line_no );
 	    return( 1 );
 	}
 
     } else {
-	if ( line_token_da( &local, next_l, next_c ) != 0 ) {
+	if ( line_token_dot_atom( &local, next_l, next_c ) != 0 ) {
 	    fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
 		    *next_c );
 	    return( 1 );
@@ -826,13 +951,13 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	    return( 1 );
 
 	} else if ( *next_c == '[' ) {
-	    if ( line_token_dl( &domain, next_l, next_c ) != 0 ) {
+	    if ( line_token_domain_literal( &domain, next_l, next_c ) != 0 ) {
 		fprintf( stderr, "line %d: unmatched [\n", next_l->line_no );
 		return( 1 );
 	    }
 
 	} else {
-	    if ( line_token_da( &domain, next_l, next_c ) != 0 ) {
+	    if ( line_token_dot_atom( &domain, next_l, next_c ) != 0 ) {
 		fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
 			*next_c );
 		return( 1 );
@@ -973,13 +1098,13 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	     */
 
 	    if ( *c == '"' ) {
-		if ( line_token_qs( &local, l, c ) != 0 ) {
+		if ( line_token_quoted_string( &local, l, c ) != 0 ) {
 		    fprintf( stderr, "line %d: unbalanced \"\n", l->line_no );
 		    return( 1 );
 		}
 
 	    } else {
-		if ( line_token_da( &local, l, c ) != 0 ) {
+		if ( line_token_dot_atom( &local, l, c ) != 0 ) {
 		    fprintf( stderr, "line %d: bad token: %c\n", l->line_no,
 			    *c );
 		    return( 1 );
@@ -1011,14 +1136,14 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		     */
 
 		    if ( *next_c == '"' ) {
-			if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
+			if ( line_token_quoted_string( &local, next_l, next_c ) != 0 ) {
 			    fprintf( stderr, "line %d: unbalanced \"\n",
 				    next_l->line_no );
 			    return( 1 );
 			}
 
 		    } else {
-			if ( line_token_da( &local, next_l, next_c ) != 0 ) {
+			if ( line_token_dot_atom( &local, next_l, next_c ) != 0 ) {
 			    fprintf( stderr, "line %d: bad token: %c\n",
 				    next_l->line_no, *next_c );
 			    return( 1 );
@@ -1163,13 +1288,13 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 
     /* at least one word on the line */
     if ( *c == '"' ) {
-	if ( line_token_qs( &local, l, c ) != 0 ) {
+	if ( line_token_quoted_string( &local, l, c ) != 0 ) {
 	    fprintf( stderr, "line %d: unbalanced \"\n", l->line_no );
 	    return( 1 );
 	}
 
     } else {
-	if ( line_token_da( &local, l, c ) != 0 ) {
+	if ( line_token_dot_atom( &local, l, c ) != 0 ) {
 	    fprintf( stderr, "line %d: bad token: %c\n", l->line_no, *c );
 	    return( 1 );
 	}
@@ -1204,13 +1329,13 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 
 	/* skip to next token */
 	if ( *next_c == '"' ) {
-	    if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
+	    if ( line_token_quoted_string( &local, next_l, next_c ) != 0 ) {
 		fprintf( stderr, "line %d: unbalanced \"\n", next_l->line_no );
 		return( 1 );
 	    }
 
 	} else {
-	    if ( line_token_da( &local, next_l, next_c ) != 0 ) {
+	    if ( line_token_dot_atom( &local, next_l, next_c ) != 0 ) {
 		fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
 			*next_c );
 		return( 1 );
@@ -1232,7 +1357,8 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 
 
     int
-line_token_qs( struct line_token *token, struct line *l, char *start )
+line_token_quoted_string( struct line_token *token, struct line *l,
+	char *start )
 {
     if ( *start != '"' ) {
 	return( 1 );
@@ -1258,7 +1384,7 @@ line_token_qs( struct line_token *token, struct line *l, char *start )
 
 	    if ( *start == '\0' ) {
 		/* trailing '\' is illegal */
-	    	return( -1 );
+	    	return( 1 );
 	    }
 	    break;
 
@@ -1286,8 +1412,46 @@ line_token_qs( struct line_token *token, struct line *l, char *start )
 }
 
 
+    char *
+token_quoted_string( char *start )
+{
+    if ( *start != '"' ) {
+	return( NULL );
+    }
+
+    for ( ; ; ) {
+	start++;
+
+	switch( *start ) {
+
+	case '"':
+	    /* end of quoted string */
+	    return( start );
+
+	case '\\':
+	    start++;
+
+	    if ( *start == '\0' ) {
+		/* eol */
+	    	return( NULL );
+	    }
+	    break;
+
+	case '\0':
+	    /* eol */
+	    return( NULL );
+
+	default:
+	    /* everything else */
+	    break;
+	}
+    }
+}
+
+
     int
-line_token_dl( struct line_token *token, struct line *l, char *start )
+line_token_domain_literal( struct line_token *token, struct line *l,
+	char *start )
 {
     if ( *start != '[' ) {
 	return( 1 );
@@ -1341,6 +1505,43 @@ line_token_dl( struct line_token *token, struct line *l, char *start )
 }
 
 
+    char *
+token_domain_literal( char *start )
+{
+    if ( *start != '[' ) {
+	return( NULL );
+    }
+
+    for ( ; ; ) {
+	start++;
+
+	switch( *start ) {
+
+	case ']':
+	    /* end of domain literal */
+	    return( start );
+
+	case '\\':
+	    start++;
+
+	    if ( *start == '\0' ) {
+		/* eol */
+	    	return( NULL );
+	    }
+	    break;
+
+	case '\0':
+	    /* eol */
+	    return( NULL );
+
+	default:
+	    /* everything else */
+	    break;
+	}
+    }
+}
+
+
     int
 is_dot_atom_text( int c )
 {
@@ -1382,24 +1583,34 @@ is_dot_atom_text( int c )
 }
 
 
+    char *
+token_dot_atom( char *start )
+{
+    if ( is_dot_atom_text( *start ) == 0 ) {
+	return( NULL );
+    }
+
+    for ( ; ; ) {
+	if ( is_dot_atom_text( *(start + 1)) == 0 ) {
+	    return( start );
+	}
+
+	start++;
+    }
+}
+
+
     int
-line_token_da( struct line_token *token, struct line *l, char *start )
+line_token_dot_atom( struct line_token *token, struct line *l, char *start )
 {
     token->t_start = start;
     token->t_start_line = l;
     token->t_end_line = l;
     token->t_type = TOKEN_DOT_ATOM;
 
-    if ( is_dot_atom_text( *start ) == 0 ) {
+    if (( token->t_end = token_dot_atom( start )) == NULL ) {
 	return( 1 );
     }
 
-    for ( ; ; ) {
-	if ( is_dot_atom_text( *(start + 1)) == 0 ) {
-	    token->t_end = start;
-	    return( 0 );
-	}
-
-	start++;
-    }
+    return( 0 );
 }
