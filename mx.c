@@ -6,6 +6,9 @@
 
 #include <netinet/in.h>
 
+#include <arpa/inet.h>
+
+
 #include <inttypes.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -196,4 +199,64 @@ mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
     }
 
     return( 0 );
+}
+
+    int
+check_hostname( DNSR *dnsr, char *dn, struct in_addr *in )
+{
+    int				i, j;
+    struct dnsr_result		*result_ptr = NULL, *result_a = NULL;
+
+    if ( simta_dnsr == NULL ) {
+        if (( simta_dnsr = dnsr_new( )) == NULL ) {
+            syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
+	    return( -1 );
+	}
+    }
+
+    /* Get PTR for connection */
+    if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
+            inet_ntoa( *in )) < 0 ) {
+        syslog( LOG_ERR, "check_hostname: dnsr-query: %s",
+	    dnsr_err2string( dnsr_errno( dnsr )));
+	return( -1 );
+    }
+
+    if (( result_ptr = dnsr_result( dnsr, NULL )) == NULL ) {
+        syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
+	    dnsr_err2string( dnsr_errno( dnsr )));
+	return( -1 );
+    }
+
+    for ( i = 0; i < result_ptr->r_ancount; i++ ) {
+	/* Get A record on PTR result */
+	if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+		result_ptr->r_answer[ i ].rr_dn.dn_name )) < 0 ) {
+	    syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
+		dnsr_err2string( dnsr_errno( dnsr )));
+	    goto error;
+	}
+	if (( result_a = dnsr_result( simta_dnsr, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
+		dnsr_err2string( dnsr_errno( dnsr )));
+	    goto error;
+	}
+
+	/* Verify A record matches IP */
+	for ( j = 0; j < result_a->r_ancount; j++ ) {
+	    if ( memcmp( &(in->s_addr), &(result_a->r_answer[ j ].rr_a),
+		    sizeof( int )) == 0 ) {
+		dnsr_free_result( result_a );
+		dnsr_free_result( result_ptr );
+		return( 0 );
+	    }
+	}
+	dnsr_free_result( result_a );
+    }
+    dnsr_free_result( result_ptr );
+    return( 1 );
+
+error:
+    dnsr_free_result( result_ptr );
+    return( -1 );
 }
