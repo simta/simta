@@ -343,8 +343,7 @@ env_outfile( struct envelope *e )
     }
 
     /* Hdestination-host */
-    if (( e->e_hostname != NULL ) && ( *e->e_hostname != '\0' ) &&
-	    ( e->e_dir != simta_dir_dead )) {
+    if (( *e->e_hostname != '\0' ) && ( e->e_dir != simta_dir_dead )) {
 	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	    fclose( tff );
@@ -386,12 +385,9 @@ env_outfile( struct envelope *e )
 	}
 
     } else {
-	/* XXX is it illegal to have no recipients? */
-	if ( fprintf( tff, "R\n" ) < 0 ) {
-	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	    fclose( tff );
-	    goto cleanup;
-	}
+	syslog( LOG_ERR, "env_outfile %s: no recipients", e->e_id );
+	fclose( tff );
+	goto cleanup;
     }
 
     /* get efile modification time */
@@ -429,6 +425,8 @@ cleanup:
     return( -1 );
 }
 
+
+    /* calling this function updates the attempt time */
 
     int
 env_touch( struct envelope *env )
@@ -468,18 +466,18 @@ env_read_queue_info( struct envelope *e )
 
     if (( snet = snet_open( fname, O_RDWR, 0, 1024 * 1024 ))
 	    == NULL ) {
-	syslog( LOG_ERR, "env_read_hostname snet_open %s: %m", fname );
+	syslog( LOG_ERR, "env_read_queue_info snet_open %s: %m", fname );
 	return( 1 );
     }
 
     /* test to see if env is locked by a q_runner */
     if ( lockf( snet_fd( snet ), F_TEST, 0 ) != 0 ) {
-	syslog( LOG_ERR, "env_read_hostname lockf %s: %m", fname );
+	syslog( LOG_ERR, "env_read_queue_info lockf %s: %m", fname );
 	goto cleanup;
     }
 
     if ( fstat( snet_fd( snet ), &sb ) != 0 ) {
-	syslog( LOG_ERR, "env_read_hostname fstat %s: %m", fname );
+	syslog( LOG_ERR, "env_read_queue_info fstat %s: %m", fname );
 	goto cleanup;
     }
 
@@ -487,47 +485,47 @@ env_read_queue_info( struct envelope *e )
 
     /* version info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_hostname %s: unexpected EOF", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
 	goto cleanup;
     }
 
     if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
-	syslog( LOG_ERR, "env_read_hostname %s bad version syntax", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s bad version syntax", fname );
 	goto cleanup;
     }
 
     /* Dinode info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_hostname %s: unexpected EOF", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
 	goto cleanup;
     }
 
     if ( *line != 'I' ) {
-	syslog( LOG_ERR, "env_read_hostname %s: bad Dinode syntax", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s: bad Dinode syntax", fname );
 	goto cleanup;
     }
 
     sscanf( line + 1, "%lu", &(e->e_dinode));
     if ( e->e_dinode == 0 ) {
-	syslog( LOG_ERR, "env_read_hostname %s: bad Dinode info", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s: bad Dinode info", fname );
 	goto cleanup;
     }
 
     /* expansion info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_hostname %s: unexpected EOF", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
 	goto cleanup;
     }
 
     if ( *line != 'H' ) {
-	syslog( LOG_ERR, "env_read_hostname %s: bad host syntax", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s: bad host syntax", fname );
 	goto cleanup;
     }
 
     hostname = line + 1;
 
     if ( strlen( hostname ) > MAXHOSTNAMELEN ) {
-	syslog( LOG_ERR, "env_read_hostname %s: hostname too long", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s: hostname too long", fname );
 	goto cleanup;
     }
 
@@ -537,7 +535,7 @@ env_read_queue_info( struct envelope *e )
 
 cleanup:
     if ( snet_close( snet ) != 0 ) {
-	syslog( LOG_ERR, "env_read_hostname snet_close: %m" );
+	syslog( LOG_ERR, "env_read_queue_info snet_close: %m" );
     }
 
     return( ret );
@@ -557,7 +555,7 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     sprintf( filename, "%s/E%s", env->e_dir, env->e_id );
 
     if (( snet = snet_open( filename, O_RDWR, 0, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "env_read_recipients snet_open %s: %m", filename );
+	syslog( LOG_ERR, "env_read_delivery_info snet_open %s: %m", filename );
 	return( 1 );
     }
 
@@ -568,7 +566,8 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 	if ( lockf( snet_fd( snet ), F_TLOCK, 0 ) != 0 ) {
 	    if ( errno != EAGAIN ) {
 		/* file not locked by a diferent process */
-		syslog( LOG_ERR, "env_read_recipients lockf %s: %m", filename );
+		syslog( LOG_ERR, "env_read_delivery_info lockf %s: %m",
+			filename );
 		goto cleanup;
 	    }
 	}
@@ -576,64 +575,67 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 
     /* SIMTA_VERSION_STRING */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_recipients %s unexpected EOF", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s unexpected EOF", filename );
 	goto cleanup;
     }
 
     if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
-	syslog( LOG_ERR, "env_read_recipients %s bad version syntax",
+	syslog( LOG_ERR, "env_read_delivery_info %s bad version syntax",
 		filename );
 	goto cleanup;
     }
 
     /* Dinode info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_recipients %s: unexpected EOF", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF",
+		filename );
 	goto cleanup;
     }
 
     sscanf( line + 1, "%lu", &dinode );
     if ( dinode == 0 ) {
-	syslog( LOG_ERR, "env_read_hostname %s: bad Dinode info", filename );
+	syslog( LOG_ERR, "env_read_queue_info %s: bad Dinode info", filename );
 	goto cleanup;
     } else if ( dinode != env->e_dinode ) {
-	syslog( LOG_ERR, "env_read_hostname %s: bad Dinode info re-read",
+	syslog( LOG_ERR, "env_read_queue_info %s: bad Dinode info re-read",
 		filename );
 	goto cleanup;
     }
 
     /* expansion info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_hostname %s: unexpected EOF", filename );
+	syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", filename );
 	goto cleanup;
     }
 
     if ( *line != 'H' ) {
-	syslog( LOG_ERR, "env_read_hostname %s: bad host syntax", filename );
+	syslog( LOG_ERR, "env_read_queue_info %s: bad host syntax", filename );
 	goto cleanup;
     }
 
     hostname = line + 1;
 
     if ( strlen( hostname ) > MAXHOSTNAMELEN ) {
-	syslog( LOG_ERR, "env_read_hostname %s: hostname too long", filename );
+	syslog( LOG_ERR, "env_read_queue_info %s: hostname too long",
+		filename );
 	goto cleanup;
     }
 
     if ( strcmp( hostname, env->e_hostname ) != 0 ) {
-	syslog( LOG_ERR, "env_read_hostname %s: bad hostname re-read",
+	syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
 		filename );
 	goto cleanup;
     }
 
     if ( *line != 'I' ) {
-	syslog( LOG_ERR, "env_read_recipients %s bad Dinode syntax", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s bad Dinode syntax",
+		filename );
 	goto cleanup;
     }
 
     /* Hdestination-host */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_recipients %s unexpected EOF", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s unexpected EOF", filename );
 	goto cleanup;
     }
 
@@ -643,12 +645,13 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 
     /* Ffrom-address */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_recipients %s unexpected EOF", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s unexpected EOF", filename );
 	goto cleanup;
     }
 
     if ( *line != 'F' ) {
-	syslog( LOG_ERR, "env_read_recipients %s bad from syntax", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s bad from syntax",
+		filename );
 	goto cleanup;
     }
 
@@ -659,7 +662,7 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     /* Rto-addresses */
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	if ( *line != 'R' ) {
-	    syslog( LOG_ERR, "env_read_recipients %s bad recieved syntax",
+	    syslog( LOG_ERR, "env_read_delivery_info %s bad recieved syntax",
 		    filename );
 	    goto cleanup;
 	}
@@ -670,7 +673,7 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     }
 
     if ( env->e_rcpt == NULL ) {
-	syslog( LOG_ERR, "env_read_recipients %s no recipients", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s no recipients", filename );
 	goto cleanup;
     }
 
@@ -680,7 +683,7 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     if ( s_lock == NULL ) {
 cleanup:
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "env_read_recipients snet_close %s: %m",
+	    syslog( LOG_ERR, "env_read_delivery_info snet_close %s: %m",
 		    filename );
 	    ret = 1;
 	}
