@@ -253,6 +253,14 @@ deliver_local( struct host_q *hq )
     int				mailed;
     int				fd;
     char			fname[ MAXPATHLEN ];
+    static int			(*local_mailer)(int, char *, char *) = NULL;
+
+    if ( local_mailer == NULL ) {
+	if (( local_mailer = get_local_mailer()) == NULL ) {
+	    syslog( LOG_ERR, "deliver local: no local mailer!" );
+	    exit( 1 );
+	}
+    }
 
     for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
 	q = (struct q_file*)qs->st_data;
@@ -273,20 +281,7 @@ deliver_local( struct host_q *hq )
 	    }
 	}
 
-	/* XXX */
-	if (( mailed = mail_local( fd, "satan@hell.edu", "epcjr" ))
-		< 0 ) {
-	    exit( 1 );
-	}
-
-	/* XXX */
-	if ( lseek( fd, (off_t)0, SEEK_SET ) != 0 ) {
-	    syslog( LOG_ERR, "lseek: %m" );
-	    exit( 1 );
-	}
-
-	/* XXX */
-	if (( mailed = procmail( fd, "satan@hell.edu", "epcjr" ))
+	if (( mailed = (*local_mailer)( fd, "test@mail.local", "epcjr" ))
 		< 0 ) {
 	    exit( 1 );
 	}

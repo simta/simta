@@ -30,6 +30,20 @@ char		*maillocal_bin = SIMTA_MAIL_LOCAL;
 char		*procmail_argv[] = { "procmail", "-f", 0, "-d", 0, 0 };
 char		*procmail_bin = SIMTA_PROCMAIL;
 
+    int
+(*get_local_mailer( void ))( int, char *, char * )
+{
+    if (( maillocal_bin != NULL ) && ( *maillocal_bin != '\0' )) {
+	return( mail_local );
+    }
+
+    if (( procmail_bin != NULL ) && ( *procmail_bin != '\0' )) {
+	return( procmail );
+    }
+
+    return( NULL );
+}
+
 
     /* return 0 on success
      * <0 on syscall failure
