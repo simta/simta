@@ -133,6 +133,11 @@ env_reset( struct envelope *env )
 	env->e_mail = NULL;
     }
 
+    if ( env->e_helo != NULL ) {
+	free( env->e_helo );
+	env->e_helo = NULL;
+    }
+
     /* XXX reset env->e_hostname? */
 
     env_rcpt_free( env );

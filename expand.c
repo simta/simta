@@ -101,8 +101,16 @@ expand( struct host_q **hq_stab, struct envelope *env )
 
     /* end foreach */
 
-    /* unlink original unexpanded Efile */
-    /* unlink original unexpanded Dfile */
+    /* if no rcpts expanded */
+	/* return( 1 ) */
+
+    /* else if evey rcpt was expanded */
+	/* unlink original unexpanded Efile */
+	/* unlink original unexpanded Dfile */
+
+    /* else there are unexpanded rcpts from original env */
+	/* rewrite original unexpanded Efile */
+    /* endif */
 
     return( 0 );
 }
