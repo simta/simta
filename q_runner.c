@@ -102,7 +102,6 @@ host_stab_stdout( void *data )
 main( int argc, char *argv[] )
 {
     DIR				*dirp;
-    SNET			*snet;
     struct dirent		*entry;
     struct q_file		*q;
     struct host_q		*hq;
@@ -111,6 +110,7 @@ main( int argc, char *argv[] )
     struct stab_entry		*qs;
     struct stat			sb;
     int				result;
+    int				mailed;
     int				fd;
     char			fname[ MAXPATHLEN ];
     char			localhostname[ MAXHOSTNAMELEN ];
@@ -253,38 +253,47 @@ main( int argc, char *argv[] )
 		}
 
 		/* XXX */
-		if ( mail_local( fd, "q_runner", "epcjr" ) != 0 ) {
+		if ( mail_local( fd, "q_runner", "asdasdad" ) < 0 ) {
 		    exit( 1 );
 		}
+
+		/* XXX */
+		if (( mailed = mail_local( fd, "q_runner", "epcjr" )) < 0 ) {
+		    exit( 1 );
+
+		}
+
+		/* XXX mailed == 1 is recoverable failure */
 
 		if ( close( fd ) != 0 ) {
 		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );
 		}
 
-		/* delete Efile then Dfile */
-		sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+		if ( mailed == 0  ) {
+		    /* delete Efile then Dfile */
+		    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
-		if ( unlink( fname ) != 0 ) {
-		    syslog( LOG_ERR, "unlink %s: %m", fname );
-		    return( 1 );
-		}
-
-#ifdef DEBUG
-		printf( "unlink\t%s\n", fname );
-#endif /* DEBUG */
-
-		sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
-
-		if ( unlink( fname ) != 0 ) {
-		    syslog( LOG_ERR, "unlink %s: %m", fname );
-		    return( 1 );
-		}
+		    if ( unlink( fname ) != 0 ) {
+			syslog( LOG_ERR, "unlink %s: %m", fname );
+			return( 1 );
+		    }
 
 #ifdef DEBUG
-		printf( "unlink\t%s\n", fname );
+		    printf( "unlink\t%s\n", fname );
 #endif /* DEBUG */
 
+		    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+		    if ( unlink( fname ) != 0 ) {
+			syslog( LOG_ERR, "unlink %s: %m", fname );
+			return( 1 );
+		    }
+
+#ifdef DEBUG
+		    printf( "unlink\t%s\n", fname );
+#endif /* DEBUG */
+		}
 	    }
 
 	    /* if send failure, update efile modification time */
