@@ -105,10 +105,11 @@ skip_cfws( struct line **l, char **c )
 	case '\\':
 	    (*c)++;
 
-	    if ( *c != '\0' ) {
-		/* XXX should a trailing '\' be illegal? */
-	    	break;
+	    if ( *c == '\0' ) {
+		/* trailing '\' is illegal */
+	    	return( -1 );
 	    }
+	    break;
 
 	case '\0':
 	    /* end of line.  if next line starts with WSP, continue */
@@ -797,7 +798,6 @@ header_mbox_correct( struct line *l, char *c )
 	 */
 
 	if ( c == NULL ) {
-	    /* XXX NULL_ADDR */
 	    fprintf( stderr, "Header From: NULL address\n" );
 	    return( 1 );
 
@@ -970,8 +970,7 @@ header_from_correct( struct line_file *lf )
 	    return( 0 );
 
 	} else {
-	    /* XXX blank line.  replace with simta_sender()? */
-	    fprintf( stderr, "From: no data\n" );
+	    fprintf( stderr, "Header From: no data\n" );
 	    return( 1 );
 	}
     }
@@ -1027,10 +1026,11 @@ line_token_qs( struct line_token *token, struct line *l, char *start )
 	case '\\':
 	    start++;
 
-	    if ( *start != '\0' ) {
-		/* XXX should a trailing '\' be illegal? */
-	    	break;
+	    if ( *start == '\0' ) {
+		/* trailing '\' is illegal */
+	    	return( -1 );
 	    }
+	    break;
 
 	case '\0':
 	    /* end of line.  if next line starts with WSP, continue */
@@ -1081,10 +1081,11 @@ line_token_dl( struct line_token *token, struct line *l, char *start )
 	case '\\':
 	    start++;
 
-	    if ( *start != '\0' ) {
-		/* XXX should a trailing '\' be illegal? */
-	    	break;
+	    if ( *start == '\0' ) {
+		/* trailing '\' is illegal */
+	    	return( -1 );
 	    }
+	    break;
 
 	case '\0':
 	    /* end of line.  if next line starts with WSP, continue */
