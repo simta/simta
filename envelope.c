@@ -267,7 +267,7 @@ env_outfile( struct envelope *e, char *dir )
     char		tf[ MAXPATHLEN ];
     char		ef[ MAXPATHLEN ];
 
-    syslog( LOG_DEBUG, "env_outfile %s", e->e_id );
+    syslog( LOG_DEBUG, "env_outfile %s %s", e->e_id, e->e_hostname );
 
     e->e_dir = dir;
 

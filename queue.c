@@ -731,25 +731,35 @@ smtp_cleanup:
 	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_BOUNCE );
 	}
 
+syslog( LOG_DEBUG, "XXX smtp_cleanup 1" );
+
 	if ((( env_deliver->e_tempfail > 0 ) ||
 		( hq->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
+	    syslog( LOG_DEBUG, "q_deliver %s: checking message age",
+		    env_deliver->e_id );
 	    /* stat dfile to see if it's old */
 	    if ( fstat( dfile_fd, &sb ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver snet_attach: %m" );
+		syslog( LOG_ERR, "q_deliver fstat %s: %m", dfile_fname );
 		goto oldfile_error;
 	    }
 
+syslog( LOG_DEBUG, "XXX smtp_cleanup 1" );
 	    if ( gettimeofday( &tv, NULL ) != 0 ) {
 		syslog( LOG_ERR, "q_deliver gettimeofday" );
 		goto oldfile_error;
 	    }
 
+syslog( LOG_DEBUG, "XXX smtp_cleanup 1" );
 	    /* consider Dfiles old if they're over 3 days */
 	    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
 oldfile_error:
+		syslog( LOG_DEBUG, "q_deliver %s: old message, bouncing",
+			env_deliver->e_id );
 		env_deliver->e_flags = ( env_deliver->e_flags | ENV_BOUNCE );
 		env_deliver->e_flags = ( env_deliver->e_flags | ENV_OLD );
+	    } else {
+		syslog( LOG_DEBUG, "q_deliver %s: not old", env_deliver->e_id );
 	    }
 	}
 
@@ -805,6 +815,7 @@ oldfile_error:
 		(( env_deliver->e_tempfail == 0 ) &&
 		( hq->hq_status != HOST_DOWN ))) {
 	    /* no retries, delete Efile then Dfile */
+	    syslog( LOG_DEBUG, "q_deliver %s deleting", env_deliver->e_id );
 
 	    sprintf( efile_fname, "%s/E%s", env_deliver->e_dir,
 		    env_deliver->e_id );
@@ -822,15 +833,16 @@ oldfile_error:
 	    }
 
 	    if ( env_unlink( env_deliver ) != 0 ) {
-		unlinked = 1;
 		goto message_cleanup;
 	    }
+	    unlinked = 1;
 
 	    syslog( LOG_DEBUG, "q_deliver %s delivered", env_deliver->e_id );
 
         } else if (( env_deliver->e_success != 0 ) ||
 		( env_deliver->e_failed != 0 )) {
 	    /* remove any recipients that don't need to be tried later */
+	    syslog( LOG_DEBUG, "q_deliver %s rewriting", env_deliver->e_id );
 	    r_sort = &(env_deliver->e_rcpt);
 
 	    while ( *r_sort != NULL ) {
@@ -856,6 +868,7 @@ oldfile_error:
 
 	} else if (( env_deliver->e_flags & ENV_ATTEMPT ) &&
 		( strcmp( env_deliver->e_dir, simta_dir_fast ) != 0 )) {
+	    syslog( LOG_DEBUG, "q_deliver %s touching", env_deliver->e_id );
 	    env_touch( env_deliver );
 	}
 
@@ -878,7 +891,7 @@ message_cleanup:
 	}
 
 	if ( m->m_env != NULL ) {
-	    if ( unlinked != 0 ) {
+	    if ( unlinked == 0 ) {
 		env_slow( m->m_env );
 	    }
 	    env_free( m->m_env );
@@ -887,6 +900,8 @@ message_cleanup:
 	}
 
 	message_free( m );
+
+syslog( LOG_DEBUG, "XXX here" );
 
         if ( snet_dfile == NULL ) {
 	    if ( dfile_fd >= 0 ) {
