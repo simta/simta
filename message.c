@@ -24,8 +24,8 @@ message_create( void )
 	return( NULL );
     }
 
-    m->m_first = NULL;
-    m->m_last = NULL;
+    m->m_first_line = NULL;
+    m->m_last_line = NULL;
 
     return( m );
 }
@@ -48,13 +48,13 @@ message_line( struct message *m, char *line )
 
     l->line_next = NULL;
 
-    if ( m->m_first == NULL ) {
-	m->m_first = l;
-	m->m_last = l;
+    if ( m->m_first_line == NULL ) {
+	m->m_first_line = l;
+	m->m_last_line = l;
 
     } else {
-	m->m_last->line_next = l;
-	m->m_last = l;
+	m->m_last_line->line_next = l;
+	m->m_last_line = l;
     }
 
     return( l );
@@ -76,14 +76,14 @@ message_prepend_line( struct message *m, char *line )
 	return( NULL );
     }
 
-    l->line_next = m->m_first;
+    l->line_next = m->m_first_line;
 
-    if ( m->m_first == NULL ) {
-	m->m_first = l;
-	m->m_last = l;
+    if ( m->m_first_line == NULL ) {
+	m->m_first_line = l;
+	m->m_last_line = l;
 
     } else {
-	m->m_first = l;
+	m->m_first_line = l;
     }
 
     return( l );
@@ -98,7 +98,7 @@ message_stdout( struct message *m )
     struct line		*l;
     int			x = 0;
 
-    for ( l = m->m_first; l != NULL ; l = l->line_next ) {
+    for ( l = m->m_first_line; l != NULL ; l = l->line_next ) {
 	x++;
 	printf( "%d:\t%s\n", x, l->line_data );
     }

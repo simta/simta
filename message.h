@@ -6,8 +6,8 @@
 /*****     message.h     *****/
 
 struct message {
-    struct line		*m_first;
-    struct line		*m_last;
+    struct line		*m_first_line;
+    struct line		*m_last_line;
 };
 
 struct line {
@@ -17,7 +17,7 @@ struct line {
 
 struct nlist {
     char		*n_key;
-    char		*n_data;
+    struct line		*n_data;
 };
 
 struct message *message_create( void );
