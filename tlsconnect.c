@@ -52,10 +52,6 @@ main( int ac, char *av[] )
 	    use_randfile = 1;
 	    break;
 
-	case 'C' :
-	    cryptofile = optarg;
-	    break;
-
 	case '?' :
 	default :
 	    err++;
@@ -68,61 +64,61 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-    if ( cryptofile != NULL ) {
-	SSL_load_error_strings();
-	SSL_library_init();
+    SSL_load_error_strings();
+    SSL_library_init();
 
-	if ( use_randfile ) {
-	    char	randfile[ MAXPATHLEN ];
+    if ( use_randfile ) {
+	char	randfile[ MAXPATHLEN ];
 
-	    if ( RAND_file_name( randfile, sizeof( randfile )) == NULL ) {
-		fprintf( stderr, "RAND_file_name: %s\n",
-			ERR_error_string( ERR_get_error(), NULL ));
-		exit( 1 );
-	    }
-	    if ( RAND_load_file( randfile, -1 ) <= 0 ) {
-		fprintf( stderr, "RAND_load_file: %s: %s\n", randfile,
-			ERR_error_string( ERR_get_error(), NULL ));
-		exit( 1 );
-	    }
-	    if ( RAND_write_file( randfile ) < 0 ) {
-		fprintf( stderr, "RAND_write_file: %s: %s\n", randfile,
-			ERR_error_string( ERR_get_error(), NULL ));
-		exit( 1 );
-	    }
-	}
-
-	if (( ctx = SSL_CTX_new( SSLv23_client_method())) == NULL ) {
-	    fprintf( stderr, "SSL_CTX_new: %s\n",
+	if ( RAND_file_name( randfile, sizeof( randfile )) == NULL ) {
+	    fprintf( stderr, "RAND_file_name: %s\n",
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
-
-	if ( SSL_CTX_use_PrivateKey_file( ctx, cryptofile, SSL_FILETYPE_PEM )
-		!= 1 ) {
-	    fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
-		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
-	    exit( 1 );
-	}
-	if ( SSL_CTX_use_certificate_chain_file( ctx, cryptofile ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_use_certificate_chain_file: %s: %s\n",
-		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
-	    exit( 1 );
-	}
-	if ( SSL_CTX_check_private_key( ctx ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_check_private_key: %s\n",
+	if ( RAND_load_file( randfile, -1 ) <= 0 ) {
+	    fprintf( stderr, "RAND_load_file: %s: %s\n", randfile,
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
-
-	if ( SSL_CTX_load_verify_locations( ctx, cryptofile, NULL ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
-		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	if ( RAND_write_file( randfile ) < 0 ) {
+	    fprintf( stderr, "RAND_write_file: %s: %s\n", randfile,
+		    ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
-
-	SSL_CTX_set_verify( ctx, SSL_VERIFY_PEER, NULL );
     }
+
+    if (( ctx = SSL_CTX_new( SSLv23_client_method())) == NULL ) {
+	fprintf( stderr, "SSL_CTX_new: %s\n",
+		ERR_error_string( ERR_get_error(), NULL ));
+	exit( 1 );
+    }
+
+#ifdef notdef
+    if ( SSL_CTX_use_PrivateKey_file( ctx, "CRYPTO.pem", SSL_FILETYPE_PEM )
+	    != 1 ) {
+	fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
+		cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	exit( 1 );
+    }
+    if ( SSL_CTX_use_certificate_chain_file( ctx, "CRYPTO.pem" ) != 1 ) {
+	fprintf( stderr, "SSL_CTX_use_certificate_chain_file: %s: %s\n",
+		cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	exit( 1 );
+    }
+    if ( SSL_CTX_check_private_key( ctx ) != 1 ) {
+	fprintf( stderr, "SSL_CTX_check_private_key: %s\n",
+		ERR_error_string( ERR_get_error(), NULL ));
+	exit( 1 );
+    }
+#endif notdef
+
+    if ( SSL_CTX_load_verify_locations( ctx, "CAcert.pem", NULL ) != 1 ) {
+	fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+		cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	exit( 1 );
+    }
+
+    SSL_CTX_set_verify( ctx, SSL_VERIFY_PEER, NULL );
 
     host = av[ optind ];
 
@@ -219,16 +215,21 @@ main( int ac, char *av[] )
 	    if ( starttls ) {
 		starttls = 0;
 		if ( *line == '2' )  {
-		    switch ( snet_starttls( snet, ctx, 0 )) {
-		    case 1 :		/* Worked! */
-			break;
+		    X509	*peer;
+		    char	buf[ 1024 ];
 
-		    case 0 :		/* Failed! */
-		    default :
+		    if ( snet_starttls( snet, ctx, 0 ) != 1 ) {
 			fprintf( stderr, "snet_starttls: %s\n",
 				ERR_error_string( ERR_get_error(), NULL ) );
-			break;
+			continue;
 		    }
+		    if (( peer = SSL_get_peer_certificate( snet->sn_ssl ))
+			    == NULL ) {
+			fprintf( stderr, "no certificate\n" );
+			continue;
+		    }
+		    fprintf( stderr, "CERT Subject: %s\n", X509_NAME_oneline( X509_get_subject_name( peer ), buf, sizeof( buf )));
+		    X509_free( peer );
 		}
 	    }
 	}
