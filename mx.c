@@ -202,51 +202,51 @@ mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
 }
 
     int
-check_reverse( DNSR *dnsr, char *dn, struct in_addr *in )
+check_reverse( DNSR **dnsr, char *dn, struct in_addr *in )
 {
     int				i, j;
     char			*temp;
     struct dnsr_result		*result_ptr = NULL, *result_a = NULL;
 
-    if ( dnsr == NULL ) {
-        if (( dnsr = dnsr_new( )) == NULL ) {
+    if ( *dnsr == NULL ) {
+        if (( *dnsr = dnsr_new( )) == NULL ) {
             syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
 	    return( -1 );
 	}
     }
 
-    if (( temp = dnsr_ntoptr( dnsr, in )) == NULL ) {
+    if (( temp = dnsr_ntoptr( *dnsr, in )) == NULL ) {
         syslog( LOG_ERR, "check_hostname: dnsr_ntoptr: %s",
-	    dnsr_err2string( dnsr_errno( dnsr )));
+	    dnsr_err2string( dnsr_errno( *dnsr )));
 	return( -1 );
     }
 
     /* Get PTR for connection */
-    if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
+    if ( dnsr_query( *dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
         syslog( LOG_ERR, "check_hostname: dnsr_query: %s",
-	    dnsr_err2string( dnsr_errno( dnsr )));
+	    dnsr_err2string( dnsr_errno( *dnsr )));
 	return( -1 );
     }
 
     free( temp );
 
-    if (( result_ptr = dnsr_result( dnsr, NULL )) == NULL ) {
+    if (( result_ptr = dnsr_result( *dnsr, NULL )) == NULL ) {
         syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
-	    dnsr_err2string( dnsr_errno( dnsr )));
+	    dnsr_err2string( dnsr_errno( *dnsr )));
 	return( -1 );
     }
 
     for ( i = 0; i < result_ptr->r_ancount; i++ ) {
 	/* Get A record on PTR result */
-	if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+	if (( dnsr_query( *dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
 		result_ptr->r_answer[ i ].rr_dn.dn_name )) < 0 ) {
 	    syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
-		dnsr_err2string( dnsr_errno( dnsr )));
+		dnsr_err2string( dnsr_errno( *dnsr )));
 	    goto error;
 	}
-	if (( result_a = dnsr_result( dnsr, NULL )) == NULL ) {
+	if (( result_a = dnsr_result( *dnsr, NULL )) == NULL ) {
 	    syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
-		dnsr_err2string( dnsr_errno( dnsr )));
+		dnsr_err2string( dnsr_errno( *dnsr )));
 	    goto error;
 	}
 
