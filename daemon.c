@@ -197,7 +197,6 @@ main( int ac, char **av )
     int			q_run = 0;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
-    char		*cryptofile = NULL;
     fd_set		fdset;
     FILE		*pf;
     int			use_randfile = 0;
@@ -208,6 +207,10 @@ main( int ac, char **av )
     char		*simta_uname = "simta";
     char		*config_fname;
     char		*config_base_dir;
+    int			authlevel = 0;
+    char                *ca = "cert/ca.pem";
+    char                *cert = "cert/cert.pem";
+    char                *privatekey = "cert/cert.pem";
 
     if (( prog = strrchr( av[ 0 ], '/' )) == NULL ) {
 	prog = av[ 0 ];
@@ -223,14 +226,10 @@ main( int ac, char **av )
     config_fname = SIMTA_FILE_CONFIG;
     config_base_dir = SIMTA_BASE_DIR;
 
-    while (( c = getopt( ac, av, "b:C:cdD:f:IM:m:p:rRs:V" )) != -1 ) {
+    while (( c = getopt( ac, av, "b:cdD:f:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
 	case 'b' :		/* listen backlog */
 	    backlog = atoi( optarg );
-	    break;
-
-	case 'C' :
-	    cryptofile = optarg;
 	    break;
 
 	case 'c' :		/* check config files */
@@ -290,6 +289,29 @@ main( int ac, char **av )
 	    printf( "%s\n", version );
 	    exit( 0 );
 
+        case 'w' :              /* authlevel 0:none, 1:serv, 2:client & serv */
+            authlevel = atoi( optarg );
+            if (( authlevel < 0 ) || ( authlevel > 2 )) {
+                fprintf( stderr, "%s: %s: invalid authorization level\n",
+                        prog, optarg );
+                exit( 1 );
+            }
+            break;
+
+        case 'x' :              /* ca file */
+            ca = optarg;
+            break;
+
+        case 'y' :              /* cert file */
+            cert = optarg;
+            break;
+
+        case 'z' :              /* private key */
+            privatekey = optarg;
+            break;
+
+
+
 	default :
 	    err++;
 	}
@@ -298,9 +320,11 @@ main( int ac, char **av )
     if ( err || optind != ac ) {
 	fprintf( stderr, "Usage:\t%s", prog );
 	fprintf( stderr, " [ -cdrVq ] [ -b backlog ]" );
-	fprintf( stderr, " [ -C cryptofile ] [ -M maildomain ]" );
+	fprintf( stderr, " [ -M maildomain ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
 	fprintf( stderr, " [ -s spooldir]" );
+	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
+        fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
 	fprintf( stderr, "\n" );
 	exit( 1 );
     }
@@ -339,7 +363,7 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    if ( cryptofile != NULL ) {
+    if ( authlevel > 0 ) {
 	SSL_load_error_strings();
 	SSL_library_init();
 
@@ -369,15 +393,15 @@ main( int ac, char **av )
 	    exit( 1 );
 	}
 
-	if ( SSL_CTX_use_PrivateKey_file( ctx, "CERT.pem", SSL_FILETYPE_PEM )
+	if ( SSL_CTX_use_PrivateKey_file( ctx, privatekey, SSL_FILETYPE_PEM )
 		!= 1 ) {
 	    fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
-		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+		    privatekey, ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
-	if ( SSL_CTX_use_certificate_chain_file( ctx, "CERT.pem" ) != 1 ) {
+	if ( SSL_CTX_use_certificate_chain_file( ctx, cert ) != 1 ) {
 	    fprintf( stderr, "SSL_CTX_use_certificate_chain_file: %s: %s\n",
-		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+		    cert, ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
 	if ( SSL_CTX_check_private_key( ctx ) != 1 ) {
@@ -386,9 +410,9 @@ main( int ac, char **av )
 	    exit( 1 );
 	}
 
-	if ( SSL_CTX_load_verify_locations( ctx, "CA.pem", NULL ) != 1 ) {
+	if ( SSL_CTX_load_verify_locations( ctx, ca, NULL ) != 1 ) {
 	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
-		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+		    ca, ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
 	SSL_CTX_set_verify( ctx,
