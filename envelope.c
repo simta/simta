@@ -76,9 +76,11 @@ env_create( char *id )
     void
 rcpt_free( struct recipient *r )
 {
-    rcpt_free( r->r_next );
-    free( r->r_rcpt );
-    free( r );
+    if ( r != NULL ) {
+	rcpt_free( r->r_next );
+	free( r->r_rcpt );
+	free( r );
+    }
 }
 
 
