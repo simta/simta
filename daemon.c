@@ -37,6 +37,7 @@
 #define _PATH_SPOOL	"/var/spool/simta"
 
 int		simsendmail_signal = 0;
+int		simsendmail_pid = 0;
 int		debug = 0;
 int		backlog = 5;
 int		connections = 0;
@@ -75,7 +76,14 @@ chld( sig )
     extern int		errno;
 
     while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-	connections--;
+	/* if the pid isn't simsendmail's q runner, it's a connection */
+	if ( pid == simsendmail_pid ) {
+	    simsendmail_pid = 0;
+
+	} else {
+	    connections--;
+	}
+
 	if ( WIFEXITED( status )) {
 	    if ( WEXITSTATUS( status )) {
 		syslog( LOG_ERR, "child %d exited with %d", pid,
@@ -324,17 +332,7 @@ main( ac, av )
         exit( 1 );
     }
 
-#ifdef notdef
-    /* file locking isn't very portable... */
-    if ( flock( pidfd, LOCK_EX | LOCK_NB ) < 0 ) {
-        if ( errno == EWOULDBLOCK ) {
-            fprintf( stderr, "%s: already running!\n", prog );
-        } else {
-            perror( "flock" );
-        }
-        exit( 1 );
-    }
-#endif notdef
+    /* XXX LOCK pidfd */
 
     if ( ftruncate( pidfd, (off_t)0 ) < 0 ) {
         perror( "ftruncate" );
@@ -386,12 +384,7 @@ main( ac, av )
         exit( 1 );
     }
     fprintf( pf, "%d\n", (int)getpid());
-
-#ifdef notdef
-    fflush( pf );       /* leave pf open, since it's flock-ed */
-#else notdef
     fclose( pf );
-#endif notdef
 
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
@@ -426,7 +419,14 @@ main( ac, av )
 	/* should select() so we can manage an event queue */
 
 	if ( simsendmail_signal != 0 ) {
+	    /* XXX only one simsendmail q handler for now */
 	    simsendmail_signal = 0;
+	    if ( simsendmail_pid == 0 ) {
+		/* simsendmail_pid = fork() */
+
+	    } else {
+		/* do nothing: simsendmail queue handler already running */
+	    }
 
 	    if ( debug ) {
 		printf( "simsendmail signaled\n" );
@@ -447,9 +447,7 @@ main( ac, av )
 	}
 
 	if ( FD_ISSET( s, &fdset )) {
-
 	    sinlen = sizeof( struct sockaddr_in );
-
 	    if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
 		if ( errno != EINTR ) {
 		    syslog( LOG_ERR, "accept: %m" );
@@ -458,7 +456,6 @@ main( ac, av )
 	    }
 
 	    connections++;
-
 	    /* start child */
 	    switch ( c = fork()) {
 	    case 0 :

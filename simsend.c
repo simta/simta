@@ -382,6 +382,7 @@ main( int argc, char *argv[] )
     }
 
     /* if possible, signal server */
+    /* XXX add error message & logging */
     if (( pidfd = open( SIMTA_PATH_PIDFILE, O_RDONLY, 0 )) < 0 ) {
 	return( 0 );
     }
