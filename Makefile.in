@@ -23,7 +23,7 @@ SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		q_cleanup.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o tz.o header.o \
-		simta.o ll.o nlist.o
+		simta.o ll.o nlist.o address.o bdb.o
 SIMLOGOBJ=	simlog.o
 #QRUNNER needs LDAP libs added
 QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
@@ -83,8 +83,8 @@ simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} \
-	${LIBS}
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
 
 createdb : ${CREATEDBOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o createdb ${CREATEDBOBJ} ${SIMTALIBPATH} \

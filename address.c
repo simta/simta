@@ -493,7 +493,7 @@ address_expand( char *address, struct recipient *rcpt,
 	    /* XXX put ldap resolver here */
 	    printf( "LDAP HERE!\n" );
 
-	    if (( ret = ldap_expand( address )) == 0 ) {
+	    if (( ret = ldap_expand( address, rcpt, expansion, seen )) == 0 ) {
 		/* XXX no user in db */
 	    } else if ( ret > 0 ) {
 		/* XXX db returned results */

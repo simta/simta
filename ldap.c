@@ -22,6 +22,9 @@
 #include <sysexits.h>
 #include <netdb.h>
 
+#include "ll.h"
+#include "envelope.h"
+#include "address.h"
 #include "ldap.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
@@ -258,8 +261,10 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
 
 
     int
-ldap_expand( char *addr )
+ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
+	struct stab_entry **seen )
 {
+    int			x;
     int			whiteout;
     int			result;
     int			count = 0;
@@ -272,6 +277,7 @@ ldap_expand( char *addr )
     char		*insert;
     char		*domain;
     char		*buf = NULL;
+    char		**values;
     LDAPMessage		*res;
     LDAPMessage		*message;
     LDAPMessage		*entry;
@@ -473,7 +479,31 @@ ldap_expand( char *addr )
 	    }
 #endif /* DEBUG */
 
-	    /* YYY ADD mailForwardingAddress here! */
+	    /* get individual's email address(es) */
+	    if (( values = ldap_get_values( ld, entry,
+		    "mailForwardingAddress" )) == NULL ) {
+		/* XXX daemon error handling/reporting */
+		ldap_perror( ld, "ldap_get_values 2" );
+		goto error;
+	    }
+
+	    for ( x = 0; values[ x ] != NULL; x++ ) {
+		if ( ll_lookup( *seen, addr ) == NULL ) {
+		    /* XXX daemon error handling/reporting */
+		    if ( add_address( expansion, values[ x ], rcpt ) != 0 ) {
+			perror( "add_address" );
+			return( -1 );
+		    }
+
+#ifdef DEBUG
+		    printf( "mailforwardingaddress added: %s\n", values[ x ]);
+#endif /* DEBUG */
+
+		    count++;
+		}
+	    }
+
+	    ldap_value_free( values );
 
 	} else {
 	    /* not a group, or a person */
@@ -489,7 +519,7 @@ ldap_expand( char *addr )
 
     /* XXX need to do more than just return */
     ldap_msgfree( res );
-    return( 1 );
+    return( count );
 
 error:
     /* XXX daemon error handling/reporting */
@@ -497,23 +527,6 @@ error:
     return( -1 );
 }
 
-
-#ifdef XXX_NOT_DEF
-	/* get individual's email address(es) */
-	if (( values = ldap_get_values( ld, entry, "mailForwardingAddress" ))
-		== NULL ) {
-	    /* XXX daemon error handling/reporting */
-	    ldap_perror( ld, "ldap_get_values 2" );
-
-	    goto error;
-	} else {
-
-#ifdef DEBUG
-	    printf( "ldap_get_values 2 success\n" );
-#endif /* DEBUG */
-
-	}
-#endif /* XXX_NOT_DEF */
 
 
     int
