@@ -25,7 +25,7 @@ TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o tz.o header.o \
 		simta.o ll.o nlist.o address.o bdb.o
 SIMLOGOBJ=	simlog.o
-#QRUNNER needs LDAP libs added
+DIPOBJ=		dip.o mx.o ll.o
 QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
 		envelope.o tz.o ml.o simta.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o nlist.o q_cleanup.o mx.o
@@ -78,6 +78,9 @@ install : all FRC
 	for i in ${MAN1TARGETS}; do \
 	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
 	done
+
+dip : denser/denser.o ${DIPOBJ}
+	${CC} ${CFLAGS} ${LDFLAGS} -o dip ${DIPOBJ} ${LIBPATH} ${LIBS}
 
 simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
