@@ -17,17 +17,8 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <netdb.h>
-#include <errno.h>
-#include <dirent.h>
-#include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <utime.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +27,6 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <syslog.h>
-
 #include <snet.h>
 
 #include "denser.h"
@@ -111,7 +101,6 @@ exp_addr_prune( struct exp_addr *e_addr )
     int
 expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
-    struct stat			sbuf;
     struct expand		exp;
     struct envelope		*base_error_env;
     struct envelope		*env_dead = NULL;

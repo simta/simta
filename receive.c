@@ -11,7 +11,9 @@
 #include <sys/param.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
 #include <inttypes.h>
+#include <pwd.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <string.h>
@@ -71,6 +73,7 @@ struct command {
     int		(*c_func) ___P(( SNET *, struct envelope *, int, char *[] ));
 };
 
+static int	local_address ___P(( char * ));
 static int	f_helo ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_ehlo ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_mail ___P(( SNET *, struct envelope *, int, char *[] ));

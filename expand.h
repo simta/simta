@@ -59,7 +59,6 @@ int address_error ___P(( struct envelope *, char *, char *, char * ));
 void expansion_stab_stdout( void * );
 int add_address( struct expand *, char *, struct envelope *, int );
 struct envelope *address_bounce_create ___P(( struct expand* ));
-int address_local( char * );
 int address_expand( struct expand *, struct exp_addr * );
 void expand_tree_stdout( struct exp_addr *, int );
 
