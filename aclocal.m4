@@ -78,6 +78,20 @@ AC_DEFUN([AC_STRUCT_GMTOFF],
 ])
 
 
+AC_DEFUN([SET_LOCALDELIVERY],
+[
+    have_local_delivery="no"
+])
+
+
+AC_DEFUN([CHECK_LOCALDELIVERY],
+[
+    if test x_$have_local_delivery != x_yes; then
+	AC_MSG_ERROR([simta requires a local mailer: see INSTALL])
+    fi
+])
+
+
 AC_DEFUN([PROG_PROCMAIL],
 [
     AC_MSG_CHECKING(for procmail)
@@ -95,6 +109,7 @@ AC_DEFUN([PROG_PROCMAIL],
 	    procmail_dir="$dir"
 	    if test -f "$dir/procmail"; then
 		found_procmail="yes";
+		have_local_delivery="yes";
 		AC_MSG_RESULT(yes)
 		break
 	    fi
@@ -128,6 +143,7 @@ AC_DEFUN([PROG_MAIL_LOCAL],
 	    mail_local_dir="$dir"
 	    if test -f "$dir/mail.local"; then
 		found_mail_local="yes";
+		have_local_delivery="yes";
 		AC_MSG_RESULT(yes)
 		break
 	    fi

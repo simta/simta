@@ -13,8 +13,10 @@ AC_PROG_CC
 AC_PROG_INSTALL
 
 # Find local mailers
+SET_LOCALDELIVERY
 PROG_MAIL_LOCAL
 PROG_PROCMAIL
+CHECK_LOCALDELIVERY
 
 if test x_$GCC = x_yes; then
     OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes -Wconversion"}

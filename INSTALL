@@ -4,6 +4,7 @@ simta Installation
 1.  Requirements
 
     To build simta, you will need:
+	-A local mail delivery program (mail.local or procmail)
 	-C compiler
 
 2.  Configuring the source tree
@@ -20,16 +21,21 @@ simta Installation
     `configure'.  You only autoconf if you want to change `configure.ac' or
     regenerate `configure' using a newer version of `autoconf'.
 
+    simta requires a local mail delivery agent.  mail.local and procmail
+    are currently supported.
+
     configure options:
 	--with-mail_local=/path/to/mail_local/
-	    For mail.local support, simta needs the directory of
-	    the mail.local binary.  Use this option if mail.local
-	    isn't in /usr/lib/ or /usr/sbin/.
+	    For mail.local support, simta needs the directory of the
+	    mail.local binary.  Use this option if mail.local isn't in
+	    /usr/lib/ or /usr/sbin/.  The argument "no" disables mail.local
+	    support.
 
 	--with-procmail=/path/to/procmail/
 	    For procmail support, simta needs the directory of the procmail
-	    binary.  Use this option if procmail isn't in /usr/local/bin/ or
-	    /usr/local/procmail/bin/.
+	    binary.  Use this option if procmail isn't in /usr/bin/
+	    /usr/local/bin/ or /usr/local/procmail/bin/.  The argument "no"
+	    disables procmail support.
 
 3.  Building simta
 

@@ -2032,6 +2032,9 @@ test -z "$INSTALL_DATA" && INSTALL_DATA='${INSTALL} -m 644'
 
 # Find local mailers
 
+    have_local_delivery="no"
+
+
     echo "$as_me:$LINENO: checking for mail.local" >&5
 echo $ECHO_N "checking for mail.local... $ECHO_C" >&6
     mail_local_dirs="yes"
@@ -2051,6 +2054,7 @@ fi;
 	    mail_local_dir="$dir"
 	    if test -f "$dir/mail.local"; then
 		found_mail_local="yes";
+		have_local_delivery="yes";
 		echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
 		break
@@ -2089,6 +2093,7 @@ fi;
 	    procmail_dir="$dir"
 	    if test -f "$dir/procmail"; then
 		found_procmail="yes";
+		have_local_delivery="yes";
 		echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
 		break
@@ -2105,6 +2110,13 @@ echo "${ECHO_T}no" >&6
     else
 	echo "$as_me:$LINENO: result: disabled" >&5
 echo "${ECHO_T}disabled" >&6;
+    fi
+
+
+    if test x_$have_local_delivery != x_yes; then
+	{ { echo "$as_me:$LINENO: error: simta requires a local mailer: see INSTALL" >&5
+echo "$as_me: error: simta requires a local mailer: see INSTALL" >&2;}
+   { (exit 1); exit 1; }; }
     fi
 
 
