@@ -313,9 +313,9 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    syslog( LOG_NOTICE, "%s: FROM:<%s> RELAY %s (%s)", env->e_id, env->e_mail,
+    syslog( LOG_NOTICE, "%s: FROM:<%s> RELAY %s [%s]", env->e_id, env->e_mail,
 	    inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname ?
-	    receive_remote_hostname : "no remote hostname" );
+	    receive_remote_hostname : "" );
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -477,8 +477,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    syslog( LOG_NOTICE, "%s: TO:<%s> ACCEPTED", env->e_id, 
-	env->e_rcpt->r_rcpt );
+    syslog( LOG_NOTICE, "%s: TO:<%s> ACCEPTED", env->e_id,
+	    env->e_rcpt->r_rcpt );
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_rcpt snet_writef: %m" );

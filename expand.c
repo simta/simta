@@ -106,6 +106,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     char			*domain;
     SNET			*snet = NULL;
     struct stab_entry		*host_stab = NULL;
+    int				n_rcpts;
     int				return_value = 1;
     int				env_out = 0;
     int				fast_file_start;
@@ -297,8 +298,14 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		goto cleanup3;
 	    }
 
-	    /* XXX MID: new-MID EXPANDED <rcpt@domain> */
-	    /* XXX MID: new-MID EXPANSION COMPLETED #rcpt */
+	    n_rcpts = 0;
+	    for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
+		n_rcpts++;
+		syslog( LOG_NOTICE, "%s: %s: EXPANDED <%s>",
+			unexpanded_env->e_id, env->e_id, rcpt->r_rcpt );
+	    }
+	    syslog( LOG_NOTICE, "%s: %s: EXPANSION COMPLETED %d recipients",
+		    unexpanded_env->e_id, env->e_id, n_rcpts );
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
 	    syslog( LOG_INFO, "expand %s: writing %s %s", unexpanded_env->e_id,
@@ -419,6 +426,9 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	syslog( LOG_ERR, "expand env_unlink %s: can't delete original message",
 		unexpanded_env->e_id );
     }
+
+    syslog( LOG_NOTICE, "%s: DELETED EXPANSION COMPLETE", 
+	    unexpanded_env->e_id );
 
     return_value = 0;
     goto cleanup2;

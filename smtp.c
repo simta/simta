@@ -318,7 +318,6 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 
 	    break;
 
-
 	case SMTP_RSET:
 	case SMTP_QUIT:
 	    break;
@@ -332,13 +331,15 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    break;
 
 	case SMTP_MAIL:
-	    syslog( LOG_INFO, "smtp_reply %s %s MAIL FROM:<%s> OK: %s",
-		    d->d_env->e_id, hq->hq_hostname, d->d_env->e_mail, line );
+	    syslog( LOG_INFO, "%s: FROM:<%s> %s ACCEPTED: %s", d->d_env->e_id,
+		    d->d_env->e_mail, hq->hq_hostname, line );
 	    break;
 
 	case SMTP_RCPT:
-	    syslog( LOG_INFO, "smtp_reply %s %s RCPT TO:<%s> OK: %s",
-		    d->d_env->e_id, hq->hq_hostname, d->d_rcpt->r_rcpt, line );
+	    /* XXX real remote hostname */
+	    /* XXX outbound ip address */
+	    syslog( LOG_INFO, "%s: TO:<%s> %s ACCEPTED: %s", d->d_env->e_id,
+		    d->d_rcpt->r_rcpt, hq->hq_hostname, line );
 	    d->d_rcpt->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
 	    break;
@@ -346,8 +347,8 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	/* 2xx is actually an error for DATA */
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
-	    syslog( LOG_INFO, "smtp_reply %s %s DATA TEMPFAILED: %s",
-		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "%s: DATA %s TEMPFAILED: %s", d->d_env->e_id,
+		    hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
 		    line, "Bad SMTP DATA reply" ));
 
@@ -355,6 +356,8 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    d->d_delivered = 1;
 	    syslog( LOG_NOTICE, "smtp_send %s %s message delivered: %s",
 		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "%s: DATA_EOF %s ACCEPTED: %s", d->d_env->e_id,
+		    hq->hq_hostname, line );
 	    break;
 
 	default:
@@ -382,7 +385,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    syslog( LOG_NOTICE, "smtp_reply %s tempfail CONNECT reply: %s",
 		    hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
-		    &tv, line, "Bad SMTP MAIL FROM reply" )) == SMTP_OK ) {
+		    &tv, line, "Bad SMTP CONNECT reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
@@ -391,45 +394,54 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    syslog( LOG_NOTICE, "smtp_reply %s tempfail HELO reply: %s",
 		    hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
-		    &tv, line, "Bad SMTP MAIL FROM reply" )) == SMTP_OK ) {
+		    &tv, line, "Bad SMTP HELO reply" )) == SMTP_OK ) {
+		return( SMTP_ERROR );
+	    }
+	    return( smtp_reply );
+
+	case SMTP_EHLO:
+	    syslog( LOG_NOTICE, "smtp_reply %s tempfail EHLO reply: %s",
+		    hq->hq_hostname, line );
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+		    &tv, line, "Bad SMTP EHLO reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
 
 	case SMTP_MAIL:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
-	    syslog( LOG_NOTICE, "smtp_reply %s %s tempfail MAIL FROM reply: %s",
-		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "%s: FROM:<%s> %s TEMPFAIL: %s", d->d_env->e_id,
+		    d->d_env->e_mail, hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
 		    line, "Bad SMTP MAIL FROM reply" ));
 
 	case SMTP_RCPT:
 	    d->d_rcpt->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfail++;
-	    syslog( LOG_INFO, "smtp_reply %s %s RCPT TO:<%s> TEMPFAIL",
-		    d->d_env->e_id, hq->hq_hostname, d->d_rcpt->r_rcpt );
+	    syslog( LOG_INFO, "%s: TO:<%s> %s TEMPFAIL: %s", d->d_env->e_id,
+		    d->d_rcpt->r_rcpt, hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), snet, &tv,
 		    line, "Bad SMTP RCPT TO reply" ));
 
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
-	    syslog( LOG_INFO, "smtp_reply %s %s DATA TEMPFAILED: %s",
-		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "%s: DATA %s TEMPFAILED: %s", d->d_env->e_id,
+		    hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
-	    syslog( LOG_NOTICE, "smtp_reply %s %s tempfail DATA_EOF reply: %s",
-		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "%s: DATA_EOF %s TEMPFAILED: %s", d->d_env->e_id,
+		    hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
-		    line, "Bad SMTP MAIL FROM reply" ));
+		    line, "Bad SMTP DATA_EOF reply" ));
 
 	case SMTP_RSET:
 	    syslog( LOG_NOTICE, "smtp_reply %s tempfail RSET reply: %s",
 		    hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
-		    &tv, line, "Bad SMTP MAIL FROM reply" )) == SMTP_OK ) {
+		    &tv, line, "Bad SMTP RSET reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
@@ -451,7 +463,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    syslog( LOG_NOTICE, "smtp_reply %s failed CONNECT reply: %s",
 		    hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
-		    &tv, line, "Bad SMTP MAIL FROM reply" )) == SMTP_OK ) {
+		    &tv, line, "Bad SMTP CONNECT reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
@@ -460,37 +472,46 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    syslog( LOG_NOTICE, "smtp_reply %s failed HELO reply: %s",
 		    hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
-		    &tv, line, "Bad SMTP MAIL FROM reply" )) == SMTP_OK ) {
+		    &tv, line, "Bad SMTP HELO reply" )) == SMTP_OK ) {
+		return( SMTP_ERROR );
+	    }
+	    return( smtp_reply );
+
+	case SMTP_EHLO:
+	    syslog( LOG_NOTICE, "smtp_reply %s failed EHLO reply: %s",
+		    hq->hq_hostname, line );
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
+		    &tv, line, "Bad SMTP EHLO reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
 
 	case SMTP_MAIL:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
-	    syslog( LOG_NOTICE, "smtp_reply %s %s failed MAIL FROM reply: %s",
-		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "%s: FROM:<%s> %s REJECTED: %s", d->d_env->e_id,
+		    d->d_env->e_mail, hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
 		    line, "Bad SMTP MAIL FROM reply" ));
 
 	case SMTP_RCPT:
 	    d->d_rcpt->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
-	    syslog( LOG_INFO, "smtp_reply %s %s RCPT TO:<%s> FAILED",
-		    d->d_env->e_id, hq->hq_hostname, d->d_rcpt->r_rcpt );
+	    syslog( LOG_INFO, "%s: TO:<%s> %s TEMPFAIL: %s", d->d_env->e_id,
+		    d->d_rcpt->r_rcpt, hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), snet, &tv,
 		    line, "Bad SMTP RCPT TO reply" ));
 
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
-	    syslog( LOG_INFO, "smtp_reply %s %s DATA FAILED: %s",
-		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "%s: DATA %s FAILED: %s", d->d_env->e_id,
+		    hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
-	    syslog( LOG_INFO, "smtp_reply %s %s DATA_EOF FAILED: %s",
-		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "%s: DATA_EOF %s FAILED: %s", d->d_env->e_id,
+		    hq->hq_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
 		    line, "Bad SMTP DATA_EOF reply" ));
 
@@ -498,7 +519,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    syslog( LOG_INFO, "smtp_reply %s failed RSET reply: %s",
 		    hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
-		    &tv, line, "Bad SMTP MAIL FROM reply" )) == SMTP_OK ) {
+		    &tv, line, "Bad SMTP RSET reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
@@ -509,6 +530,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    return( smtp_consume_banner( NULL, snet, &tv, line, NULL ));
 
 	default:
+	    syslog( LOG_DEBUG, "smtp_reply %d out of range", smtp_command );
 	    panic( "smtp_reply smtp_command out of range" );
 	}
     }
