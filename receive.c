@@ -1429,7 +1429,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	case 0:
 	    syslog( LOG_NOTICE,
 		"Receive: Rejected IP %s by %s",
-		inet_ntoa( receive_sin->sin_addr ), simta_rbl_domain );
+		inet_ntoa( sin->sin_addr ), simta_rbl_domain );
 	    snet_writef( snet, "550 No access from your IP: "
 		"%s\r\n", rbl_err_txt );
 	    free( rbl_err_txt );
