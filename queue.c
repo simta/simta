@@ -17,6 +17,7 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
+#include <assert.h>
 #include <sysexits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -351,12 +352,7 @@ q_runner( struct host_q **host_q )
 		    continue;
 		}
 	    } else {
-		/* XXX ASSERT */
-		if ( unexpanded->e_dir != simta_dir_fast ) {
-		    syslog( LOG_WARNING, "q_runner assert %s: bad directory",
-			    unexpanded->e_id );
-		    return( 1 );
-		}
+		assert( unexpanded->e_dir != simta_dir_fast );
 		snet_lock = NULL;
 	    }
 

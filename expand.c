@@ -17,6 +17,7 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
+#include <assert.h>
 #include <fcntl.h>
 #include <utime.h>
 #include <stdio.h>
@@ -62,7 +63,8 @@ expand_and_deliver( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	return( EXPAND_OK );
 
     default:
-	syslog( LOG_ERR, "expand_and_deliver expand value out of range" );
+	assert( 1 );
+
     case 1:
     case -1:
 	env_slow( unexpanded_env );
