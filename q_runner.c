@@ -35,6 +35,8 @@
 void	host_stab_stdout ___P(( void * ));
 void	q_file_stab_stdout ___P(( void * ));
 int	efile_time_compare ___P(( void *, void * ));
+int	deliver_local ___P(( struct stab_entry * ));
+int	deliver_remote ___P(( struct host_q * ));
 
 
     int
@@ -104,18 +106,21 @@ main( int argc, char *argv[] )
     DIR				*dirp;
     struct dirent		*entry;
     struct q_file		*q;
+    struct envelope		*env;
     struct host_q		*hq;
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*hs;
-    struct stab_entry		*qs;
     struct stat			sb;
     int				result;
-    int				mailed;
-    int				fd;
     char			fname[ MAXPATHLEN ];
     char			localhostname[ MAXHOSTNAMELEN ];
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
+
+    if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
+	syslog( LOG_ERR, "gethostname: %m" );
+	exit( 1 );
+    }
 
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
 	syslog( LOG_ERR, "opendir %s: %m", SLOW_DIR );
@@ -141,29 +146,32 @@ main( int argc, char *argv[] )
 
 	/* organize Efiles by host and modification time */
 	if ( *entry->d_name == 'E' ) {
-	    if (( q = q_file_create( entry->d_name + 1 )) == NULL ) {
-		syslog( LOG_ERR, "q_file_create: %m" );
-		exit( 1 );
-	    }
-
-	    if (( q->q_env = env_create( q->q_id )) == NULL ) {
+	    if (( env = env_create( entry->d_name + 1 )) == NULL ) {
 		syslog( LOG_ERR, "env_create: %m" );
 		exit( 1 );
 	    }
 
 	    sprintf( fname, "%s/%s", SLOW_DIR, entry->d_name );
 
-	    if (( result = env_infile( q->q_env, fname )) < 0 ) {
+	    if (( result = env_infile( env, fname )) < 0 ) {
 		/* syserror */
 		syslog( LOG_ERR, "env_infile %s: %m", fname );
 		exit( 1 );
 
 	    } else if ( result > 1 ) {
 		/* syntax error */
+		/* XXX env_free( env ); */
+		/* XXX env_infile should syslog for more granularity */
 		syslog( LOG_WARNING, "env_infile %s: syntax error", fname );
 		continue;
 	    }
 
+	    if (( q = q_file_create( entry->d_name + 1 )) == NULL ) {
+		syslog( LOG_ERR, "q_file_create: %m" );
+		exit( 1 );
+	    }
+
+	    q->q_env = env;
 	    q->q_expanded = q->q_env->e_expanded;
 
 	    /* get efile modification time */
@@ -217,98 +225,170 @@ main( int argc, char *argv[] )
      *           needs to be generated.
      */
 
-    if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
-	syslog( LOG_ERR, "gethostname: %m" );
-	exit( 1 );
+    for ( hs = host_stab; hs != NULL; hs = hs->st_next ) {
+	if (( hs->st_key == NULL ) || ( *hs->st_key == '\0' )) {
+	    /* XXX NULL queue */
+
+	} else if ( strcasecmp( localhostname, hs->st_key ) == 0 ) {
+	    hq = (struct host_q*)hs->st_data;
+	    deliver_local( hq->hq_qfiles );
+
+	} else {
+	    /* XXX deliver hs->st_data off machine */
+	    hq = (struct host_q*)hs->st_data;
+	    deliver_remote( hq );
+	}
     }
 
-    for ( hs = host_stab; hs != NULL; hs = hs->st_next ) {
-	hq = (struct host_q*)hs->st_data;
-	for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
-	    q = (struct q_file*)qs->st_data;
+    return( 0 );
+}
 
-	    /* send message */
 
-	    if ( strcasecmp( localhostname, q->q_expanded ) == 0 ) {
-		/* deliver locally */
-		/* get message_data */
+    int
+deliver_local( struct stab_entry *qfiles )
+{
+    struct q_file		*q;
+    struct stab_entry		*qs;
+    int				mailed;
+    int				fd;
+    char			fname[ MAXPATHLEN ];
+
+    for ( qs = qfiles; qs != NULL; qs = qs->st_next ) {
+	q = (struct q_file*)qs->st_data;
+
+	/* get message_data */
+	errno = 0;
+	sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+	if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
+	    if ( errno == ENOENT ) {
+
+#ifdef DEBUG
+		printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
+#endif /* DEBUG */
+
 		errno = 0;
-		sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
-
-		if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
-		    if ( errno == ENOENT ) {
-
-#ifdef DEBUG
-			printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
-#endif /* DEBUG */
-
-			errno = 0;
-			syslog( LOG_WARNING, "Missing Dfile: %s", fname );
-			continue;
-
-		    } else {
-			syslog( LOG_ERR, "open %s: %m", fname );
-			exit( 1 );
-		    }
-		}
-
-		/* XXX */
-		if (( mailed = mail_local( fd, "satan@hell.edu", "epcjr" ))
-			< 0 ) {
-		    exit( 1 );
-		}
-
-		/* XXX */
-		if ( lseek( fd, 0, SEEK_SET ) != 0 ) {
-		    syslog( LOG_ERR, "lseek: %m" );
-		    exit( 1 );
-		}
-
-		/* XXX */
-		if (( mailed = procmail( fd, "satan@hell.edu", "epcjr" ))
-			< 0 ) {
-		    exit( 1 );
-		}
-
-		/* XXX mailed == 1 is recoverable failure */
-		/* XXX touch Efile, see if Dfile time > bounce time */
-
-		if ( close( fd ) != 0 ) {
-		    syslog( LOG_ERR, "close: %m" );
-		    exit( 1 );
-		}
-
-		if ( mailed == 0  ) {
-		    /* delete Efile then Dfile */
-		    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
-
-		    if ( unlink( fname ) != 0 ) {
-			syslog( LOG_ERR, "unlink %s: %m", fname );
-			return( 1 );
-		    }
-
-#ifdef DEBUG
-		    printf( "unlink\t%s\n", fname );
-#endif /* DEBUG */
-
-		    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
-
-		    if ( unlink( fname ) != 0 ) {
-			syslog( LOG_ERR, "unlink %s: %m", fname );
-			return( 1 );
-		    }
-
-#ifdef DEBUG
-		    printf( "unlink\t%s\n", fname );
-#endif /* DEBUG */
-		}
+		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
+		continue;
 
 	    } else {
-		/* off machine delivery */
+		syslog( LOG_ERR, "open %s: %m", fname );
+		exit( 1 );
+	    }
+	}
+
+	/* XXX */
+	if (( mailed = mail_local( fd, "satan@hell.edu", "epcjr" ))
+		< 0 ) {
+	    exit( 1 );
+	}
+
+	/* XXX */
+	if ( lseek( fd, 0, SEEK_SET ) != 0 ) {
+	    syslog( LOG_ERR, "lseek: %m" );
+	    exit( 1 );
+	}
+
+	/* XXX */
+	if (( mailed = procmail( fd, "satan@hell.edu", "epcjr" ))
+		< 0 ) {
+	    exit( 1 );
+	}
+
+	if ( close( fd ) != 0 ) {
+	    syslog( LOG_ERR, "close: %m" );
+	    exit( 1 );
+	}
+
+	/* XXX mailed == 1 is recoverable failure */
+	/* XXX touch Efile, see if Dfile time > bounce time */
+	/* if send failure, update efile modification time */
+	/* if send failure, check remaining dfiles for bounce generation */
+
+	if ( mailed == 0  ) {
+	    /* delete Efile then Dfile */
+	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+
+	    if ( unlink( fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", fname );
+		return( 1 );
 	    }
 
-	    /* if send failure, update efile modification time */
-	    /* if send failure, check remaining dfiles for bounce generation */
+	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+	    if ( unlink( fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", fname );
+		return( 1 );
+	    }
+	}
+    }
+
+    return( 0 );
+}
+
+
+    int
+deliver_remote( struct host_q *hq )
+{
+    struct q_file		*q;
+    struct stab_entry		*qs;
+    int				mailed;
+    int				fd;
+    char			fname[ MAXPATHLEN ];
+
+    for ( qs = (struct stab_entry*)hq->hq_qfiles; qs != NULL;
+	    qs = qs->st_next ) {
+	q = (struct q_file*)qs->st_data;
+
+	printf( "message %s\n", q->q_id );
+	continue;
+
+	/* get message_data */
+	errno = 0;
+	sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+	if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
+	    if ( errno == ENOENT ) {
+
+#ifdef DEBUG
+		printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
+#endif /* DEBUG */
+
+		errno = 0;
+		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
+		continue;
+
+	    } else {
+		syslog( LOG_ERR, "open %s: %m", fname );
+		exit( 1 );
+	    }
+	}
+
+	if ( close( fd ) != 0 ) {
+	    syslog( LOG_ERR, "close: %m" );
+	    exit( 1 );
+	}
+
+	/* XXX mailed == 1 is recoverable failure */
+	/* XXX touch Efile, see if Dfile time > bounce time */
+	/* if send failure, update efile modification time */
+	/* if send failure, check remaining dfiles for bounce generation */
+
+	if ( mailed == 0  ) {
+	    /* delete Efile then Dfile */
+	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+
+	    if ( unlink( fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", fname );
+		return( 1 );
+	    }
+
+	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+	    if ( unlink( fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", fname );
+		return( 1 );
+	    }
 	}
     }
 

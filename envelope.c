@@ -49,6 +49,7 @@ env_create( char *id )
     return( env );
 }
 
+
     void
 env_reset( struct envelope *env )
 {
@@ -139,6 +140,11 @@ env_recipient( struct envelope *e, char *addr )
      * Rto-addr@recipient.com
      * Roptional-to-addr@recipient.com
      */
+
+     /* return 0 on success
+      * return 1 on syntax error
+      * return -1 on sys error
+      */
 
     int
 env_infile( struct envelope *e, char *filename )

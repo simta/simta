@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2003 Regents of The University of Michigan.
+ * All Rights Reserved.  See COPYRIGHT.
+ */
+
+/*****     smtp.c     *****/
+
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -18,6 +25,7 @@
 #include "message.h"
 #include "envelope.h"
 #include "smtp.h"
+
 
     int
 smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
