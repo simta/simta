@@ -351,11 +351,23 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 			goto cleanup3;
 		    }
 
+		    if ( bounce_text( base_error_env, 
+	    "If you have any questions, please contact the group owner: ",
+			    e_addr->e_addr_owner, NULL ) != 0 ) {
+			goto cleanup3;
+		    }
+
 		} else if (( e_addr->e_addr_ldap_flags & 
 			STATUS_LDAP_PRIVATE ) == 0 ) {
 		    if ( bounce_text( parent->el_exp_addr->e_addr_errors, 
 			    "Members only group conditions not met: ",
 			    e_addr->e_addr, NULL ) != 0 ) {
+			goto cleanup3;
+		    }
+
+		    if ( bounce_text( parent->el_exp_addr->e_addr_errors, 
+	    "If you have any questions, please contact the group owner: ",
+			    e_addr->e_addr_owner, NULL ) != 0 ) {
 			goto cleanup3;
 		    }
 		}
@@ -488,8 +500,8 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	    queue_envelope( hq, env );
 
 	} else {
-	    env_stdout( env );
 	    printf( "\n" );
+	    env_stdout( env );
 	}
     }
 
@@ -710,6 +722,10 @@ cleanup1:
 		env_free( e_addr->e_addr_env_moderated );
 	    }
 
+	    if ( e_addr->e_addr_owner ) {
+		free( e_addr->e_addr_owner );
+	    }
+
 	    if ( e_addr->e_addr_dn ) {
 		free( e_addr->e_addr_dn );
 	    }
@@ -899,37 +915,6 @@ is_permitted( struct exp_addr *memonly )
 		return( 1 );
 	    }
 	}
-    }
-
-    return( 0 );
-}
-
-
-    int
-moderate_membersonly( struct expand *exp, struct exp_addr *e_addr,
-	char **moderators )
-{
-    int			idx;
-
-    if (( e_addr->e_addr_env_moderated =
-	    env_create( exp->exp_env->e_mail )) == NULL ) {
-	syslog( LOG_ERR, "moderate_membersonly env_create: %m");
-	return( 1 );
-    }
-
-    for ( idx = 0; moderators[ idx ] != NULL; idx++ ) {
-	if ( env_string_recipients( e_addr->e_addr_env_moderated,
-		moderators[ idx ]) != 0 ) {
-	    syslog( LOG_ERR, "moderate_membersonly env_string_recipients: %m");
-	    env_free( e_addr->e_addr_env_moderated );
-	    return( 1 );
-	}
-    }
-
-    if ( e_addr->e_addr_env_moderated->e_rcpt == NULL ) {
-	/* no valid email addresses */
-	env_free( e_addr->e_addr_env_moderated );
-	e_addr->e_addr_env_moderated = NULL;
     }
 
     return( 0 );

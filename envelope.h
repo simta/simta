@@ -34,13 +34,14 @@ struct envelope {
 #define ENV_AGE_OLD		1
 #define ENV_AGE_NOT_OLD		2
 
-#define ENV_FLAG_ON_DISK	(1<<1)
-#define ENV_FLAG_EFILE		(1<<2)
-#define ENV_FLAG_DFILE		(1<<3)
-#define ENV_FLAG_BOUNCE		(1<<4)
-#define ENV_FLAG_TEMPFAIL	(1<<5)
-#define ENV_FLAG_PUNT		(1<<6)
-#define ENV_FLAG_DELETE		(1<<7)
+#define ENV_FLAG_ON_DISK		(1<<0)
+#define ENV_FLAG_EFILE			(1<<1)
+#define ENV_FLAG_DFILE			(1<<2)
+#define ENV_FLAG_BOUNCE			(1<<3)
+#define ENV_FLAG_TEMPFAIL		(1<<4)
+#define ENV_FLAG_PUNT			(1<<5)
+#define ENV_FLAG_DELETE			(1<<6)
+#define ENV_FLAG_SUPRESS_NO_EMAIL	(1<<7)
 
 struct envelope	*env_create( char * );
 struct envelope	*env_dup( struct envelope * );

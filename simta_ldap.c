@@ -779,11 +779,13 @@ simta_ldap_address_local( char *name, char *domain )
     return ( rc );
 }
 
+
     static int 
 simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
  		int type, LDAPMessage *entry)
 {
     int		valfound = 0;
+    int		moderator_error = 0;
     char	**dnvals;
     char	**mailvals;
     char	*dn;
@@ -794,10 +796,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     char	**private;	/* Private Members Only attribute value */
     char	**moderator;	/* Moderator attribute values */
     char	**permitted;	/* permittedgroup attribute values */
-    char	*sender_name = NULL;	/* Name of sender -- upto '@' */
-    char	*sender_domain = NULL;	/* sender domain -- last 2 components */
-    char	*mod_name;	/* moderator name -- upto '@' */
-    char	*mod_domain;	/* moderator domain -- last 2 components */
 
     char	*attrval;
     char	*ndn;		/* a "normalized dn" */
@@ -809,6 +807,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     char	*psender;
     int		suppressnoemail = 0;
     int		mo_group = 0;
+    struct recipient	*r = NULL;
 
     dn = ldap_get_dn( ld, entry );
    
@@ -823,20 +822,32 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	ldap_value_free (vals);
     }
 
+    if (( vals = ldap_get_values (ld, entry, "associateddomain")) == NULL ){
+	return( LDAP_EXCLUDE );
+    }
+    rdns = ldap_explode_dn (dn, 1);
+
+    if (( e_addr->e_addr_owner = (char*)malloc( strlen( rdns[0] ) +
+	    strlen( vals[0] ) + 8 )) == NULL ) {
+	ldap_memfree (dn);
+	ldap_value_free( vals );
+	ldap_value_free( rdns );
+	return( LDAP_SYSERROR );
+    }
+    sprintf( e_addr->e_addr_owner, "%s-owner@%s", rdns[0], vals[0]);
+
+    for (psender = e_addr->e_addr_owner; *psender; psender++) {
+	if (*psender == ' ') {
+	    *psender = '.';
+	}
+    }
+
     if ( *(e_addr->e_addr_from) == '\0' ) {
         senderbuf = strdup ("");
     } else {
-
-	simta_ldapuser (exp->exp_env->e_mail, &sender_name, &sender_domain);
-
 	/*
 	* You can't send mail to groups that have no associatedDomain.
 	*/
-	if (( vals = ldap_get_values (ld, entry, "associateddomain")) == NULL ){
-	    return( LDAP_EXCLUDE );
-	}
-	rdns = ldap_explode_dn (dn, 1);
-
 	senderbuf = (char *) malloc (strlen(rdns[0]) + strlen (vals[0]) + 12);
 	if (! senderbuf ) {
 	    syslog (LOG_ERR,
@@ -853,14 +864,13 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    }
 	}
 
-	ldap_value_free( vals );
-	ldap_value_free( rdns );
-
 	if ((e_addr->e_addr_errors = address_bounce_create( exp )) == NULL ) {
 	    syslog (LOG_ERR,
                   "simta_ldap_expand_group: failed creating error env: %s", dn);
 	    free ( senderbuf );
 	    ldap_memfree (dn);
+	    ldap_value_free( vals );
+	    ldap_value_free( rdns );
 	    return LDAP_SYSERROR;
 	} 
 
@@ -869,11 +879,16 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
                "simta_ldap_expand_group: failed setting error recip: %s", dn);
 	    free (senderbuf);
 	    ldap_memfree (dn);
+	    ldap_value_free( vals );
+	    ldap_value_free( rdns );
 	    return LDAP_SYSERROR;
 	}
     } 
-    switch ( type ) 
-    {
+
+    ldap_value_free( vals );
+    ldap_value_free( rdns );
+
+    switch ( type ) {
     case LDS_GROUP_ERRORS:
 	
 	dnvals = ldap_get_values( ld, entry, "errorsto");
@@ -905,11 +920,10 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	break;
 
     default:
-	dnvals = ldap_get_values( ld, entry, "member");
-	mailvals = ldap_get_values( ld, entry, "rfc822mail");
+	dnvals = NULL;
+	mailvals = NULL;
 	errmsg = NULL;
 
-	/* MembersOnly group?  */
 	if (( memonly = ldap_get_values( ld, entry, "membersonly" )) != NULL ) {
 	    if ( strcasecmp( memonly[0], "TRUE" ) == 0 ) {
 		mo_group = 1;
@@ -917,7 +931,55 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    ldap_value_free( memonly );
 	}
 
-	if ( mo_group ) {
+	if (( moderator = ldap_get_values( ld, entry, "moderator")) != NULL ) {
+	    if (( e_addr->e_addr_env_moderated =
+		    env_create( exp->exp_env->e_mail )) == NULL ) {
+		ldap_value_free( moderator );
+		ldap_memfree( dn );
+		free( senderbuf );
+		return( LDAP_SYSERROR );
+	    }
+
+	    for ( idx = 0; moderator[ idx ] != NULL; idx++ ) {
+		if ( env_string_recipients( e_addr->e_addr_env_moderated,
+			moderator[ idx ]) != 0 ) {
+		    env_free( e_addr->e_addr_env_moderated );
+		    e_addr->e_addr_env_moderated = NULL;
+		    ldap_value_free( moderator );
+		    ldap_memfree( dn );
+		    free( senderbuf );
+		    return( LDAP_SYSERROR );
+		} else {
+		    ldap_value_free( permitted );
+		}
+	    }
+
+	    ldap_value_free( moderator );
+
+	    if (( r = e_addr->e_addr_env_moderated->e_rcpt ) == NULL ) {
+		/* no valid email addresses */
+		env_free( e_addr->e_addr_env_moderated );
+		e_addr->e_addr_env_moderated = NULL;
+		moderator_error = 1;
+		bounce_text( e_addr->e_addr_errors, "bad moderator: ", dn,
+			NULL );
+	    }
+
+	    for ( ; r != NULL; r = r->r_next ) {
+		if ( simta_mbx_compare( r->r_rcpt,
+			exp->exp_env->e_mail ) == 0 ) {
+		    /* sender matches moderator in moderator env */
+		    break;
+		}
+	    }
+	}
+
+	if ( r != NULL ) {
+	    /* sender matches moderator in moderator env */
+	    env_free( e_addr->e_addr_env_moderated );
+	    e_addr->e_addr_env_moderated = NULL;
+
+	} else if ( mo_group ) {
 	    e_addr->e_addr_ldap_flags |= STATUS_LDAP_MEMONLY;
 
 	    if (( private = ldap_get_values( ld, entry, "rfc822private" ))
@@ -929,14 +991,8 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    }
 
 	    if ( exp_addr_link( &(exp->exp_memonly), e_addr ) != 0 ) {
-		if ( dnvals ) {
-		    ldap_value_free( dnvals );
-		}
-		if ( mailvals ) {
-		    ldap_value_free( mailvals );
-		}
-		free( senderbuf );
 		ldap_memfree( dn );
+		free( senderbuf );
 		return( LDAP_SYSERROR );
 	    }
 
@@ -944,87 +1000,23 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		    "permittedgroup")) != NULL ) {
 		if ( permitted_create( e_addr, permitted ) != 0 ) {
 		    ldap_value_free( permitted );
-		
-		    if ( dnvals ) {
-			ldap_value_free( dnvals );
-		    }
-		    if ( mailvals ) {
-			ldap_value_free( mailvals );
-		    }
 		    free( senderbuf );
 		    ldap_memfree( dn );
 		    return( LDAP_SYSERROR );
-		} else {
-		    ldap_value_free( permitted );
 		}
-	    }
-
-	    if (( moderator = ldap_get_values( ld, entry,
-		    "moderator")) != NULL ) {
-		if ( moderate_membersonly( exp, e_addr, moderator ) != 0 ) {
-		    ldap_value_free( moderator );
-		
-		    if ( dnvals ) {
-			ldap_value_free( dnvals );
-		    }
-		    if ( mailvals ) {
-			ldap_value_free( mailvals );
-		    }
-		    free( senderbuf );
-		    ldap_memfree( dn );
-		    return( LDAP_SYSERROR );
-		} else {
-		    ldap_value_free( moderator );
-		}
-	    }
-
-	} else if (( moderator = ldap_get_values( ld, entry,
-		"moderator")) != NULL ) {
-	    /*
-	    ** Moderated group.
-	    ** If sender matches moderator
-	    ** then send message to the group
-	    ** else send message to the moderator
-	    */
-		if ( sender_name != NULL ) {
-		for (idx = 0; moderator[idx]; idx++) {
-		    simta_ldapuser (moderator[idx], &mod_name, &mod_domain);
-		    if ((strcasecmp (sender_name, mod_name) == 0)
-		    &&  (strcasecmp (sender_domain, mod_domain) == 0) ) {
-			/*
-			** This is the moderator.
-			** send the message to the group.
-			*/	
-			free (mod_name);
-			free (mod_domain);
-			break;
-		    }
-		    free (mod_name);
-		    free (mod_domain);
-		}
-		free (sender_name);
-		free (sender_domain);
-	    }
-
-	    /* 
-	    ** If the sender was not found in the moderator list
-	    ** then
-	    **     Blow away the member and mailvals value lists
-	    ** 	   and send this on to the moderators.
-	    */
-
-	    if (( sender_name == NULL ) || ! moderator[idx] ) {
-		ldap_value_free (dnvals);
-		dnvals = NULL;
-		ldap_value_free (mailvals);
-		mailvals = moderator;
-	    } else {
-		ldap_value_free (moderator);
+		ldap_value_free( permitted );
 	    }
 	}
 
-	if (suppressnoemail) {
-	    e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
+	if ((( e_addr->e_addr_env_moderated == NULL ) &&
+		( moderator_error == 0 )) ||
+		( e_addr->e_addr_ldap_flags & STATUS_LDAP_MEMONLY )) {
+	    dnvals = ldap_get_values( ld, entry, "member");
+	    mailvals = ldap_get_values( ld, entry, "rfc822mail");
+	}
+
+	if ( suppressnoemail ) {
+	    e_addr->e_addr_errors->e_flags |= ENV_FLAG_SUPRESS_NO_EMAIL;
 	}
 	break;
     }   /* end of switch */
@@ -1083,7 +1075,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     if ((valfound == 0) && (errmsg != NULL)) {
 	bounce_text( e_addr->e_addr_errors, dn, errmsg, NULL);
     }	
-    free (senderbuf);
+    free( senderbuf );
     ldap_memfree (dn);
     return LDAP_EXCLUDE;
 }
@@ -1121,7 +1113,8 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	    if ( e_addr->e_addr_type != ADDRESS_TYPE_LDAP ) {
 		do_noemail (e_addr, addr, entry);
 	    } else {
-		if ((e_addr->e_addr_errors->e_flags & SUPPRESSNOEMAILERROR) == 0) {
+		if (( e_addr->e_addr_errors->e_flags &
+			ENV_FLAG_SUPRESS_NO_EMAIL ) == 0 ) {
 		    if ( bounce_text( e_addr->e_addr_errors, addr,
 		" : Group member exists but does not have an email address" , 
 			"\n" ) != 0 ) {
@@ -1503,6 +1496,7 @@ simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     free (name);
     return (rc);
 }
+
 
     int
 simta_mbx_compare ( char * firstemail, char * secondemail)
