@@ -1309,12 +1309,12 @@ receive( fd, sin )
 	    continue;
 	}
 
-	if (( value = (*(commands[ i ].c_func))( snet, env, ac, av )) !=
-		RECEIVE_OK ) {
-	    acav_free( acav );
+	value = (*(commands[ i ].c_func))( snet, env, ac, av );
+	acav_free( acav );
+
+	if ( value != RECEIVE_OK ) {
 	    break;
 	}
-	acav_free( acav );
     }
 
     switch ( value ) {
