@@ -13,6 +13,7 @@ TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	simsend.o message.o envelope.o tz.o
 SENDOBJ=	send.o smtp.o message.o envelope.o tz.o
 SIMLOGOBJ=	simlog.o
+QUEUEOBJ=	queue.o
 
 SIMTALOG=LOG_MAIL
 
@@ -27,7 +28,7 @@ TAGSFILE=	tags
 
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
 
-TARGETS=	simta tlsconnect simsendmail send
+TARGETS=	simta tlsconnect simsendmail send queue
 
 all : ${TARGETS}
 
@@ -51,6 +52,9 @@ send : libsnet/libsnet.a ${SENDOBJ} Makefile
 
 simlog : libsnet/libsnet.a ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
+
+queue : libsnet/libsnet.a ${QUEUEOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o queue ${QUEUEOBJ} ${LIBPATH} ${LIBS}
 
 FRC :
 
