@@ -31,6 +31,8 @@ QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		smtp.o simta.o
 CREATEDBOBJ=	createdb.o argcargv.o bdb.o
 
+LDAPOBJ=	ldap.o
+
 SIMTALOG=LOG_MAIL
 SIMTA_ALIAS_DB=	@aliasdb@
 SIMTA_MAXCONNECTIONS=	@maxconnections@
@@ -56,6 +58,8 @@ TARGETS=	simta tlsconnect simsendmail q_runner createdb
 
 all : ${TARGETS}
 
+ldap:	${LDAPOBJ}
+	${CC} ${CFLAGS} -o ldaptest ${LDAPOBJ} ${LDFLAGS} -lLDAP
 
 install : all FRC
 	-mkdir -p ${RUNDIR}
