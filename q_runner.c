@@ -35,7 +35,10 @@
 #include "ml.h"
 #include "smtp.h"
 #include "simta.h"
+#include "address.h"
 
+int			debug = 0;
+struct stab_entry       *hosts = NULL;
 
     int
 main( int argc, char *argv[] )
