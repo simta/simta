@@ -575,6 +575,7 @@ main( ac, av )
     /* main daemon loop */
     for (;;) {
 	if ( simsendmail_signal != 0 ) {
+	    syslog( LOG_DEBUG, "simsendmail signaled" );
 	    simsendmail_signal = 0;
 
 	    if ( q_runner_local < q_runner_local_max ) {
@@ -583,7 +584,7 @@ main( ac, av )
 		    syslog( LOG_ERR, "malloc: %m" );
 		    continue;
 		}
-		memset( &p, 0, sizeof( struct proc_type ));
+		memset( p, 0, sizeof( struct proc_type ));
 
 		p->p_type = Q_LOCAL;
 		p->p_next = proc_stab;
@@ -664,13 +665,14 @@ main( ac, av )
 		    syslog( LOG_ERR, "malloc: %m" );
 		    continue;
 		}
-		memset( &p, 0, sizeof( struct proc_type ));
+		memset( p, 0, sizeof( struct proc_type ));
 
 		p->p_type = Q_SLOW;
 		p->p_next = proc_stab;
 		proc_stab = p;
 		q_runner_slow++;
 
+		syslog( LOG_DEBUG, "launching q_runner" );
 		switch ( pid = fork()) {
 		case 0 :
 		    close( s );
@@ -700,6 +702,8 @@ main( ac, av )
 		    syslog( LOG_INFO, "q_runner_dir.slow child %d", pid );
 		    break;
 		}
+	    } else {
+		syslog( LOG_INFO, "q_runner_dir.slow maximum reached" );
 	    }
 
 	    /* XXX continue, or check to see if FD_ISSET? */
@@ -714,6 +718,8 @@ main( ac, av )
 	}
 
 	if ( FD_ISSET( s, &fdset )) {
+	    syslog( LOG_DEBUG, "incoming connection" );
+
 	    sinlen = sizeof( struct sockaddr_in );
 	    if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
 		if ( errno != EINTR ) {
@@ -729,7 +735,7 @@ main( ac, av )
 		close( fd );
 		continue;
 	    }
-	    memset( &p, 0, sizeof( struct proc_type ));
+	    memset( p, 0, sizeof( struct proc_type ));
 
 	    connections++;
 	    p->p_type = SIMTA_CHILD;
@@ -763,8 +769,10 @@ main( ac, av )
 			    "daemon.receive exiting with %d fast_files",
 			    simta_fast_files );
 		    exit( EXIT_FAST_FILE );
+		} else {
+		    syslog( LOG_ERR, "daemon.receive exiting" );
+		    exit( EXIT_OK );
 		}
-		exit( EXIT_OK );
 
 	    case -1 :
 		/*

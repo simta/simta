@@ -49,6 +49,7 @@ AC_SUBST(EXPANDER_OBJ, [])
 
 CHECK_DB
 CHECK_LDAP
+CHECK_LIBWRAP
 
 #AC_CHECK_LIB([ldap], [ldap_init], , [CHECK_LDAP])
 AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])

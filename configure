@@ -814,6 +814,7 @@ Optional Packages:
   --with-procmail=DIR     path to procmail
   --with-db=DIR           path to db
   --with-ldap=DIR         path to ldap
+  --with-libwrap=DIR      path to libwrap
   --with-ssl=DIR          path to ssl
 
 Some influential environment variables:
@@ -2727,7 +2728,7 @@ fi;
 echo "$as_me: error: cannot find db " >&2;}
    { (exit 1); exit 1; }; }
     else
-        SIMTALIBS="-ldb";
+        SIMTALIBS="$SIMTALIBS -ldb";
         SIMTALDFLAGS="-L$dbdir/lib";
 
 
@@ -2789,6 +2790,37 @@ _ACEOF
 	echo "$as_me:$LINENO: result: disabled" >&5
 echo "${ECHO_T}disabled" >&6
 
+    fi
+
+
+    echo "$as_me:$LINENO: checking for libwrap" >&5
+echo $ECHO_N "checking for libwrap... $ECHO_C" >&6
+    libwrap_dirs="/usr/ /usr/local"
+
+# Check whether --with-libwrap or --without-libwrap was given.
+if test "${with_libwrap+set}" = set; then
+  withval="$with_libwrap"
+  libwrap_dirs="$withval"
+fi;
+    for dir in $libwrap_dirs; do
+        libwrap_dir="$dir"
+        if test -f "$dir/lib/libwrap.a"; then
+            found_libwrap="yes";
+            break;
+        fi
+    done
+    if test x_$found_libwrap != x_yes; then
+	echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+    else
+        HAVE_LIBWRAP=yes
+        SIMTALIBS="$SIMTALIBS -lwrap";
+	cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBWRAP 1
+_ACEOF
+
+	echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
     fi
 
 

@@ -40,3 +40,6 @@
 
 /* Define to 1 if you have LDAP */
 #undef HAVE_LDAP
+
+/* Define to 1 if you have LIBWRAP */
+#undef HAVE_LIBWRAP

@@ -22,6 +22,10 @@
 #include <unistd.h>
 #include <time.h>
 
+#ifdef HAVE_LIBWRAP
+#include <tcpd.h>
+#endif /* HAVE_LIBWRAP */
+
 #ifdef HAVE_LIBSSL 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -31,6 +35,7 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
+#include "config.h"
 #include "queue.h"
 #include "ll.h"
 #include "simta.h"
@@ -1085,6 +1090,22 @@ receive( fd, sin )
 	syslog( LOG_ERR, "snet_attach: %m" );
 	return( 1 );
     }
+
+#ifdef HAVE_LIBWRAP
+    /* Find out the endpoint addresses of this conversation and check
+     * whether this host can access our service.
+     */
+
+    if ( hosts_ctl( "simta", STRING_UNKNOWN, inet_ntoa( sin->sin_addr ),
+	    STRING_UNKNOWN ) == 0 ) {
+	syslog( LOG_INFO, "connection refused %s: access denied",
+		inet_ntoa( sin->sin_addr ));
+	/* XXX 421 access denied? */
+	snet_writef( snet, "%d Access Denied\r\n", 421 );
+	return( 1 );
+    }
+#endif /* HAVE_LIBWRAP */
+
 
     if ( maxconnections != 0 ) {
 	if ( connections >= maxconnections ) {

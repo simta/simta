@@ -42,6 +42,8 @@ AC_DEFUN([CHECK_LDAP],
 
     fi
 ])
+
+
 AC_DEFUN([CHECK_SSL],
 [
     AC_MSG_CHECKING(for ssl)
@@ -218,7 +220,7 @@ AC_DEFUN([CHECK_DB],
     if test x_$found_db != x_yes; then
         AC_MSG_ERROR(cannot find db )
     else
-        SIMTALIBS="-ldb";
+        SIMTALIBS="$SIMTALIBS -ldb";
         SIMTALDFLAGS="-L$dbdir/lib";
 	AC_SUBST(SIMTALIBS)
 	AC_SUBST(SIMTALDFLAGS)
@@ -227,4 +229,29 @@ AC_DEFUN([CHECK_DB],
     fi
     AC_SUBST(HAVE_DB)
     AC_MSG_RESULT(yes)
+])
+
+
+AC_DEFUN([CHECK_LIBWRAP],
+[
+    AC_MSG_CHECKING(for libwrap)
+    libwrap_dirs="/usr/ /usr/local"
+    AC_ARG_WITH(libwrap,
+            AC_HELP_STRING([--with-libwrap=DIR], [path to libwrap]),
+            libwrap_dirs="$withval")
+    for dir in $libwrap_dirs; do
+        libwrap_dir="$dir"
+        if test -f "$dir/lib/libwrap.a"; then
+            found_libwrap="yes";
+            break;
+        fi
+    done
+    if test x_$found_libwrap != x_yes; then
+	AC_MSG_RESULT(no)
+    else
+        HAVE_LIBWRAP=yes
+        SIMTALIBS="$SIMTALIBS -lwrap";
+	AC_DEFINE(HAVE_LIBWRAP)
+	AC_MSG_RESULT(yes)
+    fi
 ])
