@@ -651,7 +651,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 * a bounce for the entire message, or if we've successfully
 	 * delivered the message and no recipients tempfailed.
 	 *
-	 * else we can rewrite the message if its been successfully
+	 * else we rewrite the message if its been successfully
 	 * delivered, and some but not all recipients tempfail.
 	 *
 	 * else we need to touch the envelope if we started an attempt
