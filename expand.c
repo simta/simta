@@ -443,7 +443,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		unexpanded_env->e_id );
     }
 
-    syslog( LOG_NOTICE, "Expand %s: DELETED expansion complete", 
+    syslog( LOG_NOTICE, "Expand %s: Deleted: expansion complete", 
 	    unexpanded_env->e_id );
 
     return_value = 0;

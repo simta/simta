@@ -800,7 +800,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_NOTICE, "Receive %s: Message TEMPFAIL: %s", env->e_id,
+	syslog( LOG_NOTICE, "Receive %s: Message Tempfail: %s", env->e_id,
 		smtp_message ? smtp_message : "no message" );
 
 	if ( snet_writef( snet, "452 (%s): %s\r\n", env->e_id,

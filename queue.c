@@ -869,7 +869,8 @@ lseek_fail:
 	    break;
 	}
 
-	syslog( LOG_NOTICE, "Deliver.local %s: Message Delivered",
+	/* XXX NEED THIS? */
+	syslog( LOG_NOTICE, "Deliver.local %s: Local delivery attempt complete",
 		d->d_env->e_id );
     }
 

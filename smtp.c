@@ -342,7 +342,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    *c = old;
 
 	    if ( strcmp( hq->hq_smtp_hostname, simta_hostname ) == 0 ) {
-		syslog( LOG_NOTICE,
+		syslog( LOG_WARNING,
 			"Deliver.SMTP %s: Mail Loop %s [%s]: %s",
 			hq->hq_hostname, hq->hq_smtp_hostname, 
 			inet_ntoa( hq->hq_sin.sin_addr ), line );
@@ -356,7 +356,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 		return( SMTP_ERROR );
 	    }
 
-	    syslog( LOG_NOTICE,
+	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Connection Accepted %s [%s]: %s",
 		    hq->hq_hostname, hq->hq_smtp_hostname, 
 		    inet_ntoa( hq->hq_sin.sin_addr ), line );
