@@ -61,7 +61,7 @@ inode_stab_stdout( void *data )
 
     q = (struct q_file*)data;
 
-    printf( "INODE:\t%ld\n", q->q_dfile_ino );
+    printf( "INODE:\t%ld\n", (long)q->q_dfile_ino );
 
     while ( q != NULL ) {
 	q_file_stdout( q );
