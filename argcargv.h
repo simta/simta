@@ -12,4 +12,5 @@ typedef struct {
 
 ACAV* acav_alloc( void );
 int acav_parse( ACAV *acav, char *, char *** );
+int acav_parse2821( ACAV *acav, char *, char *** );
 int acav_free( ACAV *acav );

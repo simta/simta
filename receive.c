@@ -309,8 +309,7 @@ f_mail( snet, env, ac, av )
 
 	if ( simta_dnsr == NULL ) {
 	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
-		syslog( LOG_ERR, "f_mail dnsr_new: %s",
-			dnsr_err2string( dnsr_errno( simta_dnsr )));
+		syslog( LOG_ERR, "f_mail dnsr_new: returned NULL" );
 		return( RECEIVE_SYSERROR );
 	    }
 	}
@@ -501,8 +500,7 @@ f_rcpt( snet, env, ac, av )
 	/* DNS check for invalid domain */
 	if ( simta_dnsr == NULL ) {
 	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
-		syslog( LOG_ERR, "f_rcpt dnsr_new: %s",
-			dnsr_err2string(dnsr_errno( simta_dnsr )));
+		syslog( LOG_ERR, "f_rcpt dnsr_new: returned NULL" );
 		if ( snet_writef( snet,
 			"%d Requested action aborted: "
 			"local error in processing.\r\n", 451 ) < 0 ) {
@@ -1159,7 +1157,7 @@ receive( fd, sin )
     struct envelope			*env = NULL;
     ACAV				*acav;
     int					ac, i;
-    int					value;
+    int					value = RECEIVE_SYSERROR;
     char				**av, *line;
     struct timeval			tv;
     struct dnsr_result			*result = NULL;
@@ -1185,8 +1183,7 @@ receive( fd, sin )
 
     if ( simta_dnsr == NULL ) {
 	if (( simta_dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "receive dnsr_new: %s",
-		    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	    syslog( LOG_ERR, "receive dnsr_new: returned NULL" );
 	    goto syserror;
 	}
     }
@@ -1258,11 +1255,13 @@ receive( fd, sin )
 
 	if (( acav = acav_alloc( )) == NULL ) {
 	    syslog( LOG_ERR, "receive argcargv_alloc: %m" );
+    	    value = RECEIVE_SYSERROR;
 	    goto syserror;
 	}
 
 	if (( ac = acav_parse2821( acav, line, &av )) < 0 ) {
 	    syslog( LOG_ERR, "receive argcargv: %m" );
+    	    value = RECEIVE_SYSERROR;
 	    goto syserror;
 	}
 
@@ -1304,28 +1303,28 @@ receive( fd, sin )
 	}
     }
 
+syserror:
     switch ( value ) {
     default:
-syserror:
     case RECEIVE_SYSERROR:
 	if ( snet_writef( snet, "%d %s Service not available, closing "
 		"transmission channel\r\n", 421, simta_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "receive snet_writef: %m" );
-	}
-closeconnection:
-    case RECEIVE_BADCONNECTION:
-	if ( snet_close( snet ) != 0 ) {
-	    syslog( LOG_ERR, "receive snet_close: %m" );
 	}
 	break;
 
     case RECEIVE_QUIT:
 	snet_writef( snet, "%d %s Service closing transmission channel\r\n",
 		221, simta_hostname );
-	if ( snet_close( snet ) != 0 ) {
-	    syslog( LOG_ERR, "receive snet_close: %m" );
-	}
 	break;
+
+    case RECEIVE_BADCONNECTION:
+	break;
+    }
+
+closeconnection:
+    if ( snet_close( snet ) != 0 ) {
+	syslog( LOG_ERR, "receive snet_close: %m" );
     }
 
     if ( result != NULL ) {
