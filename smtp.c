@@ -195,11 +195,17 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     if ( connect( s, (struct sockaddr*)&sin,
 	    sizeof( struct sockaddr_in )) < 0 ) {
 	syslog( LOG_ERR, "smtp_connect %s connect: %m", hq->hq_hostname );
+	if ( close( s ) != 0 ) {
+	    syslog( LOG_ERR, "smtp_connect %s close: %m", hq->hq_hostname );
+	}
 	return( SMTP_BAD_CONNECTION );
     }
 
     if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect %s snet_attach: %m", hq->hq_hostname );
+	if ( close( s ) != 0 ) {
+	    syslog( LOG_ERR, "smtp_connect %s close: %m", hq->hq_hostname );
+	}
 	return( SMTP_ERROR );
     }
 
