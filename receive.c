@@ -43,7 +43,6 @@ extern SSL_CTX	*ctx;
 #include "denser.h"
 #include "queue.h"
 #include "ll.h"
-#include "simta.h"
 #include "envelope.h"
 #include "expand.h"
 #include "bprint.h"

@@ -19,6 +19,7 @@
 #include <snet.h>
 
 #include <netdb.h>
+#include <assert.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <pwd.h>
@@ -31,6 +32,8 @@
 #include "queue.h"
 #include "expand.h"
 #include "nlist.h"
+#include "envelope.h"
+#include "ml.h"
 #include "simta.h"
 
 #ifdef HAVE_LDAP
@@ -39,6 +42,9 @@
 #endif /* HAVE_LDAP */
 
 /* global variables */
+
+
+int			(*simta_local_mailer)(int, char *, struct recipient *);
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
 unsigned int		simta_bounce_seconds = 259200;
@@ -131,6 +137,11 @@ simta_config( char *conf_fname, char *base_dir )
 	return( -1 );
     }
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
+
+    /* get our local mailer */
+    if (( simta_local_mailer = get_local_mailer()) == NULL ) {
+	assert( simta_local_mailer == NULL );
+    }
 
     /* set up simta_hosts stab */
     simta_hosts = NULL;

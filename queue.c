@@ -55,14 +55,8 @@ deliver_local( struct deliver *d )
     char                        *at;
     struct recipient		*r;
     int                         ml_error;
-    int                  	(*local_mailer)(int, char *,
-                                        struct recipient *);
 
-    if (( local_mailer = get_local_mailer()) == NULL ) {
-	assert( local_mailer == NULL );
-    }
-
-    syslog( LOG_INFO, "q_deliver %s: attempting local delivery",
+    syslog( LOG_INFO, "deliver_local %s: attempting local delivery",
 	    d->d_env->e_id );
 
     d->d_attempt = 1;
@@ -71,7 +65,7 @@ deliver_local( struct deliver *d )
 	ml_error = EX_TEMPFAIL;
 
 	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
-	    syslog( LOG_ERR, "q_deliver lseek: %m" );
+	    syslog( LOG_ERR, "deliver_local lseek: %m" );
 	    goto lseek_fail;
 	}
 
@@ -79,9 +73,9 @@ deliver_local( struct deliver *d )
 	    *at = '\0';
 	}
 
-	syslog( LOG_INFO, "q_deliver %s %s: attempting local delivery",
+	syslog( LOG_INFO, "deliver_local %s %s: attempting local delivery",
 		d->d_env->e_id, r->r_rcpt );
-	ml_error = (*local_mailer)( d->d_dfile_fd, d->d_env->e_mail, r );
+	ml_error = (*simta_local_mailer)( d->d_dfile_fd, d->d_env->e_mail, r );
 
 	if ( at != NULL ) {
 	    *at = '@';
@@ -93,7 +87,7 @@ lseek_fail:
 	    /* success */
 	    r->r_delivered = R_DELIVERED;
 	    d->d_success++;
-	    syslog( LOG_INFO, "q_deliver %s %s: delivered locally",
+	    syslog( LOG_INFO, "deliver_local %s %s: delivered locally",
 		    d->d_env->e_id, r->r_rcpt );
 	    break;
 
@@ -101,7 +95,7 @@ lseek_fail:
 	case EX_TEMPFAIL:
 	    r->r_delivered = R_TEMPFAIL;
 	    d->d_tempfail++;
-	    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
+	    syslog( LOG_INFO, "deliver_local %s %s: local delivery "
 		    "tempfail %d", d->d_env->e_id, r->r_rcpt,
 		    ml_error );
 	    break;
@@ -111,7 +105,7 @@ lseek_fail:
 	    /* hard failure caused by bad user data, or no local user */
 	    r->r_delivered = R_FAILED;
 	    d->d_failed++;
-	    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
+	    syslog( LOG_INFO, "deliver_local %s %s: local delivery "
 		    "hard failure", d->d_env->e_id, r->r_rcpt );
 	    break;
 	}
@@ -860,7 +854,7 @@ deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
 {
     int				smtp_error;
 
-    syslog( LOG_INFO, "q_deliver %s: attempting remote delivery",
+    syslog( LOG_INFO, "deliver_remote %s: attempting remote delivery",
 	    d->d_env->e_id );
 
     /* open outbound SMTP connection */
@@ -873,7 +867,7 @@ deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
 	    goto smtp_cleanup;
 	}
     } else {
-	syslog( LOG_DEBUG, "q_deliver %s: calling smtp_reset",
+	syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_reset",
 		d->d_env->e_id );
 	if (( smtp_error = smtp_rset( *snet_smtp, deliver_q ))
 		!= SMTP_OK ) {
@@ -882,7 +876,7 @@ deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
     }
 
     d->d_attempt = 1;
-    syslog( LOG_DEBUG, "q_deliver %s: calling smtp_send",
+    syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_send",
 	    d->d_env->e_id );
     if (( smtp_error = smtp_send( *snet_smtp, deliver_q, d )) == SMTP_OK ) {
 	simta_smtp_outbound_delivered++;
@@ -895,13 +889,13 @@ smtp_cleanup:
 	    default:
 	    case SMTP_ERROR:
 		if ( snet_eof( *snet_smtp ) != 0 ) {
-		    syslog( LOG_DEBUG, "q_deliver %s: call smtp_quit",
+		    syslog( LOG_DEBUG, "deliver_remote %s: call smtp_quit",
 			    d->d_env->e_id );
 		    smtp_quit( *snet_smtp, deliver_q );
 		}
 
 	    case SMTP_BAD_CONNECTION:
-		syslog( LOG_DEBUG, "q_deliver %s: call snet_close",
+		syslog( LOG_DEBUG, "deliver_remote %s: call snet_close",
 			d->d_env->e_id );
 		if ( snet_close( *snet_smtp ) < 0 ) {
 		    syslog( LOG_ERR, "snet_close: %m" );
@@ -911,4 +905,3 @@ smtp_cleanup:
 	}
     }
 }
-

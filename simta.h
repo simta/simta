@@ -28,6 +28,7 @@
 
 
 /* global variables */
+
 extern unsigned int			simta_bounce_seconds;
 extern int				simta_ignore_reverse;
 extern int				simta_receive_wait;
@@ -54,6 +55,8 @@ extern struct host_q			*simta_null_q;
 extern struct stab_entry		*simta_hosts;
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
+extern int				(*simta_local_mailer)(int, char *,
+						struct recipient *);
 
 void	smtp_receive ___P(( int, struct sockaddr_in * ));
 char	*simta_sender ___P(( void ));
