@@ -404,7 +404,7 @@ q_runner( struct host_q **host_q )
 		q_deliver( hq );
 
 	    } else {
-		syslog( LOG_ERR, "q_run: host_type %d out of range %s",
+		syslog( LOG_ERR, "q_runner: host_type %d out of range %s",
 			hq->hq_status, hq->hq_hostname );
 	    }
 	}
@@ -456,19 +456,19 @@ q_runner( struct host_q **host_q )
 			    unexpanded->m_id );
 
 		    if ( stat( dfile_fname, &sb ) != 0 ) {
-			syslog( LOG_ERR, "q_run stat %s: %m", dfile_fname );
+			syslog( LOG_ERR, "q_runner stat %s: %m", dfile_fname );
 			goto oldfile_error;
 		    }
 
 		    if ( gettimeofday( &tv, NULL ) != 0 ) {
-			syslog( LOG_ERR, "q_run gettimeofday: %m" );
+			syslog( LOG_ERR, "q_runner gettimeofday: %m" );
 			goto oldfile_error;
 		    }
 
 		    /* consider Dfiles old if they're over 3 days */
 		    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
 oldfile_error:
-			syslog( LOG_DEBUG, "q_run %s: old unexpandable "
+			syslog( LOG_DEBUG, "q_runner %s: old unexpandable "
 				"message, bouncing", env->e_id );
 			env->e_flags = ( env->e_flags | ENV_UNEXPANDED );
 			env->e_flags = ( env->e_flags | ENV_BOUNCE );
@@ -505,7 +505,7 @@ oldfile_error:
 	    if ( snet_lock != NULL ) {
 		/* release lock */
 		if ( snet_close( snet_lock ) != 0 ) {
-		    syslog( LOG_ERR, "q_run snet_close: %m" );
+		    syslog( LOG_ERR, "q_runner snet_close: %m" );
 		}
 	    }
 
@@ -1028,7 +1028,7 @@ q_runner_dir( char *dir )
     char			hostname[ MAXHOSTNAMELEN + 1 ];
 
     if (( dirp = opendir( dir )) == NULL ) {
-	syslog( LOG_ERR, "q_runner_d opendir %s: %m", dir );
+	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
 	return( EXIT_OK );
     }
 
@@ -1039,7 +1039,7 @@ q_runner_dir( char *dir )
 
 	if ( errno != 0 ) {
 	    /* error reading directory, try to deliver what we got already */
-	    syslog( LOG_ERR, "q_runner_d readdir %s: %m", dir );
+	    syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
 	    break;
 
 	} else if ( entry == NULL ) {
