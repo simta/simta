@@ -325,20 +325,19 @@ env_outfile( struct envelope *e )
     if (( tff = fdopen( fd, "w" )) == NULL ) {
 	close( fd );
 	syslog( LOG_ERR, "env_outfile fdopen: %m" );
-	goto cleanup;
+	unlink( tf );
+	return( -1 );
     }
 
     /* SIMTA_VERSION_STRING */
     if ( fprintf( tff, "%s\n", SIMTA_VERSION_STRING ) < 0 ) {
 	syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	fclose( tff );
 	goto cleanup;
     }
 
     /* Idinode */
     if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {
 	syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	fclose( tff );
 	goto cleanup;
     }
 
@@ -346,14 +345,12 @@ env_outfile( struct envelope *e )
     if (( *e->e_hostname != '\0' ) && ( e->e_dir != simta_dir_dead )) {
 	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	    fclose( tff );
 	    goto cleanup;
 	}
 
     } else {
 	if ( fprintf( tff, "H\n" ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	    fclose( tff );
 	    goto cleanup;
 	}
     }
@@ -362,14 +359,12 @@ env_outfile( struct envelope *e )
     if ( e->e_mail != NULL ) {
 	if ( fprintf( tff, "F%s\n", e->e_mail ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	    fclose( tff );
 	    goto cleanup;
 	}
 
     } else {
 	if ( fprintf( tff, "F\n" ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	    fclose( tff );
 	    goto cleanup;
 	}
     }
@@ -379,14 +374,12 @@ env_outfile( struct envelope *e )
 	for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( fprintf( tff, "R%s\n", r->r_rcpt ) < 0 ) {
 		syslog( LOG_ERR, "env_outfile fprintf: %m" );
-		fclose( tff );
 		goto cleanup;
 	    }
 	}
 
     } else {
 	syslog( LOG_ERR, "env_outfile %s: no recipients", e->e_id );
-	fclose( tff );
 	goto cleanup;
     }
 
@@ -401,12 +394,14 @@ env_outfile( struct envelope *e )
     /* sync? */
     if ( fclose( tff ) != 0 ) {
 	syslog( LOG_ERR, "env_outfile fclose: %m" );
-	goto cleanup;
+	unlink( tf );
+	return( -1 );
     }
 
     if ( rename( tf, ef ) < 0 ) {
 	syslog( LOG_ERR, "env_outfile rename %s %s: %m", tf, ef );
-	goto cleanup;
+	unlink( tf );
+	return( -1 );
     }
 
     if ( e->e_dir == simta_dir_fast ) {
@@ -420,8 +415,8 @@ env_outfile( struct envelope *e )
     return( 0 );
 
 cleanup:
+    fclose( tff );
     unlink( tf );
-
     return( -1 );
 }
 
