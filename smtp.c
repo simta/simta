@@ -197,11 +197,11 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     /* CONNECTION ESTABLISHMENT
      *	    S: 2*
      *
-     *	    E: 4*: tmp failure
+     *	    tmp: 4*
      *		- close connection
      *		- clear queue
      *
-     *	    E: 5*, *, detect mail loop: perm failure
+     *	    perm: *, detect mail loop
      *		- capture message in struct host_q
      *		- close connection
      *		- bounce queue
@@ -449,11 +449,11 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     /* EHLO or HELO
      *	    S: 2*
      *
-     *	    E: 4*: tmp system failure
+     *	    tmp: 4*
      *		- close connection
      *		- clear queue
      *
-     *	    E: *, 5*: tmp system failure
+     *	    perm: *
      *		- capture message in struct host_q
      *		- close connection
      *		- bounce queue
@@ -620,11 +620,11 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     /* MAIL
      *	    S: 2*
      *
-     *	    E: 4*: tmp system failure
+     *	    tmp: 4*: tmp system failure
      *		- close connection
      *		- clear queue
      *
-     *	    E: *, 5*: perm address failure
+     *	    perm: *
      *		- capture error text in struct envelope
      *		- bounce current mesage
      *		- try next message
@@ -762,12 +762,12 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	/* RCPT
 	 *	    S: 2* (but see section 3.4 for discussion of 251 and 551)
 	 *
-	 *	    E: 552, 4* : tmp system failure
+	 *	    tmp: 552, 4*
 	 *		- if old dfile, capture error text in struct rcpt
 	 *		- if old dfile, bounce current rcpt in struct rcpt
 	 *		- try next rcpt
 	 *
-	 *	    E: 5*, *: perm address failure
+	 *	    perm: *
 	 *		- capture error text in struct rcpt
 	 *		- bounce current rcpt
 	 *		- try next rcpt
@@ -876,11 +876,11 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     /* DATA
      *	    S: 3*
      *
-     *	    E: 4*: tmp system failure
+     *	    tmp: 4*
      *		- close connection
      *		- clear queue
      *
-     *	    E: 5*, *: perm system failure
+     *	    perm: *
      *		- capture error text in struct envelope
      *		- bounce current mesage
      *		- try next message
@@ -1052,11 +1052,11 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     /* DATA_EOF
      *	    S: 2*
      *
-     *	    E: 4*: tmp system failure
+     *	    tmp: 4*
      *		- close connection
      *		- clear queue
      *
-     *	    E: 5*, *: perm system failure
+     *	    perm: *
      *		- capture error text in struct envelope
      *		- bounce current mesage
      *		- try next message
@@ -1201,7 +1201,7 @@ smtp_rset( SNET *snet, struct host_q *hq )
     /* RSET
      *	    S: 2*
      *
-     *	    E: *: perm system failure
+     *	    perm: *
      *		- capture message in struct host_q
      *		- close connection
      *		- bounce queue
@@ -1321,7 +1321,7 @@ smtp_quit( SNET *snet, struct host_q *hq )
     /* QUIT
      *	    S: 2*
      *
-     *	    E: *: tmp system failure
+     *	    tmp: *
      *		- close connection
      *		- clear queue
      */
