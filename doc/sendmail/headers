@@ -1,0 +1,115 @@
+================================================================================
+cron
+--------------------------------------------------------------------------------
+/usr/lib/sendmail -oi epcjr
+
+From epcjr Mon Feb 10 10:29 EST 2003
+To: epcjr
+Subject: Output from "at" job
+Content-Type: text
+Content-Length: 101
+
+Your "at" job on unknown
+"/var/spool/cron/atjobs/1044890936.b"
+
+produced the following output:
+
+text batch test
+
+
+================================================================================
+elm
+--------------------------------------------------------------------------------
+/usr/lib/sendmail -oi -oem elm@test.com
+
+Subject: elm test
+To: elm@test.com
+Date: Fri, 7 Feb 2003 12:45:01 -0500 (EST)
+X-Mailer: ELM [version 2.5 PL6]
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+text
+elm test
+
+
+================================================================================
+mail
+--------------------------------------------------------------------------------
+/usr/lib/sendmail -oi mail@test.com
+
+From epcjr Sun Feb  9 20:31 EST 2003
+Content-Type: text
+Content-Length: 15
+
+text
+mail test
+
+
+================================================================================
+mailx
+--------------------------------------------------------------------------------
+mail -i mailx@test.com
+
+From: epcjr@unknown
+To: mailx@test.com
+Subject: mailx test
+Content-Length: 16
+
+text
+mailx test
+
+
+================================================================================
+mutt
+--------------------------------------------------------------------------------
+sendmail -oem -oi -- mutt@test.com
+
+Date: Tue, 18 Feb 2003 09:41:35 -0500
+From: epcjr@unknown.comcast.com
+To: mutt@test.com
+Subject: mutt test
+Message-ID: <20030218144135.GA3336@unknown.comcast.com>
+Mime-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+Content-Disposition: inline
+User-Agent: Mutt/1.4i
+
+text
+mutt test
+
+
+================================================================================
+nmh
+--------------------------------------------------------------------------------
+
+
+================================================================================
+nefu
+--------------------------------------------------------------------------------
+/usr/lib/sendmail -fnefu -odb -t
+
+To: whomever
+From: nefu-monitor (uname)
+Subject: machine test state change
+
+text
+info
+
+
+================================================================================
+pine
+--------------------------------------------------------------------------------
+/usr/lib/sendmail
+
+Date: Fri, 7 Feb 2003 11:37:17 -0500 (EST)
+From: epcjr@unknown
+To: pine@test.com
+Subject: pine test
+Message-ID: <Pine.GSO.4.53.0302071137010.13914@unknown>
+MIME-Version: 1.0
+Content-Type: TEXT/PLAIN; charset=US-ASCII
+
+text
+pine test
