@@ -53,7 +53,7 @@ address_bounce_create( struct expand *exp )
 {
     struct envelope		*bounce_env;
 
-    if (( bounce_env = env_create( NULL )) == NULL ) {
+    if (( bounce_env = env_create( simta_postmaster )) == NULL ) {
 	return( NULL );
     }
 
@@ -62,7 +62,6 @@ address_bounce_create( struct expand *exp )
 	return( NULL );
     }
 
-    bounce_env->e_mail = simta_postmaster;
     bounce_env->e_dir = simta_dir_fast;
     bounce_env->e_next = exp->exp_errors;
     exp->exp_errors = bounce_env;
@@ -81,7 +80,9 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 {
     char			*address;
     struct exp_addr		*e;
+#ifdef HAVE_LDAP
     struct exp_addr		*parent;
+#endif /* HAVE_LDAP */
 
     if (( address = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "add_address: strdup: %m" );
@@ -241,13 +242,13 @@ address_local( char *addr )
 	} else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
 	    /* Check LDAP */
 	    *at = '\0';
-	    rc = ldap_address_local( addr, domain );
+	    rc = simta_ldap_address_local( addr, domain );
 	    *at = '@';
 
 	    switch ( rc ) {
 	    default:
 		syslog( LOG_ERR,
-			"address_local ldap_address_local: bad return value" );
+			"address_local simta_ldap_address_local: bad value" );
 	    case LDAP_SYSERROR:
 		return( ADDRESS_SYSERROR );
 
@@ -472,7 +473,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 #ifdef HAVE_LDAP
         else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
 ldap_exclusive:
-	    switch ( ldap_expand( exp, e_addr )) {
+	    switch ( simta_ldap_expand( exp, e_addr )) {
 
 	    case LDAP_EXCLUDE:
 		syslog( LOG_DEBUG, "address_expand %s EXPANDED: ldap",
@@ -503,7 +504,9 @@ ldap_exclusive:
 
     }
 
+#ifdef HAVE_LDAP
 not_found:
+#endif /* HAVE_LDAP */
 
     syslog( LOG_DEBUG, "address_expand %s FINAL: not found", e_addr->e_addr );
 

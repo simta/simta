@@ -59,7 +59,12 @@ env_dup( struct envelope *env )
     struct envelope	*dup;
     struct recipient	*r;
 
-    if (( dup = env_create( NULL )) == NULL ) {
+    if (( dup = env_create( env->e_mail )) == NULL ) {
+	return( NULL );
+    }
+
+    if ( env_gettimeofday_id( dup ) != 0 ) {
+	env_free( dup );
 	return( NULL );
     }
 
@@ -78,7 +83,7 @@ env_dup( struct envelope *env )
 
 
     struct envelope *
-env_create( char *id )
+env_create( char *e_mail )
 {
     struct envelope	*env;
 
@@ -88,19 +93,14 @@ env_create( char *id )
 	return( NULL );
     }
     memset( env, 0, sizeof( struct envelope ));
+    *env->e_id = '\0';
 
-    if ( id != NULL ) {
-	/* XXX const val should be dynamic or #defined */
-	if ( strlen( id ) > 29 ) {
-	    syslog( LOG_ERR, "env_create %s: id too long", id );
-	    free( env );
+    if ( e_mail != NULL ) {
+	if (( env->e_mail = strdup( e_mail )) == NULL ) {
+	    syslog( LOG_ERR, "env_create strdup: %m" );
+	    env_free( env );
 	    return( NULL );
 	}
-
-	strcpy( env->e_id, id );
-
-    } else {
-	*env->e_id = '\0';
     }
 
     return( env );
@@ -224,10 +224,21 @@ env_recipient( struct envelope *e, char *addr )
     }
     memset( r, 0, sizeof( struct recipient ));
 
-    if (( r->r_rcpt = strdup( addr )) == NULL ) {
-	syslog( LOG_ERR, "env_recipient strdup: %m" );
-	free( r );
-	return( -1 );
+    if (( addr == NULL ) || ( *addr == '\0' )) {
+	/* XXX if no rcpt, is simta_postmaster default? */
+	syslog( LOG_ERR, "env_recipient NULL recipient" );
+	if (( r->r_rcpt = strdup( simta_postmaster )) == NULL ) {
+	    syslog( LOG_ERR, "env_recipient strdup: %m" );
+	    free( r );
+	    return( -1 );
+	}
+
+    } else {
+	if (( r->r_rcpt = strdup( addr )) == NULL ) {
+	    syslog( LOG_ERR, "env_recipient strdup: %m" );
+	    free( r );
+	    return( -1 );
+	}
     }
 
     r->r_next = e->e_rcpt;

@@ -72,47 +72,47 @@ procmail( int f, char *sender, struct recipient *recipient )
 
     if (( procmail_bin == NULL ) || ( *procmail_bin == '\0' )) {
 	syslog( LOG_ERR, "procmail not supported" );
-	return( -1 );
+	return( EX_TEMPFAIL );
     }
 
     if ( pipe( fd ) < 0 ) {
 	syslog( LOG_ERR, "procmail pipe: %m" );
-	return( -1 );
+	return( EX_TEMPFAIL );
     }
 
     switch ( pid = fork()) {
     case -1 :
 	syslog( LOG_ERR, "procmail fork: %m" );
-	return( -1 );
+	return( EX_TEMPFAIL );
 
     case 0 :
 	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
 	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "procmail close: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	/* stdout -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 1 ) < 0 ) {
 	    syslog( LOG_ERR, "procmail dup2: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	/* stderr -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 2 ) < 0 ) {
 	    syslog( LOG_ERR, "procmail dup2: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "procmail close: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	/* f -> stdin */
 	if ( dup2( f, 0 ) < 0 ) {
 	    syslog( LOG_ERR, "procmail dup2: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	procmail_argv[ 2 ] = sender;
@@ -121,18 +121,18 @@ procmail( int f, char *sender, struct recipient *recipient )
 	execv( procmail_bin, procmail_argv );
 	/* if we are here, there is an error */
 	syslog( LOG_ERR, "procmail execv: %m" );
-	exit( 1 );
+	exit( EX_TEMPFAIL);
 
     default :
 	/* use fd[ 1 ] to communicate with child, child uses fd[ 0 ] */
 	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "procmail close: %m" );
-	    return( -1 );
+	    return( EX_TEMPFAIL );
 	}
 
 	if (( snet = snet_attach( fd[ 1 ], 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
-	    return( -1 );
+	    return( EX_TEMPFAIL );
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
@@ -141,24 +141,24 @@ procmail( int f, char *sender, struct recipient *recipient )
 	    if ( recipient->r_text == NULL ) {
 		if (( recipient->r_text = line_file_create()) == NULL ) {
 		    syslog( LOG_ERR, "line_file_create: %m" );
-		    return( -1 );
+		    return( EX_TEMPFAIL );
 		}
 	    }
 
 	    if ( line_append( recipient->r_text, line ) == NULL ) {
 		syslog( LOG_ERR, "line_append: %m" );
-		return( -1 );
+		return( EX_TEMPFAIL );
 	    }
 	}
 
 	if ( snet_close( snet ) < 0 ) {
 	    syslog( LOG_ERR, "procmail snet_close: %m" );
-	    return( -1 );
+	    return( EX_TEMPFAIL );
 	}
 
 	if (( waitpid( pid, &status, 0 ) < 0 ) && ( errno != ECHILD )) {
 	    syslog( LOG_ERR, "procmail waitpid: %m" );
-	    return( -1 );
+	    return( EX_TEMPFAIL );
 	}
 
 	if ( WIFEXITED( status )) {
@@ -178,11 +178,11 @@ procmail( int f, char *sender, struct recipient *recipient )
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "procmail %d died on signal %d\n", pid, 
 		    WTERMSIG( status ));
-	    return( -1 );
+	    return( EX_TEMPFAIL);
 
 	} else {
 	    syslog( LOG_ERR, "procmail %d died\n", pid );
-	    return( -1 );
+	    return( EX_TEMPFAIL);
 	}
     }
 }
@@ -207,47 +207,47 @@ mail_local( int f, char *sender, struct recipient *recipient )
 
     if (( maillocal_bin == NULL ) || ( *maillocal_bin == '\0' )) {
 	syslog( LOG_WARNING, "mail.local not supported" );
-	return( -1 );
+	return( EX_TEMPFAIL );
     }
 
     if ( pipe( fd ) < 0 ) {
 	syslog( LOG_ERR, "mail_local pipe: %m" );
-	return( -1 );
+	return( EX_TEMPFAIL );
     }
 
     switch ( pid = fork()) {
     case -1 :
 	syslog( LOG_ERR, "mail_local fork: %m" );
-	return( -1 );
+	return( EX_TEMPFAIL );
 
     case 0 :
 	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
 	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local close: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	/* stdout -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 1 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local dup2: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	/* stderr -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 2 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local dup2: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local close: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	/* f -> stdin */
 	if ( dup2( f, 0 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local dup2: %m" );
-	    exit( 1 );
+	    exit( EX_TEMPFAIL);
 	}
 
 	maillocal_argv[ 2 ] = sender;
@@ -256,18 +256,18 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	execv( maillocal_bin, maillocal_argv );
 	/* if we are here, there is an error */
 	syslog( LOG_ERR, "mail_local execv: %m" );
-	exit( 1 );
+	exit( EX_TEMPFAIL);
 
     default :
 	/* use fd[ 1 ] to communicate with child, child uses fd[ 0 ] */
 	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local close: %m" );
-	    return( -1 );
+	    return( EX_TEMPFAIL );
 	}
 
 	if (( snet = snet_attach( fd[ 1 ], 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
-	    return( -1 );
+	    return( EX_TEMPFAIL );
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
@@ -276,24 +276,24 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	    if ( recipient->r_text == NULL ) {
 		if (( recipient->r_text = line_file_create()) == NULL ) {
 		    syslog( LOG_ERR, "line_file_create: %m" );
-		    return( -1 );
+		    return( EX_TEMPFAIL );
 		}
 	    }
 
 	    if ( line_append( recipient->r_text, line ) == NULL ) {
 		syslog( LOG_ERR, "line_append: %m" );
-		return( -1 );
+		return( EX_TEMPFAIL );
 	    }
 	}
 
 	if ( snet_close( snet ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local snet_close: %m" );
-	    return( -1 );
+	    return( EX_TEMPFAIL );
 	}
 
 	if (( waitpid( pid, &status, 0 ) < 0 ) && ( errno != ECHILD )) {
 	    syslog( LOG_ERR, "mail_local waitpid: %m" );
-	    return( -1 );
+	    return( EX_TEMPFAIL );
 	}
 
 	if ( WIFEXITED( status )) {
@@ -313,11 +313,11 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "mail.local %d died on signal %d\n", pid, 
 		    WTERMSIG( status ));
-	    return( -1 );
+	    return( EX_TEMPFAIL);
 
 	} else {
 	    syslog( LOG_ERR, "mail.local %d died\n", pid );
-	    return( -1 );
+	    return( EX_TEMPFAIL);
 	}
     }
 }

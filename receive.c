@@ -342,6 +342,7 @@ f_mail( snet, env, ac, av )
 	env_reset( env );
     }
 
+    /* XXX gettimeofday_id */
     if ( gettimeofday( &tv, NULL ) < 0 ) {
 	syslog( LOG_ERR, "f_mail: gettimeofday: %m" );
 	return( -1 );

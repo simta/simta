@@ -186,8 +186,8 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     /* dfile message headers */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
     if (( bounce_env->e_mail == NULL ) || ( *bounce_env->e_mail == '\0' )) {
-	fprintf( dfile, "To: %s\n", simta_postmaster );
 	/* XXX ERROR */
+	fprintf( dfile, "To: %s\n", simta_postmaster );
     } else {
 	fprintf( dfile, "To: %s\n", bounce_env->e_mail );
     }
@@ -198,6 +198,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     for ( l = bounce_env->e_err_text->l_first; l != NULL; l = l->line_next ) {
 	fprintf( dfile, "%s\n", l->line_data );
     }
+    fprintf( dfile, "\n" );
 
     if ( message != NULL ) {
 	fprintf( dfile, "\n" );
@@ -253,20 +254,15 @@ bounce( struct envelope *env, SNET *message )
 
     syslog( LOG_DEBUG, "bounce.starting" );
 
-    if (( bounce_env = env_create( NULL )) == NULL ) {
+    if (( bounce_env = env_create( simta_postmaster )) == NULL ) {
 	return( NULL );
     }
 
-    if ( gettimeofday( &tv, NULL ) != 0 ) {
-	syslog( LOG_ERR, "bounce gettimeofday: %m" );
+    if ( env_gettimeofday_id( bounce_env ) != 0 ) {
 	goto cleanup1;
     }
 
-    sprintf( bounce_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
-	    (unsigned long)tv.tv_usec );
-
     bounce_env->e_dir = simta_dir_fast;
-    bounce_env->e_mail = simta_postmaster;
 
     if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' ) ||
 	    ( strcasecmp( env->e_mail, simta_postmaster ) == 0 )) {
@@ -284,6 +280,7 @@ bounce( struct envelope *env, SNET *message )
 	}
 
     } else {
+	/* XXX what if no env->e_mail? */
         if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
             goto cleanup1;
         }
@@ -333,11 +330,9 @@ bounce( struct envelope *env, SNET *message )
     fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
     fprintf( dfile, "\n" );
 
-    /* XXX bounce message */
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
 
-    /* XXX oldfile message */
     if ( env->e_old_dfile != 0 ) {
         fprintf( dfile, "It was over three days old.\n" );
         fprintf( dfile, "\n" );

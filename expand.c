@@ -45,6 +45,7 @@
 #include "ll.h"
 #include "simta.h"
 #include "bounce.h"
+#include "line_file.h"
 
 int				simta_expand_debug = 0;
 
@@ -221,24 +222,19 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    }
 
 	    /* Create envelope and add it to list */
-	    if (( env = env_create( NULL )) == NULL ) {
+	    if (( env = env_create( unexpanded_env->e_mail )) == NULL ) {
 		syslog( LOG_ERR, "expand.env_create: %m" );
-		goto cleanup2;
-	    }
-
-	    if ( env_gettimeofday_id( env ) != 0 ) {
-		env_free( env );
 		goto cleanup2;
 	    }
 
 	    /* fill in env */
 	    env->e_dir = simta_dir_fast;
-	    if (( env->e_mail = strdup( unexpanded_env->e_mail )) == NULL ) {
-		syslog( LOG_ERR, "expand.strdup: %m" );
+	    strcpy( env->e_expanded, domain );
+
+	    if ( env_gettimeofday_id( env ) != 0 ) {
 		env_free( env );
 		goto cleanup2;
 	    }
-	    strcpy( env->e_expanded, domain );
 
 	    /* Add env to host_stab */
 	    if ( ll_insert( &host_stab, env->e_expanded, env, NULL ) != 0 ) {
@@ -366,6 +362,9 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		    message_free( m );
 		    goto cleanup4;
 		}
+
+		line_file_free( env->e_err_text );
+		env->e_err_text = NULL;
 
 		if ( snet != NULL ) {
 		    if ( snet_close( snet ) != 0 ) {

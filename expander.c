@@ -63,12 +63,7 @@ main( int argc, char *argv[])
 	exit( EX_DATAERR );
     }
 
-    if (( env = env_create( NULL )) == NULL ) {
-	perror( "malloc" );
-	return( 1 );
-    }
-
-    if (( env = env_create( NULL )) == NULL ) {
+    if (( env = env_create( "sender@expansion.test" )) == NULL ) {
 	perror( "malloc" );
 	return( 1 );
     }
@@ -77,8 +72,6 @@ main( int argc, char *argv[])
 	perror( "malloc" );
 	return( 1 );
     }
-
-    env->e_mail = "sender@expansion.test";
 
     return( expand( &hq, env ));
 }
