@@ -217,6 +217,7 @@ header_end( struct line_file *lf, char *line )
 	if ( lf->l_first != NULL ) {
 
 	    /* line could be FWS if there's something on it (rfc2822 3.2.3) */
+	    /* XXX obs-FWS allows blank lines */
 	    for ( c = line + 1; *c != '\0'; c++ ) {
 		if (( *line != ' ' ) || ( *line != '\t' )) {
 		    return( 0 );

@@ -170,7 +170,7 @@ main( int argc, char *argv[] )
     /* start in header mode */
     header = 1;
 
-    /* XXX RFC 2822 2.1.1. Line Length Limits
+    /* RFC 2822 2.1.1. Line Length Limits:
      * There are two limits that this standard places on the number of    
      * characters in a line. Each line of characters MUST be no more than   
      * 998 characters, and SHOULD be no more than 78 characters, excluding
@@ -178,6 +178,11 @@ main( int argc, char *argv[] )
      */
 
     while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
+	if ( strlen( line ) > 998 ) {
+	    fprintf( stderr, "line too long\n" );
+	    exit( 1 );
+	}
+
 	if ( ignore_dot == 0 ) {
 	    if (( line[ 0 ] == '.' ) && ( line[ 1 ] =='\0' )) {
 		/* single dot on a line */
@@ -301,6 +306,8 @@ main( int argc, char *argv[] )
 	perror( "env_outfile" );
 	goto cleanup;
     }
+
+    /* XXX signal */
 
     return( 0 );
 
