@@ -569,7 +569,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 	break;
 
     default:
-	d->d_env->e_flags = ENV_BOUNCE;
+	d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
     case '4':
 	syslog( LOG_NOTICE, "smtp_send %s %s: bad DATA reply: %s",
 		d->d_env->e_id, hq->hq_hostname, line );
@@ -654,7 +654,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 	break;
 
     default:
-	d->d_env->e_flags = ENV_BOUNCE;
+	d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
 	syslog( LOG_NOTICE, "smtp_send %s %s: bad DATA_EOF reply: %s",
 		d->d_env->e_id, hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(d->d_env->e_err_text), snet, &tv, line,
