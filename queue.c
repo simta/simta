@@ -746,6 +746,7 @@ lseek_fail:
                     return( -1 );
 
                 } else if ( result == SMTP_ERR_REMOTE ) {
+		    snet = NULL;
 		    goto cleanup;
                 }
             }
@@ -887,6 +888,8 @@ cleanup:
 		    return( -1 );
 		}
 	    }
+
+	    syslog( LOG_DEBUG, "q_deliver %s delivered", env->e_id );
 
 	    if ( env_unlink( env ) != 0 ) {
                     /* XXX next message */
