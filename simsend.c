@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <snet.h>
 
@@ -109,7 +110,6 @@ headers( struct message *m )
 	if ( message_prepend_line( m, "From: default" ) == NULL ) {
 	    return( -1 );
 	}
-
     }
 
     if ( header_nl[ HEAD_SENDER ].n_data == NULL ) {
@@ -161,6 +161,46 @@ main( int argc, char *argv[] )
     char		*line;
     struct message	*m;
     struct line		*l;
+    int			errs = 0;
+    int			c;
+    int			ignore_dot = 0;
+
+
+    while (( c = getopt( argc, argv, "f:h:ip:tVv" )) != -1 ) {
+	switch ( c ) {
+	case 'f':
+	    /* set the "From:" header */
+	    /* security concern if not UID@hostname */
+	    break;
+
+	case 'i':
+	    /* Ignore a single dot on a line as an end of message marker */
+    	    ignore_dot = 1;
+	    break;
+
+	case 't':
+	    /* read message for recipients in "To", "Cc", and "Bcc" headers */
+	    break;
+
+	case 'v':
+	    /* go into verbose mode */
+	    break;
+
+	default:
+	    errs++;
+	    break;
+	}
+    }
+
+    if ( errs != 0 ) {
+	fprintf( stderr, "Usage: %s ", argv[ 0 ] );
+	fprintf( stderr, "[ -f from-address ] " );
+	fprintf( stderr, "[ -i ] " );
+	fprintf( stderr, "[ -t ] " );
+	fprintf( stderr, "[ -v ] " );
+	fprintf( stderr, "[ to-address ...]\n" );
+	exit( 1 );
+    }
 
     if (( m = message_create()) == NULL ) {
 	perror( "message_create" );
@@ -173,6 +213,13 @@ main( int argc, char *argv[] )
     }
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
+	if ( ignore_dot == 0 ) {
+	    if (( line[ 0 ] == '.' ) && ( line[ 1 ] =='\0' )) {
+		/* single dot on a line */
+		break;
+	    }
+	}
+
 	if (( l = message_line( m, line )) == NULL ) {
 	    perror( "message_line" );
 	    exit( 1 );
@@ -184,7 +231,7 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
-    switch( headers( m )) {
+    switch ( headers( m )) {
     default:
     case -1:
 	/* serious error */
