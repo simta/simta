@@ -21,10 +21,28 @@
 #include "receive.h"
 #include "simta.h"
 
+#define	TOKEN_UNDEFINED		0;
+#define	TOKEN_QS		1;
+#define	TOKEN_DA		2;
 
+
+struct line_token {
+    int			t_type;
+    char		*t_start;
+    struct line		*t_start_line;
+    char		*t_end;
+    struct line		*t_end_line;
+};
+
+
+int	is_dot_atom_text ___P(( int ));
 int	skip_cfws ___P(( struct line **, char ** ));
 int	header_from_correct ___P(( struct line_file * ));
 int	header_from ___P(( struct header * ));
+int	email_addr ___P(( struct line **, char ** ));
+int	header_mbox_correct ___P(( struct line *, char * ));
+int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
+int	line_token_da ___P(( struct line_token *, struct line *, char * ));
 
 
 struct header simta_headers[] = {
@@ -142,29 +160,6 @@ header_stdout( struct header h[])
     }
 }
 
-
-    int
-count_words( char *l )
-{
-    int			space = 1;
-    int			words = 0;
-    char		*c;
-
-    for ( c = l; *c != '\0'; c++ ) {
-	if (( *c != ' ' ) && ( *c != '\t' )) {
-	    /* not space */
-	    if ( space == 1 ) {
-		words++;
-		space = 0;
-	    }
-	} else {
-	    /* space */
-	    space = 1;
-	}
-    }
-
-    return( words );
-}
 
 
     /* Some mail clents exhibit bad behavior when generating headers.
@@ -495,260 +490,6 @@ header_correct( struct line_file *lf, struct envelope *env )
 }
 
 
-    char *
-header_unfold( struct line *line )
-{
-    char		*unfolded;
-    char		*c;
-    struct line		*l;
-
-    for ( c = line->line_data; *c != ':'; c++ )
-	    ;
-
-    /* eliminate all leading WSP */
-    c++;
-
-    while (( *c == ' ' ) || ( *c == '\t' )) {
-	c++;
-    }
-
-    if (( unfolded = (char*)malloc( strlen( c ) + 1 )) == NULL ) {
-	return( NULL );
-    }
-
-    strcpy( unfolded, c );
-
-    for ( l = line->line_next; l != NULL; l = l->line_next ) {
-	/* is the line FWS? */
-	if (( *l->line_data == ' ' ) || ( *l->line_data == '\t' )) {
-
-	    /* eliminate all WSP except the last one */
-	    c = l->line_data;
-
-	    while (( *(c + 1) == ' ' ) || ( *(c + 1) == '\t' )) {
-		c++;
-	    }
-
-	    if (( unfolded = (char*)realloc( unfolded, strlen( unfolded ) +
-		    strlen( c ) + 1 )) == NULL ) {
-		return( NULL );
-	    }
-
-	    strcat( unfolded, c );
-
-	} else {
-	    break;
-	}
-    }
-
-    return( unfolded );
-}
-
-
-    /* return -1 on syserror
-     * return 0 on success
-     * return 1 if the headers can't be uncommented
-     */
-
-    int
-header_uncomment( char **line )
-{
-    size_t		before;
-    size_t		after;
-    int			comment = 0;
-    char		*r;
-    char		*w;
-
-    before = strlen( *line );
-
-    r = *line;
-    w = *line;
-
-    while ( *r != '\0' ) {
-	if ( *r == '\\' ) {
-	    if ( comment == 0 ) {
-		*w = *r;
-		w++;
-	    }
-
-	    r++;
-
-	    if ( *r == '\0' ) {
-		break;
-	    }
-
-	    if ( comment == 0 ) {
-		*w = *r;
-		w++;
-	    }
-	    r++;
-
-	} else if ( *r == '(' ) {
-	    /* start comment */
-	    comment++;
-
-	} else if ( *r == ')' ) {
-	    comment--;
-
-	    if ( comment < 0 ) {
-		/* comment out of order */
-		return( 1 );
-	    }
-
-	} else {
-	    if ( comment == 0 ) {
-		*w = *r;
-		w++;
-	    }
-	}
-
-	r++;
-    }
-
-    *w = '\0';
-
-    after = strlen( *line );
-
-    if ( before > after ) {
-	if (( *line = (char*)realloc( *line, after + 1 )) == NULL ) {
-	    return( -1 );
-	}
-    }
-
-    return( 0 );
-}
-
-
-    int
-header_first_mailbox( char **line, char *localhostname )
-{
-    size_t			before;
-    size_t			after;
-    char			*comma;
-    char			*r;
-    char			*w;
-    char			*c;
-    int				words;
-    int				angle = 0;
-    int				at = 0;
-
-    before = strlen( *line );
-
-    /* XXX only syntax check & use first addr, addrs are seperated by commas */
-    for ( comma = *line; *comma != '\0'; comma++ ) {
-	if ( *comma == ',' ) {
-	    *comma = '\0';
-	    break;
-	}
-    }
-
-    if (( words = count_words( *line )) == 0 ) {
-	*line = '\0';
-    }
-
-    /* put c on last character of last word */
-    for ( c = comma - 1; 1; c-- ) {
-	if (( *c != ' ' ) && ( *c != '\t' )) {
-	    break;
-	}
-    }
-
-    if ( words == 1 ) {
-	if ( **line == '<' ) {
-	    angle = 1;
-	    r = (*line) + 1;
-
-	} else {
-	    r = *line;
-	}
-
-    } else {
-	/* put r on first character of last word */
-	for ( r = c; 1; r-- ) {
-	    if (( *r == ' ' ) || ( *r == '\t' )) {
-		break;
-	    }
-	}
-
-	r++;
-
-	if ( *r != '<' ) {
-	    /* angle bracket syntax error */
-	    return( 1 );
-	}
-
-	r++;
-
-	/* more than one word, require angle brackets */
-	angle = 1;
-    }
-
-    if ( angle == 0 ) {
-	if ( *c == '>' ) {
-	    /* angle bracket syntax error */
-	    return( 2 );
-	}
-
-    } else {
-	if ( *c != '>' ) {
-	    /* angle bracket syntax error */
-	    return( 3 );
-	}
-
-	*c = '\0';
-    }
-
-    w = *line; 
-
-    while ( *r != '\0' ) {
-	if ( *r == '@' ) {
-	    at = 1;
-	    *w = *r;
-	    w++;
-
-	} else if (( *r == '<' ) || ( *r == '>' )) {
-	    /* angle bracket syntax error */
-	    return( 4 );
-
-	} else {
-	    *w = *r;
-	    w++;
-	}
-
-	r++;
-    }
-
-    *w = '\0';
-
-
-    if ( at == 0 ) {
-	/* check to see if we need to append the local domain */
-	after = ( strlen( *line ) + strlen( localhostname ) + 1 ); 
-
-    } else {
-	/* make sure user and domain aren't NULL */
-	after = strlen( *line );
-
-	if (( **line == '@' ) || ( *(*line + after - 1 ) == '@' )) {
-	    /* syntax error: no user, or no domain */
-	    return( 5 );
-	}
-    }
-
-    if ( before > after ) {
-	if (( *line = (char*)realloc( *line, after + 1 )) == NULL ) {
-	    return( -1 );
-	}
-    }
-
-    if ( at == 0 ) {
-	sprintf( *line, "%s@%s", *line, localhostname );
-    }
-
-    return( 0 );
-}
-
-
     /* return 0 if all went well.
      * return 1 if we reject the message.
      * return -1 if there was a serious error.
@@ -800,6 +541,151 @@ header_first_mailbox( char **line, char *localhostname )
      *			    [CFWS]
      */
 
+
+    int
+email_addr( struct line **l, char **start )
+{
+    printf( "XXX email_addr:\t%s\n", *start );
+
+    *start = NULL;
+
+    return( 0 );
+}
+
+
+    int
+header_mbox_correct( struct line *l, char *c )
+{
+    char				*next_c;
+    struct line				*next_l;
+    struct line_token			local;
+    int					result;
+
+    for ( ; ; ) {
+
+	/*
+	 * START: ( NULL )->NULL_ADDR
+	 * START: ( .A | QS )->LOCAL_PART
+	 * START: ( < )->AA_LEFT
+	 */
+
+	if ( c == NULL ) {
+	    /* NULL_ADDR */
+	    return( 1 );
+
+	} else if ( *c != '<' ) {
+
+	    /*
+	     * LOCAL_PART: ( QS | DA ) ( NULL | , | @ ) -> SINGLE_ADDR
+	     * LOCAL_PART: ( QS | DA ) ( < ) -> AA_LEFT
+	     * LOCAL_PART: ( QS | DA ) ( .A | QS ) -> DISPLAY_NAME
+	     */
+
+	    if ( *c == '"' ) {
+		if ( line_token_qs( &local, l, c ) != 0 ) {
+		    fprintf( stderr, "Header From: unbalanced \"\n" );
+		    return( 1 );
+		}
+
+	    } else {
+		if ( line_token_da( &local, l, c ) != 0 ) {
+		    fprintf( stderr, "Header From: syntax error\n" );
+		    return( 1 );
+		}
+	    }
+
+	    next_c = local.t_end + 1;
+	    next_l = local.t_end_line;
+
+	    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+		if ( result > 0 ) {
+		    fprintf( stderr, "From: unbalanced \(\n" );
+		} else {
+		    fprintf( stderr, "From: unbalanced )\n" );
+		}
+		return( 1 );
+	    }
+	
+	    if (( next_c == NULL ) || ( *next_c == ',' ) ||
+		    ( *next_c == '@' )) {
+
+		/* SINGLE_ADDR: email_addr ( NULL ) -> SINGLE_ADDR_DONE )
+		 * SINGLE_ADDR: email_addr [ ( , ) -> START ] )
+		 */
+	
+		c = local.t_start;
+		l = local.t_start_line;
+
+		if (( result = email_addr( &l, &c )) != 0 ) {
+		    return( result );
+		}
+	
+		if ( c == NULL ) {
+		    /* SINGLE_ADDR_DONE */
+		    return( 0 );
+		}
+
+		/* START */
+		continue;
+
+	    } else  {
+		while ( *next_c != '<' ) {
+
+		    /*
+		     * DISPLAY_NAME: ( QS | DA )* ( < ) -> AA_LEFT
+		     */
+
+		    if ( *next_c == '"' ) {
+			if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
+			    fprintf( stderr, "Header From: unbalanced \"\n" );
+			    return( 1 );
+			}
+
+		    } else {
+			if ( line_token_da( &local, next_l, next_c ) != 0 ) {
+			    fprintf( stderr, "Header From: syntax error\n" );
+			    return( 1 );
+			}
+		    }
+
+		    next_c = local.t_end + 1;
+		    next_l = local.t_end_line;
+
+		    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+			if ( result > 0 ) {
+			    fprintf( stderr, "From: unbalanced \(\n" );
+			} else {
+			    fprintf( stderr, "From: unbalanced )\n" );
+			}
+			return( 1 );
+		    }
+		}
+	    }
+
+	    /* set c, l, fall through to AA_LEFT */
+	    c = next_c;
+	    l = next_l;
+	}
+
+	/*
+	 * AA_LEFT: email_addr ( NULL ) -> AA_LEFT_DONE )
+	 * AA_LEFT: email_addr [ ( , ) -> START ] )
+	 */
+
+	if (( result = email_addr( &l, &c )) != 0 ) {
+	    return( result );
+	}
+
+	if ( c == NULL ) {
+	    /* AA_LEFT_DONE */
+	    return( 0 );
+	}
+    }
+
+    return( 0 );
+}
+
+
     int
 header_from_correct( struct line_file *lf )
 {
@@ -821,27 +707,30 @@ header_from_correct( struct line_file *lf )
     if (( l = simta_headers[ HEAD_FROM ].h_line ) != NULL ) {
 	c = l->line_data + 5;
 
-	/* find first word */
-	next_l = l;
 	next_c = c;
+	next_l = l;
 
+	/* is there data on the line? */
 	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	    if ( result > 0 ) {
 		fprintf( stderr, "From: unbalanced \(\n" );
 	    } else {
-		fprintf( stderr, "From: unbalanced \)\n" );
+		fprintf( stderr, "From: unbalanced )\n" );
 	    }
 	    return( 1 );
 	}
 
 	if ( next_c != NULL ) {
-	    printf( "word: \"%s\"\n", next_c );
+	    if (( result = header_mbox_correct( next_l, next_c )) != 0 ) {
+		return( result );
+	    }
 
 	    return( 0 );
 
 	} else {
-	    /* XXX blank line.  correct */
-	    return( 0 );
+	    /* XXX blank line.  correct? */
+	    fprintf( stderr, "From: no data\n" );
+	    return( 1 );
 	}
     }
 
@@ -868,4 +757,124 @@ header_from_correct( struct line_file *lf )
     /* XXX Sender */
 
     return( 0 );
+}
+
+
+    int
+line_token_qs( struct line_token *token, struct line *l, char *start )
+{
+    if ( *start != '"' ) {
+	return( 1 );
+    }
+
+    token->t_start = start;
+    token->t_start_line = l;
+    token->t_type = TOKEN_QS;
+
+    for ( ; ; ) {
+	start++;
+
+	switch( *start ) {
+
+	case '"':
+	    /* end of quoted string */
+	    token->t_end = start;
+	    token->t_end_line = l;
+	    return( 0 );
+
+	case '\\':
+	    start++;
+
+	    if ( *start != '\0' ) {
+		/* XXX should a trailing '\' be illegal? */
+	    	break;
+	    }
+
+	case '\0':
+	    /* end of line.  if next line starts with WSP, continue */
+	    l = l->line_next;
+
+	    if (( l != NULL ) &&
+		    ((( *(l->line_data)) == ' ' ) ||
+		    (( *(l->line_data)) == '\t' ))) {
+		start = l->line_data;
+		break;
+
+	    } else {
+		/* End of header, no matching '"' */
+		return( 1 );
+	    }
+
+	default:
+	    /* everything else */
+	    break;
+
+	}
+    }
+
+    return( 0 );
+}
+
+
+    int
+is_dot_atom_text( int c )
+{
+    if ( isalpha( c ) != 0 ) {
+	return( 1 );
+    }
+
+    if ( isdigit( c ) != 0 ) {
+	return( 1 );
+    }
+
+    switch ( c ) {
+
+    case '!':
+    case '#':
+    case '$':
+    case '%':
+    case '&':
+    case '\'':
+    case '*':
+    case '+':
+    case '-':
+    case '/':
+    case '=':
+    case '?':
+    case '^':
+    case '_':
+    case '`':
+    case '{':
+    case '|':
+    case '}':
+    case '~':
+    case '.':
+	return( 1 );
+
+    default:
+	return( 0 );
+    }
+}
+
+
+    int
+line_token_da( struct line_token *token, struct line *l, char *start )
+{
+    token->t_start = start;
+    token->t_start_line = l;
+    token->t_end_line = l;
+    token->t_type = TOKEN_DA;
+
+    if ( is_dot_atom_text( *start ) == 0 ) {
+	return( 1 );
+    }
+
+    for ( ; ; ) {
+	if ( is_dot_atom_text( *(start + 1)) == 0 ) {
+	    token->t_end = start;
+	    return( 0 );
+	}
+
+	start++;
+    }
 }
