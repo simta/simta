@@ -167,7 +167,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	    /* compare the address in hand with the sender */
 	    if ( simta_mbx_compare( address, exp->exp_env->e_mail ) == 0 ) {
 		/* here we have a match */
-		e->e_addr_status |= STATUS_EMAIL_SENDER;
+		e->e_addr_status = ( e->e_addr_status | STATUS_EMAIL_SENDER );
 	    }
 	}
 #endif /* HAVE_LDAP */
@@ -194,7 +194,8 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
     if (( e->e_addr_status & STATUS_EMAIL_SENDER ) != 0 ) {
 	for ( parent = exp->exp_parent; parent != NULL;
 		parent = parent->e_addr_parent ) {
-	    parent->e_addr_status |= STATUS_EMAIL_SENDER;
+	    parent->e_addr_status =
+		    ( parent->e_addr_status | STATUS_EMAIL_SENDER );
 	}
     }
 #endif /* HAVE_LDAP */

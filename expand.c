@@ -92,7 +92,7 @@ exp_addr_prune( struct exp_addr *e_addr )
 {
     if ( e_addr != NULL ) {
 	e_addr->e_addr_status =
-		( e_addr->e_addr_status & ( !STATUS_TERMINAL ));
+		( e_addr->e_addr_status & ( ~STATUS_TERMINAL ));
 	exp_addr_prune( e_addr->e_addr_peer );
 	exp_addr_prune( e_addr->e_addr_child );
     }
@@ -198,12 +198,13 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    switch ( address_expand( &exp, e_addr )) {
 	    case ADDRESS_EXCLUDE:
 		e_addr->e_addr_status =
-			( e_addr->e_addr_status & ( !STATUS_TERMINAL ));
+			( e_addr->e_addr_status & ( ~STATUS_TERMINAL ));
 		/* the address is not a terminal local address */
 		break;
 
 	    case ADDRESS_FINAL:
-		e_addr->e_addr_status |= STATUS_TERMINAL;
+		e_addr->e_addr_status =
+			( e_addr->e_addr_status | STATUS_TERMINAL );
 		/* the address is a terminal local address */
 		break;
 
@@ -224,8 +225,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	/* prune exclusive groups the sender is not a member of */
 	if ((( e_addr->e_addr_status & STATUS_EMAIL_SENDER ) == 0 ) &&
 		(( e_addr->e_addr_status & STATUS_LDAP_EXCLUSIVE ) != 0 )) {
-	    e_addr->e_addr_status =
-		    ( e_addr->e_addr_status & ( !STATUS_TERMINAL ));
 	    exp_addr_prune( e_addr->e_addr_child );
 	}
 #endif /* HAVE_LDAP */
