@@ -869,7 +869,7 @@ q_deliver( struct host_q *hq )
     }
 
     if ( snet != NULL ) {
-        if (( result = smtp_quit( snet, hq->hq_hostname, logger )) < 0 ) {
+        if (( result = _smtp_quit( snet, hq )) < 0 ) {
             return( -1 );
         }
     }

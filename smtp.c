@@ -616,19 +616,6 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	return( SMTP_ERR_SYSCALL );
     }
 
-    /* CONNECTION ESTABLISHMENT
-     *	    S: 2*
-     *
-     *	    E: 4*: tmp failure
-     *		- close connection
-     *		- clear queue
-     *
-     *	    E: 5*, *, detect mail loop: perm failure
-     *		- capture message in struct host_q
-     *		- close connection
-     *		- bounce queue
-     */
-
     tv.tv_sec = SMTP_TIME_CONNECT;
     tv.tv_usec = 0;
 
@@ -650,6 +637,19 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	(*smtp_logger)( line );
     }
 
+    /* CONNECTION ESTABLISHMENT
+     *	    S: 2*
+     *
+     *	    E: 4*: tmp failure
+     *		- close connection
+     *		- clear queue
+     *
+     *	    E: 5*, *, detect mail loop: perm failure
+     *		- capture message in struct host_q
+     *		- close connection
+     *		- bounce queue
+     */
+
     if ( *line == '4' ) {
 	hq->hq_status = HOST_DOWN;
 
@@ -668,7 +668,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq->hq_hostname, smtp_logger ) < 0 ) {
+	if ( _smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -754,7 +754,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	syslog( LOG_NOTICE, "smtp_connect %s: bad SMTP banner, "
 		"expecting remote hostname: %s", hq->hq_hostname, line );
 
-	if ( smtp_quit( snet, hq->hq_hostname, smtp_logger ) < 0 ) {
+	if ( _smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -805,7 +805,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq->hq_hostname, smtp_logger ) < 0 ) {
+	if ( _smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -839,25 +839,13 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
+	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
 
 #ifdef DEBUG
     printf( "--> HELO %s\n", local_host );
 #endif /* DEBUG */
-
-    /* EHLO or HELO
-     *	    S: 2*
-     *
-     *	    E: 4*: tmp system failure
-     *		- close connection
-     *		- clear queue
-     *
-     *	    E: *, 5*: tmp system failure
-     *		- capture message in struct host_q
-     *		- close connection
-     *		- bounce queue
-     */
 
     tv.tv_sec = SMTP_TIME_HELO;
     tv.tv_usec = 0;
@@ -872,12 +860,26 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
+	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
 
     if ( smtp_logger != NULL ) {
 	(*smtp_logger)( line );
     }
+
+    /* EHLO or HELO
+     *	    S: 2*
+     *
+     *	    E: 4*: tmp system failure
+     *		- close connection
+     *		- clear queue
+     *
+     *	    E: *, 5*: tmp system failure
+     *		- capture message in struct host_q
+     *		- close connection
+     *		- bounce queue
+     */
 
     if ( *line == '4' ) {
 	hq->hq_status = HOST_DOWN;
@@ -893,11 +895,12 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 		    return( SMTP_ERR_SYSCALL );
 		}
 
+		hq->hq_status = HOST_DOWN;
 		return( SMTP_ERR_REMOTE );
 	    }
 	}
 
-	if ( smtp_quit( snet, hq->hq_hostname, smtp_logger ) < 0 ) {
+	if ( _smtp_quit( snet, hq ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -1049,6 +1052,48 @@ _smtp_rset ( SNET *snet, struct host_q *hq )
     int
 _smtp_quit ( SNET *snet, struct host_q *hq )
 {
+    char			*line;
+    struct timeval		tv;
+
+    /* say QUIT */
+    if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
+	syslog( LOG_NOTICE, "smtp_quit %s: failed writef", hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_quit snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	hq->hq_status = HOST_DOWN;
+	return( SMTP_ERR_REMOTE );
+    }
+
+#ifdef DEBUG
+    printf( "--> QUIT\n" );
+#endif /* DEBUG */
+
+    /* read reply banner */
+
+    tv.tv_sec = SMTP_TIME_QUIT;
+    tv.tv_usec = 0;
+
+    if (( line = snet_getline( snet, &tv )) == NULL ) {
+	syslog( LOG_NOTICE, "smtp_quit %s: unexpected EOF",
+		hq->hq_hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "smtp_quit: snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	hq->hq_status = HOST_DOWN;
+	return( SMTP_ERR_REMOTE );
+    }
+
+    if ( smtp_logger != NULL ) {
+	(*smtp_logger)( line );
+    }
+
     /* QUIT
      *	    S: 2*
      *
@@ -1056,6 +1101,48 @@ _smtp_quit ( SNET *snet, struct host_q *hq )
      *		- close connection
      *		- clear queue
      */
+
+    if ( *line != '2' ) {
+	hq->hq_status = HOST_DOWN;
+
+	syslog( LOG_NOTICE, "smtp_quit %s: bad SMTP banner: %s",
+		hq->hq_hostname, line );
+
+	if ( *(line + 3) == '-' ) {
+	    if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
+		    == NULL ) {
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "smtp_quit: snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_REMOTE );
+	    }
+	}
+
+	return( SMTP_ERR_REMOTE );
+    } 
+
+    if ( *(line + 3) == '-' ) {
+	if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
+		== NULL ) {
+	    syslog( LOG_NOTICE, "smtp_quit %s: unexpected EOF",
+		    hq->hq_hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "smtp_quit: snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    hq->hq_status = HOST_DOWN;
+	    return( SMTP_ERR_REMOTE );
+	}
+    }
+
+    if ( snet_close( snet ) != 0 ) {
+	syslog( LOG_NOTICE, "snet_close: %m" );
+	return( SMTP_ERR_SYSCALL );
+    }
 
     return( 0 );
 }
