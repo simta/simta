@@ -577,6 +577,7 @@ q_runner_dir( char *dir )
 q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 {
     int                         dfile_fd;
+    int                         n_rcpts;
     SNET                        *snet_dfile = NULL;
     SNET			*snet_lock;
     char                        dfile_fname[ MAXPATHLEN ];
@@ -779,16 +780,22 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		    env_deliver->e_mail );
 
 	    r_sort = &(env_deliver->e_rcpt);
+	    n_rcpts = 0;
 	    while ( *r_sort != NULL ) {
 		if ((*r_sort)->r_status != R_TEMPFAIL ) {
 		    remove = *r_sort;
 		    *r_sort = (*r_sort)->r_next;
+		    syslog( LOG_INFO, "Deliver %s: Removing To <%s> From <%s>",
+			    env_deliver->e_id, remove->r_rcpt,
+			    env_deliver->e_mail );
 		    rcpt_free( remove );
 		    free( remove );
 
 		} else {
-		    syslog( LOG_INFO, "Deliver %s: To <%s>",
-			    env_deliver->e_id, (*r_sort)->r_rcpt );
+		    n_rcpts++;
+		    syslog( LOG_INFO, "Deliver %s: Rewriting To <%s> From <%s>",
+			    env_deliver->e_id, (*r_sort)->r_rcpt,
+			    env_deliver->e_mail );
 		    r_sort = &((*r_sort)->r_next);
 		}
 	    }
@@ -797,8 +804,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		goto message_cleanup;
 	    }
 
-	    syslog( LOG_INFO, "Deliver %s: Envelope Rewritten",
-		    env_deliver->e_id );
+	    syslog( LOG_INFO, "Deliver %s: Rewrote %d recipients",
+		    env_deliver->e_id, n_rcpts );
 
 	    if ( env_deliver->e_dir == simta_dir_fast ) {
 		/* overwrote fast file, not created a new one */
@@ -906,8 +913,6 @@ deliver_local( struct deliver *d )
 	    goto lseek_fail;
 	}
 
-	syslog( LOG_INFO, "Deliver.local %s: From <%s>",
-		d->d_env->e_id, r->r_rcpt );
 	ml_error = (*simta_local_mailer)( d->d_dfile_fd, d->d_env->e_mail, r );
 
 lseek_fail:
@@ -916,16 +921,17 @@ lseek_fail:
 	    /* success */
 	    r->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
-	    syslog( LOG_INFO, "Deliver.local %s: To <%s> Accepted",
-		    d->d_env->e_id, r->r_rcpt );
+	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> Accepted",
+		    d->d_env->e_id, r->r_rcpt, d->d_env->e_mail );
 	    break;
 
 	default:
 	case EX_TEMPFAIL:
 	    r->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfail++;
-	    syslog( LOG_INFO, "Deliver.local %s: To <%s> Tempfailed: %d",
-		    d->d_env->e_id, r->r_rcpt, ml_error );
+	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> "
+		    "Tempfailed: %d", d->d_env->e_id, r->r_rcpt,
+		    d->d_env->e_mail, ml_error );
 	    break;
 
 	case EX_DATAERR:
@@ -933,13 +939,14 @@ lseek_fail:
 	    /* hard failure caused by bad user data, or no local user */
 	    r->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
-	    syslog( LOG_INFO, "Deliver.local %s: To <%s> Failed: %d",
-		    d->d_env->e_id, r->r_rcpt, ml_error );
+	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> Failed: %d",
+		    d->d_env->e_id, r->r_rcpt, d->d_env->e_mail, ml_error );
 	    break;
 	}
 
-	syslog( LOG_INFO, "Deliver.local %s: Local delivery attempt complete",
-		d->d_env->e_id );
+	syslog( LOG_INFO, "Deliver.local %s: Accepted %d Tempfailed %d "
+		"Failed %d", d->d_env->e_id, d->d_n_rcpt_accepted,
+		d->d_n_rcpt_tempfail, d->d_n_rcpt_failed );
     }
 
     d->d_delivered = 1;
@@ -953,9 +960,6 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 {
     int				r_smtp;
     int				s;
-
-    syslog( LOG_NOTICE, "deliver_remote %s: attempting remote delivery",
-	    d->d_env->e_id );
 
     switch ( hq->hq_status ) {
     case HOST_MX:
@@ -988,15 +992,15 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
 	    /* build snet */
 	    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
-		syslog( LOG_ERR, "deliver_remote %s socket: %m",
+		syslog( LOG_ERR, "deliver_remote %s: socket: %m",
 			hq->hq_hostname );
 		goto connect_cleanup;
 	    }
 
 	    if ( connect( s, (struct sockaddr*)&(d->d_sin),
 		    sizeof( struct sockaddr_in )) < 0 ) {
-		syslog( LOG_ERR, "deliver_remote %s connect: %m",
-			hq->hq_hostname );
+		syslog( LOG_ERR, "Connect.out [%s] %s: Failed: connect: %m",
+			inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname );
 		close( s );
 		goto connect_cleanup;
 	    }
@@ -1009,8 +1013,6 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    }
 
 	    simta_smtp_outbound_attempts++;
-	    syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_connect %s",
-		    d->d_env->e_id, hq->hq_hostname );
 
 	    hq_clear_errors( hq );
 
@@ -1020,16 +1022,12 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
 	} else {
 	    /* already have SMTP connection, say RSET and send message */
-	    syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_reset",
-		    d->d_env->e_id );
 	    if (( r_smtp = smtp_rset( hq, d )) != SMTP_OK ) {
 		goto smtp_cleanup;
 	    }
 	}
 
 	d->d_attempt = 1;
-	syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_send",
-		d->d_env->e_id );
 
 	if (( r_smtp = smtp_send( hq, d )) == SMTP_OK ) {
 	    switch ( hq->hq_status ) {

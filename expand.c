@@ -145,6 +145,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     int				return_value = 1;
     int				env_out = 0;
     int				fast_file_start;
+    int				sendermatch;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
     char			d_out[ MAXPATHLEN ];
@@ -296,16 +297,26 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 		goto cleanup3;
 	    }
 
-	    syslog( LOG_INFO, "Expand %s: %s: From <%s>",
-		    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
+	    sendermatch = !strcasecmp( unexpanded_env->e_mail,
 		    e_addr->e_addr_env_moderated->e_mail );
+
 	    n_rcpts = 0;
 	    for ( rcpt = e_addr->e_addr_env_moderated->e_rcpt; rcpt != NULL;
 		    rcpt = rcpt->r_next ) {
 		n_rcpts++;
-		syslog( LOG_INFO, "Expand %s: %s: To <%s>",
-			unexpanded_env->e_id,
-			e_addr->e_addr_env_moderated->e_id, rcpt->r_rcpt );
+		if ( sendermatch ) {
+		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s>",
+			    unexpanded_env->e_id,
+			    e_addr->e_addr_env_moderated->e_id, rcpt->r_rcpt,
+			    e_addr->e_addr_env_moderated->e_mail );
+		} else {
+		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s> (%s)",
+			    unexpanded_env->e_id,
+			    e_addr->e_addr_env_moderated->e_id, rcpt->r_rcpt,
+			    e_addr->e_addr_env_moderated->e_mail,
+			    unexpanded_env->e_mail );
+		}
+
 	    }
 	    syslog( LOG_INFO,
 		    "Expand %s: %s: Expanded %d moderators",
@@ -434,14 +445,20 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 		goto cleanup4;
 	    }
 
-	    syslog( LOG_INFO, "Expand %s: %s: From <%s>",
-		    unexpanded_env->e_id, env->e_id, env->e_mail );
+	    sendermatch = !strcasecmp( unexpanded_env->e_mail, env->e_mail );
 
 	    n_rcpts = 0;
 	    for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 		n_rcpts++;
-		syslog( LOG_INFO, "Expand %s: %s: To <%s>",
-			unexpanded_env->e_id, env->e_id, rcpt->r_rcpt );
+		if ( sendermatch ) {
+		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s>",
+			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
+			    env->e_mail );
+		} else {
+		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s> (%s)",
+			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt, 
+			    env->e_mail, unexpanded_env->e_mail );
+		}
 	    }
 
 	    syslog( LOG_INFO,
@@ -519,17 +536,25 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 		    goto cleanup5;
 		}
 
-		syslog( LOG_INFO, "Expand %s: %s: From <%s>",
-			unexpanded_env->e_id, env->e_id, env->e_mail );
+		sendermatch = !strcasecmp( unexpanded_env->e_mail,
+			env->e_mail );
 
 		n_rcpts = 0;
 		for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 		    n_rcpts++;
-		    syslog( LOG_INFO, "Expand %s: %s: To <%s>",
-			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt );
+		    if ( sendermatch ) {
+			syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s>",
+				unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
+				env->e_mail );
+		    } else {
+			syslog( LOG_INFO,
+				"Expand %s: %s: To <%s> From <%s> (%s)",
+				unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
+				env->e_mail, unexpanded_env->e_mail );
+		    }
 		}
 
-		syslog( LOG_INFO, "Expand %s: %s: Bounced %d recipients",
+		syslog( LOG_INFO, "Expand %s: %s: Expanded %d bounces",
 			unexpanded_env->e_id, env->e_id, n_rcpts );
 
 		queue_envelope( hq, env );

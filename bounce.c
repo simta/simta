@@ -242,6 +242,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     struct envelope             *bounce_env;
     char                        dfile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
+    int                         n_bounces = 0;
     FILE                        *dfile;
     struct recipient            *r;
     struct line                 *l;
@@ -369,14 +370,14 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	fprintf( dfile, "\n" );
     }
 
-    syslog( LOG_INFO, "Bounce %s: %s: From <>", env->e_id, bounce_env->e_id );
-    syslog( LOG_INFO, "Bounce %s: %s: To <%s>", env->e_id, bounce_env->e_id,
-	    bounce_env->e_rcpt->r_rcpt );
+    syslog( LOG_INFO, "Bounce %s: %s: To <%s> From <>", env->e_id,
+	    bounce_env->e_id, bounce_env->e_rcpt->r_rcpt );
 
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	if (( env->e_flags & ENV_FLAG_BOUNCE ) || ( r->r_status == R_FAILED )) {
-	    syslog( LOG_INFO, "Bounce %s: %s: Bouncing address <%s>",
-		    env->e_id, bounce_env->e_id, r->r_rcpt );
+	    n_bounces++;
+	    syslog( LOG_INFO, "Bounce %s: %s: Bouncing <%s> From <%s>",
+		    env->e_id, bounce_env->e_id, r->r_rcpt, env->e_mail );
             fprintf( dfile, "address %s\n", r->r_rcpt );
             if ( r->r_err_text != NULL ) {
                 for ( l = r->r_err_text->l_first; l != NULL;
@@ -409,8 +410,8 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	goto cleanup4;
     }
 
-    syslog( LOG_INFO, "Bounce %s: %s: Message Completed", env->e_id,
-	    bounce_env->e_id );
+    syslog( LOG_INFO, "Bounce %s: %s: Bounced %d addresses", env->e_id,
+	    bounce_env->e_id, n_bounces );
 
     return( bounce_env );
 

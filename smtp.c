@@ -245,8 +245,9 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    if ( *c == '[' ) {
 		for ( c++; *c != ']'; c++ ) {
 		    if ( *c == '\0' ) {
-			syslog( LOG_NOTICE,
-				"smtp_reply %s illegal hostname in banner: %s",
+			syslog( LOG_NOTICE, "Connect.out [%s] %s: Failed: "
+				"illlegal hostname in SMTP banner: %s",
+				inet_ntoa( d->d_sin.sin_addr ),
 				hq->hq_hostname, line );
 			if (( smtp_reply = smtp_consume_banner(
 				&(hq->hq_err_text), d, &tv, line,
@@ -279,9 +280,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	    if ( strcmp( hq->hq_smtp_hostname, simta_hostname ) == 0 ) {
 		syslog( LOG_WARNING,
-			"Deliver.SMTP %s: Mail Loop %s [%s]: %s",
-			hq->hq_hostname, hq->hq_smtp_hostname, 
-			inet_ntoa( d->d_sin.sin_addr ), line );
+			"Connect.out [%s] %s: Failed: banner mail loop: %s",
+			inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname, line );
 
 		/* Loop - connected to self */
 		if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text),
@@ -292,10 +292,9 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		return( SMTP_ERROR );
 	    }
 
-	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Connection Accepted %s [%s]: %s",
-		    hq->hq_hostname, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), line );
+	    syslog( LOG_INFO, "Connect.out [%s] %s: Accepted: %s: %s",
+		    inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname,
+		    hq->hq_smtp_hostname, line );
 
 	    break;
 
@@ -319,8 +318,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    break;
 
 	case SMTP_RCPT:
-	    syslog( LOG_INFO, "Deliver.SMTP %s: To <%s> Accepted: %s",
-		    d->d_env->e_id, d->d_rcpt->r_rcpt, line );
+	    syslog( LOG_INFO, "Deliver.SMTP %s: To <%s> From <%s> Accepted: %s",
+		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail, line );
 	    d->d_rcpt->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
 	    break;
@@ -329,18 +328,18 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Message Tempfailed %s [%s]: %s",
-		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), line );
+		    "Deliver.SMTP %s: Message Tempfailed: [%s] %s: %s",
+		    d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
+		    hq->hq_smtp_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
 	    d->d_delivered = 1;
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Message Accepted %s [%s]: %s",
-		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), line );
+		    "Deliver.SMTP %s: Message Accepted [%s] %s: %s",
+		    d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
+		    hq->hq_smtp_hostname, line );
 	    break;
 
 	default:
@@ -365,8 +364,9 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
     case '4':
 	switch ( smtp_command ) {
 	case SMTP_CONNECT:
-	    syslog( LOG_NOTICE, "smtp_reply %s tempfail CONNECT reply: %s",
-		    hq->hq_hostname, line );
+	    syslog( LOG_NOTICE,
+		    "Connect.out [%s] %s: Tempfail: SMTP banner: %s",
+		    inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP CONNECT reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
@@ -401,15 +401,16 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_RCPT:
 	    d->d_rcpt->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfail++;
-	    syslog( LOG_INFO, "Deliver.SMTP %s: To <%s> Tempfailed: %s",
-		    d->d_env->e_id, d->d_rcpt->r_rcpt, line );
+	    syslog( LOG_INFO,
+		    "Deliver.SMTP %s: To <%s> From <%s> Tempfailed: %s",
+		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), d, &tv,
 		    line, "Bad SMTP RCPT TO reply" ));
 
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Message Tempfailed %s [%s]: %s",
+		    "Deliver.SMTP %s: Tempfailed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
 		    inet_ntoa( d->d_sin.sin_addr ), line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
@@ -418,7 +419,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_DATA_EOF:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Message Tempfailed %s [%s]: %s",
+		    "Deliver.SMTP %s: Tempfailed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
 		    inet_ntoa( d->d_sin.sin_addr ), line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
@@ -448,8 +449,9 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_CONNECT:
 	    if ( hq->hq_status == HOST_DOWN ) {
 		hq->hq_status = HOST_BOUNCE;
-		syslog( LOG_NOTICE, "smtp_reply %s failed CONNECT reply: %s",
-			hq->hq_hostname, line );
+		syslog( LOG_NOTICE,
+			"Connect.out [%s] %s: Failed: SMTP banner: %s",
+			inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname, line );
 	    } else {
 		syslog( LOG_WARNING,
 			"smtp_reply %s punt failed CONNECT reply: %s",
@@ -482,7 +484,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_MAIL:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
-	    syslog( LOG_INFO, "Deliver.SMTP %s: From <%s> Rejected: %s",
+	    syslog( LOG_INFO, "Deliver.SMTP %s: From <%s> Failed: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP MAIL FROM reply" ));
@@ -490,24 +492,24 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_RCPT:
 	    d->d_rcpt->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
-	    syslog( LOG_INFO, "Deliver.SMTP %s: To <%s> Rejected: %s",
-		    d->d_env->e_id, d->d_rcpt->r_rcpt, line );
+	    syslog( LOG_INFO, "Deliver.SMTP %s: To <%s> From <%s> Failed: %s",
+		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), d, &tv,
 		    line, "Bad SMTP RCPT TO reply" ));
 
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Message Failed %s [%s]: %s",
-		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), line );
+		    "Deliver.SMTP %s: Message Failed: [%s] %s: %s",
+		    d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
+		    hq->hq_smtp_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Message Failed %s [%s]: %s",
+		    "Deliver.SMTP %s: Failed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
 		    inet_ntoa( d->d_sin.sin_addr ), line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
@@ -588,6 +590,9 @@ smtp_send( struct host_q *hq, struct deliver *d )
 {
     int			smtp_result;
     char		*line;
+
+    syslog( LOG_INFO, "Deliver.SMTP %s: Attempting remote delivery: %s",
+	    d->d_env->e_id, hq->hq_smtp_hostname );
 
     /* MAIL FROM: */
     if ( snet_writef( d->d_snet_smtp, "MAIL FROM:<%s>\r\n",

@@ -145,13 +145,13 @@ q_move_to_slow( struct envelope **slow_q, struct envelope **other_q )
 		} else {
 		    /* file collision - message is already in the slow queue */
 		    if ( simta_filesystem_cleanup ) {
-			syslog( LOG_NOTICE, "Queue collision: deleting %s/%s",
+			syslog( LOG_NOTICE, "Queue %s/%s: Cleaning: Collision",
 				move->e_dir, move->e_id );
 			if ( env_unlink( move ) != 0 ) {
 			    return( 1 );
 			}
 		    } else {
-			syslog( LOG_NOTICE, "Queue collision: %s/%s",
+			syslog( LOG_NOTICE, "Queue %s/%s: Failed: Collision",
 				move->e_dir, move->e_id );
 			collisions++;
 		    }
@@ -182,13 +182,13 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
     struct file_list		*f;
 
     if (( dirp = opendir( dir )) == NULL ) {
-	syslog( LOG_ERR, "Queue opendir %s: %m", dir );
+	syslog( LOG_ERR, "Queue Syserror: opendir %s: %m", dir );
 	return( 1 );
     }
 
     if ( action == Q_DIR_EXIST ) {
 	if ( closedir( dirp ) != 0 ) {
-	    syslog( LOG_ERR, "Queue closedir %s: %m", dir );
+	    syslog( LOG_ERR, "Queue Syserror: closedir %s: %m", dir );
 	    return( 1 );
 	}
 	return( 0 );
@@ -215,7 +215,8 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 	}
 
 	if ( action == Q_DIR_EMPTY ) {
-	    syslog( LOG_NOTICE, "Queue not empty: %s/%s", dir, entry->d_name );
+	    syslog( LOG_NOTICE, "Queue %s/%s: Failed: Directory not empty",
+		    dir, entry->d_name );
 	    bad_filesystem = 1;
 	    continue;
 	}
@@ -255,10 +256,10 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 
 	} else if ( *entry->d_name == 't' ) {
 	    if ( dir == simta_dir_local ) {
-		syslog( LOG_NOTICE, "Queue stranded t_file CHECK AGE: %s/%s",
+		syslog( LOG_NOTICE, "Queue %s/%s: Check: Stranded t_file",
 			dir, entry->d_name );
 	    } else if ( simta_filesystem_cleanup ) {
-		syslog( LOG_NOTICE, "Queue stranded t_file delete: %s/%s",
+		syslog( LOG_NOTICE, "Queue %s/%s: Cleaning: Stranded t_file",
 			dir, entry->d_name );
 		if ( !bad_filesystem ) {
 		    /* Keep track of stranded t files */
@@ -269,27 +270,27 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 		}
 	    } else {
 		/* illegal stranded t */
-		syslog( LOG_NOTICE, "Queue stranded t file: %s/%s", dir,
-			entry->d_name );
+		syslog( LOG_NOTICE, "Queue %s/%s: Failed: Stranded t_file",
+			dir, entry->d_name );
 		bad_filesystem = 1;
 	    }
 
 	} else {
 	    /* unknown file */
 	    bad_filesystem = 1;
-	    syslog( LOG_WARNING, "Queue unknown file: %s/%s", dir,
-		    entry->d_name );
+	    syslog( LOG_WARNING, "Queue %s/%s: Failed: Unknown file",
+		    dir, entry->d_name );
 	}
     }
 
     /* did readdir finish, or encounter an error? */
     if ( errno != 0 ) {
-	syslog( LOG_ERR, "Queue readdir %s: %m", dir );
+	syslog( LOG_ERR, "Queue Syserror: readdir %s: %m", dir );
 	bad_filesystem = 1;
     }
 
     if ( closedir( dirp ) != 0 ) {
-	syslog( LOG_ERR, "Queue closedir %s: %m", dir );
+	syslog( LOG_ERR, "Queue Syserror: closedir %s: %m", dir );
 	return( 1 );
     }
 
@@ -301,25 +302,25 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 	env = *env_p;
 
 	if (( env->e_flags & ENV_FLAG_DFILE ) == 0 ) {
-	    syslog( LOG_ALERT, "Queue: %s/E%s: Missing Dfile", dir,
-		    env->e_id );
+	    syslog( LOG_ALERT, "Queue %s/E%s: Failed: Missing Dfile",
+		    dir, env->e_id );
 	    bad_filesystem = 1;
 	    *env_p = env->e_next;
 	    env_free( env );
 
 	} else if (( env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
 	    if ( dir == simta_dir_local ) {
-		syslog( LOG_NOTICE, "Queue missing Efile: CHECK AGE %s/D%s",
+		syslog( LOG_NOTICE, "Queue %s/D%s: Check: Missing Efile",
 			dir, env->e_id );
 	    } else if (( simta_filesystem_cleanup ) && ( !bad_filesystem )) {
-		syslog( LOG_NOTICE, "Queue missing Efile: Scheduling for "
-			"deletion %s/D%s", dir, env->e_id );
+		syslog( LOG_NOTICE, "Queue %s/D%s: Cleaning: Missing Efile",
+			dir, env->e_id );
 		if ( file_list_add( &f_list, STRANDED_D, dir, env->e_id )) {
 		    return( 1 );
 		}
 	    } else {
-		syslog( LOG_ALERT, "Queue missing Efile: %s/D%s", dir,
-			env->e_id );
+		syslog( LOG_ALERT, "Queue %s/D%s: Failed: Missing Efile",
+			dir, env->e_id );
 		bad_filesystem = 1;
 	    }
 
@@ -337,10 +338,10 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 
 	if ( !bad_filesystem ) {
 	    if ( unlink( f->f_name ) != 0 ) {
-		syslog( LOG_ERR, "Queue: unlink %s: %m", f->f_name );
+		syslog( LOG_ERR, "Queue Syserror: unlink %s: %m", f->f_name );
 		return( 1 );
 	    }
-	    syslog( LOG_NOTICE, "Queue: unlinked %s", f->f_name );
+	    syslog( LOG_NOTICE, "Queue %s: Unlinked", f->f_name );
 	}
 
 	free( f->f_name );
@@ -392,9 +393,10 @@ q_expansion_cleanup( struct envelope **fast )
 		    /* unexpanded exists, mark env for deletion */
 		    assert( env->e_hostname != NULL );
 		    env->e_flags |= ENV_FLAG_DELETE;
-		    syslog( LOG_NOTICE, "Queue deleting %s: "
-			    "interrupted expansion of %s", env->e_id,
-			    (*i)->i_unexpanded->e_id );
+		    syslog( LOG_NOTICE, "Queue %s/%s: "
+			    "Cleaning: %s/%s expansion interrupted",
+			    simta_dir_fast, env->e_id,
+			    simta_dir_fast, (*i)->i_unexpanded->e_id );
 		    continue;
 
 		} else if ( env->e_hostname == NULL ) {
@@ -403,9 +405,10 @@ q_expansion_cleanup( struct envelope **fast )
 		    (*i)->i_unexpanded = env;
 		    while (( i_exp = ((*i)->i_expanded)) != NULL ) {
 			(*i)->i_expanded = i_exp->i_next;
-			syslog( LOG_NOTICE, "Queue deleting %s: "
-				"interrupted expansion of %s",
-				i_exp->i_env->e_id, env->e_id );
+			syslog( LOG_NOTICE, "Queue %s/%s: "
+				"Cleaning: %s/%s expansion interrupted",
+				simta_dir_fast, i_exp->i_env->e_id, 
+				simta_dir_fast, env->e_id );
 			i_exp->i_env->e_flags |= ENV_FLAG_DELETE;
 			free( i_exp );
 		    }
@@ -416,7 +419,7 @@ q_expansion_cleanup( struct envelope **fast )
 		/* insert into i stab */
 		if (( i_add = (struct i_list*)malloc(
 			sizeof( struct i_list ))) == NULL ) {
-		    syslog( LOG_ERR, "Queue malloc: %m" );
+		    syslog( LOG_ERR, "Queue Syserror: malloc: %m" );
 		    return( 1 );
 		}
 		memset( i_add, 0, sizeof( struct i_list ));
@@ -433,7 +436,7 @@ q_expansion_cleanup( struct envelope **fast )
 
 	    if (( i_exp = (struct i_expanded*)malloc(
 		    sizeof( struct i_expanded ))) == NULL ) {
-		syslog( LOG_ERR, "Queue malloc: %m" );
+		syslog( LOG_ERR, "Queue Syserror: malloc: %m" );
 		return( 1 );
 	    }
 	    memset( i_exp, 0, sizeof( struct i_expanded ));
