@@ -490,7 +490,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	strcpy( e_addr->e_addr_at, address );
 	*(e_addr->e_addr_at) = '@';
     } else {
-	strcpy( "postmaster", address );
+	strcpy( address, "postmaster" );
     }
 
     /* XXX - Is there a limit on key length? */
