@@ -171,7 +171,7 @@ AC_DEFUN([CHECK_DB],
         dbdir="$dir"
         if test -f "$dir/lib/libdb.a"; then
             found_db="yes";
-            CPPFLAGS="$CPPFLAGS -I$dbdir/include";
+            CPPFLAGS="-I$dbdir/include $CPPFLAGS";
             break;
         fi
     done
