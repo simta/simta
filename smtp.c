@@ -72,14 +72,11 @@ _smtp_connect_try( SNET **snetp, struct sockaddr_in *sin, struct host_q *hq )
 	goto error;
     }
 
-    ret = smtp_reply( SMTP_EHLO, *snetp, hq, NULL );
-    switch( ret ) {
+    if (( ret = smtp_reply( SMTP_EHLO, *snetp, hq, NULL )) == SMTP_OK ) {
+	return( SMTP_OK );
+    }
 
-    case SMTP_OK:
-	break;
-
-    case SMTP_ERROR:
-
+    if ( ret == SMTP_ERROR ) {
 	/* say HELO */
 	/* RFC 2821 2.2.1
 	 * (However, for compatibility with older conforming implementations,
@@ -97,15 +94,10 @@ _smtp_connect_try( SNET **snetp, struct sockaddr_in *sin, struct host_q *hq )
 		hq->hq_hostname );
 	    goto error;
 	}
-	if (( ret = smtp_reply( SMTP_HELO, *snetp, hq, NULL )) != SMTP_OK ) {
-	    goto error;
+	if (( ret = smtp_reply( SMTP_HELO, *snetp, hq, NULL )) == SMTP_OK ) {
+	    return( SMTP_OK );
 	}
-	break;
-
-    default:
-	goto error;
     }
-    return( SMTP_OK );
 
 error:
     if ( snet_close( *snetp ) != 0 ) {
