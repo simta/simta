@@ -218,8 +218,14 @@ message_queue( struct host_q *hq, struct message *m )
 {
     struct message		**mp;
 
-    mp = &(hq->hq_message_first );
+    hq->hq_entries++;
+    m->m_hq = hq;
 
+    if ( m->m_from != 0 ) {
+	hq->hq_from++;
+    }
+
+    mp = &(hq->hq_message_first);
     for ( ; ; ) {
 	if (( *mp == NULL ) || ( m->m_etime.tv_sec < (*mp)->m_etime.tv_sec )) {
 	    break;
@@ -228,13 +234,7 @@ message_queue( struct host_q *hq, struct message *m )
 	mp = &((*mp)->m_next);
     }
 
-    hq->hq_entries++;
-    m->m_hq = hq;
-
-    if ( m->m_from != 0 ) {
-	hq->hq_from++;
-    }
-
+    m->m_next = *mp;
     *mp = m;
 }
 
@@ -448,7 +448,6 @@ q_run( struct host_q **host_q )
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
-	    q_syslog( simta_null_q );
 	    syslog( LOG_DEBUG, "q_run: checking for unexpanded mail" );
 	    /* delivered all expanded mail, check for unexpanded */
 	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
@@ -464,8 +463,6 @@ q_run( struct host_q **host_q )
 	    if ( unexpanded->m_from != 0 ) {
 		simta_null_q->hq_from--;
 	    }
-
-	    q_syslog( simta_null_q );
 
 	    if (( env = unexpanded->m_env ) == NULL ) {
 		syslog( LOG_DEBUG, "q_run: reading unexpanded %s",
