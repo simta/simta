@@ -17,6 +17,7 @@ SENDOBJ=	send.o smtp.o message.o envelope.o tz.o
 SIMLOGOBJ=	simlog.o
 QRUNNEROBJ=	q_runner.c queue.o ll.o message.o envelope.o tz.o ml.o smtp.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o message.o envelope.o tz.o
+CONNECT_TESTOBJ=	connect_test.o smtp.o message.o envelope.o tz.o
 
 SIMTALOG=LOG_MAIL
 
@@ -78,6 +79,9 @@ q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
 
 q_cleanup : libsnet/libsnet.a denser/denser.o ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
+
+connect_test :	libsnet/libsnet.a denser/denser.o ${CONNECT_TESTOBJ}
+	${CC} ${CFLAGS} ${LDFLAGS} -o connect_test ${CONNECT_TESTOBJ} ${LIBPATH} ${LIBS}
 
 FRC :
 
