@@ -49,6 +49,7 @@ struct line_token {
     struct line		*t_start_line;
     char		*t_end;
     struct line		*t_end_line;
+    char		*t_unfolded;
 };
 
 
@@ -70,7 +71,8 @@ int	parse_addr ___P(( struct envelope *, struct line **, char **, int ));
 int	parse_mailbox_list ___P(( struct envelope *, struct line *, char *,
 	int ));
 int	parse_recipients ___P(( struct envelope *, struct line *, char * ));
-int	match_addr ___P(( struct line_token *, struct line_token *, char * ));
+int	match_sender ___P(( struct line_token *, struct line_token *, char * ));
+int	line_token_unfold ___P(( struct line_token * ));
 
 
 struct header simta_headers[] = {
@@ -101,12 +103,12 @@ int				simta_generate_sender;
 
 
     int
-match_addr( struct line_token *local, struct line_token *domain, char *addr )
+match_sender( struct line_token *local, struct line_token *domain, char *addr )
 {
     char			*a;
     char			*b;
 
-    /* XXX only try to match dot atext */
+    /* only try to match dot atext for sender */
     if (( local->t_type != TOKEN_DOT_ATOM ) ||
 	    ( domain->t_type != TOKEN_DOT_ATOM )) {
 	return( 0 );
@@ -629,7 +631,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 	*lp = l;
 
-	/* XXX free bcc lines */
+	/* XXX free bcc lines if we're anal */
     }
 
 #ifdef DEBUG
@@ -997,7 +999,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     }
 
     if ( mode == MAILBOX_SENDER ) {
-	if ( match_addr( &local, &domain, sender ) == 0 ) {
+	if ( match_sender( &local, &domain, sender ) == 0 ) {
 	    fprintf( stderr, "line %d: sender address should be <%s>\n",
 		    simta_headers[ HEAD_SENDER ].h_line->line_no, sender );
 	    return( 1 );
@@ -1006,22 +1008,23 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     } else if ( mode == MAILBOX_FROM_CORRECT ) {
 	if ( simta_generate_sender == 0 ) {
 	    /* if addresses don't match, need to generate sender */
-	    if ( match_addr( &local, &domain, simta_sender()) == 0 ) {
+	    if ( match_sender( &local, &domain, simta_sender()) == 0 ) {
 		simta_generate_sender = 1;
 	    }
 	}
     }
 
     if ( env != NULL ) {
-	/* XXX only handle DA addresses */
-	if (( local.t_type != TOKEN_DOT_ATOM ) &&
-		( domain.t_type != TOKEN_DOT_ATOM )) {
-	    fprintf( stderr, "unsupported address text\n" );
-	    return( 1 );
+	if ( line_token_unfold( &local ) != 0 ) {
+	    return( -1 );
 	}
 
-	addr_len = local.t_end - local.t_start + 1;
-	addr_len += domain.t_end - domain.t_start + 1;
+	if ( line_token_unfold( &domain ) != 0 ) {
+	    return( -1 );
+	}
+
+	addr_len = strlen( local.t_unfolded );
+	addr_len += strlen( domain.t_unfolded );
 	addr_len += 2;
 
 	if (( addr = (char*)malloc( addr_len )) == NULL ) {
@@ -1029,22 +1032,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	    return( -1 );
 	}
 
-	w = addr;
-
-	for ( r = local.t_start; r != local.t_end + 1; r++ ) {
-	    *w = *r;
-	    w++;
-	}
-
-	*w = '@';
-	w++;
-
-	for ( r = domain.t_start; r != domain.t_end + 1; r++ ) {
-	    *w = *r;
-	    w++;
-	}
-
-	*w = '\0';
+	sprintf( addr, "%s@%s", local.t_unfolded, domain.t_unfolded );
 
 	if ( env_recipient( env, addr ) != 0 ) {
 	    perror( "malloc" );
@@ -1052,6 +1040,8 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	}
 
 	free( addr );
+	free( local.t_unfolded );
+	free( domain.t_unfolded );
     }
 
     return( 0 );
@@ -1599,6 +1589,81 @@ token_dot_atom( char *start )
 	}
 
 	start++;
+    }
+}
+
+
+    int
+line_token_unfold( struct line_token *token )
+{
+    size_t			len;
+    struct line			*line;
+    char			*tmp;
+    char			*c;
+
+    if ( token->t_start_line == token->t_end_line ) {
+	/* header not folded, simple case */
+	len = token->t_end - token->t_start + 2;
+
+	if (( token->t_unfolded = (char*)malloc( len )) == NULL ) {
+	    perror( "line_token_unfold malloc" );
+	    return( -1 );
+	}
+
+	strncpy( token->t_unfolded, token->t_start, len - 1 );
+	*(token->t_unfolded + len ) = '\0';
+
+	return( 0 );
+    }
+
+    /* header folded */
+    len = strlen( token->t_start ) + 1;
+
+    if (( token->t_unfolded = (char*)malloc( len )) == NULL ) {
+	perror( "line_token_unfold malloc" );
+	return( -1 );
+    }
+
+    strcpy( token->t_unfolded, token->t_start );
+
+    line = token->t_start_line;
+
+    for ( ; ; ) {
+	line = line->line_next;
+
+	c = line->line_data;
+
+	while (( *c == ' ' ) || ( *c == '\t' )) {
+	    c++;
+	}
+
+	if ( line == token->t_end_line ) {
+	    len += token->t_end - c + 1;
+
+	    if (( tmp = (char*)malloc( len )) == NULL ) {
+		perror( "line_token_unfold malloc" );
+		return( -1 );
+	    }
+
+	    sprintf( tmp, "%s ", token->t_unfolded );
+	    free( token->t_unfolded );
+	    strncat( tmp, c, token->t_end - c + 1 );
+	    token->t_unfolded = tmp;
+
+	    return( 0 );
+
+	} else {
+	    len += strlen( c ) + 1;
+
+	    if (( tmp = (char*)malloc( len )) == NULL ) {
+		perror( "line_token_unfold malloc" );
+		return( -1 );
+	    }
+
+	    sprintf( tmp, "%s %s", token->t_unfolded, c );
+	    free( token->t_unfolded );
+	    token->t_unfolded = tmp;
+	}
     }
 }
 

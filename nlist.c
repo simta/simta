@@ -33,7 +33,7 @@
     int
 nlist( struct nlist *nl, char *fname )
 {
-    int			lineno = 1;
+    int			lineno = 0;
     int			errs = 0;
     int			fd;
     char		*line;
@@ -67,6 +67,8 @@ nlist( struct nlist *nl, char *fname )
     }
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
+	lineno++;
+
 	lval = strtok( line, SPACECHARS );
 
 	if (( lval == NULL ) || ( *lval == '\0' ) || ( *lval == '#' )) {

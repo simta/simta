@@ -62,7 +62,12 @@ env_create( char *id )
     }
     memset( env, 0, sizeof( struct envelope ));
 
-    /* XXX overflow */
+    /* XXX const val should be dynamic or #defined */
+    if ( strlen( id ) > 29 ) {
+	syslog( "LOG_ERR, "env_create %s: id too long", id );
+	return( NULL );
+    }
+
     if ( id != NULL ) {
 	strcpy( env->e_id, id );
     } else {
@@ -273,6 +278,7 @@ env_outfile( struct envelope *e, char *dir )
 	}
 
     } else {
+	/* XXX NULL From addr OK? */
 	if ( fprintf( tff, "F\n" ) < 0 ) {
 	    syslog( LOG_ERR, "fprintf: %m" );
 	    fclose( tff );
@@ -281,7 +287,6 @@ env_outfile( struct envelope *e, char *dir )
     }
 
     /* Rto-addr@recipient.com */
-    /* XXX is it illegal to have no recipients? */
     if (( e->e_rcpt != NULL ) && ( *e->e_rcpt->r_rcpt != '\0' )) {
 	for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( fprintf( tff, "R%s\n", r->r_rcpt ) < 0 ) {
@@ -292,6 +297,7 @@ env_outfile( struct envelope *e, char *dir )
 	}
 
     } else {
+	/* XXX is it illegal to have no recipients? */
 	if ( fprintf( tff, "R\n" ) < 0 ) {
 	    syslog( LOG_ERR, "fprintf: %m" );
 	    fclose( tff );
@@ -552,7 +558,6 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
     }
 
     /* Hdestination-host */
-    /* XXX already have destination host, check that it hasn't changed? */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "%s unexpected EOF", filename );
 
@@ -603,6 +608,9 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	    syslog( LOG_ERR, "strdup: %m" );
 	    return( -1 );
 	}
+
+    } else {
+	/* XXX no from address */
     }
 
     /* Rto-addresses */
@@ -624,6 +632,10 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	if ( env_recipient( env, line + 1 ) != 0 ) {
 	    return( -1 );
 	}
+    }
+
+    if ( env->e_rcpt == NULL ) {
+	/* XXX no recipients.  Illegal message? */
     }
 
     /* close snet if no need to maintain lock */
