@@ -13,7 +13,8 @@ TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	simsend.o message.o envelope.o tz.o
 SENDOBJ=	send.o smtp.o message.o envelope.o tz.o
 SIMLOGOBJ=	simlog.o
-QUEUEOBJ=	queue.o ll.o message.o envelope.o tz.o
+QRUNNEROBJ=	q_runner.c queue.o ll.o message.o envelope.o tz.o
+QCLEANUPOBJ=	q_cleanup.c queue.o ll.o message.o envelope.o tz.o
 
 SIMTALOG=LOG_MAIL
 
@@ -28,7 +29,7 @@ TAGSFILE=	tags
 
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
 
-TARGETS=	simta tlsconnect simsendmail send queue
+TARGETS=	simta tlsconnect simsendmail send q_runner q_cleanup
 
 all : ${TARGETS}
 
@@ -56,8 +57,11 @@ send : libsnet/libsnet.a ${SENDOBJ} Makefile
 simlog : libsnet/libsnet.a ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
 
-queue : libsnet/libsnet.a ${QUEUEOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o queue ${QUEUEOBJ} ${LIBPATH} ${LIBS}
+q_runner : libsnet/libsnet.a ${QRUNNEROBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${LIBPATH} ${LIBS}
+
+q_cleanup : libsnet/libsnet.a ${QCLEANUPOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
 
 FRC :
 

@@ -6,6 +6,11 @@
 /*****     queue.h     *****/
 
 
+#define	SLOW_DIR	"slow"
+#define	FAST_DIR	"fast"
+#define	LOCAL_DIR	"local"
+
+
 struct q_file {
     char			*q_id;
     int				q_efile;
