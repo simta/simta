@@ -12,6 +12,11 @@ struct line {
     char		*line_data;
 };
 
+struct line_file {
+    struct line		*l_first;
+    struct line		*l_last;
+};
+
 struct message_data {
     struct line		*md_first;
     struct line		*md_last;
@@ -33,6 +38,10 @@ struct header {
 #else /* __STDC__ */
 #define ___P(x)         ()
 #endif /* __STDC__ */
+
+struct line_file	*line_file_create ___P(( void ));
+struct line	*line_prepend ___P(( struct line_file *, char * ));
+struct line	*line_append ___P(( struct line_file *, char * ));
 
 struct line	*data_add_line ___P(( struct message_data *, char * ));
 struct line	*data_prepend_line ___P(( struct message_data *, char * ));

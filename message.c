@@ -33,6 +33,89 @@
 #include "receive.h"
 
 
+    /* return a line_file */
+
+    struct line_file *
+line_file_create( void )
+{
+    struct line_file		*lf;
+
+    if (( lf = (struct line_file*)malloc( sizeof( struct line_file )))
+	    == NULL ) {
+	return( NULL );
+    }
+    memset( lf, 0, sizeof( struct message_data ));
+
+    return( lf );
+}
+
+
+    /* append a line to a line_file structure  */
+
+    struct line *
+line_append( struct line_file *lf, char *line )
+{
+    struct line		*l;
+
+    if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
+	return( NULL );
+    }
+    memset( l, 0, sizeof( struct line ));
+
+    if (( l->line_data = strdup( line )) == NULL ) {
+	return( NULL );
+    }
+
+    l->line_next = NULL;
+
+    if ( lf->l_first == NULL ) {
+	lf->l_first = l;
+	lf->l_last = l;
+	l->line_prev = NULL;
+
+    } else {
+	l->line_prev = lf->l_last;
+	lf->l_last->line_next = l;
+	lf->l_last = l;
+    }
+
+    return( l );
+}
+
+
+    /* prepend a line to a line_file structure  */
+
+    struct line *
+line_prepend( struct line_file *lf, char *line )
+{
+    struct line		*l;
+
+    if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
+	return( NULL );
+    }
+    memset( l, 0, sizeof( struct line ));
+
+    if (( l->line_data = strdup( line )) == NULL ) {
+	return( NULL );
+    }
+
+    l->line_prev = NULL;
+
+    if ( lf->l_first == NULL ) {
+	lf->l_first = l;
+	lf->l_last = l;
+	l->line_next = NULL;
+
+    } else {
+	l->line_next = lf->l_first;
+	lf->l_first->line_prev = l;
+	lf->l_first = l;
+    }
+
+    return( l );
+}
+
+
     /* Add a line to a message data structure  */
 
     struct line *

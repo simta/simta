@@ -38,7 +38,7 @@
 void	host_stab_stdout ___P(( void * ));
 void	q_file_stab_stdout ___P(( void * ));
 int	efile_time_compare ___P(( void *, void * ));
-int	deliver_remote ___P(( struct host_q * ));
+void	deliver_remote ___P(( struct host_q * ));
 int	deliver_local ___P(( struct host_q * ));
 
 
@@ -404,13 +404,13 @@ deliver_local( struct host_q *hq )
 }
 
 
-    int
+    void
 deliver_remote( struct host_q *hq )
 {
     struct q_file		*q;
     struct stab_entry		*qs;
-    int				mailed;
-    int				r;
+    struct stat			sb;
+    int				result;
     int				fd;
     int				sent = 0;
     char			fname[ MAXPATHLEN ];
@@ -425,7 +425,7 @@ deliver_remote( struct host_q *hq )
     /* XXX send only to terminator (or alias rsug), for now */
     if (( strcasecmp( hq->hq_name, "terminator.rsug.itd.umich.edu" ) != 0 ) &&
 	    ( strcasecmp( hq->hq_name, "rsug.itd.umich.edu" ) != 0 )) {
-	return( 0 );
+	return;
     }
 
     for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
@@ -448,6 +448,12 @@ deliver_remote( struct host_q *hq )
 	    }
 	}
 
+	if ( fstat( fd, &sb ) != 0 ) {
+	    syslog( LOG_ERR, "snet_attach: %m" );
+	    exit( 1 );
+	}
+
+	/* XXX old dfile check */
 
 	if (( message = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
@@ -455,10 +461,11 @@ deliver_remote( struct host_q *hq )
 	}
 
 	if ( sent != 0 ) {
-	    /* XXX smtp_reset should syslog errors */
-	    if ( smtp_rset( snet, logger ) != 0 ) {
-		syslog( LOG_ERR, "smtp_rset %m" );
+	    if (( result = smtp_rset( snet, logger )) == SMTP_ERR_SYSCALL ) {
 		exit( 1 );
+
+	    } else if ( result == SMTP_ERR_SYNTAX ) {
+		break;
 	    }
 	}
 
@@ -468,35 +475,48 @@ deliver_remote( struct host_q *hq )
 		exit( 1 );
 	    }
 
-	    if (( r = smtp_helo( snet, logger )) == SMTP_ERR_SYSCALL ) {
+	    if (( result = smtp_helo( snet, logger )) == SMTP_ERR_SYSCALL ) {
 		exit( 1 );
 
-	    } else if ( r == SMTP_ERR_SYNTAX ) {
+	    } else if ( result == SMTP_ERR_SYNTAX ) {
 		if ( snet_close( message ) != 0 ) {
 		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );
 		}
 
-		return( 1 );
+		return;
 
-	    } else if ( r == SMTP_ERR_MAIL_LOOP ) {
-		/* deliver locally */
+	    } else if ( result == SMTP_ERR_MAIL_LOOP ) {
+		/* mail loop */
 		if ( snet_close( message ) != 0 ) {
 		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );
 		}
 
-		hq->hq_local = 1;
-
-		return( deliver_local( hq ));
+		syslog( LOG_ALERT, "Hostname %s is not a remote host",
+			hq->hq_name );
+		return;
 	    }
 	}
 
-	if (( mailed = smtp_send( snet, q->q_env, message, logger )) < 0 ) {
+	if (( result = smtp_send( snet, q->q_env, message, logger ))
+		== SMTP_ERR_SYSCALL ) {
 	    exit( 1 );
+
+	} else if ( result == SMTP_ERR_SYNTAX ) {
+	    /* XXX error case? */
 	}
 
 	sent++;
+
+	if ( q->q_env->e_failed > 0 ) {
+	    /* XXX generate bounce */
+
+	    if ( lseek( fd, (off_t)0, SEEK_SET ) != 0 ) {
+		syslog( LOG_ERR, "lseek: %m" );
+		exit( 1 );
+	    }
+	}
 
 	if ( snet_close( message ) != 0 ) {
 	    syslog( LOG_ERR, "close: %m" );
@@ -536,25 +556,22 @@ deliver_remote( struct host_q *hq )
 
 	} else {
 	    /* some retries, and some sent.  re-write envelope */
-	    q->q_action = Q_REORDER;
 	    env_cleanup( q->q_env );
-	    /* XXX env_outfile should syslog errors */
 	    if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
-		syslog( LOG_ERR, "utime %s: %m", fname );
 		exit( 1 );
 	    }
+
+	    q->q_action = Q_REORDER;
 	}
     }
 
     if ( snet != NULL ) {
-	if ( smtp_quit( snet, logger ) != 0 ) {
-	    /* XXX smtp_quit should syslog errors */
-	    syslog( LOG_ERR, "smtp_quit: %m" );
+	if (( result = smtp_quit( snet, logger )) < 0 ) {
 	    exit( 1 );
 	}
     }
 
     queue_cleanup( hq );
 
-    return( 0 );
+    return;
 }

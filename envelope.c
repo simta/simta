@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include <snet.h>
 
@@ -51,7 +52,8 @@ env_create( char *id )
 
 
     void
-rcpt_free( struct recipient *r ) {
+rcpt_free( struct recipient *r )
+{
     rcpt_free( r->r_next );
     free( r->r_rcpt );
     free( r );
@@ -278,17 +280,19 @@ env_outfile( struct envelope *e, char *dir )
 
     /* make E (t) file */
     if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
+	syslog( LOG_ERR, "open %s: %m", tf );
 	return( 1 );
     }
 
     if (( tff = fdopen( fd, "w" )) == NULL ) {
 	close( fd );
+	syslog( LOG_ERR, "fdopen: %m" );
 	goto cleanup;
     }
 
     /* Vversion */
-    /* XXX better version info needed */
-    if ( fprintf( tff, "V0\n" ) < 0 ) {
+    if ( fprintf( tff, "V%d\n", ENVELOPE_VERSION ) < 0 ) {
+	syslog( LOG_ERR, "fprintf: %m" );
 	fclose( tff );
 	goto cleanup;
     }
@@ -296,27 +300,30 @@ env_outfile( struct envelope *e, char *dir )
     /* Hdestination-host */
     if (( e->e_expanded != NULL ) && ( *e->e_expanded != '\0' )) {
 	if ( fprintf( tff, "H%s\n", e->e_expanded ) < 0 ) {
+	    syslog( LOG_ERR, "fprintf: %m" );
 	    fclose( tff );
 	    goto cleanup;
 	}
 
     } else {
 	if ( fprintf( tff, "H\n" ) < 0 ) {
+	    syslog( LOG_ERR, "fprintf: %m" );
 	    fclose( tff );
 	    goto cleanup;
 	}
     }
 
     /* Ffrom-addr@sender.com */
-    /* XXX can e->e_mail be NULL? */
     if (( e->e_mail != NULL ) && ( *e->e_mail != '\0' )) {
 	if ( fprintf( tff, "F%s\n", e->e_mail ) < 0 ) {
+	    syslog( LOG_ERR, "fprintf: %m" );
 	    fclose( tff );
 	    goto cleanup;
 	}
 
     } else {
 	if ( fprintf( tff, "F\n" ) < 0 ) {
+	    syslog( LOG_ERR, "fprintf: %m" );
 	    fclose( tff );
 	    goto cleanup;
 	}
@@ -327,6 +334,7 @@ env_outfile( struct envelope *e, char *dir )
     if (( e->e_rcpt != NULL ) && ( *e->e_rcpt->r_rcpt != '\0' )) {
 	for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( fprintf( tff, "R%s\n", r->r_rcpt ) < 0 ) {
+		syslog( LOG_ERR, "fprintf: %m" );
 		fclose( tff );
 		goto cleanup;
 	    }
@@ -334,16 +342,19 @@ env_outfile( struct envelope *e, char *dir )
 
     } else {
 	if ( fprintf( tff, "R\n" ) < 0 ) {
+	    syslog( LOG_ERR, "fprintf: %m" );
 	    fclose( tff );
 	    goto cleanup;
 	}
     }
 
     if ( fclose( tff ) != 0 ) {
+	syslog( LOG_ERR, "fclose: %m" );
 	goto cleanup;
     }
 
     if ( rename( tf, ef ) < 0 ) {
+	syslog( LOG_ERR, "rename %s %s: %m", tf, ef );
 	goto cleanup;
     }
 

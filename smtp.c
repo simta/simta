@@ -318,7 +318,8 @@ smtp_rset( SNET *snet, void (*logger)(char *))
 
     /* say RSET */
     if ( snet_writef( snet, "RSET\r\n" ) < 0 ) {
-	return( 1 );
+	syslog( LOG_ERR, "smtp_rset: snet_writef: %m" );
+	return( SMTP_ERR_SYSCALL );
     }
 
 #ifdef DEBUG
@@ -327,10 +328,13 @@ smtp_rset( SNET *snet, void (*logger)(char *))
 
     /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	return( 1 );
+	syslog( LOG_ERR, "smtp_rset: snet_getline_multi: %m" );
+	return( SMTP_ERR_SYSCALL );
     }
 
+    /* XXX only catching last line of smtp error banner */
     if ( smtp_eval( SMTP_OK, line ) != 0 ) {
+	syslog( LOG_NOTICE, "smtp_rset: bad reply: %s", line );
 	return( SMTP_ERR_SYNTAX );
     }
 
@@ -352,6 +356,7 @@ smtp_quit( SNET *snet, void (*logger)(char *))
 
     /* say QUIT */
     if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
+	syslog( LOG_ERR, "smtp_quit snet_writef: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
 
@@ -361,14 +366,18 @@ smtp_quit( SNET *snet, void (*logger)(char *))
 
     /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	syslog( LOG_ERR, "smtp_quit snet_getline_multi: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
 
+    /* XXX only preserving last line of banner error message */
     if ( smtp_eval( SMTP_DISCONNECT, line ) != 0 ) {
+	syslog( LOG_NOTICE, "smtp_quit bad banner: %s", line );
 	return( SMTP_ERR_SYNTAX );
     }
 
     if ( snet_close( snet ) != 0 ) {
+	syslog( LOG_NOTICE, "smtp_quit snet_close: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
 
@@ -422,7 +431,7 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
     if ( snet_writef( snet, "MAIL FROM: %s\r\n", env->e_mail ) < 0 ) {
 	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_writef: %m" );
-	return( -1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
 #ifdef DEBUG
@@ -432,7 +441,7 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
 	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_getline_multi: %m" );
-	return( -1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
     if ( smtp_eval( SMTP_OK, line ) != 0 ) {
@@ -449,18 +458,22 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
 	    /* XXX correct error handling? */
 	    syslog( LOG_ERR, "snet_writef: %m" );
-	    return( -1 );
+	    return( SMTP_ERR_SYSCALL );
 	}
 
 #ifdef DEBUG
     printf( "--> RCPT TO: %s\n", r->r_rcpt );
 #endif /* DEBUG */
 
-	if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
 	    /* XXX correct error handling? */
-	    syslog( LOG_ERR, "snet_getline_multi: %m" );
-	    return( -1 );
+	    syslog( LOG_NOTICE, "host %s: no banner", env->e_expanded );
+	    return( SMTP_ERR_SYNTAX );
 	} 
+
+	if ( logger != NULL ) {
+	    (*logger)( line );
+	}
 
 	if ( smtp_eval( SMTP_OK, line ) == 0 ) {
 	    r->r_delivered = R_DELIVERED;
@@ -469,30 +482,64 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	} else if ( smtp_eval( SMTP_USER_UNKNOWN, line ) == 0 ) {
 	    r->r_delivered = R_FAILED;
 	    env->e_failed++;
-	    /* XXX generate bounce */
 
 	} else if ( smtp_eval( SMTP_TEMPFAIL, line ) == 0 ) {
-	    r->r_delivered = R_TEMPFAIL;
-	    env->e_tempfail++;
-	    /* XXX try again later */
+	    if ( env->e_old_dfile != 0 ) {
+		r->r_delivered = R_FAILED;
+		env->e_failed++;
+
+	    } else {
+		r->r_delivered = R_TEMPFAIL;
+		env->e_tempfail++;
+	    }
 
 	} else {
-	    syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded,
+	    syslog( LOG_NOTICE, "host %s: bad banner: %s", env->e_expanded,
 		    line );
 	    return( SMTP_ERR_SYNTAX );
+	}
+
+	if ( r->r_delivered == R_FAILED ) {
+	    if (( r->r_text = line_file_create()) == NULL ) {
+		syslog( LOG_ERR, "line_file_create: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    if ( line_append( r->r_text, line ) == NULL ) {
+		syslog( LOG_ERR, "line_append: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+	}
+
+	while ( *(line + 3) == '-' ) {
+	    if (( line = snet_getline( snet, NULL )) == NULL ) {
+		syslog( LOG_NOTICE, "host %s: no banner", env->e_expanded );
+		return( SMTP_ERR_SYNTAX );
+	    }
+
+	    if ( r->r_delivered == R_FAILED ) {
+		if ( line_append( r->r_text, line ) == NULL ) {
+		    syslog( LOG_ERR, "line_append: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+	    }
+
+	    if ( logger != NULL ) {
+		(*logger)( line );
+	    }
 	}
     }
 
     if ( env->e_success == 0 ) {
 	/* no one to send message to */
-	return( 1 );
+	return( 0 );
     }
 
     /* DATA */
     if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
 	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_writef: %m" );
-	return( -1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
 #ifdef DEBUG
@@ -502,12 +549,12 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
 	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_getline_multi: %m" );
-	return( -1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
     if ( smtp_eval( SMTP_DATAOK, line ) != 0 ) {
 	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
-	return( 1 );
+	return( SMTP_ERR_SYNTAX );
     }
 
     /* send message */
@@ -517,7 +564,7 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	    if ( snet_writef( snet, ".%s\r\n", line ) < 0 ) {
 		/* XXX correct error handling? */
 		syslog( LOG_ERR, "snet_writef: %m" );
-		return( -1 );
+		return( SMTP_ERR_SYSCALL );
 	    }
 
 #ifdef DEBUG
@@ -528,7 +575,7 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	    if ( snet_writef( snet, "%s\r\n", line ) < 0 ) {
 		/* XXX correct error handling? */
 		syslog( LOG_ERR, "snet_writef: %m" );
-		return( -1 );
+		return( SMTP_ERR_SYSCALL );
 	    }
 
 #ifdef DEBUG
@@ -541,7 +588,7 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
     if ( snet_writef( snet, "%s\r\n", SMTP_EOF ) < 0 ) {
 	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_writef: %m" );
-	return( -1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
 #ifdef DEBUG
@@ -551,12 +598,12 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
 	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_getline_multi: %m" );
-	return( -1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
     if ( smtp_eval( SMTP_OK, line ) != 0 ) {
 	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
-	return( 1 );
+	return( SMTP_ERR_SYNTAX );
     }
 
     return( 0 );

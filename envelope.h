@@ -13,10 +13,13 @@
 #define	R_FAILED	1
 #define	R_TEMPFAIL	2
 
+#define	ENVELOPE_VERSION	0
+
 struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
     int			r_delivered;
+    struct line_file	*r_text;
 };
 
 struct envelope {
@@ -28,6 +31,7 @@ struct envelope {
     struct recipient	*e_rcpt;
     char		e_id[ 30 ];
     int			e_flags;
+    int			e_old_dfile;
     int			e_success;
     int			e_failed;
     int			e_tempfail;
