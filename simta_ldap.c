@@ -993,6 +993,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     char	**vals;
     char	**rdns;
     char	*senderbuf;
+    char	*psender;
 
     dn = ldap_get_dn( ld, entry );
    
@@ -1015,6 +1016,12 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
                     return (LDAP_SYSERROR);
     }
     sprintf (senderbuf, "%s-errors@%s", rdns[0], vals[0]);
+    for (psender = senderbuf; *psender; psender++) {
+	if (*psender == ' ') {
+	    *psender = '.';
+	}
+    }
+
     ldap_value_free( vals);
     ldap_value_free(rdns);
  
@@ -1539,19 +1546,14 @@ simta_ldap_dn_expand (struct expand *exp, struct exp_addr *e_addr )
     if ( match == 0 ) {
 	ldap_msgfree( res );
 
-    	if ( (bounce_text( e_addr->e_addr_errors, search_dn,
-		" : Group member does not exist" , NULL ) != 0 ) 
-    	||   (bounce_text( e_addr->e_addr_errors, 
-   "This could be because the distinguished name of the person has changed\n" , 
-   "If this is the case, the problem can be solved by removing and\n",
-   "then re-adding the person to the group\n" ) != 0 )  ) {
-
+    	if (bounce_text( e_addr->e_addr_errors, search_dn,
+		" : Group member does not exist" , NULL ) != 0 ) {
 	    syslog( LOG_ERR, 
 	"simta_ldap_dn_expand: Failed building bounce message -- no member: %s",
 				search_dn);
 	    return( LDAP_SYSERROR );
 	}
-	return( LDAP_NOT_FOUND ); /* no entries found */
+	return( LDAP_EXCLUDE ); /* no entries found */
     }
     
     if (( entry = ldap_first_entry( ld, res )) == NULL ) {
