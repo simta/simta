@@ -212,7 +212,7 @@ add_errmailvals (struct exp_addr *e_addr, char ** errmailvals, char * dn)
 	if (strchr (attrval, '@') ) {		
 	    if( env_recipient( e_addr->e_addr_errors, attrval) != 0 ) {
 		syslog (LOG_ERR, 
-	"simta_add_errmailvals: %s failed adding error recipient: %s", dn,
+	"add_errmailvals: %s failed adding error recipient: %s", dn,
 				attrval);
 		break;
 	    }
@@ -413,7 +413,7 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
 				(strlen(ufn[0]) + strlen (vals[0]) + 2);
 		if (! errmailbuf) {
 		    syslog (LOG_ERR, 
-		"simta_add_errmailvals: Failed allocating errmailbuf: %s", dn);
+		"add_errmailvals: Failed allocating errmailbuf: %s", dn);
 		    ldap_memfree (dn);
 		    ldap_msgfree( res );
 		    ldap_value_free( vals );
@@ -430,7 +430,7 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
 	
 		if( rc != 0 ) {
 		    syslog (LOG_ERR, 
-	"simta_add_errmailvals: %s failed adding error recipient: %s", dn,
+	"add_errmailvals: %s failed adding error recipient: %s", dn,
 				errmailbuf);
 		    free (errmailbuf);
 		    ldap_memfree (dn);
@@ -457,6 +457,8 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
     char ** errdnvals;
     char ** errmailvals;
 
+    struct envelope * bounce_env;
+
     int rc = 0;
 
     if ((vals = ldap_get_values( ld, entry, "suppressNoEmailError")) != NULL) {
@@ -472,7 +474,7 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
 
     if (errdnvals || errmailvals || suppressnoemail) {
 	if (errdnvals || errmailvals) {
-	    if ((e_addr->e_addr_errors = address_bounce_create( exp )) == NULL ) {
+	    if ((bounce_env = address_bounce_create( exp )) == NULL ) {
 		syslog (LOG_ERR,
 	  	    "simta_group_err_env: failed creating error env: %s", dn);
 		if (errdnvals)
@@ -493,6 +495,12 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
 
 	    if (suppressnoemail) {
 		e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
+	    }
+	    if (bounce_env->e_rcpt != NULL) {
+		e_addr->e_addr_errors = bounce_env;
+	    }
+	    else {
+		env_free (bounce_env);
 	    }
 	}
 	else
