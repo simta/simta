@@ -154,13 +154,10 @@ message_create( char *id )
     void
 message_free( struct message *m )
 {
-    if ( m->m_env != NULL ) {
-	env_free( m->m_env );
-	free( m->m_env );
+    if ( m != NULL ) {
+	free( m->m_id );
+	free( m );
     }
-
-    free( m->m_id );
-    free( m );
 }
 
 
@@ -179,13 +176,26 @@ message_queue( struct host_q *hq, struct message *m )
 	mp = &((*mp)->m_next);
     }
 
-    if (( m->m_next = *mp ) == NULL ) {
-	hq->hq_message_last = m;
-    }
-
     hq->hq_entries++;
+    m->m_hq = hq;
 
     *mp = m;
+}
+
+
+    void
+message_remove( struct message *m )
+{
+    struct message		**mp;
+
+    if ( m != NULL ) {
+	for ( mp = &(m->m_hq->hq_message_first ); *mp != m;
+		mp = &((*mp)->m_next))
+	    ;
+
+	*mp = m->m_next;
+	m->m_hq->hq_entries--;
+    }
 }
 
 
@@ -402,7 +412,11 @@ q_run( struct host_q **host_q )
 	    }
 
 	    /* clean up */
-	    env_reset( env );
+	    if ( unexpanded->m_env != NULL ) {
+		env_free( unexpanded->m_env );
+	    } else {
+		env_reset( env );
+	    }
 	    message_free( unexpanded );
 
 	    if ( result != 0 ) {

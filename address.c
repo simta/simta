@@ -30,6 +30,7 @@
 #include "header.h"
 #include "simta.h"
 #include "bdb.h"
+#include "bounce.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -47,12 +48,35 @@ expansion_stab_stdout( void *string )
 }
 
 
+    struct envelope *
+address_bounce_create( struct expand *exp )
+{
+    struct envelope		*bounce_env;
+
+    if (( bounce_env = env_create( NULL )) == NULL ) {
+	return( NULL );
+    }
+
+    if ( env_gettimeofday_id( bounce_env ) != 0 ) {
+	env_free( bounce_env );
+	return( NULL );
+    }
+
+    bounce_env->e_mail = simta_postmaster;
+    bounce_env->e_dir = simta_dir_fast;
+    bounce_env->e_next = exp->exp_errors;
+    exp->exp_errors = bounce_env;
+
+    return( bounce_env );
+}
+
+
     /*
      * return non-zero if there is a syserror  
      */
 
     int
-add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
+add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	int addr_type )
 {
     char			*address;
@@ -79,9 +103,8 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 
 	case 0:
 	    /* address is not syntactically correct, or correctable */
-	    if ( rcpt_error( addr_rcpt, "bad email address format: ",
+	    if ( bounce_text( error_env, "bad email address format: ",
 		    address, NULL ) != 0 ) {
-		/* rcpt_error syslogs syserrors */
 		free( address );
 		return( 1 );
 	    }
@@ -117,7 +140,7 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 	memset( e, 0, sizeof( struct exp_addr ));
 
 	e->e_addr = address;
-	e->e_addr_rcpt = addr_rcpt;
+	e->e_addr_errors = error_env;
 	e->e_addr_type = addr_type;
 
 	if ( ll_insert_tail( &(exp->exp_addr_list), address, e ) != 0 ) {
@@ -342,7 +365,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
 	    for ( ; ; ) {
 		if ( add_address( exp, (char*)value.data,
-			e_addr->e_addr_rcpt,  ADDRESS_TYPE_EMAIL ) != 0 ) {
+			e_addr->e_addr_errors,  ADDRESS_TYPE_EMAIL ) != 0 ) {
 		    /* add_address syslogs errors */
 		    *at = '@';
 		    return( ADDRESS_SYSERROR );
@@ -403,9 +426,10 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 			    return( ADDRESS_SYSERROR );
 			}
 
-			if ( rcpt_error( e_addr->e_addr_rcpt, e_addr->e_addr,
-				" .forward: line too long", NULL ) != 0 ) {
-			    /* rcpt_error syslogs syserrors */
+			if ( bounce_text( e_addr->e_addr_errors,
+				e_addr->e_addr, " .forward: line too long",
+				NULL ) != 0 ) {
+			    /* bounce_text syslogs errors */
 			    return( ADDRESS_SYSERROR );
 			}
 
@@ -419,7 +443,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 		    buf[ len - 1 ] = '\0';
 
 		    if ( add_address( exp, buf,
-			    e_addr->e_addr_rcpt, ADDRESS_TYPE_EMAIL ) != 0 ) {
+			    e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
 			/* add_address syslogs errors */
 
 			if ( fclose( f ) != 0 ) {
@@ -483,9 +507,9 @@ not_found:
 
     syslog( LOG_DEBUG, "address_expand %s FINAL: not found", e_addr->e_addr );
 
-    if ( rcpt_error( e_addr->e_addr_rcpt, "address not found: ",
+    if ( bounce_text( e_addr->e_addr_errors, "address not found: ",
 	    e_addr->e_addr, NULL ) != 0 ) {
-	/* rcpt_error syslogs syserrors */
+	/* bounce_text syslogs errors */
 	return( ADDRESS_SYSERROR );
     }
 

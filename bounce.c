@@ -51,6 +51,189 @@
 #include "bounce.h"
 
 
+    int
+bounce_text( struct envelope *bounce_env, char *t1, char *t2, char *t3 )
+{
+    char			*text;
+    size_t			len;
+
+    if ( bounce_env->e_err_text == NULL ) {
+	if (( bounce_env->e_err_text = line_file_create()) == NULL ) {
+	    syslog( LOG_ERR, "bounce_text line_file_create: %m" );
+	    return( -1 );
+	}
+    }
+
+    if ( t3 != NULL ) {
+	len = strlen( t1 ) + strlen( t2 ) + strlen( t3 ) + 1;
+
+	if (( text = (char*)malloc( len )) == NULL ) {
+	    syslog( LOG_ERR, "bounce_text malloc: %m" );
+	    return( -1 );
+	}
+
+	sprintf( text, "%s%s%s", t1, t2, t3 );
+
+	if ( line_append( bounce_env->e_err_text, text ) == NULL ) {
+	    syslog( LOG_ERR, "bounce_text line_append: %m" );
+	    free( text );
+	    return( -1 );
+	}
+
+	free( text );
+
+    } else if ( t2 != NULL ) {
+	len = strlen( t1 ) + strlen( t2 ) + 1;
+
+	if (( text = (char*)malloc( len )) == NULL ) {
+	    syslog( LOG_ERR, "bounce_text malloc: %m" );
+	    return( -1 );
+	}
+
+	sprintf( text, "%s%s", t1, t2 );
+
+	if ( line_append( bounce_env->e_err_text, text ) == NULL ) {
+	    syslog( LOG_ERR, "bounce_text line_append: %m" );
+	    free( text );
+	    return( -1 );
+	}
+
+	free( text );
+
+    } else {
+	if ( line_append( bounce_env->e_err_text, t1 ) == NULL ) {
+	    syslog( LOG_ERR, "bounce_text line_append: %m" );
+	    return( -1 );
+	}
+    }
+
+    return( 0 );
+}
+
+
+    void
+bounce_stdout( struct envelope *bounce_env )
+{
+    struct line                 *l;
+    struct recipient		*r;
+
+    if (( bounce_env->e_err_text == NULL ) ||
+	    (( l = bounce_env->e_err_text->l_first ) == NULL )) {
+	return;
+    }
+
+    printf( "***   Bounce Message   ***\n" );
+
+    /* dfile message headers */
+    printf(  "From: mailer-daemon@%s\n", simta_hostname );
+    for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
+	printf(  "To: %s\n", r->r_rcpt );
+    }
+    printf(  "\n" );
+
+    while ( l != NULL ) {
+	printf(  "%s\n", l->line_data );
+	l = l->line_next;
+    }
+}
+
+
+    int
+bounce_dfile_out( struct envelope *bounce_env, SNET *message )
+{
+    int				return_value = 1;
+    int				line_no = 0;
+    char                        dfile_fname[ MAXPATHLEN ];
+    int                         dfile_fd;
+    FILE                        *dfile;
+    struct line                 *l;
+    char                        *line;
+    time_t                      clock;
+    struct tm                   *tm;
+    char                        daytime[ 35 ];
+
+    syslog( LOG_DEBUG, "bounce_dfile_out.starting" );
+
+    sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
+
+    if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
+            < 0 ) {
+        syslog( LOG_ERR, "bounce_dfile_out open %s: %m", dfile_fname );
+	return( 1 );
+    }
+
+    if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
+        syslog( LOG_ERR, "bounce_dfile_out fdopen %s: %m", dfile_fname );
+        goto cleanup;
+    }
+
+    if ( time( &clock ) < 0 ) {
+        syslog( LOG_ERR, "bounce_dfile_out time: %m" );
+        goto cleanup;
+    }
+
+    if (( tm = localtime( &clock )) == NULL ) {
+        syslog( LOG_ERR, "bounce_dfile_out localtime: %m" );
+        goto cleanup;
+    }
+
+    if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
+            == 0 ) {
+        syslog( LOG_ERR, "bounce_dfile_out strftime: %m" );
+        goto cleanup;
+    }
+
+    /* dfile message headers */
+    fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
+    if (( bounce_env->e_mail == NULL ) || ( *bounce_env->e_mail == '\0' )) {
+	fprintf( dfile, "To: %s\n", simta_postmaster );
+	/* XXX ERROR */
+    } else {
+	fprintf( dfile, "To: %s\n", bounce_env->e_mail );
+    }
+    fprintf( dfile, "Date: %s\n", daytime );
+    fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
+    fprintf( dfile, "\n" );
+
+    for ( l = bounce_env->e_err_text->l_first; l != NULL; l = l->line_next ) {
+	fprintf( dfile, "%s\n", l->line_data );
+    }
+
+    if ( message != NULL ) {
+	fprintf( dfile, "\n" );
+	fprintf( dfile, "Bounced message:\n" );
+	fprintf( dfile, "\n" );
+
+	while (( line = snet_getline( message, NULL )) != NULL ) {
+	    line_no++;
+	    if ( line_no > SIMTA_BOUNCE_LINES ) {
+		break;
+	    }
+
+	    fprintf( dfile, "%s\n", line );
+	}
+    }
+
+    return_value = 0;
+
+cleanup:
+    if ( fclose( dfile ) != 0 ) {
+	syslog( LOG_ERR, "bounce_dfile_out fclose %s: %m", dfile_fname );
+	return_value = 1;
+    }
+
+    if ( return_value == 0 ) {
+	return( 0 );
+    }
+
+    if ( unlink( dfile_fname ) != 0 ) {
+	syslog( LOG_ERR, "bounce_dfile_out unlink %s: %m", dfile_fname );
+    }
+
+    return( return_value );
+}
+
+
     struct envelope *
 bounce( struct envelope *env, SNET *message )
 {
@@ -75,7 +258,7 @@ bounce( struct envelope *env, SNET *message )
     }
 
     if ( gettimeofday( &tv, NULL ) != 0 ) {
-	syslog( LOG_ERR, "gettimeofday: %m" );
+	syslog( LOG_ERR, "bounce gettimeofday: %m" );
 	goto cleanup1;
     }
 
@@ -110,31 +293,31 @@ bounce( struct envelope *env, SNET *message )
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
-        syslog( LOG_ERR, "open %s: %m", dfile_fname );
+        syslog( LOG_ERR, "bounce open %s: %m", dfile_fname );
         goto cleanup2;
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
-        syslog( LOG_ERR, "fdopen %s: %m", dfile_fname );
+        syslog( LOG_ERR, "bounce fdopen %s: %m", dfile_fname );
         close( dfile_fd );
         goto cleanup3;
     }
 
     if ( time( &clock ) < 0 ) {
-        syslog( LOG_ERR, "time: %m" );
+        syslog( LOG_ERR, "bounce time: %m" );
         close( dfile_fd );
         goto cleanup3;
     }
 
     if (( tm = localtime( &clock )) == NULL ) {
-        syslog( LOG_ERR, "localtime: %m" );
+        syslog( LOG_ERR, "bounce localtime: %m" );
         close( dfile_fd );
         goto cleanup3;
     }
 
     if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
             == 0 ) {
-        syslog( LOG_ERR, "strftime: %m" );
+        syslog( LOG_ERR, "bounce strftime: %m" );
         close( dfile_fd );
         goto cleanup3;
     }

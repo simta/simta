@@ -78,7 +78,7 @@ main( int argc, char *argv[])
 	return( 1 );
     }
 
-    env->e_mail = "epcjr@umich.edu";
+    env->e_mail = "sender@expansion.test";
 
     return( expand( &hq, env ));
 }

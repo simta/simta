@@ -22,6 +22,8 @@ struct recipient {
 
 struct envelope {
     struct sockaddr_in	*e_sin;
+    struct envelope	*e_next;
+    struct message	*e_message;
     char		*e_hostname;
     char		*e_punt;
     char		e_expanded[ MAXHOSTNAMELEN + 1 ];
@@ -43,8 +45,6 @@ struct envelope {
 #define E_TLS		(1<<0)
 #define E_READY		(1<<1)
 
-extern int		simta_rcpt_errors;
-
 /* NOT USED */
 void		env_stdout ___P(( struct envelope * ));
 void		env_free ___P(( struct envelope * ));
@@ -56,8 +56,7 @@ void		env_rcpt_free ___P(( struct envelope * ));
 struct envelope	*env_create ___P(( char * ));
 void		env_reset ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
-int		rcpt_error ___P(( struct recipient *r, char *, char *,
-			char * ));
+int		env_gettimeofday_id ___P(( struct envelope * ));
 int		env_recipient ___P(( struct envelope *, char * ));
 int		env_outfile ___P(( struct envelope *, char * ));
 int		env_touch ___P(( struct envelope * ));
@@ -66,6 +65,3 @@ int		env_slow ___P(( struct envelope * ));
 int		env_unlink ___P(( struct envelope * ));
 int		env_read ___P(( struct message *, struct envelope *,
 			SNET ** ));
-
-/* SIMSENDMAIL */
-int		env_gettimeofday_id ___P(( struct envelope * ));

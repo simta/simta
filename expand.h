@@ -1,4 +1,4 @@
-/**********          address.h          **********/
+/**********          expand.h          **********/
 
 /* return codes for expand_and_deliver(...) */
 #define	EXPAND_OK			0
@@ -24,15 +24,16 @@
 
 struct expand {
     struct envelope		*exp_env;	/* original envelope */
-    struct stab_entry		*exp_addr_list;	/* list of expanded addrs */
-    struct exp_addr		*exp_addr_root;	/* root of address tree */
-    struct exp_addr		*exp_addr_parent;
+    struct stab_entry		*exp_addr_list;	/* expanded addresses */
+    struct envelope		*exp_errors;	/* error envelope list */
+    struct exp_addr		*exp_addr_root;	/* address tree root */
+    struct exp_addr		*exp_addr_parent; /* used for tree building */
 };
 
 struct exp_addr {
     char			*e_addr;	/* address string */
     int				e_addr_type;	/* address type */
-    struct recipient		*e_addr_rcpt;	/* address error handle */
+    struct envelope		*e_addr_errors;	/* address error handle */
     struct exp_addr		*e_addr_parent;
     struct exp_addr		*e_addr_peer;
     struct exp_addr		*e_addr_child;
@@ -47,7 +48,9 @@ int	expand_and_deliver ___P(( struct host_q **, struct envelope * ));
 int	expand ___P(( struct host_q **, struct envelope * ));
 
 /* address.c */
+int address_error ___P(( struct envelope *, char *, char *, char * ));
 void expansion_stab_stdout( void * );
-int add_address( struct expand *, char *, struct recipient *, int );
+int add_address( struct expand *, char *, struct envelope *, int );
+struct envelope *address_bounce_create ___P(( struct expand* ));
 int address_local( char * );
 int address_expand( struct expand *, struct exp_addr * );

@@ -23,7 +23,8 @@ SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		q_cleanup.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o tz.o header.o \
-		simta.o ll.o nlist.o address.o bdb.o
+		simta.o ll.o nlist.o address.o bdb.o bounce.o queue.o expand.o \
+		smtp.c ml.o mx.o
 SIMLOGOBJ=	simlog.o
 DIPOBJ=		dip.o mx.o ll.o
 EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \

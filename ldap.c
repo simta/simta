@@ -29,6 +29,7 @@
 #include "envelope.h"
 #include "expand.h"
 #include "ldap.h"
+#include "bounce.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
@@ -449,9 +450,9 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
      *     - is the sender of the message
      *
      * expansion (not system) errors should be reported back to the sender
-     * using rcpt_error(...);
+     * using bounce_text(...);
      *
-     * rcpt_error( e_addr->e_addr_rcpt, char*, char*, char* );
+     * bounce_text( e_addr->e_addr_errors, char*, char*, char* );
      *     - used to create a bounce for an address
      *
      * add_address( exp, char *new_addr, e_addr->e_addr_rcpt, TYPE );
@@ -483,9 +484,9 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 
     /* addr should be user@some.domain */
     if (( at = strchr( e_addr->e_addr, '@' )) == NULL ) {
-	if ( rcpt_error( e_addr->e_addr_rcpt, "bad address format: ",
+	if ( bounce_text( e_addr->e_addr_errors, "bad address format: ",
 		e_addr->e_addr, NULL ) != 0 ) {
-	    /* rcpt_error syslogs syserrors */
+	    /* bounce_text syslogs syserrors */
 	}
 	return( LDAP_SYSERROR );
     }
@@ -604,7 +605,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 
 	    for ( x = 0; values[ x ] != NULL; x++ ) {
 		if ( add_address( exp, values[ x ],
-			e_addr->e_addr_rcpt, ADDRESS_TYPE_EMAIL ) != 0 ) {
+			e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
 		    perror( "add_address" );
 		    return( LDAP_SYSERROR );
 		}

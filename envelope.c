@@ -35,8 +35,6 @@
 #include "line_file.h"
 #include "simta.h"
 
-int		simta_rcpt_errors;
-
 
     int
 env_gettimeofday_id( struct envelope *e )
@@ -44,7 +42,7 @@ env_gettimeofday_id( struct envelope *e )
     struct timeval		tv;
 
     if ( gettimeofday( &tv, NULL ) != 0 ) {
-	syslog( LOG_ERR, "gettimeofday: %m" );
+	syslog( LOG_ERR, "env_gettimeofday gettimeofday: %m" );
 	return( -1 );
     }
 
@@ -118,44 +116,49 @@ env_rcpt_free( struct envelope *env )
     void
 env_free( struct envelope *env )
 {
-    env_rcpt_free( env );
+    if ( env != NULL ) {
+	env_rcpt_free( env );
 
-    if ( env->e_mail != NULL ) {
-	free( env->e_mail );
+	if ( env->e_mail != NULL ) {
+	    free( env->e_mail );
+	}
+
+	line_file_free( env->e_err_text );
+
+	free( env );
     }
-
-    line_file_free( env->e_err_text );
-
-    free( env );
 }
 
 
     void
 env_reset( struct envelope *env )
 {
-    if ( env->e_mail != NULL ) {
-	free( env->e_mail );
-	env->e_mail = NULL;
+    if ( env != NULL ) {
+	if ( env->e_mail != NULL ) {
+	    free( env->e_mail );
+	    env->e_mail = NULL;
+	}
+
+	if ( env->e_helo != NULL ) {
+	    free( env->e_helo );
+	    env->e_helo = NULL;
+	}
+
+	line_file_free( env->e_err_text );
+	env->e_err_text = NULL;
+
+	env_rcpt_free( env );
+	env->e_rcpt = NULL;
+
+	env->e_hostname = simta_hostname;
+	env->e_message = NULL;
+	*env->e_id = '\0';
+	env->e_flags = 0;
+	env->e_failed = 0;
+	env->e_tempfail = 0;
+	env->e_success = 0;
+	return;
     }
-
-    if ( env->e_helo != NULL ) {
-	free( env->e_helo );
-	env->e_helo = NULL;
-    }
-
-    line_file_free( env->e_err_text );
-
-    env_rcpt_free( env );
-
-    env->e_hostname = simta_hostname;
-    env->e_err_text = NULL;
-    env->e_rcpt = NULL;
-    *env->e_id = '\0';
-    env->e_flags = 0;
-    env->e_failed = 0;
-    env->e_tempfail = 0;
-    env->e_success = 0;
-    return;
 }
 
 
@@ -705,69 +708,6 @@ env_slow( struct envelope *env )
 	}
 
 	if ( env_unlink( env ) != 0 ) {
-	    return( -1 );
-	}
-    }
-
-    return( 0 );
-}
-
-
-    int
-rcpt_error( struct recipient *r, char *t1, char *t2, char *t3 )
-{
-    char			*text;
-    size_t			len;
-
-    r->r_delivered = R_FAILED;
-    simta_rcpt_errors++;
-
-    if ( r->r_text == NULL ) {
-	if (( r->r_text = line_file_create()) == NULL ) {
-	    syslog( LOG_ERR, "rcpt_error line_file_create: %m" );
-	    return( -1 );
-	}
-    }
-
-    if ( t3 != NULL ) {
-	len = strlen( t1 ) + strlen( t2 ) + strlen( t3 ) + 1;
-
-	if (( text = (char*)malloc( len )) == NULL ) {
-	    syslog( LOG_ERR, "rcpt_error malloc: %m" );
-	    return( -1 );
-	}
-
-	sprintf( text, "%s%s%s", t1, t2, t3 );
-
-	if ( line_append( r->r_text, text ) == NULL ) {
-	    syslog( LOG_ERR, "rcpt_error line_append: %m" );
-	    free( text );
-	    return( -1 );
-	}
-
-	free( text );
-
-    } else if ( t2 != NULL ) {
-	len = strlen( t1 ) + strlen( t2 ) + 1;
-
-	if (( text = (char*)malloc( len )) == NULL ) {
-	    syslog( LOG_ERR, "rcpt_error malloc: %m" );
-	    return( -1 );
-	}
-
-	sprintf( text, "%s%s", t1, t2 );
-
-	if ( line_append( r->r_text, text ) == NULL ) {
-	    syslog( LOG_ERR, "rcpt_error line_append: %m" );
-	    free( text );
-	    return( -1 );
-	}
-
-	free( text );
-
-    } else {
-	if ( line_append( r->r_text, t1 ) == NULL ) {
-	    syslog( LOG_ERR, "rcpt_error line_append: %m" );
 	    return( -1 );
 	}
     }
