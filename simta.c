@@ -500,6 +500,8 @@ simta_read_config( char *fname )
 		    fname, lineno );
 		goto error;
 	    }
+	    /* Add 1 to include max in failed rcpt count */
+	    simta_max_failed_rcpts++;
 
 	} else {
 	    fprintf( stderr, "%s: line %d: unknown keyword: %s\n",

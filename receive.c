@@ -534,12 +534,14 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
      * that we don't know.
      */
     if (( simta_max_failed_rcpts != 0 ) &&
-	    ( recieve_failed_rcpts > simta_max_failed_rcpts )) {
-	syslog( LOG_INFO, "Receive %s: To <%s> Rejected:"
-		" Too many failed recepients:"
-		" Relay [%s] %s", env->e_id, addr,
-		inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname ? receive_remote_hostname : "" );
+	    ( recieve_failed_rcpts >= simta_max_failed_rcpts )) {
+	if ( recieve_failed_rcpts = simta_max_failed_rcpts ) {
+	    syslog( LOG_INFO, "Receive %s: Rejected:"
+		    " Too many failed recepients:"
+		    " Relay [%s] %s", env->e_id, addr,
+		    inet_ntoa( receive_sin->sin_addr ),
+		    receive_remote_hostname ? receive_remote_hostname : "" );
+	}
 	if ( snet_writef( snet, "%d Requested action aborted: "
 		"Too many failed recipients.\r\n", 451 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
