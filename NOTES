@@ -112,3 +112,8 @@ RFCs:
     rfc1845.txt-crap
     rfc2034.txt-crap
     rfc2645.txt-crap
+
+Existing MX's:
+
+   crap.rsug.itd.umich.edu  ->	rsug.itd.umich.edu
+   rsug.itd.umich.edu	    ->	terminator.itd.umich.edu
