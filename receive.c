@@ -1428,8 +1428,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	switch( check_rbl( &(sin->sin_addr), simta_rbl_domain, &rbl_err_txt )) {
 	case 0:
 	    syslog( LOG_NOTICE,
-		"receive connection blocked by %s: %s",
-		simta_rbl_domain, rbl_err_txt );
+		"Receive: Rejected IP %s by %s",
+		inet_ntoa( receive_sin->sin_addr ), simta_rbl_domain );
 	    snet_writef( snet, "550 No access from your IP: "
 		"%s\r\n", rbl_err_txt );
 	    free( rbl_err_txt );
