@@ -3,7 +3,7 @@
 AC_INIT(simta, VERSION, simta@umich.edu)
 AC_PREREQ(2.52)
 AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
-AC_CONFIG_AUX_DIR([config])
+AC_CONFIG_AUX_DIR([libsnet])
 
 # Local Stuff
 AC_PREFIX_DEFAULT(/usr/local)
