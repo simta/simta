@@ -249,14 +249,8 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    break;
 
 	case SMTP_MAIL:
-	    if ( *(d->d_env->e_mail) == '\0' ) {
-		syslog( LOG_INFO, "smtp_reply %s %s MAIL FROM:<> OK: %s",
-			d->d_env->e_id, hq->hq_hostname, line );
-	    } else {
-		syslog( LOG_INFO, "smtp_reply %s %s MAIL FROM:<%s> OK: %s",
-			d->d_env->e_id, hq->hq_hostname, d->d_env->e_mail,
-			line );
-	    }
+	    syslog( LOG_INFO, "smtp_reply %s %s MAIL FROM:<%s> OK: %s",
+		    d->d_env->e_id, hq->hq_hostname, d->d_env->e_mail, line );
 	    break;
 
 	case SMTP_RCPT:
