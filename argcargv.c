@@ -26,11 +26,13 @@ acav_alloc( void )
     if ( ( acav = (ACAV*)malloc( sizeof( ACAV ) ) ) == NULL ) {
 	return( NULL );
     }
+    memset( acav, 0, sizeof( ACAV ));
     acav->acv_argv = NULL;
     if ( ( acav->acv_argv =
 	    (char **)malloc( sizeof(char *) * ( ACV_ARGC ) ) ) == NULL ) {
 	return( NULL );
     }
+    memset( acav->acv_argv, 0, sizeof( ACV_ARGC ));
     acav->acv_argc = ACV_ARGC;
 
     return( acav );

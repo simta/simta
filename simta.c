@@ -82,7 +82,6 @@ simta_sender( void )
 	    perror( "malloc" );
 	    return( NULL );
 	}
-
 	sprintf( sender, "%s@%s", pw->pw_name, simta_domain );
     }
 
@@ -111,7 +110,6 @@ simta_config( char *conf_fname, char *base_dir )
 	perror( "malloc" );
 	return( -1 );
     }
-
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
 
     /* set up simta_hosts stab */
@@ -122,6 +120,7 @@ simta_config( char *conf_fname, char *base_dir )
 	perror( "simta_config malloc" );
 	return( -1 );
     }
+    memset( host, 0, sizeof( struct host ));
 
     host->h_type = HOST_LOCAL;
     host->h_expansion = NULL;
@@ -201,6 +200,7 @@ simta_config( char *conf_fname, char *base_dir )
 	    perror( "simta_config malloc" );
 	    return( -1 );
 	}
+	memset( host, 0, sizeof( struct host ));
 
 	host->h_type = HOST_MX;
 	host->h_expansion = NULL;

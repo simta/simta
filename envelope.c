@@ -93,7 +93,6 @@ env_create( char *e_mail )
 	return( NULL );
     }
     memset( env, 0, sizeof( struct envelope ));
-    *env->e_id = '\0';
 
     if ( e_mail != NULL ) {
 	if (( env->e_mail = strdup( e_mail )) == NULL ) {

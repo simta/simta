@@ -521,6 +521,7 @@ simta_ldap_config( char *fname )
 		    ldap_free_urldesc (plud);
 		    return( -1 );
 		}
+		memset( *lds, 0, sizeof( struct ldap_search_list ));
 
 		if (((*lds)->lds_string = strdup( av[ 1 ] )) == NULL ) {
 		    perror( "strdup" );

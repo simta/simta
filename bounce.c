@@ -71,7 +71,6 @@ bounce_text( struct envelope *bounce_env, char *t1, char *t2, char *t3 )
 	    syslog( LOG_ERR, "bounce_text malloc: %m" );
 	    return( -1 );
 	}
-
 	sprintf( text, "%s%s%s", t1, t2, t3 );
 
 	if ( line_append( bounce_env->e_err_text, text ) == NULL ) {
@@ -89,7 +88,6 @@ bounce_text( struct envelope *bounce_env, char *t1, char *t2, char *t3 )
 	    syslog( LOG_ERR, "bounce_text malloc: %m" );
 	    return( -1 );
 	}
-
 	sprintf( text, "%s%s", t1, t2 );
 
 	if ( line_append( bounce_env->e_err_text, text ) == NULL ) {

@@ -17,6 +17,7 @@ r_alloc( rcpt )
     if (( t = (struct rcptlist *)malloc(sizeof( struct rcptlist ))) == NULL ) {
 	return( NULL );
     }
+    memset( t, 0, sizeof( struct rcptlist ));
 
     if (( t->r_rcpt = strdup( rcpt )) == NULL ) {
 	return( NULL );

@@ -159,6 +159,7 @@ mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
                 syslog( LOG_ERR, "mx_local: malloc: %m" );
                 return( -1 );
             }
+            memset( host, 0, sizeof( struct host ));
             /* Check preference */
             if ( result->r_answer[ i ].rr_mx.mx_preference ==
                     result->r_answer[ 0 ].rr_mx.mx_preference ) {

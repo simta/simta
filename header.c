@@ -1094,7 +1094,6 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	    perror( "malloc" );
 	    return( -1 );
 	}
-
 	sprintf( addr, "%s@%s", local.t_unfolded, domain.t_unfolded );
 
 	if ( env_recipient( env, addr ) != 0 ) {
@@ -1686,7 +1685,6 @@ line_token_unfold( struct line_token *token )
 	perror( "line_token_unfold malloc" );
 	return( -1 );
     }
-
     strcpy( token->t_unfolded, token->t_start );
 
     line = token->t_start_line;
@@ -1707,7 +1705,6 @@ line_token_unfold( struct line_token *token )
 		perror( "line_token_unfold malloc" );
 		return( -1 );
 	    }
-
 	    sprintf( tmp, "%s ", token->t_unfolded );
 	    free( token->t_unfolded );
 	    strncat( tmp, c, (size_t)(token->t_end - c + 1));
@@ -1722,7 +1719,6 @@ line_token_unfold( struct line_token *token )
 		perror( "line_token_unfold malloc" );
 		return( -1 );
 	    }
-
 	    sprintf( tmp, "%s %s", token->t_unfolded, c );
 	    free( token->t_unfolded );
 	    token->t_unfolded = tmp;
