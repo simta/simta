@@ -16,16 +16,98 @@
 #include "smtp.h"
 
     int
-smtp_send_message( SNET *snet, struct message *m )
+smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 {
     char		*line;
+    struct recipient	*r;
+    struct line		*l;
 
     /* MAIL FROM: */
     if ( snet_writef( snet, "MAIL FROM: %s\r\n", m->m_env->e_mail ) < 0 ) {
 	return( 1 );
     }
 
-    if (( line = snet_getline_multi( snet, NULL, NULL )) == NULL ) {
+#ifdef DEBUG
+    printf( "--> MAIL FROM: %s\n", m->m_env->e_mail );
+#endif /* DEBUG */
+
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	return( 1 );
+    }
+
+    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	return( 1 );
+    }
+
+    /* RCPT TO: */
+    for ( r = m->m_env->e_rcpt; r != NULL; r = r->r_next ) {
+	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
+	    return( 1 );
+	}
+
+#ifdef DEBUG
+    printf( "--> RCPT TO: %s\n", r->r_rcpt );
+#endif /* DEBUG */
+
+	if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	    return( 1 );
+	}
+
+	if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	    return( 1 );
+	}
+    }
+
+    /* DATA */
+    if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
+	return( 1 );
+    }
+
+#ifdef DEBUG
+    printf( "--> DATA\n" );
+#endif /* DEBUG */
+
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	return( 1 );
+    }
+
+    if ( strncmp( line, SMTP_DATAOK, 3 ) != 0 ) {
+	return( 1 );
+    }
+
+    /* send message */
+    for ( l = m->m_first_line; l != NULL; l = l->line_next ) {
+	if ( strcmp( SMTP_EOF, l->line_data ) == 0 ) {
+	    /* don't send EOF */
+	    if ( snet_writef( snet, "..\r\n" ) < 0 ) {
+		return( 1 );
+	    }
+
+#ifdef DEBUG
+	    printf( "--> ..\n" );
+#endif /* DEBUG */
+
+	} else {
+	    if ( snet_writef( snet, "%s\r\n", l->line_data ) < 0 ) {
+		return( 1 );
+	    }
+
+#ifdef DEBUG
+	    printf( "--> %s\n", l->line_data );
+#endif /* DEBUG */
+
+	}
+    }
+
+    if ( snet_writef( snet, "%s\r\n", SMTP_EOF ) < 0 ) {
+	return( 1 );
+    }
+
+#ifdef DEBUG
+    printf( "--> .\n" );
+#endif /* DEBUG */
+
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
 	return( 1 );
     }
 
@@ -93,7 +175,7 @@ smtp_connect( char *hostname, int port, void (*logger)(char *))
     }
 
 #ifdef DEBUG
-    printf( "--> HELO %s\r\n", localhostname );
+    printf( "--> HELO %s\n", localhostname );
 #endif /* DEBUG */
 
     /* read reply banner */
@@ -120,7 +202,7 @@ smtp_quit( SNET *snet, void (*logger)(char *))
     }
 
 #ifdef DEBUG
-    printf( "--> QUIT\r\n" );
+    printf( "--> QUIT\n" );
 #endif /* DEBUG */
 
     /* read reply banner */
