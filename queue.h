@@ -51,16 +51,13 @@ struct message {
     struct timespec		m_etime;
 };
 
-
-void	message_stdout ___P(( struct message * ));
-void	q_stdout ___P(( struct host_q * ));
-void	q_list_stdout ___P(( struct host_q * ));
-struct message	*message_create ___P(( char * ));
-void	message_free ___P(( struct message * ));
-int	message_queue ___P(( struct host_q *, struct message * ));
-struct host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
-int	bounce ___P(( struct envelope *, SNET * ));
-int	q_deliver ___P(( struct host_q * ));
 int	q_runner ___P(( struct host_q ** ));
-int	q_read_dir ___P(( char *, struct host_q ** ));
 int	q_runner_dir ___P(( char * ));
+
+struct	host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
+void	q_stdout ___P(( struct host_q * ));
+void	q_stab_stdout ___P(( struct host_q * ));
+struct	message	*message_create ___P(( char * ));
+void	message_free ___P(( struct message * ));
+void	message_stdout ___P(( struct message * ));
+int	message_queue ___P(( struct host_q *, struct message * ));

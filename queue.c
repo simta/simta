@@ -49,6 +49,10 @@
 /* GLOBAL VARS */
 struct host_q		*simta_null_q;
 
+int	q_deliver ___P(( struct host_q * ));
+int	q_read_dir ___P(( char *, struct host_q ** ));
+int	bounce ___P(( struct envelope *, SNET * ));
+
 
     void
 message_stdout( struct message *m )
@@ -74,7 +78,7 @@ q_stdout( struct host_q *hq )
 }
 
     void
-q_list_stdout( struct host_q *hq )
+q_stab_stdout( struct host_q *hq )
 {
     for ( ; hq != NULL; hq = hq->hq_next ) {
 	q_stdout( hq );
@@ -376,7 +380,7 @@ q_runner_dir( char *dir )
 
 #ifdef DEBUG
     printf( "q_runner_dir %s:\n", dir );
-    q_list_stdout( host_q );
+    q_stab_stdout( host_q );
 #endif /* DEBUG */
 
     if ( q_runner( &host_q ) != 0 ) {

@@ -33,6 +33,7 @@
 #include "receive.h"
 #include "simta.h"
 #include "queue.h"
+#include "envelope.h"
 
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
