@@ -68,6 +68,7 @@ cp Eterminator ../slow/Eterm
 cp Dterminator ../slow/Dterm
 cp Eterminator ../slow/Eterm1
 cp Dterminator ../slow/Dterm1
+touch -t 01010101 ../slow/Dterm1
 
 # deliver some rsug mail
 cp Ersug ../slow/Ersug
@@ -80,8 +81,3 @@ touch -t 01010101 ../slow/Drsugbad
 
 # terminator Efile with no Dfile
 cp Eterminator ../slow/Elocalalone
-
-# deliver some terminator mail
-cp Etermbad ../slow/Etermbad
-cp Dterminator ../slow/Dtermbad
-touch -t 01010101 ../slow/Dtermbad

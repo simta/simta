@@ -17,7 +17,6 @@
 
 #include <snet.h>
 
-#include "message.h"
 #include "envelope.h"
 #include "smtp.h"
 

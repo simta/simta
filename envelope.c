@@ -26,7 +26,7 @@
 #include <snet.h>
 
 #include "envelope.h"
-#include "message.h"
+#include "line_file.h"
 
 
     int

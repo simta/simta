@@ -27,7 +27,7 @@
 
 #include <snet.h>
 
-#include "message.h"
+#include "line_file.h"
 #include "envelope.h"
 
 #define	TEST_DIR	"local"
@@ -38,9 +38,11 @@
 #define ___P(x)         ()
 #endif /* __STDC__ */
 
-int		header_exceptions ___P(( struct message * ));
-int		headers ___P(( struct message * ));
 int		count_words ___P(( char * ));
+
+int		header_end ___P(( struct line_file *, char * ));
+int		header_exceptions ___P(( struct line_file * ));
+int		header_correct ___P(( struct line_file * ));
 
 
 struct header header_list[] = {
@@ -64,6 +66,17 @@ struct header header_list[] = {
 };
 
 
+    /* return 0 if line is the next line in header block lf */
+
+    int
+header_end( struct line_file *lf, char *line )
+{
+    /* if line syntax is a header, return 0 */
+    /* if line could be folded whitespace and lf->l_first != NULL, return 0 */
+    return( 1 );
+}
+
+
     /* Some mail clents exhibit bad behavior when generating headers.
      *
      * return 0 if all went well.
@@ -72,37 +85,40 @@ struct header header_list[] = {
      */
 
     int
-header_exceptions( struct message *m )
+header_exceptions( struct line_file *lf )
 {
     char		*c;
     char		*end;
-    int			len;
-    char		*line;
 
-    if ( m->m_data->md_first == NULL ) {
+    if ( lf->l_first == NULL ) {
 	/* empty message */
 	return( 0 );
     }
 
     /* mail(1) on Solaris gives non-RFC compliant first header line */
-    c = m->m_data->md_first->line_data;
+    c = lf->l_first->line_data;
 
-    if ( strncasecmp( m->m_data->md_first->line_data, "From ", 5 ) == 0 ) {
+    if ( strncasecmp( c, "From ", 5 ) == 0 ) {
 	c += 5;
 	for ( end = c; ( *end > 33 ) && ( *end < 126 ); end++ )
 		;
 
-	/* rewrite the header if we find a word after "From " */
-	if (( len = end - c ) > 0 ) {
-	    if (( line = (char*)malloc((size_t)(7 + len ))) == NULL ) {
-		perror( "malloc" );
-		exit( 1 );
-	    }
-	    strcpy( line, "From: " );
-	    strncat( line, c, (size_t)(len + 1 ));
-	    free( m->m_data->md_first->line_data );
-	    m->m_data->md_first->line_data = line;
+	/* if "From "word..., rewrite header "From:"word'\0' */
+	if (( end - c ) > 0 ) {
+	    *(lf->l_first->line_data) = ':';
+	    *end = '\0';
 	}
+    }
+
+    return( 0 );
+}
+
+
+    int
+header_correct( struct line_file *lf )
+{
+    if ( header_exceptions( lf ) != 0 ) {
+	return( -1 );
     }
 
     return( 0 );
@@ -132,184 +148,20 @@ count_words( char *l )
     return( words );
 }
 
-    /* return 0 if all went well.
-     * return 1 if we reject the message.
-     * return -1 if there was a serious error.
-     */
-
-    int
-headers( struct message *m )
-{
-    int			words;
-    struct line		*l;
-    struct line		*bl;
-    struct header	*h;
-    char		*colon;
-    size_t		header_len;
-    struct passwd	*pw;
-    char		*from_line;
-
-    if ( header_exceptions( m ) != 0 ) {
-	return( 1 );
-    }
-
-    /* put header information in to data structures for later processing */
-    /* put a blank line between the message headers and body, if needed */
-    for ( l = m->m_data->md_first; l != NULL ; l = l->line_next ) {
-	if ( *(l->line_data) == '\0' ) {
-	    /* null line means that message data begins */
-	    break;
-	}
-
-	/* RFC 2822:
-	 * Header fields are lines composed of a field name, followed
-	 * by a colon (":"), followed by a field body, and terminated
-	 * by CRLF.  A field name MUST be composed of printable
-	 * US-ASCII characters (i.e., characters that have values
-	 * between 33 and 126, inclusive), except colon.
-	 */
-
-	if ( isspace( (int)*l->line_data ) != 0 ) {
-	    /* line contains folded white space */
-	    continue;
-	}
-
-	for ( colon = l->line_data; *colon != ':'; colon++ ) {
-	    /* colon ascii value is 58 */
-	    if (( *colon < 33 ) || ( *colon > 126 )) {
-		break;
-	    }
-	}
-
-	if (( *colon == ':' ) && (( header_len = colon - l->line_data ) > 0 )) {
-	    /* proper field name followed by a colon */
-	    for ( h = header_list; h->h_key != NULL; h++ ) {
-		if ( strncasecmp( h->h_key, l->line_data, header_len ) == 0 ) {
-		    /* correct field name */
-		    h->h_line = l;
-		}
-	    }
-
-	} else {
-	    /* not a valid header */
-	    /* no colon, or colon was the first thing on the line */
-	    /* add a blank line between headers and the body */
-	    if (( bl = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
-		return( -1 );
-	    }
-	    memset( bl, 0, sizeof( struct line ));
-
-	    if (( bl->line_data = (char*)malloc( 1 )) == NULL ) {
-		return( -1 );
-	    }
-
-	    *bl->line_data = '\0';
-	    bl->line_next = l;
-
-	    if (( bl->line_prev = l->line_prev ) == NULL ) {
-		m->m_data->md_first = bl;
-	    } else {
-		l->line_prev->line_next = bl;
-	    }
-
-	    l->line_prev = bl;
-	    break;
-	}
-    }
-
-    /* examine header data structures */
-
-    /* "From:" header */
-    if ( header_list[ HEAD_FROM ].h_line == NULL ) {
-	/* generate header */
-
-	if (( pw = getpwuid( getuid())) == NULL ) {
-	    perror( "getpwuid" );
-	    return( 1 );
-	}
-
-	if (( from_line = (char*)malloc( strlen( pw->pw_name ) +
-		strlen( m->m_env->e_hostname ) + 9 )) == NULL ) {
-	    return( -1 );
-	}
-
-	sprintf( from_line, "From: %s@%s", pw->pw_name, m->m_env->e_hostname );
-
-	if (( header_list[ HEAD_FROM ].h_line =
-		data_prepend_line( m->m_data, from_line )) == NULL ) {
-	    return( -1 );
-	}
-	m->m_env->e_mail = header_list[ HEAD_FROM ].h_line->line_data + 6;
-
-    } else {
-	/* handle following cases from doc/sendmail/headers:
-	 * From: user
-	 * From: user@domain
-	 * From: Firstname Lastname <user@domain>
-	 * From: "Firstname Lastname" <user@domian>
-	 * From: user@domian (Firstname Lastname)
-	 *
-	 * To: blah: woof woof;
-	 *
-	 * FWS
-	 * (comments)
-	 */
-
-	/* XXX totally fucked */
-
-	words = count_words( h->h_line->line_data + 5 );
-
-	if ( words == 0 ) {
-	    return( 1 );
-
-	} else if ( words == 1 ) {
-	} else {
-	}
-    }
-
-    if ( header_list[ HEAD_SENDER ].h_line == NULL ) {
-	/* XXX action */
-    }
-
-    if ( header_list[ HEAD_ORIG_DATE ].h_line == NULL ) {
-	/* XXX action */
-    }
-
-    if ( header_list[ HEAD_MESSAGE_ID ].h_line == NULL ) {
-	/* XXX action */
-    }
-
-    if ( header_list[ HEAD_TO ].h_line == NULL ) {
-	/* XXX action */
-    }
-
-    if ( header_list[ HEAD_REPLY_TO ].h_line == NULL ) {
-	/* XXX action */
-    }
-
-    if ( header_list[ HEAD_CC ].h_line == NULL ) {
-	/* XXX action */
-    }
-
-    if ( header_list[ HEAD_BCC ].h_line == NULL ) {
-	/* XXX action */
-    }
-
-    return( 0 );
-}
-
 
     int
 main( int argc, char *argv[] )
 {
-    SNET		*snet;
+    SNET		*snet_stdin;
     char		*line;
-    struct message	*m;
+    struct line_file	*lf;
     struct line		*l;
+    struct envelope	*env;
     int			usage = 0;
     int			c;
     int			ignore_dot = 0;
     int			x;
+    int			header;
 
     /* ignore a good many options */
     opterr = 0;
@@ -372,7 +224,6 @@ main( int argc, char *argv[] )
 	}
     }
 
-    /* XXX error handling for command line options? */
     if ( usage != 0 ) {
 	fprintf( stderr, "Usage: %s "
 		"[ -b option ] "
@@ -382,17 +233,36 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
-    if (( m = message_create( NULL )) == NULL ) {
-	perror( "message_create" );
+    /* create envelope */
+    if (( env = env_create( NULL )) == NULL ) {
+	perror( "env_create" );
 	exit( 1 );
     }
 
-    if (( snet = snet_attach( 0, 1024 * 1024 )) == NULL ) {
+    /* optind = first to-address */
+    for ( x = optind; x < argc; x++ ) {
+	if ( env_recipient( env, argv[ x ] ) != 0 ) {
+	    perror( "env_recipient" );
+	    exit( 1 );
+	}
+    }
+
+    /* create line_file for headers */
+    if (( lf = line_file_create()) == NULL ) {
+	perror( "line_file_create" );
+	exit( 1 );
+    }
+
+    /* need to read stdin in a line-oriented fashon */
+    if (( snet_stdin = snet_attach( 0, 1024 * 1024 )) == NULL ) {
 	perror( "snet_attach" );
 	exit( 1 );
     }
 
-    while (( line = snet_getline( snet, NULL )) != NULL ) {
+    /* start in header mode */
+    header = 1;
+
+    while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
 	if ( ignore_dot == 0 ) {
 	    if (( line[ 0 ] == '.' ) && ( line[ 1 ] =='\0' )) {
 		/* single dot on a line */
@@ -400,48 +270,58 @@ main( int argc, char *argv[] )
 	    }
 	}
 
-	if (( l = data_add_line( m->m_data, line )) == NULL ) {
-	    perror( "message_line" );
-	    exit( 1 );
+	if ( header == 1 ) {
+	    if ( header_end( lf, line ) != 0 ) {
+		if (( x = header_correct( lf )) < 0 ) {
+		    perror( "header_correct" );
+		    exit( 1 );
+
+		} else if ( x > 0 ) {
+		    /* headers couldn't be corrected */
+		    fprintf( stderr, "Message rejected: Bad headers\n" );
+		    exit( 1 );
+		}
+
+		/* open Dfile */
+		/* print headers to Dfile */
+		/* print line to Dfile */
+		header = 0;
+
+	    } else {
+		if (( l = line_append( lf, line )) == NULL ) {
+		    perror( "line_append" );
+		    exit( 1 );
+		}
+	    }
+
+	} else {
+	    /* print line to Dfile */
 	}
     }
 
-    if ( snet_close( snet ) != 0 ) {
+    if ( snet_close( snet_stdin ) != 0 ) {
 	perror( "snet_close" );
 	exit( 1 );
     }
 
-    switch ( headers( m )) {
-    default:
-    case -1:
-	/* serious error */
-	perror( "headers" );
-	exit( 1 );
-	break;
+    if ( header == 1 ) {
+	if (( x = header_correct( lf )) < 0 ) {
+	    perror( "header_correct" );
+	    exit( 1 );
 
-    case 1:
-	/* reject message */
-
-    case 0:
-	/* everything fine, fall through */
-	break;
-    }
-
-    /* optind = first to-address */
-
-    for ( x = optind; x < argc; x++ ) {
-	if ( env_recipient( m->m_env, argv[ x ] ) != 0 ) {
-	    perror( "env_recipient" );
+	} else if ( x > 0 ) {
+	    /* headers couldn't be corrected */
+	    fprintf( stderr, "Message rejected: Bad headers\n" );
 	    exit( 1 );
 	}
+
+	/* open Dfile */
+	/* print headers to Dfile */
     }
 
-    /* message_stdout( m ); */
+    /* close Dfile */
 
-    if ( message_outfiles( m, TEST_DIR ) != 0 ) {
-	perror( "message_outfile" );
-	exit( 1 );
-    }
+    /* store Efile */
 
     return( 0 );
 }

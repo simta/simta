@@ -26,7 +26,7 @@
 
 #include "envelope.h"
 #include "ml.h"
-#include "message.h"
+#include "line_file.h"
 
 
 char		*maillocal_argv[] = { "mail.local", "-f", 0, "--", 0, 0 };

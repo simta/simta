@@ -11,14 +11,13 @@ RESOLV_CONF=@resolvconf@
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c address.c
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o \
-		address.o message.o
+		address.o line_file.o
 TLSCONOBJ=	tlsconnect.o
-SIMSENDOBJ=	simsend.o message.o envelope.o tz.o
-SENDOBJ=	send.o smtp.o message.o envelope.o tz.o
+SIMSENDOBJ=	simsend.o line_file.o envelope.o tz.o
 SIMLOGOBJ=	simlog.o
-QRUNNEROBJ=	q_runner.c queue.o ll.o message.o envelope.o tz.o ml.o smtp.o
-QCLEANUPOBJ=	q_cleanup.c queue.o ll.o message.o envelope.o tz.o
-CONNECT_TESTOBJ=	connect_test.o smtp.o message.o envelope.o tz.o
+QRUNNEROBJ=	q_runner.c queue.o ll.o line_file.o envelope.o tz.o ml.o smtp.o
+QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o
+CONNECT_TESTOBJ=	connect_test.o smtp.o line_file.o envelope.o tz.o
 
 SIMTALOG=LOG_MAIL
 
@@ -33,7 +32,7 @@ TAGSFILE=	tags
 
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
 
-TARGETS=	simta tlsconnect simsendmail send q_runner q_cleanup
+TARGETS=	simta tlsconnect simsendmail q_runner q_cleanup
 
 all : ${TARGETS}
 
@@ -62,9 +61,6 @@ tlsconnect : libsnet/libsnet.a denser/denser.o ${TLSCONOBJ} Makefile
 
 simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} ${LIBS}
-
-send : libsnet/libsnet.a denser/denser.o ${SENDOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o send ${SENDOBJ} ${LIBPATH} ${LIBS}
 
 simlog : libsnet/libsnet.a denser/denser.o ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}

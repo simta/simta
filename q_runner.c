@@ -31,7 +31,7 @@
 #include "ll.h"
 #include "envelope.h"
 #include "queue.h"
-#include "message.h"
+#include "line_file.h"
 #include "ml.h"
 #include "smtp.h"
 
@@ -375,7 +375,7 @@ deliver_local( struct host_q *hq )
     for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
 	q = (struct q_file*)qs->st_data;
 
-	/* get message_data */
+	/* get message data fd */
 	errno = 0;
 	sprintf( dfile_fname, "%s/D%s", q->q_env->e_dir, q->q_id );
 
@@ -550,7 +550,7 @@ deliver_remote( struct host_q *hq )
     for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
 	q = (struct q_file*)qs->st_data;
 
-	/* get message_data */
+	/* get message data snet */
 	errno = 0;
 	sprintf( dfile_fname, "%s/D%s", q->q_env->e_dir, q->q_id );
 

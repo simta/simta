@@ -24,7 +24,7 @@
 
 #include <snet.h>
 
-#include "message.h"
+#include "line_file.h"
 #include "envelope.h"
 #include "smtp.h"
 #include "denser.h"
@@ -33,6 +33,7 @@
 #include "timeval.h"
 
 char          *dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
+
 
     void
 stdout_logger( char *line )
@@ -52,111 +53,6 @@ smtp_eval( char *code, char *line )
 	if ( *(code + x) != *(line + x) ) {
 	    return( 1 );
 	}
-    }
-
-    return( 0 );
-}
-
-
-    int
-smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
-{
-    char		*line;
-    struct recipient	*r;
-    struct line		*l;
-
-    /* MAIL FROM: */
-    if ( snet_writef( snet, "MAIL FROM: %s\r\n", m->m_env->e_mail ) < 0 ) {
-	return( 1 );
-    }
-
-#ifdef DEBUG
-    printf( "--> MAIL FROM: %s\n", m->m_env->e_mail );
-#endif /* DEBUG */
-
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	return( 1 );
-    }
-
-    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	return( 1 );
-    }
-
-    /* RCPT TO: */
-    for ( r = m->m_env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( snet_writef( snet, "RCPT TO: <%s>\r\n", r->r_rcpt ) < 0 ) {
-	    return( 1 );
-	}
-
-#ifdef DEBUG
-    printf( "--> RCPT TO: <%s>\n", r->r_rcpt );
-#endif /* DEBUG */
-
-	if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	    return( 1 );
-	}
-
-
-	if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	    return( 1 );
-	}
-    }
-
-    /* DATA */
-    if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
-	return( 1 );
-    }
-
-#ifdef DEBUG
-    printf( "--> DATA\n" );
-#endif /* DEBUG */
-
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	return( 1 );
-    }
-
-    if ( smtp_eval( SMTP_DATAOK, line ) != 0 ) {
-	return( 1 );
-    }
-
-    /* send message */
-    for ( l = m->m_data->md_first; l != NULL; l = l->line_next ) {
-	if ( *l->line_data == '.' ) {
-	    /* don't send EOF */
-	    if ( snet_writef( snet, ".%s\r\n", l->line_data ) < 0 ) {
-		return( 1 );
-	    }
-
-#ifdef DEBUG
-	    printf( "--> .%s\n", l->line_data );
-#endif /* DEBUG */
-
-	} else {
-	    if ( snet_writef( snet, "%s\r\n", l->line_data ) < 0 ) {
-		return( 1 );
-	    }
-
-#ifdef DEBUG
-	    printf( "--> %s\n", l->line_data );
-#endif /* DEBUG */
-
-	}
-    }
-
-    if ( snet_writef( snet, "%s\r\n", SMTP_EOF ) < 0 ) {
-	return( 1 );
-    }
-
-#ifdef DEBUG
-    printf( "--> .\n" );
-#endif /* DEBUG */
-
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	return( 1 );
-    }
-
-    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	return( 1 );
     }
 
     return( 0 );
@@ -429,33 +325,6 @@ smtp_quit( SNET *snet, void (*logger)(char *))
     if ( snet_close( snet ) != 0 ) {
 	syslog( LOG_NOTICE, "smtp_quit snet_close: %m" );
 	return( SMTP_ERR_SYSCALL );
-    }
-
-    return( 0 );
-}
-
-
-    int
-smtp_send_single_message( char *hostname, int port, struct message *m,
-	void (*logger)(char *))
-{
-    SNET			*snet;
-    int				r;
-
-    if (( snet = smtp_connect( hostname, port )) == NULL ) {
-	return( 1 );
-    }
-
-    if (( r = smtp_helo( snet, logger )) != 0 ) {
-	return( 1 );
-    }
-
-    if ( smtp_send_message( snet, m, logger ) != 0 ) {
-	return( 1 );
-    }
-
-    if ( smtp_quit( snet, logger ) != 0 ) {
-	return( 1 );
     }
 
     return( 0 );
