@@ -80,6 +80,7 @@ struct exp_addr {
     int				e_addr_anti_loop;
     char			*e_addr_dn;
     struct stab_entry		*e_addr_ok;
+    struct envelope		*e_addr_env_moderated;
     struct exp_link		*e_addr_parents;
     struct exp_link		*e_addr_children;
 #endif /* HAVE_LDAP */
@@ -112,4 +113,5 @@ void supress_addrs( struct exp_addr *, int );
 int permitted_create( struct exp_addr *, char ** );
 void permitted_destroy( struct exp_addr * );
 int is_permitted( struct exp_addr * );
+int moderate_membersonly( struct expand *, struct exp_addr *, char ** );
 #endif /* HAVE_LDAP */

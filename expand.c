@@ -245,6 +245,10 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    memonly->el_exp_addr->e_addr_status =
 		    ( memonly->el_exp_addr->e_addr_status &
 		    ( ~STATUS_LDAP_MEMONLY ));
+	    if ( memonly->el_exp_addr->e_addr_env_moderated != NULL ) {
+		env_free( memonly->el_exp_addr->e_addr_env_moderated );
+		memonly->el_exp_addr->e_addr_env_moderated = NULL;
+	    }
 
 	} else {
 	    supress_addrs( memonly->el_exp_addr, loop_color++ );
@@ -252,27 +256,73 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
     }
 #endif /* HAVE_LDAP */
 
+    sprintf( d_original, "%s/D%s", unexpanded_env->e_dir,
+	    unexpanded_env->e_id );
+
     /* Create one expanded envelope for every host we expanded address for */
     for ( p = exp.exp_addr_list; p != NULL; p = p->st_next ) {
 	e_addr = (struct exp_addr*)p->st_data;
-
-	if (( e_addr->e_addr_status & STATUS_TERMINAL ) == 0 ) {
-	    /* not a terminal expansion, do not add */
-	    continue;
-	}
 
 #ifdef HAVE_LDAP
 	if ((( e_addr->e_addr_status & STATUS_LDAP_SUPRESSED ) != 0 ) &&
 		( !unblocked_path_to_root( e_addr, loop_color++ ))) {
 	    continue;
 	}
+
+	if ( e_addr->e_addr_env_moderated != NULL ) {
+	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
+	    e_addr->e_addr_env_moderated->e_dir = simta_dir_fast;
+	    e_addr->e_addr_env_moderated->e_dinode = unexpanded_env->e_dinode;
+	    if ( env_id( e_addr->e_addr_env_moderated ) != 0 ) {
+		goto cleanup3;
+	    }
+
+	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_moderated->e_dir,
+		    e_addr->e_addr_env_moderated->e_id );
+	    if ( link( d_original, d_out ) != 0 ) {
+		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_out );
+		goto cleanup3;
+	    }
+
+	    syslog( LOG_INFO, "Expand %s: %s: From <%s>",
+		    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
+		    e_addr->e_addr_env_moderated->e_mail );
+	    n_rcpts = 0;
+	    for ( rcpt = e_addr->e_addr_env_moderated->e_rcpt; rcpt != NULL;
+		    rcpt = rcpt->r_next ) {
+		n_rcpts++;
+		syslog( LOG_INFO, "Expand %s: %s: To <%s>",
+			unexpanded_env->e_id,
+			e_addr->e_addr_env_moderated->e_id, rcpt->r_rcpt );
+	    }
+	    syslog( LOG_INFO,
+		    "Expand %s: %s: Expanded %d moderators",
+		    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
+		    n_rcpts );
+
+	    if ( env_outfile( e_addr->e_addr_env_moderated ) != 0 ) {
+		/* env_outfile syslogs errors */
+		if ( unlink( d_out ) != 0 ) {
+		    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
+		}
+		goto cleanup3;
+	    }
+	    env_out++;
+	    queue_envelope( hq, e_addr->e_addr_env_moderated );
+	    continue;
+	}
 #endif /* HAVE_LDAP */
+
+	if (( e_addr->e_addr_status & STATUS_TERMINAL ) == 0 ) {
+	    /* not a terminal expansion, do not add */
+	    continue;
+	}
 
 	switch ( e_addr->e_addr_type ) {
 	case ADDRESS_TYPE_EMAIL:
 	    if (( domain = strchr( p->st_key, '@' )) == NULL ) {
 		syslog( LOG_ERR, "expand.strchr: unreachable code" );
-		goto cleanup2;
+		goto cleanup3;
 	    }
 	    domain++;
 	    env = eo_lookup( host_stab, domain, e_addr->e_addr_from );
@@ -291,12 +341,12 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    /* Create envelope and add it to list */
 	    if (( env = env_create( e_addr->e_addr_from )) == NULL ) {
 		syslog( LOG_ERR, "expand.env_create: %m" );
-		goto cleanup2;
+		goto cleanup3;
 	    }
 
 	    if ( env_id( env ) != 0 ) {
 		env_free( env );
-		goto cleanup2;
+		goto cleanup3;
 	    }
 
 	    env->e_dinode = unexpanded_env->e_dinode;
@@ -306,7 +356,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		env->e_dir = simta_dir_fast;
 		if ( env_hostname( env, domain ) != 0 ) {
 		    env_free( env );
-		    goto cleanup2;
+		    goto cleanup3;
 		}
 	    } else {
 		env->e_dir = simta_dir_dead;
@@ -317,21 +367,18 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    if ( eo_insert( &host_stab, env ) != 0 ) {
 		syslog( LOG_ERR, "expand.ll_insert: %m" );
 		env_free( env );
-		goto cleanup2;
+		goto cleanup3;
 	    }
 	}
 
 	if ( env_recipient( env, p->st_key ) != 0 ) {
-	    goto cleanup2;
+	    goto cleanup3;
 	}
 
 	syslog( LOG_NOTICE, "expand: recipient %s added to env %s for host %s",
 		p->st_key, env->e_id,
 		env->e_hostname ? env->e_hostname : "NULL" );
     }
-
-    sprintf( d_original, "%s/D%s", unexpanded_env->e_dir,
-	    unexpanded_env->e_id );
 
     /* Write out all expanded envelopes and place them in to the host_q */
     for ( eo = host_stab; eo != NULL; eo = eo->eo_next ) {
@@ -343,7 +390,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 
 	    if ( link( d_original, d_out ) != 0 ) {
 		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_out );
-		goto cleanup3;
+		goto cleanup4;
 	    }
 
 	    syslog( LOG_INFO, "Expand %s: %s: From <%s>",
@@ -369,7 +416,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		if ( unlink( d_out ) != 0 ) {
 		    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
 		}
-		goto cleanup3;
+		goto cleanup4;
 	    }
 
 	    env_out++;
@@ -398,7 +445,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 			    1024 * 1024 )) == NULL ) {
 			syslog( LOG_ERR, "expand.snet_open %s: %m",
 				d_original );
-			goto cleanup4;
+			goto cleanup5;
 		    }
 		} else {
 		    if ( lseek( snet_fd( snet ), (off_t)0, SEEK_SET ) != 0 ) {
@@ -416,7 +463,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 			}
 		    }
 
-		    goto cleanup4;
+		    goto cleanup5;
 		}
 
 		line_file_free( env->e_err_text );
@@ -428,7 +475,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		    if ( unlink( d_out ) != 0 ) {
 			syslog( LOG_ERR, "expand unlink %s: %m", d_out );
 		    }
-		    goto cleanup4;
+		    goto cleanup5;
 		}
 
 		syslog( LOG_INFO, "Expand %s: %s: From <%s>",
@@ -465,7 +512,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    if ( unlink( d_out ) != 0 ) {
 		syslog( LOG_ERR, "expand unlink %s: %m", d_out );
 	    }
-	    goto cleanup4;
+	    goto cleanup5;
 	}
 	snet = NULL;
     }
@@ -497,7 +544,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
     return_value = 0;
     goto cleanup2;
 
-cleanup4:
+cleanup5:
     while ( exp.exp_errors != NULL ) {
 	env = exp.exp_errors;
 	exp.exp_errors = exp.exp_errors->e_next;
@@ -517,7 +564,7 @@ cleanup4:
 	env_free( env );
     }
 
-cleanup3:
+cleanup4:
     for ( eo = host_stab; eo != NULL; eo = eo->eo_next ) {
 	env = eo->eo_env;
 	eo->eo_env = NULL;
@@ -535,6 +582,20 @@ cleanup3:
 
 	env_free( env );
     }
+
+cleanup3:
+#ifdef HAVE_LDAP
+    for ( memonly = exp.exp_memonly; memonly != NULL;
+	    memonly = memonly->el_next ) {
+	if (( memonly->el_exp_addr->e_addr_env_moderated != NULL ) &&
+		(( memonly->el_exp_addr->e_addr_env_moderated->e_flags &
+		ENV_ON_DISK ) != 0 )) {
+	    env_unlink( memonly->el_exp_addr->e_addr_env_moderated );
+	    env_free( memonly->el_exp_addr->e_addr_env_moderated );
+	    memonly->el_exp_addr->e_addr_env_moderated = NULL;
+	}
+    }
+#endif /* HAVE_LDAP */
 
     if ( simta_fast_files != fast_file_start ) {
 	syslog( LOG_WARNING, "expand: could not unwind expansion" );
@@ -564,6 +625,12 @@ cleanup1:
 	    exp_addr_link_free( e_addr->e_addr_parents );
 	    exp_addr_link_free( e_addr->e_addr_children );
 	    permitted_destroy( e_addr );
+	    if (( e_addr->e_addr_env_moderated != NULL ) &&
+		    (( e_addr->e_addr_env_moderated->e_flags &
+		    ENV_ON_DISK ) == 0 )) {
+		env_free( e_addr->e_addr_env_moderated );
+	    }
+
 	    if ( e_addr->e_addr_dn ) {
 		free( e_addr->e_addr_dn );
 	    }
@@ -612,7 +679,7 @@ sender_is_child( struct exp_addr *e, int color )
     struct exp_link		*el;
 
     if ( e->e_addr_anti_loop == color ) {
-	return;
+	return( 0 );
     }
     e->e_addr_anti_loop = color;
 
@@ -642,7 +709,7 @@ unblocked_path_to_root( struct exp_addr *e, int color )
     struct exp_link		*el;
 
     if ( e->e_addr_anti_loop == color ) {
-	return;
+	return( 0 );
     }
     e->e_addr_anti_loop = color;
 
@@ -734,6 +801,37 @@ is_permitted( struct exp_addr *memonly )
 		return( 1 );
 	    }
 	}
+    }
+
+    return( 0 );
+}
+
+
+    int
+moderate_membersonly( struct expand *exp, struct exp_addr *e_addr,
+	char **moderators )
+{
+    int		idx;
+
+    if (( e_addr->e_addr_env_moderated =
+	    env_create( exp->exp_env->e_mail )) == NULL ) {
+	syslog( LOG_ERR, "moderate_membersonly env_create: %m");
+	return( 1 );
+    }
+
+    for ( idx = 0; moderators[ idx ] != NULL; idx++ ) {
+	if ( env_string_recipients( e_addr->e_addr_env_moderated,
+		moderators[ idx ]) != 0 ) {
+	    syslog( LOG_ERR, "moderate_membersonly env_string_recipients: %m");
+	    env_free( e_addr->e_addr_env_moderated );
+	    return( 1 );
+	}
+    }
+
+    if ( e_addr->e_addr_env_moderated->e_rcpt == NULL ) {
+	/* no valid email addresses.  a real monkey. */
+	env_free( e_addr->e_addr_env_moderated );
+	e_addr->e_addr_env_moderated = NULL;
     }
 
     return( 0 );

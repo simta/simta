@@ -838,15 +838,74 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	mailvals = ldap_get_values( ld, entry, "rfc822mail");
 	errmsg = NULL;
 
-	/*
-	** Moderated group?
-	** If sender matches moderator
-	** then send message to the group
-	** else send message to the moderator
-	*/
-	moderator = ldap_get_values( ld, entry, "moderator");
-	if (moderator) {
+	/* MembersOnly group?  */
+	if (( memonly = ldap_get_values( ld, entry, "membersonly" )) != NULL ) {
+	    if ( strcasecmp( memonly[0], "TRUE" ) == 0 ) {
+		ldap_value_free( memonly );
 
+		e_addr->e_addr_status |= STATUS_LDAP_MEMONLY;
+
+		if ( exp_addr_link( &(exp->exp_memonly), e_addr ) != 0 ) {
+		    if ( dnvals ) {
+			ldap_value_free( dnvals );
+		    }
+		    if ( mailvals ) {
+			ldap_value_free( mailvals );
+		    }
+		    free( senderbuf );
+		    ldap_memfree( dn );
+		    return( LDAP_SYSERROR );
+		}
+
+		if (( permitted = ldap_get_values( ld, entry,
+			"permittedgroup")) != NULL ) {
+		    if ( permitted_create( e_addr, permitted ) != 0 ) {
+			ldap_value_free( permitted );
+		    
+			if ( dnvals ) {
+			    ldap_value_free( dnvals );
+			}
+			if ( mailvals ) {
+			    ldap_value_free( mailvals );
+			}
+			free( senderbuf );
+			ldap_memfree( dn );
+			return( LDAP_SYSERROR );
+		    }
+
+		    ldap_value_free( permitted );
+		}
+
+		if (( moderator = ldap_get_values( ld, entry,
+			"moderator")) != NULL ) {
+		    if ( moderate_membersonly( exp, e_addr, moderator ) != 0 ) {
+			ldap_value_free( moderator );
+		    
+			if ( dnvals ) {
+			    ldap_value_free( dnvals );
+			}
+			if ( mailvals ) {
+			    ldap_value_free( mailvals );
+			}
+			free( senderbuf );
+			ldap_memfree( dn );
+			return( LDAP_SYSERROR );
+		    }
+
+		    ldap_value_free( moderator );
+		}
+	    }
+
+	    ldap_value_free( memonly );
+
+	} else if (( moderator = ldap_get_values( ld, entry,
+		"moderator")) != NULL ) {
+	    /*
+	    ** Moderated group.
+	    ** If sender matches moderator
+	    ** then send message to the group
+	    ** else send message to the moderator
+	    */
 	    for (idx = 0; moderator[idx]; idx++) {
 		simta_ldapuser (moderator[idx], &mod_name, &mod_domain);
 		if ((strcasecmp (sender_name, mod_name) == 0)
@@ -880,52 +939,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    else {
 		ldap_value_free (moderator);
 	    }
-	}
-
-	/*
-	** MembersOnly group?
-	*/
-	memonly = ldap_get_values( ld, entry, "membersonly");
-	if (memonly) {
-	    if(strcasecmp (memonly[0], "TRUE") == 0) {
-		e_addr->e_addr_status |= STATUS_LDAP_MEMONLY;
-
-		if ( exp_addr_link( &(exp->exp_memonly), e_addr ) != 0 ) {
-		    ldap_value_free ( memonly );
-		    if (dnvals ) {
-			ldap_value_free( dnvals);
-		    }
-		    if (mailvals ) {
-			ldap_value_free(mailvals );
-		    }
-		    free (senderbuf);
-		    ldap_memfree (dn);
-		    return ( LDAP_SYSERROR );
-		}
-
-		permitted = ldap_get_values( ld, entry, "permittedgroup");
-		if (permitted ) {
-		    rc = permitted_create ( e_addr, permitted );
-
-		    if (rc != 0) {
-			ldap_value_free (permitted);
-			ldap_value_free ( memonly );
-		    
-			if (dnvals ) {
-			    ldap_value_free( dnvals);
-			}
-			if (mailvals ) {
-			    ldap_value_free(mailvals );
-			}
-			free (senderbuf);
-			ldap_memfree (dn);
-			return (rc);
-		    }
-
-		    ldap_value_free (permitted);
-		}
-	    }
-	    ldap_value_free ( memonly );
 	}
 
 	if (suppressnoemail) {
