@@ -190,6 +190,10 @@ f_mail( snet, env, ac, av )
     char		*addr;
 
     /*
+     * Check if we have a message already ready to send.
+     */
+
+    /*
      * Contrary to popular belief, it is not an error to give more than
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
