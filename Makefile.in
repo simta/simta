@@ -52,7 +52,7 @@ SIMTAINCPATH=	@SIMTACPPFLAGS@ ${INCPATH}
 SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
 MAN1TARGETS=	simsendmail.1
-TARGETS=	simta tlsconnect simsendmail q_runner
+TARGETS=	simta tlsconnect simsendmail q_runner createdb
 
 all : ${TARGETS}
 
@@ -88,6 +88,10 @@ simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
 createdb : ${CREATEDBOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o createdb ${CREATEDBOBJ} ${SIMTALIBPATH} \
 	${SIMTALIBS}
+
+createdb.o : createdb.c
+	${CC} ${SIMTACFLAGS} \
+	    -c createdb.c -o createdb.o
 
 daemon.o : daemon.c
 	${CC} ${CFLAGS} \
