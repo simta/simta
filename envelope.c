@@ -941,8 +941,6 @@ env_unlink( struct envelope *env )
     sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
     sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 
-    /* XXX TRUNCATE EFILE IF SLOW/LOCAL */
-
     if ( unlink( efile_fname ) != 0 ) {
 	syslog( LOG_ERR, "env_unlink unlink %s: %m", efile_fname );
 	return( -1 );
@@ -965,39 +963,62 @@ env_unlink( struct envelope *env )
 
 
     int
-env_slow( struct envelope *env )
+env_move( struct envelope *env, char *target_dir )
 {
-    char                        dfile_slow[ MAXPATHLEN ];
-    char                        efile_slow[ MAXPATHLEN ];
-    char                        dfile_fname[ MAXPATHLEN ];
-    char                        efile_fname[ MAXPATHLEN ];
+    char                        dfile_new[ MAXPATHLEN ];
+    char                        efile_new[ MAXPATHLEN ];
+    char                        dfile_old[ MAXPATHLEN ];
+    char                        efile_old[ MAXPATHLEN ];
 
-    /* move message to SLOW if it isn't there already */
-    if ( env->e_dir != simta_dir_slow ) {
-	sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
-	sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
-	sprintf( dfile_slow, "%s/D%s", simta_dir_slow, env->e_id );
-	sprintf( efile_slow, "%s/E%s", simta_dir_slow, env->e_id );
+    /* only move messages to slow or fast */
+    assert(( target_dir == simta_dir_slow ) ||
+	    ( target_dir == simta_dir_fast ));
 
-	if ( link( dfile_fname, dfile_slow ) != 0 ) {
-	    syslog( LOG_ERR, "env_slow link %s %s: %m", dfile_fname,
-		    dfile_slow );
+    /* move message to target_dir if it isn't there already */
+    if ( env->e_dir != target_dir ) {
+	sprintf( efile_old, "%s/E%s", env->e_dir, env->e_id );
+	sprintf( dfile_old, "%s/D%s", env->e_dir, env->e_id );
+	sprintf( dfile_new, "%s/D%s", target_dir, env->e_id );
+	sprintf( efile_new, "%s/E%s", target_dir, env->e_id );
+
+	if ( link( dfile_old, dfile_new ) != 0 ) {
+	    syslog( LOG_ERR, "env_move link %s %s: %m", dfile_old,
+		    dfile_new );
 	    return( -1 );
 	}
 
-	if ( link( efile_fname, efile_slow ) != 0 ) {
-	    syslog( LOG_ERR, "env_slow link %s %s: %m", efile_fname,
-		    efile_slow );
+	if ( link( efile_old, efile_new ) != 0 ) {
+	    syslog( LOG_ERR, "env_move link %s %s: %m", efile_old,
+		    efile_new );
+	    if ( unlink( dfile_new ) != 0 ) {
+		syslog( LOG_ERR, "env_move unlink %s: %m", dfile_new );
+	    }
 	    return( -1 );
 	}
+
+	if ( target_dir == simta_dir_fast ) {
+	    simta_fast_files++;
+	}
+
 
 	if ( env_unlink( env ) != 0 ) {
+	    if ( unlink( efile_new ) != 0 ) {
+		syslog( LOG_ERR, "env_move unlink %s: %m", efile_new );
+	    } else {
+		if ( target_dir == simta_dir_fast ) {
+		    simta_fast_files--;
+		}
+
+		if ( unlink( dfile_new ) != 0 ) {
+		    syslog( LOG_ERR, "env_move unlink %s: %m", dfile_new );
+		}
+	    }
 	    return( -1 );
 	}
 
-	syslog( LOG_DEBUG, "env_slow %s %s: moved", env->e_dir, env->e_id );
+	env->e_dir = target_dir;
 
-	env->e_dir = simta_dir_slow;
+	syslog( LOG_DEBUG, "env_move %s %s: moved", env->e_dir, env->e_id );
     }
 
     return( 0 );

@@ -57,7 +57,7 @@ int		env_sender( struct envelope *, char * );
 int		env_hostname( struct envelope *, char * );
 int		env_outfile( struct envelope * );
 int		env_touch( struct envelope * );
-int		env_slow( struct envelope * );
+int		env_move( struct envelope *, char * );
 int		env_from( struct envelope * );
 int		env_unlink( struct envelope * );
 int		env_read_queue_info( struct envelope * );

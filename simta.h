@@ -29,9 +29,14 @@
 #define SIMTA_ERROR_DNSR		1
 #define SIMTA_ERROR_SYSTEM		-1
 
+#define SIMTA_PROCESS_TYPE_DAEMON	0
+#define SIMTA_PROCESS_TYPE_Q_RUNNER	1
+#define SIMTA_PROCESS_TYPE_RECEIVE	2
+
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
+extern int				simta_process_type;
 extern int				simta_authlevel;
 extern int				simta_use_alias_db;
 extern int				simta_umich_imap_letters;

@@ -65,7 +65,7 @@ expand_and_deliver( struct host_q **hq, struct envelope *unexpanded_env )
 
     case 1:
     case -1:
-	env_slow( unexpanded_env );
+	env_move( unexpanded_env, simta_dir_slow );
 	if ( simta_fast_files > 0 ) {
 	    syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
 	    return( EXPAND_FATAL );

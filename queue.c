@@ -268,7 +268,6 @@ queue_remove_envelope( struct envelope *env )
     int
 q_runner( struct host_q **host_q )
 {
-    SNET			*snet_lock;
     SNET			*snet_dfile;
     struct host_q		*hq;
     struct host_q		*deliver_q;
@@ -276,7 +275,6 @@ q_runner( struct host_q **host_q )
     struct envelope		*env_bounce;
     struct envelope		*env_punt;
     struct envelope		*unexpanded;
-    int				result;
     int				dfile_fd;
     char                        dfile_fname[ MAXPATHLEN ];
     struct timeval		tv_start;
@@ -382,91 +380,79 @@ q_runner( struct host_q **host_q )
 		simta_null_q->hq_from--;
 	    }
 
-	    /* if we don't have rcpts, we haven't read them off of the disk */
 	    if ( unexpanded->e_rcpt == NULL ) {
-		/* lock & read envelope to expand */
-		if ( env_read_delivery_info( unexpanded, &snet_lock ) != 0 ) {
-		    continue;
+		if ( env_move( unexpanded, simta_dir_fast )) {
+		    goto unexpanded_clean_up;
+		}
+
+		if ( env_read_delivery_info( unexpanded, NULL ) != 0 ) {
+		    goto unexpanded_clean_up;
 		}
 	    } else {
 		assert( unexpanded->e_dir == simta_dir_fast );
-		snet_lock = NULL;
+	    }
+	    /* expand message */
+	    if ( expand( host_q, unexpanded ) == 0 ) {
+		/* at least one address was expanded.  try to deliver it */
+		env_free( unexpanded );
+		break;
 	    }
 
-	    /* expand message */
-	    result = expand( host_q, unexpanded );
+	    /* message not expandable */
+	    if ( simta_process_type != SIMTA_PROCESS_TYPE_RECEIVE ) {
+		/* check message's age */
+		sprintf( dfile_fname, "%s/D%s", unexpanded->e_dir,
+			unexpanded->e_id );
+		if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+		    syslog( LOG_WARNING, "q_deliver bad Dfile: %s",
+			    dfile_fname );
+		    goto unexpanded_clean_up;
+		}
 
-	    if ( result != 0 ) {
-		/* message not expandable */
-		if ( unexpanded->e_dir != simta_dir_slow ) {
-		    env_slow( unexpanded );
+		if ( env_is_old( unexpanded, dfile_fd ) == 0 ) {
+		    /* not old */
+		    close( dfile_fd );
 
 		} else {
-		    /* message already in the slow queue, check it's age */
-		    sprintf( dfile_fname, "%s/D%s", unexpanded->e_dir,
-			    unexpanded->e_id );
-		    if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
-			syslog( LOG_WARNING, "q_deliver bad Dfile: %s",
-				dfile_fname );
+		    /* old unexpanded message, create bounce */
+		    unexpanded->e_flags |= ENV_FLAG_BOUNCE;
+		    if (( snet_dfile = snet_attach( dfile_fd,
+			    1024 * 1024 )) == NULL ) {
+			close( dfile_fd );
 			goto unexpanded_clean_up;
 		    }
 
-		    if ( env_is_old( unexpanded, dfile_fd ) == 0 ) {
-			/* not old */
-			close( dfile_fd );
+		    if (( env_bounce = bounce( NULL, unexpanded,
+			    snet_dfile )) == NULL ) {
+			snet_close( snet_dfile );
+			goto unexpanded_clean_up;
+		    }
+
+		    if ( env_unlink( unexpanded ) == 0 ) {
+			queue_envelope( host_q, env_bounce );
+			syslog( LOG_INFO,
+				"Deliver %s: Message Deleted: Bounced",
+				unexpanded->e_id );
 
 		    } else {
-			unexpanded->e_flags |= ENV_FLAG_BOUNCE;
-			if (( snet_dfile = snet_attach( dfile_fd,
-				1024 * 1024 )) == NULL ) {
-			    close( dfile_fd );
-			    goto unexpanded_clean_up;
-			}
-
-			if (( env_bounce = bounce( NULL, unexpanded,
-				snet_dfile )) == NULL ) {
-			    snet_close( snet_dfile );
-			    goto unexpanded_clean_up;
-			}
-
-			if ( env_truncate_and_unlink( unexpanded,
-				snet_lock ) == 0 ) {
-			    queue_envelope( host_q, env_bounce );
-			    syslog( LOG_INFO,
-				    "Deliver %s: Message Deleted: Bounced",
-				    unexpanded->e_id );
-
+			if ( env_unlink( env_bounce ) != 0 ) {
+			    syslog( LOG_INFO, "Deliver %s: System "
+				    "Error: Can't unwind bounce", 
+				    env_bounce->e_id );
 			} else {
-			    if ( env_unlink( env_bounce ) != 0 ) {
-				syslog( LOG_INFO, "Deliver %s: System "
-					"Error: Can't unwind bounce", 
-					env_bounce->e_id );
-			    } else {
-				syslog( LOG_INFO, "Deliver %s: Message "
-					"Deleted: System error, unwound "
-					"bounce", env_bounce->e_id );
-			    }
+			    syslog( LOG_INFO, "Deliver %s: Message "
+				    "Deleted: System error, unwound "
+				    "bounce", env_bounce->e_id );
 			}
-
-			snet_close( snet_dfile );
 		    }
+
+		    snet_close( snet_dfile );
 		}
 	    }
 
 unexpanded_clean_up:
-	    if ( snet_lock != NULL ) {
-		/* release lock */
-		if ( snet_close( snet_lock ) != 0 ) {
-		    syslog( LOG_ERR, "q_runner snet_close: %m" );
-		}
-	    }
-
+	    env_move( unexpanded, simta_dir_slow );
 	    env_free( unexpanded );
-
-	    if ( result == 0 ) {
-		/* at least one address was expanded.  try to deliver it */
-		break;
-	    }
 	}
     }
 
@@ -514,7 +500,7 @@ q_runner_done:
 	    if ( *(env_punt->e_mail) != '\0' ) {
 		simta_punt_q->hq_from--;
 	    }
-	    env_slow( env_punt );
+	    env_move( env_punt, simta_dir_slow );
 	    env_free( env_punt );
 	}
     }
@@ -857,7 +843,7 @@ message_cleanup:
 		env_deliver->e_flags |= ENV_FLAG_PUNT;
 		queue_envelope( host_q, env_deliver );
 	    } else {
-		env_slow( env_deliver );
+		env_move( env_deliver, simta_dir_slow );
 		env_free( env_deliver );
 	    }
 	} else {
