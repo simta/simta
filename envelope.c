@@ -364,8 +364,7 @@ env_outfile( struct envelope *e )
 
     /* Idinode */
     if ( e->e_dinode <= 0 ) {
-	syslog( LOG_DEBUG, "env_outfile: bad dinode" );
-	abort();
+	panic( "env_outfile: bad dinode" );
     }
 
     if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {

@@ -92,6 +92,14 @@ struct nlist		simta_nlist[] = {
 };
 
 
+    void
+panic( char *message )
+{
+    syslog( LOG_WARNING, "%s", message );
+    abort();
+}
+
+
     char*
 simta_sender( void )
 {

@@ -63,8 +63,9 @@ extern DNSR				*simta_dnsr;
 extern int				(*simta_local_mailer)(int, char *,
 						struct recipient *);
 
-void	smtp_receive ___P(( int, struct sockaddr_in * ));
-char	*simta_sender ___P(( void ));
-char	*simta_resolvconf ___P(( void ));
-int	simta_init_hosts ___P(( void ));
+void	smtp_receive ( int, struct sockaddr_in * );
+void	panic ( char * );
+char	*simta_sender ( void );
+char	*simta_resolvconf ( void );
+int	simta_init_hosts ( void );
 int	simta_config ___P(( char *, char * ));

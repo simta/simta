@@ -203,7 +203,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		goto cleanup1;
 
 	    default:
-		abort();
+		panic( "expand: address_expand out of range" );
 	    }
 	}
     }
@@ -241,7 +241,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    break;
 
 	default:
-	    abort();
+	    panic( "expand: address type out of range" );
 	}
 
 	if ( env == NULL ) {

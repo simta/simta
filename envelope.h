@@ -12,13 +12,13 @@
 #define ENV_ID_LENGTH		30
 
 #define	R_TEMPFAIL	0
-#define	R_DELIVERED	1
+#define	R_ACCEPTED	1
 #define	R_FAILED	2
 
 struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
-    int			r_delivered;
+    int			r_status;
     struct line_file	*r_err_text;
 };
 

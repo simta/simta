@@ -24,9 +24,9 @@ struct deliver {
     struct recipient		*d_rcpt;
     int				d_dfile_fd;
     SNET			*d_dfile_snet;
-    int				d_success;
-    int				d_failed;
-    int				d_tempfail;
+    int				d_n_rcpt_accepted;
+    int				d_n_rcpt_failed;
+    int				d_n_rcpt_tempfail;
     int				d_attempt;
     int				d_delivered;
     int				d_unlinked;

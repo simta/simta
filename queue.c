@@ -599,13 +599,13 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    break;
 
 	default:
-	    abort();
+	    panic( "q_deliver host_status out of range" );
 	}
 
 	/* check the age of the envelope if the envelope has any tempfails or
 	 * the host is HOST_DOWN, if we're not already bouncing the envelope
 	 */
-	if ((( d.d_tempfail > 0 ) ||
+	if ((( d.d_n_rcpt_tempfail > 0 ) ||
 		( deliver_q->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
 	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
@@ -623,12 +623,12 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 */
 	if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
-		( d.d_failed > 0 )) {
+		( d.d_n_rcpt_failed > 0 )) {
 	    snet_bounce = NULL;
 
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
-		abort();
+		panic( "q_deliver lseek fail" );
             }
 
 	    if ( snet_dfile == NULL ) {
@@ -658,7 +658,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
         if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		(( d.d_delivered != 0 ) &&
-		( d.d_tempfail == 0 ))) {
+		( d.d_n_rcpt_tempfail == 0 ))) {
 	    if ( snet_lock != NULL ) {
 		if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
 		    sprintf( efile_fname, "%s/E%s", env_deliver->e_dir,
@@ -677,13 +677,13 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 * delivered, and some but not all recipients tempfail.
 	 */
         } else if (( d.d_delivered != 0 ) &&
-		(( d.d_success != 0 ) ||
-		( d.d_failed != 0 ))) {
+		(( d.d_n_rcpt_accepted != 0 ) ||
+		( d.d_n_rcpt_failed != 0 ))) {
 	    syslog( LOG_INFO, "q_deliver %s rewriting", env_deliver->e_id );
 	    r_sort = &(env_deliver->e_rcpt);
 
 	    while ( *r_sort != NULL ) {
-		if ((*r_sort)->r_delivered != R_TEMPFAIL ) {
+		if ((*r_sort)->r_status != R_TEMPFAIL ) {
 		    remove = *r_sort;
 		    *r_sort = (*r_sort)->r_next;
 		    rcpt_free( remove );
@@ -804,7 +804,6 @@ deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
 
     if (( smtp_error = smtp_send( *snet_smtp, deliver_q, d )) == SMTP_OK ) {
 	simta_smtp_outbound_delivered++;
-	d->d_delivered = 1;
 	return;
     }
 
@@ -869,16 +868,16 @@ lseek_fail:
 	switch ( ml_error ) {
 	case EXIT_SUCCESS:
 	    /* success */
-	    r->r_delivered = R_DELIVERED;
-	    d->d_success++;
+	    r->r_status = R_ACCEPTED;
+	    d->d_n_rcpt_accepted++;
 	    syslog( LOG_INFO, "deliver_local %s %s: delivered locally",
 		    d->d_env->e_id, r->r_rcpt );
 	    break;
 
 	default:
 	case EX_TEMPFAIL:
-	    r->r_delivered = R_TEMPFAIL;
-	    d->d_tempfail++;
+	    r->r_status = R_TEMPFAIL;
+	    d->d_n_rcpt_tempfail++;
 	    syslog( LOG_INFO, "deliver_local %s %s: local delivery "
 		    "tempfail %d", d->d_env->e_id, r->r_rcpt,
 		    ml_error );
@@ -887,8 +886,8 @@ lseek_fail:
 	case EX_DATAERR:
 	case EX_NOUSER:
 	    /* hard failure caused by bad user data, or no local user */
-	    r->r_delivered = R_FAILED;
-	    d->d_failed++;
+	    r->r_status = R_FAILED;
+	    d->d_n_rcpt_failed++;
 	    syslog( LOG_INFO, "deliver_local %s %s: local delivery "
 		    "hard failure", d->d_env->e_id, r->r_rcpt );
 	    break;

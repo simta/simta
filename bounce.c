@@ -282,7 +282,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	 */
 	for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ((( env->e_flags & ENV_BOUNCE ) ||
-		    ( r->r_delivered == R_FAILED )) &&
+		    ( r->r_status == R_FAILED )) &&
 		    ( strcasecmp( simta_postmaster, r->r_rcpt ) == 0 )) {
 		bounce_env->e_dir = simta_dir_dead;
 		break;
@@ -375,7 +375,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     fprintf( dfile, "\n" );
 
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	if (( env->e_flags & ENV_BOUNCE ) || ( r->r_delivered == R_FAILED )) {
+	if (( env->e_flags & ENV_BOUNCE ) || ( r->r_status == R_FAILED )) {
             fprintf( dfile, "address %s\n", r->r_rcpt );
             if ( r->r_err_text != NULL ) {
                 for ( l = r->r_err_text->l_first; l != NULL;
