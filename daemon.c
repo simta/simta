@@ -15,6 +15,7 @@
 #include <sys/param.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <grp.h>
 #include <syslog.h>
 #include <string.h>
 #include <errno.h>
@@ -431,7 +432,7 @@ main( int ac, char **av )
     closelog();
 
     /* set our initgroups */
-    if ( initgroups( simta_pw->pw_uid, 0 ) != 0 ) {
+    if ( initgroups( simta_pw->pw_name, 0 ) != 0 ) {
 	perror( "setuid" );
 	exit( 1 );
     }
