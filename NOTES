@@ -37,3 +37,30 @@ Bounce:
     errors.  At the end of the delivery process, the transcript is
     converted into a DSN and added to the end of the envelope list, to
     be delivered as normal mail.
+
+RFCs:
+
+    rfc0821.txt
+    rfc0822.txt
+    rfc2821.txt
+    rfc2822.txt
+
+    rfc1123.txt
+    rfc1521.txt
+    rfc1869.txt
+    rfc1870.txt
+
+    rfc2078.txt
+    rfc2197.txt
+    rfc2222.txt
+    rfc2245.txt
+    rfc2476.txt
+    rfc2554.txt
+    rfc2743.txt
+    rfc2744.txt
+
+    rfc1652.txt-crap
+    rfc1830.txt-crap
+    rfc1845.txt-crap
+    rfc2034.txt-crap
+    rfc2645.txt-crap
