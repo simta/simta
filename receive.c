@@ -63,7 +63,6 @@ char			*receive_hello = NULL;
 #define	RECEIVE_OK		0x0000
 #define	RECEIVE_SYSERROR	0x0001
 #define	RECEIVE_CLOSECONNECTION	0x0010
-#define	RECEIVE_LINE_LENGTH	0x0100
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -550,20 +549,21 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     int
 f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 {
-    struct timeval			tv;
-    char				*line;
-    int					err = RECEIVE_OK;
     int					dfile_fd;
-    time_t				clock;
-    struct tm				*tm;
-    FILE				*dff;
-    char				dfile_fname[ MAXPATHLEN + 1 ];
-    char				daytime[ 30 ];
-    struct line_file			*lf = NULL;
-    struct line				*l;
+    int					data_errors = 0;
+    int					line_too_long = 0;
     int					header = 1;
     int					line_no = 0;
+    char				*line;
+    struct tm				*tm;
+    FILE				*dff;
+    struct line_file			*lf;
+    struct line				*l;
+    struct timeval			tv;
+    time_t				clock;
     struct stat				sbuf;
+    char				daytime[ 30 ];
+    char				dfile_fname[ MAXPATHLEN + 1 ];
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -615,7 +615,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if (( dff = fdopen( dfile_fd, "w" )) == NULL ) {
 	syslog( LOG_ERR, "f_data fdopen: %m" );
-	err = RECEIVE_SYSERROR;
 	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "f_data close: %m" );
 	}
@@ -641,25 +640,42 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    inet_ntoa( receive_sin->sin_addr ), simta_hostname, env->e_id,
 	    daytime, tz( tm )) < 0 ) {
 	syslog( LOG_ERR, "f_data fprintf: %m" );
-	err = RECEIVE_SYSERROR;
-	goto cleanup;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_SYSERROR );
     }
 
     if (( lf = line_file_create()) == NULL ) {
-	err = RECEIVE_SYSERROR;
-	goto cleanup;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_SYSERROR );
     }
+
 
     if ( snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n",
 	    354 ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
-	err = RECEIVE_CLOSECONNECTION;
-	goto cleanup;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	line_file_free( lf );
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     header = 1;
 
-    /* XXX should implement a byte count to limit DofS attacks? */
+    /* XXX should implement a byte count to limit DofS attacks */
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
@@ -683,23 +699,22 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	 *     transparency).  This number may be increased by the use of SMTP
 	 *     Service Extensions.
 	 */
-
 	if ( strlen( line ) > 1000 ) {
-	    err = RECEIVE_LINE_LENGTH;
+	    data_errors++;
 	}
 
 	if ( header == 1 ) {
 	    if ( header_end( lf, line ) != 0 ) {
 		/* XXX reject message based on headers here */
 
-		if ( err == RECEIVE_OK ) {
+		if ( data_errors == 0 ) {
 		    if ( header_file_out( lf, dff ) != 0 ) {
 			syslog( LOG_ERR, "f_data header_file_out: %m" );
-			err = RECEIVE_SYSERROR;
+			data_errors++;
 		    } else {
 			if ( fprintf( dff, "%s\n", line ) < 0 ) {
 			    syslog( LOG_ERR, "f_data fprintf: %m" );
-			    err = RECEIVE_SYSERROR;
+			    data_errors++;
 			}
 		    }
 		}
@@ -708,10 +723,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	    } else {
 		/* append line to headers */
-		if ( err == RECEIVE_OK ) {
+		if ( data_errors == 0 ) {
 		    if (( l = line_append( lf, line )) == NULL ) {
 			syslog( LOG_ERR, "f_data line_append: %m" );
-			err = RECEIVE_SYSERROR;
+			data_errors++;
 		    } else {
 			l->line_no = line_no;
 		    }
@@ -719,10 +734,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 
 	} else {
-	    if ( err == RECEIVE_OK ) {
+	    if ( data_errors == 0 ) {
 		if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		    syslog( LOG_ERR, "f_data fprintf: %m" );
-		    err = RECEIVE_SYSERROR;
+		    data_errors++;
 		}
 	    }
 	}
@@ -731,43 +746,75 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     if ( header == 1 ) {
 	/* XXX reject message based on headers here */
 
-	if ( err == RECEIVE_OK ) {
+	if ( data_errors == 0 ) {
 	    if ( header_file_out( lf, dff ) != 0 ) {
 		syslog( LOG_ERR, "f_data header_file_out: %m" );
-		err = RECEIVE_SYSERROR;
+		data_errors++;
 	    }
 	}
     }
 
     line_file_free( lf );
-    lf = NULL;
 
     if ( line == NULL ) {	/* EOF */
 	syslog( LOG_INFO, "f_data %s: connection dropped", env->e_id );
-	err = RECEIVE_CLOSECONNECTION;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( err != 0 ) {
-	goto cleanup;
+    if (( line_too_long != 0 ) || ( data_errors != 0 )) {
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+
+	if ( data_errors != 0 ) {
+	    return( RECEIVE_SYSERROR );
+	}
+
+	if ( line_too_long != 0 ) {
+	    if ( snet_writef( snet, "554 line too long\r\n" ) < 0 ) {
+		syslog( LOG_ERR, "f_data snet_writef: %m" );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	    return( RECEIVE_OK );
+	}
     }
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
 	syslog( LOG_ERR, "f_data %s fstat %s: %m", env->e_id, dfile_fname );
-        goto cleanup;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_SYSERROR );
     }
     env->e_dinode = sbuf.st_ino;
 
     if ( fclose( dff ) != 0 ) {
 	syslog( LOG_ERR, "f_data fclose: %m" );
-	err = RECEIVE_SYSERROR;
-	goto cleanup;
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_SYSERROR );
     }
 
     /* make E (t) file */
     env->e_dir = simta_dir_fast;
     if ( env_outfile( env ) != 0 ) {
-	err = RECEIVE_SYSERROR;
-	goto cleanup;
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_SYSERROR );
     }
 
     /*
@@ -781,39 +828,16 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
      */
     if ( snet_writef( snet, "%d OK (%s)\r\n", 250, env->e_id ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
-	err = RECEIVE_CLOSECONNECTION;
-	goto cleanup;
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     /* mark message as ready to roll */
     env->e_flags = env->e_flags | E_READY;
     syslog( LOG_INFO, "f_data %s: accepted", env->e_id );
     return( RECEIVE_OK );
-
-cleanup:
-    if ( fclose( dff ) != 0 ) {
-	syslog( LOG_ERR, "f_data fclose: %m" );
-    }
-
-    if ( lf != NULL ) {
-	line_file_free( lf );
-    }
-
-    if ( unlink( dfile_fname ) < 0 ) {
-	syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-    }
-
-    switch ( err ) {
-    default:
-	return( err );
-
-    case RECEIVE_LINE_LENGTH:
-	if ( snet_writef( snet, "554 line too long\r\n" ) < 0 ) {
-	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
 }
 
     int
