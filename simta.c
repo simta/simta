@@ -394,13 +394,13 @@ simta_read_config( char *fname )
 		simta_mail_filter );
 
 	} else if ( strcasecmp( av[ 0 ], "IGNORE_REVERSE" ) == 0 ) {
-	    if ( ac != 3 ) {
-		fprintf( stderr, "%s: line %d: expected 2 argument\n",
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 		    fname, lineno );
 		goto error;
 	    }
 	    simta_ignore_reverse = 1;
-	    if (( simta_reverse_url = strdup( av[ 2 ] )) == NULL ) {
+	    if (( simta_reverse_url = strdup( av[ 1 ] )) == NULL ) {
 		perror( "strdup" );
 		goto error;
 	    }
