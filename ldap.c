@@ -257,7 +257,7 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
 
 
     int
-ldap_expand( char *addr )
+ldap_expand( char *orig_addr )
 {
     int			result;
     int			count = 0;
@@ -267,6 +267,7 @@ ldap_expand( char *addr )
     LDAPMessage		*message;
     LDAPMessage		*entry;
     BerElement		*ber;
+    char		*addr;
     char		*at;
     char		*dn;
     char		*attribute;
@@ -282,13 +283,27 @@ ldap_expand( char *addr )
     LDAPURLDesc		*lud;
     struct list		*l;
 
-    if (( at = strchr( addr, '@' )) == NULL ) {
+    /* ready addr */
+    if (( at = strchr( orig_addr, '@' )) == NULL ) {
 	/* XXX syslog error */
-	printf( "ldap_expand( %s ): bad address\n", addr );
+	printf( "ldap_expand( %s ): bad address\n", orig_addr );
 	return( 0 );
     }
 
     *at = '\0';
+
+    if (( addr = strdup( orig_addr )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
+    }
+
+    *at = '@';
+
+    for ( insert = addr; *insert != '\0'; insert++ ) {
+	if (( *insert == '_' ) || ( *insert == '.' )) {
+	    *insert = ' ';
+	}
+    }
 
 #ifdef DEBUG
     printf( "ldap_expand( %s )\n", addr );
@@ -298,7 +313,7 @@ ldap_expand( char *addr )
 	/* XXX static hostname for now */
 	if (( ld = ldap_init( "da.dir.itd.umich.edu", 4343 )) == NULL ) {
 	    perror( "ldap_init" );
-	    *at = '@';
+	    free( addr );
 	    return( -1 );
 	}
     }
@@ -316,8 +331,7 @@ ldap_expand( char *addr )
 	/* make sure buf is big enough search url */
 	if (( len = strlen( l->l_string) + 1 ) > buf_len ) {
 	    if (( buf = (char*)realloc( buf, len )) == NULL ) {
-		perror( "malloc" );
-		*at = '@';
+		free( addr );
 		return( -1 );
 	    }
 
@@ -348,11 +362,17 @@ ldap_expand( char *addr )
 		if (( *( c + 1 ) == 's' ) ||  ( *( c + 1 ) == 'h' )) {
 		    /* we currently support %s -> username, %h -> hostname */
 		    if ( *( c + 1 ) == 's' ) {
-			for ( insert = addr; *insert != '\0'; insert++ ) {
-			    if (( *insert == '_' ) || ( *insert == '.' )) {
-				*insert = ' ';
+
+			if ( at == NULL ) {
+			    if (( at = strchr( addr, '@' )) == NULL ) {
+				/* XXX syslog error */
+				printf( "ldap_expand( %s ): bad address\n", addr );
+				free( addr );
+				return( 0 );
 			    }
 			}
+
+			*at = '\0';
 
 			insert = addr;
 
@@ -366,7 +386,7 @@ ldap_expand( char *addr )
 
 			if (( buf = (char*)realloc( buf, len )) == NULL ) {
 			    perror( "malloc" );
-			    *at = '@';
+			    free( addr );
 			    return( -1 );
 			}
 
@@ -398,7 +418,7 @@ ldap_expand( char *addr )
 	if ( ldap_url_parse( buf, &lud ) != 0 ) {
 	    fprintf( stderr, "ldap_url_parse %s:", buf );
 	    perror( NULL );
-	    *at = '@';
+	    free( addr );
 	    return( -1 );
 	}
 
@@ -414,7 +434,7 @@ ldap_expand( char *addr )
 	if ( ldap_search_st( ld, lud->lud_dn, lud->lud_scope,
 		lud->lud_filter, attrs, 0, &timeout, &res ) != LDAP_SUCCESS ) {
 	    ldap_perror( ld, "ldap_search_st" );
-	    *at = '@';
+	    free( addr );
 	    return( -1 );
 	}
 
@@ -433,7 +453,7 @@ ldap_expand( char *addr )
 #endif /* DEBUG */
 
     if ( count == 0 ) {
-	*at = '@';
+	free( addr );
 	return( 0 );
     }
 
@@ -480,7 +500,7 @@ ldap_expand( char *addr )
 	    printf( "%s IS NOT A PERSON OR A GROUP!\n", addr );
 #endif /* DEBUG */
 
-	    *at = '@';
+	    free( addr );
 	    return( -1 );
 	}
 
@@ -560,11 +580,11 @@ ldap_expand( char *addr )
     /* Check for ldap_first_attribute error? */
 
     /* XXX need to do more than just return */
-    *at = '@';
+    free( addr );
     return( 1 );
 
 error:
     ldap_msgfree( res );
-    *at = '@';
+    free( addr );
     return( -1 );
 }
