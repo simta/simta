@@ -35,7 +35,8 @@
 
 #define SIMREVERSE_EXIT_VALID		0
 #define SIMREVERSE_EXIT_INVALID		1
-#define SIMREVERSE_EXIT_ERROR		2
+#define SIMREVERSE_EXIT_DNS_ERROR	2
+#define SIMREVERSE_EXIT_ERROR		3
 
     int
 main( int argc, char *argv[])
@@ -67,12 +68,14 @@ main( int argc, char *argv[])
 	exit( SIMREVERSE_EXIT_INVALID );
 
     default:
-	if ( simta_dnsr == NULL ) {
-	    perror( "dnsr_new" );
+	if (( simta_dnsr == NULL )
+		|| ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_SYSTEM )) {
+	    perror( "system error" );
+	    exit( SIMREVERSE_EXIT_ERROR );
 	} else {
-	    fprintf( stderr, "check_reverse: %s\n",
+	    fprintf( stderr, "DNS error: %s\n",
 		dnsr_err2string( dnsr_errno( simta_dnsr )));
+	    exit( SIMREVERSE_EXIT_DNS_ERROR );
 	}
-	exit( SIMREVERSE_EXIT_ERROR );
     }
 }
