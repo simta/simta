@@ -57,6 +57,9 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 {
     char			*address;
     struct exp_addr		*e;
+#ifdef HAVE_LDAP
+    struct exp_addr		*parent;
+#endif /* HAVE_LDAP */
 
     if (( address = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "add_address: strdup: %m" );
@@ -104,38 +107,56 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 	return( 1 );
     }
 
+    if (( e = (struct exp_addr*)ll_lookup( exp->exp_addr_list, address ))
+	    == NULL ) {
+	if (( e = (struct exp_addr*)malloc( sizeof( struct exp_addr )))
+		== NULL ) {
+	    syslog( LOG_ERR, "add_address: malloc: %m" );
+	    free( address );
+	    return( 1 );
+	}
+	memset( e, 0, sizeof( struct exp_addr ));
+
+	e->e_addr = address;
+	e->e_addr_rcpt = addr_rcpt;
+	e->e_addr_type = addr_type;
+
+	if ( ll_insert_tail( &(exp->exp_addr_list), address, e ) != 0 ) {
+	    syslog( LOG_ERR, "add_address: ll_insert_tail: %m" );
+	    free( address );
+	    free( e );
+	    return( 1 );
+	}
+
 #ifdef HAVE_LDAP
-    /* XXX check to see if address is sender, for exclusive groups */
-    /* XXX if address is sender, color graph to root */
+	if (( e->e_addr_parent = exp->exp_addr_parent ) == NULL ) {
+	    e->e_addr_peer = exp->exp_addr_root;
+	    exp->exp_addr_root = e;
+	} else {
+	    e->e_addr_peer = exp->exp_addr_parent->e_addr_child;
+	    exp->exp_addr_parent->e_addr_child = e;
+	}
+
+	if ( strcasecmp( exp->exp_env->e_mail, address ) == 0 ) {
+	    e->e_addr_exclusive = 1;
+	}
 #endif /* HAVE_LDAP */
 
-    /* check to see if address is in the expansion list already */
-    if ( ll_lookup( exp->exp_addr_list, address ) != NULL ) {
+    } else {
+	/* free local address and use the previously allocated one */
 	free( address );
-	return( 0 );
-    }
-
-    if (( e = (struct exp_addr*)malloc( sizeof( struct exp_addr ))) == NULL ) {
-	syslog( LOG_ERR, "add_address: malloc: %m" );
-	free( address );
-	return( 1 );
-    }
-
-    e->e_addr = address;
-    e->e_addr_rcpt = addr_rcpt;
-    e->e_addr_type = addr_type;
-
-    if ( ll_insert_tail( &(exp->exp_addr_list), address, e ) != 0 ) {
-	syslog( LOG_ERR, "add_address: ll_insert_tail: %m" );
-	free( address );
-	free( e );
-	return( 1 );
+	address = e->e_addr;
     }
 
 #ifdef HAVE_LDAP
-    /* XXX add addr to dependency graph */
-    /* XXX if recipient is sender, color dependency graph to root */
-    /* XXX what if the sender address is the address of the exclusive group? */
+    if ( e->e_addr_exclusive > 0 ) {
+	if (( parent = exp->exp_addr_parent ) != NULL ) {
+	    do {
+		parent->e_addr_exclusive = 1;
+		parent = parent->e_addr_parent;
+	    } while ( parent != NULL );
+	}
+    }
 #endif /* HAVE_LDAP */
 
     return( 0 );
