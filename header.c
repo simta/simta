@@ -375,13 +375,13 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     } else {
 	if (( result = header_first_mailbox(
-		&(simta_headers[ HEAD_FROM ].h_data))) != 0 ) {
+		&(simta_headers[ HEAD_FROM ].h_data), env->e_hostname)) != 0 ) {
 	    if ( result < 0 ) {
 		perror( "header_first_mailbox realloc" );
 
 	    } else {
-		fprintf( stderr, "Header %s: Illegal syntax\n",
-			simta_headers[ HEAD_FROM ].h_key );
+		fprintf( stderr, "Header %s: Illegal syntax %d\n",
+			simta_headers[ HEAD_FROM ].h_key, result );
 	    }
 
 	    return( result );
@@ -698,7 +698,6 @@ header_uncomment( char **line )
     /*
      * XXX only handle the following mailbox cases, not RFC complient:
      *
-     * From:
      * From: user
      * From: user@domain
      * From: <>
@@ -710,15 +709,17 @@ header_uncomment( char **line )
      */
 
     int
-header_first_mailbox( char **line )
+header_first_mailbox( char **line, char *localhostname )
 {
     size_t			before;
     size_t			after;
     char			*comma;
     char			*r;
+    char			*w;
     char			*c;
     int				words;
     int				angle = 0;
+    int				at = 0;
 
     before = strlen( *line );
 
@@ -732,8 +733,16 @@ header_first_mailbox( char **line )
 
     if (( words = count_words( *line )) == 0 ) {
 	*line = '\0';
+    }
 
-    } else if ( words == 1 ) {
+    /* put c on last character of last word */
+    for ( c = comma - 1; 1; c-- ) {
+	if (( *c != ' ' ) && ( *c != '\t' )) {
+	    break;
+	}
+    }
+
+    if ( words == 1 ) {
 	if ( **line == '<' ) {
 	    angle = 1;
 	    r = (*line) + 1;
@@ -743,44 +752,86 @@ header_first_mailbox( char **line )
 	}
 
     } else {
+	/* put r on first character of last word */
+	for ( r = c; 1; r-- ) {
+	    if (( *r == ' ' ) || ( *r == '\t' )) {
+		break;
+	    }
+	}
+
+	r++;
+
+	if ( *r != '<' ) {
+	    /* angle bracket syntax error */
+	    return( 1 );
+	}
+
+	r++;
+
 	/* more than one word, require angle brackets */
 	angle = 1;
-
-	/* XXX r = last_word + 1 */
     }
-
-    /* put c on the last character of the last word */
-    for ( c = r; c != '\0'; c++ ) {
-	if (( *c == ' ' ) || ( *c == '\t' )) {
-	    break;
-	}
-    }
-
-    c--;
 
     if ( angle == 0 ) {
 	if ( *c == '>' ) {
 	    /* angle bracket syntax error */
-	    return( 1 );
+	    return( 2 );
 	}
 
     } else {
 	if ( *c != '>' ) {
 	    /* angle bracket syntax error */
-	    return( 1 );
+	    return( 3 );
 	}
+
+	*c = '\0';
     }
 
-    *c = '\0';
+    w = *line; 
 
-    /* XXX ZZZ copy and check address */
+    while ( *r != '\0' ) {
+	if ( *r == '@' ) {
+	    at = 1;
+	    *w = *r;
+	    w++;
 
-    after = strlen( *line );
+	} else if (( *r == '<' ) || ( *r == '>' )) {
+	    /* angle bracket syntax error */
+	    return( 4 );
+
+	} else {
+	    *w = *r;
+	    w++;
+	}
+
+	r++;
+    }
+
+    *w = '\0';
+
+
+    if ( at == 0 ) {
+	/* check to see if we need to append the local domain */
+	after = ( strlen( *line ) + strlen( localhostname ) + 1 ); 
+
+    } else {
+	/* make sure user and domain aren't NULL */
+	after = strlen( *line );
+
+	if (( **line == '@' ) || ( *(*line + after - 1 ) == '@' )) {
+	    /* syntax error: no user, or no domain */
+	    return( 5 );
+	}
+    }
 
     if ( before > after ) {
 	if (( *line = (char*)realloc( *line, after + 1 )) == NULL ) {
 	    return( -1 );
 	}
+    }
+
+    if ( at == 0 ) {
+	sprintf( *line, "%s@%s", *line, localhostname );
     }
 
     return( 0 );

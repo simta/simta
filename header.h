@@ -15,7 +15,7 @@ struct header {
 int		count_words ___P(( char * ));
 char		*header_unfold ___P(( struct line * ));
 int		header_uncomment ___P(( char ** ));
-int		header_first_mailbox ___P(( char ** ));
+int		header_first_mailbox ___P(( char **, char * ));
 
 /* public */
 void		header_stdout ___P(( struct header[] ));
