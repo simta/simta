@@ -277,7 +277,7 @@ PACKAGE_BUGREPORT='simta@umich.edu'
 ac_default_prefix=/usr/local
 ac_subdirs_all="$ac_subdirs_all libsnet"
 ac_subdirs_all="$ac_subdirs_all denser"
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS resolvconf aliasdb maxconnections CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA SIMTA_MAIL_LOCAL SIMTA_PROCMAIL OPTOPTS HAVE_TM_GMTOFF SRC SIMTA_OBJ SIMSEND_OBJ Q_RUNNER_OBJ SIMTALIBS SIMTALDFLAGS SIMTACPPFLAGS HAVE_DB TLSDEFS HAVE_SSL subdirs LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS resolvconf aliasdb maxconnections CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA SIMTA_MAIL_LOCAL SIMTA_PROCMAIL OPTOPTS HAVE_TM_GMTOFF SRC SIMTA_OBJ SIMSEND_OBJ Q_RUNNER_OBJ SIMTALIBS SIMTALDFLAGS SIMTACPPFLAGS HAVE_DB subdirs LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -2858,8 +2858,8 @@ else
     echo "$as_me:$LINENO: checking for ssl" >&5
 echo $ECHO_N "checking for ssl... $ECHO_C" >&6
     ssldirs="/usr/local/openssl /usr/lib/openssl /usr/openssl \
-	    /usr/local/ssl /usr/lib/ssl /usr/ssl \
-	    /usr/pkg /usr/local /usr"
+            /usr/local/ssl /usr/lib/ssl /usr/ssl \
+            /usr/pkg /usr/local /usr"
 
 # Check whether --with-ssl or --without-ssl was given.
 if test "${with_ssl+set}" = set; then
@@ -2867,32 +2867,30 @@ if test "${with_ssl+set}" = set; then
   ssldirs="$withval"
 fi;
     for dir in $ssldirs; do
-	ssldir="$dir"
-	if test -f "$dir/include/ssl.h"; then
-	    found_ssl="yes";
-	    CPPFLAGS="$CPPFLAGS -I$ssldir/include";
-	    LDFLAGS="$LDFLAGS -L$ssldir/lib";
-	    break;
-	fi
-
-	if test -f "$dir/include/openssl/ssl.h"; then
-	    found_ssl="yes";
-	    CPPFLAGS="$CPPFLAGS -I$ssldir/include";
-	    LDFLAGS="$LDFLAGS -L$ssldir/lib";
-	    break;
-	fi
+        ssldir="$dir"
+        if test -f "$dir/include/openssl/ssl.h"; then
+            found_ssl="yes";
+            CPPFLAGS="$CPPFLAGS -I$ssldir/include";
+            break;
+        fi
+        if test -f "$dir/include/ssl.h"; then
+            found_ssl="yes";
+            CPPFLAGS="$CPPFLAGS -I$ssldir/include";
+            break
+        fi
     done
     if test x_$found_ssl != x_yes; then
-	{ { echo "$as_me:$LINENO: error: cannot find ssl libraries" >&5
+        { { echo "$as_me:$LINENO: error: cannot find ssl libraries" >&5
 echo "$as_me: error: cannot find ssl libraries" >&2;}
    { (exit 1); exit 1; }; }
     else
-	TLSDEFS=-DTLS;
+        cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBSSL 1
+_ACEOF
 
-	LIBS="$LIBS -lssl -lcrypto";
-	HAVE_SSL=yes
+        LIBS="$LIBS -lssl -lcrypto";
+        LDFLAGS="$LDFLAGS -L$ssldir/lib";
     fi
-
     echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
 
@@ -2965,8 +2963,8 @@ else
     echo "$as_me:$LINENO: checking for ssl" >&5
 echo $ECHO_N "checking for ssl... $ECHO_C" >&6
     ssldirs="/usr/local/openssl /usr/lib/openssl /usr/openssl \
-	    /usr/local/ssl /usr/lib/ssl /usr/ssl \
-	    /usr/pkg /usr/local /usr"
+            /usr/local/ssl /usr/lib/ssl /usr/ssl \
+            /usr/pkg /usr/local /usr"
 
 # Check whether --with-ssl or --without-ssl was given.
 if test "${with_ssl+set}" = set; then
@@ -2974,32 +2972,30 @@ if test "${with_ssl+set}" = set; then
   ssldirs="$withval"
 fi;
     for dir in $ssldirs; do
-	ssldir="$dir"
-	if test -f "$dir/include/ssl.h"; then
-	    found_ssl="yes";
-	    CPPFLAGS="$CPPFLAGS -I$ssldir/include";
-	    LDFLAGS="$LDFLAGS -L$ssldir/lib";
-	    break;
-	fi
-
-	if test -f "$dir/include/openssl/ssl.h"; then
-	    found_ssl="yes";
-	    CPPFLAGS="$CPPFLAGS -I$ssldir/include";
-	    LDFLAGS="$LDFLAGS -L$ssldir/lib";
-	    break;
-	fi
+        ssldir="$dir"
+        if test -f "$dir/include/openssl/ssl.h"; then
+            found_ssl="yes";
+            CPPFLAGS="$CPPFLAGS -I$ssldir/include";
+            break;
+        fi
+        if test -f "$dir/include/ssl.h"; then
+            found_ssl="yes";
+            CPPFLAGS="$CPPFLAGS -I$ssldir/include";
+            break
+        fi
     done
     if test x_$found_ssl != x_yes; then
-	{ { echo "$as_me:$LINENO: error: cannot find ssl libraries" >&5
+        { { echo "$as_me:$LINENO: error: cannot find ssl libraries" >&5
 echo "$as_me: error: cannot find ssl libraries" >&2;}
    { (exit 1); exit 1; }; }
     else
-	TLSDEFS=-DTLS;
+        cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBSSL 1
+_ACEOF
 
-	LIBS="$LIBS -lssl -lcrypto";
-	HAVE_SSL=yes
+        LIBS="$LIBS -lssl -lcrypto";
+        LDFLAGS="$LDFLAGS -L$ssldir/lib";
     fi
-
     echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
 
@@ -3130,6 +3126,70 @@ if test $ac_cv_lib_socket_socket = yes; then
 _ACEOF
 
   LIBS="-lsocket $LIBS"
+
+fi
+
+
+echo "$as_me:$LINENO: checking for crypt in -lcrypt" >&5
+echo $ECHO_N "checking for crypt in -lcrypt... $ECHO_C" >&6
+if test "${ac_cv_lib_crypt_crypt+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lcrypt  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+#line $LINENO "configure"
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any gcc2 internal prototype to avoid an error.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+/* We use char because int might match the return type of a gcc2
+   builtin and then its argument prototype would still apply.  */
+char crypt ();
+int
+main ()
+{
+crypt ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+  (eval $ac_link) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+         { ac_try='test -s conftest$ac_exeext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_lib_crypt_crypt=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+ac_cv_lib_crypt_crypt=no
+fi
+rm -f conftest.$ac_objext conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+echo "$as_me:$LINENO: result: $ac_cv_lib_crypt_crypt" >&5
+echo "${ECHO_T}$ac_cv_lib_crypt_crypt" >&6
+if test $ac_cv_lib_crypt_crypt = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBCRYPT 1
+_ACEOF
+
+  LIBS="-lcrypt $LIBS"
 
 fi
 
@@ -3780,8 +3840,6 @@ s,@SIMTALIBS@,$SIMTALIBS,;t t
 s,@SIMTALDFLAGS@,$SIMTALDFLAGS,;t t
 s,@SIMTACPPFLAGS@,$SIMTACPPFLAGS,;t t
 s,@HAVE_DB@,$HAVE_DB,;t t
-s,@TLSDEFS@,$TLSDEFS,;t t
-s,@HAVE_SSL@,$HAVE_SSL,;t t
 s,@subdirs@,$subdirs,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
