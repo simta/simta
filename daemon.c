@@ -175,6 +175,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'd':
+	    simta_debug++;
 	    break;
 
 	case 'D' :
