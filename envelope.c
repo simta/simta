@@ -634,8 +634,8 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 		/* file not locked by a diferent process */
 		syslog( LOG_ERR, "env_read_delivery_info lockf %s: %m",
 			filename );
-		goto cleanup;
 	    }
+	    goto cleanup;
 	}
     }
 
