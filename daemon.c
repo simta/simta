@@ -157,6 +157,7 @@ main( int ac, char **av )
     /* Turn off getopt's error messages */
     opterr = 0;
 
+    /* XXX - is this protable to call getopt twice? */
     /* First read config file so command line can override it */
     while (( c = getopt( ac, av, "df:" )) != -1 ) {
         switch ( c ) {
@@ -182,6 +183,7 @@ main( int ac, char **av )
 
     /* Turn on getopt's error messages */
     opterr = 1;
+    optind = 1;
 
     while (( c = getopt( ac, av, "ab:cD:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
@@ -197,8 +199,14 @@ main( int ac, char **av )
 	    dontrun++;
 	    break;
 
+	case 'd':
+	    break;
+
 	case 'D' :
 	    config_base_dir = optarg;
+	    break;
+
+	case 'f' :
 	    break;
 
 	case 'I' :
