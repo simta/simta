@@ -28,6 +28,7 @@ struct deliver {
     int				d_tempfail;
     int				d_attempt;
     int				d_delivered;
+    int				d_unlinked;
 };
 
 struct host_list {

@@ -529,7 +529,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     SNET			*snet_bounce = NULL;
     char                        dfile_fname[ MAXPATHLEN ];
     char                        efile_fname[ MAXPATHLEN ];
-    int                         unlinked;
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env_deliver;
@@ -674,7 +673,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    if ( env_unlink( env_deliver ) != 0 ) {
 		goto message_cleanup;
 	    }
-	    unlinked = 1;
+	    d.d_unlinked = 1;
 
         } else if (( d.d_delivered != 0 ) &&
 		(( d.d_success != 0 ) ||
@@ -728,7 +727,7 @@ message_cleanup:
 	    env_bounce = NULL;
 	}
 
-	if ( unlinked == 0 ) {
+	if ( d.d_unlinked == 0 ) {
 	    env_slow( env_deliver );
 	}
 
