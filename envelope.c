@@ -23,6 +23,7 @@ env_create()
     env->e_mail = NULL;
     env->e_rcpt = NULL;
     *env->e_id = '\0';
+    env->e_flags = 0;
 
     return( env );
 }
@@ -52,5 +53,6 @@ env_reset( struct envelope *env )
     }
 
     *env->e_id = '\0';
+    env->e_flags = 0;
     return;
 }

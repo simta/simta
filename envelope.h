@@ -22,7 +22,10 @@ struct envelope {
     char		*e_mail;
     struct recipient	*e_rcpt;
     char		e_id[ 30 ];
+    int			e_flags;
 };
+
+#define E_TLS		(1<<0)
 
 struct envelope	*env_create ___P(( void ));
 void		env_reset ___P(( struct envelope * ));

@@ -41,6 +41,9 @@ static int	f_rset ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_noop ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_quit ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_help ___P(( SNET *, struct envelope *, int, char *[] ));
+#ifdef TLS
+static int	f_starttls ___P(( SNET *, struct envelope *, int, char *[] ));
+#endif TLS
 #ifdef notdef
 static int	f_vrfy ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_expn ___P(( SNET *, struct envelope *, int, char *[] ));
@@ -120,12 +123,27 @@ f_ehlo( snet, env, ac, av )
 
     snet_writef( snet, "%d-%s\r\n", 250, env->e_hostname );
 
-    /* RFC XXXX SMTP SASL */
+#ifdef TLS
+    /* RFC 2487 SMTP TLS */
+    /*
+     * Note that this must be last, as it has '250 ' instead of
+     * '250-' as above.
+     */
+    if (( env->e_flags & E_TLS ) == 0 ) {
+	snet_writef( snet, "%d STARTTLS\r\n", 250 );
+    }
+#endif TLS
+
+#ifdef notdef
+    /*
+     * RFC 2554 SMTP SASL
+     */
     snet_writef( snet, "%d AUTH", 250 );
     for ( s = sasl; s->s_name; s++ ) {
 	snet_writef( snet, " %s", s->s_name );
     }
     snet_writef( snet, "\r\n" );
+#endif notdef
 
     return( 0 );
 }
@@ -529,6 +547,45 @@ f_help( snet, env, ac, av )
     return( 0 );
 }
 
+#ifdef TLS
+    int
+f_starttls( snet, env, ac, av )
+    SNET			*snet;
+    struct envelope		*env;
+    int				ac;
+    char			*av[];
+{
+    /*
+     * Client MUST NOT attempt to start a TLS session if a TLS
+     * session is already active.  No mention of what to do if it does...
+     */
+    if ( env->e_flags & E_TLS ) {
+	syslog( LOG_ERR, "f_starttls: called twice" );
+	return( -1 );
+    }
+
+    if ( ac != 1 ) {
+	snet_writef( snet, "%d Syntax error\r\n", 501 );
+	return( 1 );
+    }
+
+    snet_writef( snet, "%d Ready to start TLS\r\n", 220 );
+
+    /*
+     * Begin TLS
+     */
+    if ( snet_starttls( snet, 1 ) < 0 ) {
+	snet_writef( snet, "%d something happened\r\n", 666 );
+	return( 1 );
+    }
+
+    env_reset( env );
+    env->e_flags = E_TLS;
+
+    return( 0 );
+}
+#endif TLS
+
 struct command	commands[] = {
     { "HELO",		f_helo },
     { "EHLO",		f_ehlo },
@@ -539,6 +596,9 @@ struct command	commands[] = {
     { "NOOP",		f_noop },
     { "QUIT",		f_quit },
     { "HELP",		f_help },
+#ifdef TLS
+    { "STARTTLS",	f_starttls },
+#endif TLS
 #ifdef notdef
     { "VRFY",		f_vrfy },
     { "EXPN",		f_expn },
@@ -564,6 +624,16 @@ receive( fd, sin )
 	/* We *could* use write(2) to report an error before we exit here */
 	exit( 1 );
     }
+
+#ifdef TLS
+    /*
+     * Initialize TLS
+     */
+    if ( snet_inittls( snet, 1 ) < 0 ) {
+	snet_writef( snet, "%d TLS temporarily not available\r\n", 454 );
+	return( 1 );
+    }
+#endif TLS
 
     if ((( env = env_create()) == NULL ) ||
 	    ( gethostname( env->e_hostname, MAXHOSTNAMELEN ) < 0 )) {

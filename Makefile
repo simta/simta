@@ -30,12 +30,11 @@ SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o
 
 INCPATH=	-Ilibsnet
-DEFS=	-DLOG_SIMTA=${SIMTALOG}
+DEFS=	-DLOG_SIMTA=${SIMTALOG} -DTLS
 CFLAGS=	${DEFS} ${OPTOPTS} ${INCPATH}
 TAGSFILE=	tags
 LIBPATH=	-Llibsnet
-#LIBS=	${ADDLIBS} -lsnet
-LIBS=	${ADDLIBS} -lsnet 
+LIBS=	${ADDLIBS} -lsnet -lssl
 
 TARGETS=	simta
 
@@ -54,7 +53,7 @@ simsendmail : ${SIMSENDMAILOBJ}
 FRC :
 
 libsnet/libsnet.a : FRC
-	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC}
+	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC} DEFS="${DEFS}"
 
 VERSION=`date +%Y%m%d`
 DISTDIR=../simta-${VERSION}

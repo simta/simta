@@ -80,7 +80,9 @@ misc:
 
     need an option so no SMTP port is opened.
 
-    do we need equivalent of /usr/lib/sendmail -q?
+    do we need equivalent of /usr/lib/sendmail -q?  How about a
+    signal that tells the running simta to start another queue
+    runner?
 
     fsync newly queued messages?
 
