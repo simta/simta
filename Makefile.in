@@ -16,7 +16,7 @@ DEAD_Q=/var/spool/simta/dead
 
 SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
 	simsend.c rcptlist.c tlsconnect.c address.c \
-	createdb.c bounce.c
+	simalias.c bounce.c
 SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o \
 		queue.c ml.o smtp.o expand.o mx.o bounce.o \
@@ -29,7 +29,10 @@ SIMLOGOBJ=	simlog.o
 EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o q_cleanup.o mx.o
-RBLCHECKOBJ=	@EXPANDER_OBJ@ rblcheck.o queue.o ll.o line_file.o \
+SIMRBLOBJ=	@EXPANDER_OBJ@ simrbl.o queue.o ll.o line_file.o \
+		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
+		header.o bounce.o q_cleanup.o mx.o
+SIMREVERSEOBJ=	@EXPANDER_OBJ@ simreverse.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o q_cleanup.o mx.o
 QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
@@ -37,7 +40,7 @@ QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
 		header.o bounce.o q_cleanup.o mx.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o ml.o \
 		smtp.o simta.o mx.o
-CREATEDBOBJ=	createdb.o argcargv.o bdb.o
+SIMALIASOBJ=	simalias.o argcargv.o bdb.o
 SLAOBJ=		sla.o
 
 SIMTALOG=LOG_MAIL
@@ -61,8 +64,9 @@ SIMTAINCPATH=	@SIMTACPPFLAGS@ ${INCPATH}
 SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
 MAN1TARGETS=	simsendmail.1
-TARGETS=	simta tlsconnect simsendmail q_runner createdb expander sla \
-		rblcheck
+BINTARGETS=	simrbl simreverse simalias
+TARGETS=	simta tlsconnect simsendmail q_runner expander sla \
+		${BINTARGETS}
 
 all : ${TARGETS}
 
@@ -82,6 +86,9 @@ install : all FRC
 	-chmod -R 700 ${SPOOLDIR}
 	${INSTALL} -m 755 -o simta -g simta -c simta ${SBINDIR}/
 	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${SBINDIR}/
+	for i in ${BINTARGETS}; do \
+	    ${INSTALL} -m 0644 -c $$i ${BINDIR}; \
+	done
 	ln -f ${SBINDIR}/simsendmail ${SBINDIR}/sendmail
 	for i in ${MAN1TARGETS}; do \
 	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
@@ -98,13 +105,13 @@ simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
-createdb : ${CREATEDBOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o createdb ${CREATEDBOBJ} ${SIMTALIBPATH} \
+simalias : ${SIMALIASOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simalias ${SIMALIASOBJ} ${SIMTALIBPATH} \
 	${SIMTALIBS}
 
-createdb.o : createdb.c
+simalias.o : simalias.c
 	${CC} ${SIMTACFLAGS} \
-	    -c createdb.c -o createdb.o
+	-c simalias.c -o simalias.o
 
 daemon.o : daemon.c
 	${CC} ${SIMTACFLAGS} \
@@ -152,8 +159,11 @@ ml.o : ml.c
 expander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o expander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-rblcheck : libsnet/libsnet.a denser/denser.o ${RBLCHECKOBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o rblcheck ${RBLCHECKOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+simrbl : libsnet/libsnet.a denser/denser.o ${SIMRBLOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simrbl ${SIMRBLOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+simreverse : libsnet/libsnet.a denser/denser.o ${SIMREVERSEOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simreverse ${SIMREVERSEOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
