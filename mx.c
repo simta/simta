@@ -157,14 +157,16 @@ host_local( char *hostname )
     }
 
     /* Check DNS */
-    if (( result = get_mx( hostname )) == NULL ) {
-	return( NULL );
-    }
-    dnsr_free_result( result );
-
-    /* Look for hostname in host table */
-    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	return( host );
+    if (( result = get_mx( hostname )) != NULL ) {
+	if ( result->r_ancount > 0 ) {
+	    dnsr_free_result( result );
+	    /* Look for hostname in host table */
+	    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
+		return( host );
+	    }
+	} else {
+	    dnsr_free_result( result );
+	}
     }
 
     return( NULL );
@@ -248,8 +250,12 @@ check_hostname( char *hostname )
     struct dnsr_result		*result;
 
     if (( result = get_mx( hostname )) != NULL ) {
-	dnsr_free_result( result );
-	return( 0 );
+	if ( result->r_ancount > 0 ) {
+	    dnsr_free_result( result );
+	    return( 0 );
+	} else {
+	    dnsr_free_result( result );
+	}
     }
 
     if (( result = get_a( hostname )) != NULL ) {
