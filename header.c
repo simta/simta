@@ -46,14 +46,21 @@ struct header simta_headers[] = {
 header_stdout( struct header h[])
 {
     while ( h->h_key != NULL ) {
-	printf( "%s:", h->h_key );
+	/* print key */
+	printf( "%s: ", h->h_key );
 
 	if ( h->h_line != NULL ) {
-	    printf( "%s\n", h->h_line->line_data );
+	    printf( "%s", h->h_line->line_data );
+
+	    if ( h->h_data != NULL ) {
+		printf( "\n%s data: %s", h->h_key, h->h_data );
+	    }
 
 	} else {
-	    printf( "NULL\n" );
+	    printf( "NULL" );
 	}
+
+	printf( "\n" );
 
 	h++;
     }
@@ -102,7 +109,7 @@ header_exceptions( struct line_file *lf )
 	return( 0 );
     }
 
-    /* mail(1) on Solaris gives non-RFC compliant first header line */
+    /* mail(1) on Solaris gives non-rfc compliant first header line */
     c = lf->l_first->line_data;
 
     if ( strncasecmp( c, "From ", 5 ) == 0 ) {
@@ -176,7 +183,7 @@ header_timestamp( struct envelope *env, FILE *file )
 
 
     /* return 0 if line is the next line in header block lf */
-    /* rfc2822, 2.1:
+    /* rfc2822, 2.1 General Description:
      * A message consists of header fields (collectively called "the header
      * of the message") followed, optionally, by a body.  The header is a
      * sequence of lines of characters with special syntax as defined in
@@ -185,36 +192,48 @@ header_timestamp( struct envelope *env, FILE *file )
      * (i.e., a line with nothing preceding the CRLF).
      */
 
+    /* rfc 2822, 2.2.2. Structured Header Field Bodies:
+     * SP, ASCII value 32) and horizontal tab (HTAB, ASCII value 9)
+     * characters (together known as the white space characters, WSP
+     */
+
     int
 header_end( struct line_file *lf, char *line )
 {
-    char		*colon;
+    char		*c;
 
     /* null line means that message data begins */
     if (( *line ) == '\0' ) {
 	return( 1 );
     }
 
-    /* if line could be folded whitespace and lf->l_first != NULL, return 0 */
-    if ( lf->l_first != NULL ) {
-	/* XXX need to check for non-whitespace? */
-	if ( isspace( (int)*line ) != 0 ) {
-	    /* line contains folded white space */
+    if (( *line == ' ' ) || ( *line == '\t' )) {
+
+	/* line could be FWS if it's not the first line */
+	if ( lf->l_first != NULL ) {
+
+	    /* line could be FWS if there's something on it (rfc2822 3.2.3) */
+	    for ( c = line + 1; *c != '\0'; c++ ) {
+		if (( *line != ' ' ) || ( *line != '\t' )) {
+		    return( 0 );
+		}
+	    }
+	}
+
+    } else {
+
+	/* if line syntax is a header, return 0 */
+	for ( c = line; *c != ':'; c++ ) {
+	    /* colon ascii value is 58 */
+	    if (( *c < 33 ) || ( *c > 126 )) {
+		break;
+	    }
+	}
+
+	if (( *c == ':' ) && (( c - line ) > 0 )) {
+	    /* proper field name followed by a colon */
 	    return( 0 );
 	}
-    }
-
-    /* if line syntax is a header, return 0 */
-    for ( colon = line; *colon != ':'; colon++ ) {
-	/* colon ascii value is 58 */
-	if (( *colon < 33 ) || ( *colon > 126 )) {
-	    break;
-	}
-    }
-
-    if (( *colon == ':' ) && (( colon - line ) > 0 )) {
-	/* proper field name followed by a colon */
-	return( 0 );
     }
 
     return( 1 );
@@ -243,7 +262,7 @@ header_correct( struct line_file *lf, struct envelope *env )
     /* put header information in to data structures for later processing */
     for ( l = lf->l_first; l != NULL ; l = l->line_next ) {
 
-	/* RFC 2822:
+	/* rfc 2822:
 	 * Header fields are lines composed of a field name, followed
 	 * by a colon (":"), followed by a field body, and terminated
 	 * by CRLF.  A field name MUST be composed of printable
@@ -267,6 +286,15 @@ header_correct( struct line_file *lf, struct envelope *env )
 	    if ( strncasecmp( h->h_key, l->line_data, header_len ) == 0 ) {
 		/* correct field name */
 		h->h_line = l;
+	    }
+	}
+    }
+
+    /* unfold all the headers */
+    for ( h = simta_headers; h->h_key != NULL; h++ ) {
+	if ( h->h_line != NULL ) {
+	    if (( h->h_data = header_unfold( h->h_line )) == NULL ) {
+		return( -1 );
 	    }
 	}
     }
@@ -350,7 +378,50 @@ header_correct( struct line_file *lf, struct envelope *env )
     char *
 header_unfold( struct line *line )
 {
-    char		*unfolded = NULL;
+    char		*unfolded;
+    char		*c;
+    struct line		*l;
+
+    for ( c = line->line_data; *c != ':'; c++ )
+	    ;
+
+    /* eliminate all leading WSP */
+    c++;
+
+    while (( *c == ' ' ) || ( c == '\t' )) {
+	c++;
+    }
+
+    if (( unfolded = (char*)malloc( strlen( c ) + 1 )) == NULL ) {
+	perror( "malloc" );
+	return( NULL );
+    }
+
+    strcpy( unfolded, c );
+
+    for ( l = line->line_next; l != NULL; l = l->line_next ) {
+	/* is the line FWS? */
+	if (( *l->line_data == ' ' ) || ( *l->line_data == '\t' )) {
+
+	    /* eliminate all WSP except the last one */
+	    c = l->line_data;
+
+	    while (( *(c + 1) == ' ' ) || ( *(c + 1) == '\t' )) {
+		c++;
+	    }
+
+	    if (( unfolded = (char*)realloc( unfolded, strlen( unfolded ) +
+		    strlen( c ) + 1 )) == NULL ) {
+		perror( "realloc" );
+		return( NULL );
+	    }
+
+	    strcat( unfolded, c );
+
+	} else {
+	    break;
+	}
+    }
 
     return( unfolded );
 }

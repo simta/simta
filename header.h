@@ -13,6 +13,7 @@ struct header {
 };
 
 int		count_words ___P(( char * ));
+char		*header_unfold ___P(( struct line * ));
 
 /* public */
 void		header_stdout ___P(( struct header[] ));
