@@ -63,16 +63,16 @@ env_age( struct envelope *env, int dfile_fd )
 
     if ( fstat( dfile_fd, &sb ) != 0 ) {
 	syslog( LOG_ERR, "env_age fstat %s/D%s: %m", env->e_dir, env->e_id );
-	return( 1 );
+	return( 0 );
     }
 
     if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	syslog( LOG_ERR, "env_age gettimeofday: %m" );
-	return( 1 );
+	return( 0 );
     }
 
     if (( tv_now.tv_sec - sb.st_mtime ) > ( simta_bounce_seconds )) {
-	env->e_flags = ( env->e_flags | ENV_OLD );
+	return( 1 );
     }
 
     return( 0 );

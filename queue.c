@@ -370,13 +370,10 @@ q_runner( struct host_q **host_q )
 			goto unexpanded_clean_up;
 		    }
 
-		    if ( env_age( unexpanded, dfile_fd ) != 0 ) {
+		    if ( env_age( unexpanded, dfile_fd ) == 0 ) {
+			/* not old */
 			close( dfile_fd );
-			goto unexpanded_clean_up;
-		    }
 
-		    if (( unexpanded->e_flags & ENV_OLD ) == 0 ) {
-			close( dfile_fd );
 		    } else {
 			syslog( LOG_DEBUG, "q_runner %s: old unexpandable "
 				"message, bouncing", unexpanded->e_id );
@@ -606,23 +603,20 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    abort();
 	}
 
-	/* check the age ot the envelope if the envelope has any tempfails or
+	/* check the age of the envelope if the envelope has any tempfails or
 	 * the host is HOST_DOWN, if we're not already bouncing the envelope
 	 */
 	if ((( d.d_tempfail > 0 ) ||
 		( deliver_q->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
-
-	    if ( env_age( env_deliver, dfile_fd ) == 0 ) {
-		if (( env_deliver->e_flags & ENV_OLD ) != 0 ) {
+	    if ( env_age( env_deliver, dfile_fd ) != 0 ) {
 		    syslog( LOG_INFO, "q_deliver %s: old message, bouncing",
 			    env_deliver->e_id );
 		    env_deliver->e_flags =
 			    ( env_deliver->e_flags | ENV_BOUNCE );
-		} else {
-		    syslog( LOG_DEBUG, "q_deliver %s: not old",
-			    env_deliver->e_id );
-		}
+	    } else {
+		syslog( LOG_DEBUG, "q_deliver %s: not old",
+			env_deliver->e_id );
 	    }
 	}
 
@@ -636,18 +630,18 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
+		abort();
+            }
 
-            } else {
-		if ( snet_dfile == NULL ) {
-		    if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 ))
-			    == NULL ) {
-			syslog( LOG_ERR, "q_deliver snet_attach: %m" );
-		    } else {
-			snet_bounce = snet_dfile;
-		    }
+	    if ( snet_dfile == NULL ) {
+		if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 ))
+			== NULL ) {
+		    syslog( LOG_ERR, "q_deliver snet_attach: %m" );
 		} else {
 		    snet_bounce = snet_dfile;
 		}
+	    } else {
+		snet_bounce = snet_dfile;
 	    }
 
 	    if (( env_bounce = bounce( deliver_q, env_deliver, snet_bounce ))
@@ -662,14 +656,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	/* delete the original message if we've created
 	 * a bounce for the entire message, or if we've successfully
 	 * delivered the message and no recipients tempfailed.
-	 *
-	 * else we rewrite the message if its been successfully
-	 * delivered, and some but not all recipients tempfail.
-	 *
-	 * else we need to touch the envelope if we started an attempt
-	 * deliver the message, but it was unsuccessful.
 	 */
-
         if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		(( d.d_delivered != 0 ) &&
@@ -688,6 +675,9 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    }
 	    d.d_unlinked = 1;
 
+	/* else we rewrite the message if its been successfully
+	 * delivered, and some but not all recipients tempfail.
+	 */
         } else if (( d.d_delivered != 0 ) &&
 		(( d.d_success != 0 ) ||
 		( d.d_failed != 0 ))) {
@@ -715,6 +705,11 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		simta_fast_files--;
 	    }
 
+	    assert( simta_fast_files >= 0 );
+
+	/* else we need to touch the envelope if we started an attempt
+	 * deliver the message, but it was unsuccessful.
+	 */
 	} else if (( d.d_attempt != 0 ) &&
 		( env_deliver->e_dir == simta_dir_slow )) {
 	    syslog( LOG_INFO, "q_deliver %s touching", env_deliver->e_id );
@@ -812,27 +807,27 @@ deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
     if (( smtp_error = smtp_send( *snet_smtp, deliver_q, d )) == SMTP_OK ) {
 	simta_smtp_outbound_delivered++;
 	d->d_delivered = 1;
+	return;
+    }
 
-    } else {
 smtp_cleanup:
-	if ( *snet_smtp != NULL ) {
-	    switch ( smtp_error ) {
-	    default:
-	    case SMTP_ERROR:
-		if ( snet_eof( *snet_smtp ) != 0 ) {
-		    syslog( LOG_DEBUG, "deliver_remote %s: call smtp_quit",
-			    d->d_env->e_id );
-		    smtp_quit( *snet_smtp, deliver_q );
-		}
-
-	    case SMTP_BAD_CONNECTION:
-		syslog( LOG_DEBUG, "deliver_remote %s: call snet_close",
+    if ( *snet_smtp != NULL ) {
+	switch ( smtp_error ) {
+	default:
+	case SMTP_ERROR:
+	    if ( snet_eof( *snet_smtp ) != 0 ) {
+		syslog( LOG_DEBUG, "deliver_remote %s: call smtp_quit",
 			d->d_env->e_id );
-		if ( snet_close( *snet_smtp ) < 0 ) {
-		    syslog( LOG_ERR, "snet_close: %m" );
-		}
-		*snet_smtp = NULL;
+		smtp_quit( *snet_smtp, deliver_q );
 	    }
+
+	case SMTP_BAD_CONNECTION:
+	    syslog( LOG_DEBUG, "deliver_remote %s: call snet_close",
+		    d->d_env->e_id );
+	    if ( snet_close( *snet_smtp ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+	    }
+	    *snet_smtp = NULL;
 	}
     }
 

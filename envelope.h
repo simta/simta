@@ -38,11 +38,10 @@ struct envelope {
 };
 
 #define ENV_ON_DISK		(1<<1)
-#define ENV_OLD			(1<<2)
-#define ENV_EFILE		(1<<3)
-#define ENV_DFILE		(1<<4)
-#define E_TLS			(1<<5)
-#define ENV_BOUNCE		(1<<6)
+#define ENV_EFILE		(1<<2)
+#define ENV_DFILE		(1<<3)
+#define E_TLS			(1<<4)
+#define ENV_BOUNCE		(1<<5)
 
 struct envelope	*env_create ___P(( char * ));
 struct envelope	*env_dup ___P(( struct envelope * ));
