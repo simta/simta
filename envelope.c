@@ -56,22 +56,23 @@ env_gettimeofday_id( struct envelope *e )
 
 
     int
-env_age( struct envelope *env, int dfile_fd )
+env_is_old( struct envelope *env, int dfile_fd )
 {
     struct timeval              tv_now;
     struct stat			sb;
 
     if ( fstat( dfile_fd, &sb ) != 0 ) {
-	syslog( LOG_ERR, "env_age fstat %s/D%s: %m", env->e_dir, env->e_id );
+	syslog( LOG_ERR, "env_is_old fstat %s/D%s: %m", env->e_dir, env->e_id );
 	return( 0 );
     }
 
     if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "env_age gettimeofday: %m" );
+	syslog( LOG_ERR, "env_is_old gettimeofday: %m" );
 	return( 0 );
     }
 
     if (( tv_now.tv_sec - sb.st_mtime ) > ( simta_bounce_seconds )) {
+	env->e_flags |= ENV_OLD;
 	return( 1 );
     }
 
@@ -442,7 +443,7 @@ env_outfile( struct envelope *e )
     syslog( LOG_DEBUG, "env_outfile %s %s %s", e->e_dir, e->e_id,
 	    e->e_hostname );
 
-    e->e_flags = ( e->e_flags | ENV_ON_DISK );
+    e->e_flags |= ENV_ON_DISK;
 
     if ( simta_no_sync == 0 ) {
 	sync();

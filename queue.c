@@ -370,15 +370,14 @@ q_runner( struct host_q **host_q )
 			goto unexpanded_clean_up;
 		    }
 
-		    if ( env_age( unexpanded, dfile_fd ) == 0 ) {
+		    if ( env_is_old( unexpanded, dfile_fd ) == 0 ) {
 			/* not old */
 			close( dfile_fd );
 
 		    } else {
 			syslog( LOG_DEBUG, "q_runner %s: old unexpandable "
 				"message, bouncing", unexpanded->e_id );
-			unexpanded->e_flags =
-				( unexpanded->e_flags | ENV_BOUNCE );
+			unexpanded->e_flags |= ENV_BOUNCE;
 			if (( snet_dfile = snet_attach( dfile_fd,
 				1024 * 1024 )) == NULL ) {
 			    close( dfile_fd );
@@ -609,11 +608,10 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	if ((( d.d_tempfail > 0 ) ||
 		( deliver_q->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
-	    if ( env_age( env_deliver, dfile_fd ) != 0 ) {
+	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
 		    syslog( LOG_INFO, "q_deliver %s: old message, bouncing",
 			    env_deliver->e_id );
-		    env_deliver->e_flags =
-			    ( env_deliver->e_flags | ENV_BOUNCE );
+		    env_deliver->e_flags |= ENV_BOUNCE;
 	    } else {
 		syslog( LOG_DEBUG, "q_deliver %s: not old",
 			env_deliver->e_id );

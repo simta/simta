@@ -40,7 +40,7 @@ struct envelope {
 #define ENV_ON_DISK		(1<<1)
 #define ENV_EFILE		(1<<2)
 #define ENV_DFILE		(1<<3)
-#define E_TLS			(1<<4)
+#define ENV_OLD			(1<<4)
 #define ENV_BOUNCE		(1<<5)
 
 struct envelope	*env_create ___P(( char * ));
@@ -49,7 +49,7 @@ void		env_rcpt_free ___P(( struct envelope * ));
 void		env_free ___P(( struct envelope * ));
 void		env_reset ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
-int		env_age( struct envelope *, int );
+int		env_is_old( struct envelope *, int );
 int		env_gettimeofday_id ___P(( struct envelope * ));
 int		env_set_id ___P(( struct envelope *, char * ));
 int		env_recipient ___P(( struct envelope *, char * ));

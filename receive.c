@@ -57,6 +57,7 @@ extern char		*version;
 struct host_q		*hq_receive = NULL;
 struct sockaddr_in  	*receive_sin;
 int			receive_global_relay = 0;
+int			receive_tls = 0;
 char			*receive_hello = NULL;
 
 #define	RECEIVE_OK		0x0000
@@ -191,7 +192,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 
 #ifdef HAVE_LIBSSL
     /* RFC 2487 SMTP TLS */
-    if (( env->e_flags & E_TLS ) == 0 ) {
+    if ( receive_tls == 0 ) {
 	if ( snet_writef( snet, "%d-%s Hello %s\r\n", 250, simta_hostname,
 		av[ 1 ]) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
@@ -875,7 +876,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
      * Client MUST NOT attempt to start a TLS session if a TLS
      * session is already active.  No mention of what to do if it does...
      */
-    if (( env->e_flags & E_TLS ) != 0 ) {
+    if ( receive_tls != 0 ) {
 	syslog( LOG_ERR, "f_starttls: called twice" );
 	return( RECEIVE_SYSERROR );
     }
@@ -938,7 +939,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     env_reset( env );
-    env->e_flags = env->e_flags | E_TLS;
+    receive_tls = 1;
 
     return( 0 );
 }
