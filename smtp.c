@@ -137,10 +137,14 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	}
     }
 
+    syslog( LOG_DEBUG, "smtp_connect calling get_mx( %s )", hq->hq_hostname );
+
     if (( result = get_mx( simta_dnsr, hq->hq_hostname )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect %s get_mx: failed", hq->hq_hostname );
 	return( SMTP_BAD_CONNECTION );
     }
+
+    syslog( LOG_DEBUG, "smtp_connect called get_mx( %s )", hq->hq_hostname );
 
     for ( i = 0; i < result->r_ancount; i++ ) {
         switch( result->r_answer[ i ].rr_type ) {
@@ -166,6 +170,8 @@ smtp_connect( SNET **snetp, struct host_q *hq )
             break;
         }
     }
+
+    syslog( LOG_DEBUG, "smtp_connect survived densr" );
 
     dnsr_free_result( result );
 

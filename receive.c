@@ -338,6 +338,7 @@ f_mail( snet, env, ac, av )
 	    }
 	}
 
+	syslog( LOG_DEBUG, "f_mail calling get_mx( %s )", domain );
 	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
 	    switch ( dnsr_errno( simta_dnsr )) {
 	    case DNSR_ERROR_NAME:
@@ -355,6 +356,7 @@ f_mail( snet, env, ac, av )
 		return( RECEIVE_SYSERROR );
 	    }
 	}
+	syslog( LOG_DEBUG, "f_mail called get_mx( %s )", domain );
 
 	dnsr_free_result( result );
 
@@ -370,6 +372,8 @@ f_mail( snet, env, ac, av )
 	    return( RECEIVE_OK );
 	}
     }
+
+    syslog( LOG_DEBUG, "f_mail survived densr" );
 
     if ( env->e_mail != NULL ) {
 	/* XXX check for an accepted message */
@@ -517,6 +521,7 @@ f_rcpt( snet, env, ac, av )
 	    }
 	}
 
+	syslog( LOG_DEBUG, "f_rcpt calling get_mx( %s )", domain );
 	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
 	    if ((( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )) ||
 		    ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
@@ -540,6 +545,7 @@ f_rcpt( snet, env, ac, av )
 	    }
 	}
 
+	syslog( LOG_DEBUG, "f_rcpt called get_mx( %s )", domain );
 	if (( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )
 		|| ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 	    /* No valid DNS */
@@ -634,6 +640,8 @@ f_rcpt( snet, env, ac, av )
 	    break;
 	}
     }
+
+    syslog( LOG_DEBUG, "f_rcpt survived get_mx( %s )", domain );
 
     if ( env_recipient( env, addr ) != 0 ) {
 	return( RECEIVE_SYSERROR );
