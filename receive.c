@@ -456,7 +456,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int					dfile_fd;
     int					data_errors = 0;
-    int					line_too_long = 0;
     int					header = 1;
     int					line_no = 0;
     char				*line;
@@ -595,24 +594,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    line++;
 	}
 
-	/*
-	 * RFC 2821 4.5.3:
-	 * 
-	 * text line
-	 *     The maximum total length of a text line including the <CRLF> is
-	 *     1000 characters (not counting the leading dot duplicated for
-	 *     transparency).  This number may be increased by the use of SMTP
-	 *     Service Extensions.
-	 */
-	if ( strlen( line ) > 1000 ) {
-	    line_too_long++;
-	}
-
 	if ( header == 1 ) {
 	    if ( header_end( lf, line ) != 0 ) {
 		/* XXX reject message based on headers here */
 
-		if (( data_errors == 0 ) && ( line_too_long == 0 )) {
+		if ( data_errors == 0 ) {
 		    if ( header_file_out( lf, dff ) != 0 ) {
 			syslog( LOG_ERR, "f_data header_file_out: %m" );
 			data_errors++;
@@ -628,7 +614,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	    } else {
 		/* append line to headers */
-		if (( data_errors == 0 ) && ( line_too_long == 0 )) {
+		if ( data_errors == 0 ) {
 		    if (( l = line_append( lf, line )) == NULL ) {
 			syslog( LOG_ERR, "f_data line_append: %m" );
 			data_errors++;
@@ -639,7 +625,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 
 	} else {
-	    if (( data_errors == 0 ) && ( line_too_long == 0 )) {
+	    if ( data_errors == 0 ) {
 		if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		    syslog( LOG_ERR, "f_data fprintf: %m" );
 		    data_errors++;
@@ -651,7 +637,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     if ( header == 1 ) {
 	/* XXX reject message based on headers here */
 
-	if (( data_errors == 0 ) && ( line_too_long == 0 )) {
+	if ( data_errors == 0 ) {
 	    if ( header_file_out( lf, dff ) != 0 ) {
 		syslog( LOG_ERR, "f_data header_file_out: %m" );
 		data_errors++;
@@ -672,7 +658,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if (( line_too_long != 0 ) || ( data_errors != 0 )) {
+    if ( data_errors == 0 ) {
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data fclose: %m" );
 	}
@@ -680,17 +666,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
 
-	if ( data_errors != 0 ) {
-	    return( RECEIVE_SYSERROR );
-	}
-
-	if ( line_too_long != 0 ) {
-	    if ( snet_writef( snet, "554 line too long\r\n" ) < 0 ) {
-		syslog( LOG_ERR, "f_data snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    return( RECEIVE_OK );
-	}
+	return( RECEIVE_SYSERROR );
     }
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
