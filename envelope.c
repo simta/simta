@@ -117,12 +117,6 @@ rcpt_free( struct recipient *r )
 	if ( r->r_err_text != NULL ) {
 	    line_file_free( r->r_err_text );
 	}
-
-#ifdef HAVE_LDAP
-	if (r->r_dn != NULL ) {
-	    free (r->r_dn);
-	}
-#endif
     }
 }
 
@@ -346,6 +340,7 @@ env_outfile( struct envelope *e, char *dir )
 	}
 
     } else {
+	/* XXX NULL From addr OK? */
 	if ( fprintf( tff, "F\n" ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	    fclose( tff );
