@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <db.h>
 
 #ifdef HAVE_LIBWRAP
 #include <tcpd.h>
@@ -35,6 +36,7 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
+#include "bdb.h"
 #include "denser.h"
 #include "config.h"
 #include "queue.h"
@@ -58,6 +60,11 @@ struct host_q		*hq_receive = NULL;
 #define	RECEIVE_QUIT		0x0001
 #define	RECEIVE_SYSERROR	0x0010
 #define	RECEIVE_BADCONNECTION	0x0100
+
+/* return codes for address_expand */
+#define	LOCAL_ADDRESS			1
+#define	NOT_LOCAL			2
+#define	LOCAL_ERROR			3
 
 struct command {
     char	*c_name;
@@ -596,8 +603,8 @@ f_rcpt( snet, env, ac, av )
 	 */
 
 	if ( high_mx_pref != 0 ) {
-	    switch( address_local( addr )) {
-	    case ADDRESS_NOT_LOCAL:
+	    switch( local_address( addr )) {
+	    case NOT_LOCAL:
 		syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
 		if ( snet_writef( snet,
 			"%d Requested action not taken: User not found.\r\n",
@@ -607,9 +614,9 @@ f_rcpt( snet, env, ac, av )
 		}
 		return( RECEIVE_OK );
 
-	    case ADDRESS_SYSERROR:
+	    case LOCAL_ERROR:
 	    default:
-		syslog( LOG_ERR, "f_rcpt address_local %s: error", addr );
+		syslog( LOG_ERR, "f_rcpt local_address %s: error", addr );
 		if ( snet_writef( snet,
 			"%d Requested action aborted: "
 			"local error in processing.\r\n", 451 ) < 0 ) {
@@ -618,7 +625,7 @@ f_rcpt( snet, env, ac, av )
 		}
 		return( RECEIVE_SYSERROR );
 
-	    case ADDRESS_LOCAL:
+	    case LOCAL_ADDRESS:
 		break;
 	    }
 	}
@@ -1339,4 +1346,97 @@ closeconnection:
 
 	env_free( env );
     }
+}
+
+
+    int
+local_address( char *addr )
+{
+    int			rc;
+    char		*domain;
+    char		*at;
+    struct host		*host;
+    struct passwd	*passwd;
+    struct stab_entry	*i;
+    DBT			value;
+
+    /* Check for domain in domain table */
+    if (( at = strchr( addr, '@' )) == NULL ) {
+	return( NOT_LOCAL );
+    }
+
+    /* always accept mail for the local postmaster */
+    /* XXX accept mail for all local postmasters? */
+    if ( strcasecmp( simta_postmaster, addr ) == 0 ) {
+	return( LOCAL_ADDRESS );
+    }
+
+    domain = at + 1;
+
+    if (( host = (struct host*)ll_lookup( simta_hosts, domain )) == NULL ) {
+	return( NOT_LOCAL );
+    }
+
+    /* Search for user using expansion table */
+    for ( i = host->h_expansion; i != NULL; i = i->st_next ) {
+	if ( strcmp( i->st_key, "alias" ) == 0 ) {
+	    /* check alias file */
+	    if ( simta_dbp == NULL ) {
+		if (( rc = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
+			!= 0 ) {
+		    syslog( LOG_ERR, "local_address: db_open_r: %s",
+			    db_strerror( rc ));
+		    return( LOCAL_ERROR );
+		}
+	    }
+
+	    *at = '\0';
+	    rc = db_get( simta_dbp, addr, &value );
+	    *at = '@';
+
+	    if ( rc == 0 ) {
+		return( LOCAL_ADDRESS );
+	    }
+
+	} else if ( strcmp( i->st_key, "password" ) == 0 ) {
+	    /* Check password file */
+	    *at = '\0';
+	    passwd = getpwnam( addr );
+	    *at = '@';
+
+	    if ( passwd != NULL ) {
+		return( LOCAL_ADDRESS );
+	    }
+
+#ifdef HAVE_LDAP
+	} else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
+	    /* Check LDAP */
+	    *at = '\0';
+	    rc = simta_ldap_address_local( addr, domain );
+	    *at = '@';
+
+	    switch ( rc ) {
+	    default:
+		syslog( LOG_ERR,
+			"local_address simta_ldap_address_local: bad value" );
+	    case LDAP_SYSERROR:
+		return( LOCAL_ERROR );
+
+	    case LDAP_NOT_LOCAL:
+		continue;
+
+	    case LDAP_LOCAL:
+		return( LOCAL_ADDRESS );
+	    }
+#endif /* HAVE_LDAP */
+
+	} else {
+	    /* unknown lookup */
+	    syslog( LOG_ERR, "local_address: %s: unknown expansion",
+		    i->st_key );
+	    return( LOCAL_ERROR );
+	}
+    }
+
+    return( NOT_LOCAL );
 }

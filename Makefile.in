@@ -98,18 +98,20 @@ createdb.o : createdb.c
 	    -c createdb.c -o createdb.o
 
 daemon.o : daemon.c
-	${CC} ${CFLAGS} \
+	${CC} ${SIMTACFLAGS} \
 	    -DVERSION=\"`cat VERSION`\" \
 	    -DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
 	    -c daemon.c -o daemon.o
 
 receive.o : receive.c
-	${CC} ${CFLAGS} \
+	${CC} ${SIMTACFLAGS} \
 		-DVERSION=\"`cat VERSION`\" \
+		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
 		-c receive.c -o receive.o
 
 simta.o : simta.c
-	${CC} ${CFLAGS} \
+	${CC} ${SIMTACFLAGS} \
+		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
 		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
 		-c simta.c -o simta.o
 

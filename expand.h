@@ -8,13 +8,7 @@
 /* return codes for address_expand */
 #define	ADDRESS_FINAL			1
 #define	ADDRESS_EXCLUDE			2
-
-/* return codes for address_local */
-#define	ADDRESS_LOCAL			3
-#define	ADDRESS_NOT_LOCAL		4
-
-/* return codes for address_local & address_expand */
-#define	ADDRESS_SYSERROR		5
+#define	ADDRESS_SYSERROR		3
 
 /* address types */
 #define	ADDRESS_TYPE_EMAIL		1

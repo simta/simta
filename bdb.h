@@ -11,3 +11,5 @@ int db_cursor_next( DB *dbp, DBC **dbcp, DBT *key, DBT *value );
 int db_cursor_close( DBC *dbcp );
 
 int db_close( DB *dbp );
+
+extern DB               *simta_dbp;

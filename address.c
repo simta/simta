@@ -38,7 +38,6 @@
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
 
-DB		*dbp = NULL;
 
     void
 expand_tree_stdout( struct exp_addr *e, int i )
@@ -206,98 +205,6 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 
 
     int
-address_local( char *addr )
-{
-    int			rc;
-    char		*domain;
-    char		*at;
-    struct host		*host;
-    struct passwd	*passwd;
-    struct stab_entry	*i;
-    DBT			value;
-
-    /* Check for domain in domain table */
-    if (( at = strchr( addr, '@' )) == NULL ) {
-	return( ADDRESS_NOT_LOCAL );
-    }
-
-    /* always accept mail for the local postmaster */
-    /* XXX accept mail for all local postmasters? */
-    if ( strcasecmp( simta_postmaster, addr ) == 0 ) {
-	return( ADDRESS_LOCAL );
-    }
-
-    domain = at + 1;
-
-    if (( host = (struct host*)ll_lookup( simta_hosts, domain )) == NULL ) {
-	return( ADDRESS_NOT_LOCAL );
-    }
-
-    /* Search for user using expansion table */
-    for ( i = host->h_expansion; i != NULL; i = i->st_next ) {
-	if ( strcmp( i->st_key, "alias" ) == 0 ) {
-	    /* check alias file */
-	    if ( dbp == NULL ) {
-		if (( rc = db_open_r( &dbp, SIMTA_ALIAS_DB, NULL )) != 0 ) {
-		    syslog( LOG_ERR, "address_local: db_open_r: %s",
-			    db_strerror( rc ));
-		    return( ADDRESS_SYSERROR );
-		}
-	    }
-
-	    *at = '\0';
-	    rc = db_get( dbp, addr, &value );
-	    *at = '@';
-
-	    if ( rc == 0 ) {
-		return( ADDRESS_LOCAL );
-	    }
-
-	} else if ( strcmp( i->st_key, "password" ) == 0 ) {
-	    /* Check password file */
-	    *at = '\0';
-	    passwd = getpwnam( addr );
-	    *at = '@';
-
-	    if ( passwd != NULL ) {
-		return( ADDRESS_LOCAL );
-	    }
-
-#ifdef HAVE_LDAP
-	} else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
-	    /* Check LDAP */
-	    *at = '\0';
-	    rc = simta_ldap_address_local( addr, domain );
-	    *at = '@';
-
-	    switch ( rc ) {
-	    default:
-		syslog( LOG_ERR,
-			"address_local simta_ldap_address_local: bad value" );
-	    case LDAP_SYSERROR:
-		return( ADDRESS_SYSERROR );
-
-	    case LDAP_NOT_LOCAL:
-		continue;
-
-	    case LDAP_LOCAL:
-		return( ADDRESS_LOCAL );
-	    }
-#endif /* HAVE_LDAP */
-
-	} else {
-	    /* unknown lookup */
-	    syslog( LOG_ERR, "address_local: %s: unknown expansion",
-		    i->st_key );
-	    return( ADDRESS_SYSERROR );
-	}
-    }
-
-    return( ADDRESS_NOT_LOCAL );
-}
-
-
-    int
 address_expand( struct expand *exp, struct exp_addr *e_addr )
 {
     char		*at;
@@ -367,8 +274,9 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 	    key.data = e_addr->e_addr;
 	    key.size = strlen( key.data ) + 1;
 
-	    if ( dbp == NULL ) {
-		if (( ret = db_open_r( &dbp, SIMTA_ALIAS_DB, NULL )) != 0 ) {
+	    if ( simta_dbp == NULL ) {
+		if (( ret = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
+			!= 0 ) {
 		    syslog( LOG_ERR, "address_expand: db_open_r: %s",
 			    db_strerror( ret ));
 		    /* XXX return syserror, or try next expansion? */
@@ -378,7 +286,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 	    }
 
 	    /* Set cursor and get first result */
-	    if (( ret = db_cursor_set( dbp, &dbcp, &key, &value )) != 0 ) {
+	    if (( ret = db_cursor_set( simta_dbp, &dbcp, &key, &value ))
+		    != 0 ) {
 		if ( ret != DB_NOTFOUND ) {
 		    syslog( LOG_ERR, "address_expand: db_cursor_set: %s",
 			    db_strerror( ret ));
@@ -406,7 +315,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
 		/* Get next db result, if any */
 		memset( &value, 0, sizeof( DBT ));
-		if (( ret = db_cursor_next( dbp, &dbcp, &key, &value )) != 0 ) {
+		if (( ret = db_cursor_next( simta_dbp, &dbcp, &key, &value ))
+			!= 0 ) {
 		    if ( ret != DB_NOTFOUND ) {
 			syslog( LOG_ERR, "address_expand: db_cursor_next: %s",
 				db_strerror( ret ));
