@@ -417,57 +417,6 @@ simta_ldap_string( char *filter, char *user, char *domain )
     return( buf );
 }
 
-
-    /* this function should return:
-     *     LDAP_SYSERROR if there is an error
-     *     LDAP_LOCAL if addr is found in the db
-     *     LDAP_NOT_LOCAL if addr is not found in the db
-     */
-
-    static int
-simta_local_search (char ** attrs, char * user, char * domain, int *count)
-{
-    char		*search_string;
-    struct ldap_search_list *lds;
-    LDAPMessage		*res;
-    int			rc;
-    struct timeval	timeout;
-
-    *count = 0;
-    /* for each base string in ldap_searches:
-     *     - Build search string
-     *     - query the LDAP db with the search string
-     */
-    for ( lds = ldap_searches; lds != NULL; lds = lds->lds_next ) {
-	search_string = simta_ldap_string( lds->lds_plud->lud_filter, 
-			user, domain);
-	if ( search_string == NULL ) 
-	    return( LDAP_SYSERROR );
-
-	timeout.tv_sec = ldap_timeout;
-	timeout.tv_usec = 0;
-	res = NULL;
-	rc = ldap_search_st( ld, lds->lds_plud->lud_dn, 
-			lds->lds_plud->lud_scope, search_string, attrs, 0, 
-			&timeout, &res );
-	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
-	    syslog( LOG_ERR, 
-	"simta_local_search: ldap_search_st Failed: %s", ldap_err2string(rc ));
-		
-	    ldap_msgfree( res );
-
-	    simta_ldap_unbind (ld);
-	    return( LDAP_SYSERROR );
-	}
-
-	*count = ldap_count_entries( ld, res );
-	ldap_msgfree( res );
-	if (*count)
-	    break;
-    }
-    return (0);
-}
-
 /*
 ** Looks at the incoming email address
 ** looking for "-errors", "-requests", or "-owners"
@@ -676,9 +625,17 @@ simta_ldap_address_local( char *name, char *domain )
 {
     char	*dup_name;
     char	*pname;
-    int		rc;
     int		nametype;
-    int		count = 0;
+    int		rc;
+    int		fcnrc = LDAP_LOCAL;
+    int		count = 0;		/* Number of ldap entries found */
+
+    char			*search_string;
+    struct ldap_search_list	*lds;
+    LDAPMessage			*res = NULL;
+    LDAPMessage			*entry;
+    struct timeval		timeout;
+    char			**vals;
 
     if ( ld == NULL ) {
 	if ( (rc = simta_ldap_init( )) != 0 ) {
@@ -701,13 +658,61 @@ simta_ldap_address_local( char *name, char *domain )
     */
     nametype = simta_address_type(dup_name );
 
-    rc = simta_local_search (noattrs, dup_name, domain, &count);
-    free (dup_name);
-    if ( rc != 0 ) {
-	return( rc );
+    /* for each base string in ldap_searches:
+     *     - Build search string
+     *     - query the LDAP db with the search string
+     */
+    for ( lds = ldap_searches; lds != NULL; lds = lds->lds_next ) {
+	search_string = simta_ldap_string( lds->lds_plud->lud_filter, 
+			dup_name, domain);
+	if ( search_string == NULL ) {
+	    free (dup_name);
+	    return (LDAP_SYSERROR);
+	}
+
+	timeout.tv_sec = ldap_timeout;
+	timeout.tv_usec = 0;
+
+	rc = ldap_search_st( ld, lds->lds_plud->lud_dn, 
+			lds->lds_plud->lud_scope, search_string, attrs, 0, 
+			&timeout, &res );
+	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
+	    syslog( LOG_ERR, 
+	"simta_ldap_address_local: ldap_search_st Failed: %s", ldap_err2string(rc ));
+		
+	    ldap_msgfree( res );
+
+	    simta_ldap_unbind (ld);
+	    free (dup_name);
+	    return (LDAP_SYSERROR);
+	}
+
+	if ((count = ldap_count_entries( ld, res ))) {
+	    break;
+	}
+	ldap_msgfree( res );
+	res = NULL;
     }
 
-    return( (count > 0) ? LDAP_LOCAL : LDAP_NOT_LOCAL );
+    free (dup_name);
+
+    if (count == 0) {
+	rc = LDAP_NOT_LOCAL;
+    } else {
+	rc = LDAP_LOCAL;
+	entry = ldap_first_entry( ld, res );
+	if ((vals = ldap_get_values( ld, entry, "realtimeblocklist")) != NULL) {
+	    if (strcasecmp ( vals[0], "TRUE") == 0) {
+		rc = LDAP_LOCAL_RBL;
+	    }
+	    ldap_value_free (vals);
+	}
+    }
+    if (res) {
+	ldap_msgfree( res );
+    }
+	
+    return ( rc );
 }
 
     static int 
