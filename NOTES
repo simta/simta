@@ -133,3 +133,23 @@ Bad records:
 	test1.rsug.itd.umich.edu	valid glue records
 	test2.rsug.itd.umich.edu	invalid glue records
 	test3.rsug.itd.umich.edu	
+
+Multiple A record:
+    simta-mult-a.rsug.itd.umich.edu 	-> 141.213.231.124 
+    					   (savannah.staff.itd.umich.edu.)
+					-> 141.213.231.71
+					   (plates.rsug.itd.umich.edu.)
+					-> 141.211.93.149
+				      	   (deathsmarathon.mr.itd.umich.edu.)
+
+Low Preference MX:
+    simta-mx.rsug.itd.umich.edu		-> 141.211.144.10
+   					   (jim.mr.itd.umich.edu.)
+					-> 141.211.144.10
+					   (jack.mr.itd.umich.edu.)
+
+A record:
+    simta-mx.rsug.itd.umich.edu		-> 141.211.144.10
+   					   (jim.mr.itd.umich.edu.)
+					-> 141.211.144.11
+					   (jack.mr.itd.umich.edu.)
