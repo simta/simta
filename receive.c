@@ -110,8 +110,6 @@ f_ehlo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    struct sasl			*s;
-
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	return( 1 );

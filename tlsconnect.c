@@ -31,7 +31,8 @@ main( int ac, char *av[] )
     struct timeval	timeout = { 10, 0 }, tv;
     struct sockaddr_in	sin;
     SNET		*snet, *stty;
-    char		*line, *foo;
+    char		*line;
+    char		*err_txt;
     fd_set		fdset;
     int			starttls = 0;
 
@@ -109,7 +110,9 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-    snet_inittls( snet, 0 );
+    if ( snet_inittls( snet, 0 ) < 0 ) {
+	fprintf( stderr, "snet_inittls failed\n" );
+    }
 
     FD_ZERO( &fdset );
     for (;;) {
@@ -149,8 +152,8 @@ main( int ac, char *av[] )
 	    if ( starttls ) {
 		/* do something */
 		starttls = 0;
-		if (( foo = snet_starttls( snet, 0 )) != NULL ) {
-		    fprintf( stderr, "Something happened %s\n", foo );
+		if (( err_txt = snet_starttls( snet, 0 )) != NULL ) {
+		    fprintf( stderr, "Something happened %d\n", err_txt );
 		}
 	    }
 	}

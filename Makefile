@@ -9,19 +9,19 @@ SBINDIR=${DESTDIR}/sbin
 SIMTALOG=LOG_MAIL
 
 # Stock compiler:
-CC=	cc
+#CC=	cc
 
 # For gcc:
-#CC=	gcc
+CC=	gcc
 # These options might work on your system:
 OPTOPTS=-Wall -Wstrict-prototypes -Wmissing-prototypes -Wconversion
 
 # For most platforms:
-INSTALL=	install
+#INSTALL=	install
 
 # For Solaris:
-#INSTALL=	/usr/ucb/install
-#ADDLIBS=	
+INSTALL=	/usr/ucb/install
+ADDLIBS=	-lsocket -lnsl
 
 ################ Nothing below should need editing ###################
 
@@ -30,14 +30,14 @@ SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o
 TLSCONOBJ=	tlsconnect.o
 
-INCPATH=	-Ilibsnet
-DEFS=	-DLOG_SIMTA=${SIMTALOG} -DTLS
+INCPATH=	-Ilibsnet -I/usr/local/openssl/include
+DEFS=	-DLOG_SIMTA=${SIMTALOG} -DTLS -DSOLARIS
 CFLAGS=	${DEFS} ${OPTOPTS} ${INCPATH}
 TAGSFILE=	tags
-LIBPATH=	-Llibsnet
+LIBPATH=	-Llibsnet -L/usr/local/openssl/lib
 LIBS=	${ADDLIBS} -lsnet -lssl -lcrypto
 
-TARGETS=	simta
+TARGETS=	simta tlsconnect
 
 all : ${TARGETS}
 
@@ -57,7 +57,8 @@ simsendmail : ${SIMSENDMAILOBJ}
 FRC :
 
 libsnet/libsnet.a : FRC
-	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC} DEFS="${DEFS}"
+	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC} DEFS="${DEFS}" \
+		INCPATH="${INCPATH}"
 
 VERSION=`date +%Y%m%d`
 DISTDIR=../simta-${VERSION}
