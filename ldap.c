@@ -286,10 +286,12 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
      * expansion (not system) errors should be reported back to the sender
      * using rcpt_error(...);
      *
-     * rcpt_error(...) is used to create a bounce for an address
+     * rcpt_error( e_addr->e_addr_rcpt, char*, char*, char* );
+     *     - used to create a bounce for an address
      *
-     * add_address(...) is used to add a new email address to the expansion
-     * list.
+     * add_address( exp, char *new_addr, e_addr->e_addr_rcpt, TYPE );
+     *     - used to add new_addr to the expansion list
+     *     - TYPE can be either ADDRESS_TYPE_EMAIL or ADDRESS_TYPE_LDAP
      */
 
     int
