@@ -543,11 +543,148 @@ header_correct( struct line_file *lf, struct envelope *env )
 
 
     int
-email_addr( struct line **l, char **start )
+email_addr( struct line **start_line, char **start )
 {
-    printf( "XXX email_addr:\t%s\n", *start );
+    char				*next_c;
+    struct line				*next_l;
+    struct line_token			local;
+    struct line_token			domain;
+    int					result;
 
-    *start = NULL;
+    if ( **start == '<' ) {
+	next_c = (*start) + 1;
+
+    } else {
+	next_c = *start;
+    }
+
+    next_l = *start_line;
+
+    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	if ( result > 0 ) {
+	    fprintf( stderr, "Header From: unbalanced \(\n" );
+	} else {
+	    fprintf( stderr, "Header From: unbalanced )\n" );
+	}
+	return( 1 );
+    }
+
+    if ( next_c == NULL ) {
+	fprintf( stderr, "Header From: address expected\n" );
+	return( 1 );
+
+    } else if ( *next_c == '"' ) {
+	if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
+	    fprintf( stderr, "Header From: unbalanced \"\n" );
+	    return( 1 );
+	}
+
+    } else {
+	if ( line_token_da( &local, next_l, next_c ) != 0 ) {
+	    fprintf( stderr, "Header From: 1 bad token: %s\n", next_c );
+	    return( 1 );
+	}
+    }
+
+    next_c = local.t_end + 1;
+    next_l = local.t_end_line;
+
+    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	if ( result > 0 ) {
+	    fprintf( stderr, "Header From: unbalanced \(\n" );
+	} else {
+	    fprintf( stderr, "Header From: unbalanced )\n" );
+	}
+	return( 1 );
+    }
+
+    if (( next_c == NULL ) || ( *next_c != '@' )) {
+	fprintf( stderr, "Header From: '@' expected\n" );
+	return( 1 );
+    }
+
+    next_c++;
+
+    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	if ( result > 0 ) {
+	    fprintf( stderr, "Header From: unbalanced \(\n" );
+	} else {
+	    fprintf( stderr, "Header From: unbalanced )\n" );
+	}
+	return( 1 );
+    }
+
+    if ( next_c == NULL ) {
+	fprintf( stderr, "Header From: domain expected\n" );
+	return( 1 );
+
+    } else if ( *next_c == '[' ) {
+	/* XXX finish
+	if ( line_token_dl( &domain, &next_l, &next_c ) != 0 ) {
+	    fprintf( stderr, "Header From: unmatched [\n" );
+	    return( 1 );
+	}
+	*/
+	fprintf( stderr, "XXX Header From: not here\n" );
+	return( 1 );
+
+    } else {
+	if ( line_token_da( &domain, next_l, next_c ) != 0 ) {
+	    fprintf( stderr, "Header From: 2 bad token: %s\n", next_c );
+	    return( 1 );
+	}
+    }
+
+    next_c = domain.t_end + 1;
+    next_l = domain.t_end_line;
+
+    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	if ( result > 0 ) {
+	    fprintf( stderr, "Header From: unbalanced \(\n" );
+	} else {
+	    fprintf( stderr, "Header From: unbalanced )\n" );
+	}
+	return( 1 );
+    }
+
+    if ( **start == '<' ) {
+	if (( next_c == NULL ) || ( *next_c != '>' )) {
+	    fprintf( stderr, "Header From: > expected\n" );
+	    return( 1 );
+	}
+
+	next_c++;
+
+	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "Header From: unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "Header From: unbalanced )\n" );
+	    }
+	    return( 1 );
+	}
+    }
+
+    if ( next_c != NULL ) {
+	if ( *next_c != ',' ) {
+	    fprintf( stderr, "Header From: illegal words after address\n" );
+	    return( 1 );
+	}
+
+	next_c++;
+
+	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "Header From: unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "Header From: unbalanced )\n" );
+	    }
+	    return( 1 );
+	}
+    }
+
+    *start = next_c;
+    *start_line = next_l;
 
     return( 0 );
 }
@@ -570,7 +707,8 @@ header_mbox_correct( struct line *l, char *c )
 	 */
 
 	if ( c == NULL ) {
-	    /* NULL_ADDR */
+	    /* XXX NULL_ADDR */
+	    fprintf( stderr, "Header From: NULL address\n" );
 	    return( 1 );
 
 	} else if ( *c != '<' ) {
@@ -589,7 +727,7 @@ header_mbox_correct( struct line *l, char *c )
 
 	    } else {
 		if ( line_token_da( &local, l, c ) != 0 ) {
-		    fprintf( stderr, "Header From: syntax error\n" );
+		    fprintf( stderr, "Header From: 3 bad token: %s\n", c );
 		    return( 1 );
 		}
 	    }
@@ -599,9 +737,9 @@ header_mbox_correct( struct line *l, char *c )
 
 	    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 		if ( result > 0 ) {
-		    fprintf( stderr, "From: unbalanced \(\n" );
+		    fprintf( stderr, "Header From: unbalanced \(\n" );
 		} else {
-		    fprintf( stderr, "From: unbalanced )\n" );
+		    fprintf( stderr, "Header From: unbalanced )\n" );
 		}
 		return( 1 );
 	    }
@@ -643,7 +781,8 @@ header_mbox_correct( struct line *l, char *c )
 
 		    } else {
 			if ( line_token_da( &local, next_l, next_c ) != 0 ) {
-			    fprintf( stderr, "Header From: syntax error\n" );
+			    fprintf( stderr, "Header From: 4 bad token: %s\n",
+				    next_c);
 			    return( 1 );
 			}
 		    }
@@ -653,9 +792,9 @@ header_mbox_correct( struct line *l, char *c )
 
 		    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 			if ( result > 0 ) {
-			    fprintf( stderr, "From: unbalanced \(\n" );
+			    fprintf( stderr, "Header From: unbalanced \(\n" );
 			} else {
-			    fprintf( stderr, "From: unbalanced )\n" );
+			    fprintf( stderr, "Header From: unbalanced )\n" );
 			}
 			return( 1 );
 		    }
@@ -681,8 +820,6 @@ header_mbox_correct( struct line *l, char *c )
 	    return( 0 );
 	}
     }
-
-    return( 0 );
 }
 
 
