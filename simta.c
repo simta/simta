@@ -48,8 +48,10 @@ struct nlist		simta_nlist[] = {
     { "masquerade",	NULL,	0 },
 #define	NLIST_PUNT			1
     { "punt",		NULL,	0 },
+#define	NLIST_BASE_DIR			2
+    { "base_dir",	NULL,	0 },
 #ifdef HAVE_LDAP
-#define	NLIST_LDAP			2
+#define	NLIST_LDAP			3
     { "ldap",		NULL,	0 },
 #endif /* HAVE_LDAP */
     { NULL,		NULL,	0 },
@@ -105,75 +107,6 @@ simta_config( char *conf_fname, char *base_dir )
 
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
 
-    /* read config file */
-    if (( result = nlist( simta_nlist, conf_fname )) < 0 ) {
-	return( -1 );
-
-    } else if ( result == 0 ) {
-	/* currently checking for the following fields:
-	 *	    masquerade
-	 *	    punt
-	 */
-
-	if ( simta_nlist[ NLIST_MASQUERADE ].n_data != NULL ) {
-	    simta_domain = simta_nlist[ NLIST_MASQUERADE ].n_data;
-	}
-
-	if ( simta_nlist[ NLIST_PUNT ].n_data != NULL ) {
-	    simta_punt_host = simta_nlist[ NLIST_PUNT ].n_data;
-
-	    if ( strcasecmp( simta_punt_host, simta_hostname ) == 0 ) {
-		fprintf( stderr,
-			"file %s line %d: punt host can't be localhost",
-			conf_fname, simta_nlist[ NLIST_PUNT ].n_lineno );
-		return( -1 );
-	    }
-	}
-
-#ifdef HAVE_LDAP
-	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
-	    if ( ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) < 0 ) {
-		return( -1 );
-	    }
-	}
-#endif /* HAVE_LDAP */
-
-    } else {
-	/* no config file found */
-	if ( simta_verbose != 0 ) {
-	    printf( "simta_config file not found: %s\n", conf_fname );
-	    syslog( LOG_INFO, "simta_config file not found: %s",
-		    conf_fname );
-	}
-    }
-
-    /* XXX check base_dir before using it? */
-    /* set up data dir pathnames */
-
-    sprintf( fname, "%s/%s", base_dir, "fast" );
-    if (( simta_dir_fast = strdup( fname )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
-
-    sprintf( fname, "%s/%s", base_dir, "slow" );
-    if (( simta_dir_slow = strdup( fname )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
-
-    sprintf( fname, "%s/%s", base_dir, "dead" );
-    if (( simta_dir_dead = strdup( fname )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
-
-    sprintf( fname, "%s/%s", base_dir, "local" );
-    if (( simta_dir_local = strdup( fname )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
-
     /* set up simta_hosts stab */
     simta_hosts = NULL;
 
@@ -214,6 +147,106 @@ simta_config( char *conf_fname, char *base_dir )
     if ( ll_insert( &simta_hosts, host->h_name, host, NULL ) != 0 ) {
 	fprintf( stderr, "simta_config ll_insert: " );
 	perror( NULL );
+	return( -1 );
+    }
+
+    /* read config file */
+    if (( result = nlist( simta_nlist, conf_fname )) < 0 ) {
+	return( -1 );
+
+    } else if ( result == 0 ) {
+	/* currently checking for the following fields:
+	 *	    masquerade
+	 *	    punt
+	 */
+
+	if ( simta_nlist[ NLIST_MASQUERADE ].n_data != NULL ) {
+	    simta_domain = simta_nlist[ NLIST_MASQUERADE ].n_data;
+	}
+
+	if ( simta_nlist[ NLIST_PUNT ].n_data != NULL ) {
+	    simta_punt_host = simta_nlist[ NLIST_PUNT ].n_data;
+
+	    if ( strcasecmp( simta_punt_host, simta_hostname ) == 0 ) {
+		fprintf( stderr,
+			"file %s line %d: punt host can't be localhost",
+			conf_fname, simta_nlist[ NLIST_PUNT ].n_lineno );
+		return( -1 );
+	    }
+	}
+
+	if ( simta_nlist[ NLIST_BASE_DIR ].n_data != NULL ) {
+	    base_dir = simta_nlist[ NLIST_BASE_DIR ].n_data;
+	}
+
+#ifdef HAVE_LDAP
+
+	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
+	    if ( ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) < 0 ) {
+		return( -1 );
+	    }
+	}
+
+	/* XXX add hosts that ldap will resolv for to simta_hosts */
+
+	if (( host = malloc( sizeof( struct host ))) == NULL ) {
+	    perror( "simta_config malloc" );
+	    return( -1 );
+	}
+
+	host->h_type = HOST_MX;
+	host->h_expansion = NULL;
+	/* XXX hardcoded "umich.edu" for ldap searchdomain for now */
+	host->h_name = "umich.edu";
+
+	/* add ldap to host expansion table */
+	if ( ll_insert_tail( &(host->h_expansion), "ldap",
+		"ldap" ) != 0 ) {
+	    perror( "simta_config ll_insert_tail" );
+	    return( -1 );
+	}
+
+	if ( ll_insert( &simta_hosts, host->h_name, host, NULL ) != 0 ) {
+	    fprintf( stderr, "simta_config ll_insert: " );
+	    perror( NULL );
+	    return( -1 );
+	}
+
+#endif /* HAVE_LDAP */
+
+    } else {
+	/* no config file found */
+	if ( simta_verbose != 0 ) {
+	    printf( "simta_config file not found: %s\n", conf_fname );
+	    syslog( LOG_INFO, "simta_config file not found: %s",
+		    conf_fname );
+	}
+    }
+
+    /* XXX check base_dir before using it? */
+    /* set up data dir pathnames */
+
+    sprintf( fname, "%s/%s", base_dir, "fast" );
+    if (( simta_dir_fast = strdup( fname )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
+    }
+
+    sprintf( fname, "%s/%s", base_dir, "slow" );
+    if (( simta_dir_slow = strdup( fname )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
+    }
+
+    sprintf( fname, "%s/%s", base_dir, "dead" );
+    if (( simta_dir_dead = strdup( fname )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
+    }
+
+    sprintf( fname, "%s/%s", base_dir, "local" );
+    if (( simta_dir_local = strdup( fname )) == NULL ) {
+	perror( "strdup" );
 	return( -1 );
     }
 

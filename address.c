@@ -486,7 +486,14 @@ address_expand( char *address, struct recipient *rcpt,
 		if ( simta_debug ) printf( "%s: local\n", address );
 		return( 0 );
 	    }
-        }
+	}
+
+#ifdef HAVE_LDAP
+        else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
+	    /* XXX put ldap resolver here */
+	}
+#endif /* HAVE_LDAP */
+
     }
 
     /* If no expansion was found at this point, the domain is local
