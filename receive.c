@@ -395,7 +395,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	}
 
-	if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
+	if (( host = host_local( domain )) == NULL ) {
 	    if ( snet_writef( snet, "551 User not local; please try <%s>\r\n",
 		    addr ) < 0 ) {
 		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );

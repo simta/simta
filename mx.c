@@ -81,7 +81,6 @@ get_mx( char *hostname )
 {
     int                 i;
     struct dnsr_result	*result = NULL;
-    struct dnsr_result	*result_a = NULL;
 
     if ( simta_dnsr == NULL ) {
         if (( simta_dnsr = dnsr_new( )) == NULL ) {
@@ -105,11 +104,14 @@ get_mx( char *hostname )
     if ( result->r_ancount > 0 ) {
 	/* Check to see if hostname is mx'ed to us
 	 * Only do dynamic configuration when exchange matches our
-	 * actual host name.  Others must be configured by hand.
+	 * actual host name and is highest preference MX.  Others must be
+	 * configured by hand.
 	 */
 	for ( i = 0; i < result->r_ancount; i++ ) {
-	    if ( strcasecmp( simta_hostname,
-		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) {
+	    if (( strcasecmp( simta_hostname,
+		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
+		    && ( result->r_answer[ i ].rr_mx.mx_preference <=
+		    result->r_answer[ 1 ].rr_mx.mx_preference )) {
 		if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
 			HOST_LOCAL ) != 0 ) {
 		    dnsr_free_result( result );
@@ -122,6 +124,30 @@ get_mx( char *hostname )
     dnsr_free_result( result );
 
     return( NULL );
+}
+
+    struct host *
+host_local( char *hostname )
+{
+    struct host		*host;
+    struct dnsr_result	*result;
+
+    /* Look for hostname in host table */
+    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
+	return( NULL );
+    }
+
+    /* Check DNS */
+    if (( result = get_mx( hostname )) == NULL ) {
+	return( NULL );
+    }
+    dnsr_free_result( result );
+
+    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
+	return( NULL );
+    }
+
+    return( host );
 }
 
     int

@@ -159,8 +159,7 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 	hq->hq_next = *host_q_head;
 	*host_q_head = hq;
 
-	/* XXX mcneal & epcjr need to fix this */
-	if ( strcasecmp( simta_hostname, hq->hq_hostname ) == 0 ) {
+	if ( host_local( hq->hq_hostname ) != NULL ) {
 	    hq->hq_status = HOST_LOCAL;
 	} else {
 	    hq->hq_status = HOST_MX;
