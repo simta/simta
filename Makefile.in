@@ -13,7 +13,7 @@ TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	simsend.o message.o envelope.o tz.o
 SENDOBJ=	send.o smtp.o message.o envelope.o tz.o
 SIMLOGOBJ=	simlog.o
-QUEUEOBJ=	queue.o
+QUEUEOBJ=	queue.o ll.o
 
 SIMTALOG=LOG_MAIL
 

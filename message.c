@@ -42,7 +42,6 @@ message_create( char *id )
 {
     struct message	*m;
     struct timeval	tv;
-    struct sockaddr_in	sin;
 
     if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
 	return( NULL );
@@ -70,10 +69,13 @@ message_create( char *id )
 	strcpy( m->m_env->e_id, id );
     }
 
-    memset( &sin, 0, sizeof( struct sockaddr_in ));
-    sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = INADDR_ANY;
-    m->m_env->e_sin = &sin;
+    if (( m->m_env->e_sin = (struct sockaddr_in*)malloc(
+	    sizeof( struct sockaddr_in ))) == NULL ) {
+	return( NULL );
+    }
+    memset( m->m_env->e_sin, 0, sizeof( struct sockaddr_in ));
+    m->m_env->e_sin->sin_family = AF_INET;
+    m->m_env->e_sin->sin_addr.s_addr = INADDR_ANY;
 
     return( m );
 }
