@@ -156,16 +156,48 @@ main( int argc, char *argv[] )
     struct message	*m;
     struct line		*l;
     int			errs = 0;
+    int			usage = 0;
     int			c;
     int			ignore_dot = 0;
 
     while (( c = getopt( argc, argv, "b:io:" )) != -1 ) {
 	switch ( c ) {
 	case 'b':
-	    /* XXX we do not support many -b options, do we need to fail? */
-	    /* -bs SMTP protocol, implies -ba */
-	    /* -ba ARPANET mode */
+	    if ( strlen( optarg ) == 1 ) {
+		switch ( *optarg ) {
+		case 'a':
+		    /* -ba ARPANET mode */
+		case 'd':
+		    /* -bd Daemon mode, background */
+		case 's':
+		    /* 501 Permission denied */
+		    printf( "501 Mode not supported\n" );
+		    errs++;
+		    break;
+
+		case 'D':
+		    /* -bD Daemon mode, foreground */
+		case 'i':
+		    /* -bi init the alias db */
+		case 'p':
+		    /* -bp surmise the mail queue*/
+		case 't':
+		    /* -bt address test mode */
+		case 'v':
+		    /* -bv verify names only */
+		    printf( "Mode not supported\n" );
+		    errs++;
+		    break;
+
+		case 'm':
+		    /* -bm deliver mail the usual way */
+		default:
+		    /* ignore all other flags */
+		    break;
+		}
+	    }
 	    break;
+
 
 	case 'i':
 	    /* Ignore a single dot on a line as an end of message marker */
@@ -173,22 +205,15 @@ main( int argc, char *argv[] )
 	    break;
 
 	case 'o':
-	    if ( strcmp( optarg, "db" ) == 0 ) {
-		/* -odb deliver in background */
-	    } else if ( strcmp( optarg, "em" ) == 0 ) {
-		/* -oem mail back errors */
-	    } else if ( strcmp( optarg, "i" ) == 0 ) {
+	    if ( strcmp( optarg, "i" ) == 0 ) {
 		/* -oi ignore dots */
 		ignore_dot = 1;
-	    } else if ( strcmp( optarg, "m" ) == 0 ) {
-		/* -om send to me if I'm in an alias expansion */
-	    } else {
-		errs++;
 	    }
 	    break;
 
 	default:
-	    errs++;
+	    /* ignore command line options we don't understand */
+	    /* XXX maybe log these? */
 	    break;
 	}
     }
@@ -196,12 +221,16 @@ main( int argc, char *argv[] )
     /* optind = first to-address */
 
     /* XXX error handling for command line options? */
-    if ( errs != 0 ) {
+    if ( usage != 0 ) {
 	fprintf( stderr, "Usage: %s ", argv[ 0 ] );
 	fprintf( stderr, "[ -b option ] " );
 	fprintf( stderr, "[ -i ] " );
 	fprintf( stderr, "[ -o option ] " );
 	fprintf( stderr, "[[ -- ] to-address ...]\n" );
+	exit( 1 );
+    }
+
+    if ( errs != 0 ) {
 	exit( 1 );
     }
 

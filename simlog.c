@@ -39,6 +39,7 @@ main( int argc, char *argv[] )
     int			x;
     struct timeval	tv;
     char		path[ MAXPATHLEN ];
+    int			c;
 
     if ( gettimeofday( &tv, NULL ) != 0 ) {
 	perror( "gettimeofday" );
@@ -64,6 +65,24 @@ main( int argc, char *argv[] )
 	snet_writef( out, " %s", argv[ x ] );
     }
     snet_writef( out, "\n\n" );
+
+    while (( c = getopt( argc, argv, "b:" )) != -1 ) {
+	switch ( c ) {
+	case 'b':
+	    if ( strlen( optarg ) == 1 ) {
+		switch ( *optarg ) {
+		case 'a':
+		    /* -ba ARPANET mode */
+		case 'd':
+		    /* -bd Daemon mode, background */
+		case 's':
+		    /* 501 Permission denied */
+		    printf( "501 Mode not supported\n" );
+		}
+	    }
+	    break;
+	}
+    }
 
     while (( line = snet_getline( in, NULL )) != NULL ) {
 	snet_writef( out, "%s\n", line );
