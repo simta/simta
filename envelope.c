@@ -417,6 +417,13 @@ env_touch( struct envelope *env )
 }
 
 
+    /* struct message *m has file dir and id info for the envelope file
+     *
+     * char *hostname is an array of char at least MAXHOSTNAMELEN long.
+     * If there is an expanded hostname in the efile, it will be written
+     * to hostname.
+     */
+
     /*
      * return 0 if everything went fine
      * return -1 on syscall error
@@ -435,10 +442,27 @@ env_info( struct message *m, char *hostname )
 
     sprintf( fname, "%s/E%s", m->m_dir, m->m_id );
 
-    if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
+    if (( snet = snet_open( fname, O_RDWR, 0, 1024 * 1024 ))
 	    == NULL ) {
 	syslog( LOG_ERR, "snet_open: %m" );
 	return( -1 );
+    }
+
+    /* test to see if env is locked by a q_runner */
+    if ( lockf( snet_fd( snet ), F_TEST, 0 ) != 0 ) {
+	if ( errno == EAGAIN ) {
+	    /* file locked by a diferent process */
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( -1 );
+	    }
+
+	    return( 1 );
+
+	} else {
+	    syslog( LOG_ERR, "lockf %s: %m", fname );
+	    return( -1 );
+	}
     }
 
     if ( fstat( snet_fd( snet ), &sb ) != 0 ) {
@@ -516,28 +540,22 @@ env_info( struct message *m, char *hostname )
 }
 
 
-
-    /* Efile syntax:
+    /* struct message *m has file info for the envelope
      *
-     * SIMTA_VERSION_STRING
-     * Hdestination-host
-     * Ffrom-addr@sender.com
-     * Rto-addr@recipient.com
-     * Roptional-to-addr@recipient.com
+     * struct envelope *e has envelpe info written in to it
+     *
+     * if s_lock != NULL, Efile will be locked and *s_lock will point
+     * to it's SNET.
      */
 
-    /* XXX BAD COMMENTS */
-
-     /* call env_create( id ) before this function */
-
-     /* return 0 on success
-      * return 1 on syntax error
-      * return -1 on sys error
-      * syslog errors
-      */
+    /* return 0 on success
+     * return 1 on syntax error
+     * return -1 on sys error
+     * syslog errors
+     */
 
     int
-env_lock( struct message *m, struct envelope *env, SNET **s )
+env_read( struct message *m, struct envelope *env, SNET **s_lock )
 {
     char			*line;
     SNET			*snet;
@@ -555,13 +573,18 @@ env_lock( struct message *m, struct envelope *env, SNET **s )
 	return( 1 );
     }
 
-    if ( s != NULL ) {
-	*s = snet;
+    if ( s_lock != NULL ) {
+	*s_lock = snet;
 
 	/* lock envelope fd for delivery attempt */
 	if ( lockf( snet_fd( snet ), F_TLOCK, 0 ) != 0 ) {
 	    if ( errno == EAGAIN ) {
 		/* file locked by a diferent process */
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( -1 );
+		}
+
 		return( 1 );
 
 	    } else {
@@ -669,7 +692,13 @@ env_lock( struct message *m, struct envelope *env, SNET **s )
 	}
     }
 
-    /* close snet after deliver attempt to maintain lock */
+    /* close snet if no need to maintain lock */
+    if ( s_lock == NULL ) {
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+    }
 
     return( 0 );
 }

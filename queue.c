@@ -415,7 +415,7 @@ q_runner( struct host_q **host_q )
 	    simta_null_q->hq_entries--;
 
 	    /* lock envelope while we expand */
-	    if (( result = env_lock( unexpanded, &env, &snet_lock )) < 0 ) {
+	    if (( result = env_read( unexpanded, &env, &snet_lock )) < 0 ) {
 		return( -1 );
 
 	    } else if ( result > 0 ) {
@@ -600,7 +600,7 @@ q_deliver( struct host_q *hq )
 
     for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
 	/* lock & read envelope to deliver */
-	if (( result = env_lock( m, &env, &snet_lock )) < 0 ) {
+	if (( result = env_read( m, &env, &snet_lock )) < 0 ) {
 	    return( -1 );
 
 	} else if ( result > 0 ) {
