@@ -62,14 +62,15 @@ env_create( char *id )
     }
     memset( env, 0, sizeof( struct envelope ));
 
-    /* XXX const val should be dynamic or #defined */
-    if ( strlen( id ) > 29 ) {
-	syslog( LOG_ERR, "env_create %s: id too long", id );
-	return( NULL );
-    }
-
     if ( id != NULL ) {
+	/* XXX const val should be dynamic or #defined */
+	if ( strlen( id ) > 29 ) {
+	    syslog( LOG_ERR, "env_create %s: id too long", id );
+	    return( NULL );
+	}
+
 	strcpy( env->e_id, id );
+
     } else {
 	*env->e_id = '\0';
     }

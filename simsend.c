@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sysexits.h>
+#include <syslog.h>
 
 #include <snet.h>
 
@@ -87,6 +88,8 @@ main( int argc, char *argv[] )
     /* ignore a good many options */
     opterr = 0;
 
+    openlog( argv[ 0 ], 0, LOG_SIMTA );
+
     while (( c = getopt( argc, argv, "b:io:t" )) != -1 ) {
 	switch ( c ) {
 	case 'b':
@@ -125,7 +128,6 @@ main( int argc, char *argv[] )
 	    }
 	    break;
 
-
 	case 'i':
 	    /* Ignore a single dot on a line as an end of message marker */
     	    ignore_dot = 1;
@@ -144,7 +146,6 @@ main( int argc, char *argv[] )
 	    break;
 
 	default:
-	    /* XXX log command line options we don't understand? */
 	    break;
 	}
     }
