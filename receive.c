@@ -1257,7 +1257,7 @@ local_address( char *addr, char *domain, struct host *host )
     int			rc;
     char		*at;
     struct passwd	*passwd;
-    struct stab_entry	*i;
+    struct stab_entry	*s;
     DBT			value;
 
     if (( at = strchr( addr, '@' )) == NULL ) {
@@ -1265,8 +1265,9 @@ local_address( char *addr, char *domain, struct host *host )
     }
 
     /* Search for user using expansion table */
-    for ( i = host->h_expansion; i != NULL; i = i->st_next ) {
-	if ( strcmp( i->st_key, "alias" ) == 0 ) {
+    for ( s = host->h_expansion; s != NULL; s = s->st_next ) {
+	switch ((int)(s->st_data)) {
+	case EXPANSION_TYPE_ALIAS:
 	    /* check alias file */
 	    if ( simta_dbp == NULL ) {
 		if (( rc = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
@@ -1284,8 +1285,9 @@ local_address( char *addr, char *domain, struct host *host )
 	    if ( rc == 0 ) {
 		return( LOCAL_ADDRESS );
 	    }
+	    break;
 
-	} else if ( strcmp( i->st_key, "password" ) == 0 ) {
+	case EXPANSION_TYPE_PASSWORD:
 	    /* Check password file */
 	    *at = '\0';
 	    passwd = getpwnam( addr );
@@ -1294,9 +1296,10 @@ local_address( char *addr, char *domain, struct host *host )
 	    if ( passwd != NULL ) {
 		return( LOCAL_ADDRESS );
 	    }
+	    break;
 
 #ifdef HAVE_LDAP
-	} else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
+	case EXPANSION_TYPE_LDAP:
 	    /* Check LDAP */
 	    *at = '\0';
 	    rc = simta_ldap_address_local( addr, domain );
@@ -1315,13 +1318,12 @@ local_address( char *addr, char *domain, struct host *host )
 	    case LDAP_LOCAL:
 		return( LOCAL_ADDRESS );
 	    }
+	    break;
 #endif /* HAVE_LDAP */
 
-	} else {
+	default:
 	    /* unknown lookup */
-	    syslog( LOG_ERR, "local_address: %s: unknown expansion",
-		    i->st_key );
-	    return( LOCAL_ERROR );
+	    panic( "local_address: expansion type out of range" );
 	}
     }
 
