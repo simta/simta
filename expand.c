@@ -373,8 +373,6 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		line_file_free( env->e_err_text );
 		env->e_err_text = NULL;
 
-		syslog( LOG_INFO, "expand %s: writing bounce %s %s",
-			unexpanded_env->e_id, env->e_id, env->e_hostname );
 		if ( env_outfile( env ) != 0 ) {
 		    /* env_outfile syslogs errors */
 		    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
@@ -383,6 +381,19 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		    }
 		    goto cleanup4;
 		}
+
+		syslog( LOG_NOTICE, "Expand %s: %s: From <%s>",
+			unexpanded_env->e_id, env->e_id, env->e_mail );
+
+		n_rcpts = 0;
+		for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
+		    n_rcpts++;
+		    syslog( LOG_NOTICE, "Expand %s: %s: To <%s>",
+			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt );
+		}
+
+		syslog( LOG_NOTICE, "Expand %s: %s: Bounced %d recipients",
+			unexpanded_env->e_id, env->e_id, n_rcpts );
 
 		queue_envelope( hq, env );
 
@@ -447,6 +458,8 @@ cleanup4:
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
 	    env_unlink( env );
+	    syslog( LOG_NOTICE, "Expand %s: %s: Deleted: Unwinding expansion",
+		    unexpanded_env->e_id, env->e_id );
 	}
 
 	env_free( env );
@@ -459,6 +472,8 @@ cleanup3:
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
 	    env_unlink( env );
+	    syslog( LOG_NOTICE, "Expand %s: %s: Deleted: Unwinding expansion",
+		    unexpanded_env->e_id, env->e_id );
 	}
 
 	env_free( env );
