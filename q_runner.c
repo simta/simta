@@ -333,7 +333,7 @@ deliver_remote( struct host_q *hq )
     int				fd;
     int				sent = 0;
     char			fname[ MAXPATHLEN ];
-    SNET			*snet;
+    SNET			*snet = NULL;
     SNET			*message;
     void                        (*logger)(char *) = NULL;
 
@@ -345,22 +345,6 @@ deliver_remote( struct host_q *hq )
     if (( strcasecmp( hq->hq_name, "terminator.rsug.itd.umich.edu" ) != 0 ) &&
 	    ( strcasecmp( hq->hq_name, "rsug.itd.umich.edu" ) != 0 )) {
 	return( 0 );
-    }
-
-    if (( snet = smtp_connect( hq->hq_name, 25 )) == NULL ) {
-	exit( 1 );
-    }
-
-    if (( r = smtp_helo( snet, logger )) == SMTP_ERR_SYSCALL ) {
-	exit( 1 );
-
-    } else if ( r == SMTP_ERR_SYNTAX ) {
-	return( 1 );
-
-    } else if ( r == SMTP_ERR_MAIL_LOOP ) {
-	/* XXX deliver locally? */
-	printf( "Mail server %s is actually localhost\n", hq->hq_name );
-	return( 1 );
     }
 
     for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
@@ -382,6 +366,7 @@ deliver_remote( struct host_q *hq )
 	    }
 	}
 
+
 	if (( message = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
 	    exit( 1 );
@@ -392,6 +377,35 @@ deliver_remote( struct host_q *hq )
 	    if ( smtp_rset( snet, logger ) != 0 ) {
 		syslog( LOG_ERR, "smtp_rset %m" );
 		exit( 1 );
+	    }
+	}
+
+	/* open connection, completely ready to send at least one message */
+	if ( snet == NULL ) {
+	    if (( snet = smtp_connect( hq->hq_name, 25 )) == NULL ) {
+		exit( 1 );
+	    }
+
+	    if (( r = smtp_helo( snet, logger )) == SMTP_ERR_SYSCALL ) {
+		exit( 1 );
+
+	    } else if ( r == SMTP_ERR_SYNTAX ) {
+		if ( snet_close( message ) != 0 ) {
+		    syslog( LOG_ERR, "close: %m" );
+		    exit( 1 );
+		}
+
+		return( 1 );
+
+	    } else if ( r == SMTP_ERR_MAIL_LOOP ) {
+		/* XXX deliver locally? */
+		printf( "Mail server %s is actually localhost\n", hq->hq_name );
+
+		if ( snet_close( message ) != 0 ) {
+		    syslog( LOG_ERR, "close: %m" );
+		    exit( 1 );
+		}
+		return( 1 );
 	    }
 	}
 
@@ -429,10 +443,12 @@ deliver_remote( struct host_q *hq )
 	}
     }
 
-    if ( smtp_quit( snet, logger ) != 0 ) {
-	/* XXX better error cases */
-	syslog( LOG_ERR, "smtp_quit: %m" );
-	exit( 1 );
+    if ( snet != NULL ) {
+	if ( smtp_quit( snet, logger ) != 0 ) {
+	    /* XXX better error cases */
+	    syslog( LOG_ERR, "smtp_quit: %m" );
+	    exit( 1 );
+	}
     }
 
     return( 0 );
