@@ -85,8 +85,6 @@ smtp_connect( SNET **snetp, char *hostname, int port, void (*logger)(char *))
     struct hostent		*hp;
 #endif /* DNSR_WORKS */
 
-    *snetp = snet;
-
 #ifdef DNSR_WORKS
     if (( dnsr = dnsr_open( )) == NULL ) {
 	syslog( LOG_ERR, "dnsr_open failed" );
@@ -175,6 +173,8 @@ if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
 	syslog( LOG_ERR, "snet_attach: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
+
+    *snetp = snet;
 
     if (( local_host = simta_gethostname()) == NULL ) {
 	return( SMTP_ERR_SYSCALL );
@@ -296,6 +296,11 @@ if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
 
     /* say HELO */
     if ( snet_writef( snet, "HELO %s\r\n", local_host ) < 0 ) {
+	if ( errno != EIO ) {
+	    syslog( LOG_ERR, "snet_writef: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
 	syslog( LOG_NOTICE, "smtp_connect %s: failed writef", hostname );
 
 	if ( snet_close( snet ) < 0 ) {
@@ -343,6 +348,11 @@ smtp_rset( SNET *snet, char *hostname, void (*logger)(char *))
 
     /* say RSET */
     if ( snet_writef( snet, "RSET\r\n" ) < 0 ) {
+	if ( errno != EIO ) {
+	    syslog( LOG_ERR, "snet_writef: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
 	syslog( LOG_NOTICE, "smtp_rset %s: failed writef", hostname );
 
 	if ( snet_close( snet ) < 0 ) {
@@ -397,6 +407,11 @@ smtp_quit( SNET *snet, char *hostname, void (*logger)(char *))
 
     /* say QUIT */
     if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
+	if ( errno != EIO ) {
+	    syslog( LOG_ERR, "snet_writef: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
 	syslog( LOG_NOTICE, "smtp_quit %s: failed writef", hostname );
 
 	if ( snet_close( snet ) < 0 ) {
@@ -454,6 +469,11 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
     /* MAIL FROM: */
     if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
 	if ( snet_writef( snet, "MAIL FROM: <>\r\n" ) < 0 ) {
+	    if ( errno != EIO ) {
+		syslog( LOG_ERR, "snet_writef: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
 	    syslog( LOG_ERR, "snet_writef: %m" );
 	    return( SMTP_ERR_SYSCALL );
 	}
@@ -464,6 +484,11 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 
     } else {
 	if ( snet_writef( snet, "MAIL FROM: <%s>\r\n", env->e_mail ) < 0 ) {
+	    if ( errno != EIO ) {
+		syslog( LOG_ERR, "snet_writef: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
 	    syslog( LOG_ERR, "snet_writef: %m" );
 	    return( SMTP_ERR_SYSCALL );
 	}
