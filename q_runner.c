@@ -330,6 +330,7 @@ deliver_remote( struct host_q *hq )
     struct stab_entry		*qs;
     int				mailed;
     int				fd;
+    int				sent = 0;
     char			fname[ MAXPATHLEN ];
     SNET			*snet;
     SNET			*message;
@@ -374,9 +375,19 @@ deliver_remote( struct host_q *hq )
 	    exit( 1 );
 	}
 
+	if ( sent != 0 ) {
+	    /* XXX better error cases */
+	    if ( smtp_rset( snet, logger ) != 0 ) {
+		syslog( LOG_ERR, "smtp_rset %m" );
+		exit( 1 );
+	    }
+	}
+
 	if (( mailed = smtp_send( snet, q->q_env, message, logger )) < 0 ) {
 	    exit( 1 );
 	}
+
+	sent++;
 
 	if ( snet_close( message ) != 0 ) {
 	    syslog( LOG_ERR, "close: %m" );
@@ -401,14 +412,6 @@ deliver_remote( struct host_q *hq )
 
 	    if ( unlink( fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", fname );
-		exit( 1 );
-	    }
-	}
-
-	if ( qs->st_next != NULL ) {
-	    /* XXX better error cases */
-	    if ( smtp_rset( snet, logger ) != 0 ) {
-		syslog( LOG_ERR, "smtp_rset %m" );
 		exit( 1 );
 	    }
 	}

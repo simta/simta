@@ -66,6 +66,8 @@ cp Dseed ../local/garbage
 # deliver some local mail
 cp Elocal ../slow/Elocalmail
 cp Dlocal ../slow/Dlocalmail
+cp Elocal ../slow/Elocalmail1
+cp Dlocal ../slow/Dlocalmail1
 
 # local Efile with no Dfile
 cp Elocal ../slow/Elocalalone
