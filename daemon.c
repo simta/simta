@@ -72,7 +72,7 @@ void		usr1( int );
 void		hup ( int );
 void		chld( int );
 int		main( int, char *av[] );
-void		simta_child( int, int );
+void		simta_daemon_child( int, int );
 
     void
 usr1( int sig )
@@ -245,8 +245,6 @@ main( int ac, char **av )
         case 'z' :              /* private key */
             privatekey = optarg;
             break;
-
-
 
 	default :
 	    err++;
@@ -645,7 +643,7 @@ main( int ac, char **av )
 	    tv_sleep.tv_sec = launch_seconds;
 
 	    if ( q_runner_slow < q_runner_slow_max ) {
-		simta_child( CHILD_Q_SLOW, s );
+		simta_daemon_child( CHILD_Q_SLOW, s );
 	    }
 
 	    continue;
@@ -654,21 +652,21 @@ main( int ac, char **av )
 	if ( simsendmail_signal != 0 ) {
 	    simsendmail_signal = 0;
 	    if ( q_runner_local < q_runner_local_max ) {
-		simta_child( CHILD_Q_LOCAL, s );
+		simta_daemon_child( CHILD_Q_LOCAL, s );
 	    }
 	    continue;
 	}
 
 	/* check to see if we have any incoming connections */
 	if ( FD_ISSET( s, &fdset )) {
-	    simta_child( CHILD_RECEIVE, s );
+	    simta_daemon_child( CHILD_RECEIVE, s );
 	}
     }
 }
 
 
     void
-simta_child( int type, int s )
+simta_daemon_child( int type, int s )
 {
     struct sockaddr_in	sin;
     struct proc_type	*p;
@@ -709,7 +707,7 @@ simta_child( int type, int s )
 	break;
 
     default:
-	panic( "simta_child type out of range" );
+	panic( "simta_daemon_child type out of range" );
     }
 
     p->p_next = proc_stab;
@@ -746,7 +744,7 @@ simta_child( int type, int s )
 	    break;
 
 	default:
-	    panic( "simta_child type out of range" );
+	    panic( "simta_daemon_child type out of range" );
 	}
 
     case -1 :
@@ -773,7 +771,7 @@ simta_child( int type, int s )
 	    break;
 
 	default:
-	    panic( "simta_child type out of range" );
+	    panic( "simta_daemon_child type out of range" );
 	}
 
 	p->p_id = pid;

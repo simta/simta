@@ -32,6 +32,11 @@ int	q_clean( char *, struct envelope ** );
 int	move_to_slow( struct envelope **, struct envelope **);
 
 
+    int
+q_cleanup( void )
+{
+}
+
     /*
      * - Clean & build SLOW queue
      * - Clean & build  LOCAL queue
@@ -44,7 +49,7 @@ int	move_to_slow( struct envelope **, struct envelope **);
      */
 
     int
-q_cleanup( void )
+q_cleanup_child( void )
 {
     struct envelope		*slow = NULL;
     struct envelope		*other = NULL;
