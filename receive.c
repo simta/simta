@@ -61,10 +61,9 @@ int			receive_global_relay = 0;
 char			*receive_hello = NULL;
 
 #define	RECEIVE_OK		0x0000
-#define	RECEIVE_QUIT		0x0001
-#define	RECEIVE_SYSERROR	0x0010
-#define	RECEIVE_BADCONNECTION	0x0100
-#define	RECEIVE_LINE_LENGTH	0x1000
+#define	RECEIVE_SYSERROR	0x0001
+#define	RECEIVE_BADCONNECTION	0x0010
+#define	RECEIVE_LINE_LENGTH	0x0100
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -868,8 +867,14 @@ f_quit( snet, env, ac, av )
 	return( RECEIVE_OK );
     }
 
+    if ( snet_writef( snet, "221 %s Service closing transmission channel\r\n",
+	    simta_hostname ) < 0 ) {
+	syslog( LOG_ERR, "f_quit snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+
     syslog( LOG_INFO, "f_quit OK" );
-    return( RECEIVE_QUIT );
+    return( RECEIVE_OK );
 }
 
 
@@ -1251,11 +1256,6 @@ syserror:
 		"closing transmission channel\r\n", simta_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "receive snet_writef: %m" );
 	}
-	break;
-
-    case RECEIVE_QUIT:
-	snet_writef( snet, "%d %s Service closing transmission channel\r\n",
-		221, simta_hostname );
 	break;
 
     case RECEIVE_BADCONNECTION:
