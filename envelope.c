@@ -182,11 +182,7 @@ env_fstat( struct envelope *e, int fd )
 	return( -1 );
     }
 
-#ifdef sun
     e->e_etime.tv_sec = sb.st_mtime;
-#else	/* sun */
-    e->e_etime = sb.st_mtimespec;
-#endif	/* sun */
 
     return( 0 );
 }
@@ -521,11 +517,7 @@ env_touch( struct envelope *env )
 	return( -1 );
     }
 
-#ifdef sun
     env->e_etime.tv_sec = sb.st_mtime;
-#else	/* sun */
-    env->e_etime = sb.st_mtimespec;
-#endif	/* sun */
 
     return( 0 );
 }

@@ -54,6 +54,7 @@ int	dfile_fstat ___P(( int, struct q_file * ));
 dfile_fstat( int fd, struct q_file *q )
 {
     struct stat			sb;
+    struct timeval		tv;
 
     if ( fstat( fd, &sb ) != 0 ) {
 	syslog( LOG_ERR, "snet_attach: %m" );
@@ -67,6 +68,11 @@ dfile_fstat( int fd, struct q_file *q )
 #endif	/* sun */
 
     /* XXX check to set q->q_env->e_old_dfile? */
+
+    if ( gettimeofday( &tv, NULL ) != 0 ) {
+	syslog( LOG_ERR, "gettimeofday" );
+	return( -1 );
+    }
 
     return( 0 );
 }
