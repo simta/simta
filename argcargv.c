@@ -80,9 +80,12 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 		    acav->acv_argc += ACV_ARGC;
 		}
 		state = ACV_WORD;
-	    }
-	    if ( *line == '<' ) {
-		goto done;
+
+		/* here's the hack for 2821 */
+		if (( strncasecmp( line, "TO:<", 4 ) == 0 ) ||
+			( strncasecmp( line, "FROM:<", 6 ) == 0 )) {
+		    goto done;
+		}
 	    }
 	    break;
 	}
