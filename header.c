@@ -31,7 +31,6 @@
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"
-#include "receive.h"
 #include "simta.h"
 
 #define	TOKEN_UNDEFINED			0

@@ -46,7 +46,6 @@ extern SSL_CTX	*ctx;
 #include "simta.h"
 #include "envelope.h"
 #include "expand.h"
-#include "receive.h"
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
@@ -1149,7 +1148,7 @@ int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
 
     void
-receive( fd, sin )
+smtp_receive( fd, sin )
     int			fd;
     struct sockaddr_in	*sin;
 {

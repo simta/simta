@@ -53,6 +53,7 @@ extern struct stab_entry		*simta_hosts;
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 
+void	smtp_receive ___P(( int, struct sockaddr_in * ));
 char	*simta_sender ___P(( void ));
 char	*simta_resolvconf ___P(( void ));
 int	simta_init_hosts ___P(( void ));

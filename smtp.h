@@ -42,6 +42,7 @@ void	stdout_logger ___P(( char * ));
 int	smtp_grab ___P(( struct line_file **, SNET *, struct timeval *,
 		char *, char * ));
 
+
 int	smtp_connect ___P(( SNET **, struct host_q * ));
 int	smtp_rset ___P(( SNET *, struct host_q * ));
 int	smtp_send ___P(( SNET *, struct host_q *, struct envelope *, SNET * ));

@@ -39,7 +39,6 @@
 #include "queue.h"
 #include "envelope.h"
 #include "simta.h"
-#include "receive.h"
 
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
@@ -777,7 +776,7 @@ main( ac, av )
 		    exit( EXIT_OK );
 		}
 
-		receive( fd, &sin );
+		smtp_receive( fd, &sin );
 
 		/* XXX handle more error cases */
 		if ( simta_fast_files != 0 ) {
