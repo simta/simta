@@ -4,6 +4,7 @@
  * RFC 822  "Standard for the format of ARPA Internet text messages"
  * RFC 1123 "Requirements for Internet Hosts -- Application and Support"
  * RFC 2476 "Message Submission"
+ * RFC 2822 "Internet Message Format"
  *
  */
 #include <sys/types.h>
@@ -23,9 +24,10 @@
 #include "message.h"
 
 struct nlist header_nl[] = {
-    { "Sender",		NULL },
     { "Date",		NULL },
-    { "Message-ID",	NULL },
+#define HEAD_ORIG_DATE		0
+    { "From",		NULL },
+#define HEAD_FROM		1
     { NULL,		NULL }
 };
 
@@ -38,11 +40,9 @@ main( int argc, char *argv[] )
     struct line		*l;
     struct nlist	*nl;
     int			data = 0;
-    char		*c;
-
-#ifdef DEBUG
-    int			i = 0;
-#endif /* DEBUG */
+    char		*header;
+    char		*colon;
+    int			header_len;
 
     if (( m = message_create()) == NULL ) {
 	perror( "message_create" );
@@ -63,13 +63,51 @@ main( int argc, char *argv[] )
 	/* RFC 822: The body...is seperated from the headers by a null line. */
 	if ( data == 0 ) {
 	    if ( *(l->line_data) == '\0' ) {
+		/* null line means that message data begins */
 		data = 1;
 
 	    } else {
-		if (( c = strchr( l->line_data, ':' )) != NULL ) {
-		    for ( nl = header_nl; nl->n_key != NULL; nl++ ) {
+		/* RFC 2822:
+		 * Header fields are lines composed of a field name,
+		 * followed by a colon (":"), followed by a field body,
+		 * and terminated by CRLF.  A field name MUST be composed
+		 * of printable US-ASCII characters (i.e., characters that
+		 * have values between 33 and 126, inclusive), except
+		 * colon.
+		 */
+
+		header = l->line_data;
+		header_len = 0;
+
+		for ( colon = l->line_data; *colon != ':'; colon++ ) {
+		    /* colon ascii value is 58 */
+		    if (( *colon < 33 ) || ( *colon > 126 )) {
+			break;
 		    }
 		}
+
+		if ( *colon == ':' ) {
+		    header_len = colon - l->line_data;
+		}
+
+		if ( header_len > 0 ) {
+		    /* correct field name */
+		    for ( nl = header_nl; nl->n_key != NULL; nl++ ) {
+			if ( strncasecmp( nl->n_key, header, header_len )
+				== 0 ) {
+			    /* XXX here we have a header */
+			}
+		    }
+		}
+
+		/* RFC 2822:
+		 * A field body may be composed of any US-ASCII
+		 * characters, except for CR and LF.  However, a field
+		 * body may contain CRLF when used in header "folding"
+		 * and  "unfolding" as described in section 2.2.3.  All
+		 * field bodies MUST conform to the syntax described in
+		 * sections 3 and 4 of this standard.
+		 */
 	    }
 	}
     }
@@ -78,21 +116,6 @@ main( int argc, char *argv[] )
 	perror( "snet_close" );
 	exit( 1 );
     }
-
-#ifdef DEBUG
-    printf( "HEADER\n" );
-
-    data = 0;
-
-    for ( l = m->m_first; l != NULL; l = l->line_next ) {
-	i++;
-	printf( "%d: %s\n", i, l->line_data );
-	if (( *(l->line_data) == '\0' ) && ( data == 0 )) {
-	    printf( "DATA\n" );
-	    data = 1;
-	}
-    }
-#endif /* DEBUG */
 
     return( 0 );
 }
