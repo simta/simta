@@ -401,14 +401,18 @@ q_run( struct host_q **host_q )
 		    message_free( unexpanded );
 		    continue;
 		}
+	    } else {
+		snet_lock = NULL;
 	    }
 
 	    /* expand message */
 	    result = expand( host_q, env );
 
-	    /* release lock */
-	    if ( snet_close( snet_lock ) != 0 ) {
-		syslog( LOG_ERR, "q_run snet_close: %m" );
+	    if ( snet_lock != NULL ) {
+		/* release lock */
+		if ( snet_close( snet_lock ) != 0 ) {
+		    syslog( LOG_ERR, "q_run snet_close: %m" );
+		}
 	    }
 
 	    /* clean up */
@@ -600,6 +604,7 @@ q_deliver( struct host_q *hq )
 		env->e_err_text = NULL;
 	    }
 
+	    snet_lock = NULL;
 	    env->e_flags = 0;
 	    env->e_success = 0;
 	    env->e_failed = 0;
@@ -612,9 +617,11 @@ q_deliver( struct host_q *hq )
         if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
 	    syslog( LOG_WARNING, "q_deliver bad Dfile: %s", dfile_fname );
 
-	    if ( snet_close( snet_lock ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver snet_close: %m" );
-		return( -1 );
+	    if ( snet_lock != NULL ) {
+		if ( snet_close( snet_lock ) != 0 ) {
+		    syslog( LOG_ERR, "q_deliver snet_close: %m" );
+		    return( -1 );
+		}
 	    }
 
 	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
@@ -862,12 +869,23 @@ cleanup:
 		(( env->e_tempfail == 0 ) && ( hq->hq_status != HOST_DOWN )) ||
 		(( hq->hq_status == HOST_DOWN ) && ( env->e_old_dfile > 0 ))) {
 	    /* no retries, delete Efile then Dfile */
+
 	    sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
 
-	    if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver ftruncate %s: %m", efile_fname );
-                    /* XXX next message */
-		return( -1 );
+	    if ( snet_lock != NULL ) {
+		if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
+		    syslog( LOG_ERR, "q_deliver ftruncate %s: %m",
+			    efile_fname );
+			/* XXX next message */
+		    return( -1 );
+		}
+	    } else {
+		if ( truncate( efile_fname, (off_t)0 ) != 0 ) {
+		    syslog( LOG_ERR, "q_deliver truncate %s: %m",
+			    efile_fname );
+			/* XXX next message */
+		    return( -1 );
+		}
 	    }
 
 	    if ( env_unlink( env ) != 0 ) {
@@ -916,9 +934,11 @@ cleanup:
 	    }
         } 
 
-	if ( snet_close( snet_lock ) != 0 ) {
-	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
-	    /* XXX next message */
+	if ( snet_lock != NULL ) {
+	    if ( snet_close( snet_lock ) != 0 ) {
+		syslog( LOG_ERR, "q_deliver snet_close: %m" );
+		/* XXX next message */
+	    }
 	}
 
 	env_reset( env );

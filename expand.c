@@ -59,7 +59,7 @@ int				simta_expand_debug = 0;
     int
 expand_and_deliver( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
-    syslog( LOG_DEBUG, "expand_and_deliver called" );
+    syslog( LOG_DEBUG, "expand_and_deliver %s", unexpanded_env->e_id );
 
     switch ( expand( hq_stab, unexpanded_env )) {
 	case 0:
@@ -114,7 +114,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     char			d_original[ MAXPATHLEN ];
     char			d_fast[ MAXPATHLEN ];
 
-    syslog( LOG_DEBUG, "expand.starting" );
+    syslog( LOG_DEBUG, "expand %s", unexpanded_env->e_id );
 
     memset( &exp, 0, sizeof( struct expand ));
     exp.exp_env = unexpanded_env;

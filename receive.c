@@ -1086,6 +1086,8 @@ receive( fd, sin )
     extern int				connections;
     extern int				maxconnections;
 
+    syslog( LOG_DEBUG, "receive starting" );
+
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "receive snet_attach: %m" );
 	return( 1 );
