@@ -334,6 +334,10 @@ q_runner( struct host_q **host_q )
     struct timeval		tv_start;
     struct timeval		tv_end;
     int				r;
+    int				day;
+    int				hour;
+    int				min;
+    int				sec;
 
     syslog( LOG_DEBUG, "q_runner starting" );
 
@@ -347,12 +351,34 @@ q_runner( struct host_q **host_q )
 	if ( gettimeofday( &tv_end, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "q_runner gettimeofday: %m" );
 	    return( 0 );
+
 	} else {
-	    syslog( LOG_INFO, "q_runner metrics: %d messages, "
-		    "%d outbound_attempts, %d outbound_delivered, %d seconds", 
-		    simta_message_count, simta_smtp_outbound_attempts,
-		    simta_smtp_outbound_delivered,
-		    tv_end.tv_sec - tv_start.tv_sec );
+	    tv_end.tv_sec -= tv_start.tv_sec;
+	    day = ( tv_end.tv_sec / 86400 );
+	    hour = (( tv_end.tv_sec % 86400 ) / 3600 );
+	    min = (( tv_end.tv_sec % 3600 ) / 60 );
+	    sec = ( tv_end.tv_sec % 60 );
+
+	    if ( day > 0 ) {
+		if ( day > 99 ) {
+		    day = 99;
+		}
+
+		syslog( LOG_INFO, "q_runner metrics: %d messages, "
+			"%d outbound_attempts, %d outbound_delivered, "
+			"%d+%02d:%02d:%02d",
+			simta_message_count, simta_smtp_outbound_attempts,
+			simta_smtp_outbound_delivered,
+			day, hour, min, sec );
+
+	    } else {
+		syslog( LOG_INFO, "q_runner metrics: %d messages, "
+			"%d outbound_attempts, %d outbound_delivered, "
+			"%02d:%02d:%02d",
+			simta_message_count, simta_smtp_outbound_attempts,
+			simta_smtp_outbound_delivered,
+			hour, min, sec );
+	    }
 	}
     }
 
