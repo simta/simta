@@ -10,6 +10,7 @@
 #include "config.h"
 
 #include <stdlib.h>
+#include <strings.h>
 
 #include "argcargv.h"
 
@@ -82,9 +83,17 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 		state = ACV_WORD;
 
 		/* here's the hack for 2821 */
-		if (( strncasecmp( line, "TO:<", 4 ) == 0 ) ||
-			( strncasecmp( line, "FROM:<", 6 ) == 0 )) {
-		    goto done;
+		if ( strncasecmp( line, "TO:<", 4 ) == 0 ) {
+		    if (( ac == 2 ) &&
+			    ( strcasecmp( acav->acv_argv[ 0 ], "RCPT" ))) {
+			goto done;
+		    }
+
+		} else if ( strncasecmp( line, "FROM:<", 6 ) == 0 ) {
+		    if (( ac == 2 ) &&
+			    ( strcasecmp( acav->acv_argv[ 0 ], "MAIL" ))) {
+			goto done;
+		    }
 		}
 	    }
 	    break;
