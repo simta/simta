@@ -1,0 +1,45 @@
+.TH simsendmail "1" "January 2003" "RSUG" "User Commands"
+
+.SH NAME
+.B simsendmail 
+\- simta's sendmail interface
+
+.SH SYNOPSIS
+.B simsendmail 
+[
+.BI \-f\  from-address
+] [
+.B \-i
+] [
+.B \-t
+] [
+.B \-v
+] [
+.I to-address
+]
+.sp
+.SH DESCRIPTION
+
+.B simsendmail
+is 
+.B simta's
+.B sendmail
+interface
+
+.sp
+.SH OPTIONS
+.TP 19
+.BI \-f\  from-address
+set the "From:" header's address.
+.TP 19
+.B \-i
+ignore a single dot on a line as an end of message marker.
+.TP 19
+.B \-t
+read message headers for recipients in the To, Cc, and Bcc headers.
+.TP 19
+.B \-v
+verbose mode.
+.sp
+.SH SEE ALSO
+.BR sendmail (1)

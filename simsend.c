@@ -164,7 +164,7 @@ main( int argc, char *argv[] )
     int			errs = 0;
     int			c;
     int			ignore_dot = 0;
-
+    int			verbose = 0;
 
     while (( c = getopt( argc, argv, "f:h:ip:tVv" )) != -1 ) {
 	switch ( c ) {
@@ -184,6 +184,7 @@ main( int argc, char *argv[] )
 
 	case 'v':
 	    /* go into verbose mode */
+	    verbose = 1;
 	    break;
 
 	default:
