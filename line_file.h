@@ -17,12 +17,6 @@ struct line_file {
     struct line		*l_last;
 };
 
-struct header {
-    char                *h_key;
-    struct line         *h_line;
-    char                *h_data;
-};
-
 #ifdef __STDC__
 #define ___P(x)         x
 #else /* __STDC__ */

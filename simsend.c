@@ -174,7 +174,7 @@ main( int argc, char *argv[] )
 
 	if ( header == 1 ) {
 	    if ( header_end( lf, line ) != 0 ) {
-		if (( x = header_correct( lf )) < 0 ) {
+		if (( x = header_correct( lf, env )) < 0 ) {
 		    perror( "header_correct" );
 		    exit( 1 );
 
@@ -197,6 +197,12 @@ main( int argc, char *argv[] )
 
 		if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
 		    perror( "fdopen" );
+		    goto cleanup;
+		}
+
+		/* print received stamp */
+		if ( header_timestamp( env, dfile ) != 0 ) {
+		    perror( "header_timestamp" );
 		    goto cleanup;
 		}
 
@@ -237,7 +243,7 @@ main( int argc, char *argv[] )
     }
 
     if ( header == 1 ) {
-	if (( x = header_correct( lf )) < 0 ) {
+	if (( x = header_correct( lf, env )) < 0 ) {
 	    perror( "header_correct" );
 	    exit( 1 );
 
@@ -260,6 +266,12 @@ main( int argc, char *argv[] )
 
 	if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
 	    perror( "fdopen" );
+	    goto cleanup;
+	}
+
+	/* print received stamp */
+	if ( header_timestamp( env, dfile ) != 0 ) {
+	    perror( "header_timestamp" );
 	    goto cleanup;
 	}
 
