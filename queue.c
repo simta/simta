@@ -229,13 +229,11 @@ q_runner( struct host_q **host_q )
 	    } else {
 		hq->hq_deliver = NULL;
 
-		if ( hq->hq_status == HOST_BOUNCE ) {
-		    /* XXX deliver bounce queue */
-
-		} else if ( hq->hq_status == HOST_DOWN ) {
-		    /* XXX deliver down queue */
-		    /* XXX if dfile is old, bounce */
-		    /* XXX else move mail to SLOW & clear queue */
+		if (( hq->hq_status == HOST_BOUNCE ) ||
+			( hq->hq_status == HOST_DOWN )) {
+		    if ( q_deliver( deliver_q ) != 0 ) {
+			return( -1 );
+		    }
 		}
 	    }
 	}
@@ -243,11 +241,8 @@ q_runner( struct host_q **host_q )
 	/* DELIVER DELIVER_Q */
 	/* deliver all mail in every expanded queue */
 	while ( deliver_q != NULL ) {
-	    if (( result = q_deliver( deliver_q )) < 0 ) {
+	    if ( q_deliver( deliver_q ) != 0 ) {
 		return( -1 );
-
-	    } else if ( result > 0 ) {
-		/* XXX error case.  queue down?  move to DIR_SLOW? */
 	    }
 
 	    deliver_q = deliver_q->hq_deliver;
@@ -378,7 +373,9 @@ q_runner_dir( char *dir )
 q_deliver( struct host_q *hq )
 {
     char                        dfile_fname[ MAXPATHLEN ];
+    char                        dfile_slow[ MAXPATHLEN ];
     char                        efile_fname[ MAXPATHLEN ];
+    char                        efile_slow[ MAXPATHLEN ];
     int                         dfile_fd;
     SNET                        *dfile_snet = NULL;
     int                         result;
@@ -420,8 +417,8 @@ q_deliver( struct host_q *hq )
          */
         sent = 0;
 
-    /* XXX OTHER HOST TYPES TO BE SUPPORTED */
-    } else {
+    } else if (( hq->hq_status != HOST_BOUNCE ) &&
+	    ( hq->hq_status != HOST_DOWN )) {
         syslog( LOG_ERR, "q_deliver fatal error: unreachable code" );
         return( -1 );
     }
@@ -446,6 +443,7 @@ q_deliver( struct host_q *hq )
 	/* open Dfile to deliver & check to see if it's geriatric */
         errno = 0;
         sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
+	sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
 
         if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
             if ( errno == ENOENT ) {
@@ -486,7 +484,6 @@ q_deliver( struct host_q *hq )
             env.e_old_dfile = 1;
         }
 
-	/* XXX OTHER HOST TYPES TO BE SUPPORTED */
         if ( hq->hq_status == HOST_LOCAL ) {
             /* HOST_LOCAL sent is incremented every time we send
              * a message to a user via. a local mailer.
@@ -584,9 +581,12 @@ cleanup:
 	/* if hq->hq_err_text != NULL, bounce entire message */
 	/* if env.e_err_text != NULL, bounce entire message */
 	/* if env.e_failed > 0, bounce at least some rcpts */
+	/* if hq->hq_status == HOST_DOWN && env.e_old_dfile > 0,
+	 *	bounce message */
 
         if (( hq->hq_err_text != NULL ) ||( env.e_err_text != NULL ) ||
-		( env.e_failed > 0 )) {
+		( env.e_failed > 0 ) || (( hq->hq_status == HOST_DOWN ) &&
+		( env.e_old_dfile > 0 ))) {
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
                 return( -1 );
@@ -604,7 +604,6 @@ cleanup:
 		env.e_err_text = hq->hq_err_text;
 	    }
 
-	    /* XXX fix bounce */
             if (( result = bounce( &env, dfile_snet )) < 0 ) {
                 return( -1 );
             }
@@ -631,11 +630,16 @@ cleanup:
 
 	/* if hq->hq_status == HOST_BOUNCE, delete message */
 	/* if env.e_err_text != NULL, delete message */
-	/* if env.e_tempfail == 0, delete message */
+	/* if hq->hq_status != HOST_DOWN && env.e_tempfail == 0,
+	 *	delete message */
+	/* if hq->hq_status == HOST_DOWN && env.e_old_dfile > 0,
+	 *	delete message */
+
 
         if (( hq->hq_status == HOST_BOUNCE ) || ( env.e_err_text != NULL ) ||
-		( env.e_tempfail == 0 )) {
-            /* no retries, delete Efile then Dfile */
+		(( env.e_tempfail == 0 ) && ( hq->hq_status != HOST_DOWN )) ||
+		(( hq->hq_status == HOST_DOWN ) && ( env.e_old_dfile > 0 ))) {
+	    /* no retries, delete Efile then Dfile */
 	    sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
 
 	    if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
@@ -647,8 +651,6 @@ cleanup:
 		syslog( LOG_ERR, "q_deliver unlink %s: %m", efile_fname );
 		return( -1 );
 	    }
-
-	    env_reset( &env );
 
             if ( unlink( dfile_fname ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver unlink %s: %m", dfile_fname );
@@ -678,7 +680,7 @@ cleanup:
                     return( -1 );
                 }
 
-            } else {
+            } else if ( hq->hq_status != HOST_DOWN ) {
                 /* all retries.  touch envelope */
                 if ( futimes( snet_fd( snet_lock ), NULL ) != 0 ) {
 		    syslog( LOG_ERR, "q_deliver futimes: %m" );
@@ -686,13 +688,40 @@ cleanup:
                 }
             }
 
-	    /* XXX move message to slow if needed */
+	    if ( env.e_dir != SIMTA_DIR_SLOW ) {
+		sprintf( dfile_slow, "%s/D%s", SIMTA_DIR_SLOW, env.e_id );
+		sprintf( efile_slow, "%s/E%s", SIMTA_DIR_SLOW, env.e_id );
+
+		if ( link( dfile_fname, dfile_slow ) != 0 ) {
+		    syslog( LOG_ERR, "link %s %s: %m", dfile_fname,
+			    dfile_slow );
+		    return( -1 );
+		}
+
+		if ( link( efile_fname, efile_slow ) != 0 ) {
+		    syslog( LOG_ERR, "link %s %s: %m", efile_fname,
+			    efile_slow );
+		    return( -1 );
+		}
+
+		if ( unlink( efile_fname ) != 0 ) {
+		    syslog( LOG_ERR, "q_deliver unlink %s: %m", efile_fname );
+		    return( -1 );
+		}
+
+		if ( unlink( dfile_fname ) != 0 ) {
+		    syslog( LOG_ERR, "q_deliver unlink %s: %m", dfile_fname );
+		    return( -1 );
+		}
+	    }
         } 
 
 	if ( snet_close( snet_lock ) != 0 ) {
 	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
 	    return( -1 );
 	}
+
+	env_reset( &env );
 
 	*mp = m->m_next;
 	message_free( m );
