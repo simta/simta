@@ -52,6 +52,7 @@ ll_insert( struct stab_entry **stab, char *key, void *data,
 	perror( "malloc" );
 	exit( 1 );
     }
+    memset( st, 0, sizeof( struct stab_entry ));
 
     st->st_key = key;
     st->st_data = data;

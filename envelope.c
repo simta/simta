@@ -29,6 +29,7 @@ env_create()
 	    NULL ) {
 	return( NULL );
     }
+    memset( env, 0, sizeof( struct envelope ));
 
     env->e_next = NULL;
     env->e_sin = NULL;
@@ -98,6 +99,7 @@ env_recipient( struct envelope *e, char *addr )
 	    == NULL ) {
 	return( -1 );
     }
+    memset( r, 0, sizeof( struct recipient ));
 
     if (( r->r_rcpt = strdup( addr )) == NULL ) {
 	return( -1 );

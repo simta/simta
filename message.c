@@ -43,6 +43,7 @@ data_add_line( struct data *d, char *line )
     if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
 	return( NULL );
     }
+    memset( l, 0, sizeof( struct line ));
 
     if (( l->line_data = strdup( line )) == NULL ) {
 	return( NULL );
@@ -75,6 +76,7 @@ data_prepend_line( struct data *d, char *line )
     if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
 	return( NULL );
     }
+    memset( l, 0, sizeof( struct line ));
 
     if (( l->line_data = strdup( line )) == NULL ) {
 	return( NULL );
@@ -107,7 +109,6 @@ data_infile( char *dir, char *id )
     if (( d = (struct data*)malloc( sizeof( struct data ))) == NULL ) {
 	return( NULL );
     }
-
     memset( d, 0, sizeof( struct data ));
 
     /* read data file */
@@ -154,6 +155,7 @@ message_infiles( char *dir, char *id )
     if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
 	return( NULL );
     }
+    memset( m, 0, sizeof( struct message ));
 
     if (( m->m_env = env_infile( dir, id )) == NULL ) {
 	return( NULL );
@@ -310,13 +312,11 @@ message_create( char *id )
     if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
 	return( NULL );
     }
-
     memset( m, 0, sizeof( struct message ));
 
     if (( m->m_data = (struct data*)malloc( sizeof( struct data ))) == NULL ) {
 	return( NULL );
     }
-
     memset( m->m_data, 0, sizeof( struct data ));
 	
     if (( m->m_env = env_create()) == NULL ) {
@@ -343,8 +343,8 @@ message_create( char *id )
 	    sizeof( struct sockaddr_in ))) == NULL ) {
 	return( NULL );
     }
-
     memset( m->m_env->e_sin, 0, sizeof( struct sockaddr_in ));
+
     m->m_env->e_sin->sin_family = AF_INET;
     m->m_env->e_sin->sin_addr.s_addr = INADDR_ANY;
 

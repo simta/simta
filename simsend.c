@@ -194,6 +194,7 @@ headers( struct message *m )
 	    if (( bl = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
 		return( -1 );
 	    }
+	    memset( bl, 0, sizeof( struct line ));
 
 	    if (( bl->line_data = (char*)malloc( 1 )) == NULL ) {
 		return( -1 );
