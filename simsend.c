@@ -199,7 +199,7 @@ main( int argc, char *argv[] )
 	    exit( EX_TEMPFAIL );
 	}
 
-	if (( result = is_emailaddr( &addr )) < 0 ) {
+	if (( result = correct_emailaddr( &addr )) < 0 ) {
 	    perror( "malloc" );
 	    exit( EX_TEMPFAIL );
 

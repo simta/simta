@@ -112,13 +112,13 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 
     case ADDRESS_TYPE_EMAIL:
 	/* verify and correct address syntax */
-	switch ( is_emailaddr( &address )) {
+	switch ( is_emailaddr( address )) {
 	case 1:
 	    /* addr correct, check if we have seen it already */
 	    break;
 
 	case 0:
-	    /* address is not syntactically correct, or correctable */
+	    /* address is not syntactically correct */
 	    if ( bounce_text( error_env, "bad email address format: ",
 		    address, NULL ) != 0 ) {
 		free( address );
@@ -128,9 +128,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	    return( 0 );
 
 	default:
-	    syslog( LOG_ERR, "add_address is_emailaddr: %m" );
-	    free( address );
-	    return( 1 );
+	    panic( "add_address addr_type out of range" );
 	}
 	break;
 

@@ -17,5 +17,6 @@ int	header_punt( struct line_file * );
 int	header_correct( int, struct line_file *, struct envelope * );
 int	header_correct( int, struct line_file *, struct envelope * );
 int	header_file_out( struct line_file *, FILE * );
-int	is_emailaddr( char ** );
+int	is_emailaddr( char * );
+int	correct_emailaddr( char ** );
 char	*tz( struct tm * );

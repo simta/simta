@@ -754,6 +754,75 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 
     /*
+     * "postmaster" or "" or
+     * [ WSP ] ( dot-atom-text | quoted-string ) [ WSP ] '@'
+     *		[ WSP ] ( dot-atom-text | domain-literal ) [ WSP ]
+     *
+     * return -1 on syserror
+     * return 0 if address is not syntactically correct
+     * return 1 if address was correct
+     */
+
+    int
+is_emailaddr( char *addr )
+{
+    char				*start;
+    char				*end;
+    char				*at;
+    char				*eol;
+
+    /* find start and end of local part */
+
+    start = addr;
+
+    if ( *start == '\0' ) {
+	return( 1 );
+
+    } else if ( *start == '"' ) {
+	if (( end = token_quoted_string( start )) == NULL ) {
+	    return( 0 );
+	}
+
+    } else {
+	if (( end = token_dot_atom( start )) == NULL ) {
+	    return( 0 );
+	}
+    }
+
+    at = end + 1;
+
+    if (( *at == '\0' ) && ( strcasecmp( addr, "postmaster" ) == 0 )) {
+	return( 1 );
+    }
+
+    if ( *at != '@' ) {
+	return( 0 );
+    }
+
+    start = at + 1;
+
+    if ( *start == '[' ) {
+	if (( end = token_domain_literal( start )) == NULL ) {
+	    return( 0 );
+	}
+
+    } else {
+	if (( end = token_dot_atom( start )) == NULL ) {
+	    return( 0 );
+	}
+    }
+
+    eol = end + 1;
+
+    if ( *eol != '\0' ) {
+	return( 0 );
+    }
+
+    return( 1 );
+}
+
+
+    /*
      * [ WSP ] ( dot-atom-text | quoted-string ) [ WSP ]
      *
      * [ WSP ] ( dot-atom-text | quoted-string ) [ WSP ] '@'
@@ -766,7 +835,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
      */
 
     int
-is_emailaddr( char **addr )
+correct_emailaddr( char **addr )
 {
     char				*start;
     char				*end;
