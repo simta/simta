@@ -328,7 +328,12 @@ main( int argc, char *argv[] )
 	break;
     }
 
-    message_stdout( m );
+    /* message_stdout( m ); */
+
+    if ( message_store( m ) != 0 ) {
+	/* XXX error */
+	exit( 1 );
+    }
 
     return( 0 );
 }

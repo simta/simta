@@ -25,3 +25,4 @@ struct message *message_create( void );
 struct line *message_line( struct message *, char * );
 struct line *message_prepend_line( struct message *, char * );
 void message_stdout( struct message * );
+int message_store( struct message * );
