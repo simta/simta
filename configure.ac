@@ -12,8 +12,9 @@ AC_PREFIX_DEFAULT(/usr/local)
 AC_PROG_CC
 AC_PROG_INSTALL
 
-# Find mail.local
+# Find local mailers
 PROG_MAIL_LOCAL
+PROG_PROCMAIL
 
 if test x_$GCC = x_yes; then
     OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes -Wconversion"}

@@ -78,6 +78,40 @@ AC_DEFUN([AC_STRUCT_GMTOFF],
 ])
 
 
+AC_DEFUN([PROG_PROCMAIL],
+[
+    AC_MSG_CHECKING(for procmail)
+    procmail_dirs="yes"
+    AC_ARG_WITH(procmail,
+	    AC_HELP_STRING([--with-procmail=DIR], [path to procmail]),
+	    procmail_dirs="$withval")
+
+    # procmail_dirs will be "yes", "no", or a user defined path
+    if test x_$procmail_dirs != x_no; then
+	if test x_$procmail_dirs = x_yes; then
+	    procmail_dirs="/usr/local/bin /usr/local/procmail/bin"
+	fi
+	for dir in $procmail_dirs; do
+	    procmail_dir="$dir"
+	    if test -f "$dir/procmail"; then
+		found_procmail="yes";
+		AC_MSG_RESULT(yes)
+		break
+	    fi
+	done
+	if test x_$found_procmail != x_yes; then
+	    AC_MSG_RESULT(no)
+	else
+	    AC_SUBST( SIMTA_PROCMAIL, [$dir/procmail])
+	fi
+
+    else
+	AC_MSG_RESULT(disabled);
+    fi
+
+])
+
+
 AC_DEFUN([PROG_MAIL_LOCAL],
 [
     AC_MSG_CHECKING(for mail.local)

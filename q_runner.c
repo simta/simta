@@ -253,7 +253,8 @@ main( int argc, char *argv[] )
 		}
 
 		/* XXX */
-		if (( mailed = mail_local( fd, "q_runner", "epcjr" )) < 0 ) {
+		if (( mailed = mail_local( fd, "satan@hell.edu", "epcjr" ))
+			< 0 ) {
 		    exit( 1 );
 		}
 
@@ -264,7 +265,8 @@ main( int argc, char *argv[] )
 		}
 
 		/* XXX */
-		if (( mailed = mail_local( fd, "q_runner", "epcjr" )) < 0 ) {
+		if (( mailed = procmail( fd, "satan@hell.edu", "epcjr" ))
+			< 0 ) {
 		    exit( 1 );
 		}
 

@@ -790,6 +790,7 @@ Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-mail_local=DIR   path to mail.local
+  --with-procmail=DIR     path to procmail
   --with-ssl=DIR          path to ssl
 
 Some influential environment variables:
@@ -2029,7 +2030,7 @@ test -z "$INSTALL_SCRIPT" && INSTALL_SCRIPT='${INSTALL}'
 test -z "$INSTALL_DATA" && INSTALL_DATA='${INSTALL} -m 644'
 
 
-# Find mail.local
+# Find local mailers
 
     echo "$as_me:$LINENO: checking for mail.local" >&5
 echo $ECHO_N "checking for mail.local... $ECHO_C" >&6
@@ -2057,6 +2058,45 @@ echo "$as_me: error: not found: See INSTALL" >&2;}
 	echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
     fi
+
+
+    echo "$as_me:$LINENO: checking for procmail" >&5
+echo $ECHO_N "checking for procmail... $ECHO_C" >&6
+    procmail_dirs="yes"
+
+# Check whether --with-procmail or --without-procmail was given.
+if test "${with_procmail+set}" = set; then
+  withval="$with_procmail"
+  procmail_dirs="$withval"
+fi;
+
+    # procmail_dirs will be "yes", "no", or a user defined path
+    if test x_$procmail_dirs != x_no; then
+	if test x_$procmail_dirs = x_yes; then
+	    procmail_dirs="/usr/local/bin /usr/local/procmail/bin"
+	fi
+	for dir in $procmail_dirs; do
+	    procmail_dir="$dir"
+	    if test -f "$dir/procmail"; then
+		found_procmail="yes";
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+		break
+	    fi
+	done
+	if test x_$found_procmail != x_yes; then
+	    echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+	else
+	    SIMTA_PROCMAIL=$dir/procmail
+
+	fi
+
+    else
+	echo "$as_me:$LINENO: result: disabled" >&5
+echo "${ECHO_T}disabled" >&6;
+    fi
+
 
 
 if test x_$GCC = x_yes; then
@@ -2942,6 +2982,7 @@ s,@INSTALL_PROGRAM@,$INSTALL_PROGRAM,;t t
 s,@INSTALL_SCRIPT@,$INSTALL_SCRIPT,;t t
 s,@INSTALL_DATA@,$INSTALL_DATA,;t t
 s,@SIMTA_MAIL_LOCAL@,$SIMTA_MAIL_LOCAL,;t t
+s,@SIMTA_PROCMAIL@,$SIMTA_PROCMAIL,;t t
 s,@OPTOPTS@,$OPTOPTS,;t t
 s,@HAVE_TM_GMTOFF@,$HAVE_TM_GMTOFF,;t t
 s,@TLSDEFS@,$TLSDEFS,;t t

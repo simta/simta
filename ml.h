@@ -11,3 +11,4 @@
 
 /* return 0 on success, syslog errors */
 int mail_local ___P(( int, char *, char * ));
+int procmail ___P(( int, char *, char * ));
