@@ -352,7 +352,7 @@ q_runner_dir( char *dir )
 
 	    m->m_dir = dir;
 
-	    if (( result = env_info( m, hostname )) < 0 ) {
+	    if (( result = env_info( m, hostname, MAXHOSTNAMELEN )) < 0 ) {
 		exit( EX_TEMPFAIL );
 
 	    } else if ( result > 0 ) {

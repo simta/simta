@@ -54,7 +54,7 @@ void		rcpt_free ___P(( struct recipient * ));
 int		env_recipient ___P(( struct envelope *, char * ));
 int		env_outfile ___P(( struct envelope *, char * ));
 int		env_touch ___P(( struct envelope * ));
-int		env_info ___P(( struct message *, char * ));
+int		env_info ___P(( struct message *, char *, int ));
 int		env_read ___P(( struct message *, struct envelope *,
 			SNET ** ));
 

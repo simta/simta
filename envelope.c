@@ -372,14 +372,16 @@ env_touch( struct envelope *env )
      */
 
     int
-env_info( struct message *m, char *hostname )
+env_info( struct message *m, char *hostname, int len )
 {
     char		*line;
     SNET		*snet;
     char		fname[ MAXPATHLEN + 1 ];
     struct stat		sb;
 
-    *hostname = '\0';
+    if ( hostname != NULL ) {
+	*hostname = '\0';
+    }
 
     sprintf( fname, "%s/E%s", m->m_dir, m->m_id );
 
@@ -459,18 +461,22 @@ env_info( struct message *m, char *hostname )
 	return( 1 );
     }
 
-    if ( strlen( line + 1 ) > MAXHOSTNAMELEN ) {
-	syslog( LOG_ERR, "%s hostname too long", fname );
+    if ( *(line + 1 ) != '\0' ) {
+	if ( hostname != NULL ) {
+	    if ( strlen( line + 1 ) > len ) {
+		syslog( LOG_ERR, "%s hostname too long", fname );
 
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( -1 );
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( -1 );
+		}
+
+		return( 1 );
+	    }
+
+	    strcpy( hostname, line + 1 );
 	}
-
-	return( 1 );
     }
-
-    strcpy( hostname, line + 1 );
 
     if ( snet_close( snet ) != 0 ) {
 	syslog( LOG_ERR, "snet_close: %m" );
