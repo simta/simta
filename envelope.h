@@ -9,10 +9,14 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
+#define	R_DELIVERED	0
+#define	R_FAILED	1
+#define	R_TEMPFAIL	2
+
 struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
-    int			r_exit;
+    int			r_delivered;
 };
 
 struct envelope {
@@ -24,6 +28,9 @@ struct envelope {
     struct recipient	*e_rcpt;
     char		e_id[ 30 ];
     int			e_flags;
+    int			e_success;
+    int			e_failed;
+    int			e_tempfail;
 };
 
 #define E_TLS		(1<<0)

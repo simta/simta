@@ -36,6 +36,22 @@ stdout_logger( char *line )
 }
 
 
+    /* return 0 if the begenning characters of line match code */
+    int
+smtp_eval( char *code, char *line )
+{
+    int			x;
+
+    for ( x = 0; *(code + x) != '\0'; x++ ) {
+	if ( *(code + x) != *(line + x) ) {
+	    return( 1 );
+	}
+    }
+
+    return( 0 );
+}
+
+
     int
 smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 {
@@ -56,7 +72,7 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 	return( 1 );
     }
 
-    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
 	return( 1 );
     }
 
@@ -74,7 +90,8 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 	    return( 1 );
 	}
 
-	if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+
+	if ( smtp_eval( SMTP_OK, line ) != 0 ) {
 	    return( 1 );
 	}
     }
@@ -92,7 +109,7 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 	return( 1 );
     }
 
-    if ( strncmp( line, SMTP_DATAOK, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_DATAOK, line ) != 0 ) {
 	return( 1 );
     }
 
@@ -132,7 +149,7 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 	return( 1 );
     }
 
-    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
 	return( 1 );
     }
 
@@ -215,8 +232,7 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	(*logger)( line );
     }
 
-    /* ZZZ working here */
-    if ( strncmp( line, SMTP_CONNECT, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_CONNECT, line ) != 0 ) {
 	return( SMTP_ERR_SYNTAX );
     }
 
@@ -287,7 +303,7 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	return( SMTP_ERR_SYSCALL );
     }
 
-    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
 	return( SMTP_ERR_SYNTAX );
     }
 
@@ -314,8 +330,8 @@ smtp_rset( SNET *snet, void (*logger)(char *))
 	return( 1 );
     }
 
-    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
-	return( 1 );
+    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
+	return( SMTP_ERR_SYNTAX );
     }
 
     return( 0 );
@@ -348,7 +364,7 @@ smtp_quit( SNET *snet, void (*logger)(char *))
 	return( SMTP_ERR_SYSCALL );
     }
 
-    if ( strncmp( line, SMTP_DISCONNECT, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_DISCONNECT, line ) != 0 ) {
 	return( SMTP_ERR_SYNTAX );
     }
 
@@ -392,6 +408,7 @@ smtp_send_single_message( char *hostname, int port, struct message *m,
      * return 1 on recoverable error
      *
      * syslog errors
+     * envelope struct tracks success/failures for each recipient
      */
 
     int
@@ -418,10 +435,14 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	return( -1 );
     }
 
-    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
 	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
-	return( 1 );
+	return( SMTP_ERR_SYNTAX );
     }
+
+    env->e_failed = 0;
+    env->e_tempfail = 0;
+    env->e_success = 0;
 
     /* RCPT TO: */
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
@@ -439,13 +460,32 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	    /* XXX correct error handling? */
 	    syslog( LOG_ERR, "snet_getline_multi: %m" );
 	    return( -1 );
-	}
+	} 
 
-	if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	if ( smtp_eval( SMTP_OK, line ) == 0 ) {
+	    r->r_delivered = R_DELIVERED;
+	    env->e_success++;
+
+	} else if ( smtp_eval( SMTP_USER_UNKNOWN, line ) == 0 ) {
+	    r->r_delivered = R_FAILED;
+	    env->e_failed++;
+	    /* XXX generate bounce */
+
+	} else if ( smtp_eval( SMTP_TEMPFAIL, line ) == 0 ) {
+	    r->r_delivered = R_TEMPFAIL;
+	    env->e_tempfail++;
+	    /* XXX try again later */
+
+	} else {
 	    syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded,
 		    line );
-	    return( 1 );
+	    return( SMTP_ERR_SYNTAX );
 	}
+    }
+
+    if ( env->e_success == 0 ) {
+	/* no one to send message to */
+	return( 1 );
     }
 
     /* DATA */
@@ -465,7 +505,7 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	return( -1 );
     }
 
-    if ( strncmp( line, SMTP_DATAOK, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_DATAOK, line ) != 0 ) {
 	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
 	return( 1 );
     }
@@ -514,7 +554,7 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	return( -1 );
     }
 
-    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+    if ( smtp_eval( SMTP_OK, line ) != 0 ) {
 	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
 	return( 1 );
     }

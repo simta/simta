@@ -31,9 +31,6 @@ struct q_file {
     int				q_unexpanded;
     int				q_efile;
     int				q_dfile;
-    int				q_success;
-    int				q_bounce;
-    int				q_retry;
     ino_t			q_dfile_ino;
     nlink_t			q_dfile_nlink;
     struct timespec		q_etime;

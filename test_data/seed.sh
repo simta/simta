@@ -73,5 +73,9 @@ cp Dterminator ../slow/Dterm1
 cp Ersug ../slow/Ersug
 cp Drsug ../slow/Drsug
 
+# fail some rsug mail
+cp Ersugbad ../slow/Ersugbad
+cp Drsug ../slow/Drsugbad
+
 # terminator Efile with no Dfile
 cp Eterminator ../slow/Elocalalone

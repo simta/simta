@@ -6,10 +6,12 @@
 /*****     smtp.h     *****/
 
 
-#define SMTP_DISCONNECT 	"221"
-#define SMTP_CONNECT    	"220"
+#define SMTP_CONNECT    	"22"
 #define SMTP_OK         	"250"
 #define SMTP_DATAOK         	"354"
+#define SMTP_USER_UNKNOWN	"55"
+#define SMTP_TEMPFAIL		"45"
+#define SMTP_DISCONNECT 	"221"
 #define SMTP_EOF         	"."
 
 #define	SMTP_ERR_SYSCALL	-1
@@ -25,6 +27,7 @@
 
 void	stdout_logger ___P(( char * ));
 
+int	smtp_eval ___P(( char *, char * ));
 int	smtp_send_message ___P(( SNET *, struct message *, void (*)(char *)));
 int	smtp_send_single_message ___P(( char *, int, struct message *,
 		void (*)(char *)));

@@ -16,7 +16,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include <sysexits.h>
 
 #include <snet.h>
 
@@ -242,7 +241,7 @@ env_cleanup( struct envelope *e )
     r = &(e->e_rcpt);
 
     while ( *r != NULL ) {
-	if ((*r)->r_exit != EX_TEMPFAIL ) {
+	if ((*r)->r_delivered != R_TEMPFAIL ) {
 	    remove = *r;
 	    *r = (*r)->r_next;
 	    free( remove->r_rcpt );

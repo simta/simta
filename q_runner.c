@@ -164,7 +164,7 @@ main( int argc, char *argv[] )
 	    } else if ( result > 1 ) {
 		/* syntax error */
 		env_free( env );
-		/* XXX env_infile should syslog for more granularity */
+		/* XXX env_infile should syslog errors */
 		syslog( LOG_WARNING, "env_infile %s: syntax error", fname );
 		continue;
 	    }
@@ -261,6 +261,7 @@ deliver_local( struct host_q *hq )
     struct stab_entry		*qs;
     struct recipient		*r;
     int				sent;
+    int				mailed;
     int				old_dfile = 0;
     int				fd;
     char			*at;
@@ -294,12 +295,12 @@ deliver_local( struct host_q *hq )
 	    }
 	}
 
-	/* XXX set old_dfile */
-
 	sent = 0;
-	q->q_bounce = 0;
-	q->q_retry = 0;
-	q->q_success = 0;
+	q->q_env->e_failed = 0;
+	q->q_env->e_tempfail = 0;
+	q->q_env->e_success = 0;
+
+	/* XXX check for old Dfile at some point */
 
 	for ( r = q->q_env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( sent != 0 ) {
@@ -320,24 +321,26 @@ deliver_local( struct host_q *hq )
 		}
 	    }
 
-	    /* XXX tell local_local mailer to bounce tempfails if old dfile? */
-	    if (( r->r_exit = (*local_mailer)( fd, q->q_env->e_mail,
+	    if (( mailed = (*local_mailer)( fd, q->q_env->e_mail,
 		    r->r_rcpt )) < 0 ) {
 		/* syserror */
 		exit( 1 );
 
-	    } else if ( r->r_exit == 0 ) {
+	    } else if ( mailed == 0 ) {
 		/* success */
-		q->q_success++;
+		r->r_delivered = R_DELIVERED;
+		q->q_env->e_success++;
 
-	    } else if (( r->r_exit == EX_TEMPFAIL ) && ( old_dfile == 0 )) {
+	    } else if (( mailed == EX_TEMPFAIL ) && ( old_dfile == 0 )) {
 		/* retry later */
-		q->q_retry++;
+		r->r_delivered = R_TEMPFAIL;
+		q->q_env->e_tempfail++;
 
 	    } else {
 		/* hard failure -or- EX_TEMPFAIL and old_dfile */
+		r->r_delivered = R_FAILED;
 		/* XXX generate bounce */
-		q->q_bounce++;
+		q->q_env->e_failed++;
 	    }
 
 	    sent++;
@@ -352,7 +355,7 @@ deliver_local( struct host_q *hq )
 	    exit( 1 );
 	}
 
-	if ( q->q_retry == 0  ) {
+	if ( q->q_env->e_tempfail == 0  ) {
 	    /* no retries, only successes and bounces */
 	    /* delete Efile then Dfile */
 	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
@@ -371,7 +374,8 @@ deliver_local( struct host_q *hq )
 
 	    q->q_action = Q_REMOVE;
 
-	} else if (( q->q_success == 0 ) && ( q->q_bounce == 0 )) {
+	} else if (( q->q_env->e_success == 0 ) &&
+		( q->q_env->e_failed == 0 )) {
 	    /* all addresses are to be retried, no re-writing.  touch Efile */
 	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
@@ -451,7 +455,7 @@ deliver_remote( struct host_q *hq )
 	}
 
 	if ( sent != 0 ) {
-	    /* XXX better error cases */
+	    /* XXX smtp_reset should syslog errors */
 	    if ( smtp_rset( snet, logger ) != 0 ) {
 		syslog( LOG_ERR, "smtp_rset %m" );
 		exit( 1 );
@@ -499,12 +503,8 @@ deliver_remote( struct host_q *hq )
 	    exit( 1 );
 	}
 
-	/* XXX mailed == 1 is recoverable failure */
-	/* XXX touch Efile, see if Dfile time > bounce time */
-	/* if send failure, update efile modification time */
-	/* if send failure, check remaining dfiles for bounce generation */
-
-	if ( mailed == 0  ) {
+	if ( q->q_env->e_tempfail == 0  ) {
+	    /* no retries, only successes and bounces */
 	    /* delete Efile then Dfile */
 	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
@@ -521,12 +521,34 @@ deliver_remote( struct host_q *hq )
 	    }
 
 	    q->q_action = Q_REMOVE;
+
+	} else if (( q->q_env->e_success == 0 ) &&
+		( q->q_env->e_failed == 0 )) {
+	    /* all addresses are to be retried, no re-writing.  touch Efile */
+	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+
+	    if ( utime( fname, NULL ) != 0 ) {
+		syslog( LOG_ERR, "utime %s: %m", fname );
+		exit( 1 );
+	    }
+
+	    q->q_action = Q_REORDER;
+
+	} else {
+	    /* some retries, and some sent.  re-write envelope */
+	    q->q_action = Q_REORDER;
+	    env_cleanup( q->q_env );
+	    /* XXX env_outfile should syslog errors */
+	    if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
+		syslog( LOG_ERR, "utime %s: %m", fname );
+		exit( 1 );
+	    }
 	}
     }
 
     if ( snet != NULL ) {
 	if ( smtp_quit( snet, logger ) != 0 ) {
-	    /* XXX better error cases */
+	    /* XXX smtp_quit should syslog errors */
 	    syslog( LOG_ERR, "smtp_quit: %m" );
 	    exit( 1 );
 	}
