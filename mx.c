@@ -3,11 +3,8 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
-
 #include <netinet/in.h>
-
 #include <arpa/inet.h>
-
 
 #include <inttypes.h>
 #include <netdb.h>
@@ -15,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -210,20 +208,20 @@ check_reverse( DNSR **dnsr, char *dn, struct in_addr *in )
 
     if ( *dnsr == NULL ) {
         if (( *dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
+            syslog( LOG_ERR, "check_reverse: dnsr_new: %m" );
 	    return( -1 );
 	}
     }
 
     if (( temp = dnsr_ntoptr( *dnsr, in )) == NULL ) {
-        syslog( LOG_ERR, "check_hostname: dnsr_ntoptr: %s",
+        syslog( LOG_ERR, "check_reverse: dnsr_ntoptr: %s",
 	    dnsr_err2string( dnsr_errno( *dnsr )));
 	return( -1 );
     }
 
     /* Get PTR for connection */
     if ( dnsr_query( *dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
-        syslog( LOG_ERR, "check_hostname: dnsr_query: %s",
+        syslog( LOG_ERR, "check_reverse: dnsr_query: %s",
 	    dnsr_err2string( dnsr_errno( *dnsr )));
 	free( temp );
 	return( -1 );
@@ -232,7 +230,7 @@ check_reverse( DNSR **dnsr, char *dn, struct in_addr *in )
     free( temp );
 
     if (( result_ptr = dnsr_result( *dnsr, NULL )) == NULL ) {
-        syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
+        syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
 	    dnsr_err2string( dnsr_errno( *dnsr )));
 	return( -1 );
     }
@@ -241,12 +239,12 @@ check_reverse( DNSR **dnsr, char *dn, struct in_addr *in )
 	/* Get A record on PTR result */
 	if (( dnsr_query( *dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
 		result_ptr->r_answer[ i ].rr_dn.dn_name )) < 0 ) {
-	    syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
+	    syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
 		dnsr_err2string( dnsr_errno( *dnsr )));
 	    goto error;
 	}
 	if (( result_a = dnsr_result( *dnsr, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
+	    syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
 		dnsr_err2string( dnsr_errno( *dnsr )));
 	    goto error;
 	}
@@ -271,4 +269,53 @@ check_reverse( DNSR **dnsr, char *dn, struct in_addr *in )
 error:
     dnsr_free_result( result_ptr );
     return( -1 );
+}
+
+    int
+check_hostname( DNSR **dnsr, char *hostname )
+{
+    struct dnsr_result		*result;
+
+    if ( *dnsr == NULL ) {
+        if (( *dnsr = dnsr_new( )) == NULL ) {
+            syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
+	    return( -1 );
+	}
+    }
+
+    /* Check for MX */
+    if (( dnsr_query( *dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, hostname )) != 0 ) {
+	syslog( LOG_ERR, "check_hostname: dnsr_query: %s: %s", hostname,
+	    dnsr_err2string( dnsr_errno( *dnsr )));
+	return( -1 );
+    }
+    if (( result = dnsr_result( *dnsr, NULL )) == NULL ) {
+	syslog( LOG_ERR, "check_hostname: dnsr_result: %s: %s", hostname,
+	    dnsr_err2string( dnsr_errno( *dnsr )));
+	return( -1 );
+    }
+    if ( result->r_ancount > 0 ) {
+	dnsr_free_result( result );
+	return( 0 );
+    }
+    dnsr_free_result( result );
+
+    /* Check for A */
+    if (( dnsr_query( *dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, hostname )) < 0 ) {
+	syslog( LOG_ERR, "check_hostname: dnsr_query: %s: %s", hostname,
+	    dnsr_err2string( dnsr_errno( *dnsr )));
+	return( -1 );
+    }
+    if (( result = dnsr_result( *dnsr, NULL )) == NULL ) {
+	syslog( LOG_ERR, "check_hostname: dnsr_result: %s: %s", hostname, 
+	    dnsr_err2string( dnsr_errno( *dnsr )));
+	return( -1 );
+    }
+    if ( result->r_ancount > 0 ) {
+	dnsr_free_result( result );
+	return( 0 );
+    }
+    dnsr_free_result( result );
+
+    return( 1 );
 }
