@@ -722,6 +722,7 @@ main( ac, av )
 	    if (( p = (struct proc_type*)malloc(
 		    sizeof( struct proc_type ))) == NULL ) {
 		syslog( LOG_ERR," malloc: %m" );
+		close( fd );
 		continue;
 	    }
 	    memset( &p, 0, sizeof( struct proc_type ));
