@@ -334,7 +334,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		m->m_dir = simta_dir_fast;
 
 		/* find / create the null host queue */
-		if (( hq = host_q_lookup( hq_stab, SIMTA_NULL_QUEUE ))
+		if (( hq = host_q_lookup( hq_stab, NULL ))
 			== NULL ) {
 		    /* host_q_lookup syslogs errors */
 		    message_free( m );

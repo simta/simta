@@ -86,11 +86,13 @@ message_slow( struct message *m )
 	    simta_fast_files--;
 	}
 
-	if ( unlink( simta_dname_slow ) != 0 ) {
+	if ( unlink( simta_dname ) != 0 ) {
 	    syslog( LOG_ERR, "message_slow unlink %s: %m", simta_dname );
 	    return( -1 );
 	}
     }
+
+    syslog( LOG_DEBUG, "message_slow %s: moved", m->m_id );
 
     return( 0 );
 }
@@ -206,40 +208,24 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 {
     struct host_q		*hq;
 
-    if ( hostname == NULL ) {
-	syslog( LOG_ERR, "host_q_lookup hostname: NULL not allowed" );
-	return( NULL );
-    }
-
     /* create NULL host queue for unexpanded messages */
     if ( simta_null_q == NULL ) {
-	for ( simta_null_q = *host_q; simta_null_q != NULL;
-		simta_null_q = simta_null_q->hq_next ) {
-	    if ( strcasecmp( hq->hq_hostname, SIMTA_NULL_QUEUE ) == 0 ) {
-		break;
-	    }
+	if (( simta_null_q = (struct host_q*)malloc(
+		sizeof( struct host_q ))) == NULL ) {
+	    syslog( LOG_ERR, "host_q_lookup malloc: %m" );
+	    return( NULL );
 	}
+	memset( simta_null_q, 0, sizeof( struct host_q ));
 
-	if ( simta_null_q == NULL ) {
-	    if (( simta_null_q = (struct host_q*)malloc(
-		    sizeof( struct host_q ))) == NULL ) {
-		syslog( LOG_ERR, "host_q_lookup malloc: %m" );
-		return( NULL );
-	    }
-	    memset( simta_null_q, 0, sizeof( struct host_q ));
+	/* add this host to the host_q */
+	simta_null_q->hq_hostname = "";
+	simta_null_q->hq_next = *host_q;
+	*host_q = simta_null_q;
+	simta_null_q->hq_status = HOST_NULL;
+    }
 
-	    if (( simta_null_q->hq_hostname =
-		    strdup( SIMTA_NULL_QUEUE )) == NULL ) {
-		syslog( LOG_ERR, "host_q_lookup strdup: %m" );
-		free( simta_null_q );
-		return( NULL );
-	    }
-
-	    /* add this host to the host_q */
-	    simta_null_q->hq_next = *host_q;
-	    *host_q = simta_null_q;
-	    simta_null_q->hq_status = HOST_NULL;
-	}
+    if ( hostname == NULL ) {
+	return( simta_null_q );
     }
 
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
@@ -330,6 +316,11 @@ q_run( struct host_q **host_q )
     struct stat			sb;
     char                        dfile_fname[ MAXPATHLEN ];
     struct timeval              tv;
+
+    if ( *host_q == NULL ) {
+	syslog( LOG_DEBUG, "q_run done: no queues" );
+	return( 0 );
+    }
 
     for ( ; ; ) {
 	/* build the deliver_q by number of messages */
@@ -522,15 +513,6 @@ q_runner_d( char *dir )
     DIR				*dirp;
     int				result;
     char			hostname[ MAXHOSTNAMELEN + 1 ];
-
-    /* create NULL host queue for unexpanded messages */
-    if ( simta_null_q == NULL ) {
-	if (( simta_null_q = host_q_lookup( &host_q, SIMTA_NULL_QUEUE ))
-		== NULL ) {
-	    syslog( LOG_ERR, "q_runner_dir can't allocate null queue" );
-	    return( -1 );
-	}
-    }
 
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
