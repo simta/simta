@@ -197,7 +197,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-#ifdef HAVE_LIBSSL
+#ifdef XXXHAVE_LIBSSL
     /* RFC 2487 SMTP TLS */
     if ( receive_tls == 0 ) {
 	if ( snet_writef( snet, "%d-%s Hello %s\r\n", 250, simta_hostname,
@@ -220,7 +220,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 	syslog( LOG_NOTICE, "f_ehlo %s", av[ 1 ]);
     }
-#else /* HAVE_LIBSSL */
+#else /* XXXHAVE_LIBSSL */
 
     if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
 	    av[ 1 ]) < 0 ) {
