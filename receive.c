@@ -760,11 +760,12 @@ f_quit( snet, env, ac, av )
 	/*
 	 * Deliver a pending message without fork()ing.
 	 */
-	if ( simta_debug ) printf( "calling expand\n" );
+	if ( simta_debug ) printf( "f_quit: calling expand\n" );
 	if ( expand( &hq, env ) !=0 ) {
 	    syslog( LOG_ERR, "f_quit: expand failed\n" );
 	    return( -1 );
 	}
+	if ( simta_debug ) printf( "f_quit: calling q_runner\n" );
 	if (  q_runner( &hq ) != 0 ) {
 	    syslog( LOG_ERR, "f_quit: q_runner failed\n" );
 	    return( -1 );

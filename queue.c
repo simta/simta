@@ -199,6 +199,7 @@ q_runner( struct host_q **host_q )
     struct envelope		env;
     int				result;
 
+    if ( simta_debug ) fprintf( stderr, "q_runner: started\n" );
     /* create NULL host queue for unexpanded messages */
     if ( simta_null_q == NULL ) {
 
@@ -214,15 +215,19 @@ q_runner( struct host_q **host_q )
     for ( ; ; ) {
 	/* BUILD DELIVER_Q */
 	/* sort the deliver_q by number of messages */
+	if ( simta_debug ) fprintf( stderr, "q_runner: building deliver_q\n" );
 	deliver_q = NULL;
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
+	    if ( simta_debug ) fprintf( stderr, "q_runner: %s\n", hq->hq_hostname );
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
 		hq->hq_deliver = NULL;
 
 	    } else if (( hq->hq_status == HOST_LOCAL ) ||
 		    ( hq->hq_status == HOST_MX )) {
 		/* hq is expanded and has at least one message */
+		if ( simta_debug ) fprintf( stderr,
+			"q_runner: expanded w/message\n" );
 		dq = &deliver_q;
 
 		for ( ; ; ) {
@@ -237,6 +242,8 @@ q_runner( struct host_q **host_q )
 
 	    } else if (( hq->hq_status == HOST_DOWN ) ||
 		    ( hq->hq_status == HOST_BOUNCE )) {
+		if ( simta_debug ) fprintf( stderr,
+			"q_runner: host down/bounce\n" );
 		hq->hq_deliver = NULL;
 
 		if ( q_deliver( hq ) != 0 ) {
@@ -250,6 +257,7 @@ q_runner( struct host_q **host_q )
 
 	/* deliver all mail in every expanded queue */
 	while ( deliver_q != NULL ) {
+	    if ( simta_debug ) fprintf( stderr, "q_runner: calling deliver_q to %s\n", deliver_q->hq_hostname );
 	    if ( q_deliver( deliver_q ) != 0 ) {
 		return( -1 );
 	    }
