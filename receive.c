@@ -492,17 +492,23 @@ f_rcpt( snet, env, ac, av )
 
     if ( high_mx_pref ) {
 	switch( address_local( addr )) {
-	case 0:
+
+	case ADDRESS_EXTERNAL:
+	case ADDRESS_NOT_FOUND:
 	    snet_writef( snet,
 		"%d Requested action not taken: User not found.\r\n", 550 );
 	    return( 1 );
-	case 1:
-	    break;
+
+	case ADDRESS_BAD_FORMAT:
+	case ADDRESS_SYSERROR:
 	default:
 	    snet_writef( snet,
 		"%d 3 Requested action aborted: local error in processing.\r\n",
 		451 );
 	    return( 1 );
+
+	case ADDRESS_LOCAL:
+	    break;
 	}
     }
 
@@ -717,6 +723,7 @@ f_data( snet, env, ac, av )
     }
 
     /* make E (t) file */
+    /* XXX make sure this is accounted for in fast file db */
     if ( env_outfile( env, simta_dir_fast ) != 0 ) {
 	err = 1;
 	snet_writef( snet,

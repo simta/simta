@@ -154,11 +154,9 @@ chld( sig )
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "chld %d died on signal %d", pid,
 		    WTERMSIG( status ));
-	    exit( 1 );
 
 	} else {
 	    syslog( LOG_ERR, "chld %d died", pid );
-	    exit( 1 );
 	}
     }
 
@@ -166,6 +164,7 @@ chld( sig )
 	syslog( LOG_ERR, "wait3: %m" );
 	exit( 1 );
     }
+
     return;
 }
 

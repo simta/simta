@@ -1,16 +1,19 @@
-#define SIMTA_EXPAND_ERROR_NONE		0
-#define SIMTA_EXPAND_ERROR_SYSTEM	1
-#define SIMTA_EXPAND_ERROR_BAD_FORMAT	2
-#define SIMTA_EXPAND_ERROR_OFF_HOST	3
-#define SIMTA_EXPAND_ERROR_NOT_LOCAL	4
-#define SIMTA_EXPAND_ERROR_SEEN		5
-#define SIMTA_EXPAND_ERROR_LDAP		6
+/**********          address.h          **********/
 
-int address_local( char *address );
-int address_expand( char *address, struct recipient *rcpt,
-    struct stab_entry **expansion, struct stab_entry **expanded,
-    int *ae_error );
-int add_address( struct stab_entry **stab, char *address,
-    struct recipient *rcpt );
+/* return codes for address_local and address_expand */
+#define	ADDRESS_SYSERROR		0
+#define	ADDRESS_BAD_FORMAT		1
+#define	ADDRESS_EXTERNAL		2
+#define	ADDRESS_LOCAL			3
+#define	ADDRESS_NOT_FOUND		4
+
+/* additional return codes for address_expand */
+#define	ADDRESS_EXPANDED		5
+#define	ADDRESS_SEEN			6
 
 void expansion_stab_stdout( void * );
+int add_address( struct stab_entry **, char *, struct recipient * );
+int address_local( char * );
+int address_expand( char *, struct recipient *, struct stab_entry **,
+	struct stab_entry ** );
+

@@ -69,6 +69,7 @@ env_create( char *id )
 	/* XXX const val should be dynamic or #defined */
 	if ( strlen( id ) > 29 ) {
 	    syslog( LOG_ERR, "env_create %s: id too long", id );
+	    free( env );
 	    return( NULL );
 	}
 
@@ -204,6 +205,7 @@ env_recipient( struct envelope *e, char *addr )
 
     if (( r->r_rcpt = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "strdup: %m" );
+	free( r );
 	return( -1 );
     }
 
@@ -653,6 +655,8 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 }
 
 
+    /* truncate the efile before calling this function */
+
     int
 env_unlink( struct envelope *env )
 {
@@ -708,6 +712,68 @@ env_slow( struct envelope *env )
 	}
 
 	if ( env_unlink( env ) != 0 ) {
+	    return( -1 );
+	}
+    }
+
+    return( 0 );
+}
+
+
+    int
+rcpt_error( struct recipient *r, char *t1, char *t2, char *t3 )
+{
+    char			*text;
+    size_t			len;
+
+    r->r_delivered = R_FAILED;
+
+    if ( r->r_text == NULL ) {
+	if (( r->r_text = line_file_create()) == NULL ) {
+	    syslog( LOG_ERR, "rcpt_error line_file_create: %m" );
+	    return( -1 );
+	}
+    }
+
+    if ( t3 != NULL ) {
+	len = strlen( t1 ) + strlen( t2 ) + strlen( t3 ) + 1;
+
+	if (( text = (char*)malloc( len )) == NULL ) {
+	    syslog( LOG_ERR, "rcpt_error malloc: %m" );
+	    return( -1 );
+	}
+
+	sprintf( text, "%s%s%s", t1, t2, t3 );
+
+	if ( line_append( r->r_text, text ) == NULL ) {
+	    syslog( LOG_ERR, "rcpt_error line_append: %m" );
+	    free( text );
+	    return( -1 );
+	}
+
+	free( text );
+
+    } else if ( t2 != NULL ) {
+	len = strlen( t1 ) + strlen( t2 ) + 1;
+
+	if (( text = (char*)malloc( len )) == NULL ) {
+	    syslog( LOG_ERR, "rcpt_error malloc: %m" );
+	    return( -1 );
+	}
+
+	sprintf( text, "%s%s", t1, t2 );
+
+	if ( line_append( r->r_text, text ) == NULL ) {
+	    syslog( LOG_ERR, "rcpt_error line_append: %m" );
+	    free( text );
+	    return( -1 );
+	}
+
+	free( text );
+
+    } else {
+	if ( line_append( r->r_text, t1 ) == NULL ) {
+	    syslog( LOG_ERR, "rcpt_error line_append: %m" );
 	    return( -1 );
 	}
     }

@@ -109,6 +109,7 @@ bounce( struct envelope *env, SNET *message )
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
         syslog( LOG_ERR, "open %s: %m", dfile_fname );
+	env_reset( &bounce_env );
         return( -1 );
     }
 
@@ -200,32 +201,34 @@ bounce( struct envelope *env, SNET *message )
         goto cleanup;
     }
 
-    if ( env_outfile( &bounce_env, bounce_env.e_dir ) != 0 ) {
-        goto cleanup;
-    }
-
     /* if it's not going to the DEAD queue, add it to our work list */
     if ( bounce_env.e_dir != simta_dir_dead ) {
 	if (( m = message_create( bounce_env.e_id )) == NULL ) {
-	    return( -1 );
+	    goto cleanup;
 	}
 
 	m->m_dir = bounce_env.e_dir;
 	m->m_etime.tv_sec = tv.tv_sec;
 
-	if ( message_queue( simta_null_q, m ) != 0 ) {
-	    return( -1 );
+	if ( env_outfile( &bounce_env, bounce_env.e_dir ) != 0 ) {
+	    goto cleanup;
+	}
+
+	message_queue( simta_null_q, m );
+
+    } else {
+	if ( env_outfile( &bounce_env, bounce_env.e_dir ) != 0 ) {
+	    goto cleanup;
 	}
     }
 
     /* make sure to reset to clean up any memory */
     env_reset( &bounce_env );
-
     return( 0 );
 
 cleanup:
+    env_reset( &bounce_env );
     unlink( dfile_fname );
 
     return( -1 );
 }
-

@@ -24,7 +24,7 @@ struct envelope {
     struct sockaddr_in	*e_sin;
     char		*e_hostname;
     char		*e_punt;
-    char		e_expanded[ MAXHOSTNAMELEN ];
+    char		e_expanded[ MAXHOSTNAMELEN + 1 ];
     char		*e_helo;
     char		*e_dir;
     char		*e_mail;
@@ -53,6 +53,8 @@ void		env_rcpt_free ___P(( struct envelope * ));
 struct envelope	*env_create ___P(( char * ));
 void		env_reset ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
+int		rcpt_error ___P(( struct recipient *r, char *, char *,
+			char * ));
 int		env_recipient ___P(( struct envelope *, char * ));
 int		env_outfile ___P(( struct envelope *, char * ));
 int		env_touch ___P(( struct envelope * ));

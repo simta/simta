@@ -148,6 +148,7 @@ message_create( char *id )
 
     if (( m->m_id = strdup( id )) == NULL ) {
 	syslog( LOG_ERR, "message_create strdup: %m" );
+	free( m );
 	return( NULL );
     }
 
@@ -163,7 +164,7 @@ message_free( struct message *m )
 }
 
 
-    int
+    void
 message_queue( struct host_q *hq, struct message *m )
 {
     struct message		**mp;
@@ -185,8 +186,6 @@ message_queue( struct host_q *hq, struct message *m )
     hq->hq_entries++;
 
     *mp = m;
-
-    return( 0 );
 }
 
 
@@ -211,7 +210,8 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 	memset( hq, 0, sizeof( struct host_q ));
 
 	if (( hq->hq_hostname = strdup( hostname )) == NULL ) {
-	    syslog( LOG_ERR, "host_q_lookup malloc: %m" );
+	    syslog( LOG_ERR, "host_q_lookup strdup: %m" );
+	    free( hq );
 	    return( NULL );
 	}
 
@@ -473,9 +473,7 @@ q_runner_d( char *dir )
 		return( -1 );
 	    }
 
-	    if ( message_queue( hq, m ) < 0 ) {
-		return( -1 );
-	    }
+	    message_queue( hq, m );
 	}
     }
 
@@ -823,6 +821,11 @@ cleanup:
                 if ( env_outfile( &env, env.e_dir ) != 0 ) {
                     return( -1 );
                 }
+
+		if ( strcmp( env.e_dir, simta_dir_fast ) == 0 ) {
+		    /* overwrote fast file, not created a new one */
+		    simta_fast_files--;
+		}
 
             } else if ( hq->hq_status != HOST_DOWN ) {
                 /* all retries.  touch envelope */

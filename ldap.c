@@ -12,6 +12,7 @@
 
 #include <sys/time.h>		/* struct timeval */
 #include <stdio.h>
+#include <syslog.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <string.h>
@@ -36,6 +37,13 @@ struct list			*ldap_searches = NULL;
 struct list			*ldap_people = NULL;
 struct list			*ldap_groups = NULL;
 LDAP				*ld = NULL;
+
+
+    int
+ldap_address_local( char *addr )
+{
+    return( ADDRESS_NOT_FOUND );
+}
 
 
     int
@@ -221,8 +229,6 @@ ldap_config( char *fname )
 	return( 1 );
     }
 
-    printf( "HERE!\n" );
-
     return( 0 );
 }
 
@@ -235,7 +241,7 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
     struct list			*l;
 
     if (( values = ldap_get_values( ld, e, attr )) == NULL ) {
-	/* XXX ldaperror? */
+	/* XXX proper ldap error message needed here */
 	return( -1 );
     }
 
@@ -256,7 +262,7 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
 
     int
 ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
-	struct stab_entry **seen, int *ae_error )
+	struct stab_entry **seen )
 {
     int			x;
     int			whiteout;
@@ -279,10 +285,12 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
     struct list		*l;
     struct timeval	timeout = {60,0};
 
+    /* addr should be user@some.domain */
     if (( at = strchr( addr, '@' )) == NULL ) {
-	/* XXX daemon error handling/reporting */
-	printf( "ldap_expand( %s ): bad address\n", addr );
-	return( 0 );
+	if ( rcpt_error( rcpt, "bad address format: ", addr, NULL ) != 0 ) {
+	    /* rcpt_error syslogs syserrors */
+	}
+	return( ADDRESS_SYSERROR );
     }
 
     domain = at + 1;
@@ -294,9 +302,8 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
     if ( ld == NULL ) {
 	/* XXX static hostname for now */
 	if (( ld = ldap_init( "da.dir.itd.umich.edu", 4343 )) == NULL ) {
-	    /* XXX daemon error handling/reporting */
-	    perror( "ldap_init" );
-	    return( -1 );
+	    syslog( LOG_ERR, "ldap_init: %m" );
+	    return( ADDRESS_SYSERROR );
 	}
     }
 
@@ -304,12 +311,18 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
     printf( "ldap_init da.dair.itd.umich.edu success\n" );
 #endif /* DEBUG */
 
+    /* for each base string in ldap_searches:
+     *     - Build search string where:
+     *         + %s -> username
+     *         + %h -> hostname
+     *     - query the LDAP db with the search string
+     */
     for ( l = ldap_searches; l != NULL; l = l->l_next ) {
 	/* make sure buf is big enough search url */
 	if (( len = strlen( l->l_string) + 1 ) > buf_len ) {
 	    if (( buf = (char*)realloc( buf, len )) == NULL ) {
-		/* XXX daemon error handling/reporting */
-		return( -1 );
+		syslog( LOG_ERR, "realloc: %m" );
+		return( ADDRESS_SYSERROR );
 	    }
 
 	    buf_len = len;
@@ -354,8 +367,8 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 			place = d - buf;
 
 			if (( buf = (char*)realloc( buf, len )) == NULL ) {
-			    perror( "malloc" );
-			    return( -1 );
+			    syslog( LOG_ERR, "realloc: %m" );
+			    return( ADDRESS_SYSERROR );
 			}
 
 			d = buf + place;
@@ -379,7 +392,6 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 		    c += 2;
 
 		} else {
-		    /* XXX daemon error handling/reporting */
 		    /* XXX unknown/unsupported sequence, copy & warn for now */
 		    fprintf( stderr, "unknown sequence: %c\n", *( c + 1 ));
 		    *d = *c;
@@ -391,10 +403,9 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 	*d = '\0';
 
 	if ( ldap_url_parse( buf, &lud ) != 0 ) {
-	    /* XXX daemon error handling/reporting */
-	    fprintf( stderr, "ldap_url_parse %s:", buf );
-	    perror( NULL );
-	    return( -1 );
+	    /* XXX correct error reporting? */
+	    syslog( LOG_ERR, "ldap_url_parse %s: %m", buf );
+	    return( ADDRESS_SYSERROR );
 	}
 
 #ifdef DEBUG
@@ -403,15 +414,15 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 
 	if ( ldap_search_st( ld, lud->lud_dn, lud->lud_scope,
 		lud->lud_filter, attrs, 0, &timeout, &res ) != LDAP_SUCCESS ) {
-	    /* XXX daemon error handling/reporting */
-	    ldap_perror( ld, "ldap_search_st" );
-	    return( -1 );
+	    syslog( LOG_ERR, "ldap_search_st: %s",
+		    ldap_err2string( ldap_result2error( ld, res, 1 )));
+	    return( ADDRESS_SYSERROR );
 	}
 
 	if (( count = ldap_count_entries( ld, res )) < 0 ) {
-	    /* XXX daemon error handling/reporting */
-	    ldap_perror( ld, "ldap_count_entries" );
-	    goto error;
+	    syslog( LOG_ERR, "ldap_count_entries: %s",
+		    ldap_err2string( ldap_result2error( ld, res, 1 )));
+	    return( ADDRESS_SYSERROR );
 	}
 
 	if ( count > 0 ) {
@@ -424,14 +435,14 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 #endif /* DEBUG */
 
     if ( count == 0 ) {
-	/* XXX daemon error handling/reporting */
-	return( 0 );
+	/* no entries found */
+	return( ADDRESS_NOT_FOUND );
     }
 
     if (( entry = ldap_first_entry( ld, res )) == NULL ) {
-	/* XXX daemon error handling/reporting */
-	ldap_perror( ld, "ldap_first_entry" );
-	goto error;
+	syslog( LOG_ERR, "ldap_first_entry: %s",
+		ldap_err2string( ldap_result2error( ld, res, 1 )));
+	return( ADDRESS_SYSERROR );
     }
 
 #ifdef DEBUG
@@ -439,18 +450,15 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 #endif /* DEBUG */
 
     if (( message = ldap_first_message( ld, res )) == NULL ) {
-	/* XXX daemon error handling/reporting */
-	ldap_perror( ld, "ldap_first_message" );
-	goto error;
+	syslog( LOG_ERR, "ldap_first_message: %s",
+		ldap_err2string( ldap_result2error( ld, res, 1 )));
+	return( ADDRESS_SYSERROR );
     }
 
     result = 0;
 
     if ( ldap_groups != NULL ) {
 	if (( result = ldap_value( entry, "objectClass", ldap_groups )) < 0 ) {
-	    /* XXX daemon error handling/reporting */
-	    ldap_perror( ld, "ldap_get_values 1" );
-	    goto error;
 
 	} else if ( result > 0 ) {
 
