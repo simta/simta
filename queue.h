@@ -60,7 +60,6 @@ void	q_run ___P(( struct host_q ** ));
 int	q_runner_dir ___P(( char * ));
 
 int	q_cleanup ___P(( void ));
-void	q_runner_d ___P(( char * ));
 struct	host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
 struct	message	*message_create ___P(( char * ));
 void	message_free ___P(( struct message * ));

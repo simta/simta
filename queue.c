@@ -599,78 +599,6 @@ oldfile_error:
 }
 
 
-    /* return an exit code */
-
-    int
-q_runner_dir( char *dir )
-{
-    syslog( LOG_DEBUG, "q_runner_dir: %s starting", dir );
-
-    q_runner_d( dir );
-
-    if ( simta_fast_files != 0 ) {
-	syslog( LOG_ERR, "q_runner_dir exiting with %d fast_files",
-		simta_fast_files );
-	return( EXIT_FAST_FILE );
-    }
-
-    return( EXIT_OK );
-}
-
-
-    void
-q_runner_d( char *dir )
-{
-    struct host_q		*host_q = NULL;
-    struct host_q		*hq;
-    struct message		*m;
-    struct dirent		*entry;
-    DIR				*dirp;
-    int				result;
-    char			hostname[ MAXHOSTNAMELEN + 1 ];
-
-    if (( dirp = opendir( dir )) == NULL ) {
-	syslog( LOG_ERR, "q_runner_d opendir %s: %m", dir );
-	return;
-    }
-
-    /* organize a directory's messages by host and timestamp */
-    for ( simta_message_count = 0; ; simta_message_count++ ) {
-	errno = 0;
-	entry = readdir( dirp );
-
-	if ( errno != 0 ) {
-	    /* error reading directory, try to deliver what we got already */
-	    syslog( LOG_ERR, "q_runner_d readdir %s: %m", dir );
-	    break;
-
-	} else if ( entry == NULL ) {
-	    /* no more entries */
-	    break;
-
-	} else if ( *entry->d_name == 'E' ) {
-	    if (( m = message_create( entry->d_name + 1 )) == NULL ) {
-		continue;
-	    }
-	    m->m_dir = dir;
-
-	    if (( result = env_info( m, hostname, MAXHOSTNAMELEN )) != 0 ) {
-		message_free( m );
-		continue;
-	    }
-
-	    if (( hq = host_q_lookup( &host_q, hostname )) == NULL ) {
-		message_free( m );
-		continue;
-	    }
-	    message_queue( hq, m );
-	}
-    }
-
-    q_runner( &host_q );
-}
-
-
     void
 q_deliver( struct host_q *hq )
 {
@@ -1115,3 +1043,65 @@ message_cleanup:
 	}
     }
 }
+
+
+    int
+q_runner_dir( char *dir )
+{
+    struct host_q		*host_q = NULL;
+    struct host_q		*hq;
+    struct message		*m;
+    struct dirent		*entry;
+    DIR				*dirp;
+    int				result;
+    char			hostname[ MAXHOSTNAMELEN + 1 ];
+
+    if (( dirp = opendir( dir )) == NULL ) {
+	syslog( LOG_ERR, "q_runner_d opendir %s: %m", dir );
+	return;
+    }
+
+    /* organize a directory's messages by host and timestamp */
+    for ( simta_message_count = 0; ; simta_message_count++ ) {
+	errno = 0;
+	entry = readdir( dirp );
+
+	if ( errno != 0 ) {
+	    /* error reading directory, try to deliver what we got already */
+	    syslog( LOG_ERR, "q_runner_d readdir %s: %m", dir );
+	    break;
+
+	} else if ( entry == NULL ) {
+	    /* no more entries */
+	    break;
+
+	} else if ( *entry->d_name == 'E' ) {
+	    if (( m = message_create( entry->d_name + 1 )) == NULL ) {
+		continue;
+	    }
+	    m->m_dir = dir;
+
+	    if (( result = env_info( m, hostname, MAXHOSTNAMELEN )) != 0 ) {
+		message_free( m );
+		continue;
+	    }
+
+	    if (( hq = host_q_lookup( &host_q, hostname )) == NULL ) {
+		message_free( m );
+		continue;
+	    }
+	    message_queue( hq, m );
+	}
+    }
+
+    q_runner( &host_q );
+
+    if ( simta_fast_files != 0 ) {
+	syslog( LOG_ERR, "q_runner_dir exiting with %d fast_files",
+		simta_fast_files );
+	return( EXIT_FAST_FILE );
+    }
+
+    return( EXIT_OK );
+}
+
