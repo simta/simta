@@ -954,11 +954,11 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 
 	    if (strchr (attrval, '@') ) {		
 		if ((type == LDS_GROUP_MEMBERS ) || (type == LDS_USER )) {
-		    rc =  add_address( exp, attrval, e_addr->e_addr_errors, 
-				ADDRESS_TYPE_EMAIL, senderbuf );
+		    rc = address_string_recipients( exp, attrval,
+			    e_addr, senderbuf );
 		} else {
-		    rc =  add_address( exp, attrval, e_addr->e_addr_errors,    
-                                ADDRESS_TYPE_EMAIL, e_addr->e_addr_from );     
+		    rc = address_string_recipients( exp, attrval,
+			    e_addr, e_addr->e_addr_from );
                 }
 		if (rc != 0 ) {
 		    syslog (LOG_ERR,
@@ -1032,9 +1032,8 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 
 	    for ( idx = 0; values[ idx ] != NULL; idx++ ) {
 		attrval = values[ idx ];
-		if ( add_address( exp, attrval,
-			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ,
-				e_addr->e_addr_from) != 0 ) {
+		if ( address_string_recipients( exp, attrval,
+			e_addr, e_addr->e_addr_from ) != 0 ) {
 		    syslog (LOG_ERR, 
     "simta_ldap_process_entry: failed adding mailforwardingaddress: %s", addr);
 		    ldap_value_free( values );
