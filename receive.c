@@ -554,7 +554,7 @@ f_data( snet, env, ac, av )
     }
 
     /* XXX - do we want to write D file into tmp? */
-    sprintf( df, "%s/D%s", SIMTA_DIR_FAST, env->e_id );
+    sprintf( df, "%s/D%s", simta_dir_fast, env->e_id );
 
     if (( fd = open( df, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
 	syslog( LOG_ERR, "f_data: open %s: %m", df );
@@ -699,7 +699,7 @@ f_data( snet, env, ac, av )
     }
 
     /* make E (t) file */
-    if ( env_outfile( env, SIMTA_DIR_FAST ) != 0 ) {
+    if ( env_outfile( env, simta_dir_fast ) != 0 ) {
 	err = 1;
 	snet_writef( snet,
 	    "%d Requested action not taken: insufficient system storage\r\n",
@@ -1049,7 +1049,7 @@ receive( fd, sin )
 	exit( 1 );
     }
     env->e_sin = sin;
-    env->e_dir = SIMTA_DIR_FAST;
+    env->e_dir = simta_dir_fast;
 
     snet_writef( snet, "%d %s Simple Internet Message Transfer Agent ready\r\n",
 	    220, env->e_hostname );

@@ -46,29 +46,33 @@ main( int argc, char *argv[] )
 {
     simta_debug = 1;
 
-    if ( argc != 2 ) {
-	fprintf( stderr, "Usage: %s ( LOCAL | SLOW | CLEAN )\n", argv[ 0 ]);
+    if ( argc != 4 ) {
+	fprintf( stderr,
+		"Usage: %s conf_file base_dir ( LOCAL | SLOW | CLEAN )\n",
+		argv[ 0 ]);
 	exit( EX_USAGE );
     }
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
     /* init simta config / defaults */
-    if ( simta_config() != 0 ) {
+    if ( simta_config( argv[ 1 ], argv[ 2 ]) != 0 ) {
 	exit( 1 );
     }
 
-    if ( strcasecmp( argv[ 1 ], "LOCAL" ) == 0 ) {
-	return( q_runner_dir( SIMTA_DIR_LOCAL ));
+    if ( strcasecmp( argv[ 3 ], "LOCAL" ) == 0 ) {
+	return( q_runner_dir( simta_dir_local ));
 
-    } else if ( strcasecmp( argv[ 1 ], "SLOW" ) == 0 ) {
-	return( q_runner_dir( SIMTA_DIR_SLOW ));
+    } else if ( strcasecmp( argv[ 3 ], "SLOW" ) == 0 ) {
+	return( q_runner_dir( simta_dir_slow ));
 
-    } else if ( strcasecmp( argv[ 1 ], "CLEAN" ) == 0 ) {
+    } else if ( strcasecmp( argv[ 3 ], "CLEAN" ) == 0 ) {
 	return( q_cleanup());
 
     } else {
-	fprintf( stderr, "Usage: %s ( LOCAL | SLOW | CLEAN )\n", argv[ 0 ]);
+	fprintf( stderr,
+		"Usage: %s conf_file base_dir ( LOCAL | SLOW | CLEAN )\n",
+		argv[ 0 ]);
 	exit( EX_USAGE );
     }
 }

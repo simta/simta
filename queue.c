@@ -724,10 +724,10 @@ cleanup:
             }
 
 	    /* move message to SLOW if it isn't there already */
-	    if ( strcmp( env.e_dir, SIMTA_DIR_SLOW ) != 0 ) {
+	    if ( strcmp( env.e_dir, simta_dir_slow ) != 0 ) {
 		sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
-		sprintf( dfile_slow, "%s/D%s", SIMTA_DIR_SLOW, env.e_id );
-		sprintf( efile_slow, "%s/E%s", SIMTA_DIR_SLOW, env.e_id );
+		sprintf( dfile_slow, "%s/D%s", simta_dir_slow, env.e_id );
+		sprintf( efile_slow, "%s/E%s", simta_dir_slow, env.e_id );
 
 		if ( link( dfile_fname, dfile_slow ) != 0 ) {
 		    syslog( LOG_ERR, "q_deliver link %s %s: %m", dfile_fname,

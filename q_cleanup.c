@@ -80,11 +80,11 @@ q_cleanup( void )
     struct stat			sb;
     int				result;
 
-    if ( q_clean( SIMTA_DIR_SLOW, &slow ) != 0 ) {
+    if ( q_clean( simta_dir_slow, &slow ) != 0 ) {
 	return( -1 );
     }
 
-    if ( q_clean( SIMTA_DIR_LOCAL, &other ) != 0 ) {
+    if ( q_clean( simta_dir_local, &other ) != 0 ) {
 	return( -1 );
     }
 
@@ -95,7 +95,7 @@ q_cleanup( void )
     /* XXX debug check for NULL? */
     other = NULL;
 
-    if ( q_clean( SIMTA_DIR_FAST, &other ) != 0 ) {
+    if ( q_clean( simta_dir_fast, &other ) != 0 ) {
 	return( -1 );
     }
 
@@ -129,7 +129,7 @@ q_cleanup( void )
     while (( m = slow ) != NULL ) {
 	slow = m->m_next;
 
-	sprintf( fname, "%s/D%s", SIMTA_DIR_SLOW, m->m_id );
+	sprintf( fname, "%s/D%s", simta_dir_slow, m->m_id );
 
 	if ( stat( fname, &sb ) != 0 ) {
 	    fprintf( stderr, "stat %s: ", fname );
@@ -140,7 +140,7 @@ q_cleanup( void )
 	m->m_dfile = sb.st_ino;
 
 	if ( sb.st_nlink > 1 ) {
-	    sprintf( fname, "%s/E%s", SIMTA_DIR_SLOW, m->m_id );
+	    sprintf( fname, "%s/E%s", simta_dir_slow, m->m_id );
 
 	    if (( result = env_info( m, NULL, 0 )) != 0 ) {
 		if ( result < 0 ) {
@@ -171,7 +171,7 @@ q_cleanup( void )
 			return( -1 );
 		    }
 
-		    sprintf( fname, "%s/D%s", SIMTA_DIR_SLOW, m->m_id );
+		    sprintf( fname, "%s/D%s", simta_dir_slow, m->m_id );
 
 		    if ( unlink( fname ) != 0 ) {
 			fprintf( stderr, "q_cleanup unlink %s: ", fname );
@@ -188,7 +188,7 @@ q_cleanup( void )
 			m_delete = *mp;
 			*mp = m_delete->m_next;
 
-			sprintf( fname, "%s/E%s", SIMTA_DIR_SLOW,
+			sprintf( fname, "%s/E%s", simta_dir_slow,
 				m_delete->m_id );
 
 			if ( unlink( fname ) != 0 ) {
@@ -197,7 +197,7 @@ q_cleanup( void )
 			    return( -1 );
 			}
 
-			sprintf( fname, "%s/D%s", SIMTA_DIR_SLOW,
+			sprintf( fname, "%s/D%s", simta_dir_slow,
 				m_delete->m_id );
 
 			if ( unlink( fname ) != 0 ) {
@@ -261,8 +261,8 @@ move_to_slow( struct message **slow_q, struct message **other_q )
 
 		if (( *slow == NULL ) || ( result != 0 )) {
 		    /* move message files to SLOW */
-		    sprintf( d_slow, "%s/D%s", SIMTA_DIR_SLOW, m->m_id );
-		    sprintf( e_slow, "%s/E%s", SIMTA_DIR_SLOW, m->m_id );
+		    sprintf( d_slow, "%s/D%s", simta_dir_slow, m->m_id );
+		    sprintf( e_slow, "%s/E%s", simta_dir_slow, m->m_id );
 
 		    if ( link( d_original, d_slow ) != 0 ) {
 			fprintf( stderr, "move_to_slow link %s %s: ",
@@ -280,7 +280,7 @@ move_to_slow( struct message **slow_q, struct message **other_q )
 
 		    /* insert node */
 		    m->m_next = *slow;
-		    m->m_dir = SIMTA_DIR_SLOW;
+		    m->m_dir = simta_dir_slow;
 		    *slow = m;
 		    slow = &(m->m_next);
 

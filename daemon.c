@@ -184,6 +184,8 @@ main( ac, av )
     extern char		*optarg;
     struct passwd	*simta_pw;
     char		*simta_uname = "simta";
+    char		*config_fname;
+    char		*config_base_dir;
 
     if (( prog = strrchr( av[ 0 ], '/' )) == NULL ) {
 	prog = av[ 0 ];
@@ -196,7 +198,10 @@ main( ac, av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 5;
 
-    while (( c = getopt( ac, av, "b:C:cdM:m:p:rs:V" )) != -1 ) {
+    config_fname = SIMTA_FILE_CONFIG;
+    config_base_dir = SIMTA_BASE_DIR;
+
+    while (( c = getopt( ac, av, "b:C:cdD:f:M:m:p:rs:V" )) != -1 ) {
 	switch ( c ) {
 	case 'b' :		/* listen backlog */
 	    backlog = atoi( optarg );
@@ -212,6 +217,14 @@ main( ac, av )
 
 	case 'd' :		/* simta_debug */
 	    simta_debug++;
+	    break;
+
+	case 'D' :
+	    config_base_dir = optarg;
+	    break;
+
+	case 'f' :
+	    config_fname = optarg;
 	    break;
 
 	case 'M' :
@@ -282,7 +295,7 @@ main( ac, av )
      */
 
     /* init simta config / defaults */
-    if ( simta_config() != 0 ) {
+    if ( simta_config( config_fname, config_base_dir ) != 0 ) {
 	exit( 1 );
     }
 
@@ -364,7 +377,7 @@ main( ac, av )
 	    exit( 1 );
 	}
 
-	exit( q_runner_dir( SIMTA_DIR_SLOW ));
+	exit( q_runner_dir( simta_dir_slow ));
     }
 
     if ( port == 0 ) {
@@ -555,7 +568,7 @@ main( ac, av )
 			exit( 1 );
 		    }
 
-		    exit( q_runner_dir( SIMTA_DIR_LOCAL ));
+		    exit( q_runner_dir( simta_dir_local ));
 
 		case -1 :
 		    syslog( LOG_ERR, "fork: %m" );
@@ -603,7 +616,7 @@ main( ac, av )
 	    }
 	}
 
-	/* check to see if we need to launch q_runner_dir( SIMTA_DIR_SLOW ) */
+	/* check to see if we need to launch q_runner_dir( simta_dir_slow ) */
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "gettimeofday: %m" );
 	    exit( 1 );
@@ -632,7 +645,7 @@ main( ac, av )
 			exit( 1 );
 		    }
 
-		    exit( q_runner_dir( SIMTA_DIR_SLOW ));
+		    exit( q_runner_dir( simta_dir_slow ));
 
 		case -1 :
 		    syslog( LOG_ERR, "fork: %m" );

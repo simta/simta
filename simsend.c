@@ -175,7 +175,7 @@ main( int argc, char *argv[] )
     }
 
     /* init simta config / defaults */
-    if ( simta_config() != 0 ) {
+    if ( simta_config( SIMTA_FILE_CONFIG, SIMTA_BASE_DIR ) != 0 ) {
 	exit( EX_TEMPFAIL );
     }
 
@@ -284,7 +284,7 @@ main( int argc, char *argv[] )
 		}
 
 		/* open Dfile */
-		sprintf( dfile_fname, "%s/D%s", SIMTA_DIR_LOCAL, env->e_id );
+		sprintf( dfile_fname, "%s/D%s", simta_dir_local, env->e_id );
 
 		if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
 			O_EXCL, 0600 ))
@@ -369,7 +369,7 @@ main( int argc, char *argv[] )
 	}
 
 	/* open Dfile */
-	sprintf( dfile_fname, "%s/D%s", SIMTA_DIR_LOCAL, env->e_id );
+	sprintf( dfile_fname, "%s/D%s", simta_dir_local, env->e_id );
 
 	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
 		O_EXCL, 0600 ))
@@ -405,7 +405,7 @@ main( int argc, char *argv[] )
     }
 
     /* store Efile */
-    if ( env_outfile( env, SIMTA_DIR_LOCAL ) != 0 ) {
+    if ( env_outfile( env, simta_dir_local ) != 0 ) {
 	perror( "env_outfile" );
 	goto cleanup;
     }

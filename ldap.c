@@ -36,13 +36,12 @@ LDAP				*ld;
 
 
     int
-ldap_config( void )
+ldap_config( char *fname )
 {
     int			lineno = 0;
     int			fd;
     char		*line;
     SNET		*snet;
-    char		*fname = SIMTA_LDAP_CONF;
     char		*c;
     char		*d;
     size_t		len;

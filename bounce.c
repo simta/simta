@@ -80,7 +80,7 @@ bounce( struct envelope *env, SNET *message )
     sprintf( bounce_env.e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 	    (unsigned long)tv.tv_usec );
 
-    bounce_env.e_dir = SIMTA_DIR_FAST;
+    bounce_env.e_dir = simta_dir_fast;
     bounce_env.e_mail = simta_postmaster;
 
     if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' ) ||
@@ -93,7 +93,7 @@ bounce( struct envelope *env, SNET *message )
 	    if (( r->r_delivered == R_FAILED ) &&
 		    ( strcasecmp( simta_postmaster, r->r_rcpt ) == 0 )) {
 
-		bounce_env.e_dir = SIMTA_DIR_DEAD;
+		bounce_env.e_dir = simta_dir_dead;
 		break;
 	    }
 	}
@@ -201,7 +201,7 @@ bounce( struct envelope *env, SNET *message )
     }
 
     /* if it's not going to the DEAD queue, add it to our work list */
-    if ( bounce_env.e_dir != SIMTA_DIR_DEAD ) {
+    if ( bounce_env.e_dir != simta_dir_dead ) {
 	if (( m = message_create( bounce_env.e_id )) == NULL ) {
 	    return( -1 );
 	}

@@ -23,6 +23,10 @@
 #include "nlist.h"
 #include "simta.h"
 
+#ifdef HAVE_LDAP
+#include "ldap.h"
+#endif /* HAVE_LDAP */
+
 /* global variables */
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
@@ -31,6 +35,10 @@ int			simta_verbose = 0;
 char			*simta_punt_host = NULL;
 char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
+char			*simta_dir_dead = NULL;
+char			*simta_dir_local = NULL;
+char			*simta_dir_slow = NULL;
+char			*simta_dir_fast = NULL;
 char			simta_hostname[ MAXHOSTNAMELEN + 1 ] = "\0";
 
 
@@ -39,6 +47,10 @@ struct nlist		simta_nlist[] = {
     { "masquerade",	NULL,	0 },
 #define	NLIST_PUNT			1
     { "punt",		NULL,	0 },
+#ifdef HAVE_LDAP
+#define	NLIST_LDAP			2
+    { "ldap",		NULL,	0 },
+#endif /* HAVE_LDAP */
     { NULL,		NULL,	0 },
 };
 
@@ -69,10 +81,11 @@ simta_sender( void )
 
 
     int
-simta_config( void )
+simta_config( char *fname, char *base_dir )
 {
     int			result;
     struct host		*host = NULL;
+    char		fname[ MAXPATHLEN ];
 
     /* Set up simta_hostname */
     if ( gethostname( simta_hostname, MAXHOSTNAMELEN ) != 0 ) {
@@ -92,7 +105,7 @@ simta_config( void )
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
 
     /* read config file */
-    if (( result = nlist( simta_nlist, SIMTA_FILE_CONFIG )) < 0 ) {
+    if (( result = nlist( simta_nlist, fname )) < 0 ) {
 	return( -1 );
 
     } else if ( result == 0 ) {
@@ -111,18 +124,53 @@ simta_config( void )
 	    if ( strcasecmp( simta_punt_host, simta_hostname ) == 0 ) {
 		fprintf( stderr,
 			"file %s line %d: punt host can't be localhost",
-			SIMTA_FILE_CONFIG, simta_nlist[ NLIST_PUNT ].n_lineno );
+			fname, simta_nlist[ NLIST_PUNT ].n_lineno );
 		return( -1 );
 	    }
 	}
 
+#ifdef HAVE_LDAP
+	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
+	    if ( ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) < 0 ) {
+		return( -1 );
+	    }
+	}
+#endif /* HAVE_LDAP */
+
     } else {
 	/* no config file found */
 	if ( simta_verbose != 0 ) {
-	    printf( "simta_config file not found: %s\n", SIMTA_FILE_CONFIG );
+	    printf( "simta_config file not found: %s\n", fname );
 	    syslog( LOG_INFO, "simta_config file not found: %s",
-		    SIMTA_FILE_CONFIG );
+		    fname );
 	}
+    }
+
+    /* XXX check base_dir before using it? */
+    /* set up data dir pathnames */
+
+    sprintf( fname, "%s/%s", base_dir, "fast" );
+    if (( simta_dir_fast = strdup( fname )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
+    }
+
+    sprintf( fname, "%s/%s", base_dir, "slow" );
+    if (( simta_dir_slow = strdup( fname )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
+    }
+
+    sprintf( fname, "%s/%s", base_dir, "dead" );
+    if (( simta_dir_dead = strdup( fname )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
+    }
+
+    sprintf( fname, "%s/%s", base_dir, "local" );
+    if (( simta_dir_local = strdup( fname )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
     }
 
     /* set up simta_hosts stab */

@@ -66,7 +66,7 @@ new_host_env( struct stab_entry **host_stab, char *domain, char *e_mail,
     }
 
     /* fill in env */
-    env_p->e_dir = SIMTA_DIR_FAST;
+    env_p->e_dir = simta_dir_fast;
     env_p->e_mail = e_mail;
     /* XXX - is this right? */
     strcpy( env_p->e_expanded, domain );
@@ -78,8 +78,8 @@ new_host_env( struct stab_entry **host_stab, char *domain, char *e_mail,
     sprintf( env_p->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 		(unsigned long)tv.tv_usec );
 
-    /* Dfile: link Dold_id SIMTA_DIR_FAST/Dnew_id */
-    sprintf( d_fast, "%s/D%s", SIMTA_DIR_FAST, env_p->e_id );
+    /* Dfile: link Dold_id simta_dir_fast/Dnew_id */
+    sprintf( d_fast, "%s/D%s", simta_dir_fast, env_p->e_id );
 
     if ( link( d_original, d_fast ) != 0 ) {
 	syslog( LOG_ERR, "link %s %s: %m", d_original, d_fast );
@@ -241,8 +241,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	env_p = i->st_data;
 
-	/* Efile: write SIMTA_DIR_FAST/Enew_id for all recipients at host */
-	if ( env_outfile( env_p, SIMTA_DIR_FAST ) != 0 ) {
+	/* Efile: write simta_dir_fast/Enew_id for all recipients at host */
+	if ( env_outfile( env_p, simta_dir_fast ) != 0 ) {
 	    return( -1 );
 	}
 
@@ -252,7 +252,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
 
 	/* create all messages we are expanding in the FAST queue */
-	m->m_dir = SIMTA_DIR_FAST;
+	m->m_dir = simta_dir_fast;
 
 	/* env has corrected etime after disk access */
 	m->m_etime.tv_sec = env_p->e_etime.tv_sec;
@@ -286,7 +286,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     }
 
     /* truncate unexpanded Efile so no other q_runner gets it */
-    if ( unexpanded_env->e_dir != SIMTA_DIR_FAST ) {
+    if ( unexpanded_env->e_dir != simta_dir_fast ) {
 	if ( truncate( e_original, (off_t)0 ) != 0 ) {
 	    syslog( LOG_ERR, "truncate %s: %m", e_original );
 	    return( -1 );
