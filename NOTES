@@ -125,3 +125,6 @@ Existing A's:
 Exiting cname:
     /* For sending mail on plates to simtatest4 */
     simtatest4.rsug.itd.umich.edu	->	plates.rsug.itd.umich.edu
+
+Truncated record ( MX ):
+    simtatest5.rsug.itd.umich.edu
