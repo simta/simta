@@ -16,7 +16,6 @@
 #define SMTP_EOF         	"."
 
 #define	SMTP_ERR_SYSCALL	-1
-#define	SMTP_ERR_SYNTAX		1
 #define	SMTP_ERR_NO_BOUNCE	1
 #define	SMTP_ERR_BOUNCE_Q	2
 

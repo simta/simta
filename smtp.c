@@ -474,8 +474,14 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 		return( SMTP_ERR_SYSCALL );
 	    }
 
-	    syslog( LOG_ERR, "snet_writef: %m" );
-	    return( SMTP_ERR_SYSCALL );
+	    syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_NO_BOUNCE );
 	}
 
 #ifdef DEBUG
@@ -489,8 +495,14 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 		return( SMTP_ERR_SYSCALL );
 	    }
 
-	    syslog( LOG_ERR, "snet_writef: %m" );
-	    return( SMTP_ERR_SYSCALL );
+	    syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_NO_BOUNCE );
 	}
 
 #ifdef DEBUG
@@ -498,31 +510,61 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 #endif /* DEBUG */
     }
 
+    /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_ERR, "snet_getline_multi: %m" );
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
-	return( SMTP_ERR_SYNTAX );
+	syslog( LOG_NOTICE, "smtp_send %s: bad banner: %s", hostname, line );
+
+	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     /* RCPT TO: */
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
-	    syslog( LOG_ERR, "snet_writef: %m" );
-	    return( SMTP_ERR_SYSCALL );
+	    if ( errno != EIO ) {
+		syslog( LOG_ERR, "snet_writef: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_NO_BOUNCE );
 	}
 
 #ifdef DEBUG
     printf( "--> RCPT TO: %s\n", r->r_rcpt );
 #endif /* DEBUG */
 
-	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_NOTICE, "host %s: no banner", env->e_expanded );
-	    return( SMTP_ERR_SYNTAX );
-	} 
+	/* read reply banner */
+	if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_NO_BOUNCE );
+	}
 
 	if ( logger != NULL ) {
 	    (*logger)( line );
@@ -549,7 +591,13 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 	} else {
 	    syslog( LOG_NOTICE, "host %s: bad banner: %s", env->e_expanded,
 		    line );
-	    return( SMTP_ERR_SYNTAX );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_NO_BOUNCE );
 	}
 
 	if ( r->r_delivered == R_FAILED ) {
@@ -565,9 +613,16 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 	}
 
 	while ( *(line + 3) == '-' ) {
+	    /* read reply banner */
 	    if (( line = snet_getline( snet, NULL )) == NULL ) {
-		syslog( LOG_NOTICE, "host %s: no banner", env->e_expanded );
-		return( SMTP_ERR_SYNTAX );
+		syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_NO_BOUNCE );
 	    }
 
 	    if ( r->r_delivered == R_FAILED ) {
@@ -588,24 +643,46 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 	return( 0 );
     }
 
-    /* DATA */
     if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
-	syslog( LOG_ERR, "snet_writef: %m" );
-	return( SMTP_ERR_SYSCALL );
+	if ( errno != EIO ) {
+	    syslog( LOG_ERR, "snet_writef: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
 #ifdef DEBUG
     printf( "--> DATA\n" );
 #endif /* DEBUG */
 
+    /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_ERR, "snet_getline_multi: %m" );
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     if ( smtp_eval( SMTP_DATAOK, line ) != 0 ) {
-	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
-	return( SMTP_ERR_SYNTAX );
+	syslog( LOG_NOTICE, "smtp_send %s: bad banner: %s", hostname, line );
+
+	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     /* send message */
@@ -613,8 +690,19 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 	if ( *line == '.' ) {
 	    /* don't send EOF */
 	    if ( snet_writef( snet, ".%s\r\n", line ) < 0 ) {
-		syslog( LOG_ERR, "snet_writef: %m" );
-		return( SMTP_ERR_SYSCALL );
+		if ( errno != EIO ) {
+		    syslog( LOG_ERR, "snet_writef: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_NO_BOUNCE );
 	    }
 
 #ifdef DEBUG
@@ -623,8 +711,19 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 
 	} else {
 	    if ( snet_writef( snet, "%s\r\n", line ) < 0 ) {
-		syslog( LOG_ERR, "snet_writef: %m" );
-		return( SMTP_ERR_SYSCALL );
+		if ( errno != EIO ) {
+		    syslog( LOG_ERR, "snet_writef: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_NO_BOUNCE );
 	    }
 
 #ifdef DEBUG
@@ -635,22 +734,47 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
     }
 
     if ( snet_writef( snet, "%s\r\n", SMTP_EOF ) < 0 ) {
-	syslog( LOG_ERR, "snet_writef: %m" );
-	return( SMTP_ERR_SYSCALL );
+	if ( errno != EIO ) {
+	    syslog( LOG_ERR, "snet_writef: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
 #ifdef DEBUG
     printf( "--> .\n" );
 #endif /* DEBUG */
 
+    /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_ERR, "snet_getline_multi: %m" );
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_send %s: unexpected EOF", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
-	return( SMTP_ERR_SYNTAX );
+	/* XXX check for message failure */
+
+	syslog( LOG_NOTICE, "smtp_send %s: bad banner: %s", hostname, line );
+
+	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     return( 0 );

@@ -713,7 +713,7 @@ q_deliver( struct host_q *hq )
                         SMTP_ERR_SYSCALL ) {
                     return( -1 );
 
-                } else if ( result == SMTP_ERR_SYNTAX ) {
+                } else if ( result == SMTP_ERR_NO_BOUNCE ) {
                     break;
                 }
             }
@@ -764,7 +764,7 @@ q_deliver( struct host_q *hq )
 		    logger )) == SMTP_ERR_SYSCALL ) {
                 return( -1 );
 
-            } else if ( result == SMTP_ERR_SYNTAX ) {
+            } else if ( result == SMTP_ERR_NO_BOUNCE ) {
                 /* message not sent */
 		/* XXX message rejection or down server? */
 
