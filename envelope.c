@@ -736,7 +736,7 @@ env_unlink( struct envelope *env )
 	syslog( LOG_ERR, "env_unlink unlink %s: %m", simta_dname );
     }
 
-    syslog( LOG_ERR, "env_unlink %s: unlinked", env->e_id );
+    syslog( LOG_DEBUG, "env_unlink %s %s: unlinked", env->e_dir, env->e_id );
 
     return( 0 );
 }
@@ -773,6 +773,8 @@ env_slow( struct envelope *env )
 	    return( -1 );
 	}
     }
+
+    syslog( LOG_DEBUG, "env_slow %s %s: moved", env->e_dir, env->e_id );
 
     return( 0 );
 }

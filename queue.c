@@ -933,6 +933,8 @@ oldfile_error:
 	if ( env_bounce != NULL ) {
 	    if ( env_bounce->e_message != NULL ) {
 		message_queue( simta_null_q, env_bounce->e_message );
+		syslog( LOG_INFO, "q_deliver %s: bounce %s queued",
+			env_deliver->e_id, env_bounce->e_id );
 	    }
 	    env_bounce = NULL;
 	}
