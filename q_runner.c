@@ -161,7 +161,7 @@ main( int argc, char *argv[] )
 
 	    } else if ( result > 1 ) {
 		/* syntax error */
-		/* XXX env_free( env ); */
+		env_free( env );
 		/* XXX env_infile should syslog for more granularity */
 		syslog( LOG_WARNING, "env_infile %s: syntax error", fname );
 		continue;
@@ -415,7 +415,7 @@ deliver_remote( struct host_q *hq )
 		return( 1 );
 
 	    } else if ( r == SMTP_ERR_MAIL_LOOP ) {
-		/* XXX deliver locally */
+		/* deliver locally */
 		if ( snet_close( message ) != 0 ) {
 		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );

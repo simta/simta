@@ -51,6 +51,13 @@ env_create( char *id )
 
 
     void
+env_create ( struct envelope *env )
+{
+    free( env );
+}
+
+
+    void
 env_reset( struct envelope *env )
 {
     struct recipient	*r, *rnext;
