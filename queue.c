@@ -269,6 +269,7 @@ q_runner( struct host_q **host_q )
     struct host_q		*deliver_q;
     struct host_q		**dq;
     struct envelope		*env_bounce;
+    struct envelope		*env_punt;
     struct envelope		*unexpanded;
     int				result;
     int				dfile_fd;
@@ -496,6 +497,19 @@ q_runner_done:
 	}
     }
 
+    /* move any unpuntable message to the slow queue */
+    if ( simta_punt_q != NULL ) {
+	while (( env_punt = simta_punt_q->hq_env_head ) != NULL ) {
+	    simta_punt_q->hq_env_head = env_punt->e_hq_next;
+	    simta_punt_q->hq_entries--;
+	    if ( *(env_punt->e_mail) != '\0' ) {
+		simta_punt_q->hq_from--;
+	    }
+	    env_slow( env_punt );
+	    env_free( env_punt );
+	}
+    }
+
     if ( simta_fast_files != 0 ) {
 	syslog( LOG_WARNING, "q_runner exiting with %d fast_files",
 		simta_fast_files );
@@ -661,10 +675,18 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    d.d_snet_dfile = snet_dfile;
 
 	    deliver_remote( &d, deliver_q );
+
+	    /* return if smtp transaction to the punt host failed */
+	    if ( deliver_q->hq_status == HOST_PUNT_DOWN ) {
+		snet_close( snet_dfile );
+		if ( snet_lock != NULL ) {
+		    snet_close( snet_lock );
+		}
+		return;
+	    }
 	    break;
 
         case HOST_DOWN:
-        case HOST_PUNT_DOWN:
 	    break;
 
         case HOST_BOUNCE:
