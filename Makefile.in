@@ -45,7 +45,7 @@ CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
 INCPATH=	-Idenser -Ilibsnet @CPPFLAGS@
-DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS @DEFS@
+DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -g @DEFS@ 
 LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@
 TAGSFILE=	tags
