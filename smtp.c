@@ -85,11 +85,12 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     if ( simta_debug ) fprintf( stderr, "smtp_connect: get_mx success\n" );
 
 
-#ifdef DEBUG
     if ( result->r_answer[ 0 ].rr_ip == NULL ) {
+#ifdef DEBUG
 	printf( "dnsr is broke\n" );
-    }
 #endif /* DEBUG */
+	return( SMTP_ERR_SYSCALL );
+    }
 
     if ( result->r_answer[ 0 ].rr_type == DNSR_TYPE_MX ) {
 	memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ 0 ].rr_ip->ip_ip ),
