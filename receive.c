@@ -282,10 +282,18 @@ f_mail( snet, env, ac, av )
 	}
 
 	if (( result = get_mx( dnsr, domain )) == NULL ) {
-	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing\r\n",
-		451 );
-	    return( -1 );
+	    if ( simta_debug ) fprintf( stderr, "get_mx: %s\n",
+		dnsr_err2string( dnsr_errno( dnsr )));
+	    if ((( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )) ||
+		    ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
+		snet_writef( snet, "%d %s: unknown host\r\n", 550 );
+		return( 1 );
+	    } else {
+		snet_writef( snet,
+		    "%d Requested action aborted: local error "
+		    "in processing\r\n", 451 );
+		return( -1 );
+	    }
 	}
 
 	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
@@ -405,10 +413,18 @@ f_rcpt( snet, env, ac, av )
 	}
 
 	if (( result = get_mx( dnsr, domain )) == NULL ) {
-	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing\r\n",
-		451 );
-	    return( -1 );
+	    if ( simta_debug ) fprintf( stderr, "get_mx: %s: %s\n",
+		domain, dnsr_err2string( dnsr_errno( dnsr )));
+	    if ((( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )) ||
+		    ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
+		snet_writef( snet, "%d %s: unknown host\r\n", 550, domain );
+		return( 1 );
+	    } else {
+		snet_writef( snet,
+		    "%d Requested action aborted: local error "
+		    "in processing\r\n", 451 );
+		return( -1 );
+	    }
 	}
 
 	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
