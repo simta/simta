@@ -34,6 +34,7 @@
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
 int			simta_receive_wait = 600;
+int			simta_ignore_reverse = 0;
 int			simta_message_count = 0;
 int			simta_smtp_outbound_attempts = 0;
 int			simta_smtp_outbound_delivered = 0;

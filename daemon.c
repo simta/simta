@@ -228,7 +228,7 @@ main( ac, av )
     config_fname = SIMTA_FILE_CONFIG;
     config_base_dir = SIMTA_BASE_DIR;
 
-    while (( c = getopt( ac, av, "b:C:cdD:f:M:m:p:rRs:V" )) != -1 ) {
+    while (( c = getopt( ac, av, "b:C:cdD:f:IM:m:p:rRs:V" )) != -1 ) {
 	switch ( c ) {
 	case 'b' :		/* listen backlog */
 	    backlog = atoi( optarg );
@@ -252,6 +252,10 @@ main( ac, av )
 
 	case 'f' :
 	    config_fname = optarg;
+	    break;
+
+	case 'I' :
+	    simta_ignore_reverse = 1;
 	    break;
 
 	case 'M' :

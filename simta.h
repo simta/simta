@@ -28,6 +28,7 @@
 
 
 /* global variables */
+extern int				simta_ignore_reverse;
 extern int				simta_receive_wait;
 extern int				simta_message_count;
 extern int				simta_smtp_outbound_attempts;

@@ -1106,9 +1106,10 @@ smtp_receive( fd, sin )
 
     if ( maxconnections != 0 ) {
 	if ( connections >= maxconnections ) {
-	    syslog( LOG_INFO, "receive connection refused: server busy" );
-	    if ( snet_writef( snet, "%d Service busy, closing transmission "
-		    "channel\r\n", 421 ) < 0 ) {
+	    syslog( LOG_INFO,
+		    "receive connection refused: max connections exceeded" );
+	    if ( snet_writef( snet, "421 Maximum connections exceeded, "
+		    "closing transmission channel\r\n" ) < 0 ) {
 		syslog( LOG_ERR, "receive snet_writef: %m" );
 	    }
 	    goto closeconnection;
@@ -1132,10 +1133,17 @@ smtp_receive( fd, sin )
 		inet_ntoa( sin->sin_addr ));
 	    goto syserror;
 	} else {
-	    syslog( LOG_INFO, "receive %s: connection rejected:"
-		"invalid reverse", inet_ntoa( sin->sin_addr ));
-	    snet_writef( snet, "421 Access Denied\r\n" );
-	    goto closeconnection;
+	    if ( simta_ignore_reverse == 0 ) {
+		syslog( LOG_INFO, "receive %s: connection rejected: "
+		    "invalid reverse", inet_ntoa( sin->sin_addr ));
+		snet_writef( snet,
+			"421 Access Denied - Invalid reverse address\r\n" );
+		goto closeconnection;
+
+	    } else {
+		syslog( LOG_INFO, "receive %s: invalid reverse",
+			inet_ntoa( sin->sin_addr ));
+	    }
 	}
     }
 
@@ -1226,8 +1234,8 @@ syserror:
     switch ( value ) {
     default:
     case RECEIVE_SYSERROR:
-	if ( snet_writef( snet, "%d %s Service not available, closing "
-		"transmission channel\r\n", 421, simta_hostname ) < 0 ) {
+	if ( snet_writef( snet, "421 %s Service not available, local error, "
+		"closing transmission channel\r\n", simta_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "receive snet_writef: %m" );
 	}
 	break;
