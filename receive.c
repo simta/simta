@@ -1278,6 +1278,7 @@ int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 smtp_receive( int fd, struct sockaddr_in *sin )
 {
     SNET				*snet;
+    char				*rbl_err_txt;
     struct envelope			*env = NULL;
     ACAV				*acav;
     int					ac;
@@ -1338,6 +1339,25 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		syslog( LOG_NOTICE, "receive %s: invalid reverse",
 			inet_ntoa( sin->sin_addr ));
 	    }
+	}
+    }
+
+    if ( simta_rbl_domain != NULL ) {
+	switch( check_rbl( &(sin->sin_addr), &rbl_err_txt )) {
+	case 0:
+	    syslog( LOG_NOTICE,
+		"receive connection blocked by %s: %s",
+		simta_rbl_domain, rbl_err_txt );
+	    snet_writef( snet, "421 Access Denied: %s\r\n",
+		rbl_err_txt );
+	    free( rbl_err_txt );
+	    goto closeconnection;
+
+	case 1:
+	    break;
+
+	default:
+	    goto syserror;
 	}
     }
 

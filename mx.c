@@ -38,8 +38,6 @@ get_a( char *hostname )
 {
     struct dnsr_result	*result;
 
-    if ( simta_debug ) fprintf( stderr, "get_a: %s...", hostname );
-
     if ( simta_dnsr == NULL ) {
         if (( simta_dnsr = dnsr_new( )) == NULL ) {
             syslog( LOG_ERR, "get_a: dnsr_new: %m" );
@@ -56,6 +54,34 @@ get_a( char *hostname )
     }
     if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "get_a: dnsr_result: %s: %s", hostname, 
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	return( NULL );
+    }
+
+    return( result );
+}
+
+    struct dnsr_result *
+get_txt( char *hostname )
+{
+    struct dnsr_result	*result;
+
+    if ( simta_dnsr == NULL ) {
+        if (( simta_dnsr = dnsr_new( )) == NULL ) {
+            syslog( LOG_ERR, "get_a: dnsr_new: %m" );
+	    return( NULL );
+	}
+    }
+
+    /* Check for TXT */
+    if (( dnsr_query( simta_dnsr, DNSR_TYPE_TXT, DNSR_CLASS_IN,
+	    hostname )) < 0 ) {
+	syslog( LOG_ERR, "get_txt: dnsr_query: %s: %s", hostname,
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	return( NULL );
+    }
+    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
+	syslog( LOG_ERR, "get_txt: dnsr_result: %s: %s", hostname, 
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
@@ -187,7 +213,7 @@ check_reverse( char *dn, struct in_addr *in )
 	}
     }
 
-    if (( temp = dnsr_ntoptr( simta_dnsr, in )) == NULL ) {
+    if (( temp = dnsr_ntoptr( simta_dnsr, in, NULL )) == NULL ) {
         syslog( LOG_ERR, "check_reverse: dnsr_ntoptr: %s",
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( -1 );
@@ -223,7 +249,6 @@ check_reverse( char *dn, struct in_addr *in )
 		    dnsr_err2string( dnsr_errno( simta_dnsr )));
 		goto error;
 	    }
-
 
 	    /* Verify A record matches IP */
 	    for ( j = 0; j < result_a->r_ancount; j++ ) {
@@ -370,5 +395,111 @@ add_expansion( struct host *host, int type )
     }
 
     syslog( LOG_DEBUG, "add_expansion: %s: added %d", host->h_name, type );
+    return( 0 );
+}
+
+/* The simplest way to get started using the ORDB to protect your mail relay
+ * against theft of service by spammers, is to arrange for it to make a DNS
+ * query agains relays.ordb.org whenever you receive an incoming mail message
+ * from a host whose relaying status you do not know.
+ * 
+ * The theory of operation is simple. Given a host address in its
+ * dotted-quad form, reverse the octets and check for the existence of an ``A
+ * RR'' at that node under the relays.ordb.org node. So if you get an SMTP
+ * session from [192.89.123.5] you would check for the existence of:
+ * 5.123.89.192.relays.ordb.org. IN A 127.0.0.2
+ * 
+ * We chose to use an ``A RR'' because that's what most MTA's can use to
+ * filter incoming connections. The choice of [127.0.0.2] as the target
+ * address was arbitary but will not change. As it happens, we supply a bogus
+ * ORDB entry for [127.0.0.2] so that mail transport developers have
+ * something to test against.
+ * 
+ * If an ``A RR'' is found by this mechanism, then there will also be a
+ * ``TXT RR'' at the same DNS node. The text of this record will be suitable
+ * for use as a reason text for a bounced mail notification. (Modified from
+ * http://www.mail-abuse.org/rbl/usage.html)
+ * 
+ * Please note: Someone, completely unrelated to ORDB.org, has created a
+ * zone called relays.ordb.com, in which everything resolves. That is,
+ * anything from hamster.relays.ordb.com to 1.0.0.127.relays.ordb.com
+ * resolves. If you have accidently set up your system to use relays.ordb.com
+ * instead of relays.ordb.org, your system will instantly reject any incoming
+ * SMTP-connection, as it will assume that all mailservers are open relays.
+ * If you are experiencing a problem like the one described, please check
+ * your configuration.
+ */
+    int 
+check_rbl( struct in_addr *in, char **txt )
+{
+    int			i;
+    char		*reverse_ip;
+    struct dnsr_result	*result;
+
+    if ( simta_rbl_domain == NULL ) {
+	syslog( LOG_ERR, "check_rbl: simta_rbl_domain not set" );
+	return( -1 );
+    }
+    if (( reverse_ip = dnsr_ntoptr( simta_dnsr, in,
+	    simta_rbl_domain )) == NULL ) {
+	syslog( LOG_ERR, "check_rbl: dnsr_ntoptr failed" );
+	return( -1 );
+    }
+    if ( simta_debug ) printf( "check_rbl for %s...", reverse_ip );
+
+    if (( result = get_a( reverse_ip )) == NULL ) {
+	free( reverse_ip );
+	return( -1 );
+    }
+
+    if ( result->r_ancount <= 0 ) {
+	dnsr_free_result( result );
+	if ( simta_debug ) printf( "okay\n" );
+	free( reverse_ip );
+	return( 1 );
+    }
+    dnsr_free_result( result );
+
+    if (( result = get_txt( reverse_ip )) == NULL ) {
+	free( reverse_ip );
+	return( -1 );
+    }
+    free( reverse_ip );
+
+    if ( result->r_ancount <= 0 ) {
+	if (( *txt = strdup( "no block message\n" )) == NULL ) {
+	    syslog( LOG_ERR, "check_rbl: strdup: %m" );
+	    dnsr_free_result( result );
+	    return( -1 );
+	}
+    } else {
+	for ( i = 0; i < result->r_ancount; i++ ) {
+	    switch( result->r_answer[ i ].rr_type ) {
+	    case DNSR_TYPE_TXT:
+		if (( *txt = strdup( result->r_answer[ i ].rr_txt.t_txt ))
+			== NULL ) {
+		    syslog( LOG_ERR, "check_rbl: strdup: %m" );
+		    dnsr_free_result( result );
+		    return( -1 );
+		}
+		goto done;
+
+	    default:
+		syslog( LOG_DEBUG, "check_rbl: %s: uninteresting dnsr type: %d",
+		    result->r_answer[ i ].rr_name, 
+		    result->r_answer[ i ].rr_type );
+		break;
+	    }
+	}
+	if (( *txt = strdup( "no txt record\n" )) == NULL ) {
+	    syslog( LOG_ERR, "check_rbl: strdup: %m" );
+	    dnsr_free_result( result );
+	    return( -1 );
+	}
+    }
+done:
+    if ( simta_debug ) printf( "blocked: %s\n", *txt );
+    dnsr_free_result( result );
+
     return( 0 );
 }

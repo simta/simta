@@ -80,6 +80,7 @@ char			*simta_mail_filter = NULL;
 char			*simta_punt_host = NULL;
 char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
+char			*simta_rbl_domain = NULL;
 char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
 char			*simta_dir_slow = NULL;
@@ -328,7 +329,8 @@ simta_read_config( char *fname )
 		    fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RECEIVE_WAIT %d\n", simta_receive_wait );
+	    if ( simta_debug ) printf( "RECEIVE_WAIT %d\n",
+		simta_receive_wait );
 
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -342,7 +344,8 @@ simta_read_config( char *fname )
 		    "%s: line %d: BOUNCE_LINES less than 0", fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "BOUNCE_LINES: %d\n", simta_max_bounce_lines );
+	    if ( simta_debug ) printf( "BOUNCE_LINES: %d\n",
+		simta_max_bounce_lines );
 
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -356,7 +359,8 @@ simta_read_config( char *fname )
 		    "%s: line %d: BOUNCE_SECONDS less than 0", fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "BOUNCE_SECONDS: %d\n", simta_bounce_seconds );
+	    if ( simta_debug ) printf( "BOUNCE_SECONDS: %d\n",
+		simta_bounce_seconds );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVED_HEADERS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -384,7 +388,21 @@ simta_read_config( char *fname )
 		perror( "strdup" );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "CONTENT_FILTER: %s\n", simta_mail_filter );
+	    if ( simta_debug ) printf( "CONTENT_FILTER: %s\n",
+		simta_mail_filter );
+
+	} else if ( strcasecmp( av[ 0 ], "RBL_DOMAIN" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if (( simta_rbl_domain = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RBL_DOMAIN: %s\n",
+		simta_rbl_domain );
 
 	} else if ( strcasecmp( av[ 0 ], "DNS_CONFIG_OFF" ) == 0 ) {
 	    if ( ac != 1 ) {

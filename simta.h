@@ -58,6 +58,7 @@ extern char				*simta_mail_filter;
 extern char				*simta_base_dir;
 extern char				simta_hostname[];
 extern char				*simta_punt_host;
+extern char				*simta_rbl_domain;
 extern struct host_q			*simta_null_q;
 extern struct stab_entry		*simta_hosts;
 extern struct host			*simta_default_host;
