@@ -677,6 +677,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 parse_addr( struct envelope *env, struct line **start_line, char **start,
 	int mode )
 {
+    char				*addr;
+    int					addr_len;
     char				*next_c;
     char				*r;
     char				*w;
@@ -887,9 +889,44 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     }
 
     if ( env != NULL ) {
-	/* XXX env_recipient( env, local + @ + domain ); */
-	fprintf( stderr, "XXX working on option -t\n" );
-	return( 1 );
+	if (( local.t_type != TOKEN_DOT_ATOM ) &&
+		( domain.t_type != TOKEN_DOT_ATOM )) {
+	    fprintf( stderr, "unsupported text in email address\n" );
+	}
+
+	addr_len = local.t_end - local.t_start + 1;
+	addr_len += domain.t_end - domain.t_start + 1;
+	addr_len += 2;
+
+	if (( addr = (char*)malloc( addr_len )) == NULL ) {
+	    perror( "malloc" );
+	    return( -1 );
+	}
+
+	w = addr;
+	r = local.t_start;
+
+	for ( r = local.t_start; r != local.t_end + 1; r++ ) {
+	    *w = *r;
+	    w++;
+	}
+
+	*w = '@';
+	w++;
+
+	for ( r = domain.t_start; r != domain.t_end + 1; r++ ) {
+	    *w = *r;
+	    w++;
+	}
+
+	*w = '\0';
+
+	if ( env_recipient( env, addr ) != 0 ) {
+	    perror( "malloc" );
+	    return( -1 );
+	}
+
+	free( addr );
     }
 
     return( 0 );
