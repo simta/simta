@@ -21,9 +21,10 @@
 #include "receive.h"
 #include "simta.h"
 
-#define	TOKEN_UNDEFINED		0;
-#define	TOKEN_QS		1;
-#define	TOKEN_DA		2;
+#define	TOKEN_UNDEFINED		0
+#define	TOKEN_QUOTED_STRING	1
+#define	TOKEN_DOT_ATOM		2
+#define	TOKEN_DOMAIN_LITERAL	3
 
 
 struct line_token {
@@ -35,14 +36,14 @@ struct line_token {
 };
 
 
-int	is_dot_atom_text ___P(( int ));
 int	skip_cfws ___P(( struct line **, char ** ));
-int	header_from_correct ___P(( struct line_file * ));
-int	header_from ___P(( struct header * ));
+int	is_dot_atom_text ___P(( int ));
+int	line_token_da ___P(( struct line_token *, struct line *, char * ));
+int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
+int	line_token_dl ___P(( struct line_token *, struct line *, char * ));
 int	email_addr ___P(( struct line **, char ** ));
 int	header_mbox_correct ___P(( struct line *, char * ));
-int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
-int	line_token_da ___P(( struct line_token *, struct line *, char * ));
+int	header_from_correct ___P(( struct line_file * ));
 
 
 struct header simta_headers[] = {
@@ -619,14 +620,10 @@ email_addr( struct line **start_line, char **start )
 	return( 1 );
 
     } else if ( *next_c == '[' ) {
-	/* XXX finish
-	if ( line_token_dl( &domain, &next_l, &next_c ) != 0 ) {
+	if ( line_token_dl( &domain, next_l, next_c ) != 0 ) {
 	    fprintf( stderr, "Header From: unmatched [\n" );
 	    return( 1 );
 	}
-	*/
-	fprintf( stderr, "XXX Header From: not here\n" );
-	return( 1 );
 
     } else {
 	if ( line_token_da( &domain, next_l, next_c ) != 0 ) {
@@ -906,7 +903,7 @@ line_token_qs( struct line_token *token, struct line *l, char *start )
 
     token->t_start = start;
     token->t_start_line = l;
-    token->t_type = TOKEN_QS;
+    token->t_type = TOKEN_QUOTED_STRING;
 
     for ( ; ; ) {
 	start++;
@@ -948,8 +945,60 @@ line_token_qs( struct line_token *token, struct line *l, char *start )
 
 	}
     }
+}
 
-    return( 0 );
+
+    int
+line_token_dl( struct line_token *token, struct line *l, char *start )
+{
+    if ( *start != '[' ) {
+	return( 1 );
+    }
+
+    token->t_start = start;
+    token->t_start_line = l;
+    token->t_type = TOKEN_DOMAIN_LITERAL;
+
+    for ( ; ; ) {
+	start++;
+
+	switch( *start ) {
+
+	case ']':
+	    /* end of domain literal */
+	    token->t_end = start;
+	    token->t_end_line = l;
+	    return( 0 );
+
+	case '\\':
+	    start++;
+
+	    if ( *start != '\0' ) {
+		/* XXX should a trailing '\' be illegal? */
+	    	break;
+	    }
+
+	case '\0':
+	    /* end of line.  if next line starts with WSP, continue */
+	    l = l->line_next;
+
+	    if (( l != NULL ) &&
+		    ((( *(l->line_data)) == ' ' ) ||
+		    (( *(l->line_data)) == '\t' ))) {
+		start = l->line_data;
+		break;
+
+	    } else {
+		/* End of header, no matching ']' */
+		return( 1 );
+	    }
+
+	default:
+	    /* everything else */
+	    break;
+
+	}
+    }
 }
 
 
@@ -1000,7 +1049,7 @@ line_token_da( struct line_token *token, struct line *l, char *start )
     token->t_start = start;
     token->t_start_line = l;
     token->t_end_line = l;
-    token->t_type = TOKEN_DA;
+    token->t_type = TOKEN_DOT_ATOM;
 
     if ( is_dot_atom_text( *start ) == 0 ) {
 	return( 1 );
