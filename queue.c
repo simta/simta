@@ -1096,11 +1096,15 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	d->d_cur_dnsr_result = 0;
 
 	switch ( hq->hq_status ) {
-
 	case HOST_DOWN:
-	    if ((( d->d_dnsr_result = get_mx( hq->hq_hostname )) != NULL ) &&
-		    ( d->d_dnsr_result->r_ancount != 0 )) {
+	    if (( d->d_dnsr_result = get_mx( hq->hq_hostname )) == NULL ) {
+		hq->hq_no_punt = 1;
+		syslog( LOG_ERR, "next_dnsr_host: get_mx %s failed",
+			hq->hq_hostname );
+		return( 1 );
+	    }
 
+	    if ( d->d_dnsr_result->r_ancount != 0 ) {
 		/* check remote host's mx entry for our local hostname and
 		 * loew_pref_mx_domain if configured.
 		 * If we find one, we never punt mail destined for this host,
