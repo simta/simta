@@ -120,7 +120,7 @@ bounce_stdout( struct envelope *bounce_env )
 	return;
     }
 
-    printf( "***   Bounce Message   ***\n" );
+    printf( "***   Bounce Message %s  ***\n", bounce_env->e_id );
 
     /* dfile message headers */
     printf(  "From: mailer-daemon@%s\n", simta_hostname );

@@ -151,7 +151,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	/* this address has no parent, it is a "root" address because
 	 * it's a rcpt.
 	 */
-	exp.exp_addr_parent = NULL;
+
+#ifdef HAVE_LDAP
+	exp.exp_parent = NULL;
+#endif /* HAVE_LDAP */
 
 	if ( add_address( &exp, r->r_rcpt, base_error_env, ADDRESS_TYPE_EMAIL )
 		!= 0 ) {
@@ -174,16 +177,21 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    }
 
 	    e_addr = (struct exp_addr*)i->st_data;
-	    exp.exp_addr_parent = e_addr;
+
+#ifdef HAVE_LDAP
+	    exp.exp_parent = e_addr;
+#endif /* HAVE_LDAP */
 
 	    switch ( address_expand( &exp, e_addr )) {
 	    case ADDRESS_EXCLUDE:
+		e_addr->e_addr_status =
+			( e_addr->e_addr_status & ( !STATUS_TERMINAL ));
 		/* the address is not a terminal local address */
-		free( i->st_data );
-		i->st_data = NULL;
 		break;
 
 	    case ADDRESS_FINAL:
+		e_addr->e_addr_status =
+			( e_addr->e_addr_status | STATUS_TERMINAL );
 		/* the address is a terminal local address */
 		break;
 
@@ -198,7 +206,9 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
     /* Create one expanded envelope for every host we expanded address for */
     for ( i = exp.exp_addr_list; i != NULL; i = i->st_next ) {
-	if (( e_addr = (struct exp_addr*)i->st_data ) == NULL ) {
+	e_addr = (struct exp_addr*)i->st_data;
+
+	if (( e_addr->e_addr_status & STATUS_TERMINAL ) == 0 ) {
 	    /* not a terminal expansion, do not add */
 	    continue;
 	}

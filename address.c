@@ -39,12 +39,20 @@
 
 DB		*dbp = NULL;
 
-void expansion_stab_stdout( void * );
-
     void
-expansion_stab_stdout( void *string )
+expand_tree_stdout( struct exp_addr *e, int i )
 {
-    printf( "%s\n", (char *)string );
+    int				x;
+
+    if ( e != NULL ) {
+	for ( x = 0; x < i; x++ ) {
+	    printf( " " );
+	}
+	printf( "%x %s\n", e, e->e_addr );
+
+	expand_tree_stdout( e->e_addr_child, i + 1 );
+	expand_tree_stdout( e->e_addr_peer, i );
+    }
 }
 
 
@@ -151,17 +159,20 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	    return( 1 );
 	}
 
-	if (( e->e_addr_parent = exp->exp_addr_parent ) == NULL ) {
-	    e->e_addr_peer = exp->exp_addr_root;
-	    exp->exp_addr_root = e;
-	} else {
-	    e->e_addr_peer = exp->exp_addr_parent->e_addr_child;
-	    exp->exp_addr_parent->e_addr_child = e;
-	}
+#ifdef HAVE_LDAP
+	/* XXX CHECK FOR MESSAGE SENDER HERE */
+#endif /* HAVE_LDAP */
 
-#ifdef NOT_DEF_HAVE_LDAP
-	if ( strcasecmp( exp->exp_env->e_mail, address ) == 0 ) {
-	    e->e_addr_exclusive = 1;
+#ifdef HAVE_LDAP
+	e->e_addr_child = NULL;
+	if ( exp->exp_parent == NULL ) {
+	    e->e_addr_parent = NULL;
+	    e->e_addr_peer = exp->exp_root;
+	    exp->exp_root = e;
+	} else {
+	    e->e_addr_parent = exp->exp_parent;
+	    e->e_addr_peer = exp->exp_parent->e_addr_child;
+	    exp->exp_parent->e_addr_child = e;
 	}
 #endif /* HAVE_LDAP */
 
@@ -170,17 +181,6 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	free( address );
 	address = e->e_addr;
     }
-
-#ifdef NOT_DEF_HAVE_LDAP
-    if ( e->e_addr_exclusive > 0 ) {
-	if (( parent = exp->exp_addr_parent ) != NULL ) {
-	    do {
-		parent->e_addr_exclusive = 1;
-		parent = parent->e_addr_parent;
-	    } while ( parent != NULL );
-	}
-    }
-#endif /* HAVE_LDAP */
 
     return( 0 );
 }

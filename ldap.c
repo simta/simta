@@ -1657,6 +1657,11 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr, LDAPMessage *e
 	    ** Else SuppressNoEmail must be true -- clone the current envelope
 	    */
 	    e_addr->e_addr_errors = env_dup (e_addr->e_addr_errors);
+/* XXX pturgyan, please help */
+if ( e_addr->e_addr_errors == NULL ) {
+    printf( "env_dup error\n" );
+    return LDAP_SYSERROR;
+}
 	    e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
 	}
     }
