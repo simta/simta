@@ -58,17 +58,17 @@
 /* ERRORFMTBUFLEN -- Error buffer length process max buffer size. */
 #define ERRORFMTBUFLEN		2048
 
-/* XXX somehow get these into the config file */
-static char	*noattrs[] = {LDAP_NO_ATTRS, NULL};
+/* 
+** LDAP attribute names
+** noattrs -- is a attribute list when no attributes are needed.
+** allattrs -- is a attribute list when all attributes are wanted.  It
+**             It is also the default attribute list if no attribute
+**             config file directive found.
+*/
+static char	*noattrs[] =  {LDAP_NO_ATTRS, NULL};
+static char	*allattrs[] = {"*", NULL};
 
-static char     *attrs[] = { "objectClass", "title", "postaladdress",
-			"mailForwardingAddress", "rfc822Mail",
-			"telephoneNumber", "description", "owner",
-			"errorsTo", "rfc822ErrorsTo", "requestsTo",
-			"rfc822RequestsTo", "cn", "member",
-			"moderator", "onVacation", "uid",
-			"suppressNoEmailError", "associateddomain", 
-			"membersonly", "permittedgroup", NULL };
+static char     **attrs     = NULL;
 
 struct ldap_search_list		*ldap_searches = NULL;
 struct list			*ldap_people = NULL;
@@ -89,10 +89,8 @@ static char			*mailfwdattr;
 /*
 ** Prototypes
 */
-int simta_ldap_value __P(( LDAPMessage *e, char *attr, struct list *master ));
-int simta_ldap_expand __P(( struct expand *exp, struct exp_addr *e_addr ));
 
-static int simta_ldap_dn_search __P ((struct expand *exp,
+static int simta_ldap_dn_expand __P ((struct expand *exp,
 		 struct exp_addr *e_addr));
 static int simta_ldap_process_entry __P ((struct expand *exp, 
 	struct exp_addr *e_addr, int type, LDAPMessage *entry, char * addr));
@@ -103,9 +101,6 @@ static void do_ambiguous __P ((struct exp_addr *e_addr, char *email_addr,
 static void do_noemail __P((struct exp_addr *e_addr, char *addr, 
 		LDAPMessage *res));
 int    simta_ldap_message_stdout __P(( LDAPMessage *m ));
-static int simta_local_search __P( ( char ** attrs, char * user, 
-				char * domain, int * count));
-static int simta_address_type __P ((char * address));
 static int simta_ldap_name_search __P (( struct expand *exp, 
 	struct exp_addr *e_addr, char * addr, char * domain, int addrtype));
 
@@ -119,7 +114,7 @@ static int add_errmailvals __P((struct exp_addr *exp, char ** errmailvals,
 static int simta_group_err_env __P((struct expand *exp, 
 		struct exp_addr *e_addr, LDAPMessage *entry, char *dn));
 /*
-**
+** Unbind from the directory.
 */
 static void
 simta_ldap_unbind ()
@@ -132,53 +127,60 @@ simta_ldap_unbind ()
 static int
 simta_ldap_init ()
 {
-    int	maxambiguous = MAIL500_MAXAMBIGUOUS;
     int ldaprc;
+    int	maxambiguous = MAIL500_MAXAMBIGUOUS;
     int protocol = LDAP_VERSION3;
 
-    if ( ldapdebug ) {
-	if( ber_set_option( NULL, LBER_OPT_DEBUG_LEVEL, &ldapdebug )
-                    != LBER_OPT_SUCCESS ) {
-	    fprintf( stderr, "Could not set LBER_OPT_DEBUG_LEVEL %d\n", ldapdebug );
-	}
-	if( ldap_set_option( NULL, LDAP_OPT_DEBUG_LEVEL, &ldapdebug )
-			!= LDAP_OPT_SUCCESS ) {
-	    fprintf( stderr, "Could not set LDAP_OPT_DEBUG_LEVEL %d\n", ldapdebug );
-	}
-    }
-
     if ( ld == NULL ) {
-	
 	if (( ld = ldap_init( ldap_host, ldap_port )) == NULL ) {
 	    syslog( LOG_ERR, "ldap_init: %m" );
 	    return( LDAP_SYSERROR );
 	}
-	ldap_set_option( ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
-	ldap_set_option( ld, LDAP_OPT_SIZELIMIT, (void *) &maxambiguous);
-	if( ldap_set_option( ld, LDAP_OPT_PROTOCOL_VERSION, &protocol )
-		!= LDAP_OPT_SUCCESS )
-	{
-	    fprintf( stderr, "Could not set LDAP_OPT_PROTOCOL_VERSION %d\n",
-			protocol );
-	    exit( EXIT_FAILURE );
+	if ( ldapdebug ) {
+	    ldaprc = ber_set_option( NULL, LBER_OPT_DEBUG_LEVEL, &ldapdebug );
+	    if( ldaprc != LBER_OPT_SUCCESS ) {
+		syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LBER_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
+	    }
+	    ldaprc = ldap_set_option( NULL, LDAP_OPT_DEBUG_LEVEL, &ldapdebug );
+	    if( ldaprc != LDAP_OPT_SUCCESS ) {
+		syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
+	    }
+	}
+	ldaprc = ldap_set_option( ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
+	if (ldaprc != LDAP_OPT_SUCCESS ) {
+	    syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_REFERRALS to LDAP_OPT_OFF");
+	    return( LDAP_SYSERROR );
+	}
+	ldaprc = ldap_set_option(ld, LDAP_OPT_SIZELIMIT, (void *)&maxambiguous);
+	if (ldaprc != LDAP_OPT_SUCCESS ) {
+	    syslog( LOG_ERR, 
+		"simta_ldap_init: Failed setting LDAP_OPT_SIZELIMIT = %d\n",
+		maxambiguous);
+	    return( LDAP_SYSERROR );
+	}
+	ldaprc = ldap_set_option( ld, LDAP_OPT_PROTOCOL_VERSION, &protocol );
+	if( ldaprc != LDAP_OPT_SUCCESS ) {
+	    syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_PROTOCOL_VERSION = %d\n",
+		protocol );
+	    return( LDAP_SYSERROR );
 	}
 
 	if ( starttls &&
-	   ( (ldaprc = ldap_start_tls_s( ld, NULL, NULL )) != LDAP_SUCCESS )) {
-                fprintf( stderr, "ldap_start_tls_s: %s (%d)\n",
-                        ldap_err2string( ldaprc  ), ldaprc );
-
-		syslog( LOG_ERR, "ldap_start_tls: %s", ldap_err2string(ldaprc));
-		if ( starttls > 1 ) {
-		    return( LDAP_SYSERROR );
-		}
-	}
-	if (binddn) {
-	    if ( ldap_bind_s( ld, binddn, bindpw, LDAP_AUTH_SIMPLE)
-		 != LDAP_SUCCESS ) {
-		ldap_perror( ld, "ldap_bind" );
+	   ((ldaprc = ldap_start_tls_s( ld, NULL, NULL )) != LDAP_SUCCESS )) {
+	    syslog( LOG_ERR, "ldap_start_tls: %s", ldap_err2string(ldaprc));
+	    if ( starttls > 1 ) {
 		return( LDAP_SYSERROR );
 	    }
+	}
+    }
+    if (binddn) {
+	if (ldap_bind_s( ld, binddn, bindpw, LDAP_AUTH_SIMPLE) != LDAP_SUCCESS){
+	    ldap_perror( ld, "ldap_bind" );
+	    return( LDAP_SYSERROR );
 	}
     }
     return (0);
@@ -297,7 +299,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
      *     LDAP_NOT_LOCAL if addr is not found in the db
      */
 
-    int
+static int
 simta_local_search (char ** attrs, char * user, char * domain, int *count)
 {
     char		*search_string;
@@ -428,7 +430,6 @@ simta_ldap_config( char *fname )
     SNET		*snet;
     char		*c;
     struct ldap_search_list **lds;
-    struct ldap_search_list *lsl;
     struct list		*l_new;
     struct list		**add;
 
@@ -436,6 +437,7 @@ simta_ldap_config( char *fname )
     char		**av;
     int			ac;
     int			acidx;
+    int			attridx;
 
     int			intval;
 
@@ -563,6 +565,28 @@ simta_ldap_config( char *fname )
 
 	    } else {
 		fprintf( stderr, "uri not an ldap uri: %s\n", linecopy );
+	    }
+
+	} else if ( strncasecmp( av[ 0 ], "attributes", 9 ) == 0 ) {
+	    if (ac < 2) {
+		fprintf( stderr, "Missing attribute value: %s\n", linecopy );
+		continue;
+	    }
+            attrs = (char **) calloc ( (unsigned) ac , sizeof (char *)); 
+	    if (attrs == NULL) {
+		perror( "calloc attrs");
+		acav_free( acav );
+		return( -1 );
+	    }
+	    
+	    for (acidx = 1, attridx = 0; acidx < ac; acidx++, attridx++) {
+		attrs[attridx] = strdup (av[ acidx ]);
+		if (attrs[attridx] == NULL) {
+		    perror( "strdup attrs" );
+		    free (attrs);
+		    acav_free( acav );
+		    return( -1 );
+		}
 	    }
 
 	} else if ( strncasecmp( av[ 0 ], "ldapdebug", 9 ) == 0 ) {
@@ -717,7 +741,7 @@ simta_ldap_config( char *fname )
 	return( -1 );
     }
 
-    /* XXX check to see that ldap is configured correctly */
+    /* check to see that ldap is configured correctly */
 
     if ( ldap_people == NULL ) {
 	fprintf( stderr, "%s: No ldap people\n", fname );
@@ -741,6 +765,10 @@ simta_ldap_config( char *fname )
 	mailfwdattr = strdup ("mail");
 	fprintf( stderr, "Defaulting mailfwdattr to \'mail\'\n");
     }
+
+    if (attrs == NULL)
+	attrs = allattrs;
+    
     return( 0 );
 }
 
@@ -777,11 +805,6 @@ simta_ldap_value( LDAPMessage *e, char *attr, struct list *master )
      *     LDAP_EXCLUDE if addr is an error, and/or expands to other addrs.
      *     LDAP_SYSERROR if there is a system error
      *
-     * XXX is LDAP_FINAL useless?  if its in the db, it can never be terminal?
-     *
-     * struct expand *exp->exp_env->e_mail
-     *     - is the sender of the message
-     *
      * expansion (not system) errors should be reported back to the sender
      * using bounce_text(...);
      *
@@ -803,7 +826,7 @@ simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     int		rc;		/* Universal return code */
 
     if ( e_addr->e_addr_type == ADDRESS_TYPE_LDAP ) {
-	rc = simta_ldap_dn_search (exp, e_addr);
+	rc = simta_ldap_dn_expand (exp, e_addr);
 	return (rc);
     }
 
@@ -890,8 +913,8 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
 	}
 	res = NULL;
 	rc = ldap_search_st( ld, lds->lds_plud->lud_dn,
-			lds->lds_plud->lud_scope, search_string, attrs, 0, 
-			&timeout, &res );
+			lds->lds_plud->lud_scope, search_string, 
+			attrs, 0, &timeout, &res );
 
 	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
 
@@ -1008,7 +1031,7 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
     return( rc );
 }
 static int
-simta_ldap_dn_search (struct expand *exp, struct exp_addr *e_addr )
+simta_ldap_dn_expand (struct expand *exp, struct exp_addr *e_addr )
 {
     char		*search_dn;
     int			rc;
@@ -1026,7 +1049,7 @@ simta_ldap_dn_search (struct expand *exp, struct exp_addr *e_addr )
     &&   rc != LDAP_SIZELIMIT_EXCEEDED 
     &&   rc != LDAP_NO_SUCH_OBJECT ) {
 
-	syslog( LOG_ERR, "simta_ldap_dn_search: ldap_search_st Failed: %s",
+	syslog( LOG_ERR, "simta_ldap_dn_expand: ldap_search_st Failed: %s",
 		    ldap_err2string(rc ));
 	ldap_msgfree( res ); 
 
@@ -1036,7 +1059,7 @@ simta_ldap_dn_search (struct expand *exp, struct exp_addr *e_addr )
     match = ldap_count_entries (ld, res );
     if ( match == -1) {
 	syslog( LOG_ERR, 
-    "simta_ldap_dn_search: Error parsing result from LDAP server for dn: %s",
+    "simta_ldap_dn_expand: Error parsing result from LDAP server for dn: %s",
 			search_dn);
 	ldap_msgfree( res );
 	simta_ldap_unbind (ld);
@@ -1054,7 +1077,7 @@ simta_ldap_dn_search (struct expand *exp, struct exp_addr *e_addr )
    "then re-adding the person to the group\n" ) != 0 )  ) {
 
 	    syslog( LOG_ERR, 
-	"simta_ldap_dn_search: Failed building bounce message -- no member: %s",
+	"simta_ldap_dn_expand: Failed building bounce message -- no member: %s",
 				search_dn);
 	    return( LDAP_SYSERROR );
 	}
