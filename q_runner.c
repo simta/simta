@@ -31,6 +31,7 @@
 #include "queue.h"
 #include "message.h"
 #include "ml.h"
+#include "smtp.h"
 
 void	host_stab_stdout ___P(( void * ));
 void	q_file_stab_stdout ___P(( void * ));
@@ -262,11 +263,6 @@ deliver_local( struct stab_entry *qfiles )
 
 	if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
 	    if ( errno == ENOENT ) {
-
-#ifdef DEBUG
-		printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
-#endif /* DEBUG */
-
 		errno = 0;
 		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
 		continue;
@@ -311,14 +307,14 @@ deliver_local( struct stab_entry *qfiles )
 
 	    if ( unlink( fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", fname );
-		return( 1 );
+		exit( 1 );
 	    }
 
 	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
 	    if ( unlink( fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", fname );
-		return( 1 );
+		exit( 1 );
 	    }
 	}
     }
@@ -335,13 +331,27 @@ deliver_remote( struct host_q *hq )
     int				mailed;
     int				fd;
     char			fname[ MAXPATHLEN ];
+    SNET			*snet;
+    SNET			*message;
+    void                        (*logger)(char *) = NULL;
 
-    for ( qs = (struct stab_entry*)hq->hq_qfiles; qs != NULL;
-	    qs = qs->st_next ) {
+#ifdef DEBUG
+    logger = stdout_logger;
+#endif /* DEBUG */
+
+    /* XXX send only to terminator for now */
+    if ( strcasecmp( hq->hq_name, "terminator.rsug.itd.umich.edu" ) != 0 ) {
+	return( 0 );
+    }
+
+    if (( snet = smtp_connect( hq->hq_name, 25, logger )) == NULL ) {
+	/* XXX syscall not only failure reason */
+	syslog( LOG_ERR, "smtp_connect: %m\n" );
+	exit( 1 );
+    }
+
+    for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
 	q = (struct q_file*)qs->st_data;
-
-	printf( "message %s\n", q->q_id );
-	continue;
 
 	/* get message_data */
 	errno = 0;
@@ -349,11 +359,6 @@ deliver_remote( struct host_q *hq )
 
 	if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
 	    if ( errno == ENOENT ) {
-
-#ifdef DEBUG
-		printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
-#endif /* DEBUG */
-
 		errno = 0;
 		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
 		continue;
@@ -364,7 +369,16 @@ deliver_remote( struct host_q *hq )
 	    }
 	}
 
-	if ( close( fd ) != 0 ) {
+	if (( message = snet_attach( fd, 1024 * 1024 )) == NULL ) {
+	    syslog( LOG_ERR, "snet_attach: %m" );
+	    exit( 1 );
+	}
+
+	if (( mailed = smtp_send( snet, q->q_env, message, logger )) < 0 ) {
+	    exit( 1 );
+	}
+
+	if ( snet_close( message ) != 0 ) {
 	    syslog( LOG_ERR, "close: %m" );
 	    exit( 1 );
 	}
@@ -380,16 +394,30 @@ deliver_remote( struct host_q *hq )
 
 	    if ( unlink( fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", fname );
-		return( 1 );
+		exit( 1 );
 	    }
 
 	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
 	    if ( unlink( fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", fname );
-		return( 1 );
+		exit( 1 );
 	    }
 	}
+
+	if ( qs->st_next != NULL ) {
+	    /* XXX better error cases */
+	    if ( smtp_rset( snet, logger ) != 0 ) {
+		syslog( LOG_ERR, "smtp_rset %m" );
+		exit( 1 );
+	    }
+	}
+    }
+
+    if ( smtp_quit( snet, logger ) != 0 ) {
+	/* XXX better error cases */
+	syslog( LOG_ERR, "smtp_quit: %m" );
+	exit( 1 );
     }
 
     return( 0 );

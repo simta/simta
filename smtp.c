@@ -19,12 +19,21 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <strings.h>
+#include <syslog.h>
 
 #include <snet.h>
 
 #include "message.h"
 #include "envelope.h"
 #include "smtp.h"
+
+
+    void
+stdout_logger( char *line )
+{
+    printf( "<-- %s\n", line );
+    return;
+}
 
 
     int
@@ -276,6 +285,142 @@ smtp_send_single_message( char *hostname, int port, struct message *m,
     }
 
     if ( smtp_quit( snet, logger ) != 0 ) {
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
+
+    /* return 0 on success
+     * return -1 on syscall failure
+     * return 1 on recoverable error
+     *
+     * syslog errors
+     */
+
+    int
+smtp_send( SNET *snet, struct envelope *env, SNET *message,
+	void (*logger)(char *))
+{
+    char		*line;
+    struct recipient	*r;
+
+    /* MAIL FROM: */
+    if ( snet_writef( snet, "MAIL FROM: %s\r\n", env->e_mail ) < 0 ) {
+	/* XXX correct error handling? */
+	syslog( LOG_ERR, "snet_writef: %m" );
+	return( -1 );
+    }
+
+#ifdef DEBUG
+    printf( "--> MAIL FROM: %s\n", env->e_mail );
+#endif /* DEBUG */
+
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	/* XXX correct error handling? */
+	syslog( LOG_ERR, "snet_getline_multi: %m" );
+	return( -1 );
+    }
+
+    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
+	return( 1 );
+    }
+
+    /* RCPT TO: */
+    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
+	    /* XXX correct error handling? */
+	    syslog( LOG_ERR, "snet_writef: %m" );
+	    return( -1 );
+	}
+
+#ifdef DEBUG
+    printf( "--> RCPT TO: %s\n", r->r_rcpt );
+#endif /* DEBUG */
+
+	if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	    /* XXX correct error handling? */
+	    syslog( LOG_ERR, "snet_getline_multi: %m" );
+	    return( -1 );
+	}
+
+	if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	    syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded,
+		    line );
+	    return( 1 );
+	}
+    }
+
+    /* DATA */
+    if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
+	/* XXX correct error handling? */
+	syslog( LOG_ERR, "snet_writef: %m" );
+	return( -1 );
+    }
+
+#ifdef DEBUG
+    printf( "--> DATA\n" );
+#endif /* DEBUG */
+
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	/* XXX correct error handling? */
+	syslog( LOG_ERR, "snet_getline_multi: %m" );
+	return( -1 );
+    }
+
+    if ( strncmp( line, SMTP_DATAOK, 3 ) != 0 ) {
+	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
+	return( 1 );
+    }
+
+    /* send message */
+    while (( line = snet_getline( message, NULL )) != NULL ) {
+	if ( *line == '.' ) {
+	    /* don't send EOF */
+	    if ( snet_writef( snet, ".%s\r\n", line ) < 0 ) {
+		/* XXX correct error handling? */
+		syslog( LOG_ERR, "snet_writef: %m" );
+		return( -1 );
+	    }
+
+#ifdef DEBUG
+	    printf( "--> .%s\n", line );
+#endif /* DEBUG */
+
+	} else {
+	    if ( snet_writef( snet, "%s\r\n", line ) < 0 ) {
+		/* XXX correct error handling? */
+		syslog( LOG_ERR, "snet_writef: %m" );
+		return( -1 );
+	    }
+
+#ifdef DEBUG
+	    printf( "--> %s\n", line );
+#endif /* DEBUG */
+
+	}
+    }
+
+    if ( snet_writef( snet, "%s\r\n", SMTP_EOF ) < 0 ) {
+	/* XXX correct error handling? */
+	syslog( LOG_ERR, "snet_writef: %m" );
+	return( -1 );
+    }
+
+#ifdef DEBUG
+    printf( "--> .\n" );
+#endif /* DEBUG */
+
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	/* XXX correct error handling? */
+	syslog( LOG_ERR, "snet_getline_multi: %m" );
+	return( -1 );
+    }
+
+    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	syslog( LOG_NOTICE, "host %s bad banner: %s", env->e_expanded, line );
 	return( 1 );
     }
 

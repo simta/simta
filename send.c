@@ -24,22 +24,6 @@
 #define	TEST_HOSTNAME	"terminator.rsug.itd.umich.edu"
 #define	TEST_PORT	25
 
-#ifdef __STDC__
-#define ___P(x)         x
-#else /* __STDC__ */
-#define ___P(x)         ()
-#endif /* __STDC__ */
-
-void		stdout_logger ___P(( char * ));
-
-
-    void
-stdout_logger( char *line )
-{
-    printf( "<-- %s\n", line );
-    return;
-}
-
 
     int
 main( int argc, char *argv[] )
