@@ -62,10 +62,6 @@ expand( struct host_q **hq_stab, struct envelope *env )
     /* expand env->e_rcpt addresses */
 
     /* foreach expanded host */
-	/* Dfile: link Dold_id SIMTA_DIR_FAST/Dnew_id */
-	/* Efile: write SIMTA_DIR_FAST/Enew_id for all recipients at host */
-	/* check out envelope.c env_outfile( ... ); */
-
 	/* this tv can be used to generate a new message id, and for
 	 * the new message's Efile time.
 	 */
@@ -73,6 +69,10 @@ expand( struct host_q **hq_stab, struct envelope *env )
 	    syslog( LOG_ERR, "gettimeofday: %m" );
 	    return( -1 );
 	}
+
+	/* Dfile: link Dold_id SIMTA_DIR_FAST/Dnew_id */
+	/* Efile: write SIMTA_DIR_FAST/Enew_id for all recipients at host */
+	/* check out envelope.c env_outfile( ... ); */
 
 	/* a possible new id */
 	sprintf( new_id, "%lX.%lX", (unsigned long)tv.tv_sec,
