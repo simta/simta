@@ -1112,11 +1112,11 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
     }
 
+#ifdef HAVE_LIBWRAP
     if ( *ctl_domain == '\0' ) {
 	ctl_domain = STRING_UNKNOWN;
     }
 
-#ifdef HAVE_LIBWRAP
     /* first STRING_UNKNOWN should be domain name of incoming host */
     if ( hosts_ctl( "simta", ctl_domain, inet_ntoa( sin->sin_addr ),
 	    STRING_UNKNOWN ) == 0 ) {
