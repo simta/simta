@@ -31,6 +31,7 @@ struct deliver {
     struct sockaddr_in		d_sin;
     SNET			*d_snet_smtp;
     SNET			*d_snet_dfile;
+    uint16_t			d_mx_preference_cutoff;
     int				d_cur_dnsr_result;
     int				d_cur_dnsr_result_ip;
 };
@@ -59,6 +60,7 @@ struct host_q {
     int				hq_status;
     int				hq_entries;
     int				hq_from;
+    int				hq_no_punt;
     struct envelope		*hq_env_head;
     struct line_file		*hq_err_text;
     struct dnsr_result		*hq_dnsr_result;

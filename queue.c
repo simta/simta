@@ -794,7 +794,8 @@ message_cleanup:
 	}
 
 	if ( d.d_unlinked == 0 ) {
-	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q )) {
+	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q ) &&
+		    ( deliver_q->hq_no_punt == 0 )) {
 		env_deliver->e_flags |= ENV_FLAG_PUNT;
 		queue_envelope( host_q, env_deliver );
 	    } else {
@@ -1080,6 +1081,25 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		return( 1 );
 	    }
 
+	    /* check remote host's mx entry for our local hostname.
+	     * If we find it, we never punt mail destined for this host,
+	     * and we only try remote delivery to mx entries that have a
+	     * lower mx_preference than we do.
+	     */
+	    for ( d->d_cur_dnsr_result = 0;
+		    d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
+		    d->d_cur_dnsr_result++ ) {
+		if ( strcasecmp( simta_hostname,
+			d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
+			].rr_mx.mx_exchange ) == 0 ) {
+		    hq->hq_no_punt = 1;
+		    d->d_mx_preference_cutoff =
+			    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
+			    ].rr_mx.mx_preference;
+		    break;
+		}
+	    }
+
 	    d->d_cur_dnsr_result = 0;
 	    break;
 
@@ -1132,6 +1152,16 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	    } else if (( d->d_dnsr_result->r_answer[
 		    d->d_cur_dnsr_result ].rr_type == DNSR_TYPE_MX )
 		    && ( hq->hq_status == HOST_DOWN )) {
+
+		/* Stop checking hosts if we know the local hostname is in
+		 * the mx record, and if we've reached it's preference level.
+		 */
+		if (( hq->hq_no_punt != 0 ) && ( d->d_mx_preference_cutoff == 
+			d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
+			].rr_mx.mx_preference )) {
+		    return( 1 );
+		}
+
 		if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
 			].rr_ip != NULL ) {
 		    memcpy( &(d->d_sin.sin_addr.s_addr),
