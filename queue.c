@@ -421,6 +421,7 @@ q_run( struct host_q **host_q )
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
+	    syslog( LOG_DEBUG, "q_run: checking for unexpanded mail" );
 	    /* delivered all expanded mail, check for unexpanded */
 	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
 		/* no more unexpanded mail.  we're done */
@@ -437,6 +438,8 @@ q_run( struct host_q **host_q )
 	    }
 
 	    if (( env = unexpanded->m_env ) == NULL ) {
+		syslog( LOG_DEBUG, "q_run: reading unexpanded %s",
+			unexpanded->m_id );
 		/* lock & read envelope to expand */
 		env = &env_local;
 		if ( env_read( unexpanded, &env_local, &snet_lock ) != 0 ) {
@@ -451,6 +454,7 @@ q_run( struct host_q **host_q )
 		snet_lock = NULL;
 	    }
 
+	    syslog( LOG_DEBUG, "q_run: expanding %s", env->e_id );
 	    /* expand message */
 	    result = expand( host_q, env );
 
@@ -782,6 +786,8 @@ lseek_fail:
             }
 
         } else if ( hq->hq_status == HOST_MX ) {
+	    syslog( LOG_INFO, "q_deliver %s: attempting remote delivery",
+		    env_deliver->e_id );
             if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
                 syslog( LOG_ERR, "q_deliver snet_attach: %m" );
 		smtp_error = SMTP_ERROR;
@@ -790,6 +796,8 @@ lseek_fail:
 
             /* open outbound SMTP connection */
             if ( snet_smtp == NULL ) {
+		syslog( LOG_DEBUG, "q_deliver %s: calling smtp_connect( %s )",
+			env_deliver->e_id, hq->hq_hostname );
                 if (( smtp_error = smtp_connect( &snet_smtp, hq )) !=
 			SMTP_OK ) {
 		    goto smtp_cleanup;
@@ -797,13 +805,15 @@ lseek_fail:
             }
 
             if ( sent != 0 ) {
+		syslog( LOG_DEBUG, "q_deliver %s: calling smtp_reset",
+			env_deliver->e_id );
                 if (( smtp_error = smtp_rset( snet_smtp, hq )) != SMTP_OK ) {
 		    goto smtp_cleanup;
                 }
             }
 
 	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_ATTEMPT );
-	    syslog( LOG_INFO, "q_deliver %s: attempting delivery via SMTP",
+	    syslog( LOG_DEBUG, "q_deliver %s: calling smtp_send",
 		    env_deliver->e_id );
             if (( smtp_error = smtp_send( snet_smtp, hq, env_deliver,
 		    snet_dfile )) != SMTP_OK ) {
@@ -812,6 +822,8 @@ smtp_cleanup:
 		    switch ( smtp_error ) {
 		    default:
 		    case SMTP_ERROR:
+			syslog( LOG_DEBUG, "q_deliver %s: calling smtp_quit",
+				env_deliver->e_id );
 			smtp_quit( snet_smtp, hq );
 
 		    case SMTP_BAD_CONNECTION:
@@ -858,6 +870,8 @@ oldfile_error:
 
 	if (( env_deliver->e_flags & ENV_BOUNCE ) ||
 		( env_deliver->e_failed > 0 )) {
+	    syslog( LOG_DEBUG, "q_deliver %s: creating bounce",
+		    env_deliver->e_id );
 	    snet_bounce = NULL;
 
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
@@ -966,6 +980,8 @@ oldfile_error:
 
 	if ( env_bounce != NULL ) {
 	    if ( env_bounce->e_message != NULL ) {
+		syslog( LOG_DEBUG, "q_deliver %s: queueing bounce %s",
+			env_deliver->e_id, env_bounce->e_id );
 		env_bounce->e_message->m_from = env_from( env_bounce );
 		message_queue( simta_null_q, env_bounce->e_message );
 		syslog( LOG_INFO, "q_deliver %s: bounce %s queued",
@@ -976,6 +992,8 @@ oldfile_error:
 
 message_cleanup:
 	if ( env_bounce != NULL ) {
+	    syslog( LOG_DEBUG, "q_deliver %s: removing bounce %s",
+		    env_deliver->e_id, env_bounce->e_id );
 	    if ( env_bounce->e_message != NULL ) {
 		message_free( env_bounce->e_message );
 		env_bounce->e_message = NULL;
@@ -1024,6 +1042,7 @@ message_cleanup:
     }
 
     if ( snet_smtp != NULL ) {
+	syslog( LOG_DEBUG, "q_deliver: calling smtp_quit" );
         smtp_quit( snet_smtp, hq );
 	if ( snet_close( snet_smtp ) != 0 ) {
 	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
