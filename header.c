@@ -753,11 +753,10 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 
     /*
-     * "postmaster" or "" or
-     * [ WSP ] ( dot-atom-text | quoted-string ) [ WSP ] '@'
-     *		[ WSP ] ( dot-atom-text | domain-literal ) [ WSP ]
+     * ( dot-atom-text | quoted-string )
      *
-     * return -1 on syserror
+     * ( dot-atom-text | quoted-string ) '@' ( dot-atom-text | domain-literal )
+     *
      * return 0 if address is not syntactically correct
      * return 1 if address was correct
      */
@@ -775,7 +774,7 @@ is_emailaddr( char *addr )
     start = addr;
 
     if ( *start == '\0' ) {
-	return( 1 );
+	return( 0 );
 
     } else if ( *start == '"' ) {
 	if (( end = token_quoted_string( start )) == NULL ) {
@@ -822,10 +821,9 @@ is_emailaddr( char *addr )
 
 
     /*
-     * [ WSP ] ( dot-atom-text | quoted-string ) [ WSP ]
+     * ( dot-atom-text | quoted-string )
      *
-     * [ WSP ] ( dot-atom-text | quoted-string ) [ WSP ] '@'
-     *		[ WSP ] ( dot-atom-text | domain-literal ) [ WSP ]
+     * ( dot-atom-text | quoted-string ) '@' ( dot-atom-text | domain-literal )
      *
      * return -1 on syserror
      * return 0 if address is not syntactically correct, or correctable
@@ -847,7 +845,7 @@ correct_emailaddr( char **addr )
 
     /* find start and end of local part */
 
-    start = skip_ws( *addr );
+    start = *addr;
 
     if ( *start == '"' ) {
 	if (( end = token_quoted_string( start )) == NULL ) {
@@ -864,10 +862,10 @@ correct_emailaddr( char **addr )
      * append simta_domain. anything else return 0.
      */
 
-    at = skip_ws( end + 1 );
+    at = end + 1;
 
     if ( *at == '@' ) {
-	start = skip_ws( at + 1 );
+	start = at + 1;
 
 	if ( *start == '[' ) {
 	    if (( end = token_domain_literal( start )) == NULL ) {
@@ -880,7 +878,7 @@ correct_emailaddr( char **addr )
 	    }
 	}
 
-	eol = skip_ws( end + 1 );
+	eol = end + 1;
 
 	if ( *eol != '\0' ) {
 	    return( 0 );

@@ -124,10 +124,12 @@ address_string_recipients( struct expand *exp, char *line,
 		swap = *end;
 		*end = '\0';
 
-		if ( add_address( exp, email_start, e_addr->e_addr_errors,
-			ADDRESS_TYPE_EMAIL, from ) != 0 ) {
-		    *end = swap;
-		    return( 1 );
+		if ( is_emailaddr( email_start ) != 0 ) {
+		    if ( add_address( exp, email_start, e_addr->e_addr_errors,
+			    ADDRESS_TYPE_EMAIL, from ) != 0 ) {
+			*end = swap;
+			return( 1 );
+		    }
 		}
 
 		*end = swap;
@@ -178,10 +180,12 @@ address_string_recipients( struct expand *exp, char *line,
 
 	*end = '\0';
 
-	if ( add_address( exp, email_start, e_addr->e_addr_errors,
-		ADDRESS_TYPE_EMAIL, from ) != 0 ) {
-	    *end = '>';
-	    return( 1 );
+	if ( is_emailaddr( email_start ) != 0 ) {
+	    if ( add_address( exp, email_start, e_addr->e_addr_errors,
+		    ADDRESS_TYPE_EMAIL, from ) != 0 ) {
+		*end = '>';
+		return( 1 );
+	    }
 	}
 
 	*end = '>';
@@ -481,7 +485,6 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
 {
     int			ret;
     int			len;
-    int			linetoolong = 0;
     FILE		*f;
     struct passwd	*passwd;
     char		fname[ MAXPATHLEN ];
@@ -509,7 +512,7 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
     if ( snprintf( fname, MAXPATHLEN, "%s/.forward",
 	    passwd->pw_dir ) >= MAXPATHLEN ) {
 	syslog( LOG_ERR, "password_expand <%s>: .forward path to long",
-	    e_addr->e_addr );
+		e_addr->e_addr );
 	return( PASSWORD_FINAL );
     }
 
@@ -529,32 +532,25 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
 	}
     }
 
-    /* XXX - Do we have a defined max e-mail length? */
     while ( fgets( buf, 1024, f ) != NULL ) {
 	len = strlen( buf );
 	if (( buf[ len - 1 ] ) != '\n' ) {
-	    linetoolong = 1;
+	    syslog( LOG_WARNING, "password_expand <%s>: .forward line too long",
+		    e_addr->e_addr );
 	    continue;
 	}
 
-	if ( linetoolong ) {
-	    syslog( LOG_WARNING, "password_expand <%s>: .forward line too long",
-		    e_addr->e_addr );
-	    linetoolong = 0;
-	} else {
-	    buf[ len - 1 ] = '\0';
-
-	    if ( add_address( exp, buf, e_addr->e_addr_errors,
-		    ADDRESS_TYPE_EMAIL, e_addr->e_addr_from ) != 0 ) {
-		/* add_address syslogs errors */
-		ret = PASSWORD_SYSERROR;
-		goto cleanup_forward;
-	    }
-
-	    syslog( LOG_DEBUG, "password_expand <%s> EXPANDED <%s>: .forward",
-		    e_addr->e_addr, buf );
-	    ret = PASSWORD_EXCLUDE;
+	buf[ len - 1 ] = '\0';
+	if ( address_string_recipients( exp, buf, e_addr,
+		e_addr->e_addr_from ) != 0 ) {
+	    /* add_address syslogs errors */
+	    ret = PASSWORD_SYSERROR;
+	    goto cleanup_forward;
 	}
+
+	syslog( LOG_DEBUG, "password_expand <%s> EXPANDED <%s>: .forward",
+		e_addr->e_addr, buf );
+	ret = PASSWORD_EXCLUDE;
     }
 
 cleanup_forward:
@@ -571,7 +567,8 @@ cleanup_forward:
 alias_expand( struct expand *exp, struct exp_addr *e_addr )
 {
     int			ret = ALIAS_NOT_FOUND;
-    char		address[ SIMTA_MAX_LINE_LEN ];
+    char		address[ 1024 + 1 ];
+    char		*alias_addr;
     DBC			*dbcp = NULL;
     DBT			key;
     DBT			value;
@@ -590,15 +587,20 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     memset( &value, 0, sizeof( DBT ));
 
     if ( e_addr->e_addr_at != NULL ) {
+	if (( e_addr->e_addr_at - e_addr->e_addr ) > 1024 ) {
+	    syslog( LOG_WARNING, "alias_expand: address too long: %s",
+		    e_addr->e_addr );
+	    goto done;
+	}
+
 	*e_addr->e_addr_at = '\0';
-	/* XXX - len check */
 	strcpy( address, e_addr->e_addr );
 	*e_addr->e_addr_at = '@';
+
     } else {
 	strcpy( address, "postmaster" );
     }
 
-    /* XXX - Is there a limit on key length? */
     key.data = &address;
     key.size = strlen( key.data ) + 1;
 
@@ -618,16 +620,39 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     }
 
     for ( ; ; ) {
-	if ( add_address( exp, (char*)value.data,
-		e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
-		e_addr->e_addr_from ) != 0 ) {
-	    /* add_address syslogs errors */
+	if (( alias_addr = strdup((char*)value.data )) == NULL ) {
 	    ret = ALIAS_SYSERROR;
 	    goto done;
 	}
 
-	syslog( LOG_DEBUG, "alias_expand <%s> EXPANDED <%s>: alias db",
-		e_addr->e_addr, (char*)value.data );
+	switch ( correct_emailaddr( &alias_addr )) {
+	case -1:
+	    ret = ALIAS_SYSERROR;
+	    free( alias_addr );
+	    goto done;
+
+	case 0:
+	    syslog( LOG_DEBUG, "alias_expand <%s> BAD EXPANSION <%s>: alias db",
+		    e_addr->e_addr, alias_addr );
+	    free( alias_addr );
+	    break;
+
+	case 1:
+	    if ( add_address( exp, alias_addr,
+		    e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
+		    e_addr->e_addr_from ) != 0 ) {
+		/* add_address syslogs errors */
+		ret = ALIAS_SYSERROR;
+		goto done;
+	    }
+	    syslog( LOG_DEBUG, "alias_expand <%s> EXPANDED <%s>: alias db",
+		    e_addr->e_addr, alias_addr );
+	    free( alias_addr );
+	    break;
+
+	default:
+	    panic( "alias_expand: correct_emailaddr return out of range" );
+	}
 
 	/* Get next db result, if any */
 	memset( &value, 0, sizeof( DBT ));
