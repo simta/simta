@@ -46,6 +46,7 @@ struct message {
     char			*m_id;
     char			*m_dir;
     struct timespec		m_etime;
+    struct envelope		*m_env;
     int				m_efile;
     int				m_expanded;
     ino_t			m_dfile;

@@ -270,6 +270,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	    /* env has corrected etime after disk access */
 	    m->m_etime.tv_sec = env->e_etime.tv_sec;
+	    m->m_env = env;
 
 	} else {
 	    env_stdout( env );

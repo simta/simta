@@ -159,6 +159,11 @@ message_create( char *id )
     void
 message_free( struct message *m )
 {
+    if ( m->m_env != NULL ) {
+	env_free( m->m_env );
+	free( m->m_env );
+    }
+
     free( m->m_id );
     free( m );
 }
@@ -237,14 +242,15 @@ host_q_lookup( struct host_q **host_q, char *hostname )
     int
 q_runner( struct host_q **host_q )
 {
-    int				result;
     struct host_q		*hq;
     struct message		*m;
 
-    result = q_run( host_q );
+    simta_fast_files = 0;
+
+    q_run( host_q );
 
     if ( simta_fast_files < 1 ) {
-	return( result );
+	return( 0 );
     }
 
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
@@ -254,13 +260,17 @@ q_runner( struct host_q **host_q )
 		message_slow( m );
 
 		if ( simta_fast_files < 1 ) {
-		    return( result );
+		    return( 0 );
 		}
 	    }
 	}
     }
 
-    return( result );
+    if ( simta_fast_files < 1 ) {
+	return( 0 );
+    }
+
+    return( 1 );
 }
 
 
@@ -275,37 +285,31 @@ q_run( struct host_q **host_q )
     struct envelope		env;
     int				result;
 
-    if ( simta_debug ) fprintf( stderr, "q_runner: started\n" );
+    syslog( LOG_DEBUG, "q_run started" );
+
     /* create NULL host queue for unexpanded messages */
     if ( simta_null_q == NULL ) {
-
-#ifdef DEBUG
-    printf( "simta_null_q init 2\n" );
-#endif /* DEBUG */
-
 	if (( simta_null_q = host_q_lookup( host_q, "\0" )) == NULL ) {
+	    syslog( LOG_ERR, "q_run can't allocate the null queue" );
 	    return( -1 );
 	}
     }
 
     for ( ; ; ) {
-	/* BUILD DELIVER_Q */
-	/* sort the deliver_q by number of messages */
-	if ( simta_debug ) fprintf( stderr, "q_runner: building deliver_q\n" );
+	/* build the deliver_q by number of messages */
+	syslog( LOG_DEBUG, "q_run building deliver queue" );
 	deliver_q = NULL;
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
-	    if ( simta_debug ) fprintf( stderr, "q_runner: %s\n",
-		    hq->hq_hostname );
-
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
 		hq->hq_deliver = NULL;
 
 	    } else if (( hq->hq_status == HOST_LOCAL ) ||
 		    ( hq->hq_status == HOST_MX )) {
-		/* hq is expanded and has at least one message */
-		if ( simta_debug ) fprintf( stderr,
-			"q_runner: expanded w/message\n" );
+		/*
+		 * hq is expanded and has at least one message, insert in to
+		 * the delivery queue.
+		 */
 		dq = &deliver_q;
 
 		for ( ; ; ) {
@@ -322,41 +326,31 @@ q_run( struct host_q **host_q )
 
 	    } else if (( hq->hq_status == HOST_DOWN ) ||
 		    ( hq->hq_status == HOST_BOUNCE )) {
-		if ( simta_debug ) fprintf( stderr,
-			"q_runner: host down/bounce\n" );
 		hq->hq_deliver = NULL;
-
-		if ( q_deliver( hq ) != 0 ) {
-		    return( -1 );
-		}
+		syslog( LOG_DEBUG, "q_run: calling deliver_q to bounce %s",
+			deliver_q->hq_hostname );
+		q_deliver( hq );
 
 	    } else {
-		syslog( LOG_ERR, "q_runner: host_type out of range" );
+		syslog( LOG_ERR, "q_run: host_type %d out of range",
+			hq->hq_status );
 	    }
 	}
 
 	/* deliver all mail in every expanded queue */
 	while ( deliver_q != NULL ) {
-	    if ( simta_debug ) fprintf( stderr, "q_runner: calling deliver_q to %s\n", deliver_q->hq_hostname );
-	    if ( q_deliver( deliver_q ) != 0 ) {
-		return( -1 );
-	    }
-
+	    syslog( LOG_DEBUG, "q_run: calling deliver_q to deliver %s",
+		    deliver_q->hq_hostname );
+	    q_deliver( deliver_q );
 	    deliver_q = deliver_q->hq_deliver;
 	}
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
-
-#ifdef DEBUG
-	    printf( "host_q before expand:\n" );
-	    q_stab_stdout( *host_q );
-	    printf( "\n" );
-#endif /* DEBUG */
-
 	    /* delivered all expanded mail, check for unexpanded */
 	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
 		/* no more unexpanded mail.  we're done */
+		syslog( LOG_DEBUG, "q_run done: no more mail" );
 		return( 0 );
 	    }
 
@@ -365,31 +359,25 @@ q_run( struct host_q **host_q )
 	    simta_null_q->hq_entries--;
 
 	    /* lock envelope while we expand */
-	    if (( result = env_read( unexpanded, &env, &snet_lock )) < 0 ) {
-		return( -1 );
-
-	    } else if ( result > 0 ) {
+	    if ( env_read( unexpanded, &env, &snet_lock ) != 0 ) {
 		/* free message */
 		message_free( unexpanded );
 		continue;
 	    }
 
 	    /* expand message */
-	    if (( result = expand( host_q, &env )) != 0 ) {
-		/* expand had an unrecoverable system error */
-		return( -1 );
-	    }
+	    result = expand( host_q, &env );
 
 	    /* release lock */
 	    if ( snet_close( snet_lock ) != 0 ) {
-		syslog( LOG_ERR, "q_runner snet_close: %m" );
-		return( -1 );
+		syslog( LOG_ERR, "q_run snet_close: %m" );
 	    }
 
-	    /* reset envelope */
+	    /* clean up */
 	    env_reset( &env );
+	    message_free( unexpanded );
 
-	    if ( result > 0 ) {
+	    if ( result != 0 ) {
 		/* message not expandable, try the next one */
 		continue;
 
@@ -402,14 +390,12 @@ q_run( struct host_q **host_q )
 }
 
 
-    /* XXX expand error codes to handle more than OK and FAST_FILE */
-
     int
 q_runner_dir( char *dir )
 {
-    int				r;
+    simta_fast_files = 0;
 
-    r = q_runner_d( dir );
+    q_runner_d( dir );
 
     if ( simta_fast_files != 0 ) {
 	syslog( LOG_ERR, "q_runner_dir exiting with %d fast_files",
@@ -419,6 +405,7 @@ q_runner_dir( char *dir )
 
     return( EXIT_OK );
 }
+
 
     int
 q_runner_d( char *dir )
@@ -433,12 +420,8 @@ q_runner_d( char *dir )
 
     /* create NULL host queue for unexpanded messages */
     if ( simta_null_q == NULL ) {
-
-#ifdef DEBUG
-    printf( "simta_null_q init 1\n" );
-#endif /* DEBUG */
-
 	if (( simta_null_q = host_q_lookup( &host_q, "\0" )) == NULL ) {
+	    syslog( LOG_ERR, "q_runner_dir can't allocate null queue" );
 	    return( -1 );
 	}
     }
@@ -513,17 +496,12 @@ q_deliver( struct host_q *hq )
     struct message		*m;
     struct recipient		**r_sort;
     struct recipient		*remove;
-    struct envelope		env;
+    struct envelope		*env;
+    struct envelope		env_local;
     struct recipient            *r;
     struct stat                 sb;
     static int                  (*local_mailer)(int, char *,
                                         struct recipient *) = NULL;
-
-#ifdef DEBUG
-    printf( "q_deliver:\n" );
-    q_stdout( hq );
-    printf( "\n" );
-#endif /* DEBUG */
 
     if ( hq->hq_status == HOST_LOCAL ) {
         /* figure out what our local mailer is */
@@ -550,23 +528,20 @@ q_deliver( struct host_q *hq )
 
     while ( *mp != NULL ) {
 	m = *mp;
+	*mp = m->m_next;
+	hq->hq_entries--;
 
-	/* lock & read envelope to deliver */
-	if (( result = env_read( m, &env, &snet_lock )) < 0 ) {
-	    return( -1 );
-
-	} else if ( result > 0 ) {
-	    /* message not valid.  disregard */
-
-	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
-		simta_fast_files--;
+	if (( env = m->m_env ) == NULL ) {
+	    /* lock & read envelope to deliver */
+	    env = &env_local;
+	    if ( env_read( m, &env_local, &snet_lock ) != 0 ) {
+		/* message not valid.  disregard */
+		if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
+		    simta_fast_files--;
+		}
+		message_free( m );
+		continue;
 	    }
-
-	    *mp = m->m_next;
-	    message_free( m );
-	    hq->hq_entries--;
-
-	    continue;
 	}
 
 	/* open Dfile to deliver & check to see if it's geriatric */
@@ -588,10 +563,7 @@ q_deliver( struct host_q *hq )
 		    simta_fast_files--;
 		}
 
-		*mp = m->m_next;
 		message_free( m );
-		hq->hq_entries--;
-
                 continue;
 
             } else {
@@ -613,7 +585,7 @@ q_deliver( struct host_q *hq )
 
         /* consider Dfiles old if they're over 3 days */
         if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
-            env.e_old_dfile = 1;
+            env->e_old_dfile = 1;
         }
 
         if ( hq->hq_status == HOST_LOCAL ) {
@@ -622,7 +594,7 @@ q_deliver( struct host_q *hq )
              */
             sent = 0;
 
-            for ( r = env.e_rcpt; r != NULL; r = r->r_next ) {
+            for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
                 if ( sent != 0 ) {
                     if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                         syslog( LOG_ERR, "q_deliver lseek: %m" );
@@ -641,11 +613,7 @@ q_deliver( struct host_q *hq )
                     }
                 }
 
-#ifdef DEBUG
-    printf( "q_deliver.local: %s\n", r->r_rcpt );
-#endif /* DEBUG */
-
-                if (( result = (*local_mailer)( dfile_fd, env.e_mail,
+                if (( result = (*local_mailer)( dfile_fd, env->e_mail,
                         r )) < 0 ) {
                     /* syserror */
                     return( -1 );
@@ -653,17 +621,17 @@ q_deliver( struct host_q *hq )
                 } else if ( result == 0 ) {
                     /* success */
                     r->r_delivered = R_DELIVERED;
-                    env.e_success++;
+                    env->e_success++;
 
 		} else if (( result == EX_TEMPFAIL ) &&
-			( env.e_old_dfile == 0 )) {
+			( env->e_old_dfile == 0 )) {
 		    r->r_delivered = R_TEMPFAIL;
-		    env.e_tempfail++;
+		    env->e_tempfail++;
 
                 } else {
                     /* hard failure */
                     r->r_delivered = R_FAILED;
-                    env.e_failed++;
+                    env->e_failed++;
                 }
 
                 if ( at != NULL ) {
@@ -681,10 +649,6 @@ q_deliver( struct host_q *hq )
 
             if ( sent != 0 ) {
 
-#ifdef DEBUG
-    printf( "q_deliver.remote smtp_rset\n" );
-#endif /* DEBUG */
-
                 if (( result = smtp_rset( snet, hq )) == SMTP_ERR_SYSCALL ) {
                     return( -1 );
 
@@ -693,10 +657,6 @@ q_deliver( struct host_q *hq )
 		    goto cleanup;
                 }
             }
-
-#ifdef DEBUG
-    printf( "q_deliver.remote smtp_connect\n" );
-#endif /* DEBUG */
 
             /* open connection, completely ready to send at least one message */
             if ( snet == NULL ) {
@@ -709,11 +669,7 @@ q_deliver( struct host_q *hq )
                 }
             }
 
-#ifdef DEBUG
-    printf( "q_deliver.remote smtp_send\n" );
-#endif /* DEBUG */
-
-            if (( result = smtp_send( snet, hq, &env, dfile_snet ))
+            if (( result = smtp_send( snet, hq, env, dfile_snet ))
 		    == SMTP_ERR_SYSCALL ) {
                 return( -1 );
 
@@ -728,14 +684,14 @@ q_deliver( struct host_q *hq )
 cleanup:
 
 	/* if hq->hq_err_text != NULL, bounce entire message */
-	/* if env.e_err_text != NULL, bounce entire message */
-	/* if env.e_failed > 0, bounce at least some rcpts */
-	/* if hq->hq_status == HOST_DOWN && env.e_old_dfile > 0,
+	/* if env->e_err_text != NULL, bounce entire message */
+	/* if env->e_failed > 0, bounce at least some rcpts */
+	/* if hq->hq_status == HOST_DOWN && env->e_old_dfile > 0,
 	 *	bounce message */
 
-        if (( hq->hq_err_text != NULL ) ||( env.e_err_text != NULL ) ||
-		( env.e_failed > 0 ) || (( hq->hq_status == HOST_DOWN ) &&
-		( env.e_old_dfile > 0 ))) {
+        if (( hq->hq_err_text != NULL ) ||( env->e_err_text != NULL ) ||
+		( env->e_failed > 0 ) || (( hq->hq_status == HOST_DOWN ) &&
+		( env->e_old_dfile > 0 ))) {
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
                 return( -1 );
@@ -750,15 +706,15 @@ cleanup:
             }
 
 	    if ( hq->hq_err_text != NULL ) {
-		env.e_err_text = hq->hq_err_text;
+		env->e_err_text = hq->hq_err_text;
 	    }
 
-            if ( bounce( &env, dfile_snet ) < 0 ) {
+            if ( bounce( env, dfile_snet ) < 0 ) {
                 return( -1 );
             }
 
 	    if ( hq->hq_err_text != NULL ) {
-		env.e_err_text = NULL;
+		env->e_err_text = NULL;
 	    }
         }
 
@@ -778,33 +734,33 @@ cleanup:
         }
 
 	/* if hq->hq_status == HOST_BOUNCE, delete message */
-	/* if env.e_err_text != NULL, delete message */
-	/* if hq->hq_status != HOST_DOWN && env.e_tempfail == 0,
+	/* if env->e_err_text != NULL, delete message */
+	/* if hq->hq_status != HOST_DOWN && env->e_tempfail == 0,
 	 *	delete message */
-	/* if hq->hq_status == HOST_DOWN && env.e_old_dfile > 0,
+	/* if hq->hq_status == HOST_DOWN && env->e_old_dfile > 0,
 	 *	delete message */
 
-        if (( hq->hq_status == HOST_BOUNCE ) || ( env.e_err_text != NULL ) ||
-		(( env.e_tempfail == 0 ) && ( hq->hq_status != HOST_DOWN )) ||
-		(( hq->hq_status == HOST_DOWN ) && ( env.e_old_dfile > 0 ))) {
+        if (( hq->hq_status == HOST_BOUNCE ) || ( env->e_err_text != NULL ) ||
+		(( env->e_tempfail == 0 ) && ( hq->hq_status != HOST_DOWN )) ||
+		(( hq->hq_status == HOST_DOWN ) && ( env->e_old_dfile > 0 ))) {
 	    /* no retries, delete Efile then Dfile */
-	    sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
+	    sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
 
 	    if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
 		syslog( LOG_ERR, "q_deliver ftruncate %s: %m", efile_fname );
 		return( -1 );
 	    }
 
-	    if ( env_unlink( &env ) != 0 ) {
+	    if ( env_unlink( env ) != 0 ) {
 		return( -1 );
 	    }
 
         } else {
             /* some retries; place in retry list */
 
-            if (( env.e_success != 0 ) || ( env.e_failed != 0 )) {
+            if (( env->e_success != 0 ) || ( env->e_failed != 0 )) {
 		/* remove any recipients that don't need to be tried later */
-		r_sort = &(env.e_rcpt);
+		r_sort = &(env->e_rcpt);
 
 		while ( *r_sort != NULL ) {
 		    if ((*r_sort)->r_delivered != R_TEMPFAIL ) {
@@ -818,24 +774,24 @@ cleanup:
 		}
 
 		/* write out modified envelope */
-                if ( env_outfile( &env, env.e_dir ) != 0 ) {
+                if ( env_outfile( env, env->e_dir ) != 0 ) {
                     return( -1 );
                 }
 
-		if ( strcmp( env.e_dir, simta_dir_fast ) == 0 ) {
+		if ( strcmp( env->e_dir, simta_dir_fast ) == 0 ) {
 		    /* overwrote fast file, not created a new one */
 		    simta_fast_files--;
 		}
 
             } else if ( hq->hq_status != HOST_DOWN ) {
                 /* all retries.  touch envelope */
-		if ( env_touch( &env ) != 0 ) {
+		if ( env_touch( env ) != 0 ) {
                     return( -1 );
 		}
             }
 
 	    /* move message to SLOW if it isn't there already */
-	    if ( env_slow( &env ) != 0 ) {
+	    if ( env_slow( env ) != 0 ) {
 		return( -1 );
 	    }
         } 
@@ -845,11 +801,8 @@ cleanup:
 	    return( -1 );
 	}
 
-	env_reset( &env );
-
-	*mp = m->m_next;
+	env_reset( env );
 	message_free( m );
-	hq->hq_entries--;
     }
 
     if ( snet != NULL ) {
