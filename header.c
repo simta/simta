@@ -661,27 +661,26 @@ parse_addr( struct line **start_line, char **start, int mode )
 
     if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	if ( result > 0 ) {
-	    fprintf( stderr, "Header From: unbalanced \(\n" );
+	    fprintf( stderr, "unbalanced \(\n" );
 	} else {
-	    fprintf( stderr, "Header From: unbalanced )\n" );
+	    fprintf( stderr, "unbalanced )\n" );
 	}
 	return( 1 );
     }
 
     if ( next_c == NULL ) {
-	fprintf( stderr, "Header From: address expected\n" );
+	fprintf( stderr, "address expected\n" );
 	return( 1 );
 
     } else if ( *next_c == '"' ) {
 	if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "Header From: unbalanced \"\n" );
+	    fprintf( stderr, "unbalanced \"\n" );
 	    return( 1 );
 	}
 
     } else {
 	if ( line_token_da( &local, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "Header From: expected atext, bad token: %s\n",
-		    next_c );
+	    fprintf( stderr, "expected atext, bad token: %s\n", next_c );
 	    return( 1 );
 	}
     }
@@ -691,9 +690,9 @@ parse_addr( struct line **start_line, char **start, int mode )
 
     if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	if ( result > 0 ) {
-	    fprintf( stderr, "Header From: unbalanced \(\n" );
+	    fprintf( stderr, "unbalanced \(\n" );
 	} else {
-	    fprintf( stderr, "Header From: unbalanced )\n" );
+	    fprintf( stderr, "unbalanced )\n" );
 	}
 	return( 1 );
     }
@@ -765,15 +764,15 @@ parse_addr( struct line **start_line, char **start, int mode )
 
 	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	    if ( result > 0 ) {
-		fprintf( stderr, "Header From: unbalanced \(\n" );
+		fprintf( stderr, "unbalanced \(\n" );
 	    } else {
-		fprintf( stderr, "Header From: unbalanced )\n" );
+		fprintf( stderr, "unbalanced )\n" );
 	    }
 	    return( 1 );
 	}
 
     } else if ( *next_c != '@' ) {
-	fprintf( stderr, "Header From: '@' expected\n" );
+	fprintf( stderr, "'@' expected\n" );
 	return( 1 );
 
     } else {
@@ -781,27 +780,26 @@ parse_addr( struct line **start_line, char **start, int mode )
 
 	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	    if ( result > 0 ) {
-		fprintf( stderr, "Header From: unbalanced \(\n" );
+		fprintf( stderr, "unbalanced \(\n" );
 	    } else {
-		fprintf( stderr, "Header From: unbalanced )\n" );
+		fprintf( stderr, "unbalanced )\n" );
 	    }
 	    return( 1 );
 	}
 
 	if ( next_c == NULL ) {
-	    fprintf( stderr, "Header From: domain expected\n" );
+	    fprintf( stderr, "domain expected\n" );
 	    return( 1 );
 
 	} else if ( *next_c == '[' ) {
 	    if ( line_token_dl( &domain, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "Header From: unmatched [\n" );
+		fprintf( stderr, "unmatched [\n" );
 		return( 1 );
 	    }
 
 	} else {
 	    if ( line_token_da( &domain, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "Header From: expected atext, bad token: %s\n",
-			next_c );
+		fprintf( stderr, "expected atext, bad token: %s\n", next_c );
 		return( 1 );
 	    }
 	}
@@ -811,9 +809,9 @@ parse_addr( struct line **start_line, char **start, int mode )
 
 	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	    if ( result > 0 ) {
-		fprintf( stderr, "Header From: unbalanced \(\n" );
+		fprintf( stderr, "unbalanced \(\n" );
 	    } else {
-		fprintf( stderr, "Header From: unbalanced )\n" );
+		fprintf( stderr, "unbalanced )\n" );
 	    }
 	    return( 1 );
 	}
@@ -821,7 +819,7 @@ parse_addr( struct line **start_line, char **start, int mode )
 
     if ( **start == '<' ) {
 	if (( next_c == NULL ) || ( *next_c != '>' )) {
-	    fprintf( stderr, "Header From: > expected\n" );
+	    fprintf( stderr, "> expected\n" );
 	    return( 1 );
 	}
 
@@ -829,9 +827,9 @@ parse_addr( struct line **start_line, char **start, int mode )
 
 	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	    if ( result > 0 ) {
-		fprintf( stderr, "Header From: unbalanced \(\n" );
+		fprintf( stderr, "unbalanced \(\n" );
 	    } else {
-		fprintf( stderr, "Header From: unbalanced )\n" );
+		fprintf( stderr, "unbalanced )\n" );
 	    }
 	    return( 1 );
 	}
@@ -839,7 +837,7 @@ parse_addr( struct line **start_line, char **start, int mode )
 
     if ( next_c != NULL ) {
 	if ( *next_c != ',' ) {
-	    fprintf( stderr, "Header From: illegal words after address\n" );
+	    fprintf( stderr, "illegal words after address\n" );
 	    return( 1 );
 	}
 
@@ -847,15 +845,15 @@ parse_addr( struct line **start_line, char **start, int mode )
 
 	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 	    if ( result > 0 ) {
-		fprintf( stderr, "Header From: unbalanced \(\n" );
+		fprintf( stderr, "unbalanced \(\n" );
 	    } else {
-		fprintf( stderr, "Header From: unbalanced )\n" );
+		fprintf( stderr, "unbalanced )\n" );
 	    }
 	    return( 1 );
 	}
 
 	if ( next_c == NULL ) {
-	    fprintf( stderr, "Header From: address expected after ,\n" );
+	    fprintf( stderr, "address expected after ,\n" );
 	    return( 1 );
 	}
     }
@@ -889,6 +887,16 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 	return( -1 );
     }
 
+    /* is there data on the line? */
+    if (( result = skip_cfws( &l, &c )) != 0 ) {
+	if ( result > 0 ) {
+	    fprintf( stderr, "unbalanced \(\n" );
+	} else {
+	    fprintf( stderr, "unbalanced )\n" );
+	}
+	return( 1 );
+    }
+
     for ( ; ; ) {
 
 	/*
@@ -898,7 +906,7 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 	 */
 
 	if ( c == NULL ) {
-	    fprintf( stderr, "Header From: NULL address\n" );
+	    fprintf( stderr, "NULL address\n" );
 	    return( 1 );
 
 	} else if ( *c != '<' ) {
@@ -911,14 +919,13 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 
 	    if ( *c == '"' ) {
 		if ( line_token_qs( &local, l, c ) != 0 ) {
-		    fprintf( stderr, "Header From: unbalanced \"\n" );
+		    fprintf( stderr, "unbalanced \"\n" );
 		    return( 1 );
 		}
 
 	    } else {
 		if ( line_token_da( &local, l, c ) != 0 ) {
-		    fprintf( stderr,
-			    "Header From: expected atext, bad token: %s\n",
+		    fprintf( stderr, "expected atext, bad token: %s\n",
 			    next_c );
 		    return( 1 );
 		}
@@ -929,9 +936,9 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 
 	    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 		if ( result > 0 ) {
-		    fprintf( stderr, "Header From: unbalanced \(\n" );
+		    fprintf( stderr, "unbalanced \(\n" );
 		} else {
-		    fprintf( stderr, "Header From: unbalanced )\n" );
+		    fprintf( stderr, "unbalanced )\n" );
 		}
 		return( 1 );
 	    }
@@ -973,14 +980,13 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 
 		    if ( *next_c == '"' ) {
 			if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
-			    fprintf( stderr, "Header From: unbalanced \"\n" );
+			    fprintf( stderr, "unbalanced \"\n" );
 			    return( 1 );
 			}
 
 		    } else {
 			if ( line_token_da( &local, next_l, next_c ) != 0 ) {
-			    fprintf( stderr, "Header From: expected atext, "
-				    "bad token: %s\n",
+			    fprintf( stderr, "expected atext, bad token: %s\n",
 				    next_c );
 			    return( 1 );
 			}
@@ -991,9 +997,9 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 
 		    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
 			if ( result > 0 ) {
-			    fprintf( stderr, "Header From: unbalanced \(\n" );
+			    fprintf( stderr, "unbalanced \(\n" );
 			} else {
-			    fprintf( stderr, "Header From: unbalanced )\n" );
+			    fprintf( stderr, "unbalanced )\n" );
 			}
 			return( 1 );
 		    }
@@ -1032,7 +1038,6 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 parse_header_from( struct line_file *lf )
 {
     struct line			*l;
-    char			*c;
     struct line			*next_l;
     char			*next_c;
     int				result;
@@ -1047,25 +1052,8 @@ parse_header_from( struct line_file *lf )
 
     /* From: */
     if (( l = simta_headers[ HEAD_FROM ].h_line ) != NULL ) {
-	c = l->line_data + 5;
-
-	next_c = c;
+	next_c = l->line_data + 5;
 	next_l = l;
-
-	/* is there data on the line? */
-	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "From: unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "From: unbalanced )\n" );
-	    }
-	    return( 1 );
-	}
-
-	if ( next_c == NULL ) {
-	    fprintf( stderr, "Header From: no data\n" );
-	    return( 1 );
-	}
 
 	if (( result = parse_mailbox_list( next_l, next_c,
 		MAILBOX_FROM_CORRECT )) != 0 ) {
