@@ -70,13 +70,13 @@ expand( struct host_q **hq_stab, struct envelope *env )
 	    return( -1 );
 	}
 
-	/* Dfile: link Dold_id SIMTA_DIR_FAST/Dnew_id */
-	/* Efile: write SIMTA_DIR_FAST/Enew_id for all recipients at host */
-	/* check out envelope.c env_outfile( ... ); */
-
 	/* a possible new id */
 	sprintf( new_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 		    (unsigned long)tv.tv_usec );
+
+	/* Dfile: link Dold_id SIMTA_DIR_FAST/Dnew_id */
+	/* Efile: write SIMTA_DIR_FAST/Enew_id for all recipients at host */
+	/* check out envelope.c env_outfile( ... ); */
 
 	/* create message to put in host queue */
 	if (( m = message_create( new_id )) == NULL ) {
