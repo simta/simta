@@ -225,7 +225,7 @@ main( ac, av )
     /* XXX make these options, etc */
     q_runner_local_max = SIMTA_MAX_RUNNERS_LOCAL;
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
-    launch_seconds = 60 * 5;
+    launch_seconds = 60 * 10;
 
     config_fname = SIMTA_FILE_CONFIG;
     config_base_dir = SIMTA_BASE_DIR;

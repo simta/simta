@@ -632,7 +632,6 @@ q_runner_d( char *dir )
 
     /* organize a directory's messages by host and timestamp */
     for ( simta_message_count = 0; ; simta_message_count++ ) {
-
 	errno = 0;
 	entry = readdir( dirp );
 
