@@ -712,11 +712,13 @@ env_info( struct message *m, char *hostname )
 
 
     int
-env_deliver( struct message *m, struct envelope *env, SNET **s )
+env_lock( struct message *m, struct envelope *env, SNET **s )
 {
     char			*line;
     SNET			*snet;
     char			filename[ MAXPATHLEN + 1 ];
+
+    memset( env, 0, sizeof( struct envelope ));
 
     sprintf( filename, "%s/E%s", m->m_dir, m->m_id );
 

@@ -61,5 +61,5 @@ int		env_fstat ___P(( struct envelope *, int ));
 int		env_touch ___P(( struct envelope * ));
 int		env_unlink ___P(( struct envelope * ));
 int		env_info ___P(( struct message *, char * ));
-int		env_deliver ___P(( struct message *, struct envelope *,
+int		env_lock ___P(( struct message *, struct envelope *,
 			SNET ** ));

@@ -40,11 +40,11 @@
 #include "ll.h"
 #include "queue.h"
 #include "envelope.h"
-
 #include "ml.h"
 #include "line_file.h"
 #include "smtp.h"
 #include "simta.h"
+#include "expand.h"
 
 /* GLOBAL VARS */
 struct host_q		*simta_null_q;
@@ -124,7 +124,6 @@ message_queue( struct host_q *hq, struct message *m )
     }
 
     *mp = m;
-    hq->hq_entries++;
 
     return( 0 );
 }
@@ -204,37 +203,40 @@ q_runner( struct host_q *host_q )
     struct host_q		*deliver_q = NULL;
     struct host_q		**dq;
     struct message		*unexpanded;
+    SNET			*snet_lock;
+    struct envelope		env;
     int				result;
 
-    for ( hq = host_q; hq != NULL; hq = hq->hq_next ) {
-	/* if hq is expanded+deliverable, add to deliver_q */
-	/* if hq is LOOPed, bounce it all */
+    for ( ; ; ) {
+	/* BUILD DELIVER_Q */
+	/* sort the hosts in the deliver_q by number of messages */
+	for ( hq = host_q; hq != NULL; hq = hq->hq_next ) {
+	    if ((( hq->hq_status == HOST_LOCAL ) ||
+		    ( hq->hq_status == HOST_REMOTE )) &&
+		    ( hq->hq_entries > 0 )) {
+		/* hq is expanded and has at lease one message */
+		dq = & deliver_q;
 
-	if (( hq->hq_status == HOST_LOCAL ) ||
-		( hq->hq_status == HOST_REMOTE )) {
-	    /* queue it up */
-	    dq = & deliver_q;
+		for ( ; ; ) {
+		    if (( *dq == NULL ) ||
+			    ( hq->hq_entries >= (*dq)->hq_entries )) {
+			break;
+		    }
+		}
 
-	    for ( ; ; ) {
-		if (( *dq == NULL ) ||
-			( hq->hq_entries >= (*dq)->hq_entries )) {
-		    break;
+		hq->hq_deliver = *dq;
+		*dq = hq;
+
+	    } else {
+		hq->hq_deliver = NULL;
+
+		if ( hq->hq_status == HOST_MAIL_LOOP ) {
+		    /* XXX bounce queue */
 		}
 	    }
-
-	    hq->hq_deliver = *dq;
-	    *dq = hq;
-
-	} else {
-	    hq->hq_deliver = NULL;
-
-	    if ( hq->hq_status == HOST_MAIL_LOOP ) {
-		/* bounce queue */
-	    }
 	}
-    }
 
-    for ( ; ; ) {
+	/* DELIVER DELIVER_Q */
 	/* deliver all mail in every expanded queue */
 	while ( deliver_q != NULL ) {
 	    if (( result = q_deliver( deliver_q )) < 0 ) {
@@ -247,17 +249,50 @@ q_runner( struct host_q *host_q )
 	    deliver_q = deliver_q->hq_deliver;
 	}
 
-return( 0 );
+	/* EXPAND ONE MESSAGE */
+	for ( ; ; ) {
+	    /* delivered all expanded mail, check for unexpanded */
+	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
+		/* no more unexpanded mail.  we're done */
+		return( 0 );
+	    }
 
-	/* delivered all expanded mail, check for unexpanded */
-	if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
-	    break;
+	    /* pop message off message queue */
+	    simta_null_q->hq_message_first = unexpanded->m_next;
+	    simta_null_q->hq_entries--;
+
+	    /* lock envelope while we expand */
+	    if (( result = env_lock( unexpanded, &env, &snet_lock )) < 0 ) {
+		return( -1 );
+
+	    } else if ( result > 0 ) {
+		/* XXX free message */
+		continue;
+	    }
+
+	    /* expand message */
+	    if (( result = expand( &hq, &env )) != 0 ) {
+		/* expand had an unrecoverable system error */
+		return( -1 );
+
+	    }
+
+	    /* release lock */
+	    if ( snet_close( snet_lock ) != 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( -1 );
+	    }
+
+	    if ( result > 0 ) {
+		/* message not expandable, try the next one */
+		continue;
+
+	    } else {
+		/* at least one address was expanded.  try to deliver it */
+		break;
+	    }
 	}
-
-	/* XXX unexpand one message */
     }
-
-    return( 0 );
 }
 
 
