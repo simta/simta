@@ -7,17 +7,19 @@
  * RFC 2822 "Internet Message Format"
  *
  */
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/param.h>
 
-#ifdef TLS
+#ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 #include <stdio.h>
 #include <string.h>

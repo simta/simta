@@ -1,14 +1,16 @@
+#include "config.h"
+
 #ifdef __STDC__
 #define ___P(x)		x
 #else /* __STDC__ */
 #define ___P(x)		()
 #endif /* __STDC__ */
 
-#ifdef TLS
+#ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 #include <sys/types.h>
 #include <sys/stat.h>

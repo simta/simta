@@ -3,11 +3,13 @@
  * All Rights Reserved.  See COPYRIGHT.
  */
 
-#ifdef TLS
+#include "config.h"
+
+#ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 #include <sys/time.h>
 #include <sys/types.h>
