@@ -316,10 +316,8 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     }
 
     if ( env_out == 0 ) {
-	if ( bounce_text( base_error_env, "No final user, mail loop detected",
-		NULL, NULL ) != 0 ) {
-	    goto cleanup3;
-	}
+	syslog( LOG_INFO, "expand %s: no terminal recipients, deleting message",
+		env->e_id );
     }
 
     /* write errors out to disk */

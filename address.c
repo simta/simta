@@ -217,10 +217,9 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
     switch ( e_addr->e_addr_type ) {
     case ADDRESS_TYPE_EMAIL:
-	/* Get user and domain, addres should now be valid */
+	/* Get user and domain, address should now be valid */
 	if (( e_addr->e_addr_at = strchr( e_addr->e_addr, '@' )) == NULL ) {
-	    /* XXX case sensitive? */
-	    if (( *(e_addr->e_addr) != '\0' ) && ( strcmp( "postmaster",
+	    if (( *(e_addr->e_addr) != '\0' ) && ( strcasecmp( "postmaster",
 		    e_addr->e_addr ) != 0 )) {
 		syslog( LOG_ERR,
 			"address_expand <%s>: ERROR bad address format",
@@ -228,7 +227,6 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 		return( ADDRESS_SYSERROR );
 	    }
 	} else {
-
 	    if ( strlen( e_addr->e_addr_at + 1 ) > MAXHOSTNAMELEN ) {
 		syslog( LOG_ERR, "address_expand <%s>: ERROR domain too long",
 			e_addr->e_addr );
@@ -337,8 +335,8 @@ ldap_exclusive:
 	    }
 #endif /* HAVE_LDAP */
 	    
-	    default:
-		panic( "address_expand expansion type out of range" );
+	default:
+	    panic( "address_expand expansion type out of range" );
 	}
     }
 
