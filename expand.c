@@ -506,3 +506,40 @@ cleanup1:
 
     return( return_value );
 }
+
+
+#ifdef HAVE_LDAP
+    int
+ldap_check_ok( struct expand *exp, struct exp_addr *exclusive_addr )
+{
+    struct exp_addr		*parent;
+    struct recipient		*r;
+
+    /* XXX this should also check to see if exclusive_addr has an ok list */
+    if ( exclusive_addr == NULL ) {
+	return( 0 );
+    }
+
+    parent = exp->exp_parent;
+
+    while ( parent->e_addr_type != ADDRESS_TYPE_EMAIL ) {
+	parent = parent->e_addr_parent;
+    }
+
+    for ( r = exp->exp_env->e_rcpt; r != NULL; r = r->r_next ) {
+	if ( strcasecmp( r->r_rcpt, parent->e_addr ) == 0 ) {
+	    break;
+	}
+    }
+
+    if ( r == NULL ) {
+	return( 0 );
+    }
+
+    /* pturgyan, here is a struct rcpt *r, and a ldap ok list */
+    /* return 1 if there is a match */
+    /* go to town, my man */
+
+    return( 0 );
+}
+#endif /* HAVE_LDAP */

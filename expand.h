@@ -69,6 +69,5 @@ int address_expand( struct expand *, struct exp_addr * );
 void expand_tree_stdout( struct exp_addr *, int );
 
 #ifdef HAVE_LDAP
-int ok_list_add ___P(( struct expand *, struct exp_addr *, char * ));
-int exclusive_check ___P(( struct expand *, struct exp_addr * ));
+int ldap_check_ok ___P(( struct expand *, struct exp_addr * ));
 #endif /* HAVE_LDAP */
