@@ -50,8 +50,10 @@ expand_tree_stdout( struct exp_addr *e, int i )
 	}
 	printf( "%x %s\n", e, e->e_addr );
 
+#ifdef HAVE_LDAP
 	expand_tree_stdout( e->e_addr_child, i + 1 );
 	expand_tree_stdout( e->e_addr_peer, i );
+#endif /* HAVE_LDAP */
     }
 }
 
@@ -160,7 +162,17 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	}
 
 #ifdef HAVE_LDAP
-	/* XXX CHECK FOR MESSAGE SENDER HERE */
+	/* pturgyan note that I'm using strcasecmp, and this is incorrect.
+	 * it is merely a placeholder for your improved technology.
+	 */
+
+	if (( addr_type == TYPE_EMAIL ) && ( exp->exp_env->e_mail != NULL )) {
+	    /* compare the address in hand with the sender */
+	    if ( strcasecmp( address, exp->exp_env->e_mail ) == 0 ) {
+		/* here we have a match */
+		e->e_addr_status = ADDRESS_STATUS_SENDER;
+	    }
+	}
 #endif /* HAVE_LDAP */
 
 #ifdef HAVE_LDAP
@@ -179,8 +191,16 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
     } else {
 	/* free local address and use the previously allocated one */
 	free( address );
-	address = e->e_addr;
     }
+
+#ifdef HAVE_LDAP
+    if ( e->e_addr_status == STATUS_LDAP_SENDER ) {
+	/* XXX color to root */
+    } else if (( e->e_addr_status == STATUS_LDAP_EXCLUSIVE ) ||
+	    ( e->e_addr_x_children != NULL )) {
+	/* XXX check exclusive conditionals */
+    }
+#endif /* HAVE_LDAP */
 
     return( 0 );
 }
@@ -538,3 +558,21 @@ not_found:
 
     return( ADDRESS_EXCLUDE );
 }
+
+
+#ifdef HAVE_LDAP
+
+    int
+ok_list_add( struct expand *exp, struct exp_addr *exclusive, char *ok_addr )
+{
+    return( 0 );
+}
+
+
+    int
+exclusive_check( struct expand *exp, struct exp_addr *exclusive )
+{
+    return( 0 );
+}
+
+#endif /* HAVE_LDAP */

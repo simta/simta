@@ -21,14 +21,14 @@
 #define	ADDRESS_TYPE_DEAD		2
 #ifdef HAVE_LDAP
 #define	ADDRESS_TYPE_LDAP		3
-#define	ADDRESS_TYPE_LDAP_EXCLUSIVE	4
 #endif /* HAVE_LDAP */
 
 /* address status */
-#define	STATUS_TERMINAL				(1<<1)
+#define STATUS_TERMINAL			(1<<1)
+
 #ifdef HAVE_LDAP
-#define	STATUS_LDAP_EXCLUSIVE			(1<<2)
-#define	STATUS_LDAP_EXCLUSIVE_PARENT		(1<<3)
+#define	STATUS_LDAP_EXCLUSIVE		(1<<2)
+#define	STATUS_EMAIL_SENDER		(1<<3)
 #endif /* HAVE_LDAP */
 
 struct expand {
@@ -44,12 +44,14 @@ struct expand {
 struct exp_addr {
     char			*e_addr;	/* address string */
     int				e_addr_type;	/* address data type */
-    int				e_addr_status;	/* address status */
     struct envelope		*e_addr_errors;	/* address error handle */
+    int				e_addr_status;
 #ifdef HAVE_LDAP
     struct exp_addr		*e_addr_parent;
     struct exp_addr		*e_addr_peer;
     struct exp_addr		*e_addr_child;
+    struct stab_entry		*e_addr_ok;
+    struct stab_entry		*e_addr_x_children;
 #endif /* HAVE_LDAP */
 };
 
@@ -65,3 +67,8 @@ struct envelope *address_bounce_create ___P(( struct expand* ));
 int address_local( char * );
 int address_expand( struct expand *, struct exp_addr * );
 void expand_tree_stdout( struct exp_addr *, int );
+
+#ifdef HAVE_LDAP
+int ok_list_add ___P(( struct expand *, struct exp_addr *, char * ));
+int exclusive_check ___P(( struct expand *, struct exp_addr * ));
+#endif /* HAVE_LDAP */
