@@ -212,6 +212,9 @@ f_mail( snet, env, ac, av )
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
+    if ( env->e_flags & E_READY ) {
+	env_reset( env );
+    }
 
     if ( ac != 2 ) {
     	/* XXX handle MAIL FROM:<foo> AUTH=bar */
@@ -664,6 +667,7 @@ f_data( snet, env, ac, av )
     syslog( LOG_INFO, "%s: accepted", env->e_id );
 
     /* mark message as ready to roll */
+    env->e_flags = env->e_flags | E_READY;
 
     return( 0 );
 
@@ -684,21 +688,33 @@ f_quit( snet, env, ac, av )
 
     struct host_q		*hq_stab = NULL;
 
-    snet_writef( snet, "%d %s Service closing transmission channel\r\n",
-	    221, env->e_hostname );
+    /* check for an accepted message */
+    if ( !( env->e_flags & E_READY )) {
 
-    /* XXX check for an accepted message */
+	/*
+	 * Deliver a pending message without fork()ing.
+	 */
+	if ( simta_debug ) printf( "calling expand\n" );
+	if ( expand( &hq_stab, env ) !=0 ) {
+	    syslog( LOG_ERR, "f_quit: expand failed\n" );
+	    return( -1 );
+	}
 
-    /*
-     * Deliver a pending message without fork()ing.
-     */
-    if ( simta_debug ) printf( "calling expand\n" );
-    if ( expand( &hq_stab, env ) !=0 ) {
-	/* What do we do in an error? */
-	syslog( LOG_ERR, "f_quit: expand failed\n" );
+	if (  q_runner( &hq_stab ) != 0 ) {
+	    syslog( LOG_ERR, "f_quit: q_runner failed\n" );
+	    return( -1 );
+	}
     }
 
-    return( q_runner( &hq_stab ));
+    snet_writef( snet, "%d %s Service closing transmission channel\r\n",
+	221, env->e_hostname );
+
+    if ( snet_close( snet ) < 0 ) {
+	syslog( LOG_ERR, "f_quit: snet_close: %m" );
+	exit( 1 );
+    }
+
+    exit( 0 );
 }
 
     int
@@ -1004,6 +1020,23 @@ receive( fd, sin )
     }
 
     /* XXX check for an accepted message */
+    if ( env->e_flags & E_READY ) {
+	struct host_q		*hq_stab = NULL;
+
+	/*
+	 * Deliver a pending message without fork()ing.
+	 */
+	if ( expand( &hq_stab, env ) !=0 ) {
+	    /* What do we do in an error? */
+	    syslog( LOG_ERR, "command loop: expand failed\n" );
+	    exit( 1 );
+	}
+
+	if (  q_runner( &hq_stab ) != 0 ) {
+	    syslog( LOG_ERR, "command loop: q_runner failed\n" );
+	    exit( 1 );
+	}
+    }
 
     exit( 1 );
 

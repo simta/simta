@@ -40,6 +40,7 @@ struct envelope {
 };
 
 #define E_TLS		(1<<0)
+#define E_READY		(1<<1)
 
 /* NOT USED */
 void		env_stdout ___P(( struct envelope * ));
