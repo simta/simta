@@ -338,6 +338,11 @@ main( int argc, char *argv[] )
 	    } else if ( result > 0 ) {
 		/* syntax error */
 		syslog( LOG_WARNING, "file %s: syntax error", fname );
+
+#ifdef DEBUG
+		printf( "file %s: syntax error\n", fname );
+#endif /* DEBUG */
+
 		continue;
 	    }
 
