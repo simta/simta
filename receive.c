@@ -470,7 +470,7 @@ f_data( snet, env, ac, av )
      * snet_writef(), perhaps causing the sending-SMTP agent to transmit
      * the message again.
      */
-    snet_writef( snet, "%d OK\r\n", 250 );
+    snet_writef( snet, "%d OK (%s)\r\n", 250, env->e_id );
 
     syslog( LOG_INFO, "%s: accepted", env->e_id );
 
