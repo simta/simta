@@ -173,10 +173,11 @@ clean :
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
 	rm -f ${TARGETS}
 	rm -f simlog
+	rm -f dip
 
 realclean : clean
 	rm -rf autom4te.cache
-	rm -f config.status config.log
+	rm -f config.status config.log config.h
 	rm -f Makefile
 	cd libsnet; ${MAKE} ${MFLAGS} distclean
 	cd denser; ${MAKE} ${MFLAGS} realclean
