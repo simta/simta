@@ -263,6 +263,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		strcpy( env->e_hostname, domain );
 	    } else {
 		env->e_dir = simta_dir_dead;
+		env_dead = env;
 	    }
 
 	    /* Add env to host_stab */
