@@ -32,12 +32,55 @@
 
 DB		*dbp = NULL;
 
+int add_address( struct stab_entry **stab, char *address,
+    struct recipient *rcpt );
+
     void
 expansion_stab_stdout( void *string )
 {
     printf( "%s\n", (char *)string );
 }
 
+/* Creates an entry in STAB with a key of ADDRESS and a data pointer
+ * to an expansion structure:
+ *
+ *	expn->e_expn = ADDRESS;
+ *	expn->e_rcpt_parent = RCPT;
+ * 
+ * Return values:
+ *	-1	system error
+ *	 0	success
+ */
+
+    int
+add_address( struct stab_entry **stab, char *address, struct recipient *rcpt )
+{
+    char		*data;
+    struct expn		*expn;
+
+    if (( data = strdup( address )) == NULL ) {
+	syslog( LOG_ERR, "add_address: strdup: %m" );
+	return( -1 );
+    }
+    if (( expn = (struct expn*)malloc( sizeof( struct expn ))) == NULL ) {
+	syslog( LOG_ERR, "add_address: malloc: %m" );
+	goto error1;
+    }
+    expn->e_expn = data;
+    expn->e_rcpt_parent = rcpt;
+    if ( ll_insert( stab, data, expn, NULL ) != 0 ) {
+	syslog( LOG_ERR, "add_address: ll_insert: %m" );
+	goto error2;
+    }
+
+    return( 0 );
+
+error2:
+    free( expn );
+error1:
+    free( data );
+    return( -1 );
+}
 
 /*
  * Return values:
@@ -134,16 +177,16 @@ done:
  */
 
     int
-address_expand( char *address, struct recipient *rcpt, struct stab_entry **expansion, struct stab_entry **seen)
+address_expand( char *address, struct recipient *rcpt,
+    struct stab_entry **expansion, struct stab_entry **seen)
 {
-    int			ret = 0, count = 0, len = 0;
-    char		*user = NULL, *data = NULL, *domain = NULL;
+    int			rc, ret = 0, count = 0, len = 0;
+    char		*user = NULL, *domain = NULL;
     char		*address_local = NULL;
     char		*temp = NULL;
     char		buf[ MAXPATHLEN * 2 ];
     char		err_text[ SIMTA_MAX_LINE_LEN ];
     struct passwd	*passwd = NULL;
-    struct expn		*expn;
     DBC			*dbcp = NULL;
     DBT			key, value;
     struct host		*host = NULL;
@@ -152,40 +195,43 @@ address_expand( char *address, struct recipient *rcpt, struct stab_entry **expan
 
     memset( err_text, 0, SIMTA_MAX_LINE_LEN );
 
-    /* Check to see if we have seen addr already */
+    /* Check if we have seen addr already */
     if ( ll_lookup( *seen, address ) != NULL ) {
 	/* Already expanded */
-	if ( simta_debug ) printf( "address_expand: %s: already expanded\n",
-	    address );
-	return( 0 );
+	if ( simta_debug ) printf( "%s: already seen\n", address );
 
+	return( 0 );
     } else {
 	/* Add address to seen list */
-	/* XXX - Must free */
-	if (( data = strdup( address )) == NULL ) {
-	    syslog( LOG_ERR, "address_expand: strdup: %m" );
+	if ( add_address( seen, address, rcpt ) != 0 ) {
 	    return( -1 );
 	}
-	if (( expn = (struct expn*)malloc( sizeof( struct expn ))) == NULL ) {
-	    syslog( LOG_ERR, "address_expand: malloc: %m" );
-	    return( -1 );
-	}
-	expn->e_expn = data;
-	expn->e_rcpt_parent = rcpt;
-	if ( ll_insert( seen, data, expn, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "address_expand: ll_insert: %m" );
-	    return( -1 );
-	}
+	if ( simta_debug ) printf( "%s new: added to seen\n", address );
     }
 
-    /* Get user and domain */
+    /* Duplicate address for parsing */
     /* XXX - Must free */
-    if (( address_local = strdup( address )) == NULL ) {
+    if (( user = strdup( address )) == NULL ) {
 	syslog( LOG_ERR, "address_expand: strdup: %m" );
 	return( -1 );
     }
-    user = address_local;
-    if (( domain = strchr( address_local, '@' )) == NULL ) {
+
+    /* verify and correct address */
+    rc = is_emailaddr( &user );
+    switch( rc ) {
+    case 1:
+	/* address was correct, or corrected */
+	break;
+    case 0:
+	/* address is not syntactically correct, or correctable */
+	return( 0 );
+    default:
+	/* syserror */
+	return( -1 );
+    }
+
+    /* Get user and domain */
+    if (( domain = strchr( user, '@' )) == NULL ) {
 	syslog( LOG_ERR, "address_expand: strchr: %s: invalid address",
 	    address_local );
         return( -1 );
@@ -193,23 +239,15 @@ address_expand( char *address, struct recipient *rcpt, struct stab_entry **expan
     *domain = '\0';
     domain++;
 
-    /* Check to see if simta is server mail for domain */
+    /* Check to see if domain is off the local host */
     if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
-if ( simta_debug ) printf( "%s not found in simta_hosts list\n", domain );
-	/* No - Add address to expansion list for off host delivery */
-	if (( data = strdup( address )) == NULL ) {
-	    syslog( LOG_ERR, "address_expand: strdup: %m" );
-	}
-	if (( expn = (struct expn*)malloc( sizeof( struct expn ))) == NULL ) {
-	    syslog( LOG_ERR, "address_expand: malloc: %m" );
+	/* Add address to expansion list */
+	if ( add_address( expansion, address, rcpt ) != 0 ) {
 	    return( -1 );
 	}
-	expn->e_expn = data;
-	expn->e_rcpt_parent = rcpt;
-	if ( ll_insert( expansion, data, expn, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "address_expand: ll_insert: %m" );
-	    return( -1 );
-	}
+	if ( simta_debug ) printf( "%s new: added to expansion ( off host )\n",
+	    address );
+
         return( 1 );
     }
 
@@ -258,25 +296,15 @@ if ( simta_debug ) printf( "%s not found in simta_hosts list\n", domain );
 	     * it from being expanded again 
 	     */
 	    if ( ll_lookup( *seen, buf ) == NULL ) {
-		/* Add address to expansion */
-		/* XXX - Must free */
-		if (( data = strdup( buf )) == NULL ) {
-		    syslog( LOG_ERR, "address_expand: strdup: %m" );
+		/* Add expansion to expansion */
+		if ( add_address( expansion, buf, rcpt ) != 0 ) {
 		    return( -1 );
 		}
-		if (( expn = (struct expn*)malloc( sizeof( struct expn )))
-			== NULL ) {
-		    syslog( LOG_ERR, "address_expand: malloc: %m" );
-		    return( -1 );
-		}
-		expn->e_expn = data;
-		expn->e_rcpt_parent = rcpt;
-		if ( ll_insert_tail( expansion, data, expn ) != 0 ) {
-		    syslog( LOG_ERR, "address_expand: ll_insert_tail: %m" );
-		    return( -1 );
-		}
+		if ( simta_debug ) printf( "%s new: added to expansion"
+		    " ( from alias db )\n", buf );
 		count++;
 	    } else {
+		/* Already has been seen */
 		continue;
 	    }
 
@@ -298,24 +326,15 @@ if ( simta_debug ) printf( "%s not found in simta_hosts list\n", domain );
 		 * it from being expanded again 
 		 */
 		if ( ll_lookup( *seen, buf ) == NULL ) {
-		    /* Add address to expansion */
-		    if (( data = strdup( buf )) == NULL ) {
-			syslog( LOG_ERR, "address_expand: strdup: %m" );
+		    /* Add expansion to expansion */
+		    if ( add_address( expansion, buf, rcpt ) != 0 ) {
 			return( -1 );
 		    }
-		    if (( expn = (struct expn*)malloc( sizeof( struct expn )))
-			    == NULL ) {
-			syslog( LOG_ERR, "address_expand: malloc: %m" );
-			return( -1 );
-		    }
-		    expn->e_expn = data;
-		    expn->e_rcpt_parent = rcpt;
-		    if ( ll_insert_tail( expansion, data, expn ) != 0 ) {
-			syslog( LOG_ERR, "address_expand: ll_insert_tail: %m" );
-			return( -1 );
-		    }
+		    if ( simta_debug ) printf( "%s new: added to expansion"
+			" ( from alias db )\n", buf );
 		    count++;
 		} else {
+		    /* Already has been seen */
 		    continue;
 		}
 
@@ -374,43 +393,30 @@ if ( simta_debug ) printf( "%s not found in simta_hosts list\n", domain );
 		    /* Check to see if we have seen this address before to
 		     * prevent it from being expanded again 
 		     */
-		    if ( ll_lookup( *seen, temp ) == NULL ) {
-			/* Add address to expansion */
-			if (( expn =
-				(struct expn*)malloc( sizeof( struct expn )))
-				== NULL ) {
-			    syslog( LOG_ERR, "address_expand: malloc: %m" );
+		    if ( ll_lookup( *expansion, temp ) == NULL ) {
+			/* Add address to expansion list */
+			if ( add_address( seen, temp, rcpt ) != 0 ) {
 			    return( -1 );
 			}
-			expn->e_expn = temp;
-			expn->e_rcpt_parent = rcpt;
-			if ( ll_insert_tail( expansion, temp, expn ) != 0 ) {
-			    syslog( LOG_ERR,
-				"address_expand: ll_insert_tail: %m" );
-			    return( -1 );
-			}
+			if ( simta_debug ) printf( "%s new: added to"
+			    " expansion ( in .forward )\n", temp);
 			count++;
 		    } else {
 			continue;
 		    }
 		}
 	    } else {
-		/* Add address to expansion */
+		/* No .forward, so just add address to expansion */
 		if (( temp = strdup( address )) == NULL ) {
 		    syslog( LOG_ERR, "address_expand: strdup: %m\n" );
 		    return( -1 );
 		}
-		if (( expn = (struct expn*)malloc( sizeof( struct expn )))
-			== NULL ) {
-		    syslog( LOG_ERR, "address_expand: malloc: %m" );
+		/* Add address to expansion list */
+		if ( add_address( expansion, address, rcpt ) != 0 ) {
 		    return( -1 );
 		}
-		expn->e_expn = temp;
-		expn->e_rcpt_parent = rcpt;
-		if ( ll_insert_tail( expansion, temp, expn ) != 0 ) {
-		    syslog( LOG_ERR, "address_expand: ll_insert_tail: %m" );
-		    return( -1 );
-		}
+		if ( simta_debug ) printf( "%s new: added to expansion"
+		    " ( in password file )\n", temp);
 		count++;
 	    }
         }
