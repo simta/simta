@@ -32,8 +32,6 @@
 #include "argcargv.h"
 #include "timeval.h"
 
-char          *dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
-
 
     void
 stdout_logger( char *line )

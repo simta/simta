@@ -32,6 +32,7 @@
 #include "receive.h"
 #include "ll.h"
 #include "simta.h"
+#include "queue.h"
 
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
@@ -82,6 +83,10 @@ chld( sig )
 
 	} else {
 	    connections--;
+
+	    if ( connections < 0 ) {
+		/* XXX connections should never be less than 0 */
+	    }
 	}
 
 	if ( WIFEXITED( status )) {
@@ -416,16 +421,42 @@ main( ac, av )
      * Begin accepting connections.
      */
     for (;;) {
-	/* should select() so we can manage an event queue */
-
 	if ( simsendmail_signal != 0 ) {
 	    /* XXX only one simsendmail q handler for now */
 	    simsendmail_signal = 0;
 	    if ( simsendmail_pid == 0 ) {
-		/* simsendmail_pid = fork() */
+		switch ( simsendmail_pid = fork()) {
+		case 0 :
+		    close( s );
 
+		    /* reset USR1, CHLD and HUP */
+		    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
+			syslog( LOG_ERR, "sigaction: %m" );
+			exit( 1 );
+		    }
+		    if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
+			syslog( LOG_ERR, "sigaction: %m" );
+			exit( 1 );
+		    }
+		    if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
+			syslog( LOG_ERR, "sigaction: %m" );
+			exit( 1 );
+		    }
+
+		    exit( q_runner( Q_RUNNER_LOCAL ));
+
+		case -1 :
+		    syslog( LOG_ERR, "fork: %m" );
+		    break;
+
+		default :
+		    syslog( LOG_INFO, "q_runner local child %d for %s", c,
+			    inet_ntoa( sin.sin_addr ));
+		    break;
+		}
 	    } else {
 		/* do nothing: simsendmail queue handler already running */
+		/* XXX check to see if sendmail_pid is alive? */
 	    }
 
 	    if ( debug ) {
@@ -490,7 +521,7 @@ main( ac, av )
 
 	    default :
 		close( fd );
-		syslog( LOG_INFO, "child %d for %s", c,
+		syslog( LOG_INFO, "receive child %d for %s", c,
 			inet_ntoa( sin.sin_addr ));
 		break;
 	    }

@@ -15,12 +15,16 @@
 /* states for q_action */
 #define	Q_REMOVE	1
 #define	Q_REORDER	2
+#define	Q_IGNORE	3
 
 /* states for host_q->hq_status */
 #define HOST_NULL	0
 #define HOST_LOCAL	1
 #define HOST_REMOTE	2
 #define HOST_MAIL_LOOP	3
+
+/* types of q_runners */
+#define	Q_RUNNER_LOCAL	1
 
 struct q_file {
     char			*q_id;
@@ -42,8 +46,11 @@ struct q_file {
 struct host_q {
     char			*hq_name;
     int				hq_status;
+    int				hq_entries;
     struct stab_entry		*hq_qfiles;
 };
+
+int		q_runner ___P(( int ));
 
 /* return NULL on syserror, doesn't syslog() */
 struct q_file	*q_file_char ___P(( char * ));
@@ -57,3 +64,7 @@ void		host_q_stdout ___P(( struct host_q * ));
 void		host_q_cleanup ___P(( struct host_q * ));
 
 int		efile_time_compare ___P(( void *, void * ));
+
+/* new from q_runner */
+int		bounce ___P(( struct envelope *, SNET * ));
+int		deliver ___P(( struct host_q * ));

@@ -40,7 +40,6 @@ extern SSL_CTX	*ctx;
 
 extern char	*version;
 extern int	debug;
-char		*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 struct stab_entry	*expansion = NULL;
 struct stab_entry	*seen = NULL;
 

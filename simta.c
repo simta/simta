@@ -17,6 +17,9 @@
 #include "simta.h"
 
 
+char	*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
+
+
     char*
 simta_local_domain( void )
 {
