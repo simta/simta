@@ -409,7 +409,8 @@ address_expand( char *address, struct recipient *rcpt, struct stab_entry **expan
 		"address_expand: snprintf: attempted buffer overflow" );
 	    return( -1 );
 	}
-	if ( simta_debug ) printf( "added err_text for %s: %s\n", rcpt->r_rcpt, err_text );
+	if ( simta_debug ) printf( "added err_text for %s: %s\n",
+	    rcpt->r_rcpt, err_text );
 	if ( line_append( rcpt->r_text, err_text )
 		== NULL ) {
 	    syslog( LOG_ERR, "address_expand: line_append: %m" );
