@@ -563,6 +563,11 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	goto cleanup2;
     }
 
+    if ( utime( d_original, NULL ) != 0 ) {
+	syslog( LOG_ERR, "expand.utime %s: %m", d_original );
+	goto cleanup5;
+    }
+
     if ( unexpanded_env->e_dir != simta_dir_fast ) {
 	/* truncate orignal Efile */
 	sprintf( e_original, "%s/E%s", unexpanded_env->e_dir,
@@ -570,7 +575,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 
 	if ( truncate( e_original, (off_t)0 ) != 0 ) {
 	    syslog( LOG_ERR, "expand.truncate %s: %m", e_original );
-	    goto cleanup4;
+	    goto cleanup5;
 	}
     }
 
