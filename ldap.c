@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <sys/time.h>		/* struct timeval */
 #include <stdio.h>
 #include <stdlib.h>

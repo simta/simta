@@ -2,6 +2,7 @@
 
 AC_INIT(simta, VERSION, simta@umich.edu)
 AC_PREREQ(2.52)
+AC_CONFIG_HEADER(config.h)
 AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
 AC_CONFIG_AUX_DIR([libsnet])
 
@@ -24,6 +25,7 @@ AC_PROG_INSTALL
 
 # Check for files
 AC_CHECK_FILE($resolvconf,,AC_MSG_ERROR(No valid resolv.conf)) 
+AC_STRUCT_TIMEZONE
 
 # Find local mailers
 SET_LOCALDELIVERY
@@ -39,9 +41,9 @@ AC_SUBST(OPTOPTS)
 AC_STRUCT_TM
 AC_STRUCT_GMTOFF
 
-CHECK_SSL
 CHECK_DB
 
+AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])
 AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
 
