@@ -58,22 +58,21 @@ int				simta_expand_debug = 0;
     int
 expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
-    /* XXX variable audit */
+    char			*domain;
+    SNET			*snet;
     struct message		*m;
     struct host_q		*hq;
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*expansion = NULL;
     struct stab_entry		*seen = NULL;
-    struct stab_entry		*i = NULL;
+    struct stab_entry		*i;
     struct expn			*expn;
     struct recipient		*r;
-    struct envelope		*env_p;
+    struct envelope		*env;
     struct timeval              tv;
-    char			*domain = NULL;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
     char			d_fast[ MAXPATHLEN ];
-    SNET			*snet = NULL;
 
     /* add all of the addresses in the rcpt list into the expansion list */
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
@@ -104,6 +103,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		&seen )) {
 
 	case ADDRESS_EXCLUDE:
+	    /* the address is not a terminal local address */
 	    free( i->st_data );
 	    i->st_data = NULL;
 	    break;
@@ -149,7 +149,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    domain++;
 	}
 
-	if (( env_p = (struct envelope*)ll_lookup( host_stab, domain ))
+	if (( env = (struct envelope*)ll_lookup( host_stab, domain ))
 		== NULL ) {
 	    if ( strlen( domain ) > MAXHOSTNAMELEN ) {
 		syslog( LOG_ERR, "expand strlen: domain too long" );
@@ -158,7 +158,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    }
 
 	    /* Create envelope and add it to list */
-	    if (( env_p = env_create( NULL )) == NULL ) {
+	    if (( env = env_create( NULL )) == NULL ) {
 		syslog( LOG_ERR, "expand env_create: %m" );
 		/* XXX expansion terminal failure */
 		return( 1 );
@@ -166,22 +166,22 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	    if ( gettimeofday( &tv, NULL ) != 0 ) {
 		syslog( LOG_ERR, "expand gettimeofday: %m" );
-		free( env_p );
+		free( env );
 		/* XXX expansion terminal failure */
 		return( 1 );
 	    }
 
 	    /* fill in env */
-	    env_p->e_dir = simta_dir_fast;
-	    env_p->e_mail = unexpanded_env->e_mail;
-	    strcpy( env_p->e_expanded, domain );
-	    sprintf( env_p->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
+	    env->e_dir = simta_dir_fast;
+	    env->e_mail = unexpanded_env->e_mail;
+	    strcpy( env->e_expanded, domain );
+	    sprintf( env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 			(unsigned long)tv.tv_usec );
 
 	    /* Add env to host_stab */
-	    if ( ll_insert( &host_stab, domain, env_p, NULL ) != 0 ) {
+	    if ( ll_insert( &host_stab, domain, env, NULL ) != 0 ) {
 		syslog( LOG_ERR, "expand ll_insert: %m" );
-		free( env_p );
+		free( env );
 		/* XXX expansion terminal failure */
 		return( 1 );
 	    }
@@ -201,17 +201,17 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    return( 1 );
 	}
 
-	r->r_next = env_p->e_rcpt;
-	env_p->e_rcpt = r;
+	r->r_next = env->e_rcpt;
+	env->e_rcpt = r;
     }
 
     /* Write out all expanded envelopes and place them in to the host_q */
     for ( i = host_stab; i != NULL; i = i->st_next ) {
-	env_p = i->st_data;
+	env = i->st_data;
 
 	if ( simta_expand_debug == 0 ) {
 	    /* create message to put in host queue */
-	    if (( m = message_create( env_p->e_id )) == NULL ) {
+	    if (( m = message_create( env->e_id )) == NULL ) {
 		/* message_create syslogs errors */
 		/* XXX expansion terminal failure */
 		return( 1 );
@@ -221,24 +221,24 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    m->m_dir = simta_dir_fast;
 
 	    /* find / create the expanded host queue */
-	    if (( hq = host_q_lookup( hq_stab, env_p->e_expanded )) == NULL ) {
+	    if (( hq = host_q_lookup( hq_stab, env->e_expanded )) == NULL ) {
 		/* host_q_lookup syslogs errors */
 		/* XXX expansion terminal failure */
 		return( 1 );
 	    }
 
 	    /* Dfile: link Dold_id simta_dir_fast/Dnew_id */
-	    sprintf( d_fast, "%s/D%s", simta_dir_fast, env_p->e_id );
+	    sprintf( d_fast, "%s/D%s", simta_dir_fast, env->e_id );
 
 	    if ( link( d_original, d_fast ) != 0 ) {
 		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_fast );
-		free( env_p );
+		free( env );
 		/* XXX expansion terminal failure */
 		return( 1 );
 	    }
 
 	    /* Efile: write simta_dir_fast/Enew_id for all recipients at host */
-	    if ( env_outfile( env_p, simta_dir_fast ) != 0 ) {
+	    if ( env_outfile( env, simta_dir_fast ) != 0 ) {
 		/* env_outfile syslogs errors */
 		/* XXX expansion terminal failure */
 		/* XXX unlink dfile */
@@ -249,10 +249,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    message_queue( hq, m );
 
 	    /* env has corrected etime after disk access */
-	    m->m_etime.tv_sec = env_p->e_etime.tv_sec;
+	    m->m_etime.tv_sec = env->e_etime.tv_sec;
 
 	} else {
-	    env_stdout( env_p );
+	    env_stdout( env );
 	    printf( "\n" );
 	}
     }
@@ -260,6 +260,11 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     if ( simta_expand_debug != 0 ) {
 	return( 0 );
     }
+
+    /* expansion finished.  now we need to create a bounce message
+     * if there were any previous rcpt_errors, and write the expanded
+     * envelopes to disk.  then delete unexpanded message.
+     */
 
     /* if there were any failed expansions, create a bounce message */
     if ( simta_rcpt_errors != 0 ) {
