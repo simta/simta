@@ -169,6 +169,9 @@ q_cleanup( void )
 
     /* XXX check for existance of a DEAD queue */
 
+    /* Reset the fast file counter to 0 */
+    simta_fast_files = 0;
+
     return( 0 );
 }
 
