@@ -1324,7 +1324,7 @@ closeconnection:
     }
 
     if ( env != NULL ) {
-	if (( env->e_flags & E_READY ) != 0 )) {
+	if (( env->e_flags & E_READY ) != 0 ) {
 	    switch ( expand_and_deliver( &hq_receive, env )) {
 		case EXPAND_OK:
 		    break;
