@@ -146,7 +146,7 @@ get_mx( char *hostname )
 		if (( strcasecmp( simta_hostname,
 			result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
 			&& ( result->r_answer[ i ].rr_mx.mx_preference <=
-			result->r_answer[ 1 ].rr_mx.mx_preference )) {
+			result->r_answer[ 0 ].rr_mx.mx_preference )) {
 		    if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
 			    HOST_LOCAL ) != 0 ) {
 			dnsr_free_result( result );
