@@ -138,7 +138,6 @@ ldap_config( char *fname )
 		    } else if ( strncasecmp( c, "group", 5 ) == 0 ) {
 			c += 5;
 			add = &ldap_groups;
-
 		    }
 
 		    if ( add != NULL ) {
@@ -212,10 +211,6 @@ ldap_config( char *fname )
     }
 
     /* XXX check to see that ldap is configured correctly */
-    if ( ldap_groups == NULL ) {
-	fprintf( stderr, "%s: No ldap groups\n", fname );
-	return( 1 );
-    }
 
     if ( ldap_people == NULL ) {
 	fprintf( stderr, "%s: No ldap people\n", fname );
@@ -450,19 +445,24 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 	goto error;
     }
 
-    if (( result = ldap_value( entry, "objectClass", ldap_groups )) < 0 ) {
-	/* XXX daemon error handling/reporting */
-	ldap_perror( ld, "ldap_get_values 1" );
-	goto error;
+    result = 0;
 
-    } else if ( result > 0 ) {
+    if ( ldap_groups != NULL ) {
+	if (( result = ldap_value( entry, "objectClass", ldap_groups )) < 0 ) {
+	    /* XXX daemon error handling/reporting */
+	    ldap_perror( ld, "ldap_get_values 1" );
+	    goto error;
+
+	} else if ( result > 0 ) {
 
 #ifdef DEBUG
-	printf( "%s IS A GROUP!\n", addr );
+	    printf( "%s IS A GROUP!\n", addr );
 #endif /* DEBUG */
 
-    } else {
+	}
+    }
 
+    if ( result == 0 ) {
 	if (( result = ldap_value( entry, "objectClass", ldap_people )) < 0 ) {
 	    /* XXX daemon error handling/reporting */
 	    ldap_perror( ld, "ldap_get_values 2" );
