@@ -21,10 +21,8 @@ struct recipient {
 };
 
 struct envelope {
-    struct sockaddr_in	*e_sin;
     struct envelope	*e_next;
     struct message	*e_message;
-    char		*e_punt;
     char		e_expanded[ MAXHOSTNAMELEN + 1 ];
     char		*e_helo;
     char		*e_dir;
@@ -33,12 +31,9 @@ struct envelope {
     struct line_file	*e_err_text;
     char		e_id[ 30 ];
     int			e_flags;
-    int			e_relay;
-    int			e_old_dfile;
     int			e_success;
     int			e_failed;
     int			e_tempfail;
-    int			e_oldversion;
     ino_t		e_dinode;
     struct timespec	e_etime;
 };

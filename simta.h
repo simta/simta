@@ -16,7 +16,6 @@
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
 #define	SIMTA_BOUNCE_LINES		100
-#define	SIMTA_OLD_VERSION_STRING	"V0"
 #define	SIMTA_VERSION_STRING		"V0.1"
 #define SIMTA_MAX_RUNNERS_SLOW		200
 #define SIMTA_MAX_RUNNERS_LOCAL		25

@@ -291,11 +291,6 @@ env_outfile( struct envelope *e )
     char		tf[ MAXPATHLEN + 1 ];
     char		ef[ MAXPATHLEN + 1 ];
 
-    if (( e->e_dinode == 0 ) && ( e->e_oldversion == 0 )) {
-	syslog( LOG_ERR, "env_outfile no dinode!" );
-	return( -1 );
-    }
-
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
     sprintf( ef, "%s/E%s", e->e_dir, e->e_id );
 
@@ -312,26 +307,17 @@ env_outfile( struct envelope *e )
     }
 
     /* SIMTA_VERSION_STRING */
-    if ( e->e_oldversion == 0 ) {
-	if ( fprintf( tff, "%s\n", SIMTA_VERSION_STRING ) < 0 ) {
-	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	    fclose( tff );
-	    goto cleanup;
-	}
+    if ( fprintf( tff, "%s\n", SIMTA_VERSION_STRING ) < 0 ) {
+	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	fclose( tff );
+	goto cleanup;
+    }
 
-	/* Idinode */
-	if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {
-	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	    fclose( tff );
-	    goto cleanup;
-	}
-
-    } else {
-	if ( fprintf( tff, "%s\n", SIMTA_OLD_VERSION_STRING ) < 0 ) {
-	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
-	    fclose( tff );
-	    goto cleanup;
-	}
+    /* Idinode */
+    if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {
+	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	fclose( tff );
+	goto cleanup;
     }
 
     /* Hdestination-host */
@@ -494,7 +480,6 @@ env_info( struct message *m, char *hostname, size_t len )
 	goto cleanup;
     }
 
-    /* XXX hack for new updated Inode version */
     if ( strcmp( line, SIMTA_VERSION_STRING ) == 0 ) {
 	/* Dinode info */
 	if (( line = snet_getline( snet, NULL )) == NULL ) {
@@ -506,7 +491,8 @@ env_info( struct message *m, char *hostname, size_t len )
 	    syslog( LOG_ERR, "env_info %s: bad Dinode syntax", fname );
 	    goto cleanup;
 	}
-    } else if ( strcmp( line, SIMTA_OLD_VERSION_STRING ) != 0 ) {
+
+    } else {
 	syslog( LOG_ERR, "env_info %s bad version syntax", fname );
 	goto cleanup;
     }
@@ -632,9 +618,6 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	    syslog( LOG_ERR, "env_read %s: bad Dinode info", filename );
 	    goto cleanup;
 	}
-
-    } else if ( strcmp( line, SIMTA_OLD_VERSION_STRING ) == 0 ) {
-	env->e_oldversion = 1;
 
     } else {
 	syslog( LOG_ERR, "env_read %s bad version syntax", filename );

@@ -57,6 +57,8 @@ extern SSL_CTX	*ctx;
 
 extern char		*version;
 struct host_q		*hq_receive = NULL;
+struct sockaddr_in  	*receive_sin;
+int			receive_global_relay = 0;
 
 #define	RECEIVE_OK		0x0000
 #define	RECEIVE_QUIT		0x0001
@@ -397,12 +399,6 @@ f_mail( snet, env, ac, av )
 	return( RECEIVE_SYSERROR );
     }
 
-    /* check for authorized relay */
-    if ( simta_global_relay != 0 ) {
-	syslog( LOG_INFO, "f_mail global relay for %s", env->e_mail );
-	env->e_relay = 1;
-    }
-
     syslog( LOG_INFO, "f_mail %s: mail: <%s>", env->e_id, env->e_mail );
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
@@ -555,7 +551,8 @@ f_rcpt( snet, env, ac, av )
 	}
     }
 
-    if ( env->e_relay == 0 ) {
+
+    if ( simta_global_relay == 0 ) {
 	/*
 	 * Here we do an initial lookup in our domain table.  This is our
 	 * best opportunity to decline recipients that are not local or
@@ -736,7 +733,7 @@ f_data( snet, env, ac, av )
      */
     if ( fprintf( dff, "Received: FROM %s ([%s])\n\tBY %s ID %s ; \n\t%s %s\n",
 	    ( env->e_helo == NULL ) ? "NULL" : env->e_helo,
-	    inet_ntoa( env->e_sin->sin_addr ), simta_hostname, env->e_id,
+	    inet_ntoa( receive_sin->sin_addr ), simta_hostname, env->e_id,
 	    daytime, tz( tm )) < 0 ) {
 	syslog( LOG_ERR, "f_data fprintf: %m" );
 	err = RECEIVE_SYSERROR;
@@ -1194,6 +1191,7 @@ receive( fd, sin )
 	}
     }
 
+    /* XXX make this dnsr check optional */
     /* Get PTR for connection */
     if ( dnsr_query( simta_dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
 	    inet_ntoa( sin->sin_addr )) < 0 ) {
@@ -1240,7 +1238,7 @@ receive( fd, sin )
     if (( env = env_create( NULL )) == NULL ) {
 	goto syserror;
     }
-    env->e_sin = sin;
+    receive_sin = sin;
 
     if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
 	    "ready\r\n", 220, simta_hostname ) < 0 ) {
