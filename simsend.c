@@ -203,6 +203,7 @@ main( int argc, char *argv[] )
 		/* print received stamp */
 		if ( header_timestamp( env, dfile ) != 0 ) {
 		    perror( "header_timestamp" );
+		    fclose( dfile );
 		    goto cleanup;
 		}
 
