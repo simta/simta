@@ -542,7 +542,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
      */
     if (( simta_max_failed_rcpts != 0 ) &&
 	    ( recieve_failed_rcpts > simta_max_failed_rcpts )) {
-	syslog( LOG_INFO, "Receive %s: To <%s> Rejected:
+	syslog( LOG_INFO, "Receive %s: To <%s> Rejected:"
 		" Too many failed recepients:"
 		" Relay [%s] %s", env->e_id, addr,
 		inet_ntoa( receive_sin->sin_addr ),
