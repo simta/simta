@@ -124,6 +124,7 @@ message_queue( struct host_q *hq, struct message *m )
     }
 
     *mp = m;
+    hq->hq_entries++;
 
     return( 0 );
 }
