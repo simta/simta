@@ -158,13 +158,13 @@ main( int argc, char *argv[] )
     int			errs = 0;
     int			c;
     int			ignore_dot = 0;
-    int			verbose = 0;
 
-    while (( c = getopt( argc, argv, "f:h:ip:tVv" )) != -1 ) {
+    while (( c = getopt( argc, argv, "b:io:" )) != -1 ) {
 	switch ( c ) {
-	case 'f':
-	    /* set the "From:" header */
-	    /* security concern if not UID@hostname */
+	case 'b':
+	    /* XXX we do not support many -b options, do we need to fail? */
+	    /* -bs SMTP protocol, implies -ba */
+	    /* -ba ARPANET mode */
 	    break;
 
 	case 'i':
@@ -172,13 +172,19 @@ main( int argc, char *argv[] )
     	    ignore_dot = 1;
 	    break;
 
-	case 't':
-	    /* read message for recipients in "To", "Cc", and "Bcc" headers */
-	    break;
-
-	case 'v':
-	    /* go into verbose mode */
-	    verbose = 1;
+	case 'o':
+	    if ( strcmp( optarg, "db" ) == 0 ) {
+		/* -odb deliver in background */
+	    } else if ( strcmp( optarg, "em" ) == 0 ) {
+		/* -oem mail back errors */
+	    } else if ( strcmp( optarg, "i" ) == 0 ) {
+		/* -oi ignore dots */
+		ignore_dot = 1;
+	    } else if ( strcmp( optarg, "m" ) == 0 ) {
+		/* -om send to me if I'm in an alias expansion */
+	    } else {
+		errs++;
+	    }
 	    break;
 
 	default:
@@ -187,12 +193,12 @@ main( int argc, char *argv[] )
 	}
     }
 
+    /* XXX error handling for command line options? */
     if ( errs != 0 ) {
 	fprintf( stderr, "Usage: %s ", argv[ 0 ] );
-	fprintf( stderr, "[ -f from-address ] " );
+	fprintf( stderr, "[ -b option ] " );
 	fprintf( stderr, "[ -i ] " );
-	fprintf( stderr, "[ -t ] " );
-	fprintf( stderr, "[ -v ] " );
+	fprintf( stderr, "[ -o option ] " );
 	fprintf( stderr, "[ to-address ...]\n" );
 	exit( 1 );
     }

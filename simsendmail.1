@@ -7,13 +7,11 @@
 .SH SYNOPSIS
 .B simsendmail 
 [
-.BI \-f\  from-address
+.BI \-b\  option
 ] [
 .B \-i
 ] [
-.B \-t
-] [
-.B \-v
+.BI \-o\  option
 ] [
 .I to-address
 ]
@@ -42,18 +40,14 @@ the message found there to all of the to-addresses listed.
 .sp
 .SH OPTIONS
 .TP 19
-.BI \-f\  from-address
-set the "From:" header's address.
+.BI \-b\  option
+Currently ignore all -b options.
 .TP 19
 .B \-i
 ignore a single dot on a line as an end of message marker.
 .TP 19
-.B \-t
-read message headers for recipients.  Recipients may be found in the To,
-Cc, and Bcc headers.
-.TP 19
-.B \-v
-verbose mode.  Announce alias expansions, etc.
+.B \-oi
+ignore a single dot on a line as an end of message marker.
 .sp
 .SH SEE ALSO
 .BR sendmail (1)
