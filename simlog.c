@@ -17,7 +17,7 @@
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif TLS
+#endif /* TLS */
 
 #include <stdio.h>
 #include <string.h>
@@ -27,7 +27,7 @@
 #include <snet.h>
 
 
-#define LOG_DIR "files"
+#define LOG_DIR "/var/simta"
 
 
     int
@@ -39,7 +39,6 @@ main( int argc, char *argv[] )
     int			x;
     struct timeval	tv;
     char		path[ MAXPATHLEN ];
-
 
     if ( gettimeofday( &tv, NULL ) != 0 ) {
 	perror( "gettimeofday" );

@@ -11,7 +11,7 @@ SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	simsend.o message.o
-LOGGEROBJ=	logger.o
+SIMLOGOBJ=	simlog.o
 
 SIMTALOG=LOG_MAIL
 
@@ -45,8 +45,8 @@ tlsconnect : libsnet/libsnet.a ${TLSCONOBJ} Makefile
 simsendmail : libsnet/libsnet.a ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} ${LIBS}
 
-logger : libsnet/libsnet.a ${LOGGEROBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o logger ${LOGGEROBJ} ${LIBPATH} ${LIBS}
+simlog : libsnet/libsnet.a ${SIMLOGOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
 
 FRC :
 
@@ -67,6 +67,7 @@ clean :
 	cd libsnet; ${MAKE} ${MFLAGS} clean
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
 	rm -f ${TARGETS}
+	rm -f simlog
 
 realclean : clean
 	rm -rf autom4te.cache
