@@ -300,12 +300,14 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	    if ( recipient->r_err_text == NULL ) {
 		if (( recipient->r_err_text = line_file_create()) == NULL ) {
 		    syslog( LOG_ERR, "line_file_create: %m" );
+		    snet_close( snet );
 		    return( EX_TEMPFAIL );
 		}
 	    }
 
 	    if ( line_append( recipient->r_err_text, line, COPY ) == NULL ) {
 		syslog( LOG_ERR, "line_append: %m" );
+		snet_close( snet );
 		return( EX_TEMPFAIL );
 	    }
 	}
