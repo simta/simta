@@ -61,12 +61,16 @@ int	q_runner_dir ___P(( char * ));
 
 void	q_runner_d ___P(( char * ));
 struct	host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
-void	q_stdout ___P(( struct host_q * ));
-void	q_stab_stdout ___P(( struct host_q * ));
 struct	message	*message_create ___P(( char * ));
 void	message_free ___P(( struct message * ));
-void	message_stdout ___P(( struct message * ));
-void	message_syslog ___P(( struct message * ));
 int	message_slow ___P(( struct message * ));
 void	message_remove ___P(( struct message * ));
 void	message_queue ___P(( struct host_q *, struct message * ));
+
+/* debugging functions */
+void	q_stab_syslog ___P(( struct host_q * ));
+void	q_stab_stdout ___P(( struct host_q * ));
+void	q_syslog ___P(( struct host_q * ));
+void	q_stdout ___P(( struct host_q * ));
+void	message_syslog ___P(( struct message * ));
+void	message_stdout ___P(( struct message * ));

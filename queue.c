@@ -120,6 +120,33 @@ message_syslog( struct message *m )
     }
 }
 
+    void
+q_syslog( struct host_q *hq )
+{
+    struct message		*m;
+
+    if ( hq == simta_null_q ) {
+	syslog( LOG_DEBUG, "queue_syslog NULL queue" );
+    } else {
+	syslog( LOG_DEBUG, "queue_syslog %s", hq->hq_hostname );
+    }
+
+    for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
+	message_syslog( m );
+    }
+}
+
+
+    void
+q_stab_syslog( struct host_q *hq )
+{
+    struct host_q		*h;
+
+    for ( h = hq; h != NULL; h = h->hq_next ) {
+	q_syslog( h );
+    }
+}
+
 
     void
 message_stdout( struct message *m )
@@ -421,6 +448,7 @@ q_run( struct host_q **host_q )
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
+	    q_syslog( simta_null_q );
 	    syslog( LOG_DEBUG, "q_run: checking for unexpanded mail" );
 	    /* delivered all expanded mail, check for unexpanded */
 	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
@@ -436,6 +464,8 @@ q_run( struct host_q **host_q )
 	    if ( unexpanded->m_from != 0 ) {
 		simta_null_q->hq_from--;
 	    }
+
+	    q_syslog( simta_null_q );
 
 	    if (( env = unexpanded->m_env ) == NULL ) {
 		syslog( LOG_DEBUG, "q_run: reading unexpanded %s",

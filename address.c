@@ -159,7 +159,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	    exp->exp_addr_parent->e_addr_child = e;
 	}
 
-#ifdef HAVE_LDAP
+#ifdef NOT_DEF_HAVE_LDAP
 	if ( strcasecmp( exp->exp_env->e_mail, address ) == 0 ) {
 	    e->e_addr_exclusive = 1;
 	}
@@ -171,7 +171,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	address = e->e_addr;
     }
 
-#ifdef HAVE_LDAP
+#ifdef NOT_DEF_HAVE_LDAP
     if ( e->e_addr_exclusive > 0 ) {
 	if (( parent = exp->exp_addr_parent ) != NULL ) {
 	    do {
