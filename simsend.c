@@ -243,6 +243,9 @@ headers( struct message *m )
 	 * From: user@domain
 	 * From: Firstname Lastname <user@domain>
 	 * From: "Firstname Lastname" <user@domian>
+	 * From: user@domian (Firstname Lastname)
+	 *
+	 * To: blah: woof woof;
 	 *
 	 * FWS
 	 * (comments)
