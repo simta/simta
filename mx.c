@@ -205,22 +205,30 @@ mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
 check_hostname( DNSR *dnsr, char *dn, struct in_addr *in )
 {
     int				i, j;
+    char			*temp;
     struct dnsr_result		*result_ptr = NULL, *result_a = NULL;
 
-    if ( simta_dnsr == NULL ) {
-        if (( simta_dnsr = dnsr_new( )) == NULL ) {
+    if ( dnsr == NULL ) {
+        if (( dnsr = dnsr_new( )) == NULL ) {
             syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
 	    return( -1 );
 	}
     }
 
-    /* Get PTR for connection */
-    if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
-            inet_ntoa( *in )) < 0 ) {
-        syslog( LOG_ERR, "check_hostname: dnsr-query: %s",
+    if (( temp = dnsr_ntoptr( dnsr, in )) == NULL ) {
+        syslog( LOG_ERR, "check_hostname: dnsr_ntoptr: %s",
 	    dnsr_err2string( dnsr_errno( dnsr )));
 	return( -1 );
     }
+
+    /* Get PTR for connection */
+    if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
+        syslog( LOG_ERR, "check_hostname: dnsr_query: %s",
+	    dnsr_err2string( dnsr_errno( dnsr )));
+	return( -1 );
+    }
+
+    free( temp );
 
     if (( result_ptr = dnsr_result( dnsr, NULL )) == NULL ) {
         syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
@@ -236,7 +244,7 @@ check_hostname( DNSR *dnsr, char *dn, struct in_addr *in )
 		dnsr_err2string( dnsr_errno( dnsr )));
 	    goto error;
 	}
-	if (( result_a = dnsr_result( simta_dnsr, NULL )) == NULL ) {
+	if (( result_a = dnsr_result( dnsr, NULL )) == NULL ) {
 	    syslog( LOG_ERR, "check_hostname: dnsr_result: %s",
 		dnsr_err2string( dnsr_errno( dnsr )));
 	    goto error;
