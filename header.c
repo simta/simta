@@ -243,6 +243,10 @@ header_end( struct line_file *lf, char *line )
      * return -1 if there was a serious error.
      */
 
+    /* all errors out to stderr, as you should only be correcting headers
+     * from simsendmail, for now.
+     */
+
     int
 header_correct( struct line_file *lf, struct envelope *env )
 {
@@ -254,8 +258,9 @@ header_correct( struct line_file *lf, struct envelope *env )
     char		*from_line;
     int			result;
 
-    if ( header_exceptions( lf ) != 0 ) {
-	return( -1 );
+    if (( result = header_exceptions( lf )) != 0 ) {
+	fprintf( stderr, "header_exceptions error\n" );
+	return( result );
     }
 
     /* put header information in to data structures for later processing */
@@ -289,7 +294,9 @@ header_correct( struct line_file *lf, struct envelope *env )
 
 		} else {
 		    /* header h->h_key appears at least twice */
-		    return( -1 );
+		    fprintf( stderr, "Illegal duplicate header: %s\n",
+			    h->h_key );
+		    return( 1 );
 		}
 	    }
 	}
@@ -299,10 +306,19 @@ header_correct( struct line_file *lf, struct envelope *env )
     for ( h = simta_headers; h->h_key != NULL; h++ ) {
 	if ( h->h_line != NULL ) {
 	    if (( h->h_data = header_unfold( h->h_line )) == NULL ) {
+		perror( "header_unfold realloc" );
 		return( -1 );
 	    }
 
 	    if (( result = header_uncomment( &(h->h_data))) != 0 ) {
+		if ( result < 0 ) {
+		    perror( "header_uncomment realloc" );
+
+		} else {
+		    fprintf( stderr, "Header %s: Illegal parenthesis\n",
+			    h->h_key );
+		}
+
 		return( result );
 	    }
 	}
@@ -321,6 +337,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 
 	if (( from_line = (char*)malloc( strlen( pw->pw_name ) +
 		strlen( env->e_hostname ) + 9 )) == NULL ) {
+	    perror( "malloc" );
 	    return( -1 );
 	}
 
@@ -328,8 +345,10 @@ header_correct( struct line_file *lf, struct envelope *env )
 
 	if (( simta_headers[ HEAD_FROM ].h_line =
 		line_prepend( lf, from_line )) == NULL ) {
+	    perror( "malloc" );
 	    return( -1 );
 	}
+
 	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data + 6;
 
     } else {
@@ -347,7 +366,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 	 */
 
 	/* XXX wrong */
-	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data;
+	env->e_mail = simta_headers[ HEAD_FROM ].h_data;
     }
 
     if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
@@ -400,7 +419,6 @@ header_unfold( struct line *line )
     }
 
     if (( unfolded = (char*)malloc( strlen( c ) + 1 )) == NULL ) {
-	perror( "malloc" );
 	return( NULL );
     }
 
@@ -419,7 +437,6 @@ header_unfold( struct line *line )
 
 	    if (( unfolded = (char*)realloc( unfolded, strlen( unfolded ) +
 		    strlen( c ) + 1 )) == NULL ) {
-		perror( "realloc" );
 		return( NULL );
 	    }
 
@@ -500,7 +517,6 @@ header_uncomment( char **line )
 
     if ( before > after ) {
 	if (( *line = (char*)realloc( *line, after + 1 )) == NULL ) {
-	    perror( "realloc" );
 	    return( -1 );
 	}
     }

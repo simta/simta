@@ -181,13 +181,7 @@ main( int argc, char *argv[] )
 
 	if ( header == 1 ) {
 	    if ( header_end( lf, line ) != 0 ) {
-		if (( x = header_correct( lf, env )) < 0 ) {
-		    perror( "header_correct" );
-		    exit( 1 );
-
-		} else if ( x > 0 ) {
-		    /* headers couldn't be corrected */
-		    fprintf( stderr, "Message rejected: Bad headers\n" );
+		if ( header_correct( lf, env ) != 0 ) {
 		    exit( 1 );
 		}
 
@@ -256,13 +250,7 @@ main( int argc, char *argv[] )
     }
 
     if ( header == 1 ) {
-	if (( x = header_correct( lf, env )) < 0 ) {
-	    perror( "header_correct" );
-	    exit( 1 );
-
-	} else if ( x > 0 ) {
-	    /* headers couldn't be corrected */
-	    fprintf( stderr, "Message rejected: Bad headers\n" );
+	if ( header_correct( lf, env ) != 0 ) {
 	    exit( 1 );
 	}
 
