@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include <snet.h>
 
@@ -44,7 +45,53 @@ struct nlist header_nl[] = {
     { NULL,			NULL }
 };
 
+int header_exceptions( struct message * );
 int headers( struct message * );
+
+
+    /* Some mail clents exhibit bad behavior when generating headers.
+     *
+     * return 0 if all went well.
+     * return 1 if we reject the message.
+     * die -1 if there was a serious error.
+     */
+
+    int
+header_exceptions( struct message *m )
+{
+    char		*c;
+    char		*end;
+    int			len;
+    char		*line;
+
+    if ( m->m_first_line == NULL ) {
+	/* empty message */
+	return( 0 );
+    }
+
+    /* mail(1) on Solaris gives non-RFC compliant first header line */
+    c = m->m_first_line->line_data;
+
+    if ( strncasecmp( m->m_first_line->line_data, "From ", 5 ) == 0 ) {
+	c += 5;
+	for ( end = c; ( *end > 33 ) && ( *end < 126 ); end++ )
+		;
+
+	/* rewrite the header if we find a word after "From " */
+	if (( len = end - c ) > 0 ) {
+	    if (( line = (char*)malloc((size_t)(7 + len ))) == NULL ) {
+		perror( "malloc" );
+		exit( 1 );
+	    }
+	    strcpy( line, "From: " );
+	    strncat( line, c, (size_t)(len + 1 ));
+	    free( m->m_first_line->line_data );
+	    m->m_first_line->line_data = line;
+	}
+    }
+
+    return( 0 );
+}
 
 
     /* return 0 if all went well.
@@ -60,6 +107,10 @@ headers( struct message *m )
     char		*header;
     char		*colon;
     size_t		header_len;
+
+    if ( header_exceptions( m ) != 0 ) {
+	return( 1 );
+    }
 
     for ( l = m->m_first_line; l != NULL ; l = l->line_next ) {
 	if ( *(l->line_data) == '\0' ) {
