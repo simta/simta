@@ -13,13 +13,12 @@
 #include <snet.h>
 
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
 #include "expand.h"
 #include "oklist.h"
 #include "dn.h"
 
-int
+    int
 ok_create ( struct exp_addr *e_addr, char **permitted, char *dn)
 {
     int		idx;
@@ -37,14 +36,14 @@ ok_create ( struct exp_addr *e_addr, char **permitted, char *dn)
 	    if ((namedup = strdup (permitted[idx])) == NULL)
 		return (1);
 
-	    if (ll_insert ( &e_addr->e_addr_ok, namedup, " ", NULL ) )
+	    if (ll_insert ( &e_addr->e_addr_ok, namedup, " ", NULL ) != 0 )
 		return (1);
 	}		
     }
     return 0;
 }
 
-void
+    void
 ok_destroy ( struct exp_addr *e_addr)
 {
 
