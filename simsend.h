@@ -10,11 +10,11 @@
 #endif __STDC__
 
 int		main ___P(( int, char ** ));
-int		read_headers ___P(( struct datalines **, struct datalines **, 
-				    struct datalines **, struct datalines **, 
-				    struct rcptlist *, char *, char *, int ));
+int		read_headers ___P(( struct datalines **, struct rcptlist **,
+			char *, int ));
 
-NET		*smtp_connect ___P(( unsigned short, char *, int ));
-int		transmit_envelope ___P(( NET *, struct rcptlist *, char *, int ));
-int		transmit_headers ___P(( NET *, struct datalines *, int ));
-int		read_body ___P(( NET *, int ));
+SNET		*smtp_connect ___P(( unsigned short, char *, int ));
+int		transmit_envelope ___P(( SNET *, struct rcptlist *,
+			char *, int ));
+int		transmit_headers ___P(( SNET *, struct datalines *, int ));
+int		read_body ___P(( SNET *, int ));

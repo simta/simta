@@ -28,7 +28,7 @@ struct ih {
 int 			dl_append ___P(( struct datalines ***, 
 					    struct datalines ***, char *, ...));
 int 			dl_prepend ___P(( struct datalines ***, char *, ... ));
-int			dl_output ___P(( struct datalines *, NET * ));
+int			dl_output ___P(( struct datalines *, SNET * ));
 void			dl_free ___P(( struct datalines *** ));
 int			parse_header ___P(( char *, int *, int *, int * ));
 struct datalines 	*dl_alloc ___P(( char * ));

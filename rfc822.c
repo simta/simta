@@ -14,7 +14,7 @@
 #include <varargs.h>
 #endif __STDC__
 
-#include <net.h>
+#include <snet.h>
 #include "rfc822.h"
 
 struct ih   integral_headers[ ] = { 
@@ -95,11 +95,10 @@ dl_alloc( line )
 	return( NULL );
     }
 
-    if (( i->d_line = (char *)malloc( strlen( line ) + 1 )) == NULL ) {
+    if (( i->d_line = strdup( line )) == NULL ) {
 	perror( "malloc" );
 	return( NULL );
     }
-    strcpy(i->d_line, line);
 
     return( i );
 }
@@ -177,12 +176,12 @@ dl_prepend( d_head, format, va_alist )
     int
 dl_output( d_head, net )
     struct datalines	*d_head;
-    NET			*net;
+    SNET			*net;
 {
     struct datalines *i;
 
     for ( i = d_head; i != NULL; i = i->d_next ) {
-	if ( net_writef( net, "%s", i->d_line ) < 0 ) {
+	if ( snet_writef( net, "%s", i->d_line ) < 0 ) {
 	    perror( "net_writef" );
 	    exit( EX_IOERR );
 	}
