@@ -31,8 +31,13 @@ extern SSL_CTX	*ctx;
 #include "receive.h"
 #include "envelope.h"
 #include "auth.h"
+#include "denser.h"
+#include "bprint.h"
+#include "argcargv.h"
+#include "timeval.h"
 
 extern char	*version;
+char		*dnsr_resolvconf_path = "/Volumes/Local/Users/editor/src/simta/resolv.conf";
 
 struct command {
     char	*c_name;
@@ -645,12 +650,78 @@ receive( fd, sin )
     int					ac, i;
     char				**av, *line;
     struct timeval			tv;
+    DNSR				*dnsr;
+    extern int				denser_debug;
+
+    denser_debug = 0;
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_attach: %m" );
 	/* We *could* use write(2) to report an error before we exit here */
 	exit( 1 );
     }
+
+    if (( dnsr = dnsr_open( )) == NULL ) {
+	syslog( LOG_ERR, "dnsr_open failed" );
+	snet_writef( snet,
+		"%d Service not available, closing transmission channel\r\n",
+		421 );
+	exit( 1 );
+    }
+
+    /* Get PTR for connection */
+    if (( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
+	    inet_ntoa( sin->sin_addr ))) < 0 ) {
+	syslog( LOG_ERR, "dnsr_query failed" );
+	snet_writef( snet,
+		"%d Service not available, closing transmission channel\r\n",
+		421 );
+	exit( 1 );
+    }
+    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+	syslog( LOG_ERR, "dnsr_result failed" );
+	snet_writef( snet,
+		"%d Service not available, closing transmission channel\r\n",
+		421 );
+	exit( 1 );
+    }
+
+    /* Get A record on PTR result */
+    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+	    dnsr->d_result->answer[ 0 ].r_dn.dn )) < 0 ) {
+	syslog( LOG_ERR, "dnsr_query failed" );
+	snet_writef( snet,
+		"%d Service not available, closing transmission channel\r\n",
+		421 );
+	exit( 1 );
+    }
+    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+	syslog( LOG_ERR, "dnsr_result failed" );
+	snet_writef( snet,
+		"%d Service not available, closing transmission channel\r\n",
+		421 );
+	exit( 1 );
+    }
+
+    /* Verify A record matches IP */
+    {
+	/* XXX - how should this be checked? */
+
+	struct in_addr      addr;
+
+	memcpy( &addr.s_addr, &dnsr->d_result->answer[ 0 ].r_a, sizeof( int ));
+
+	if ( strcmp( inet_ntoa( addr ), inet_ntoa( sin->sin_addr )) != 0 ) {
+	    syslog( LOG_INFO, "%s: connection rejected: invalid A record",
+		inet_ntoa( sin->sin_addr ));
+	    snet_writef( snet,
+		"%d Service not available, closing transmission channel\r\n",
+		421 );
+	    exit( 1 );
+	}
+    }
+
+    /* Check bad guy list */
 
     if ((( env = env_create()) == NULL ) ||
 	    ( gethostname( env->e_hostname, MAXHOSTNAMELEN ) < 0 )) {
