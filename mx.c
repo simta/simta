@@ -135,7 +135,7 @@ get_mx( char *hostname )
 		break;
 
 	    default:
-		syslog( LOG_ERR, "get_mx: %s: unknown type: %d", hostname,
+		syslog( LOG_DEBUG, "get_mx: %s: unknown type: %d", hostname,
 		    result->r_answer[ i ].rr_type );
 		break;
 	    }
@@ -156,28 +156,28 @@ host_local( char *hostname )
     struct host		*host;
     struct dnsr_result	*result;
 
-    syslog( LOG_ERR, "host_local: %s", hostname );
+    syslog( LOG_DEBUG, "host_local: %s", hostname );
 
     /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	syslog( LOG_ERR, "host_local: %s found in simta_hosts", hostname );
+	syslog( LOG_DEBUG, "host_local: %s found in simta_hosts", hostname );
 	return( host );
     }
 
-    syslog( LOG_ERR, "host_local: %s getting DNS", hostname );
+    syslog( LOG_DEBUG, "host_local: %s getting DNS", hostname );
     /* Check DNS */
     if (( result = get_mx( hostname )) == NULL ) {
-	syslog( LOG_ERR, "host_local: %s no DNS", hostname );
+	syslog( LOG_DEBUG, "host_local: %s no DNS", hostname );
 	return( NULL );
     }
     dnsr_free_result( result );
 
     /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	syslog( LOG_ERR, "host_local: %s found in DNS", hostname );
+	syslog( LOG_DEBUG, "host_local: %s found in DNS", hostname );
 	return( host );
     }
-    syslog( LOG_ERR, "host_local: %s NOT FOUND!", hostname );
+    syslog( LOG_DEBUG, "host_local: %s NOT FOUND!", hostname );
 
     return( NULL );
 }
@@ -293,12 +293,12 @@ add_host( char *hostname, int type )
 
     /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	syslog( LOG_ERR, "add_host: %s already added", hostname );
+	syslog( LOG_DEBUG, "add_host: %s already added", hostname );
 	return( host );
     }
 
     if ( strlen( hostname ) > DNSR_MAX_HOSTNAME ) {
-	syslog( LOG_ERR, "add_host: %s: hostname too long", hostname );
+	syslog( LOG_DEBUG, "add_host: %s: hostname too long", hostname );
 	return( NULL );
     }
 
@@ -317,7 +317,7 @@ add_host( char *hostname, int type )
 	goto error;
     }
 
-    syslog( LOG_ERR, "add_host: added %s", host->h_name );
+    syslog( LOG_DEBUG, "add_host: added %s", host->h_name );
     return( host );
 
 error:
@@ -346,6 +346,6 @@ add_expansion( struct host *host, int type )
 	p->e_next = expansion;
     }
 
-    syslog( LOG_ERR, "add_expansion: %s: added %d", host->h_name, type );
+    syslog( LOG_DEBUG, "add_expansion: %s: added %d", host->h_name, type );
     return( 0 );
 }
