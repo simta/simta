@@ -33,12 +33,14 @@
 #include "ll.h"
 #include "simta.h"
 
+#define SIMREVERSE_EXIT_VALID		0
+#define SIMREVERSE_EXIT_INVALID		1
+#define SIMREVERSE_EXIT_ERROR		2
+
     int
 main( int argc, char *argv[])
 {
-    extern int          optind;
-    extern char         *optarg;
-
+    int			rc;
     struct in_addr	addr;
 
     if ( argc < 1 ) {
@@ -46,22 +48,31 @@ main( int argc, char *argv[])
 	exit( EX_USAGE );
     }
 
-    if ( inet_pton( AF_INET, argv[ 1 ], &addr ) <= 0 ) {
+    rc = inet_pton( AF_INET, argv[ 1 ], &addr );
+    if ( rc < 0 ) {
 	perror( "inet_pton" );
-	exit( 1 );
+	exit( SIMREVERSE_EXIT_ERROR );
+    } else if ( rc == 0 ) {
+	fprintf( stderr, "%s: invalid address\n", argv[ 1 ] );
+	exit( SIMREVERSE_EXIT_ERROR );
     }
 
     switch ( check_reverse( argv[ 1 ], &addr )) {
     case 0:
 	printf( "valid reverse\n" );
-	exit( 0 );
+	exit( SIMREVERSE_EXIT_VALID );
 
     case 1:
 	printf( "invalid reverse\n" );
-	exit( 1 );
+	exit( SIMREVERSE_EXIT_INVALID );
 
     default:
-	fprintf( stderr, "check_reverse failed\n" );
-	exit( 1 );
+	if ( simta_dnsr == NULL ) {
+	    perror( "dnsr_new" );
+	} else {
+	    fprintf( stderr, "check_reverse: %s\n",
+		dnsr_err2string( dnsr_errno( simta_dnsr )));
+	}
+	exit( SIMREVERSE_EXIT_ERROR );
     }
 }
