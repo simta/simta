@@ -160,21 +160,21 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		/* XXX do you want to report an error here? */
 #ifdef DEBUG
 		printf( "SIMTA_EXPAND_ERROR_NONE\n" );
-#ifdef /* DEBUG */
+#endif /* DEBUG */
 		break;
 
 	    case SIMTA_EXPAND_ERROR_SYSTEM:
 		/* XXX do you want to report an error here? */
 #ifdef DEBUG
 		printf( "SIMTA_EXPAND_ERROR_SYSTEM\n" );
-#ifdef /* DEBUG */
+#endif /* DEBUG */
 		break;
 
 	    case SIMTA_EXPAND_ERROR_OFF_HOST:
 		/* XXX do you want to report an error here? */
 #ifdef DEBUG
 		printf( "SIMTA_EXPAND_ERROR_OFF_HOST\n" );
-#ifdef /* DEBUG */
+#endif /* DEBUG */
 		break;
 
 	    case SIMTA_EXPAND_ERROR_BAD_FORMAT:
@@ -210,7 +210,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		/* XXX do you want to report an error here? */
 #ifdef DEBUG
 		printf( "SIMTA_EXPAND_ERROR_default\n" );
-#ifdef /* DEBUG */
+#endif /* DEBUG */
 		break;
 	    }
 
