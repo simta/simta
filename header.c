@@ -59,6 +59,7 @@ header_stdout( struct header h[])
     }
 }
 
+
     int
 count_words( char *l )
 {
@@ -141,10 +142,15 @@ header_timestamp( struct envelope *env, FILE *file )
     struct tm			*tm;
     char			daytime[ 30 ];
 
-    memset( &sin, 0, sizeof( struct sockaddr_in ));
+    if ( env->e_sin != NULL ) {
+	memcpy( &sin, env->e_sin, sizeof( struct sockaddr_in )); 
 
-    sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = INADDR_ANY;
+    } else {
+	/* XXX local IP addr? */
+	memset( &sin, 0, sizeof( struct sockaddr_in ));
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = INADDR_ANY;
+    }
 
     if ( time( &clock ) < 0 ) {
 	return( -1 );
@@ -158,10 +164,9 @@ header_timestamp( struct envelope *env, FILE *file )
 	return( -1 );
     }
 
-    /* XXX Received header */
+    /* Received header */
     if ( fprintf( file, "Received: FROM %s ([%s])\n\tBY %s ID %s ;\n\t%s %s\n",
-	    "user@localhost",
-	    inet_ntoa( sin.sin_addr ), "localhost",
+	    env->e_mail, inet_ntoa( sin.sin_addr ), env->e_hostname,
 	    env->e_id, daytime, tz( tm )) < 0 ) {
 	return( -1 );
     }
@@ -171,6 +176,14 @@ header_timestamp( struct envelope *env, FILE *file )
 
 
     /* return 0 if line is the next line in header block lf */
+    /* rfc2822, 2.1:
+     * A message consists of header fields (collectively called "the header
+     * of the message") followed, optionally, by a body.  The header is a
+     * sequence of lines of characters with special syntax as defined in
+     * this standard. The body is simply a sequence of characters that
+     * follows the header and is separated from the header by an empty line
+     * (i.e., a line with nothing preceding the CRLF).
+     */
 
     int
 header_end( struct line_file *lf, char *line )
@@ -216,7 +229,6 @@ header_end( struct line_file *lf, char *line )
     int
 header_correct( struct line_file *lf, struct envelope *env )
 {
-    int			words;
     struct line		*l;
     struct header	*h;
     char		*colon;
@@ -261,10 +273,6 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     /* examine header data structures */
 
-    header_stdout( simta_headers );
-
-    return( 0 );
-
     /* "From:" header */
     if ( simta_headers[ HEAD_FROM ].h_line == NULL ) {
 	/* generate header */
@@ -279,16 +287,13 @@ header_correct( struct line_file *lf, struct envelope *env )
 	    return( -1 );
 	}
 
-	/* XXX need localhostname */
-	sprintf( from_line, "From: %s@%s", pw->pw_name, "localhost" );
+	sprintf( from_line, "From: %s@%s", pw->pw_name, env->e_hostname );
 
-	/*
 	if (( simta_headers[ HEAD_FROM ].h_line =
 		line_prepend( lf, from_line )) == NULL ) {
 	    return( -1 );
 	}
 	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data + 6;
-	*/
 
     } else {
 	/* handle following cases from doc/sendmail/headers:
@@ -304,19 +309,9 @@ header_correct( struct line_file *lf, struct envelope *env )
 	 * (comments)
 	 */
 
-	/* XXX totally fucked */
-
-	words = count_words( h->h_line->line_data + 5 );
-
-	if ( words == 0 ) {
-	    return( 1 );
-
-	} else if ( words == 1 ) {
-	} else {
-	}
+	/* XXX wrong */
+	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data + 6;
     }
-
-    return( 0 );
 
     if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
 	/* XXX action */
@@ -346,5 +341,16 @@ header_correct( struct line_file *lf, struct envelope *env )
 	/* XXX action */
     }
 
+    header_stdout( simta_headers );
+
     return( 0 );
+}
+
+
+    char *
+header_unfold( struct line *line )
+{
+    char		*unfolded = NULL;
+
+    return( unfolded );
 }

@@ -9,7 +9,7 @@
 struct header {
     char                *h_key;
     struct line         *h_line;
-    char                *h_data;
+    char		*h_data;
 };
 
 int		count_words ___P(( char * ));
