@@ -111,20 +111,26 @@ chld( sig )
 	    switch ( p_remove->p_type ) {
 
 	    case Q_LOCAL:
+		syslog( LOG_INFO, "chld %d: q_runner.local done",
+			p_remove->p_id );
 		q_runner_local--;
 		break;
 
 	    case Q_SLOW:
+		syslog( LOG_INFO, "chld %d: q_runner.slow done",
+			p_remove->p_id );
 		q_runner_slow--;
 		break;
 
 	    case SIMTA_CHILD:
+		syslog( LOG_INFO, "chld %d: daemon.receive done",
+			p_remove->p_id );
 		connections--;
 		break;
 
 	    default:
-		syslog( LOG_ERR, "chld %d: unknown process type",
-			p_remove->p_type );
+		syslog( LOG_ERR, "chld %d: unknown process type %d",
+			p_remove->p_id, p_remove->p_type );
 		exit( 1 );
 	    }
 
