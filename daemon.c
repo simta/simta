@@ -213,6 +213,12 @@ main( int ac, char **av )
                 fprintf( stderr, "simta -q and -C illegal\n" );
 		exit( 1 );
 	    }
+
+	    if ( q_run != 0 ) {
+                fprintf( stderr, "simta invoke -Q or -q only once\n" );
+		exit( 1 );
+	    }
+
 	    /* q_runner option: just run slow queue */
 	    q_run++;
 	    break;
@@ -223,6 +229,17 @@ main( int ac, char **av )
                 fprintf( stderr, "simta -Q and -C illegal\n" );
 		exit( 1 );
 	    }
+
+	    if ( simta_queue_filter != NULL ) {
+                fprintf( stderr, "simta -Q can't be invoked twice\n" );
+		exit( 1 );
+	    }
+
+	    if ( q_run != 0 ) {
+                fprintf( stderr, "simta invoke -Q or -q only once\n" );
+		exit( 1 );
+	    }
+
 	    q_run++;
 	    simta_queue_filter = optarg;
 	    break;
