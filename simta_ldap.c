@@ -13,7 +13,6 @@
 #include <openssl/err.h>
 #endif /* TLS */
 
-#include <snet.h>
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -27,11 +26,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ldap.h>
+#ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
+#endif
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
 
+#include <snet.h>
 #include "denser.h"
 #include "ll.h"
 #include "queue.h"
