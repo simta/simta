@@ -287,6 +287,10 @@ main( ac, av )
 	    spooldir = optarg;
 	    break;
 
+	case 'S' :		/* don't sync */
+	    simta_no_sync = 1;
+	    break;
+
 	case 'V' :		/* virgin */
 	    printf( "%s\n", version );
 	    exit( 0 );

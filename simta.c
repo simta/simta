@@ -48,6 +48,7 @@ int			(*simta_local_mailer)(int, char *, struct recipient *);
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_no_sync = 0;
 int			simta_receive_wait = 600;
 int			simta_ignore_reverse = 0;
 int			simta_message_count = 0;

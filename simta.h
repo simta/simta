@@ -30,6 +30,7 @@
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
+extern int				simta_no_sync;
 extern int				simta_ignore_reverse;
 extern int				simta_receive_wait;
 extern int				simta_message_count;

@@ -433,6 +433,11 @@ env_outfile( struct envelope *e )
 	    e->e_hostname );
 
     e->e_flags = ( e->e_flags | ENV_ON_DISK );
+
+    if ( simta_no_sync == 0 ) {
+	sync();
+    }
+
     return( 0 );
 
 cleanup:
