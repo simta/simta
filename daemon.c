@@ -172,6 +172,10 @@ main( int ac, char **av )
 	    break;
 
 	case 'C' :		/* clean up directories */
+	    if ( q_run != 0 ) {
+                fprintf( stderr, "simta -q or -Q and -C illegal\n" );
+		exit( 1 );
+	    }
 	    simta_filesystem_cleanup++;
 	    break;
 
@@ -205,12 +209,20 @@ main( int ac, char **av )
 	    break;
 
 	case 'q' :
+	    if ( simta_filesystem_cleanup != 0 ) {
+                fprintf( stderr, "simta -q and -C illegal\n" );
+		exit( 1 );
+	    }
 	    /* q_runner option: just run slow queue */
 	    q_run++;
 	    break;
 
 	case 'Q' :
 	    /* q_runner option: just run specific slow queue */
+	    if ( simta_filesystem_cleanup != 0 ) {
+                fprintf( stderr, "simta -Q and -C illegal\n" );
+		exit( 1 );
+	    }
 	    q_run++;
 	    simta_queue_filter = optarg;
 	    break;
@@ -319,7 +331,7 @@ main( int ac, char **av )
 	exit( 0 );
     }
 
-    if ( q_run == 0 ) {
+    if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 )) {
 	if ( port == 0 ) {
 	    if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
 		fprintf( stderr, "%s: can't find smtp service: continuing\n",
@@ -413,6 +425,10 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
+    if ( simta_filesystem_cleanup != 0 ) {
+	exit( q_cleanup());
+    }
+
     /*
      * Disassociate from controlling tty.
      */
@@ -457,10 +473,6 @@ main( int ac, char **av )
 
     if ( q_cleanup() != 0 ) {
 	exit( 1 );
-    }
-
-    if ( simta_filesystem_cleanup != 0 ) {
-	exit( 0 );
     }
 
     if (( pf = fdopen( pidfd, "w" )) == NULL ) {
