@@ -551,7 +551,11 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    deliver_q->hq_from--;
 	}
 
+	assert( deliver_q->hq_from >= 0 );
+
 	deliver_q->hq_entries--;
+
+	assert( deliver_q->hq_entries >= 0 );
 
 	if ( env_deliver->e_rcpt == NULL ) {
 	    /* lock & read envelope to deliver */
@@ -577,10 +581,12 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	d.d_env = env_deliver;
 	d.d_dfile_fd = dfile_fd;
 
-        if ( deliver_q->hq_status == HOST_LOCAL ) {
+	switch ( deliver_q->hq_status ) {
+        case HOST_LOCAL:
 	    deliver_local( &d );
+	    break;
 
-        } else if ( deliver_q->hq_status == HOST_MX ) {
+        case HOST_MX:
 	    if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
 		syslog( LOG_ERR, "q_deliver snet_attach: %m" );
 		goto message_cleanup;
@@ -588,9 +594,16 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    d.d_dfile_snet = snet_dfile;
 
 	    deliver_remote( &d, &snet_smtp, deliver_q );
-	} else {
-	    assert (( deliver_q->hq_status == HOST_DOWN ) ||
-		    ( deliver_q->hq_status == HOST_BOUNCE ));
+	    break;
+
+        case HOST_DOWN:
+	    break;
+
+        case HOST_BOUNCE:
+	    break;
+
+	default:
+	    abort();
 	}
 
 	/* check the age ot the envelope if the envelope has any tempfails or
