@@ -283,6 +283,9 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
      *
      * XXX is LDAP_FINAL useless?  if its in the db, it can never be terminal?
      *
+     * struct expand *exp->exp_env->e_mail
+     *     - is the sender of the message
+     *
      * expansion (not system) errors should be reported back to the sender
      * using rcpt_error(...);
      *
