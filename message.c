@@ -76,6 +76,15 @@ message_create( void )
 }
 
 
+    int
+message_from( struct message *m, struct header *h )
+{
+    m->m_env->e_mail = h->h_line->line_data;
+
+    return( 0 );
+}
+
+
     /* add a line to the message */
 
     struct line *
@@ -96,8 +105,10 @@ message_line( struct message *m, char *line )
     if ( m->m_first_line == NULL ) {
 	m->m_first_line = l;
 	m->m_last_line = l;
+	l->line_prev = NULL;
 
     } else {
+	l->line_prev = m->m_last_line;
 	m->m_last_line->line_next = l;
 	m->m_last_line = l;
     }
@@ -122,6 +133,7 @@ message_prepend_line( struct message *m, char *line )
     }
 
     l->line_next = m->m_first_line;
+    l->line_prev = NULL;
 
     if ( m->m_first_line == NULL ) {
 	m->m_first_line = l;

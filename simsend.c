@@ -20,29 +20,30 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include <snet.h>
 
 #include "message.h"
 
-struct nlist header_nl[] = {
-    { "Date",			NULL },
+struct header header_list[] = {
+    { "Date",			NULL,		NULL },
 #define HEAD_ORIG_DATE		0
-    { "From",			NULL },
+    { "From",			NULL,		NULL },
 #define HEAD_FROM		1
-    { "Sender",			NULL },
+    { "Sender",			NULL,		NULL },
 #define HEAD_SENDER		2
-    { "To",			NULL },
+    { "To",			NULL,		NULL },
 #define HEAD_TO			3
-    { "Message-ID",		NULL },
+    { "Message-ID",		NULL,		NULL },
 #define HEAD_MESSAGE_ID		4
-    { "Reply-To",		NULL },
+    { "Reply-To",		NULL,		NULL },
 #define HEAD_REPLY_TO		5
-    { "cc",			NULL },
+    { "cc",			NULL,		NULL },
 #define HEAD_CC			6
-    { "bcc",			NULL },
+    { "bcc",			NULL,		NULL },
 #define HEAD_BCC		7
-    { NULL,			NULL }
+    { NULL,			NULL,		NULL }
 };
 
 int header_exceptions( struct message * );
@@ -103,8 +104,8 @@ header_exceptions( struct message *m )
 headers( struct message *m )
 {
     struct line		*l;
-    struct nlist	*nl;
-    char		*header;
+    struct line		*bl;
+    struct header	*h;
     char		*colon;
     size_t		header_len;
 
@@ -126,8 +127,10 @@ headers( struct message *m )
 	 * between 33 and 126, inclusive), except colon.
 	 */
 
-	header = l->line_data;
-	header_len = 0;
+	if ( isspace( *l->line_data ) != 0 ) {
+	    /* line contains folded white space */
+	    continue;
+	}
 
 	for ( colon = l->line_data; *colon != ':'; colon++ ) {
 	    /* colon ascii value is 58 */
@@ -136,57 +139,82 @@ headers( struct message *m )
 	    }
 	}
 
-	if ( *colon == ':' ) {
-	    header_len = colon - l->line_data;
-	}
-
-	if ( header_len > 0 ) {
-	    for ( nl = header_nl; nl->n_key != NULL; nl++ ) {
-		if ( strncasecmp( nl->n_key, header, header_len ) == 0 ) {
+	if (( *colon == ':' ) && (( header_len = colon - l->line_data ) > 0 )) {
+	    /* proper field name followed by a colon */
+	    for ( h = header_list; h->h_key != NULL; h++ ) {
+		if ( strncasecmp( h->h_key, l->line_data, header_len ) == 0 ) {
 		    /* correct field name */
-		    nl->n_data = l;
+		    h->h_line = l;
 		}
 	    }
+
+	} else {
+	    /* no colon, or colon was the first thing on the line */
+	    /* add a blank line between headers and the body */
+	    if (( bl = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
+		return( -1 );
+	    }
+
+	    if (( bl->line_data = (char*)malloc( 1 )) == NULL ) {
+		return( -1 );
+	    }
+
+	    *bl->line_data = '\0';
+	    bl->line_next = l;
+
+	    if (( bl->line_prev = l->line_prev ) == NULL ) {
+		m->m_first_line = bl;
+	    } else {
+		l->line_prev->line_next = bl;
+	    }
+
+	    l->line_prev = bl;
+	    break;
 	}
     }
 
-    if ( header_nl[ HEAD_FROM ].n_data == NULL ) {
-	if ( message_prepend_line( m, "From: default" ) == NULL ) {
+    if ( header_list[ HEAD_FROM ].h_line == NULL ) {
+	if (( header_list[ HEAD_FROM ].h_line =
+		message_prepend_line( m, "From: XXX" )) == NULL ) {
 	    return( -1 );
 	}
     }
 
-    if ( header_nl[ HEAD_SENDER ].n_data == NULL ) {
+    if ( message_from( m, &header_list[ HEAD_FROM ] ) != 0 ) {
+	return( -1 );
+    }
+
+    if ( header_list[ HEAD_SENDER ].h_line == NULL ) {
 	/* XXX action */
     }
 
-    if ( header_nl[ HEAD_ORIG_DATE ].n_data == NULL ) {
+    if ( header_list[ HEAD_ORIG_DATE ].h_line == NULL ) {
 	/* no date header */
 	if ( message_prepend_line( m, "Date: default" ) == NULL ) {
 	    return( -1 );
 	}
     }
 
-    if ( header_nl[ HEAD_MESSAGE_ID ].n_data == NULL ) {
+    if ( header_list[ HEAD_MESSAGE_ID ].h_line == NULL ) {
 	if ( message_prepend_line( m, "Message-ID: default" ) == NULL ) {
 	    perror( "message_prepend_line" );
 	    return( -1 );
 	}
     }
 
-    if ( header_nl[ HEAD_TO ].n_data == NULL ) {
+    if ( header_list[ HEAD_TO ].h_line == NULL ) {
 	/* XXX action */
     }
 
-    if ( header_nl[ HEAD_REPLY_TO ].n_data == NULL ) {
+    if ( header_list[ HEAD_REPLY_TO ].h_line == NULL ) {
 	/* XXX action */
     }
 
-    if ( header_nl[ HEAD_CC ].n_data == NULL ) {
+    if ( header_list[ HEAD_CC ].h_line == NULL ) {
 	/* XXX action */
     }
 
-    if ( header_nl[ HEAD_BCC ].n_data == NULL ) {
+    if ( header_list[ HEAD_BCC ].h_line == NULL ) {
 	/* XXX action */
     }
 
