@@ -522,8 +522,13 @@ f_rcpt( snet, env, ac, av )
 	}
 
 	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
-	    if ((( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )) ||
-		    ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
+	    switch ( dnsr_errno( simta_dnsr )) {
+	    case DNSR_ERROR_SYSTEM:
+		syslog( LOG_ERR, "f_rcpt get_mx %s: %m", domain );
+		return( RECEIVE_SYSERROR );
+
+	    case DNSR_ERROR_NAME:
+	    case DNSR_ERROR_NO_ANSWER:
 		syslog( LOG_INFO, "f_rcpt get_mx %s: unknown host", domain );
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			domain ) < 0 ) {
@@ -532,30 +537,25 @@ f_rcpt( snet, env, ac, av )
 		}
 		return( RECEIVE_OK );
 
-	    } else {
-		syslog( LOG_ERR, "f_rcpt get_mx error" );
-		if ( snet_writef( snet,
-			"%d Requested action aborted: local error "
-			"in processing\r\n", 451 ) < 0 ) {
+	    case DNSR_ERROR_TIMEOUT:
+		syslog( LOG_ERR, "f_rcpt get_mx %s: timeout", domain );
+		if ( snet_writef( snet, "%d: Requested action aborted:"
+			"error in processing\r\n", 451 ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_BADCONNECTION );
 		}
-		return( RECEIVE_SYSERROR );
-	    }
-	}
+		return( RECEIVE_OK );
 
-	if (( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )
-		|| ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
-	    /* No valid DNS */
-	    dnsr_free_result( result );
-	    syslog( LOG_INFO, "f_rcpt get_mx %s: can't verify address",
-		    domain );
-	    if ( snet_writef( snet, "%d Can't verify address %s\r\n",
-		    451, domain ) < 0 ) {
-		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_BADCONNECTION );
+	    default:
+		syslog( LOG_ERR, "f_rcpt get_mx %s: %s", domain,
+			dnsr_err2string( dnsr_errno( simta_dnsr )));
+		if ( snet_writef( snet, "%d: Requested action aborted:"
+			"error in processing\r\n", 451 ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_OK );
 	    }
-	    return( RECEIVE_OK );
 	}
     }
 
