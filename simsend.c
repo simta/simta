@@ -386,22 +386,25 @@ main( int argc, char *argv[] )
     }
 
     /* if possible, signal server */
-    /* XXX add error message & logging */
     if (( pidfd = open( SIMTA_FILE_PID, O_RDONLY, 0 )) < 0 ) {
+	syslog( LOG_INFO, "open %s: %m", SIMTA_FILE_PID );
 	return( 0 );
     }
 
     if (( pf = fdopen( pidfd, "r" )) == NULL ) {
+	syslog( LOG_INFO, "fdopen %s: %m", SIMTA_FILE_PID );
 	return( 0 );
     }
 
     fscanf( pf, "%d\n", &pid );
 
     if ( pid <= 0 ) {
+	syslog( LOG_INFO, "illegal pid %s: %d", SIMTA_FILE_PID, pid );
 	return( 0 );
     }
 
     if ( kill( pid, SIGUSR1 ) < 0 ) {
+	syslog( LOG_INFO, "kill %d: %m", pid );
 	return( 0 );
     }
 
