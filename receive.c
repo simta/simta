@@ -332,13 +332,11 @@ f_mail( snet, env, ac, av )
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
-
     if (( env->e_flags & E_READY ) != 0 ) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    default:
 	    case EXPAND_SYSERROR:
 	    case EXPAND_FATAL:
-		syslog( LOG_ERR, "f_mail expand_and_deliver error" );
 		env_reset( env );
 		return( RECEIVE_SYSERROR );
 
@@ -874,7 +872,7 @@ f_quit( snet, env, ac, av )
     }
 
     syslog( LOG_INFO, "f_quit OK" );
-    return( RECEIVE_OK );
+    return( RECEIVE_BADCONNECTION );
 }
 
 
@@ -1104,7 +1102,6 @@ smtp_receive( fd, sin )
     int					ac;
     int					i;
     int					rc;
-    int					value = RECEIVE_SYSERROR;
     char				**av = NULL;
     char				*line;
     char				*ctl_domain;
@@ -1187,7 +1184,6 @@ smtp_receive( fd, sin )
 
     if (( acav = acav_alloc( )) == NULL ) {
 	syslog( LOG_ERR, "receive argcargv_alloc: %m" );
-	value = RECEIVE_SYSERROR;
 	goto syserror;
     }
 
@@ -1209,7 +1205,6 @@ smtp_receive( fd, sin )
 
 	if (( ac = acav_parse2821( acav, line, &av )) < 0 ) {
 	    syslog( LOG_ERR, "receive argcargv: %m" );
-    	    value = RECEIVE_SYSERROR;
 	    goto syserror;
 	}
 
@@ -1233,6 +1228,7 @@ smtp_receive( fd, sin )
 		break;
 	    }
 	}
+
 	if ( i >= ncommands ) {
 	    if ( snet_writef( snet, "%d Command %s unregcognized\r\n",
 		    500, av[ 0 ]) < 0 ) {
@@ -1241,25 +1237,23 @@ smtp_receive( fd, sin )
 	    continue;
 	}
 
-	value = (*(commands[ i ].c_func))( snet, env, ac, av );
+	switch ((*(commands[ i ].c_func))( snet, env, ac, av )) {
+	default:
+	case RECEIVE_SYSERROR:
+	    goto syserror;
 
-	if ( value != RECEIVE_OK ) {
+	case RECEIVE_BADCONNECTION:
+	    goto closeconnection;
+
+	case RECEIVE_OK:
 	    break;
 	}
     }
 
 syserror:
-    switch ( value ) {
-    default:
-    case RECEIVE_SYSERROR:
-	if ( snet_writef( snet, "421 %s Service not available, local error, "
-		"closing transmission channel\r\n", simta_hostname ) < 0 ) {
-	    syslog( LOG_ERR, "receive snet_writef: %m" );
-	}
-	break;
-
-    case RECEIVE_BADCONNECTION:
-	break;
+    if ( snet_writef( snet, "421 %s Service not available, local error, "
+	    "closing transmission channel\r\n", simta_hostname ) < 0 ) {
+	syslog( LOG_ERR, "receive snet_writef: %m" );
     }
 
 closeconnection:
@@ -1277,16 +1271,7 @@ closeconnection:
 
     if ( env != NULL ) {
 	if (( env->e_flags & E_READY ) != 0 ) {
-	    switch ( expand_and_deliver( &hq_receive, env )) {
-		case EXPAND_OK:
-		    break;
-
-		default:
-		case EXPAND_SYSERROR:
-		case EXPAND_FATAL:
-		    syslog( LOG_ERR, "receive expand_and_deliver error" );
-		    break;
-	    }
+	    expand_and_deliver( &hq_receive, env );
 	}
 
 	env_free( env );
