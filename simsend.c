@@ -130,6 +130,12 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
+    /* XXX no -t option, so no facility for header recipients */
+    if ( optind == argc ) {
+	fprintf( stderr, "%s: no recipients\n", argv[ 0 ]);
+	exit( 1 );
+    }
+
     /* create envelope */
     if (( env = env_create( NULL )) == NULL ) {
 	perror( "env_create" );

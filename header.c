@@ -253,6 +253,9 @@ header_correct( struct line_file *lf, struct envelope *env )
     struct line			*l;
     struct header		*h;
     char			*colon;
+    char			*l_angle;
+    char			*r_angle;
+    char			*comma;
     size_t			header_len;
     struct passwd		*pw;
     int				result;
@@ -371,18 +374,103 @@ header_correct( struct line_file *lf, struct envelope *env )
 	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data + 6;
 
     } else {
-	/* handle following cases from doc/sendmail/headers:
+	/*
 	 * From: user
 	 * From: user@domain
 	 * From: Firstname Lastname <user@domain>
 	 * From: "Firstname Lastname" <user@domian>
 	 * From: user@domian (Firstname Lastname)
-	 *
-	 * To: blah: woof woof;
-	 *
-	 * FWS
-	 * (comments)
 	 */
+
+	/* from            =   "From:" mailbox-list CRLF
+	 *
+	 * mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
+	 *
+	 * mailbox         =   name-addr / addr-spec
+	 *
+	 * name-addr       =   [display-name] angle-addr
+	 *
+	 * display-name    =   phrase
+	 *
+	 * phrase          =   1*word / obs-phrase
+	 *
+	 * word            =   atom / quoted-string
+	 *
+	 * atom            =   [CFWS] 1*atext [CFWS]
+	 *
+	 * atext           =   ALPHA / DIGIT / ; Any character except controls,
+	 *			"!" / "#" /     ;  SP, and specials.
+	 *			"$" / "%" /     ;  Used for atoms
+	 *			"&" / "'" /
+	 *			"*" / "+" /
+	 *			"-" / "/" /
+	 *			"=" / "?" /
+	 *			"^" / "_" /
+	 *			"`" / "{" /
+	 *			"|" / "}" /
+	 *			"~"
+	 *
+	 * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
+	 *
+	 * addr-spec       =   local-part "@" domain
+	 *
+	 * local-part      =   dot-atom / quoted-string / obs-local-part
+	 *
+	 * domain          =   dot-atom / domain-literal / obs-domain
+	 *
+	 * domain-literal  =   [CFWS] "[" *([FWS] dcontent) [FWS] "]" [CFWS]
+	 *
+	 * dcontent        =   dtext / quoted-pair
+	 *
+	 * dtext           =   NO-WS-CTL /     ; Non white space controls
+	 *
+	 *			%d33-90 /       ; The rest of the US-ASCII
+	 *			%d94-126        ;  characters not including "[",
+	 *					;  "]", or "\"
+	 *
+	 * dot-atom        =   [CFWS] dot-atom-text [CFWS]
+	 *
+	 * dot-atom-text   =   1*atext *("." 1*atext)
+	 */
+
+	/* use first addr, addrs are seperated by commas */
+	for ( comma = simta_headers[ HEAD_FROM ].h_data; comma != '\0';
+		comma++ ) {
+	    if ( *comma == ',' ) {
+		break;
+	    }
+	}
+
+	if ( *comma == ',' ) {
+	    *comma = '\0';
+	}
+
+	/* check for angle-addr */
+	for ( l_angle = simta_headers[ HEAD_FROM ].h_data; l_angle != '\0';
+		l_angle++ ) {
+	    if ( *l_angle == '<' ) {
+		break;
+	    }
+	}
+
+	if ( *l_angle == '<' ) {
+	    for ( r_angle = l_angle; r_angle != '\0'; r_angle++ ) {
+		if ( *r_angle == '>' ) {
+		    break;
+		}
+	    }
+
+	    if ( *l_angle != '<' ) {
+		fprintf( stderr, "Illegal header angle-addr syntax: %s\n",
+			simta_headers[ HEAD_FROM ].h_key );
+		return( 1 );
+	    }
+
+	    /* XXX check for illegal syntax before l_angle, after r_angle? */
+
+	} else {
+	    /* no angle_addr */
+	}
 
 	/* XXX wrong */
 	env->e_mail = simta_headers[ HEAD_FROM ].h_data;
@@ -485,6 +573,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     if ( simta_headers[ HEAD_TO ].h_line == NULL ) {
 	/* XXX action */
+	/* To: blah: woof woof; */
     }
 
     if ( simta_headers[ HEAD_CC ].h_line == NULL ) {
