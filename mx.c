@@ -134,7 +134,7 @@ host_local( char *hostname )
 
     /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	return( NULL );
+	return( host );
     }
 
     /* Check DNS */
@@ -144,10 +144,10 @@ host_local( char *hostname )
     dnsr_free_result( result );
 
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	return( NULL );
+	return( host );
     }
 
-    return( host );
+    return( NULL );
 }
 
     int
