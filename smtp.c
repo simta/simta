@@ -147,6 +147,9 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     syslog( LOG_DEBUG, "smtp_connect called get_mx( %s )", hq->hq_hostname );
 
     for ( i = 0; i < result->r_ancount; i++ ) {
+	if ( result->r_answer[ i ].rr_ip == NULL ) {
+	    continue;
+	}
         switch( result->r_answer[ i ].rr_type ) {
         case DNSR_TYPE_MX:
             memcpy( &(sin.sin_addr.s_addr),
