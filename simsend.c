@@ -49,6 +49,7 @@ main( int argc, char *argv[] )
 {
     SNET		*snet_stdin;
     char		*line;
+    char		*wsp;
     struct line_file	*lf;
     struct line		*l;
     struct envelope	*env;
@@ -196,6 +197,7 @@ main( int argc, char *argv[] )
 	}
 
 	if ( header == 1 ) {
+
 	    if ( header_end( lf, line ) != 0 ) {
 		if ( header_correct( lf, env ) != 0 ) {
 		    exit( 1 );
@@ -241,9 +243,17 @@ main( int argc, char *argv[] )
 		header = 0;
 
 	    } else {
-		if (( l = line_append( lf, line )) == NULL ) {
-		    perror( "line_append" );
-		    exit( 1 );
+
+		/* append line to headers if it's not whitespace */
+		for ( wsp = line; *wsp != '\0'; wsp++ ) {
+		    if (( *wsp != ' ' ) && ( *wsp != '\t' )) {
+			if (( l = line_append( lf, line )) == NULL ) {
+			    perror( "line_append" );
+			    exit( 1 );
+			}
+
+			break;
+		    }
 		}
 	    }
 
