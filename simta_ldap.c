@@ -701,7 +701,9 @@ simta_ldap_address_local( char *name, char *domain )
     */
     nametype = simta_address_type(dup_name );
 
-    rc = simta_local_search (noattrs, dup_name, domain, &count);
+    if (( rc = simta_local_search (noattrs, dup_name, domain, &count)) != 0 ) {
+	return( rc );
+    }
     free (dup_name);
     if ( rc != 0 ) {
 	return( rc );
