@@ -90,7 +90,7 @@ main( int argc, char *argv[] )
 
     openlog( argv[ 0 ], 0, LOG_SIMTA );
 
-    while (( c = getopt( argc, argv, "b:io:t" )) != -1 ) {
+    while (( c = getopt( argc, argv, "b:io:st" )) != -1 ) {
 	switch ( c ) {
 	case 'b':
 	    if ( strlen( optarg ) == 1 ) {
@@ -140,6 +140,11 @@ main( int argc, char *argv[] )
 	    }
 	    break;
 
+	case 's':
+	    /* signal server */
+	    goto signal_server;
+	    break;
+
 	case 't':
 	    /* Read message headers for recipients */
 	    read_headers = 1;
@@ -155,6 +160,7 @@ main( int argc, char *argv[] )
 		"[ -b option ] "
 		"[ -i ] "
 		"[ -o option ] "
+		"[ -s ] "
 		"[ -t ] "
 		"[[ -- ] to-address ...]\n", argv[ 0 ] );
 	exit( EX_USAGE );
@@ -385,6 +391,7 @@ main( int argc, char *argv[] )
 	goto cleanup;
     }
 
+signal_server:
     /* if possible, signal server */
     if (( pidfd = open( SIMTA_FILE_PID, O_RDONLY, 0 )) < 0 ) {
 	syslog( LOG_INFO, "open %s: %m", SIMTA_FILE_PID );

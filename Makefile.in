@@ -1,7 +1,7 @@
 # @configure_input@
 
 DESTDIR=@prefix@
-MANDIR=@mandir@
+MANDIR=@prefix@/man
 BINDIR=@bindir@
 ETCDIR=@sysconfdir@
 SBINDIR=@sbindir@
@@ -46,7 +46,7 @@ SIMTALIBS=	${LIBS} @SIMTALIBS@
 SIMTAINCPATH=	${INCPATH} @SIMTACPPFLAGS@
 SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
-
+MAN1TARGETS=	simsendmail.1
 TARGETS=	simta tlsconnect simsendmail q_runner
 
 all : ${TARGETS}
@@ -59,13 +59,11 @@ install : all FRC
 	-mkdir -p ${FAST_Q}
 	${INSTALL} -m 0755 -c simta ${SBINDIR}/
 	${INSTALL} -m 0755 -c simsendmail ${LIBDIR}/
-	ln -f ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
+	for i in ${MAN1TARGETS}; do \
+	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
+	done
 
-install-suid : all FRC
-	-mkdir -p ${RUNDIR}
-	-mkdir -p ${LOCAL_Q}
-	-mkdir -p ${SLOW_Q}
-	-mkdir -p ${FAST_Q}
+install-suid : all FRC install
 	${INSTALL} -m 6755 -g mail -o root -c simta ${SBINDIR}/
 	${INSTALL} -m 6755 -g mail -o root -c simsendmail ${LIBDIR}/
 	ln -f ${LIBDIR}/simsendmail ${LIBDIR}/sendmail

@@ -151,6 +151,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 	if ( simta_debug ) printf( "address_expand: %s: already expanded\n",
 	    address );
 	return( 0 );
+
     } else {
 	/* Add address to seen list */
 	/* XXX - Must free */
