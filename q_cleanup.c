@@ -23,8 +23,9 @@
 #include "queue.h"
 
 
-int inode_compare( void *, void * );
-void inode_stab_stdout( void * );
+int	inode_compare( void *, void * );
+void	inode_stab_stdout( void * );
+int	move_to_slow( char * );
 
 
     int
@@ -61,6 +62,58 @@ inode_stab_stdout( void *data )
 }
 
 
+    /* move Efiles and Dfiles from dir to SLOW */
+
+    int
+move_to_slow( char *dir )
+{
+    DIR				*dirp;
+    struct dirent		*entry;
+    char			lname[ MAXPATHLEN ];
+    char			fname[ MAXPATHLEN ];
+
+    if (( dirp = opendir( dir )) == NULL ) {
+	return( 1 );
+    }
+
+    /* clear errno before trying to read */
+    errno = 0;
+
+    /* examine a directory */
+    while (( entry = readdir( dirp )) != NULL ) {
+
+	/* ignore '.' and '..' */
+	if ( entry->d_name[ 0 ] == '.' ) {
+	    if ( entry->d_name[ 1 ] == '\0' ) {
+		continue;
+	    } else if ( entry->d_name[ 1 ] == '.' ) {
+		if ( entry->d_name[ 2 ] == '\0' ) {
+		    continue;
+		}
+	    }
+	}
+
+	if (( *entry->d_name == 'E' ) || ( *entry->d_name == 'D' )) {
+	    sprintf( fname, "%s/%s", dir, entry->d_name );
+	    sprintf( lname, "%s/%s", SLOW_DIR, entry->d_name );
+	    printf( "move %s %s\n", fname, lname );
+
+	} else if ( *entry->d_name == 't' ) {
+	    printf( "Clip tfile:\t%s/%s\n", dir, entry->d_name );
+
+	} else {
+	    printf( "Warning unknown file:\t%s/%s\n", dir, entry->d_name );
+	}
+    }
+
+    /* did readdir finish, or encounter an error? */
+    if ( errno != 0 ) {
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
     /* 1. move everything from FAST and LOCAL to SLOW:
      *     -collisions are fatal
      *
@@ -90,6 +143,16 @@ main( int argc, char *argv[] )
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
     char			*line;
+
+    if ( move_to_slow( FAST_DIR ) != 0 ) {
+	perror( "move_to_slow" );
+	return( 1 );
+    }
+
+    if ( move_to_slow( LOCAL_DIR ) != 0 ) {
+	perror( "move_to_slow" );
+	return( 1 );
+    }
 
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
 	fprintf( stderr, "opendir: %s: ", SLOW_DIR );
