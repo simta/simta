@@ -326,7 +326,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 
     if ( e_addr->e_addr_type == ADDRESS_TYPE_LDAP ) {
 	/* XXX not implemented yet */
-	return( ADDRESS_SYSERROR );
+	return( LDAP_SYSERROR );
     }
 
     /* addr should be user@some.domain */
@@ -335,7 +335,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 		e_addr->e_addr, NULL ) != 0 ) {
 	    /* rcpt_error syslogs syserrors */
 	}
-	return( ADDRESS_SYSERROR );
+	return( LDAP_SYSERROR );
     }
 
     domain = at + 1;
@@ -344,7 +344,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	/* XXX static hostname for now */
 	if (( ld = ldap_init( "da.dir.itd.umich.edu", 4343 )) == NULL ) {
 	    syslog( LOG_ERR, "ldap_init: %m" );
-	    return( ADDRESS_SYSERROR );
+	    return( LDAP_SYSERROR );
 	}
     }
 
@@ -359,7 +359,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	if (( len = strlen( l->l_string) + 1 ) > buf_len ) {
 	    if (( buf = (char*)realloc( buf, len )) == NULL ) {
 		syslog( LOG_ERR, "realloc: %m" );
-		return( ADDRESS_SYSERROR );
+		return( LDAP_SYSERROR );
 	    }
 
 	    buf_len = len;
@@ -405,7 +405,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 
 			if (( buf = (char*)realloc( buf, len )) == NULL ) {
 			    syslog( LOG_ERR, "realloc: %m" );
-			    return( ADDRESS_SYSERROR );
+			    return( LDAP_SYSERROR );
 			}
 
 			d = buf + place;
@@ -442,20 +442,20 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	if ( ldap_url_parse( buf, &lud ) != 0 ) {
 	    /* XXX correct error reporting? */
 	    syslog( LOG_ERR, "ldap_url_parse %s: %m", buf );
-	    return( ADDRESS_SYSERROR );
+	    return( LDAP_SYSERROR );
 	}
 
 	if ( ldap_search_st( ld, lud->lud_dn, lud->lud_scope,
 		lud->lud_filter, attrs, 0, &timeout, &res ) != LDAP_SUCCESS ) {
 	    syslog( LOG_ERR, "ldap_search_st: %s",
 		    ldap_err2string( ldap_result2error( ld, res, 1 )));
-	    return( ADDRESS_SYSERROR );
+	    return( LDAP_SYSERROR );
 	}
 
 	if (( count = ldap_count_entries( ld, res )) < 0 ) {
 	    syslog( LOG_ERR, "ldap_count_entries: %s",
 		    ldap_err2string( ldap_result2error( ld, res, 1 )));
-	    return( ADDRESS_SYSERROR );
+	    return( LDAP_SYSERROR );
 	}
 
 	if ( count > 0 ) {
@@ -475,7 +475,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     if (( entry = ldap_first_entry( ld, res )) == NULL ) {
 	syslog( LOG_ERR, "ldap_first_entry: %s",
 		ldap_err2string( ldap_result2error( ld, res, 1 )));
-	return( ADDRESS_SYSERROR );
+	return( LDAP_SYSERROR );
     }
 
 #ifdef DEBUG
@@ -485,7 +485,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     if (( message = ldap_first_message( ld, res )) == NULL ) {
 	syslog( LOG_ERR, "ldap_first_message: %s",
 		ldap_err2string( ldap_result2error( ld, res, 1 )));
-	return( ADDRESS_SYSERROR );
+	return( LDAP_SYSERROR );
     }
 
     result = 0;
@@ -515,7 +515,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 
 	    /*
 	    if ( ldap_message_stdout( entry ) != 0 ) {
-		return( -1 );
+		return( LDAP_SYSERROR );
 	    }
 	    */
 #endif /* DEBUG */
@@ -532,7 +532,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 		if ( add_address( exp, values[ x ],
 			e_addr->e_addr_rcpt, ADDRESS_TYPE_EMAIL ) != 0 ) {
 		    perror( "add_address" );
-		    return( -1 );
+		    return( LDAP_SYSERROR );
 		}
 
 		count++;
@@ -548,18 +548,22 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 #endif /* DEBUG */
 
 	    /* XXX daemon error handling/reporting */
-	    return( -1 );
+	    return( LDAP_SYSERROR );
 	}
     }
 
     /* XXX need to do more than just return */
     ldap_msgfree( res );
-    return( count );
+    if ( count > 0 ) {
+	return( LDAP_EXCLUDE );
+    } else {
+	return( LDAP_NOT_FOUND );
+    }
 
 error:
     /* XXX daemon error handling/reporting */
     ldap_msgfree( res );
-    return( -1 );
+    return( LDAP_SYSERROR );
 }
 
 
