@@ -98,6 +98,13 @@ simta_config( void )
 
 	if ( simta_nlist[ NLIST_PUNT ].n_data != NULL ) {
 	    simta_punt_host = simta_nlist[ NLIST_PUNT ].n_data;
+
+	    if ( strcasecmp( simta_punt_host, simta_hostname ) == 0 ) {
+		fprintf( stderr,
+			"file %s line %d: punt host can't be localhost",
+			SIMTA_FILE_CONFIG, simta_nlist[ NLIST_PUNT ].n_lineno );
+		return( -1 );
+	    }
 	}
 
     } else {
