@@ -155,10 +155,12 @@ main( int argc, char *argv[] )
     char		*line;
     struct message	*m;
     struct line		*l;
-    int			errs = 0;
     int			usage = 0;
     int			c;
     int			ignore_dot = 0;
+
+    /* ignore a good many options */
+    opterr = 0;
 
     while (( c = getopt( argc, argv, "b:io:" )) != -1 ) {
 	switch ( c ) {
@@ -172,7 +174,7 @@ main( int argc, char *argv[] )
 		case 's':
 		    /* 501 Permission denied */
 		    printf( "501 Mode not supported\n" );
-		    errs++;
+		    exit( 1 );
 		    break;
 
 		case 'D':
@@ -186,7 +188,7 @@ main( int argc, char *argv[] )
 		case 'v':
 		    /* -bv verify names only */
 		    printf( "Mode not supported\n" );
-		    errs++;
+		    exit( 1 );
 		    break;
 
 		case 'm':
@@ -222,15 +224,11 @@ main( int argc, char *argv[] )
 
     /* XXX error handling for command line options? */
     if ( usage != 0 ) {
-	fprintf( stderr, "Usage: %s ", argv[ 0 ] );
-	fprintf( stderr, "[ -b option ] " );
-	fprintf( stderr, "[ -i ] " );
-	fprintf( stderr, "[ -o option ] " );
-	fprintf( stderr, "[[ -- ] to-address ...]\n" );
-	exit( 1 );
-    }
-
-    if ( errs != 0 ) {
+	fprintf( stderr, "Usage: %s "
+		"[ -b option ] "
+		"[ -i ] "
+		"[ -o option ] "
+		"[[ -- ] to-address ...]\n", argv[ 0 ] );
 	exit( 1 );
     }
 
