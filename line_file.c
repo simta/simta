@@ -53,7 +53,7 @@ line_file_free( struct line_file *lf )
     /* append a line to a line_file structure  */
 
     struct line *
-line_append( struct line_file *lf, char *line )
+line_append( struct line_file *lf, char *data )
 {
     struct line		*l;
 
@@ -62,7 +62,7 @@ line_append( struct line_file *lf, char *line )
     }
     memset( l, 0, sizeof( struct line ));
 
-    if (( l->line_data = strdup( line )) == NULL ) {
+    if (( l->line_data = strdup( data )) == NULL ) {
 	return( NULL );
     }
 
@@ -86,7 +86,7 @@ line_append( struct line_file *lf, char *line )
     /* prepend a line to a line_file structure  */
 
     struct line *
-line_prepend( struct line_file *lf, char *line )
+line_prepend( struct line_file *lf, char *data )
 {
     struct line		*l;
 
@@ -95,7 +95,7 @@ line_prepend( struct line_file *lf, char *line )
     }
     memset( l, 0, sizeof( struct line ));
 
-    if (( l->line_data = strdup( line )) == NULL ) {
+    if (( l->line_data = strdup( data )) == NULL ) {
 	return( NULL );
     }
 

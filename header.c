@@ -11,6 +11,9 @@
 #include <ctype.h>
 #include <string.h>
 #include <netdb.h>
+#include <pwd.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 #include "line_file.h"
 #include "envelope.h"
@@ -89,22 +92,11 @@ header_exceptions( struct line_file *lf )
 	for ( end = c; ( *end > 33 ) && ( *end < 126 ); end++ )
 		;
 
-	/* if "From "word..., rewrite header "From:"word'\0' */
+	/* if "From "word ..., rewrite header "From:"word'\0' */
 	if (( end - c ) > 0 ) {
 	    *(lf->l_first->line_data + 4) = ':';
 	    *end = '\0';
 	}
-    }
-
-    return( 0 );
-}
-
-
-    int
-header_correct( struct line_file *lf, struct envelope *env )
-{
-    if ( header_exceptions( lf ) != 0 ) {
-	return( -1 );
     }
 
     return( 0 );
@@ -160,6 +152,7 @@ header_timestamp( struct envelope *env, FILE *file )
     return( 0 );
 }
 
+
     /* return 0 if line is the next line in header block lf */
 
     int
@@ -195,4 +188,142 @@ header_end( struct line_file *lf, char *line )
     }
 
     return( 1 );
+}
+
+
+    /* return 0 if all went well.
+     * return 1 if we reject the message.
+     * return -1 if there was a serious error.
+     */
+
+    int
+header_correct( struct line_file *lf, struct envelope *env )
+{
+    int			words;
+    struct line		*l;
+    struct header	*h;
+    char		*colon;
+    size_t		header_len;
+    struct passwd	*pw;
+    char		*from_line;
+
+    if ( header_exceptions( lf ) != 0 ) {
+	return( -1 );
+    }
+
+    /* put header information in to data structures for later processing */
+    for ( l = lf->l_first; l != NULL ; l = l->line_next ) {
+
+	/* RFC 2822:
+	 * Header fields are lines composed of a field name, followed
+	 * by a colon (":"), followed by a field body, and terminated
+	 * by CRLF.  A field name MUST be composed of printable
+	 * US-ASCII characters (i.e., characters that have values
+	 * between 33 and 126, inclusive), except colon.
+	 */
+
+	/* XXX need to check for non-whitespace chars? */
+	if ( isspace( (int)*l->line_data ) != 0 ) {
+	    /* line contains folded white space */
+	    continue;
+	}
+
+	for ( colon = l->line_data; *colon != ':'; colon++ )
+		;
+
+	header_len = ( colon - ( l->line_data ));
+
+	/* field name followed by a colon */
+	for ( h = simta_headers; h->h_key != NULL; h++ ) {
+	    if ( strncasecmp( h->h_key, l->line_data, header_len ) == 0 ) {
+		/* correct field name */
+		h->h_line = l;
+	    }
+	}
+    }
+
+    return( 0 );
+
+    /* examine header data structures */
+
+    /* "From:" header */
+    if ( simta_headers[ HEAD_FROM ].h_line == NULL ) {
+	/* generate header */
+
+	if (( pw = getpwuid( getuid())) == NULL ) {
+	    perror( "getpwuid" );
+	    return( -1 );
+	}
+
+	if (( from_line = (char*)malloc( strlen( pw->pw_name ) +
+		strlen( env->e_hostname ) + 9 )) == NULL ) {
+	    return( -1 );
+	}
+
+	/* XXX need localhostname */
+	sprintf( from_line, "From: %s@%s", pw->pw_name, "localhost" );
+
+	/*
+	if (( simta_headers[ HEAD_FROM ].h_line =
+		line_prepend( lf, from_line )) == NULL ) {
+	    return( -1 );
+	}
+	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data + 6;
+	*/
+
+    } else {
+	/* handle following cases from doc/sendmail/headers:
+	 * From: user
+	 * From: user@domain
+	 * From: Firstname Lastname <user@domain>
+	 * From: "Firstname Lastname" <user@domian>
+	 * From: user@domian (Firstname Lastname)
+	 *
+	 * To: blah: woof woof;
+	 *
+	 * FWS
+	 * (comments)
+	 */
+
+	/* XXX totally fucked */
+
+	words = count_words( h->h_line->line_data + 5 );
+
+	if ( words == 0 ) {
+	    return( 1 );
+
+	} else if ( words == 1 ) {
+	} else {
+	}
+    }
+
+    if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
+	/* XXX action */
+    }
+
+    if ( simta_headers[ HEAD_ORIG_DATE ].h_line == NULL ) {
+	/* XXX action */
+    }
+
+    if ( simta_headers[ HEAD_MESSAGE_ID ].h_line == NULL ) {
+	/* XXX action */
+    }
+
+    if ( simta_headers[ HEAD_TO ].h_line == NULL ) {
+	/* XXX action */
+    }
+
+    if ( simta_headers[ HEAD_REPLY_TO ].h_line == NULL ) {
+	/* XXX action */
+    }
+
+    if ( simta_headers[ HEAD_CC ].h_line == NULL ) {
+	/* XXX action */
+    }
+
+    if ( simta_headers[ HEAD_BCC ].h_line == NULL ) {
+	/* XXX action */
+    }
+
+    return( 0 );
 }
