@@ -371,7 +371,7 @@ header_end( struct line_file *lf, char *line )
      */
 
     int
-header_correct( struct line_file *lf, struct envelope *env )
+header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 {
     struct line			*l;
     struct line			**lp;
@@ -386,6 +386,11 @@ header_correct( struct line_file *lf, struct envelope *env )
     time_t			clock;
     struct tm			*tm;
     char			daytime[ 35 ];
+    struct envelope		*to_env = NULL;
+
+    if ( read_headers != 0 ) {
+	to_env = env;
+    }
 
     /* check headers for known mail clients behaving badly */
     if (( result = header_exceptions( lf )) != 0 ) {
@@ -441,7 +446,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     /* From: */
     if (( l = simta_headers[ HEAD_FROM ].h_line ) != NULL ) {
-	if (( result = parse_mailbox_list( env, l, l->line_data + 5,
+	if (( result = parse_mailbox_list( NULL, l, l->line_data + 5,
 		MAILBOX_FROM_CORRECT )) != 0 ) {
 	    return( result );
 	}
@@ -563,19 +568,19 @@ header_correct( struct line_file *lf, struct envelope *env )
     }
 
     if (( l = simta_headers[ HEAD_TO ].h_line ) != NULL ) {
-	if (( result = parse_recipients( env, l, l->line_data + 3 )) != 0 ) {
+	if (( result = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    return( result );
 	}
     }
 
     if ( simta_headers[ HEAD_CC ].h_line != NULL ) {
-	if (( result = parse_recipients( env, l, l->line_data + 3 )) != 0 ) {
+	if (( result = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    return( result );
 	}
     }
 
     if (( l = simta_headers[ HEAD_BCC ].h_line ) != NULL ) {
-	if (( result = parse_recipients( env, l, l->line_data + 4 )) != 0 ) {
+	if (( result = parse_recipients( to_env, l, l->line_data + 4 )) != 0 ) {
 	    return( result );
 	}
 
@@ -602,6 +607,12 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     if ( prepend_line != NULL ) {
 	free( prepend_line );
+    }
+
+    /* make sure we have a recipient */
+    if ( env->e_rcpt == NULL ) {
+	fprintf( stderr, "No recipients\n" );
+	return( 1 );
     }
 
     return( 0 );
@@ -872,6 +883,13 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 		simta_generate_sender = 1;
 	    }
 	}
+
+    }
+
+    if ( env != NULL ) {
+	/* XXX env_recipient( env, local + @ + domain ); */
+	fprintf( stderr, "XXX working on option -t\n" );
+	return( 1 );
     }
 
     return( 0 );

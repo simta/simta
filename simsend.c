@@ -82,11 +82,12 @@ main( int argc, char *argv[] )
     int			header;
     int			result;
     FILE		*dfile = NULL;
+    int			read_headers = 0;
 
     /* ignore a good many options */
     opterr = 0;
 
-    while (( c = getopt( argc, argv, "b:io:" )) != -1 ) {
+    while (( c = getopt( argc, argv, "b:io:t" )) != -1 ) {
 	switch ( c ) {
 	case 'b':
 	    if ( strlen( optarg ) == 1 ) {
@@ -137,6 +138,11 @@ main( int argc, char *argv[] )
 	    }
 	    break;
 
+	case 't':
+	    /* Read message headers for recipients */
+	    read_headers = 1;
+	    break;
+
 	default:
 	    /* XXX log command line options we don't understand? */
 	    break;
@@ -148,12 +154,12 @@ main( int argc, char *argv[] )
 		"[ -b option ] "
 		"[ -i ] "
 		"[ -o option ] "
+		"[ -t ] "
 		"[[ -- ] to-address ...]\n", argv[ 0 ] );
 	exit( EX_USAGE );
     }
 
-    /* XXX no -t option, so no facility for header recipients */
-    if ( optind == argc ) {
+    if (( read_headers == 0 ) && ( optind == argc )) {
 	fprintf( stderr, "%s: no recipients\n", argv[ 0 ]);
 	exit( EX_USAGE );
     }
@@ -173,6 +179,7 @@ main( int argc, char *argv[] )
 
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {
+	/* XXX syntax checking? */
 	if ( env_recipient( env, argv[ x ] ) != 0 ) {
 	    perror( "env_recipient" );
 	    exit( EX_TEMPFAIL );
@@ -228,7 +235,8 @@ main( int argc, char *argv[] )
 	if ( header == 1 ) {
 
 	    if ( header_end( lf, line ) != 0 ) {
-		if (( result = header_correct( lf, env )) != 0 ) {
+		if (( result = header_correct( read_headers, lf, env ))
+			!= 0 ) {
 		    if ( result > 0 ) {
 			exit( EX_DATAERR );
 
@@ -310,7 +318,8 @@ main( int argc, char *argv[] )
     }
 
     if ( header == 1 ) {
-	if (( result = header_correct( lf, env )) != 0 ) {
+	if (( result = header_correct( read_headers, lf, env ))
+		!= 0 ) {
 	    if ( result > 0 ) {
 		exit( EX_DATAERR );
 
