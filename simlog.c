@@ -66,6 +66,8 @@ main( int argc, char *argv[] )
     }
     snet_writef( out, "\n\n" );
 
+    opterr = 0;
+
     while (( c = getopt( argc, argv, "b:" )) != -1 ) {
 	switch ( c ) {
 	case 'b':
@@ -77,9 +79,13 @@ main( int argc, char *argv[] )
 		    /* -bd Daemon mode, background */
 		case 's':
 		    /* 501 Permission denied */
-		    printf( "501 Mode not supported\n" );
+		    printf( "501 Mode not supported\r\n" );
+		    exit( 1 );
 		}
 	    }
+	    break;
+
+	default:
 	    break;
 	}
     }

@@ -24,7 +24,7 @@
 #include <openssl/err.h>
 
 extern SSL_CTX	*ctx;
-#endif TLS
+#endif /* TLS */
 
 #include <snet.h>
 
@@ -50,11 +50,11 @@ static int	f_quit ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_help ___P(( SNET *, struct envelope *, int, char *[] ));
 #ifdef TLS
 static int	f_starttls ___P(( SNET *, struct envelope *, int, char *[] ));
-#endif TLS
+#endif /* TLS */
 #ifdef notdef
 static int	f_vrfy ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_expn ___P(( SNET *, struct envelope *, int, char *[] ));
-#endif notdef
+#endif /* notdef */
 
 static int	hello ___P(( struct envelope *, char * ));
 
@@ -137,7 +137,7 @@ f_ehlo( snet, env, ac, av )
     if (( env->e_flags & E_TLS ) == 0 ) {
 	snet_writef( snet, "%d STARTTLS\r\n", 250 );
     }
-#endif TLS
+#endif /* TLS */
 
 #ifdef notdef
     /*
@@ -148,7 +148,7 @@ f_ehlo( snet, env, ac, av )
 	snet_writef( snet, " %s", s->s_name );
     }
     snet_writef( snet, "\r\n" );
-#endif notdef
+#endif /* notdef */
 
     /*
      * Should put something here that isn't a compile-time option, so
@@ -613,7 +613,7 @@ f_starttls( snet, env, ac, av )
 
     return( 0 );
 }
-#endif TLS
+#endif /* TLS */
 
 struct command	commands[] = {
     { "HELO",		f_helo },
@@ -627,11 +627,11 @@ struct command	commands[] = {
     { "HELP",		f_help },
 #ifdef TLS
     { "STARTTLS",	f_starttls },
-#endif TLS
+#endif /* TLS */
 #ifdef notdef
     { "VRFY",		f_vrfy },
     { "EXPN",		f_expn },
-#endif notdef
+#endif /* notdef */
 };
 int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 

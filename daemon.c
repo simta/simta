@@ -25,7 +25,7 @@
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif TLS
+#endif /* TLS */
 
 #include <snet.h>
 
@@ -300,9 +300,9 @@ main( ac, av )
      */
 #ifdef ultrix
     openlog( prog, LOG_NOWAIT|LOG_PID );
-#else ultrix
+#else /* ultrix */
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
-#endif ultrix
+#endif /* ultrix */
 
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));

@@ -14,7 +14,7 @@
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif TLS
+#endif /* TLS */
 
 #include <stdio.h>
 #include <string.h>

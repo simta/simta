@@ -13,7 +13,7 @@
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif TLS
+#endif /* TLS */
 
 #include <snet.h>
 
@@ -126,7 +126,7 @@ main( int ac, char *av[] )
     }
 
     for ( i = 0; hp->h_addr_list[ i ] != NULL; i++ ) {
-	if (( s = socket( PF_INET, SOCK_STREAM, NULL )) < 0 ) {
+	if (( s = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
 	    perror( "socket" );
 	    exit( 1 );
 	}
