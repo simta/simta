@@ -63,17 +63,6 @@ count_words( char *l )
 }
 
 
-    /* return 0 if line is the next line in header block lf */
-
-    int
-header_end( struct line_file *lf, char *line )
-{
-    /* if line syntax is a header, return 0 */
-    /* if line could be folded whitespace and lf->l_first != NULL, return 0 */
-    return( 0 );
-}
-
-
     /* Some mail clents exhibit bad behavior when generating headers.
      *
      * return 0 if all went well.
@@ -169,4 +158,41 @@ header_timestamp( struct envelope *env, FILE *file )
     }
 
     return( 0 );
+}
+
+    /* return 0 if line is the next line in header block lf */
+
+    int
+header_end( struct line_file *lf, char *line )
+{
+    char		*colon;
+
+    /* null line means that message data begins */
+    if (( *line ) == '\0' ) {
+	return( 1 );
+    }
+
+    /* if line could be folded whitespace and lf->l_first != NULL, return 0 */
+    if ( lf->l_first != NULL ) {
+	/* XXX need to check for non-whitespace? */
+	if ( isspace( (int)*line ) != 0 ) {
+	    /* line contains folded white space */
+	    return( 0 );
+	}
+    }
+
+    /* if line syntax is a header, return 0 */
+    for ( colon = line; *colon != ':'; colon++ ) {
+	/* colon ascii value is 58 */
+	if (( *colon < 33 ) || ( *colon > 126 )) {
+	    break;
+	}
+    }
+
+    if (( *colon == ':' ) && (( colon - line ) > 0 )) {
+	/* proper field name followed by a colon */
+	return( 0 );
+    }
+
+    return( 1 );
 }

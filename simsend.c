@@ -213,6 +213,11 @@ main( int argc, char *argv[] )
 		    goto cleanup;
 		}
 
+		/* insert a blank line if need be */
+		if ( *line != '\0' ) {
+		    fprintf( dfile, "\n" );
+		}
+
 		/* print line to Dfile */
 		fprintf( dfile, "%s\n", line );
 		header = 0;
