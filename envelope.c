@@ -119,6 +119,15 @@ env_recipient( struct envelope *e, char *addr )
 }
 
 
+    /* Efile syntax:
+     *
+     * Vversion
+     * Hdestination-host
+     * Ffrom-addr@sender.com
+     * Rto-addr@recipient.com
+     * Roptional-to-addr@recipient.com
+     */
+
     struct envelope *
 env_infile( char *dir, char *id )
 {
