@@ -332,7 +332,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 	    switch ( * ( c + 1 )) {
 		case 's':
 		    /* if needed, resize buf to handle upcoming insert */
-		    if (( len += strlen( user )) > buf_len ) {
+		    if (( len += (2 * strlen( user ))) > buf_len ) {
 			place = d - buf;
 			if (( buf = (char*)realloc( buf, len )) == NULL ) {
 			    syslog( LOG_ERR, "realloc: %m" );
@@ -344,9 +344,18 @@ simta_ldap_string( char *filter, char *user, char *domain )
 
 		    /* insert word */
 		    for ( insert = user; *insert != '\0'; insert++ ) {
-			if (( *insert == '.' ) || ( *insert == '_' )) {
+			switch ( *insert ) {
+
+			case '.':
+			case '_':
 			    *d = ' ';
-			} else {
+			    break;
+
+			case '(':
+			case ')':
+			    *d++ = '\\';    /*  Fall Thru */
+			
+			default:
 			    *d = *insert;
 			}
 			d++;
