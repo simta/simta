@@ -284,17 +284,13 @@ main( int ac, char **av )
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
 
-    /*
-     * Read config file before chdir(), in case config file is relative path.
-     */
-
-    /* init simta config / defaults */
-    if ( simta_config( config_base_dir ) != 0 ) {
+    if ( chdir( spooldir ) < 0 ) {
+	perror( spooldir );
 	exit( 1 );
     }
 
-    if ( chdir( spooldir ) < 0 ) {
-	perror( spooldir );
+    /* init simta config / defaults */
+    if ( simta_config( config_base_dir ) != 0 ) {
 	exit( 1 );
     }
 
@@ -358,100 +354,87 @@ main( int ac, char **av )
 	exit( 0 );
     }
 
-    if ( q_run != 0 ) {
-	/* set our gid */
-	if ( setgid( simta_pw->pw_gid ) != 0 ) {
-	    perror( "setgid" );
+    if ( q_run == 0 ) {
+	if ( port == 0 ) {
+	    if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
+		fprintf( stderr, "%s: can't find smtp service: continuing\n",
+			prog );
+		port = htons( 25 );
+	    } else {
+		port = se->s_port;
+	    }
+	}
+
+	/*
+	 * Set up listener.
+	 */
+	if (( s = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
+	    perror( "socket" );
+	    exit( 1 );
+	}
+	if ( reuseaddr ) {
+	    if ( setsockopt( s, SOL_SOCKET, SO_REUSEADDR, (void*)&reuseaddr,
+		    sizeof( int )) < 0 ) {
+		perror("setsockopt");
+	    }
+	}
+
+	memset( &sin, 0, sizeof( struct sockaddr_in ));
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = INADDR_ANY;
+	sin.sin_port = port;
+	if ( bind( s, (struct sockaddr *)&sin,
+		sizeof( struct sockaddr_in )) < 0 ) {
+	    perror( "bind" );
+	    exit( 1 );
+	}
+	if ( listen( s, backlog ) < 0 ) {
+	    perror( "listen" );
 	    exit( 1 );
 	}
 
-	/* set our uid */
-	if ( setuid( simta_pw->pw_uid ) != 0 ) {
-	    perror( "setuid" );
+	/* open and truncate the pid file */
+	if (( pidfd = open( SIMTA_FILE_PID, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
+	    fprintf( stderr, "open %s: ", SIMTA_FILE_PID );
+	    perror( NULL );
 	    exit( 1 );
 	}
 
-	/* we're debugging under linux */
-	if ( prctl( PR_SET_DUMPABLE, 1, 0, 0, 0 ) != 0 ) {
-	    perror( "prctl" );
+	/* lock simta pid fd */
+	if ( lockf( pidfd, F_TLOCK, 0 ) != 0 ) {
+	    if ( errno == EAGAIN ) {
+		/* file locked by a diferent process */
+		fprintf( stderr, "lockf %s: daemon already running",
+			SIMTA_FILE_PID );
+		exit( 1 );
+
+	    } else {
+		fprintf( stderr, "lockf %s: %m", SIMTA_FILE_PID );
+		exit( 1 );
+	    }
+	}
+
+	if ( ftruncate( pidfd, (off_t)0 ) < 0 ) {
+	    perror( "ftruncate" );
 	    exit( 1 );
 	}
 
-	exit( q_runner_dir( simta_dir_slow ));
-    }
-
-    if ( port == 0 ) {
-	if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
-	    fprintf( stderr, "%s: can't find smtp service\n%s: continuing...\n",
-		    prog, prog );
-	    port = htons( 25 );
-	} else {
-	    port = se->s_port;
-	}
-    }
-
-    /*
-     * Set up listener.
-     */
-    if (( s = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
-	perror( "socket" );
-	exit( 1 );
-    }
-    if ( reuseaddr ) {
-	if ( setsockopt( s, SOL_SOCKET, SO_REUSEADDR, (void*)&reuseaddr,
-		sizeof( int )) < 0 ) {
-	    perror("setsockopt");
-	}
-    }
-
-    memset( &sin, 0, sizeof( struct sockaddr_in ));
-    sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = INADDR_ANY;
-    sin.sin_port = port;
-    if ( bind( s, (struct sockaddr *)&sin, sizeof( struct sockaddr_in )) < 0 ) {
-	perror( "bind" );
-	exit( 1 );
-    }
-    if ( listen( s, backlog ) < 0 ) {
-	perror( "listen" );
-	exit( 1 );
-    }
-
-    /* open and truncate the pid file */
-    if (( pidfd = open( SIMTA_FILE_PID, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
-	fprintf( stderr, "open %s: ", SIMTA_FILE_PID );
-        perror( NULL );
-        exit( 1 );
-    }
-
-    /* lock simta pid fd */
-    if ( lockf( pidfd, F_TLOCK, 0 ) != 0 ) {
-	if ( errno == EAGAIN ) {
-	    /* file locked by a diferent process */
-	    fprintf( stderr, "lockf %s: daemon already running",
-		    SIMTA_FILE_PID );
-	    exit( 1 );
-
-	} else {
-	    fprintf( stderr, "lockf %s: %m", SIMTA_FILE_PID );
-	    exit( 1 );
-	}
-    }
-
-    if ( ftruncate( pidfd, (off_t)0 ) < 0 ) {
-        perror( "ftruncate" );
-        exit( 1 );
-    }
-
-    if ( cleanup != 0 ) {
-	if ( q_cleanup() != 0 ) {
-	    exit( 1 );
+	if ( cleanup != 0 ) {
+	    if ( q_cleanup() != 0 ) {
+		exit( 1 );
+	    }
 	}
     }
 
     /* close the log fd gracefully before we daemonize */
     /* XXX do this after setgid and setuid for error logging purposes? */
     closelog();
+
+    /* set our initgroups */
+    if ( initgroups( simta_pw->pw_uid, 0 ) != 0 ) {
+	perror( "setuid" );
+	exit( 1 );
+    }
 
     /* set our gid */
     if ( setgid( simta_pw->pw_gid ) != 0 ) {
@@ -509,12 +492,15 @@ main( int ac, char **av )
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
 
+    if ( q_run != 0 ) {
+	exit( q_runner_dir( simta_dir_slow ));
+    }
+
     if (( pf = fdopen( pidfd, "w" )) == NULL ) {
         syslog( LOG_ERR, "can't fdopen pidfd" );
         exit( 1 );
     }
     fprintf( pf, "%d\n", (int)getpid());
-    fclose( pf );
 
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
