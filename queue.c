@@ -376,7 +376,6 @@ q_run( struct host_q **host_q )
 	    q_deliver( deliver_q );
 	    deliver_q = deliver_q->hq_deliver;
 	}
-syslog( LOG_DEBUG, "XXX HERE" );
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
