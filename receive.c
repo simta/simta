@@ -96,9 +96,7 @@ static char	*smtp_trimaddr ___P(( char *, char * ));
 
 
     static int
-hello( env, hostname )
-    struct envelope		*env;
-    char			*hostname;
+hello( struct envelope *env, char *hostname )
 {
     /* If we get "HELO" twice, just toss the new one */
     if ( receive_hello == NULL ) {
@@ -120,11 +118,7 @@ hello( env, hostname )
 
 
     int
-f_helo( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( ac != 2 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
@@ -1137,7 +1131,7 @@ smtp_receive( fd, sin )
     ctl_domain = hostname;
     *ctl_domain = '\0';
 
-    if (( rc = check_reverse( &simta_dnsr, hostname,
+    if (( rc = check_reverse( &simta_dnsr, ctl_domain,
 	    &(sin->sin_addr))) != 0 ) {
 	if ( rc < 0 ) {
 	    syslog( LOG_INFO, "receive %s: connection rejected: %s",
@@ -1237,15 +1231,16 @@ smtp_receive( fd, sin )
 	}
 
 	switch ((*(commands[ i ].c_func))( snet, env, ac, av )) {
-	default:
-	case RECEIVE_SYSERROR:
-	    goto syserror;
+	case RECEIVE_OK:
+	    break;
 
 	case RECEIVE_CLOSECONNECTION:
 	    goto closeconnection;
 
-	case RECEIVE_OK:
-	    break;
+	default:
+	/* fallthrough */
+	case RECEIVE_SYSERROR:
+	    goto syserror;
 	}
     }
 
