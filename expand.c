@@ -96,7 +96,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
     struct expand		exp;
     struct recipient		*r;
-    struct stab_entry		*i = NULL;
+    struct stab_entry		*i;
+    struct stab_entry		*j;
     struct exp_addr		*e_addr;
     char			*domain;
     SNET			*snet;
@@ -132,7 +133,14 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
      * of the addresses in expanded envelope(s).
      */ 
 
+    /* set our iterator to NULL to signify we're at the start of the loop */
+    i = NULL;
+
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
+	/* Add ONE address from the original envelope's rcpt list */
+	/* this address has no parent, it is a "root" address because
+	 * it's a rcpt.
+	 */
 	exp.exp_addr_parent = NULL;
 
 	if ( add_address( &exp, r->r_rcpt, r, ADDRESS_TYPE_EMAIL ) != 0 ) {
@@ -142,10 +150,15 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	for ( ; ; ) {
 	    if ( i == NULL ) {
+		/* we need to start by processing the first addr in the
+		 * expansion structure.
+		 */
 		i = exp.exp_addr_list;
 	    } else if ( i->st_next == NULL ) {
+		/* there are no more address for processing at this time */
 		break;
 	    } else {
+		/* process the next address */
 		i = i->st_next;
 	    }
 
@@ -183,8 +196,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
 
 #ifdef HAVE_LDAP
-	/* XXX prune exclusive groups the sender is not a member of */
-	/* XXX Check to see that we only write out TYPE_EMAIL addresses? */
+	/* XXX LDAP prune exclusive groups the sender is not a member of */
+	/* XXX LDAP Check to see that we only write out TYPE_EMAIL addresses? */
 #endif /* HAVE_LDAP */
 
 
@@ -215,14 +228,19 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	    /* fill in env */
 	    env->e_dir = simta_dir_fast;
-	    env->e_mail = unexpanded_env->e_mail;
+	    if (( env->e_mail = strdup( unexpanded_env->e_mail )) == NULL ) {
+		syslog( LOG_ERR, "expand.strdup: %m" );
+		free( env );
+		goto cleanup2;
+	    }
 	    strcpy( env->e_expanded, domain );
 	    sprintf( env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 			(unsigned long)tv.tv_usec );
 
 	    /* Add env to host_stab */
-	    if ( ll_insert( &host_stab, domain, env, NULL ) != 0 ) {
+	    if ( ll_insert( &host_stab, env->e_expanded, env, NULL ) != 0 ) {
 		syslog( LOG_ERR, "expand.ll_insert: %m" );
+		free( env->e_mail );
 		free( env );
 		goto cleanup2;
 	    }
@@ -252,8 +270,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    /* create message to put in host queue */
 	    if (( m = message_create( env->e_id )) == NULL ) {
 		/* message_create syslogs errors */
-		/* XXX expansion terminal failure */
-		return( 1 );
+		goto cleanup3;
 	    }
 
 	    /* create all messages we are expanding in the FAST queue */
@@ -262,8 +279,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    /* find / create the expanded host queue */
 	    if (( hq = host_q_lookup( hq_stab, env->e_expanded )) == NULL ) {
 		/* host_q_lookup syslogs errors */
-		/* XXX expansion terminal failure */
-		return( 1 );
+		free( m );
+		goto cleanup3;
 	    }
 
 	    /* Dfile: link Dold_id simta_dir_fast/Dnew_id */
@@ -271,25 +288,27 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	    if ( link( d_original, d_fast ) != 0 ) {
 		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_fast );
-		free( env );
-		/* XXX expansion terminal failure */
-		return( 1 );
+		free( m );
+		goto cleanup3;
 	    }
 
 	    /* Efile: write simta_dir_fast/Enew_id for all recipients at host */
 	    if ( env_outfile( env, simta_dir_fast ) != 0 ) {
 		/* env_outfile syslogs errors */
-		/* XXX expansion terminal failure */
-		/* XXX unlink dfile */
-		return( 1 );
+		if ( unlink( d_fast ) != 0 ) {
+		    syslog( LOG_ERR, "expand unlink %s: %m", d_fast );
+		}
+		free( m );
+		goto cleanup3;
 	    }
-
-	    /* queue message "m" in host queue "hq" */
-	    message_queue( hq, m );
 
 	    /* env has corrected etime after disk access */
 	    m->m_etime.tv_sec = env->e_etime.tv_sec;
 	    m->m_env = env;
+	    expanded_out++;
+
+	    /* queue message "m" in host queue "hq" */
+	    message_queue( hq, m );
 
 	} else {
 	    env_stdout( env );
@@ -297,7 +316,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
-    /* XXX what if no epanded envs?  mail loop? */
+    /* XXX if ( expanded_out == 0 ) { mail loop? } */
 
     if ( simta_expand_debug != 0 ) {
 	return( 0 );
@@ -343,6 +362,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 cleanup4:
     env_unlink( bounce_env );
+    env_free( bounce_env );
+    free( bounce_env );
 
 cleanup3:
     /* unlink any expanded envelopes already written out */
@@ -350,8 +371,9 @@ cleanup3:
     while ( expanded_out > 0 ) {
 	env = i->st_data;
 	env_unlink( env );
-	i = i->st_next;
 	expanded_out--;
+	i->st_data = NULL;
+	i = i->st_next;
     }
 
     if ( simta_fast_files != fast_file_start ) {
@@ -359,14 +381,27 @@ cleanup3:
     }
 
 cleanup2:
-    if ( bounce_env != NULL ) {
-	env_free( bounce_env );
-	free( bounce_env );
+    /* free host_stab */
+    i = host_stab;
+    while ( i != NULL ) {
+	j = i;
+	i = i->st_next;
+	free( j );
     }
-    /* XXX free host_stab */
 
 cleanup1:
-    /* XXX walk & free memory in exp->exp_addr_list */
+    /* free exp_addr_list */
+    i = exp.exp_addr_list;
+    while ( i != NULL ) {
+	j = i;
+	i = i->st_next;
+	if ( j->st_data != NULL ) {
+	    e_addr = (struct exp_addr*)i->st_data;
+	    free( e_addr->e_addr );
+	    free( e_addr );
+	}
+	free( j );
+    }
 
     return( return_value );
 }
