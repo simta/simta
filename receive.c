@@ -384,12 +384,6 @@ f_mail( snet, env, ac, av )
     if ( simta_global_relay != 0 ) {
 	syslog( LOG_INFO, "f_mail global relay for %s", env->e_mail );
 	env->e_relay = 1;
-
-    } else if ( strncmp( env->e_mail, "mcneal@umich.edu",
-	    strlen( "mcneal@umich.edu" )) == 0 ) {
-	/* everyone likes mcneal */
-	syslog( LOG_INFO, "f_mail relay for %s", env->e_mail );
-	env->e_relay = 1;
     }
 
     syslog( LOG_INFO, "f_mail %s: mail: <%s>", env->e_id, env->e_mail );
@@ -546,83 +540,82 @@ f_rcpt( snet, env, ac, av )
 	}
     }
 
-    /*
-     * Here we do an initial lookup in our domain table.  This is our
-     * best opportunity to decline recipients that are not local or
-     * unknown, since if we give an error the connecting client generates
-     * the bounce.
-     */
-    /* XXX check config file, check MXes */
+    if ( env->e_relay == 0 ) {
+	/*
+	 * Here we do an initial lookup in our domain table.  This is our
+	 * best opportunity to decline recipients that are not local or
+	 * unknown, since if we give an error the connecting client generates
+	 * the bounce.
+	 */
+	/* XXX check config file, check MXes */
 
-    switch ( mx_local( env, result, domain )) {
-    case 1:
-	high_mx_pref = 1;
-	break;
-
-    case 2:
-	high_mx_pref = 0;
-	break;
-
-    default:
-	/* XXX Is 551 correct?  550 is for policy */
-	if ( env->e_relay ) {
+	switch ( mx_local( env, result, domain )) {
+	case 1:
+	    high_mx_pref = 1;
 	    break;
-	}
-	dnsr_free_result( result );
-	if ( snet_writef( snet, "%d User not local; please try <%s>\r\n",
-		551, addr ) < 0 ) {
-	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
 
-    dnsr_free_result( result );
+	case 2:
+	    high_mx_pref = 0;
+	    break;
 
-    /*
-     * For local mail, we now have 5 minutes (rfc1123 5.3.2) to decline
-     * to receive the message.  If we're in the default configuration, we
-     * check the passwd and alias file.  Other configurations use "mailer"
-     * specific checks.
-     */
-
-    /* rfc 2821 section 3.7
-     * A relay SMTP server is usually the target of a DNS MX record that
-     * designates it, rather than the final delivery system.  The relay
-     * server may accept or reject the task of relaying the mail in the same
-     * way it accepts or rejects mail for a local user.  If it accepts the
-     * task, it then becomes an SMTP client, establishes a transmission
-     * channel to the next SMTP server specified in the DNS (according to
-     * the rules in section 5), and sends it the mail.  If it declines to
-     * relay mail to a particular address for policy reasons, a 550 response
-     * SHOULD be returned.
-     */
-
-    if (( high_mx_pref != 0 ) && ( env->e_relay == 0 )) {
-	switch( address_local( addr )) {
-	case ADDRESS_NOT_LOCAL:
-	    syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
-	    if ( snet_writef( snet,
-		    "%d Requested action not taken: User not found.\r\n",
-		    550 ) < 0 ) {
+	default:
+	    /* XXX Is 551 correct?  550 is for policy */
+	    dnsr_free_result( result );
+	    if ( snet_writef( snet, "%d User not local; please try <%s>\r\n",
+		    551, addr ) < 0 ) {
 		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		return( RECEIVE_BADCONNECTION );
 	    }
 	    return( RECEIVE_OK );
+	}
 
-	case ADDRESS_SYSERROR:
-	default:
-	    syslog( LOG_ERR, "f_rcpt address_local %s: error", addr );
-	    if ( snet_writef( snet,
-		    "%d Requested action aborted: "
-		    "local error in processing.\r\n", 451 ) < 0 ) {
-		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_BADCONNECTION );
+	dnsr_free_result( result );
+
+	/*
+	 * For local mail, we now have 5 minutes (rfc1123 5.3.2) to decline
+	 * to receive the message.  If we're in the default configuration, we
+	 * check the passwd and alias file.  Other configurations use "mailer"
+	 * specific checks.
+	 */
+
+	/* rfc 2821 section 3.7
+	 * A relay SMTP server is usually the target of a DNS MX record that
+	 * designates it, rather than the final delivery system.  The relay
+	 * server may accept or reject the task of relaying the mail in the same
+	 * way it accepts or rejects mail for a local user.  If it accepts the
+	 * task, it then becomes an SMTP client, establishes a transmission
+	 * channel to the next SMTP server specified in the DNS (according to
+	 * the rules in section 5), and sends it the mail.  If it declines to
+	 * relay mail to a particular address for policy reasons, a 550 response
+	 * SHOULD be returned.
+	 */
+
+	if ( high_mx_pref != 0 ) {
+	    switch( address_local( addr )) {
+	    case ADDRESS_NOT_LOCAL:
+		syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
+		if ( snet_writef( snet,
+			"%d Requested action not taken: User not found.\r\n",
+			550 ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_OK );
+
+	    case ADDRESS_SYSERROR:
+	    default:
+		syslog( LOG_ERR, "f_rcpt address_local %s: error", addr );
+		if ( snet_writef( snet,
+			"%d Requested action aborted: "
+			"local error in processing.\r\n", 451 ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_SYSERROR );
+
+	    case ADDRESS_LOCAL:
+		break;
 	    }
-	    return( RECEIVE_SYSERROR );
-
-	case ADDRESS_LOCAL:
-	    break;
 	}
     }
 
