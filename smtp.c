@@ -167,8 +167,6 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	return( SMTP_ERR_SYSCALL );
     }
 
-    *snetp = snet;
-
     if (( local_host = simta_gethostname()) == NULL ) {
 	return( SMTP_ERR_SYSCALL );
     }
@@ -547,6 +545,8 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	}
     }
 
+    *snetp = snet;
+
     return( 0 );
 }
 
@@ -699,7 +699,10 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
-	return( SMTP_ERR_MESSAGE );
+	/* XXX return( SMTP_ERR_MESSAGE ); */
+	/* MAIL FROM failed.  Bounce entire message */
+	/* env->e_err_text is set */
+	return( 0 );
     }
 
     if ( *(line + 3) == '-' ) {
@@ -955,7 +958,10 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
-	return( SMTP_ERR_MESSAGE );
+	/* XXX return( SMTP_ERR_MESSAGE ); */
+	/* DATA failed.  Bounce entire message */
+	/* env->e_err_text is set */
+	return( 0 );
     }
 
     if ( *(line + 3) == '-' ) {
@@ -1131,7 +1137,10 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
-	return( SMTP_ERR_MESSAGE );
+	/* XXX return( SMTP_ERR_MESSAGE ); */
+	/* DATA_EOF failed.  Bounce entire message */
+	/* env->e_err_text is set */
+	return( 0 );
     }
 
     if ( *(line + 3) == '-' ) {

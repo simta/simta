@@ -476,7 +476,7 @@ env_info( struct message *m, char *hostname )
 
     /* struct message *m has file info for the envelope
      *
-     * struct envelope *e has envelpe info written in to it
+     * struct envelope *e will have envelpe info written to it
      *
      * if s_lock != NULL, Efile will be locked and *s_lock will point
      * to it's SNET.

@@ -18,7 +18,6 @@
 
 #define	SMTP_ERR_SYSCALL		-1
 #define	SMTP_ERR_REMOTE			1
-#define	SMTP_ERR_MESSAGE		2
 
 #define	SMTP_TIME_CONNECT	60 * 5
 #define	SMTP_TIME_HELO		60 * 5

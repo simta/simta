@@ -12,16 +12,13 @@
 #endif /* __STDC__ */
 
 
-/* states for struct message->m_action */
-#define	M_REMOVE	1
-#define	M_REORDER	2
-
 /* states for host_q->hq_status */
 #define HOST_NULL	0
 #define HOST_LOCAL	1
 #define HOST_REMOTE	2
 #define HOST_BOUNCE	3
 #define HOST_DOWN	4
+
 #define HOST_MX		5
 
 struct host_list {
@@ -49,9 +46,7 @@ struct message {
     struct message		*m_next;
     char			*m_id;
     char			*m_dir;
-    int				m_old_dfile;
     int				m_mail_loop;
-    int				m_action;
     struct timespec		m_etime;
 };
 
