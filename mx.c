@@ -164,12 +164,7 @@ get_mx( char *hostname )
 	}
     }
 
-    if ( result->r_ancount > 0 ) {
-	return( result );
-    } else {
-	dnsr_free_result( result );
-	return( NULL );
-    }
+    return( result );
 }
 
     struct host *
