@@ -241,20 +241,12 @@ f_mail( snet, env, ac, av )
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
-    if (( env->e_flags & E_READY ) != 0 ) {
 
-	/*
-	 * Deliver a pending message without fork()ing.
-	 */
-	if ( simta_debug ) printf( "calling expand\n" );
-	if ( expand( &hq_receive, env ) !=0 ) {
-	    syslog( LOG_ERR, "f_quit: expand failed\n" );
+    if (( env->e_flags & E_READY ) != 0 ) {
+	if ( deliver_env( env ) != 0 ) {
 	    return( -1 );
 	}
-	if ( q_runner( &hq_receive ) != 0 ) {
-	    syslog( LOG_ERR, "f_quit: q_runner failed\n" );
-	    return( -1 );
-	}
+
 	env_reset( env );
     }
 
@@ -781,19 +773,8 @@ f_quit( snet, env, ac, av )
     }
 
     /* check for an accepted message */
-    if ( ( env->e_flags & E_READY ) != 0 ) {
-
-	/*
-	 * Deliver a pending message without fork()ing.
-	 */
-	if ( simta_debug ) printf( "f_quit: calling expand\n" );
-	if ( expand( &hq_receive, env ) !=0 ) {
-	    syslog( LOG_ERR, "f_quit: expand failed\n" );
-	    return( -1 );
-	}
-	if ( simta_debug ) printf( "f_quit: calling q_runner\n" );
-	if ( q_runner( &hq_receive ) != 0 ) {
-	    syslog( LOG_ERR, "f_quit: q_runner failed\n" );
+    if (( env->e_flags & E_READY ) != 0 ) {
+	if ( deliver_env( env ) != 0 ) {
 	    return( -1 );
 	}
     }
@@ -1132,28 +1113,15 @@ receive( fd, sin )
 	syslog( LOG_ERR, "snet_getline: %m" );
     }
 
-    /* XXX check for an accepted message */
+    /* check for an accepted message */
     if (( env->e_flags & E_READY ) != 0 ) {
-
-
-	/*
-	 * Deliver a pending message without fork()ing.
-	 */
-	if ( expand( &hq_receive, env ) !=0 ) {
-	    /* What do we do in an error? */
-	    syslog( LOG_ERR, "command loop: expand failed\n" );
-	    exit( 1 );
-	}
-
-	if ( q_runner( &hq_receive ) != 0 ) {
-	    syslog( LOG_ERR, "command loop: q_runner failed\n" );
-	    exit( 1 );
+	if ( deliver_env( env ) != 0 ) {
+	    return( -1 );
 	}
     }
 
     exit( 1 );
 }
-
 
 
     int
@@ -1164,10 +1132,11 @@ deliver_env( struct envelope *env )
      */
 
     if ( expand( &hq_receive, env ) != 0 ) {
-	/* What do we do in an error? */
+	/* XXX What do we do in an error? */
 	syslog( LOG_ERR, "deliver_env: expand failed\n" );
 
 	if ( env_slow( env ) != 0 ) {
+	    /* XXX more diagnostic info? */
 	    syslog( LOG_ERR, "deliver_env: env_slow failed\n" );
 	}
 
