@@ -1,5 +1,5 @@
 
-imple mail delivery
+Simple mail delivery
 
 mail from:<mcneal@umich.edu>
 rcpt to:<mcneal@umich.edu>
@@ -15,11 +15,11 @@ quit
 -------------------------------------
 Vacation
 
-mail from:<mcneal@umich.edu>
-rcpt to:<xpaul@umich.edu>
+mail from:<editor@umich.edu>
+rcpt to:<mcneal@umich.edu>
 data
 Subject:  vacation test
-From: mcneal@umich.edu
+From: editor@umich.edu
 This is a vacation test and should be sent to the vacation host and end user.
 .
 quit
@@ -114,19 +114,6 @@ quit
 
 	-> Should get a message to simta-test4-errors because member no longer exists
 
--------------------------------------
-Group Moderation
-
-mail from:<fake@umich.edu>
-rcpt to:<simta-test-moderated@umich.edu>
-data
-Subject:  group moderation
-From: fake@umich.edu
-This should goto moderator
-.
-quit
-	
-	-> should goto moderator
 
 -------------------------------------
 ( ? ) User had no mail forwarding address
@@ -173,24 +160,126 @@ quit
 -------------------------------------
 ( ? ) Virus 0, 1, 2, 3
 
+
+***
+-------------------------------------
+Moderated Group: member, direct
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.moderated@umich.edu>
+data
+Subject:  Moderated Group: member, direct
+From: mcneal@umich.edu
+goto moderator
+.
+quit
+
+	-> goto moderator
+-------------------------------------
+Moderated Group: not a member, direct
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.moderated@umich.edu>
+data
+Subject:  Moderated Group: not a member, direct
+From: editor@umich.edu
+goto moderator
+.
+quit
+
+	-> goto moderator
+-------------------------------------
+XXXX - set member of permitted group to simta test moderated
+XXXX - set member of not permitted group to simta test moderated
+-------------------------------------
+Moderated Group: member, permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
+data
+Subject:  Moderated Group: member, permitted group
+From: mcneal@umich.edu
+goto moderator
+.
+quit
+
+	-> goto moderator
+
+-------------------------------------
+Moderated Group: not a member, permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
+data
+Subject:  Moderated Group: not a member, permitted group
+From: editor@umich.edu
+goto moderator
+.
+quit
+
+	-> goto moderator
+
+-------------------------------------
+Moderated Group: member, not permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
+data
+Subject:  Moderated Group: member, not permitted group
+From: mcneal@umich.edu
+goto moderator
+.
+quit
+
+	-> goto moderator
+
+-------------------------------------
+Moderated Group: not a member, not permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
+data
+Subject:  Moderated Group: not a member, not permitted group
+From: editor@umich.edu
+goto moderator
+.
+quit
+
+	-> goto moderator
+
+-------------------------------------
+Moderated Group: moderator
+
+mail from:<xpaul@umich.edu>
+rcpt to:<simta.test.moderated@umich.edu>
+data
+Subject:  Moderated Group: moderator
+From: editor@umich.edu
+Moterated: go though
+.
+quit
+
+	-> go through
+
 -------------------------------------
 Members Only Group: member, direct
 
 mail from:<mcneal@umich.edu>
-rcpt to:<simta-test-members-only@umich.edu>
+rcpt to:<simta.test.members.only@umich.edu>
 data
-Subject:  Members Only Group: not a member, direct
+Subject:  Members Only Group: member, direct
 From: mcneal@umich.edu
 mcneal should get this
 .
 quit
 
 	-> should go through
+
 -------------------------------------
 Members Only Group: not a member, direct
 
 mail from:<editor@umich.edu>
-rcpt to:<simta-test-members-only@umich.edu>
+rcpt to:<simta.test.members.only@umich.edu>
 data
 Subject:  Members Only Group: not a member, direct
 From: editor@umich.edu
@@ -200,10 +289,13 @@ quit
 
 	-> should get a bounce
 -------------------------------------
+XXXX - set member of permitted group to simta.test.members.only
+XXXX - set member of not permitted group to simta.test.members.only
+-------------------------------------
 Members Only Group: member, permitted group
 
 mail from:<mcneal@umich.edu>
-rcpt to:<simta-test-permitted-group@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
 data
 Subject:  Members Only Group: member, permitted group
 From: mcneal@umich.edu
@@ -212,37 +304,12 @@ mcneal should get this
 quit
 
 	-> should go through
--------------------------------------
-Private Members Only Group: not a member, direct
 
-mail from:<editor@umich.edu>
-rcpt to:<simta.test.private@umich.edu>
-data
-Subject:  Private Members Only Group: not a member, direct
-From: editor@umich.edu
-mcneal should get this
-.
-quit
-
-	-> should not go through, bounce to sender
--------------------------------------
-Private Members Only Group: not a member, not permitted group
-
-mail from:<editor@umich.edu>
-rcpt to:<simta.test.private.parent@umich.edu>
-data
-Subject:  Private Members Only Group: not a member, not permitted group
-From: editor@umich.edu
-mcneal should get this
-.
-quit
-
-	-> should not go through, no bounce
 -------------------------------------
 Members Only Group: not a member, permitted group
 
 mail from:<editor@umich.edu>
-rcpt to:<simta-test-permitted-group@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
 data
 Subject:  Members Only Group: not a member, permitted group
 From: editor@umich.edu
@@ -251,11 +318,12 @@ mcneal should get this
 quit
 
 	-> should go through
+
 -------------------------------------
 Members Only Group: member, not permitted group
 
 mail from:<mcneal@umich.edu>
-rcpt to:<simta-test-not-permitted@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
 data
 Subject:  Members Only Group: member, not permitted group
 From: mcneal@umich.edu
@@ -263,21 +331,290 @@ mcneal should get this
 .
 quit
 
-	-> mcneal should get it
+	-> should go through
+
 -------------------------------------
 Members Only Group: not a member, not permitted group
 
 mail from:<editor@umich.edu>
-rcpt to:<simta-test-not-permitted@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
 data
 Subject:  Members Only Group: not a member, not permitted group
 From: editor@umich.edu
-This should be bit-bucketed
+bounce should goto simta.test.not.permitted-errors
 .
 quit
 
-	-> bit bucket
+	-> bounce should goto simta.test.not.permitted-errors
+
 -------------------------------------
+Private Members Only Group: member, direct
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.private.members.only@umich.edu>
+data
+Subject:  Private Members Only Group: member, direct
+From: mcneal@umich.edu
+mcneal should get this
+.
+quit
+
+	-> should go through
+
+-------------------------------------
+Private Members Only Group: not a member, direct
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.private.members.only@umich.edu>
+data
+Subject:  Private Members Only Group: not a member, direct
+From: editor@umich.edu
+editor should get a bounce
+.
+quit
+
+	-> bounce to sender
+
+-------------------------------------
+XXXX - set member of permitted group to simta test private members only
+XXXX - set member of not permitted group to simta test private members only
+-------------------------------------
+Private Members Only Group: member, permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
+data
+Subject:  Private Members Only Group: member, permitted group
+From: mcneal@umich.edu
+should go through
+.
+quit
+
+	-> should go through
+
+-------------------------------------
+Private Members Only Group: not a member, permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
+data
+Subject:  Private Members Only Group: not a member, permitted group
+From: editor@umich.edu
+should go through
+.
+quit
+
+	-> should go through
+
+-------------------------------------
+Private Members Only Group: member, not permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
+data
+Subject:  Private Members Only Group: member, not permitted group
+From: mcneal@umich.edu
+should go through
+.
+quit
+
+	-> should go through
+
+-------------------------------------
+Private Members Only Group: not a member, not a permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
+data
+Subject:  Private Members Only Group: not a member, not a permitted group
+From: editor@umich.edu
+should be bit bucket-ed
+.
+quit
+
+	-> should be bit bucket-ed
+
+-------------------------------------
+Moderated Members Only Group: member, direct
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.moderated.members.only@umich.edu>
+data
+Subject:  Moderated Members Only Group: member, direct
+From: mcneal@umich.edu
+should goto group
+.
+quit
+
+	-> should goto group
+
+-------------------------------------
+Moderated Members Only Group: not a member, direct
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.moderated.members.only@umich.edu>
+data
+Subject:  Moderated Members Only Group: not a member, direct
+From: editor@umich.edu
+should goto moderator
+.
+quit
+
+	-> should goto moderator
+
+-------------------------------------
+XXXX - set member of permitted group to simta test moderated members only
+XXXX - set member of not permitted group to simta test moderated members only
+-------------------------------------
+
+Moderated Members Only Group: member, permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
+data
+Subject:  Moderated Members Only Group: member, permitted group
+From: mcneal@umich.edu
+should goto group
+.
+quit
+
+	-> should goto group
+
+-------------------------------------
+
+Moderated Members Only Group: not a member, permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
+data
+Subject:  Moderated Members Only Group: not a member, permitted group
+From: editor@umich.edu
+should goto group
+.
+quit
+
+	-> should goto group
+
+-------------------------------------
+
+Moderated Members Only Group: member, not a permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
+data
+Subject:  Moderated Members Only Group: member, not a permitted group
+From: mcneal@umich.edu
+should goto to group
+.
+quit
+
+	-> should goto group
+
+-------------------------------------
+
+Moderated Members Only Group: not a member, not a permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
+data
+Subject:  Moderated Members Only Group: not a member, not a permitted group
+From: editor@umich.edu
+should goto to moderator
+.
+quit
+
+	-> should goto moderator
+
+-------------------------------------
+Private Moderated Members Only Group: member, direct
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.private.moderated.members.only@umich.edu>
+data
+Subject:  Private Moderated Members Only Group: member, direct
+From: mcneal@umich.edu
+should goto group
+.
+quit
+
+	-> should goto group
+
+-------------------------------------
+Private Moderated Members Only Group: not a member, direct
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.private.moderated.members.only@umich.edu>
+data
+Subject:  Private.Moderated Members Only Group: not a member, direct
+From: editor@umich.edu
+should goto moderator
+.
+quit
+
+	-> should goto moderator
+
+-------------------------------------
+XXXX - set member of permitted group to simta test private moderated members only
+XXXX - set member of not permitted group to simta test private moderated members only
+-------------------------------------
+
+Private Moderated Members Only Group: member, permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
+data
+Subject:  Private Moderated Members Only Group: member, permitted group
+From: mcneal@umich.edu
+should goto group
+.
+quit
+
+	-> should goto group
+
+-------------------------------------
+
+Private Moderated Members Only Group: not a member, permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.permitted@umich.edu>
+data
+Subject:  Private Moderated Members Only Group: not a member, permitted group
+From: editor@umich.edu
+should goto group
+.
+quit
+
+	-> should goto group
+
+-------------------------------------
+
+Private Moderated Members Only Group: member, not a permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
+data
+Subject:  Private Moderated Members Only Group: member, not a permitted group
+From: mcneal@umich.edu
+should goto to group
+.
+quit
+
+	-> should goto group
+
+-------------------------------------
+
+Private Moderated Members Only Group: not a member, not a permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.not.permitted@umich.edu>
+data
+Subject:  Private Moderated Members Only Group: not a member, not a permitted group
+From: editor@umich.edu
+should goto to moderator
+.
+quit
+
+	-> should goto moderator
 
 -------------------------------------
 .forward
