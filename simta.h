@@ -13,7 +13,7 @@
 
 
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
-#define SIMTA_ALIAS_DB			"/etc/alias.db"
+#define SIMTA_ALIAS_DB			"/etc/mail/aliases.db"
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
 #define	SIMTA_BOUNCE_LINES		100

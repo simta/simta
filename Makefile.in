@@ -1,10 +1,10 @@
 # @configure_input@
 
 DESTDIR=@prefix@
-MANDIR=@prefix@/man
+MANDIR=/usr/share/man
 BINDIR=@bindir@
 ETCDIR=@sysconfdir@
-SBINDIR=@sbindir@
+SBINDIR=/usr/sbin
 RUNDIR=/var/run
 RUNFILE=/var/run/simta.pid
 LIBDIR=/usr/lib
@@ -76,8 +76,8 @@ install : all FRC
 	-chgrp -R simta ${SPOOLDIR}
 	-chmod -R 700 ${SPOOLDIR}
 	${INSTALL} -m 755 -o simta -g simta -c simta ${SBINDIR}/
-	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${LIBDIR}/
-	ln -f ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
+	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${SBINDIR}/
+	ln -f ${SBINDIR}/simsendmail ${SBINDIR}/sendmail
 	for i in ${MAN1TARGETS}; do \
 	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
 	done
