@@ -375,7 +375,7 @@ f_rcpt( snet, env, ac, av )
      * MUST be accepted if so used.
      */
 
-    if ( strncmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
+    if ( strncasecmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
 	/* DNS check for invalid domain */
 	if (( dnsr = dnsr_open( )) == NULL ) {
 	    syslog( LOG_ERR, "dnsr_open failed" );
