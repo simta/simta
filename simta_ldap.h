@@ -4,12 +4,6 @@
  */
 /*****     ldap.h     *****/
 
-#ifdef __STDC__
-#define ___P(x)		x
-#else /* __STDC__ */
-#define ___P(x)		()
-#endif /* __STDC__ */
-
 struct list {
     char		*l_string;
     struct list		*l_next;
@@ -47,12 +41,12 @@ struct list {
 #define SUPPRESSNOEMAILERROR    (1<<0)
 
 /* Public functions */
-int	simta_ldap_expand ___P(( struct expand *, struct exp_addr * ));
-int	simta_ldap_address_local ___P(( char *, char * ));
-int	simta_ldap_config ___P(( char * ));
-int	simta_mbx_compare ___P(( char *, char * ));
+int	simta_ldap_expand( struct expand *, struct exp_addr * );
+int	simta_ldap_address_local( char *, char * );
+int	simta_ldap_config( char * );
+int	simta_mbx_compare( char *, char * );
 
 /* Private functions */
-int	simta_ldap_value ___P(( LDAPMessage *, char *, struct list * ));
-char	*simta_ldap_string ___P(( char *, char *, char * ));
+int	simta_ldap_value( LDAPMessage *, char *, struct list * );
+char	*simta_ldap_string( char *, char *, char * );
 

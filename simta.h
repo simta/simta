@@ -5,13 +5,6 @@
 
 /*****     simta.h     *****/
 
-#ifdef __STDC__
-#define ___P(x)		x
-#else /* __STDC__ */
-#define ___P(x)		()
-#endif /* __STDC__ */
-
-
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
@@ -68,4 +61,4 @@ void	panic ( char * );
 char	*simta_sender ( void );
 char	*simta_resolvconf ( void );
 int	simta_init_hosts ( void );
-int	simta_config ___P(( char *, char * ));
+int	simta_config( char *, char * );

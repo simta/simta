@@ -41,13 +41,7 @@
 #include "header.h"
 #include "simta.h"
 
-#ifdef __STDC__
-#define ___P(x)         x
-#else /* __STDC__ */
-#define ___P(x)         ()
-#endif /* __STDC__ */
-
-void catch_sigint ___P(( int ));
+void catch_sigint( int );
 
 /* dfile vars are global to unlink dfile if SIGINT */
 int		dfile_fd = -1;

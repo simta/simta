@@ -65,10 +65,10 @@ int		maxconnections = SIMTA_MAXCONNECTIONS;	/* 0 = no limit */
 char		*maildomain = NULL;
 char		*version = VERSION;
 
-void		usr1 ___P(( int ));
-void		hup ___P(( int ));
-void		chld ___P(( int ));
-int		main ___P(( int, char *av[] ));
+void		usr1( int );
+void		hup ( int );
+void		chld( int );
+int		main( int, char *av[] );
 
     void
 usr1( int sig )

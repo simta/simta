@@ -3,12 +3,6 @@
  * All Rights Reserved.  See COPYRIGHT.
  */
 
-#ifdef __STDC__
-#define ___P(x)		x
-#else /* __STDC__ */
-#define ___P(x)		()
-#endif /* __STDC__ */
-
 #define ENV_ID_LENGTH		30
 
 #define	R_TEMPFAIL	0
@@ -44,25 +38,25 @@ struct envelope {
 #define ENV_BOUNCE		(1<<5)
 #define ENV_TEMPFAIL		(1<<6)
 
-struct envelope	*env_create ___P(( char * ));
-struct envelope	*env_dup ___P(( struct envelope * ));
-void		env_rcpt_free ___P(( struct envelope * ));
-void		env_free ___P(( struct envelope * ));
-void		env_reset ___P(( struct envelope * ));
-void		rcpt_free ___P(( struct recipient * ));
+struct envelope	*env_create( char * );
+struct envelope	*env_dup( struct envelope * );
+void		env_rcpt_free( struct envelope * );
+void		env_free( struct envelope * );
+void		env_reset( struct envelope * );
+void		rcpt_free( struct recipient * );
 int		env_is_old( struct envelope *, int );
-int		env_gettimeofday_id ___P(( struct envelope * ));
-int		env_set_id ___P(( struct envelope *, char * ));
-int		env_recipient ___P(( struct envelope *, char * ));
-int		env_sender ___P(( struct envelope *, char * ));
-int		env_outfile ___P(( struct envelope * ));
-int		env_touch ___P(( struct envelope * ));
-int		env_slow ___P(( struct envelope * ));
-int		env_from ___P(( struct envelope * ));
-int		env_unlink ___P(( struct envelope * ));
-int		env_read_queue_info ___P(( struct envelope * ));
-int		env_read_delivery_info ___P(( struct envelope *, SNET ** ));
+int		env_gettimeofday_id( struct envelope * );
+int		env_set_id( struct envelope *, char * );
+int		env_recipient( struct envelope *, char * );
+int		env_sender( struct envelope *, char * );
+int		env_outfile( struct envelope * );
+int		env_touch( struct envelope * );
+int		env_slow( struct envelope * );
+int		env_from( struct envelope * );
+int		env_unlink( struct envelope * );
+int		env_read_queue_info( struct envelope * );
+int		env_read_delivery_info( struct envelope *, SNET ** );
 
 /* debugging  functions */
-void		env_stdout ___P(( struct envelope * ));
-void		env_syslog ___P(( struct envelope * ));
+void		env_stdout( struct envelope * );
+void		env_syslog( struct envelope * );

@@ -5,12 +5,6 @@
 
 /*****     ll.h     *****/
 
-#ifdef __STDC__
-#define ___P(x)		x
-#else /* __STDC__ */
-#define ___P(x)		()
-#endif /* __STDC__ */
-
 /* this library is a linked list implamentation of a symbol table */
 
 struct stab_entry {
@@ -19,15 +13,13 @@ struct stab_entry {
     void		*st_data;
 };
 
-void	*ll_lookup ___P(( struct stab_entry*, char * ));
-int	ll_default_compare ___P(( char *, char * ));
-int	ll_insert ___P(( struct stab_entry **, char *, void *,
-		int(*)( char *, char * )));
-int 	ll_insert_tail ___P(( struct stab_entry **stab, char *key, void *data );
-void	*ll_remove ___P(( struct stab_entry **, char * )));
-void	ll_walk ___P(( struct stab_entry *, void (*)( void *)));
+void	*ll_lookup( struct stab_entry*, char * );
+int	ll_default_compare( char *, char * );
+int	ll_insert( struct stab_entry **, char *, void *,
+		int(*)( char *, char * ));
+int 	ll_insert_tail( struct stab_entry **stab, char *key, void *data );
+void	*ll_remove( struct stab_entry **, char * );
+void	ll_walk( struct stab_entry *, void (*)( void *));
 
-int	ll__insert ___P(( struct stab_entry **, void *,
-		int(*)( void *, void * )));
-void	*ll__lookup ___P(( struct stab_entry *, void *,
-		int(*)( void *, void * )));
+int	ll__insert( struct stab_entry **, void *, int(*)( void *, void * ));
+void	*ll__lookup( struct stab_entry *, void *, int(*)( void *, void * ));

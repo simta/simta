@@ -5,13 +5,6 @@
 
 /*****     queue.h     *****/
 
-#ifdef __STDC__
-#define ___P(x)		x
-#else /* __STDC__ */
-#define ___P(x)		()
-#endif /* __STDC__ */
-
-
 /* states for host_q->hq_status */
 #define HOST_NULL	0
 #define HOST_LOCAL	1
@@ -55,16 +48,16 @@ struct host_q {
     struct dnsr_result		*hq_dnsr_result;
 };
 
-int	q_runner ___P(( struct host_q ** ));
-int	q_runner_dir ___P(( char * ));
+int	q_runner( struct host_q ** );
+int	q_runner_dir( char * );
 
-int	q_cleanup ___P(( void ));
-struct	host_q	*host_q_create_or_lookup ___P(( struct host_q **, char * )); 
-void	queue_remove_envelope ___P(( struct envelope * ));
+int	q_cleanup( void );
+struct	host_q	*host_q_create_or_lookup( struct host_q **, char * ); 
+void	queue_remove_envelope( struct envelope * );
 int	queue_envelope( struct host_q **, struct envelope *);
 
 /* debugging functions */
-void	q_stab_syslog ___P(( struct host_q * ));
-void	q_stab_stdout ___P(( struct host_q * ));
-void	q_syslog ___P(( struct host_q * ));
-void	q_stdout ___P(( struct host_q * ));
+void	q_stab_syslog( struct host_q * );
+void	q_stab_stdout( struct host_q * );
+void	q_syslog( struct host_q * );
+void	q_stdout( struct host_q * );

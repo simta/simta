@@ -1,12 +1,6 @@
 /**********          q_cleanup.c          **********/
 #include "config.h"
 
-#ifdef __STDC__
-#define ___P(x)		x
-#else /* __STDC__ */
-#define ___P(x)		()
-#endif /* __STDC__ */
-
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>

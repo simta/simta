@@ -5,14 +5,7 @@
 
 /*****     bounce.h     *****/
 
-#ifdef __STDC__
-#define ___P(x)		x
-#else /* __STDC__ */
-#define ___P(x)		()
-#endif /* __STDC__ */
-
-
-int bounce_text ___P(( struct envelope *, char *, char *, char * ));
-void bounce_stdout ___P(( struct envelope * ));
-ino_t bounce_dfile_out ___P(( struct envelope *, SNET * ));
-struct envelope *bounce ___P(( struct host_q *, struct envelope *, SNET * ));
+int bounce_text( struct envelope *, char *, char *, char * );
+void bounce_stdout( struct envelope * );
+ino_t bounce_dfile_out( struct envelope *, SNET * );
+struct envelope *bounce( struct host_q *, struct envelope *, SNET * );

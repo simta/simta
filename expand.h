@@ -51,17 +51,17 @@ struct exp_addr {
 };
 
 /* expand.c */
-int	expand_and_deliver ___P(( struct host_q **, struct envelope * ));
-int	expand ___P(( struct host_q **, struct envelope * ));
+int	expand_and_deliver( struct host_q **, struct envelope * );
+int	expand( struct host_q **, struct envelope * );
 
 /* address.c */
-int address_error ___P(( struct envelope *, char *, char *, char * ));
+int address_error( struct envelope *, char *, char *, char * );
 void expansion_stab_stdout( void * );
 int add_address( struct expand *, char *, struct envelope *, int );
-struct envelope *address_bounce_create ___P(( struct expand* ));
+struct envelope *address_bounce_create( struct expand* );
 int address_expand( struct expand *, struct exp_addr * );
 void expand_tree_stdout( struct exp_addr *, int );
 
 #ifdef HAVE_LDAP
-int ldap_check_ok ___P(( struct expand *, struct exp_addr * ));
+int ldap_check_ok( struct expand *, struct exp_addr * );
 #endif /* HAVE_LDAP */

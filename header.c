@@ -61,23 +61,19 @@ struct line_token {
 };
 
 
-char	*skip_ws ___P(( char * ));
-int	line_token_dot_atom ___P(( struct line_token *, struct line *,
-	char * ));
-int	line_token_quoted_string ___P(( struct line_token *, struct line *,
-	char * ));
-int	line_token_domain_literal ___P(( struct line_token *, struct line *,
-	char * ));
-void	header_stdout ___P(( struct header[] ));
-void	header_exceptions ___P(( struct line_file * ));
-char	*skip_cfws ___P(( struct line **, char ** ));
-int	is_dot_atom_text ___P(( int ));
-int	parse_addr ___P(( struct envelope *, struct line **, char **, int ));
-int	parse_mailbox_list ___P(( struct envelope *, struct line *, char *,
-	int ));
-int	parse_recipients ___P(( struct envelope *, struct line *, char * ));
-int	match_sender ___P(( struct line_token *, struct line_token *, char * ));
-int	line_token_unfold ___P(( struct line_token * ));
+char	*skip_ws( char * );
+int	line_token_dot_atom( struct line_token *, struct line *, char * );
+int	line_token_quoted_string( struct line_token *, struct line *, char * );
+int	line_token_domain_literal( struct line_token *, struct line *, char * );
+void	header_stdout( struct header[] );
+void	header_exceptions( struct line_file * );
+char	*skip_cfws( struct line **, char ** );
+int	is_dot_atom_text( int );
+int	parse_addr( struct envelope *, struct line **, char **, int );
+int	parse_mailbox_list( struct envelope *, struct line *, char *, int );
+int	parse_recipients( struct envelope *, struct line *, char * );
+int	match_sender( struct line_token *, struct line_token *, char * );
+int	line_token_unfold( struct line_token * );
 int	header_lines( struct line_file *, struct header *, int );
 
 

@@ -1,11 +1,5 @@
 #include "config.h"
 
-#ifdef __STDC__
-#define ___P(x)		x
-#else /* __STDC__ */
-#define ___P(x)		()
-#endif /* __STDC__ */
-
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>

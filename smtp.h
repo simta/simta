@@ -30,13 +30,6 @@
 
 #define	SIMTA_SMTP_PORT		25
 
-#ifdef __STDC__
-#define ___P(x)         x
-#else /* __STDC__ */
-#define ___P(x)         ()
-#endif /* __STDC__ */
-
-
 void	stdout_logger ( char * );
 int	smtp_reply( int, SNET*, struct host_q *, struct deliver * );
 int	smtp_consume_banner ( struct line_file **, SNET *,
