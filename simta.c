@@ -445,9 +445,6 @@ simta_config( char *base_dir )
 
     simta_max_bounce_lines = SIMTA_BOUNCE_LINES;
 
-    /* set up simta_hosts stab */
-    simta_hosts = NULL;
-
     if (( host = add_host( simta_hostname, HOST_LOCAL )) == NULL ) {
 	return( -1 );
     }
