@@ -25,6 +25,7 @@
 #include <ctype.h>
 #include <pwd.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #include <snet.h>
 
@@ -43,6 +44,25 @@
 #define ___P(x)         ()
 #endif /* __STDC__ */
 
+void catch_sigint ___P(( int ));
+
+/* dfile vars are global to unlink dfile if SIGINT */
+int		dfile_fd = -1;
+char		dfile_fname[ MAXPATHLEN ];
+
+
+    /* catch SIGINT */
+
+    void
+catch_sigint( int sigint )
+{
+    if ( dfile_fd > 0 ) {
+	unlink( dfile_fname );
+    }
+
+    exit( 1 );
+}
+
 
     int
 main( int argc, char *argv[] )
@@ -58,8 +78,6 @@ main( int argc, char *argv[] )
     int			ignore_dot = 0;
     int			x;
     int			header;
-    int			dfile_fd;
-    char		dfile_fname[ MAXPATHLEN ];
     FILE		*dfile = NULL;
 
     /* ignore a good many options */
@@ -177,6 +195,12 @@ main( int argc, char *argv[] )
      * 998 characters, and SHOULD be no more than 78 characters, excluding
      * the CRLF.
      */
+
+    /* catch SIGINT and cleanup */
+    if ( signal( SIGINT, catch_sigint ) == SIG_ERR ) {
+	perror( "signal" );
+	exit( 1 );
+    }
 
     while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
 	if ( strlen( line ) > 998 ) {
@@ -327,7 +351,9 @@ main( int argc, char *argv[] )
     return( 0 );
 
 cleanup:
-    unlink( dfile_fname );
+    if ( dfile_fd > 0 ) {
+	unlink( dfile_fname );
+    }
 
     return( -1 );
 }
