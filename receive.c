@@ -1273,87 +1273,81 @@ local_address( char *addr )
      */
 
     static int
-rfc_2821_trimaddr( int mode, char *addr, char **local_part, char **domain )
+rfc_2821_trimaddr( int mode, char *arg, char **address, char **domain )
 {
-    char			*i;
-    char			*j;
+    char			*p;
+    char			*q;
 
-    if ( addr == NULL ) {
+    if ( arg == NULL ) {
 	return( 1 );
     }
 
     /* check syntax, and set cursor */
     if ( mode == RFC_2821_MAIL_FROM ) {
-	if ( strncasecmp( addr, "FROM:", 5 ) != 0 ) {
+	if ( strncasecmp( arg, "FROM:<", 6 ) != 0 ) {
 	    return( 1 );
 	}
-	i = addr + 5;
+	p = arg + 6;
 
     } else if ( mode == RFC_2821_RCPT_TO ) {
-	if ( strncasecmp( addr, "TO:", 3 ) != 0 ) {
+	if ( strncasecmp( arg, "TO:<", 4 ) != 0 ) {
 	    return( 1 );
 	}
-	i = addr + 3;
+	p = arg + 4;
 
     } else {
 	return( 1 );
     }
 
-    /* check local-part syntax */
-    if ( *i != '<' ) {
-	return( 1 );
-    }
-    i++;
-
     /* do at-domain-literal */
-    if ( *i == '@' ) {
+    if ( *p == '@' ) {
 	/* consume domain */
-	i++;
-	if ( *i == '[' ) {
-	    if (( j = token_domain_literal( i )) == NULL ) {
+	p++;
+	if ( *p == '[' ) {
+	    if (( q = token_domain_literal( p )) == NULL ) {
 		return( 1 );
 	    }
 	} else {
-	    if (( j = token_domain( i )) == NULL ) {
+	    if (( q = token_domain( p )) == NULL ) {
 		return( 1 );
 	    }
 	}
-	j++;
+	q++;
 
-	while ( *j == ',' ) {
-	    i = j + 1;
+	while ( *q == ',' ) {
+	    p = q + 1;
 
-	    if ( *i != '@' ) {
+	    if ( *p != '@' ) {
 		return( 1 );
 	    }
 
 	    /* consume domain */
-	    i++;
-	    if ( *i == '[' ) {
-		if (( j = token_domain_literal( i )) == NULL ) {
+	    p++;
+	    if ( *p == '[' ) {
+		if (( q = token_domain_literal( p )) == NULL ) {
 		    return( 1 );
 		}
 	    } else {
-		if (( j = token_domain( i )) == NULL ) {
+		if (( q = token_domain( p )) == NULL ) {
 		    return( 1 );
 		}
 	    }
-	    j++;
+	    q++;
 	}
 
-	if ( *j != ':' ) {
+	if ( *q != ':' ) {
 	    return( 1 );
 	}
 
-	i = j + 1;
+	p = q + 1;
     }
 
-    *local_part = i;
+    *address = p;
 
     /* <> is a valid address for MAIL FROM commands */
-    if ( *i == '>' ) {
+    if ( **address == '>' ) {
 	if ( mode == RFC_2821_MAIL_FROM ) {
-	    *i = '\0';
+	    **address = '\0';
 	    *domain = NULL;
 	    return( 0 );
 
@@ -1361,18 +1355,18 @@ rfc_2821_trimaddr( int mode, char *addr, char **local_part, char **domain )
 	    return( 1 );
 	}
 
-    } else if ( *i == '"' ) {
-	if (( j = token_quoted_string( i )) == NULL ) {
+    } else if ( **address == '"' ) {
+	if (( q = token_quoted_string( *address )) == NULL ) {
 	    return( 1 );
 	}
 
     } else {
-	if (( j = token_dot_atom( i )) == NULL ) {
+	if (( q = token_dot_atom( *address )) == NULL ) {
 	    return( 1 );
 	}
     }
 
-    j++;
+    q++;
 
     /* rfc 2821 3.6
      * The reserved mailbox name "postmaster" may be used in a RCPT
@@ -1380,39 +1374,39 @@ rfc_2821_trimaddr( int mode, char *addr, char **local_part, char **domain )
      * MUST be accepted if so used.
      */
 
-    if (( *j == '>' ) && ( mode == RFC_2821_RCPT_TO )) {
+    if (( *q == '>' ) && ( mode == RFC_2821_RCPT_TO )) {
 	/* <postmaster> is always a valid recipient */
-	if ( strncasecmp( "postmaster", i, j - i ) == 0 ) {
-	    *j = '\0';
+	if ( strncasecmp( "postmaster", p, q - p ) == 0 ) {
+	    *q = '\0';
 	    *domain = NULL;
 	    return( 0 );
 	}
 	return( 1 );
 
-    } else if ( *j != '@' ) {
+    } else if ( *q != '@' ) {
 	return( 1 );
     }
 
-    i = j + 1;
+    *domain = q + 1;
 
     /* check domain syntax */
-    if ( *i == '[' ) {
-	if (( j = token_domain_literal( i )) == NULL ) {
+    if ( **domain == '[' ) {
+	if (( q = token_domain_literal( *domain )) == NULL ) {
 	    return( 1 );
 	}
     } else {
-	if (( j = token_domain( i )) == NULL ) {
+	if (( q = token_domain( *domain )) == NULL ) {
 	    return( 1 );
 	}
     }
 
-    j++;
+    q++;
 
-    if (( *j != '>' ) || ( *( j + 1 ) != '\0' ))  {
+    if (( *q != '>' ) || ( *( q + 1 ) != '\0' ))  {
 	return( 1 );
     }
 
-    *j = '\0';
+    *q = '\0';
 
     return( 0 );
 }
