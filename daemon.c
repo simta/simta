@@ -52,7 +52,6 @@ int		q_runner_local = 0;
 int		q_runner_slow = 0;
 
 int		simsendmail_signal = 0;
-int		simsendmail_pid = 0;
 int		debug = 0;
 int		backlog = 5;
 int		connections = 0;
@@ -149,13 +148,18 @@ main( ac, av )
 {
     struct sigaction	sa, osahup, osachld, osausr1;
     struct sockaddr_in	sin;
+    struct timeval	tv_sleep;
+    struct timeval	tv_now;
+    struct timeval	tv_launch;
     struct servent	*se;
     struct proc_type	*p;
+    int			launch_seconds;
     int			q_runner_local_max;
     int			q_runner_slow_max;
     int			c, s, err = 0, fd, sinlen;
     int			dontrun = 0;
     int			reuseaddr = 1;
+    int			pid;
     int			pidfd;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
@@ -177,6 +181,7 @@ main( ac, av )
     /* XXX make these options, etc */
     q_runner_local_max = 5;
     q_runner_slow_max = 5;
+    launch_seconds = 60 * 5;
 
     while (( c = getopt( ac, av, "b:C:cdM:m:p:rs:V" )) != -1 ) {
 	switch ( c ) {
@@ -476,12 +481,19 @@ main( ac, av )
     /*
      * Begin accepting connections.
      */
+
+    tv_sleep.tv_sec = 0;
+    tv_sleep.tv_usec = 0;
+
+    tv_launch.tv_sec = 0;
+    tv_launch.tv_usec = 0;
+
     for (;;) {
 	if ( simsendmail_signal != 0 ) {
 	    simsendmail_signal = 0;
 
 	    if ( q_runner_local < q_runner_local_max ) {
-		switch ( simsendmail_pid = fork()) {
+		switch ( pid = fork()) {
 		case 0 :
 		    close( s );
 
@@ -512,24 +524,22 @@ main( ac, av )
 			exit( 1 );
 		    }
 
-		    p->p_id = simsendmail_pid;
+		    p->p_id = pid;
 		    p->p_type = Q_LOCAL;
 		    p->p_next = proc_stab;
 		    proc_stab = p;
 
 		    syslog( LOG_INFO, "q_runner_dir.local child %d for %s",
-			    simsendmail_pid, inet_ntoa( sin.sin_addr ));
+			    pid, inet_ntoa( sin.sin_addr ));
 		    break;
 		}
 	    }
 	}
 
-	/* XXX compute time 'till next q_runner here */
-
 	FD_ZERO( &fdset );
 	FD_SET( s, &fdset );
 
-	if ( select( s + 1, &fdset, NULL, NULL, NULL ) < 0 ) {
+	if ( select( s + 1, &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
 	    if ( errno != EINTR ) {
 		syslog( LOG_ERR, "select: %m" );
 		exit( 1 );
@@ -539,7 +549,72 @@ main( ac, av )
 	    }
 	}
 
-	/* XXX check to see if we need to launch q_runner( SLOW ) */
+	/* check to see if we need to launch q_runner_dir( SIMTA_DIR_SLOW ) */
+	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "gettimeofday: %m" );
+	    exit( 1 );
+	}
+
+	if (( tv_now.tv_sec > tv_launch.tv_sec ) ||
+		(( tv_now.tv_sec == tv_launch.tv_sec ) &&
+		( tv_now.tv_usec >= tv_launch.tv_usec ))) {
+	    /* launch q_runner */
+	    if ( q_runner_slow < q_runner_slow_max ) {
+		switch ( pid = fork()) {
+		case 0 :
+		    close( s );
+
+		    /* reset USR1, CHLD and HUP */
+		    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
+			syslog( LOG_ERR, "sigaction: %m" );
+			exit( 1 );
+		    }
+		    if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
+			syslog( LOG_ERR, "sigaction: %m" );
+			exit( 1 );
+		    }
+		    if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
+			syslog( LOG_ERR, "sigaction: %m" );
+			exit( 1 );
+		    }
+
+		    exit( q_runner_dir( SIMTA_DIR_SLOW ));
+
+		case -1 :
+		    syslog( LOG_ERR, "fork: %m" );
+		    break;
+
+		default :
+		    if (( p = (struct proc_type*)malloc(
+			    sizeof( struct proc_type ))) == NULL ) {
+			syslog( LOG_ERR, "malloc: %m" );
+			exit( 1 );
+		    }
+
+		    p->p_id = pid;
+		    p->p_type = Q_SLOW;
+		    p->p_next = proc_stab;
+		    proc_stab = p;
+
+		    syslog( LOG_INFO, "q_runner_dir.slow child %d for %s", pid,
+			    inet_ntoa( sin.sin_addr ));
+		    break;
+		}
+	    }
+
+	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
+	    tv_launch.tv_usec = tv_now.tv_usec;
+
+	    /* XXX continue, or check to see if FD_ISSET? */
+	    continue;
+
+	} else {
+	    /* compute sleep time */
+	    if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec ) < 1 ) {
+		tv_sleep.tv_sec = 1;
+	    }
+	    tv_sleep.tv_usec = 0;
+	}
 
 	if ( FD_ISSET( s, &fdset )) {
 	    sinlen = sizeof( struct sockaddr_in );
