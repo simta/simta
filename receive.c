@@ -79,6 +79,7 @@ struct command {
 
 static int	rfc_2821_trimaddr( int, char *, char **, char ** );
 static int	local_address( char * );
+static int	hello( struct envelope *, char * );
 static int	f_helo( SNET *, struct envelope *, int, char *[] );
 static int	f_ehlo( SNET *, struct envelope *, int, char *[] );
 static int	f_mail( SNET *, struct envelope *, int, char *[] );
@@ -94,7 +95,6 @@ static int	f_expn( SNET *, struct envelope *, int, char *[] );
 static int	f_starttls( SNET *, struct envelope *, int, char *[] );
 #endif /* HAVE_LIBSSL */
 
-static int	hello( struct envelope *, char * );
 
 
     static int
@@ -119,7 +119,7 @@ hello( struct envelope *env, char *hostname )
 }
 
 
-    int
+    static int
 f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( ac != 2 ) {
@@ -148,7 +148,7 @@ f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
 /*
  * SMTP Extensions RFC.
  */
-    int
+    static int
 f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     /* rfc 2821 4.1.4
@@ -227,7 +227,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
 
-    int
+    static int
 f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int			rc;
@@ -250,6 +250,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
      */
     if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 1 ], &addr,
 	    &domain ) != 0 ) {
+	syslog( LOG_INFO, "f_mail rfc_2821_trimaddr rejected: %s", av[ 1 ]);
 	if ( snet_writef( snet, "%d Requested action not taken: "
 		"bad address syntax\r\n", 553 ) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -314,7 +315,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
 
-    int
+    static int
 f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     char		*addr, *domain;
@@ -339,6 +340,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 1 ], &addr,
 	    &domain ) != 0 ) {
+	syslog( LOG_INFO, "f_rcpt rfc_2821_trimaddr rejected: %s", av[ 1 ]);
 	if ( snet_writef( snet, "553 Requested action not taken: "
 		"bad address syntax\r\n", 553 ) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -449,7 +451,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
 
-    int
+    static int
 f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int					dfile_fd;
@@ -744,7 +746,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     return( RECEIVE_OK );
 }
 
-    int
+    static int
 f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     /* rfc 2821 4.1.1
@@ -774,7 +776,7 @@ f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
 
-    int
+    static int
 f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     /*
@@ -815,7 +817,7 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
 
-    int
+    static int
 f_noop( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( snet_writef( snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
@@ -827,7 +829,7 @@ f_noop( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
 
-    int
+    static int
 f_help( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( snet_writef( snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
@@ -860,7 +862,7 @@ f_help( SNET *snet, struct envelope *env, int ac, char *av[])
      * successful or unsuccessful verification.
      */
 
-    int
+    static int
 f_vrfy( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
@@ -871,7 +873,7 @@ f_vrfy( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
 
-    int
+    static int
 f_expn( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
@@ -883,7 +885,7 @@ f_expn( SNET *snet, struct envelope *env, int ac, char *av[])
 
 
 #ifdef HAVE_LIBSSL
-    int
+    static int
 f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int				rc;
@@ -1167,7 +1169,7 @@ closeconnection:
 }
 
 
-    int
+    static int
 local_address( char *addr )
 {
     int			rc;
