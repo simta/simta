@@ -780,13 +780,16 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     char	**ufn;
     char	**vals;
 
+    char	*pnl;
+    char	*pstart;
+
     if ( bounce_text( e_addr->e_addr_errors, addr,
 		": User has no email address registered.\n" , NULL ) != 0 ) {
 	return;
     }
   
     if ( bounce_text( e_addr->e_addr_errors, 
-"\t Name, title, postal address and phone for:",  addr, NULL ) != 0 ) {
+"\tName, title, postal address and phone for: ",  addr, NULL ) != 0 ) {
 	return;
     }
 
@@ -837,11 +840,18 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	    return;
 	}
     } else {
-	for ( idx = 0; vals[idx] != NULL; idx++ ) {
-	    if ( bounce_text( e_addr->e_addr_errors, 
-				"\t", vals[idx], NULL ) != 0 ) {
-		ldap_value_free( vals );
-		return;
+        for (pstart = vals[0]; pstart; pstart = pnl) {
+	    pnl = strchr (pstart, '$');
+	    if (pnl) {
+		*pnl = '\0';
+		pnl++;
+	    }
+	    if (strlen (pstart)) {	
+		if ( bounce_text( e_addr->e_addr_errors, 
+				"\t", pstart, NULL ) != 0 ) {
+		    ldap_value_free( vals );
+		    return;
+		}
 	    }
 	}
 	ldap_value_free( vals );
@@ -1104,7 +1114,6 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
     char	*attrval;
 
     char	buf[1024];
-    char	**ufn;
 
     if ( ldap_groups
     &&  (simta_ldap_value( entry, "objectClass", ldap_groups ) == 1 ) ) {
@@ -1127,18 +1136,14 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 		do_noemail (e_addr, addr, entry);
 	    } else {
 		if ((e_addr->e_addr_errors->e_flags & SUPPRESSNOEMAILERROR) == 0) {
-		    ufn = ldap_explode_dn( addr, 1 );
-
-		    if ( bounce_text( e_addr->e_addr_errors, ufn[0],
+		    if ( bounce_text( e_addr->e_addr_errors, addr,
 		" : Group member exists but does not have an email address" , 
-			NULL ) != 0 ) {
-			ldap_value_free( ufn );
+			"\n" ) != 0 ) {
 			syslog( LOG_ERR, 
     "simta_ldap_process_entry: Failed building bounce message -- no email: %s",
 				e_addr->e_addr);
 			return( LDAP_SYSERROR );
 		    }
-		    ldap_value_free( ufn );
 		}
 	    }
 #if 0
@@ -1423,7 +1428,7 @@ simta_ldap_dn_expand (struct expand *exp, struct exp_addr *e_addr )
 	ldap_msgfree( res );
 
     	if ( (bounce_text( e_addr->e_addr_errors, search_dn,
-		" : Group member does not exist\n" , NULL ) != 0 ) 
+		" : Group member does not exist" , NULL ) != 0 ) 
     	||   (bounce_text( e_addr->e_addr_errors, 
    "This could be because the distinguished name of the person has changed\n" , 
    "If this is the case, the problem can be solved by removing and\n",
