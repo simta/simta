@@ -79,6 +79,7 @@ struct exp_addr {
     int				e_addr_ldap_flags;
     int				e_addr_anti_loop;
     char			*e_addr_dn;
+    char			*e_addr_mail;
     struct stab_entry		*e_addr_ok;
     struct envelope		*e_addr_env_moderated;
     struct exp_link		*e_addr_parents;
