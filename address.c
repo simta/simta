@@ -235,15 +235,12 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
     /* XXX buf should be large enough to accomodate any valid email address */
     char		buf[ 1024 ];
 
-    syslog( LOG_DEBUG, "address_expand %s, parent rcpt %s",
-	    e_addr->e_addr, e_addr->e_addr_rcpt->r_rcpt );
-
     switch ( e_addr->e_addr_type ) {
 
     case ADDRESS_TYPE_EMAIL:
 	/* Get user and domain, addres should now be valid */
 	if (( at = strchr( e_addr->e_addr, '@' )) == NULL ) {
-	    syslog( LOG_ERR, "address_expand %s: bad address format",
+	    syslog( LOG_ERR, "address_expand %s: ERROR bad address format",
 		    e_addr->e_addr );
 	    return( ADDRESS_SYSERROR );
 	}
@@ -318,7 +315,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 		    return( ADDRESS_SYSERROR );
 		}
 
-		syslog( LOG_DEBUG, "address_expand %s alias db: %s",
+		syslog( LOG_DEBUG, "address_expand %s EXPANDED %s: alias db",
 			e_addr->e_addr, (char*)value.data );
 
 		/* Get next db result, if any */
@@ -400,7 +397,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 			return( ADDRESS_SYSERROR );
 		    }
 
-		    syslog( LOG_DEBUG, "address_expand %s .forward: %s",
+		    syslog( LOG_DEBUG,
+			    "address_expand %s EXPANDED %s: .forward",
 			    e_addr->e_addr, buf );
 		}
 
