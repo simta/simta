@@ -140,7 +140,7 @@ simta_read_config( char *fname )
 	    errno = 0;
 	    if ( simta_debug ) printf(
 		"warning: %s: simta config file not found", fname );
-	    syslog( LOG_INFO, "%s: simta config file not found", fname );
+	    syslog( LOG_NOTICE, "%s: simta config file not found", fname );
 	    return( 1 );
 	}
 	perror( fname );
@@ -459,7 +459,7 @@ simta_config( char *base_dir )
 	    fprintf( stderr, "simta_config access %s: ", SIMTA_ALIAS_DB );
 	    perror( NULL );
 	}
-	syslog( LOG_INFO, "simta_config access %s: %m, not using alias db",
+	syslog( LOG_NOTICE, "simta_config access %s: %m, not using alias db",
 		SIMTA_ALIAS_DB );
     }
 

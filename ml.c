@@ -145,7 +145,7 @@ procmail( int f, char *sender, struct recipient *recipient )
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
-	    syslog( LOG_INFO, "procmail %d: %s", pid, line );
+	    syslog( LOG_NOTICE, "procmail %d: %s", pid, line );
 
 	    if ( recipient->r_err_text == NULL ) {
 		if (( recipient->r_err_text = line_file_create()) == NULL ) {
@@ -174,7 +174,7 @@ procmail( int f, char *sender, struct recipient *recipient )
 
 	if ( WIFEXITED( status )) {
 	    if (( val = WEXITSTATUS( status )) == 0 ) {
-		syslog( LOG_INFO, "procmail %d done\n", pid );
+		syslog( LOG_NOTICE, "procmail %d done\n", pid );
 
 	    } else if ( val == EX_TEMPFAIL ) {
 		syslog( LOG_WARNING, "procmail %d died %d EX_TEMPFAIL\n", pid,
@@ -290,7 +290,7 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
-	    syslog( LOG_INFO, "mail.local %d: %s", pid, line );
+	    syslog( LOG_NOTICE, "mail.local %d: %s", pid, line );
 
 	    if ( recipient->r_err_text == NULL ) {
 		if (( recipient->r_err_text = line_file_create()) == NULL ) {
@@ -317,7 +317,7 @@ mail_local( int f, char *sender, struct recipient *recipient )
 
 	if ( WIFEXITED( status )) {
 	    if (( val = WEXITSTATUS( status )) == 0 ) {
-		syslog( LOG_INFO, "mail.local %d done\n", pid );
+		syslog( LOG_NOTICE, "mail.local %d done\n", pid );
 
 	    } else if ( val == EX_TEMPFAIL ) {
 		syslog( LOG_WARNING, "mail.local %d died %d EX_TEMPFAIL\n", pid,

@@ -542,7 +542,7 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    syslog( LOG_INFO, "restart %s", version );
+    syslog( LOG_NOTICE, "restart %s", version );
 
     /*
      * Begin accepting connections.
@@ -599,19 +599,19 @@ main( int ac, char **av )
 
 	    switch ( p_remove->p_type ) {
 	    case CHILD_Q_LOCAL:
-		syslog( LOG_INFO, "chld %d: q_runner.local done",
+		syslog( LOG_NOTICE, "chld %d: q_runner.local done",
 			p_remove->p_id );
 		q_runner_local--;
 		break;
 
 	    case CHILD_Q_SLOW:
-		syslog( LOG_INFO, "chld %d: q_runner.slow done",
+		syslog( LOG_NOTICE, "chld %d: q_runner.slow done",
 			p_remove->p_id );
 		q_runner_slow--;
 		break;
 
 	    case CHILD_RECEIVE:
-		syslog( LOG_INFO, "chld %d: daemon.receive done",
+		syslog( LOG_NOTICE, "chld %d: daemon.receive done",
 			p_remove->p_id );
 		connections--;
 		break;
@@ -769,18 +769,18 @@ simta_daemon_child( int type, int s )
 	switch ( type ) {
 	case CHILD_Q_LOCAL:
 	    q_runner_local++;
-	    syslog( LOG_INFO, "q_runner_dir.local child %d", pid );
+	    syslog( LOG_NOTICE, "q_runner_dir.local child %d", pid );
 	    break;
 
 	case CHILD_Q_SLOW:
 	    q_runner_slow++;
-	    syslog( LOG_INFO, "q_runner_dir.slow child %d", pid );
+	    syslog( LOG_NOTICE, "q_runner_dir.slow child %d", pid );
 	    break;
 
 	case CHILD_RECEIVE:
 	    close( fd );
 	    connections++;
-	    syslog( LOG_INFO, "receive child %d for %s", pid,
+	    syslog( LOG_NOTICE, "receive child %d for %s", pid,
 		    inet_ntoa( sin.sin_addr ));
 	    break;
 

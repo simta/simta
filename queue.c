@@ -384,17 +384,17 @@ q_runner( struct host_q **host_q )
 			if ( env_truncate_and_unlink( unexpanded,
 				snet_lock ) == 0 ) {
 			    queue_envelope( host_q, env_bounce );
-			    syslog( LOG_NOTICE,
+			    syslog( LOG_INFO,
 				    "Deliver %s: Message Deleted: Bounced",
 				    unexpanded->e_id );
 
 			} else {
 			    if ( env_unlink( env_bounce ) != 0 ) {
-				syslog( LOG_NOTICE, "Deliver %s: System "
+				syslog( LOG_INFO, "Deliver %s: System "
 					"Error: Can't unwind bounce", 
 					env_bounce->e_id );
 			    } else {
-				syslog( LOG_NOTICE, "Deliver %s: Message "
+				syslog( LOG_INFO, "Deliver %s: Message "
 					"Deleted: System error, unwound "
 					"bounce", env_bounce->e_id );
 			    }
@@ -440,7 +440,7 @@ q_runner_done:
 		    day = 99;
 		}
 
-		syslog( LOG_INFO, "q_runner metrics: %d messages, "
+		syslog( LOG_NOTICE, "q_runner metrics: %d messages, "
 			"%d outbound_attempts, %d outbound_delivered, "
 			"%d+%02d:%02d:%02d",
 			simta_message_count, simta_smtp_outbound_attempts,
@@ -448,7 +448,7 @@ q_runner_done:
 			day, hour, min, sec );
 
 	    } else {
-		syslog( LOG_INFO, "q_runner metrics: %d messages, "
+		syslog( LOG_NOTICE, "q_runner metrics: %d messages, "
 			"%d outbound_attempts, %d outbound_delivered, "
 			"%02d:%02d:%02d",
 			simta_message_count, simta_smtp_outbound_attempts,
@@ -608,7 +608,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		( deliver_q->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
 	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
-		    syslog( LOG_INFO, "q_deliver %s: old message, bouncing",
+		    syslog( LOG_NOTICE, "q_deliver %s: old message, bouncing",
 			    env_deliver->e_id );
 		    env_deliver->e_flags |= ENV_BOUNCE;
 	    } else {
@@ -663,10 +663,10 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 
 	    if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		    ( env_deliver->e_flags & ENV_BOUNCE )) {
-		syslog( LOG_NOTICE, "Deliver %s: Message Deleted: Bounced",
+		syslog( LOG_INFO, "Deliver %s: Message Deleted: Bounced",
 			env_deliver->e_id );
 	    } else {
-		syslog( LOG_NOTICE, "Deliver %s: Message Deleted: Delivered",
+		syslog( LOG_INFO, "Deliver %s: Message Deleted: Delivered",
 			env_deliver->e_id );
 	    }
 
@@ -676,9 +676,9 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
         } else if (( d.d_delivered != 0 ) &&
 		(( d.d_n_rcpt_accepted != 0 ) ||
 		( d.d_n_rcpt_failed != 0 ))) {
-	    syslog( LOG_NOTICE, "Deliver %s: Rewriting Envelope",
+	    syslog( LOG_INFO, "Deliver %s: Rewriting Envelope",
 		    env_deliver->e_id );
-	    syslog( LOG_NOTICE, "Deliver %s: From <%s>", env_deliver->e_id,
+	    syslog( LOG_INFO, "Deliver %s: From <%s>", env_deliver->e_id,
 		    env_deliver->e_mail );
 
 	    r_sort = &(env_deliver->e_rcpt);
@@ -690,7 +690,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		    free( remove );
 
 		} else {
-		    syslog( LOG_NOTICE, "Deliver %s: To <%s>",
+		    syslog( LOG_INFO, "Deliver %s: To <%s>",
 			    env_deliver->e_id, (*r_sort)->r_rcpt );
 		    r_sort = &((*r_sort)->r_next);
 		}
@@ -700,7 +700,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		goto message_cleanup;
 	    }
 
-	    syslog( LOG_NOTICE, "Deliver %s: Envelope Rewritten",
+	    syslog( LOG_INFO, "Deliver %s: Envelope Rewritten",
 		    env_deliver->e_id );
 
 	    if ( env_deliver->e_dir == simta_dir_fast ) {
@@ -715,7 +715,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 */
 	} else if (( d.d_attempt != 0 ) &&
 		( env_deliver->e_dir == simta_dir_slow )) {
-	    syslog( LOG_INFO, "q_deliver %s touching", env_deliver->e_id );
+	    syslog( LOG_NOTICE, "q_deliver %s touching", env_deliver->e_id );
 	    env_touch( env_deliver );
 	}
 
@@ -727,11 +727,11 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 message_cleanup:
 	if ( env_bounce != NULL ) {
 	    if ( env_unlink( env_bounce ) != 0 ) {
-		syslog( LOG_NOTICE,
+		syslog( LOG_INFO,
 			"Deliver %s: System Error: Can't unwind bounce",
 			env_bounce->e_id );
 	    } else {
-		syslog( LOG_NOTICE, "Deliver %s: Message Deleted: "
+		syslog( LOG_INFO, "Deliver %s: Message Deleted: "
 			"System error, unwound bounce", env_bounce->e_id );
 	    }
 
@@ -783,7 +783,7 @@ deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
 {
     int				smtp_error;
 
-    syslog( LOG_INFO, "deliver_remote %s: attempting remote delivery",
+    syslog( LOG_NOTICE, "deliver_remote %s: attempting remote delivery",
 	    d->d_env->e_id );
 
     /* open outbound SMTP connection, or say RSET */
@@ -844,7 +844,7 @@ deliver_local( struct deliver *d )
     struct recipient		*r;
     int                         ml_error;
 
-    syslog( LOG_INFO, "deliver_local %s: attempting local delivery",
+    syslog( LOG_NOTICE, "deliver_local %s: attempting local delivery",
 	    d->d_env->e_id );
 
     d->d_attempt = 1;
@@ -857,7 +857,7 @@ deliver_local( struct deliver *d )
 	    goto lseek_fail;
 	}
 
-	syslog( LOG_NOTICE, "Deliver.local %s: From <%s>",
+	syslog( LOG_INFO, "Deliver.local %s: From <%s>",
 		d->d_env->e_id, r->r_rcpt );
 	ml_error = (*simta_local_mailer)( d->d_dfile_fd, d->d_env->e_mail, r );
 
@@ -867,7 +867,7 @@ lseek_fail:
 	    /* success */
 	    r->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
-	    syslog( LOG_NOTICE, "Deliver.local %s: To <%s> Accepted",
+	    syslog( LOG_INFO, "Deliver.local %s: To <%s> Accepted",
 		    d->d_env->e_id, r->r_rcpt );
 	    break;
 
@@ -875,7 +875,7 @@ lseek_fail:
 	case EX_TEMPFAIL:
 	    r->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfail++;
-	    syslog( LOG_NOTICE, "Deliver.local %s: To <%s> Tempfailed: %d",
+	    syslog( LOG_INFO, "Deliver.local %s: To <%s> Tempfailed: %d",
 		    d->d_env->e_id, r->r_rcpt, ml_error );
 	    break;
 
@@ -884,12 +884,12 @@ lseek_fail:
 	    /* hard failure caused by bad user data, or no local user */
 	    r->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
-	    syslog( LOG_NOTICE, "Deliver.local %s: To <%s> Failed: %d",
+	    syslog( LOG_INFO, "Deliver.local %s: To <%s> Failed: %d",
 		    d->d_env->e_id, r->r_rcpt, ml_error );
 	    break;
 	}
 
-	syslog( LOG_NOTICE, "Deliver.local %s: Local delivery attempt complete",
+	syslog( LOG_INFO, "Deliver.local %s: Local delivery attempt complete",
 		d->d_env->e_id );
     }
 

@@ -275,7 +275,7 @@ syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
 	    goto cleanup2;
 	}
 
-	syslog( LOG_INFO, "expand: recipient %s added to env %s for host %s",
+	syslog( LOG_NOTICE, "expand: recipient %s added to env %s for host %s",
 		p->st_key, env->e_id, env->e_hostname );
     }
 
@@ -295,22 +295,22 @@ syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
 		goto cleanup3;
 	    }
 
-	    syslog( LOG_NOTICE, "Expand %s: %s: From <%s>",
+	    syslog( LOG_INFO, "Expand %s: %s: From <%s>",
 		    unexpanded_env->e_id, env->e_id, env->e_mail );
 
 	    n_rcpts = 0;
 	    for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 		n_rcpts++;
-		syslog( LOG_NOTICE, "Expand %s: %s: To <%s>",
+		syslog( LOG_INFO, "Expand %s: %s: To <%s>",
 			unexpanded_env->e_id, env->e_id, rcpt->r_rcpt );
 	    }
 
-	    syslog( LOG_NOTICE,
+	    syslog( LOG_INFO,
 		    "Expand %s: %s: Expanded %d recipients",
 		    unexpanded_env->e_id, env->e_id, n_rcpts );
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
-	    syslog( LOG_INFO, "expand %s: writing %s %s", unexpanded_env->e_id,
+	    syslog( LOG_NOTICE, "expand %s: writing %s %s", unexpanded_env->e_id,
 		    env->e_id, env->e_hostname );
 	    if ( env_outfile( env ) != 0 ) {
 		/* env_outfile syslogs errors */
@@ -330,7 +330,7 @@ syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
     }
 
     if ( env_out == 0 ) {
-	syslog( LOG_INFO, "expand %s: no terminal recipients, deleting message",
+	syslog( LOG_NOTICE, "expand %s: no terminal recipients, deleting message",
 		unexpanded_env->e_id );
     }
 
@@ -379,17 +379,17 @@ syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
 		    goto cleanup4;
 		}
 
-		syslog( LOG_NOTICE, "Expand %s: %s: From <%s>",
+		syslog( LOG_INFO, "Expand %s: %s: From <%s>",
 			unexpanded_env->e_id, env->e_id, env->e_mail );
 
 		n_rcpts = 0;
 		for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 		    n_rcpts++;
-		    syslog( LOG_NOTICE, "Expand %s: %s: To <%s>",
+		    syslog( LOG_INFO, "Expand %s: %s: To <%s>",
 			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt );
 		}
 
-		syslog( LOG_NOTICE, "Expand %s: %s: Bounced %d recipients",
+		syslog( LOG_INFO, "Expand %s: %s: Bounced %d recipients",
 			unexpanded_env->e_id, env->e_id, n_rcpts );
 
 		queue_envelope( hq, env );
@@ -439,7 +439,7 @@ syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
 		unexpanded_env->e_id );
     }
 
-    syslog( LOG_NOTICE, "Expand %s: Message Deleted: Expansion complete", 
+    syslog( LOG_INFO, "Expand %s: Message Deleted: Expansion complete", 
 	    unexpanded_env->e_id );
 
     return_value = 0;
@@ -454,10 +454,10 @@ cleanup4:
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
 	    if ( env_unlink( env ) == 0 ) {
-		syslog( LOG_NOTICE, "Expand %s: Message Deleted: "
+		syslog( LOG_INFO, "Expand %s: Message Deleted: "
 			"System error, unwinding expansion", env->e_id );
 	    } else {
-		syslog( LOG_NOTICE, "Expand %s: "
+		syslog( LOG_INFO, "Expand %s: "
 			"System error, can't unwind expansion", env->e_id );
 	    }
 	}
@@ -473,10 +473,10 @@ cleanup3:
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
 	    if ( env_unlink( env ) == 0 ) {
-		syslog( LOG_NOTICE, "Expand %s: Message Deleted: "
+		syslog( LOG_INFO, "Expand %s: Message Deleted: "
 			"System error, unwinding expansion", env->e_id );
 	    } else {
-		syslog( LOG_NOTICE, "Expand %s: "
+		syslog( LOG_INFO, "Expand %s: "
 			"System error, can't unwind expansion", env->e_id );
 	    }
 	}
