@@ -55,5 +55,5 @@ cp Dseed ../local/tp2
 cp Dseed ../local/garbage
 
 # populate LOCAL
-cp Elocal ../slow/Elocal
-cp Dlocal ../slow/Dlocal
+cp Elocal ../slow/Elocalmail
+cp Dlocal ../slow/Dlocalmail
