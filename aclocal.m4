@@ -55,3 +55,25 @@ AC_DEFUN([CHECK_SNET],
     AC_SUBST(HAVE_SNET)
     AC_MSG_RESULT(yes)
 ])
+
+
+# AC_STRUCT_GMTOFF
+# If struct tm contains tm_gmtoff, define HAVE_TM_GMTOFF.
+#
+# AC_STRUCT_TM defines $ac_cv_struct_tm to the library where struct
+# tm resides.
+
+AC_DEFUN([AC_STRUCT_GMTOFF],
+[
+    AC_REQUIRE([AC_STRUCT_TM])
+    AC_MSG_CHECKING([for tm_gmtoff in struct tm])
+    AC_CACHE_VAL(ac_cv_struct_gmtoff,
+	[ AC_TRY_COMPILE([#include <$ac_cv_struct_tm>],
+	    [struct tm tm; tm.tm_gmtoff;],
+	    ac_cv_struct_gmtoff=yes, ac_cv_struct_gmtoff=no)])
+    AC_MSG_RESULT($ac_cv_struct_gmtoff)
+    AC_SUBST(HAVE_TM_GMTOFF, "")
+    if test $ac_cv_struct_gmtoff = yes; then
+	HAVE_TM_GMTOFF="-DHAVE_TM_GMTOFF";
+    fi
+])

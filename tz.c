@@ -16,15 +16,15 @@ tz( struct tm *tm )
     static char	zone[ 6 ];	/* ( "+" / "-" ) 4DIGIT */
     int		gmtoff;
 
-#ifdef SOLARIS
+#ifdef HAVE_TM_GMTOFF
+    gmtoff = tm->tm_gmtoff;
+#else /* HAVE_TM_GMTOFF */
     if ( daylight ) {
 	gmtoff = altzone;
     } else {
 	gmtoff = timezone;
     }
-#else SOLARIS
-    gmtoff = tm->tm_gmtoff;
-#endif SOLARIS
+#endif /* HAVE_TM_GMTOFF */
 
     sprintf( zone, "%s%.2d%.2d", ( gmtoff < 0 ? "" : "+" ),
 	    gmtoff / 60 / 60,

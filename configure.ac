@@ -13,9 +13,12 @@ AC_PROG_CC
 AC_PROG_INSTALL
 
 if test x_$GCC = x_yes; then
-    OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes -Wmissing-prototypes -Wconversion"}
+    OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes -Wconversion"}
 fi
 AC_SUBST(OPTOPTS)
+
+AC_STRUCT_TM
+AC_STRUCT_GMTOFF
 
 CHECK_SSL
 

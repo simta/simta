@@ -18,7 +18,7 @@ CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
 INCPATH=	-Ilibsnet @CPPFLAGS@
-DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -DSOLARIS
+DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS
 LIBPATH=	-Llibsnet/.libs @LDFLAGS@
 LIBS=		-lsnet @LIBS@
 TAGSFILE=	tags
@@ -30,7 +30,10 @@ TARGETS=	simta tlsconnect simsendmail
 all : ${TARGETS}
 
 daemon.o : daemon.c
-	${CC} ${CFLAGS} -DVERSION=\"`cat VERSION`\" -c daemon.c
+	${CC} ${CFLAGS} -DVERSION=\"`cat VERSION`\" -c daemon.c -o daemon.o
+
+tz.o : tz.c
+	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ -c tz.c -o tz.o
 
 simta : libsnet/libsnet.a ${SIMTAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${LIBPATH} ${LIBS}
