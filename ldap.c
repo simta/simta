@@ -40,6 +40,7 @@
 #include "argcargv.h"
 #include "ldap.h"
 #include "dn.h"
+#include "oklist.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
@@ -69,6 +70,7 @@ static char     *attrs[] = { "objectClass", "title", "postaladdress",
 			"membersonly", "permittedgroup", NULL };
 
 struct ldap_search_list		*ldap_searches = NULL;
+struct ldap_search_list		*mailuri = NULL;
 struct list			*ldap_people = NULL;
 struct list			*ldap_groups = NULL;
 LDAP				*ld = NULL;
@@ -115,8 +117,6 @@ static int add_errmailvals __P((struct exp_addr *exp, char ** errmailvals,
 		char * dn));
 static int simta_group_err_env __P((struct expand *exp, 
 		struct exp_addr *e_addr, LDAPMessage *entry, char *dn));
-static int simta_ldap_permitted __P(( struct exp_addr *e_addr,char **pgroup, 
-			char *dn));
 /*
 **
 */
@@ -427,6 +427,7 @@ simta_ldap_config( char *fname )
     SNET		*snet;
     char		*c;
     struct ldap_search_list **lds;
+    struct ldap_search_list *lsl;
     struct list		*l_new;
     struct list		**add;
 
@@ -562,6 +563,44 @@ simta_ldap_config( char *fname )
 	    } else {
 		fprintf( stderr, "uri not an ldap uri: %s\n", linecopy );
 	    }
+	} else if ( strncasecmp( av[ 0 ], "mailuri", 7 ) == 0 ) {
+	    if (ac < 2) {
+		fprintf( stderr, "Missing uri in mailuri: %s\n", linecopy );
+		continue;
+	    }
+
+ 	    if ( ldap_is_ldap_url( av[ 1 ] ) != 0 ) {
+
+                /* Parse the URL */
+		rc = ldap_url_parse( av[ 1 ], &plud );
+
+		if (rc != LDAP_URL_SUCCESS)
+		{
+		    fprintf (stderr, 
+		"ldap_url_parse parse error: %d for line: %s\n", rc, linecopy);
+		    continue;
+		}
+
+		if (( lsl = (struct ldap_search_list *)calloc
+			(1, sizeof( struct ldap_search_list ))) == NULL ) {
+		    perror( "calloc" );
+		    acav_free( acav );
+		    ldap_free_urldesc (plud);
+		    return( -1 );
+		}
+
+		if ((lsl->lds_string = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    acav_free( acav );
+		    ldap_free_urldesc (plud);
+		    return( -1 );
+		}
+
+		lsl->lds_plud = plud;
+
+		mailuri = lsl;
+	    }
+
 	} else if ( strncasecmp( av[ 0 ], "ldapdebug", 9 ) == 0 ) {
 	    if (ac < 2) {
 		fprintf( stderr, "Missing ldapdebug value: %s\n", linecopy );
@@ -1040,6 +1079,8 @@ simta_ldap_dn_search (struct expand *exp, struct exp_addr *e_addr )
 	return( LDAP_SYSERROR );
     }
 
+
+
     rc = simta_ldap_process_entry (exp, e_addr, LDS_USER, entry, search_dn);
 
     ldap_msgfree( res );
@@ -1187,7 +1228,12 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     int		rc;
 
     dn = ldap_get_dn( ld, entry );
-    
+   
+    if (e_addr->e_addr_dn == NULL) {
+	dn_normalize_case(dn);
+	e_addr->e_addr_dn = strdup (dn);
+    }
+ 
     switch ( type ) 
     {
     case LDS_GROUP_ERRORS:
@@ -1269,10 +1315,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	{
 	    if(strcasecmp (memonly[0], "TRUE") == 0) 
 	    {
-		e_addr->e_addr_status |= STATUS_LDAP_EXCLUSIVE;
 		permitted = ldap_get_values( ld, entry, "permittedgroup");
 		if (permitted ) {
-		    rc = simta_ldap_permitted ( e_addr, permitted, dn);
+		    rc = ok_create ( e_addr, permitted, dn);
 
 		    if (rc != 0) {
 			ldap_value_free (permitted);
@@ -1288,6 +1333,8 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		    }
 		    ldap_value_free (permitted);
 		}
+		if (ldap_check_ok (exp, e_addr) == 0)
+		    e_addr->e_addr_status |= STATUS_LDAP_EXCLUSIVE;
 	    }
 	    ldap_value_free ( memonly );
 	}
@@ -1636,28 +1683,6 @@ simta_mbx_compare ( char * firstemail, char * secondemail)
 	free (second_domain);
     }
     return rc;
-}
-static int
-simta_ldap_permitted ( struct exp_addr *e_addr, char **permitted, char *dn)
-{
-    int			idx;
-
-    if (permitted && *permitted)
-    {
-	/* 
-	** Normalize the permitted group list 
-	** normalization happens "in-place"
-	*/   
-	for (idx = 0;  permitted[idx] != NULL; idx++) {
-	    dn_normalize_case (permitted[idx]);
-
-	    if (ll_insert_tail(&e_addr->e_addr_ok, strdup(" "), 
-			strdup (permitted[idx])))
-		return (LDAP_SYSERROR);
-
-	}		
-    }
-    return 0;
 }
 
 static void 
