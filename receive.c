@@ -64,6 +64,7 @@ extern char		*version;
 struct host_q		*hq_receive = NULL;
 struct sockaddr_in  	*receive_sin;
 int			receive_global_relay = 0;
+int			recieve_failed_rcpts = 0;
 int			receive_tls = 0;
 char			*receive_hello = NULL;
 char			*receive_smtp_command = NULL;
@@ -535,6 +536,25 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
      * probably preserve the results of our DNS check.
      */
 
+    /*
+     * XXX If this connection has too many not-local recipients, just answer
+     * that we don't know.
+     */
+    if (( simta_max_failed_rcpts != 0 ) &&
+	    ( recieve_failed_rcpts > simta_max_failed_rcpts )) {
+	syslog( LOG_INFO, "Receive %s: To <%s> Rejected:
+		" Too many failed recepients:"
+		" Relay [%s] %s", env->e_id, addr,
+		inet_ntoa( receive_sin->sin_addr ),
+		receive_remote_hostname ? receive_remote_hostname : "" );
+	if ( snet_writef( snet, "%d Requested action aborted: "
+		"Too many failed recipients.\r\n", 451 ) < 0 ) {
+	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
+    }
+
     if ( domain != NULL ) {
 	if ( simta_global_relay == 0 ) {
 	    /*
@@ -599,8 +619,14 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    switch( local_address( addr, domain, host )) {
 	    case NOT_LOCAL:
 		syslog( LOG_INFO,
-			"Receive %s: To <%s> Rejected: User not local",
-			env->e_id, addr );
+			"Receive %s: To <%s> Rejected: User not local:"
+			" Relay [%s] %s", env->e_id, addr,
+			inet_ntoa( receive_sin->sin_addr ),
+			receive_remote_hostname ?
+			receive_remote_hostname : "" );
+
+		/* XXX Count number of not-local recipients */
+		recieve_failed_rcpts++;
 		if ( snet_writef( snet,
 			"%d Requested action not taken: User not found.\r\n",
 			550 ) < 0 ) {
@@ -678,6 +704,23 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	if ( snet_writef( snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.4: "
 		"\"DATA\" CRLF\r\n" ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
+    }
+
+    /*
+     * XXX If sending server has exceeded our bad recipient max, don't
+     * take the mail.
+     */
+    if (( simta_max_failed_rcpts != 0 ) &&
+	    ( recieve_failed_rcpts > simta_max_failed_rcpts )) {
+	syslog( LOG_INFO, "Receive %s: Message Tempfail:"
+		" Too many failed recipients" , env->e_id );
+
+	if ( snet_writef( snet, "451 (%s): Too many failed recipients\r\n",
+		env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
