@@ -77,10 +77,6 @@ char			*simta_dir_slow = NULL;
 char			*simta_dir_fast = NULL;
 char			*simta_base_dir = NULL;
 char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
-char			simta_ename[ MAXPATHLEN + 1 ];
-char			simta_ename_slow[ MAXPATHLEN + 1 ];
-char			simta_dname[ MAXPATHLEN + 1 ];
-char			simta_dname_slow[ MAXPATHLEN + 1 ];
 DNSR			*simta_dnsr = NULL;
 
     void

@@ -56,6 +56,7 @@ int		env_from( struct envelope * );
 int		env_unlink( struct envelope * );
 int		env_read_queue_info( struct envelope * );
 int		env_read_delivery_info( struct envelope *, SNET ** );
+int		env_truncate_and_unlink( struct envelope *, SNET * );
 
 /* debugging  functions */
 void		env_stdout( struct envelope * );

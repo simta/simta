@@ -367,8 +367,6 @@ q_runner( struct host_q **host_q )
 			close( dfile_fd );
 
 		    } else {
-			syslog( LOG_DEBUG, "q_runner %s: old unexpandable "
-				"message, bouncing", unexpanded->e_id );
 			unexpanded->e_flags |= ENV_BOUNCE;
 			if (( snet_dfile = snet_attach( dfile_fd,
 				1024 * 1024 )) == NULL ) {
@@ -380,13 +378,28 @@ q_runner( struct host_q **host_q )
 				snet_dfile )) == NULL ) {
 			    snet_close( snet_dfile );
 			    goto unexpanded_clean_up;
-			} else {
-			    if ( env_unlink( unexpanded ) != 0 ) {
-				env_unlink( env_bounce );
-			    } else {
-				queue_envelope( host_q, env_bounce );
-			    }
+
 			}
+
+			if ( env_truncate_and_unlink( unexpanded,
+				snet_lock ) != 0 ) {
+			    if ( env_unlink( env_bounce ) != 0 ) {
+				syslog( LOG_NOTICE, "Deliver %s: System "
+					"Error: Can't unwind bounce", 
+					env_bounce->e_id );
+			    } else {
+				syslog( LOG_NOTICE, "Deliver %s: Message "
+					"Deleted: System error, unwound "
+					"bounce", env_bounce->e_id );
+			    }
+
+			} else {
+			    queue_envelope( host_q, env_bounce );
+			    syslog( LOG_NOTICE,
+				    "Deliver %s: Message Deleted: Bounced",
+				    env_bounce->e_id );
+			}
+
 			snet_close( snet_dfile );
 		    }
 		}
@@ -511,7 +524,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     SNET                        *snet_smtp = NULL;
     SNET			*snet_lock;
     char                        dfile_fname[ MAXPATHLEN ];
-    char                        efile_fname[ MAXPATHLEN ];
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env_deliver;
@@ -633,8 +645,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		syslog( LOG_ERR, "q_deliver bounce failed" );
 		goto message_cleanup;
             }
-	    syslog( LOG_INFO, "q_deliver %s: bounce %s generated",
-		    env_deliver->e_id, env_bounce->e_id );
         }
 
 	/* delete the original message if we've created
@@ -645,19 +655,20 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		(( d.d_delivered != 0 ) &&
 		( d.d_n_rcpt_tempfail == 0 ))) {
-	    if ( snet_lock != NULL ) {
-		if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
-		    sprintf( efile_fname, "%s/E%s", env_deliver->e_dir,
-			    env_deliver->e_id );
-		    syslog( LOG_ERR, "q_deliver ftruncate %s: %m",
-			    efile_fname );
-		}
-	    }
-
-	    if ( env_unlink( env_deliver ) != 0 ) {
+	    if ( env_truncate_and_unlink( env_deliver, snet_lock ) != 0 ) {
 		goto message_cleanup;
 	    }
+
 	    d.d_unlinked = 1;
+
+	    if (( deliver_q->hq_status == HOST_BOUNCE ) ||
+		    ( env_deliver->e_flags & ENV_BOUNCE )) {
+		syslog( LOG_NOTICE, "Deliver %s: Message Deleted: Bounced",
+			env_deliver->e_id );
+	    } else {
+		syslog( LOG_NOTICE, "Deliver %s: Message Deleted: Delivered",
+			env_deliver->e_id );
+	    }
 
 	/* else we rewrite the message if its been successfully
 	 * delivered, and some but not all recipients tempfail.
@@ -665,8 +676,11 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
         } else if (( d.d_delivered != 0 ) &&
 		(( d.d_n_rcpt_accepted != 0 ) ||
 		( d.d_n_rcpt_failed != 0 ))) {
-	    syslog( LOG_INFO, "q_deliver %s rewriting", env_deliver->e_id );
 	    r_sort = &(env_deliver->e_rcpt);
+	    syslog( LOG_NOTICE, "Deliver %s: Rewriting Envelope",
+		    env_deliver->e_id );
+	    syslog( LOG_NOTICE, "Deliver %s: From <%s>", env_deliver->e_id,
+		    env_deliver->e_mail );
 
 	    while ( *r_sort != NULL ) {
 		if ((*r_sort)->r_status != R_TEMPFAIL ) {
@@ -676,6 +690,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		    free( remove );
 
 		} else {
+		    syslog( LOG_NOTICE, "Deliver %s: To <%s>",
+			    env_deliver->e_id, (*r_sort)->r_rcpt );
 		    r_sort = &((*r_sort)->r_next);
 		}
 	    }
@@ -683,6 +699,9 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    if ( env_outfile( env_deliver ) != 0 ) {
 		goto message_cleanup;
 	    }
+
+	    syslog( LOG_NOTICE, "Deliver %s: Envelope Rewritten",
+		    env_deliver->e_id );
 
 	    if ( env_deliver->e_dir == simta_dir_fast ) {
 		/* overwrote fast file, not created a new one */
@@ -708,11 +727,12 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 message_cleanup:
 	if ( env_bounce != NULL ) {
 	    if ( env_unlink( env_bounce ) != 0 ) {
-		syslog( LOG_INFO, "q_deliver env_unlink %s: can't unwind "
-			"expansion", env_deliver->e_id );
+		syslog( LOG_NOTICE,
+			"Deliver %s: System Error: Can't unwind bounce",
+			env_deliver->e_id );
 	    } else {
-		syslog( LOG_INFO, "q_deliver env_unlink %s: unwound "
-			"expansion", env_deliver->e_id );
+		syslog( LOG_NOTICE, "Deliver %s: Message Deleted: "
+			"System error, unwound bounce", env_deliver->e_id );
 	    }
 
 	    env_free( env_bounce );
@@ -869,7 +889,6 @@ lseek_fail:
 	    break;
 	}
 
-	/* XXX NEED THIS? */
 	syslog( LOG_NOTICE, "Deliver.local %s: Local delivery attempt complete",
 		d->d_env->e_id );
     }

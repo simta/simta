@@ -437,13 +437,12 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	}
     }
 
-    /* XXX MID: DELETED EXPANSION COMPLETE */
     if ( env_unlink( unexpanded_env ) != 0 ) {
 	syslog( LOG_ERR, "expand env_unlink %s: can't delete original message",
 		unexpanded_env->e_id );
     }
 
-    syslog( LOG_NOTICE, "Expand %s: Deleted: expansion complete", 
+    syslog( LOG_NOTICE, "Expand %s: Message Deleted: Expansion complete", 
 	    unexpanded_env->e_id );
 
     return_value = 0;
@@ -457,9 +456,13 @@ cleanup4:
 	/* unlink if written to disk */
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
-	    env_unlink( env );
-	    syslog( LOG_NOTICE, "Expand %s: %s: Deleted: Unwinding expansion",
-		    unexpanded_env->e_id, env->e_id );
+	    if ( env_unlink( env ) == 0 ) {
+		syslog( LOG_NOTICE, "Expand %s: Message Deleted: "
+			"System error, unwinding expansion", env->e_id );
+	    } else {
+		syslog( LOG_NOTICE, "Expand %s: "
+			"System error, can't unwind expansion", env->e_id );
+	    }
 	}
 
 	env_free( env );
@@ -471,9 +474,13 @@ cleanup3:
 
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
-	    env_unlink( env );
-	    syslog( LOG_NOTICE, "Expand %s: %s: Deleted: Unwinding expansion",
-		    unexpanded_env->e_id, env->e_id );
+	    if ( env_unlink( env ) == 0 ) {
+		syslog( LOG_NOTICE, "Expand %s: Message Deleted: "
+			"System error, unwinding expansion", env->e_id );
+	    } else {
+		syslog( LOG_NOTICE, "Expand %s: "
+			"System error, can't unwind expansion", env->e_id );
+	    }
 	}
 
 	env_free( env );

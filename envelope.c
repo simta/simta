@@ -746,18 +746,40 @@ env_from( struct envelope *env )
 }
 
 
+    int
+env_truncate_and_unlink( struct envelope *env, SNET *snet_lock )
+{
+    char		efile_fname[ MAXPATHLEN + 1 ];
+
+    if ( snet_lock != NULL ) {
+	if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) == 0 ) {
+	    env_unlink( env );
+	    return( 0 );
+	}
+
+	sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
+	syslog( LOG_ERR, "q_deliver ftruncate %s: %m", efile_fname );
+    }
+
+    return( env_unlink( env ));
+}
+
+
     /* truncate the efile before calling this function */
 
     int
 env_unlink( struct envelope *env )
 {
-    sprintf( simta_ename, "%s/E%s", env->e_dir, env->e_id );
-    sprintf( simta_dname, "%s/D%s", env->e_dir, env->e_id );
+    char		efile_fname[ MAXPATHLEN + 1 ];
+    char		dfile_fname[ MAXPATHLEN + 1 ];
+
+    sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
+    sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 
     /* XXX TRUNCATE EFILE IF SLOW/LOCAL */
 
-    if ( unlink( simta_ename ) != 0 ) {
-	syslog( LOG_ERR, "env_unlink unlink %s: %m", simta_ename );
+    if ( unlink( efile_fname ) != 0 ) {
+	syslog( LOG_ERR, "env_unlink unlink %s: %m", efile_fname );
 	return( -1 );
     }
 
@@ -767,8 +789,8 @@ env_unlink( struct envelope *env )
 	simta_fast_files--;
     }
 
-    if ( unlink( simta_dname ) != 0 ) {
-	syslog( LOG_ERR, "env_unlink unlink %s: %m", simta_dname );
+    if ( unlink( dfile_fname ) != 0 ) {
+	syslog( LOG_ERR, "env_unlink unlink %s: %m", dfile_fname );
     }
 
     syslog( LOG_DEBUG, "env_unlink %s %s: unlinked", env->e_dir, env->e_id );
