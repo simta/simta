@@ -244,8 +244,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    break;
 
 	case SMTP_HELO:
-	    syslog( LOG_INFO, "smtp_reply %s %s HELO: %s",
-		    d->d_env->e_id, hq->hq_hostname, line );
+	    syslog( LOG_INFO, "smtp_reply %s HELO: %s", hq->hq_hostname, line );
 	    break;
 
 	case SMTP_MAIL:
