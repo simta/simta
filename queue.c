@@ -293,18 +293,21 @@ q_runner( struct host_q **host_q )
 	return( 0 );
     }
 
+
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
 	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
 		message_slow( m );
 
 		if ( simta_fast_files < 1 ) {
+		    syslog( LOG_DEBUG, "q_runner exiting" );
 		    return( 0 );
 		}
 	    }
 	}
     }
 
+    syslog( LOG_DEBUG, "q_runner exiting error" );
     return( -1 );
 }
 
@@ -904,6 +907,7 @@ oldfile_error:
 		    remove = *r_sort;
 		    *r_sort = (*r_sort)->r_next;
 		    rcpt_free( remove );
+		    free( remove );
 
 		} else {
 		    r_sort = &((*r_sort)->r_next);

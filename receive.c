@@ -404,7 +404,6 @@ f_rcpt( snet, env, ac, av )
 {
     int			high_mx_pref;
     char		*addr, *domain;
-    struct recipient	*r;
     DNSR		*dnsr;
     struct dnsr_result	*result;
 
@@ -617,17 +616,9 @@ f_rcpt( snet, env, ac, av )
 	}
     }
 
-    if (( r = (struct recipient *)malloc( sizeof(struct recipient)))
-	    == NULL ) {
-	syslog( LOG_ERR, "f_rcpt: malloc: %m" );
+    if ( env_recipient( env, addr ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
-    if (( r->r_rcpt = strdup( addr )) == NULL ) {
-	syslog( LOG_ERR, "f_rcpt: strdup: %m" );
-	return( RECEIVE_SYSERROR );
-    }
-    r->r_next = env->e_rcpt;
-    env->e_rcpt = r;
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -735,10 +726,9 @@ f_data( snet, env, ac, av )
     }
 
     if (( lf = line_file_create()) == NULL ) {
-	syslog( LOG_ERR, "f_data malloc: %m" );
 	err = RECEIVE_SYSERROR;
 	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
+	    syslog( LOG_ERR, "f_data fclose %s: %m", df );
 	}
 	goto cleanup;
     }

@@ -41,15 +41,16 @@ struct envelope {
     struct timespec	e_etime;
 };
 
-#define E_TLS			(1<<0)
-#define E_READY			(1<<1)
-#define ENV_BOUNCE		(1<<2)
-#define ENV_ATTEMPT		(1<<3)
-#define ENV_OLD			(1<<4)
-#define ENV_UNEXPANDED		(1<<5)
+#define E_TLS			(1<<1)
+#define E_READY			(1<<2)
+#define ENV_BOUNCE		(1<<3)
+#define ENV_ATTEMPT		(1<<4)
+#define ENV_OLD			(1<<5)
+#define ENV_UNEXPANDED		(1<<6)
 
 /* NOT USED */
 void		env_stdout ___P(( struct envelope * ));
+void		env_syslog ___P(( struct envelope * ));
 void		env_free ___P(( struct envelope * ));
 
 /* LOCAL */

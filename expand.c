@@ -243,20 +243,9 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    }
 	}
 
-	if (( r = (struct recipient *)malloc( sizeof( struct recipient )))
-		== NULL ) {
-	    syslog( LOG_ERR, "expand.malloc: %m" );
+	if ( env_recipient( env, i->st_key ) != 0 ) {
 	    goto cleanup2;
 	}
-
-	if (( r->r_rcpt = strdup( i->st_key )) == NULL ) {
-	    free( r );
-	    syslog( LOG_ERR, "expand.strdup: %m" );
-	    goto cleanup2;
-	}
-
-	r->r_next = env->e_rcpt;
-	env->e_rcpt = r;
     }
 
     sprintf( d_original, "%s/D%s", unexpanded_env->e_dir,

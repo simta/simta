@@ -106,13 +106,20 @@ env_create( char *e_mail )
     return( env );
 }
 
+
     void
 rcpt_free( struct recipient *r )
 {
     if ( r != NULL ) {
-	free( r->r_rcpt );
-	line_file_free( r->r_err_text );
-	free( r );
+	if ( r->r_rcpt != NULL ) {
+	    free( r->r_rcpt );
+	}
+
+	if ( r->r_err_text != NULL ) {
+syslog( LOG_DEBUG, "rcpt_free HERE 1" );
+	    line_file_free( r->r_err_text );
+syslog( LOG_DEBUG, "rcpt_free HERE 2" );
+	}
     }
 }
 
@@ -126,8 +133,9 @@ env_rcpt_free( struct envelope *env )
     r = env->e_rcpt;
 
     while ( r != NULL ) {
-	r_next = r->r_next;
 	rcpt_free( r );
+	r_next = r->r_next;
+	free( r );
 	r = r_next;
     }
 
@@ -145,7 +153,9 @@ env_free( struct envelope *env )
 	    free( env->e_mail );
 	}
 
-	line_file_free( env->e_err_text );
+	if ( env->e_err_text != NULL ) {
+	    line_file_free( env->e_err_text );
+	}
 
 	free( env );
     }
@@ -166,11 +176,12 @@ env_reset( struct envelope *env )
 	    env->e_helo = NULL;
 	}
 
-	line_file_free( env->e_err_text );
-	env->e_err_text = NULL;
+	if ( env->e_err_text != NULL ) {
+	    line_file_free( env->e_err_text );
+	    env->e_err_text = NULL;
+	}
 
 	env_rcpt_free( env );
-	env->e_rcpt = NULL;
 
 	env->e_message = NULL;
 	*env->e_id = '\0';
@@ -182,6 +193,20 @@ env_reset( struct envelope *env )
     }
 }
 
+
+    void
+env_syslog( struct envelope *e )
+{
+    struct recipient		*r;
+    int				count = 0;
+
+    for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
+	count++;
+    }
+
+    syslog( LOG_DEBUG, "message %s rcpt %d host %s",
+	    e->e_id, count, e->e_expanded );
+}
 
     void
 env_stdout( struct envelope *e )
@@ -243,6 +268,7 @@ env_recipient( struct envelope *e, char *addr )
 
     r->r_next = e->e_rcpt;
     e->e_rcpt = r;
+    r->r_err_text = NULL;
 
     return( 0 );
 }
@@ -710,6 +736,8 @@ env_unlink( struct envelope *env )
     if ( unlink( simta_dname ) != 0 ) {
 	syslog( LOG_ERR, "env_unlink unlink %s: %m", simta_dname );
     }
+
+    syslog( LOG_ERR, "env_unlink %s: unlinked", env->e_id );
 
     return( 0 );
 }

@@ -6,6 +6,7 @@
 /**********	line_file.c	**********/
 #include "config.h"
 
+#include <syslog.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,7 @@ line_file_create( void )
 
     if (( lf = (struct line_file*)malloc( sizeof( struct line_file )))
 	    == NULL ) {
+	syslog( LOG_ERR, "line_file_create malloc: %m" );
 	return( NULL );
     }
     memset( lf, 0, sizeof( struct line_file ));
@@ -55,11 +57,13 @@ line_append( struct line_file *lf, char *data )
     struct line		*l;
 
     if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
+	syslog( LOG_ERR, "line_append malloc: %m" );
 	return( NULL );
     }
     memset( l, 0, sizeof( struct line ));
 
     if (( l->line_data = strdup( data )) == NULL ) {
+	syslog( LOG_ERR, "line_append strdup: %m" );
 	return( NULL );
     }
 
@@ -88,11 +92,13 @@ line_prepend( struct line_file *lf, char *data )
     struct line		*l;
 
     if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
+	syslog( LOG_ERR, "line_prepend malloc: %m" );
 	return( NULL );
     }
     memset( l, 0, sizeof( struct line ));
 
     if (( l->line_data = strdup( data )) == NULL ) {
+	syslog( LOG_ERR, "line_prepend strdup: %m" );
 	return( NULL );
     }
 
