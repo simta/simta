@@ -351,9 +351,9 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     int
 f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 {
-    int			high_mx_pref, rc;
+    int			rc;
     char		*addr, *domain;
-    struct dnsr_result	*result;
+    struct host		*host;
 
     if ( ac != 2 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
@@ -458,17 +458,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	 */
 	/* XXX check config file, check MXes */
 
-	switch ( mx_local( env, result, domain )) {
-	case 1:
-	    high_mx_pref = 1;
-	    break;
-
-	case 2:
-	    high_mx_pref = 0;
-	    break;
-
-	default:
-	    dnsr_free_result( result );
+	if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
 	    if ( snet_writef( snet, "551 User not local; please try <%s>\r\n",
 		    addr ) < 0 ) {
 		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -476,8 +466,6 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	    return( RECEIVE_OK );
 	}
-
-	dnsr_free_result( result );
 
 	/*
 	 * For local mail, we now have 5 minutes (rfc1123 5.3.2) to decline
@@ -498,7 +486,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * SHOULD be returned.
 	 */
 
-	if ( high_mx_pref != 0 ) {
+	if ( host->h_type == HOST_LOCAL ) {
 	    switch( local_address( addr )) {
 	    case NOT_LOCAL:
 		syslog( LOG_INFO, "f_rcpt %s: address not local", addr );

@@ -274,6 +274,7 @@ error:
     int
 check_hostname( DNSR **dnsr, char *hostname )
 {
+    int				i;
     struct dnsr_result		*result;
 
     if ( *dnsr == NULL ) {
@@ -295,6 +296,19 @@ check_hostname( DNSR **dnsr, char *hostname )
 	return( -1 );
     }
     if ( result->r_ancount > 0 ) {
+	/* Check to see if hostname is mx'ed to us */
+	for ( i = 0; i < result->r_ancount; i++ ) {
+	    if ( strcasecmp( simta_hostname,
+		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) {
+		if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
+			( result->r_answer[ i ].rr_mx.mx_preference ==
+			  result->r_answer[ 0 ].rr_mx.mx_preference
+			  ? HOST_LOCAL : HOST_MX )) != 0 ) {
+		    dnsr_free_result( result );
+		    return( -1 );
+		}
+	    }
+	}
 	dnsr_free_result( result );
 	return( 0 );
     }
@@ -318,4 +332,44 @@ check_hostname( DNSR **dnsr, char *hostname )
     dnsr_free_result( result );
 
     return( 1 );
+}
+
+    int
+add_host( char *hostname, int type )
+{
+    struct host		*host;
+
+    /* Look for hostname in host table */
+    if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
+	return( 0 );
+    }
+
+    if (( host = malloc( sizeof( struct host ))) == NULL ) {
+	syslog( LOG_ERR, "add_host: malloc: %m" );
+	return( -1 );
+    }
+    memset( host, 0, sizeof( struct host ));
+    host->h_type = type;
+
+    /* Add list of expansions */
+    if ( ll_insert_tail( &(host->h_expansion), "alias", "alias" ) != 0 ) {
+	syslog( LOG_ERR, "add_host: ll_insert_tail failed" );
+	goto error;
+    }
+    if ( ll_insert_tail( &(host->h_expansion), "password", "password" ) != 0 ) {
+	syslog( LOG_ERR, "add_host: ll_insert_tail failed" );
+	goto error;
+    }
+
+    /* Add host to host list */
+    if ( ll_insert( &simta_hosts, hostname, host, NULL ) != 0 ) {
+	syslog( LOG_ERR, "add_host: ll_insert failed" );
+	goto error;
+    }
+
+    return( 0 );
+
+error:
+    free( host );
+    return( -1 );
 }
