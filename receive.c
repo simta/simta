@@ -88,7 +88,6 @@ hello( env, hostname )
     struct envelope		*env;
     char			*hostname;
 {
-
     /* If we get "HELO" twice, just toss the new one */
     if ( env->e_helo == NULL ) {
 	/*
@@ -116,7 +115,6 @@ f_helo( snet, env, ac, av )
     char			*av[];
 {
     if ( ac != 2 ) {
-	syslog( LOG_INFO, "f_helo syntax error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_helo snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
@@ -124,7 +122,7 @@ f_helo( snet, env, ac, av )
 	return( RECEIVE_OK );
     }
 
-    if ( hello( env, av[ 1 ] ) < 0 ) {
+    if ( hello( env, av[ 1 ] ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -155,9 +153,7 @@ f_ehlo( snet, env, ac, av )
      * accept commands for non-mail transactions (e.g., VRFY or EXPN)
      * without this initialization.
      */
-
     if ( ac != 2 ) {
-	syslog( LOG_INFO, "f_ehlo syntax error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
@@ -173,7 +169,6 @@ f_ehlo( snet, env, ac, av )
      * EHLO is redundant, but not harmful other than in the performance cost
      * of executing unnecessary commands.
      */
-
     if ( env->e_helo != NULL ) {
 	env_reset( env );
     }
@@ -184,7 +179,7 @@ f_ehlo( snet, env, ac, av )
      * has no name, an address literal as described in section 4.1.1.1.
      */
 
-    if ( hello( env, av[ 1 ] ) < 0 ) {
+    if ( hello( env, av[ 1 ] ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -211,7 +206,6 @@ f_ehlo( snet, env, ac, av )
 	}
 	syslog( LOG_INFO, "f_ehlo %s", av[ 1 ]);
     }
-
 #else /* HAVE_LIBSSL */
 
     if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
@@ -259,33 +253,12 @@ f_mail( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    char		*addr, *domain;
+    char		*addr;
+    char		*domain;
     struct dnsr_result	*result;
-
-    /*
-     * Contrary to popular belief, it is not an error to give more than
-     * one "MAIL FROM:" command.  According to rfc822, this is just like
-     * "RSET".
-     */
-
-    if (( env->e_flags & E_READY ) != 0 ) {
-	switch ( expand_and_deliver( &hq_receive, env )) {
-	    case EXPAND_OK:
-		env_reset( env );
-		break;
-
-	    default:
-	    case EXPAND_SYSERROR:
-	    case EXPAND_FATAL:
-		syslog( LOG_ERR, "f_mail expand_and_deliver error" );
-		env_reset( env );
-		return( RECEIVE_SYSERROR );
-	}
-    }
 
     /* XXX handle MAIL FROM:<foo> AUTH=bar */
     if ( ac != 2 ) {
-	syslog( LOG_INFO, "f_mail syntax error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
@@ -297,7 +270,7 @@ f_mail( snet, env, ac, av )
      * "MAIL FROM:" ("<>" / Reverse-Path ) CRLF
      */
     if (( addr = smtp_trimaddr( av[ 1 ], "FROM:" )) == NULL ) {
-	syslog( LOG_ERR, "f_mail smtp_trimaddr error" );
+	/* not a correct address */
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
@@ -313,9 +286,8 @@ f_mail( snet, env, ac, av )
      */
     if ( *addr != '\0' ) {
 	if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
-	    syslog( LOG_ERR, "f_mail %s: strchr error", addr );
-	    if ( snet_writef( snet, "%d Requested action not taken\r\n",
-		    553 ) < 0 ) {
+	    if ( snet_writef( snet, "%d Requested action not taken: "
+		    "bad address syntax\r\n", 553 ) < 0 ) {
 		syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		return( RECEIVE_BADCONNECTION );
 	    }
@@ -334,7 +306,7 @@ f_mail( snet, env, ac, av )
 	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
 	    switch ( dnsr_errno( simta_dnsr )) {
 	    case DNSR_ERROR_SYSTEM:
-		syslog( LOG_ERR, "f_mail get_mx %s: %m", domain );
+		syslog( LOG_ERR, "f_mail get_mx %s system error: %m", domain );
 		return( RECEIVE_SYSERROR );
 
 	    case DNSR_ERROR_NAME:
@@ -383,11 +355,27 @@ f_mail( snet, env, ac, av )
 	}
     }
 
-    if ( env->e_mail != NULL ) {
-	/* XXX check for an accepted message */
-	syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
-	env_reset( env );
+    /*
+     * Contrary to popular belief, it is not an error to give more than
+     * one "MAIL FROM:" command.  According to rfc822, this is just like
+     * "RSET".
+     */
+
+    if (( env->e_flags & E_READY ) != 0 ) {
+	switch ( expand_and_deliver( &hq_receive, env )) {
+	    default:
+	    case EXPAND_SYSERROR:
+	    case EXPAND_FATAL:
+		syslog( LOG_ERR, "f_mail expand_and_deliver error" );
+		env_reset( env );
+		return( RECEIVE_SYSERROR );
+
+	    case EXPAND_OK:
+		break;
+	}
     }
+
+    env_reset( env );
 
     if ( env_gettimeofday_id( env ) != 0 ) {
 	syslog( LOG_ERR, "f_mail env_gettimeofday_id: %m" );
@@ -426,19 +414,17 @@ f_rcpt( snet, env, ac, av )
     char		*addr, *domain;
     struct dnsr_result	*result;
 
-    if ( ac != 2 ) {
-	syslog( LOG_INFO, "f_rcpt syntax error" );
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+    /* Must already have "MAIL FROM:", and no valid message */
+    if (( env->e_mail == NULL ) || (( env->e_flags & E_READY ) != 0 )) {
+	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
 	}
 	return( RECEIVE_OK );
     }
 
-    /* Must already have "MAIL FROM:" */
-    if ( env->e_mail == NULL ) {
-	syslog( LOG_INFO, "f_rcpt bad sequence" );
-	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
+    if ( ac != 2 ) {
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
 	}
@@ -681,7 +667,6 @@ f_data( snet, env, ac, av )
      * having invalid syntax.
      */
     if ( ac != 1 ) {
-	syslog( LOG_INFO, "f_data syntax error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
@@ -694,9 +679,11 @@ f_data( snet, env, ac, av )
      * were rejected, the server MAY return a "command out of sequence"
      * (503) or "no valid recipients" (554) reply in response to the DATA
      * command.
+     *
+     * Also note that having already accepted a message is bad.
+     * A previous reset is also not a good thing.
      */
-    if ( env->e_mail == NULL ) {
-	syslog( LOG_INFO, "f_data: bad sequence of commands" );
+    if (( env->e_mail == NULL ) || (( env->e_flags & E_READY ) != 0 )) {
 	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
@@ -704,7 +691,6 @@ f_data( snet, env, ac, av )
 	return( RECEIVE_OK );
     }
     if ( env->e_rcpt == NULL ) {
-	syslog( LOG_INFO, "f_data: no recipients" );
 	if ( snet_writef( snet, "%d no valid recipients\r\n", 554 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
@@ -855,7 +841,7 @@ f_data( snet, env, ac, av )
     lf = NULL;
 
     if ( line == NULL ) {	/* EOF */
-	syslog( LOG_INFO, "%s: connection dropped", env->e_id );
+	syslog( LOG_INFO, "f_data %s: connection dropped", env->e_id );
 	err = RECEIVE_BADCONNECTION;
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data f_close: %m" );
@@ -902,11 +888,9 @@ f_data( snet, env, ac, av )
 	goto cleanup;
     }
 
-    syslog( LOG_INFO, "%s: accepted", env->e_id );
-
     /* mark message as ready to roll */
     env->e_flags = env->e_flags | E_READY;
-
+    syslog( LOG_INFO, "f_data %s: accepted", env->e_id );
     return( RECEIVE_OK );
 
 cleanup:
@@ -936,27 +920,11 @@ f_quit( snet, env, ac, av )
      */
 
     if ( ac != 1 ) {
-	syslog( LOG_INFO, "f_quit syntax error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_quit snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
 	}
 	return( RECEIVE_OK );
-    }
-
-    if (( env->e_flags & E_READY ) != 0 ) {
-	switch ( expand_and_deliver( &hq_receive, env )) {
-	    case EXPAND_OK:
-		env_reset( env );
-		break;
-
-	    default:
-	    case EXPAND_SYSERROR:
-	    case EXPAND_FATAL:
-		syslog( LOG_ERR, "f_quit expand_and_deliver error" );
-		env_reset( env );
-		return( RECEIVE_SYSERROR );
-	}
     }
 
     syslog( LOG_INFO, "f_quit OK" );
@@ -985,12 +953,16 @@ f_rset( snet, env, ac, av )
      * having invalid syntax.
      */
     if ( ac != 1 ) {
-	syslog( LOG_INFO, "f_rset syntax error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rset snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
 	}
 	return( RECEIVE_OK );
+    }
+
+    if (( env->e_flags & E_READY ) == 0 ) {
+	syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
+	env_reset( env );
     }
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
@@ -1029,32 +1001,31 @@ f_help( snet, env, ac, av )
 	syslog( LOG_ERR, "f_help snet_writef: %m" );
 	return( RECEIVE_BADCONNECTION );
     }
-    syslog( LOG_INFO, "f_help OK" );
     return( RECEIVE_OK );
 }
 
 
-/*
- * rfc 2821 section 3.5.3:
- * A server MUST NOT return a 250 code in response to a VRFY or EXPN
- * command unless it has actually verified the address.  In particular,
- * a server MUST NOT return 250 if all it has done is to verify that the
- * syntax given is valid.  In that case, 502 (Command not implemented)
- * or 500 (Syntax error, command unrecognized) SHOULD be returned.  As
- * stated elsewhere, implementation (in the sense of actually validating
- * addresses and returning information) of VRFY and EXPN are strongly
- * recommended.  Hence, implementations that return 500 or 502 for VRFY
- * are not in full compliance with this specification.
- *
- * rfc 2821 section 7.3:
- * As discussed in section 3.5, individual sites may want to disable
- * either or both of VRFY or EXPN for security reasons.  As a corollary
- * to the above, implementations that permit this MUST NOT appear to
- * have verified addresses that are not, in fact, verified.  If a site
- * disables these commands for security reasons, the SMTP server MUST
- * return a 252 response, rather than a code that could be confused with
- * successful or unsuccessful verification.
- */
+    /*
+     * rfc 2821 section 3.5.3:
+     * A server MUST NOT return a 250 code in response to a VRFY or EXPN
+     * command unless it has actually verified the address.  In particular,
+     * a server MUST NOT return 250 if all it has done is to verify that the
+     * syntax given is valid.  In that case, 502 (Command not implemented)
+     * or 500 (Syntax error, command unrecognized) SHOULD be returned.  As
+     * stated elsewhere, implementation (in the sense of actually validating
+     * addresses and returning information) of VRFY and EXPN are strongly
+     * recommended.  Hence, implementations that return 500 or 502 for VRFY
+     * are not in full compliance with this specification.
+     *
+     * rfc 2821 section 7.3:
+     * As discussed in section 3.5, individual sites may want to disable
+     * either or both of VRFY or EXPN for security reasons.  As a corollary
+     * to the above, implementations that permit this MUST NOT appear to
+     * have verified addresses that are not, in fact, verified.  If a site
+     * disables these commands for security reasons, the SMTP server MUST
+     * return a 252 response, rather than a code that could be confused with
+     * successful or unsuccessful verification.
+     */
 
     int
 f_vrfy( snet, env, ac, av )
@@ -1067,7 +1038,6 @@ f_vrfy( snet, env, ac, av )
 	syslog( LOG_ERR, "f_vrfy snet_writef: %m" );
 	return( RECEIVE_BADCONNECTION );
     }
-    syslog( LOG_INFO, "f_help OK" );
     return( RECEIVE_OK );
 }
 
@@ -1083,7 +1053,6 @@ f_expn( snet, env, ac, av )
 	syslog( LOG_ERR, "f_expn snet_writef: %m" );
 	return( RECEIVE_BADCONNECTION );
     }
-    syslog( LOG_INFO, "f_expn OK" );
     return( RECEIVE_OK );
 }
 
@@ -1356,14 +1325,15 @@ closeconnection:
     if (( env != NULL ) && (( env->e_flags & E_READY ) != 0 )) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    case EXPAND_OK:
-		env_reset( env );
 		break;
 
 	    default:
 	    case EXPAND_SYSERROR:
 	    case EXPAND_FATAL:
 		syslog( LOG_ERR, "receive expand_and_deliver error" );
-		env_reset( env );
+		break;
 	}
     }
+
+    env_free( env );
 }
