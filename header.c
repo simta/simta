@@ -32,12 +32,10 @@ struct header simta_headers[] = {
 #define HEAD_TO			3
     { "Message-ID",		NULL,		NULL },
 #define HEAD_MESSAGE_ID		4
-    { "Reply-To",		NULL,		NULL },
-#define HEAD_REPLY_TO		5
     { "cc",			NULL,		NULL },
-#define HEAD_CC			6
+#define HEAD_CC			5
     { "bcc",			NULL,		NULL },
-#define HEAD_BCC		7
+#define HEAD_BCC		6
     { NULL,			NULL,		NULL }
 };
 
@@ -286,12 +284,18 @@ header_correct( struct line_file *lf, struct envelope *env )
 	for ( h = simta_headers; h->h_key != NULL; h++ ) {
 	    if ( strncasecmp( h->h_key, l->line_data, header_len ) == 0 ) {
 		/* correct field name */
-		h->h_line = l;
+		if ( h->h_line == NULL ) {
+		    h->h_line = l;
+
+		} else {
+		    /* header h->h_key appears at least twice */
+		    return( -1 );
+		}
 	    }
 	}
     }
 
-    /* unfold, uncomment all the headers */
+    /* unfold & uncomment all the structured headers we care about */
     for ( h = simta_headers; h->h_key != NULL; h++ ) {
 	if ( h->h_line != NULL ) {
 	    if (( h->h_data = header_unfold( h->h_line )) == NULL ) {
@@ -343,7 +347,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 	 */
 
 	/* XXX wrong */
-	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data + 6;
+	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data;
     }
 
     if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
@@ -359,10 +363,6 @@ header_correct( struct line_file *lf, struct envelope *env )
     }
 
     if ( simta_headers[ HEAD_TO ].h_line == NULL ) {
-	/* XXX action */
-    }
-
-    if ( simta_headers[ HEAD_REPLY_TO ].h_line == NULL ) {
 	/* XXX action */
     }
 
@@ -455,13 +455,10 @@ header_uncomment( char **line )
 
     while ( *r != '\0' ) {
 	if ( *r == '\\' ) {
-	    /* XXX copy the backslash, or just the escaped char? */
-	    /*
 	    if ( comment == 0 ) {
 		*w = *r;
 		w++;
 	    }
-	    */
 
 	    r++;
 
