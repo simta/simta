@@ -50,7 +50,7 @@ main( int argc, char *argv[] )
 
 #ifdef DEBUG
     logger = stdout_logger;
-    printf( "send: Message-ID: %s\n\n", TEST_ID );
+    printf( "%s: Message-ID: %s\n\n", argv[ 0 ], TEST_ID );
 #endif /* DEBUG */
 
     /* XXX ERROR CHECKING */
