@@ -647,7 +647,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
                     continue;
                 }
                 for ( j = 0; j < result_ip->r_ancount; j++ ) {
-		    switch( result->r_answer[ i ].rr_type ) {
+		    switch( result_ip->r_answer[ i ].rr_type ) {
 		    case DNSR_TYPE_A:
 			memcpy( &(hq->hq_sin.sin_addr.s_addr),
 				&(result_ip->r_answer[ j ].rr_a ),
@@ -670,7 +670,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 		    default:
 			syslog( LOG_DEBUG,
 			    "dnsr_connect %s: unknown dnsr a rr: %d",
-			    hq->hq_hostname, result->r_answer[ i ].rr_type );
+			    hq->hq_hostname, result_ip->r_answer[ i ].rr_type );
 			continue;
 		    }
                 }       
