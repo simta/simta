@@ -32,7 +32,6 @@
 #include "header.h"
 #include "simta.h"
 #include "bdb.h"
-#include "bounce.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>

@@ -37,7 +37,6 @@
 #include "envelope.h"
 #include "simta.h"
 #include "expand.h"
-#include "bounce.h"
 #include "argcargv.h"
 #include "simta_ldap.h"
 #include "dn.h"

@@ -753,7 +753,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		smtp_message );
 
 	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
-		smtp_message ? smtp_message : "accepted" ) < 0 ) {
+		smtp_message ? smtp_message : "accepted and deleted" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -1495,6 +1495,12 @@ mail_filter( int f, char **smtp_message )
     char		*line;
     char		*filter_argv[] = { 0, 0 };
 
+    if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
+	filter_argv[ 0 ]++;
+    } else {
+	filter_argv[ 0 ] = simta_mail_filter;
+    }
+
     if ( pipe( fd ) < 0 ) {
 	syslog( LOG_ERR, "mail_filter pipe: %m" );
 	return( MESSAGE_TEMPFAIL );
@@ -1537,10 +1543,6 @@ mail_filter( int f, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	if (( filter_argv[ 0 ] = rindex( simta_mail_filter, '/' )) == NULL ) {
-	    filter_argv[ 0 ] = simta_mail_filter;
-	}
-
 	execv( simta_mail_filter, filter_argv );
 	/* if we are here, there is an error */
 	syslog( LOG_ERR, "mail_filter execv: %m" );
@@ -1577,7 +1579,24 @@ mail_filter( int f, char **smtp_message )
 	}
 
 	if ( WIFEXITED( status )) {
-	    return( WEXITSTATUS( status ));
+	    switch ( WEXITSTATUS( status )) {
+	    case MESSAGE_ACCEPT:
+		return( MESSAGE_ACCEPT );
+
+	    case MESSAGE_ACCEPT_AND_DELETE:
+		return( MESSAGE_ACCEPT_AND_DELETE );
+
+	    case MESSAGE_REJECT:
+		return( MESSAGE_REJECT );
+
+	    case MESSAGE_TEMPFAIL:
+		return( MESSAGE_TEMPFAIL );
+
+	    default:
+		syslog( LOG_WARNING, "mail_filter %d return out of range (%d)",
+			pid, WEXITSTATUS( status ));
+		return( MESSAGE_TEMPFAIL );
+	    }
 
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "mail_filter %d died on signal %d\n", pid, 

@@ -44,7 +44,6 @@
 #include "smtp.h"
 #include "expand.h"
 #include "simta.h"
-#include "bounce.h"
 
 
     int

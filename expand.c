@@ -30,7 +30,6 @@
 #include "expand.h"
 #include "ll.h"
 #include "simta.h"
-#include "bounce.h"
 #include "line_file.h"
 #include "oklist.h"
 

@@ -35,7 +35,6 @@
 #include "smtp.h"
 #include "expand.h"
 #include "simta.h"
-#include "bounce.h"
 #include "mx.h"
 
 void	q_deliver ( struct host_q **, struct host_q * );

@@ -70,3 +70,10 @@ char	*simta_sender ( void );
 char	*simta_resolvconf ( void );
 int	simta_init_hosts ( void );
 int	simta_config( char *, char * );
+
+/*****     bounce.c     *****/
+
+int bounce_text( struct envelope *, char *, char *, char * );
+void bounce_stdout( struct envelope * );
+ino_t bounce_dfile_out( struct envelope *, SNET * );
+struct envelope *bounce( struct host_q *, struct envelope *, SNET * );
