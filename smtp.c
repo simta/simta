@@ -78,12 +78,12 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 
     /* RCPT TO: */
     for ( r = m->m_env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
+	if ( snet_writef( snet, "RCPT TO: <%s>\r\n", r->r_rcpt ) < 0 ) {
 	    return( 1 );
 	}
 
 #ifdef DEBUG
-    printf( "--> RCPT TO: %s\n", r->r_rcpt );
+    printf( "--> RCPT TO: <%s>\n", r->r_rcpt );
 #endif /* DEBUG */
 
 	if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
@@ -259,7 +259,6 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 
     /* check to see if remote smtp server is actually the local machine */
     if ( strncasecmp( local_host, remote_host, (int)(i - remote_host) ) == 0 ) {
-	/* XXX gracefully close the connection? */
 	while ( *(line + 3) == '-' ) {
 	    if (( line = snet_getline( snet, NULL )) == NULL ) {
 		syslog( LOG_ERR, "snet_getline: %m" );
@@ -428,18 +427,28 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
     struct recipient	*r;
 
     /* MAIL FROM: */
-    if ( snet_writef( snet, "MAIL FROM: %s\r\n", env->e_mail ) < 0 ) {
-	/* XXX correct error handling? */
-	syslog( LOG_ERR, "snet_writef: %m" );
-	return( SMTP_ERR_SYSCALL );
-    }
+    if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
+	if ( snet_writef( snet, "MAIL FROM: <>\r\n" ) < 0 ) {
+	    syslog( LOG_ERR, "snet_writef: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
 
 #ifdef DEBUG
-    printf( "--> MAIL FROM: %s\n", env->e_mail );
+    printf( "--> MAIL FROM: <>\n" );
 #endif /* DEBUG */
 
+    } else {
+	if ( snet_writef( snet, "MAIL FROM: <%s>\r\n", env->e_mail ) < 0 ) {
+	    syslog( LOG_ERR, "snet_writef: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+#ifdef DEBUG
+    printf( "--> MAIL FROM: <%s>\n", env->e_mail );
+#endif /* DEBUG */
+    }
+
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_getline_multi: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
@@ -456,7 +465,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
     /* RCPT TO: */
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {
-	    /* XXX correct error handling? */
 	    syslog( LOG_ERR, "snet_writef: %m" );
 	    return( SMTP_ERR_SYSCALL );
 	}
@@ -466,7 +474,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 #endif /* DEBUG */
 
 	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    /* XXX correct error handling? */
 	    syslog( LOG_NOTICE, "host %s: no banner", env->e_expanded );
 	    return( SMTP_ERR_SYNTAX );
 	} 
@@ -537,7 +544,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 
     /* DATA */
     if ( snet_writef( snet, "DATA\r\n" ) < 0 ) {
-	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_writef: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
@@ -547,7 +553,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 #endif /* DEBUG */
 
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_getline_multi: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
@@ -562,7 +567,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	if ( *line == '.' ) {
 	    /* don't send EOF */
 	    if ( snet_writef( snet, ".%s\r\n", line ) < 0 ) {
-		/* XXX correct error handling? */
 		syslog( LOG_ERR, "snet_writef: %m" );
 		return( SMTP_ERR_SYSCALL );
 	    }
@@ -573,7 +577,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 
 	} else {
 	    if ( snet_writef( snet, "%s\r\n", line ) < 0 ) {
-		/* XXX correct error handling? */
 		syslog( LOG_ERR, "snet_writef: %m" );
 		return( SMTP_ERR_SYSCALL );
 	    }
@@ -586,7 +589,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
     }
 
     if ( snet_writef( snet, "%s\r\n", SMTP_EOF ) < 0 ) {
-	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_writef: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
@@ -596,7 +598,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 #endif /* DEBUG */
 
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	/* XXX correct error handling? */
 	syslog( LOG_ERR, "snet_getline_multi: %m" );
 	return( SMTP_ERR_SYSCALL );
     }

@@ -26,8 +26,8 @@
 
 
 void	stdout_logger ___P(( char * ));
-
 int	smtp_eval ___P(( char *, char * ));
+
 int	smtp_send_message ___P(( SNET *, struct message *, void (*)(char *)));
 int	smtp_send_single_message ___P(( char *, int, struct message *,
 		void (*)(char *)));
