@@ -247,9 +247,11 @@ move_to_slow( struct message **slow_q, struct message **other_q )
 	*other_q = m->m_next;
 
 	for ( ; ; ) {
+	    result = 0;
+
 	    if (( *slow != NULL ) && (( result = strcmp( m->m_id,
 		    (*slow)->m_id )) > 0 )) {
-		*slow = (*slow)->m_next;
+		slow = &((*slow)->m_next);
 
 	    } else {
 		sprintf( d_original, "%s/D%s", m->m_dir, m->m_id );
@@ -282,6 +284,7 @@ move_to_slow( struct message **slow_q, struct message **other_q )
 
 		} else {
 		    /* collision - delete message files from other_q */
+		    slow = &((*slow)->m_next);
 		    message_free( m );
 		}
 

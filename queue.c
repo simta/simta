@@ -55,24 +55,23 @@ int	deliver_local ___P(( struct envelope *, int ));
     void
 message_stdout( struct message *m )
 {
-    printf( "\t%s\n", m->m_id );
+    while ( m != NULL ) {
+	printf( "\t%s\n", m->m_id );
+	m = m->m_next;
+    }
 }
 
 
     void
 q_stdout( struct host_q *hq )
 {
-    struct message		*m;
-
     if (( hq->hq_hostname == NULL ) || ( *hq->hq_hostname == '\0' )) {
 	printf( "%d\tNULL:\n", hq->hq_entries );
     } else {
 	printf( "%d\t%s:\n", hq->hq_entries, hq->hq_hostname );
     }
 
-    for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
-	message_stdout( m );
-    }
+    message_stdout( hq->hq_message_first );
 }
 
 
