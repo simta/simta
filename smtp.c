@@ -49,40 +49,42 @@ void	(*smtp_logger)(char *) = stdout_logger;
 void	(*smtp_logger)(char *) = NULL;
 #endif /* DEBUG */
 
-    SNET *
-_smtp_connect_try( struct sockaddr_in *sin, struct host_q *hq )
+    int 
+_smtp_connect_try( SNET **snetp, struct sockaddr_in *sin, struct host_q *hq )
 {
-    SNET	*snet;
 
-    if (( snet = _smtp_connect_snet( sin, hq->hq_hostname )) == NULL ) {
+    int	    ret;
+
+    if (( *snetp = _smtp_connect_snet( sin, hq->hq_hostname )) == NULL ) {
 	/* XXX - When do we retrun SMTP_BAD_CNNECTION or SMTP_ERROR? */
-	return( NULL );
+	return( SMTP_BAD_CONNECTION );
     }
 
-    if ( smtp_reply( SMTP_CONNECT, snet, hq, NULL ) != SMTP_OK ) {
+    if (( ret = smtp_reply( SMTP_CONNECT, *snetp, hq, NULL ))
+	    != SMTP_OK ) {
 	goto error;
     }
 
-    /* XXX MAIL LOOP DETECTION */
-
     /* say EHLO */
-    if ( snet_writef( snet, "EHLO %s\r\n", simta_hostname ) < 0 ) {
+    if ( snet_writef( *snetp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
 	syslog( LOG_NOTICE, "_smtp_connect_try %s: failed writef",
 	    hq->hq_hostname );
 	goto error;
     }
 
-    if ( smtp_reply( SMTP_EHLO, snet, hq, NULL ) == SMTP_OK ) {
-	return( snet );
+    if (( ret = smtp_reply( SMTP_EHLO, *snetp, hq, NULL )) != SMTP_OK ) {
+	goto error;
     }
+    return( SMTP_OK );
 
 error:
-    if ( snet_close( snet ) != 0 ) {
+    if ( snet_close( *snetp ) != 0 ) {
 	syslog( LOG_WARNING, "_smtp_connect_try %s: snet_close: %m",
 	    hq->hq_hostname );
     }
+    *snetp = NULL;
 
-    return( NULL );
+    return( ret );
 }
 
     SNET *
@@ -99,21 +101,21 @@ _smtp_connect_snet( struct sockaddr_in *sin, char *hostname )
     if ( connect( s, (struct sockaddr*)sin,
 	    sizeof( struct sockaddr_in )) < 0 ) {
 	syslog( LOG_ERR, "_smtp_connect_snet %s connect: %m", hostname );
-	if ( close( s ) != 0 ) {
-	    syslog( LOG_ERR, "_smtp_connect_snet %s close: %m", hostname );
-	}
-	return( NULL );
+	goto error;
     }
 
     if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "_smtp_connect_snet %s snet_attach: %m", hostname );
-	if ( close( s ) != 0 ) {
-	    syslog( LOG_ERR, "_smtp_connect_snet %s close: %m", hostname );
-	}
-	return( NULL );
+	goto error;
     }
 
     return( snet );
+
+error:
+    if ( close( s ) != 0 ) {
+	syslog( LOG_ERR, "_smtp_connect_snet %s close: %m", hostname );
+    }
+    return( NULL );
 }
 
 
@@ -276,6 +278,47 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
     case '2':
 	switch ( smtp_command ) {
 	case SMTP_CONNECT:
+	    /* Loop detection 
+	     * RFC 2821 4.2 SMTP Replies
+	     * Greeting = "220 " Domain [ SP text ] CRLF
+	     * 
+	     * "Greeting" appears only in the 220 response that announces that
+	     * the server is opening its part of the connection.
+	     * 
+	     * RFC 2821 4.3.1 Sequencing Overview
+	     * Note: all the greeting-type replies have the official name (the
+	     * fully-qualified primary domain name) of the server host as the
+	     * first word following the reply code.  Sometimes the host will
+	     * have no meaningful name.  See 4.1.3 for a discussion of
+	     * alternatives in these situations.
+	     *
+	     * RFC 2821 4.1.2 Command Argument Syntax
+	     * Domain = (sub-domain 1*("." sub-domain)) / address-literal
+	     * sub-domain = Let-dig [Ldh-str]
+	     * address-literal = "[" IPv4-address-literal /
+	     * 		IPv6-address-literal /
+	     *		General-address-literal "]"
+	     *		; See section 4.1.3
+	     * 
+	     */
+
+	    if (( *(line + 4 ) != '[' )
+		    && ( strcmp( line + 4, simta_hostname ) == 0 )) {
+		/* Loop - connected to self */
+		if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text),
+			snet, &tv, line, "Mail loop detected" )) != SMTP_OK ) {
+		    return( smtp_reply );
+		}
+		syslog( LOG_NOTICE,
+		    "smtp_reply %s mail loop detected in banner: %s",
+		    hq->hq_hostname, line );
+
+		return( SMTP_ERROR );
+	    }
+
+	    break;
+
+
 	case SMTP_RSET:
 	case SMTP_QUIT:
 	    break;
@@ -500,7 +543,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
                 memcpy( &(sin.sin_addr.s_addr),
                     &(result->r_answer[ i ].rr_ip->ip_ip ),
                     sizeof( struct in_addr ));
-		if (( snet = _smtp_connect_try( &sin, hq )) != NULL ) {
+		if ( _smtp_connect_try( &snet, &sin, hq ) == SMTP_OK ) {
 		    goto done;
 		}
             } else {  
@@ -514,7 +557,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
                     memcpy( &(sin.sin_addr.s_addr),
                         &(result_ip->r_answer[ j ].rr_a ),
                         sizeof( struct in_addr ));
-		    if (( snet = _smtp_connect_try( &sin, hq )) != NULL ) {
+		    if ( _smtp_connect_try( &snet, &sin, hq ) == SMTP_OK ) {
 			dnsr_free_result( result_ip );
 			goto done;
 		    }
@@ -526,7 +569,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
         case DNSR_TYPE_A:
             memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ i ].rr_a ),
                 sizeof( struct in_addr ));
-	    if (( snet = _smtp_connect_try( &sin, hq )) != NULL ) {
+	    if ( _smtp_connect_try( &snet, &sin, hq ) == SMTP_OK ) {
 		goto done;
 	    }
 	    break;

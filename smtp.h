@@ -41,5 +41,5 @@ int	smtp_connect ( SNET **, struct host_q * );
 int	smtp_rset ( SNET *, struct host_q * );
 int	smtp_send ( SNET *, struct host_q *, struct deliver * );
 void	smtp_quit ( SNET *, struct host_q * );
-SNET *  _smtp_connect_snet( struct sockaddr_in *sin, char *hostname );
-SNET *  _smtp_connect_try( struct sockaddr_in *sin, struct host_q *hq );
+SNET *  _smtp_connect_snet( struct sockaddr_in *, char * );
+int     _smtp_connect_try( SNET **, struct sockaddr_in *, struct host_q * );
