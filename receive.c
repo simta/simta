@@ -1087,9 +1087,13 @@ smtp_receive( fd, sin )
     SNET				*snet;
     struct envelope			*env = NULL;
     ACAV				*acav;
-    int					ac, i, rc;
+    int					ac;
+    int					i;
+    int					rc;
     int					value = RECEIVE_SYSERROR;
-    char				**av, *line;
+    char				**av;
+    char				*line;
+    char				*ctl_domain;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
     struct dnsr_result			*result = NULL;
@@ -1119,6 +1123,8 @@ smtp_receive( fd, sin )
 	}
     }
 
+    if ( *ctl_domain = '\0' );
+
     if (( rc = check_reverse( &simta_dnsr, hostname,
 	    &(sin->sin_addr))) != 0 ) {
 	if ( rc < 0 ) {
@@ -1134,9 +1140,13 @@ smtp_receive( fd, sin )
 	}
     }
 
+    if ( *ctl_domain == '\0' ) {
+	ctl_domain = STRING_UNKNOWN;
+    }
+
 #ifdef HAVE_LIBWRAP
     /* first STRING_UNKNOWN should be domain name of incoming host */
-    if ( hosts_ctl( "simta", STRING_UNKNOWN, inet_ntoa( sin->sin_addr ),
+    if ( hosts_ctl( "simta", ctl_domain, inet_ntoa( sin->sin_addr ),
 	    STRING_UNKNOWN ) == 0 ) {
 	syslog( LOG_INFO, "receive connection refused %s: access denied",
 		inet_ntoa( sin->sin_addr ));
