@@ -256,7 +256,6 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     char		*addr;
     char		*domain;
 
-    /* XXX handle MAIL FROM:<foo> AUTH=bar */
     if ( ac != 2 ) {
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -660,7 +659,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
     header = 1;
 
-    /* XXX should implement a byte count to limit DofS attacks */
+    /* XXX should implement a byte count to limit DofS attacks? */
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
@@ -765,7 +764,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     /* make E (t) file */
-    /* XXX make sure this is accounted for in fast file db */
     env->e_dir = simta_dir_fast;
     if ( env_outfile( env ) != 0 ) {
 	err = RECEIVE_SYSERROR;
@@ -1160,7 +1158,6 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    continue;
 	}
 
-	/* XXX - Do we want to check this? */
 	/* rfc 2821 2.4
 	 * No sending SMTP system is permitted to send envelope commands
 	 * in any character set other than US-ASCII; receiving systems
