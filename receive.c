@@ -1158,6 +1158,7 @@ smtp_receive( fd, sin )
     int					ac, i, rc;
     int					value = RECEIVE_SYSERROR;
     char				**av, *line;
+    char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
     struct dnsr_result			*result = NULL;
     extern int				connections;
@@ -1186,7 +1187,8 @@ smtp_receive( fd, sin )
 	}
     }
 
-    if (( rc = check_hostname( simta_dnsr, NULL, &(sin->sin_addr))) != 0 ) {
+    if (( rc = check_hostname( simta_dnsr, hostname,
+	    &(sin->sin_addr))) != 0 ) {
 	if ( rc < 0 ) {
 	    syslog( LOG_INFO, "receive %s: connection rejected: %s",
 		dnsr_err2string( dnsr_errno( simta_dnsr )),
