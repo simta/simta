@@ -130,7 +130,8 @@ get_mx( char *hostname )
 		break;
 
 	    default:
-		syslog( LOG_DEBUG, "get_mx: %s: unknown type: %d", hostname,
+		syslog( LOG_DEBUG, "get_mx: %s: uninteresting dnsr type: %d",
+		    result->r_answer[ i ].rr_name, 
 		    result->r_answer[ i ].rr_type );
 		break;
 	    }
@@ -209,32 +210,50 @@ check_reverse( char *dn, struct in_addr *in )
     }
 
     for ( i = 0; i < result_ptr->r_ancount; i++ ) {
-	/* Get A record on PTR result */
-	if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
-		result_ptr->r_answer[ i ].rr_dn.dn_name )) < 0 ) {
-	    syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
-		dnsr_err2string( dnsr_errno( simta_dnsr )));
-	    goto error;
-	}
-	if (( result_a = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
-		dnsr_err2string( dnsr_errno( simta_dnsr )));
-	    goto error;
-	}
-
-	/* Verify A record matches IP */
-	for ( j = 0; j < result_a->r_ancount; j++ ) {
-	    if ( memcmp( &(in->s_addr), &(result_a->r_answer[ j ].rr_a),
-		    sizeof( int )) == 0 ) {
-		if ( dn != NULL ) {
-		    strcpy( dn, result_ptr->r_answer[ i ].rr_dn.dn_name );
-		}
-		dnsr_free_result( result_a );
-		dnsr_free_result( result_ptr );
-		return( 0 );
+	if ( result_ptr->r_answer[ i ].rr_type == DNSR_TYPE_PTR ) {
+	    /* Get A record on PTR result */
+	    if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+		    result_ptr->r_answer[ i ].rr_dn.dn_name )) < 0 ) {
+		syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
+		    dnsr_err2string( dnsr_errno( simta_dnsr )));
+		goto error;
 	    }
+	    if (( result_a = dnsr_result( simta_dnsr, NULL )) == NULL ) {
+		syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
+		    dnsr_err2string( dnsr_errno( simta_dnsr )));
+		goto error;
+	    }
+
+
+	    /* Verify A record matches IP */
+	    for ( j = 0; j < result_a->r_ancount; j++ ) {
+		if ( result_a->r_answer[ j ].rr_type == DNSR_TYPE_A ) {
+		    if ( memcmp( &(in->s_addr),
+			    &(result_a->r_answer[ j ].rr_a),
+			    sizeof( int )) == 0 ) {
+			if ( dn != NULL ) {
+			    strcpy( dn,
+				result_ptr->r_answer[ i ].rr_dn.dn_name );
+			}
+			dnsr_free_result( result_a );
+			dnsr_free_result( result_ptr );
+			return( 0 );
+		    }
+
+		} else {
+		    syslog( LOG_DEBUG,
+			"check_reverse: %s: uninteresting dnsr type: %d",
+			result_a->r_answer[ j ].rr_name, 
+			result_a->r_answer[ j ].rr_type );
+		}
+	    }
+	    dnsr_free_result( result_a );
+
+	} else {
+	    syslog( LOG_DEBUG, "check_result: %s: uninteresting dnsr type: %d",
+		result_ptr->r_answer[ i ].rr_name, 
+		result_ptr->r_answer[ i ].rr_type );
 	}
-	dnsr_free_result( result_a );
     }
     dnsr_free_result( result_ptr );
     return( 1 );

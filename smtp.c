@@ -693,8 +693,9 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
 		    default:
 			syslog( LOG_DEBUG,
-			    "smtp_connect %s: unknown dnsr a rr: %d",
-			    hq->hq_hostname, result_ip->r_answer[ j ].rr_type );
+			    "smtp_connect %s: uninteresting dnsr rr type: %d",
+			    result_ip->r_answer[ j ].rr_name,
+			    result_ip->r_answer[ j ].rr_type );
 			continue;
 		    }
                 }       
@@ -719,8 +720,10 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    break;
 
         default:
-            syslog( LOG_WARNING, "smtp_connect %s: unknown dnsr result: %d",
-		    hq->hq_hostname, result->r_answer[ i ].rr_type );
+            syslog( LOG_DEBUG,
+		"smtp_connect %s: uninteresting dnsr rr type: %d",
+		result->r_answer[ i ].rr_name,
+		result->r_answer[ i ].rr_type );
             continue;
         }
     }
@@ -734,9 +737,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    memset( &(hq->hq_sin), 0, sizeof( struct sockaddr_in ));
 	    hq->hq_sin.sin_family = AF_INET;
 	    hq->hq_sin.sin_port = htons( SIMTA_SMTP_PORT );
-	    switch( result->r_answer[ i ].rr_type ) {
-
-	    case DNSR_TYPE_A:
+	    if ( result->r_answer[ i ].rr_type == DNSR_TYPE_A ) {
 		memcpy( &(hq->hq_sin.sin_addr.s_addr),
 			&(result->r_answer[ i ].rr_a ),
 			sizeof( struct in_addr ));
@@ -747,15 +748,15 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 		    goto done;
 		}
 		break;
-
-	    default:
-		syslog( LOG_WARNING, "smtp_connect %s: unknown dnsr result: %d",
-			simta_punt_host, result->r_answer[ i ].rr_type );
+	    } else {
+		syslog( LOG_DEBUG,
+		    "smtp_connect %s: uninteresting dnsr rr type: %d",
+		    result->r_answer[ i ].rr_name,
+		    result->r_answer[ i ].rr_type );
 		continue;
 	    }
 	}
     }
-
 
 done:
     dnsr_free_result( result );
