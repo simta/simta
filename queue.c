@@ -136,6 +136,8 @@ message_queue( struct host_q *hq, struct message *m )
 	hq->hq_message_last = m;
     }
 
+    hq->hq_entries++;
+
     *mp = m;
 
     return( 0 );
@@ -494,8 +496,6 @@ q_read_dir( char *dir, struct host_q **host_q )
 	    if ( message_queue( hq, m ) < 0 ) {
 		return( -1 );
 	    }
-
-	    hq->hq_entries++;
 	}
     }
 
@@ -579,13 +579,6 @@ q_deliver( struct host_q *hq )
         }
 
     } else if ( hq->hq_status == HOST_REMOTE ) {
-        /* XXX DEBUG send only to terminator (or alias rsug), for now */
-	if (( strcasecmp( hq->hq_hostname, "rsug.itd.umich.edu" ) != 0 ) &&
-		( strcasecmp( hq->hq_hostname,
-		"terminator.rsug.itd.umich.edu" ) != 0 )) {
-            return( 0 );
-        }
-
         /* HOST_REMOTE sent is used to count how many messages have been
          * sent to a SMTP host.
          */
