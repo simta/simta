@@ -389,11 +389,21 @@ q_run( struct host_q **host_q )
 	deliver_q = NULL;
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
+	    hq->hq_deliver = NULL;
+
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
-		hq->hq_deliver = NULL;
+		if ( hq == simta_null_q ) {
+		    syslog( LOG_DEBUG, "q_run not queueing %s, no entries",
+			    "NULL queue" );
+		} else if ( hq->hq_entries == 0 ) {
+		    syslog( LOG_DEBUG, "q_run not queueing %s, no entries",
+			    hq->hq_hostname );
+		}
 
 	    } else if (( hq->hq_status == HOST_LOCAL ) ||
 		    ( hq->hq_status == HOST_MX )) {
+		syslog( LOG_DEBUG, "q_run adding %s to deliver queue",
+			hq->hq_hostname );
 		/*
 		 * hq is expanded and has at least one message, insert in to
 		 * the delivery queue.
@@ -409,12 +419,12 @@ q_run( struct host_q **host_q )
 			break;
 		    }
 
-		    if ( hq->hq_from > (*dq)->hq_from ) {
+		    if ( hq->hq_from > ((*dq)->hq_from)) {
 			break;
 		    }
 
-		    if ( hq->hq_from == (*dq)->hq_from ) {
-			if ( hq->hq_entries >= (*dq)->hq_entries ) {
+		    if ( hq->hq_from == ((*dq)->hq_from)) {
+			if ( hq->hq_entries >= ((*dq)->hq_entries)) {
 			    break;
 			}
 		    }
@@ -424,10 +434,10 @@ q_run( struct host_q **host_q )
 
 		hq->hq_deliver = *dq;
 		*dq = hq;
+		syslog( LOG_DEBUG, "q_run %s added", hq->hq_hostname );
 
 	    } else if (( hq->hq_status == HOST_DOWN ) ||
 		    ( hq->hq_status == HOST_BOUNCE )) {
-		hq->hq_deliver = NULL;
 		syslog( LOG_DEBUG, "q_run: calling deliver_q to bounce %s",
 			deliver_q->hq_hostname );
 		q_deliver( hq );
