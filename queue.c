@@ -51,7 +51,6 @@
 struct host_q		*simta_null_q;
 
 int	q_deliver ___P(( struct host_q * ));
-int	q_read_dir ___P(( char *, struct host_q ** ));
 
 
     void
@@ -303,18 +302,24 @@ q_runner( struct host_q **host_q )
 
 
     int
-q_read_dir( char *dir, struct host_q **host_q )
+q_runner_dir( char *dir )
 {
-    DIR				*dirp;
-    struct dirent		*entry;
+    struct host_q		*host_q = NULL;
     struct host_q		*hq;
-    char			hostname[ MAXHOSTNAMELEN + 1 ];
     struct message		*m;
+    struct dirent		*entry;
+    DIR				*dirp;
     int				result;
+    char			hostname[ MAXHOSTNAMELEN + 1 ];
+
+    /* create NULL host queue for unexpanded messages */
+    if (( simta_null_q = host_q_lookup( &host_q, "\0" )) == NULL ) {
+	exit( EX_TEMPFAIL );
+    }
 
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "opendir %s: %m", dir );
-	return( EX_TEMPFAIL );
+	exit( EX_TEMPFAIL );
     }
 
     /* clear errno before trying to read */
@@ -324,13 +329,13 @@ q_read_dir( char *dir, struct host_q **host_q )
     while (( entry = readdir( dirp )) != NULL ) {
 	if ( *entry->d_name == 'E' ) {
 	    if (( m = message_create( entry->d_name + 1 )) == NULL ) {
-		return( -1 );
+		exit( EX_TEMPFAIL );
 	    }
 
 	    m->m_dir = dir;
 
 	    if (( result = env_info( m, hostname )) < 0 ) {
-		return( -1 );
+		exit( EX_TEMPFAIL );
 
 	    } else if ( result > 0 ) {
 		/* free message */
@@ -338,12 +343,12 @@ q_read_dir( char *dir, struct host_q **host_q )
 		continue;
 	    }
 
-	    if (( hq = host_q_lookup( host_q, hostname )) == NULL ) {
-		return( -1 );
+	    if (( hq = host_q_lookup( &host_q, hostname )) == NULL ) {
+		exit( EX_TEMPFAIL );
 	    }
 
 	    if ( message_queue( hq, m ) < 0 ) {
-		return( -1 );
+		exit( EX_TEMPFAIL );
 	    }
 	}
     }
@@ -352,25 +357,6 @@ q_read_dir( char *dir, struct host_q **host_q )
     if ( errno != 0 ) {
 	syslog( LOG_ERR, "readdir: %m" );
 	return( EX_TEMPFAIL );
-    }
-
-    return( 0 );
-}
-
-
-    int
-q_runner_dir( char *dir )
-{
-    struct host_q		*host_q = NULL;
-
-    /* create NULL host queue for unexpanded messages */
-    if (( simta_null_q = host_q_lookup( &host_q, "\0" )) == NULL ) {
-	exit( EX_TEMPFAIL );
-    }
-
-    /* read dir for efiles, sort by hostname & efile time */
-    if ( q_read_dir( dir, &host_q ) != 0 ) {
-	exit( EX_TEMPFAIL );
     }
 
 #ifdef DEBUG

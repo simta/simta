@@ -14,3 +14,7 @@ ln /var/spool/simta/slow/Drsug /var/spool/simta/slow/Drsug1
 # deliver some terminator mail
 cp Eterminator /var/spool/simta/slow/
 cp Dterminator /var/spool/simta/slow/
+
+# deliver some umich mail
+cp Eumich /var/spool/simta/slow/
+cp Dumich /var/spool/simta/slow/
