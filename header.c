@@ -257,8 +257,11 @@ header_correct( struct line_file *lf, struct envelope *env )
     struct line			**lp;
     struct header		*h;
     char			*colon;
+    char			*c;
     size_t			header_len;
     int				result;
+    int				quotes = 0;
+    int				comment = 0;
     char			*sender;
     char			*prepend_line = NULL;
     size_t			prepend_len = 0;
@@ -318,7 +321,7 @@ header_correct( struct line_file *lf, struct envelope *env )
     /* examine & correct header data */
 
     /* From: */
-    if ( simta_headers[ HEAD_FROM ].h_line == NULL ) {
+    if (( l = simta_headers[ HEAD_FROM ].h_line ) == NULL ) {
 	if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
 		strlen( sender ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
@@ -340,8 +343,78 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
 
     } else {
-	if ( header_from( &simta_headers[ HEAD_FROM ] ) != 0 ) {
-	    return( -1 );
+
+	c = l->line_data + 5;
+
+	for ( ; ; ) {
+	    for ( ; *c != '\0' ; c++ ) {
+		switch ( *c ) {
+
+		case '\\':
+		    c++;
+		    break;
+
+		case '"':
+		    if ( comment == 0 ) {
+			if ( quotes == 1 ) {
+			    quotes = 0;
+
+			} else {
+			    quotes = 1;
+			}
+		    }
+
+		    break;
+
+		case '(':
+		    if ( quotes != 1 ) {
+			comment++;
+		    }
+		    break;
+
+		case ')':
+		    if ( quotes != 1 ) {
+			comment--;
+
+			if ( comment < 0 ) {
+			    fprintf( stderr, "From: unbalanced )\n" );
+			    return( 1 );
+			}
+		    }
+		    break;
+
+		default:
+		    break;
+		}
+
+		if ( *c == '\0' ) {
+		    break;
+		}
+	    }
+
+	    /* end of line */
+
+	    l = l->line_next;
+
+	    if (( l == NULL ) ||
+		    (( *l->line_data != ' ' ) && ( *l->line_data != '\0' ))) {
+		/* End of header */
+
+		if ( quotes != 0 ) {
+		    fprintf( stderr, "From: unbalanced \"'s\n" );
+		    return( 1 );
+		}
+
+		if ( comment > 0 ) {
+		    fprintf( stderr, "From: unbalanced (\n" );
+		    return( 1 );
+		}
+
+		break;
+
+	    } else {
+		c = l->line_data;
+	    }
 	}
     }
 
@@ -574,19 +647,12 @@ header_uncomment( char **line )
 
 
     /* mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
-     *
      * mailbox         =   name-addr / addr-spec
-     *
      * name-addr       =   [display-name] angle-addr
-     *
      * display-name    =   phrase
-     *
      * phrase          =   1*word / obs-phrase
-     *
      * word            =   atom / quoted-string
-     *
      * atom            =   [CFWS] 1*atext [CFWS]
-     *
      * atext           =   ALPHA / DIGIT / ; Any character except controls,
      *			     "!" / "#" /     ;  SP, and specials.
      *			     "$" / "%" /     ;  Used for atoms
@@ -598,37 +664,23 @@ header_uncomment( char **line )
      *			     "`" / "{" /
      *			     "|" / "}" /
      *			     "~"
-     *
      * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
-     *
      * addr-spec       =   local-part "@" domain
-     *
      * local-part      =   dot-atom / quoted-string / obs-local-part
-     *
      * domain          =   dot-atom / domain-literal / obs-domain
-     *
      * domain-literal  =   [CFWS] "[" *([FWS] dcontent) [FWS] "]" [CFWS]
-     *
      * dcontent        =   dtext / quoted-pair
-     *
      * dtext           =   NO-WS-CTL /     ; Non white space controls
-     *
      *			%d33-90 /       ; The rest of the US-ASCII
      *			%d94-126        ;  characters not including "[",
      *					;  "]", or "\"
-     *
      * dot-atom        =   [CFWS] dot-atom-text [CFWS]
-     *
      * dot-atom-text   =   1*atext *("." 1*atext)
-     *
      * qtext           =       NO-WS-CTL /     ; Non white space controls
-     *
      *			    %d33 /          ; The rest of the US-ASCII
      *			    %d35-91 /       ;  characters not including "\"
      *			    %d93-126        ;  or the quote character
-     *
      * qcontent        =       qtext / quoted-pair
-     *
      * quoted-string   =       [CFWS]
      *			    DQUOTE *([FWS] qcontent) [FWS] DQUOTE
      *			    [CFWS]
@@ -771,20 +823,6 @@ header_first_mailbox( char **line, char *localhostname )
 
     if ( at == 0 ) {
 	sprintf( *line, "%s@%s", *line, localhostname );
-    }
-
-    return( 0 );
-}
-
-
-int header_from ___P(( struct header * ));
-
-    int
-header_from( struct header *from_header )
-{
-    if (( from_header->h_data =
-	    header_unfold( from_header->h_line )) == NULL ) {
-	return( -1 );
     }
 
     return( 0 );
