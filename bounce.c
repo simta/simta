@@ -148,14 +148,11 @@ bounce( struct envelope *env, SNET *message )
         fprintf( dfile, "\n" );
     }
 
-    if (( env->e_err_text != NULL ) &&
-	    (( l = env->e_err_text->l_first ) != NULL )) { 
+    if ( env->e_err_text != NULL ) {
 	fprintf( dfile, "The following error occured:\n" );
 
-	while ( l != NULL ) {
+	for ( l = env->e_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
-
-	    l = l->line_next;
 	}
 
 	fprintf( dfile, "\n" );
