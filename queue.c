@@ -737,7 +737,7 @@ smtp_cleanup:
 
 	if ((( env_deliver->e_tempfail > 0 ) ||
 		( hq->hq_status == HOST_DOWN )) &&
-		( env_deliver->e_flags != ENV_BOUNCE )) {
+		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
 	    /* stat dfile to see if it's old */
 	    if ( fstat( dfile_fd, &sb ) != 0 ) {
 		syslog( LOG_ERR, "q_deliver snet_attach: %m" );
@@ -805,7 +805,7 @@ oldfile_error:
 	 *     - everything else
 	 */
 
-        if (( env_deliver->e_flags | ENV_BOUNCE ) ||
+        if (( env_deliver->e_flags & ENV_BOUNCE ) ||
 		(( env_deliver->e_tempfail == 0 ) &&
 		( hq->hq_status != HOST_DOWN ))) {
 	    /* no retries, delete Efile then Dfile */
