@@ -63,6 +63,9 @@ cp Dseed ../local/tp1
 cp Dseed ../local/tp2
 cp Dseed ../local/garbage
 
-# populate LOCAL
+# deliver some local mail
 cp Elocal ../slow/Elocalmail
 cp Dlocal ../slow/Dlocalmail
+
+# local Efile with no Dfile
+cp Elocal ../slow/Elocalalone
