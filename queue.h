@@ -14,6 +14,7 @@
 struct q_file {
     char			*q_id;
     struct q_file		*q_inode_next;
+    int				q_unexpanded;
     int				q_efile;
     int				q_dfile;
     ino_t			q_dfile_ino;

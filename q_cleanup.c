@@ -1,21 +1,30 @@
 /**********          q_cleanup.c          **********/
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* TLS */
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
 
 #include <stdio.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
+
+#include <snet.h>
 
 #include "ll.h"
 #include "queue.h"
 
 
 int inode_compare( void *, void * );
-void inode_stdout( void * );
+void inode_stab_stdout( void * );
 
 
     int
@@ -37,7 +46,7 @@ inode_compare( void *a, void *b )
 
 
     void
-inode_stdout( void *data )
+inode_stab_stdout( void *data )
 {
     struct q_file		*q;
 
@@ -71,6 +80,7 @@ inode_stdout( void *data )
 main( int argc, char *argv[] )
 {
     DIR				*dirp;
+    SNET			*snet;
     struct dirent		*entry;
     struct q_file		*q;
     struct q_file		*q_inode;
@@ -79,6 +89,7 @@ main( int argc, char *argv[] )
     struct stab_entry		*st = NULL;
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
+    char			*line;
 
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
 	fprintf( stderr, "opendir: %s: ", SLOW_DIR );
@@ -179,7 +190,64 @@ main( int argc, char *argv[] )
 	}
     }
 
-    ll_walk( inode_stab, inode_stdout );
+    ll_walk( inode_stab, inode_stab_stdout );
+
+    /* check to see if any Efiles haven't been expanded */
+    for ( st = inode_stab; st != NULL; st = st->st_next ) {
+	for ( q = (struct q_file*)st->st_data; q != NULL;
+		q = q->q_inode_next ) {
+	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+
+	    if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
+		    == NULL ) {
+		perror( "snet_open" );
+		exit( 1 );
+	    }
+
+	    /* first line of an envelope should be version info */
+	    if (( line = snet_getline( snet, NULL )) == NULL ) {
+		fprintf( stderr, "%s: syntax error: no first line\n", fname );
+		exit( 1 );
+	    }
+
+	    /* XXX envelope syntax checking? */
+
+	    /* second line of an envelope has expansion info */
+	    if (( line = snet_getline( snet, NULL )) == NULL ) {
+		fprintf( stderr, "%s: syntax error: no second line\n", fname );
+		exit( 1 );
+	    }
+
+	    if ( *line != 'H' ) {
+		fprintf( stderr, "%s: bad destination host syntax", fname );
+		exit( 1 );
+	    }
+
+	    /* check to see if envelope has been expanded */
+	    if ( *(line + 1) == '\0' ) {
+		q->q_unexpanded = 1;
+	    }
+
+	    if ( snet_close( snet ) != 0 ) {
+		perror( "snet_close" );
+		exit( 1 );
+	    }
+
+	    /* found an unexpanded envelope.  delete all other expanded
+	     * envelopes that share the same inode.
+	     */
+	    if ( q->q_unexpanded == 1 ) {
+		for ( q = (struct q_file*)st->st_data; q != NULL;
+			q = q->q_inode_next ) {
+		    if ( q->q_unexpanded != 1 ) {
+			printf( "Clip %s/E%s\n", SLOW_DIR, q->q_id );
+			printf( "Clip %s/D%s\n", SLOW_DIR, q->q_id );
+		    }
+		}
+		break;
+	    }
+	}
+    }
 
     return( 0 );
 }
