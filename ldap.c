@@ -39,6 +39,7 @@
 #include "bounce.h"
 #include "argcargv.h"
 #include "ldap.h"
+#include "dn.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
@@ -64,16 +65,21 @@ static char     *attrs[] = { "objectClass", "title", "postaladdress",
 			"errorsTo", "rfc822ErrorsTo", "requestsTo",
 			"rfc822RequestsTo", "cn", "member",
 			"moderator", "onVacation", "uid",
-			"suppressNoEmailError", "associateddomain", NULL };
+			"suppressNoEmailError", "associateddomain", 
+			"membersonly", "permittedgroup", NULL };
 
 struct ldap_search_list		*ldap_searches = NULL;
-struct ldap_search_list		*localuri = NULL;
 struct list			*ldap_people = NULL;
 struct list			*ldap_groups = NULL;
 LDAP				*ld = NULL;
 
 static char			*ldap_host;
 static int			ldap_port;
+static int			starttls;
+static char			*binddn;
+static char			*bindpw;
+
+static int			ldapdebug;
 
 static char			*vacationhost;
 static char			*vacationattr;
@@ -94,8 +100,8 @@ static void do_ambiguous __P ((struct exp_addr *e_addr, char *email_addr,
 static void do_noemail __P((struct exp_addr *e_addr, char *addr, 
 		LDAPMessage *res));
 int    simta_ldap_message_stdout __P(( LDAPMessage *m ));
-static int simta_local_search __P( (struct ldap_search_list *local_lds, 
-		char ** attrs, char * user, char * domain, int * count));
+static int simta_local_search __P( ( char ** attrs, char * user, 
+				char * domain, int * count));
 static int simta_address_type __P ((char * address));
 static int simta_ldap_name_search __P (( struct expand *exp, 
 	struct exp_addr *e_addr, char * addr, char * domain, int addrtype));
@@ -109,6 +115,8 @@ static int add_errmailvals __P((struct exp_addr *exp, char ** errmailvals,
 		char * dn));
 static int simta_group_err_env __P((struct expand *exp, 
 		struct exp_addr *e_addr, LDAPMessage *entry, char *dn));
+static int simta_ldap_permitted __P(( struct exp_addr *e_addr,char **pgroup, 
+			char *dn));
 /*
 **
 */
@@ -124,6 +132,19 @@ static int
 simta_ldap_init ()
 {
     int	maxambiguous = MAIL500_MAXAMBIGUOUS;
+    int ldaprc;
+    int protocol = LDAP_VERSION3;
+
+    if ( ldapdebug ) {
+	if( ber_set_option( NULL, LBER_OPT_DEBUG_LEVEL, &ldapdebug )
+                    != LBER_OPT_SUCCESS ) {
+	    fprintf( stderr, "Could not set LBER_OPT_DEBUG_LEVEL %d\n", ldapdebug );
+	}
+	if( ldap_set_option( NULL, LDAP_OPT_DEBUG_LEVEL, &ldapdebug )
+			!= LDAP_OPT_SUCCESS ) {
+	    fprintf( stderr, "Could not set LDAP_OPT_DEBUG_LEVEL %d\n", ldapdebug );
+	}
+    }
 
     if ( ld == NULL ) {
 	
@@ -133,6 +154,31 @@ simta_ldap_init ()
 	}
 	ldap_set_option( ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
 	ldap_set_option( ld, LDAP_OPT_SIZELIMIT, (void *) &maxambiguous);
+	if( ldap_set_option( ld, LDAP_OPT_PROTOCOL_VERSION, &protocol )
+		!= LDAP_OPT_SUCCESS )
+	{
+	    fprintf( stderr, "Could not set LDAP_OPT_PROTOCOL_VERSION %d\n",
+			protocol );
+	    exit( EXIT_FAILURE );
+	}
+
+	if ( starttls &&
+	   ( (ldaprc = ldap_start_tls_s( ld, NULL, NULL )) != LDAP_SUCCESS )) {
+                fprintf( stderr, "ldap_start_tls_s: %s (%d)\n",
+                        ldap_err2string( ldaprc  ), ldaprc );
+
+		syslog( LOG_ERR, "ldap_start_tls: %s", ldap_err2string(ldaprc));
+		if ( starttls > 1 ) {
+		    return( LDAP_SYSERROR );
+		}
+	}
+	if (binddn) {
+	    if ( ldap_bind_s( ld, binddn, bindpw, LDAP_AUTH_SIMPLE)
+		 != LDAP_SUCCESS ) {
+		ldap_perror( ld, "ldap_bind" );
+		return( LDAP_SYSERROR );
+	    }
+	}
     }
     return (0);
 }
@@ -251,8 +297,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
      */
 
     int
-simta_local_search (struct ldap_search_list *local_lds, char ** attrs,
-			char * user, char * domain, int *count)
+simta_local_search (char ** attrs, char * user, char * domain, int *count)
 {
     char		*search_string;
     struct ldap_search_list *lds;
@@ -261,58 +306,34 @@ simta_local_search (struct ldap_search_list *local_lds, char ** attrs,
     int			rc;
 
     *count = 0;
-    if (local_lds) {
-	search_string = simta_ldap_string( local_lds->lds_plud->lud_filter, 
+    /* for each base string in ldap_searches:
+     *     - Build search string
+     *     - query the LDAP db with the search string
+     */
+    for ( lds = ldap_searches; lds != NULL; lds = lds->lds_next ) {
+	search_string = simta_ldap_string( lds->lds_plud->lud_filter, 
 			user, domain);
 	if ( search_string == NULL ) 
 	    return( LDAP_SYSERROR );
 
 	res = NULL;
-	rc = ldap_search_st( ld, local_lds->lds_plud->lud_dn, 
-		local_lds->lds_plud->lud_scope, search_string, attrs, 0, 
-		&timeout, &res );
+	rc = ldap_search_st( ld, lds->lds_plud->lud_dn, 
+			lds->lds_plud->lud_scope, search_string, attrs, 0, 
+			&timeout, &res );
 	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
-	    syslog( LOG_ERR, "simta_local_search: ldap_search_st Failed: %s",
-			ldap_err2string(rc ));
-	    
+	    syslog( LOG_ERR, 
+	"simta_local_search: ldap_search_st Failed: %s", ldap_err2string(rc ));
+		
 	    ldap_msgfree( res );
 
 	    simta_ldap_unbind (ld);
 	    return( LDAP_SYSERROR );
 	}
+
 	*count = ldap_count_entries( ld, res );
 	ldap_msgfree( res );
-
-    } else {
-	/* for each base string in ldap_searches:
-	*     - Build search string
-	*     - query the LDAP db with the search string
-	*/
-	for ( lds = ldap_searches; lds != NULL; lds = lds->lds_next ) {
-	    search_string = simta_ldap_string( lds->lds_plud->lud_filter, 
-			user, domain);
-	    if ( search_string == NULL ) 
-		return( LDAP_SYSERROR );
-
-	    res = NULL;
-	    rc = ldap_search_st( ld, lds->lds_plud->lud_dn, 
-			lds->lds_plud->lud_scope, search_string, attrs, 0, 
-			&timeout, &res );
-	    if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
-		syslog( LOG_ERR, 
-	"simta_local_search: ldap_search_st Failed: %s", ldap_err2string(rc ));
-		
-		ldap_msgfree( res );
-
-		simta_ldap_unbind (ld);
-		return( LDAP_SYSERROR );
-	    }
-
-	    *count = ldap_count_entries( ld, res );
-	    ldap_msgfree( res );
-	    if (*count)
-		break;
-	}
+	if (*count)
+	    break;
     }
     return (0);
 }
@@ -374,14 +395,14 @@ simta_ldap_address_local( char *name, char *domain )
 	    return( rc );
     }
 
-    rc = simta_local_search (localuri, noattrs, name, domain, &count);
-    if (rc != 0 )
-        return (rc);
-
+    rc = simta_local_search (noattrs, name, domain, &count);
+    if (rc != 0 )       
+	return (rc);
+    
     if ( count == 0 ) {
 	dup_name = strdup (name);
 	if ( simta_address_type(dup_name ) != LDS_USER) {
-	    rc = simta_local_search (localuri, noattrs, dup_name, domain, &count);
+	    rc = simta_local_search (noattrs, dup_name, domain, &count);
 	}
 	free (dup_name);
     }
@@ -406,7 +427,6 @@ simta_ldap_config( char *fname )
     SNET		*snet;
     char		*c;
     struct ldap_search_list **lds;
-    struct ldap_search_list *lsl;
     struct list		*l_new;
     struct list		**add;
 
@@ -414,6 +434,8 @@ simta_ldap_config( char *fname )
     char		**av;
     int			ac;
     int			acidx;
+
+    int			intval;
 
     LDAPURLDesc		*plud;		/* a parsed ldapurl */
     int			rdnpref;	
@@ -540,47 +562,41 @@ simta_ldap_config( char *fname )
 	    } else {
 		fprintf( stderr, "uri not an ldap uri: %s\n", linecopy );
 	    }
-	} else if (( strncasecmp( av[ 0 ], "localuri", 8 ) == 0 ) ||
-	    ( strncasecmp( av[ 0 ], "localurl", 8 ) == 0 )) {
+	} else if ( strncasecmp( av[ 0 ], "ldapdebug", 9 ) == 0 ) {
 	    if (ac < 2) {
-		fprintf( stderr, "Missing uri: %s\n", linecopy );
+		fprintf( stderr, "Missing ldapdebug value: %s\n", linecopy );
 		continue;
 	    }
-
- 	    if ( ldap_is_ldap_url( av[ 1 ] ) != 0 ) {
-
-                /* Parse the URL */
-		rc = ldap_url_parse( av[ 1 ], &plud );
-
-		if (rc != LDAP_URL_SUCCESS)
-		{
-		    fprintf (stderr, 
-		"ldap_url_parse parse error: %d for line: %s\n", rc, linecopy);
-		    continue;
-		}
-
-		if (( lsl = (struct ldap_search_list *)calloc
-			    (1, sizeof( struct ldap_search_list ))) == NULL ) { 
-		    perror( "calloc" ); 
-		    acav_free( acav );
-		    ldap_free_urldesc (plud);
-		    return( -1 );
-		}
-
-		if ((lsl->lds_string = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-   		    acav_free( acav );
-		    ldap_free_urldesc (plud);
-		    return( -1 );
-		}
-
-		lsl->lds_plud = plud;
-
-		localuri = lsl;
-
-	    } else {
-		fprintf( stderr, "localuri not an ldap uri: %s\n", linecopy );
+	    intval = atoi (av[ 1 ]);
+	    ldapdebug = intval;
+	    
+	} else if ( strncasecmp( av[ 0 ], "starttls", 8 ) == 0 ) {
+	    if (ac < 2) {
+		fprintf( stderr, "Missing starttls value: %s\n", linecopy );
+		continue;
 	    }
+	    intval = atoi (av[ 1 ]);
+	    if (intval < 0 || intval > 2) {
+		fprintf( stderr, "Invalid starttls value: %s\n", linecopy );
+		continue;
+	    }
+	    starttls = intval;
+	    
+	} else if (( strncasecmp( av[ 0 ], "bindpw", 6 ) == 0 ) ||
+		   ( strncasecmp( av[ 0 ], "bindpassword", 12 ) == 0 )) {
+	    if (ac < 2) {
+		fprintf( stderr, "Missing bindpw/bindpassword value: %s\n", linecopy );
+		continue;
+	    }
+	    bindpw = strdup ( av[ 1 ] );
+
+	} else if ( strncasecmp( av[ 0 ], "binddn", 6 ) == 0 ) {
+	
+	    if (ac < 2) {
+		fprintf( stderr, "Missing binddn value: %s\n", linecopy );
+		continue;
+	    }
+	    binddn = strdup ( av[ 1 ] );
 	    
 	} else if (( strncasecmp( av[ 0 ], "oc", 2 ) == 0 ) ||
 		   ( strncasecmp( av[ 0 ], "objectclass", 11 ) == 0 )) {
@@ -803,13 +819,16 @@ simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	free (name);
 	return (rc);
     }
-    
+
+    /*
+    ** Strip off any "-owners", or "-otherstuff"
+    ** and search again
+    */
     nametype = simta_address_type(name );
     if ( nametype != LDS_USER) 
 	rc = simta_ldap_name_search (exp, e_addr, name, domain, nametype);
 
     free (name);
-
     return (rc);
 }
 
@@ -1151,20 +1170,24 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     char	**mailvals;
     char	*dn;
     char	*errmsg;
-    int		idx;
+    int		idx;		/* universal iterator */
 
-    char	**moderator;
-    char	*sender_name;
-    char	*sender_domain;
-    char	*mod_name;
-    char	*mod_domain;
+    char	**memonly;	/* Members Only attribute values */
+    char	**moderator;	/* Moderator attribute values */
+    char	**permitted;	/* permittedgroup attribute values */
+    char	*sender_name;	/* Name of sender -- upto '@' */
+    char	*sender_domain;	/* sender domain -- last 2 components */
+    char	*mod_name;	/* moderator name -- upto '@' */
+    char	*mod_domain;	/* moderator domain -- last 2 components */
 
     char	*attrval;
     char	*nextval;
+    char	*ndn;		/* a "normalized dn" */
 
     int		rc;
 
     dn = ldap_get_dn( ld, entry );
+    
     switch ( type ) 
     {
     case LDS_GROUP_ERRORS:
@@ -1192,6 +1215,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	dnvals = ldap_get_values( ld, entry, "member");
 	mailvals = ldap_get_values( ld, entry, "rfc822mail");
 	errmsg = ": Group exists but has no members\n";
+
 	/*
 	** Moderated group?
 	** If sender matches moderator
@@ -1237,7 +1261,37 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    else
 		ldap_value_free (moderator);
 	}
-	/* Create a new error envelope */
+	/*
+	** MembersOnly group?
+	*/
+	memonly = ldap_get_values( ld, entry, "membersonly");
+	if (memonly) 
+	{
+	    if(strcasecmp (memonly[0], "TRUE") == 0) 
+	    {
+		e_addr->e_addr_status |= STATUS_LDAP_EXCLUSIVE;
+		permitted = ldap_get_values( ld, entry, "permittedgroup");
+		if (permitted ) {
+		    rc = simta_ldap_permitted ( e_addr, permitted, dn);
+
+		    if (rc != 0) {
+			ldap_value_free (permitted);
+			ldap_value_free ( memonly );
+		    
+			if (dnvals )
+			    ldap_value_free( dnvals);
+			if (mailvals )
+			    ldap_value_free(mailvals );
+
+			ldap_memfree (dn);
+			return (rc);
+		    }
+		    ldap_value_free (permitted);
+		}
+	    }
+	    ldap_value_free ( memonly );
+	}
+	/* If needed, Create a new error envelope */
 	rc = simta_group_err_env (exp, e_addr, entry, dn);
 	if (rc != 0) {
 	    if (dnvals )
@@ -1255,7 +1309,8 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	valfound++;
 
 	for ( idx = 0; dnvals[ idx ] != NULL; idx++ ) {
-	    if ( add_address( exp, dnvals[ idx ],
+	    ndn = dn_normalize_case (dnvals[ idx ]); 
+	    if ( add_address( exp, ndn,
 			e_addr->e_addr_errors, ADDRESS_TYPE_LDAP) != 0 ) {
 		syslog (LOG_ERR,
 			"simta_ldap_expand_group: %s failed adding: %s", dn,
@@ -1558,6 +1613,52 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     free (blankbuf);
     return;
 }
+int
+simta_mbx_compare ( char * firstemail, char * secondemail)
+{
+    char *first_name;
+    char *first_domain;
+    char *second_name;
+    char *second_domain;
+
+    int	 rc = -1;
+
+    if (firstemail && *firstemail && secondemail && *secondemail) {
+	simta_ldapuser (firstemail, &first_name, &first_domain);
+	simta_ldapuser (secondemail, &second_name, &second_domain);
+
+	if ((rc = strcasecmp (first_name, second_name)) == 0) 
+	    rc = strcasecmp (first_domain, second_domain);
+
+	free (first_name);
+	free (first_domain);
+	free (second_name);
+	free (second_domain);
+    }
+    return rc;
+}
+static int
+simta_ldap_permitted ( struct exp_addr *e_addr, char **permitted, char *dn)
+{
+    int			idx;
+
+    if (permitted && *permitted)
+    {
+	/* 
+	** Normalize the permitted group list 
+	** normalization happens "in-place"
+	*/   
+	for (idx = 0;  permitted[idx] != NULL; idx++) {
+	    dn_normalize_case (permitted[idx]);
+
+	    if (ll_insert_tail(&e_addr->e_addr_ok, strdup(" "), 
+			strdup (permitted[idx])))
+		return (LDAP_SYSERROR);
+
+	}		
+    }
+    return 0;
+}
 
 static void 
 simta_ldapuser (char * buf, char ** user, char ** domain)
@@ -1605,7 +1706,8 @@ simta_ldapdomain (char * buf, char ** domain)
 }
 
 static int
-simta_group_err_env (struct expand *exp, struct exp_addr *e_addr, LDAPMessage *entry, char *dn)
+simta_group_err_env (struct expand *exp, struct exp_addr *e_addr, 
+			LDAPMessage *entry, char *dn)
 {
 
     char **vals;
@@ -1657,12 +1759,13 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr, LDAPMessage *e
 	    ** Else SuppressNoEmail must be true -- clone the current envelope
 	    */
 	    e_addr->e_addr_errors = env_dup (e_addr->e_addr_errors);
-/* XXX pturgyan, please help */
-if ( e_addr->e_addr_errors == NULL ) {
-    printf( "env_dup error\n" );
-    return LDAP_SYSERROR;
-}
-	    e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
+	    if ( e_addr->e_addr_errors == NULL ) {
+		 syslog (LOG_ERR,
+                	"simta_group_err_env: Failed env_dup: %s", dn);
+		rc = LDAP_SYSERROR;
+	    }
+	    else
+	        e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
 	}
     }
 

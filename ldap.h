@@ -58,6 +58,7 @@ struct ldap_search_list {
 int	simta_ldap_expand ___P(( struct expand *, struct exp_addr * ));
 int	simta_ldap_address_local ___P(( char *, char * ));
 int	simta_ldap_config ___P(( char * ));
+int	simta_mbx_compare ___P(( char *, char * ));
 
 
 /* Private functions */

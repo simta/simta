@@ -117,6 +117,12 @@ rcpt_free( struct recipient *r )
 	if ( r->r_err_text != NULL ) {
 	    line_file_free( r->r_err_text );
 	}
+
+#ifdef HAVE_LDAP
+	if (r->r_dn != NULL ) {
+	    free (r->r_dn);
+	}
+#endif
     }
 }
 
