@@ -109,8 +109,7 @@ main( int argc, char *argv[] )
 	    break;
 
 	default:
-	    /* ignore command line options we don't understand */
-	    /* XXX maybe log these? */
+	    /* XXX log command line options we don't understand? */
 	    break;
 	}
     }
