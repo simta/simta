@@ -20,19 +20,20 @@ text batch test
 ================================================================================
 elm
 --------------------------------------------------------------------------------
-/usr/lib/sendmail -oi -oem elm@test.com
+/usr/lib/sendmail -oi -oem to@elm.test cc@elm.test bcc@elm.test
 
-Subject: elm test
-To: elm@test.com
-Date: Fri, 7 Feb 2003 12:45:01 -0500 (EST)
+Subject: elm header test
+To: to@elm.test
+Date: Sat, 8 Mar 2003 11:39:09 -0500 (EST)
+Cc: cc@elm.test
+Reply-To: reply@elm.test
 X-Mailer: ELM [version 2.5 PL6]
 MIME-Version: 1.0
 Content-Type: text/plain; charset=us-ascii
 Content-Transfer-Encoding: 7bit
 
 text
-elm test
-
+elm header test
 
 ================================================================================
 mail
@@ -64,21 +65,21 @@ mailx test
 ================================================================================
 mutt
 --------------------------------------------------------------------------------
-sendmail -oem -oi -- mutt@test.com
+sendmail -oem -oi -- to@mutt.test cc@mutt.test
 
-Date: Tue, 18 Feb 2003 09:41:35 -0500
+Date: Sat, 8 Mar 2003 11:36:51 -0500
 From: epcjr@unknown.comcast.com
-To: mutt@test.com
-Subject: mutt test
-Message-ID: <20030218144135.GA3336@unknown.comcast.com>
+To: to@mutt.test
+Cc: cc@mutt.test
+Subject: mutt header test
+Message-ID: <20030308163651.GA322@unknown.comcast.com>
 Mime-Version: 1.0
 Content-Type: text/plain; charset=us-ascii
 Content-Disposition: inline
 User-Agent: Mutt/1.4i
 
 text
-mutt test
-
+mutt header text
 
 ================================================================================
 nmh
@@ -103,13 +104,15 @@ pine
 --------------------------------------------------------------------------------
 /usr/lib/sendmail
 
-Date: Fri, 7 Feb 2003 11:37:17 -0500 (EST)
-From: epcjr@unknown
-To: pine@test.com
-Subject: pine test
-Message-ID: <Pine.GSO.4.53.0302071137010.13914@unknown>
+Date: Sat, 8 Mar 2003 11:30:52 -0500 (EST)
+From: Edward Colone <epcjr@umich.edu>
+X-X-Sender: epcjr@unknown
+To: to@pine.test
+cc: cc@pine.test
+Subject: pine header test
+Message-ID: <Pine.GSO.4.53.0303081130080.310@unknown>
 MIME-Version: 1.0
 Content-Type: TEXT/PLAIN; charset=US-ASCII
 
 text
-pine test
+pine header test
