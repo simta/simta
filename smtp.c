@@ -81,7 +81,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
     if (( result = get_mx( dnsr, hq->hq_hostname )) == NULL ) {
 	hq->hq_status = HOST_DOWN;
-	syslog( LOG_ERR, "smtp_connect get_mx: %m" );
+	syslog( LOG_ERR, "smtp_connect get_mx failed" );
 	return( SMTP_ERR_REMOTE );
     }
 

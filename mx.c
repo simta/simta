@@ -37,13 +37,13 @@ get_a( DNSR *dnsr, char *host )
     if ( simta_debug ) fprintf( stderr, "get_a: %s\n", host );
 
     if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
-	syslog( LOG_ERR, "dnsr_query %s failed", host );
+	syslog( LOG_ERR, "get_a dnsr_query %s failed", host );
 	goto error;
     }
 
     if ( simta_debug ) fprintf( stderr, "a on %s?", host );
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_result %s failed", host );
+	syslog( LOG_ERR, "get_a dnsr_result %s failed", host );
 	goto error;
     }
     if ( simta_debug ) fprintf( stderr, "...yes\n" );
@@ -56,7 +56,9 @@ get_a( DNSR *dnsr, char *host )
     if ( simta_debug ) fprintf( stderr, "...no\n" );
 
 error:
-    dnsr_free_result( result );
+    if ( result != NULL ) {
+	dnsr_free_result( result );
+    }
     return( NULL );
 }
 
@@ -82,13 +84,13 @@ get_mx( DNSR *dnsr, char *host )
     if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host ))
 	    != 0 ) {
 	if ( simta_debug ) fprintf( stderr, "get_mx: dnsr_query failed\n" );
-	syslog( LOG_ERR, "dnsr_query %s failed", host );
+	syslog( LOG_ERR, "get_mx dnsr_query %s failed", host );
 	goto error;
     }
 
     if ( simta_debug ) fprintf( stderr, "mx on %s?", host );
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_result %s failed", host );
+	syslog( LOG_ERR, "get_mx dnsr_result %s failed", host );
 	goto error;
     }
 
@@ -111,14 +113,18 @@ get_mx( DNSR *dnsr, char *host )
 	}
     } else {
 	if ( simta_debug ) fprintf( stderr, "...no\n" );
-	dnsr_free_result( result );
+	if ( result != NULL ) {
+	    dnsr_free_result( result );
+	}
     }
 
     /* No MX - Check for A of address */
     return( get_a( dnsr, host ));
 
 error:
-    dnsr_free_result( result );
+    if ( result != NULL ) {
+	dnsr_free_result( result );
+    }
     return( NULL );
 }
 

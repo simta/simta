@@ -290,6 +290,13 @@ f_mail( snet, env, ac, av )
     }
     domain++;
 
+    if ( *domain == '\0' ) {
+	snet_writef( snet, "%d Requested action not taken\r\n", 553 );
+	if ( simta_debug ) fprintf( stderr,
+	    ">>> %d Requested action not taken\r\n", 553 );
+	return( 1 );
+    }
+
     /*
      * rfc1123 (5.3.2) Timeouts in SMTP.  We have a maximum of 5 minutes
      * before we must return something to a "MAIL" command.  Soft failures
@@ -300,7 +307,7 @@ f_mail( snet, env, ac, av )
 
 	/* XXX - Should this return? */
 	if (( dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "dnsr_new: %s",
+	    syslog( LOG_ERR, "f_mail dnsr_new: %s",
 		dnsr_err2string( dnsr_errno( dnsr )));
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing.\r\n",
@@ -317,6 +324,7 @@ f_mail( snet, env, ac, av )
 	    case DNSR_ERROR_NAME:
 	    case DNSR_ERROR_NO_ANSWER:
 		snet_writef( snet, "%d %s: unknown host\r\n", 550, domain );
+		syslog( LOG_ERR, "f_mail get_mx: unknown host" );
 		if ( simta_debug ) fprintf( stderr,
 		    ">>> %d %s: unknown host\r\n", 550, domain );
 		return( 1 );
@@ -343,7 +351,7 @@ f_mail( snet, env, ac, av )
 
     if ( env->e_mail != NULL ) {
 	/* XXX check for an accepted message */
-	syslog( LOG_INFO, "%s: abandoned", env->e_id );
+	syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
 	env_reset( env );
     }
 
@@ -362,17 +370,17 @@ f_mail( snet, env, ac, av )
 
     /* check for authorized relay */
     if ( simta_global_relay != 0 ) {
-	syslog( LOG_INFO, "relay to %s for %s", addr, env->e_mail );
+	syslog( LOG_INFO, "f_mail relay to %s for %s", addr, env->e_mail );
 	env->e_relay = 1;
 
     } else if ( strncmp( env->e_mail, "mcneal@umich.edu",
 	    strlen( "mcneal@umich.edu" )) == 0 ) {
 	/* everyone likes mcneal */
-	syslog( LOG_INFO, "relay to %s for %s", addr, env->e_mail );
+	syslog( LOG_INFO, "f_mail relay to %s for %s", addr, env->e_mail );
 	env->e_relay = 1;
     }
 
-    syslog( LOG_INFO, "%s: mail: <%s>", env->e_id, env->e_mail );
+    syslog( LOG_INFO, "f_mail %s: mail: <%s>", env->e_id, env->e_mail );
 
     snet_writef( snet, "%d OK\r\n", 250 );
     if ( simta_debug ) fprintf( stderr, ">>> %d OK\r\n", 250 );
