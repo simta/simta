@@ -65,6 +65,50 @@ static int	hello ___P(( struct envelope *, char * ));
 
 static char	*smtp_trimaddr ___P(( char *, char * ));
 
+int get_mx( DNSR *dnsr, char *host );
+
+    int
+get_mx( DNSR *dnsr, char *host )
+{
+    int			i;
+
+    /* Check for MX of address */
+    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host )) < 0 ) {
+	syslog( LOG_ERR, "dnsr_query %s failed", host );
+	return( -1 );
+    }
+
+    /* Check for vaild result */
+    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+
+	/* No - Check for A of address */
+	if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host )) < 0 ) {
+	    syslog( LOG_ERR, "dnsr_query %s failed", host );
+	    return( -1 );
+	}
+	if ( dnsr_result( dnsr, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "dnsr_query %s failed", host );
+	    return( -1 );
+	}
+
+    } else {
+
+	/* Check for valid A record in MX */
+	/* XXX - Should we search for A if no A returned in MX? */
+	for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
+	    if ( dnsr->d_result->answer[ i ].r_ip != NULL ) {
+		break;
+	    }
+	}
+	if ( i > dnsr->d_result->ancount ) {
+	    syslog( LOG_ERR, "%s: no valid A record for MX", host );
+	    return( -1 );
+	}
+    }
+
+    return( 0 );
+}
+
     static int
 hello( env, hostname )
     struct envelope		*env;
@@ -194,7 +238,6 @@ f_mail( snet, env, ac, av )
     struct timeval	tv;
     char		*addr, *domain;
     DNSR		*dnsr;
-    int			i;
 
     /*
      * Check if we have a message already ready to send.
@@ -238,47 +281,11 @@ f_mail( snet, env, ac, av )
 		451 );
 	    return( -1 );
 	}
-
-	/* Check for MX of address */
-	if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, domain )) < 0 ) {
-	    syslog( LOG_ERR, "dnsr_query %s failed", domain );
+	if ( get_mx( dnsr, domain ) != 0 ) {
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing.\r\n",
 		451 );
 	    return( -1 );
-	}
-	if ( dnsr_result( dnsr, NULL ) != 0 ) {
-
-	    /* Check for A of address */
-	    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, domain )) < 0 ) {
-		syslog( LOG_ERR, "dnsr_query %s failed", domain );
-		snet_writef( snet,
-		    "%d Requested action aborted: local error in processing.\r\n",
-		    451 );
-		return( -1 );
-	    }
-	    if ( dnsr_result( dnsr, NULL ) != 0 ) {
-		syslog( LOG_ERR, "dnsr_query %s failed", domain );
-		snet_writef( snet,
-		    "%d Requested action aborted: No valid DNS for %s.\r\n",
-		    451, domain );
-		return( -1 );
-	    }
-	} else {
-	    /* Check for valid A record */
-	    /* XXX - Should we search for A if no A returned in MX? */
-	    for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
-		if ( dnsr->d_result->answer[ i ].r_ip != NULL ) {
-		    break;
-		}
-	    }
-	    if ( i > dnsr->d_result->ancount ) {
-		syslog( LOG_ERR, "%s: no valid A record for MX", domain );
-		snet_writef( snet,
-		    "%d Requested action aborted: Invalid DNS for %s.\r\n",
-		    451, domain );
-		return( -1 );
-	    }
 	}
     }
 
@@ -315,6 +322,7 @@ f_rcpt( snet, env, ac, av )
 {
     char		*addr, *domain;
     struct recipient	*r;
+    DNSR		*dnsr;
 
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
@@ -361,6 +369,21 @@ f_rcpt( snet, env, ac, av )
      * probably preserve the results of our DNS check.
      */
     /* XXX DNS check for invalid domain */
+
+    if (( dnsr = dnsr_open( )) == NULL ) {
+	syslog( LOG_ERR, "dnsr_open failed" );
+	snet_writef( snet,
+	    "%d Requested action aborted: local error in processing.\r\n",
+	    451 );
+	return( -1 );
+    }
+    if ( get_mx( dnsr, domain ) != 0 ) {
+	snet_writef( snet,
+	    "%d Requested action aborted: local error in processing.\r\n",
+	    451 );
+	return( -1 );
+    }
+
 
     /*
      * Here we do an initial lookup in our domain table.  This is our
