@@ -15,6 +15,31 @@
 #include "queue.h"
 
 
+    int
+efile_time_compare( void *a, void *b )
+{
+    struct q_file		*qa;
+    struct q_file		*qb;
+
+    qa = (struct q_file*)a;
+    qb = (struct q_file*)b;
+
+    if ( qa->q_etime.tv_sec > qb->q_etime.tv_sec ) {
+	return( 1 );
+    } else if ( qa->q_etime.tv_sec < qb->q_etime.tv_sec ) {
+	return( -1 );
+    }
+
+    if ( qa->q_etime.tv_nsec > qb->q_etime.tv_nsec ) {
+	return( 1 );
+    } else if ( qa->q_etime.tv_nsec < qb->q_etime.tv_nsec ) {
+	return( -1 );
+    }
+
+    return( 0 );
+}
+
+
     void
 host_q_stdout( struct host_q *hq )
 {
@@ -142,8 +167,15 @@ host_q_cleanup( struct host_q *hq )
 	    free( qs_remove );
 
 	} else if ( q->q_action == Q_REORDER ) {
-	    /* XXX add reorder code */
-	    qs = &((*qs)->st_next);
+	    qs_remove = *qs;
+	    *qs = (*qs)->st_next;
+
+	    if ( ll__insert( &(hq->hq_qfiles), q, efile_time_compare ) != 0 ) {
+		syslog( LOG_ERR, "ll__insert: %m" );
+		exit( 1 );
+	    }
+
+	    free( qs_remove );
 
 	} else {
 	    qs = &((*qs)->st_next);

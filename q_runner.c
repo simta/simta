@@ -42,7 +42,6 @@ struct host_q		*null_queue;
 
 void	host_stab_stdout ___P(( void * ));
 void	q_file_stab_stdout ___P(( void * ));
-int	efile_time_compare ___P(( void *, void * ));
 void	deliver_remote ___P(( struct host_q * ));
 int	deliver_local ___P(( struct host_q * ));
 int	bounce ___P(( struct envelope *, SNET * ));
@@ -131,7 +130,7 @@ bounce( struct envelope *env, SNET *message )
 	goto cleanup;
     }
 
-    /* XXX add to NULL queue, stat efile time */
+    /* XXX add to NULL queue, update q->q_etime */
     if (( q = q_file_create( bounce_env->e_id )) == NULL ) {
 	syslog( LOG_ERR, "q_file_create: %m" );
 	exit( 1 );
@@ -151,31 +150,6 @@ cleanup:
     unlink( dfile_fname );
 
     return( -1 );
-}
-
-
-    int
-efile_time_compare( void *a, void *b )
-{
-    struct q_file		*qa;
-    struct q_file		*qb;
-
-    qa = (struct q_file*)a;
-    qb = (struct q_file*)b;
-
-    if ( qa->q_etime.tv_sec > qb->q_etime.tv_sec ) {
-	return( 1 );
-    } else if ( qa->q_etime.tv_sec < qb->q_etime.tv_sec ) {
-	return( -1 );
-    }
-
-    if ( qa->q_etime.tv_nsec > qb->q_etime.tv_nsec ) {
-	return( 1 );
-    } else if ( qa->q_etime.tv_nsec < qb->q_etime.tv_nsec ) {
-	return( -1 );
-    }
-
-    return( 0 );
 }
 
 
@@ -360,16 +334,17 @@ deliver_local( struct host_q *hq )
     struct stab_entry		*qs;
     struct recipient		*r;
     int				sent;
-    int				mailed;
-    int				old_dfile = 0;
-    int				fd;
+    int				result;
+    int				dfile_fd;
     char			*at;
     char			fname[ MAXPATHLEN ];
     static int			(*local_mailer)(int, char *, char *) = NULL;
+    struct stat			sb;
+    SNET			*dfile_snet;
 
     if ( local_mailer == NULL ) {
 	if (( local_mailer = get_local_mailer()) == NULL ) {
-	    syslog( LOG_ERR, "deliver local: no local mailer!" );
+	    syslog( LOG_ALERT, "deliver local: no local mailer!" );
 	    exit( 1 );
 	}
     }
@@ -381,7 +356,7 @@ deliver_local( struct host_q *hq )
 	errno = 0;
 	sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
-	if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
+	if (( dfile_fd = open( fname, O_RDONLY, 0 )) < 0 ) {
 	    if ( errno == ENOENT ) {
 		errno = 0;
 		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
@@ -399,11 +374,16 @@ deliver_local( struct host_q *hq )
 	q->q_env->e_tempfail = 0;
 	q->q_env->e_success = 0;
 
-	/* XXX check for old Dfile at some point */
+	if ( fstat( dfile_fd, &sb ) != 0 ) {
+	    syslog( LOG_ERR, "snet_attach: %m" );
+	    exit( 1 );
+	}
+
+	/* XXX if old dfile set env->e_old_dfile */
 
 	for ( r = q->q_env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( sent != 0 ) {
-		if ( lseek( fd, (off_t)0, SEEK_SET ) != 0 ) {
+		if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
 		    syslog( LOG_ERR, "lseek: %m" );
 		    exit( 1 );
 		}
@@ -420,25 +400,29 @@ deliver_local( struct host_q *hq )
 		}
 	    }
 
-	    if (( mailed = (*local_mailer)( fd, q->q_env->e_mail,
+	    if (( result = (*local_mailer)( dfile_fd, q->q_env->e_mail,
 		    r->r_rcpt )) < 0 ) {
 		/* syserror */
 		exit( 1 );
 
-	    } else if ( mailed == 0 ) {
+	    } else if ( result == 0 ) {
 		/* success */
 		r->r_delivered = R_DELIVERED;
 		q->q_env->e_success++;
 
-	    } else if (( mailed == EX_TEMPFAIL ) && ( old_dfile == 0 )) {
-		/* retry later */
-		r->r_delivered = R_TEMPFAIL;
-		q->q_env->e_tempfail++;
+	    } else if ( result == EX_TEMPFAIL ) {
+		if ( q->q_env->e_old_dfile != 0 ) {
+		    r->r_delivered = R_FAILED;
+		    q->q_env->e_failed++;
+
+		} else {
+		    r->r_delivered = R_TEMPFAIL;
+		    q->q_env->e_tempfail++;
+		}
 
 	    } else {
-		/* hard failure -or- EX_TEMPFAIL and old_dfile */
+		/* hard failure */
 		r->r_delivered = R_FAILED;
-		/* XXX generate bounce */
 		q->q_env->e_failed++;
 	    }
 
@@ -449,9 +433,31 @@ deliver_local( struct host_q *hq )
 	    }
 	}
 
-	if ( close( fd ) != 0 ) {
-	    syslog( LOG_ERR, "close: %m" );
-	    exit( 1 );
+	if ( q->q_env->e_failed > 0 ) {
+	    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
+		syslog( LOG_ERR, "lseek: %m" );
+		exit( 1 );
+	    }
+
+	    if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
+		syslog( LOG_ERR, "snet_attach: %m" );
+		exit( 1 );
+	    }
+
+	    if (( result = bounce( q->q_env, dfile_snet )) < 0 ) {
+		exit( 1 );
+	    }
+
+	    if ( snet_close( dfile_snet ) != 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		exit( 1 );
+	    }
+
+	} else {
+	    if ( close( dfile_fd ) != 0 ) {
+		syslog( LOG_ERR, "close: %m" );
+		exit( 1 );
+	    }
 	}
 
 	if ( q->q_env->e_tempfail == 0  ) {
@@ -473,9 +479,9 @@ deliver_local( struct host_q *hq )
 
 	    q->q_action = Q_REMOVE;
 
-	} else if (( q->q_env->e_success == 0 ) &&
-		( q->q_env->e_failed == 0 )) {
-	    /* all addresses are to be retried, no re-writing.  touch Efile */
+	} else {
+	    /* some retries.  touch efile */
+	    /* XXX update q->q_etime */
 	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
 	    if ( utime( fname, NULL ) != 0 ) {
@@ -485,16 +491,17 @@ deliver_local( struct host_q *hq )
 
 	    q->q_action = Q_REORDER;
 
-	} else {
-	    /* some retries, and some sent.  re-write envelope */
-	    q->q_action = Q_REORDER;
-	    env_cleanup( q->q_env );
-	    /* XXX env_outfile should syslog errors */
-	    if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
-		syslog( LOG_ERR, "utime %s: %m", fname );
-		exit( 1 );
+	    if (( q->q_env->e_success != 0 ) || ( q->q_env->e_failed != 0 )) {
+
+		/* some retries, and some sent.  re-write envelope */
+		env_cleanup( q->q_env );
+
+		if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
+		    syslog( LOG_ERR, "utime %s: %m", fname );
+		    exit( 1 );
+		}
 	    }
-	}
+	} 
     }
 
     host_q_cleanup( hq );
@@ -552,7 +559,7 @@ deliver_remote( struct host_q *hq )
 	    exit( 1 );
 	}
 
-	/* XXX old dfile check */
+	/* XXX if old dfile set env->e_old_dfile */
 
 	if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
@@ -594,6 +601,8 @@ deliver_remote( struct host_q *hq )
 
 		syslog( LOG_ALERT, "Hostname %s is not a remote host",
 			hq->hq_name );
+
+		/* XXX bounce entire host queue */
 		return;
 	    }
 	}
@@ -609,8 +618,6 @@ deliver_remote( struct host_q *hq )
 	sent++;
 
 	if ( q->q_env->e_failed > 0 ) {
-	    /* XXX generate bounce */
-
 	    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
 		syslog( LOG_ERR, "lseek: %m" );
 		exit( 1 );
@@ -622,7 +629,7 @@ deliver_remote( struct host_q *hq )
 	}
 
 	if ( snet_close( dfile_snet ) != 0 ) {
-	    syslog( LOG_ERR, "close: %m" );
+	    syslog( LOG_ERR, "snet_close: %m" );
 	    exit( 1 );
 	}
 
@@ -645,9 +652,9 @@ deliver_remote( struct host_q *hq )
 
 	    q->q_action = Q_REMOVE;
 
-	} else if (( q->q_env->e_success == 0 ) &&
-		( q->q_env->e_failed == 0 )) {
-	    /* all addresses are to be retried, no re-writing.  touch Efile */
+	} else {
+	    /* some retries.  touch efile */
+	    /* XXX update q->q_etime */
 	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
 	    if ( utime( fname, NULL ) != 0 ) {
@@ -657,15 +664,17 @@ deliver_remote( struct host_q *hq )
 
 	    q->q_action = Q_REORDER;
 
-	} else {
-	    /* some retries, and some sent.  re-write envelope */
-	    env_cleanup( q->q_env );
-	    if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
-		exit( 1 );
-	    }
+	    if (( q->q_env->e_success != 0 ) || ( q->q_env->e_failed != 0 )) {
 
-	    q->q_action = Q_REORDER;
-	}
+		/* some retries, and some sent.  re-write envelope */
+		env_cleanup( q->q_env );
+
+		if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
+		    syslog( LOG_ERR, "utime %s: %m", fname );
+		    exit( 1 );
+		}
+	    }
+	} 
     }
 
     if ( snet != NULL ) {

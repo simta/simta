@@ -43,7 +43,6 @@ struct host_q {
     struct stab_entry		*hq_qfiles;
 };
 
-
 /* return NULL on syserror, doesn't syslog() */
 struct q_file	*q_file_create ___P(( char * ));
 void		q_file_free ___P(( struct q_file * ));
@@ -53,3 +52,5 @@ struct host_q	*host_q_create ___P(( char * ));
 struct host_q	*host_q_lookup ___P(( struct stab_entry **, char * )); 
 void		host_q_stdout ___P(( struct host_q * ));
 void		host_q_cleanup ___P(( struct host_q * ));
+
+int		efile_time_compare ___P(( void *, void * ));
