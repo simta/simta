@@ -31,9 +31,9 @@
 
 #include "ll.h"
 #include "receive.h"
-#include "simta.h"
 #include "queue.h"
 #include "envelope.h"
+#include "simta.h"
 
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
@@ -254,25 +254,7 @@ main( ac, av )
     }
 
     /* Add localhost to hosts list */
-    if (( host = malloc( sizeof( struct host ))) == NULL ) {
-	perror( "malloc" );
-	exit( 1 );
-    }
-    host->h_type = HOST_LOCAL;
-    host->h_expansion = NULL;
-
-    /* Add list of expansions */
-    if ( ll_insert_tail( &(host->h_expansion), "alias", "alias" ) != 0 ) {
-	perror( "ll_insert_tail" );
-	exit( 1 );
-    }
-    if ( ll_insert_tail( &(host->h_expansion), "password", "password" ) != 0 ) {
-	perror( "ll_insert_tail" );
-	exit( 1 );
-    }
-
-    if ( ll_insert( &hosts, localhost, host, NULL ) != 0 ) {
-	perror( "ll_insert" );
+    if ( simta_config_host( &hosts, localhost ) != 0 ) {
 	exit( 1 );
     }
 

@@ -23,7 +23,6 @@ db_open_rw( DB **dbp, char *file, char *database )
     int		ret;
 
     if (( ret = db_create( dbp, NULL, 0 )) != 0 ) {
-	/* fprintf( stderr, "db_create: %s\n", db_strerror( ret )); */
 	return( ret );
     }
     return( db_open( *dbp, file, database, DB_UNKNOWN, DB_RDONLY, 0664 ));
@@ -35,7 +34,6 @@ db_open_r( DB **dbp, char *file, char *database )
     int		ret;
 
     if (( ret = db_create( dbp, NULL, 0 )) != 0 ) {
-	/* fprintf( stderr, "db_create: %s\n", db_strerror( ret )); */
 	return( ret );
     }
     return( db_open( *dbp, file, database, DB_UNKNOWN, DB_RDONLY, 0664 ));
@@ -47,11 +45,9 @@ db_new( DB **dbp, u_int32_t flags, char *file, char *database, DBTYPE type )
     int		ret;
 
     if (( ret = db_create( dbp, NULL, 0 )) != 0 ) {
-	/* fprintf( stderr, "db_create: %s\n", db_strerror( ret )); */
 	goto err;
     }
     if (( ret = (*dbp)->set_flags( *dbp, DB_DUP )) != 0 ) {
-	/* dbp->err( dbp, ret, "%s", DATABASE ); */
 	goto err;
     }
     if (( ret = db_open( *dbp, file, database, type,

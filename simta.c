@@ -7,6 +7,7 @@
 
 #include <sys/param.h>
 #include <sys/types.h>
+#include <sys/time.h>
 
 #include <netdb.h>
 #include <unistd.h>
@@ -14,9 +15,11 @@
 #include <pwd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 
+#include "ll.h"
+#include "queue.h"
 #include "simta.h"
-
 
 char	*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 
@@ -79,4 +82,42 @@ simta_sender( void )
     }
 
     return( sender );
+}
+
+    int
+simta_config_host( struct stab_entry **hosts, char *hostname )
+{
+    struct host		*host = NULL;
+
+    /* Add localhost to hosts list */
+    if (( host = malloc( sizeof( struct host ))) == NULL ) {
+	syslog( LOG_ERR, "simta_config_host: malloc: %m" );
+	return( -1 );
+    }
+    host->h_type = HOST_LOCAL;
+    host->h_expansion = NULL;
+
+    /* Add list of expansions */
+    if ( access( SIMTA_ALIAS_DB, R_OK ) == 0 ) {
+	if ( ll_insert_tail( &(host->h_expansion), "alias",
+		"alias" ) != 0 ) {
+	    syslog( LOG_ERR, "simta_config_host: ll_insert_tail: %m" );
+	    return( -1 );
+	}
+    } else {
+	syslog( LOG_INFO, "simta_config_host: %s: %m", SIMTA_ALIAS_DB );
+    }
+
+    if ( ll_insert_tail( &(host->h_expansion), "password",
+	    "password" ) != 0 ) {
+	syslog( LOG_ERR, "simta_config_host: ll_insert_tail: %m" );
+	return( -1 );
+    }
+
+    if ( ll_insert( *hosts, hostname, host, NULL ) != 0 ) {
+	syslog( LOG_ERR, "simta_config_host: ll_insert: %m" );
+	return( -1 );
+    }
+
+    return( 0 );
 }

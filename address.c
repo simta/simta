@@ -23,11 +23,9 @@
 #include "ll.h"
 #include "address.h"
 #include "bdb.h"
-#include "simta.h"
 #include "envelope.h"
 #include "header.h"
-
-#define DATABASE SIMTA_ALIAS_DB
+#include "simta.h"
 
 DB		*dbp = NULL;
 
@@ -85,7 +83,7 @@ address_local( char *addr )
 	if ( strcmp( i->st_key, "alias" ) == 0 ) {
 	    /* check alias file */
 	    if ( dbp == NULL ) {
-		if (( rc = db_open_r( &dbp, DATABASE, NULL )) != 0 ) {
+		if (( rc = db_open_r( &dbp, SIMTA_ALIAS_DB, NULL )) != 0 ) {
 		    syslog( LOG_ERR, "address_local: db_open_r: %s",
 			db_strerror( rc ));
 		    ret = -1;
@@ -200,7 +198,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
 	    if ( dbp == NULL ) {
 		/* alias DB is option */
-		if (( ret = db_open_r( &dbp, DATABASE, NULL )) != 0 ) {
+		if (( ret = db_open_r( &dbp, SIMTA_ALIAS_DB, NULL )) != 0 ) {
 		    syslog( LOG_ERR, "address_expand: db_open_r: %s",
 			db_strerror( ret ));
 		    return( -1 );

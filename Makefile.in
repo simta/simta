@@ -12,7 +12,8 @@ SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o queue.c \
 		ml.o smtp.o expand.o
 TLSCONOBJ=	tlsconnect.o
-SIMSENDOBJ=	simsend.o line_file.o envelope.o tz.o header.o simta.o
+SIMSENDOBJ=	simsend.o line_file.o envelope.o tz.o header.o simta.o \
+		ll.o
 SIMLOGOBJ=	simlog.o
 QRUNNEROBJ=	q_runner.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		simta.o smtp.o expand.o address.o bdb.o header.o
