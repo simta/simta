@@ -724,8 +724,8 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     char	**memonly;	/* Members Only attribute values */
     char	**moderator;	/* Moderator attribute values */
     char	**permitted;	/* permittedgroup attribute values */
-    char	*sender_name;	/* Name of sender -- upto '@' */
-    char	*sender_domain;	/* sender domain -- last 2 components */
+    char	*sender_name = NULL;	/* Name of sender -- upto '@' */
+    char	*sender_domain = NULL;	/* sender domain -- last 2 components */
     char	*mod_name;	/* moderator name -- upto '@' */
     char	*mod_domain;	/* moderator domain -- last 2 components */
 
@@ -906,23 +906,26 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    ** then send message to the group
 	    ** else send message to the moderator
 	    */
-	    for (idx = 0; moderator[idx]; idx++) {
-		simta_ldapuser (moderator[idx], &mod_name, &mod_domain);
-		if ((strcasecmp (sender_name, mod_name) == 0)
-		&&  (strcasecmp (sender_domain, mod_domain) == 0) ) {
-		    /*
-		    ** This is the moderator.
-		    ** send the message to the group.
-		    */	
+		if ( sender_name != NULL ) {
+		for (idx = 0; moderator[idx]; idx++) {
+		    simta_ldapuser (moderator[idx], &mod_name, &mod_domain);
+		    if ((strcasecmp (sender_name, mod_name) == 0)
+		    &&  (strcasecmp (sender_domain, mod_domain) == 0) ) {
+			/*
+			** This is the moderator.
+			** send the message to the group.
+			*/	
+			free (mod_name);
+			free (mod_domain);
+			break;
+		    }
 		    free (mod_name);
 		    free (mod_domain);
-		    break;
 		}
-		free (mod_name);
-		free (mod_domain);
+		free (sender_name);
+		free (sender_domain);
 	    }
-	    free (sender_name);
-	    free (sender_domain);
+
 	    /* 
 	    ** If the sender was not found in the moderator list
 	    ** then
@@ -930,13 +933,12 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    ** 	   and send this on to the moderators.
 	    */
 
-	    if (! moderator[idx]) {
+	    if (( sender_name == NULL ) || ! moderator[idx] ) {
 		ldap_value_free (dnvals);
 		dnvals = NULL;
 		ldap_value_free (mailvals);
 		mailvals = moderator;
-	    }
-	    else {
+	    } else {
 		ldap_value_free (moderator);
 	    }
 	}
