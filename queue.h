@@ -19,6 +19,17 @@
 #define HOST_BOUNCE	3
 #define HOST_DOWN	4
 
+struct deliver {
+    struct envelope		*d_env;
+    int				d_dfile_fd;
+    SNET			*d_dfile_snet;
+    int				d_success;
+    int				d_failed;
+    int				d_tempfail;
+    int				d_attempt;
+    int				d_delivered;
+};
+
 struct host_list {
     char			*h_name;
     struct stab_entry		*h_addresses;

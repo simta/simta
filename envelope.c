@@ -220,9 +220,6 @@ env_reset( struct envelope *env )
 
 	*env->e_id = '\0';
 	env->e_flags = 0;
-	env->e_failed = 0;
-	env->e_tempfail = 0;
-	env->e_success = 0;
 	return;
     }
 }

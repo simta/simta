@@ -45,5 +45,5 @@ int	smtp_grab ___P(( struct line_file **, SNET *, struct timeval *,
 
 int	smtp_connect ___P(( SNET **, struct host_q * ));
 int	smtp_rset ___P(( SNET *, struct host_q * ));
-int	smtp_send ___P(( SNET *, struct host_q *, struct envelope *, SNET * ));
+int	smtp_send ___P(( SNET *, struct host_q *, struct deliver * ));
 void	smtp_quit ___P(( SNET *, struct host_q * ));

@@ -6,9 +6,17 @@
 /**********	simta.c	**********/
 #include "config.h"
 
+#ifdef HAVE_LIBSSL
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* HAVE_LIBSSL */
+
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/time.h>
+
+#include <snet.h>
 
 #include <netdb.h>
 #include <unistd.h>

@@ -30,15 +30,6 @@
 #include <fcntl.h>
 #include <utime.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <netdb.h>
-#include <errno.h>
-#include <dirent.h>
-#include <unistd.h>
-#include <syslog.h>
-
 #include <snet.h>
 
 #include "denser.h"
@@ -54,7 +45,82 @@
 
 
 void	q_deliver ( struct host_q **, struct host_q * );
-int	deliver_local ___P(( struct envelope *, int ));
+void	deliver_local( struct deliver *d );
+void	deliver_remote( struct deliver *d, SNET **, struct host_q * );
+
+
+    void
+deliver_local( struct deliver *d )
+{
+    char                        *at;
+    struct recipient		*r;
+    int                         ml_error;
+    int                  	(*local_mailer)(int, char *,
+                                        struct recipient *);
+
+    if (( local_mailer = get_local_mailer()) == NULL ) {
+	assert( local_mailer == NULL );
+    }
+
+    syslog( LOG_INFO, "q_deliver %s: attempting local delivery",
+	    d->d_env->e_id );
+
+    d->d_attempt = 1;
+
+    for ( r = d->d_env->e_rcpt; r != NULL; r = r->r_next ) {
+	ml_error = EX_TEMPFAIL;
+
+	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
+	    syslog( LOG_ERR, "q_deliver lseek: %m" );
+	    goto lseek_fail;
+	}
+
+	if (( at = index( r->r_rcpt, '@' )) != NULL ) {
+	    *at = '\0';
+	}
+
+	syslog( LOG_INFO, "q_deliver %s %s: attempting local delivery",
+		d->d_env->e_id, r->r_rcpt );
+	ml_error = (*local_mailer)( d->d_dfile_fd, d->d_env->e_mail, r );
+
+	if ( at != NULL ) {
+	    *at = '@';
+	}
+
+lseek_fail:
+	switch ( ml_error ) {
+	case EXIT_SUCCESS:
+	    /* success */
+	    r->r_delivered = R_DELIVERED;
+	    d->d_success++;
+	    syslog( LOG_INFO, "q_deliver %s %s: delivered locally",
+		    d->d_env->e_id, r->r_rcpt );
+	    break;
+
+	default:
+	case EX_TEMPFAIL:
+	    r->r_delivered = R_TEMPFAIL;
+	    d->d_tempfail++;
+	    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
+		    "tempfail %d", d->d_env->e_id, r->r_rcpt,
+		    ml_error );
+	    break;
+
+	case EX_DATAERR:
+	case EX_NOUSER:
+	    /* hard failure caused by bad user data, or no local user */
+	    r->r_delivered = R_FAILED;
+	    d->d_failed++;
+	    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
+		    "hard failure", d->d_env->e_id, r->r_rcpt );
+	    break;
+	}
+    }
+
+    d->d_delivered = 1;
+
+    return;
+}
 
 
     void
@@ -473,34 +539,22 @@ q_runner_done:
     void
 q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 {
-    int                         dfile_fd = 0;
+    int                         dfile_fd;
     SNET                        *snet_dfile = NULL;
     SNET                        *snet_smtp = NULL;
     SNET			*snet_lock;
     SNET			*snet_bounce = NULL;
     char                        dfile_fname[ MAXPATHLEN ];
     char                        efile_fname[ MAXPATHLEN ];
-    int				attempt;
-    int				delivered;
-    int                         ml_error;
     int                         unlinked;
-    int				smtp_error;
-    char                        *at;
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env_deliver;
     struct envelope		*env_bounce = NULL;
-    struct recipient            *r;
-    int                  	(*local_mailer)(int, char *,
-                                        struct recipient *);
+    struct deliver		d;
 
     syslog( LOG_DEBUG, "q_deliver: delivering %s from %d total %d",
 	    deliver_q->hq_hostname, deliver_q->hq_from, deliver_q->hq_entries );
-
-    if (( local_mailer = get_local_mailer()) == NULL ) {
-	syslog( LOG_ALERT, "q_deliver: no local mailer" );
-	deliver_q->hq_status = HOST_DOWN;
-    }
 
     /* XXX epcjr and mcneal - determine if the host is local in the sense
      * that we use the local mailer or the SMTP outbounder here.
@@ -528,12 +582,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    snet_lock = NULL;
 	}
 
-	env_deliver->e_flags = 0;
-	env_deliver->e_success = 0;
-	env_deliver->e_failed = 0;
-	env_deliver->e_tempfail = 0;
-	unlinked = 0;
-
 	/* open Dfile to deliver */
         sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
 
@@ -542,128 +590,31 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    goto message_cleanup;
         }
 
-	attempt = 0;
-	delivered = 0;
+	memset( &d, 0, sizeof( struct deliver ));
+	d.d_dfile_fd = dfile_fd;
 
         if ( deliver_q->hq_status == HOST_LOCAL ) {
-	    syslog( LOG_INFO, "q_deliver %s: attempting local delivery",
-		    env_deliver->e_id );
-	    attempt = 1;
-            for ( r = env_deliver->e_rcpt; r != NULL; r = r->r_next ) {
-		ml_error = EX_TEMPFAIL;
-
-		if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver lseek: %m" );
-		    goto lseek_fail;
-		}
-
-		if (( at = index( r->r_rcpt, '@' )) != NULL ) {
-		    *at = '\0';
-		}
-
-		syslog( LOG_INFO, "q_deliver %s %s: attempting local delivery",
-			env_deliver->e_id, r->r_rcpt );
-                ml_error = (*local_mailer)( dfile_fd, env_deliver->e_mail, r );
-
-                if ( at != NULL ) {
-                    *at = '@';
-                }
-
-lseek_fail:
-                switch ( ml_error ) {
-		case EXIT_SUCCESS:
-                    /* success */
-                    r->r_delivered = R_DELIVERED;
-                    env_deliver->e_success++;
-		    syslog( LOG_INFO, "q_deliver %s %s: delivered locally",
-			    env_deliver->e_id, r->r_rcpt );
-		    break;
-
-                default:
-		case EX_TEMPFAIL:
-		    r->r_delivered = R_TEMPFAIL;
-		    env_deliver->e_tempfail++;
-		    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
-			    "tempfail %d", env_deliver->e_id, r->r_rcpt,
-			    ml_error );
-		    break;
-
-                case EX_DATAERR:
-                case EX_NOUSER:
-                    /* hard failure caused by bad user data, or no local user */
-                    r->r_delivered = R_FAILED;
-                    env_deliver->e_failed++;
-		    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
-			    "hard failure", env_deliver->e_id, r->r_rcpt );
-		    break;
-                }
-            }
-
-	    delivered = 1;
+	    deliver_local( &d );
 
         } else if ( deliver_q->hq_status == HOST_MX ) {
-	    syslog( LOG_INFO, "q_deliver %s: attempting remote delivery",
-		    env_deliver->e_id );
-            if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
-                syslog( LOG_ERR, "q_deliver snet_attach: %m" );
-		smtp_error = SMTP_ERROR;
-		goto smtp_cleanup;
-            }
-
-            /* open outbound SMTP connection */
-            if ( snet_smtp == NULL ) {
-		simta_smtp_outbound_attempts++;
-		syslog( LOG_DEBUG, "q_deliver %s: calling smtp_connect( %s )",
-			env_deliver->e_id, deliver_q->hq_hostname );
-                if (( smtp_error = smtp_connect( &snet_smtp, deliver_q )) !=
-			SMTP_OK ) {
-		    goto smtp_cleanup;
-		}
-            } else {
-		syslog( LOG_DEBUG, "q_deliver %s: calling smtp_reset",
-			env_deliver->e_id );
-                if (( smtp_error = smtp_rset( snet_smtp, deliver_q ))
-			!= SMTP_OK ) {
-		    goto smtp_cleanup;
-                }
-            }
-
-	    attempt = 1;
-	    syslog( LOG_DEBUG, "q_deliver %s: calling smtp_send",
-		    env_deliver->e_id );
-            if (( smtp_error = smtp_send( snet_smtp, deliver_q, env_deliver,
-		    snet_dfile )) == SMTP_OK ) {
-		simta_smtp_outbound_delivered++;
-		delivered = 1;
-
-	    } else {
-smtp_cleanup:
-		if ( snet_smtp != NULL ) {
-		    switch ( smtp_error ) {
-		    default:
-		    case SMTP_ERROR:
-			if ( snet_eof( snet_smtp ) != 0 ) {
-			    syslog( LOG_DEBUG, "q_deliver %s: call smtp_quit",
-				    env_deliver->e_id );
-			    smtp_quit( snet_smtp, deliver_q );
-			}
-
-		    case SMTP_BAD_CONNECTION:
-			syslog( LOG_DEBUG, "q_deliver %s: call snet_close",
-				env_deliver->e_id );
-			if ( snet_close( snet_smtp ) < 0 ) {
-			    syslog( LOG_ERR, "snet_close: %m" );
-			}
-			snet_smtp = NULL;
-		    }
-		}
+	    if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
+		syslog( LOG_ERR, "q_deliver snet_attach: %m" );
+		goto message_cleanup;
 	    }
-        }
+	    d.d_dfile_snet = snet_dfile;
+
+	    deliver_remote( &d, &snet_smtp, deliver_q );
+	} else {
+	    assert (( deliver_q->hq_status != HOST_DOWN ) &&
+		    ( deliver_q->hq_status != HOST_BOUNCE ));
+	}
+
+	/* XXX else assert */
 
 	/* check the age ot the envelope if the envelope has any tempfails or
 	 * the host is HOST_DOWN, if we're not already bouncing the envelope
 	 */
-	if ((( env_deliver->e_tempfail > 0 ) ||
+	if ((( d.d_tempfail > 0 ) ||
 		( deliver_q->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
 
@@ -682,7 +633,7 @@ smtp_cleanup:
 
 	if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
-		( env_deliver->e_failed > 0 )) {
+		( d.d_failed > 0 )) {
 	    snet_bounce = NULL;
 
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
@@ -715,10 +666,10 @@ smtp_cleanup:
 	 * DELETE ORIGINAL
 	 *     - HOST_BOUNCE
 	 *     - ENV_BOUNCE
-	 *     - if delivered && env_deliver->e_tempfail == 0
+	 *     - if d.d_delivered && d.d_tempfail == 0
 	 *
 	 * REWRITE ORIGINAL
-	 *     - if delivered && ( tempfails && ( fails || successes ))
+	 *     - if d.d_delivered && ( tempfails && ( fails || successes ))
 	 *
 	 * TOUCH ORIGINAL
 	 *     - if ( attempt != 0 ) && ( env->e_dir == simta_dir_slow )
@@ -729,8 +680,8 @@ smtp_cleanup:
 
         if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
-		(( delivered != 0 ) &&
-		( env_deliver->e_tempfail == 0 ))) {
+		(( d.d_delivered != 0 ) &&
+		( d.d_tempfail == 0 ))) {
 	    /* Delete the message if:
 	     *     - the queue status is HOST_BOUNCE
 	     *     - the envelope status is ENV_BOUNCE
@@ -751,9 +702,9 @@ smtp_cleanup:
 	    }
 	    unlinked = 1;
 
-        } else if (( delivered != 0 ) &&
-		(( env_deliver->e_success != 0 ) ||
-		( env_deliver->e_failed != 0 ))) {
+        } else if (( d.d_delivered != 0 ) &&
+		(( d.d_success != 0 ) ||
+		( d.d_failed != 0 ))) {
 	    /* Rewrite the message if:
 	     *     - the envelope has been delivered, and some recipients
 	     *       passed or hard failed, and some recipients tempfailed
@@ -784,7 +735,7 @@ smtp_cleanup:
 		simta_fast_files--;
 	    }
 
-	} else if (( attempt != 0 ) &&
+	} else if (( d.d_attempt != 0 ) &&
 		( env_deliver->e_dir == simta_dir_slow )) {
 	    /* Touch the message if:
 	     *     - an attempt to deliver the envelope has been made
@@ -819,7 +770,7 @@ message_cleanup:
 	env_free( env_deliver );
 
         if ( snet_dfile == NULL ) {
-	    if ( dfile_fd >= 0 ) {
+	    if ( dfile_fd > 0 ) {
 		if ( close( dfile_fd ) != 0 ) {
 		    syslog( LOG_ERR, "q_deliver close: %m" );
 		}
@@ -902,3 +853,62 @@ q_runner_dir( char *dir )
 
     return( EXIT_OK );
 }
+
+
+    void
+deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
+{
+    int				smtp_error;
+
+    syslog( LOG_INFO, "q_deliver %s: attempting remote delivery",
+	    d->d_env->e_id );
+
+    /* open outbound SMTP connection */
+    if ( *snet_smtp == NULL ) {
+	simta_smtp_outbound_attempts++;
+	syslog( LOG_DEBUG, "deliver_remote %s: calling smtp_connect( %s )",
+		d->d_env->e_id, deliver_q->hq_hostname );
+	if (( smtp_error = smtp_connect( snet_smtp, deliver_q )) !=
+		SMTP_OK ) {
+	    goto smtp_cleanup;
+	}
+    } else {
+	syslog( LOG_DEBUG, "q_deliver %s: calling smtp_reset",
+		d->d_env->e_id );
+	if (( smtp_error = smtp_rset( *snet_smtp, deliver_q ))
+		!= SMTP_OK ) {
+	    goto smtp_cleanup;
+	}
+    }
+
+    d->d_attempt = 1;
+    syslog( LOG_DEBUG, "q_deliver %s: calling smtp_send",
+	    d->d_env->e_id );
+    if (( smtp_error = smtp_send( *snet_smtp, deliver_q, d )) == SMTP_OK ) {
+	simta_smtp_outbound_delivered++;
+	d->d_delivered = 1;
+
+    } else {
+smtp_cleanup:
+	if ( *snet_smtp != NULL ) {
+	    switch ( smtp_error ) {
+	    default:
+	    case SMTP_ERROR:
+		if ( snet_eof( *snet_smtp ) != 0 ) {
+		    syslog( LOG_DEBUG, "q_deliver %s: call smtp_quit",
+			    d->d_env->e_id );
+		    smtp_quit( *snet_smtp, deliver_q );
+		}
+
+	    case SMTP_BAD_CONNECTION:
+		syslog( LOG_DEBUG, "q_deliver %s: call snet_close",
+			d->d_env->e_id );
+		if ( snet_close( *snet_smtp ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		}
+		*snet_smtp = NULL;
+	    }
+	}
+    }
+}
+

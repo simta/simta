@@ -351,7 +351,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
 
     int
-smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
+smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 {
     int			smtp_result;
     char		*line;
@@ -362,7 +362,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     hq->hq_status = HOST_DOWN;
 
     /* MAIL FROM: */
-    if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
+    if ( *(d->d_env->e_mail) == '\0' ) {
 	if ( snet_writef( snet, "MAIL FROM: <>\r\n" ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 		    hq->hq_hostname );
@@ -370,7 +370,8 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	}
 
     } else {
-	if ( snet_writef( snet, "MAIL FROM: <%s>\r\n", env->e_mail ) < 0 ) {
+	if ( snet_writef( snet, "MAIL FROM: <%s>\r\n",
+		d->d_env->e_mail ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 		    hq->hq_hostname );
 	    return( SMTP_BAD_CONNECTION );
@@ -404,12 +405,12 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 
     switch ( *line ) {
     case '2':
-	if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
-	    syslog( LOG_INFO, "smtp_send %s %s MAIL FROM <> OK", env->e_id,
+	if ( *(d->d_env->e_mail) == '\0' ) {
+	    syslog( LOG_INFO, "smtp_send %s %s MAIL FROM <> OK", d->d_env->e_id,
 		    hq->hq_hostname );
 	} else {
-	    syslog( LOG_INFO, "smtp_send %s %s MAIL FROM <%s> OK", env->e_id,
-		    hq->hq_hostname, env->e_mail );
+	    syslog( LOG_INFO, "smtp_send %s %s MAIL FROM <%s> OK",
+		    d->d_env->e_id, hq->hq_hostname, d->d_env->e_mail );
 	}
 
 	if ( *(line + 3) == '-' ) {
@@ -424,8 +425,8 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 
     default:
 	syslog( LOG_NOTICE, "smtp_send %s %s bad MAIL FROM reply: %s",
-		env->e_id, hq->hq_hostname, line );
-	if (( smtp_result = smtp_grab( &(env->e_err_text), snet, &tv, line,
+		d->d_env->e_id, hq->hq_hostname, line );
+	if (( smtp_result = smtp_grab( &(d->d_env->e_err_text), snet, &tv, line,
 		"Bad SMTP MAIL FROM reply" )) == SMTP_OK ) {
 	    hq->hq_status = HOST_MX;
 	}
@@ -433,7 +434,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 
     case '4':
 	syslog( LOG_NOTICE, "smtp_send %s %s bad MAIL FROM banner: %s",
-		env->e_id, hq->hq_hostname, line );
+		d->d_env->e_id, hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
 		"Bad SMTP MAIL FROM banner" )) == SMTP_OK ) {
 	    smtp_result = SMTP_ERROR;
@@ -442,7 +443,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     }
 
     /* RCPT TOs: */
-    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+    for ( r = d->d_env->e_rcpt; r != NULL; r = r->r_next ) {
 	if ( snet_writef( snet, "RCPT TO: <%s>\r\n", r->r_rcpt ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 		    hq->hq_hostname );
@@ -479,10 +480,10 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	 */
 
 	if ( *line == '2' ) {
-	    syslog( LOG_INFO, "smtp_send %s %s RCPT TO <%s> OK: %s", env->e_id,
-		    hq->hq_hostname, r->r_rcpt, line );
+	    syslog( LOG_INFO, "smtp_send %s %s RCPT TO <%s> OK: %s",
+		    d->d_env->e_id, hq->hq_hostname, r->r_rcpt, line );
 	    r->r_delivered = R_DELIVERED;
-	    env->e_success++;
+	    d->d_success++;
 
 	    if ( *(line + 3) == '-' ) {
 		if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
@@ -495,16 +496,16 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 
 	} else {
 	    syslog( LOG_NOTICE, "smtp_send %s %s bad RCPT TO <%s> banner: %s",
-		    env->e_id, hq->hq_hostname, r->r_rcpt, line );
+		    d->d_env->e_id, hq->hq_hostname, r->r_rcpt, line );
 	    if (( strncmp( line, "552", (size_t)3 ) == 0 ) ||
 		    ( *line == '4' )) {
 		/* note RFC 2821 response code 552 exception */
 		r->r_delivered = R_TEMPFAIL;
-		env->e_tempfail++;
+		d->d_tempfail++;
 
 	    } else {
 		r->r_delivered = R_FAILED;
-		env->e_failed++;
+		d->d_failed++;
 	    }
 
 	    if (( smtp_result = smtp_grab( &(r->r_err_text), snet, &tv, line,
@@ -514,10 +515,10 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	}
     }
 
-    if ( env->e_success == 0 ) {
+    if ( d->d_success == 0 ) {
 	/* no rcpts succeded */
-	syslog( LOG_INFO, "smtp_send %s %s %s: no valid recipients", env->e_id,
-		hq->hq_hostname, env->e_id );
+	syslog( LOG_INFO, "smtp_send %s %s %s: no valid recipients",
+		d->d_env->e_id, hq->hq_hostname, d->d_env->e_id );
 	hq->hq_status = HOST_MX;
 	return( SMTP_OK );
     }
@@ -568,11 +569,11 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	break;
 
     default:
-	env->e_flags = ENV_BOUNCE;
+	d->d_env->e_flags = ENV_BOUNCE;
     case '4':
-	syslog( LOG_NOTICE, "smtp_send %s %s: bad DATA reply: %s", env->e_id,
-		hq->hq_hostname, line );
-	if (( smtp_result = smtp_grab( &(env->e_err_text), snet, &tv, line,
+	syslog( LOG_NOTICE, "smtp_send %s %s: bad DATA reply: %s",
+		d->d_env->e_id, hq->hq_hostname, line );
+	if (( smtp_result = smtp_grab( &(d->d_env->e_err_text), snet, &tv, line,
 		"Bad DATA banner" )) == SMTP_OK ) {
 	    hq->hq_status = HOST_MX;
 	}
@@ -580,7 +581,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     }
 
     /* send message */
-    while (( line = snet_getline( message, NULL )) != NULL ) {
+    while (( line = snet_getline( d->d_dfile_snet, NULL )) != NULL ) {
 	if ( *line == '.' ) {
 	    /* don't send EOF */
 	    if ( snet_writef( snet, ".%s\r\n", line ) < 0 ) {
@@ -631,7 +632,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 
     switch ( *line ) {
     case '4':
-	syslog( LOG_NOTICE, "smtp_send %s %s SMTP banner: %s", env->e_id,
+	syslog( LOG_NOTICE, "smtp_send %s %s SMTP banner: %s", d->d_env->e_id,
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
 		"Bad DATA_EOF banner" )) == SMTP_OK ) {
@@ -640,8 +641,8 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	return( smtp_result );
 
     case '2':
-	syslog( LOG_NOTICE, "smtp_send %s %s message delivered: %s", env->e_id,
-		hq->hq_hostname, line );
+	syslog( LOG_NOTICE, "smtp_send %s %s message delivered: %s",
+		d->d_env->e_id, hq->hq_hostname, line );
 	if ( *(line + 3) == '-' ) {
 	    if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
 		    == NULL ) {
@@ -653,10 +654,10 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	break;
 
     default:
-	env->e_flags = ENV_BOUNCE;
+	d->d_env->e_flags = ENV_BOUNCE;
 	syslog( LOG_NOTICE, "smtp_send %s %s: bad DATA_EOF reply: %s",
-		env->e_id, hq->hq_hostname, line );
-	if (( smtp_result = smtp_grab( &(env->e_err_text), snet, &tv, line,
+		d->d_env->e_id, hq->hq_hostname, line );
+	if (( smtp_result = smtp_grab( &(d->d_env->e_err_text), snet, &tv, line,
 		"Bad DATA banner" )) != SMTP_OK ) {
 	    return( smtp_result );
 	}

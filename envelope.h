@@ -33,9 +33,6 @@ struct envelope {
     struct line_file	*e_err_text;
     char		e_id[ ENV_ID_LENGTH + 1 ];
     int			e_flags;
-    int			e_success;
-    int			e_failed;
-    int			e_tempfail;
     ino_t		e_dinode;
     struct timespec	e_last_attempt;
 };
