@@ -14,6 +14,10 @@ cp Dseed ../slow/Dalone
 cp Dseed ../slow/t1
 cp Dseed ../slow/t2
 
+# add junk files
+cp Dseed ../slow/notgood
+cp Dseed ../slow/useless
+
 # 4 messages, 1 is unexpanded
 cp Eexpanded ../slow/Em1
 cp Eunexpanded ../slow/Em2
@@ -31,3 +35,21 @@ cp Eexpanded ../slow/Ex3
 cp Dseed ../slow/Dx1
 ln ../slow/Dx1 ../slow/Dx2
 ln ../slow/Dx1 ../slow/Dx3
+
+# populate FAST
+cp Eexpanded ../fast/Efast1
+cp Eexpanded ../fast/Efast2
+cp Eexpanded ../fast/Efast3
+cp Dseed ../fast/Dfast1
+ln ../fast/Dfast1 ../fast/Dfast2
+ln ../fast/Dfast1 ../fast/Dfast3
+cp Dseed ../fast/tmp1
+cp Dseed ../fast/tmp2
+cp Dseed ../fast/junk
+
+# populate LOCAL
+cp Eexpanded ../local/Elocal
+cp Dseed ../local/Dlocal
+cp Dseed ../local/tp1
+cp Dseed ../local/tp2
+cp Dseed ../local/garbage
