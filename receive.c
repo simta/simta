@@ -1259,28 +1259,6 @@ local_address( char *addr )
     return( NOT_LOCAL );
 }
 
-    static char *
-smtp_trimaddr( char *addr, char *leader )
-{
-    char	*p, *q;
-
-    if (( addr == NULL ) || ( leader == NULL )) {
-	return( NULL );
-    }
-
-    if ( strncasecmp( addr, leader, strlen( leader )) != 0 ) {
-	return( NULL );
-    }
-    p = addr + strlen( leader );
-    q = p + strlen( p ) - 1;
-    if (( *p != '<' ) || ( *q != '>' )) {
-	return( NULL );
-    }
-    *q = '\0';
-    p++;	/* p points to the address */
-
-    return( p );
-}
 
     /*
      * Path = "<" [ A-d-l ":" ] Mailbox ">"
@@ -1352,12 +1330,50 @@ rfc_2821_trimaddr( int mode, char *addr, char **local_part, char **domain )
     }
     i++;
 
-    *local_part = i;
-
+    /* do at-domain-literal */
     if ( *i == '@' ) {
-	/* XXX DO A-D-L */
-	return( 1 );
+	/* consume domain */
+	i++;
+	if ( *i == '[' ) {
+	    if (( j = token_domain_literal( i )) == NULL ) {
+		return( 1 );
+	    }
+	} else {
+	    if (( j = token_domain( i )) == NULL ) {
+		return( 1 );
+	    }
+	}
+	j++;
+
+	while ( *j == ',' ) {
+	    i = j + 1;
+
+	    if ( *i != '@' ) {
+		return( 1 );
+	    }
+
+	    /* consume domain */
+	    i++;
+	    if ( *i == '[' ) {
+		if (( j = token_domain_literal( i )) == NULL ) {
+		    return( 1 );
+		}
+	    } else {
+		if (( j = token_domain( i )) == NULL ) {
+		    return( 1 );
+		}
+	    }
+	    j++;
+	}
+
+	if ( *j != ':' ) {
+	    return( 1 );
+	}
+
+	i = j + 1;
     }
+
+    *local_part = i;
 
     /* <> is a valid address for MAIL FROM commands */
     if ( *i == '>' ) {
