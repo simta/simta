@@ -4,6 +4,7 @@
  */
 
 /*****     smtp.c     *****/
+#include "config.h"
 
 #include <sys/param.h>
 #include <sys/time.h>
@@ -13,11 +14,11 @@
 #include <sys/param.h>
 #include <netinet/in.h>
 
-#ifdef TLS
+#ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 #include <netdb.h>
 #include <unistd.h>
@@ -84,12 +85,6 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
-    if ( dnsr_nameserver( dnsr ) != 0 ) {
-	syslog( LOG_ERR, "dnsr_nameserver: %s",
-	    dnsr_err2string( dnsr_errno( dnsr )));
-	hq->hq_status = HOST_DOWN;
-	return( SMTP_ERR_REMOTE );
-    }
 
     /* Try to get MX */
     if (( dnsr_query( dnsr, (uint16_t)DNSR_TYPE_MX, (uint16_t)DNSR_CLASS_IN,
@@ -119,7 +114,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
 	/* Got an A record */
 	memcpy( &(sin.sin_addr.s_addr),
-		&(result->r_answer[ 0 ].rr_a.address), sizeof( int ));
+		&(result->r_answer[ 0 ].rr_a.a_address), sizeof( int ));
     } else {
 
 	/* Got an MX record */
@@ -144,7 +139,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 #endif /* DEBUG */
 
 	memcpy( &(sin.sin_addr.s_addr),
-		&(result->r_answer[ i ].rr_ip->ip ),
+		&(result->r_answer[ i ].rr_ip->ip_ip ),
 		sizeof( struct in_addr ));
     }
 

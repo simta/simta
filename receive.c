@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 1998 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- */
+* Copyright (c) 1998 Regents of The University of Michigan.
+* All Rights Reserved.  See COPYRIGHT.
+*/
+
+#include "config.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -19,12 +21,12 @@
 #include <unistd.h>
 #include <time.h>
 
-#ifdef TLS
+#ifdef HAVE_LIBSSL 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
 extern SSL_CTX	*ctx;
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 #include <snet.h>
 
@@ -65,9 +67,9 @@ static int	f_quit ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_help ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_vrfy ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_expn ___P(( SNET *, struct envelope *, int, char *[] ));
-#ifdef TLS
+#ifdef HAVE_LIBSSL
 static int	f_starttls ___P(( SNET *, struct envelope *, int, char *[] ));
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 static int	hello ___P(( struct envelope *, char * ));
 static char	*smtp_trimaddr ___P(( char *, char * ));
@@ -129,6 +131,14 @@ f_ehlo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+
+    /* XXX - rfc 2821 4.1.4
+     * A session that will contain mail transactions MUST first be
+     * initialized by the use of the EHLO command.  An SMTP server SHOULD
+     * accept commands for non-mail transactions (e.g., VRFY or EXPN)
+     * without this initialization.
+     */
+
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	return( 1 );
@@ -146,7 +156,7 @@ f_ehlo( snet, env, ac, av )
 
     snet_writef( snet, "%d-%s\r\n", 250, env->e_hostname );
 
-#ifdef TLS
+#ifdef HAVE_LIBSSL
     /* RFC 2487 SMTP TLS */
     /*
      * Note that this must be last, as it has '250 ' instead of
@@ -155,7 +165,7 @@ f_ehlo( snet, env, ac, av )
     if (( env->e_flags & E_TLS ) == 0 ) {
 	snet_writef( snet, "%d STARTTLS\r\n", 250 );
     }
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 #ifdef notdef
     /*
@@ -208,10 +218,7 @@ f_mail( snet, env, ac, av )
     char		*addr, *domain;
     DNSR		*dnsr;
     struct dnsr_result	*result;
-
-    /*
-     * XXX - Check if we have a message already ready to send.
-     */
+    struct host_q	*hq = NULL;
 
     /*
      * Contrary to popular belief, it is not an error to give more than
@@ -219,6 +226,19 @@ f_mail( snet, env, ac, av )
      * "RSET".
      */
     if (( env->e_flags & E_READY ) != 0 ) {
+
+	/*
+	 * Deliver a pending message without fork()ing.
+	 */
+	if ( simta_debug ) printf( "calling expand\n" );
+	if ( expand( &hq, env ) !=0 ) {
+	    syslog( LOG_ERR, "f_quit: expand failed\n" );
+	    return( -1 );
+	}
+	if (  q_runner( &hq ) != 0 ) {
+	    syslog( LOG_ERR, "f_quit: q_runner failed\n" );
+	    return( -1 );
+	}
 	env_reset( env );
     }
 
@@ -253,14 +273,6 @@ f_mail( snet, env, ac, av )
 	/* XXX - Should this exit? */
 	if (( dnsr = dnsr_new( )) == NULL ) {
 	    syslog( LOG_ERR, "dnsr_new: %s",
-		dnsr_err2string( dnsr_errno( dnsr )));
-	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing.\r\n",
-		451 );
-	    return( -1 );
-	}
-	if ( dnsr_nameserver( dnsr ) != 0 ) {
-	    syslog( LOG_ERR, "dnsr_nameserver: %s",
 		dnsr_err2string( dnsr_errno( dnsr )));
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing.\r\n",
@@ -384,15 +396,7 @@ f_rcpt( snet, env, ac, av )
 	/* XXX - this should be an optional check */
 	if (( dnsr = dnsr_new( )) == NULL ) {
 	    syslog( LOG_ERR, "dnsr_new: %s",
-		dnsr_err2string( dnsr_errno( dnsr )));
-	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing.\r\n",
-		451 );
-	    return( -1 );
-	}
-	if ( dnsr_nameserver( dnsr ) != 0 ) {
-	    syslog( LOG_ERR, "dnsr_nameserver: %s",
-		dnsr_err2string( dnsr_errno( dnsr )));
+		dnsr_err2string( (int)dnsr_errno( dnsr )));
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing.\r\n",
 		451 );
@@ -521,6 +525,13 @@ f_data( snet, env, ac, av )
     int			header = 1;
     int			line_no = 0;
 
+    /* rfc 2821 4.1.1
+     * Several commands (RSET, DATA, QUIT) are specified as not permitting
+     * parameters.  In the absence of specific extensions offered by the
+     * server and accepted by the client, clients MUST NOT send such
+     * parameters and servers SHOULD reject commands containing them as
+     * having invalid syntax.
+     */
     if ( ac != 1 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	return( 1 );
@@ -728,7 +739,19 @@ f_quit( snet, env, ac, av )
     char			*av[];
 {
 
-    struct host_q		*hq_stab = NULL;
+    struct host_q		*hq = NULL;
+
+    /* rfc 2821 4.1.1
+     * Several commands (RSET, DATA, QUIT) are specified as not permitting
+     * parameters.  In the absence of specific extensions offered by the
+     * server and accepted by the client, clients MUST NOT send such
+     * parameters and servers SHOULD reject commands containing them as
+     * having invalid syntax.
+     */
+    if ( ac != 1 ) {
+	snet_writef( snet, "%d Syntax error\r\n", 501 );
+	return( 1 );
+    }
 
     /* check for an accepted message */
     if ( ( env->e_flags & E_READY ) != 0 ) {
@@ -737,12 +760,11 @@ f_quit( snet, env, ac, av )
 	 * Deliver a pending message without fork()ing.
 	 */
 	if ( simta_debug ) printf( "calling expand\n" );
-	if ( expand( &hq_stab, env ) !=0 ) {
+	if ( expand( &hq, env ) !=0 ) {
 	    syslog( LOG_ERR, "f_quit: expand failed\n" );
 	    return( -1 );
 	}
-
-	if (  q_runner( &hq_stab ) != 0 ) {
+	if (  q_runner( &hq ) != 0 ) {
 	    syslog( LOG_ERR, "f_quit: q_runner failed\n" );
 	    return( -1 );
 	}
@@ -771,6 +793,19 @@ f_rset( snet, env, ac, av )
      * since some mailers send this just before "QUIT", and we're
      * checking "MAIL FROM:" as well, there's no need.
      */
+
+    /* rfc 2821 4.1.1
+     * Several commands (RSET, DATA, QUIT) are specified as not permitting
+     * parameters.  In the absence of specific extensions offered by the
+     * server and accepted by the client, clients MUST NOT send such
+     * parameters and servers SHOULD reject commands containing them as
+     * having invalid syntax.
+     */
+    if ( ac != 1 ) {
+	snet_writef( snet, "%d Syntax error\r\n", 501 );
+	return( 1 );
+    }
+
     snet_writef( snet, "%d OK\r\n", 250 );
     return( 0 );
 }
@@ -841,7 +876,7 @@ f_expn( snet, env, ac, av )
     return( 0 );
 }
 
-#ifdef TLS
+#ifdef HAVE_LIBSSL
     int
 f_starttls( snet, env, ac, av )
     SNET			*snet;
@@ -892,7 +927,7 @@ f_starttls( snet, env, ac, av )
 
     return( 0 );
 }
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 struct command	commands[] = {
     { "HELO",		f_helo },
@@ -906,9 +941,9 @@ struct command	commands[] = {
     { "HELP",		f_help },
     { "VRFY",		f_vrfy },
     { "EXPN",		f_expn },
-#ifdef TLS
+#ifdef HAVE_LIBSSL
     { "STARTTLS",	f_starttls },
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 };
 int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
@@ -950,14 +985,6 @@ receive( fd, sin )
 	    451 );
 	return( -1 );
     }
-    if ( dnsr_nameserver( dnsr ) != 0 ) {
-	syslog( LOG_ERR, "dnsr_nameserver: %s",
-	    dnsr_err2string( dnsr_errno( dnsr )));
-	snet_writef( snet,
-	    "%d Requested action aborted: local error in processing.\r\n",
-	    451 );
-	return( -1 );
-    }
 
     /* Get PTR for connection */
     if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
@@ -978,7 +1005,7 @@ receive( fd, sin )
 
     /* Get A record on PTR result */
     if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
-	    result->r_answer[ 0 ].rr_dn.dn )) < 0 ) {
+	    result->r_answer[ 0 ].rr_dn.dn_name )) < 0 ) {
 	syslog( LOG_ERR, "dnsr_query failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
@@ -1079,18 +1106,19 @@ receive( fd, sin )
 
     /* XXX check for an accepted message */
     if (( env->e_flags & E_READY ) != 0 ) {
-	struct host_q		*hq_stab = NULL;
+
+	struct host_q		*hq = NULL;
 
 	/*
 	 * Deliver a pending message without fork()ing.
 	 */
-	if ( expand( &hq_stab, env ) !=0 ) {
+	if ( expand( &hq, env ) !=0 ) {
 	    /* What do we do in an error? */
 	    syslog( LOG_ERR, "command loop: expand failed\n" );
 	    exit( 1 );
 	}
 
-	if (  q_runner( &hq_stab ) != 0 ) {
+	if (  q_runner( &hq ) != 0 ) {
 	    syslog( LOG_ERR, "command loop: q_runner failed\n" );
 	    exit( 1 );
 	}

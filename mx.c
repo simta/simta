@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
@@ -10,12 +12,12 @@
 #include <string.h>
 #include <syslog.h>
 
-#ifdef TLS
+#ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
 extern SSL_CTX  *ctx;
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 #include <snet.h>
 
@@ -25,6 +27,15 @@ extern SSL_CTX  *ctx;
 #include "envelope.h"
 #include "mx.h"
 #include "simta.h"
+
+/* rfc 2821 3.6
+ * Only resolvable, fully-qualified, domain names (FQDNs) are permitted
+ * when domain names are used in SMTP.  In other words, names that can
+ * be resolved to MX RRs or A RRs (as discussed in section 5) are
+ * permitted, as are CNAME RRs whose targets can be resolved, in turn,
+ * to MX or A RRs.  Local nicknames or unqualified names MUST NOT be
+ * used.
+ */
 
     struct dnsr_result *
 get_mx( DNSR *dnsr, char *host )
@@ -142,14 +153,14 @@ mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
     /* Look for local host in MX's */
     for ( i = 0; i < result->r_ancount; i++ ) {
         if ( strcasecmp( env->e_hostname,
-                result->r_answer[ i ].rr_mx.exchange ) == 0 ) {
+                result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) {
             if (( host = malloc( sizeof( struct host ))) == NULL ) {
                 syslog( LOG_ERR, "mx_local: malloc: %m" );
                 return( -1 );
             }
             /* Check preference */
-            if ( result->r_answer[ i ].rr_mx.preference ==
-                    result->r_answer[ 0 ].rr_mx.preference ) {
+            if ( result->r_answer[ i ].rr_mx.mx_preference ==
+                    result->r_answer[ 0 ].rr_mx.mx_preference ) {
                 host->h_type = HOST_LOCAL;
             } else {
                 host->h_type = HOST_MX;
@@ -172,7 +183,7 @@ mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
 
             /* Add host to host list */
             if ( ll_insert( &simta_hosts,
-		    result->r_answer[ i ].rr_mx.exchange,
+		    result->r_answer[ i ].rr_mx.mx_exchange,
                     host, NULL ) != 0 ) {
                 syslog( LOG_ERR, "mx_local: ll_insert failed" );
                 free( host );
