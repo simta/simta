@@ -176,9 +176,9 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     /* dfile message headers */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
     if ( *(bounce_env->e_mail) == '\0' ) {
-	fprintf( dfile, "To: postmaster\n" );
+	fprintf( dfile, "From: postmaster\n" );
     } else {
-	fprintf( dfile, "To: %s\n", bounce_env->e_mail );
+	fprintf( dfile, "From: %s\n", bounce_env->e_mail );
     }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
@@ -315,9 +315,9 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
     if ( env->e_mail == '\0' ) {
-	fprintf( dfile, "To: %s\n", simta_postmaster );
+	fprintf( dfile, "From: %s\n", simta_postmaster );
     } else {
-	fprintf( dfile, "To: %s\n", env->e_mail );
+	fprintf( dfile, "From: %s\n", env->e_mail );
     }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
