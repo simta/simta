@@ -1226,7 +1226,7 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
  	    * the vacationhost (specified in the config file) and
 	    * the uid (XXX this this attr should be configurable XXX).
 	    */
-syslog( LOG_DEBUG, "simta_ldap_process_entry: check vacation" );
+syslog( LOG_DEBUG, "simta_ldap_process_entry: check vacation %s %s", vacationhost, vacationattr );
 	    onvacation = NULL;
 	    if ( vacationhost != NULL && vacationattr != NULL
             && (onvacation = ldap_get_values( ld, entry, vacationattr)) != NULL 
