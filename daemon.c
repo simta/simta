@@ -184,7 +184,7 @@ main( int ac, char **av )
     /* Turn on getopt's error messages */
     opterr = 1;
 
-    while (( c = getopt( ac, av, "ab:cdD:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
+    while (( c = getopt( ac, av, "ab:cD:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
 	case 'a' :		/* Automatically config with DNS */
 	    simta_dns_config = 0;
@@ -303,6 +303,11 @@ main( int ac, char **av )
 
     if ( chdir( spooldir ) < 0 ) {
 	perror( spooldir );
+	exit( 1 );
+    }
+
+    /* init simta config / defaults */
+    if ( simta_config( config_base_dir ) != 0 ) {
 	exit( 1 );
     }
 
