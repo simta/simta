@@ -71,22 +71,19 @@ void		chld ___P(( int ));
 int		main ___P(( int, char *av[] ));
 
     void
-usr1( sig )
-    int			sig;
+usr1( int sig )
 {
     simsendmail_signal = 1;
 }
 
     void
-hup( sig )
-    int			sig;
+hup( int sig )
 {
     syslog( LOG_INFO, "reload %s", version );
 }
 
     void
-chld( sig )
-    int			sig;
+chld( int sig )
 {
     int			pid;
     int			status;
@@ -179,9 +176,7 @@ chld( sig )
 SSL_CTX		*ctx = NULL;
 
     int
-main( ac, av )
-    int		ac;
-    char	*av[];
+main( int ac, char **av )
 {
     struct sigaction	sa, osahup, osachld, osausr1;
     struct sockaddr_in	sin;
