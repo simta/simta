@@ -943,7 +943,7 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 		l = local.t_start_line;
 
 	    } else {
-		while ( *next_c != '<' ) {
+		while (( next_c != NULL ) && ( *next_c != '<' )) {
 
 		    /*
 		     * DISPLAY_NAME: ( QS | DA )* ( < ) -> AA_LEFT
@@ -974,6 +974,11 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 			}
 			return( 1 );
 		    }
+		}
+
+		if ( next_c == NULL ) {
+		    fprintf( stderr, "unexpected end of header\n" );
+		    return( 1 );
 		}
 
 		/* set c, l, fall through to AA_LEFT */
