@@ -68,17 +68,10 @@ main( int argc, char *argv[])
 	return( SMTP_ERR_REMOTE );
     }
 
+
+    if ( simta_debug ) fprintf( stderr, "got %d results\n", result->r_ancount );
     for ( i = 0; i < result->r_ancount; i++ ) {
 	if ( simta_debug ) fprintf( stderr, "checking result %i:\n", i );
-        if ( result->r_answer[ i ].rr_ip == NULL ) {
-	    if ( simta_debug ) fprintf( stderr, "\tskipping null IP\n" );
-#ifdef DEBUG
-            printf( "dnsr is broke\n" );
-#endif /* DEBUG */
-            syslog( LOG_ERR,
-                "smtp_connect: get_mx: dnsr returned illegal value" );
-            return( SMTP_ERR_SYSCALL );
-        }
 
         switch( result->r_answer[ i ].rr_type ) {
         case DNSR_TYPE_MX:

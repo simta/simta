@@ -29,6 +29,37 @@ extern SSL_CTX  *ctx;
 #include "mx.h"
 #include "simta.h"
 
+    struct dnsr_result *
+get_a( DNSR *dnsr, char *host )
+{
+    struct dnsr_result	*result = NULL;
+
+    if ( simta_debug ) fprintf( stderr, "get_a: %s\n", host );
+
+    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
+	syslog( LOG_ERR, "dnsr_query %s failed", host );
+	goto error;
+    }
+
+    if ( simta_debug ) fprintf( stderr, "a on %s?", host );
+    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+	syslog( LOG_ERR, "dnsr_result %s failed", host );
+	goto error;
+    }
+    if ( simta_debug ) fprintf( stderr, "...yes\n" );
+    if ( simta_debug ) fprintf( stderr, "   valid a record?" );
+
+    if ( result->r_ancount > 0 ) {
+	if ( simta_debug ) fprintf( stderr, "...yes\n" );
+	return( result );
+    }
+    if ( simta_debug ) fprintf( stderr, "...no\n" );
+
+error:
+    dnsr_free_result( result );
+    return( NULL );
+}
+
 /* rfc 2821 3.6
  * Only resolvable, fully-qualified, domain names (FQDNs) are permitted
  * when domain names are used in SMTP.  In other words, names that can
@@ -43,6 +74,7 @@ get_mx( DNSR *dnsr, char *host )
 {
     int                 i;
     struct dnsr_result	*result = NULL;
+    struct dnsr_result	*result_a = NULL;
 
     if ( simta_debug ) fprintf( stderr, "get_mx: %s\n", host );
 
@@ -68,31 +100,22 @@ get_mx( DNSR *dnsr, char *host )
 	    if ( result->r_answer[ i ].rr_ip != NULL ) {
 		if ( simta_debug ) fprintf( stderr, "...yes\n" );
 		return( result );
+	    } else {
+		if ( simta_debug ) fprintf( stderr, "...no\n" );
+		if (( result_a = get_a( dnsr,
+			result->r_answer[ i ].rr_mx.mx_exchange )) != NULL ) {
+		    free( result );
+		    return( result_a );
+		}
 	    }
 	}
+    } else {
+	if ( simta_debug ) fprintf( stderr, "...no\n" );
+	dnsr_free_result( result );
     }
-    if ( simta_debug ) fprintf( stderr, "...no\n" );
-    dnsr_free_result( result );
 
     /* No MX - Check for A of address */
-    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
-	syslog( LOG_ERR, "dnsr_query %s failed", host );
-	goto error;
-    }
-
-    if ( simta_debug ) fprintf( stderr, "a on %s?", host );
-    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_result %s failed", host );
-	goto error;
-    }
-    if ( simta_debug ) fprintf( stderr, "...yes\n" );
-    if ( simta_debug ) fprintf( stderr, "   valid a record?" );
-
-    if ( result->r_ancount > 0 ) {
-	if ( simta_debug ) fprintf( stderr, "...yes\n" );
-	return( result );
-    }
-    if ( simta_debug ) fprintf( stderr, "...no\n" );
+    return( get_a( dnsr, host ));
 
 error:
     dnsr_free_result( result );
