@@ -584,8 +584,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
      * header, since that is the first line in the file.  This is where
      * we might want to put the sender's domain name, if we obtained one.
      */
-    if ( fprintf( dff, "Received: FROM %s ([%s])\n\tBY %s ID %s ; \n\t%s %s\n",
+    if ( fprintf( dff, "Received: FROM %s (%s [%s])\n\t"
+	    "BY %s ID %s ; \n\t%s %s\n",
 	    ( receive_hello == NULL ) ? "NULL" : receive_hello,
+	    ( receive_remote_hostname == NULL ) ?
+		"Unknown" : receive_remote_hostname,
 	    inet_ntoa( receive_sin->sin_addr ), simta_hostname, env->e_id,
 	    daytime, tz( tm )) < 0 ) {
 	syslog( LOG_ERR, "f_data fprintf: %m" );
