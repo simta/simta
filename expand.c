@@ -111,7 +111,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct recipient		*remove;
     struct recipient		**r_sort;
     struct envelope		*env_p;
-    int				failed_expansions = 0, ret = 0;
+    int				failed_expansions = 0, rc = 0;
     int				expansions = 0;
     char			*domain = NULL;
     char			e_original[ MAXPATHLEN ];
@@ -158,7 +158,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	expn = (struct expn*)i->st_data;
 	rc = address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
 	    &seen );
-	if (( rc != 0 ) || (( rc == 0 ) && ( expn->e_deliverd == R_FAILED ))) {
+	if ( rc != 0 ) {
 	    free( i->st_data );
 	    i->st_data = NULL;
 	}
