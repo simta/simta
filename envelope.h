@@ -47,6 +47,7 @@ struct envelope {
 #define ENV_ATTEMPT		(1<<4)
 #define ENV_OLD			(1<<5)
 #define ENV_UNEXPANDED		(1<<6)
+#define ENV_DELIVERED		(1<<7)
 
 /* NOT USED */
 void		env_stdout ___P(( struct envelope * ));

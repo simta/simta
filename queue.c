@@ -794,6 +794,8 @@ lseek_fail:
                 sent++;
             }
 
+	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_DELIVERED );
+
         } else if ( hq->hq_status == HOST_MX ) {
 	    syslog( LOG_INFO, "q_deliver %s: attempting remote delivery",
 		    env_deliver->e_id );
@@ -825,7 +827,10 @@ lseek_fail:
 	    syslog( LOG_DEBUG, "q_deliver %s: calling smtp_send",
 		    env_deliver->e_id );
             if (( smtp_error = smtp_send( snet_smtp, hq, env_deliver,
-		    snet_dfile )) != SMTP_OK ) {
+		    snet_dfile )) == SMTP_OK ) {
+		env_deliver->e_flags = ( env_deliver->e_flags | ENV_DELIVERED );
+
+	    } else {
 smtp_cleanup:
 		if ( snet_smtp != NULL ) {
 		    switch ( smtp_error ) {
@@ -848,7 +853,6 @@ smtp_cleanup:
 		}
 	    }
             sent++;
-
         }
 
 	if ((( env_deliver->e_tempfail > 0 ) ||
@@ -912,13 +916,10 @@ oldfile_error:
 	 * DELETE ORIGINAL
 	 *     - HOST_BOUNCE
 	 *     - ENV_BOUNCE
-	 *     - env_deliver->e_tempfail == 0 && !HOST_DOWN
+	 *     - if ENV_DELIVERED && env_deliver->e_tempfail == 0
 	 *
 	 * REWRITE ORIGINAL
-	 *     - if tempfails && ( fails || successes )
-	 *
-	 * MOVE ORIGINAL
-	 *     - if fast_queue
+	 *     - if ENV_DELIVERED && ( tempfails && ( fails || successes ))
 	 *
 	 * TOUCH ORIGINAL
 	 *     - if ENV_ATTEMPT
@@ -929,9 +930,14 @@ oldfile_error:
 
         if (( hq->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
-		(( env_deliver->e_tempfail == 0 ) &&
-		( hq->hq_status != HOST_DOWN ))) {
-	    /* no retries, delete Efile then Dfile */
+		((( env_deliver->e_flags & ENV_DELIVERED ) != 0 ) &&
+		( env_deliver->e_tempfail == 0 ))) {
+	    /* Delete the message if:
+	     *     - the queue status is HOST_BOUNCE
+	     *     - the envelope status is ENV_BOUNCE
+	     *     - the envelope has been delivered, and no rcpts tempfailed
+	     */
+
 	    sprintf( efile_fname, "%s/E%s", env_deliver->e_dir,
 		    env_deliver->e_id );
 
@@ -952,9 +958,14 @@ oldfile_error:
 	    }
 	    unlinked = 1;
 
-        } else if (( env_deliver->e_success != 0 ) ||
-		( env_deliver->e_failed != 0 )) {
-	    /* remove any recipients that don't need to be tried later */
+        } else if ((( env_deliver->e_flags & ENV_DELIVERED ) != 0 ) &&
+		(( env_deliver->e_success != 0 ) ||
+		( env_deliver->e_failed != 0 ))) {
+	    /* Rewrite the message if:
+	     *     - the envelope has been delivered, and some recipients
+	     *       passed or hard failed, and some recipients tempfailed
+	     */
+
 	    syslog( LOG_INFO, "q_deliver %s rewriting", env_deliver->e_id );
 	    r_sort = &(env_deliver->e_rcpt);
 
@@ -982,6 +993,9 @@ oldfile_error:
 
 	} else if (( env_deliver->e_flags & ENV_ATTEMPT ) &&
 		( strcmp( env_deliver->e_dir, simta_dir_fast ) != 0 )) {
+	    /* Touch the message if:
+	     *     - an attempt to deliver the envelope has been made
+	     */
 	    syslog( LOG_INFO, "q_deliver %s touching", env_deliver->e_id );
 	    env_touch( env_deliver );
 	}
