@@ -61,6 +61,7 @@ struct stab_entry	*simta_hosts = NULL;
 struct host		*simta_default_host = NULL;
 struct host		*simta_low_pref_mx_domain = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_umich_imap_letters = 0;
 int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
 int			simta_strict_smtp_syntax = 1;
@@ -415,6 +416,16 @@ simta_read_config( char *fname )
             simta_tls = 1;
             simta_smtp_extension++;
             if ( simta_debug ) printf( "TLS_ON\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "UMICH_IMAP_LETTERS" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_umich_imap_letters = 1;
+
+	    if ( simta_debug ) printf( "UMICH_IMAP_LETTERS enabled\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "DNS_CONFIG_OFF" ) == 0 ) {
 	    if ( ac != 1 ) {
