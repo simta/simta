@@ -116,8 +116,8 @@ add_address( struct stab_entry **stab, char *address, struct recipient *rcpt )
     }
     expn->e_expn = data;
     expn->e_rcpt_parent = rcpt;
-    if ( ll_insert( stab, data, expn, NULL ) != 0 ) {
-	syslog( LOG_ERR, "add_address: ll_insert: %m" );
+    if ( ll_insert_tail( stab, data, expn ) != 0 ) {
+	syslog( LOG_ERR, "add_address: ll_insert_tail: %m" );
 	goto error2;
     }
 
