@@ -647,3 +647,45 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 
     return( 0 );
 }
+
+
+    int
+env_slow( struct envelope *env )
+{
+    char                        dfile_fname[ MAXPATHLEN ];
+    char                        dfile_slow[ MAXPATHLEN ];
+    char                        efile_fname[ MAXPATHLEN ];
+    char                        efile_slow[ MAXPATHLEN ];
+
+    /* move message to SLOW if it isn't there already */
+    if ( strcmp( env->e_dir, simta_dir_slow ) != 0 ) {
+	sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
+	sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
+	sprintf( dfile_slow, "%s/D%s", simta_dir_slow, env->e_id );
+	sprintf( efile_slow, "%s/E%s", simta_dir_slow, env->e_id );
+
+	if ( link( dfile_fname, dfile_slow ) != 0 ) {
+	    syslog( LOG_ERR, "env_slow link %s %s: %m", dfile_fname,
+		    dfile_slow );
+	    return( -1 );
+	}
+
+	if ( link( efile_fname, efile_slow ) != 0 ) {
+	    syslog( LOG_ERR, "env_slow link %s %s: %m", efile_fname,
+		    efile_slow );
+	    return( -1 );
+	}
+
+	if ( unlink( efile_fname ) != 0 ) {
+	    syslog( LOG_ERR, "env_slow unlink %s: %m", efile_fname );
+	    return( -1 );
+	}
+
+	if ( unlink( dfile_fname ) != 0 ) {
+	    syslog( LOG_ERR, "env_slow unlink %s: %m", dfile_fname );
+	    return( -1 );
+	}
+    }
+
+    return( 0 );
+}

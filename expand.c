@@ -187,15 +187,18 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		i->st_data = NULL;
 		break;
 
-#ifdef NOT_DEF
 #ifdef HAVE_LDAP
 	    case SIMTA_EXPAND_ERROR_LDAP:
 		/* XXX unwind expansion here */
-		/* XXX move message to SLOW if not there already */
-		/* XXX return( 1 ) */
+
+		/* move message to SLOW if not there already */
+		if ( env_slow( unexpanded_env ) != 0 ) {
+		    return( -1 );
+		}
+
+		return( 1 );
 		break;
 #endif /* HAVE_LDAP */
-#endif /* NOT_DEF */
 
 	    case SIMTA_EXPAND_ERROR_SYSTEM:
 		/* this should be unreachable code.  If you're here, there's

@@ -406,9 +406,7 @@ q_runner_dir( char *dir )
 q_deliver( struct host_q *hq )
 {
     char                        dfile_fname[ MAXPATHLEN ];
-    char                        dfile_slow[ MAXPATHLEN ];
     char                        efile_fname[ MAXPATHLEN ];
-    char                        efile_slow[ MAXPATHLEN ];
     int                         dfile_fd;
     SNET                        *dfile_snet = NULL;
     int                         result;
@@ -735,31 +733,7 @@ cleanup:
 
 	    /* move message to SLOW if it isn't there already */
 	    if ( strcmp( env.e_dir, simta_dir_slow ) != 0 ) {
-		sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
-		sprintf( dfile_slow, "%s/D%s", simta_dir_slow, env.e_id );
-		sprintf( efile_slow, "%s/E%s", simta_dir_slow, env.e_id );
-
-		if ( link( dfile_fname, dfile_slow ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver link %s %s: %m", dfile_fname,
-			    dfile_slow );
-		    return( -1 );
-		}
-
-		if ( link( efile_fname, efile_slow ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver link %s %s: %m", efile_fname,
-			    efile_slow );
-		    return( -1 );
-		}
-
-		if ( unlink( efile_fname ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver unlink %s: %m", efile_fname );
-		    return( -1 );
-		}
-
-		if ( unlink( dfile_fname ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver unlink %s: %m", dfile_fname );
-		    return( -1 );
-		}
+		env_slow( &env );
 	    }
         } 
 
