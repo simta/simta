@@ -191,7 +191,7 @@ env_sender( struct envelope *env, char *e_mail )
 	return( 1 );
     }
 
-    if (( e_mail != NULL ) && ( *e_mail != '\0' )) {
+    if ( e_mail != NULL ) {
 	if (( env->e_mail = strdup( e_mail )) == NULL ) {
 	    syslog( LOG_ERR, "env_sender strdup: %m" );
 	    return( 1 );
@@ -357,6 +357,11 @@ env_outfile( struct envelope *e )
     }
 
     /* Idinode */
+    if ( e->e_dinode <= 0 ) {
+	syslog( LOG_DEBUG, "env_outfile: bad dinode" );
+	abort();
+    }
+
     if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {
 	syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	goto cleanup;

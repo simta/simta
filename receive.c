@@ -663,13 +663,14 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( data_errors == 0 ) {
+    if ( data_errors != 0 ) {
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data fclose: %m" );
 	}
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
+
 
 	return( RECEIVE_SYSERROR );
     }
@@ -682,6 +683,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
+
 	return( RECEIVE_SYSERROR );
     }
     env->e_dinode = sbuf.st_ino;
@@ -691,6 +693,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
+
 	return( RECEIVE_SYSERROR );
     }
 
@@ -700,6 +703,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
+
 	return( RECEIVE_SYSERROR );
     }
     syslog( LOG_INFO, "f_data %s: accepted", env->e_id );

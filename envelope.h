@@ -25,16 +25,16 @@ struct recipient {
 struct envelope {
     struct envelope	*e_next;
     struct envelope	*e_hq_next;
+    struct recipient	*e_rcpt;
     struct host_q	*e_hq;
-    char		e_hostname[ MAXHOSTNAMELEN + 1 ];
+    struct line_file	*e_err_text;
     char		*e_dir;
     char		*e_mail;
-    struct recipient	*e_rcpt;
-    struct line_file	*e_err_text;
-    char		e_id[ ENV_ID_LENGTH + 1 ];
-    int			e_flags;
     ino_t		e_dinode;
+    int			e_flags;
     struct timespec	e_last_attempt;
+    char		e_id[ ENV_ID_LENGTH + 1 ];
+    char		e_hostname[ MAXHOSTNAMELEN + 1 ];
 };
 
 #define ENV_ON_DISK		(1<<1)

@@ -255,6 +255,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		goto cleanup2;
 	    }
 
+	    env->e_dinode = unexpanded_env->e_dinode;
+
 	    /* fill in env */
 	    if ( domain != NULL ) {
 		env->e_dir = simta_dir_fast;
