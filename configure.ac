@@ -12,6 +12,9 @@ AC_SUBST(resolvconf)
 AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-alias-db=DB], [default alias db]), aliasdb="$withval", aliasdb="/etc/alias.db" )
 AC_SUBST(aliasdb)
 
+AC_ARG_WITH(maxconnections, AC_HELP_STRING([--with-maxconnections=MAX], [maximum number of client connections]), maxconnections="$withval", maxconnections=0 )
+AC_SUBST(maxconnections)
+
 # Local Stuff
 AC_PREFIX_DEFAULT(/usr/local)
 

@@ -327,11 +327,10 @@ f_rcpt( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    int			ret;
     char		*addr, *domain;
     struct recipient	*r;
     DNSR		*dnsr;
-    struct stab_entry	*cur = NULL, *p = NULL;
+    struct stab_entry	*cur = NULL;
 
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
@@ -820,6 +819,8 @@ receive( fd, sin )
     struct timeval			tv;
     DNSR				*dnsr;
     extern int				denser_debug;
+    extern int				connections;
+    extern int				maxconnections;
 
     denser_debug = 0;
 
@@ -827,6 +828,15 @@ receive( fd, sin )
 	syslog( LOG_ERR, "snet_attach: %m" );
 	/* We *could* use write(2) to report an error before we exit here */
 	exit( 1 );
+    }
+
+    if ( maxconnections != 0 ) {
+	if ( connections > maxconnections ) {
+	    syslog( LOG_INFO, "connections refused: server busy" );
+	    snet_writef( snet,
+		"%d Service busy, closing transmission channel\r\n", 421 );
+	    exit( 1 );
+	}
     }
 
     if (( dnsr = dnsr_open( )) == NULL ) {

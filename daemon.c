@@ -36,6 +36,8 @@
 
 int		debug = 0;
 int		backlog = 5;
+int		connections = 0;
+int		maxconnections = SIMTA_MAXCONNECTIONS;	/* 0 = no limit */
 
 char			localhost[ MAXHOSTNAMELEN + 1 ];
 struct stab_entry 	*hosts = NULL;
@@ -62,6 +64,7 @@ chld( sig )
     extern int		errno;
 
     while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
+	connections--;
 	if ( WIFEXITED( status )) {
 	    if ( WEXITSTATUS( status )) {
 		syslog( LOG_ERR, "child %d exited with %d", pid,
@@ -111,18 +114,14 @@ main( ac, av )
 	prog++;
     }
 
-    while (( c = getopt( ac, av, "C:rVcdp:b:M:s:" )) != -1 ) {
+    while (( c = getopt( ac, av, "b:C:cdM:m:p:rs:V" )) != -1 ) {
 	switch ( c ) {
-	case 'V' :		/* virgin */
-	    printf( "%s\n", version );
-	    exit( 0 );
+	case 'b' :		/* listen backlog */
+	    backlog = atoi( optarg );
+	    break;
 
 	case 'C' :
 	    cryptofile = optarg;
-	    break;
-
-	case 'r' :
-	    use_randfile = 1;
 	    break;
 
 	case 'c' :		/* check config files */
@@ -133,21 +132,29 @@ main( ac, av )
 	    debug++;
 	    break;
 
+	case 'M' :
+	    maildomain = optarg;
+	    break;
+
+	case 'm' :		/* Max connections */
+	    maxconnections = atoi( optarg );
+	    break;
+
 	case 'p' :		/* TCP port */
 	    port = htons( atoi( optarg ));
 	    break;
 
-	case 'b' :		/* listen backlog */
-	    backlog = atoi( optarg );
-	    break;
-
-	case 'M' :
-	    maildomain = optarg;
+	case 'r' :
+	    use_randfile = 1;
 	    break;
 
 	case 's' :		/* spool dir */
 	    spooldir = optarg;
 	    break;
+
+	case 'V' :		/* virgin */
+	    printf( "%s\n", version );
+	    exit( 0 );
 
 	default :
 	    err++;
@@ -155,10 +162,17 @@ main( ac, av )
     }
 
     if ( err || optind != ac ) {
-	fprintf( stderr,
-		"Usage:\t%s [ -d ] [ -p port ] [ -b backlog ]\n",
-		prog );
+	fprintf( stderr, "Usage:\t%s", prog );
+	fprintf( stderr, " [ -cdrV ] [ -b backlog ]" );
+	fprintf( stderr, " [ -C cryptofile ] [ -M maildomain ]" );
+	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
+	fprintf( stderr, " [ -s spooldir]" );
+	fprintf( stderr, "\n" );
 	exit( 1 );
+    }
+
+    if ( maxconnections < 0 ) {
+	fprintf( stderr, "%d: invalid max-connections\n", maxconnections );
     }
 
     /*
@@ -360,6 +374,8 @@ main( ac, av )
 	    }
 	    continue;
 	}
+
+	connections++;
 
 	/* start child */
 	switch ( c = fork()) {

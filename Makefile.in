@@ -19,6 +19,7 @@ CONNECT_TESTOBJ=	connect_test.o smtp.o line_file.o envelope.o tz.o
 
 SIMTALOG=LOG_MAIL
 SIMTA_ALIAS_DB=	@aliasdb@
+SIMTA_MAXCONNECTIONS=	@maxconnections@
 RESOLV_CONF=	@resolvconf@
 
 CC=		@CC@
@@ -37,7 +38,10 @@ TARGETS=	simta tlsconnect simsendmail q_runner q_cleanup
 all : ${TARGETS}
 
 daemon.o : daemon.c
-	${CC} ${CFLAGS} -DVERSION=\"`cat VERSION`\" -c daemon.c -o daemon.o
+	${CC} ${CFLAGS} \
+	    -DVERSION=\"`cat VERSION`\" \
+	    -DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
+	    -c daemon.c -o daemon.o
 
 receive.o : receive.c
 	${CC} ${CFLAGS} \
