@@ -1471,8 +1471,10 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	switch( check_rbl( &(sin->sin_addr), simta_rbl_domain )) {
 	case 0:
 	    syslog( LOG_NOTICE,
-		"Receive: Rejected: Relay [%s] by %s",
-		inet_ntoa( sin->sin_addr ), simta_rbl_domain );
+		"Receive: Rejected: RBL %s Relay [%s] %s",
+		simta_rbl_domain, inet_ntoa( sin->sin_addr ),
+		receive_remote_hostname ?
+		receive_remote_hostname : "");
 	    snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
 		inet_ntoa( sin->sin_addr ), simta_rbl_url );
 	    goto closeconnection;
