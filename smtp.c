@@ -356,7 +356,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
     hq->hq_status = HOST_DOWN;
 
     /* MAIL FROM: */
-    if ( d->d_env->e_mail == NULL ) {
+    if ( *(d->d_env->e_mail) == '\0' ) {
 	if ( snet_writef( snet, "MAIL FROM:<>\r\n" ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
 		    hq->hq_hostname );
@@ -399,7 +399,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 
     switch ( *line ) {
     case '2':
-	if ( d->d_env->e_mail == NULL ) {
+	if ( *(d->d_env->e_mail) == '\0' ) {
 	    syslog( LOG_INFO, "smtp_send %s %s MAIL FROM <> OK", d->d_env->e_id,
 		    hq->hq_hostname );
 	} else {

@@ -303,11 +303,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( env->e_mail != NULL ) {
-	syslog( LOG_INFO, "f_mail %s: mail: <%s>", env->e_id, env->e_mail );
-    } else {
-	syslog( LOG_INFO, "f_mail %s: mail: <>", env->e_id );
-    }
+    syslog( LOG_INFO, "f_mail %s: mail: <%s>", env->e_id, env->e_mail );
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_mail snet_writef: %m" );

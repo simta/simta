@@ -192,11 +192,13 @@ env_sender( struct envelope *env, char *e_mail )
 	return( 1 );
     }
 
-    if (( e_mail != NULL ) && ( *e_mail != '\0' )) {
-	if (( env->e_mail = strdup( e_mail )) == NULL ) {
-	    syslog( LOG_ERR, "env_sender strdup: %m" );
-	    return( 1 );
-	}
+    if ( e_mail == NULL ) {
+	e_mail = "";
+    }
+    
+    if (( env->e_mail = strdup( e_mail )) == NULL ) {
+	syslog( LOG_ERR, "env_sender strdup: %m" );
+	return( 1 );
     }
 
     return( 0 );
@@ -560,6 +562,22 @@ env_read_queue_info( struct envelope *e )
 
     strcpy( e->e_hostname, hostname );
 
+    /* Ffrom-address */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "env_read_delivery_info %s unexpected EOF", fname );
+	goto cleanup;
+    }
+
+    if ( *line != 'F' ) {
+	syslog( LOG_ERR, "env_read_delivery_info %s bad from syntax",
+		fname );
+	goto cleanup;
+    }
+
+    if ( env_sender( e, line + 1 ) != 0 ) {
+	goto cleanup;
+    }
+
     ret = 0;
 
 cleanup:
@@ -674,7 +692,9 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 	goto cleanup;
     }
 
-    if ( env_sender( env, line + 1 ) != 0 ) {
+    if ( strcmp( env->e_mail, line + 1 ) != 0 ) {
+	syslog( LOG_ERR, "env_read_queue_info %s: bad sender re-read",
+		filename );
 	goto cleanup;
     }
 

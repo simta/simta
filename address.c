@@ -72,6 +72,11 @@ address_bounce_create( struct expand *exp )
 	return( NULL );
     }
 
+    if ( env_sender( bounce_env, NULL ) != 0 ) {
+	env_free( bounce_env );
+	return( NULL );
+    }
+
     bounce_env->e_dir = simta_dir_fast;
     bounce_env->e_next = exp->exp_errors;
     exp->exp_errors = bounce_env;

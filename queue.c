@@ -205,7 +205,7 @@ queue_envelope( struct host_q **host_q_head, struct envelope *env )
     hq->hq_entries++;
     env->e_hq = hq;
 
-    if ( env->e_mail != NULL ) {
+    if ( *(env->e_mail) != '\0' ) {
 	hq->hq_from++;
     }
 
@@ -226,7 +226,7 @@ queue_remove_envelope( struct envelope *env )
 	*ep = env->e_hq_next;
 	env->e_hq->hq_entries--;
 
-	if ( env->e_mail != NULL ) {
+	if ( *(env->e_mail) != '\0' ) {
 	    env->e_hq->hq_from--;
 	}
 
@@ -337,7 +337,7 @@ q_runner( struct host_q **host_q )
 	    simta_null_q->hq_env_first = unexpanded->e_hq_next;
 	    simta_null_q->hq_entries--;
 
-	    if ( unexpanded->e_mail != NULL ) {
+	    if ( *(unexpanded->e_mail) != '\0' ) {
 		simta_null_q->hq_from--;
 	    }
 
@@ -548,7 +548,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	env_deliver = deliver_q->hq_env_first;
 	deliver_q->hq_env_first = deliver_q->hq_env_first->e_hq_next;
 
-	if ( env_deliver->e_mail != NULL ) {
+	if ( *(env_deliver->e_mail) != '\0' ) {
 	    deliver_q->hq_from--;
 	}
 
