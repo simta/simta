@@ -10,5 +10,3 @@
 #else /* __STDC__ */
 #define ___P(x)		()
 #endif /* __STDC__ */
-
-int	q_cleanup ___P(( void ));

@@ -12,6 +12,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <time.h>
 #include <inttypes.h>
 #include <pwd.h>
 #include <fcntl.h>
@@ -40,7 +41,6 @@ extern SSL_CTX	*ctx;
 
 #include "bdb.h"
 #include "denser.h"
-#include "config.h"
 #include "queue.h"
 #include "ll.h"
 #include "simta.h"

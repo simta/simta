@@ -21,3 +21,4 @@ int	header_correct ___P(( int, struct line_file *, struct envelope * ));
 int	header_correct ___P(( int, struct line_file *, struct envelope * ));
 int	header_file_out ___P(( struct line_file *, FILE * ));
 int	is_emailaddr ___P(( char ** ));
+char	*tz ___P(( struct tm * ));
