@@ -23,6 +23,8 @@
 
 #ifdef TLS
 #include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
 #endif TLS
 
 #include <snet.h>
@@ -78,6 +80,8 @@ chld( sig )
     return;
 }
 
+SSL_CTX		*ctx = NULL;
+
     int
 main( ac, av )
     int		ac;
@@ -91,6 +95,8 @@ main( ac, av )
     int			reuseaddr = 1;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
+    char		*cryptofile = NULL;
+    int			use_randfile = 0;
     unsigned short	port = 0;
     extern int		optind;
     extern char		*optarg;
@@ -101,11 +107,19 @@ main( ac, av )
 	prog++;
     }
 
-    while (( c = getopt( ac, av, "Vcdp:b:M:s:" )) != -1 ) {
+    while (( c = getopt( ac, av, "C:rVcdp:b:M:s:" )) != -1 ) {
 	switch ( c ) {
 	case 'V' :		/* virgin */
 	    printf( "%s\n", version );
 	    exit( 0 );
+
+	case 'C' :
+	    cryptofile = optarg;
+	    break;
+
+	case 'r' :
+	    use_randfile = 1;
+	    break;
 
 	case 'c' :		/* check config files */
 	    dontrun++;
@@ -151,6 +165,55 @@ main( ac, av )
 	perror( spooldir );
 	exit( 1 );
     }
+
+    if ( cryptofile != NULL ) {
+	SSL_load_error_strings();
+	SSL_library_init();
+
+	if ( use_randfile ) {
+	    char        randfile[ MAXPATHLEN ];
+
+	    if ( RAND_file_name( randfile, sizeof( randfile )) == NULL ) {
+		fprintf( stderr, "RAND_file_name: %s\n",
+			ERR_error_string( ERR_get_error(), NULL ));
+		exit( 1 );
+	    }
+	    if ( RAND_load_file( randfile, -1 ) <= 0 ) {
+		fprintf( stderr, "RAND_load_file: %s: %s\n", randfile,
+			ERR_error_string( ERR_get_error(), NULL ));
+		exit( 1 );
+	    }
+	    if ( RAND_write_file( randfile ) < 0 ) {
+		fprintf( stderr, "RAND_write_file: %s: %s\n", randfile,
+			ERR_error_string( ERR_get_error(), NULL ));
+		exit( 1 );
+	    }
+	}
+
+	if (( ctx = SSL_CTX_new( SSLv23_server_method())) == NULL ) {
+	    fprintf( stderr, "SSL_CTX_new: %s\n",
+		    ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+
+	if ( SSL_CTX_use_PrivateKey_file( ctx, cryptofile, SSL_FILETYPE_PEM )
+		!= 1 ) {
+	    fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
+		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+	if ( SSL_CTX_use_certificate_chain_file( ctx, cryptofile ) != 1 ) {
+	    fprintf( stderr, "SSL_CTX_use_certificate_chain_file: %s: %s\n",
+		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+	if ( SSL_CTX_check_private_key( ctx ) != 1 ) {
+	    fprintf( stderr, "SSL_CTX_check_private_key: %s\n",
+		    ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+    }
+
 
     if ( dontrun ) {
 	exit( 0 );

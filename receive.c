@@ -21,6 +21,9 @@
 
 #ifdef TLS
 #include <openssl/ssl.h>
+#include <openssl/err.h>
+
+extern SSL_CTX	*ctx;
 #endif TLS
 
 #include <snet.h>
@@ -563,7 +566,7 @@ f_starttls( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    SSL_CTX			*ctx;
+    int				rc;
 
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
@@ -584,11 +587,11 @@ f_starttls( snet, env, ac, av )
     /*
      * Begin TLS
      */
-    switch ( snet_starttls( snet, ctx, 1 )) {
-    case 0 :
-    case 1 :
-    default :
-	break;
+    if (( rc = snet_starttls( snet, ctx, 1 )) != 1 ) {
+	syslog( LOG_ERR, "f_starttls: snet_starttls: %s",
+		ERR_error_string( ERR_get_error(), NULL ) );
+	snet_writef( snet, "%d SSL didn't work error! XXX\r\n", 501 );
+	return( 1 );
     }
 
     env_reset( env );
