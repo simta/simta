@@ -74,106 +74,29 @@ int		main( int, char *av[] );
 usr1( int sig )
 {
     simsendmail_signal = 1;
-}
-
-    void
-hup( int sig )
-{
-    syslog( LOG_INFO, "reload %s", version );
-}
-
-    void
-chld( int sig )
-{
-    int			pid;
-    int			status;
-    int			s;
-    extern int		errno;
-    struct proc_type	**p;
-    struct proc_type	*p_remove;
-
-    while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-	p = &proc_stab;
-
-	for ( p = &proc_stab; *p != NULL; p = &((*p)->p_next)) {
-	    if ((*p)->p_id == pid ) {
-		break;
-	    }
-	}
-
-	if ( *p != NULL ) {
-	    p_remove = *p;
-	    *p = p_remove->p_next;
-
-	    switch ( p_remove->p_type ) {
-
-	    case Q_LOCAL:
-		syslog( LOG_INFO, "chld %d: q_runner.local done",
-			p_remove->p_id );
-		q_runner_local--;
-		break;
-
-	    case Q_SLOW:
-		syslog( LOG_INFO, "chld %d: q_runner.slow done",
-			p_remove->p_id );
-		q_runner_slow--;
-		break;
-
-	    case SIMTA_CHILD:
-		syslog( LOG_INFO, "chld %d: daemon.receive done",
-			p_remove->p_id );
-		connections--;
-		break;
-
-	    default:
-		syslog( LOG_ERR, "chld %d: unknown process type %d",
-			p_remove->p_id, p_remove->p_type );
-		exit( 1 );
-	    }
-
-	    free( p_remove );
-
-	} else {
-	    syslog( LOG_ERR, "chld %d: unkown child process", pid );
-	    exit( 1 );
-	}
-
-	if ( WIFEXITED( status )) {
-	    s = WEXITSTATUS( status );
-
-	    switch ( s ) {
-	    case EXIT_OK:
-		break;
-
-	    case EXIT_FAST_FILE:
-		syslog( LOG_ERR, "chld %d: fast file error", pid );
-		exit( 1 );
-
-	    default:
-		syslog( LOG_ERR, "chld %d exited %d: unknown value", pid, s );
-		exit( 1 );
-	    }
-
-	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "chld %d died on signal %d", pid,
-		    WTERMSIG( status ));
-	    exit( 1 );
-
-	} else {
-	    syslog( LOG_ERR, "chld %d died", pid );
-	    exit( 1 );
-	}
-    }
-
-    if ( pid < 0 && errno != ECHILD ) {
-	syslog( LOG_ERR, "chld wait3: %m" );
-	exit( 1 );
-    }
 
     return;
 }
 
+
+    void
+hup( int sig )
+{
+    /* hup does nothing at the moment */
+
+    return;
+}
+
+
+    void
+chld( int sig )
+{
+    return;
+}
+
+
 SSL_CTX		*ctx = NULL;
+
 
     int
 main( int ac, char **av )
@@ -211,6 +134,10 @@ main( int ac, char **av )
     char                *ca = "cert/ca.pem";
     char                *cert = "cert/cert.pem";
     char                *privatekey = "cert/cert.pem";
+    int			status;
+    int			exitstatus;
+    struct proc_type	**p_search;
+    struct proc_type	*p_remove;
 
     if (( prog = strrchr( av[ 0 ], '/' )) == NULL ) {
 	prog = av[ 0 ];
@@ -703,7 +630,6 @@ main( int ac, char **av )
 	if (( tv_now.tv_sec > tv_launch.tv_sec ) ||
 		(( tv_now.tv_sec == tv_launch.tv_sec ) &&
 		( tv_now.tv_usec >= tv_launch.tv_usec ))) {
-
 	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
 	    tv_launch.tv_usec = tv_now.tv_usec;
 
@@ -754,9 +680,6 @@ main( int ac, char **av )
 		syslog( LOG_INFO, "q_runner_dir.slow maximum reached" );
 	    }
 
-	    /* XXX continue, or check to see if FD_ISSET? */
-	    continue;
-
 	} else {
 	    /* compute sleep time */
 	    if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec ) < 1 ) {
@@ -765,6 +688,7 @@ main( int ac, char **av )
 	    tv_sleep.tv_usec = 0;
 	}
 
+	/* check to see if we have any incoming connections */
 	if ( FD_ISSET( s, &fdset )) {
 	    sinlen = sizeof( struct sockaddr_in );
 	    if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
@@ -837,6 +761,80 @@ main( int ac, char **av )
 		syslog( LOG_INFO, "receive child %d for %s", pid,
 			inet_ntoa( sin.sin_addr ));
 		break;
+	    }
+	}
+
+	/* check to see if any children need to be accounted for */
+	while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
+	    p_search = &proc_stab;
+
+	    for ( p_search = &proc_stab; *p_search != NULL;
+		    p_search = &((*p_search)->p_next)) {
+		if ((*p_search)->p_id == pid ) {
+		    break;
+		}
+	    }
+
+	    if ( *p_search == NULL ) {
+		syslog( LOG_ERR, "chld %d: unkown child process", pid );
+		panic( "unknown process" );
+	    }
+
+	    p_remove = *p_search;
+	    *p_search = p_remove->p_next;
+
+	    switch ( p_remove->p_type ) {
+	    case Q_LOCAL:
+		syslog( LOG_INFO, "chld %d: q_runner.local done",
+			p_remove->p_id );
+		q_runner_local--;
+		break;
+
+	    case Q_SLOW:
+		syslog( LOG_INFO, "chld %d: q_runner.slow done",
+			p_remove->p_id );
+		q_runner_slow--;
+		break;
+
+	    case SIMTA_CHILD:
+		syslog( LOG_INFO, "chld %d: daemon.receive done",
+			p_remove->p_id );
+		connections--;
+		break;
+
+	    default:
+		syslog( LOG_ERR, "chld %d: unknown process type %d",
+			p_remove->p_id, p_remove->p_type );
+		panic( "bad process type" );
+	    }
+
+	    free( p_remove );
+
+	    if ( WIFEXITED( status )) {
+		exitstatus = WEXITSTATUS( status );
+
+		switch ( exitstatus ) {
+		case EXIT_OK:
+		    break;
+
+		case EXIT_FAST_FILE:
+		    syslog( LOG_ERR, "chld %d: fast file error", pid );
+		    exit( 1 );
+
+		default:
+		    syslog( LOG_ERR, "chld %d exited %d: unknown value", pid,
+			    exitstatus );
+		    exit( 1 );
+		}
+
+	    } else if ( WIFSIGNALED( status )) {
+		syslog( LOG_ERR, "chld %d died on signal %d", pid,
+			WTERMSIG( status ));
+		exit( 1 );
+
+	    } else {
+		syslog( LOG_ERR, "chld %d died", pid );
+		exit( 1 );
 	    }
 	}
     }

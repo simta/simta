@@ -87,25 +87,25 @@ procmail( int f, char *sender, struct recipient *recipient )
 	return( EX_TEMPFAIL );
 
     case 0 :
-	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
-	if ( close( fd[ 1 ] ) < 0 ) {
+	/* use fd[ 1 ] to communicate with parent, parent uses fd[ 0 ] */
+	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "procmail close: %m" );
 	    exit( EX_TEMPFAIL);
 	}
 
-	/* stdout -> fd[ 0 ] */
-	if ( dup2( fd[ 0 ], 1 ) < 0 ) {
+	/* stdout -> fd[ 1 ] */
+	if ( dup2( fd[ 1 ], 1 ) < 0 ) {
 	    syslog( LOG_ERR, "procmail dup2: %m" );
 	    exit( EX_TEMPFAIL);
 	}
 
-	/* stderr -> fd[ 0 ] */
-	if ( dup2( fd[ 0 ], 2 ) < 0 ) {
+	/* stderr -> fd[ 1 ] */
+	if ( dup2( fd[ 1 ], 2 ) < 0 ) {
 	    syslog( LOG_ERR, "procmail dup2: %m" );
 	    exit( EX_TEMPFAIL);
 	}
 
-	if ( close( fd[ 0 ] ) < 0 ) {
+	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "procmail close: %m" );
 	    exit( EX_TEMPFAIL);
 	}
@@ -131,14 +131,15 @@ procmail( int f, char *sender, struct recipient *recipient )
 	exit( EX_TEMPFAIL);
 
     default :
-	/* use fd[ 1 ] to communicate with child, child uses fd[ 0 ] */
-	if ( close( fd[ 0 ] ) < 0 ) {
+	/* use fd[ 0 ] to communicate with child, child uses fd[ 1 ] */
+	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "procmail close: %m" );
 	    return( EX_TEMPFAIL );
 	}
 
-	if (( snet = snet_attach( fd[ 1 ], 1024 * 1024 )) == NULL ) {
+	if (( snet = snet_attach( fd[ 0 ], 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
+	    close( fd[ 0 ] );
 	    return( EX_TEMPFAIL );
 	}
 
@@ -148,12 +149,14 @@ procmail( int f, char *sender, struct recipient *recipient )
 	    if ( recipient->r_err_text == NULL ) {
 		if (( recipient->r_err_text = line_file_create()) == NULL ) {
 		    syslog( LOG_ERR, "line_file_create: %m" );
+		    snet_close( snet );
 		    return( EX_TEMPFAIL );
 		}
 	    }
 
 	    if ( line_append( recipient->r_err_text, line, COPY ) == NULL ) {
 		syslog( LOG_ERR, "line_append: %m" );
+		snet_close( snet );
 		return( EX_TEMPFAIL );
 	    }
 	}

@@ -1565,9 +1565,7 @@ mail_filter( int f, char **smtp_message )
 	    return( MESSAGE_TEMPFAIL );
 	}
 
-syslog( LOG_DEBUG, "filter HERE" );
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
-syslog( LOG_DEBUG, "filter line: %s", line );
 	    if ( *smtp_message == NULL ) {
 		if (( *smtp_message = strdup( line )) == NULL ) {
 		    snet_close( snet );
