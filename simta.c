@@ -133,7 +133,7 @@ simta_read_config( char *fname )
     ACAV		*acav;
     char		**av;
     SNET		*snet;
-    char		domain[ DNSR_MAX_HOSTNAME + 1 ];
+    char		*domain;
     struct host		*host;
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
@@ -184,7 +184,10 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    /* XXX - need to lower-case domain */
-	    strcpy( domain, av[ 0 ] + 1 );
+	    if (( domain = strdup( av[ 0 ] + 1 )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
 	    if (( host = add_host( domain, HOST_LOCAL )) == NULL ) {
 		goto error;
 	    }
