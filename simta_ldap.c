@@ -13,10 +13,6 @@
 #include <openssl/err.h>
 #endif /* TLS */
 
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
 #include <snet.h>
 
 #include <sys/types.h>
@@ -31,6 +27,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ldap.h>
+#include <sasl/sasl.h>
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
@@ -92,6 +89,9 @@ static char			*ldap_host;
 static int			ldap_port;
 static time_t			ldap_timeout = LDAP_TIMEOUT_VAL;
 static int			starttls;
+static char			*tls_cert;
+static char			*tls_key;
+static char			*tls_cacert;
 static char			*binddn;
 static char			*bindpw;
 
@@ -208,7 +208,29 @@ simta_ldap_unbind ()
     ld = NULL;
     return;
 }
+/*
+** SASL Call Back
+** This SASL callback only works for "EXTERNAL" 
+*/
+    static int
+simta_ldap_sasl_interact(
+        LDAP *ld,
+        unsigned flags,
+        void *defaults,
+        void *in )
+{
+   
+    sasl_interact_t *interact = in;
 
+    while( interact->id != SASL_CB_LIST_END ) {
+
+	interact->result = NULL;
+	interact->len = 0;
+
+	interact++;
+    } 
+    return LDAP_SUCCESS;
+}
     static int
 simta_ldap_init ()
 {
@@ -253,6 +275,33 @@ simta_ldap_init ()
 		protocol );
 	    return( LDAP_SYSERROR );
 	}
+        if (tls_cacert) {
+	    ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, tls_cacert);
+	    if( ldaprc != LDAP_OPT_SUCCESS ) {
+		syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_X_TLS_CACERTFILE = %s\n",
+		ldap_err2string( ldaprc ) );
+		return( LDAP_SYSERROR );
+	    }
+	}
+        if (tls_cert) {
+	    ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CERTFILE, tls_cert);
+	    if( ldaprc != LDAP_OPT_SUCCESS ) {
+		syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_X_TLS_CERTFILE = %s\n",
+		ldap_err2string( ldaprc ));
+		return( LDAP_SYSERROR );
+	    }
+	}
+        if (tls_key) {
+	    ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_KEYFILE, tls_key);
+	    if( ldaprc != LDAP_OPT_SUCCESS ) {
+		syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_X_TLS_KEYFILE = %s\n",
+		 ldap_err2string( ldaprc ));
+		return( LDAP_SYSERROR );
+	    }
+	}
 
 	if ( starttls &&
 	   ((ldaprc = ldap_start_tls_s( ld, NULL, NULL )) != LDAP_SUCCESS )) {
@@ -262,15 +311,25 @@ simta_ldap_init ()
 	    }
 	}
     }
-    if (binddn) {
-	if (ldap_bind_s( ld, binddn, bindpw, LDAP_AUTH_SIMPLE) != LDAP_SUCCESS){
-	    ldap_perror( ld, "ldap_bind" );
+    /* If a client-side cert specified,  then do a SASL EXTERNAL bind */
+    if (tls_cert) {
+	ldaprc = ldap_sasl_interactive_bind_s( ld, binddn,
+			"EXTERNAL", NULL, NULL,
+			LDAP_SASL_QUIET, simta_ldap_sasl_interact, NULL );
+	if( ldaprc != LDAP_SUCCESS ) {
+	    syslog( LOG_ERR, "ldap_sasl_interactive_bind_s: %s", 
+                        ldap_err2string(ldaprc));
+	    return ( LDAP_SYSERROR );
+	}
+    }
+    else if (binddn) {
+	if ((ldaprc = ldap_bind_s( ld, binddn, bindpw, LDAP_AUTH_SIMPLE)) != LDAP_SUCCESS){
+	    syslog( LOG_ERR, "ldap_bind: %s", ldap_err2string(ldaprc));
 	    return( LDAP_SYSERROR );
 	}
     }
     return (0);
 }
-
 /*
 ** This function looks thru the attribute "attr" values 
 ** for the first matching value in the "master" list
@@ -1670,6 +1729,41 @@ simta_ldap_config( char *fname )
 	    }
 	    starttls = intval;
 	    
+	} else if ( strcasecmp( av[ 0 ], "TLS_CACERT" ) == 0 ) {
+	    if (ac != 2) {
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing TLS_CACERT value\n");
+		goto errexit;
+	    }
+	    if ((tls_cacert = strdup (av[ 1 ])) == NULL) {
+		syslog ( LOG_ERR, "tls_cacert strdup error: %m" ); 
+		goto errexit;
+		return( -1 );
+	    } 
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_CERT" ) == 0 ) {
+	    if (ac != 2) {
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing TLS_CERT value\n");
+		goto errexit;
+	    }
+	    if ((tls_cert = strdup (av[ 1 ])) == NULL) {
+		syslog ( LOG_ERR, "tls_cert strdup error: %m" ); 
+		goto errexit;
+		return( -1 );
+	    } 
+	} else if ( strcasecmp( av[ 0 ], "TLS_KEY" ) == 0 ) {
+	    if (ac != 2) {
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing TLS_KEY value\n");
+		goto errexit;
+	    }
+	    if ((tls_key = strdup (av[ 1 ])) == NULL) {
+		syslog ( LOG_ERR, "tls_key strdup error: %m" ); 
+		goto errexit;
+		return( -1 );
+	    } 
+
 	} else if ( strcasecmp( av[ 0 ], "domaincomponentcount" ) == 0 ) {
 	    if (ac != 2) {
 		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
@@ -1823,6 +1917,16 @@ simta_ldap_config( char *fname )
     if (!mailfwdattr) {
 	mailfwdattr = strdup ("mail");
 	syslog ( LOG_ERR, "Defaulting mailforwardingaddress to \'mail\'" ); 
+    }
+    if (tls_cert || tls_key ) {
+	if (! tls_cert) {
+	    syslog ( LOG_ERR, "missing TLS_CERT parameter");
+	    goto errexit;
+	}
+	if (! tls_key) {
+	    syslog ( LOG_ERR, "missing TLS_KEY parameter");
+	    goto errexit;
+	}
     }
     if (attrs == NULL)
 	attrs = allattrs;
