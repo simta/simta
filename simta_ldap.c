@@ -808,6 +808,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     char	*senderbuf;
     char	*psender;
     int		suppressnoemail = 0;
+    int		mo_group = 0;
 
     dn = ldap_get_dn( ld, entry );
    
@@ -911,18 +912,39 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	/* MembersOnly group?  */
 	if (( memonly = ldap_get_values( ld, entry, "membersonly" )) != NULL ) {
 	    if ( strcasecmp( memonly[0], "TRUE" ) == 0 ) {
-		ldap_value_free( memonly );
-		e_addr->e_addr_ldap_flags |= STATUS_LDAP_MEMONLY;
+		mo_group = 1;
+	    }
+	    ldap_value_free( memonly );
+	}
 
-		if (( private = ldap_get_values( ld, entry, "rfc822private" ))
-			!= NULL ) {
-		    if ( strcasecmp( private[0], "TRUE" ) == 0 ) {
-			e_addr->e_addr_ldap_flags |= STATUS_LDAP_PRIVATE;
-		    }
-		    ldap_value_free( private );
+	if ( mo_group ) {
+	    e_addr->e_addr_ldap_flags |= STATUS_LDAP_MEMONLY;
+
+	    if (( private = ldap_get_values( ld, entry, "rfc822private" ))
+		    != NULL ) {
+		if ( strcasecmp( private[0], "TRUE" ) == 0 ) {
+		    e_addr->e_addr_ldap_flags |= STATUS_LDAP_PRIVATE;
 		}
+		ldap_value_free( private );
+	    }
 
-		if ( exp_addr_link( &(exp->exp_memonly), e_addr ) != 0 ) {
+	    if ( exp_addr_link( &(exp->exp_memonly), e_addr ) != 0 ) {
+		if ( dnvals ) {
+		    ldap_value_free( dnvals );
+		}
+		if ( mailvals ) {
+		    ldap_value_free( mailvals );
+		}
+		free( senderbuf );
+		ldap_memfree( dn );
+		return( LDAP_SYSERROR );
+	    }
+
+	    if (( permitted = ldap_get_values( ld, entry,
+		    "permittedgroup")) != NULL ) {
+		if ( permitted_create( e_addr, permitted ) != 0 ) {
+		    ldap_value_free( permitted );
+		
 		    if ( dnvals ) {
 			ldap_value_free( dnvals );
 		    }
@@ -932,47 +954,28 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		    free( senderbuf );
 		    ldap_memfree( dn );
 		    return( LDAP_SYSERROR );
+		} else {
+		    ldap_value_free( permitted );
 		}
+	    }
 
-		if (( permitted = ldap_get_values( ld, entry,
-			"permittedgroup")) != NULL ) {
-		    if ( permitted_create( e_addr, permitted ) != 0 ) {
-			ldap_value_free( permitted );
-		    
-			if ( dnvals ) {
-			    ldap_value_free( dnvals );
-			}
-			if ( mailvals ) {
-			    ldap_value_free( mailvals );
-			}
-			free( senderbuf );
-			ldap_memfree( dn );
-			return( LDAP_SYSERROR );
-		    } else {
-			ldap_value_free( permitted );
+	    if (( moderator = ldap_get_values( ld, entry,
+		    "moderator")) != NULL ) {
+		if ( moderate_membersonly( exp, e_addr, moderator ) != 0 ) {
+		    ldap_value_free( moderator );
+		
+		    if ( dnvals ) {
+			ldap_value_free( dnvals );
 		    }
-		}
-
-		if (( moderator = ldap_get_values( ld, entry,
-			"moderator")) != NULL ) {
-		    if ( moderate_membersonly( exp, e_addr, moderator ) != 0 ) {
-			ldap_value_free( moderator );
-		    
-			if ( dnvals ) {
-			    ldap_value_free( dnvals );
-			}
-			if ( mailvals ) {
-			    ldap_value_free( mailvals );
-			}
-			free( senderbuf );
-			ldap_memfree( dn );
-			return( LDAP_SYSERROR );
-		    } else {
-			ldap_value_free( moderator );
+		    if ( mailvals ) {
+			ldap_value_free( mailvals );
 		    }
+		    free( senderbuf );
+		    ldap_memfree( dn );
+		    return( LDAP_SYSERROR );
+		} else {
+		    ldap_value_free( moderator );
 		}
-	    } else {
-		ldap_value_free( memonly );
 	    }
 
 	} else if (( moderator = ldap_get_values( ld, entry,
