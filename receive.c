@@ -536,7 +536,12 @@ f_data( snet, env, ac, av )
 	    if ( header_end( lf, line ) != 0 ) {
 		/* XXX reject message based on headers here */
 
-		/* XXX punt message based on headers here */
+		/* punt message based on headers */
+		if ( simta_punt_host != NULL ) {
+		    if ( header_punt( lf ) != 0 ) {
+			env->e_punt = simta_punt_host;
+		    }
+		}
 
 		if ( err == 0 ) {
 		    if ( header_file_out( lf, dff ) != 0 ) {
@@ -580,7 +585,12 @@ f_data( snet, env, ac, av )
     if ( header == 1 ) {
 	/* XXX reject message based on headers here */
 
-	/* XXX punt message based on headers here */
+	/* punt message based on headers */
+	if ( simta_punt_host != NULL ) {
+	    if ( header_punt( lf ) != 0 ) {
+		env->e_punt = simta_punt_host;
+	    }
+	}
 
 	if ( err == 0 ) {
 	    if ( header_file_out( lf, dff ) != 0 ) {

@@ -34,6 +34,7 @@ extern int			simta_debug;
 extern int			simta_verbose;
 extern char			*simta_domain;
 extern char			simta_hostname[];
+extern char			*simta_punt_host;
 extern struct host_q		*simta_null_q;
 extern struct stab_entry	*simta_hosts;
 

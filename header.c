@@ -42,6 +42,11 @@
 #define	MAILBOX_RECIPIENTS_CORRECT	5
 #define	MAILBOX_GROUP_CORRECT		6
 
+#define	HEADER_STDERR			1
+#define	HEADER_NO_ERR			2
+
+#define	TEXT_PLAIN			"text/plain;"
+
 
 struct line_token {
     int			t_type;
@@ -76,9 +81,9 @@ int	line_token_unfold ___P(( struct line_token * ));
 int	header_lines( struct line_file *, struct header *, int );
 
 
-struct header recieve_headers[] = {
+struct header headers_punt[] = {
     { "Content-Type",		NULL,		NULL },
-#define CONTENT_TYPE		0
+#define PUNT_CONTENT		0
     { NULL,			NULL,		NULL }
 };
 
@@ -393,7 +398,7 @@ header_end( struct line_file *lf, char *line )
 
 
     int
-header_lines( struct line_file *lf, struct header headers[], int stderr_on )
+header_lines( struct line_file *lf, struct header headers[], int err_out )
 {
     struct line			*l;
     struct header		*h;
@@ -430,7 +435,7 @@ header_lines( struct line_file *lf, struct header headers[], int stderr_on )
 
 		} else {
 		    /* header h->h_key appears at least twice */
-		    if ( stderr_on != 0 ) {
+		    if ( err_out == HEADER_STDERR ) {
 			fprintf( stderr,
 				"line %d: illegal duplicate header %s\n",
 				l->line_no, h->h_key );
@@ -447,6 +452,39 @@ header_lines( struct line_file *lf, struct header headers[], int stderr_on )
     return( 0 );
 }
 
+
+    /* return 0 if we don't punt
+     * return 1 if we punt
+     */
+
+    int
+header_punt( struct line_file *lf )
+{
+    char			*c;
+    struct line			*l;
+
+    if ( header_lines( lf, headers_punt, HEADER_NO_ERR ) != 0 ) {
+	return( 1 );
+    }
+
+    if (( l = headers_punt[ PUNT_CONTENT ].h_line ) == NULL ) {
+	return( 0 );
+    }
+
+    c = l->line_data + 13;
+
+    if ( skip_cfws( &l, &c ) != NULL ) {
+	return( 1 );
+    }
+
+    if ( c != NULL ) {
+	if ( strncasecmp( c, TEXT_PLAIN, strlen( TEXT_PLAIN )) == 0 ) {
+	    return( 0 );
+	}
+    }
+
+    return( 1 );
+}
 
 
     /* return 0 if all went well.
@@ -480,7 +518,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     /* check headers for known mail clients behaving badly */
     header_exceptions( lf );
 
-    if ( header_lines( lf, headers_simsendmail, 1 ) != 0 ) {
+    if ( header_lines( lf, headers_simsendmail, HEADER_NO_ERR ) != 0 ) {
 	return( 1 );
     }
 

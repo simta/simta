@@ -28,6 +28,7 @@ struct stab_entry	*simta_hosts = NULL;
 char			*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 int			simta_debug = 0;
 int			simta_verbose = 0;
+char			*simta_punt_host = NULL;
 char			*simta_domain = NULL;
 char			simta_hostname[ MAXHOSTNAMELEN + 1 ] = "\0";
 
@@ -35,6 +36,8 @@ char			simta_hostname[ MAXHOSTNAMELEN + 1 ] = "\0";
 struct nlist		simta_nlist[] = {
 #define	NLIST_MASQUERADE		0
     { "masquerade",	NULL,	0 },
+#define	NLIST_PUNT			1
+    { "punt",		NULL,	0 },
     { NULL,		NULL,	0 },
 };
 
@@ -76,6 +79,9 @@ simta_config( void )
 	return( -1 );
     }
 
+    /* simta_domain defaults to simta_hostname */
+    simta_domain = simta_hostname;
+
     /* read config file */
     if (( result = nlist( simta_nlist, SIMTA_FILE_CONFIG )) < 0 ) {
 	return( -1 );
@@ -83,13 +89,15 @@ simta_config( void )
     } else if ( result == 0 ) {
 	/* currently checking for the following fields:
 	 *	    masquerade
+	 *	    punt
 	 */
 
 	if ( simta_nlist[ NLIST_MASQUERADE ].n_data != NULL ) {
 	    simta_domain = simta_nlist[ NLIST_MASQUERADE ].n_data;
+	}
 
-	} else {
-	    simta_domain = simta_hostname;
+	if ( simta_nlist[ NLIST_PUNT ].n_data != NULL ) {
+	    simta_punt_host = simta_nlist[ NLIST_PUNT ].n_data;
 	}
 
     } else {
@@ -99,8 +107,6 @@ simta_config( void )
 	    syslog( LOG_INFO, "simta_config file not found: %s",
 		    SIMTA_FILE_CONFIG );
 	}
-
-	simta_domain = simta_hostname;
     }
 
     /* set up simta_hosts stab */
