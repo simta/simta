@@ -542,8 +542,11 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     if (( simta_max_failed_rcpts != 0 ) &&
 	    ( recieve_failed_rcpts >= simta_max_failed_rcpts )) {
 	if ( recieve_failed_rcpts == simta_max_failed_rcpts ) {
-	    syslog( LOG_INFO, "Receive %s: Rejected:"
-		" Too many failed recipients", env->e_id );
+	    syslog( LOG_INFO, "Receive %s: Rejected: "
+		"Too many failed recipients "
+		"From <%s> Relay [%s] %s",
+		env->e_id, env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+		receive_remote_hostname ? receive_remote_hostname : "" );
 	    recieve_failed_rcpts++;
 	}
 	if ( snet_writef( snet, "%d Requested action aborted: "
@@ -561,8 +564,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    if ( *addr != *domain ) {
 			recieve_failed_rcpts++;
 			syslog( LOG_INFO,
-				"Receive %s: To <%s> Rejected: bad IMAP name",
-				env->e_id, addr );
+			    "Receive %s: To <%s> Rejected: bad IMAP name "
+			    "From <%s> Relay [%s] %s",
+			    env->e_id, addr,
+			    env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+			    receive_remote_hostname ?
+			    receive_remote_hostname : "" );
 			if ( snet_writef( snet, "%d %s: Bad IMAP name\r\n",
 				550, domain ) < 0 ) {
 			    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -587,8 +594,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		} else {
 
 		    syslog( LOG_INFO,
-			    "Receive %s: To <%s> Rejected: Unknown domain",
-			    env->e_id, addr );
+			"Receive %s: To <%s> Rejected: Unknown domain "
+			"From <%s> Relay [%s] %s",
+			env->e_id, addr,
+			env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+			receive_remote_hostname ?
+			receive_remote_hostname : "" );
 		    if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			    domain ) < 0 ) {
 			syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -603,8 +614,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	if (( host = host_local( domain )) == NULL ) {
 	    if ( simta_global_relay == 0 ) {
 		syslog( LOG_INFO,
-			"Receive %s: To <%s> Rejected: Domain not local",
-			env->e_id, addr );
+		    "Receive %s: To <%s> Rejected: Domain not local "
+		    "From <%s> Relay [%s] %s",
+		    env->e_id, addr,
+		    env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+		    receive_remote_hostname ?
+		    receive_remote_hostname : "" );
 		if ( snet_writef( snet,
 			"551 User not local; please try <%s>\r\n",
 			domain ) < 0 ) {
@@ -638,11 +653,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    switch( local_address( addr, domain, host )) {
 	    case NOT_LOCAL:
 		syslog( LOG_INFO,
-			"Receive %s: To <%s> Rejected: User not local:"
-			" Relay [%s] %s", env->e_id, addr,
-			inet_ntoa( receive_sin->sin_addr ),
-			receive_remote_hostname ?
-			receive_remote_hostname : "" );
+		    "Receive %s: To <%s> Rejected: User not local: "
+		    "From %s Relay [%s] %s",
+		    env->e_id, addr,
+		    env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+		    receive_remote_hostname ?
+		    receive_remote_hostname : "" );
 
 		/* XXX Count number of not-local recipients */
 		recieve_failed_rcpts++;
@@ -688,11 +704,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    if ( receive_remote_rbl_status == RECEIVE_RBL_BLOCKED ) {
 			recieve_failed_rcpts++;
 			syslog( LOG_INFO,
-				"Receive %s: To <%s> Rejected: From <%s> "
-				"Relay [%s] by %s",
-				env->e_id, addr, env->e_mail,
-				inet_ntoa( receive_sin->sin_addr ),
-				simta_user_rbl_domain );
+			    "Receive %s: To <%s> Rejected: RBL %s "
+			    "From <%s> Relay [%s] %s",
+			    env->e_id, addr,  simta_user_rbl_domain, 
+			    env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+			    receive_remote_hostname ?
+			    receive_remote_hostname : "");
 			snet_writef( snet,
 			    "550 No access from IP %s.  See %s\r\n",
 			    inet_ntoa( receive_sin->sin_addr ),
@@ -771,10 +788,15 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
      * take the mail.
      */
     if (( simta_max_failed_rcpts != 0 ) &&
-	    ( recieve_failed_rcpts > simta_max_failed_rcpts )) {
-	syslog( LOG_INFO, "Receive %s: Message Tempfail:"
-		" Too many failed recipients" , env->e_id );
-
+	    ( recieve_failed_rcpts >= simta_max_failed_rcpts )) {
+	if ( recieve_failed_rcpts == simta_max_failed_rcpts ) {
+	    syslog( LOG_INFO, "Receive %s: Rejected: "
+		"Too many failed recipients "
+		"From <%s> Relay [%s] %s",
+		env->e_id, env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+		receive_remote_hostname ? receive_remote_hostname : "" );
+	    recieve_failed_rcpts++;
+	}
 	if ( snet_writef( snet, "451 Requested action aborted:"
 		" Too many failed recipients\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
@@ -925,8 +947,12 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if ( received_count > simta_max_received_headers ) { /* message rejection */
-	syslog( LOG_INFO, "Receive %s: Message Rejected: %d received headers",
-		env->e_id, received_count );
+	syslog( LOG_INFO, "Receive %s: Rejected: Too many received headers %d "
+		"From <%s> Relay [%s] %s",
+		env->e_id, received_count,
+		env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+		receive_remote_hostname ?
+		receive_remote_hostname : "" );
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data fclose: %m" );
 	}
@@ -1027,8 +1053,12 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "Receive %s: Message deleted after acceptance: %s",
-		env->e_id, smtp_message ? smtp_message : "no message" );
+	syslog( LOG_INFO, "Receive %s: Message deleted after acceptance: %s "
+	    "From <%s> Relay [%s] %s",
+	    env->e_id, smtp_message ? smtp_message : "no message",
+	    env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+	    receive_remote_hostname ?
+	    receive_remote_hostname : "" );
 
 	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "accepted and deleted" ) < 0 ) {
@@ -1044,8 +1074,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "Receive %s: Message Rejected: %s", env->e_id,
-		smtp_message ? smtp_message : "no message" );
+	syslog( LOG_INFO, "Receive %s: Message Rejected: %s "
+	    "From <%s> Relay [%s] %s",
+	    env->e_id, smtp_message ? smtp_message : "no message",
+	    env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+	    receive_remote_hostname ?  receive_remote_hostname : "" );
 
 	if ( snet_writef( snet, "554 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "rejected" ) < 0 ) {
@@ -1061,8 +1094,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "Receive %s: Message Tempfail: %s", env->e_id,
-		smtp_message ? smtp_message : "no message" );
+	syslog( LOG_INFO, "Receive %s: Message Tempfail: %s "
+	    "From <%s> Relay [%s] %s",
+	    env->e_id, smtp_message ? smtp_message : "no message",
+	    env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+	    receive_remote_hostname ? receive_remote_hostname : "" );
 
 	if ( snet_writef( snet, "452 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message :
