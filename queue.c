@@ -390,8 +390,10 @@ q_run( struct host_q **host_q )
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	    hq->hq_deliver = NULL;
+	    syslog( LOG_DEBUG, "q_run top of loop" );
 
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
+		syslog( LOG_DEBUG, "q_run skipping" );
 		if ( hq == simta_null_q ) {
 		    syslog( LOG_DEBUG, "q_run not queueing %s, no entries",
 			    "NULL queue" );
@@ -402,6 +404,7 @@ q_run( struct host_q **host_q )
 
 	    } else if (( hq->hq_status == HOST_LOCAL ) ||
 		    ( hq->hq_status == HOST_MX )) {
+		syslog( LOG_DEBUG, "q_run adding" );
 		syslog( LOG_DEBUG, "q_run adding %s to deliver queue",
 			hq->hq_hostname );
 		/*
@@ -438,11 +441,13 @@ q_run( struct host_q **host_q )
 
 	    } else if (( hq->hq_status == HOST_DOWN ) ||
 		    ( hq->hq_status == HOST_BOUNCE )) {
+		syslog( LOG_DEBUG, "q_run bouncing" );
 		syslog( LOG_DEBUG, "q_run: calling deliver_q to bounce %s",
-			deliver_q->hq_hostname );
+			hq->hq_hostname );
 		q_deliver( hq );
 
 	    } else {
+		syslog( LOG_DEBUG, "q_run out of range" );
 		syslog( LOG_ERR, "q_run: host_type %d out of range %s",
 			hq->hq_status, hq->hq_hostname );
 	    }
