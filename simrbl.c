@@ -93,7 +93,7 @@ main( int argc, char *argv[])
 	    perror( "dnsr_new" );
 	    exit( SIMRBL_EXIT_ERROR );
 	}
-	if (( rc = dnsr_nameserver( simta_dnsr, optarg )) != 0 ) {
+	if (( rc = dnsr_nameserver( simta_dnsr, server )) != 0 ) {
 	    dnsr_perror( simta_dnsr, "dnsr_nameserver" );
 	    exit( SIMRBL_EXIT_ERROR );
 	}
