@@ -70,6 +70,8 @@ q_syslog( struct host_q *hq )
     for ( env = hq->hq_env_first; env != NULL; env = env->e_hq_next ) {
 	env_syslog(  env );
     }
+
+    return;
 }
 
 
@@ -81,6 +83,8 @@ q_stab_syslog( struct host_q *hq )
     for ( h = hq; h != NULL; h = h->hq_next ) {
 	q_syslog( h );
     }
+
+    return;
 }
 
 
@@ -98,6 +102,8 @@ q_stdout( struct host_q *hq )
     for ( env = hq->hq_env_first; env != NULL; env = env->e_hq_next ) {
 	env_syslog( env );
     }
+
+    return;
 }
 
 
@@ -109,13 +115,15 @@ q_stab_stdout( struct host_q *hq )
     }
 
     printf( "\n" );
+
+    return;
 }
 
 
     /* look up a given host in the host_q.  if not found, create */
 
     struct host_q *
-host_q_lookup( struct host_q **host_q, char *hostname ) 
+host_q_create_or_lookup( struct host_q **host_q_head, char *hostname ) 
 {
     struct host_q		*hq;
 
@@ -123,15 +131,15 @@ host_q_lookup( struct host_q **host_q, char *hostname )
     if ( simta_null_q == NULL ) {
 	if (( simta_null_q = (struct host_q*)malloc(
 		sizeof( struct host_q ))) == NULL ) {
-	    syslog( LOG_ERR, "host_q_lookup malloc: %m" );
+	    syslog( LOG_ERR, "host_q_create_or_lookup malloc: %m" );
 	    return( NULL );
 	}
 	memset( simta_null_q, 0, sizeof( struct host_q ));
 
 	/* add this host to the host_q */
 	simta_null_q->hq_hostname = "";
-	simta_null_q->hq_next = *host_q;
-	*host_q = simta_null_q;
+	simta_null_q->hq_next = *host_q_head;
+	*host_q_head = simta_null_q;
 	simta_null_q->hq_status = HOST_NULL;
     }
 
@@ -139,7 +147,7 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 	return( simta_null_q );
     }
 
-    for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
+    for ( hq = *host_q_head; hq != NULL; hq = hq->hq_next ) {
 	if ( strcasecmp( hq->hq_hostname, hostname ) == 0 ) {
 	    break;
 	}
@@ -147,21 +155,22 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 
     if ( hq == NULL ) {
 	if (( hq = (struct host_q*)malloc( sizeof( struct host_q ))) == NULL ) {
-	    syslog( LOG_ERR, "host_q_lookup malloc: %m" );
+	    syslog( LOG_ERR, "host_q_create_or_lookup malloc: %m" );
 	    return( NULL );
 	}
 	memset( hq, 0, sizeof( struct host_q ));
 
 	if (( hq->hq_hostname = strdup( hostname )) == NULL ) {
-	    syslog( LOG_ERR, "host_q_lookup strdup: %m" );
+	    syslog( LOG_ERR, "host_q_create_or_lookup strdup: %m" );
 	    free( hq );
 	    return( NULL );
 	}
 
-	/* add this host to the host_q */
-	hq->hq_next = *host_q;
-	*host_q = hq;
+	/* add this host to the host_q_head */
+	hq->hq_next = *host_q_head;
+	*host_q_head = hq;
 
+	/* XXX mcneal & epcjr need to fix this */
 	if ( strcasecmp( simta_hostname, hq->hq_hostname ) == 0 ) {
 	    hq->hq_status = HOST_LOCAL;
 	} else {
@@ -174,7 +183,7 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 
 
     int
-queue_envelope( struct host_q **hq_stab, struct envelope *env )
+queue_envelope( struct host_q **host_q_head, struct envelope *env )
 {
     struct envelope		**ep;
     struct host_q		*hq;
@@ -184,12 +193,12 @@ queue_envelope( struct host_q **hq_stab, struct envelope *env )
 	return( 0 );
     }
 
-    if (( hq = host_q_lookup( hq_stab, env->e_hostname )) == NULL ) {
+    if (( hq = host_q_create_or_lookup( host_q_head, env->e_hostname ))
+	    == NULL ) {
 	return( 1 );
     }
 
-    /* XXX make sure that env has etime */
-
+    /* sort queued envelopes by access time */
     ep = &(hq->hq_env_first);
     for ( ep = &(hq->hq_env_first); *ep != NULL; ep = &((*ep)->e_hq_next)) {
 	if ( env->e_last_attempt.tv_sec < (*ep)->e_last_attempt.tv_sec ) {
@@ -230,6 +239,8 @@ queue_remove_envelope( struct envelope *env )
 	env->e_hq = NULL;
 	env->e_hq_next = NULL;
     }
+
+    return;
 }
 
 
@@ -249,7 +260,6 @@ q_runner( struct host_q **host_q )
     struct timeval              tv;
     struct timeval		tv_start;
     struct timeval		tv_end;
-    int				metrics;
     int				day;
     int				hour;
     int				min;
@@ -258,11 +268,15 @@ q_runner( struct host_q **host_q )
     syslog( LOG_DEBUG, "q_runner starting" );
 
     if ( *host_q == NULL ) {
+	syslog( LOG_ERR, "q_runner: NULL host_q" );
 	return( simta_fast_files );
     }
 
     /* get start time for metrics */
-    metrics = gettimeofday( &tv_start, NULL );
+    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
+	syslog( LOG_ERR, "q_runner gettimeofday: %m" );
+	return( simta_fast_files );
+    }
 
     for ( ; ; ) {
 	/* build the deliver_q by number of messages */
@@ -273,24 +287,19 @@ q_runner( struct host_q **host_q )
 
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
 		continue;
+	    }
 
-	    } else if (( hq->hq_status == HOST_LOCAL ) ||
-		    ( hq->hq_status == HOST_MX )) {
+	    switch ( hq->hq_status ) {
+	    case HOST_LOCAL:
+	    case HOST_MX:
 		/*
 		 * hq is expanded and has at least one message, insert in to
 		 * the delivery queue.
-		 */
-		dq = &deliver_q;
-
-		/* sort mail queues by number of messages with non-generated
+		 * sort mail queues by number of messages with non-generated
 		 * From addresses first, then by overall number of messages in
 		 * the queue.
 		 */
-		for ( ; ; ) {
-		    if ( *dq == NULL ) {
-			break;
-		    }
-
+		for ( dq = &deliver_q; *dq != NULL; dq = &((*dq)->hq_deliver)) {
 		    if ( hq->hq_from > ((*dq)->hq_from)) {
 			break;
 		    }
@@ -300,32 +309,30 @@ q_runner( struct host_q **host_q )
 			    break;
 			}
 		    }
-
-		    dq = &((*dq)->hq_deliver);
 		}
 
 		hq->hq_deliver = *dq;
 		*dq = hq;
+		break;
 
-	    } else if (( hq->hq_status == HOST_DOWN ) ||
-		    ( hq->hq_status == HOST_BOUNCE )) {
+	    case HOST_DOWN:
+	    case HOST_BOUNCE:
 		q_deliver( host_q, hq );
+		break;
 
-	    } else {
-		syslog( LOG_ERR, "q_runner: host_type %d out of range %s",
-			hq->hq_status, hq->hq_hostname );
+	    default:
+		syslog( LOG_ERR, "q_runner: bad host type" );
+		return( 1 );
 	    }
 	}
 
 	/* deliver all mail in every expanded queue */
-	while ( deliver_q != NULL ) {
+	for ( ; deliver_q != NULL; deliver_q = deliver_q->hq_deliver ) {
 	    q_deliver( host_q, deliver_q );
-	    deliver_q = deliver_q->hq_deliver;
 	}
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
-	    /* delivered all expanded mail, check for unexpanded */
 	    if (( unexpanded = simta_null_q->hq_env_first ) == NULL ) {
 		/* no more unexpanded mail.  we're done */
 		goto q_runner_done;
@@ -339,12 +346,19 @@ q_runner( struct host_q **host_q )
 		simta_null_q->hq_from--;
 	    }
 
+	    /* if we don't have rcpts, we haven't read them off of the disk */
 	    if ( unexpanded->e_rcpt == NULL ) {
 		/* lock & read envelope to expand */
 		if ( env_read_delivery_info( unexpanded, &snet_lock ) != 0 ) {
 		    continue;
 		}
 	    } else {
+		/* XXX ASSERT */
+		if ( unexpanded->e_dir != simta_dir_fast ) {
+		    syslog( LOG_WARNING, "q_runner assert %s: bad directory",
+			    unexpanded->e_id );
+		    return( 1 );
+		}
 		snet_lock = NULL;
 	    }
 
@@ -367,9 +381,9 @@ q_runner( struct host_q **host_q )
 			goto oldfile_error;
 		    }
 
+		    /* XXX env_old */
 		    /* consider Dfiles old if they're over 3 days */
 		    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
-oldfile_error:
 			syslog( LOG_DEBUG, "q_runner %s: old unexpandable "
 				"message, bouncing", unexpanded->e_id );
 			unexpanded->e_flags = ( unexpanded->e_flags | ENV_OLD );
@@ -390,6 +404,7 @@ oldfile_error:
  		    }
 
 		} else {
+oldfile_error:
 		    env_slow( unexpanded );
 		}
 	    }
@@ -412,45 +427,43 @@ oldfile_error:
     }
 
 q_runner_done:
-    if ( metrics == 0 ) {
-	/* get end time for metrics */
-	if ( gettimeofday( &tv_end, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "q_runner gettimeofday: %m" );
+    /* get end time for metrics */
+    if ( gettimeofday( &tv_end, NULL ) != 0 ) {
+	syslog( LOG_ERR, "q_runner gettimeofday: %m" );
 
-	} else {
-	    tv_end.tv_sec -= tv_start.tv_sec;
-	    day = ( tv_end.tv_sec / 86400 );
-	    hour = (( tv_end.tv_sec % 86400 ) / 3600 );
-	    min = (( tv_end.tv_sec % 3600 ) / 60 );
-	    sec = ( tv_end.tv_sec % 60 );
+    } else {
+	tv_end.tv_sec -= tv_start.tv_sec;
+	day = ( tv_end.tv_sec / 86400 );
+	hour = (( tv_end.tv_sec % 86400 ) / 3600 );
+	min = (( tv_end.tv_sec % 3600 ) / 60 );
+	sec = ( tv_end.tv_sec % 60 );
 
-	    if ( simta_message_count > 0 ) {
-		if ( day > 0 ) {
-		    if ( day > 99 ) {
-			day = 99;
-		    }
-
-		    syslog( LOG_INFO, "q_runner metrics: %d messages, "
-			    "%d outbound_attempts, %d outbound_delivered, "
-			    "%d+%02d:%02d:%02d",
-			    simta_message_count, simta_smtp_outbound_attempts,
-			    simta_smtp_outbound_delivered,
-			    day, hour, min, sec );
-
-		} else {
-		    syslog( LOG_INFO, "q_runner metrics: %d messages, "
-			    "%d outbound_attempts, %d outbound_delivered, "
-			    "%02d:%02d:%02d",
-			    simta_message_count, simta_smtp_outbound_attempts,
-			    simta_smtp_outbound_delivered,
-			    hour, min, sec );
+	if ( simta_message_count > 0 ) {
+	    if ( day > 0 ) {
+		if ( day > 99 ) {
+		    day = 99;
 		}
+
+		syslog( LOG_INFO, "q_runner metrics: %d messages, "
+			"%d outbound_attempts, %d outbound_delivered, "
+			"%d+%02d:%02d:%02d",
+			simta_message_count, simta_smtp_outbound_attempts,
+			simta_smtp_outbound_delivered,
+			day, hour, min, sec );
+
+	    } else {
+		syslog( LOG_INFO, "q_runner metrics: %d messages, "
+			"%d outbound_attempts, %d outbound_delivered, "
+			"%02d:%02d:%02d",
+			simta_message_count, simta_smtp_outbound_attempts,
+			simta_smtp_outbound_delivered,
+			hour, min, sec );
 	    }
 	}
     }
 
     if ( simta_fast_files != 0 ) {
-	syslog( LOG_ERR, "q_runner exiting with %d fast_files",
+	syslog( LOG_WARNING, "q_runner exiting with %d fast_files",
 		simta_fast_files );
     }
 
@@ -473,7 +486,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     int                         ml_error;
     int                         unlinked;
     int				smtp_error;
-    int                         sent;
     char                        *at;
     struct timeval              tv;
     struct envelope		**ep;
@@ -483,36 +495,21 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     struct envelope		*env_bounce = NULL;
     struct recipient            *r;
     struct stat                 sb;
-    static int                  (*local_mailer)(int, char *,
-                                        struct recipient *) = NULL;
+    int                  	(*local_mailer)(int, char *,
+                                        struct recipient *);
 
     syslog( LOG_DEBUG, "q_deliver: delivering %s from %d total %d",
 	    deliver_q->hq_hostname, deliver_q->hq_from, deliver_q->hq_entries );
 
-    if ( deliver_q->hq_status == HOST_LOCAL ) {
-        /* figure out what our local mailer is */
-        if ( local_mailer == NULL ) {
-            if (( local_mailer = get_local_mailer()) == NULL ) {
-                syslog( LOG_ALERT, "q_deliver: no local mailer" );
-                deliver_q->hq_status = HOST_DOWN;
-            }
-        }
-
-    } else if ( deliver_q->hq_status == HOST_MX ) {
-        /* HOST_MX sent is used to count how many messages have been
-         * sent to a SMTP host.
-         */
-        sent = 0;
-
-    } else if (( deliver_q->hq_status != HOST_BOUNCE ) &&
-	    ( deliver_q->hq_status != HOST_DOWN )) {
-        syslog( LOG_ERR, "q_deliver fatal error: unreachable code" );
+    if (( local_mailer = get_local_mailer()) == NULL ) {
+	syslog( LOG_ALERT, "q_deliver: no local mailer" );
 	deliver_q->hq_status = HOST_DOWN;
     }
 
     for ( ep = &deliver_q->hq_env_first; *ep != NULL; ) {
 	env_deliver = *ep;
 	*ep = env_deliver->e_hq_next;
+
 	deliver_q->hq_entries--;
 
 	if ( env_deliver->e_mail != NULL ) {
@@ -549,23 +546,17 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	delivered = 0;
 
         if ( deliver_q->hq_status == HOST_LOCAL ) {
-            /* HOST_LOCAL sent is incremented every time we send
-             * a message to a user via. a local mailer.
-             */
 	    syslog( LOG_INFO, "q_deliver %s: attempting local delivery",
 		    env_deliver->e_id );
 	    attempt = 1;
-            sent = 0;
             for ( r = env_deliver->e_rcpt; r != NULL; r = r->r_next ) {
 		at = NULL;
 		ml_error = EX_TEMPFAIL;
 
-                if ( sent != 0 ) {
-                    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
-                        syslog( LOG_ERR, "q_deliver lseek: %m" );
-			goto lseek_fail;
-                    }
-                }
+		if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
+		    syslog( LOG_ERR, "q_deliver lseek: %m" );
+		    goto lseek_fail;
+		}
 
                 for ( at = r->r_rcpt; ; at++ ) {
                     if ( *at == '@' ) {
@@ -606,8 +597,6 @@ lseek_fail:
                 if ( at != NULL ) {
                     *at = '@';
                 }
-
-                sent++;
             }
 
 	    delivered = 1;
@@ -630,9 +619,7 @@ lseek_fail:
 			SMTP_OK ) {
 		    goto smtp_cleanup;
 		}
-            }
-
-            if ( sent != 0 ) {
+            } else {
 		syslog( LOG_DEBUG, "q_deliver %s: calling smtp_reset",
 			env_deliver->e_id );
                 if (( smtp_error = smtp_rset( snet_smtp, deliver_q ))
@@ -671,7 +658,6 @@ smtp_cleanup:
 		    }
 		}
 	    }
-            sent++;
         }
 
 	if ((( env_deliver->e_tempfail > 0 ) ||
@@ -688,6 +674,7 @@ smtp_cleanup:
 		goto oldfile_error;
 	    }
 
+	    /* XXX env_old */
 	    /* consider Dfiles old if they're over 3 days */
 	    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
 oldfile_error:
@@ -805,7 +792,7 @@ oldfile_error:
 		goto message_cleanup;
 	    }
 
-	    if ( strcmp( env_deliver->e_dir, simta_dir_fast ) == 0 ) {
+	    if ( env_deliver->e_dir == simta_dir_fast ) {
 		/* overwrote fast file, not created a new one */
 		simta_fast_files--;
 	    }
@@ -872,6 +859,8 @@ message_cleanup:
 	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
 	}
     }
+
+    return;
 }
 
 
@@ -888,21 +877,11 @@ q_runner_dir( char *dir )
 	return( EXIT_OK );
     }
 
+    errno = 0;
+
     /* organize a directory's messages by host and timestamp */
-    for ( simta_message_count = 0; ; simta_message_count++ ) {
-	errno = 0;
-	entry = readdir( dirp );
-
-	if ( errno != 0 ) {
-	    /* error reading directory, try to deliver what we got already */
-	    syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
-	    break;
-
-	} else if ( entry == NULL ) {
-	    /* no more entries */
-	    break;
-
-	} else if ( *entry->d_name == 'E' ) {
+    while (( entry = readdir( dirp )) != NULL ) {
+	if ( *entry->d_name == 'E' ) {
 	    if (( env = env_create( NULL )) == NULL ) {
 		continue;
 	    }
@@ -921,7 +900,13 @@ q_runner_dir( char *dir )
 	    if ( queue_envelope( &host_q, env ) != 0 ) {
 		env_free( env );
 	    }
+
+	    simta_message_count++;
 	}
+    }
+
+    if ( errno != 0 ) {
+	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
     }
 
     if ( q_runner( &host_q ) != 0 ) {

@@ -38,7 +38,6 @@ struct host_q {
     int				hq_entries;
     int				hq_from;
     struct envelope		*hq_env_first;
-    struct envelope		*hq_env_last;
     struct line_file		*hq_err_text;
 };
 
@@ -46,11 +45,7 @@ int	q_runner ___P(( struct host_q ** ));
 int	q_runner_dir ___P(( char * ));
 
 int	q_cleanup ___P(( void ));
-struct	host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
-struct	message	*message_create ___P(( char * ));
-void	message_free ___P(( struct message * ));
-int	message_slow ___P(( struct message * ));
-void	message_remove ___P(( struct message * ));
+struct	host_q	*host_q_create_or_lookup ___P(( struct host_q **, char * )); 
 void	queue_remove_envelope ___P(( struct envelope * ));
 int	queue_envelope( struct host_q **, struct envelope *);
 
