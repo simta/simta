@@ -41,7 +41,7 @@ void		data_stdout ___P(( struct data * ));
 
 struct message	*message_infiles ___P(( char *, char * ));
 void		message_stdout ___P(( struct message * ));
-int		message_outfiles ___P(( struct message * ));
+int		message_outfiles ___P(( struct message *, char * ));
 
 /* XXX Bad functions */
 struct message	*message_create ___P(( char * ));

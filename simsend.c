@@ -29,6 +29,8 @@
 #include "message.h"
 #include "envelope.h"
 
+#define	TEST_DIR	"tmp"
+
 #ifdef __STDC__
 #define ___P(x)         x
 #else /* __STDC__ */
@@ -435,7 +437,7 @@ main( int argc, char *argv[] )
 
     /* message_stdout( m ); */
 
-    if ( message_outfiles( m ) != 0 ) {
+    if ( message_outfiles( m, TEST_DIR ) != 0 ) {
 	perror( "message_outfile" );
 	exit( 1 );
     }

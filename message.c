@@ -33,7 +33,7 @@
 #include "receive.h"
 
 
-    /* add a line to the message data */
+    /* Add a line to a message data structure  */
 
     struct line *
 data_add_line( struct data *d, char *line )
@@ -97,6 +97,8 @@ data_prepend_line( struct data *d, char *line )
 }
 
 
+    /* read a D file from directory "dir" for message "id" */
+
     struct data *
 data_infile( char *dir, char *id )
 {
@@ -147,6 +149,10 @@ data_stdout( struct data *d )
 }
 
 
+    /* build a message from E and D files in directory "dir" for message
+     * "id".
+     */
+
     struct message *
 message_infiles( char *dir, char *id )
 {
@@ -180,23 +186,25 @@ message_stdout( struct message *m )
 }
 
 
+    /* store message "m" as E and D files in directory "dir" */
+
     int
-message_outfiles( struct message *m )
+message_outfiles( struct message *m, char *dir )
 {
     int			fd;
     time_t		clock;
     struct tm		*tm;
     struct recipient	*r;
     FILE		*dff, *tff;
-    char		df[ 25 ];
-    char		tf[ 25 ];
-    char		ef[ 25 ];
+    char		df[ MAXPATHLEN ];
+    char		tf[ MAXPATHLEN ];
+    char		ef[ MAXPATHLEN ];
     char		daytime[ 30 ];
     struct line		*l;
 
-    sprintf( df, "tmp/D%s", m->m_env->e_id );
-    sprintf( tf, "tmp/t%s", m->m_env->e_id );
-    sprintf( ef, "tmp/E%s", m->m_env->e_id );
+    sprintf( df, "%s/D%s", dir, m->m_env->e_id );
+    sprintf( tf, "%s/t%s", dir, m->m_env->e_id );
+    sprintf( ef, "%s/E%s", dir, m->m_env->e_id );
 
     if (( fd = open( df, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
 	fprintf( stderr, "open %s: ", df );
