@@ -33,6 +33,7 @@
 /* global variables */
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
+unsigned int		simta_bounce_seconds = 259200;
 int			simta_receive_wait = 600;
 int			simta_ignore_reverse = 0;
 int			simta_message_count = 0;
@@ -66,8 +67,10 @@ struct nlist		simta_nlist[] = {
     { "base_dir",	NULL,	0 },
 #define	NLIST_RECEIVE_WAIT		3
     { "receive_wait",	NULL,	0 },
+#define	NLIST_BOUNCE_SECONDS		4
+    { "bounce_seconds",	NULL,	0 },
 #ifdef HAVE_LDAP
-#define	NLIST_LDAP			4
+#define	NLIST_LDAP			5
     { "ldap",		NULL,	0 },
 #endif /* HAVE_LDAP */
     { NULL,		NULL,	0 },
@@ -193,6 +196,18 @@ simta_config( char *conf_fname, char *base_dir )
 
 	if ( simta_nlist[ NLIST_BASE_DIR ].n_data != NULL ) {
 	    base_dir = simta_nlist[ NLIST_BASE_DIR ].n_data;
+	}
+
+	if ( simta_nlist[ NLIST_BOUNCE_SECONDS ].n_data != NULL ) {
+	    simta_bounce_seconds =
+		atoi( simta_nlist[ NLIST_BOUNCE_SECONDS ].n_data );
+	    if ( simta_bounce_seconds < 0 ) {
+		fprintf( stderr,
+		    "file %s line %d: bounce_seconds may not be less than 0",
+		    conf_fname,
+		    simta_nlist[ NLIST_RECEIVE_WAIT ].n_lineno );
+		return( -1 );
+	    }
 	}
 
 	if ( simta_nlist[ NLIST_RECEIVE_WAIT ].n_data != NULL ) {

@@ -60,6 +60,7 @@ struct envelope	*env_create ___P(( char * ));
 struct envelope	*env_dup ___P(( struct envelope * ));
 void		env_reset ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
+int		env_age( struct envelope *, struct timeval * );
 int		env_gettimeofday_id ___P(( struct envelope * ));
 int		env_set_id ___P(( struct envelope *, char * ));
 int		env_recipient ___P(( struct envelope *, char * ));

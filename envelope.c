@@ -55,6 +55,24 @@ env_gettimeofday_id( struct envelope *e )
 
 
     int
+env_age( struct envelope *env, struct timeval *tv_env )
+{
+    struct timeval              tv_now;
+
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	syslog( LOG_ERR, "env_age gettimeofday: %m" );
+	return( 1 );
+    }
+
+    if (( tv_now.tv_sec - tv_env->tv_sec ) > ( simta_bounce_seconds )) {
+	env->e_flags = ( env->e_flags | ENV_OLD );
+    }
+
+    return( 0 );
+}
+
+
+    int
 env_set_id( struct envelope *e, char *id )
 {
     if (( id == NULL ) || ( *id == '\0' )) {

@@ -256,7 +256,6 @@ q_runner( struct host_q **host_q )
     int				result;
     struct stat			sb;
     char                        dfile_fname[ MAXPATHLEN ];
-    struct timeval              tv;
     struct timeval		tv_start;
     struct timeval		tv_end;
     int				day;
@@ -375,17 +374,11 @@ q_runner( struct host_q **host_q )
 			goto oldfile_error;
 		    }
 
-		    if ( gettimeofday( &tv, NULL ) != 0 ) {
-			syslog( LOG_ERR, "q_runner gettimeofday: %m" );
-			goto oldfile_error;
-		    }
+		    env_age( unexpanded, &(sb.st_mtime));
 
-		    /* XXX env_old */
-		    /* consider Dfiles old if they're over 3 days */
-		    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
+		    if (( unexpanded->e_flags & ENV_OLD ) != 0 ) {
 			syslog( LOG_DEBUG, "q_runner %s: old unexpandable "
 				"message, bouncing", unexpanded->e_id );
-			unexpanded->e_flags = ( unexpanded->e_flags | ENV_OLD );
 			unexpanded->e_flags =
 				( unexpanded->e_flags | ENV_BOUNCE );
 
@@ -486,7 +479,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     int                         unlinked;
     int				smtp_error;
     char                        *at;
-    struct timeval              tv;
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env_deliver;
@@ -671,24 +663,21 @@ smtp_cleanup:
 		goto oldfile_error;
 	    }
 
-	    if ( gettimeofday( &tv, NULL ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver gettimeofday: %m" );
+	    if ( env_age( env_deliver, &(sb.st_mtime)) != 0 ) {
 		goto oldfile_error;
 	    }
 
-	    /* XXX env_old */
 	    /* consider Dfiles old if they're over 3 days */
-	    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
-oldfile_error:
+	    if (( env_deliver->e_flags & ENV_OLD ) != 0 ) {
 		syslog( LOG_INFO, "q_deliver %s: old message, bouncing",
 			env_deliver->e_id );
 		env_deliver->e_flags = ( env_deliver->e_flags | ENV_BOUNCE );
-		env_deliver->e_flags = ( env_deliver->e_flags | ENV_OLD );
 	    } else {
 		syslog( LOG_DEBUG, "q_deliver %s: not old", env_deliver->e_id );
 	    }
 	}
 
+oldfile_error:
 	if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		( env_deliver->e_failed > 0 )) {
