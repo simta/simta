@@ -7,7 +7,7 @@
 
 
 #define SMTP_CONNECT    	"22"
-#define SMTP_OK         	"250"
+#define SMTP_SUCCESS         	"250"
 #define SMTP_DATAOK         	"354"
 #define SMTP_USER_UNKNOWN	"55"
 #define SMTP_TEMPFAIL		"45"
@@ -16,8 +16,9 @@
 #define SMTP_DISCONNECT 	"221"
 #define SMTP_EOF         	"."
 
-#define	SMTP_ERR_SYSCALL		-1
-#define	SMTP_ERR_REMOTE			1
+#define	SMTP_OK			0
+#define	SMTP_ERROR		1
+#define	SMTP_BAD_CONNECTION	2
 
 #define	SMTP_TIME_CONNECT	60 * 5
 #define	SMTP_TIME_HELO		60 * 5
@@ -38,8 +39,10 @@
 
 
 void	stdout_logger ___P(( char * ));
+int	smtp_grab ___P(( struct line_file **, SNET *, struct timeval *,
+		char *, char * ));
 
 int	smtp_connect ___P(( SNET **, struct host_q * ));
 int	smtp_rset ___P(( SNET *, struct host_q * ));
 int	smtp_send ___P(( SNET *, struct host_q *, struct envelope *, SNET * ));
-int	smtp_quit ___P(( SNET *, struct host_q * ));
+void	smtp_quit ___P(( SNET *, struct host_q * ));

@@ -51,7 +51,7 @@
 #include "bounce.h"
 
 
-int	q_deliver ___P(( struct host_q * ));
+void	q_deliver ___P(( struct host_q * ));
 int	deliver_local ___P(( struct envelope *, int ));
 
 
@@ -528,40 +528,38 @@ q_runner_d( char *dir )
 }
 
 
-    int
+    void
 q_deliver( struct host_q *hq )
 {
+    int                         dfile_fd = 0;
+    SNET                        *snet_dfile = NULL;
+    SNET                        *snet_smtp = NULL;
+    SNET			*snet_lock;
+    struct envelope		*env_bounce;
     char                        dfile_fname[ MAXPATHLEN ];
     char                        efile_fname[ MAXPATHLEN ];
-    int                         dfile_fd;
-    SNET                        *dfile_snet = NULL;
-    int                         result;
+    int                         ml_error;
+    int				smtp_error;
     int                         sent;
     char                        *at;
-    SNET                        *snet = NULL;
-    SNET			*snet_lock;
     struct timeval              tv;
     struct message		**mp;
     struct message		*m;
     struct recipient		**r_sort;
     struct recipient		*remove;
-    struct envelope		*bounce_env;
-    struct envelope		*env;
+    struct envelope		*env_deliver;
     struct envelope		env_local;
     struct recipient            *r;
     struct stat                 sb;
     static int                  (*local_mailer)(int, char *,
                                         struct recipient *) = NULL;
 
-    syslog( LOG_DEBUG, "q_deliver starting" );
-
     if ( hq->hq_status == HOST_LOCAL ) {
         /* figure out what our local mailer is */
         if ( local_mailer == NULL ) {
             if (( local_mailer = get_local_mailer()) == NULL ) {
-                syslog( LOG_ALERT, "q_deliver: no local mailer!" );
+                syslog( LOG_ALERT, "q_deliver: no local mailer" );
                 hq->hq_status = HOST_DOWN;
-		/* XXX error message for queue */
             }
         }
 
@@ -584,9 +582,9 @@ q_deliver( struct host_q *hq )
 	*mp = m->m_next;
 	hq->hq_entries--;
 
-	if (( env = m->m_env ) == NULL ) {
+	if (( env_deliver = m->m_env ) == NULL ) {
 	    /* lock & read envelope to deliver */
-	    env = &env_local;
+	    env_deliver = &env_local;
 	    if ( env_read( m, &env_local, &snet_lock ) != 0 ) {
 		/* message not valid.  disregard */
 		if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
@@ -599,17 +597,18 @@ q_deliver( struct host_q *hq )
 	    }
 
 	} else {
-	    if ( env->e_err_text != NULL ) {
-		line_file_free( env->e_err_text );
-		env->e_err_text = NULL;
+	    if ( env_deliver->e_err_text != NULL ) {
+		line_file_free( env_deliver->e_err_text );
+		env_deliver->e_err_text = NULL;
 	    }
-
+	    /* don't need a lock, file is in the fast queue */
 	    snet_lock = NULL;
-	    env->e_flags = 0;
-	    env->e_success = 0;
-	    env->e_failed = 0;
-	    env->e_tempfail = 0;
 	}
+
+	env_deliver->e_flags = 0;
+	env_deliver->e_success = 0;
+	env_deliver->e_failed = 0;
+	env_deliver->e_tempfail = 0;
 
 	/* open Dfile to deliver & check to see if it's geriatric */
         sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
@@ -617,56 +616,31 @@ q_deliver( struct host_q *hq )
         if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
 	    syslog( LOG_WARNING, "q_deliver bad Dfile: %s", dfile_fname );
 
-	    if ( snet_lock != NULL ) {
-		if ( snet_close( snet_lock ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver snet_close: %m" );
-		    return( -1 );
-		}
-	    }
-
 	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
 		/* XXX trouble here, we're stranding fast files? */
 		syslog( LOG_ERR, "q_deliver fast_file error 2" );
 		simta_fast_files--;
 	    }
 
-	    if ( m->m_env != NULL ) {
-		env_free( m->m_env );
-		message_free( m );
-	    } else {
-		env_reset( env );
-	    }
-	    continue;
+	    goto message_cleanup;
         }
 
         /* stat dfile to see if it's old */
         if ( fstat( dfile_fd, &sb ) != 0 ) {
             syslog( LOG_ERR, "q_deliver snet_attach: %m" );
-	    if ( m->m_env != NULL ) {
-		env_free( m->m_env );
-		message_free( m );
-	    } else {
-		env_reset( env );
-	    }
-	    continue;
+	    goto message_cleanup;
         }
 
         if ( gettimeofday( &tv, NULL ) != 0 ) {
             syslog( LOG_ERR, "q_deliver gettimeofday" );
-	    if ( m->m_env != NULL ) {
-		env_free( m->m_env );
-		message_free( m );
-	    } else {
-		env_reset( env );
-	    }
-	    continue;
+	    goto message_cleanup;
         }
 
         /* consider Dfiles old if they're over 3 days */
         if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
-            env->e_old_dfile = 1;
+            env_deliver->e_old_dfile = 1;
         } else {
-            env->e_old_dfile = 0;
+            env_deliver->e_old_dfile = 0;
 	}
 
         if ( hq->hq_status == HOST_LOCAL ) {
@@ -674,12 +648,13 @@ q_deliver( struct host_q *hq )
              * a message to a user via. a local mailer.
              */
             sent = 0;
+            for ( r = env_deliver->e_rcpt; r != NULL; r = r->r_next ) {
+		at = NULL;
+		ml_error = EX_TEMPFAIL;
 
-            for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
                 if ( sent != 0 ) {
                     if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                         syslog( LOG_ERR, "q_deliver lseek: %m" );
-			result = EX_TEMPFAIL;
 			goto lseek_fail;
                     }
                 }
@@ -690,29 +665,35 @@ q_deliver( struct host_q *hq )
                         break;
 
                     } else if ( *at == '\0' ) {
-                        at = NULL;
                         break;
                     }
                 }
 
-                result = (*local_mailer)( dfile_fd, env->e_mail, r );
+		syslog( LOG_INFO, "q_deliver %s %s: attempting local delivery",
+			env_deliver->e_id, r->r_rcpt );
+                ml_error = (*local_mailer)( dfile_fd, env_deliver->e_mail, r );
 
 lseek_fail:
-                if ( result == 0 ) {
+                if ( ml_error == 0 ) {
                     /* success */
                     r->r_delivered = R_DELIVERED;
-                    env->e_success++;
+                    env_deliver->e_success++;
+		    syslog( LOG_INFO, "q_deliver %s %s: delivered locally",
+			    env_deliver->e_id, r->r_rcpt );
 
-		} else if (( result == EX_TEMPFAIL ) &&
-			( env->e_old_dfile == 0 )) {
+		} else if (( ml_error == EX_TEMPFAIL ) &&
+			( env_deliver->e_old_dfile == 0 )) {
 		    r->r_delivered = R_TEMPFAIL;
-		    env->e_tempfail++;
+		    env_deliver->e_tempfail++;
+		    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
+			    "tempfail", env_deliver->e_id, r->r_rcpt );
 
                 } else {
                     /* hard failure */
                     r->r_delivered = R_FAILED;
-                    env->e_failed++;
-		    /* XXX bounce env error message */
+                    env_deliver->e_failed++;
+		    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
+			    "hard failure", env_deliver->e_id, r->r_rcpt );
                 }
 
                 if ( at != NULL ) {
@@ -723,185 +704,163 @@ lseek_fail:
             }
 
         } else if ( hq->hq_status == HOST_MX ) {
-            if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
+            if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
                 syslog( LOG_ERR, "q_deliver snet_attach: %m" );
-                /* XXX next message */
+		smtp_error = SMTP_ERROR;
+		goto smtp_cleanup;
+            }
+
+            /* open outbound SMTP connection */
+            if ( snet_smtp == NULL ) {
+                if (( smtp_error = smtp_connect( &snet_smtp, hq )) !=
+			SMTP_OK ) {
+		    goto smtp_cleanup;
+		}
             }
 
             if ( sent != 0 ) {
-                if (( result = smtp_rset( snet, hq )) == SMTP_ERR_SYSCALL ) {
-		    /* XXX HOST_DOWN */
-                    return( -1 );
-
-                } else if ( result == SMTP_ERR_REMOTE ) {
-		    snet = NULL;
-		    goto cleanup;
+                if (( smtp_error = smtp_rset( snet_smtp, hq )) != SMTP_OK ) {
+		    goto smtp_cleanup;
                 }
             }
 
-            /* open connection, completely ready to send at least one message */
-            if ( snet == NULL ) {
-                if (( result = smtp_connect( &snet, hq ))
-			== SMTP_ERR_SYSCALL ) {
-                    return( -1 );
+            if (( smtp_error = smtp_send( snet_smtp, hq, env_deliver,
+		    snet_dfile )) != SMTP_OK ) {
+smtp_cleanup:
+		if ( snet_smtp != NULL ) {
+		    switch ( smtp_error ) {
+		    default:
+		    case SMTP_ERROR:
+			smtp_quit( snet_smtp, hq );
 
-                } else if ( result == SMTP_ERR_REMOTE ) {
-		    snet = NULL;
-		    goto cleanup;
-                }
-            }
-
-            if (( result = smtp_send( snet, hq, env, dfile_snet ))
-		    == SMTP_ERR_SYSCALL ) {
-                return( -1 );
-
-            } else if ( result == SMTP_ERR_REMOTE ) {
-		snet = NULL;
-		goto cleanup;
+		    case SMTP_BAD_CONNECTION:
+			if ( snet_close( snet_smtp ) < 0 ) {
+			    syslog( LOG_ERR, "snet_close: %m" );
+			}
+			snet_smtp = NULL;
+		    }
+		}
 	    }
 
             sent++;
         }
 
-cleanup:
 	/* if hq->hq_err_text != NULL, bounce entire message */
-	/* if env->e_err_text != NULL, bounce entire message */
-	/* if env->e_failed > 0, bounce at least some rcpts */
-	/* if hq->hq_status == HOST_DOWN && env->e_old_dfile > 0,
+	/* if env_deliver->e_err_text != NULL, bounce entire message */
+	/* if env_deliver->e_failed > 0, bounce at least some rcpts */
+	/* if hq->hq_status == HOST_DOWN && env_deliver->e_old_dfile > 0,
 	 *	bounce message */
 
-        if (( hq->hq_err_text != NULL ) || ( env->e_err_text != NULL ) ||
-		( env->e_failed > 0 ) || (( hq->hq_status == HOST_DOWN ) &&
-		( env->e_old_dfile > 0 ))) {
+        if (( hq->hq_err_text != NULL ) ||
+		( env_deliver->e_err_text != NULL ) ||
+		( env_deliver->e_failed > 0 ) ||
+		(( hq->hq_status == HOST_DOWN ) &&
+		( env_deliver->e_old_dfile > 0 ))) {
+
+	    if ( hq->hq_err_text != NULL ) {
+		syslog( LOG_ERR, "q_deliver %s: generate bounce host_err_text",
+			env_deliver->e_id );
+	    }
+	    if ( env_deliver->e_err_text != NULL ) {
+		syslog( LOG_ERR, "q_deliver %s: generate bounce env_err_text",
+			env_deliver->e_id );
+	    }
+	    if ( env_deliver->e_failed > 0 ) {
+		syslog( LOG_ERR, "q_deliver %s: generate bounce %d rcpt "
+			"failures", env_deliver->e_id, env_deliver->e_failed );
+	    }
+	    if (( hq->hq_status == HOST_DOWN ) &&
+		    ( env_deliver->e_old_dfile > 0 )) {
+		syslog( LOG_ERR, "q_deliver %s: generate bounce host_down & "
+			"old_dfile", env_deliver->e_id );
+	    }
+
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
-		if ( m->m_env != NULL ) {
-		    env_free( m->m_env );
-		    message_free( m );
-		} else {
-		    env_reset( env );
-		}
-		continue;
+/* XXX error */
+/* XXX close dfile_fd */
+/* XXX dfile_fd = 0 */
             }
 
-            if ( dfile_snet == NULL ) {
-                if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 ))
+            if ( snet_dfile == NULL ) {
+                if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 ))
                         == NULL ) {
                     syslog( LOG_ERR, "q_deliver snet_attach: %m" );
-		    if ( m->m_env != NULL ) {
-			env_free( m->m_env );
-			message_free( m );
-		    } else {
-			env_reset( env );
-		    }
-		    continue;
                 }
             }
 
+/* XXX assure proper error messaging */
 	    if ( hq->hq_err_text != NULL ) {
-		env->e_err_text = hq->hq_err_text;
+		env_deliver->e_err_text = hq->hq_err_text;
 	    }
 
 	    /* create bounce envelope */
-	    if (( bounce_env = env_create( simta_postmaster )) == NULL ) {
-		if ( m->m_env != NULL ) {
-		    env_free( m->m_env );
-		    message_free( m );
-		} else {
-		    env_reset( env );
-		}
+	    if (( env_bounce = env_create( simta_postmaster )) == NULL ) {
+/* XXX here we're really fucked */
 		continue;
 	    }
 
-	    if ( env_gettimeofday_id( bounce_env ) != 0 ) {
-		env_free( bounce_env );
-
-		if ( m->m_env != NULL ) {
-		    env_free( m->m_env );
-		    message_free( m );
-		} else {
-		    env_reset( env );
-		}
-		continue;
+	    if ( env_gettimeofday_id( env_bounce ) != 0 ) {
+/* XXX env_free( env_bounce ); */
+/* XXX here we're really fucked */
 	    }
 
-	    bounce_env->e_dir = simta_dir_fast;
+	    env_bounce->e_dir = simta_dir_fast;
 
-	    /* XXX write out dfile */
-	    /* XXX create message structure */
-	    /* XXX write out efile */
-	    /* XXX queue message structure */
+/* XXX write out dfile */
+/* XXX create message structure */
+/* XXX write out efile */
+/* XXX queue message structure */
 
-            if ( bounce( env, dfile_snet ) == NULL ) {
-                    /* XXX next message */
-                return( -1 );
+            if ( bounce( env_deliver, snet_dfile ) == NULL ) {
+/* XXX next message */
             }
 
 	    if ( hq->hq_err_text != NULL ) {
-		env->e_err_text = NULL;
+		env_deliver->e_err_text = NULL;
 	    }
         }
 
-        if ( dfile_snet == NULL ) {
-            if ( close( dfile_fd ) != 0 ) {
-                syslog( LOG_ERR, "q_deliver close: %m" );
-                    /* XXX next message */
-                return( -1 );
-            }
-
-        } else {
-            if ( snet_close( dfile_snet ) != 0 ) {
-                syslog( LOG_ERR, "q_deliver snet_close: %m" );
-                    /* XXX next message */
-                return( -1 );
-            }
-
-	    dfile_snet = NULL;
-        }
-
 	/* if hq->hq_status == HOST_BOUNCE, delete message */
-	/* if env->e_err_text != NULL, delete message */
-	/* if hq->hq_status != HOST_DOWN && env->e_tempfail == 0,
+	/* if env_deliver->e_err_text != NULL, delete message */
+	/* if hq->hq_status != HOST_DOWN && env_deliver->e_tempfail == 0,
 	 *	delete message */
-	/* if hq->hq_status == HOST_DOWN && env->e_old_dfile > 0,
+	/* if hq->hq_status == HOST_DOWN && env_deliver->e_old_dfile > 0,
 	 *	delete message */
 
-        if (( hq->hq_status == HOST_BOUNCE ) || ( env->e_err_text != NULL ) ||
-		(( env->e_tempfail == 0 ) && ( hq->hq_status != HOST_DOWN )) ||
-		(( hq->hq_status == HOST_DOWN ) && ( env->e_old_dfile > 0 ))) {
+        if (( hq->hq_status == HOST_BOUNCE ) ||
+		( env_deliver->e_err_text != NULL ) ||
+		(( env_deliver->e_tempfail == 0 ) &&
+		( hq->hq_status != HOST_DOWN )) ||
+		(( hq->hq_status == HOST_DOWN ) &&
+		( env_deliver->e_old_dfile > 0 ))) {
 	    /* no retries, delete Efile then Dfile */
 
-	    sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
+	    sprintf( efile_fname, "%s/E%s", env_deliver->e_dir,
+		    env_deliver->e_id );
 
 	    if ( snet_lock != NULL ) {
 		if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
 		    syslog( LOG_ERR, "q_deliver ftruncate %s: %m",
 			    efile_fname );
-			/* XXX next message */
-		    return( -1 );
 		}
 	    } else {
 		if ( truncate( efile_fname, (off_t)0 ) != 0 ) {
 		    syslog( LOG_ERR, "q_deliver truncate %s: %m",
 			    efile_fname );
-			/* XXX next message */
-		    return( -1 );
 		}
 	    }
 
-	    syslog( LOG_DEBUG, "q_deliver %s delivered", env->e_id );
-
-	    if ( env_unlink( env ) != 0 ) {
-                    /* XXX next message */
-		return( -1 );
-	    }
+	    syslog( LOG_DEBUG, "q_deliver %s delivered", env_deliver->e_id );
+	    env_unlink( env_deliver );
 
         } else {
             /* some retries; place in retry list */
 
-            if (( env->e_success != 0 ) || ( env->e_failed != 0 )) {
+            if (( env_deliver->e_success != 0 ) ||
+		    ( env_deliver->e_failed != 0 )) {
 		/* remove any recipients that don't need to be tried later */
-		r_sort = &(env->e_rcpt);
+		r_sort = &(env_deliver->e_rcpt);
 
 		while ( *r_sort != NULL ) {
 		    if ((*r_sort)->r_delivered != R_TEMPFAIL ) {
@@ -915,44 +874,57 @@ cleanup:
 		}
 
 		/* write out modified envelope */
-                if ( env_outfile( env, env->e_dir ) != 0 ) {
-                    /* XXX next message */
+                if ( env_outfile( env_deliver, env_deliver->e_dir ) != 0 ) {
+		    goto message_cleanup;
                 }
 
-		if ( strcmp( env->e_dir, simta_dir_fast ) == 0 ) {
+		if ( strcmp( env_deliver->e_dir, simta_dir_fast ) == 0 ) {
 		    /* overwrote fast file, not created a new one */
 		    simta_fast_files--;
 		}
 
             } else if ( hq->hq_status != HOST_DOWN ) {
+/* XXX if ( tried to deliver ) { env_touch( env_deliver ); } */
                 /* all retries.  touch envelope */
-		if ( env_touch( env ) != 0 ) {
-                    /* XXX next message */
-		}
+		env_touch( env_deliver );
             }
-
-	    /* move message to SLOW if it isn't there already */
-	    if ( env_slow( env ) != 0 ) {
-		/* XXX next message */
-	    }
         } 
+
+message_cleanup:
+	if ( m->m_env != NULL ) {
+/* XXX move_to_slow? */
+	    env_free( m->m_env );
+	} else {
+	    env_reset( env_deliver );
+	}
+
+	message_free( m );
+
+        if ( snet_dfile == NULL ) {
+	    if ( dfile_fd > 0 ) {
+		if ( close( dfile_fd ) != 0 ) {
+		    syslog( LOG_ERR, "q_deliver close: %m" );
+		}
+	    }
+
+        } else {
+            if ( snet_close( snet_dfile ) != 0 ) {
+                syslog( LOG_ERR, "q_deliver snet_close: %m" );
+            }
+	    snet_dfile = NULL;
+        }
 
 	if ( snet_lock != NULL ) {
 	    if ( snet_close( snet_lock ) != 0 ) {
 		syslog( LOG_ERR, "q_deliver snet_close: %m" );
-		/* XXX next message */
 	    }
 	}
-
-	env_reset( env );
-	message_free( m );
     }
 
-    if ( snet != NULL ) {
-        if (( result = smtp_quit( snet, hq )) < 0 ) {
-            return( -1 );
-        }
+    if ( snet_smtp != NULL ) {
+        smtp_quit( snet_smtp, hq );
+	if ( snet_close( snet_smtp ) != 0 ) {
+	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
+	}
     }
-
-    return( 0 );
 }

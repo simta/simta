@@ -111,7 +111,7 @@ rcpt_free( struct recipient *r )
 {
     if ( r != NULL ) {
 	free( r->r_rcpt );
-	line_file_free( r->r_text );
+	line_file_free( r->r_err_text );
 	free( r );
     }
 }

@@ -17,7 +17,7 @@ struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
     int			r_delivered;
-    struct line_file	*r_text;
+    struct line_file	*r_err_text;
 };
 
 struct envelope {
@@ -41,8 +41,10 @@ struct envelope {
     struct timespec	e_etime;
 };
 
-#define E_TLS		(1<<0)
-#define E_READY		(1<<1)
+#define E_TLS			(1<<0)
+#define E_READY			(1<<1)
+#define ENV_BOUNCE		(1<<2)
+#define ENV_DELIVERED		(1<<3)
 
 /* NOT USED */
 void		env_stdout ___P(( struct envelope * ));

@@ -138,14 +138,14 @@ procmail( int f, char *sender, struct recipient *recipient )
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
 	    syslog( LOG_INFO, "procmail %d: %s", pid, line );
 
-	    if ( recipient->r_text == NULL ) {
-		if (( recipient->r_text = line_file_create()) == NULL ) {
+	    if ( recipient->r_err_text == NULL ) {
+		if (( recipient->r_err_text = line_file_create()) == NULL ) {
 		    syslog( LOG_ERR, "line_file_create: %m" );
 		    return( EX_TEMPFAIL );
 		}
 	    }
 
-	    if ( line_append( recipient->r_text, line ) == NULL ) {
+	    if ( line_append( recipient->r_err_text, line ) == NULL ) {
 		syslog( LOG_ERR, "line_append: %m" );
 		return( EX_TEMPFAIL );
 	    }
@@ -273,14 +273,14 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
 	    syslog( LOG_INFO, "mail.local %d: %s", pid, line );
 
-	    if ( recipient->r_text == NULL ) {
-		if (( recipient->r_text = line_file_create()) == NULL ) {
+	    if ( recipient->r_err_text == NULL ) {
+		if (( recipient->r_err_text = line_file_create()) == NULL ) {
 		    syslog( LOG_ERR, "line_file_create: %m" );
 		    return( EX_TEMPFAIL );
 		}
 	    }
 
-	    if ( line_append( recipient->r_text, line ) == NULL ) {
+	    if ( line_append( recipient->r_err_text, line ) == NULL ) {
 		syslog( LOG_ERR, "line_append: %m" );
 		return( EX_TEMPFAIL );
 	    }
