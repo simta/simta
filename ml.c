@@ -169,6 +169,11 @@ mail_local( int f, char *sender, char *recipient )
     SNET		*snet;
     char		*line;
 
+    if (( maillocal_bin == NULL ) || ( *maillocal_bin == '\0' )) {
+	syslog( LOG_WARNING, "mail.local not supported" );
+	return( 1 );
+    }
+
     if ( pipe( fd ) < 0 ) {
 	syslog( LOG_ERR, "mail_local pipe: %m" );
 	return( -1 );

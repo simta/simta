@@ -127,7 +127,7 @@ AC_DEFUN([PROG_MAIL_LOCAL],
 	fi
     done
     if test x_$found_mail_local != x_yes; then
-	AC_MSG_ERROR([not found: See INSTALL])
+	AC_MSG_RESULT(no)
     else
 	AC_SUBST( SIMTA_MAIL_LOCAL, [$dir/mail.local])
 	AC_MSG_RESULT(yes)

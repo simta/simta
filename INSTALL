@@ -22,8 +22,9 @@ simta Installation
 
     configure options:
 	--with-mail_local=/path/to/mail_local/
-	    simta requires the directory of the mail.local binary.  Use this
-	    option if mail.local isn't in /usr/lib/ or /usr/sbin/.
+	    For mail.local support, simta needs the directory of
+	    the mail.local binary.  Use this option if mail.local
+	    isn't in /usr/lib/ or /usr/sbin/.
 
 	--with-procmail=/path/to/procmail/
 	    For procmail support, simta needs the directory of the procmail

@@ -280,7 +280,7 @@ deliver_local( struct stab_entry *qfiles )
 	}
 
 	/* XXX */
-	if ( lseek( fd, 0, SEEK_SET ) != 0 ) {
+	if ( lseek( fd, (off_t)0, SEEK_SET ) != 0 ) {
 	    syslog( LOG_ERR, "lseek: %m" );
 	    exit( 1 );
 	}
