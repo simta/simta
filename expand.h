@@ -52,6 +52,8 @@ struct exp_addr {
     struct exp_addr		*e_addr_child;
     struct stab_entry		*e_addr_ok;
     struct stab_entry		*e_addr_x_children;
+
+    char			*e_addr_dn;
 #endif /* HAVE_LDAP */
 };
 
