@@ -13,6 +13,7 @@
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
+#include <netdb.h>
 
 #include "ll.h"
 #include "envelope.h"
@@ -142,7 +143,11 @@ main( int argc, char *argv[] )
 		exit( 1 );
 	    }
 
+#ifdef sun
+	    q->q_etime.tv_sec = sb.st_mtime;
+#else	/* sun */
 	    q->q_etime = sb.st_mtimespec;
+#endif	/* sun */
 
 	    /* XXX Hostname lookup if unexpanded? */
 
@@ -187,10 +192,16 @@ main( int argc, char *argv[] )
 	    q = (struct q_file*)qs->st_data;
 
 	    /* get message_data */
-	    /* XXX what if ENOENT? */
+	    errno = 0;
 	    if (( q->q_data = data_infile( SLOW_DIR, q->q_id )) == NULL ) {
-		perror( "data_infile" );
-		exit( 1 );
+		if ( errno == ENOENT ) {
+		    printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
+		    errno = 0;
+
+		} else {
+		    perror( "data_infile" );
+		    exit( 1 );
+		}
 	    }
 
 	    /* send message */

@@ -23,7 +23,7 @@ host_q_stdout( struct host_q *hq )
 q_file_stdout( struct q_file *q )
 {
     printf( "qfile id:\t%s\n", q->q_id );
-    printf( "qfile efile time:\t%ld.%d\n", q->q_etime.tv_sec,
+    printf( "qfile efile time:\t%ld.%ld\n", q->q_etime.tv_sec,
 	    q->q_etime.tv_nsec );
     printf( "efiles:\t%d\n", q->q_efile );
     printf( "dfiles:\t%d\n", q->q_dfile );

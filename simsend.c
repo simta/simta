@@ -117,7 +117,7 @@ count_words( char *l )
     char		*c;
 
     for ( c = l; *c != '\0'; c++ ) {
-	if ( isspace( *c ) == 0 ) {
+	if ( isspace( (int)*c ) == 0 ) {
 	    /* not space */
 	    if ( space == 1 ) {
 		words++;
@@ -169,7 +169,7 @@ headers( struct message *m )
 	 * between 33 and 126, inclusive), except colon.
 	 */
 
-	if ( isspace( *l->line_data ) != 0 ) {
+	if ( isspace( (int)*l->line_data ) != 0 ) {
 	    /* line contains folded white space */
 	    continue;
 	}

@@ -1,4 +1,6 @@
 #include <sys/param.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #ifdef TLS
 #include <openssl/ssl.h>
@@ -6,8 +8,9 @@
 #include <openssl/err.h>
 #endif /* TLS */
 
-#include <libc.h>
 #include <netdb.h>
+#include <unistd.h>
+#include <strings.h>
 
 #include <snet.h>
 
