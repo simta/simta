@@ -41,7 +41,7 @@ get_a( char *hostname )
 
     if ( simta_dnsr == NULL ) {
         if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
+            syslog( LOG_ERR, "get_a: dnsr_new: %m" );
 	    return( NULL );
 	}
     }
@@ -49,12 +49,12 @@ get_a( char *hostname )
     /* Check for A */
     if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
 	    hostname )) < 0 ) {
-	syslog( LOG_ERR, "check_hostname: dnsr_query: %s: %s", hostname,
+	syslog( LOG_ERR, "get_a: dnsr_query: %s: %s", hostname,
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
     if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "check_hostname: dnsr_result: %s: %s", hostname, 
+	syslog( LOG_ERR, "get_a: dnsr_result: %s: %s", hostname, 
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
@@ -84,7 +84,7 @@ get_mx( char *hostname )
 
     if ( simta_dnsr == NULL ) {
         if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
+            syslog( LOG_ERR, "get_mx: dnsr_new: %m" );
 	    return( NULL );
 	}
     }
@@ -92,12 +92,12 @@ get_mx( char *hostname )
     /* Check for MX */
     if (( dnsr_query( simta_dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN,
 	    hostname )) != 0 ) {
-	syslog( LOG_ERR, "check_hostname: dnsr_query: %s: %s", hostname,
+	syslog( LOG_ERR, "get_mx: dnsr_query: %s: %s", hostname,
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
     if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "check_hostname: dnsr_result: %s: %s", hostname,
+	syslog( LOG_ERR, "get_mx: dnsr_result: %s: %s", hostname,
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
@@ -108,15 +108,37 @@ get_mx( char *hostname )
 	 * configured by hand.
 	 */
 	for ( i = 0; i < result->r_ancount; i++ ) {
-	    if (( strcasecmp( simta_hostname,
-		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
-		    && ( result->r_answer[ i ].rr_mx.mx_preference <=
-		    result->r_answer[ 1 ].rr_mx.mx_preference )) {
-		if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
-			HOST_LOCAL ) != 0 ) {
-		    dnsr_free_result( result );
-		    return( NULL );
+	    switch( result->r_answer[ i ].rr_type ) {
+	    case DNSR_TYPE_CNAME:
+		if ( strcasecmp( simta_hostname,
+			result->r_answer[ i ].rr_cname.cn_name ) == 0 ) {
+		    if ( add_host( result->r_answer[ i ].rr_name,
+			    HOST_LOCAL ) != 0 ) {
+			dnsr_free_result( result );
+			return( NULL );
+		    }
+		    syslog( LOG_ERR, "get_mx: %s: cname %s -> simta_hosts",
+			hostname, result->r_answer[ i ].rr_name );
 		}
+		break;
+
+	    case DNSR_TYPE_MX:
+		if (( strcasecmp( simta_hostname,
+			result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
+			&& ( result->r_answer[ i ].rr_mx.mx_preference <=
+			result->r_answer[ 1 ].rr_mx.mx_preference )) {
+		    if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
+			    HOST_LOCAL ) != 0 ) {
+			dnsr_free_result( result );
+			return( NULL );
+		    }
+		}
+		break;
+
+	    default:
+		syslog( LOG_ERR, "get_mx: %s: unknown type: %d", hostname,
+		    result->r_answer[ i ].rr_type );
+		break;
 	    }
 	}
 	return( result );
