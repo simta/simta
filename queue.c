@@ -58,42 +58,37 @@ int	deliver_local ___P(( struct envelope *, int ));
     int
 message_slow( struct message *m )
 {
-    char                        dfile_fname[ MAXPATHLEN ];
-    char                        dfile_slow[ MAXPATHLEN ];
-    char                        efile_fname[ MAXPATHLEN ];
-    char                        efile_slow[ MAXPATHLEN ];
-
     /* move message to SLOW if it isn't there already */
     if ( strcmp( m->m_dir, simta_dir_slow ) != 0 ) {
-	sprintf( efile_fname, "%s/E%s", m->m_dir, m->m_id );
-	sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
-	sprintf( dfile_slow, "%s/D%s", simta_dir_slow, m->m_id );
-	sprintf( efile_slow, "%s/E%s", simta_dir_slow, m->m_id );
+	sprintf( simta_ename, "%s/E%s", m->m_dir, m->m_id );
+	sprintf( simta_dname, "%s/D%s", m->m_dir, m->m_id );
+	sprintf( simta_ename_slow, "%s/E%s", simta_dir_slow, m->m_id );
+	sprintf( simta_dname_slow, "%s/D%s", simta_dir_slow, m->m_id );
 
-	if ( link( dfile_fname, dfile_slow ) != 0 ) {
-	    syslog( LOG_ERR, "message_slow link %s %s: %m", dfile_fname,
-		    dfile_slow );
+	if ( link( simta_ename, simta_ename_slow ) != 0 ) {
+	    syslog( LOG_ERR, "message_slow link %s %s: %m", simta_ename,
+		    simta_ename_slow );
 	    return( -1 );
 	}
 
-	if ( link( efile_fname, efile_slow ) != 0 ) {
-	    syslog( LOG_ERR, "message_slow link %s %s: %m", efile_fname,
-		    efile_slow );
+	if ( link( simta_dname, simta_dname_slow ) != 0 ) {
+	    syslog( LOG_ERR, "message_slow link %s %s: %m", simta_dname,
+		    simta_dname_slow );
 	    return( -1 );
 	}
 
-	if ( unlink( efile_fname ) != 0 ) {
-	    syslog( LOG_ERR, "message_slow unlink %s: %m", efile_fname );
-	    return( -1 );
-	}
-
-	if ( unlink( dfile_fname ) != 0 ) {
-	    syslog( LOG_ERR, "message_slow unlink %s: %m", dfile_fname );
+	if ( unlink( simta_ename ) != 0 ) {
+	    syslog( LOG_ERR, "message_slow unlink %s: %m", simta_ename );
 	    return( -1 );
 	}
 
 	if ( strcmp( simta_dir_fast, m->m_dir ) == 0 ) {
 	    simta_fast_files--;
+	}
+
+	if ( unlink( simta_dname_slow ) != 0 ) {
+	    syslog( LOG_ERR, "message_slow unlink %s: %m", simta_dname );
+	    return( -1 );
 	}
     }
 
@@ -201,6 +196,42 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 {
     struct host_q		*hq;
 
+    if ( hostname == NULL ) {
+	syslog( LOG_ERR, "host_q_lookup hostname: NULL not allowed" );
+	return( NULL );
+    }
+
+    /* create NULL host queue for unexpanded messages */
+    if ( simta_null_q == NULL ) {
+	for ( simta_null_q = *host_q; simta_null_q != NULL;
+		simta_null_q = simta_null_q->hq_next ) {
+	    if ( strcasecmp( hq->hq_hostname, SIMTA_NULL_QUEUE ) == 0 ) {
+		break;
+	    }
+	}
+
+	if ( simta_null_q == NULL ) {
+	    if (( simta_null_q = (struct host_q*)malloc(
+		    sizeof( struct host_q ))) == NULL ) {
+		syslog( LOG_ERR, "host_q_lookup malloc: %m" );
+		return( NULL );
+	    }
+	    memset( simta_null_q, 0, sizeof( struct host_q ));
+
+	    if (( simta_null_q->hq_hostname =
+		    strdup( SIMTA_NULL_QUEUE )) == NULL ) {
+		syslog( LOG_ERR, "host_q_lookup strdup: %m" );
+		free( simta_null_q );
+		return( NULL );
+	    }
+
+	    /* add this host to the host_q */
+	    simta_null_q->hq_next = *host_q;
+	    *host_q = simta_null_q;
+	    simta_null_q->hq_status = HOST_NULL;
+	}
+    }
+
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	if ( strcasecmp( hq->hq_hostname, hostname ) == 0 ) {
 	    break;
@@ -226,10 +257,6 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 
 	if ( strcasecmp( simta_hostname, hq->hq_hostname ) == 0 ) {
 	    hq->hq_status = HOST_LOCAL;
-
-	} else if (( hostname == NULL ) || ( *hostname == '\0' )) {
-	    hq->hq_status = HOST_NULL;
-
 	} else {
 	    hq->hq_status = HOST_MX;
 	}
@@ -239,13 +266,18 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 }
 
 
+    /* return 0 on success
+     * return -1 on fatal error (fast files are left behind)
+     * syslog errors
+     */
+
     int
 q_runner( struct host_q **host_q )
 {
     struct host_q		*hq;
     struct message		*m;
 
-    simta_fast_files = 0;
+    syslog( LOG_DEBUG, "q_runner started" );
 
     q_run( host_q );
 
@@ -256,7 +288,6 @@ q_runner( struct host_q **host_q )
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
 	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
-		/* XXX check return */
 		message_slow( m );
 
 		if ( simta_fast_files < 1 ) {
@@ -266,13 +297,11 @@ q_runner( struct host_q **host_q )
 	}
     }
 
-    if ( simta_fast_files < 1 ) {
-	return( 0 );
-    }
-
-    return( 1 );
+    return( -1 );
 }
 
+
+    /* only return 0 */
 
     int
 q_run( struct host_q **host_q )
@@ -286,14 +315,6 @@ q_run( struct host_q **host_q )
     int				result;
 
     syslog( LOG_DEBUG, "q_run started" );
-
-    /* create NULL host queue for unexpanded messages */
-    if ( simta_null_q == NULL ) {
-	if (( simta_null_q = host_q_lookup( host_q, "\0" )) == NULL ) {
-	    syslog( LOG_ERR, "q_run can't allocate the null queue" );
-	    return( -1 );
-	}
-    }
 
     for ( ; ; ) {
 	/* build the deliver_q by number of messages */
@@ -390,11 +411,11 @@ q_run( struct host_q **host_q )
 }
 
 
+    /* return an exit code */
+
     int
 q_runner_dir( char *dir )
 {
-    simta_fast_files = 0;
-
     q_runner_d( dir );
 
     if ( simta_fast_files != 0 ) {
@@ -420,7 +441,8 @@ q_runner_d( char *dir )
 
     /* create NULL host queue for unexpanded messages */
     if ( simta_null_q == NULL ) {
-	if (( simta_null_q = host_q_lookup( &host_q, "\0" )) == NULL ) {
+	if (( simta_null_q = host_q_lookup( &host_q, SIMTA_NULL_QUEUE ))
+		== NULL ) {
 	    syslog( LOG_ERR, "q_runner_dir can't allocate null queue" );
 	    return( -1 );
 	}
@@ -497,6 +519,7 @@ q_deliver( struct host_q *hq )
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env;
+    struct envelope		*bounce_env;
     struct envelope		env_local;
     struct recipient            *r;
     struct stat                 sb;
@@ -682,7 +705,6 @@ q_deliver( struct host_q *hq )
         }
 
 cleanup:
-
 	/* if hq->hq_err_text != NULL, bounce entire message */
 	/* if env->e_err_text != NULL, bounce entire message */
 	/* if env->e_failed > 0, bounce at least some rcpts */
@@ -709,9 +731,11 @@ cleanup:
 		env->e_err_text = hq->hq_err_text;
 	    }
 
-            if ( bounce( env, dfile_snet ) < 0 ) {
+            if (( bounce_env = bounce( env, dfile_snet )) == NULL ) {
                 return( -1 );
             }
+	    env_free( bounce_env );
+	    free( bounce_env );
 
 	    if ( hq->hq_err_text != NULL ) {
 		env->e_err_text = NULL;

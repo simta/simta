@@ -57,9 +57,7 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 {
     char			*address;
     struct exp_addr		*e;
-#ifdef HAVE_LDAP
     struct exp_addr		*parent;
-#endif /* HAVE_LDAP */
 
     if (( address = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "add_address: strdup: %m" );
@@ -81,12 +79,13 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 
 	case 0:
 	    /* address is not syntactically correct, or correctable */
-	    free( address );
 	    if ( rcpt_error( addr_rcpt, "bad email address format: ",
 		    address, NULL ) != 0 ) {
 		/* rcpt_error syslogs syserrors */
+		free( address );
 		return( 1 );
 	    }
+	    free( address );
 	    return( 0 );
 
 	default:
@@ -128,7 +127,6 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 	    return( 1 );
 	}
 
-#ifdef HAVE_LDAP
 	if (( e->e_addr_parent = exp->exp_addr_parent ) == NULL ) {
 	    e->e_addr_peer = exp->exp_addr_root;
 	    exp->exp_addr_root = e;
@@ -137,6 +135,7 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 	    exp->exp_addr_parent->e_addr_child = e;
 	}
 
+#ifdef HAVE_LDAP
 	if ( strcasecmp( exp->exp_env->e_mail, address ) == 0 ) {
 	    e->e_addr_exclusive = 1;
 	}

@@ -247,8 +247,15 @@ f_mail( snet, env, ac, av )
      */
 
     if (( env->e_flags & E_READY ) != 0 ) {
-	if ( deliver_env( env ) != 0 ) {
-	    return( -1 );
+	switch ( expand_and_deliver( &hq_receive, env )) {
+	    case EXPAND_OK:
+		break;
+
+	    /* XXX fix these cases */
+	    default:
+	    case EXPAND_SYSERROR:
+	    case EXPAND_FATAL:
+		return( -1 );
 	}
 
 	env_reset( env );
@@ -846,11 +853,19 @@ f_quit( snet, env, ac, av )
 	return( 1 );
     }
 
-    /* check for an accepted message */
     if (( env->e_flags & E_READY ) != 0 ) {
-	if ( deliver_env( env ) != 0 ) {
-	    return( -1 );
+	switch ( expand_and_deliver( &hq_receive, env )) {
+	    case EXPAND_OK:
+		break;
+
+	    /* XXX fix these cases */
+	    default:
+	    case EXPAND_SYSERROR:
+	    case EXPAND_FATAL:
+		return( -1 );
 	}
+
+	env_reset( env );
     }
 
     snet_writef( snet, "%d %s Service closing transmission channel\r\n",
@@ -1245,40 +1260,20 @@ receive( fd, sin )
 	syslog( LOG_ERR, "snet_getline: %m" );
     }
 
-    /* check for an accepted message */
     if (( env->e_flags & E_READY ) != 0 ) {
-	if ( deliver_env( env ) != 0 ) {
-	    return( -1 );
+	switch ( expand_and_deliver( &hq_receive, env )) {
+	    case EXPAND_OK:
+		break;
+
+	    /* XXX fix these cases */
+	    default:
+	    case EXPAND_SYSERROR:
+	    case EXPAND_FATAL:
+		return( -1 );
 	}
+
+	env_reset( env );
     }
 
     return( 1 );
-}
-
-
-    int
-deliver_env( struct envelope *env )
-{
-    /*
-     * Deliver a pending message without fork()ing.
-     */
-
-    if ( expand( &hq_receive, env ) != 0 ) {
-	/* XXX What do we do in an error? */
-	syslog( LOG_ERR, "deliver_env: expand failed\n" );
-
-	if ( env_slow( env ) != 0 ) {
-	    /* XXX more diagnostic info? */
-	    syslog( LOG_ERR, "deliver_env: env_slow failed\n" );
-	}
-
-	return( 1 );
-    }
-
-    if ( q_runner( &hq_receive ) != 0 ) {
-	syslog( LOG_ERR, "deliver_env: q_runner failed\n" );
-	return( 1 );
-    }
-
-    return( 0 );
 }

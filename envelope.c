@@ -657,24 +657,20 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
     int
 env_unlink( struct envelope *env )
 {
-    char                        dfile_fname[ MAXPATHLEN ];
-    char                        efile_fname[ MAXPATHLEN ];
+    sprintf( simta_ename, "%s/E%s", env->e_dir, env->e_id );
+    sprintf( simta_dname, "%s/D%s", env->e_dir, env->e_id );
 
-    sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
-    sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
-
-    if ( unlink( efile_fname ) != 0 ) {
-	syslog( LOG_ERR, "env_unlink unlink %s: %m", efile_fname );
-	return( -1 );
-    }
-
-    if ( unlink( dfile_fname ) != 0 ) {
-	syslog( LOG_ERR, "env_unlink unlink %s: %m", dfile_fname );
+    if ( unlink( simta_ename ) != 0 ) {
+	syslog( LOG_ERR, "env_unlink unlink %s: %m", simta_ename );
 	return( -1 );
     }
 
     if ( strcmp( simta_dir_fast, env->e_dir ) == 0 ) {
 	simta_fast_files--;
+    }
+
+    if ( unlink( simta_dname ) != 0 ) {
+	syslog( LOG_ERR, "env_unlink unlink %s: %m", simta_dname );
     }
 
     return( 0 );

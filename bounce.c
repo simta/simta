@@ -51,10 +51,10 @@
 #include "bounce.h"
 
 
-    int
+    struct envelope *
 bounce( struct envelope *env, SNET *message )
 {
-    struct envelope             bounce_env;
+    struct envelope             *bounce_env;
     char                        dfile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
     FILE                        *dfile;
@@ -68,74 +68,75 @@ bounce( struct envelope *env, SNET *message )
     struct timeval		tv;
     char                        daytime[ 35 ];
 
-    memset( &bounce_env, 0, sizeof( struct envelope ));
+    syslog( LOG_DEBUG, "bounce.starting" );
 
-    env_reset( &bounce_env );
+    if (( bounce_env = env_create( NULL )) == NULL ) {
+	return( NULL );
+    }
 
     if ( gettimeofday( &tv, NULL ) != 0 ) {
 	syslog( LOG_ERR, "gettimeofday: %m" );
-	return( -1 );
+	goto cleanup1;
     }
 
-    sprintf( bounce_env.e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
+    sprintf( bounce_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 	    (unsigned long)tv.tv_usec );
 
-    bounce_env.e_dir = simta_dir_fast;
-    bounce_env.e_mail = simta_postmaster;
+    bounce_env->e_dir = simta_dir_fast;
+    bounce_env->e_mail = simta_postmaster;
 
     if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' ) ||
 	    ( strcasecmp( env->e_mail, simta_postmaster ) == 0 )) {
-        if ( env_recipient( &bounce_env, simta_postmaster ) != 0 ) {
-            return( -1 );
+        if ( env_recipient( bounce_env, simta_postmaster ) != 0 ) {
+            goto cleanup1;
         }
 
 	for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if (( r->r_delivered == R_FAILED ) &&
 		    ( strcasecmp( simta_postmaster, r->r_rcpt ) == 0 )) {
 
-		bounce_env.e_dir = simta_dir_dead;
+		bounce_env->e_dir = simta_dir_dead;
 		break;
 	    }
 	}
 
     } else {
-        if ( env_recipient( &bounce_env, env->e_mail ) != 0 ) {
-            return( -1 );
+        if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
+            goto cleanup1;
         }
     }
 
-    sprintf( dfile_fname, "%s/D%s", bounce_env.e_dir, bounce_env.e_id );
+    sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
         syslog( LOG_ERR, "open %s: %m", dfile_fname );
-	env_reset( &bounce_env );
-        return( -1 );
+        goto cleanup2;
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
         syslog( LOG_ERR, "fdopen %s: %m", dfile_fname );
         close( dfile_fd );
-        goto cleanup;
+        goto cleanup3;
     }
 
     if ( time( &clock ) < 0 ) {
         syslog( LOG_ERR, "time: %m" );
         close( dfile_fd );
-        goto cleanup;
+        goto cleanup3;
     }
 
     if (( tm = localtime( &clock )) == NULL ) {
         syslog( LOG_ERR, "localtime: %m" );
         close( dfile_fd );
-        goto cleanup;
+        goto cleanup3;
     }
 
     if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
             == 0 ) {
         syslog( LOG_ERR, "strftime: %m" );
         close( dfile_fd );
-        goto cleanup;
+        goto cleanup3;
     }
 
     /* XXX From: address */
@@ -146,7 +147,7 @@ bounce( struct envelope *env, SNET *message )
 	fprintf( dfile, "To: %s\n", env->e_mail );
     }
     fprintf( dfile, "Date: %s\n", daytime );
-    fprintf( dfile, "Message-ID: %s\n", bounce_env.e_id );
+    fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
     fprintf( dfile, "\n" );
 
     /* XXX bounce message */
@@ -198,37 +199,38 @@ bounce( struct envelope *env, SNET *message )
     }
 
     if ( fclose( dfile ) != 0 ) {
-        goto cleanup;
+        goto cleanup3;
     }
 
     /* if it's not going to the DEAD queue, add it to our work list */
-    if ( bounce_env.e_dir != simta_dir_dead ) {
-	if (( m = message_create( bounce_env.e_id )) == NULL ) {
-	    goto cleanup;
+    if ( bounce_env->e_dir != simta_dir_dead ) {
+	if (( m = message_create( bounce_env->e_id )) == NULL ) {
+	    goto cleanup3;
 	}
 
-	m->m_dir = bounce_env.e_dir;
+	m->m_dir = bounce_env->e_dir;
 	m->m_etime.tv_sec = tv.tv_sec;
 
-	if ( env_outfile( &bounce_env, bounce_env.e_dir ) != 0 ) {
-	    goto cleanup;
+	if ( env_outfile( bounce_env, bounce_env->e_dir ) != 0 ) {
+	    /* XXX free m? */
+	    goto cleanup3;
 	}
 
 	message_queue( simta_null_q, m );
 
     } else {
-	if ( env_outfile( &bounce_env, bounce_env.e_dir ) != 0 ) {
-	    goto cleanup;
+	if ( env_outfile( bounce_env, bounce_env->e_dir ) != 0 ) {
+	    goto cleanup3;
 	}
     }
 
-    /* make sure to reset to clean up any memory */
-    env_reset( &bounce_env );
-    return( 0 );
+    return( bounce_env );
 
-cleanup:
-    env_reset( &bounce_env );
+cleanup3:
     unlink( dfile_fname );
-
-    return( -1 );
+cleanup2:
+    env_reset( bounce_env );
+cleanup1:
+    free( bounce_env );
+    return( NULL );
 }

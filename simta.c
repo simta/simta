@@ -43,6 +43,10 @@ char			*simta_dir_local = NULL;
 char			*simta_dir_slow = NULL;
 char			*simta_dir_fast = NULL;
 char			simta_hostname[ MAXHOSTNAMELEN + 1 ] = "\0";
+char			simta_ename[ MAXPATHLEN + 1 ];
+char			simta_ename_slow[ MAXPATHLEN + 1 ];
+char			simta_dname[ MAXPATHLEN + 1 ];
+char			simta_dname_slow[ MAXPATHLEN + 1 ];
 
 
 struct nlist		simta_nlist[] = {

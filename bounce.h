@@ -12,4 +12,4 @@
 #endif /* __STDC__ */
 
 
-int	bounce ___P(( struct envelope *, SNET * ));
+struct envelope *bounce ___P(( struct envelope *, SNET * ));

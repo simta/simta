@@ -49,8 +49,45 @@
 int				simta_expand_debug = 0;
 
 
+    /* return EXPAND_OK on success
+     * return EXPAND_SYSERROR on syserror
+     * return EXPAND_FATAL on fata errors (leaving fast files behind in error)
+     * syslog errors
+     */
+
+    int
+expand_and_deliver( struct host_q **hq_stab, struct envelope *unexpanded_env )
+{
+    syslog( LOG_DEBUG, "expand_and_deliver called" );
+
+    switch ( expand( hq_stab, unexpanded_env )) {
+	case 0:
+	    q_runner( hq_stab );
+	    if ( simta_fast_files > 0 ) {
+		syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
+		return( EXPAND_FATAL );
+	    }
+	    syslog( LOG_DEBUG, "expand_and_deliver returning OK" );
+	    return( EXPAND_OK );
+
+	default:
+	    syslog( LOG_ERR, "expand_and_deliver expand value out of range" );
+	case 1:
+	case -1:
+	    env_slow( unexpanded_env );
+	    if ( simta_fast_files > 0 ) {
+		syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
+		return( EXPAND_FATAL );
+	    }
+	    syslog( LOG_DEBUG, "expand_and_deliver returning syserror" );
+	    return( EXPAND_SYSERROR );
+    }
+}
+
+
     /* return 0 on success
      * return 1 on syserror
+     * return -1 on fata errors (leaving fast files behind in error)
      * syslog errors
      */
 
@@ -67,14 +104,21 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct host_q		*hq;
     struct stab_entry		*host_stab = NULL;
     struct envelope		*env;
+    struct envelope		*bounce_env;
     struct timeval              tv;
+    int				return_value = 1;
+    int				expanded_out = 0;
+    int				fast_file_start;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
     char			d_fast[ MAXPATHLEN ];
 
+    syslog( LOG_DEBUG, "expand.starting" );
+
     memset( &exp, 0, sizeof( struct expand ));
     exp.exp_env = unexpanded_env;
     simta_rcpt_errors = 0;
+    fast_file_start = simta_fast_files;
 
     /* call address_expand on each address in the expansion list.
      *
@@ -89,14 +133,11 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
      */ 
 
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
-#ifdef HAVE_LDAP
 	exp.exp_addr_parent = NULL;
-#endif /* HAVE_LDAP */
 
 	if ( add_address( &exp, r->r_rcpt, r, ADDRESS_TYPE_EMAIL ) != 0 ) {
 	    /* add_address syslogs errors */
-	    /* XXX free */
-	    return( 1 );
+	    goto cleanup1;
 	}
 
 	for ( ; ; ) {
@@ -109,10 +150,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    }
 
 	    e_addr = (struct exp_addr*)i->st_data;
-
-#ifdef HAVE_LDAP
 	    exp.exp_addr_parent = e_addr;
-#endif /* HAVE_LDAP */
 
 	    switch ( address_expand( &exp, e_addr )) {
 	    case ADDRESS_EXCLUDE:
@@ -127,12 +165,9 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	    default:
 		syslog( LOG_ERR,
-			"expand address_expand switch: unreachable code" );
+			"expand.address_expand: out of bounds return" );
 	    case ADDRESS_SYSERROR:
-		/* XXX expansion terminal failure */
-		free( i->st_data );
-		i->st_data = NULL;
-		return( 1 );
+		goto cleanup1;
 	    }
 	}
     }
@@ -152,43 +187,30 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	/* XXX Check to see that we only write out TYPE_EMAIL addresses? */
 #endif /* HAVE_LDAP */
 
-	/* If envelope is marked for punt, create one host entry
-	 * for punt machine.  Otherwise, create host queue entry.
-	 */
 
-	if ( unexpanded_env->e_punt != NULL ) {
-	    domain = unexpanded_env->e_punt;
-
-	} else {
-	    if (( domain = strchr( i->st_key, '@' )) == NULL ) {
-		/* XXX expansion terminal failure */
-		syslog( LOG_ERR, "expand strchr: unreachable code" );
-		return( 1 );
-	    }
-
-	    domain++;
+	if (( domain = strchr( i->st_key, '@' )) == NULL ) {
+	    syslog( LOG_ERR, "expand.strchr: unreachable code" );
+	    goto cleanup2;
 	}
+	domain++;
 
 	if (( env = (struct envelope*)ll_lookup( host_stab, domain ))
 		== NULL ) {
 	    if ( strlen( domain ) > MAXHOSTNAMELEN ) {
-		syslog( LOG_ERR, "expand strlen: domain too long" );
-		/* XXX expansion terminal failure */
-		return( 1 );
+		syslog( LOG_ERR, "expand.strlen: domain too long" );
+		goto cleanup2;
 	    }
 
 	    /* Create envelope and add it to list */
 	    if (( env = env_create( NULL )) == NULL ) {
-		syslog( LOG_ERR, "expand env_create: %m" );
-		/* XXX expansion terminal failure */
-		return( 1 );
+		syslog( LOG_ERR, "expand.env_create: %m" );
+		goto cleanup2;
 	    }
 
 	    if ( gettimeofday( &tv, NULL ) != 0 ) {
-		syslog( LOG_ERR, "expand gettimeofday: %m" );
+		syslog( LOG_ERR, "expand.gettimeofday: %m" );
 		free( env );
-		/* XXX expansion terminal failure */
-		return( 1 );
+		goto cleanup2;
 	    }
 
 	    /* fill in env */
@@ -200,25 +222,22 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	    /* Add env to host_stab */
 	    if ( ll_insert( &host_stab, domain, env, NULL ) != 0 ) {
-		syslog( LOG_ERR, "expand ll_insert: %m" );
+		syslog( LOG_ERR, "expand.ll_insert: %m" );
 		free( env );
-		/* XXX expansion terminal failure */
-		return( 1 );
+		goto cleanup2;
 	    }
 	}
 
 	if (( r = (struct recipient *)malloc( sizeof( struct recipient )))
 		== NULL ) {
-	    syslog( LOG_ERR, "expand malloc: %m" );
-	    /* XXX expansion terminal failure */
-	    return( 1 );
+	    syslog( LOG_ERR, "expand.malloc: %m" );
+	    goto cleanup2;
 	}
 
 	if (( r->r_rcpt = strdup( i->st_key )) == NULL ) {
 	    free( r );
-	    syslog( LOG_ERR, "expand strdup: %m" );
-	    /* XXX expansion terminal failure */
-	    return( 1 );
+	    syslog( LOG_ERR, "expand.strdup: %m" );
+	    goto cleanup2;
 	}
 
 	r->r_next = env->e_rcpt;
@@ -284,56 +303,70 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	return( 0 );
     }
 
-    /* expansion finished.  now we need to create a bounce message
-     * if there were any previous rcpt_errors, and write the expanded
-     * envelopes to disk.  then delete unexpanded message.
-     */
-
     /* if there were any failed expansions, create a bounce message */
     if ( simta_rcpt_errors != 0 ) {
 	/* Create bounces */
 	if (( snet = snet_open( d_original, O_RDWR, 0, 1024 * 1024 ))
 		== NULL ) {
-	    syslog( LOG_ERR, "expand snet_open %s: %m", d_original );
-	    /* XXX expansion terminal failure */
-	    return( 1 );
+	    syslog( LOG_ERR, "expand.snet_open %s: %m", d_original );
+	    goto cleanup3;
 	}
 
-	if ( bounce( unexpanded_env, snet ) != 0 ) {
+	if (( bounce_env = bounce( unexpanded_env, snet )) == NULL ) {
 	    if ( snet_close( snet ) != 0 ) {
-		syslog( LOG_ERR, "expand snet_close: %m" );
+		syslog( LOG_ERR, "expand.snet_close: %m" );
 	    }
-
-	    /* XXX expansion terminal failure */
-	    return( 1 );
+	    goto cleanup3;
 	}
 
 	if ( snet_close( snet ) != 0 ) {
-	    syslog( LOG_ERR, "expand snet_close: %m" );
-	    /* XXX expansion terminal failure */
-	    return( 1 );
+	    syslog( LOG_ERR, "expand.snet_close: %m" );
+	    goto cleanup4;
 	}
     }
 
+    /* trunacte & delete unexpanded message */
     sprintf( e_original, "%s/E%s", unexpanded_env->e_dir,
 	    unexpanded_env->e_id );
 
-    /* truncate unexpanded Efile so no other q_runner gets it */
     if ( unexpanded_env->e_dir != simta_dir_fast ) {
 	if ( truncate( e_original, (off_t)0 ) != 0 ) {
-	    syslog( LOG_ERR, "expand truncate %s: %m", e_original );
-	    /* XXX expansion terminal failure */
-	    return( 1 );
+	    syslog( LOG_ERR, "expand.truncate %s: %m", e_original );
+	    goto cleanup4;
 	}
     }
 
-    if ( env_unlink( unexpanded_env ) != 0 ) {
-	/* XXX expansion terminal failure */
-	return( 1 );
+    env_unlink( unexpanded_env );
+
+    return_value = 0;
+    goto cleanup2;
+
+cleanup4:
+    env_unlink( bounce_env );
+
+cleanup3:
+    /* unlink any expanded envelopes already written out */
+    i = host_stab;
+    while ( expanded_out > 0 ) {
+	env = i->st_data;
+	env_unlink( env );
+	i = i->st_next;
+	expanded_out--;
     }
 
-    /* XXX free host_stab */
-    /* XXX free expansion */
+    if ( simta_fast_files != fast_file_start ) {
+	return( -1 );
+    }
 
-    return( 0 );
+cleanup2:
+    if ( bounce_env != NULL ) {
+	env_free( bounce_env );
+	free( bounce_env );
+    }
+    /* XXX free host_stab */
+
+cleanup1:
+    /* XXX walk & free memory in exp->exp_addr_list */
+
+    return( return_value );
 }

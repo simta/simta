@@ -23,6 +23,7 @@
 #define SIMTA_MAX_LINE_LEN		1024
 #define	SIMTA_EXPANSION_FAILED		0
 #define	SIMTA_EXPANSION_SUCCESS		1
+#define	SIMTA_NULL_QUEUE		"\0"
 
 #define	EXIT_OK				1
 #define	EXIT_FAST_FILE			2
@@ -39,6 +40,10 @@ extern char				*simta_dir_dead;
 extern char				*simta_dir_local;
 extern char				*simta_domain;
 extern char				simta_hostname[];
+extern char				simta_dname[];
+extern char				simta_dname_slow[];
+extern char				simta_ename[];
+extern char				simta_ename_slow[];
 extern char				*simta_punt_host;
 extern struct host_q			*simta_null_q;
 extern struct stab_entry		*simta_hosts;
