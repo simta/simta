@@ -555,6 +555,8 @@ f_starttls( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    char			*err_txt;
+
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
      * session is already active.  No mention of what to do if it does...
@@ -574,8 +576,8 @@ f_starttls( snet, env, ac, av )
     /*
      * Begin TLS
      */
-    if ( snet_starttls( snet, 1 ) < 0 ) {
-	snet_writef( snet, "%d something happened\r\n", 666 );
+    if (( err_txt = snet_starttls( snet, 1 )) != NULL ) {
+	snet_writef( snet, "%d STARTTLS: %s\r\n", 500, err_txt );
 	return( 1 );
     }
 

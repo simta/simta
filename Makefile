@@ -26,15 +26,16 @@ INSTALL=	install
 ################ Nothing below should need editing ###################
 
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
-	simsend.c rfc822.c rcptlist.c tz.c
+	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o
+TLSCONOBJ=	tlsconnect.o
 
 INCPATH=	-Ilibsnet
 DEFS=	-DLOG_SIMTA=${SIMTALOG} -DTLS
 CFLAGS=	${DEFS} ${OPTOPTS} ${INCPATH}
 TAGSFILE=	tags
 LIBPATH=	-Llibsnet
-LIBS=	${ADDLIBS} -lsnet -lssl
+LIBS=	${ADDLIBS} -lsnet -lssl -lcrypto
 
 TARGETS=	simta
 
@@ -45,6 +46,9 @@ daemon.o : daemon.c
 
 simta : libsnet/libsnet.a ${SIMTAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${LIBPATH} ${LIBS}
+
+tlsconnect : libsnet/libsnet.a ${TLSCONOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o tlsconnect ${TLSCONOBJ} ${LIBPATH} ${LIBS}
 
 simsendmail : ${SIMSENDMAILOBJ}
 	${CC} ${CFLAGS} ${LDFALGS} -o simsendmail ${SIMSENDMAILOBJ} \
