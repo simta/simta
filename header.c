@@ -678,6 +678,11 @@ email_addr( struct line **start_line, char **start )
 	    }
 	    return( 1 );
 	}
+
+	if ( next_c == NULL ) {
+	    fprintf( stderr, "Header From: address expected after ,\n" );
+	    return( 1 );
+	}
     }
 
     *start = next_c;
