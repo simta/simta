@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/param.h>
+#include <sys/stat.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -88,6 +89,7 @@ main( int argc, char *argv[] )
     int			pidfd;
     int			pid;
     FILE		*pf;
+    struct stat		sbuf;
 
     /* ignore a good many options */
     opterr = 0;
@@ -399,6 +401,13 @@ main( int argc, char *argv[] )
 	}
     }
 
+    if ( fstat( dfile_fd, &sbuf ) != 0 ) {
+	perror( "fstat" );
+	fclose( dfile );
+        goto cleanup;
+    }
+    env->e_dinode = sbuf.st_ino;
+
     /* close Dfile */
     if ( fclose( dfile ) != 0 ) {
 	perror( "fclose" );
@@ -406,7 +415,8 @@ main( int argc, char *argv[] )
     }
 
     /* store Efile */
-    if ( env_outfile( env, simta_dir_local ) != 0 ) {
+    env->e_dir = simta_dir_local;
+    if ( env_outfile( env ) != 0 ) {
 	perror( "env_outfile" );
 	goto cleanup;
     }

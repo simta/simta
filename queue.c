@@ -1024,7 +1024,7 @@ oldfile_error:
 	    }
 
 	    /* write out modified envelope */
-	    if ( env_outfile( env_deliver, env_deliver->e_dir ) != 0 ) {
+	    if ( env_outfile( env_deliver ) != 0 ) {
 		goto message_cleanup;
 	    }
 

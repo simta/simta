@@ -274,6 +274,7 @@ env_recipient( struct envelope *e, char *addr )
     /* Efile syntax:
      *
      * SIMTA_VERSION_STRING
+     * Idinode
      * Hdestination-host
      * Ffrom-addr@sender.com
      * Rto-addr@recipient.com
@@ -281,19 +282,22 @@ env_recipient( struct envelope *e, char *addr )
      */
 
     int
-env_outfile( struct envelope *e, char *dir )
+env_outfile( struct envelope *e )
 {
     struct stat			sb;
     int			fd;
     struct recipient	*r;
     FILE		*tff;
-    char		tf[ MAXPATHLEN ];
-    char		ef[ MAXPATHLEN ];
+    char		tf[ MAXPATHLEN + 1 ];
+    char		ef[ MAXPATHLEN + 1 ];
 
-    e->e_dir = dir;
+    if ( e->e_dinode == 0 ) {
+	syslog( LOG_ERR, "env_outfile no dinode!" );
+	return( -1 );
+    }
 
-    sprintf( tf, "%s/t%s", dir, e->e_id );
-    sprintf( ef, "%s/E%s", dir, e->e_id );
+    sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
+    sprintf( ef, "%s/E%s", e->e_dir, e->e_id );
 
     /* make E (t) file */
     if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
@@ -314,9 +318,16 @@ env_outfile( struct envelope *e, char *dir )
 	goto cleanup;
     }
 
+    /* Idinode */
+    if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {
+	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	fclose( tff );
+	goto cleanup;
+    }
+
     /* Hdestination-host */
     if (( e->e_expanded != NULL ) && ( *e->e_expanded != '\0' ) &&
-	    ( strcasecmp( dir, simta_dir_dead ) != 0 )) {
+	    ( e->e_dir != simta_dir_dead )) {
 	if ( fprintf( tff, "H%s\n", e->e_expanded ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	    fclose( tff );
@@ -386,11 +397,12 @@ env_outfile( struct envelope *e, char *dir )
 	goto cleanup;
     }
 
-    if (( strcasecmp( dir, simta_dir_fast )) == 0 ) {
+    if ( e->e_dir == simta_dir_fast ) {
 	simta_fast_files++;
     }
 
-    syslog( LOG_DEBUG, "env_outfile %s %s %s", dir, e->e_id, e->e_expanded );
+    syslog( LOG_DEBUG, "env_outfile %s %s %s", e->e_dir, e->e_id,
+	    e->e_expanded );
 
     return( 0 );
 
@@ -467,18 +479,30 @@ env_info( struct message *m, char *hostname, size_t len )
 
     m->m_etime.tv_sec = sb.st_mtime;
 
-    /* first line of an envelope should be version info */
+    /* version info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_info %s: unexpected EOF", fname );
 	goto cleanup;
     }
 
     if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
+	/* XXX OLD VERSION CHECK */
 	syslog( LOG_ERR, "env_info %s bad version syntax", fname );
 	goto cleanup;
     }
 
-    /* second line of an envelope has expansion info */
+    /* Dinode info */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "env_info %s: unexpected EOF", fname );
+	goto cleanup;
+    }
+
+    if ( *line != 'I' ) {
+	syslog( LOG_ERR, "env_info %s: bad Dinode syntax", fname );
+	goto cleanup;
+    }
+
+    /* expansion info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_info %s: unexpected EOF", fname );
 	goto cleanup;
@@ -499,7 +523,7 @@ env_info( struct message *m, char *hostname, size_t len )
 	strncpy( hostname, line + 1, len );
     }
 
-    /* third line of an envelope has from info */
+    /* from info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_info %s: unexpected EOF", fname );
 	goto cleanup;
@@ -572,7 +596,6 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 		    syslog( LOG_ERR, "env_read snet_close %s: %m", filename );
 		    return( -1 );
 		}
-
 		return( 1 );
 
 	    } else {
@@ -597,6 +620,40 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
     if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
 	syslog( LOG_ERR, "env_read %s bad version syntax", filename );
 
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "env_read snet_close %s: %m", filename );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    /* Dinode info */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "env_info %s: unexpected EOF", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "env_read snet_close %s: %m", filename );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    if ( *line != 'I' ) {
+	syslog( LOG_ERR, "env_read %s bad Dinode syntax", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "env_read snet_close %s: %m", filename );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    sscanf( line + 1, "%lu", &(env->e_dinode));
+    if ( env->e_dinode == 0 ) {
+	syslog( LOG_ERR, "env_read %s: bad Dinode info", filename );
 	if ( snet_close( snet ) < 0 ) {
 	    syslog( LOG_ERR, "env_read snet_close %s: %m", filename );
 	    return( -1 );
@@ -696,7 +753,6 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 
     return( 0 );
 }
-
 
     int
 env_from( struct envelope *env )

@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/param.h>
+#include <sys/stat.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -250,6 +251,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     time_t                      clock;
     struct tm                   *tm;
     struct timeval		tv;
+    struct stat			sbuf;
     char                        daytime[ 35 ];
 
     if (( bounce_env = env_create( NULL )) == NULL ) {
@@ -294,23 +296,31 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     }
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
         syslog( LOG_ERR, "bounce %s fdopen %s: %m", env->e_id, dfile_fname );
-        close( dfile_fd );
+        if ( close( dfile_fd ) != 0 ) {
+	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
+	}
         goto cleanup3;
     }
     if ( time( &clock ) < 0 ) {
         syslog( LOG_ERR, "bounce %s time: %m", env->e_id );
-        close( dfile_fd );
+        if ( close( dfile_fd ) != 0 ) {
+	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
+	}
         goto cleanup3;
     }
     if (( tm = localtime( &clock )) == NULL ) {
         syslog( LOG_ERR, "bounce %s localtime: %m", env->e_id );
-        close( dfile_fd );
+        if ( close( dfile_fd ) != 0 ) {
+	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
+	}
         goto cleanup3;
     }
     if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
             == 0 ) {
         syslog( LOG_ERR, "bounce %s strftime: %m", env->e_id );
-        close( dfile_fd );
+        if ( close( dfile_fd ) != 0 ) {
+	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
+	}
         goto cleanup3;
     }
 
@@ -382,7 +392,14 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	}
     }
 
+    if ( fstat( dfile_fd, &sbuf ) != 0 ) {
+	syslog( LOG_ERR, "bounce %s fstat %s: %m", env->e_id, dfile_fname );
+        goto cleanup3;
+    }
+    bounce_env->e_dinode = sbuf.st_ino;
+
     if ( fclose( dfile ) != 0 ) {
+	syslog( LOG_ERR, "bounce %s fclose %s: %m", env->e_id, dfile_fname );
         goto cleanup3;
     }
 
@@ -394,13 +411,13 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	m->m_dir = bounce_env->e_dir;
 	m->m_etime.tv_sec = tv.tv_sec;
 	m->m_env = bounce_env;
-	if ( env_outfile( bounce_env, bounce_env->e_dir ) != 0 ) {
+	if ( env_outfile( bounce_env ) != 0 ) {
 	    goto cleanup4;
 	}
 	bounce_env->e_message = m;
 
     } else {
-	if ( env_outfile( bounce_env, bounce_env->e_dir ) != 0 ) {
+	if ( env_outfile( bounce_env ) != 0 ) {
 	    goto cleanup3;
 	}
     }

@@ -111,6 +111,7 @@ exp_addr_prune( struct exp_addr *e_addr )
     int
 expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
+    struct stat			sbuf;
     struct expand		exp;
     struct envelope		*base_error_env;
     struct envelope		*env_dead = NULL;
@@ -275,6 +276,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		env->e_dir = simta_dir_dead;
 	    }
 
+	    env->e_dinode = unexpanded_env->e_dinode;
+
 	    /* Add env to host_stab */
 	    if ( ll_insert( &host_stab, env->e_expanded, env, NULL ) != 0 ) {
 		syslog( LOG_ERR, "expand.ll_insert: %m" );
@@ -329,7 +332,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
 	    syslog( LOG_INFO, "expand %s: writing %s %s", unexpanded_env->e_id,
 		    env->e_id, env->e_expanded );
-	    if ( env_outfile( env, env->e_dir ) != 0 ) {
+	    if ( env_outfile( env ) != 0 ) {
 		/* env_outfile syslogs errors */
 		if ( unlink( d_out ) != 0 ) {
 		    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
@@ -419,7 +422,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 		syslog( LOG_INFO, "expand %s: writing bounce %s %s",
 			unexpanded_env->e_id, env->e_id, env->e_expanded );
-		if ( env_outfile( env, simta_dir_fast ) != 0 ) {
+		env->e_dir = simta_dir_fast;
+		if ( env_outfile( env ) != 0 ) {
 		    /* env_outfile syslogs errors */
 		    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
 		    if ( unlink( d_out ) != 0 ) {

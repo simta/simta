@@ -661,16 +661,17 @@ f_data( snet, env, ac, av )
 {
     char		*line;
     int			err = RECEIVE_OK;
-    int			fd;
+    int			dfile_fd;
     time_t		clock;
     struct tm		*tm;
     FILE		*dff;
-    char		df[ 25 ];
+    char		dfile_fname[ MAXPATHLEN + 1 ];
     char		daytime[ 30 ];
     struct line_file	*lf = NULL;
     struct line		*l;
     int			header = 1;
     int			line_no = 0;
+    struct stat		sbuf;
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -711,17 +712,18 @@ f_data( snet, env, ac, av )
 	return( RECEIVE_OK );
     }
 
-    sprintf( df, "%s/D%s", simta_dir_fast, env->e_id );
+    sprintf( dfile_fname, "%s/D%s", simta_dir_fast, env->e_id );
 
-    if (( fd = open( df, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
-	syslog( LOG_ERR, "f_data open %s: %m", df );
+    if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
+	    < 0 ) {
+	syslog( LOG_ERR, "f_data open %s: %m", dfile_fname );
 	return( RECEIVE_SYSERROR );
     }
 
-    if (( dff = fdopen( fd, "w" )) == NULL ) {
+    if (( dff = fdopen( dfile_fd, "w" )) == NULL ) {
 	syslog( LOG_ERR, "f_data fdopen: %m" );
 	err = RECEIVE_SYSERROR;
-	if ( close( fd ) != 0 ) {
+	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "f_data close: %m" );
 	}
 	goto cleanup;
@@ -751,7 +753,7 @@ f_data( snet, env, ac, av )
     if (( lf = line_file_create()) == NULL ) {
 	err = RECEIVE_SYSERROR;
 	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose %s: %m", df );
+	    syslog( LOG_ERR, "f_data fclose %s: %m", dfile_fname );
 	}
 	goto cleanup;
     }
@@ -865,6 +867,12 @@ f_data( snet, env, ac, av )
 	goto cleanup;
     }
 
+    if ( fstat( dfile_fd, &sbuf ) != 0 ) {
+	syslog( LOG_ERR, "f_data %s fstat %s: %m", env->e_id, dfile_fname );
+        goto cleanup;
+    }
+    env->e_dinode = sbuf.st_ino;
+
     if ( fclose( dff ) != 0 ) {
 	syslog( LOG_ERR, "f_data fclose: %m" );
 	err = RECEIVE_SYSERROR;
@@ -873,7 +881,8 @@ f_data( snet, env, ac, av )
 
     /* make E (t) file */
     /* XXX make sure this is accounted for in fast file db */
-    if ( env_outfile( env, simta_dir_fast ) != 0 ) {
+    env->e_dir = simta_dir_fast;
+    if ( env_outfile( env ) != 0 ) {
 	err = RECEIVE_SYSERROR;
 	goto cleanup;
     }
@@ -905,8 +914,8 @@ cleanup:
 	line_file_free( lf );
     }
 
-    if ( unlink( df ) < 0 ) {
-	syslog( LOG_ERR, "f_data unlink %s: %m", df );
+    if ( unlink( dfile_fname ) < 0 ) {
+	syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
     }
     return( err );
 }
@@ -1251,7 +1260,6 @@ receive( fd, sin )
 	goto syserror;
     }
     env->e_sin = sin;
-    env->e_dir = simta_dir_fast;
 
     if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
 	    "ready\r\n", 220, simta_hostname ) < 0 ) {
