@@ -184,7 +184,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 	printf(  "To: <%s>\n", r->r_rcpt );
     }
     fprintf( dfile, "Date: %s\n", daytime );
-    fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
+    fprintf( dfile, "Message-ID: <%s@%s>\n", bounce_env->e_id, simta_hostname );
     fprintf( dfile, "Subject: undeliverable mail\n" );
     fprintf( dfile, "\n" );
 
@@ -319,7 +319,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	printf(  "To: <%s>\n", r->r_rcpt );
     }
     fprintf( dfile, "Date: %s\n", daytime );
-    fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
+    fprintf( dfile, "Message-ID: <%s@%s>\n", bounce_env->e_id, simta_hostname );
     fprintf( dfile, "Subject: undeliverable mail\n" );
     fprintf( dfile, "\n" );
     fprintf( dfile, "Your mail was bounced.\n" );
