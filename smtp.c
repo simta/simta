@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/param.h>
 #include <netinet/in.h>
 
 #ifdef TLS
@@ -21,6 +22,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <strings.h>
+#include <string.h>
 #include <syslog.h>
 
 #include <snet.h>

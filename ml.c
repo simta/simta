@@ -13,6 +13,7 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/param.h>
 
 #include <stdio.h>
 #include <stdlib.h>

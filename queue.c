@@ -4,6 +4,7 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>

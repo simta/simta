@@ -12,6 +12,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 
 #include <netdb.h>
 #include <unistd.h>
@@ -413,7 +414,7 @@ env_info( struct message *m, char *hostname, size_t len )
 
     /* first line of an envelope should be version info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "%s: unexpected EOF", fname, line );
+	syslog( LOG_ERR, "%s: unexpected EOF", fname );
 
 	if ( snet_close( snet ) < 0 ) {
 	    syslog( LOG_ERR, "snet_close: %m" );

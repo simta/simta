@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <strings.h>
+#include <string.h>
 #include <syslog.h>
 #include <time.h>
 #include <pwd.h>
