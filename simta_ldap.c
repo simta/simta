@@ -505,7 +505,7 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     LDAPMessage	*e;
 
     if ( bounce_text( e_addr->e_addr_errors, addr, 
-				": Ambigous user", NULL ) != 0 ) {
+				": Ambiguous user", NULL ) != 0 ) {
 	return;
     }
 
