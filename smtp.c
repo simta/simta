@@ -534,8 +534,8 @@ error2:
     dnsr_free_result( result_ip );
 
     return( SMTP_BAD_CONNECTION );
-
 }
+
 
     int
 smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )

@@ -689,6 +689,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
     env->e_dinode = sbuf.st_ino;
 
+    /* XXX Virus / Spam external program here */
+
     if ( fclose( dff ) != 0 ) {
 	syslog( LOG_ERR, "f_data fclose: %m" );
 	if ( unlink( dfile_fname ) < 0 ) {
