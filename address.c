@@ -415,6 +415,7 @@ address_expand( char *address, struct recipient *rcpt, struct stab_entry **expan
 	    syslog( LOG_ERR, "address_expand: line_append: %m" );
 	    return( -1 );
 	}
+	rcpt->r_delivered = R_FAILED;
     }
 
     if ( dbp != NULL ) {
