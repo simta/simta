@@ -374,10 +374,3 @@ message_infile( char *dir, char *id )
 
     return( m );
 }
-
-
-    int
-message_smtp_send( SNET *snet, struct message *m )
-{
-    return( 0 );
-}

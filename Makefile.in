@@ -11,7 +11,7 @@ SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	simsend.o message.o envelope.o tz.o
-SENDOBJ=	send.o message.o envelope.o tz.o
+SENDOBJ=	send.o smtp.o message.o envelope.o tz.o
 SIMLOGOBJ=	simlog.o
 
 SIMTALOG=LOG_MAIL

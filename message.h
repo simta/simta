@@ -36,5 +36,4 @@ struct line	*message_add_line ___P(( struct message *, char * ));
 struct line	*message_prepend_line ___P(( struct message *, char * ));
 int		message_recipient ___P(( struct message *, char * ));
 int		message_outfile ___P(( struct message * ));
-int		message_smtp_send ___P(( SNET *, struct message * ));
 void		message_stdout ___P(( struct message * ));

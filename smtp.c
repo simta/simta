@@ -1,0 +1,140 @@
+#include <sys/param.h>
+
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* TLS */
+
+#include <libc.h>
+#include <netdb.h>
+
+#include <snet.h>
+
+#include "message.h"
+#include "envelope.h"
+#include "smtp.h"
+
+    int
+smtp_send_message( SNET *snet, struct message *m )
+{
+    char		*line;
+
+    /* MAIL FROM: */
+    if ( snet_writef( snet, "MAIL FROM: %s\r\n", m->m_env->e_mail ) < 0 ) {
+	return( 1 );
+    }
+
+    if (( line = snet_getline_multi( snet, NULL, NULL )) == NULL ) {
+	return( 1 );
+    }
+
+    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
+
+    SNET *
+smtp_connect( char *hostname, int port, void (*logger)(char *))
+{
+    int				s;
+    struct sockaddr_in		sin;
+    struct hostent		*hp;
+    SNET			*snet;
+    char			*line;
+    char			localhostname[ MAXHOSTNAMELEN ];
+
+    if (( hp = gethostbyname( hostname )) == NULL ) {
+	return( NULL );
+    }
+
+#ifdef DEBUG
+    printf( "[%s]\n", hp->h_name );
+#endif /* DEBUG */
+
+    memcpy( &(sin.sin_addr.s_addr), hp->h_addr_list[ 0 ],
+	    (unsigned int)hp->h_length );
+
+    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
+	return( NULL );
+    }
+
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons( port );
+
+    if ( connect( s, (struct sockaddr*)&sin,
+	    sizeof( struct sockaddr_in )) < 0 ) {
+	return( NULL );
+    }
+
+    if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
+	return( NULL );
+    }
+
+    /* read connect banner */
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	return( NULL );
+    }
+
+    if ( strncmp( line, SMTP_CONNECT, 3 ) != 0 ) {
+	return( NULL );
+    }
+
+    if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
+	return( NULL );
+    }
+
+    /* say HELO */
+    if ( snet_writef( snet, "HELO %s\r\n", localhostname ) < 0 ) {
+	return( NULL );
+    }
+
+#ifdef DEBUG
+    printf( "--> HELO %s\r\n", localhostname );
+#endif /* DEBUG */
+
+    /* read reply banner */
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	return( NULL );
+    }
+
+    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	return( NULL );
+    }
+
+    return( snet );
+}
+
+
+    int
+smtp_quit( SNET *snet, void (*logger)(char *))
+{
+    char			*line;
+
+    /* say QUIT */
+    if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
+	return( 1 );
+    }
+
+#ifdef DEBUG
+    printf( "--> QUIT\r\n" );
+#endif /* DEBUG */
+
+    /* read reply banner */
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	return( 1 );
+    }
+
+    if ( strncmp( line, SMTP_DISCONNECT, 3 ) != 0 ) {
+	return( 1 );
+    }
+
+    if ( snet_close( snet ) != 0 ) {
+	return( 1 );
+    }
+
+    return( 0 );
+}

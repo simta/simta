@@ -18,13 +18,10 @@
 
 #include "message.h"
 #include "envelope.h"
-
-#define	SMTP_DISCONNECT	"221"
-#define	SMTP_CONNECT	"220"
-#define	SMTP_OK		"250"
+#include "smtp.h"
 
 #define	TEST_ID		"3E6FB9B0.1E30A"
-#define	TEST_MACHINE	"terminator.rsug.itd.umich.edu"
+#define	TEST_HOSTNAME	"terminator.rsug.itd.umich.edu"
 #define	TEST_PORT	25
 
 #ifdef __STDC__
@@ -33,11 +30,11 @@
 #define ___P(x)         ()
 #endif /* __STDC__ */
 
-void		smtp_logger ___P(( char * ));
+void		stdout_logger ___P(( char * ));
 
 
     void
-smtp_logger( char *line )
+stdout_logger( char *line )
 {
     printf( "<-- %s\n", line );
     return;
@@ -47,16 +44,12 @@ smtp_logger( char *line )
     int
 main( int argc, char *argv[] )
 {
-    int				s;
-    struct sockaddr_in		sin;
     struct message		*m;
-    struct hostent		*hp;
     SNET			*snet;
-    char			*line;
     void			(*logger)(char *) = NULL;
 
 #ifdef DEBUG
-    logger = smtp_logger;
+    logger = stdout_logger;
     printf( "Send: Message-ID: %s\n\n", TEST_ID );
 #endif /* DEBUG */
 
@@ -69,98 +62,20 @@ main( int argc, char *argv[] )
     message_stdout( m );
 #endif /* DEBUG */
 
-    if (( hp = gethostbyname( TEST_MACHINE )) == NULL ) {
-	perror( "gethostbyname" );
+    if (( snet = smtp_connect( TEST_HOSTNAME, TEST_PORT, logger )) == NULL ) {
+	perror( "smtp_connect" );
 	exit( 1 );
     }
 
-#ifdef DEBUG
-    printf( "[%s]\n", hp->h_name );
-#endif /* DEBUG */
-
-    memcpy( &(sin.sin_addr.s_addr), hp->h_addr_list[ 0 ],
-	    (unsigned int)hp->h_length );
-
-    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
-	perror( "socket" );
+    /*
+    if ( smtp_send_message( snet, m ) != 0 ) {
+	perror( "smtp_send_message" );
 	exit( 1 );
     }
+    */
 
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons( TEST_PORT );
-
-    if ( connect( s, (struct sockaddr*)&sin,
-	    sizeof( struct sockaddr_in )) < 0 ) {
-	perror( "connect" );
-	exit( 1 );
-    }
-
-    if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
-	perror( "snet_attach" );
-	exit( 1 );
-    }
-
-    /* read connect banner */
-
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	perror( "snet_getline_multi" );
-	exit( 1 );
-    }
-
-    if ( strncmp( line, SMTP_CONNECT, 3 ) != 0 ) {
-	fprintf( stderr, "bad banner: %s\n", line );
-	exit( 1 );
-    }
-
-    /* say HELO */
-    if ( snet_writef( snet, "HELO %s\r\n", m->m_env->e_hostname ) < 0 ) {
-	perror( "snet_writef" );
-	exit( 1 );
-    }
-
-#ifdef DEBUG
-    printf( "--> HELO %s\r\n", m->m_env->e_hostname );
-#endif /* DEBUG */
-
-    /* read reply banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	perror( "snet_getline_multi" );
-	exit( 1 );
-    }
-
-    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
-	fprintf( stderr, "bad banner: %s\n", line );
-	exit( 1 );
-    }
-
-    if ( message_smtp_send( snet, m ) != 0 ) {
-	perror( "message_smtp_send" );
-	exit( 1 );
-    }
-
-    /* say QUIT */
-    if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
-	perror( "snet_writef" );
-	exit( 1 );
-    }
-
-#ifdef DEBUG
-    printf( "--> QUIT\r\n" );
-#endif /* DEBUG */
-
-    /* read reply banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	perror( "snet_getline_multi" );
-	exit( 1 );
-    }
-
-    if ( strncmp( line, SMTP_DISCONNECT, 3 ) != 0 ) {
-	fprintf( stderr, "bad banner: %s\n", line );
-	exit( 1 );
-    }
-
-    if ( snet_close( snet ) != 0 ) {
-	perror( "snet_close" );
+    if ( smtp_quit( snet, logger ) != 0 ) {
+	perror( "smtp_send_message" );
 	exit( 1 );
     }
 
