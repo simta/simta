@@ -32,6 +32,7 @@
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"
+#include "simta.h"
 
 /* XXX need for FAST_DIR.  really need a simta.h */
 #include "queue.h"
@@ -165,6 +166,8 @@ main( int argc, char *argv[] )
 	perror( "env_gettimeofday_id" );
 	exit( 1 );
     }
+
+    env->e_mail = simta_sender();
 
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {

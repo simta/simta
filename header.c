@@ -19,6 +19,9 @@
 #include "envelope.h"
 #include "header.h"
 #include "receive.h"
+#include "simta.h"
+
+int header_from ___P(( struct header * ));
 
 
 struct header simta_headers[] = {
@@ -255,7 +258,6 @@ header_correct( struct line_file *lf, struct envelope *env )
     struct header		*h;
     char			*colon;
     size_t			header_len;
-    struct passwd		*pw;
     int				result;
     char			*sender;
     char			*prepend_line = NULL;
@@ -309,48 +311,14 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
     }
 
-    /* unfold & uncomment all the structured headers we care about */
-    for ( h = simta_headers; h->h_key != NULL; h++ ) {
-	if ( h->h_line != NULL ) {
-	    if (( h->h_data = header_unfold( h->h_line )) == NULL ) {
-		perror( "header_unfold realloc" );
-		return( -1 );
-	    }
-
-	    if (( result = header_uncomment( &(h->h_data))) != 0 ) {
-		if ( result < 0 ) {
-		    perror( "header_uncomment realloc" );
-
-		} else {
-		    fprintf( stderr, "Header %s: Illegal parenthesis\n",
-			    h->h_key );
-		}
-
-		return( result );
-	    }
-	}
-    }
-
-    /* create default sender for comparison with header data */
-    if (( pw = getpwuid( getuid())) == NULL ) {
-	perror( "getpwuid" );
+    if (( sender = simta_sender()) == NULL ) {
 	return( -1 );
     }
-
-    if (( sender = (char*)malloc( strlen( pw->pw_name ) +
-	    strlen( env->e_hostname ) + 2 )) == NULL ) {
-	perror( "malloc" );
-	return( -1 );
-    }
-
-    sprintf( sender, "%s@%s", pw->pw_name, env->e_hostname );
 
     /* examine & correct header data */
 
     /* From: */
     if ( simta_headers[ HEAD_FROM ].h_line == NULL ) {
-	/* generate header */
-
 	if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
 		strlen( sender ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
@@ -360,7 +328,6 @@ header_correct( struct line_file *lf, struct envelope *env )
 	    }
 
 	    prepend_len = len;
-
 	}
 
 	sprintf( prepend_line, "%s: %s",
@@ -372,58 +339,13 @@ header_correct( struct line_file *lf, struct envelope *env )
 	    return( -1 );
 	}
 
-	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data + 6;
-
     } else {
-	if (( result = header_first_mailbox(
-		&(simta_headers[ HEAD_FROM ].h_data), env->e_hostname)) != 0 ) {
-	    if ( result < 0 ) {
-		perror( "header_first_mailbox realloc" );
-
-	    } else {
-		fprintf( stderr, "Header %s: Illegal syntax\n",
-			simta_headers[ HEAD_FROM ].h_key );
-	    }
-
-	    return( result );
+	if ( header_from( &simta_headers[ HEAD_FROM ] ) != 0 ) {
+	    return( -1 );
 	}
-
-	env->e_mail = simta_headers[ HEAD_FROM ].h_data;
     }
 
-    /* Sender: */
-    if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
-	if ( simta_headers[ HEAD_FROM ].h_data != NULL ) {
-	    /* From header wasn't generated, check for conflict */
-	    if ( strcasecmp( env->e_mail, sender ) != 0 ) {
-		if (( len = ( strlen( simta_headers[ HEAD_SENDER ].h_key ) +
-			strlen( sender ) + 3 )) > prepend_len ) {
-		    if (( prepend_line = (char*)realloc( prepend_line, len ))
-			    == NULL ) {
-			perror( "realloc" );
-			return( -1 );
-		    }
-
-		    prepend_len = len;
-		}
-
-		sprintf( prepend_line, "%s: %s",
-			simta_headers[ HEAD_SENDER ].h_key, sender );
-
-		if (( simta_headers[ HEAD_SENDER ].h_line =
-			line_prepend( lf, prepend_line )) == NULL ) {
-		    perror( "malloc" );
-		    return( -1 );
-		}
-	    }
-	}
-
-    } else {
-	if ( strcasecmp( env->e_mail, sender ) != 0 ) {
-	    fprintf( stderr, "Header %s: Illegal value\n",
-		    simta_headers[ HEAD_SENDER ].h_key );
-	}
-    }
+    /* XXX Sender */
 
     if ( simta_headers[ HEAD_DATE ].h_line == NULL ) {
 	if ( time( &clock ) < 0 ) {
@@ -849,6 +771,20 @@ header_first_mailbox( char **line, char *localhostname )
 
     if ( at == 0 ) {
 	sprintf( *line, "%s@%s", *line, localhostname );
+    }
+
+    return( 0 );
+}
+
+
+int header_from ___P(( struct header * ));
+
+    int
+header_from( struct header *from_header )
+{
+    if (( from_header->h_data =
+	    header_unfold( from_header->h_line )) == NULL ) {
+	return( -1 );
     }
 
     return( 0 );
