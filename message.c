@@ -272,3 +272,21 @@ cleanup:
     }
     return( 1 );
 }
+
+
+    int
+message_recipient( struct message *m, char *addr )
+{
+    struct recipient		*r;
+
+    if (( r = (struct recipient*)malloc( sizeof( struct recipient )))
+	    == NULL ) {
+	return( -1 );
+    }
+
+    r->r_rcpt = addr;
+    r->r_next = m->m_env->e_rcpt;
+    m->m_env->e_rcpt = r;
+
+    return( 0 );
+}

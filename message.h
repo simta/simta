@@ -28,4 +28,4 @@ struct line *message_line( struct message *, char * );
 struct line *message_prepend_line( struct message *, char * );
 void message_stdout( struct message * );
 int message_store( struct message * );
-int message_from( struct message *, struct header * );
+int message_recipient( struct message *, char * );

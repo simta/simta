@@ -306,6 +306,7 @@ main( int argc, char *argv[] )
     int			usage = 0;
     int			c;
     int			ignore_dot = 0;
+    int			x;
 
     /* ignore a good many options */
     opterr = 0;
@@ -368,8 +369,6 @@ main( int argc, char *argv[] )
 	}
     }
 
-    /* optind = first to-address */
-
     /* XXX error handling for command line options? */
     if ( usage != 0 ) {
 	fprintf( stderr, "Usage: %s "
@@ -425,10 +424,19 @@ main( int argc, char *argv[] )
 	break;
     }
 
+    /* optind = first to-address */
+
+    for ( x = optind; x < argc; x++ ) {
+	if ( message_recipient( m, argv[ x ] ) != 0 ) {
+	    perror( "message_recipient" );
+	    exit( 1 );
+	}
+    }
+
     /* message_stdout( m ); */
 
     if ( message_store( m ) != 0 ) {
-	/* XXX error */
+	perror( "message_store" );
 	exit( 1 );
     }
 
