@@ -368,22 +368,29 @@ f_rcpt( snet, env, ac, av )
      * If we're using DNS MX records to configure ourselves, then we should
      * probably preserve the results of our DNS check.
      */
-    /* XXX DNS check for invalid domain */
 
-    if (( dnsr = dnsr_open( )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_open failed" );
-	snet_writef( snet,
-	    "%d Requested action aborted: local error in processing.\r\n",
-	    451 );
-	return( -1 );
-    }
-    if ( get_mx( dnsr, domain ) != 0 ) {
-	snet_writef( snet,
-	    "%d Requested action aborted: local error in processing.\r\n",
-	    451 );
-	return( -1 );
-    }
+    /*
+     * rfc2821 3.6: The reserved mailbox name "postmaster" may be used in a RCPT
+     * command without domain qualification (see section 4.1.1.3) and
+     * MUST be accepted if so used.
+     */
 
+    if ( strncmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
+	/* DNS check for invalid domain */
+	if (( dnsr = dnsr_open( )) == NULL ) {
+	    syslog( LOG_ERR, "dnsr_open failed" );
+	    snet_writef( snet,
+		"%d Requested action aborted: local error in processing.\r\n",
+		451 );
+	    return( -1 );
+	}
+	if ( get_mx( dnsr, domain ) != 0 ) {
+	    snet_writef( snet,
+		"%d Requested action aborted: local error in processing.\r\n",
+		451 );
+	    return( -1 );
+	}
+    }
 
     /*
      * Here we do an initial lookup in our domain table.  This is our
