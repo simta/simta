@@ -82,6 +82,8 @@ hello( env, hostname )
     struct envelope		*env;
     char			*hostname;
 {
+    syslog( LOG_DEBUG, "hello starting" );
+
     /* If we get "HELO" twice, just toss the new one */
     if ( env->e_helo == NULL ) {
 	/*
@@ -111,6 +113,8 @@ f_helo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    syslog( LOG_DEBUG, "f_helo starting" );
+
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
@@ -137,6 +141,7 @@ f_ehlo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    syslog( LOG_DEBUG, "f_ehlo starting" );
 
     /* XXX - rfc 2821 4.1.4
      * A session that will contain mail transactions MUST first be
@@ -219,6 +224,8 @@ smtp_trimaddr( addr, leader )
 {
     char	*p, *q;
 
+    syslog( LOG_DEBUG, "smtp_trimaddr starting" );
+
     if ( strncasecmp( addr, leader, strlen( leader )) != 0 ) {
 	return( NULL );
     }
@@ -244,6 +251,8 @@ f_mail( snet, env, ac, av )
     char		*addr, *domain;
     DNSR		*dnsr;
     struct dnsr_result	*result;
+
+    syslog( LOG_DEBUG, "f_mail starting" );
 
     /*
      * Contrary to popular belief, it is not an error to give more than
@@ -329,6 +338,7 @@ f_mail( snet, env, ac, av )
 		    ">>> %d %s: unknown host\r\n", 550, domain );
 		return( 1 );
 	    default:
+		syslog( LOG_ERR, "f_mail get_mx: local error" );
 		snet_writef( snet,
 		    "%d Requested action aborted: local error "
 		    "in processing\r\n", 451 );
@@ -399,6 +409,8 @@ f_rcpt( snet, env, ac, av )
     struct recipient	*r;
     DNSR		*dnsr;
     struct dnsr_result	*result;
+
+    syslog( LOG_DEBUG, "f_rcpt starting" );
 
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
@@ -627,6 +639,8 @@ f_data( snet, env, ac, av )
     struct line		*l;
     int			header = 1;
     int			line_no = 0;
+
+    syslog( LOG_DEBUG, "f_data starting" );
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -859,6 +873,8 @@ f_quit( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    syslog( LOG_DEBUG, "f_quit starting" );
+
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
      * parameters.  In the absence of specific extensions offered by the
@@ -866,6 +882,7 @@ f_quit( snet, env, ac, av )
      * parameters and servers SHOULD reject commands containing them as
      * having invalid syntax.
      */
+
     if ( ac != 1 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
@@ -907,6 +924,8 @@ f_rset( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    syslog( LOG_DEBUG, "f_rset starting" );
+
     /*
      * We could presume that this indicates another message.  However,
      * since some mailers send this just before "QUIT", and we're
@@ -938,6 +957,8 @@ f_noop( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    syslog( LOG_DEBUG, "f_noop starting" );
+
     snet_writef( snet, "%d simta v%s\r\n", 250, version );
     if ( simta_debug ) fprintf( stderr, ">>> %d simta v%s\r\n", 250, version );
     return( 0 );
@@ -950,6 +971,8 @@ f_help( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    syslog( LOG_DEBUG, "f_help starting" );
+
     snet_writef( snet, "%d simta v%s\r\n", 211, version );
     if ( simta_debug ) fprintf( stderr, ">>> %d simta v%s\r\n", 211, version );
     return( 0 );
@@ -984,6 +1007,8 @@ f_vrfy( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    syslog( LOG_DEBUG, "f_vrfy starting" );
+
     snet_writef( snet, "%d Command not implemented\r\n", 502 );
     if ( simta_debug ) fprintf( stderr, ">>> %d Command not implemented\r\n",
 	502 );
@@ -997,6 +1022,8 @@ f_expn( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    syslog( LOG_DEBUG, "f_expn starting" );
+
     snet_writef( snet, "%d Command not implemented\r\n", 502 );
     if ( simta_debug ) fprintf( stderr, ">>> %d Command not implemented\r\n",
 	502 );
@@ -1014,6 +1041,8 @@ f_starttls( snet, env, ac, av )
     int				rc;
     X509			*peer;
     char			buf[ 1024 ];
+
+    syslog( LOG_DEBUG, "f_starttls starting" );
 
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
