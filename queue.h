@@ -32,23 +32,6 @@ struct host {
     struct stab_entry		*h_expansion;	/* Ordered list of expansion */
 };
 
-struct q_file {
-    char			*q_id;
-    char			*q_expanded;
-    struct q_file		*q_inode_next;
-    struct q_file		*q_etime_next;
-    struct envelope		*q_env;
-    struct message_data		*q_data;
-    int				q_action;
-    int				q_unexpanded;
-    int				q_efile;
-    int				q_dfile;
-    ino_t			q_dfile_ino;
-    nlink_t			q_dfile_nlink;
-    struct timespec		q_dtime;
-    struct timespec		*q_etime;
-};
-
 struct host_q {
     struct host_q		*hq_next;
     struct host_q		*hq_deliver;

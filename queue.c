@@ -195,13 +195,6 @@ bounce( struct envelope *env, SNET *message )
 
 
     int
-q_deliver( struct host_q *hq )
-{
-    return( 0 );
-}
-
-
-    int
 q_runner( struct host_q **host_q )
 {
     struct host_q		*hq;
@@ -390,5 +383,12 @@ q_runner_dir( char *dir )
 	exit( EX_TEMPFAIL );
     }
 
+    return( 0 );
+}
+
+
+    int
+q_deliver( struct host_q *hq )
+{
     return( 0 );
 }
