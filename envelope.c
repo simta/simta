@@ -169,11 +169,6 @@ env_reset( struct envelope *env )
 	    env->e_mail = NULL;
 	}
 
-	if ( env->e_helo != NULL ) {
-	    free( env->e_helo );
-	    env->e_helo = NULL;
-	}
-
 	if ( env->e_err_text != NULL ) {
 	    line_file_free( env->e_err_text );
 	    env->e_err_text = NULL;

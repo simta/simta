@@ -24,7 +24,6 @@ struct envelope {
     struct envelope	*e_next;
     struct message	*e_message;
     char		e_expanded[ MAXHOSTNAMELEN + 1 ];
-    char		*e_helo;
     char		*e_dir;
     char		*e_mail;
     struct recipient	*e_rcpt;

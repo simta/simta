@@ -58,6 +58,7 @@ extern char		*version;
 struct host_q		*hq_receive = NULL;
 struct sockaddr_in  	*receive_sin;
 int			receive_global_relay = 0;
+char			*receive_hello = NULL;
 
 #define	RECEIVE_OK		0x0000
 #define	RECEIVE_QUIT		0x0001
@@ -100,7 +101,7 @@ hello( env, hostname )
     char			*hostname;
 {
     /* If we get "HELO" twice, just toss the new one */
-    if ( env->e_helo == NULL ) {
+    if ( receive_hello == NULL ) {
 	/*
 	 * rfc1123 5.2.5: We don't check that the "HELO" domain matches
 	 * anything like the hostname.  When we create the data file, we'll
@@ -108,7 +109,7 @@ hello( env, hostname )
 	 * "Received:" header should say.  Since mail clients don't send well
 	 * formed "HELO", we won't even do syntax checks on av[ 1 ].
 	 */
-	if (( env->e_helo = strdup( hostname )) == NULL ) {
+	if (( receive_hello = strdup( hostname )) == NULL ) {
 	    syslog( LOG_ERR, "helo: strdup: %m" );
 	    return( RECEIVE_SYSERROR );
 	}
@@ -655,7 +656,7 @@ f_data( snet, env, ac, av )
      * we might want to put the sender's domain name, if we obtained one.
      */
     if ( fprintf( dff, "Received: FROM %s ([%s])\n\tBY %s ID %s ; \n\t%s %s\n",
-	    ( env->e_helo == NULL ) ? "NULL" : env->e_helo,
+	    ( receive_hello == NULL ) ? "NULL" : receive_hello,
 	    inet_ntoa( receive_sin->sin_addr ), simta_hostname, env->e_id,
 	    daytime, tz( tm )) < 0 ) {
 	syslog( LOG_ERR, "f_data fprintf: %m" );
@@ -1236,6 +1237,10 @@ syserror:
 closeconnection:
     if ( snet_close( snet ) != 0 ) {
 	syslog( LOG_ERR, "receive snet_close: %m" );
+    }
+
+    if ( receive_hello != NULL ) {
+	free( receive_hello );
     }
 
     if ( result != NULL ) {
