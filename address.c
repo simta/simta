@@ -291,8 +291,9 @@ address_expand( char *address, struct recipient *rcpt,
     if (( domain = strchr( user, '@' )) == NULL ) {
 	syslog( LOG_ERR, "address_expand: strchr: %s: invalid address",
 	    address_local );
-	*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
-        return( -1 );
+	/* address is not syntactically correct, or correctable */
+	*ae_error = SIMTA_EXPAND_ERROR_BAD_FORMAT;
+	return( 0 );
     }
     *domain = '\0';
     domain++;

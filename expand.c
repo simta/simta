@@ -113,7 +113,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct recipient		*r;
     struct envelope		*env_p;
     int				failed_expansions = 0, rc = 0;
-    int				expansions = 0, ae_error;
+    int				ae_error;
     char			*domain = NULL;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
@@ -156,20 +156,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	} else if ( rc == 0 ) {
 	    switch( ae_error ) {
 
-	    case SIMTA_EXPAND_ERROR_NONE:
-		/* XXX do you want to report an error here? */
-#ifdef DEBUG
-		printf( "SIMTA_EXPAND_ERROR_NONE\n" );
-#endif /* DEBUG */
-		break;
-
-	    case SIMTA_EXPAND_ERROR_SYSTEM:
-		/* XXX do you want to report an error here? */
-#ifdef DEBUG
-		printf( "SIMTA_EXPAND_ERROR_SYSTEM\n" );
-#endif /* DEBUG */
-		break;
-
 	    case SIMTA_EXPAND_ERROR_OFF_HOST:
 		/* this is not really an "error", addresses that aren't 
 		 * domains we are expanding for  are just ignored and added
@@ -205,12 +191,34 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 #ifdef HAVE_LDAP
 	    case SIMTA_EXPAND_ERROR_LDAP:
 		/* XXX unwind expansion here */
+		/* XXX move message to SLOW if not there already */
+		/* XXX return( 1 ) */
 		break;
 #endif /* HAVE_LDAP */
 #endif /* NOT_DEF */
 
+	    case SIMTA_EXPAND_ERROR_SYSTEM:
+		/* this should be unreachable code.  If you're here, there's
+		 * an error.
+		 */
+#ifdef DEBUG
+		printf( "SIMTA_EXPAND_ERROR_SYSTEM\n" );
+#endif /* DEBUG */
+		break;
+
+	    case SIMTA_EXPAND_ERROR_NONE:
+		/* this should be unreachable code.  If you're here, there's
+		 * an error.
+		 */
+#ifdef DEBUG
+		printf( "SIMTA_EXPAND_ERROR_NONE\n" );
+#endif /* DEBUG */
+		break;
+
 	    default:
-		/* XXX do you want to report an error here? */
+		/* this should be unreachable code.  If you're here, there's
+		 * an error.
+		 */
 #ifdef DEBUG
 		printf( "SIMTA_EXPAND_ERROR_default\n" );
 #endif /* DEBUG */
