@@ -71,7 +71,6 @@ static char     *attrs[] = { "objectClass", "title", "postaladdress",
 			"membersonly", "permittedgroup", NULL };
 
 struct ldap_search_list		*ldap_searches = NULL;
-struct ldap_search_list		*mailuri = NULL;
 struct list			*ldap_people = NULL;
 struct list			*ldap_groups = NULL;
 LDAP				*ld = NULL;
@@ -564,43 +563,6 @@ simta_ldap_config( char *fname )
 
 	    } else {
 		fprintf( stderr, "uri not an ldap uri: %s\n", linecopy );
-	    }
-	} else if ( strncasecmp( av[ 0 ], "mailuri", 7 ) == 0 ) {
-	    if (ac < 2) {
-		fprintf( stderr, "Missing uri in mailuri: %s\n", linecopy );
-		continue;
-	    }
-
- 	    if ( ldap_is_ldap_url( av[ 1 ] ) != 0 ) {
-
-                /* Parse the URL */
-		rc = ldap_url_parse( av[ 1 ], &plud );
-
-		if (rc != LDAP_URL_SUCCESS)
-		{
-		    fprintf (stderr, 
-		"ldap_url_parse parse error: %d for line: %s\n", rc, linecopy);
-		    continue;
-		}
-
-		if (( lsl = (struct ldap_search_list *)calloc
-			(1, sizeof( struct ldap_search_list ))) == NULL ) {
-		    perror( "calloc" );
-		    acav_free( acav );
-		    ldap_free_urldesc (plud);
-		    return( -1 );
-		}
-
-		if ((lsl->lds_string = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-		    acav_free( acav );
-		    ldap_free_urldesc (plud);
-		    return( -1 );
-		}
-
-		lsl->lds_plud = plud;
-
-		mailuri = lsl;
 	    }
 
 	} else if ( strncasecmp( av[ 0 ], "ldapdebug", 9 ) == 0 ) {
