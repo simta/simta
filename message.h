@@ -34,6 +34,5 @@ struct message	*message_create ___P(( char * ));
 struct message	*message_infile ___P(( char *, char * ));
 struct line	*message_add_line ___P(( struct message *, char * ));
 struct line	*message_prepend_line ___P(( struct message *, char * ));
-int		message_recipient ___P(( struct message *, char * ));
 int		message_outfile ___P(( struct message * ));
 void		message_stdout ___P(( struct message * ));

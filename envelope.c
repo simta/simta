@@ -6,7 +6,9 @@
 #include <netdb.h>
 #include <syslog.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
+
 
 #include "envelope.h"
 
@@ -76,4 +78,25 @@ env_stdout( struct envelope *e )
     for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
 	printf( "rcpt: %s\n", r->r_rcpt );
     }
+}
+
+
+    int
+env_recipient( struct envelope *e, char *addr )
+{
+    struct recipient		*r;
+
+    if (( r = (struct recipient*)malloc( sizeof( struct recipient )))
+	    == NULL ) {
+	return( -1 );
+    }
+
+    if (( r->r_rcpt = strdup( addr )) == NULL ) {
+	return( -1 );
+    }
+
+    r->r_next = e->e_rcpt;
+    e->e_rcpt = r;
+
+    return( 0 );
 }

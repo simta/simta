@@ -283,27 +283,6 @@ cleanup:
 }
 
 
-    int
-message_recipient( struct message *m, char *addr )
-{
-    struct recipient		*r;
-
-    if (( r = (struct recipient*)malloc( sizeof( struct recipient )))
-	    == NULL ) {
-	return( -1 );
-    }
-
-    if (( r->r_rcpt = strdup( addr )) == NULL ) {
-	return( -1 );
-    }
-
-    r->r_next = m->m_env->e_rcpt;
-    m->m_env->e_rcpt = r;
-
-    return( 0 );
-}
-
-
     /* return a struct message from the Efile and Dfile for the message
      * id from directory dir.
      */
@@ -344,7 +323,7 @@ message_infile( char *dir, char *id )
 
     /* get to-addresses */
     while (( line = snet_getline( snet, NULL )) != NULL ) {
-	if ( message_recipient( m, line ) != 0 ) {
+	if ( env_recipient( m->m_env, line ) != 0 ) {
 	    return( NULL );
 	}
     }

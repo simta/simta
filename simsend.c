@@ -426,8 +426,8 @@ main( int argc, char *argv[] )
     /* optind = first to-address */
 
     for ( x = optind; x < argc; x++ ) {
-	if ( message_recipient( m, argv[ x ] ) != 0 ) {
-	    perror( "message_recipient" );
+	if ( env_recipient( m->m_env, argv[ x ] ) != 0 ) {
+	    perror( "env_recipient" );
 	    exit( 1 );
 	}
     }
