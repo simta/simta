@@ -329,6 +329,7 @@ deliver_remote( struct host_q *hq )
     struct q_file		*q;
     struct stab_entry		*qs;
     int				mailed;
+    int				r;
     int				fd;
     int				sent = 0;
     char			fname[ MAXPATHLEN ];
@@ -341,14 +342,25 @@ deliver_remote( struct host_q *hq )
 #endif /* DEBUG */
 
     /* XXX send only to terminator for now */
-    if ( strcasecmp( hq->hq_name, "terminator.rsug.itd.umich.edu" ) != 0 ) {
+    if (( strcasecmp( hq->hq_name, "terminator.rsug.itd.umich.edu" ) != 0 ) &&
+	    ( strcasecmp( hq->hq_name, "rsug.itd.umich.edu" ) != 0 )) {
 	return( 0 );
     }
 
-    if (( snet = smtp_connect( hq->hq_name, 25, logger )) == NULL ) {
-	/* XXX syscall not only failure reason */
-	syslog( LOG_ERR, "smtp_connect: %m\n" );
+    if (( snet = smtp_connect( hq->hq_name, 25 )) == NULL ) {
 	exit( 1 );
+    }
+
+    if (( r = smtp_helo( snet, logger )) == SMTP_ERR_SYSCALL ) {
+	exit( 1 );
+
+    } else if ( r == SMTP_ERR_SYNTAX ) {
+	return( 1 );
+
+    } else if ( r == SMTP_ERR_MAIL_LOOP ) {
+	/* XXX deliver locally? */
+	printf( "Mail server %s is actually localhost\n", hq->hq_name );
+	return( 1 );
     }
 
     for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {

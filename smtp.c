@@ -140,28 +140,30 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 }
 
 
+    /* return pointer on success
+     * return NULL on failure
+     *
+     * syslog errors
+     */
+
     SNET *
-smtp_connect( char *hostname, int port, void (*logger)(char *))
+smtp_connect( char *hostname, int port )
 {
-    int				s;
-    struct sockaddr_in		sin;
     struct hostent		*hp;
+    struct sockaddr_in		sin;
+    int				s;
     SNET			*snet;
-    char			*line;
-    char			localhostname[ MAXHOSTNAMELEN ];
 
     if (( hp = gethostbyname( hostname )) == NULL ) {
+	syslog( LOG_ERR, "gethostbyname %s: %m", hostname );
 	return( NULL );
     }
-
-#ifdef DEBUG
-    printf( "[%s]\n", hp->h_name );
-#endif /* DEBUG */
 
     memcpy( &(sin.sin_addr.s_addr), hp->h_addr_list[ 0 ],
 	    (unsigned int)hp->h_length );
 
     if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
+	syslog( LOG_ERR, "socket: %m" );
 	return( NULL );
     }
 
@@ -170,45 +172,100 @@ smtp_connect( char *hostname, int port, void (*logger)(char *))
 
     if ( connect( s, (struct sockaddr*)&sin,
 	    sizeof( struct sockaddr_in )) < 0 ) {
+	syslog( LOG_ERR, "connect: %m" );
 	return( NULL );
     }
 
     if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
-	return( NULL );
-    }
-
-    /* read connect banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	return( NULL );
-    }
-
-    if ( strncmp( line, SMTP_CONNECT, 3 ) != 0 ) {
-	return( NULL );
-    }
-
-    if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
-	return( NULL );
-    }
-
-    /* say HELO */
-    if ( snet_writef( snet, "HELO %s\r\n", localhostname ) < 0 ) {
-	return( NULL );
-    }
-
-#ifdef DEBUG
-    printf( "--> HELO %s\n", localhostname );
-#endif /* DEBUG */
-
-    /* read reply banner */
-    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	return( NULL );
-    }
-
-    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	syslog( LOG_ERR, "snet_attach: %m" );
 	return( NULL );
     }
 
     return( snet );
+}
+
+
+    /* return 0 on success
+     * return -1 on syscall failure
+     * return 1 on recoverable error
+     *
+     * syslog errors
+     */
+
+    int
+smtp_helo( SNET *snet, void (*logger)(char *))
+{
+    char			*line;
+    char			local_host[ MAXHOSTNAMELEN ];
+    char			*remote_host;
+    char			*i;
+
+    if ( gethostname( local_host, MAXHOSTNAMELEN ) != 0 ) {
+	syslog( LOG_ERR, "gethostname: %m" );
+	return( SMTP_ERR_SYSCALL );
+    }
+
+    /* read connect banner */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "gethostname: %m" );
+	return( SMTP_ERR_SYNTAX );
+    }
+
+    if ( logger != NULL ) {
+	(*logger)( line );
+    }
+
+    /* ZZZ working here */
+    if ( strncmp( line, SMTP_CONNECT, 3 ) != 0 ) {
+	return( SMTP_ERR_SYNTAX );
+    }
+
+    remote_host = line + 3;
+
+    if ( *remote_host == '-' ) {
+	remote_host++;
+    }
+
+    while (( *remote_host == ' ' ) || ( *remote_host == '\t' )) {
+	remote_host++;
+    }
+
+    /* check for remote hostname existance */
+    if ( *remote_host == '\0' ) {
+	return( SMTP_ERR_SYNTAX );
+    }
+
+    i = remote_host;
+
+    while (( *i != ' ' ) && ( *i != '\t' )) {
+	i++;
+    }
+
+    /* check to see if remote smtp server is actually the local machine */
+    if ( strncasecmp( local_host, remote_host, (int)(i - remote_host) ) == 0 ) {
+	/* XXX gracefully close the connection? */
+	return( SMTP_ERR_MAIL_LOOP );
+    }
+
+    /* say HELO */
+    if ( snet_writef( snet, "HELO %s\r\n", local_host ) < 0 ) {
+	return( SMTP_ERR_SYSCALL );
+    }
+
+#ifdef DEBUG
+    printf( "--> HELO %s\n", local_host );
+#endif /* DEBUG */
+
+    /* read reply banner */
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	return( SMTP_ERR_SYSCALL );
+    }
+
+    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	return( SMTP_ERR_SYNTAX );
+    }
+
+    return( SMTP_NO_ERROR );
 }
 
 
@@ -275,8 +332,13 @@ smtp_send_single_message( char *hostname, int port, struct message *m,
 	void (*logger)(char *))
 {
     SNET			*snet;
+    int				r;
 
-    if (( snet = smtp_connect( hostname, port, logger )) == NULL ) {
+    if (( snet = smtp_connect( hostname, port )) == NULL ) {
+	return( 1 );
+    }
+
+    if (( r = smtp_helo( snet, logger )) != SMTP_NO_ERROR ) {
 	return( 1 );
     }
 

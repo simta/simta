@@ -63,11 +63,17 @@ cp Dseed ../local/tp1
 cp Dseed ../local/tp2
 cp Dseed ../local/garbage
 
-# deliver some local mail
-cp Elocal ../slow/Elocalmail
-cp Dlocal ../slow/Dlocalmail
-cp Elocal ../slow/Elocalmail1
-cp Dlocal ../slow/Dlocalmail1
+# deliver some terminator mail
+cp Eterminator ../slow/Eterm
+cp Dterminator ../slow/Dterm
+cp Eterminator ../slow/Eterm1
+cp Dterminator ../slow/Dterm1
 
-# local Efile with no Dfile
-cp Elocal ../slow/Elocalalone
+# deliver some rsug mail
+cp Ersug ../slow/Ersug
+cp Drsug ../slow/Drsug
+cp Ersug ../slow/Ersug1
+cp Drsug ../slow/Drsug1
+
+# terminator Efile with no Dfile
+cp Eterminator ../slow/Elocalalone
