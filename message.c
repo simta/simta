@@ -36,7 +36,7 @@
     /* Add a line to a message data structure  */
 
     struct line *
-data_add_line( struct data *d, char *line )
+data_add_line( struct message_data *d, char *line )
 {
     struct line		*l;
 
@@ -51,15 +51,15 @@ data_add_line( struct data *d, char *line )
 
     l->line_next = NULL;
 
-    if ( d->d_first_line == NULL ) {
-	d->d_first_line = l;
-	d->d_last_line = l;
+    if ( d->md_first == NULL ) {
+	d->md_first = l;
+	d->md_last = l;
 	l->line_prev = NULL;
 
     } else {
-	l->line_prev = d->d_last_line;
-	d->d_last_line->line_next = l;
-	d->d_last_line = l;
+	l->line_prev = d->md_last;
+	d->md_last->line_next = l;
+	d->md_last = l;
     }
 
     return( l );
@@ -69,7 +69,7 @@ data_add_line( struct data *d, char *line )
     /* prepend a line to the message data */
 
     struct line *
-data_prepend_line( struct data *d, char *line )
+data_prepend_line( struct message_data *d, char *line )
 {
     struct line		*l;
 
@@ -82,15 +82,15 @@ data_prepend_line( struct data *d, char *line )
 	return( NULL );
     }
 
-    l->line_next = d->d_first_line;
+    l->line_next = d->md_first;
     l->line_prev = NULL;
 
-    if ( d->d_first_line == NULL ) {
-	d->d_first_line = l;
-	d->d_last_line = l;
+    if ( d->md_first == NULL ) {
+	d->md_first = l;
+	d->md_last = l;
 
     } else {
-	d->d_first_line = l;
+	d->md_first = l;
     }
 
     return( l );
@@ -99,19 +99,20 @@ data_prepend_line( struct data *d, char *line )
 
     /* read a D file from directory "dir" for message "id" */
 
-    struct data *
+    struct message_data *
 data_infile( char *dir, char *id )
 {
     char			filename[ MAXPATHLEN ];
     char			*line;
     SNET			*snet;
     struct line			*l;
-    struct data			*d;
+    struct message_data		*d;
 
-    if (( d = (struct data*)malloc( sizeof( struct data ))) == NULL ) {
+    if (( d = (struct message_data*)malloc( sizeof( struct message_data )))
+	    == NULL ) {
 	return( NULL );
     }
-    memset( d, 0, sizeof( struct data ));
+    memset( d, 0, sizeof( struct message_data ));
 
     /* read data file */
     sprintf( filename, "%s/D%s", dir, id );
@@ -137,12 +138,12 @@ data_infile( char *dir, char *id )
     /* print data to stdout for debugging purposes */
 
     void
-data_stdout( struct data *d )
+data_stdout( struct message_data *d )
 {
     struct line		*l;
     int			x = 0;
 
-    for ( l = d->d_first_line; l != NULL ; l = l->line_next ) {
+    for ( l = d->md_first; l != NULL ; l = l->line_next ) {
 	x++;
 	printf( "%d:\t%s\n", x, l->line_data );
     }
@@ -184,7 +185,7 @@ message_stdout( struct message *m )
 	printf( "ENVELOPE:\tNULL\n" );
     }
 
-    if (( m->m_data != NULL ) && ( m->m_data->d_first_line != NULL )) {
+    if (( m->m_data != NULL ) && ( m->m_data->md_first != NULL )) {
 	printf( "MESSAGE DATA:\n" );
 	data_stdout( m->m_data );
     } else {
@@ -250,7 +251,7 @@ message_outfiles( struct message *m, char *dir )
 	goto cleanup;
     }
 
-    for ( l = m->m_data->d_first_line; l != NULL; l = l->line_next ) {
+    for ( l = m->m_data->md_first; l != NULL; l = l->line_next ) {
 	if ( fprintf( dff, "%s\n", l->line_data ) < 0 ) {
 	    perror( "fprintf" );
 	    goto cleanup;
@@ -329,10 +330,11 @@ message_create( char *id )
     }
     memset( m, 0, sizeof( struct message ));
 
-    if (( m->m_data = (struct data*)malloc( sizeof( struct data ))) == NULL ) {
+    if (( m->m_data = (struct message_data*)malloc(
+	    sizeof( struct message_data ))) == NULL ) {
 	return( NULL );
     }
-    memset( m->m_data, 0, sizeof( struct data ));
+    memset( m->m_data, 0, sizeof( struct message_data ));
 	
     if (( m->m_env = env_create()) == NULL ) {
 	return( NULL );

@@ -79,15 +79,15 @@ header_exceptions( struct message *m )
     int			len;
     char		*line;
 
-    if ( m->m_data->d_first_line == NULL ) {
+    if ( m->m_data->md_first == NULL ) {
 	/* empty message */
 	return( 0 );
     }
 
     /* mail(1) on Solaris gives non-RFC compliant first header line */
-    c = m->m_data->d_first_line->line_data;
+    c = m->m_data->md_first->line_data;
 
-    if ( strncasecmp( m->m_data->d_first_line->line_data, "From ", 5 ) == 0 ) {
+    if ( strncasecmp( m->m_data->md_first->line_data, "From ", 5 ) == 0 ) {
 	c += 5;
 	for ( end = c; ( *end > 33 ) && ( *end < 126 ); end++ )
 		;
@@ -100,8 +100,8 @@ header_exceptions( struct message *m )
 	    }
 	    strcpy( line, "From: " );
 	    strncat( line, c, (size_t)(len + 1 ));
-	    free( m->m_data->d_first_line->line_data );
-	    m->m_data->d_first_line->line_data = line;
+	    free( m->m_data->md_first->line_data );
+	    m->m_data->md_first->line_data = line;
 	}
     }
 
@@ -155,7 +155,7 @@ headers( struct message *m )
 
     /* put header information in to data structures for later processing */
     /* put a blank line between the message headers and body, if needed */
-    for ( l = m->m_data->d_first_line; l != NULL ; l = l->line_next ) {
+    for ( l = m->m_data->md_first; l != NULL ; l = l->line_next ) {
 	if ( *(l->line_data) == '\0' ) {
 	    /* null line means that message data begins */
 	    break;
@@ -207,7 +207,7 @@ headers( struct message *m )
 	    bl->line_next = l;
 
 	    if (( bl->line_prev = l->line_prev ) == NULL ) {
-		m->m_data->d_first_line = bl;
+		m->m_data->md_first = bl;
 	    } else {
 		l->line_prev->line_next = bl;
 	    }

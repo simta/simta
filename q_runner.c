@@ -86,6 +86,8 @@ main( int argc, char *argv[] )
     struct q_file		*q;
     struct host_q		*hq;
     struct stab_entry		*host_stab = NULL;
+    struct stab_entry		*hs;
+    struct stab_entry		*qs;
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
 
@@ -135,6 +137,8 @@ main( int argc, char *argv[] )
 
 	    q->q_etime = sb.st_mtimespec;
 
+	    /* XXX Hostname lookup if unexpanded? */
+
 	    if (( hq = (struct host_q*)ll_lookup( host_stab, q->q_hostname ))
 		    == NULL ) {
 		if (( hq = host_q_create( q->q_hostname )) == NULL ) {
@@ -162,6 +166,20 @@ main( int argc, char *argv[] )
     }
 
     ll_walk( host_stab, host_stab_stdout );
+
+    /*
+     * 2. For each host:
+     *      -try to send messages
+     *      -if there is a failure, stat all the d files to see if a bounce
+     *           needs to be generated.
+     */
+
+    for ( hs = host_stab; hs != NULL; hs = hs->st_next ) {
+	hq = (struct host_q*)hs->st_data;
+	for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
+	    q = (struct q_file*)qs->st_data;
+	}
+    }
 
     return( 0 );
 }
