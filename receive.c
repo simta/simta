@@ -138,6 +138,12 @@ f_ehlo( snet, env, ac, av )
 	return( -1 );
     }
 
+    /* rfc 2821 3.6
+     * The domain name given in the EHLO command MUST BE either a primary
+     * host name (a domain name that resolves to an A RR) or, if the host
+     * has no name, an address literal as described in section 4.1.1.1.
+     */
+
     snet_writef( snet, "%d-%s\r\n", 250, env->e_hostname );
 
 #ifdef TLS
@@ -332,6 +338,14 @@ f_rcpt( snet, env, ac, av )
 	return( 1 );
     }
 
+    /* rfc 2821 3.7
+     * SMTP servers MAY decline to act as mail relays or to
+     * accept addresses that specify source routes.  When route information
+     * is encountered, SMTP servers are also permitted to ignore the route
+     * information and simply send to the final destination specified as the
+     * last element in the route and SHOULD do so.
+     */
+
     if ( *addr == '@' ) {		/* short-circuit route-addrs */
 	if (( addr = strchr( addr, ':' )) == NULL ) {
 	    snet_writef( snet, "%d Requested action not taken\r\n", 553 );
@@ -359,8 +373,8 @@ f_rcpt( snet, env, ac, av )
      * probably preserve the results of our DNS check.
      */
 
-    /*
-     * rfc2821 3.6: The reserved mailbox name "postmaster" may be used in a RCPT
+    /* rfc 2821 3.6
+     * The reserved mailbox name "postmaster" may be used in a RCPT
      * command without domain qualification (see section 4.1.1.3) and
      * MUST be accepted if so used.
      */
@@ -456,14 +470,14 @@ f_rcpt( snet, env, ac, av )
     if ( high_mx_pref ) {
 	switch( address_local( addr )) {
 	case 0:
-	    snet_writef( snet, "%d Requested action not taken: User not found.\r\n",
-		550 );
+	    snet_writef( snet,
+		"%d Requested action not taken: User not found.\r\n", 550 );
 	    return( 1 );
 	case 1:
 	    break;
 	default:
 	    snet_writef( snet,
-		"%d-3 Requested action aborted: local error in processing.\r\n",
+		"%d 3 Requested action aborted: local error in processing.\r\n",
 		451 );
 	    return( 1 );
 	}
