@@ -140,7 +140,6 @@ bounce( struct envelope *env, SNET *message )
 	goto cleanup;
     }
 
-    /* XXX add to NULL queue, update q->q_etime */
     if (( q = q_file_env( bounce_env )) == NULL ) {
 	syslog( LOG_ERR, "q_file_env: %m" );
 	exit( 1 );
