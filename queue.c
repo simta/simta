@@ -49,7 +49,6 @@
 /* GLOBAL VARS */
 int			simta_queued_messages;
 struct host_q		*null_queue;
-struct stab_entry	*simta_bad_efiles;
 
 /* LOCAL FUNCTIONS */
 void		host_stab_stdout ___P(( void * ));
@@ -632,10 +631,8 @@ q_runner( int mode )
     struct host_q		*deliver_q;
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*hs;
-    struct stab_entry		*bad;
     int				result;
 
-    simta_bad_efiles = NULL;
     simta_queued_messages = 0;
 
     if (( null_queue = host_q_lookup( &host_stab, "\0" )) == NULL ) {
