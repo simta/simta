@@ -587,6 +587,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
         }
 
 	memset( &d, 0, sizeof( struct deliver ));
+	d.d_env = env_deliver;
 	d.d_dfile_fd = dfile_fd;
 
         if ( deliver_q->hq_status == HOST_LOCAL ) {
