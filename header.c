@@ -1192,14 +1192,16 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		     */
 
 		    if ( *next_c == '"' ) {
-			if ( line_token_quoted_string( &local, next_l, next_c ) != 0 ) {
+			if ( line_token_quoted_string( &local, next_l, next_c )
+				!= 0 ) {
 			    fprintf( stderr, "line %d: unbalanced \"\n",
 				    next_l->line_no );
 			    return( 1 );
 			}
 
 		    } else {
-			if ( line_token_dot_atom( &local, next_l, next_c ) != 0 ) {
+			if ( line_token_dot_atom( &local, next_l, next_c )
+				!= 0 ) {
 			    fprintf( stderr, "line %d: bad token: %c\n",
 				    next_l->line_no, *next_c );
 			    return( 1 );
