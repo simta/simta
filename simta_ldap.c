@@ -753,35 +753,55 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	ldap_value_free (vals);
     }
 
-    simta_ldapuser (exp->exp_env->e_mail, &sender_name, &sender_domain);
+    if ( *(e_addr->e_addr_from) == '\0' ) {
+        senderbuf = strdup ("");
+    } else {
 
-    /*
-     * You can't send mail to groups that have no associatedDomain.
-     */
-    if (( vals = ldap_get_values (ld, entry, "associateddomain")) == NULL ) {
-	return( LDAP_EXCLUDE );
-    }
-    rdns = ldap_explode_dn (dn, 1);
+	simta_ldapuser (exp->exp_env->e_mail, &sender_name, &sender_domain);
 
-    senderbuf = (char *) malloc (strlen(rdns[0]) + strlen (vals[0]) + 12);
-    if (! senderbuf ) {
-	syslog (LOG_ERR,
+	/*
+	* You can't send mail to groups that have no associatedDomain.
+	*/
+	if (( vals = ldap_get_values (ld, entry, "associateddomain")) == NULL ){
+	    return( LDAP_EXCLUDE );
+	}
+	rdns = ldap_explode_dn (dn, 1);
+
+	senderbuf = (char *) malloc (strlen(rdns[0]) + strlen (vals[0]) + 12);
+	if (! senderbuf ) {
+	    syslog (LOG_ERR,
                 "simta_ldap_expand_group: Failed allocating senderbuf: %s", dn);
-	ldap_memfree (dn);
+	    ldap_memfree (dn);
+	    ldap_value_free( vals );
+	    ldap_value_free( rdns );
+	    return (LDAP_SYSERROR);
+	}
+	sprintf (senderbuf, "%s-errors@%s", rdns[0], vals[0]);
+	for (psender = senderbuf; *psender; psender++) {
+	    if (*psender == ' ') {
+		*psender = '.';
+	    }
+	}
+
 	ldap_value_free( vals );
 	ldap_value_free( rdns );
-	return (LDAP_SYSERROR);
-    }
-    sprintf (senderbuf, "%s-errors@%s", rdns[0], vals[0]);
-    for (psender = senderbuf; *psender; psender++) {
-	if (*psender == ' ') {
-	    *psender = '.';
-	}
-    }
 
-    ldap_value_free( vals);
-    ldap_value_free(rdns);
- 
+	if ((e_addr->e_addr_errors = address_bounce_create( exp )) == NULL ) {
+	    syslog (LOG_ERR,
+                  "simta_ldap_expand_group: failed creating error env: %s", dn);
+	    free ( senderbuf );
+	    ldap_memfree (dn);
+	    return LDAP_SYSERROR;
+	} 
+
+	if (env_recipient( e_addr->e_addr_errors, senderbuf) != 0) {
+       	    syslog (LOG_ERR,
+               "simta_ldap_expand_group: failed setting error recip: %s", dn);
+	    free (senderbuf);
+	    ldap_memfree (dn);
+	    return LDAP_SYSERROR;
+	}
+    } 
     switch ( type ) 
     {
     case LDS_GROUP_ERRORS:
@@ -895,37 +915,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    ldap_value_free ( memonly );
 	}
 
-	if ((e_addr->e_addr_errors  = address_bounce_create( exp )) == NULL ) {
-	    syslog (LOG_ERR,
-                  "simta_ldap_expand_group: failed creating error env: %s", dn);
-	    if (dnvals ) {
-		ldap_value_free( dnvals);
-	    }
-	    if (mailvals ) {
-		ldap_value_free(mailvals );
-	    }
-	    free (senderbuf);
-	    ldap_memfree (dn);
-	    return LDAP_SYSERROR;
-	} 
-
 	if (suppressnoemail) {
 	    e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
 	}
-	if (env_recipient( e_addr->e_addr_errors, senderbuf) != 0) {
-       	    syslog (LOG_ERR,
-               "simta_ldap_expand_group: failed setting error recip: %s", dn);
-	    if (dnvals ) {
-		ldap_value_free( dnvals);
-	    }
-	    if (mailvals ) {
-		ldap_value_free(mailvals );
-	    }
-	    free (senderbuf);
-	    ldap_memfree (dn);
-	    return LDAP_SYSERROR;
-	}
-
 	break;
     }   /* end of switch */
 
@@ -1035,12 +1027,6 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 		    }
 		}
 	    }
-#if 0
-	    if (simta_expand_debug)
-		syslog( LOG_ERR,
-		 "simta_ldap_process_entry: %s has no mailforwardingaddress\n",
-			 addr);
-#endif
 	} else {
 
 	    for ( idx = 0; values[ idx ] != NULL; idx++ ) {
