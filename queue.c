@@ -960,7 +960,7 @@ message_cleanup:
 	}
 
 	if ( unlinked == 0 ) {
-	    env_slow( m->m_env );
+	    env_slow( env_deliver );
 	}
 
 	if ( m->m_env != NULL ) {

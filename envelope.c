@@ -770,9 +770,9 @@ env_slow( struct envelope *env )
 	if ( env_unlink( env ) != 0 ) {
 	    return( -1 );
 	}
-    }
 
-    syslog( LOG_DEBUG, "env_slow %s %s: moved", env->e_dir, env->e_id );
+	syslog( LOG_DEBUG, "env_slow %s %s: moved", env->e_dir, env->e_id );
+    }
 
     return( 0 );
 }
