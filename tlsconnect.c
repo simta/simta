@@ -105,7 +105,7 @@ main( int ac, char *av[] )
 	    exit( 1 );
 	}
 	if ( SSL_CTX_use_certificate_chain_file( ctx, cryptofile ) != 1 ) {
-	    fprintf( stderr, "SSSL_CTX_use_certificate_chain_file: %s: %s\n",
+	    fprintf( stderr, "SSL_CTX_use_certificate_chain_file: %s: %s\n",
 		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
