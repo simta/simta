@@ -311,7 +311,6 @@ env_recipient( struct envelope *e, char *addr )
 
     r->r_next = e->e_rcpt;
     e->e_rcpt = r;
-    r->r_err_text = NULL;
 
     return( 0 );
 }
@@ -400,7 +399,7 @@ env_outfile( struct envelope *e )
     }
 
     /* Rto-addr@recipient.com */
-    if (( e->e_rcpt != NULL ) && ( *e->e_rcpt->r_rcpt != '\0' )) {
+    if ( e->e_rcpt != NULL ) {
 	for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( fprintf( tff, "R%s\n", r->r_rcpt ) < 0 ) {
 		syslog( LOG_ERR, "env_outfile fprintf: %m" );

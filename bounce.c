@@ -270,14 +270,8 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	}
     }
 
-    if ( *(env->e_mail) == '\0' ) {
-        if ( env_recipient( bounce_env, NULL ) != 0 ) {
-            goto cleanup1;
-        }
-    } else {
-        if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
-            goto cleanup1;
-        }
+    if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
+	goto cleanup1;
     }
 
     sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
