@@ -15,9 +15,11 @@
 #include <sys/wait.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <syslog.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sysexits.h>
 
 #include <snet.h>
 
@@ -46,8 +48,8 @@ char		*procmail_bin = SIMTA_PROCMAIL;
 
 
     /* return 0 on success
-     * <0 on syscall failure
-     * >0 on recoverable failure, mail not delivered
+     * return <0 on syscall failure
+     * return >0 return code from procmail system binary
      *
      * syslog errors before returning
      */
@@ -57,13 +59,14 @@ procmail( int f, char *sender, char *recipient )
 {
     int			fd[ 2 ];
     int			pid;
+    int			val;
     int			status;
     SNET		*snet;
     char		*line;
 
     if (( procmail_bin == NULL ) || ( *procmail_bin == '\0' )) {
-	syslog( LOG_WARNING, "procmail not supported" );
-	return( 1 );
+	syslog( LOG_ERR, "procmail not supported" );
+	return( -1 );
     }
 
     if ( pipe( fd ) < 0 ) {
@@ -145,31 +148,35 @@ procmail( int f, char *sender, char *recipient )
 	}
 
 	if ( WIFEXITED( status )) {
-	    if ( WEXITSTATUS( status )) {
-		syslog( LOG_ERR, "procmail %d died %d\n", pid, 
-			WEXITSTATUS( status ));
-		return( 1 );
+	    if (( val = WEXITSTATUS( status )) == 0 ) {
+		syslog( LOG_INFO, "procmail %d done\n", pid );
+
+	    } else if ( val == EX_TEMPFAIL ) {
+		syslog( LOG_WARNING, "procmail %d died %d EX_TEMPFAIL\n", pid,
+			val );
 
 	    } else {
-		syslog( LOG_INFO, "procmail %d done\n", pid );
+		syslog( LOG_WARNING, "procmail %d died %d\n", pid, val );
 	    }
+
+	    return( val );
+
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "procmail %d died on signal %d\n", pid, 
 		    WTERMSIG( status ));
-	    return( 1 );
+	    return( -1 );
 
 	} else {
 	    syslog( LOG_ERR, "procmail %d died\n", pid );
-	    return( 1 );
+	    return( -1 );
 	}
     }
-
-    return( 0 );
 }
 
+
     /* return 0 on success
-     * <0 on syscall failure
-     * >0 on recoverable failure, mail not delivered
+     * return <0 on syscall failure
+     * return >0 return code from mail.local system binary
      *
      * syslog errors before returning
      */
@@ -179,13 +186,14 @@ mail_local( int f, char *sender, char *recipient )
 {
     int			fd[ 2 ];
     int			pid;
+    int			val;
     int			status;
     SNET		*snet;
     char		*line;
 
     if (( maillocal_bin == NULL ) || ( *maillocal_bin == '\0' )) {
 	syslog( LOG_WARNING, "mail.local not supported" );
-	return( 1 );
+	return( -1 );
     }
 
     if ( pipe( fd ) < 0 ) {
@@ -267,24 +275,27 @@ mail_local( int f, char *sender, char *recipient )
 	}
 
 	if ( WIFEXITED( status )) {
-	    if ( WEXITSTATUS( status )) {
-		syslog( LOG_ERR, "mail.local %d died %d\n", pid, 
-			WEXITSTATUS( status ));
-		return( 1 );
+	    if (( val = WEXITSTATUS( status )) == 0 ) {
+		syslog( LOG_INFO, "mail.local %d done\n", pid );
+
+	    } else if ( val == EX_TEMPFAIL ) {
+		syslog( LOG_WARNING, "mail.local %d died %d EX_TEMPFAIL\n", pid,
+			val );
 
 	    } else {
-		syslog( LOG_INFO, "mail.local %d done\n", pid );
+		syslog( LOG_WARNING, "mail.local %d died %d\n", pid, val );
 	    }
+
+	    return( val );
+
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "mail.local %d died on signal %d\n", pid, 
 		    WTERMSIG( status ));
-	    return( 1 );
+	    return( -1 );
 
 	} else {
 	    syslog( LOG_ERR, "mail.local %d died\n", pid );
-	    return( 1 );
+	    return( -1 );
 	}
     }
-
-    return( 0 );
 }

@@ -94,13 +94,17 @@ queue_cleanup( struct host_q *hq )
     while ( *qs != NULL ) {
 	q = (struct q_file*)((*qs)->st_data);
 
-	if ( q->q_remove != 0 ) {
+	if ( q->q_action == Q_REMOVE ) {
 	    /* reorder linked list, and free node to be removed */
 	    qs_remove = *qs;
 	    *qs = (*qs)->st_next;
 
 	    q_file_free( q );
 	    free( qs_remove );
+
+	} else if ( q->q_action = Q_REORDER ) {
+	    /* XXX add reorder code */
+	    qs = &((*qs)->st_next);
 
 	} else {
 	    qs = &((*qs)->st_next);

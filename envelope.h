@@ -12,6 +12,7 @@
 struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
+    int			r_exit;
 };
 
 struct envelope {

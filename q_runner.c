@@ -23,6 +23,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <syslog.h>
+#include <sysexits.h>
 
 #include <snet.h>
 
@@ -199,6 +200,10 @@ main( int argc, char *argv[] )
 		if ( ll_insert( &host_stab, hq->hq_name, hq, NULL ) != 0 ) {
 		    syslog( LOG_ERR, "ll_insert: %m" );
 		    exit( 1 );
+		}	
+
+		if ( strcasecmp( localhostname, hq->hq_name ) == 0 ) {
+		    hq->hq_local = 1;
 		}
 	    }
 
@@ -227,15 +232,15 @@ main( int argc, char *argv[] )
      */
 
     for ( hs = host_stab; hs != NULL; hs = hs->st_next ) {
-	if (( hs->st_key == NULL ) || ( *hs->st_key == '\0' )) {
+	hq = (struct host_q*)hs->st_data;
+
+	if (( hq->hq_name == NULL ) || ( *hq->hq_name == '\0' )) {
 	    /* XXX NULL host queue.  Add DNS code */
 
-	} else if ( strcasecmp( localhostname, hs->st_key ) == 0 ) {
-	    hq = (struct host_q*)hs->st_data;
+	} else if ( hq->hq_local != 0 ) {
 	    deliver_local( hq );
 
 	} else {
-	    hq = (struct host_q*)hs->st_data;
 	    deliver_remote( hq );
 	}
     }
@@ -255,8 +260,9 @@ deliver_local( struct host_q *hq )
     struct stab_entry		*qs;
     struct recipient		*r;
     int				sent;
-    int				mailed;
+    int				old_dfile = 0;
     int				fd;
+    char			*at;
     char			fname[ MAXPATHLEN ];
     static int			(*local_mailer)(int, char *, char *) = NULL;
 
@@ -278,7 +284,7 @@ deliver_local( struct host_q *hq )
 	    if ( errno == ENOENT ) {
 		errno = 0;
 		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
-		q->q_remove = Q_DFILE;
+		q->q_action = Q_REMOVE;
 		continue;
 
 	    } else {
@@ -287,7 +293,12 @@ deliver_local( struct host_q *hq )
 	    }
 	}
 
+	/* XXX set old_dfile */
+
 	sent = 0;
+	q->q_bounce = 0;
+	q->q_retry = 0;
+	q->q_success = 0;
 
 	for ( r = q->q_env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( sent != 0 ) {
@@ -297,9 +308,41 @@ deliver_local( struct host_q *hq )
 		}
 	    }
 
-	    if (( mailed = (*local_mailer)( fd, q->q_env->e_mail, r->r_rcpt ))
-		    < 0 ) {
+	    for ( at = r->r_rcpt; ; at++ ) {
+		if ( *at == '@' ) {
+		    *at = '\0';
+		    break;
+
+		} else if ( *at == '\0' ) {
+		    at = NULL;
+		    break;
+		}
+	    }
+
+	    /* XXX tell local_local mailer to bounce tempfails if old dfile? */
+	    if (( r->r_exit = (*local_mailer)( fd, q->q_env->e_mail,
+		    r->r_rcpt )) < 0 ) {
+		/* syserror */
 		exit( 1 );
+
+	    } else if ( r->r_exit == 0 ) {
+		/* success */
+		q->q_success++;
+
+	    } else if (( r->r_exit == EX_TEMPFAIL ) && ( old_dfile == 0 )) {
+		/* retry later */
+		q->q_retry++;
+
+	    } else {
+		/* hard failure -or- EX_TEMPFAIL and old_dfile */
+		/* XXX generate bounce */
+		q->q_bounce++;
+	    }
+
+	    sent++;
+
+	    if ( at != NULL ) {
+		*at = '@';
 	    }
 	}
 
@@ -308,12 +351,8 @@ deliver_local( struct host_q *hq )
 	    exit( 1 );
 	}
 
-	/* XXX mailed == 1 is recoverable failure */
-	/* XXX touch Efile, see if Dfile time > bounce time */
-	/* if send failure, update efile modification time */
-	/* if send failure, check remaining dfiles for bounce generation */
-
-	if ( mailed == 0  ) {
+	if ( q->q_retry == 0  ) {
+	    /* no retries, only successes and bounces */
 	    /* delete Efile then Dfile */
 	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
@@ -329,7 +368,17 @@ deliver_local( struct host_q *hq )
 		exit( 1 );
 	    }
 
-	    q->q_remove = Q_DELIVERED;
+	    q->q_action = Q_REMOVE;
+
+	} else if (( q->q_success == 0 ) && ( q->q_bounce == 0 )) {
+	    /* all addresses are to be retried, no re-writing */
+	    /* if old defile, bounce all addrs */
+	    /* touch efile */
+	    q->q_action = Q_REORDER;
+
+	} else {
+	    /* some retries, and some sent.  need to re-write envelope */
+	    q->q_action = Q_REORDER;
 	}
     }
 
@@ -374,7 +423,7 @@ deliver_remote( struct host_q *hq )
 	    if ( errno == ENOENT ) {
 		errno = 0;
 		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
-		q->q_remove = Q_DFILE;
+		q->q_action = Q_REMOVE;
 		continue;
 
 	    } else {
@@ -420,6 +469,9 @@ deliver_remote( struct host_q *hq )
 		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );
 		}
+
+		hq->hq_local = 1;
+
 		return( deliver_local( hq ));
 	    }
 	}
@@ -456,7 +508,7 @@ deliver_remote( struct host_q *hq )
 		exit( 1 );
 	    }
 
-	    q->q_remove = Q_DELIVERED;
+	    q->q_action = Q_REMOVE;
 	}
     }
 

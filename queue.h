@@ -16,8 +16,9 @@
 #define	FAST_DIR	"fast"
 #define	LOCAL_DIR	"local"
 
-#define	Q_DELIVERED	1
-#define	Q_DFILE		2
+/* states for q_action */
+#define	Q_REMOVE	1
+#define	Q_REORDER	2
 
 struct q_file {
     char			*q_id;
@@ -26,10 +27,13 @@ struct q_file {
     struct q_file		*q_etime_next;
     struct envelope		*q_env;
     struct message_data		*q_data;
-    int				q_remove;
+    int				q_action;
     int				q_unexpanded;
     int				q_efile;
     int				q_dfile;
+    int				q_success;
+    int				q_bounce;
+    int				q_retry;
     ino_t			q_dfile_ino;
     nlink_t			q_dfile_nlink;
     struct timespec		q_etime;
@@ -38,6 +42,7 @@ struct q_file {
 
 struct host_q {
     char			*hq_name;
+    int				hq_local;
     struct stab_entry		*hq_qfiles;
 };
 
