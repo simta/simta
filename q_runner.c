@@ -4,21 +4,32 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* TLS */
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
 #include <netdb.h>
+#include <unistd.h>
+
+#include <snet.h>
 
 #include "ll.h"
 #include "envelope.h"
 #include "queue.h"
 #include "message.h"
+#include "ml.h"
 
 void	host_stab_stdout ___P(( void * ));
 void	q_file_stab_stdout ___P(( void * ));
@@ -90,6 +101,7 @@ host_stab_stdout( void *data )
 main( int argc, char *argv[] )
 {
     DIR				*dirp;
+    SNET			*snet;
     struct dirent		*entry;
     struct q_file		*q;
     struct host_q		*hq;
@@ -98,6 +110,7 @@ main( int argc, char *argv[] )
     struct stab_entry		*qs;
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
+    char			localhostname[ MAXHOSTNAMELEN ];
 
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
 	fprintf( stderr, "opendir: %s: ", SLOW_DIR );
@@ -186,26 +199,47 @@ main( int argc, char *argv[] )
      *           needs to be generated.
      */
 
+    if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
+	perror( "gethostname" );
+	exit( 1 );
+    }
+
     for ( hs = host_stab; hs != NULL; hs = hs->st_next ) {
 	hq = (struct host_q*)hs->st_data;
 	for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
 	    q = (struct q_file*)qs->st_data;
 
-	    /* get message_data */
-	    errno = 0;
-	    if (( q->q_data = data_infile( SLOW_DIR, q->q_id )) == NULL ) {
-		if ( errno == ENOENT ) {
-		    printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
-		    errno = 0;
+	    /* send message */
 
-		} else {
-		    perror( "data_infile" );
+	    /* check to see if we deliver locally */
+	    if ( strcasecmp( localhostname, q->q_expanded ) == 0 ) {
+		/* get message_data */
+		errno = 0;
+
+		sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+		if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
+			== NULL ) {
+		    if ( errno == ENOENT ) {
+			printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
+			errno = 0;
+
+		    } else {
+			perror( "snet_open" );
+			exit( 1 );
+		    }
+		}
+
+		if ( mail_local( "epcjr", snet ) != 0 ) {
+		    perror( "mail_local" );
+		    exit( 1 );
+		}
+
+		if ( snet_close( snet ) != 0 ) {
+		    perror( "snet_close" );
 		    exit( 1 );
 		}
 	    }
-
-	    /* send message */
-	    /* check to see if we deliver locally */
 
 	    /* if send failure, update efile modification time */
 	    /* if send failure, check remaining dfiles for bounce generation */

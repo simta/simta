@@ -5,6 +5,12 @@
 
 /*********            ml.c          **********/
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* TLS */
+
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -12,22 +18,23 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include <snet.h>
 
 #include "ml.h"
 
 
-char		*maillocalargv[] = { "mail.local", "-f", "epcjr@umich.edu",
-			"epcjr", 0 };
+char		*maillocalargv[] = { "mail.local", 0, 0 };
 char		*maillocal =	"/usr/lib/mail.local";
 
 
     int
-mail_local( void )
+mail_local( char *recipient, SNET *snet )
 {
     int			fd[ 2 ];
     int			pid;
     FILE		*fp;
     int			status;
+    char		*line;
 
     if ( pipe( fd ) < 0 ) {
 	perror( "pipe" );
@@ -55,6 +62,8 @@ mail_local( void )
 	    exit( 1 );
 	}
 
+	maillocalargv[ 1 ] = recipient;
+
 	execv( maillocal, maillocalargv );
 	/* if we are here, there is an error */
 	perror( "execv" );
@@ -71,11 +80,9 @@ mail_local( void )
 	    exit( 1 );
 	}
 
-	/* From sender-address time-stamp */
-	//fprintf( fp, "From epcjr@umich.edu Fri Apr  4 00:50:00 2003\n" );
-
-	fprintf( fp, "\n" );
-	fprintf( fp, "TEST\n" );
+	while (( line = snet_getline( snet, NULL )) != NULL ) {
+	    fprintf( fp, "%s\n", line );
+	}
 
 	errno = 0;
 

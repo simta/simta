@@ -9,4 +9,4 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
-int mail_local( void );
+int mail_local ___P(( char *, SNET * ));
