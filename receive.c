@@ -333,6 +333,10 @@ f_mail( snet, env, ac, av )
 
 	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
 	    switch ( dnsr_errno( simta_dnsr )) {
+	    case DNSR_ERROR_SYSTEM:
+		syslog( LOG_ERR, "f_mail get_mx %s: %m", domain );
+		return( RECEIVE_SYSERROR );
+
 	    case DNSR_ERROR_NAME:
 	    case DNSR_ERROR_NO_ANSWER:
 		syslog( LOG_ERR, "f_mail get_mx %s: unknown host", domain );
@@ -343,10 +347,24 @@ f_mail( snet, env, ac, av )
 		}
 		return( RECEIVE_OK );
 
+	    case DNSR_ERROR_TIMEOUT:
+		syslog( LOG_ERR, "f_mail get_mx %s: timeout", domain );
+		if ( snet_writef( snet, "%d: Requested action aborted:"
+			"error in processing\r\n", 451 ) < 0 ) {
+		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_OK );
+
 	    default:
 		syslog( LOG_ERR, "f_mail get_mx %s: %s", domain,
-		    dnsr_err2string( dnsr_errno( simta_dnsr )));
-		return( RECEIVE_SYSERROR );
+			dnsr_err2string( dnsr_errno( simta_dnsr )));
+		if ( snet_writef( snet, "%d: Requested action aborted:"
+			"error in processing\r\n", 451 ) < 0 ) {
+		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_OK );
 	    }
 	}
 
