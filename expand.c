@@ -44,6 +44,9 @@
 #include "ll.h"
 #include "address.h"
 
+#define	SIMTA_EXPANSION_FAILED		0
+#define	SIMTA_EXPANSION_SUCCESS		1
+
 extern int	debug;
 
     /* return 0 on success
@@ -90,10 +93,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	     * note that we've failed at least one expansion.
 	     */ 
 	    failed_expansions++;
-	    r->r_delivered = 0;
+	    r->r_delivered = SIMTA_EXPANSION_FAILED;
         } else {
 	    expansions++;
-	    r->r_delivered = 1;
+	    r->r_delivered = SIMTA_EXPANSION_SUCCESS;
 	}
     }
 
@@ -235,7 +238,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    r_sort = &(unexpanded_env->e_rcpt);
 
 	    while ( *r_sort != NULL ) {
-		if ((*r_sort)->r_delivered == 0 ) {
+		if ((*r_sort)->r_delivered == SIMTA_EXPANSION_SUCCESS ) {
 		    remove = *r_sort;
 		    *r_sort = (*r_sort)->r_next;
 		    rcpt_free( remove );
