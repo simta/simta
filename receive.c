@@ -28,6 +28,7 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
+#include "ll.h"
 #include "address.h"
 #include "receive.h"
 #include "envelope.h"
@@ -65,6 +66,13 @@ static int	hello ___P(( struct envelope *, char * ));
 static char	*smtp_trimaddr ___P(( char *, char * ));
 
 int get_mx( DNSR *dnsr, char *host );
+void expansion_stab_stdout( void * );
+
+    void
+expansion_stab_stdout( void *string )
+{
+    printf( "%s\n", (char *)string );
+}
 
     int
 get_mx( DNSR *dnsr, char *host )
@@ -325,6 +333,7 @@ f_rcpt( snet, env, ac, av )
 {
     char		*addr, *domain;
     struct recipient	*r;
+    struct stab_entry	*expansion = NULL;
     DNSR		*dnsr;
 
     if ( ac != 2 ) {
@@ -443,12 +452,13 @@ f_rcpt( snet, env, ac, av )
 	    451 );
 	return( 1 );
     }
-    if ( address_expand( addr ) < 0 ) {
+    if ( address_expand( addr, &expansion ) < 0 ) {
 	snet_writef( snet,
 	    "%d Requested action aborted: local error in processing.\r\n",
 	    451 );
 	return( 1 );
     }
+    ll_walk( expansion, expansion_stab_stdout );
 
     if (( r = (struct recipient *)malloc( sizeof(struct recipient))) == NULL ) {
 	syslog( LOG_ERR, "f_rcpt: malloc: %m" );

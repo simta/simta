@@ -4,9 +4,11 @@
 #include <stdio.h>
 #include <strings.h>
 #include <pwd.h>
+#include <unistd.h>
 
 #include <db.h>
 
+#include "ll.h"
 #include "address.h"
 #include "bdb.h"
 
@@ -76,10 +78,10 @@ address_local( char *address )
  */
 
     int
-address_expand( char *address )
+address_expand( char *address, struct stab_entry **expansion )
 {
     int			ret, count = 0;
-    char		*user, *p;
+    char		*user, *p, *data;
     char		path[ MAXPATHLEN + 1];
     struct passwd	*passwd;
     FILE		*f;
@@ -109,6 +111,7 @@ address_expand( char *address )
 	}
     }
 
+    /* Set cursor and get first result */
     if (( ret = db_cursor_set( dbp, &dbcp, &key, &value )) != 0 ) {
 	if ( ret != DB_NOTFOUND ) {
 	    free( user );
@@ -117,10 +120,26 @@ address_expand( char *address )
 	    goto passwd;
 	}
     }
-    memset( &value, 0, sizeof( DBT ));
+    count++;
+    if ( ll_lookup( *expansion, (char*)value.data ) == NULL ) {
+	data = strdup( (char*)value.data );
+	if ( ll_insert( expansion, data, data, NULL ) != 0 ) {
+	    free( user );
+	    return( -1 );
+	}
+    }
 
+    /* Get all other result */
+    memset( &value, 0, sizeof( DBT ));
     while (( ret = db_cursor_next( dbp, &dbcp, &key, &value )) == 0 ) {
 	count++;
+	if ( ll_lookup( *expansion, (char*)value.data ) == NULL ) {
+	    data = strdup( (char*)value.data );
+	    if ( ll_insert( expansion, data, data, NULL ) != 0 ) {
+		free( user );
+		return( -1 );
+	    }
+	}
 	memset( &value, 0, sizeof( DBT ));
     }
 
@@ -142,10 +161,20 @@ passwd:
 
     /* Check .forward */
     sprintf( path, "%s%s", passwd->pw_dir, ".forward" );
-    if (( f = fopen( path, "r" )) == NULL ) {
-	/* XXX ( how? ) should we return error? */
-	free( user );
-	return( NULL );
+    if ( access( path, R_OK ) == 0 ) {
+	if (( f = fopen( path, "r" )) == NULL ) {
+	    /* XXX ( how? ) should we return error? */
+	    free( user );
+	    return( NULL );
+	}
+    } else {
+	/* add user as local */
+	if ( ll_lookup( *expansion, user ) == NULL ) {
+	    if ( ll_insert( expansion, user, user, NULL ) != 0 ) {
+		free( user );
+		return( -1 );
+	    }
+	}
     }
 
     return( count );
