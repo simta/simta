@@ -45,7 +45,6 @@ stdout_logger( char *line )
 main( int argc, char *argv[] )
 {
     struct message		*m;
-    SNET			*snet;
     void			(*logger)(char *) = NULL;
 
 #ifdef DEBUG
@@ -64,28 +63,9 @@ main( int argc, char *argv[] )
     message_stdout( m );
 #endif /* DEBUG */
 
-    if (( snet = smtp_connect( TEST_HOSTNAME, TEST_PORT, logger )) == NULL ) {
-	perror( "smtp_connect" );
-	exit( 1 );
-    }
-
-    if ( smtp_send_message( snet, m, logger ) != 0 ) {
-	perror( "smtp_send_message" );
-	exit( 1 );
-    }
-
-    if ( smtp_rset( snet, logger ) != 0 ) {
-	perror( "smtp_rset" );
-	exit( 1 );
-    }
-
-    if ( smtp_send_message( snet, m, logger ) != 0 ) {
-	perror( "smtp_send_message" );
-	exit( 1 );
-    }
-
-    if ( smtp_quit( snet, logger ) != 0 ) {
-	perror( "smtp_send_message" );
+    if ( smtp_send_single_message( TEST_HOSTNAME, TEST_PORT, m, logger )
+	    != 0 ) {
+	perror( "smtp_send_single_message" );
 	exit( 1 );
     }
 

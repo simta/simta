@@ -247,3 +247,25 @@ smtp_quit( SNET *snet, void (*logger)(char *))
 
     return( 0 );
 }
+
+
+    int
+smtp_send_single_message( char *hostname, int port, struct message *m,
+	void (*logger)(char *))
+{
+    SNET			*snet;
+
+    if (( snet = smtp_connect( hostname, port, logger )) == NULL ) {
+	return( 1 );
+    }
+
+    if ( smtp_send_message( snet, m, logger ) != 0 ) {
+	return( 1 );
+    }
+
+    if ( smtp_quit( snet, logger ) != 0 ) {
+	return( 1 );
+    }
+
+    return( 0 );
+}
