@@ -808,13 +808,13 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	    vals = ldap_get_values( ld, e, "title" );
 	}
 	if (vals && vals[0]) {
-	    if (bounce_text( e_addr->e_addr_errors, rdn, "\t", vals[0] ) == 0) {
+	    if (bounce_text( e_addr->e_addr_errors, rdn, "\t", vals[0] ) != 0) {
 		return;
 	    }
 
 	    for ( idx = 1; vals && vals[idx] != NULL; idx++ ) {
 		if (bounce_text( e_addr->e_addr_errors, "\t\t", vals[idx], NULL)
-			== 0) {
+			!= 0) {
 		    return;
 		}
 	    }
