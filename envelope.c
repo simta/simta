@@ -608,6 +608,12 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 	goto cleanup;
     }
 
+    if ( *line != 'I' ) {
+	syslog( LOG_ERR, "env_read_delivery_info %s bad Dinode syntax",
+		filename );
+	goto cleanup;
+    }
+
     sscanf( line + 1, "%lu", &dinode );
     if ( dinode == 0 ) {
 	syslog( LOG_ERR, "env_read_queue_info %s: bad Dinode info", filename );
@@ -640,22 +646,6 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     if ( strcmp( hostname, env->e_hostname ) != 0 ) {
 	syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
 		filename );
-	goto cleanup;
-    }
-
-    if ( *line != 'I' ) {
-	syslog( LOG_ERR, "env_read_delivery_info %s bad Dinode syntax",
-		filename );
-	goto cleanup;
-    }
-
-    /* Hdestination-host */
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_delivery_info %s unexpected EOF", filename );
-	goto cleanup;
-    }
-
-    if ( *line != 'H' ) {
 	goto cleanup;
     }
 
