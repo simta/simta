@@ -92,7 +92,7 @@ install : all FRC
 	${INSTALL} -m 755 -o simta -g simta -c simta ${SBINDIR}/
 	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${SBINDIR}/
 	for i in ${BINTARGETS}; do \
-	    ${INSTALL} -m 0644 -c $$i ${BINDIR}; \
+	    ${INSTALL} -m 0755 -c $$i ${BINDIR}; \
 	done
 	ln -f ${SBINDIR}/simsendmail ${SBINDIR}/sendmail
 	for i in ${MAN1TARGETS}; do \
