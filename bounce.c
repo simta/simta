@@ -210,9 +210,10 @@ bounce( struct envelope *env, SNET *message )
 
 	m->m_dir = bounce_env->e_dir;
 	m->m_etime.tv_sec = tv.tv_sec;
+	m->m_env = bounce_env;
 
 	if ( env_outfile( bounce_env, bounce_env->e_dir ) != 0 ) {
-	    /* XXX free m? */
+	    free( m );
 	    goto cleanup3;
 	}
 

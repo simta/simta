@@ -311,7 +311,8 @@ q_run( struct host_q **host_q )
     struct host_q		**dq;
     struct message		*unexpanded;
     SNET			*snet_lock;
-    struct envelope		env;
+    struct envelope		*env;
+    struct envelope		env_local;
     int				result;
 
     syslog( LOG_DEBUG, "q_run started" );
@@ -379,15 +380,21 @@ q_run( struct host_q **host_q )
 	    simta_null_q->hq_message_first = unexpanded->m_next;
 	    simta_null_q->hq_entries--;
 
-	    /* lock envelope while we expand */
-	    if ( env_read( unexpanded, &env, &snet_lock ) != 0 ) {
-		/* free message */
-		message_free( unexpanded );
-		continue;
+	    if (( env = unexpanded->m_env ) == NULL ) {
+		/* lock & read envelope to expand */
+		env = &env_local;
+		if ( env_read( unexpanded, &env_local, &snet_lock ) != 0 ) {
+		    /* message not valid.  disregard */
+		    if ( strcmp( unexpanded->m_dir, simta_dir_fast ) == 0 ) {
+			simta_fast_files--;
+		    }
+		    message_free( unexpanded );
+		    continue;
+		}
 	    }
 
 	    /* expand message */
-	    result = expand( host_q, &env );
+	    result = expand( host_q, env );
 
 	    /* release lock */
 	    if ( snet_close( snet_lock ) != 0 ) {
@@ -395,7 +402,7 @@ q_run( struct host_q **host_q )
 	    }
 
 	    /* clean up */
-	    env_reset( &env );
+	    env_reset( env );
 	    message_free( unexpanded );
 
 	    if ( result != 0 ) {
