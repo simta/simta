@@ -212,57 +212,48 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
     int
 address_expand( struct expand *exp, struct exp_addr *e_addr )
 {
-    char		*at;
-    char		*domain;
     struct host		*host = NULL;
-    struct stab_entry	*i;
-    int			ret;
-    int			len;
-    struct passwd	*passwd;
-    FILE		*f;
-    DBC			*dbcp = NULL;
-    DBT			key;
-    DBT			value;
-    char		fname[ MAXPATHLEN ];
-    /* XXX buf should be large enough to accomodate any valid email address */
-    char		buf[ 1024 ];
+    struct stab_entry	*s;
 
     switch ( e_addr->e_addr_type ) {
-
     case ADDRESS_TYPE_EMAIL:
 	/* Get user and domain, addres should now be valid */
-	if (( at = strchr( e_addr->e_addr, '@' )) == NULL ) {
-	    syslog( LOG_ERR, "address_expand %s: ERROR bad address format",
-		    e_addr->e_addr );
-	    return( ADDRESS_SYSERROR );
-	}
+	if (( e_addr->e_addr_at = strchr( e_addr->e_addr, '@' )) == NULL ) {
+	    /* XXX case sensitive? */
+	    if (( *(e_addr->e_addr) != '\0' ) && ( strcmp( "postmaster",
+		    e_addr->e_addr ) != 0 )) {
+		syslog( LOG_ERR,
+			"address_expand <%s>: ERROR bad address format",
+			e_addr->e_addr );
+		return( ADDRESS_SYSERROR );
+	    }
+	} else {
 
-	domain = at + 1;
+	    if ( strlen( e_addr->e_addr_at + 1 ) > MAXHOSTNAMELEN ) {
+		syslog( LOG_ERR, "address_expand <%s>: ERROR domain too long",
+			e_addr->e_addr );
+		return( ADDRESS_SYSERROR );
+	    }
 
-	if ( strlen( domain ) > MAXHOSTNAMELEN ) {
-	    syslog( LOG_ERR, "address_expand %s: ERROR domain too long",
-		    e_addr->e_addr );
-	    return( ADDRESS_SYSERROR );
-	}
-
-	/* Check to see if domain is off the local host */
-	if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
-	    syslog( LOG_DEBUG, "address_expand %s FINAL: domain not local",
-		    e_addr->e_addr );
-	    return( ADDRESS_FINAL );
+	    /* Check to see if domain is off the local host */
+	    if (( host = ll_lookup( simta_hosts, e_addr->e_addr_at + 1 ))
+		    == NULL ) {
+		syslog( LOG_DEBUG,
+			"address_expand <%s> FINAL: domain not local",
+			e_addr->e_addr );
+		return( ADDRESS_FINAL );
+	    }
 	}
 	break;
 
 #ifdef HAVE_LDAP
     case ADDRESS_TYPE_LDAP:
-	syslog( LOG_DEBUG, "address_expand %s: ldap data", e_addr->e_addr );
+	syslog( LOG_DEBUG, "address_expand <%s>: ldap data", e_addr->e_addr );
 	goto ldap_exclusive;
 #endif /*  HAVE_LDAP */
 
     default:
-	syslog( LOG_ERR, "address_expand bad address type %d",
-		e_addr->e_addr_type );
-	return( ADDRESS_SYSERROR );
+	panic( "address_expand: address type out of range" );
     }
 
     /* At this point, we should have a valid address destined for
@@ -270,163 +261,67 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
      */
 
     /* Expand user using expansion table for domain */
-    for ( i = host->h_expansion; i != NULL; i = i->st_next ) {
-        if ( strcmp( i->st_key, "alias" ) == 0 ) {
-            /* check alias file */
-	    memset( &key, 0, sizeof( DBT ));
-	    memset( &value, 0, sizeof( DBT ));
-	    *at = '\0';
-	    key.data = e_addr->e_addr;
-	    key.size = strlen( key.data ) + 1;
+    for ( s = host->h_expansion; s != NULL; s = s->st_next ) {
+        if ( strcmp( s->st_key, "alias" ) == 0 ) {
+	    switch ( alias_expand( exp, e_addr )) {
+	    case ALIAS_EXCLUDE:
+		syslog( LOG_DEBUG, "address_expand <%s> EXPANDED: alias",
+			e_addr->e_addr );
+		return( ADDRESS_EXCLUDE );
 
-	    if ( simta_dbp == NULL ) {
-		if (( ret = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
-			!= 0 ) {
-		    syslog( LOG_ERR, "address_expand: db_open_r: %s",
-			    db_strerror( ret ));
-		    /* XXX return syserror, or try next expansion? */
-		    *at = '@';
-		    return( ADDRESS_SYSERROR );
-		}
-	    }
-
-	    /* Set cursor and get first result */
-	    if (( ret = db_cursor_set( simta_dbp, &dbcp, &key, &value ))
-		    != 0 ) {
-		if ( ret != DB_NOTFOUND ) {
-		    syslog( LOG_ERR, "address_expand: db_cursor_set: %s",
-			    db_strerror( ret ));
-		    *at = '@';
-		    return( ADDRESS_SYSERROR );
-		}
-
-		/* not in alias db, try next expansion */
-		*at = '@';
-		syslog( LOG_DEBUG, "address_expand %s: not in alias db",
+	    case ALIAS_NOT_FOUND:
+		syslog( LOG_DEBUG, "address_expand <%s>: not in alias file",
 			e_addr->e_addr );
 		continue;
+
+	    case ALIAS_SYSERROR:
+		return( ADDRESS_SYSERROR );
+
+	    default:
+		panic( "address_expand default alias switch" );
 	    }
 
-	    for ( ; ; ) {
-		if ( add_address( exp, (char*)value.data,
-			e_addr->e_addr_errors,  ADDRESS_TYPE_EMAIL ) != 0 ) {
-		    /* add_address syslogs errors */
-		    *at = '@';
-		    return( ADDRESS_SYSERROR );
-		}
-
-		syslog( LOG_DEBUG, "address_expand %s EXPANDED %s: alias db",
-			e_addr->e_addr, (char*)value.data );
-
-		/* Get next db result, if any */
-		memset( &value, 0, sizeof( DBT ));
-		if (( ret = db_cursor_next( simta_dbp, &dbcp, &key, &value ))
-			!= 0 ) {
-		    if ( ret != DB_NOTFOUND ) {
-			syslog( LOG_ERR, "address_expand: db_cursor_next: %s",
-				db_strerror( ret ));
-			*at = '@';
-			return( ADDRESS_SYSERROR );
-
-		    } else {
-			/* one or more addresses found in alias db */
-			*at = '@';
-			return( ADDRESS_EXCLUDE );
-		    }
-		}
-	    }
-
-        } else if ( strcmp( i->st_key, "password" ) == 0 ) {
-            /* Check password file */
-	    *at = '\0';
-	    passwd = getpwnam( e_addr->e_addr );
-	    *at = '@';
-
-	    if ( passwd == NULL ) {
-		/* not in passwd file, try next expansion */
-		syslog( LOG_DEBUG, "address_expand %s: not in passwd file",
+        } else if ( strcmp( s->st_key, "password" ) == 0 ) {
+	    switch ( password_expand( exp, e_addr )) {
+	    case PASSWORD_EXCLUDE:
+		syslog( LOG_DEBUG, "address_expand <%s> EXPANDED: password",
 			e_addr->e_addr );
-		continue;
-	    }
+		return( ADDRESS_EXCLUDE );
 
-	    /* Check .forward */
-	    sprintf( fname, "%s/.forward", passwd->pw_dir );
-
-	    if ( access( fname, R_OK ) == 0 ) {
-		/* a .forward file exists */
-		if (( f = fopen( fname, "r" )) == NULL ) {
-		    syslog( LOG_ERR, "address_expand fopen: %s: %m", fname );
-		    return( ADDRESS_SYSERROR );
-		}
-
-		while ( fgets( buf, 1024, f ) != NULL ) {
-		    len = strlen( buf );
-		    if (( buf[ len - 1 ] ) != '\n' ) {
-			/* XXX here we have a .forward line too long */
-			if ( bounce_text( e_addr->e_addr_errors,
-				e_addr->e_addr, " .forward: line too long",
-				NULL ) != 0 ) {
-			    /* bounce_text syslogs errors */
-			    return( ADDRESS_SYSERROR );
-			}
-
-			/* tho the .forward is bad, it expanded */
-			syslog( LOG_WARNING,
-				"address_expand %s: .forward line too long",
-				e_addr->e_addr );
-			ret = ADDRESS_EXCLUDE;
-			goto cleanup_forward;
-		    }
-
-		    buf[ len - 1 ] = '\0';
-
-		    if ( add_address( exp, buf,
-			    e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
-			/* add_address syslogs errors */
-			ret = ADDRESS_SYSERROR;
-			goto cleanup_forward;
-		    }
-
-		    syslog( LOG_DEBUG,
-			    "address_expand %s EXPANDED %s: .forward",
-			    e_addr->e_addr, buf );
-		    ret = ADDRESS_EXCLUDE;
-		}
-
-cleanup_forward:
-		if ( fclose( f ) != 0 ) {
-		    syslog( LOG_ERR, "address_expand fclose %s: %m",
-			    fname );
-		    return( ADDRESS_SYSERROR );
-		}
-
-		return( ret );
-
-	    } else {
-		/* No .forward, it's a local address */
-		syslog( LOG_DEBUG, "address_expand %s FINAL: passwd file",
+	    case PASSWORD_FINAL:
+		syslog( LOG_DEBUG, "address_expand <%s> FINAL: password",
 			e_addr->e_addr );
 		return( ADDRESS_FINAL );
+
+	    case PASSWORD_NOT_FOUND:
+		syslog( LOG_DEBUG, "address_expand <%s>: not in password file",
+			e_addr->e_addr );
+		continue;
+
+	    case PASSWORD_SYSERROR:
+		return( ADDRESS_SYSERROR );
+
+	    default:
+		panic( "address_expand default password switch" );
 	    }
 	}
 
 #ifdef HAVE_LDAP
-        else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
+        else if ( strcmp( s->st_key, "ldap" ) == 0 ) {
 ldap_exclusive:
 	    switch ( simta_ldap_expand( exp, e_addr )) {
-
 	    case LDAP_EXCLUDE:
-		syslog( LOG_DEBUG, "address_expand %s EXPANDED: ldap",
+		syslog( LOG_DEBUG, "address_expand <%s> EXPANDED: ldap",
 			e_addr->e_addr );
 		return( ADDRESS_EXCLUDE );
 
 	    case LDAP_FINAL:
-		syslog( LOG_DEBUG, "address_expand %s FINAL: ldap",
+		syslog( LOG_DEBUG, "address_expand <%s> FINAL: ldap",
 			e_addr->e_addr );
 		return( ADDRESS_FINAL );
 
 	    case LDAP_NOT_FOUND:
-		syslog( LOG_DEBUG, "address_expand %s: not in ldap db",
+		syslog( LOG_DEBUG, "address_expand <%s>: not in ldap db",
 			e_addr->e_addr );
 		if ( host == NULL ) {
 		    /* data is exclusively for ldap, and it didn't find it */
@@ -434,10 +329,11 @@ ldap_exclusive:
 		}
 		continue;
 
-	    default:
-		syslog( LOG_ERR, "address_expand default ldap switch" );
 	    case LDAP_SYSERROR:
 		return( ADDRESS_SYSERROR );
+
+	    default:
+		panic( "address_expand ldap_expand out of range" );
 	    }
 	}
 #endif /* HAVE_LDAP */
@@ -451,14 +347,14 @@ not_found:
     /* If we can't resolve the local postmaster's address, expand it to
      * the dead queue.
      */
-    if ( strcasecmp( simta_postmaster, e_addr->e_addr ) == 0 ) {
+    if ( e_addr->e_addr_at == NULL ) {
 	e_addr->e_addr_type = ADDRESS_TYPE_DEAD;
-	syslog( LOG_ERR, "address_expand %s FINAL: can't resolve local "
+	syslog( LOG_ERR, "address_expand <%s> FINAL: can't resolve local "
 		"postmaster, expanding to dead queue", e_addr->e_addr );
 	return( ADDRESS_FINAL );
     }
 
-    syslog( LOG_DEBUG, "address_expand %s FINAL: not found", e_addr->e_addr );
+    syslog( LOG_DEBUG, "address_expand <%s> FINAL: not found", e_addr->e_addr );
 
     if ( bounce_text( e_addr->e_addr_errors, "address not found: ",
 	    e_addr->e_addr, NULL ) != 0 ) {
@@ -469,6 +365,179 @@ not_found:
     return( ADDRESS_EXCLUDE );
 }
 
+
+    int
+password_expand( struct expand *exp, struct exp_addr *e_addr )
+{
+    int			ret;
+    int			len;
+    FILE		*f;
+    struct passwd	*passwd;
+    char		fname[ MAXPATHLEN ];
+    char		buf[ 1024 ];
+
+    /* Check password file */
+    if ( e_addr->e_addr_at != NULL ) {
+	*(e_addr->e_addr_at) = '\0';
+	passwd = getpwnam( e_addr->e_addr );
+	*(e_addr->e_addr_at) = '@';
+    } else {
+	passwd = getpwnam( "postmaster" );
+    }
+
+    if ( passwd == NULL ) {
+	/* not in passwd file, try next expansion */
+	syslog( LOG_DEBUG, "address_expand <%s>: not in passwd file",
+		e_addr->e_addr );
+	return( PASSWORD_NOT_FOUND );
+    }
+
+    /* Check .forward */
+    sprintf( fname, "%s/.forward", passwd->pw_dir );
+
+    if ( access( fname, R_OK ) != 0 ) {
+	/* No .forward, it's a local address */
+	syslog( LOG_DEBUG, "address_expand <%s> FINAL: passwd file",
+		e_addr->e_addr );
+	return( PASSWORD_FINAL );
+
+    } else {
+	/* a .forward file exists */
+	if (( f = fopen( fname, "r" )) == NULL ) {
+	    syslog( LOG_ERR, "address_expand fopen: %s: %m", fname );
+	    return( PASSWORD_NOT_FOUND );
+	}
+
+	while ( fgets( buf, 1024, f ) != NULL ) {
+	    len = strlen( buf );
+	    if (( buf[ len - 1 ] ) != '\n' ) {
+		/* here we have a .forward line too long */
+		if ( bounce_text( e_addr->e_addr_errors,
+			e_addr->e_addr, " .forward: line too long",
+			NULL ) != 0 ) {
+		    /* bounce_text syslogs errors */
+		    return( PASSWORD_SYSERROR );
+		}
+
+		syslog( LOG_WARNING,
+			"address_expand <%s>: .forward line too long",
+			e_addr->e_addr );
+		ret = PASSWORD_NOT_FOUND;
+		goto cleanup_forward;
+	    }
+
+	    buf[ len - 1 ] = '\0';
+
+	    if ( add_address( exp, buf,
+		    e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
+		/* add_address syslogs errors */
+		ret = PASSWORD_SYSERROR;
+		goto cleanup_forward;
+	    }
+
+	    syslog( LOG_DEBUG,
+		    "address_expand <%s> EXPANDED <%s>: .forward",
+		    e_addr->e_addr, buf );
+	    ret = PASSWORD_EXCLUDE;
+	}
+
+cleanup_forward:
+	if ( fclose( f ) != 0 ) {
+	    syslog( LOG_ERR, "address_expand fclose %s: %m",
+		    fname );
+	    return( PASSWORD_SYSERROR );
+	}
+
+	return( ret );
+    }
+}
+
+
+    int
+alias_expand( struct expand *exp, struct exp_addr *e_addr )
+{
+    int			ret;
+    DBC			*dbcp = NULL;
+    DBT			key;
+    DBT			value;
+
+    if ( simta_dbp == NULL ) {
+	if (( ret = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
+		!= 0 ) {
+	    syslog( LOG_ERR, "address_expand: db_open_r: %s",
+		    db_strerror( ret ));
+	    return( ALIAS_NOT_FOUND );
+	}
+    }
+
+    /* Set cursor and get first result */
+    memset( &key, 0, sizeof( DBT ));
+    memset( &value, 0, sizeof( DBT ));
+
+    if ( e_addr->e_addr_at != NULL ) {
+	*(e_addr->e_addr_at) = '\0';
+	key.data = e_addr->e_addr;
+    } else {
+	key.data = "postmaster";
+    }
+
+    key.size = strlen( key.data ) + 1;
+
+    if (( ret = db_cursor_set( simta_dbp, &dbcp, &key, &value ))
+	    != 0 ) {
+	if ( ret != DB_NOTFOUND ) {
+	    syslog( LOG_ERR, "address_expand: db_cursor_set: %s",
+		    db_strerror( ret ));
+	    if ( e_addr->e_addr_at != NULL ) {
+		*(e_addr->e_addr_at) = '@';
+	    }
+	    return( ALIAS_NOT_FOUND );
+	}
+
+	/* not in alias db, try next expansion */
+	syslog( LOG_DEBUG, "address_expand <%s>: not in alias db",
+		e_addr->e_addr );
+	if ( e_addr->e_addr_at != NULL ) {
+	    *(e_addr->e_addr_at) = '@';
+	}
+	return( ALIAS_NOT_FOUND );
+    }
+
+    for ( ; ; ) {
+	if ( add_address( exp, (char*)value.data,
+		e_addr->e_addr_errors,  ADDRESS_TYPE_EMAIL ) != 0 ) {
+	    /* add_address syslogs errors */
+	    if ( e_addr->e_addr_at != NULL ) {
+		*(e_addr->e_addr_at) = '@';
+	    }
+	    return( ALIAS_SYSERROR );
+	}
+
+	syslog( LOG_DEBUG, "address_expand <%s> EXPANDED <%s>: alias db",
+		e_addr->e_addr, (char*)value.data );
+
+	/* Get next db result, if any */
+	memset( &value, 0, sizeof( DBT ));
+	if (( ret = db_cursor_next( simta_dbp, &dbcp, &key, &value ))
+		!= 0 ) {
+	    if ( ret != DB_NOTFOUND ) {
+		syslog( LOG_ERR, "address_expand: db_cursor_next: %s",
+			db_strerror( ret ));
+		if ( e_addr->e_addr_at != NULL ) {
+		    *(e_addr->e_addr_at) = '@';
+		}
+		return( ALIAS_NOT_FOUND );
+
+	    } else {
+		/* one or more addresses found in alias db */
+		if ( e_addr->e_addr_at != NULL ) {
+		    *(e_addr->e_addr_at) = '@';
+		}
+		return( ALIAS_EXCLUDE );
+	    }
+	}
+    }
+}
 
 #ifdef HAVE_LDAP
 

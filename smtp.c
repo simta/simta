@@ -436,6 +436,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	}
     }
 
+    /* this is here to supress a compiler warning */
     abort();
 }
 

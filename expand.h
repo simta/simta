@@ -10,6 +10,17 @@
 #define	ADDRESS_EXCLUDE			2
 #define	ADDRESS_SYSERROR		3
 
+/* return codes for alias_expand */
+#define	ALIAS_NOT_FOUND			1
+#define	ALIAS_EXCLUDE			2
+#define	ALIAS_SYSERROR			3
+
+/* return codes for password_expand */
+#define	PASSWORD_NOT_FOUND			1
+#define	PASSWORD_EXCLUDE			2
+#define	PASSWORD_SYSERROR			3
+#define	PASSWORD_FINAL				4
+
 /* address types */
 #define	ADDRESS_TYPE_EMAIL		1
 #define	ADDRESS_TYPE_DEAD		2
@@ -37,6 +48,7 @@ struct expand {
 
 struct exp_addr {
     char			*e_addr;	/* address string */
+    char			*e_addr_at;	/* char the email addresses @ */
     int				e_addr_type;	/* address data type */
     struct envelope		*e_addr_errors;	/* address error handle */
     int				e_addr_status;
@@ -60,6 +72,8 @@ void expansion_stab_stdout( void * );
 int add_address( struct expand *, char *, struct envelope *, int );
 struct envelope *address_bounce_create( struct expand* );
 int address_expand( struct expand *, struct exp_addr * );
+int alias_expand( struct expand *, struct exp_addr * );
+int password_expand( struct expand *, struct exp_addr * );
 void expand_tree_stdout( struct exp_addr *, int );
 
 #ifdef HAVE_LDAP
