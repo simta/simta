@@ -59,7 +59,7 @@ TARGETS=	simta tlsconnect simsendmail q_runner createdb
 all : ${TARGETS}
 
 ldap:	${LDAPOBJ}
-	${CC} ${CFLAGS} -o ldaptest ${LDAPOBJ} ${LDFLAGS} -lLDAP
+	${CC} ${CFLAGS} -o ldaptest ${LDAPOBJ} ${LIBPATH} -lldap -lsnet
 
 install : all FRC
 	-mkdir -p ${RUNDIR}
