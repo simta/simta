@@ -722,6 +722,8 @@ env_lock( struct message *m, struct envelope *env, SNET **s )
 
     sprintf( filename, "%s/E%s", m->m_dir, m->m_id );
 
+    env->e_dir = m->m_dir;
+
     if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_open %s: %m", filename );
 	return( 1 );
