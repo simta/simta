@@ -26,6 +26,9 @@ SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o tz.o header.o \
 		simta.o ll.o nlist.o address.o bdb.o
 SIMLOGOBJ=	simlog.o
 DIPOBJ=		dip.o mx.o ll.o
+EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \
+		envelope.o tz.o ml.o simta.o smtp.o expand.o address.o bdb.o \
+		header.o bounce.o nlist.o q_cleanup.o mx.o
 QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
 		envelope.o tz.o ml.o simta.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o nlist.o q_cleanup.o mx.o
@@ -54,7 +57,7 @@ SIMTAINCPATH=	@SIMTACPPFLAGS@ ${INCPATH}
 SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
 MAN1TARGETS=	simsendmail.1
-TARGETS=	simta tlsconnect simsendmail q_runner createdb
+TARGETS=	simta tlsconnect simsendmail q_runner createdb expander
 
 all : ${TARGETS}
 
@@ -136,6 +139,9 @@ ml.o : ml.c
 		-DSIMTA_MAIL_LOCAL=\"@SIMTA_MAIL_LOCAL@\" \
 		-DSIMTA_PROCMAIL=\"@SIMTA_PROCMAIL@\" \
 		-c ml.c -o ml.o
+
+expander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o expander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}

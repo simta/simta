@@ -118,8 +118,7 @@ f_helo( snet, env, ac, av )
 	return( -1 );
     }
 
-    snet_writef( snet, "%d %s Hello %s\r\n", 250, env->e_hostname,
-	av[ 1 ]);
+    snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname, av[ 1 ]);
     return( 0 );
 }
 
@@ -169,8 +168,7 @@ f_ehlo( snet, env, ac, av )
      * has no name, an address literal as described in section 4.1.1.1.
      */
 
-    snet_writef( snet, "%d-%s Hello %s\r\n", 250, env->e_hostname,
-	av[ 1 ]);
+    snet_writef( snet, "%d-%s Hello %s\r\n", 250, simta_hostname, av[ 1 ]);
 
 #ifdef HAVE_LIBSSL
     /* RFC 2487 SMTP TLS */
@@ -603,8 +601,8 @@ f_data( snet, env, ac, av )
      */
     if ( fprintf( dff, "Received: FROM %s ([%s])\n\tBY %s ID %s ; \n\t%s %s\n",
 	    ( env->e_helo == NULL ) ? "NULL" : env->e_helo,
-	    inet_ntoa( env->e_sin->sin_addr ), env->e_hostname,
-	    env->e_id, daytime, tz( tm )) < 0 ) {
+	    inet_ntoa( env->e_sin->sin_addr ), simta_hostname, env->e_id,
+	    daytime, tz( tm )) < 0 ) {
 	syslog( LOG_ERR, "f_data: fprintf \"Received\": %m" );
 	err = 1;
 	fclose( dff );
@@ -784,7 +782,7 @@ f_quit( snet, env, ac, av )
     }
 
     snet_writef( snet, "%d %s Service closing transmission channel\r\n",
-	221, env->e_hostname );
+	221, simta_hostname );
 
     if ( snet_close( snet ) < 0 ) {
 	syslog( LOG_ERR, "f_quit: snet_close: %m" );
@@ -1061,7 +1059,7 @@ receive( fd, sin )
     env->e_dir = simta_dir_fast;
 
     snet_writef( snet, "%d %s Simple Internet Message Transfer Agent ready\r\n",
-	    220, env->e_hostname );
+	    220, simta_hostname );
 
     tv.tv_sec = 60 * 10;	/* 10 minutes, should get this from config */
     tv.tv_usec = 0;
@@ -1108,7 +1106,7 @@ receive( fd, sin )
 
     snet_writef( snet,
 	    "%d %s Service not available, closing transmission channel\r\n",
-	    421, env->e_hostname );
+	    421, simta_hostname );
 
     if ( line == NULL ) {
 	syslog( LOG_ERR, "snet_getline: %m" );

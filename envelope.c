@@ -35,6 +35,8 @@
 #include "line_file.h"
 #include "simta.h"
 
+int		simta_rcpt_errors;
+
 
     int
 env_gettimeofday_id( struct envelope *e )
@@ -727,6 +729,7 @@ rcpt_error( struct recipient *r, char *t1, char *t2, char *t3 )
     size_t			len;
 
     r->r_delivered = R_FAILED;
+    simta_rcpt_errors++;
 
     if ( r->r_text == NULL ) {
 	if (( r->r_text = line_file_create()) == NULL ) {

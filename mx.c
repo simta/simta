@@ -147,7 +147,7 @@ mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
     }
     /* Look for local host in MX's */
     for ( i = 0; i < result->r_ancount; i++ ) {
-        if ( strcasecmp( env->e_hostname,
+        if ( strcasecmp( simta_hostname,
                 result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) {
             if (( host = malloc( sizeof( struct host ))) == NULL ) {
                 syslog( LOG_ERR, "mx_local: malloc: %m" );

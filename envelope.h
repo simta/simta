@@ -42,6 +42,8 @@ struct envelope {
 #define E_TLS		(1<<0)
 #define E_READY		(1<<1)
 
+extern int		simta_rcpt_errors;
+
 /* NOT USED */
 void		env_stdout ___P(( struct envelope * ));
 void		env_free ___P(( struct envelope * ));

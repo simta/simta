@@ -375,7 +375,7 @@ q_run( struct host_q **host_q )
 	    }
 
 	    /* expand message */
-	    if (( result = expand( host_q, &env )) < 0 ) {
+	    if (( result = expand( host_q, &env )) != 0 ) {
 		/* expand had an unrecoverable system error */
 		return( -1 );
 	    }

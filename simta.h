@@ -30,6 +30,7 @@
 
 /* global variables */
 extern int				simta_debug;
+extern int				simta_expand_debug;
 extern int				simta_verbose;
 extern int				simta_fast_files;
 extern char				*simta_dir_fast;
