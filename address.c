@@ -91,6 +91,7 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 	    free( address );
 	    return( 1 );
 	}
+	break;
 
     #ifdef HAVE_LDAP
     case ADDRESS_TYPE_LDAP:
@@ -371,7 +372,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 		    buf[ len - 1 ] = '\0';
 
 		    if ( add_address( exp, buf,
-			    e_addr->e_addr_rcpt,  ADDRESS_TYPE_EMAIL ) != 0 ) {
+			    e_addr->e_addr_rcpt, ADDRESS_TYPE_EMAIL ) != 0 ) {
 			/* add_address syslogs errors */
 
 			if ( fclose( f ) != 0 ) {
