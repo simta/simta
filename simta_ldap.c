@@ -81,6 +81,11 @@ struct ldap_search_list {
     struct ldap_search_list     *lds_next;	/* next uri */
 };
 
+struct errdat {
+    int		errnum;
+    char **     errval;
+};
+
 struct ldap_search_list		*ldap_searches = NULL;
 struct list			*ldap_people = NULL;
 struct list			*ldap_groups = NULL;
@@ -195,13 +200,48 @@ simta_ldapuser (char * buf, char ** user, char ** domain)
 	*domain = strdup("");  
     return;
 }
+    static void 
+dest_errdat (struct errdat * errdat)
+{
+    int		idx;
+
+    for (idx = 0; idx < errdat->errnum; idx++) {
+        free (errdat->errval[idx]);
+    }
+    return;
+}
+    static int
+add_errdat (struct errdat * errdat, char *val) 
+{
+
+    if (errdat->errnum == 0) {
+	if ((errdat->errval = malloc (sizeof (char *) * 2)) == NULL) {
+	   return (0); 
+	}
+    }
+    else {
+	if ((errdat->errval = realloc (errdat->errval,
+				sizeof (char *) * (errdat->errnum + 2)))
+		 == NULL) {
+	   return (0); 
+	}
+    }
+    if ((errdat->errval[errdat->errnum] = strdup (val)) == NULL) {
+	return 0;
+    }
+    errdat->errnum++;
+    errdat->errval[errdat->errnum] = NULL;
+    return (1);
+}
+	
 
 /*
 ** Adds an array of email addresses "errmailvals" to the current
 ** error envelope.
 */
     static int
-add_errmailvals (struct exp_addr *e_addr, char ** errmailvals, char * dn)
+add_errmailvals (struct errdat * errdat, struct exp_addr *e_addr, 
+		char ** errmailvals, char * dn)
 {
 
     int		idx;
@@ -210,7 +250,8 @@ add_errmailvals (struct exp_addr *e_addr, char ** errmailvals, char * dn)
     for (idx = 0; errmailvals[idx]; idx++) {
 	attrval = errmailvals[ idx ];
 	if (strchr (attrval, '@') ) {		
-	    if( env_recipient( e_addr->e_addr_errors, attrval) != 0 ) {
+
+	    if (add_errdat(errdat, attrval) != 0) {
 		syslog (LOG_ERR, 
 	"add_errmailvals: %s failed adding error recipient: %s", dn,
 				attrval);
@@ -327,7 +368,8 @@ simta_ldap_value( LDAPMessage *e, char *attr, struct list *master )
 ** into the error envelopement.
 */
     static int
-add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
+add_errdnvals (struct errdat *errdat, struct expand *exp, 
+		struct exp_addr *e_addr, char ** expdnvals)
 {
     int		idx;
 
@@ -395,7 +437,7 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
 	if ( ldap_people
 	&&  (simta_ldap_value( entry, "objectClass", ldap_people ) == 1 ) ) {
 	    if (( vals = ldap_get_values( ld, entry, mailfwdattr )) != NULL ) {
-		add_errmailvals (e_addr, vals, dn);
+		add_errmailvals (errdat, e_addr, vals, dn);
 		ldap_value_free( vals );
 	    }
 	}
@@ -413,7 +455,7 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
 				(strlen(ufn[0]) + strlen (vals[0]) + 2);
 		if (! errmailbuf) {
 		    syslog (LOG_ERR, 
-		"add_errmailvals: Failed allocating errmailbuf: %s", dn);
+		"add_errdnvals: Failed allocating errmailbuf: %s", dn);
 		    ldap_memfree (dn);
 		    ldap_msgfree( res );
 		    ldap_value_free( vals );
@@ -425,12 +467,11 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
 	
 		ldap_value_free( vals );
 		ldap_value_free( ufn );
-
-		rc = env_recipient( e_addr->e_addr_errors, errmailbuf);
+		rc = add_errdat (errdat, errmailbuf);
 	
 		if( rc != 0 ) {
 		    syslog (LOG_ERR, 
-	"add_errmailvals: %s failed adding error recipient: %s", dn,
+	"add_errdnvals: %s failed adding error recipient: %s", dn,
 				errmailbuf);
 		    free (errmailbuf);
 		    ldap_memfree (dn);
@@ -457,9 +498,9 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
     char ** errdnvals;
     char ** errmailvals;
 
-    struct envelope * bounce_env;
-
-    int rc = 0;
+    struct  errdat	errdat = {0, NULL};
+    int     idx;
+    int     rc = 0;
 
     if ((vals = ldap_get_values( ld, entry, "suppressNoEmailError")) != NULL) {
     
@@ -474,30 +515,37 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
 
     if (errdnvals || errmailvals || suppressnoemail) {
 	if (errdnvals || errmailvals) {
-	    if ((bounce_env = address_bounce_create( exp )) == NULL ) {
-		syslog (LOG_ERR,
-	  	    "simta_group_err_env: failed creating error env: %s", dn);
-		if (errdnvals)
-		    ldap_value_free ( errmailvals );
-		if (errmailvals)
-		    ldap_value_free ( errdnvals);
-		return LDAP_SYSERROR;
-	    }
 	
 	    if (errmailvals) {
-		add_errmailvals (e_addr, errmailvals, dn);
+		add_errmailvals (&errdat, e_addr, errmailvals, dn);
 		ldap_value_free ( errmailvals );
 	    }
 	    if (errdnvals) {
-		rc = add_errdnvals (exp, e_addr, errdnvals);
+		rc = add_errdnvals (&errdat, exp, e_addr, errdnvals);
 		ldap_value_free ( errdnvals );
 	    }
 
 	    if (suppressnoemail) {
 		e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
 	    }
-	    if (bounce_env->e_rcpt != NULL) {
-		e_addr->e_addr_errors = bounce_env;
+	    if (errdat.errnum != 0) {
+		if ((e_addr->e_addr_errors  = address_bounce_create( exp )) == NULL ) {
+		    syslog (LOG_ERR,
+	  	    "simta_group_err_env: failed creating error env: %s", dn);
+		    dest_errdat (&errdat);
+		    return LDAP_SYSERROR;
+		}
+		for (idx = 0; idx < errdat.errnum; idx++) {
+		    if (env_recipient( e_addr->e_addr_errors, 
+				errdat.errval[errdat.errnum]) != 0) {
+		
+			syslog (LOG_ERR,
+	  	    "simta_group_err_env: failed creating error recip: %s", dn);
+			dest_errdat (&errdat);
+			return LDAP_SYSERROR;
+		    }
+		}
+		dest_errdat (&errdat);
 	    }
 	}
 	else
