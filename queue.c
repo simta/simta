@@ -48,7 +48,7 @@
 #include "bounce.h"
 
 /* GLOBAL VARS */
-struct host_q		*simta_null_q;
+struct host_q		*simta_null_q = NULL;
 
 int	q_deliver ___P(( struct host_q * ));
 int	deliver_local ___P(( struct envelope *, int ));
@@ -204,6 +204,18 @@ q_runner( struct host_q **host_q )
     struct envelope		env;
     int				result;
 
+    /* create NULL host queue for unexpanded messages */
+    if ( simta_null_q == NULL ) {
+
+#ifdef DEBUG
+    printf( "simta_null_q init 2\n" );
+#endif /* DEBUG */
+
+	if (( simta_null_q = host_q_lookup( host_q, "\0" )) == NULL ) {
+	    return( -1 );
+	}
+    }
+
     for ( ; ; ) {
 	/* BUILD DELIVER_Q */
 	/* sort the hosts in the deliver_q by number of messages */
@@ -319,8 +331,15 @@ q_runner_dir( char *dir )
     char			hostname[ MAXHOSTNAMELEN + 1 ];
 
     /* create NULL host queue for unexpanded messages */
-    if (( simta_null_q = host_q_lookup( &host_q, "\0" )) == NULL ) {
-	exit( EX_TEMPFAIL );
+    if ( simta_null_q == NULL ) {
+
+#ifdef DEBUG
+    printf( "simta_null_q init 1\n" );
+#endif /* DEBUG */
+
+	if (( simta_null_q = host_q_lookup( &host_q, "\0" )) == NULL ) {
+	    exit( EX_TEMPFAIL );
+	}
     }
 
     if (( dirp = opendir( dir )) == NULL ) {
@@ -612,7 +631,7 @@ cleanup:
 		env.e_err_text = hq->hq_err_text;
 	    }
 
-            if (( result = bounce( &env, dfile_snet )) < 0 ) {
+            if ( bounce( &env, dfile_snet ) < 0 ) {
                 return( -1 );
             }
 
@@ -642,7 +661,6 @@ cleanup:
 	 *	delete message */
 	/* if hq->hq_status == HOST_DOWN && env.e_old_dfile > 0,
 	 *	delete message */
-
 
         if (( hq->hq_status == HOST_BOUNCE ) || ( env.e_err_text != NULL ) ||
 		(( env.e_tempfail == 0 ) && ( hq->hq_status != HOST_DOWN )) ||
