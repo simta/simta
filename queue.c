@@ -526,7 +526,6 @@ q_deliver( struct host_q *hq )
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env;
-    struct envelope		*bounce_env;
     struct envelope		env_local;
     struct recipient            *r;
     struct stat                 sb;
@@ -738,11 +737,9 @@ cleanup:
 		env->e_err_text = hq->hq_err_text;
 	    }
 
-            if (( bounce_env = bounce( env, dfile_snet )) == NULL ) {
+            if ( bounce( env, dfile_snet ) == NULL ) {
                 return( -1 );
             }
-	    env_free( bounce_env );
-	    free( bounce_env );
 
 	    if ( hq->hq_err_text != NULL ) {
 		env->e_err_text = NULL;
