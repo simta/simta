@@ -12,7 +12,7 @@
 #include "address.h"
 #include "bdb.h"
 
-#define DATABASE "/Users/editor/src/simta/simta-aliases.db"
+#define DATABASE SIMTA_ALIAS_DB
 
 DB		*dbp = NULL;
 

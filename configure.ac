@@ -9,6 +9,9 @@ AC_CONFIG_AUX_DIR([libsnet])
 AC_ARG_WITH(resolvconf, AC_HELP_STRING([--with-resolv=RESOLV], [default resolv.conf]), resolvconf="$withval", resolvconf="/etc/resolv.conf" )
 AC_SUBST(resolvconf)
 
+AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-alias-db=DB], [default alias db]), aliasdb="$withval", aliasdb="/etc/alias.db" )
+AC_SUBST(aliasdb)
+
 # Local Stuff
 AC_PREFIX_DEFAULT(/usr/local)
 

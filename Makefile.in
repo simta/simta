@@ -6,8 +6,6 @@ BINDIR=@bindir@
 ETCDIR=@sysconfdir@
 SBINDIR=@sbindir@
 
-RESOLV_CONF=@resolvconf@
-
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c address.c
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o \
@@ -20,6 +18,8 @@ QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o
 CONNECT_TESTOBJ=	connect_test.o smtp.o line_file.o envelope.o tz.o
 
 SIMTALOG=LOG_MAIL
+SIMTA_ALIAS_DB=	@aliasdb@
+RESOLV_CONF=	@resolvconf@
 
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
@@ -49,6 +49,11 @@ smtp.o : smtp.c
 	${CC} ${CFLAGS} \
 		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
 		-c smtp.c -o smtp.o
+
+address.o : address.c
+	${CC} ${CFLAGS} \
+		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
+		-c address.c -o address.o
 
 tz.o : tz.c
 	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ -c tz.c -o tz.o

@@ -7,8 +7,6 @@
 
 #include "bdb.h"
 
-#define DATABASE "/Volumes/Local/Users/editor/src/simta/simta-aliases.db"
-
 int db_open( DB *bdp, char *file, char *database, DBTYPE type,
     u_int32_t flags, int mode );
 
