@@ -28,9 +28,9 @@ SIMLOGOBJ=	simlog.o
 #QRUNNER needs LDAP libs added
 QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
 		envelope.o tz.o ml.o simta.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o nlist.o q_cleanup.o
+		header.o bounce.o nlist.o q_cleanup.o mx.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
-		smtp.o simta.o
+		smtp.o simta.o mx.o
 CREATEDBOBJ=	createdb.o argcargv.o bdb.o
 
 SIMTALOG=LOG_MAIL
