@@ -217,13 +217,22 @@ simta_read_config( char *fname )
 		}
 		if ( simta_debug ) printf( "%s -> REFUSE\n", domain );
 
-	    } else if ( strcasecmp( av[ 1 ], "HIGH_PREF_MX" ) == 0 ) {
+	    } else if ( strcasecmp( av[ 1 ], "LOW_PREF_MX" ) == 0 ) {
 		if ( ac != 2 ) {
 		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		    goto error;
 		}
-		if ( simta_debug ) printf( "%s -> HIGH_PREF_MX\n", domain );
+		/* Do not allow local host to be low_pref_mx */
+		if ( strcasecmp( simta_hostname, domain ) == 0 ) {
+		    fprintf( stderr, "%s: line %d: invalid host",
+			fname, lineno );
+		    goto error;
+		}
+
+		host->h_type = HOST_MX;
+
+		if ( simta_debug ) printf( "%s -> LOW_PREF_MX\n", domain );
 
 	    } else if ( strcasecmp( av[ 1 ], "ALIAS" ) == 0 ) {
 		if ( ac != 2 ) {

@@ -81,6 +81,7 @@ char			*receive_remote_hostname;
 #define	LOCAL_ADDRESS			1
 #define	NOT_LOCAL			2
 #define	LOCAL_ERROR			3
+#define	MX_ADDRESS			4
 
 struct command {
     char	*c_name;
@@ -556,7 +557,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	     */
 	    if (( rc = check_hostname( domain )) != 0 ) {
 		if ( rc < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed", domain );
+		    syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed",
+			domain );
 		    return( RECEIVE_SYSERROR );
 		} else {
 		    syslog( LOG_INFO,
@@ -639,6 +641,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		return( RECEIVE_OK );
 
 	    case LOCAL_ADDRESS:
+	    case MX_ADDRESS:
 		break;
 
 	    default:
@@ -1534,6 +1537,13 @@ local_address( char *addr, char *domain, struct host *host )
 
     if (( at = strchr( addr, '@' )) == NULL ) {
 	return( NOT_LOCAL );
+    }
+
+    /* If host is configured to be a high pref mx ( done by hand ),
+     * do not check for local address.
+     */
+    if ( host->h_type == HOST_MX ) {
+	return( MX_ADDRESS );
     }
 
     /* Search for user using expansion table */
