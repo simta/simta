@@ -16,6 +16,8 @@
 #define	FAST_DIR	"fast"
 #define	LOCAL_DIR	"local"
 
+#define	Q_DELIVERED	1
+#define	Q_DFILE		2
 
 struct q_file {
     char			*q_id;
@@ -24,6 +26,7 @@ struct q_file {
     struct q_file		*q_etime_next;
     struct envelope		*q_env;
     struct message_data		*q_data;
+    int				q_remove;
     int				q_unexpanded;
     int				q_efile;
     int				q_dfile;

@@ -274,6 +274,7 @@ deliver_local( struct host_q *hq )
 	    if ( errno == ENOENT ) {
 		errno = 0;
 		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
+		q->q_remove = Q_DFILE;
 		continue;
 
 	    } else {
@@ -323,8 +324,12 @@ deliver_local( struct host_q *hq )
 		syslog( LOG_ERR, "unlink %s: %m", fname );
 		exit( 1 );
 	    }
+
+	    q->q_remove = Q_DELIVERED;
 	}
     }
+
+    /* XXX queue_cleanup( hq ) */
 
     return( 0 );
 }
@@ -365,6 +370,7 @@ deliver_remote( struct host_q *hq )
 	    if ( errno == ENOENT ) {
 		errno = 0;
 		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
+		q->q_remove = Q_DFILE;
 		continue;
 
 	    } else {
@@ -445,6 +451,8 @@ deliver_remote( struct host_q *hq )
 		syslog( LOG_ERR, "unlink %s: %m", fname );
 		exit( 1 );
 	    }
+
+	    q->q_remove = Q_DELIVERED;
 	}
     }
 
@@ -455,6 +463,8 @@ deliver_remote( struct host_q *hq )
 	    exit( 1 );
 	}
     }
+
+    /* XXX queue_cleanup( hq ) */
 
     return( 0 );
 }
