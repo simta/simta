@@ -32,10 +32,16 @@ struct header simta_headers[] = {
 #define HEAD_TO			3
     { "Message-ID",		NULL,		NULL },
 #define HEAD_MESSAGE_ID		4
-    { "cc",			NULL,		NULL },
+    { "Cc",			NULL,		NULL },
 #define HEAD_CC			5
-    { "bcc",			NULL,		NULL },
+    { "Bcc",			NULL,		NULL },
 #define HEAD_BCC		6
+    { "Reply-To",		NULL,		NULL },
+#define HEAD_REPLY_TO		7
+    { "References",		NULL,		NULL },
+#define HEAD_REFRENCES		8
+    { "Subject",		NULL,		NULL },
+#define HEAD_SUBJECT		9
     { NULL,			NULL,		NULL }
 };
 
@@ -740,7 +746,7 @@ header_first_mailbox( char **line, char *localhostname )
 
     before = strlen( *line );
 
-    /* XXX only use first addr, addrs are seperated by commas */
+    /* XXX only syntax check & use first addr, addrs are seperated by commas */
     for ( comma = *line; *comma != '\0'; comma++ ) {
 	if ( *comma == ',' ) {
 	    *comma = '\0';
