@@ -74,6 +74,16 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
+    if ( smtp_rset( snet, logger ) != 0 ) {
+	perror( "smtp_rset" );
+	exit( 1 );
+    }
+
+    if ( smtp_send_message( snet, m, logger ) != 0 ) {
+	perror( "smtp_send_message" );
+	exit( 1 );
+    }
+
     if ( smtp_quit( snet, logger ) != 0 ) {
 	perror( "smtp_send_message" );
 	exit( 1 );

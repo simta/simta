@@ -20,4 +20,5 @@
 
 SNET	*smtp_connect ___P(( char *, int, void (*)(char *)));
 int	smtp_send_message ___P(( SNET *, struct message *, void (*)(char *)));
+int	smtp_rset ___P(( SNET *, void (*)(char *)));
 int	smtp_quit ___P(( SNET *, void (*)(char *)));

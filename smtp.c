@@ -192,6 +192,33 @@ smtp_connect( char *hostname, int port, void (*logger)(char *))
 
 
     int
+smtp_rset( SNET *snet, void (*logger)(char *))
+{
+    char			*line;
+
+    /* say RSET */
+    if ( snet_writef( snet, "RSET\r\n" ) < 0 ) {
+	return( 1 );
+    }
+
+#ifdef DEBUG
+    printf( "--> RSET\n" );
+#endif /* DEBUG */
+
+    /* read reply banner */
+    if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
+	return( 1 );
+    }
+
+    if ( strncmp( line, SMTP_OK, 3 ) != 0 ) {
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
+
+    int
 smtp_quit( SNET *snet, void (*logger)(char *))
 {
     char			*line;
