@@ -24,7 +24,6 @@ struct envelope {
     struct sockaddr_in	*e_sin;
     struct envelope	*e_next;
     struct message	*e_message;
-    char		*e_hostname;
     char		*e_punt;
     char		e_expanded[ MAXHOSTNAMELEN + 1 ];
     char		*e_helo;
@@ -54,6 +53,7 @@ void		env_rcpt_free ___P(( struct envelope * ));
 
 /* GLOBAL */
 struct envelope	*env_create ___P(( char * ));
+struct envelope	*env_dup ___P(( struct envelope * ));
 void		env_reset ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
 int		env_gettimeofday_id ___P(( struct envelope * ));
