@@ -15,6 +15,7 @@ SIMTALOG=LOG_MAIL
 CC=	gcc
 # These options might work on your system:
 OPTOPTS=-Wall -Wstrict-prototypes -Wmissing-prototypes -Wconversion
+CFLAGS=-Ilibnet -ggdb
 
 # For most platforms:
 INSTALL=	install
@@ -25,8 +26,10 @@ ADDLIBS=	-lsocket -lnsl
 
 ################ Nothing below should need editing ###################
 
-SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c
-OBJ=	daemon.o receive.o argcargv.o envelope.o auth.o base64.o
+SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
+	simsend.c rfc822.c rcptlist.c
+SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o auth.o base64.o
+SIMSENDMAILOBJ=	simsend.o rfc822.o rcptlist.o base64.o auth.o
 
 INCPATH=	-I/usr/include/kerberos -Ilibsnet
 DEFS=	-DLOG_SIMTA=${SIMTALOG}
@@ -35,13 +38,19 @@ TAGSFILE=	tags
 LIBPATH=	-L/usr/local/lib -Llibsnet
 LIBS=	${ADDLIBS} -lsnet -ldes -lkrb
 
-all : simta
+TARGETS=	simta simsendmail
+
+all : ${TARGETS}
 
 daemon.o : daemon.c
 	${CC} ${CFLAGS} -DVERSION=\"`cat VERSION`\" -c daemon.c
 
-simta : libsnet/libsnet.a ${OBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${OBJ} ${LIBPATH} ${LIBS}
+simta : libsnet/libsnet.a ${SIMTAOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${LIBPATH} ${LIBS}
+
+simsendmail : ${SIMSENDMAILOBJ}
+	${CC} ${CFLAGS} ${LDFALGS} -o simsendmail ${SIMSENDMAILOBJ} \
+		${LIBPATH} ${LIBS}
 
 FRC :
 
