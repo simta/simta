@@ -937,6 +937,7 @@ simta_ldap_address_local( char *name, char *domain )
     char	*dup_name;
     char	*pname;
     int		rc;
+    int		nametype;
     int		count = 0;
 
     if ( ld == NULL ) {
@@ -953,6 +954,12 @@ simta_ldap_address_local( char *name, char *domain )
 	if (*pname == '.' || *pname == '_')
 	    *pname = ' ';
     }
+
+    /*
+    ** Strip off any "-owners", or "-otherstuff"
+    ** and search again
+    */
+    nametype = simta_address_type(name );
 
     rc = simta_local_search (noattrs, dup_name, domain, &count);
     free (dup_name);
