@@ -832,7 +832,10 @@ q_deliver( struct host_q *hq )
 
 	    sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
 
-	    /* XXX truncate efile */
+	    if ( truncate( efile_fname, (off_t)0 ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", efile_fname );
+		return( -1 );
+	    }
 
 	    if ( unlink( efile_fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", efile_fname );

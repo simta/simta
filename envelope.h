@@ -60,6 +60,3 @@ int		env_read ___P(( struct message *, struct envelope *,
 
 /* SIMSENDMAIL */
 int		env_gettimeofday_id ___P(( struct envelope * ));
-
-/* Q_CLEANUP */
-int		env_unexpanded ___P(( char *, int * ));
