@@ -719,7 +719,6 @@ smtp_rset( SNET *snet, struct host_q *hq )
 	return( SMTP_OK );
 
     default:
-	hq->hq_status = HOST_BOUNCE;
 	syslog( LOG_NOTICE, "smtp_rset %s bad RSET reply: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
