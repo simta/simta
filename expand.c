@@ -293,6 +293,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    }
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
+	    syslog( LOG_INFO, "expand %s: writing %s %s", unexpanded_env->e_id,
+		    env->e_id, env->e_expanded );
 	    if ( env_outfile( env, env->e_dir ) != 0 ) {
 		/* env_outfile syslogs errors */
 		if ( unlink( d_out ) != 0 ) {
@@ -380,6 +382,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		    snet = NULL;
 		}
 
+		syslog( LOG_INFO, "expand %s: writing bounce %s %s",
+			unexpanded_env->e_id, env->e_id, env->e_expanded );
 		if ( env_outfile( env, simta_dir_fast ) != 0 ) {
 		    /* env_outfile syslogs errors */
 		    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );

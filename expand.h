@@ -21,6 +21,7 @@
 #define	ADDRESS_TYPE_DEAD		2
 #ifdef HAVE_LDAP
 #define	ADDRESS_TYPE_LDAP		3
+#define	ADDRESS_TYPE_LDAP_EXCLUSIVE	4
 #endif /* HAVE_LDAP */
 
 struct expand {

@@ -321,7 +321,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 	*snetp = snet;
-	hq->hq_status = 0;
+	hq->hq_status = HOST_MX;
 	return( SMTP_OK );
 
     default:
@@ -415,7 +415,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(env->e_err_text), snet, &tv, line,
 		"Bad SMTP MAIL FROM banner" )) == SMTP_OK ) {
-	    hq->hq_status = 0;
+	    hq->hq_status = HOST_MX;
 	}
 	return( smtp_result );
 
@@ -506,7 +506,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	/* no rcpts succeded */
 	syslog( LOG_INFO, "smtp_send %s %s: no valid recipients",
 		hq->hq_hostname, env->e_id );
-	hq->hq_status = 0;
+	hq->hq_status = HOST_MX;
 	return( SMTP_OK );
     }
 
@@ -562,7 +562,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(env->e_err_text), snet, &tv, line,
 		"Bad DATA banner" )) == SMTP_OK ) {
-	    hq->hq_status = 0;
+	    hq->hq_status = HOST_MX;
 	}
 	return( smtp_result );
     }
@@ -651,7 +651,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	break;
     }
 
-    hq->hq_status = 0;
+    hq->hq_status = HOST_MX;
     return( SMTP_OK );
 }
 
@@ -702,7 +702,7 @@ smtp_rset( SNET *snet, struct host_q *hq )
 		return( SMTP_BAD_CONNECTION );
 	    }
 	}
-	hq->hq_status = 0;
+	hq->hq_status = HOST_MX;
 	return( SMTP_OK );
 
     default:
@@ -726,7 +726,7 @@ smtp_quit( SNET *snet, struct host_q *hq )
     struct timeval		tv;
 
     /* mark it down unless it's a BOUNCE, mark it up if we actually succeed */
-    if ( hq->hq_status == 0 ) {
+    if ( hq->hq_status == HOST_MX ) {
 	hq->hq_status = HOST_DOWN;
     }
 
@@ -766,7 +766,7 @@ smtp_quit( SNET *snet, struct host_q *hq )
 
 	if ( hq->hq_status == HOST_DOWN ) {
 	    /* we're up if we're not BOUNCEing */
-	    hq->hq_status = 0;
+	    hq->hq_status = HOST_MX;
 	}
 	return;
 

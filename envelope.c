@@ -115,9 +115,7 @@ rcpt_free( struct recipient *r )
 	}
 
 	if ( r->r_err_text != NULL ) {
-syslog( LOG_DEBUG, "rcpt_free HERE 1" );
 	    line_file_free( r->r_err_text );
-syslog( LOG_DEBUG, "rcpt_free HERE 2" );
 	}
     }
 }

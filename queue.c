@@ -99,6 +99,29 @@ message_slow( struct message *m )
 
 
     void
+message_syslog( struct message *m )
+{
+    int				env = 0;
+
+    if ( m->m_env != NULL ) {
+	env++;
+    }
+
+    if ( m->m_hq != NULL ) {
+	if ( m->m_hq->hq_hostname != NULL ) {
+	    syslog( LOG_DEBUG, "message %s: %d host %s", m->m_id, env,
+		    m->m_hq->hq_hostname );
+	} else {
+	    syslog( LOG_DEBUG, "message %s: %d host %s", m->m_id, env,
+		    "NULL" );
+	}
+    } else {
+	syslog( LOG_DEBUG, "message %s: %d no host", m->m_id, env );
+    }
+}
+
+
+    void
 message_stdout( struct message *m )
 {
     while ( m != NULL ) {
@@ -283,6 +306,7 @@ q_runner( struct host_q **host_q )
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
 	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
+		message_syslog( m );
 		message_slow( m );
 
 		if ( simta_fast_files < 1 ) {
@@ -359,8 +383,8 @@ q_run( struct host_q **host_q )
 		q_deliver( hq );
 
 	    } else {
-		syslog( LOG_ERR, "q_run: host_type %d out of range",
-			hq->hq_status );
+		syslog( LOG_ERR, "q_run: host_type %d out of range %s",
+			hq->hq_status, hq->hq_hostname );
 	    }
 	}
 
@@ -875,8 +899,6 @@ oldfile_error:
 		goto message_cleanup;
 	    }
 	    unlinked = 1;
-
-	    syslog( LOG_DEBUG, "q_deliver %s delivered", env_deliver->e_id );
 
         } else if (( env_deliver->e_success != 0 ) ||
 		( env_deliver->e_failed != 0 )) {
