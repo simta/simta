@@ -63,12 +63,10 @@ hello( env, hostname )
 	 * "Received:" header should say.  Since mail clients don't send well
 	 * formed "HELO", we won't even do syntax checks on av[ 1 ].
 	 */
-	if (( env->e_helo = (char *)malloc( strlen( hostname ) + 1 ))
-		== NULL ) {
-	    syslog( LOG_ERR, "f_helo: malloc: %m" );
+	if (( env->e_helo = strdup( hostname )) == NULL ) {
+	    syslog( LOG_ERR, "f_helo: strdup: %m" );
 	    return( -1 );
 	}
-	strcpy( env->e_helo, hostname );
 
 	syslog( LOG_INFO, "helo: %s", env->e_helo );
     } else {
@@ -91,9 +89,6 @@ f_helo( snet, env, ac, av )
     }
 
     if ( hello( env, av[ 1 ] ) < 0 ) {
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	return( -1 );
     }
 
@@ -119,9 +114,6 @@ f_ehlo( snet, env, ac, av )
     }
 
     if ( hello( env, av[ 1 ] ) < 0 ) {
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	return( -1 );
     }
 
@@ -179,7 +171,7 @@ f_mail( snet, env, ac, av )
 	return( 1 );
     }
 
-    if (( addr = smtp_trimaddr( av[ 1 ], "From:" )) == NULL ) {
+    if (( addr = smtp_trimaddr( av[ 1 ], "FROM:" )) == NULL ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	return( 1 );
     }
@@ -202,23 +194,16 @@ f_mail( snet, env, ac, av )
 
     if ( gettimeofday( &tv, NULL ) < 0 ) {
 	syslog( LOG_ERR, "f_mail: gettimeofday: %m" );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	return( -1 );
     }
     sprintf( env->e_id, "%lX.%lX", tv.tv_sec, tv.tv_usec );
 
-    if (( env->e_mail = (char *)malloc( strlen( addr ) + 1 )) == NULL ) {
-	syslog( LOG_ERR, "f_mail: malloc: %m" );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
+    if (( env->e_mail = strdup( addr )) == NULL ) {
+	syslog( LOG_ERR, "f_mail: strdup: %m" );
 	return( -1 );
     }
-    strcpy( env->e_mail, addr );
 
-    syslog( LOG_INFO, "%s: mail: <%s>", env->e_id, addr );
+    syslog( LOG_INFO, "%s: mail: <%s>", env->e_id, env->e_mail );
 
     snet_writef( snet, "%d OK\r\n", 250 );
     return( 0 );
@@ -247,7 +232,7 @@ f_rcpt( snet, env, ac, av )
 	return( 1 );
     }
 
-    if (( addr = smtp_trimaddr( av[ 1 ], "To:" )) == NULL ) {
+    if (( addr = smtp_trimaddr( av[ 1 ], "TO:" )) == NULL ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	return( 1 );
     }
@@ -262,7 +247,7 @@ f_rcpt( snet, env, ac, av )
 
     /*
      * We're not currently going to parse for the "%-hack".  This sort
-     * of relay is currently heavily discouraged due to SPAM abuses.
+     * of relay is heavily discouraged due to SPAM abuses.
      */
     if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
 	snet_writef( snet, "%d Requested action not taken\r\n", 553 );
@@ -303,23 +288,16 @@ f_rcpt( snet, env, ac, av )
 
     if (( r = (struct recipient *)malloc( sizeof(struct recipient))) == NULL ) {
 	syslog( LOG_ERR, "f_rcpt: malloc: %m" );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	return( -1 );
     }
-    if (( r->r_rcpt = (char *)malloc( strlen( addr ) + 1 )) == NULL ) {
-	syslog( LOG_ERR, "f_rcpt: malloc: %m" );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
+    if (( r->r_rcpt = strdup( addr )) == NULL ) {
+	syslog( LOG_ERR, "f_rcpt: strdup: %m" );
 	return( -1 );
     }
-    strcpy( r->r_rcpt, addr );
     r->r_next = env->e_rcpt;
     env->e_rcpt = r;
 
-    syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, addr );
+    syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
 
     snet_writef( snet, "%d OK\r\n", 250 );
     return( 0 );
@@ -354,18 +332,12 @@ f_data( snet, env, ac, av )
 
     if ( gettimeofday( &tv, NULL ) < 0 ) {
 	syslog( LOG_ERR, "f_data: gettimeofday: %m" );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	return( -1 );
     }
     cftime( daytime, "%e %b %Y %T %Z", &tv.tv_sec );
 
     if (( fd = open( df, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
 	syslog( LOG_ERR, "f_data: open %s: %m", df );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	return( -1 );
     }
 
@@ -373,9 +345,6 @@ f_data( snet, env, ac, av )
 	syslog( LOG_ERR, "f_data: fdopen: %m" );
 	err = -1;
 	close( fd );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	goto cleanup;
     }
 
@@ -399,6 +368,7 @@ f_data( snet, env, ac, av )
     snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n", 354 );
 
     /* should implement a byte count to limit DofS attacks */
+    /* XXX not to mention a timeout! */
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
@@ -431,18 +401,12 @@ f_data( snet, env, ac, av )
     /* make E (t) file */
     if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
 	syslog( LOG_ERR, "f_data: open %s: %m", tf );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	return( -1 );
     }
     if (( tff = fdopen( fd, "w" )) == NULL ) {
 	syslog( LOG_ERR, "f_data: fdopen: %m" );
 	err = -1;
 	close( fd );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	goto cleanup2;
     }
     if ( fprintf( tff, "%s\n", env->e_mail ) < 0 ) {
@@ -477,9 +441,6 @@ f_data( snet, env, ac, av )
     if ( rename( tf, ef ) < 0 ) {
 	syslog( LOG_ERR, "f_data: rename %s %s: %m", tf, ef );
 	err = -1;
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
 	goto cleanup2;
     }
 
@@ -520,6 +481,7 @@ f_quit( snet, env, ac, av )
 {
     snet_writef( snet, "%d %s Service closing transmission channel\r\n",
 	    221, env->e_hostname );
+
     /* XXX check for an accepted message */
 
     /*
@@ -597,30 +559,22 @@ receive( fd, sin )
 
     srandom( (unsigned)getpid());
 
-    if (( env = env_create()) == NULL ) {
-	syslog( LOG_ERR, "env_create: %m" );
+    if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
+	syslog( LOG_ERR, "snet_attach: %m" );
+	/* We *could* use write(2) to report an error before we exit here */
+	exit( 1 );
+    }
+
+    if ((( env = env_create()) == NULL ) ||
+	    ( gethostname( env->e_hostname, MAXHOSTNAMELEN ) < 0 )) {
+	syslog( LOG_ERR, "env_create/gethostname: %m" );
 	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
+		"%d Service not available, closing transmission channel\r\n",
+		421 );
 	exit( 1 );
     }
     env->e_sin = sin;
 
-    if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "snet_attach: %m" );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
-	exit( 1 );
-    }
-
-    if ( gethostname( env->e_hostname, MAXHOSTNAMELEN ) < 0 ) {
-	syslog( LOG_ERR, "gethostname: %m" );
-	snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
-	exit( 1 );
-    }
     snet_writef( snet, "%d %s Simple Internet Message Transfer Agent ready\r\n",
 	    220, env->e_hostname );
 
@@ -631,39 +585,45 @@ receive( fd, sin )
 	tv.tv_usec = 0;
 
 	/*
-	 * This routine might need to be revised to take rfc822 quoting into
-	 * account.  E.g.  MAIL FROM:<foo bar@umich.edu>
+	 * This routine needs to be revised to take rfc822 quoting into
+	 * account.  E.g.  MAIL FROM:<"foo \: bar"@umich.edu>
 	 */
 	if (( ac = argcargv( line, &av )) < 0 ) {
 	    syslog( LOG_ERR, "argcargv: %m" );
-	    snet_writef( snet,
-		"%d %s Service not available, closing transmission channel\r\n",
-		421, env->e_hostname );
-	    exit( 1 );
+	    break;
 	}
 
-	if ( ac ) {
-	    for ( i = 0; i < ncommands; i++ ) {
-		if ( strcasecmp( av[ 0 ], commands[ i ].c_name ) == 0 ) {
-		    break;
-		}
-	    }
-	    if ( i >= ncommands ) {
-		snet_writef( snet, "%d Command %s unregcognized\r\n",
-			500, av[ 0 ] );
-		continue;
-	    }
-
-	    if ( (*(commands[ i ].c_func))( snet, env, ac, av ) < 0 ) {
-		/* XXX check for an accepted message */
-		exit( 1 );
-	    }
-	} else {
+	if ( ac == 0 ) {
 	    snet_writef( snet, "%d Command unrecognized\r\n", 501 );
+	    continue;
 	}
+
+	for ( i = 0; i < ncommands; i++ ) {
+	    if ( strcasecmp( av[ 0 ], commands[ i ].c_name ) == 0 ) {
+		break;
+	    }
+	}
+	if ( i >= ncommands ) {
+	    snet_writef( snet, "%d Command %s unregcognized\r\n",
+		    500, av[ 0 ] );
+	    continue;
+	}
+
+	if ( (*(commands[ i ].c_func))( snet, env, ac, av ) < 0 ) {
+	    break;
+	}
+    }
+
+    snet_writef( snet,
+	    "%d %s Service not available, closing transmission channel\r\n",
+	    421, env->e_hostname );
+
+    if ( line == NULL ) {
+	syslog( LOG_ERR, "snet_getline: %m" );
     }
 
     /* XXX check for an accepted message */
 
-    return( 0 );
+    exit( 1 );
+
 }
