@@ -91,7 +91,7 @@ address_bounce_create( struct expand *exp )
 
     int
 add_address( struct expand *exp, char *addr, struct envelope *error_env,
-	int addr_type )
+	int addr_type, char *from )
 {
     char			*address;
     struct exp_addr		*e;
@@ -157,9 +157,17 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	e->e_addr_errors = error_env;
 	e->e_addr_type = addr_type;
 
+	if (( e->e_addr_from = strdup( from )) == NULL ) {
+	    syslog( LOG_ERR, "strdup: %m" );
+	    free( address );
+	    free( e );
+	    return( 1 );
+	}
+
 	if ( ll_insert_tail( &(exp->exp_addr_list), address, e ) != 0 ) {
 	    syslog( LOG_ERR, "add_address: ll_insert_tail: %m" );
 	    free( address );
+	    free( e->e_addr_from );
 	    free( e );
 	    return( 1 );
 	}
@@ -441,7 +449,7 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
 	    buf[ len - 1 ] = '\0';
 
 	    if ( add_address( exp, buf, e_addr->e_addr_errors,
-		    ADDRESS_TYPE_EMAIL ) != 0 ) {
+		    ADDRESS_TYPE_EMAIL, e_addr->e_addr_from ) != 0 ) {
 		/* add_address syslogs errors */
 		ret = PASSWORD_SYSERROR;
 		goto cleanup_forward;
@@ -513,7 +521,8 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 
     for ( ; ; ) {
 	if ( add_address( exp, (char*)value.data,
-		e_addr->e_addr_errors,  ADDRESS_TYPE_EMAIL ) != 0 ) {
+		e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
+		e_addr->e_addr_from ) != 0 ) {
 	    /* add_address syslogs errors */
 	    ret = ALIAS_SYSERROR;
 	    goto done;

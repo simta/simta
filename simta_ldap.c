@@ -1211,7 +1211,8 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	    for ( idx = 0; values[ idx ] != NULL; idx++ ) {
 		attrval = values[ idx ];
 		if ( add_address( exp, attrval,
-			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
+			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
+			  e_addr->e_addr_from) != 0 ) {
 		    syslog (LOG_ERR, 
     "simta_ldap_process_entry: failed adding mailforwardingaddress: %s", addr);
 		    ldap_value_free( values );
@@ -1234,7 +1235,8 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 		if ( (uid = ldap_get_values( ld, entry, "uid" )) != NULL ) {
 		    snprintf( buf, sizeof (buf), "%s@%s", uid[0], vacationhost);
 		    if ( add_address( exp, buf,
-			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
+			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
+			  e_addr->e_addr_from) != 0 ) {
 			syslog (LOG_ERR, 
 	"simta_ldap_process_entry: failed adding vacation address: %s", buf);
 		    }

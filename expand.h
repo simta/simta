@@ -41,6 +41,16 @@
 #define	STATUS_EMAIL_SENDER		(1<<3)
 #endif /* HAVE_LDAP */
 
+struct expand_output {
+    char			*eo_from;
+    char			*eo_hostname;
+    struct envelope		*eo_env;
+    struct expand_output	*eo_next;
+};
+
+struct envelope *eo_lookup( struct expand_output *, char *, char * );
+int eo_insert( struct expand_output **, struct envelope * );
+
 struct expand {
     struct envelope		*exp_env;	/* original envelope */
     struct stab_entry		*exp_addr_list;	/* expanded addresses */
@@ -54,6 +64,7 @@ struct expand {
 struct exp_addr {
     char			*e_addr;	/* address string */
     char			*e_addr_at;	/* char the email addresses @ */
+    char			*e_addr_from;
     int				e_addr_type;	/* address data type */
     struct envelope		*e_addr_errors;	/* address error handle */
     int				e_addr_status;
@@ -74,7 +85,7 @@ int	expand( struct host_q **, struct envelope * );
 /* address.c */
 int address_error( struct envelope *, char *, char *, char * );
 void expansion_stab_stdout( void * );
-int add_address( struct expand *, char *, struct envelope *, int );
+int add_address( struct expand *, char *, struct envelope *, int, char * );
 struct envelope *address_bounce_create( struct expand* );
 int address_expand( struct expand *, struct exp_addr * );
 int alias_expand( struct expand *, struct exp_addr * );

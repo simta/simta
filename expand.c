@@ -85,6 +85,45 @@ exp_addr_prune( struct exp_addr *e_addr )
 #endif /* HAVE_LDAP */
 
 
+    struct envelope *
+eo_lookup( struct expand_output *eo_list, char *hostname, char *from )
+{
+    struct expand_output	*e;
+
+    for ( e = eo_list; e != NULL; e = e->eo_next ) {
+	if ( strcasecmp( e->eo_hostname, hostname ) != 0 ) {
+	    continue;
+	}
+
+	if ( strcasecmp( e->eo_from, from ) == 0 ) {
+	    return( e->eo_env );
+	}
+    }
+
+    return( NULL );
+}
+
+
+    int
+eo_insert( struct expand_output **eo_list, struct envelope *env )
+{
+    struct expand_output	*e_new;
+
+    if (( e_new = (struct expand_output*)malloc(
+	    sizeof( struct expand_output ))) == NULL ) {
+	return( 1 );
+    }
+
+    e_new->eo_from = env->e_mail;
+    e_new->eo_hostname = env->e_hostname;
+    e_new->eo_env = env;
+    e_new->eo_next = *eo_list;
+    *eo_list = e_new;
+
+    return( 0 );
+}
+
+
     /* return 0 on success
      * return 1 on syserror
      * return -1 on fata errors (leaving fast files behind in error)
@@ -102,10 +141,12 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     struct recipient		*rcpt;
     struct stab_entry		*p;
     struct stab_entry		*q;
+    struct expand_output	*host_stab = NULL;
+    struct expand_output	*eo;
+    struct expand_output	*eo_free;
     struct exp_addr		*e_addr;
     char			*domain;
     SNET			*snet = NULL;
-    struct stab_entry		*host_stab = NULL;
     int				n_rcpts;
     int				return_value = 1;
     int				env_out = 0;
@@ -154,7 +195,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 #endif /* HAVE_LDAP */
 
 	if ( add_address( &exp, rcpt->r_rcpt, base_error_env,
-		ADDRESS_TYPE_EMAIL ) != 0 ) {
+		ADDRESS_TYPE_EMAIL, unexpanded_env->e_mail ) != 0 ) {
 	    /* add_address syslogs errors */
 	    goto cleanup1;
 	}
@@ -227,7 +268,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		goto cleanup2;
 	    }
 	    domain++;
-	    env = (struct envelope*)ll_lookup( host_stab, domain );
+	    env = eo_lookup( host_stab, domain, e_addr->e_addr_from );
 	    break;
 
 	case ADDRESS_TYPE_DEAD:
@@ -241,13 +282,12 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 
 	if ( env == NULL ) {
 	    /* Create envelope and add it to list */
-	    if (( env = env_create( unexpanded_env->e_mail )) == NULL ) {
+	    if (( env = env_create( e_addr->e_addr_from )) == NULL ) {
 		syslog( LOG_ERR, "expand.env_create: %m" );
 		goto cleanup2;
 	    }
 
 	    if ( env_gettimeofday_id( env ) != 0 ) {
-syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
 		env_free( env );
 		goto cleanup2;
 	    }
@@ -264,7 +304,7 @@ syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
 	    }
 
 	    /* Add env to host_stab */
-	    if ( ll_insert( &host_stab, env->e_hostname, env, NULL ) != 0 ) {
+	    if ( eo_insert( &host_stab, env ) != 0 ) {
 		syslog( LOG_ERR, "expand.ll_insert: %m" );
 		env_free( env );
 		goto cleanup2;
@@ -283,8 +323,8 @@ syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
 	    unexpanded_env->e_id );
 
     /* Write out all expanded envelopes and place them in to the host_q */
-    for ( p = host_stab; p != NULL; p = p->st_next ) {
-	env = p->st_data;
+    for ( eo = host_stab; eo != NULL; eo = eo->eo_next ) {
+	env = eo->eo_env;
 
 	if ( simta_expand_debug == 0 ) {
 	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
@@ -466,9 +506,9 @@ cleanup4:
     }
 
 cleanup3:
-    for ( p = host_stab; p != NULL; p = p->st_next ) {
-	env = p->st_data;
-	p->st_data = NULL;
+    for ( eo = host_stab; eo != NULL; eo = eo->eo_next ) {
+	env = eo->eo_env;
+	eo->eo_env = NULL;
 
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
@@ -491,11 +531,11 @@ cleanup3:
 
 cleanup2:
     /* free host_stab */
-    p = host_stab;
-    while ( p != NULL ) {
-	q = p;
-	p = p->st_next;
-	free( q );
+    eo = host_stab;
+    while ( eo != NULL ) {
+	eo_free = eo;
+	eo = eo->eo_next;
+	free( eo_free );
     }
 
 cleanup1:
@@ -512,6 +552,7 @@ cleanup1:
 		free (e_addr->e_addr_dn);
 #endif
 	    free( e_addr->e_addr );
+	    free( e_addr->e_addr_from );
 	    free( e_addr );
 	}
 	free( q );
