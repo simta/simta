@@ -82,11 +82,14 @@ int			simta_verbose = 0;
 int			simta_tls = 0;
 long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
+char			*simta_reverse_url = NULL;
 char			*simta_punt_host = NULL;
 char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
 char			*simta_rbl_domain = NULL;
+char			*simta_rbl_url = NULL;
 char			*simta_user_rbl_domain = NULL;
+char			*simta_user_rbl_url = NULL;
 char			*simta_queue_filter = NULL;
 char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
@@ -390,9 +393,23 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "CONTENT_FILTER: %s\n",
 		simta_mail_filter );
 
+	} else if ( strcasecmp( av[ 0 ], "IGNORE_REVERSE" ) == 0 ) {
+	    if ( ac != 3 ) {
+		fprintf( stderr, "%s: line %d: expected 2 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_ignore_reverse = 1;
+	    if (( simta_reverse_url = strdup( av[ 2 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "IGNORE_REVERSE\tREVERSE_URL: %s\n",
+		simta_reverse_url );
+
 	} else if ( strcasecmp( av[ 0 ], "RBL_DOMAIN" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	    if ( ac != 3 ) {
+		fprintf( stderr, "%s: line %d: expected 2 argument\n",
 		    fname, lineno );
 		goto error;
 	    }
@@ -400,12 +417,16 @@ simta_read_config( char *fname )
 		perror( "strdup" );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RBL_DOMAIN: %s\n",
-		simta_rbl_domain );
+	    if (( simta_rbl_url = strdup( av[ 2 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RBL_DOMAIN: %s\tRBL_URL: %s\n",
+		simta_rbl_domain, simta_rbl_url );
 
 	} else if ( strcasecmp( av[ 0 ], "USER_RBL_DOMAIN" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	    if ( ac != 3 ) {
+		fprintf( stderr, "%s: line %d: expected 2 argument\n",
 		    fname, lineno );
 		goto error;
 	    }
@@ -413,8 +434,14 @@ simta_read_config( char *fname )
 		perror( "strdup" );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "USER_RBL_DOMAIN: %s\n",
-		simta_user_rbl_domain );
+	    if (( simta_user_rbl_url = strdup( av[ 2 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) {
+		printf( "USER_RBL_DOMAIN: %s\tUSER_RBL_URL: %s\n",
+		    simta_user_rbl_domain, simta_user_rbl_url );
+	    }
 
         } else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
 	    if ( simta_tls ) {

@@ -693,10 +693,9 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 				inet_ntoa( receive_sin->sin_addr ),
 				simta_rbl_domain );
 			snet_writef( snet,
-			    "550 No access from IP %s.  "
-			    "See http://spambusters.mail.umich.edu/"
-			    "tools/blockstatus\r\n",
-			    inet_ntoa( receive_sin->sin_addr ));
+			    "550 No access from IP %s.  See %s\r\n",
+			    inet_ntoa( receive_sin->sin_addr ),
+			    simta_rbl_url );
 			return( RECEIVE_OK );
 		    }
 		}
@@ -1417,10 +1416,9 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		syslog( LOG_NOTICE, "receive %s: connection rejected: "
 		    "invalid reverse", inet_ntoa( sin->sin_addr ));
 		snet_writef( snet,
-		    "421 No access from IP %s.  "
-		    "See http://spambusters.mail.umich.edu/"
-		    "tools/blockstatus\r\n",
-		    inet_ntoa( receive_sin->sin_addr ));
+		    "421 No access from IP %s.  See %s\r\n",
+		    inet_ntoa( receive_sin->sin_addr ),
+		    simta_reverse_url );
 		goto closeconnection;
 
 	    } else {
@@ -1436,9 +1434,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    syslog( LOG_NOTICE,
 		"Receive: Rejected IP %s by %s",
 		inet_ntoa( sin->sin_addr ), simta_rbl_domain );
-	    snet_writef( snet, "550 No access from IP %s.  "
-		"See http://spambusters.mail.umich.edu/tools/blockstatus\r\n",
-		inet_ntoa( receive_sin->sin_addr ));
+	    snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
+		inet_ntoa( receive_sin->sin_addr ), simta_rbl_url );
 	    free( rbl_err_txt );
 	    goto closeconnection;
 
