@@ -136,7 +136,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	if ( i->st_data == NULL ) {
 	    printf( "die die die\n" );
 	}
-	if ( simta_debug ) printf( "\n%s:", i->st_key );
+	if ( simta_debug ) printf( "\n%s:\n", i->st_key );
 	expn = (struct expn*)i->st_data;
 	rc = address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
 	    &seen, &ae_error );
