@@ -102,6 +102,7 @@ static int			ldapdebug;
 static char			*vacationhost;
 static char			*vacationattr;
 static char			*mailfwdattr;
+static char			*mailattr;
 
 static int			ndomaincomponent = 2;
 /*
@@ -1142,6 +1143,16 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	    }
 	    ldap_value_free( values );
 
+	    if (( values = ldap_get_values( ld, entry, mailattr)) != NULL ) {
+		e_addr->e_addr_mail = strdup (values[0]);
+		ldap_value_free( values );
+
+		if (! e_addr->e_addr_mail ) {
+		    syslog( LOG_ERR, "simta_ldap_process_entry: strdup mailattr failed" );
+		    return( LDAP_SYSERROR );
+		}
+
+	    }
 	    /*
 	    * If the user is on vacation, send a copy of the mail to
 	    * the vacation server.  The address is constructed from
@@ -1836,6 +1847,24 @@ simta_ldap_config( char *fname )
 	    l_new->l_next = *add;
 	    *add = l_new;
 
+	} else if ( strcasecmp( av[ 0 ], "mail" ) == 0 ) {
+
+	    if (ac != 2) {
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing mail value\n");
+		goto errexit;
+	    }
+		  
+	    if (mailattr) {
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Multiple mail attributes\n");
+		goto errexit;
+	    }
+
+	    if (( mailattr = (char*)strdup (av [ 1 ])) == NULL ) {
+		syslog ( LOG_ERR, "mailattr strdup error: %m" ); 
+		goto errexit;
+	    }
 	} else if ( strcasecmp( av[ 0 ], "mailforwardingattr" ) == 0 ) {
 
 	    if (ac != 2) {
@@ -1915,6 +1944,10 @@ simta_ldap_config( char *fname )
     }
     if (ldap_timeout <= 0) {
 	ldap_timeout = LDAP_TIMEOUT_VAL;
+    }
+    if (!mailattr) {
+	mailattr = strdup ("mail");
+	syslog ( LOG_ERR, "Defaulting mail attribute to \'mail\'" ); 
     }
     if (!mailfwdattr) {
 	mailfwdattr = strdup ("mail");
