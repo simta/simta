@@ -1013,7 +1013,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
                     return (LDAP_SYSERROR);
     }
     sprintf (senderbuf, "%s-errorsto@%s", rdns[0], vals[0]);
-    ldap_memfree (dn);
     ldap_value_free( vals);
     ldap_value_free(rdns);
  
@@ -2052,6 +2051,7 @@ errexit:
 	if (snet_close( snet ) != 0 ) {
 	    syslog(LOG_ERR, "simta_ldap_config: snet_close %m" );
 	}
+	fd = 0;
     }
     if (fd) {
 	if (close (fd)) {
