@@ -126,7 +126,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 		return( 1 );
 	    }
 	    free( address );
-	    return( 0 );
+	    return( 1 );
 
 	default:
 	    panic( "add_address addr_type out of range" );
