@@ -465,7 +465,10 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
-		return( RECEIVE_SYSERROR );
+		/* XXX - since we gave banner, must return RECEIVE_OK
+		 * to prevent dup 421 message.  OK?
+		 */
+		return( RECEIVE_OK );
 
 	    case LOCAL_ADDRESS:
 		break;
