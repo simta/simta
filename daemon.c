@@ -399,7 +399,9 @@ main( int ac, char **av )
 
     /* close the log fd gracefully before we daemonize */
     /* XXX do this after setgid and setuid for error logging purposes? */
-    closelog();
+    if ( simta_filesystem_cleanup == 0 ) {
+	closelog();
+    }
 
     /* set our initgroups */
     if ( initgroups( simta_pw->pw_name, 0 ) != 0 ) {
