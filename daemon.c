@@ -84,7 +84,7 @@ main( ac, av )
     struct servent	*se;
     int			c, s, err = 0, fd, sinlen;
     int			dontrun = 0;
-    int			restart = 0;
+    int			reuseaddr = 1;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
     unsigned short	port = 0;
@@ -97,15 +97,11 @@ main( ac, av )
 	prog++;
     }
 
-    while (( c = getopt( ac, av, "Vrcdp:b:M:s:" )) != -1 ) {
+    while (( c = getopt( ac, av, "Vcdp:b:M:s:" )) != -1 ) {
 	switch ( c ) {
 	case 'V' :		/* virgin */
 	    printf( "%s\n", version );
 	    exit( 0 );
-
-	case 'r' :		/* restart server */
-	    restart++;
-	    break;
 
 	case 'c' :		/* check config files */
 	    dontrun++;
@@ -171,10 +167,11 @@ main( ac, av )
 	perror( "socket" );
 	exit( 1 );
     }
-    c = 1;
-    if ( setsockopt( s, SOL_SOCKET, SO_REUSEADDR, (void*)&c,
-	    sizeof( int )) < 0 ) {
-	perror("setsockopt");
+    if ( reuseaddr ) {
+	if ( setsockopt( s, SOL_SOCKET, SO_REUSEADDR, (void*)&reuseaddr,
+		sizeof( int )) < 0 ) {
+	    perror("setsockopt");
+	}
     }
 
     memset( &sin, 0, sizeof( struct sockaddr_in ));
@@ -281,9 +278,14 @@ main( ac, av )
 	    exit( receive( fd, &sin ));
 
 	case -1 :
+	    /*
+	     * We don't tell the client why we're closing -- they will
+	     * queue mail and try later.  We don't sleep() because we'd
+	     * like to cause as much mail as possible to queue on remote
+	     * hosts, thus spreading out load on our (memory bound) server.
+	     */
 	    close( fd );
 	    syslog( LOG_ERR, "fork: %m" );
-	    sleep( 10 );
 	    break;
 
 	default :
