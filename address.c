@@ -32,6 +32,7 @@
 
 DB		*dbp = NULL;
 
+int verify_and_correct_address( char **address, struct recipient *rcpt );
 int add_address( struct stab_entry **stab, char *address,
     struct recipient *rcpt );
 
@@ -40,6 +41,55 @@ expansion_stab_stdout( void *string )
 {
     printf( "%s\n", (char *)string );
 }
+
+    int
+verify_and_correct_address( char **address, struct recipient *rcpt )
+{
+    int		ret;
+    char	err_text[ SIMTA_MAX_LINE_LEN ];
+
+    /* verify and correct address */
+    ret = is_emailaddr( address );
+
+    switch( ret ) {
+    case 1:
+	/* address was correct, or corrected */
+	break;
+
+    case 0:
+	/* address is not syntactically correct, or correctable */
+	if ( rcpt->r_text == NULL ) {
+	    if (( rcpt->r_text = line_file_create()) == NULL ) {
+		syslog( LOG_ERR, "verify_and_correct_address:"
+		" line_file_create: %m" );
+		return( -1 );
+	    }
+	}
+	if ( snprintf( err_text, SIMTA_MAX_LINE_LEN, "%s: Invalid e-mail\n",
+		*address ) >= SIMTA_MAX_LINE_LEN ) {
+	    syslog( LOG_ERR,
+		"verify_and_correct_address: snprintf: attempted buffer"
+		" overflow" );
+	    return( -1 );
+	}
+	if ( simta_debug ) printf( "added err_text for %s: %s\n",
+	    rcpt->r_rcpt, err_text );
+	if ( line_append( rcpt->r_text, err_text ) == NULL ) {
+	    syslog( LOG_ERR, "verify_and_correct_address: line_append: %m" );
+	    return( -1 );
+	}
+	rcpt->r_delivered = R_FAILED;
+	return( 0 );
+
+    default:
+	/* syserror */
+	syslog( LOG_ERR, "verify_and_correct_address: is_emailaddr: %m" );
+	return( -1 );
+    }
+
+    return( 1 );
+}
+
 
 /* Creates an entry in STAB with a key of ADDRESS and a data pointer
  * to an expansion structure:
@@ -178,7 +228,7 @@ done:
 
     int
 address_expand( char *address, struct recipient *rcpt,
-    struct stab_entry **expansion, struct stab_entry **seen)
+    struct stab_entry **expansion, struct stab_entry **seen, int *ae_error)
 {
     int			rc, ret = 0, count = 0, len = 0;
     char		*user = NULL, *domain = NULL;
@@ -193,6 +243,8 @@ address_expand( char *address, struct recipient *rcpt,
     struct stab_entry	*i = NULL;
     FILE		*f;
 
+    *ae_error = SIMTA_EXPAND_ERROR_NONE;
+
     memset( err_text, 0, SIMTA_MAX_LINE_LEN );
 
     /* Check if we have seen addr already */
@@ -200,10 +252,12 @@ address_expand( char *address, struct recipient *rcpt,
 	/* Already expanded */
 	if ( simta_debug ) printf( "%s: already seen\n", address );
 
+	*ae_error = SIMTA_EXPAND_ERROR_SEEN;
 	return( 0 );
     } else {
 	/* Add address to seen list */
 	if ( add_address( seen, address, rcpt ) != 0 ) {
+	    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 	    return( -1 );
 	}
 	if ( simta_debug ) printf( "%s new: added to seen\n", address );
@@ -213,20 +267,23 @@ address_expand( char *address, struct recipient *rcpt,
     /* XXX - Must free */
     if (( user = strdup( address )) == NULL ) {
 	syslog( LOG_ERR, "address_expand: strdup: %m" );
+	*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 	return( -1 );
     }
 
     /* verify and correct address */
-    rc = is_emailaddr( &user );
+    rc = verify_and_correct_address( &user, rcpt );
     switch( rc ) {
     case 1:
 	/* address was correct, or corrected */
 	break;
     case 0:
 	/* address is not syntactically correct, or correctable */
+	*ae_error = SIMTA_EXPAND_ERROR_BAD_FORMAT;
 	return( 0 );
     default:
 	/* syserror */
+	*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 	return( -1 );
     }
 
@@ -234,6 +291,7 @@ address_expand( char *address, struct recipient *rcpt,
     if (( domain = strchr( user, '@' )) == NULL ) {
 	syslog( LOG_ERR, "address_expand: strchr: %s: invalid address",
 	    address_local );
+	*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
         return( -1 );
     }
     *domain = '\0';
@@ -241,14 +299,11 @@ address_expand( char *address, struct recipient *rcpt,
 
     /* Check to see if domain is off the local host */
     if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
-	/* Add address to expansion list */
-	if ( add_address( expansion, address, rcpt ) != 0 ) {
-	    return( -1 );
-	}
-	if ( simta_debug ) printf( "%s new: added to expansion ( off host )\n",
+	if ( simta_debug ) printf( "%s: no expansion ( off host )\n",
 	    address );
 
-        return( 1 );
+	*ae_error = SIMTA_EXPAND_ERROR_OFF_HOST;
+        return( 0 );
     }
 
     /* Expand user using expansion table for domain */
@@ -267,6 +322,7 @@ address_expand( char *address, struct recipient *rcpt,
 		if (( ret = db_open_r( &dbp, SIMTA_ALIAS_DB, NULL )) != 0 ) {
 		    syslog( LOG_ERR, "address_expand: db_open_r: %s",
 			db_strerror( ret ));
+		    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 		    return( -1 );
 		}
 	    }
@@ -276,6 +332,7 @@ address_expand( char *address, struct recipient *rcpt,
 		if ( ret != DB_NOTFOUND ) {
 		    syslog( LOG_ERR, "address_expand: db_cursor_set: %s",
 			db_strerror( ret ));
+		    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 		    return( -1 );
 		} else {
 		    continue;
@@ -298,6 +355,7 @@ address_expand( char *address, struct recipient *rcpt,
 	    if ( ll_lookup( *seen, buf ) == NULL ) {
 		/* Add expansion to expansion */
 		if ( add_address( expansion, buf, rcpt ) != 0 ) {
+		    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 		    return( -1 );
 		}
 		if ( simta_debug ) printf( "%s new: added to expansion"
@@ -328,6 +386,7 @@ address_expand( char *address, struct recipient *rcpt,
 		if ( ll_lookup( *seen, buf ) == NULL ) {
 		    /* Add expansion to expansion */
 		    if ( add_address( expansion, buf, rcpt ) != 0 ) {
+			*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 			return( -1 );
 		    }
 		    if ( simta_debug ) printf( "%s new: added to expansion"
@@ -344,6 +403,7 @@ address_expand( char *address, struct recipient *rcpt,
 	    if ( ret != DB_NOTFOUND ) {
 		syslog( LOG_ERR, "address_expand: db_cursor_next: %s",
 		    db_strerror( ret ));
+		*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 		return( -1 );
 	    }
 
@@ -369,6 +429,7 @@ address_expand( char *address, struct recipient *rcpt,
 	    if ( access( buf, R_OK ) == 0 ) {
 		if (( f =  fopen( buf, "r" )) == NULL ) {
 		    syslog( LOG_ERR, "address_expand: fopen: %s: %m", buf );
+		    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 		    return( -1 );
 		}
 		while ( fgets( buf, MAXPATHLEN, f ) != NULL ) {
@@ -380,14 +441,28 @@ address_expand( char *address, struct recipient *rcpt,
 		    }
 		    buf[ len - 1 ] = '\0';
 
-		    /* Check for valid e-mail address */
 		    if (( temp = strdup( buf )) == NULL ) {
 			syslog( LOG_ERR, "address_expand: strdup: %m" );
+			*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 			return( -1 );
 		    }
-		    if ( is_emailaddr( &temp ) != 1 ) {
-			free( temp );
-			continue;
+
+		    /* verify and correct address */
+		    rc = verify_and_correct_address( &temp, rcpt );
+		    switch( rc ) {
+		    case 1:
+			/* address was correct, or corrected */
+			break;
+		    case 0:
+			/* address is not syntactically correct, or
+			 * correctable
+			 */
+			*ae_error = SIMTA_EXPAND_ERROR_BAD_FORMAT;
+			return( 0 );
+		    default:
+			/* syserror */
+			*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
+			return( -1 );
 		    }
 
 		    /* Check to see if we have seen this address before to
@@ -396,6 +471,7 @@ address_expand( char *address, struct recipient *rcpt,
 		    if ( ll_lookup( *expansion, temp ) == NULL ) {
 			/* Add address to expansion list */
 			if ( add_address( seen, temp, rcpt ) != 0 ) {
+			    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 			    return( -1 );
 			}
 			if ( simta_debug ) printf( "%s new: added to"
@@ -409,10 +485,12 @@ address_expand( char *address, struct recipient *rcpt,
 		/* No .forward, so just add address to expansion */
 		if (( temp = strdup( address )) == NULL ) {
 		    syslog( LOG_ERR, "address_expand: strdup: %m\n" );
+		    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 		    return( -1 );
 		}
 		/* Add address to expansion list */
 		if ( add_address( expansion, address, rcpt ) != 0 ) {
+		    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 		    return( -1 );
 		}
 		if ( simta_debug ) printf( "%s new: added to expansion"
@@ -427,9 +505,12 @@ address_expand( char *address, struct recipient *rcpt,
      * message in the parent rcpt that includs this failed address.
      */
     if ( count == 0 ) {
+	*ae_error = SIMTA_EXPAND_ERROR_NOT_LOCAL;
+
 	if ( rcpt->r_text == NULL ) {
 	    if (( rcpt->r_text = line_file_create()) == NULL ) {
 		syslog( LOG_ERR, "address_expand: line_file_create: %m" );
+		*ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 		return( -1 );
 	    }
 	}
@@ -437,6 +518,7 @@ address_expand( char *address, struct recipient *rcpt,
 		address ) >= SIMTA_MAX_LINE_LEN ) {
 	    syslog( LOG_ERR,
 		"address_expand: snprintf: attempted buffer overflow" );
+	    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 	    return( -1 );
 	}
 	if ( simta_debug ) printf( "added err_text for %s: %s\n",
@@ -444,6 +526,7 @@ address_expand( char *address, struct recipient *rcpt,
 	if ( line_append( rcpt->r_text, err_text )
 		== NULL ) {
 	    syslog( LOG_ERR, "address_expand: line_append: %m" );
+	    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 	    return( -1 );
 	}
 	rcpt->r_delivered = R_FAILED;
@@ -453,6 +536,7 @@ address_expand( char *address, struct recipient *rcpt,
 	if (( ret = db_cursor_close( dbcp )) != 0 ) {
 	    syslog( LOG_ERR, "address_expand: db_cursor_close: %s",
 		db_strerror( ret ));
+	    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 	    return( -1 );
 	}
     }

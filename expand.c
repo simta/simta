@@ -111,7 +111,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct recipient		*r;
     struct envelope		*env_p;
     int				failed_expansions = 0, rc = 0;
-    int				expansions = 0;
+    int				expansions = 0, ae_error;
     char			*domain = NULL;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
@@ -126,17 +126,23 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     /* expand unexpanded_env->e_rcpt addresses */
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
 	/* expand r->rcpt */
-	rc = address_expand( r->r_rcpt, r, &expansion, &seen );
+	rc = address_expand( r->r_rcpt, r, &expansion, &seen, &ae_error );
 	if ( rc < 0 ) {
-	    /* if expansion for recipient r fails, we mark it and
-	     * note that we've failed at least one expansion.
-	     */ 
+	    /* System failure */
 	    failed_expansions++;
 	    r->r_delivered = SIMTA_EXPANSION_FAILED;
 	    if ( simta_debug ) printf( "expanding %s failed\n", r->r_rcpt );
         } else if ( rc == 0 ) {
-	    /* bounce */
-	    expansions++;
+	    switch( ae_error ) {
+
+	    case SIMTA_EXPAND_ERROR_BAD_FORMAT:
+	    case SIMTA_EXPAND_ERROR_NOT_LOCAL:
+		failed_expansions++;
+		break;
+
+	    default:
+		break;
+	    }
 	} else {
 	    /* expansion */
 	    expansions += rc;
@@ -154,8 +160,34 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     for ( i = expansion; i != NULL; i = i->st_next ) {
 	expn = (struct expn*)i->st_data;
 	rc = address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
-	    &seen );
-	if ( rc != 0 ) {
+	    &seen, &ae_error );
+	if ( rc < 0 ) {
+	    /* System failure */
+	    failed_expansions++;
+	    r->r_delivered = SIMTA_EXPANSION_FAILED;
+	    if ( simta_debug ) printf( "expanding %s failed\n", r->r_rcpt );
+
+	} else if ( rc == 0 ) {
+	    switch( ae_error ) {
+
+	    case SIMTA_EXPAND_ERROR_BAD_FORMAT:
+	    case SIMTA_EXPAND_ERROR_NOT_LOCAL:
+		failed_expansions++;
+		free( i->st_data );
+		i->st_data = NULL;
+		break;
+
+	    case SIMTA_EXPAND_ERROR_SEEN:
+		/* indicate address already expanded */
+		free( i->st_data );
+		i->st_data = NULL;
+		break;
+
+	    default:
+		break;
+	    }
+	} else {
+	    /* indicate address expanded */
 	    free( i->st_data );
 	    i->st_data = NULL;
 	}
