@@ -64,7 +64,7 @@ static char     *attrs[] = { "objectClass", "title", "postaladdress",
 			"errorsTo", "rfc822ErrorsTo", "requestsTo",
 			"rfc822RequestsTo", "cn", "member",
 			"moderator", "onVacation", "uid",
-			"suppressNoEmailError", NULL };
+			"suppressNoEmailError", "associateddomain", NULL };
 
 struct ldap_search_list		*ldap_searches = NULL;
 struct ldap_search_list		*localuri = NULL;
@@ -80,18 +80,19 @@ static char			*vacationattr;
 /*
 ** Prototypes
 */
-int simta_ldap_value( LDAPMessage *e, char *attr, struct list *master );
-int simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr );
+int simta_ldap_value __P(( LDAPMessage *e, char *attr, struct list *master ));
+int simta_ldap_expand __P(( struct expand *exp, struct exp_addr *e_addr ));
 
-static int simta_ldap_dn_search __P ((struct expand *exp, 
-			struct exp_addr *e_addr));
+static int simta_ldap_dn_search __P ((struct expand *exp,
+		 struct exp_addr *e_addr));
 static int simta_ldap_process_entry __P ((struct expand *exp, 
 	struct exp_addr *e_addr, int type, LDAPMessage *entry, char * addr));
 static int simta_ldap_expand_group __P (( struct expand *exp, 
-	struct exp_addr *e_addr, int type, LDAPMessage *entry));
+		struct exp_addr *e_addr, int type, LDAPMessage *entry));
 static void do_ambiguous __P ((struct exp_addr *e_addr, char *email_addr, 
 		LDAPMessage *res));
-static void do_noemail __P((struct exp_addr *e_addr, char *addr, LDAPMessage *res));
+static void do_noemail __P((struct exp_addr *e_addr, char *addr, 
+		LDAPMessage *res));
 int    simta_ldap_message_stdout __P(( LDAPMessage *m ));
 static int simta_local_search __P( (struct ldap_search_list *local_lds, 
 		char ** attrs, char * user, char * domain, int * count));
@@ -99,11 +100,15 @@ static int simta_address_type __P ((char * address));
 static int simta_ldap_name_search __P (( struct expand *exp, 
 	struct exp_addr *e_addr, char * addr, char * domain, int addrtype));
 
-void simta_ldapuser __P ((char * buf, char ** user, char ** domain));
-void simta_ldapdomain __P ((char * buf, char ** domain));
-char * simta_splitit __P ((char * start, char ** next,  int splitval));
-int add_errdnvals __P((struct exp_addr *exp, char ** errmailvals, char *dn));
-int add_errmailvals __P((struct exp_addr *exp, char ** errmailvals, char * dn));
+static void simta_ldapuser __P ((char * buf, char ** user, char ** domain));
+static void simta_ldapdomain __P ((char * buf, char ** domain));
+static char * simta_splitit __P ((char * start, char ** next,  int splitval));
+static int add_errdnvals __P((struct expand *exp, struct exp_addr *e_addr, 
+		char ** errmailvals));
+static int add_errmailvals __P((struct exp_addr *exp, char ** errmailvals, 
+		char * dn));
+static int simta_group_err_env __P((struct expand *exp, 
+		struct exp_addr *e_addr, LDAPMessage *entry, char *dn));
 /*
 **
 */
@@ -992,9 +997,19 @@ simta_ldap_dn_search (struct expand *exp, struct exp_addr *e_addr )
 
     if ( match == 0 ) {
 	ldap_msgfree( res );
-	/*
-	** We want to bounce -- or send an error here!
-	*/
+
+    	if ( (bounce_text( e_addr->e_addr_errors, search_dn,
+		" : Group member does not exist\n" , NULL ) != 0 ) 
+    	||   (bounce_text( e_addr->e_addr_errors, 
+   "This could be because the distinguished name of the person has changed\n" , 
+   "If this is the case, the problem can be solved by removing and\n",
+   "then re-adding the person to the group\n" ) != 0 )  ) {
+
+	    syslog( LOG_ERR, 
+	"simta_ldap_dn_search: Failed building bounce message -- no member: %s",
+				search_dn);
+	    return( LDAP_SYSERROR );
+	}
 	return( LDAP_NOT_FOUND ); /* no entries found */
     }
     
@@ -1019,6 +1034,8 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
     char	**onvacation;
     int		idx;
     int		result;
+    char	*attrval;
+    char	*nextval;
 
     if ( ldap_groups
     &&  (simta_ldap_value( entry, "objectClass", ldap_groups ) == 1 ) ) {
@@ -1035,63 +1052,84 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 				"mailForwardingAddress" )) == NULL ) {
 	    /*
 	    ** This guy has no mailforwardingaddress	
-	    ** Bounce it.
+	    ** Depending on if we're expanding a group
+	    ** Bounce it with the appropriate message.
 	    */
-	    /*
-	    ** If we're inside a group,
-	    ** then check suppressnoemail
-	    */
+	    if ( e_addr->e_addr_type != ADDRESS_TYPE_LDAP ) 
+		do_noemail (e_addr, addr, entry);
+	    else {
+		if ((e_addr->e_addr_errors->e_flags & SUPPRESSNOEMAILERROR) == 0) {
+	
+		    if ( bounce_text( e_addr->e_addr_errors, addr,
+		" : Group member exists but does not have an email address" , 
+			NULL ) != 0 ) {
 
-	    do_noemail (e_addr, addr, entry);
+			syslog( LOG_ERR, 
+    "simta_ldap_process_entry: Failed building bounce message -- no email: %s",
+				e_addr->e_addr);
+			return( LDAP_SYSERROR );
+		    }
+		}
+	    }
 #if 0
 	    if (simta_expand_debug)
-#endif
 		syslog( LOG_ERR,
 		 "simta_ldap_process_entry: %s has no mailforwardingaddress\n",
 			 addr);
+#endif
 	} else {
 
 	    for ( idx = 0; values[ idx ] != NULL; idx++ ) {
-		if ( add_address( exp, values[ idx ],
-			e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
-		    syslog (LOG_ERR, 
-		"simta_ldap_process_entry: failed adding mailforwardingaddress: %s", 
-			    addr);
-		    ldap_value_free( values );
-		    return( LDAP_SYSERROR );
+
+		attrval = values[ idx ];
+        	while ( attrval && *attrval )
+		{
+		    attrval = simta_splitit (attrval, &nextval, ',');
+		    if (strchr (attrval, '@') ) {
+
+			if ( add_address( exp, attrval,
+			   e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
+				syslog (LOG_ERR, 
+	"simta_ldap_process_entry: failed adding mailforwardingaddress: %s", 
+			    		 addr);
+				ldap_value_free( values );
+				return( LDAP_SYSERROR );
+			}
+		    }
+		    attrval = nextval;
 		}
 	    }
 
 	    ldap_value_free( values );
-	}
-	/*
-	* If the user is on vacation, send a copy of the mail to
-	* the vacation server.  The address is constructed from
- 	* the vacationhost (specified in the config file) and
-	* the uid (XXX this should be more general XXX).
-	*/
+	    /*
+	    * If the user is on vacation, send a copy of the mail to
+	    * the vacation server.  The address is constructed from
+ 	    * the vacationhost (specified in the config file) and
+	    * the uid (XXX this should be more general XXX).
+	    */
+	    onvacation = NULL;
+	    if ( vacationhost != NULL && vacationattr != NULL
+            && (onvacation = ldap_get_values( ld, entry, vacationattr)) != NULL 
+	    && strcasecmp( onvacation[0], "TRUE" ) == 0 ) {
 
-	if ( vacationhost != NULL && vacationattr != NULL
-        && (onvacation = ldap_get_values( ld, entry, vacationattr)) != NULL 
-	&& strcasecmp( onvacation[0], "TRUE" ) == 0 ) {
+		char    buf[1024];
 
-	    char    buf[1024];
-
-	    if ( (uid = ldap_get_values( ld, entry, "uid" )) != NULL ) {
-		sprintf( buf, "%s@%s", uid[0], vacationhost );
-		if ( add_address( exp, buf,
+		if ( (uid = ldap_get_values( ld, entry, "uid" )) != NULL ) {
+		    sprintf( buf, "%s@%s", uid[0], vacationhost );
+		    if ( add_address( exp, buf,
 			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
-		    syslog (LOG_ERR, 
+			syslog (LOG_ERR, 
 		"simta_ldap_process_entry: failed adding vacation address: %s", buf);
-		}
-		ldap_value_free( uid);
-	    } else {
-		syslog( LOG_ALERT, "user without a uid on vacation (%s)",
+		    }
+		    ldap_value_free( uid);
+	    	} else {
+		    syslog( LOG_ALERT, "user without a uid on vacation (%s)",
 				 addr );
+	    	}
 	    }
+	    if (onvacation)
+		ldap_value_free( onvacation );
 	}
-	if (onvacation)
-	    ldap_value_free( onvacation );
 
 	return (LDAP_EXCLUDE);
 
@@ -1110,23 +1148,20 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     int		valfound = 0;
     char	**dnvals;
     char	**mailvals;
-    char	**vals;
     char	*dn;
     char	*errmsg;
     int		idx;
-
-    int		suppressnoemail = FALSE;
 
     char	**moderator;
     char	*sender_name;
     char	*sender_domain;
     char	*mod_name;
     char	*mod_domain;
-    char	**errmailvals;
-    char	**errdnvals;
 
     char	*attrval;
     char	*nextval;
+
+    int		rc;
 
     dn = ldap_get_dn( ld, entry );
     switch ( type ) 
@@ -1162,11 +1197,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	** then send message to the group
 	** else send message to the moderator
 	*/
-	/* If we're a group inside another group
-	** how do we ignore moderator checking
-	** we would not get here if moderator test didn't pass on parent
-	** or grandparent.
-	*/ 
 	moderator = ldap_get_values( ld, entry, "moderator");
 	if (moderator) 
 	{
@@ -1206,55 +1236,15 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    else
 		ldap_value_free (moderator);
 	}
-	/*
-	** What do we do about "suppressnoemailerror"
-	** We won't know whether to log the error until
-	** we look at the individual.
-	*/
-
-	vals = ldap_get_values( ld, entry, "suppressNoEmailError");
-	if (vals) 
-	{
-	    if (strcasecmp ( vals[0], "TRUE") == 0)	
-		suppressnoemail = TRUE;
-	    ldap_value_free (vals);
-	}
-
-	errdnvals = ldap_get_values( ld, entry, "errorsto");
-	errmailvals = ldap_get_values( ld, entry, "rfc822errorsto");
-	if (errdnvals || errmailvals || suppressnoemail) {
-	    if (errdnvals || errmailvals) {
-		if ((e_addr->e_addr_errors = address_bounce_create( exp )) 
-				== NULL ) {
-		    syslog (LOG_ERR,
-	"simta_ldap_expand_group: %s failed creating error env: %s", dn,
-			mailvals[ idx ]);
-		    ldap_memfree (dn);
-		    if (errdnvals)
-			ldap_value_free ( errmailvals );
-		    if (errmailvals)
-			ldap_value_free ( errdnvals);
-		    return LDAP_SYSERROR;
-		}
-		if (errmailvals) {
-		    add_errmailvals (e_addr, errmailvals, dn);
-		    ldap_value_free ( errmailvals );
-		}
-		if (errdnvals) {
-		    add_errdnvals (e_addr, errdnvals, dn);
-		    ldap_value_free ( errdnvals );
-		}
-
-		if (suppressnoemail) 
-		    e_addr->e_addr_errors->e_flags = 1;
-	    }
-	    else
-	    {
-		if (suppressnoemail) {
-		    e_addr->e_addr_errors = env_dup (e_addr->e_addr_errors);
-		    e_addr->e_addr_errors->e_flags = 1;
-		}
-	    }
+	/* Create a new error envelope */
+	rc = simta_group_err_env (exp, e_addr, entry, dn);
+	if (rc != 0) {
+	    if (dnvals )
+		ldap_value_free( dnvals);
+	    if (mailvals )
+		ldap_value_free(mailvals );
+	    ldap_memfree (dn);
+	    return (rc);
 	}
 
 	break;
@@ -1395,6 +1385,8 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	dn = ldap_get_dn( ld, e );
 	ufn = ldap_explode_dn( dn, 1 );
 	rdn = strdup( ufn[0] );
+	ldap_value_free( ufn );
+	free( dn );
 
 	if ( strcasecmp( rdn, addr ) == 0 ) {
 	    if ( (vals = ldap_get_values( ld, e, "cn" )) != NULL ) {
@@ -1431,9 +1423,7 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 			vals[idx], NULL );    /* 1234567890123456789012345 */
 	}
 
-	free( dn );
 	free( rdn );
-	ldap_value_free( ufn );
 	if ( vals != NULL )
 	    ldap_value_free( vals );
     }
@@ -1480,6 +1470,8 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	free (errfmtbuf);
 	return;
     }
+    free (errfmtbuf);
+
     /* name */
     dn = ldap_get_dn( ld, res );
     ufn = ldap_explode_dn( dn, 1 );
@@ -1501,7 +1493,6 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     sprintf( blankbuf, "%*s  ", addrnamelen, ""); 
 
     if ( bounce_text( e_addr->e_addr_errors, blankbuf, rdn, NULL ) != 0 ) {
-	free (errfmtbuf);
 	free (blankbuf);
 	return;
     }
@@ -1516,7 +1507,6 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 
 	if ( bounce_text( e_addr->e_addr_errors, blankbuf, 
 			"No title or description registered" , NULL ) != 0 ){
-	    free (errfmtbuf);
 	    free (blankbuf);
 	    return;
 	}
@@ -1524,7 +1514,6 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	for ( idx = 0; vals[idx] != NULL; idx++ ) {
 	    if ( bounce_text( e_addr->e_addr_errors, 
 				blankbuf, vals[idx], NULL ) != 0 ) {
-		free (errfmtbuf);
 		free (blankbuf);
 		return;
 	    }
@@ -1535,7 +1524,6 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     if ( (vals = ldap_get_values( ld, res, "postaladdress" )) == NULL ) {
 	if ( bounce_text( e_addr->e_addr_errors, blankbuf, 
 			"No postaladdress registered", NULL ) != 0 ){
-	    free (errfmtbuf);
 	    free (blankbuf);
 	    return;
 	}
@@ -1543,7 +1531,6 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	for ( idx = 0; vals[idx] != NULL; idx++ ) {
 	    if ( bounce_text( e_addr->e_addr_errors, 
 				blankbuf, vals[idx], NULL ) != 0 ) {
-		free (errfmtbuf);
 	        free (blankbuf);
 		return;
 	    }
@@ -1554,7 +1541,6 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     if ( (vals = ldap_get_values( ld, res, "telephoneNumber" )) == NULL ) {
 	if ( bounce_text( e_addr->e_addr_errors, blankbuf, 
 				"No phone number registered", NULL ) != 0 ){
-	    free (errfmtbuf);
 	    free (blankbuf);
 	    return;
 	}
@@ -1562,19 +1548,18 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	for ( idx = 0; vals[idx] != NULL; idx++ ) {
 	    if ( bounce_text( e_addr->e_addr_errors, 
 				blankbuf, vals[idx], NULL ) != 0 ) {
-		free (errfmtbuf);
 	        free (blankbuf);
 		return;
 	    }
 	}
 	ldap_value_free( vals );
     }
-    free (errfmtbuf);
     free (blankbuf);
     return;
 }
 
-void simta_ldapuser (char * buf, char ** user, char ** domain)
+static void 
+simta_ldapuser (char * buf, char ** user, char ** domain)
 {
     char  *puser;
 
@@ -1593,7 +1578,8 @@ void simta_ldapuser (char * buf, char ** user, char ** domain)
     return;
 }
 
-void simta_ldapdomain (char * buf, char ** domain)
+static void 
+simta_ldapdomain (char * buf, char ** domain)
 {
     char *pbuf;
     int	 dotcnt = 0;
@@ -1616,17 +1602,194 @@ void simta_ldapdomain (char * buf, char ** domain)
     *domain = strdup(pbuf);
     return;
 }
-int
-add_errdnvals (struct exp_addr *exp, char ** errdnvals, char * dn)
+
+static int
+simta_group_err_env (struct expand *exp, struct exp_addr *e_addr, LDAPMessage *entry, char *dn)
+{
+
+    char **vals;
+
+    int suppressnoemail = 0;
+    char ** errdnvals;
+    char ** errmailvals;
+
+    int rc = 0;
+
+    vals = ldap_get_values( ld, entry, "suppressNoEmailError");
+    if (vals) 
+    {
+	if (strcasecmp ( vals[0], "TRUE") == 0)	
+	    suppressnoemail = TRUE;
+	ldap_value_free (vals);
+    }
+
+    errdnvals = ldap_get_values( ld, entry, "errorsto");
+    errmailvals = ldap_get_values( ld, entry, "rfc822errorsto");
+
+    if (errdnvals || errmailvals || suppressnoemail) {
+	if (errdnvals || errmailvals) {
+	    if ((e_addr->e_addr_errors = address_bounce_create( exp )) == NULL ) {
+		syslog (LOG_ERR,
+	  	    "simta_group_err_env: failed creating error env: %s", dn);
+		ldap_memfree (dn);
+		if (errdnvals)
+		    ldap_value_free ( errmailvals );
+		if (errmailvals)
+		    ldap_value_free ( errdnvals);
+		return LDAP_SYSERROR;
+	    }
+	
+	    if (errmailvals) {
+		add_errmailvals (e_addr, errmailvals, dn);
+		ldap_value_free ( errmailvals );
+	    }
+	    if (errdnvals) {
+		rc = add_errdnvals (exp, e_addr, errdnvals);
+		ldap_value_free ( errdnvals );
+	    }
+
+	    if (suppressnoemail) 
+		e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
+	}
+	else
+	{   /*
+	    ** Else SuppressNoEmail must be true -- clone the current envelope
+	    */
+	    e_addr->e_addr_errors = env_dup (e_addr->e_addr_errors);
+	    e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
+	}
+    }
+
+    return (rc);
+}
+/*
+** Expands each value in the dn array "expdnvals"
+** For each person it stuff the mailforwardingaddress into the 
+** error envelopement.  For each group it stuff the rdn@associatedomain
+** into the error envelopement.
+*/
+static int
+add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
 {
     int		idx;
 
-    for (idx = 0; errdnvals[idx]; idx++)
+    char	*search_dn;    
+    LDAPMessage *res;
+    LDAPMessage	*entry;
+    struct timeval timeout = {MAIL500_TIMEOUT, 0};
+
+    char	*dn;
+    char	**vals;
+    char	**ufn;
+    char	*errmailbuf;
+    int		match;
+    int		rc;
+
+
+    for (idx = 0; expdnvals[idx]; idx++)
     {
+	search_dn = expdnvals[idx];
+	res = NULL;
+	rc = ldap_search_st( ld, search_dn, LDAP_SCOPE_BASE, "(objectclass=*)",
+                        attrs, 0, &timeout, &res );
+     
+	if ( rc != LDAP_SUCCESS
+	&&   rc != LDAP_SIZELIMIT_EXCEEDED
+	&&   rc != LDAP_NO_SUCH_OBJECT ) {
+      
+	    syslog( LOG_ERR, "add_errdnvals: ldap_search_st Failed: %s",
+                    ldap_err2string(rc ));
+	    ldap_msgfree( res );
+        
+	    simta_ldap_unbind (ld);
+	    return( LDAP_SYSERROR );
+	}
+
+	match = ldap_count_entries (ld, res );
+	if (match == -1) {
+	    syslog( LOG_ERR,
+    "add_errdnvals: Error parsing result from LDAP server for dn: %s",
+                        search_dn);
+	    ldap_msgfree( res );
+	    simta_ldap_unbind (ld);
+	    return( LDAP_SYSERROR );
+	}
+	/*
+        ** If not found -- Who cares!
+        */
+	if ( match == 0 ) {
+	    ldap_msgfree( res );
+	    continue;
+	}
+
+	if (( entry = ldap_first_entry( ld, res )) == NULL ) {
+	    syslog( LOG_ERR, "add_errdnvals: ldap_first_entry: %s",
+                ldap_err2string( ldap_result2error( ld, res, 1 )));
+	    ldap_msgfree( res );
+	    return( LDAP_SYSERROR );
+	}
+
+	dn = ldap_get_dn (ld, entry );
+
+	if ( ldap_people
+	&&  (simta_ldap_value( entry, "objectClass", ldap_people ) == 1 ) ) {
+	    if (( vals = ldap_get_values( ld, entry,
+                                "mailForwardingAddress" )) != NULL ) {
+		add_errmailvals (e_addr, vals, dn);
+		ldap_value_free( vals );
+	    }
+	}
+
+	if ( ldap_groups
+	&&  (simta_ldap_value( entry, "objectClass", ldap_groups ) == 1 ) ) {
+	    /*
+	    ** add rdn@associateddomain to env_recipient list
+	    */
+	    if (( vals = ldap_get_values( ld, entry,
+					 "associateddomain" )) != NULL ) {
+
+		ufn = ldap_explode_dn( dn, 1 );
+		errmailbuf = (char *) malloc
+				(strlen(ufn[0]) + strlen (vals[0]) + 2);
+		if (! errmailbuf) {
+		    syslog (LOG_ERR, 
+		"simta_add_errmailvals: Failed allocating errmailbuf: %s", dn);
+		    ldap_memfree (dn);
+		    ldap_msgfree( res );
+		    ldap_value_free( vals );
+		    ldap_value_free( ufn );
+		    return (LDAP_SYSERROR);
+		}
+		
+		sprintf (errmailbuf, "%s@%s", ufn[0], vals[0]); 
+	
+		ldap_value_free( vals );
+		ldap_value_free( ufn );
+
+		rc = env_recipient( e_addr->e_addr_errors, errmailbuf);
+	
+		if( rc != 0 ) {
+		    syslog (LOG_ERR, 
+	"simta_add_errmailvals: %s failed adding error recipient: %s", dn,
+				errmailbuf);
+		    free (errmailbuf);
+		    ldap_memfree (dn);
+		    ldap_msgfree( res );
+		    return (LDAP_SYSERROR);
+		}
+		free (errmailbuf);
+	    }
+	}
+	ldap_memfree (dn);
+	ldap_msgfree( res );
     }
     return (0);
 }
-int
+/*
+** Adds an array of email addresses "errmailvals" to the current
+** error envelope.
+*/
+static int
 add_errmailvals (struct exp_addr *e_addr, char ** errmailvals, char * dn)
 {
 
@@ -1659,7 +1822,7 @@ add_errmailvals (struct exp_addr *e_addr, char ** errmailvals, char * dn)
 ** next break character splitval.  It also sets next
 ** to point to the next character after splitval.
 */
-char *
+static char *
 simta_splitit (char * start, char ** next, int splitval)
 {
     *next = strchr (start,  splitval);
@@ -1670,4 +1833,3 @@ simta_splitit (char * start, char ** next, int splitval)
 
     return (start);
 }
-
