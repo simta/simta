@@ -992,6 +992,8 @@ env_slow( struct envelope *env )
 	}
 
 	syslog( LOG_DEBUG, "env_slow %s %s: moved", env->e_dir, env->e_id );
+
+	env->e_dir = simta_dir_slow;
     }
 
     return( 0 );
