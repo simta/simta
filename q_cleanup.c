@@ -14,6 +14,44 @@
 #include "queue.h"
 
 
+int inode_compare( void *, void * );
+void inode_stdout( void * );
+
+
+    int
+inode_compare( void *a, void *b )
+{
+    struct q_file		*qa;
+    struct q_file		*qb;
+
+    qa = (struct q_file*)a;
+    qb = (struct q_file*)b;
+
+    if ( qa->q_dfile_ino == qb->q_dfile_ino ) {
+	return( 0 );
+    } else if ( qa->q_dfile_ino > qb->q_dfile_ino ) {
+	return( 1 );
+    }
+    return( -1 );
+}
+
+
+    void
+inode_stdout( void *data )
+{
+    struct q_file		*q;
+
+    q = (struct q_file*)data;
+
+    printf( "INODE:\t%d\n", q->q_dfile_ino );
+
+    while ( q != NULL ) {
+	q_file_stdout( q );
+	q = q->q_inode_next;
+    }
+}
+
+
     /* 1. move everything from FAST and LOCAL to SLOW:
      *     -collisions are fatal
      *
@@ -35,7 +73,9 @@ main( int argc, char *argv[] )
     DIR				*dirp;
     struct dirent		*entry;
     struct q_file		*q;
+    struct q_file		*q_inode;
     struct stab_entry		*file_stab = NULL;
+    struct stab_entry		*inode_stab = NULL;
     struct stab_entry		*st = NULL;
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
@@ -125,9 +165,26 @@ main( int argc, char *argv[] )
 		perror( "stat" );
 		exit( 1 );
 	    }
-	    printf( "ref count %s/D%s:\t%d\n", SLOW_DIR, q->q_id, sb.st_nlink );
+
+	    q->q_dfile_ino = sb.st_ino;
+	    q->q_dfile_nlink = sb.st_nlink;
+
+	    /* Insert inode stab here */
+	    if (( q_inode = ll__lookup( inode_stab, q, inode_compare ))
+		    == NULL ) {
+		if ( ll__insert( &inode_stab, q, inode_compare ) != 0 ) {
+		    perror( "ll__insert" );
+		    exit( 1 );
+		}
+
+	    } else {
+		q->q_inode_next = q_inode->q_inode_next;
+		q_inode->q_inode_next = q;
+	    }
 	}
     }
+
+    ll_walk( inode_stab, inode_stdout );
 
     return( 0 );
 }

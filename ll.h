@@ -19,3 +19,6 @@ int	ll_insert( struct stab_entry **, char *, void *,
 		int(*)( char *, char * ));
 void	*ll_remove( struct stab_entry **, char * );
 void	ll_walk( struct stab_entry *, void (*)( void *));
+
+int	ll__insert( struct stab_entry **, void *, int(*)( void *, void * ));
+void	*ll__lookup( struct stab_entry *, void *, int(*)( void *, void * ));

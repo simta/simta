@@ -118,3 +118,46 @@ ll_walk( struct stab_entry *st, void (*ll_func)( void * ))
 	ll_func( st->st_data );
     }
 }
+
+
+    void*
+ll__lookup( struct stab_entry *st, void *data,
+	int (*ll_compare)( void *, void * ))
+{
+    for( ; st != NULL; st = st->st_next ) {
+	if ( ll_compare( st->st_data, data ) == 0 ) {
+	    /* match found */
+	    return( st->st_data );
+	}
+    }
+    /* no match found */
+    return( NULL );
+}
+
+
+    int
+ll__insert( struct stab_entry **stab, void *data,
+	int (*ll_compare)( void *, void * ))
+{
+    struct stab_entry	*st;
+    struct stab_entry	**i;
+
+    if (( st = (struct stab_entry*)malloc( sizeof( struct stab_entry )))
+	    == NULL ) {
+	return( -1 );
+    }
+    memset( st, 0, sizeof( struct stab_entry ));
+
+    st->st_data = data;
+
+    for ( i = stab; *i != NULL; i = &((*i)->st_next) ) {
+	if ( ll_compare( data, (*i)->st_data ) < 0 ) {
+	    break;
+	}
+    }
+
+    st->st_next = *i;
+    *i = st;
+
+    return( 0 );
+}
