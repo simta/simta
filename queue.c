@@ -296,6 +296,8 @@ q_run( struct host_q **host_q )
 			    ( hq->hq_entries >= (*dq)->hq_entries )) {
 			break;
 		    }
+
+		    dq = &((*dq)->hq_next);
 		}
 
 		hq->hq_deliver = *dq;
