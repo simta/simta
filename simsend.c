@@ -303,6 +303,8 @@ main( int argc, char *argv[] )
 			    exit( EX_TEMPFAIL );
 			}
 
+			l->line_no = line_no;
+
 			break;
 		    }
 		}

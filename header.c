@@ -44,7 +44,7 @@ struct line_token {
 
 void	header_stdout ___P(( struct header[] ));
 void	header_exceptions ___P(( struct line_file * ));
-int	skip_cfws ___P(( struct line **, char ** ));
+char	*skip_cfws ___P(( struct line **, char ** ));
 int	is_dot_atom_text ___P(( int ));
 int	line_token_da ___P(( struct line_token *, struct line *, char * ));
 int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
@@ -138,10 +138,11 @@ match_addr( struct line_token *local, struct line_token *domain, char *addr )
      *	-l will be on c's line, or NULL
      */
 
-    int
+    char *
 skip_cfws( struct line **l, char **c )
 {
     int				comment = 0;
+    struct line			*comment_line = NULL;
 
     for ( ; ; ) {
 	switch ( **c ) {
@@ -150,46 +151,61 @@ skip_cfws( struct line **l, char **c )
 	    break;
 
 	case '(':
+	    if ( comment_line == NULL ) {
+		comment_line = *l;
+	    }
+
 	    comment++;
 	    break;
 
 	case ')':
 	    comment --;
 
-	    if ( comment < 0 ) {
-		return( -1 );
+	    if ( comment == 0 ) {
+		comment_line = NULL;
+
+	    } else if ( comment < 0 ) {
+		return( "unbalanced )" );
 	    }
 	    break;
 
 	case '\\':
 	    (*c)++;
 
-	    if ( *c == '\0' ) {
+	    if ( **c == '\0' ) {
 		/* trailing '\' is illegal */
-	    	return( -1 );
+		return( "trailing '\\' is illegal" );
 	    }
 	    break;
 
 	case '\0':
 	    /* end of line.  if next line starts with WSP, continue */
-	    *l = (*l)->line_next;
+	    if (((*l)->line_next != NULL ) &&
+		    (( *((*l)->line_next->line_data) == ' ' ) ||
+		    ( *((*l)->line_next->line_data) == '\t' ))) {
 
-	    if (( *l != NULL ) &&
-		    (( *((*l)->line_data) == ' ' ) ||
-		    ( *((*l)->line_data) == '\t' ))) {
+		*l = (*l)->line_next;
 		*c = (*l)->line_data;
 		break;
 
 	    } else {
 		/* End of header */
+
 		*c = NULL;
-		*l = NULL;
-		return( comment );
+
+		if ( comment_line != NULL ) {
+		    *l = comment_line;
+		    return( "unbalanced \(" );
+
+		} else {
+		    return( NULL );
+		}
 	    }
+
 
 	default:
 	    if ( comment == 0 ) {
-		return( 0 );
+		return( NULL );
 	    }
 	}
 
@@ -424,8 +440,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 		} else {
 		    /* header h->h_key appears at least twice */
-		    fprintf( stderr, "Illegal duplicate header: %s\n",
-			    h->h_key );
+		    fprintf( stderr, "line %d: illegal duplicate header %s\n",
+			    l->line_no, h->h_key );
 		    return( 1 );
 		}
 	    }
@@ -681,7 +697,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     size_t				buf_len;
     struct line_token			local;
     struct line_token			domain;
-    int					result;
+    char				*err_str;
 
     if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER ) &&
 	    ( mode != MAILBOX_RECIPIENTS_CORRECT ) &&
@@ -701,28 +717,26 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 
     next_l = *start_line;
 
-    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	if ( result > 0 ) {
-	    fprintf( stderr, "unbalanced \(\n" );
-	} else {
-	    fprintf( stderr, "unbalanced )\n" );
-	}
+    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
+	fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
 	return( 1 );
     }
 
     if ( next_c == NULL ) {
-	fprintf( stderr, "address expected\n" );
+	fprintf( stderr, "line %d: address expected\n",
+		next_l->line_no );
 	return( 1 );
 
     } else if ( *next_c == '"' ) {
 	if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "unbalanced \"\n" );
+	    fprintf( stderr, "line %d: unbalanced \"\n", next_l->line_no );
 	    return( 1 );
 	}
 
     } else {
 	if ( line_token_da( &local, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "expected atext, bad token: %s\n", next_c );
+	    fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
+		    *next_c );
 	    return( 1 );
 	}
     }
@@ -730,12 +744,8 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     next_c = local.t_end + 1;
     next_l = local.t_end_line;
 
-    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	if ( result > 0 ) {
-	    fprintf( stderr, "unbalanced \(\n" );
-	} else {
-	    fprintf( stderr, "unbalanced )\n" );
-	}
+    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
+	fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
 	return( 1 );
     }
 
@@ -805,34 +815,32 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     } else if ( *next_c == '@' ) {
 	next_c++;
 
-	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "unbalanced )\n" );
-	    }
+	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
+	    fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
 	    return( 1 );
 	}
 
 	if ( next_c == NULL ) {
-	    fprintf( stderr, "domain expected\n" );
+	    fprintf( stderr, "line %d: domain expected\n",
+		    next_l->line_no );
 	    return( 1 );
 
 	} else if ( *next_c == '[' ) {
 	    if ( line_token_dl( &domain, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "unmatched [\n" );
+		fprintf( stderr, "line %d: unmatched [\n", next_l->line_no );
 		return( 1 );
 	    }
 
 	} else {
 	    if ( line_token_da( &domain, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "expected atext, bad token: %s\n", next_c );
+		fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
+			*next_c );
 		return( 1 );
 	    }
 	}
 
     } else {
-	fprintf( stderr, "'@' expected\n" );
+	fprintf( stderr, "line %d: '@' expected\n", next_l->line_no );
 	return( 1 );
     }
 
@@ -840,17 +848,13 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     next_l = domain.t_end_line;
 
     if ( **start == '<' ) {
-	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "unbalanced )\n" );
-	    }
+	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
+	    fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
 	    return( 1 );
 	}
 
 	if (( next_c == NULL ) || ( *next_c != '>' )) {
-	    fprintf( stderr, "> expected\n" );
+	    fprintf( stderr, "line %d: '>' expected\n", next_l->line_no );
 	    return( 1 );
 	}
 
@@ -866,7 +870,8 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 
     if ( mode == MAILBOX_SENDER ) {
 	if ( match_addr( &local, &domain, sender ) == 0 ) {
-	    fprintf( stderr, "Sender header address should be <%s>\n", sender );
+	    fprintf( stderr, "line %d: sender address should be <%s>\n",
+		    simta_headers[ HEAD_SENDER ].h_line->line_no, sender );
 	    return( 1 );
 	}
 
@@ -883,7 +888,8 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	/* XXX only handle DA addresses */
 	if (( local.t_type != TOKEN_DOT_ATOM ) &&
 		( domain.t_type != TOKEN_DOT_ATOM )) {
-	    fprintf( stderr, "unsupported text in email address\n" );
+	    fprintf( stderr, "unsupported address text\n" );
+	    return( 1 );
 	}
 
 	addr_len = local.t_end - local.t_start + 1;
@@ -927,6 +933,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     int
 parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 {
+    char				*err_str;
     char				*next_c;
     struct line				*next_l;
     struct line_token			local;
@@ -940,12 +947,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
     }
 
     /* is there data on the line? */
-    if (( result = skip_cfws( &l, &c )) != 0 ) {
-	if ( result > 0 ) {
-	    fprintf( stderr, "unbalanced \(\n" );
-	} else {
-	    fprintf( stderr, "unbalanced )\n" );
-	}
+    if (( err_str = skip_cfws( &l, &c )) != NULL ) {
+	fprintf( stderr, "line %d: %s\n", l->line_no, err_str );
 	return( 1 );
     }
 
@@ -958,7 +961,7 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	 */
 
 	if ( c == NULL ) {
-	    fprintf( stderr, "NULL address\n" );
+	    fprintf( stderr, "line %d: missing address\n", l->line_no );
 	    return( 1 );
 
 	} else if ( *c != '<' ) {
@@ -971,14 +974,14 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 
 	    if ( *c == '"' ) {
 		if ( line_token_qs( &local, l, c ) != 0 ) {
-		    fprintf( stderr, "unbalanced \"\n" );
+		    fprintf( stderr, "line %d: unbalanced \"\n", l->line_no );
 		    return( 1 );
 		}
 
 	    } else {
 		if ( line_token_da( &local, l, c ) != 0 ) {
-		    fprintf( stderr, "expected atext, bad token: %s\n",
-			    next_c );
+		    fprintf( stderr, "line %d: bad token: %c\n", l->line_no,
+			    *c );
 		    return( 1 );
 		}
 	    }
@@ -986,12 +989,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    next_c = local.t_end + 1;
 	    next_l = local.t_end_line;
 
-	    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-		if ( result > 0 ) {
-		    fprintf( stderr, "unbalanced \(\n" );
-		} else {
-		    fprintf( stderr, "unbalanced )\n" );
-		}
+	    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
+		fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
 		return( 1 );
 	    }
 	
@@ -1013,14 +1012,15 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 
 		    if ( *next_c == '"' ) {
 			if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
-			    fprintf( stderr, "unbalanced \"\n" );
+			    fprintf( stderr, "line %d: unbalanced \"\n",
+				    next_l->line_no );
 			    return( 1 );
 			}
 
 		    } else {
 			if ( line_token_da( &local, next_l, next_c ) != 0 ) {
-			    fprintf( stderr, "expected atext, bad token: %s\n",
-				    next_c );
+			    fprintf( stderr, "line %d: bad token: %c\n",
+				    next_l->line_no, *next_c );
 			    return( 1 );
 			}
 		    }
@@ -1028,18 +1028,16 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    next_c = local.t_end + 1;
 		    next_l = local.t_end_line;
 
-		    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-			if ( result > 0 ) {
-			    fprintf( stderr, "unbalanced \(\n" );
-			} else {
-			    fprintf( stderr, "unbalanced )\n" );
-			}
+		    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
+			fprintf( stderr, "line %d: %s\n", next_l->line_no, 
+				err_str );
 			return( 1 );
 		    }
 		}
 
 		if ( next_c == NULL ) {
-		    fprintf( stderr, "unexpected end of header\n" );
+		    fprintf( stderr, "line %d: unexpected end of header\n",
+			    next_l->line_no );
 		    return( 1 );
 		}
 
@@ -1058,18 +1056,14 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    return( result );
 	}
 
-	if (( result = skip_cfws( &l, &c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "unbalanced )\n" );
-	    }
+	if (( err_str = skip_cfws( &l, &c )) != NULL ) {
+	    fprintf( stderr, "line %d: %s\n", l->line_no, err_str );
 	    return( 1 );
 	}
 
 	if ( c == NULL ) {
 	    if ( mode == MAILBOX_GROUP_CORRECT ) {
-		fprintf( stderr, "';' expected\n" );
+		fprintf( stderr, "line %d: ';' expected\n", l->line_no );
 		return( 1 );
 	    }
 
@@ -1080,46 +1074,44 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    if (( mode == MAILBOX_GROUP_CORRECT ) && ( *c == ';' )) {
 		c++;
 
-		if (( result = skip_cfws( &l, &c )) != 0 ) {
-		    if ( result > 0 ) {
-			fprintf( stderr, "unbalanced \(\n" );
-		    } else {
-			fprintf( stderr, "unbalanced )\n" );
-		    }
+		if (( err_str = skip_cfws( &l, &c )) != NULL ) {
+		    fprintf( stderr, "line %d: %s\n", l->line_no,
+			    err_str );
 		    return( 1 );
 		}
 
 		if ( c != NULL ) {
-		    fprintf( stderr, "illegal words after group address\n" );
+		    fprintf( stderr, "line %d: illegal token after group "
+			    "address: %c\n", l->line_no, *c );
 		    return( 1 );
 		}
 
 		return( 0 );
 	    }
 
-	    fprintf( stderr, "illegal words after address\n" );
+	    fprintf( stderr, "line %d: illegal token after address: %c\n",
+		    l->line_no, *c );
 	    return( 1 );
 	}
 
 	c++;
 
-	if (( result = skip_cfws( &l, &c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "unbalanced )\n" );
-	    }
+	if (( err_str = skip_cfws( &l, &c )) != NULL ) {
+	    fprintf( stderr, "line %d: %s\n", l->line_no, err_str );
 	    return( 1 );
 	}
 
 	if ( c == NULL ) {
-	    fprintf( stderr, "address expected after ,\n" );
+	    fprintf( stderr, "line %d: address expected after ','\n",
+		    l->line_no );
 	    return( 1 );
 	}
 
 	/* c != NULL means more than one address on the line */
 	if ( mode == MAILBOX_SENDER ) {
-	    fprintf( stderr, "Sender header is a single address\n" );
+	    fprintf( stderr, "line %d: "
+		    "illegal second address in Sender header\n",
+		    l->line_no );
 	    return( 1 );
 
 	} else if ( mode == MAILBOX_FROM_CORRECT ) {
@@ -1145,27 +1137,24 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
     int
 parse_recipients( struct envelope *env, struct line *l, char *c )
 {
+    char				*err_str;
     char				*next_c;
     struct line				*next_l;
     struct line_token			local;
-    int					result;
 
     /* is there data on the line? */
-    if (( result = skip_cfws( &l, &c )) != 0 ) {
-	if ( result > 0 ) {
-	    fprintf( stderr, "unbalanced \(\n" );
-	} else {
-	    fprintf( stderr, "unbalanced )\n" );
-	}
+    if (( err_str = skip_cfws( &l, &c )) != NULL ) {
+	fprintf( stderr, "line %d: %s\n", l->line_no, err_str );
 	return( 1 );
     }
 
     if ( c == NULL ) {
-	fprintf( stderr, "NULL address\n" );
+	fprintf( stderr, "line %d: Missing address\n", l->line_no );
 	return( 1 );
 
     } else if ( *c == ':' ) {
-	fprintf( stderr, "':' without group\n" );
+	fprintf( stderr, "line %d: bad token: %c\n", l->line_no,
+		*c );
 	return( 1 );
 
     } else if ( *c == '<' ) {
@@ -1175,14 +1164,13 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
     /* at least one word on the line */
     if ( *c == '"' ) {
 	if ( line_token_qs( &local, l, c ) != 0 ) {
-	    fprintf( stderr, "unbalanced \"\n" );
+	    fprintf( stderr, "line %d: unbalanced \"\n", l->line_no );
 	    return( 1 );
 	}
 
     } else {
 	if ( line_token_da( &local, l, c ) != 0 ) {
-	    fprintf( stderr, "expected atext, bad token: %s\n",
-		    next_c );
+	    fprintf( stderr, "line %d: bad token: %c\n", l->line_no, *c );
 	    return( 1 );
 	}
     }
@@ -1190,12 +1178,8 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
     next_c = local.t_end + 1;
     next_l = local.t_end_line;
 
-    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	if ( result > 0 ) {
-	    fprintf( stderr, "unbalanced \(\n" );
-	} else {
-	    fprintf( stderr, "unbalanced )\n" );
-	}
+    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
+	fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
 	return( 1 );
     }
 
@@ -1221,14 +1205,14 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	/* skip to next token */
 	if ( *next_c == '"' ) {
 	    if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "unbalanced \"\n" );
+		fprintf( stderr, "line %d: unbalanced \"\n", next_l->line_no );
 		return( 1 );
 	    }
 
 	} else {
 	    if ( line_token_da( &local, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "expected atext, bad token: %s\n",
-			next_c );
+		fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
+			*next_c );
 		return( 1 );
 	    }
 	}
@@ -1236,17 +1220,13 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	next_c = local.t_end + 1;
 	next_l = local.t_end_line;
 
-	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	    if ( result > 0 ) {
-		fprintf( stderr, "unbalanced \(\n" );
-	    } else {
-		fprintf( stderr, "unbalanced )\n" );
-	    }
+	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
+	    fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
 	    return( 1 );
 	}
     }
 
-    fprintf( stderr, "unexpected end of header\n" );
+    fprintf( stderr, "line %d: unexpected end of header\n", next_l->line_no );
     return( 1 );
 }
 

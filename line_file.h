@@ -10,6 +10,7 @@ struct line {
     struct line		*line_next;
     struct line		*line_prev;
     char		*line_data;
+    int			line_no;
 };
 
 struct line_file {
