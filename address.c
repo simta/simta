@@ -57,6 +57,12 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 {
     char			*address;
     struct exp_addr		*e;
+#ifdef HAVE_LDAP
+    int				exclusive;
+
+    exclusive = addr_type & ADDRESS_MASK_EXCLUSIVE;
+    addr_type = addr_type & ( ! ADDRESS_MASK_EXCLUSIVE );
+#endif /* HAVE_LDAP */
 
     if (( address = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "add_address: strdup: %m" );
@@ -93,16 +99,21 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 	}
 	break;
 
-    #ifdef HAVE_LDAP
+#ifdef HAVE_LDAP
     case ADDRESS_TYPE_LDAP:
 	break;
-    #endif /* HAVE_LDAP */
+#endif /* HAVE_LDAP */
 
     default:
 	syslog( LOG_ERR, "add_address bad type" );
 	free( address );
 	return( 1 );
     }
+
+#ifdef HAVE_LDAP
+    /* XXX check to see if address is sender, for exclusive groups */
+	/* XXX if address is sender, color graph to root */
+#endif /* HAVE_LDAP */
 
     /* check to see if address is in the expansion list already */
     if ( ll_lookup( exp->exp_addr_list, address ) != NULL ) {
@@ -126,6 +137,12 @@ add_address( struct expand *exp, char *addr, struct recipient *addr_rcpt,
 	free( e );
 	return( 1 );
     }
+
+#ifdef HAVE_LDAP
+    /* XXX add addr to exclusive graph */
+    /* XXX if exclusive, color addr */
+    /* XXX what if the sender address is the address of the exclusive group? */
+#endif /* HAVE_LDAP */
 
     return( 0 );
 }

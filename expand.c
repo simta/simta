@@ -100,6 +100,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     for ( i = exp.exp_addr_list; i != NULL; i = i->st_next ) {
 	e_addr = (struct exp_addr*)i->st_data;
 
+#ifdef HAVE_LDAP
+	exp.exp_addr_current = e_addr;
+#endif /* HAVE_LDAP */
+
 	switch ( address_expand( &exp, e_addr )) {
 
 	case ADDRESS_EXCLUDE:
@@ -132,7 +136,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    continue;
 	}
 
+#ifdef HAVE_LDAP
+	/* XXX prune exclusive groups the sender is not a member of */
 	/* XXX Check to see that we only write out TYPE_EMAIL addresses? */
+#endif /* HAVE_LDAP */
 
 	/* If envelope is marked for punt, create one host entry
 	 * for punt machine.  Otherwise, create host queue entry.
