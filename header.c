@@ -26,6 +26,9 @@
 #define	TOKEN_DOT_ATOM		2
 #define	TOKEN_DOMAIN_LITERAL	3
 
+#define	MAILBOX_FROM_VERIFY	1
+#define	MAILBOX_FROM_CORRECT	2
+#define	MAILBOX_SENDER		3
 
 struct line_token {
     int			t_type;
@@ -41,9 +44,58 @@ int	is_dot_atom_text ___P(( int ));
 int	line_token_da ___P(( struct line_token *, struct line *, char * ));
 int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
 int	line_token_dl ___P(( struct line_token *, struct line *, char * ));
-int	email_addr ___P(( struct line **, char ** ));
-int	header_mbox_correct ___P(( struct line *, char * ));
-int	header_from_correct ___P(( struct line_file * ));
+int	parse_addr ___P(( struct line **, char **, int ));
+int	parse_mailbox_list ___P(( struct line *, char *, int ));
+int	parse_header_from ___P(( struct line_file * ));
+int	match_addr ___P(( struct line_token *, struct line_token *, char * ));
+
+
+    int
+match_addr( struct line_token *local, struct line_token *domain, char *addr )
+{
+    char			*a;
+    char			*b;
+
+    /* XXX only try to match dot atext */
+    if (( local->t_type != TOKEN_DOT_ATOM ) ||
+	    ( domain->t_type != TOKEN_DOT_ATOM )) {
+	return( 0 );
+    }
+
+    a = addr;
+    b = local->t_start;
+
+    while ( b != local->t_end + 1 ) {
+	if ( *a != *b ) {
+	    return( 0 );
+	}
+
+	a++;
+	b++;
+    }
+
+    if ( *a != '@' ) {
+	return( 0 );
+    }
+
+    a++;
+    b = domain->t_start;
+
+    while ( b != domain->t_end + 1 ) {
+	if ( *a != *b ) {
+	    return( 0 );
+	}
+
+	a++;
+	b++;
+    }
+
+    if ( *a != '\0' ) {
+	return( 0 );
+    }
+
+    return( 1 );
+}
 
 
 struct header simta_headers[] = {
@@ -334,8 +386,6 @@ header_correct( struct line_file *lf, struct envelope *env )
     struct tm			*tm;
     char			daytime[ 35 ];
 
-    simta_generate_sender = 0;
-
     /* check headers for known mail clients behaving badly */
     if (( result = header_exceptions( lf )) != 0 ) {
 	fprintf( stderr, "header_exceptions error\n" );
@@ -380,6 +430,8 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
     }
 
+    simta_generate_sender = 0;
+
     if (( sender = simta_sender()) == NULL ) {
 	return( -1 );
     }
@@ -387,11 +439,40 @@ header_correct( struct line_file *lf, struct envelope *env )
     /* examine & correct header data */
 
     /* From: */
-    if (( result = header_from_correct( lf )) != 0 ) {
+    if (( result = parse_header_from( lf )) != 0 ) {
 	return( result );
     }
 
-    /* XXX Sender */
+    /* Sender: */
+    if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
+        if ( simta_generate_sender != 0 ) {
+	    if (( len = ( strlen( simta_headers[ HEAD_SENDER ].h_key ) +
+		    strlen( sender ) + 3 )) > prepend_len ) {
+		if (( prepend_line = (char*)realloc( prepend_line, len ))
+			== NULL ) {
+		    perror( "realloc" );
+		    return( -1 );
+		}
+
+		prepend_len = len;
+
+                sprintf( prepend_line, "%s: %s",
+                        simta_headers[ HEAD_SENDER ].h_key, sender );
+
+                if (( simta_headers[ HEAD_SENDER ].h_line =
+                        line_prepend( lf, prepend_line )) == NULL ) {
+                    perror( "malloc" );
+                    return( -1 );
+                }
+            }
+        }
+
+    } else {
+	/* XXX allow sender if correct */
+	fprintf( stderr, "Header %s: Illegal value\n",
+		simta_headers[ HEAD_SENDER ].h_key );
+	return( 1 );
+    }
 
     if ( simta_headers[ HEAD_DATE ].h_line == NULL ) {
 	if ( time( &clock ) < 0 ) {
@@ -548,7 +629,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 
 
     int
-email_addr( struct line **start_line, char **start )
+parse_addr( struct line **start_line, char **start, int mode )
 {
     char				*next_c;
     char				*r;
@@ -560,6 +641,12 @@ email_addr( struct line **start_line, char **start )
     struct line_token			local;
     struct line_token			domain;
     int					result;
+
+    /* XXX only supported modes for now */
+    if ( mode != MAILBOX_FROM_CORRECT ) {
+	fprintf( stderr, "parse_addr: unsupported mode\n" );
+	return( -1 );
+    }
 
     if ( **start == '<' ) {
 	next_c = (*start) + 1;
@@ -644,10 +731,12 @@ email_addr( struct line **start_line, char **start )
 	    r++;
 	}
 
+	local.t_end = w - 1;
+
 	*w = '@';
 	w++;
 
-	local.t_end = w - 1;
+	domain.t_type = TOKEN_DOT_ATOM;
 	domain.t_start = w;
 	domain.t_start_line = local.t_start_line;
 	domain.t_end_line = local.t_start_line;
@@ -774,20 +863,31 @@ email_addr( struct line **start_line, char **start )
     *start = next_c;
     *start_line = next_l;
 
-    /* XXX if ( fromaddr != simta_sender ) { simta_generate_sender = 1 ; } */
+    if ( simta_generate_sender == 0 ) {
+	/* if addresses don't match, need to generate sender */
+	if ( match_addr( &local, &domain, simta_sender()) == 0 ) {
+	    simta_generate_sender = 1;
+	}
+    }
 
     return( 0 );
 }
 
 
     int
-header_mbox_correct( struct line *l, char *c )
+parse_mailbox_list( struct line *l, char *c, int mode )
 {
     char				*next_c;
     struct line				*next_l;
     struct line_token			local;
     int					result;
     int					from_addrs = 0;
+
+    /* XXX only supported modes for now */
+    if ( mode != MAILBOX_FROM_CORRECT ) {
+	fprintf( stderr, "parse_mailbox_list: unsupported mode\n" );
+	return( -1 );
+    }
 
     for ( ; ; ) {
 
@@ -846,7 +946,7 @@ header_mbox_correct( struct line *l, char *c )
 		c = local.t_start;
 		l = local.t_start_line;
 
-		if (( result = email_addr( &l, &c )) != 0 ) {
+		if (( result = parse_addr( &l, &c, mode )) != 0 ) {
 		    return( result );
 		}
 
@@ -910,7 +1010,7 @@ header_mbox_correct( struct line *l, char *c )
 	 * AA_LEFT: email_addr [ ( , ) -> START ] )
 	 */
 
-	if (( result = email_addr( &l, &c )) != 0 ) {
+	if (( result = parse_addr( &l, &c, mode )) != 0 ) {
 	    return( result );
 	}
 
@@ -929,7 +1029,7 @@ header_mbox_correct( struct line *l, char *c )
 
 
     int
-header_from_correct( struct line_file *lf )
+parse_header_from( struct line_file *lf )
 {
     struct line			*l;
     char			*c;
@@ -962,40 +1062,39 @@ header_from_correct( struct line_file *lf )
 	    return( 1 );
 	}
 
-	if ( next_c != NULL ) {
-	    if (( result = header_mbox_correct( next_l, next_c )) != 0 ) {
-		return( result );
-	    }
-
-	    return( 0 );
-
-	} else {
+	if ( next_c == NULL ) {
 	    fprintf( stderr, "Header From: no data\n" );
 	    return( 1 );
 	}
-    }
 
-    if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
-	    strlen( sender ) + 3 )) > prepend_len ) {
-	if (( prepend_line = (char*)realloc( prepend_line, len ))
-		== NULL ) {
-	    perror( "realloc" );
-	    return( -1 );
+	if (( result = parse_mailbox_list( next_l, next_c,
+		MAILBOX_FROM_CORRECT )) != 0 ) {
+	    return( result );
 	}
 
-	prepend_len = len;
+    } else {
+	/* generate From: header */
+
+	if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
+		strlen( sender ) + 3 )) > prepend_len ) {
+	    if (( prepend_line = (char*)realloc( prepend_line, len ))
+		    == NULL ) {
+		perror( "realloc" );
+		return( -1 );
+	    }
+
+	    prepend_len = len;
+	}
+
+	sprintf( prepend_line, "%s: %s",
+		simta_headers[ HEAD_FROM ].h_key, sender );
+
+	if (( simta_headers[ HEAD_FROM ].h_line =
+		line_prepend( lf, prepend_line )) == NULL ) {
+	    perror( "malloc" );
+	    return( -1 );
+	}
     }
-
-    sprintf( prepend_line, "%s: %s",
-	    simta_headers[ HEAD_FROM ].h_key, sender );
-
-    if (( simta_headers[ HEAD_FROM ].h_line =
-	    line_prepend( lf, prepend_line )) == NULL ) {
-	perror( "malloc" );
-	return( -1 );
-    }
-
-    /* XXX Sender */
 
     return( 0 );
 }
