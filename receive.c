@@ -109,7 +109,7 @@ hello( env, hostname )
 	 * formed "HELO", we won't even do syntax checks on av[ 1 ].
 	 */
 	if (( env->e_helo = strdup( hostname )) == NULL ) {
-	    syslog( LOG_ERR, "f_helo: strdup: %m" );
+	    syslog( LOG_ERR, "helo: strdup: %m" );
 	    return( RECEIVE_SYSERROR );
 	}
     }
@@ -180,7 +180,10 @@ f_ehlo( snet, env, ac, av )
      * EHLO is redundant, but not harmful other than in the performance cost
      * of executing unnecessary commands.
      */
-    if ( env->e_helo != NULL ) {
+    if (( env->e_flags & E_READY ) == 0 ) {
+	if ( *(env->e_id) != '\0' ) {
+	    syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
+	}
 	env_reset( env );
     }
 
@@ -889,7 +892,9 @@ f_rset( snet, env, ac, av )
     }
 
     if (( env->e_flags & E_READY ) == 0 ) {
-	syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
+	if ( *(env->e_id) != '\0' ) {
+	    syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
+	}
 	env_reset( env );
     }
 
