@@ -118,7 +118,8 @@ f_helo( snet, env, ac, av )
 	return( -1 );
     }
 
-    snet_writef( snet, "%d %s\r\n", 250, env->e_hostname );
+    snet_writef( snet, "%d %s Hello %s\r\n", 250, env->e_hostname,
+	av[ 1 ]);
     return( 0 );
 }
 
@@ -155,7 +156,8 @@ f_ehlo( snet, env, ac, av )
      * has no name, an address literal as described in section 4.1.1.1.
      */
 
-    snet_writef( snet, "%d-%s\r\n", 250, env->e_hostname );
+    snet_writef( snet, "%d-%s Hello %s\r\n", 250, env->e_hostname,
+	av[ 1 ]);
 
 #ifdef HAVE_LIBSSL
     /* RFC 2487 SMTP TLS */
