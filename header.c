@@ -251,6 +251,7 @@ header_end( struct line_file *lf, char *line )
 header_correct( struct line_file *lf, struct envelope *env )
 {
     struct line			*l;
+    struct line			**lp;
     struct header		*h;
     char			*colon;
     size_t			header_len;
@@ -485,17 +486,33 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if ( simta_headers[ HEAD_TO ].h_line == NULL ) {
-	/* XXX action */
+    if ( simta_headers[ HEAD_TO ].h_line != NULL ) {
+	/* XXX add to recipients if no -t flag? */
 	/* To: blah: woof woof; */
     }
 
-    if ( simta_headers[ HEAD_CC ].h_line == NULL ) {
-	/* XXX action */
+    if ( simta_headers[ HEAD_CC ].h_line != NULL ) {
+	/* XXX add cc recipients if no -t flag? */
     }
 
-    if ( simta_headers[ HEAD_BCC ].h_line == NULL ) {
-	/* XXX action */
+    if (( l = simta_headers[ HEAD_BCC ].h_line ) != NULL ) {
+	/* XXX add bcc recipients if no -t flag? */
+
+	/* remove bcc lines */
+	if ( l->line_prev != NULL ) {
+	    lp = &(l->line_prev->line_next);
+
+	} else {
+	    lp = &(lf->l_first);
+	}
+
+	for ( l = l->line_next; l != NULL; l = l->line_next ) {
+	    if (( *(l->line_data) != ' ' ) && ( *(l->line_data) != '\t' )) {
+		break;
+	    }
+	}
+
+	*lp = l;
     }
 
 #ifdef DEBUG
