@@ -359,25 +359,27 @@ q_runner( struct host_q **host_q )
 	    min = (( tv_end.tv_sec % 3600 ) / 60 );
 	    sec = ( tv_end.tv_sec % 60 );
 
-	    if ( day > 0 ) {
-		if ( day > 99 ) {
-		    day = 99;
+	    if ( simta_message_count > 0 ) {
+		if ( day > 0 ) {
+		    if ( day > 99 ) {
+			day = 99;
+		    }
+
+		    syslog( LOG_INFO, "q_runner metrics: %d messages, "
+			    "%d outbound_attempts, %d outbound_delivered, "
+			    "%d+%02d:%02d:%02d",
+			    simta_message_count, simta_smtp_outbound_attempts,
+			    simta_smtp_outbound_delivered,
+			    day, hour, min, sec );
+
+		} else {
+		    syslog( LOG_INFO, "q_runner metrics: %d messages, "
+			    "%d outbound_attempts, %d outbound_delivered, "
+			    "%02d:%02d:%02d",
+			    simta_message_count, simta_smtp_outbound_attempts,
+			    simta_smtp_outbound_delivered,
+			    hour, min, sec );
 		}
-
-		syslog( LOG_INFO, "q_runner metrics: %d messages, "
-			"%d outbound_attempts, %d outbound_delivered, "
-			"%d+%02d:%02d:%02d",
-			simta_message_count, simta_smtp_outbound_attempts,
-			simta_smtp_outbound_delivered,
-			day, hour, min, sec );
-
-	    } else {
-		syslog( LOG_INFO, "q_runner metrics: %d messages, "
-			"%d outbound_attempts, %d outbound_delivered, "
-			"%02d:%02d:%02d",
-			simta_message_count, simta_smtp_outbound_attempts,
-			simta_smtp_outbound_delivered,
-			hour, min, sec );
 	    }
 	}
     }
