@@ -53,16 +53,16 @@ install : all FRC
 	-mkdir -p ${FAST_Q}
 	${INSTALL} -m 0755 -c simta ${SBINDIR}/
 	${INSTALL} -m 0755 -c simsendmail ${LIBDIR}/
-	ln ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
+	ln -f ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
 
 install-suid : all FRC
 	-mkdir -p ${RUNDIR}
 	-mkdir -p ${LOCAL_Q}
 	-mkdir -p ${SLOW_Q}
 	-mkdir -p ${FAST_Q}
-	${INSTALL} -c simta -m 6755 -g mail -o root ${SBINDIR}/
-	${INSTALL} -c simsendmail -m 6755 -g mail -o root ${LIBDIR}/
-	ln ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
+	${INSTALL} -m 6755 -g mail -o root -c simta ${SBINDIR}/
+	${INSTALL} -m 6755 -g mail -o root -c simsendmail ${LIBDIR}/
+	ln -f ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
 
 daemon.o : daemon.c
 	${CC} ${CFLAGS} \
