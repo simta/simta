@@ -471,7 +471,7 @@ env_info( struct message *m, char *hostname, size_t len )
 
     if (( snet = snet_open( fname, O_RDWR, 0, 1024 * 1024 ))
 	    == NULL ) {
-	syslog( LOG_ERR, "env_info snet_open: %m" );
+	syslog( LOG_ERR, "env_info snet_open %s: %m", fname );
 	return( 1 );
     }
 

@@ -276,7 +276,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		env->e_dir = simta_dir_dead;
 	    }
 
-	    env->e_dinode = unexpanded_env->e_dinode;
+	    /* XXX workaround for old version */
+	    if (( env->e_dinode = unexpanded_env->e_dinode ) == 0 ) {
+		env->e_oldversion = 1;
+	    }
 
 	    /* Add env to host_stab */
 	    if ( ll_insert( &host_stab, env->e_expanded, env, NULL ) != 0 ) {

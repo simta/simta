@@ -39,6 +39,10 @@ simta Installation
 	    /usr/local/bin/ or /usr/local/procmail/bin/.  The argument "no"
 	    disables procmail support.
 
+	--with-ldap=/path/to/ldap/
+	    If configure can't find LDAP, use this to give it a path.
+	    The argument "no" disables LDAP support.
+
 3.  Building simta
 
     At this point, simply run the command
