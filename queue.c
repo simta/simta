@@ -92,7 +92,7 @@ message_slow( struct message *m )
 	}
     }
 
-    syslog( LOG_DEBUG, "message_slow %s: moved", m->m_id );
+    syslog( LOG_INFO, "message_slow %s: moved", m->m_id );
 
     return( 0 );
 }
@@ -379,34 +379,21 @@ q_run( struct host_q **host_q )
     syslog( LOG_DEBUG, "q_run starting" );
 
     if ( *host_q == NULL ) {
-	syslog( LOG_DEBUG, "q_run done: no queues" );
 	return;
     }
 
     for ( ; ; ) {
 	/* build the deliver_q by number of messages */
-	syslog( LOG_DEBUG, "q_run building deliver queue" );
 	deliver_q = NULL;
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	    hq->hq_deliver = NULL;
-	    syslog( LOG_DEBUG, "q_run top of loop" );
 
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
-		syslog( LOG_DEBUG, "q_run skipping" );
-		if ( hq == simta_null_q ) {
-		    syslog( LOG_DEBUG, "q_run not queueing %s, no entries",
-			    "NULL queue" );
-		} else if ( hq->hq_entries == 0 ) {
-		    syslog( LOG_DEBUG, "q_run not queueing %s, no entries",
-			    hq->hq_hostname );
-		}
+		continue;
 
 	    } else if (( hq->hq_status == HOST_LOCAL ) ||
 		    ( hq->hq_status == HOST_MX )) {
-		syslog( LOG_DEBUG, "q_run adding" );
-		syslog( LOG_DEBUG, "q_run adding %s to deliver queue",
-			hq->hq_hostname );
 		/*
 		 * hq is expanded and has at least one message, insert in to
 		 * the delivery queue.
@@ -437,39 +424,28 @@ q_run( struct host_q **host_q )
 
 		hq->hq_deliver = *dq;
 		*dq = hq;
-		syslog( LOG_DEBUG, "q_run %s added", hq->hq_hostname );
 
 	    } else if (( hq->hq_status == HOST_DOWN ) ||
 		    ( hq->hq_status == HOST_BOUNCE )) {
-		syslog( LOG_DEBUG, "q_run bouncing" );
-		syslog( LOG_DEBUG, "q_run: calling deliver_q to bounce %s",
-			hq->hq_hostname );
 		q_deliver( hq );
 
 	    } else {
-		syslog( LOG_DEBUG, "q_run out of range" );
 		syslog( LOG_ERR, "q_run: host_type %d out of range %s",
 			hq->hq_status, hq->hq_hostname );
 	    }
 	}
 
-	syslog( LOG_DEBUG, "q_run done building queue" );
-
 	/* deliver all mail in every expanded queue */
 	while ( deliver_q != NULL ) {
-	    syslog( LOG_DEBUG, "q_run: calling deliver_q to deliver %s",
-		    deliver_q->hq_hostname );
 	    q_deliver( deliver_q );
 	    deliver_q = deliver_q->hq_deliver;
 	}
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
-	    syslog( LOG_DEBUG, "q_run: checking for unexpanded mail" );
 	    /* delivered all expanded mail, check for unexpanded */
 	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
 		/* no more unexpanded mail.  we're done */
-		syslog( LOG_DEBUG, "q_run done: no more mail" );
 		return;
 	    }
 
@@ -482,8 +458,6 @@ q_run( struct host_q **host_q )
 	    }
 
 	    if (( env = unexpanded->m_env ) == NULL ) {
-		syslog( LOG_DEBUG, "q_run: reading unexpanded %s",
-			unexpanded->m_id );
 		/* lock & read envelope to expand */
 		env = &env_local;
 		if ( env_read( unexpanded, &env_local, &snet_lock ) != 0 ) {
@@ -498,7 +472,6 @@ q_run( struct host_q **host_q )
 		snet_lock = NULL;
 	    }
 
-	    syslog( LOG_DEBUG, "q_run: expanding %s", env->e_id );
 	    /* expand message */
 	    result = expand( host_q, env );
 
@@ -529,14 +502,10 @@ oldfile_error:
 
 			if (( snet = snet_open( dfile_fname, O_RDWR, 0,
 				1024 * 1024 )) == NULL ) {
-			    syslog( LOG_DEBUG, "q_run %s snet_open: %m",
-				    env->e_id );
 
 			} else {
 			    if (( env_bounce = bounce( hq, env, snet ))
 				    == NULL ) {
-				syslog( LOG_DEBUG, "q_run %s bounce: error",
-					env->e_id );
 			    } else {
 				if ( env_bounce->e_message != NULL ) {
 				    env_bounce->e_message->m_from =
@@ -546,17 +515,12 @@ oldfile_error:
 				}
 
 				if ( env_unlink( env ) != 0 ) {
-				    syslog( LOG_DEBUG, "q_run %s env_unlink: "
-					    "error", env->e_id );
 				    env_unlink( env_bounce );
 				}
 			    }
 			}
 
- 		    } else {
-			syslog( LOG_DEBUG, "q_run %s: not expandable, not old",
-				env->e_id );
-		    }
+ 		    }
 
 		} else {
 		    env_slow( env );
@@ -879,8 +843,6 @@ smtp_cleanup:
 			    syslog( LOG_ERR, "snet_close: %m" );
 			}
 			snet_smtp = NULL;
-			syslog( LOG_DEBUG, "q_deliver %s: done snet_close",
-				env_deliver->e_id );
 		    }
 		}
 	    }
@@ -891,8 +853,6 @@ smtp_cleanup:
 	if ((( env_deliver->e_tempfail > 0 ) ||
 		( hq->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
-	    syslog( LOG_DEBUG, "q_deliver %s: checking message age",
-		    env_deliver->e_id );
 	    /* stat dfile to see if it's old */
 	    if ( fstat( dfile_fd, &sb ) != 0 ) {
 		syslog( LOG_ERR, "q_deliver fstat %s: %m", dfile_fname );
@@ -907,7 +867,7 @@ smtp_cleanup:
 	    /* consider Dfiles old if they're over 3 days */
 	    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
 oldfile_error:
-		syslog( LOG_DEBUG, "q_deliver %s: old message, bouncing",
+		syslog( LOG_INFO, "q_deliver %s: old message, bouncing",
 			env_deliver->e_id );
 		env_deliver->e_flags = ( env_deliver->e_flags | ENV_BOUNCE );
 		env_deliver->e_flags = ( env_deliver->e_flags | ENV_OLD );
@@ -919,8 +879,6 @@ oldfile_error:
 	if (( hq->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		( env_deliver->e_failed > 0 )) {
-	    syslog( LOG_DEBUG, "q_deliver %s: creating bounce",
-		    env_deliver->e_id );
 	    snet_bounce = NULL;
 
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
@@ -973,8 +931,6 @@ oldfile_error:
 		(( env_deliver->e_tempfail == 0 ) &&
 		( hq->hq_status != HOST_DOWN ))) {
 	    /* no retries, delete Efile then Dfile */
-	    syslog( LOG_DEBUG, "q_deliver %s deleting", env_deliver->e_id );
-
 	    sprintf( efile_fname, "%s/E%s", env_deliver->e_dir,
 		    env_deliver->e_id );
 
@@ -998,7 +954,7 @@ oldfile_error:
         } else if (( env_deliver->e_success != 0 ) ||
 		( env_deliver->e_failed != 0 )) {
 	    /* remove any recipients that don't need to be tried later */
-	    syslog( LOG_DEBUG, "q_deliver %s rewriting", env_deliver->e_id );
+	    syslog( LOG_INFO, "q_deliver %s rewriting", env_deliver->e_id );
 	    r_sort = &(env_deliver->e_rcpt);
 
 	    while ( *r_sort != NULL ) {
@@ -1025,14 +981,12 @@ oldfile_error:
 
 	} else if (( env_deliver->e_flags & ENV_ATTEMPT ) &&
 		( strcmp( env_deliver->e_dir, simta_dir_fast ) != 0 )) {
-	    syslog( LOG_DEBUG, "q_deliver %s touching", env_deliver->e_id );
+	    syslog( LOG_INFO, "q_deliver %s touching", env_deliver->e_id );
 	    env_touch( env_deliver );
 	}
 
 	if ( env_bounce != NULL ) {
 	    if ( env_bounce->e_message != NULL ) {
-		syslog( LOG_DEBUG, "q_deliver %s: queueing bounce %s",
-			env_deliver->e_id, env_bounce->e_id );
 		env_bounce->e_message->m_from = env_from( env_bounce );
 		message_queue( simta_null_q, env_bounce->e_message );
 		syslog( LOG_INFO, "q_deliver %s: bounce %s queued",
@@ -1043,15 +997,13 @@ oldfile_error:
 
 message_cleanup:
 	if ( env_bounce != NULL ) {
-	    syslog( LOG_DEBUG, "q_deliver %s: removing bounce %s",
-		    env_deliver->e_id, env_bounce->e_id );
 	    if ( env_bounce->e_message != NULL ) {
 		message_free( env_bounce->e_message );
 		env_bounce->e_message = NULL;
 	    }
 
 	    if ( env_unlink( env_bounce ) != 0 ) {
-		syslog( LOG_DEBUG, "q_deliver env_unlink %s: can't unwind "
+		syslog( LOG_INFO, "q_deliver env_unlink %s: can't unwind "
 			"expansion", env_deliver->e_id );
 	    }
 

@@ -159,8 +159,11 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
-        syslog( LOG_ERR, "bounce_dfile_out fdopen %s: %m", dfile_fname );
-        goto cleanup;
+	syslog( LOG_ERR, "bounce_dfile_out fdopen %s: %m", dfile_fname );
+        if ( close( dfile_fd ) != 0 ) {
+	    syslog( LOG_ERR, "bounce_dfile_out fclose %s: %m", dfile_fname );
+	}
+	return( 1 );
     }
 
     if ( time( &clock ) < 0 ) {

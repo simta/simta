@@ -448,16 +448,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
 		while ( fgets( buf, 1024, f ) != NULL ) {
 		    len = strlen( buf );
-
 		    if (( buf[ len - 1 ] ) != '\n' ) {
 			/* XXX here we have a .forward line too long */
-
-			if ( fclose( f ) != 0 ) {
-			    syslog( LOG_ERR, "address_expand fclose %s: %m",
-				    fname );
-			    return( ADDRESS_SYSERROR );
-			}
-
 			if ( bounce_text( e_addr->e_addr_errors,
 				e_addr->e_addr, " .forward: line too long",
 				NULL ) != 0 ) {
@@ -469,7 +461,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 			syslog( LOG_WARNING,
 				"address_expand %s: .forward line too long",
 				e_addr->e_addr );
-			return( ADDRESS_EXCLUDE );
+			ret = ADDRESS_EXCLUDE;
+			goto cleanup_forward;
 		    }
 
 		    buf[ len - 1 ] = '\0';
@@ -477,21 +470,24 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 		    if ( add_address( exp, buf,
 			    e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
 			/* add_address syslogs errors */
-
-			if ( fclose( f ) != 0 ) {
-			    syslog( LOG_ERR, "address_expand fclose %s: %m",
-				    fname );
-			}
-
-			return( ADDRESS_SYSERROR );
+			ret = ADDRESS_SYSERROR;
+			goto cleanup_forward;
 		    }
 
 		    syslog( LOG_DEBUG,
 			    "address_expand %s EXPANDED %s: .forward",
 			    e_addr->e_addr, buf );
+		    ret = ADDRESS_EXCLUDE;
 		}
 
-		return( ADDRESS_EXCLUDE );
+cleanup_forward:
+		if ( fclose( f ) != 0 ) {
+		    syslog( LOG_ERR, "address_expand fclose %s: %m",
+			    fname );
+		    return( ADDRESS_SYSERROR );
+		}
+
+		return( ret );
 
 	    } else {
 		/* No .forward, it's a local address */
