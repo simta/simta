@@ -51,8 +51,17 @@ env_create( char *id )
 
 
     void
-env_create ( struct envelope *env )
+rcpt_free( struct recipient *r ) {
+    rcpt_free( r->r_next );
+    free( r->r_rcpt );
+    free( r );
+}
+
+
+    void
+env_free ( struct envelope *env )
 {
+    rcpt_free( env->e_rcpt );
     free( env );
 }
 

@@ -32,7 +32,8 @@ void		env_stdout ___P(( struct envelope * ));
 
 /* return pointer on success, NULL on syserror, no syslog */
 struct envelope	*env_create ___P(( char * ));
-void		env_create ___P(( struct envelope * ));
+void		env_free ___P(( struct envelope * ));
+void		rcpt_free ___P(( struct recipient * ));
 
 /* return 0 on success, -1 on syserror, no syslog */
 int		env_recipient ___P(( struct envelope *, char * ));
