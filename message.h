@@ -5,6 +5,7 @@
 
 /*****     message.h     *****/
 
+
 struct message {
     struct envelope	*m_env;
     struct line		*m_first_line;
@@ -23,11 +24,17 @@ struct header {
     char		*h_data;
 };
 
-struct message *message_create( char * );
-struct message *message_file( char *, char * );
-struct line *message_line( struct message *, char * );
-struct line *message_prepend_line( struct message *, char * );
-int message_recipient( struct message *, char * );
-int message_store( struct message * );
-int message_send( int, struct message * );
-void message_stdout( struct message * );
+#ifdef __STDC__
+#define ___P(x)         x
+#else /* __STDC__ */
+#define ___P(x)         ()
+#endif /* __STDC__ */
+
+struct message	*message_create ___P(( char * ));
+struct message	*message_infile ___P(( char *, char * ));
+struct line	*message_add_line ___P(( struct message *, char * ));
+struct line	*message_prepend_line ___P(( struct message *, char * ));
+int		message_recipient ___P(( struct message *, char * ));
+int		message_outfile ___P(( struct message * ));
+int		message_smtp_send ___P(( SNET *, struct message * ));
+void		message_stdout ___P(( struct message * ));

@@ -29,6 +29,17 @@
 #include "message.h"
 #include "envelope.h"
 
+#ifdef __STDC__
+#define ___P(x)         x
+#else /* __STDC__ */
+#define ___P(x)         ()
+#endif /* __STDC__ */
+
+int		header_exceptions ___P(( struct message * ));
+int		headers ___P(( struct message * ));
+int		count_words ___P(( char * ));
+
+
 struct header header_list[] = {
     { "Date",			NULL,		NULL },
 #define HEAD_ORIG_DATE		0
@@ -48,10 +59,6 @@ struct header header_list[] = {
 #define HEAD_BCC		7
     { NULL,			NULL,		NULL }
 };
-
-int header_exceptions( struct message * );
-int headers( struct message * );
-int count_words( char * );
 
 
     /* Some mail clents exhibit bad behavior when generating headers.
@@ -386,7 +393,7 @@ main( int argc, char *argv[] )
 	    }
 	}
 
-	if (( l = message_line( m, line )) == NULL ) {
+	if (( l = message_add_line( m, line )) == NULL ) {
 	    perror( "message_line" );
 	    exit( 1 );
 	}
@@ -424,8 +431,8 @@ main( int argc, char *argv[] )
 
     /* message_stdout( m ); */
 
-    if ( message_store( m ) != 0 ) {
-	perror( "message_store" );
+    if ( message_outfile( m ) != 0 ) {
+	perror( "message_outfile" );
 	exit( 1 );
     }
 

@@ -82,7 +82,7 @@ message_create( char *id )
     /* add a line to the message */
 
     struct line *
-message_line( struct message *m, char *line )
+message_add_line( struct message *m, char *line )
 {
     struct line		*l;
 
@@ -161,7 +161,7 @@ message_stdout( struct message *m )
 
 
     int
-message_store( struct message *m )
+message_outfile( struct message *m )
 {
     int			fd;
     time_t		clock;
@@ -309,7 +309,7 @@ message_recipient( struct message *m, char *addr )
     /* XXX this function needs better error reporting */
 
     struct message *
-message_file( char *dir, char *id )
+message_infile( char *dir, char *id )
 {
     char			*filename;
     char			*line;
@@ -363,7 +363,7 @@ message_file( char *dir, char *id )
     }
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
-	if (( l = message_line( m, line )) == NULL ) {
+	if (( l = message_add_line( m, line )) == NULL ) {
 	    return( NULL );
 	}
     }
@@ -373,4 +373,11 @@ message_file( char *dir, char *id )
     }
 
     return( m );
+}
+
+
+    int
+message_smtp_send( SNET *snet, struct message *m )
+{
+    return( 0 );
 }
