@@ -22,10 +22,10 @@
 #include "queue.h"
 #include "ll.h"
 #include "address.h"
-#include "bdb.h"
 #include "envelope.h"
 #include "header.h"
 #include "simta.h"
+#include "bdb.h"
 
 DB		*dbp = NULL;
 
