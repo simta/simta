@@ -535,6 +535,7 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
 		    dest_errdat (&errdat);
 		    return LDAP_SYSERROR;
 		}
+
 		for (idx = 0; idx < errdat.errnum; idx++) {
 		    if (env_recipient( e_addr->e_addr_errors, 
 				errdat.errval[errdat.errnum]) != 0) {
