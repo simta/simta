@@ -386,6 +386,11 @@ deliver_local( struct host_q *hq )
 	    /* some retries, and some sent.  re-write envelope */
 	    q->q_action = Q_REORDER;
 	    env_cleanup( q->q_env );
+	    /* XXX env_outfile should syslog errors */
+	    if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
+		syslog( LOG_ERR, "utime %s: %m", fname );
+		exit( 1 );
+	    }
 	}
     }
 
