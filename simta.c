@@ -40,6 +40,7 @@
 #include "simta.h"
 #include "argcargv.h"
 #include "mx.h"
+#include "simta_ldap.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -229,7 +230,7 @@ simta_read_config( char *fname )
 		if ( simta_debug ) printf( "%s -> PASSWORD\n", domain );
 
 #ifdef HAVE_LDAP
-	    } else { if ( strcasecmp( av[ 1 ], "LDAP" ) == 0 ) {
+	    } else if ( strcasecmp( av[ 1 ], "LDAP" ) == 0 ) {
 		if ( ac != 3 ) {
 		    fprintf( stderr, "%s: line %d: expected 2 argument\n",
 			fname, lineno );
