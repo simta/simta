@@ -178,11 +178,21 @@ message_infiles( char *dir, char *id )
     void
 message_stdout( struct message *m )
 {
-    printf( "ENVELOPE:\n" );
-    env_stdout( m->m_env );
+    if ( m->m_env != NULL ) {
+	env_stdout( m->m_env );
+    } else {
+	printf( "ENVELOPE:\tNULL\n" );
+    }
 
-    printf( "\nMESSAGE DATA:\n" );
-    data_stdout( m->m_data );
+    if (( m->m_data != NULL ) && ( m->m_data->d_first_line != NULL )) {
+	printf( "MESSAGE DATA:\n" );
+	data_stdout( m->m_data );
+    } else {
+	printf( "MESSAGE DATA:\tNULL\n" );
+    }
+
+    printf( "efiles:\t%d\n", m->m_efile );
+    printf( "dfiles:\t%d\n", m->m_dfile );
 }
 
 

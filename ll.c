@@ -32,15 +32,26 @@ ll_lookup( struct stab_entry *st, char *key )
 }
 
 
+    int
+ll_default_compare( char *a, char *b )
+{
+    return( strcmp( a, b ));
+}
+
+
     /*****     ll_insert     *****/
     /* This function inserts a given node in to a given stab table */
 
     int
 ll_insert( struct stab_entry **stab, char *key, void *data,
-	int (*ll_compare)( struct stab_entry *, struct stab_entry * ))
+	int (*ll_compare)( char *, char * ))
 {
     struct stab_entry	*st;
     struct stab_entry	**i;
+
+    if ( ll_compare == NULL ) {
+	ll_compare = ll_default_compare;
+    }
 
     if ( ll_lookup( *stab, key ) != NULL ) {
 	/* return fail, as item already exists */
@@ -58,7 +69,7 @@ ll_insert( struct stab_entry **stab, char *key, void *data,
     st->st_data = data;
 
     for ( i = stab; *i != NULL; i = &((*i)->st_next) ) {
-	if ( ll_compare( st, *i ) < 0 ) {
+	if ( ll_compare( st->st_key, (*i)->st_key ) < 0 ) {
 	    break;
 	}
     }

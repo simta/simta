@@ -14,7 +14,8 @@ struct stab_entry {
 };
 
 void	*ll_lookup( struct stab_entry*, char * );
+int	ll_default_compare( char *, char * );
 int	ll_insert( struct stab_entry **, char *, void *,
-		int(*)( struct stab_entry *, struct stab_entry * ));
+		int(*)( char *, char * ));
 void	*ll_remove( struct stab_entry **, char * );
 void	ll_walk( struct stab_entry *, void (*)( void *));

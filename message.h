@@ -20,6 +20,8 @@ struct data {
 struct message {
     struct envelope	*m_env;
     struct data		*m_data;
+    int			m_efile;
+    int			m_dfile;
 };
 
 struct header {

@@ -78,15 +78,22 @@ env_stdout( struct envelope *e )
 {
     struct recipient		*r;
 
+    if ( *e->e_id == '\0' ) {
+	printf( "Message-Id NULL\n" );
+    } else {
+	printf( "Message-Id:\t%s\n", e->e_id );
+    }
+
     if ( e->e_mail != NULL ) {
-	printf( "mail: %s\n", e->e_mail );
+	printf( "mail:\t%s\n", e->e_mail );
     } else {
 	printf( "mail NULL\n" );
     }
 
     for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
-	printf( "rcpt: %s\n", r->r_rcpt );
+	printf( "rcpt:\t%s\n", r->r_rcpt );
     }
+
 }
 
 
