@@ -687,7 +687,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    if ( receive_remote_rbl_status == RECEIVE_RBL_BLOCKED ) {
 			recieve_failed_rcpts++;
 			syslog( LOG_INFO,
-				"Receive %s: To <%s> From <%> Rejected IP "
+				"Receive %s: To <%s> From <%s> Rejected IP "
 				"%s by MAPS",
 				env->e_id, addr, env->e_mail,
 				inet_ntoa( receive_sin->sin_addr ));
