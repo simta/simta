@@ -180,6 +180,11 @@ main( int argc, char *argv[] )
     while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
 	if ( strlen( line ) > 998 ) {
 	    fprintf( stderr, "line too long\n" );
+
+	    if ( header == 0 ) {
+		goto cleanup;
+	    }
+
 	    exit( 1 );
 	}
 
