@@ -67,6 +67,7 @@ SIMTAINCPATH=	@SIMTACPPFLAGS@ ${INCPATH}
 SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
 MAN1TARGETS=	simsendmail.1
+MAN8TARGETS=	simta.8
 BINTARGETS=	simrbl simreverse simalias
 TARGETS=	simta tlsconnect simsendmail q_runner expander sla \
 		${BINTARGETS}
@@ -80,6 +81,7 @@ install : all FRC
 	-chgrp -R simta ${RUNFILE}
 	-chmod 755 ${RUNFILE}
 	-mkdir -p ${MANDIR}/man1
+	-mkdir -p ${MANDIR}/man8
 	-mkdir -p ${LOCAL_Q}
 	-mkdir -p ${SLOW_Q}
 	-mkdir -p ${FAST_Q}
@@ -95,6 +97,9 @@ install : all FRC
 	ln -f ${SBINDIR}/simsendmail ${SBINDIR}/sendmail
 	for i in ${MAN1TARGETS}; do \
 	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
+	done
+	for i in ${MAN8TARGETS}; do \
+	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man8/; \
 	done
 
 simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
