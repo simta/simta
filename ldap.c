@@ -480,7 +480,6 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     char		*at;
     char		*domain;
     char		*search_string;
-    char		*buf = NULL;
     char		**values;
     LDAPMessage		*res;
     LDAPMessage		*message;
@@ -526,9 +525,9 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	}
 	*at = '@';
 
-	if ( ldap_url_parse( buf, &lud ) != 0 ) {
+	if ( ldap_url_parse( search_string, &lud ) != 0 ) {
 	    /* XXX correct error reporting? */
-	    syslog( LOG_ERR, "ldap_url_parse %s: %m", buf );
+	    syslog( LOG_ERR, "ldap_url_parse %s: %m", search_string );
 	    return( LDAP_SYSERROR );
 	}
 
