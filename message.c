@@ -59,3 +59,47 @@ message_line( struct message *m, char *line )
 
     return( l );
 }
+
+
+    /* prepend a line to the message */
+
+    struct line *
+message_prepend_line( struct message *m, char *line )
+{
+    struct line		*l;
+
+    if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
+	return( NULL );
+    }
+
+    if (( l->line_data = strdup( line )) == NULL ) {
+	return( NULL );
+    }
+
+    l->line_next = m->m_first;
+
+    if ( m->m_first == NULL ) {
+	m->m_first = l;
+	m->m_last = l;
+
+    } else {
+	m->m_first = l;
+    }
+
+    return( l );
+}
+
+
+    /* print a message to stdout for debugging purposes */
+
+    void
+message_stdout( struct message *m )
+{
+    struct line		*l;
+    int			x = 0;
+
+    for ( l = m->m_first; l != NULL ; l = l->line_next ) {
+	x++;
+	printf( "%d:\t%s\n", x, l->line_data );
+    }
+}
