@@ -881,9 +881,7 @@ smtp_cleanup:
 	    }
             sent++;
 
-        } else if ( hq->hq_status == HOST_BOUNCE ) {
-	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_BOUNCE );
-	}
+        }
 
 	if ((( env_deliver->e_tempfail > 0 ) ||
 		( hq->hq_status == HOST_DOWN )) &&
@@ -913,7 +911,8 @@ oldfile_error:
 	    }
 	}
 
-	if (( env_deliver->e_flags & ENV_BOUNCE ) ||
+	if (( hq->hq_status == HOST_BOUNCE ) ||
+		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		( env_deliver->e_failed > 0 )) {
 	    syslog( LOG_DEBUG, "q_deliver %s: creating bounce",
 		    env_deliver->e_id );
@@ -947,6 +946,7 @@ oldfile_error:
 
 	/*
 	 * DELETE ORIGINAL
+	 *     - HOST_BOUNCE
 	 *     - ENV_BOUNCE
 	 *     - env_deliver->e_tempfail == 0 && !HOST_DOWN
 	 *
@@ -963,7 +963,8 @@ oldfile_error:
 	 *     - everything else
 	 */
 
-        if (( env_deliver->e_flags & ENV_BOUNCE ) ||
+        if (( hq->hq_status == HOST_BOUNCE ) ||
+		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		(( env_deliver->e_tempfail == 0 ) &&
 		( hq->hq_status != HOST_DOWN ))) {
 	    /* no retries, delete Efile then Dfile */
