@@ -181,7 +181,7 @@ main( int argc, char *argv[] )
 	    q = (struct q_file*)qs->st_data;
 
 	    /* get message_data */
-	    /* XXX what if no corresponding Dfile for an Efile? */
+	    /* XXX what if ENOENT? */
 	    if (( q->q_data = data_infile( SLOW_DIR, q->q_id )) == NULL ) {
 		perror( "data_infile" );
 		exit( 1 );
