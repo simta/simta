@@ -23,6 +23,11 @@
 #define HOST_MAIL_LOOP	3
 #define HOST_MX		4
 
+struct host_list {
+    char			*h_name;
+    struct stab_entry		*h_addresses;
+};
+
 struct host {
     int         		h_type;		/* Type of host */
     struct stab_entry		*h_expansion;	/* Ordered list of expansion */
