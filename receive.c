@@ -350,7 +350,7 @@ f_mail( snet, env, ac, av )
 	    case DNSR_ERROR_TIMEOUT:
 		syslog( LOG_ERR, "f_mail get_mx %s: timeout", domain );
 		if ( snet_writef( snet, "%d: Requested action aborted:"
-			"error in processing\r\n", 451 ) < 0 ) {
+			"error in processing - DNS timeout\r\n", 451 ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		    return( RECEIVE_BADCONNECTION );
 		}
@@ -540,7 +540,7 @@ f_rcpt( snet, env, ac, av )
 	    case DNSR_ERROR_TIMEOUT:
 		syslog( LOG_ERR, "f_rcpt get_mx %s: timeout", domain );
 		if ( snet_writef( snet, "%d: Requested action aborted:"
-			"error in processing\r\n", 451 ) < 0 ) {
+			"error in processing - DNS timeout\r\n", 451 ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_BADCONNECTION );
 		}
