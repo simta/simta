@@ -106,9 +106,6 @@ printf( "here 2\n" );
     }
 
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
-#ifdef HAVE_LDAP
-printf( "here 3\n" );
-#endif
 
     /* read config file */
     if (( result = nlist( simta_nlist, conf_fname )) < 0 ) {
@@ -139,7 +136,6 @@ printf( "here 5\n" );
 
 printf( "have ldap\n" );
 #ifdef HAVE_LDAP
-printf( "have ldap\n" );
 	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
 	    if ( ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) < 0 ) {
 		return( -1 );
