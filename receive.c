@@ -446,9 +446,17 @@ f_rcpt( snet, env, ac, av )
      * SHOULD be returned.
      */
 
-    if ( address_local( addr ) != 0 ) {
+    switch( address_local( addr )) {
+    case 0:
+	break;
+    case 1:
 	snet_writef( snet, "%d Requested action not taken: User not found.\r\n",
 	    550 );
+	return( 1 );
+    default:
+	snet_writef( snet,
+	    "%d Requested action aborted: local error in processing.\r\n",
+	    451 );
 	return( 1 );
     }
 
