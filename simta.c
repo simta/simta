@@ -76,6 +76,7 @@ int			simta_fast_files = 0;
 int			simta_global_relay = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
+int			simta_tls = 0;
 long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
 char			*simta_punt_host = NULL;
@@ -404,6 +405,21 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "RBL_DOMAIN: %s\n",
 		simta_rbl_domain );
+
+        } else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
+	    if ( simta_tls ) {
+                fprintf( stderr, "%s: line %d: tls already started\n",
+                    fname, lineno );
+                goto error;
+            }
+            if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+            simta_tls = 1;
+            simta_smtp_extension++;
+            if ( simta_debug ) printf( "TLS_ON\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "DNS_CONFIG_OFF" ) == 0 ) {
 	    if ( ac != 1 ) {

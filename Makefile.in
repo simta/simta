@@ -3,7 +3,7 @@
 DESTDIR=@prefix@
 MANDIR=/usr/share/man
 BINDIR=@bindir@
-ETCDIR=@sysconfdir@
+ETCDIR=@sysconfdir@/simta
 SBINDIR=/usr/sbin
 RUNDIR=/var/run
 RUNFILE=/var/run/simta.pid
@@ -13,6 +13,9 @@ LOCAL_Q=/var/spool/simta/local
 SLOW_Q=/var/spool/simta/slow
 FAST_Q=/var/spool/simta/fast
 DEAD_Q=/var/spool/simta/dead
+CERTDIR=${SIMTACONFDIR}/cert
+TLS_CA=${CERTDIR}/ca.pem
+TLS_CERT=${CERTDIR}/cert.pem
 
 SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
 	simsend.c rcptlist.c tlsconnect.c address.c \
@@ -20,7 +23,7 @@ SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
 SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o \
 		queue.c ml.o smtp.o expand.o mx.o bounce.o \
-		q_cleanup.o
+		q_cleanup.o tls.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o header.o \
 		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
@@ -156,6 +159,12 @@ ml.o : ml.c
 		-DSIMTA_MAIL_LOCAL=\"@SIMTA_MAIL_LOCAL@\" \
 		-DSIMTA_PROCMAIL=\"@SIMTA_PROCMAIL@\" \
 		-c ml.c -o ml.o
+
+tls.o : tls.c
+	${CC} ${CFLAGS} \
+		-D_SIMTA_TLS_CA=\"${TLS_CA}\" \
+		-D_SIMTA_TLS_CERT=\"${TLS_CERT}\" \
+		-c tls.c -o tls.o
 
 expander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o expander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}

@@ -167,6 +167,9 @@ f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
 f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     extern int		simta_smtp_extension;
+    int			extension_count;
+
+    extension_count = simta_smtp_extension;
 
     /* rfc 2821 4.1.4
      * A session that will contain mail transactions MUST first be
@@ -211,48 +214,36 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-#ifdef notdef
-    /* RFC 2487 SMTP TLS */
-    if ( receive_tls == 0 ) {
-	if ( snet_writef( snet, "%d-%s Hello %s\r\n", 250, simta_hostname,
-		av[ 1 ]) < 0 ) {
-	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-
-	if ( snet_writef( snet, "%d STARTTLS\r\n", 250 ) < 0 ) {
-	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	syslog( LOG_NOTICE, "f_ehlo %s start_tls", av[ 1 ]);
-
-    } else {
-	if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
-		av[ 1 ]) < 0 ) {
-	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	syslog( LOG_NOTICE, "f_ehlo %s", av[ 1 ]);
-    }
-#else /* notdef */
-
     if ( snet_writef( snet, "%d%s%s Hello %s\r\n", 250,
-	    simta_smtp_extension-- ? "-" : " ",
+	    extension_count-- ? "-" : " ",
 	    simta_hostname, av[ 1 ]) < 0 ) {
 	syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
     if ( simta_max_message_size >= 0 ) {
 	if ( snet_writef( snet, "%d%sSIZE=%d\r\n", 250,
-		simta_smtp_extension-- ? "-" : " ",
+		extension_count-- ? "-" : " ",
 		simta_max_message_size ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
     }
 
-    syslog( LOG_NOTICE, "f_ehlo %s", av[ 1 ]);
+#ifdef HAVE_LIBSSL
+    /* RFC 2487 4.2 
+     * A server MUST NOT return the STARTTLS extension in response to an
+     * EHLO command received after a TLS handshake has completed.
+     */
+    if ( simta_tls && !receive_tls ) {
+	if ( snet_writef( snet, "%d%sSTARTTLS\r\n", 250,
+		extension_count-- ? "-" : " " ) < 0 ) {
+	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+    }
 #endif /* HAVE_LIBSSL */
+
+    syslog( LOG_NOTICE, "f_ehlo %s", av[ 1 ]);
 
     return( RECEIVE_OK );
 }
@@ -1182,11 +1173,19 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
     X509			*peer;
     char			buf[ 1024 ];
 
+    if ( !simta_tls ) {
+	if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
+	    syslog( LOG_ERR, "f_expn snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
+    }
+
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
      * session is already active.  No mention of what to do if it does...
      */
-    if ( receive_tls != 0 ) {
+    if ( receive_tls ) {
 	syslog( LOG_ERR, "f_starttls: called twice" );
 	return( RECEIVE_SYSERROR );
     }
@@ -1195,7 +1194,8 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	syslog( LOG_ERR, "Receive: Bad STARTTLS syntax: %s",
 		receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	if ( snet_writef( snet, "%d Syntax error (no parameters allowed)\r\n",
+		501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -1247,7 +1247,26 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	syslog( LOG_INFO, "Receive %s: Message Abandoned", env->e_id );
     }
 
+    /* RFC 3207 4.2 Result of the STARTTLS Command
+     * Upon completion of the TLS handshake, the SMTP protocol is reset to
+     * the initial state (the state in SMTP after a server issues a 220
+     * service ready greeting).  The server MUST discard any knowledge
+     * obtained from the client, such as the argument to the EHLO command,
+     * which was not obtained from the TLS negotiation itself. 
+     *
+     * RFC 3207 6
+     * Before the TLS handshake has begun, any protocol interactions are
+     * performed in the clear and may be modified by an active attacker.
+     * For this reason, clients and servers MUST discard any knowledge
+     * obtained prior to the start of the TLS handshake upon completion of
+     * the TLS handshake.
+     */
+
     env_reset( env );
+    if ( receive_hello != NULL ) {
+	free( receive_hello );
+	receive_hello = NULL;
+    }
 
     receive_tls = 1;
 

@@ -40,6 +40,7 @@
 #include "queue.h"
 #include "envelope.h"
 #include "simta.h"
+#include "tls.h"
 
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
@@ -74,6 +75,8 @@ void		chld( int );
 int		main( int, char *av[] );
 void		simta_daemon_child( int, int );
 
+SSL_CTX		*ctx = NULL;
+
     void
 usr1( int sig )
 {
@@ -99,10 +102,6 @@ chld( int sig )
 
     return;
 }
-
-
-SSL_CTX		*ctx = NULL;
-
 
     int
 main( int ac, char **av )
@@ -153,37 +152,6 @@ main( int ac, char **av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
-    /* Turn off getopt's error messages */
-    opterr = 0;
-
-    /* XXX - is this protable to call getopt twice? */
-    /* First read config file so command line can override it */
-    while (( c = getopt( ac, av, "df:" )) != -1 ) {
-        switch ( c ) {
-        case 'd' :              /* simta_debug */
-            simta_debug++;
-            break;
-
-        case 'f' :
-            config_fname = optarg;
-            break;
-
-        case '?':
-            continue;
-
-        case ':':
-            err++;
-        }
-    }
-
-    if ( simta_read_config( config_fname ) < 0 ) {
-        exit( 1 );
-    }
-
-    /* Turn on getopt's error messages */
-    opterr = 1;
-    optind = 1;
-
     while (( c = getopt( ac, av, " ab:cCdD:f:Im:M:p:qrRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
@@ -214,6 +182,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'f' :
+	    config_fname = optarg;
 	    break;
 
 	case 'I' :
@@ -278,7 +247,7 @@ main( int ac, char **av )
             privatekey = optarg;
             break;
 
-	default :
+	default:
 	    err++;
 	}
     }
@@ -293,6 +262,10 @@ main( int ac, char **av )
         fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
 	fprintf( stderr, "\n" );
 	exit( 1 );
+    }
+
+    if ( simta_read_config( config_fname ) < 0 ) {
+        exit( 1 );
     }
 
     if ( maxconnections < 0 ) {
@@ -326,59 +299,12 @@ main( int ac, char **av )
     }
 
     if ( authlevel > 0 ) {
-	SSL_load_error_strings();
-	SSL_library_init();
-
-	if ( use_randfile ) {
-	    char        randfile[ MAXPATHLEN ];
-
-	    if ( RAND_file_name( randfile, sizeof( randfile )) == NULL ) {
-		fprintf( stderr, "RAND_file_name: %s\n",
-			ERR_error_string( ERR_get_error(), NULL ));
-		exit( 1 );
-	    }
-	    if ( RAND_load_file( randfile, -1 ) <= 0 ) {
-		fprintf( stderr, "RAND_load_file: %s: %s\n", randfile,
-			ERR_error_string( ERR_get_error(), NULL ));
-		exit( 1 );
-	    }
-	    if ( RAND_write_file( randfile ) < 0 ) {
-		fprintf( stderr, "RAND_write_file: %s: %s\n", randfile,
-			ERR_error_string( ERR_get_error(), NULL ));
-		exit( 1 );
-	    }
-	}
-
-	if (( ctx = SSL_CTX_new( SSLv23_server_method())) == NULL ) {
-	    fprintf( stderr, "SSL_CTX_new: %s\n",
-		    ERR_error_string( ERR_get_error(), NULL ));
+	if ( tls_server_setup( use_randfile, authlevel, ca, cert,
+		privatekey ) != 0 ) {
 	    exit( 1 );
 	}
-
-	if ( SSL_CTX_use_PrivateKey_file( ctx, privatekey, SSL_FILETYPE_PEM )
-		!= 1 ) {
-	    fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
-		    privatekey, ERR_error_string( ERR_get_error(), NULL ));
-	    exit( 1 );
-	}
-	if ( SSL_CTX_use_certificate_chain_file( ctx, cert ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_use_certificate_chain_file: %s: %s\n",
-		    cert, ERR_error_string( ERR_get_error(), NULL ));
-	    exit( 1 );
-	}
-	if ( SSL_CTX_check_private_key( ctx ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_check_private_key: %s\n",
-		    ERR_error_string( ERR_get_error(), NULL ));
-	    exit( 1 );
-	}
-
-	if ( SSL_CTX_load_verify_locations( ctx, ca, NULL ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
-		    ca, ERR_error_string( ERR_get_error(), NULL ));
-	    exit( 1 );
-	}
-	SSL_CTX_set_verify( ctx,
-		SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL );
+	simta_tls = 1;
+	simta_smtp_extension++;
     }
 
     if ( dontrun ) {
