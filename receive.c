@@ -295,7 +295,6 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_mail check_host: %s: failed", domain );
-		env_reset( env );
 		return( RECEIVE_SYSERROR );
 	    } else {
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
@@ -319,7 +318,6 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	    default:
 	    case EXPAND_SYSERROR:
 	    case EXPAND_FATAL:
-		env_reset( env );
 		return( RECEIVE_SYSERROR );
 
 	    case EXPAND_OK:
@@ -383,8 +381,6 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    /* XXX check address for validity here */
-
     /* rfc 2821 3.7
      * SMTP servers MAY decline to act as mail relays or to
      * accept addresses that specify source routes.  When route information
@@ -440,7 +436,6 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_mail check_host: %s: failed", domain );
-		env_reset( env );
 		return( RECEIVE_SYSERROR );
 	    } else {
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
@@ -1034,6 +1029,23 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	    X509_NAME_oneline( X509_get_subject_name( peer ),
 	    buf, sizeof( buf )));
     X509_free( peer );
+
+    if (( env->e_flags & E_READY ) == 0 ) {
+	if ( *(env->e_id) != '\0' ) {
+	    syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
+	}
+
+    } else {
+	switch ( expand_and_deliver( &hq_receive, env )) {
+	    default:
+	    case EXPAND_SYSERROR:
+	    case EXPAND_FATAL:
+		return( RECEIVE_SYSERROR );
+
+	    case EXPAND_OK:
+		break;
+	}
+    }
 
     env_reset( env );
     env->e_flags = env->e_flags | E_TLS;
