@@ -438,7 +438,6 @@ q_runner( struct host_q **host_q )
 	    /* reset envelope */
 	    env_reset( &env );
 
-printf( "RESULT %d\n", result );
 	    if ( result > 0 ) {
 		/* message not expandable, try the next one */
 		continue;

@@ -545,6 +545,17 @@ main( ac, av )
 		exit( 1 );
 
 	    } else {
+		if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+		    syslog( LOG_ERR, "gettimeofday: %m" );
+		    exit( 1 );
+		}
+
+		if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec )
+			< 1 ) {
+		    tv_sleep.tv_sec = 1;
+		}
+		tv_sleep.tv_usec = 0;
+
 		continue;
 	    }
 	}
