@@ -86,7 +86,7 @@ main( int argc, char *argv[] )
     struct q_file		*q_inode;
     struct stab_entry		*file_stab = NULL;
     struct stab_entry		*inode_stab = NULL;
-    struct stab_entry		*st = NULL;
+    struct stab_entry		*st;
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
     char			*line;
@@ -141,7 +141,7 @@ main( int argc, char *argv[] )
 	    printf( "Clip tfile:\t%s/%s\n", SLOW_DIR, entry->d_name );
 	} else {
 	    /* not a tfile, Efile or Dfile */
-	    printf( "Unknown file:\t%s/%s\n", SLOW_DIR, entry->d_name );
+	    printf( "Warning unknown file:\t%s/%s\n", SLOW_DIR, entry->d_name );
 	}
     }
 
