@@ -50,6 +50,7 @@ struct host_q {
     int				hq_from;
     struct envelope		*hq_env_first;
     struct line_file		*hq_err_text;
+    struct dnsr_result		*hq_dnsr_result;
 };
 
 int	q_runner ___P(( struct host_q ** ));
