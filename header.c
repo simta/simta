@@ -469,7 +469,13 @@ header_correct( struct line_file *lf, struct envelope *env )
     }
 
     /* Sender: */
-    if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
+    if (( l = simta_headers[ HEAD_SENDER ].h_line ) != NULL ) {
+	if (( result = parse_mailbox_list( l, l->line_data + 7,
+		MAILBOX_SENDER )) != 0 ) {
+	    return( result );
+	}
+
+    } else {
         if ( simta_generate_sender != 0 ) {
 	    if (( len = ( strlen( simta_headers[ HEAD_SENDER ].h_key ) +
 		    strlen( sender ) + 3 )) > prepend_len ) {
@@ -491,12 +497,6 @@ header_correct( struct line_file *lf, struct envelope *env )
                 }
             }
         }
-
-    } else {
-	/* XXX allow sender if correct */
-	fprintf( stderr, "Header %s: Illegal value\n",
-		simta_headers[ HEAD_SENDER ].h_key );
-	return( 1 );
     }
 
     if ( simta_headers[ HEAD_DATE ].h_line == NULL ) {
