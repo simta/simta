@@ -252,6 +252,13 @@ q_runner( struct host_q **host_q )
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
+
+#ifdef DEBUG
+    printf( "host_q before expand:\n" );
+    q_stab_stdout( *host_q );
+    printf( "\n" );
+#endif /* DEBUG */
+
 	    /* delivered all expanded mail, check for unexpanded */
 	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
 		/* no more unexpanded mail.  we're done */
@@ -354,7 +361,7 @@ q_runner_dir( char *dir )
 
     /* did readdir finish, or encounter an error? */
     if ( errno != 0 ) {
-	syslog( LOG_ERR, "readdir: %m" );
+	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
 	return( EX_TEMPFAIL );
     }
 

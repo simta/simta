@@ -129,6 +129,7 @@ bounce( struct envelope *env, SNET *message )
     /* XXX From: address */
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", env->e_id );
+    fprintf( dfile, "\n" );
 
     /* XXX bounce message */
     fprintf( dfile, "Your mail was bounced.\n" );

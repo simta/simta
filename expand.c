@@ -293,7 +293,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     }
 
 #ifdef DEBUG
-    printf( "expanded host_q:\n" );
+    printf( "expanded host_q after:\n" );
     q_stab_stdout( *hq_stab );
     printf( "\n" );
 #endif /* DEBUG */

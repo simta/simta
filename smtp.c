@@ -694,14 +694,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    }
 	}
 
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "smtp_send: snet_close: %m" );
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	/* XXX return( SMTP_ERR_MESSAGE ); */
-	/* MAIL FROM failed.  Bounce entire message */
-	/* env->e_err_text is set */
+	/* MAIL FROM failed, env->e_err_text is set */
 	return( 0 );
     }
 
@@ -833,8 +826,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     }
 
     if ( env->e_success == 0 ) {
-	/* no one to send message to */
-	/* XXX return code correct? */
+	/* no rcpts succeded */
 	return( 0 );
     }
 
@@ -958,9 +950,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
-	/* XXX return( SMTP_ERR_MESSAGE ); */
-	/* DATA failed.  Bounce entire message */
-	/* env->e_err_text is set */
+	/* DATA failed, env->e_err_text is set */
 	return( 0 );
     }
 
@@ -1137,9 +1127,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
-	/* XXX return( SMTP_ERR_MESSAGE ); */
-	/* DATA_EOF failed.  Bounce entire message */
-	/* env->e_err_text is set */
+	/* DATA_EOF failed, env->e_err_text is set */
 	return( 0 );
     }
 
