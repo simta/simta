@@ -50,6 +50,15 @@ env_gettimeofday_id( struct envelope *e )
 env_create( char *id )
 {
     struct envelope	*env;
+    static char		localhostname[ MAXHOSTNAMELEN ] = "\0";
+
+    /* XXX divine local host name with gethostname */
+    if ( *localhostname == '\0' ) {
+	if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
+	    syslog( LOG_ERR, "gethostname: %m" );
+	    return( NULL );
+	}
+    }
 
     if (( env = (struct envelope *)malloc( sizeof( struct envelope ))) ==
 	    NULL ) {
@@ -65,8 +74,9 @@ env_create( char *id )
 	*env->e_id = '\0';
     }
 
+    env->e_hostname = localhostname;
+
     env->e_sin = NULL;
-    *env->e_hostname = '\0';
     env->e_helo = NULL;
     env->e_mail = NULL;
     env->e_rcpt = NULL;

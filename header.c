@@ -42,6 +42,23 @@ struct header simta_headers[] = {
 };
 
 
+    void
+header_stdout( struct header h[])
+{
+    while ( h->h_key != NULL ) {
+	printf( "%s:", h->h_key );
+
+	if ( h->h_line != NULL ) {
+	    printf( "%s\n", h->h_line->line_data );
+
+	} else {
+	    printf( "NULL\n" );
+	}
+
+	h++;
+    }
+}
+
     int
 count_words( char *l )
 {
@@ -242,9 +259,11 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
     }
 
-    return( 0 );
-
     /* examine header data structures */
+
+    header_stdout( simta_headers );
+
+    return( 0 );
 
     /* "From:" header */
     if ( simta_headers[ HEAD_FROM ].h_line == NULL ) {
@@ -296,6 +315,8 @@ header_correct( struct line_file *lf, struct envelope *env )
 	} else {
 	}
     }
+
+    return( 0 );
 
     if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
 	/* XXX action */

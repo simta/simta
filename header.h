@@ -15,6 +15,7 @@ struct header {
 int		count_words ___P(( char * ));
 
 /* public */
+void		header_stdout ___P(( struct header[] ));
 int		header_timestamp ___P(( struct envelope *, FILE * ));
 int		header_end ___P(( struct line_file *, char * ));
 int		header_exceptions ___P(( struct line_file * ));

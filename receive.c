@@ -892,9 +892,8 @@ receive( fd, sin )
 
     /* Check bad guy list */
 
-    if ((( env = env_create( NULL )) == NULL ) ||
-	    ( gethostname( env->e_hostname, MAXHOSTNAMELEN ) < 0 )) {
-	syslog( LOG_ERR, "env_create/gethostname: %m" );
+    if (( env = env_create( NULL )) == NULL ) {
+	syslog( LOG_ERR, "env_create: %m" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
