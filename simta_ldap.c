@@ -877,9 +877,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    ldap_value_free ( memonly );
 	}
 
-	if (suppressnoemail) {
-	    e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
-	}
 	if ((e_addr->e_addr_errors  = address_bounce_create( exp )) == NULL ) {
 	    syslog (LOG_ERR,
                   "simta_ldap_expand_group: failed creating error env: %s", dn);
@@ -894,6 +891,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    return LDAP_SYSERROR;
 	} 
 
+	if (suppressnoemail) {
+	    e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
+	}
 	if (env_recipient( e_addr->e_addr_errors, senderbuf) != 0) {
        	    syslog (LOG_ERR,
                "simta_ldap_expand_group: failed setting error recip: %s", dn);
