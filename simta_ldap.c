@@ -742,7 +742,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 
     simta_ldapuser (exp->exp_env->e_mail, &sender_name, &sender_domain);
 
-    vals = ldap_get_values (ld, entry, "associateddomain");
+    if (( vals = ldap_get_values (ld, entry, "associateddomain")) == NULL ) {
+	return( LDAP_NOT_FOUND );
+    }
     rdns = ldap_explode_dn (dn, 1);
 
     senderbuf = (char *) malloc (strlen(rdns[0]) + strlen (vals[0]) + 12);
