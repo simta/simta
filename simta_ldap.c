@@ -48,6 +48,7 @@
 #define TRUE 1
 #define FALSE 0
 #endif
+#define MAXRETRIES		5
 
 #define MAXAMBIGUOUS		10
 #define LDAP_TIMEOUT_VAL	180
@@ -87,7 +88,7 @@ LDAP				*ld = NULL;
 
 static char			*ldap_host;
 static int			ldap_port;
-static struct timeval		ldap_timeout = { LDAP_TIMEOUT_VAL, 0};
+static time_t			ldap_timeout = LDAP_TIMEOUT_VAL;
 static int			starttls;
 static char			*binddn;
 static char			*bindpw;
@@ -98,7 +99,7 @@ static char			*vacationhost;
 static char			*vacationattr;
 static char			*mailfwdattr;
 
-
+static int			ndomaincomponent = 2;
 /*
 ** simta_ldap_message_stdout -- Dumps an entry to stdout
 */
@@ -164,7 +165,7 @@ simta_ldapdomain (char * buf, char ** domain)
 
     while (pbuf > buf) {
 	if (*pbuf == '.') {
-	    if (dotcnt == 1) {
+	    if (dotcnt == (ndomaincomponent - 1)) {
 		pbuf++;
 		break;
 	    }
@@ -341,11 +342,17 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
     int		match;
     int		rc;
 
+    struct timeval timeout;
+
     for (idx = 0; expdnvals[idx]; idx++) {
+
+	timeout.tv_sec = ldap_timeout;
+	timeout.tv_usec = 0;
+
 	search_dn = expdnvals[idx];
 	res = NULL;
 	rc = ldap_search_st( ld, search_dn, LDAP_SCOPE_BASE, "(objectclass=*)",
-                        attrs, 0, &ldap_timeout, &res );
+                        attrs, 0, &timeout, &res );
      
 	if ( rc != LDAP_SUCCESS
 	&&   rc != LDAP_SIZELIMIT_EXCEEDED
@@ -484,8 +491,9 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
 		ldap_value_free ( errdnvals );
 	    }
 
-	    if (suppressnoemail) 
+	    if (suppressnoemail) {
 		e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
+	    }
 	}
 	else
 	{   /*
@@ -497,8 +505,9 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
                 	"simta_group_err_env: Failed env_dup: %s", dn);
 		rc = LDAP_SYSERROR;
 	    }
-	    else
+	    else {
 	        e_addr->e_addr_errors->e_flags = SUPPRESSNOEMAILERROR;
+	    }
 	}
     }
 
@@ -632,6 +641,7 @@ simta_local_search (char ** attrs, char * user, char * domain, int *count)
     struct ldap_search_list *lds;
     LDAPMessage		*res;
     int			rc;
+    struct timeval	timeout;
 
     *count = 0;
     /* for each base string in ldap_searches:
@@ -644,10 +654,12 @@ simta_local_search (char ** attrs, char * user, char * domain, int *count)
 	if ( search_string == NULL ) 
 	    return( LDAP_SYSERROR );
 
+	timeout.tv_sec = ldap_timeout;
+	timeout.tv_usec = 0;
 	res = NULL;
 	rc = ldap_search_st( ld, lds->lds_plud->lud_dn, 
 			lds->lds_plud->lud_scope, search_string, attrs, 0, 
-			&ldap_timeout, &res );
+			&timeout, &res );
 	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
 	    syslog( LOG_ERR, 
 	"simta_local_search: ldap_search_st Failed: %s", ldap_err2string(rc ));
@@ -709,30 +721,17 @@ simta_address_type (char * address)
 do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 {
 
-    int		cnt;
-    int		last;
     int		idx;
     char	*dn; 
     char	*rdn;
     char	**ufn;
     char	**vals;
     LDAPMessage	*e;
-    char	*errfmt;
 
-    errfmt = (char *) malloc (strlen (addr) + 100);
-    if (! errfmt) {
-	syslog( LOG_ERR, "do_ambiguous: Failed allocating initial errfmt");
+    if ( bounce_text( e_addr->e_addr_errors, addr, 
+				": Ambigous user", NULL ) != 0 ) {
 	return;
     }
-    
-    cnt = ldap_result2error( ld, res, 0 );
-    sprintf( errfmt, "%s: Ambiguous user.  %s %d matches found:\n\n",
-            addr, cnt == LDAP_SIZELIMIT_EXCEEDED ? "First " : "",
-            ldap_count_entries( ld, res ) );
-
-    free (errfmt);
-    if ( bounce_text( e_addr->e_addr_errors, errfmt, NULL, NULL ) != 0 )
-	return;
 
     for ( e = ldap_first_entry( ld, res ); e != NULL;
 	  e = ldap_next_entry( ld, e ) ) {
@@ -744,14 +743,7 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 
 	if ( strcasecmp( rdn, addr ) == 0 ) {
 	    if ( (vals = ldap_get_values( ld, e, "cn" )) != NULL ) {
-		for ( idx = 0; vals[idx]; idx++ ) {
-		    last = strlen( vals[idx] ) - 1;
-		    if (isdigit((unsigned char) vals[idx][last ])) {
-			free (rdn);
-			rdn = strdup( vals[idx] );
-			break;
-		    }
-		}
+		rdn = strdup( vals[0] );
 		ldap_value_free( vals );
 	    }
 	}
@@ -761,25 +753,20 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	} else {
 	    vals = ldap_get_values( ld, e, "title" );
 	}
+	if (vals && vals[0]) {
+	    if (bounce_text( e_addr->e_addr_errors, rdn, "\t", vals[0] ) == 0) {
+		return;
+	    }
 
-	errfmt = (char *) malloc (strlen (rdn) + 26);
-	if (! errfmt) {
-	    syslog( LOG_ERR, "do_ambiguous: Failed allocating errfmtbuf");
-	    return;
-	}
-
-	sprintf (errfmt, "    %-20s ", rdn);
-	bounce_text( e_addr->e_addr_errors, errfmt, vals[0], NULL );
-	free (errfmt);
-
-	for ( idx = 1; vals && vals[idx] != NULL; idx++ ) {
-	    bounce_text( e_addr->e_addr_errors, "                         ",
-			vals[idx], NULL );    /* 1234567890123456789012345 */
-	}
-
-	free( rdn );
-	if ( vals != NULL )
+	    for ( idx = 1; vals && vals[idx] != NULL; idx++ ) {
+		if (bounce_text( e_addr->e_addr_errors, "\t\t", vals[idx], NULL)
+			== 0) {
+		    return;
+		}
+	    }
 	    ldap_value_free( vals );
+	}
+	free( rdn );
     }
 }
 
@@ -787,44 +774,21 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 {
 
-    char	*errfmtbuf;
-    size_t	errfmtlen;
-    size_t	addrnamelen;
-    int		last;
     int		idx;
     char	*dn; 
     char	*rdn;
     char	**ufn;
     char	**vals;
 
-    char	*blankbuf;	/* Buffer of blanks for formatting */
-
-    addrnamelen = strlen (addr);
-    if (addrnamelen > MAXADDRESSLENGTH)
-	addrnamelen = MAXADDRESSLENGTH;
-
-    errfmtlen = ERRORFMTBUFLEN + addrnamelen;
-    errfmtbuf = (char *) malloc (errfmtlen);
-    if (! errfmtbuf) {
-	syslog( LOG_ERR, "do_noemail: Failed allocating errfmtbuf");
-	return;
-    }
- 
     if ( bounce_text( e_addr->e_addr_errors, addr,
 		": User has no email address registered.\n" , NULL ) != 0 ) {
-	free (errfmtbuf);
 	return;
     }
   
-    sprintf( errfmtbuf, 
-		"%*s  Name, title, postal address and phone for '%s':\n",
-		addrnamelen, " ", addr );
-
-    if ( bounce_text( e_addr->e_addr_errors, errfmtbuf, NULL, NULL ) != 0 ) {
-	free (errfmtbuf);
+    if ( bounce_text( e_addr->e_addr_errors, 
+"\t Name, title, postal address and phone for:",  addr, NULL ) != 0 ) {
 	return;
     }
-    free (errfmtbuf);
 
     /* name */
     dn = ldap_get_dn( ld, res );
@@ -832,23 +796,13 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     rdn = strdup( ufn[0] );
     if ( strcasecmp( rdn, addr ) == 0 ) {
 	if ( (vals = ldap_get_values( ld, res, "cn" )) != NULL ) {
-	    for ( idx = 0; vals[idx]; idx++ ) {
-		last = strlen( vals[idx] ) - 1;
-		if ( isdigit((unsigned char) vals[idx][last]) ) {
-		    free (rdn);
-		    rdn = strdup( vals[idx] );
-		    break;
-		}
-	    }
+	    free (rdn);
+	    rdn = strdup( vals[0] );
 	    ldap_value_free( vals );
 	}
     }
-    blankbuf = (char *) malloc (addrnamelen + 1);
-    memset (blankbuf, ' ', addrnamelen);
-    blankbuf[addrnamelen] = '\0';
 
-    if ( bounce_text( e_addr->e_addr_errors, blankbuf, rdn, NULL ) != 0 ) {
-	free (blankbuf);
+    if ( bounce_text( e_addr->e_addr_errors, "\t", rdn, NULL ) != 0 ) {
 	return;
     }
 
@@ -860,17 +814,15 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     if ( (vals = ldap_get_values( ld, res, "title" )) == NULL &&
          (vals = ldap_get_values( ld, res, "description" )) == NULL ) {
 
-	if ( bounce_text( e_addr->e_addr_errors, blankbuf, 
+	if ( bounce_text( e_addr->e_addr_errors, "\t", 
 			"No title or description registered" , NULL ) != 0 ){
-	    free (blankbuf);
 	    ldap_value_free( vals );
 	    return;
 	}
     } else {
 	for ( idx = 0; vals[idx] != NULL; idx++ ) {
 	    if ( bounce_text( e_addr->e_addr_errors, 
-				blankbuf, vals[idx], NULL ) != 0 ) {
-		free (blankbuf);
+				"\t", vals[idx], NULL ) != 0 ) {
 		ldap_value_free( vals );
 		return;
 	    }
@@ -879,18 +831,16 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     }
     /* postal address*/
     if ( (vals = ldap_get_values( ld, res, "postaladdress" )) == NULL ) {
-	if ( bounce_text( e_addr->e_addr_errors, blankbuf, 
+	if ( bounce_text( e_addr->e_addr_errors, "\t", 
 			"No postaladdress registered", NULL ) != 0 ){
 	    ldap_value_free( vals );
-	    free (blankbuf);
 	    return;
 	}
     } else {
 	for ( idx = 0; vals[idx] != NULL; idx++ ) {
 	    if ( bounce_text( e_addr->e_addr_errors, 
-				blankbuf, vals[idx], NULL ) != 0 ) {
+				"\t", vals[idx], NULL ) != 0 ) {
 		ldap_value_free( vals );
-	        free (blankbuf);
 		return;
 	    }
 	}
@@ -898,24 +848,21 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     }
     /* telephone number */
     if ( (vals = ldap_get_values( ld, res, "telephoneNumber" )) == NULL ) {
-	if ( bounce_text( e_addr->e_addr_errors, blankbuf, 
+	if ( bounce_text( e_addr->e_addr_errors, "\t", 
 				"No phone number registered", NULL ) != 0 ){
 	    ldap_value_free( vals );
-	    free (blankbuf);
 	    return;
 	}
     } else {
 	for ( idx = 0; vals[idx] != NULL; idx++ ) {
 	    if ( bounce_text( e_addr->e_addr_errors, 
-				blankbuf, vals[idx], NULL ) != 0 ) {
+				"\t", vals[idx], NULL ) != 0 ) {
 		ldap_value_free( vals );
-	        free (blankbuf);
 		return;
 	    }
 	}
 	ldap_value_free( vals );
     }
-    free (blankbuf);
     return;
 }
 
@@ -1052,8 +999,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		ldap_value_free (mailvals);
 		mailvals = moderator;
 	    }
-	    else
+	    else {
 		ldap_value_free (moderator);
+	    }
 	}
 	/*
 	** MembersOnly group?
@@ -1137,7 +1085,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	}
 	ldap_value_free( mailvals);
     }
-    if (valfound == 0) {
+    if ((valfound == 0) && (errmsg != NULL)) {
 	bounce_text( e_addr->e_addr_errors, dn, errmsg, NULL);
     }	
     ldap_memfree (dn);
@@ -1154,6 +1102,9 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
     int		idx;
     int		result;
     char	*attrval;
+
+    char	buf[1024];
+    char	**ufn;
 
     if ( ldap_groups
     &&  (simta_ldap_value( entry, "objectClass", ldap_groups ) == 1 ) ) {
@@ -1176,15 +1127,18 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 		do_noemail (e_addr, addr, entry);
 	    } else {
 		if ((e_addr->e_addr_errors->e_flags & SUPPRESSNOEMAILERROR) == 0) {
-		    if ( bounce_text( e_addr->e_addr_errors, addr,
+		    ufn = ldap_explode_dn( addr, 1 );
+
+		    if ( bounce_text( e_addr->e_addr_errors, ufn[0],
 		" : Group member exists but does not have an email address" , 
 			NULL ) != 0 ) {
-
+			ldap_value_free( ufn );
 			syslog( LOG_ERR, 
     "simta_ldap_process_entry: Failed building bounce message -- no email: %s",
 				e_addr->e_addr);
 			return( LDAP_SYSERROR );
 		    }
+		    ldap_value_free( ufn );
 		}
 	    }
 #if 0
@@ -1218,10 +1172,9 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
             && (onvacation = ldap_get_values( ld, entry, vacationattr)) != NULL 
 	    && strcasecmp( onvacation[0], "TRUE" ) == 0 ) {
 
-		char    buf[1024];
 
 		if ( (uid = ldap_get_values( ld, entry, "uid" )) != NULL ) {
-		    sprintf( buf, "%s@%s", uid[0], vacationhost );
+		    snprintf( buf, sizeof (buf), "%s@%s", uid[0], vacationhost);
 		    if ( add_address( exp, buf,
 			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
 			syslog (LOG_ERR, 
@@ -1229,7 +1182,7 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 		    }
 		    ldap_value_free( uid);
 	    	} else {
-		    syslog( LOG_ALERT, "user without a uid on vacation (%s)",
+		    syslog( LOG_ERR, "user without a uid on vacation (%s)",
 				 addr );
 	    	}
 	    }
@@ -1240,10 +1193,12 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	return (LDAP_EXCLUDE);
 
     } else {
-	/* Neither a rfc822mailgroup, nor a person */
-	syslog( LOG_ERR, "Entry: %s is neither person or rfc822mailgroup ",
-		e_addr->e_addr);
-	return( LDAP_SYSERROR );
+	/* Neither a group, or a person */
+	syslog( LOG_ERR, "Entry: %s is neither person or group ",
+                e_addr->e_addr);
+        bounce_text( e_addr->e_addr_errors, addr,
+	" : Entry exists but is neither a group or person", NULL );
+	return( LDAP_EXCLUDE );
     }
 }
 
@@ -1261,6 +1216,8 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
     LDAPMessage		*tmpres = NULL;
     char		*dn;
     char		**xdn;
+    struct timeval	timeout;
+    int			retrycnt = 0;
 
     /* for each base string in ldap_searches:
      *    If this search string is of the specified addrtype:
@@ -1277,12 +1234,39 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
 		addr, domain )) == NULL ) {
 	    return( LDAP_SYSERROR );
 	}
+startsearch:
+	timeout.tv_sec = ldap_timeout;
+	timeout.tv_usec = 0;
 	res = NULL;
 	rc = ldap_search_st( ld, lds->lds_plud->lud_dn,
 			lds->lds_plud->lud_scope, search_string, 
-			attrs, 0, &ldap_timeout, &res );
+			attrs, 0, &timeout, &res );
 
-	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
+	/*
+	** After a long idle time,  the connection can be closed 
+	** by the ldap server.  A long idle time can result if we
+	** are processing a really long queue of mail.
+	** If connection timeout, restart the connection.
+        */
+	if (rc == LDAP_SERVER_DOWN) {
+	    ldap_msgfree( res );
+	    simta_ldap_unbind (ld);
+
+	    retrycnt++;
+	    if (retrycnt > MAXRETRIES) {
+		return( LDAP_SYSERROR );
+	    }
+		
+	    if ((rc = simta_ldap_init () )) {
+		return( LDAP_SYSERROR );
+	    }
+	    goto startsearch;
+	}
+
+
+
+	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED 
+	&&   rc != LDAP_TIMELIMIT_EXCEEDED) {
 	    syslog( LOG_ERR, "simta_ldap_name_search: ldap_search_st error: %s",
 		    ldap_err2string(rc ));
 	    ldap_msgfree( res ); 
@@ -1294,6 +1278,11 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
 	    break;
 
 	ldap_msgfree( res );
+
+        /* Search timeout w/ no matches -- generate a temporary failure */
+	if (rc ==  LDAP_TIMELIMIT_EXCEEDED) {
+	    return( LDAP_SYSERROR );
+	}
     }
 
     switch (match) {
@@ -1400,14 +1389,18 @@ simta_ldap_dn_expand (struct expand *exp, struct exp_addr *e_addr )
     int			match;
     LDAPMessage		*res;
     LDAPMessage		*entry;
+    struct timeval	timeout;
 
     search_dn = e_addr->e_addr;
+    timeout.tv_sec = ldap_timeout;
+    timeout.tv_usec = 0;
     res = NULL;
     rc = ldap_search_st( ld, search_dn, LDAP_SCOPE_BASE, "(objectclass=*)", 
-			attrs, 0, &ldap_timeout, &res );
+			attrs, 0, &timeout, &res );
 
     if ( rc != LDAP_SUCCESS 
     &&   rc != LDAP_SIZELIMIT_EXCEEDED 
+    &&   rc != LDAP_TIMELIMIT_EXCEEDED
     &&   rc != LDAP_NO_SUCH_OBJECT ) {
 
 	syslog( LOG_ERR, "simta_ldap_dn_expand: ldap_search_st Failed: %s",
@@ -1490,11 +1483,8 @@ simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	return (rc);
     }
 
-    /* addr should be somename@somedomain */
-    if ( strchr( e_addr->e_addr, '@' ) == NULL ) {
-	bounce_text( e_addr->e_addr_errors, "bad address format: ",
-		e_addr->e_addr, NULL );
-	return( LDAP_SYSERROR );
+    if ( e_addr->e_addr_at == NULL ) {
+	panic( "simta_ldap_expand: e_addr->e_addr_at is NULL");
     }
 
     *e_addr->e_addr_at = '\0';
@@ -1594,6 +1584,7 @@ simta_ldap_config( char *fname )
     int			rdnpref;	
     int			search_type;
     int			ldaprc;		/* ldap return code */
+    int			ret = -1;	/* Default to error */
 
     /* open fname */
     if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
@@ -1668,12 +1659,12 @@ simta_ldap_config( char *fname )
 			    search_type = LDS_GROUP;
 			} else if (strcasecmp (c, "USER") == 0 ) {
 			    search_type = LDS_USER;
-			}
-			else
+			} else {
 		    	    ldap_free_urldesc (plud);
 		    	    syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
 		    	    syslog ( LOG_ERR, "Unknown Searchtype in url\n");
 		    	    goto errexit;
+			}
 		    }
 		    else {
 			ldap_free_urldesc (plud);
@@ -1751,8 +1742,7 @@ simta_ldap_config( char *fname )
 		syslog ( LOG_ERR, "Missing timeout value\n");
 		goto errexit;
 	    }
-	    ldap_timeout.tv_sec = atoi (av[ 1 ]);
-	    ldap_timeout.tv_usec = 0;
+	    ldap_timeout = (time_t) atoi (av[ 1 ]);
 	    
 	} else if ( strcasecmp( av[ 0 ], "ldapdebug" ) == 0 ) {
 	    if (ac != 2) {
@@ -1775,6 +1765,14 @@ simta_ldap_config( char *fname )
 		goto errexit;
 	    }
 	    starttls = intval;
+	    
+	} else if ( strcasecmp( av[ 0 ], "domaincomponentcount" ) == 0 ) {
+	    if (ac != 2) {
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing domaincomponentcount value\n");
+		goto errexit;
+	    }
+	    ndomaincomponent = atoi (av[ 1 ]);
 	    
 	} else if (( strcasecmp( av[ 0 ], "bindpw" ) == 0 ) ||
 		   ( strcasecmp( av[ 0 ], "bindpassword" ) == 0 )) {
@@ -1915,9 +1913,8 @@ simta_ldap_config( char *fname )
     if (ldap_port <= 0) {
 	ldap_port = 389;
     }
-    if (ldap_timeout.tv_sec <= 0) {
-	ldap_timeout.tv_sec = LDAP_TIMEOUT_VAL;
-	ldap_timeout.tv_usec = 0;
+    if (ldap_timeout <= 0) {
+	ldap_timeout = LDAP_TIMEOUT_VAL;
     }
     if (!mailfwdattr) {
 	mailfwdattr = strdup ("mail");
@@ -1926,7 +1923,7 @@ simta_ldap_config( char *fname )
     if (attrs == NULL)
 	attrs = allattrs;
 
-    return (0);
+    ret = 0;
 
 errexit:    
     if (linecopy) {
@@ -1953,5 +1950,5 @@ errexit:
 	free (vacationattr);
 	vacationattr = NULL;
     }
-    return( -1 );
+    return( ret );
 }
