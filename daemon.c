@@ -114,7 +114,6 @@ main( int ac, char **av )
     struct servent	*se;
     int			pid;
     int			cleanup = 1;
-    int			cleaned = 0;
     int			launch_seconds;
     int			q_runner_local_max;
     int			q_runner_slow_max;
@@ -581,8 +580,6 @@ main( int ac, char **av )
 
 	/* check to see if any children need to be accounted for */
 	while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-	    child_signal = 0;
-	    cleaned++;
 	    p_search = &proc_stab;
 
 	    for ( p_search = &proc_stab; *p_search != NULL;
@@ -650,8 +647,8 @@ main( int ac, char **av )
 	    }
 	}
 
-	if ( cleaned > 0 ) {
-	    cleaned = 0;
+	if ( child_signal > 0 ) {
+	    child_signal = 0;
 	    continue;
 	}
 
