@@ -33,17 +33,17 @@ message_create( void )
 
     /* add a line to the message */
 
-    int
+    struct line *
 message_line( struct message *m, char *line )
 {
     struct line		*l;
 
     if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
-	return( 1 );
+	return( NULL );
     }
 
     if (( l->line_data = strdup( line )) == NULL ) {
-	return( 1 );
+	return( NULL );
     }
 
     l->line_next = NULL;
@@ -57,5 +57,5 @@ message_line( struct message *m, char *line )
 	m->m_last = l;
     }
 
-    return( 0 );
+    return( l );
 }

@@ -15,5 +15,10 @@ struct line {
     char		*line_data;
 };
 
+struct nlist {
+    char		*n_key;
+    char		*n_data;
+};
+
 struct message *message_create( void );
-int		message_line( struct message *, char * );
+struct line *message_line( struct message *, char * );
