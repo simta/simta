@@ -369,6 +369,7 @@ f_mail( snet, env, ac, av )
     return( RECEIVE_OK );
 }
 
+
     int
 f_rcpt( snet, env, ac, av )
     SNET			*snet;
@@ -380,17 +381,17 @@ f_rcpt( snet, env, ac, av )
     char		*addr, *domain;
     struct dnsr_result	*result;
 
-    /* Must already have "MAIL FROM:", and no valid message */
-    if (( env->e_mail == NULL ) || (( env->e_flags & E_READY ) != 0 )) {
-	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
+    if ( ac != 2 ) {
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
 	}
 	return( RECEIVE_OK );
     }
 
-    if ( ac != 2 ) {
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+    /* Must already have "MAIL FROM:", and no valid message */
+    if (( env->e_mail == NULL ) || (( env->e_flags & E_READY ) != 0 )) {
+	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_BADCONNECTION );
 	}
