@@ -20,7 +20,6 @@
 #include <snet.h>
 
 #include "denser.h"
-#include "simta.h"
 #include "nlist.h"
 
 #define	SPACECHARS	" \t"

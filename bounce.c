@@ -68,13 +68,11 @@ bounce_text( struct envelope *bounce_env, char *t1, char *t2, char *t3 )
 	}
 	sprintf( text, "%s%s%s", t1, t2, t3 );
 
-	if ( line_append( bounce_env->e_err_text, text ) == NULL ) {
+	if ( line_append( bounce_env->e_err_text, text, NO_COPY ) == NULL ) {
 	    syslog( LOG_ERR, "bounce_text line_append: %m" );
 	    free( text );
 	    return( -1 );
 	}
-
-	free( text );
 
     } else if ( t2 != NULL ) {
 	len = strlen( t1 ) + strlen( t2 ) + 1;
@@ -85,16 +83,14 @@ bounce_text( struct envelope *bounce_env, char *t1, char *t2, char *t3 )
 	}
 	sprintf( text, "%s%s", t1, t2 );
 
-	if ( line_append( bounce_env->e_err_text, text ) == NULL ) {
+	if ( line_append( bounce_env->e_err_text, text, NO_COPY ) == NULL ) {
 	    syslog( LOG_ERR, "bounce_text line_append: %m" );
 	    free( text );
 	    return( -1 );
 	}
 
-	free( text );
-
     } else {
-	if ( line_append( bounce_env->e_err_text, t1 ) == NULL ) {
+	if ( line_append( bounce_env->e_err_text, t1, COPY ) == NULL ) {
 	    syslog( LOG_ERR, "bounce_text line_append: %m" );
 	    return( -1 );
 	}
@@ -134,7 +130,7 @@ bounce_stdout( struct envelope *bounce_env )
     ino_t
 bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 {
-    int				return_value = 0;
+    int				ret = 0;
     int				line_no = 0;
     char                        dfile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
@@ -181,12 +177,13 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     /* dfile message headers */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
     if ( *(bounce_env->e_mail) == '\0' ) {
-	fprintf( dfile, "To: %s\n", simta_postmaster );
+	fprintf( dfile, "To: postmaster\n" );
     } else {
 	fprintf( dfile, "To: %s\n", bounce_env->e_mail );
     }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
+    fprintf( dfile, "Subject: undeliverable mail\n" );
     fprintf( dfile, "\n" );
 
     for ( l = bounce_env->e_err_text->l_first; l != NULL; l = l->line_next ) {
@@ -201,7 +198,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 
 	while (( line = snet_getline( message, NULL )) != NULL ) {
 	    line_no++;
-	    if ( line_no > SIMTA_BOUNCE_LINES ) {
+	    if ( line_no > simta_max_bounce_lines ) {
 		break;
 	    }
 
@@ -214,15 +211,15 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
         goto cleanup;
     }
 
-    return_value = 1;
+    ret = 1;
 
 cleanup:
     if ( fclose( dfile ) != 0 ) {
 	syslog( LOG_ERR, "bounce_dfile_out fclose %s: %m", dfile_fname );
-	return_value = 0;
+	ret = 0;
     }
 
-    if ( return_value != 0 ) {
+    if ( ret != 0 ) {
 	return( sbuf.st_ino );
     }
 
@@ -333,6 +330,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
+    fprintf( dfile, "Subject: undeliverable mail\n" );
     fprintf( dfile, "\n" );
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
@@ -385,7 +383,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	fprintf( dfile, "\n" );
 	while (( line = snet_getline( message, NULL )) != NULL ) {
 	    line_no++;
-	    if ( line_no > SIMTA_BOUNCE_LINES ) {
+	    if ( line_no > simta_max_bounce_lines ) {
 		break;
 	    }
 	    fprintf( dfile, "%s\n", line );

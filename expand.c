@@ -329,13 +329,17 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    if ( env->e_err_text != NULL ) {
 		env_p = &(env->e_next);
 
-		if ( env == base_error_env ) {
-		    /* send the message back to the original sender */
+		if ( snet == NULL ) {
 		    if (( snet = snet_open( d_original, O_RDONLY, 0,
 			    1024 * 1024 )) == NULL ) {
 			syslog( LOG_ERR, "expand.snet_open %s: %m",
 				d_original );
 			goto cleanup4;
+		    }
+		} else {
+		    if ( lseek( snet_fd( snet ), (off_t)0, SEEK_SET ) != 0 ) {
+			syslog( LOG_ERR, "q_deliver lseek: %m" );
+			panic( "q_deliver lseek fail" );
 		    }
 		}
 
@@ -353,19 +357,6 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 
 		line_file_free( env->e_err_text );
 		env->e_err_text = NULL;
-
-		if ( snet != NULL ) {
-		    if ( snet_close( snet ) != 0 ) {
-			syslog( LOG_ERR, "expand.snet_close %s: %m",
-				d_original );
-			sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
-			if ( unlink( d_out ) != 0 ) {
-			    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
-			}
-			goto cleanup4;
-		    }
-		    snet = NULL;
-		}
 
 		syslog( LOG_INFO, "expand %s: writing bounce %s %s",
 			unexpanded_env->e_id, env->e_id, env->e_hostname );
@@ -389,6 +380,19 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    env_p = &(env->e_next);
 	    bounce_stdout( env );
 	}
+    }
+
+    if ( snet != NULL ) {
+	if ( snet_close( snet ) != 0 ) {
+	    syslog( LOG_ERR, "expand.snet_close %s: %m",
+		    d_original );
+	    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
+	    if ( unlink( d_out ) != 0 ) {
+		syslog( LOG_ERR, "expand unlink %s: %m", d_out );
+	    }
+	    goto cleanup4;
+	}
+	snet = NULL;
     }
 
     if ( simta_expand_debug != 0 ) {

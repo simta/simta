@@ -18,7 +18,10 @@ struct line_file {
     struct line		*l_last;
 };
 
+#define	NO_COPY		0
+#define	COPY		1
+
 struct line_file	*line_file_create( void );
 void			line_file_free( struct line_file * );
-struct line		*line_append( struct line_file *, char * );
-struct line		*line_prepend( struct line_file *, char * );
+struct line		*line_append( struct line_file *, char *, int );
+struct line		*line_prepend( struct line_file *, char *, int );

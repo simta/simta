@@ -550,7 +550,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		headers_simsendmail[ HEAD_FROM ].h_key, sender );
 
 	if (( headers_simsendmail[ HEAD_FROM ].h_line =
-		line_prepend( lf, prepend_line )) == NULL ) {
+		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
 	}
@@ -579,7 +579,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
                         headers_simsendmail[ HEAD_SENDER ].h_key, sender );
 
                 if (( headers_simsendmail[ HEAD_SENDER ].h_line =
-                        line_prepend( lf, prepend_line )) == NULL ) {
+                        line_prepend( lf, prepend_line, COPY )) == NULL ) {
                     perror( "malloc" );
                     return( -1 );
                 }
@@ -620,7 +620,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		headers_simsendmail[ HEAD_DATE ].h_key, daytime );
 
 	if (( headers_simsendmail[ HEAD_DATE ].h_line =
-		line_prepend( lf, prepend_line )) == NULL ) {
+		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
 	}
@@ -644,7 +644,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		simta_hostname );
 
 	if (( headers_simsendmail[ HEAD_MESSAGE_ID ].h_line =
-		line_prepend( lf, prepend_line )) == NULL ) {
+		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
 	}

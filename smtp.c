@@ -131,18 +131,18 @@ smtp_consume_banner( struct line_file **err_text, SNET *snet,
 	    }
 
 	} else {
-	    if ( line_append( *err_text, "" ) == NULL ) {
+	    if ( line_append( *err_text, "", COPY ) == NULL ) {
 		syslog( LOG_ERR, "smtp_consume_banner line_append: %m" );
 		goto consume;
 	    }
 	}
 
-	if ( line_append( *err_text, error ) == NULL ) {
+	if ( line_append( *err_text, error, COPY ) == NULL ) {
 	    syslog( LOG_ERR, "smtp_consume_banner line_append: %m" );
 	    goto consume;
 	}
 
-	if ( line_append( *err_text, line ) == NULL ) {
+	if ( line_append( *err_text, line, COPY ) == NULL ) {
 	    syslog( LOG_ERR, "smtp_consume_banner line_append: %m" );
 	    goto consume;
 	}
@@ -183,7 +183,7 @@ smtp_consume_banner( struct line_file **err_text, SNET *snet,
 		(*smtp_logger)( line );
 	    }
 
-	    if ( line_append( *err_text, line ) == NULL ) {
+	    if ( line_append( *err_text, line, COPY ) == NULL ) {
 		syslog( LOG_ERR,
 			"smtp_consume_banner line_append: unexpected EOF" );
 		goto consume;

@@ -52,7 +52,7 @@ line_file_free( struct line_file *lf )
     /* append a line to a line_file structure  */
 
     struct line *
-line_append( struct line_file *lf, char *data )
+line_append( struct line_file *lf, char *data, int copy )
 {
     struct line		*l;
 
@@ -62,9 +62,16 @@ line_append( struct line_file *lf, char *data )
     }
     memset( l, 0, sizeof( struct line ));
 
-    if (( l->line_data = strdup( data )) == NULL ) {
-	syslog( LOG_ERR, "line_append strdup: %m" );
-	return( NULL );
+    if ( copy != 0 ) {
+	if (( l->line_data = strdup( data )) == NULL ) {
+	    syslog( LOG_ERR, "line_append strdup: %m" );
+	    return( NULL );
+	}
+    } else {
+	if (( l->line_data = data ) == NULL ) {
+	    syslog( LOG_ERR, "line_append: no data" );
+	    return( NULL );
+	}
     }
 
     l->line_next = NULL;
@@ -87,7 +94,7 @@ line_append( struct line_file *lf, char *data )
     /* prepend a line to a line_file structure  */
 
     struct line *
-line_prepend( struct line_file *lf, char *data )
+line_prepend( struct line_file *lf, char *data, int copy )
 {
     struct line		*l;
 
@@ -97,9 +104,16 @@ line_prepend( struct line_file *lf, char *data )
     }
     memset( l, 0, sizeof( struct line ));
 
-    if (( l->line_data = strdup( data )) == NULL ) {
-	syslog( LOG_ERR, "line_prepend strdup: %m" );
-	return( NULL );
+    if ( copy != 0 ) {
+	if (( l->line_data = strdup( data )) == NULL ) {
+	    syslog( LOG_ERR, "line_prepend strdup: %m" );
+	    return( NULL );
+	}
+    } else {
+	if (( l->line_data = data ) == NULL ) {
+	    syslog( LOG_ERR, "line_prepend: no data" );
+	    return( NULL );
+	}
     }
 
     l->line_prev = NULL;

@@ -51,6 +51,7 @@ struct stab_entry	*simta_default_host = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 int			simta_no_sync = 0;
 int			simta_max_received_headers = 100;
+int			simta_max_bounce_lines;
 int			simta_receive_wait = 600;
 int			simta_ignore_reverse = 0;
 int			simta_message_count = 0;
@@ -85,14 +86,16 @@ struct nlist		simta_nlist[] = {
     { "base_dir",					NULL,	0 },
 #define	NLIST_RECEIVE_WAIT				3
     { "receive_wait",					NULL,	0 },
-#define	NLIST_BOUNCE_SECONDS				4
+#define	NLIST_BOUNCE_LINES				4
+    { "bounce_lines",					NULL,	0 },
+#define	NLIST_BOUNCE_SECONDS				5
     { "bounce_seconds",					NULL,	0 },
-#define	NLIST_MAX_RECEIVED_HEADERS			5
+#define	NLIST_MAX_RECEIVED_HEADERS			6
     { "max_received_headers",				NULL,	0 },
-#define	NLIST_MAIL_FILTER				6
+#define	NLIST_MAIL_FILTER				7
     { "mail_filter",					NULL,	0 },
 #ifdef HAVE_LDAP
-#define	NLIST_LDAP					7
+#define	NLIST_LDAP					8
     { "ldap",						NULL,	0 },
 #endif /* HAVE_LDAP */
     { NULL,						NULL,	0 },
@@ -159,6 +162,8 @@ simta_config( char *conf_fname, char *base_dir )
 	fprintf( stderr, "simta_config: get_local_mailer failed!\n" );
 	return( -1 );
     }
+
+    simta_max_bounce_lines = SIMTA_BOUNCE_LINES;
 
     /* set up simta_hosts stab */
     simta_hosts = NULL;
@@ -233,6 +238,18 @@ simta_config( char *conf_fname, char *base_dir )
 
 	if ( simta_nlist[ NLIST_BASE_DIR ].n_data != NULL ) {
 	    base_dir = simta_nlist[ NLIST_BASE_DIR ].n_data;
+	}
+
+	if ( simta_nlist[ NLIST_BOUNCE_LINES ].n_data != NULL ) {
+	    simta_max_bounce_lines =
+		atoi( simta_nlist[ NLIST_BOUNCE_LINES ].n_data );
+	    if ( simta_max_bounce_lines < 0 ) {
+		fprintf( stderr,
+		    "file %s line %d: bounce_seconds may not be less than 0",
+		    conf_fname,
+		    simta_nlist[ NLIST_BOUNCE_LINES ].n_lineno );
+		return( -1 );
+	    }
 	}
 
 	if ( simta_nlist[ NLIST_BOUNCE_SECONDS ].n_data != NULL ) {

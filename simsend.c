@@ -322,11 +322,10 @@ main( int argc, char *argv[] )
 		header = 0;
 
 	    } else {
-
 		/* append line to headers if it's not whitespace */
 		for ( wsp = line; *wsp != '\0'; wsp++ ) {
 		    if (( *wsp != ' ' ) && ( *wsp != '\t' )) {
-			if (( l = line_append( lf, line )) == NULL ) {
+			if (( l = line_append( lf, line, COPY )) == NULL ) {
 			    perror( "malloc" );
 			    exit( EX_TEMPFAIL );
 			}

@@ -152,7 +152,7 @@ procmail( int f, char *sender, struct recipient *recipient )
 		}
 	    }
 
-	    if ( line_append( recipient->r_err_text, line ) == NULL ) {
+	    if ( line_append( recipient->r_err_text, line, COPY ) == NULL ) {
 		syslog( LOG_ERR, "line_append: %m" );
 		return( EX_TEMPFAIL );
 	    }
@@ -295,7 +295,7 @@ mail_local( int f, char *sender, struct recipient *recipient )
 		}
 	    }
 
-	    if ( line_append( recipient->r_err_text, line ) == NULL ) {
+	    if ( line_append( recipient->r_err_text, line, COPY ) == NULL ) {
 		syslog( LOG_ERR, "line_append: %m" );
 		return( EX_TEMPFAIL );
 	    }
