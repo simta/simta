@@ -112,7 +112,7 @@ address_local( char *address )
     int
 address_expand( char *address, struct stab_entry **expansion, struct stab_entry **seen)
 {
-    int			ret = 0, count = 0;
+    int			ret = 0, count = 0, len = 0;
     char		*user = NULL, *data = NULL, *domain = NULL;
     char		*address_local;
     char		buf[ MAXPATHLEN * 2 ];
@@ -120,6 +120,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
     DBC			*dbcp = NULL;
     DBT			key, value;
     struct stab_entry	*lookup = NULL, *i = NULL;
+    FILE		*f;
 
     /* Check to see if we have seen addr already */
     if ( ll_lookup( *seen, address ) != NULL ) {
@@ -264,14 +265,49 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 		//printf( "%s not in password file\n", user );
 		continue;
 	    }
-	    //printf( "%s found in password file\n", user );
 
-	    /* XXX - Check .forward */
-	    /* Only expand if there is a .forward */
-
-	    /* Create address from user and domain */
+	    /* Check .forward */
 	    memset( buf, 0, MAXPATHLEN * 2 );
-	    sprintf( buf, "%s@%s", user, domain );
+	    sprintf( buf, "%s/.forward", passwd->pw_dir );
+
+	    printf( "checking for %s", buf );
+	    if ( access( buf, R_OK ) == 0 ) {
+		printf( "...found\n" );
+		if (( f =  fopen( buf, "r" )) == NULL ) {
+		    return( -1 );
+		}
+		while ( fgets( buf, MAXPATHLEN, f ) != NULL ) {
+
+		    len = strlen( buf );
+		    if (( buf[ len - 1 ] ) != '\n' ) {
+			/* XXX - should this be an error? */
+			continue;
+		    }
+		    buf[ len - 1 ] = '\0';
+
+		    /* Check for e-mail address */
+		    if ( strchr( buf, '@' ) == NULL ) {
+			continue;
+		    }
+
+		    /* Check to see if we have seen this address before to
+		     * prevent it from being expanded again 
+		     */
+		    if ( ll_lookup( *seen, buf ) == NULL ) {
+			/* Add address to expansion */
+			data = strdup( buf );
+			if ( ll_insert_tail( expansion, data, data ) != 0 ) {
+			    return( -1 );
+			}
+			count++;
+		    } else {
+			continue;
+		    }
+		}
+	    } else {
+		printf( "...not found\n" );
+	    }
+
         } else {
             //printf( "unknown lookup %s\n", i->st_key );
         }
