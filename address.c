@@ -372,6 +372,7 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
 {
     int			ret;
     int			len;
+    int			linetoolong = 0;
     FILE		*f;
     struct passwd	*passwd;
     char		fname[ MAXPATHLEN ];
@@ -388,69 +389,72 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
 
     if ( passwd == NULL ) {
 	/* not in passwd file, try next expansion */
-	syslog( LOG_DEBUG, "address_expand <%s>: not in passwd file",
+	syslog( LOG_DEBUG, "password_expand <%s>: not in passwd file",
 		e_addr->e_addr );
 	return( PASSWORD_NOT_FOUND );
     }
 
+    ret = PASSWORD_FINAL;
+
     /* Check .forward */
-    sprintf( fname, "%s/.forward", passwd->pw_dir );
-
-    if ( access( fname, R_OK ) != 0 ) {
-	/* No .forward, it's a local address */
-	syslog( LOG_DEBUG, "address_expand <%s> FINAL: passwd file",
-		e_addr->e_addr );
+    if ( snprintf( fname, MAXPATHLEN, "%s/.forward",
+	    passwd->pw_dir ) >= MAXPATHLEN ) {
+	syslog( LOG_ERR, "password_expand <%s>: .forward path to long",
+	    e_addr->e_addr );
 	return( PASSWORD_FINAL );
+    }
 
-    } else {
-	/* a .forward file exists */
-	if (( f = fopen( fname, "r" )) == NULL ) {
-	    syslog( LOG_ERR, "address_expand fopen: %s: %m", fname );
-	    return( PASSWORD_NOT_FOUND );
+    if (( f = fopen( fname, "r" )) == NULL ) {
+	switch( errno ) {
+	case EACCES:
+	case ENOENT:
+	case ENOTDIR:
+	case ELOOP:
+	    syslog( LOG_DEBUG, "password_expand <%s>: no .forward",
+		    e_addr->e_addr );
+	    return( PASSWORD_FINAL );
+
+	default:
+	    syslog( LOG_ERR, "password_expand fopen: %s: %m", fname );
+	    return( PASSWORD_SYSERROR );
+	}
+    }
+
+    /* XXX - Do we have a defined max e-mail length? */
+    while ( fgets( buf, 1024, f ) != NULL ) {
+	len = strlen( buf );
+	if (( buf[ len - 1 ] ) != '\n' ) {
+	    linetoolong = 1;
+	    continue;
 	}
 
-	while ( fgets( buf, 1024, f ) != NULL ) {
-	    len = strlen( buf );
-	    if (( buf[ len - 1 ] ) != '\n' ) {
-		/* here we have a .forward line too long */
-		if ( bounce_text( e_addr->e_addr_errors,
-			e_addr->e_addr, " .forward: line too long",
-			NULL ) != 0 ) {
-		    /* bounce_text syslogs errors */
-		    return( PASSWORD_SYSERROR );
-		}
-
-		syslog( LOG_WARNING,
-			"address_expand <%s>: .forward line too long",
-			e_addr->e_addr );
-		ret = PASSWORD_NOT_FOUND;
-		goto cleanup_forward;
-	    }
-
+	if ( linetoolong ) {
+	    syslog( LOG_NOTICE, "password_expand <%s>: .forward line too long",
+		    e_addr->e_addr );
+	    linetoolong = 0;
+	} else {
 	    buf[ len - 1 ] = '\0';
 
-	    if ( add_address( exp, buf,
-		    e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
+	    if ( add_address( exp, buf, e_addr->e_addr_errors,
+		    ADDRESS_TYPE_EMAIL ) != 0 ) {
 		/* add_address syslogs errors */
 		ret = PASSWORD_SYSERROR;
 		goto cleanup_forward;
 	    }
 
-	    syslog( LOG_DEBUG,
-		    "address_expand <%s> EXPANDED <%s>: .forward",
+	    syslog( LOG_DEBUG, "password_expand <%s> EXPANDED <%s>: .forward",
 		    e_addr->e_addr, buf );
 	    ret = PASSWORD_EXCLUDE;
 	}
+    }
 
 cleanup_forward:
-	if ( fclose( f ) != 0 ) {
-	    syslog( LOG_ERR, "address_expand fclose %s: %m",
-		    fname );
-	    return( PASSWORD_SYSERROR );
-	}
-
-	return( ret );
+    if ( fclose( f ) != 0 ) {
+	syslog( LOG_ERR, "password_expand fclose %s: %m", fname );
+	return( PASSWORD_SYSERROR );
     }
+
+    return( ret );
 }
 
 
@@ -465,7 +469,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     if ( simta_dbp == NULL ) {
 	if (( ret = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
 		!= 0 ) {
-	    syslog( LOG_ERR, "address_expand: db_open_r: %s",
+	    syslog( LOG_ERR, "alias_expand: db_open_r: %s",
 		    db_strerror( ret ));
 	    return( ALIAS_NOT_FOUND );
 	}
@@ -487,7 +491,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     if (( ret = db_cursor_set( simta_dbp, &dbcp, &key, &value ))
 	    != 0 ) {
 	if ( ret != DB_NOTFOUND ) {
-	    syslog( LOG_ERR, "address_expand: db_cursor_set: %s",
+	    syslog( LOG_ERR, "alias_expand: db_cursor_set: %s",
 		    db_strerror( ret ));
 	    if ( e_addr->e_addr_at != NULL ) {
 		*(e_addr->e_addr_at) = '@';
@@ -496,7 +500,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	}
 
 	/* not in alias db, try next expansion */
-	syslog( LOG_DEBUG, "address_expand <%s>: not in alias db",
+	syslog( LOG_DEBUG, "alias_expand <%s>: not in alias db",
 		e_addr->e_addr );
 	if ( e_addr->e_addr_at != NULL ) {
 	    *(e_addr->e_addr_at) = '@';
@@ -514,7 +518,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	    return( ALIAS_SYSERROR );
 	}
 
-	syslog( LOG_DEBUG, "address_expand <%s> EXPANDED <%s>: alias db",
+	syslog( LOG_DEBUG, "alias_expand <%s> EXPANDED <%s>: alias db",
 		e_addr->e_addr, (char*)value.data );
 
 	/* Get next db result, if any */
@@ -522,7 +526,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	if (( ret = db_cursor_next( simta_dbp, &dbcp, &key, &value ))
 		!= 0 ) {
 	    if ( ret != DB_NOTFOUND ) {
-		syslog( LOG_ERR, "address_expand: db_cursor_next: %s",
+		syslog( LOG_ERR, "alias_expand: db_cursor_next: %s",
 			db_strerror( ret ));
 		if ( e_addr->e_addr_at != NULL ) {
 		    *(e_addr->e_addr_at) = '@';
