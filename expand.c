@@ -39,10 +39,10 @@
 
 #include "queue.h"
 #include "envelope.h"
-#include "simta.h"
 #include "expand.h"
 #include "ll.h"
 #include "address.h"
+#include "simta.h"
 
 #define	SIMTA_EXPANSION_FAILED		0
 #define	SIMTA_EXPANSION_SUCCESS		1
@@ -63,12 +63,13 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*expansion = NULL;
     struct stab_entry		*seen = NULL;
+    struct stab_entry		*failed = NULL;
     struct stab_entry		*i = NULL;
     struct recipient		*r;
     struct recipient		*remove;
     struct recipient		**r_sort;
     struct envelope		*env_p;
-    int				failed_expansions = 0;
+    int				failed_expansions = 0, ret = 0;
     int				expansions = 0;
     char			*destination_host;
     char			*domain = NULL;
@@ -100,11 +101,27 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
+    for ( i = expansion; i != NULL; i = i->st_next ) {
+	ret = address_expand( i->st_key, &expansion, &seen );
+	if ( ret < 0 ) {
+	    if ( ll_insert( &failed, i->st_key, i->st_key, NULL ) != 0 ) {
+		syslog( LOG_ERR, "expand: ll_insert: %m\n" );
+		return( -1 );
+	    }
+	    i->st_data = NULL;
+	} else if ( ret > 0 ) {
+	    i->st_data = NULL;
+	}
+    }
+
     /* Create per host expanded envelopes */
     for ( i = expansion; i != NULL; i = i->st_next ) {
+	if ( i->st_data == NULL ) {
+	    continue;
+	}
 	if (( domain = strchr( i->st_key, '@' )) == NULL ) {
 	    syslog( LOG_ERR, "expand: no domain" );
-	    goto error;
+	    return( -1 );
 	}
 	domain++;
 
@@ -113,7 +130,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    /* Create envelope and add it to list */
 	    if (( env_p = env_create( NULL )) == NULL ) {
 		syslog( LOG_ERR, "expand: env_create: %m" );
-		goto error;
+		return( -1 );
 	    }
 
 	    /* fill in env */
@@ -140,11 +157,11 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    /* Add host */
 	    if ( ll_insert( &host_stab, domain, env_p, NULL ) != 0 ) {
 		syslog( LOG_ERR, "expand: ll_insert: %m" );
-		goto error;
+		return( -1 );
 	    }
 	    if (( env_p = ll_lookup( host_stab, domain )) == NULL ) {
 		syslog( LOG_ERR, "epxand: ll_lookup: %m\n" );
-		goto error;
+		return( -1 );
 	    }
 	    if ( debug ) printf( "no - added to host_stab\n" );
 	} else {
@@ -154,7 +171,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	if (( r = (struct recipient *)malloc( sizeof( struct recipient )))
 		== NULL ) {
 	    syslog( LOG_ERR, "expand: malloc: %m" );
-	    goto error;
+	    return( -1 );
 	}
 	if (( r->r_rcpt = strdup( i->st_key )) == NULL ) {
 	    syslog( LOG_ERR, "expand: strdup: %m" );
@@ -282,7 +299,4 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 #endif /* DEBUG */
 
     return( 0 );
-
-error:
-    return( -1 );
 }

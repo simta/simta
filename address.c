@@ -182,7 +182,15 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
     /* Check for domain in hosts table */
     if (( host = ll_lookup( hosts, domain )) == NULL ) {
-        return( 0 );
+	/* Add address to expansion */
+	if (( data = strdup( address )) == NULL ) {
+	    syslog( LOG_ERR, "address_expand: strdup: %m" );
+	}
+	if ( ll_insert( expansion, data, data, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "address_expand: ll_insert: %m" );
+	    return( -1 );
+	}
+        return( 1 );
     }
 
     /* Expand user using lookup table for host */
@@ -341,10 +349,12 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
         }
     }
 
-    if (( ret = db_cursor_close( dbcp )) != 0 ) {
-	syslog( LOG_ERR, "address_expand: db_cursor_close: %s",
-	    db_strerror( ret ));
-	return( -1 );
+    if ( dbp != NULL ) {
+	if (( ret = db_cursor_close( dbcp )) != 0 ) {
+	    syslog( LOG_ERR, "address_expand: db_cursor_close: %s",
+		db_strerror( ret ));
+	    return( -1 );
+	}
     }
 
     free( address_local );
