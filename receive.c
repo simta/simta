@@ -523,6 +523,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
     sprintf( dfile_fname, "%s/D%s", simta_dir_fast, env->e_id );
 
+    if (( lf = line_file_create()) == NULL ) {
+	syslog( LOG_ERR, "f_data line_file_create: %m" );
+	return( RECEIVE_SYSERROR );
+    }
+
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
 	    < 0 ) {
 	syslog( LOG_ERR, "f_data open %s: %m", dfile_fname );
@@ -564,17 +569,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 	return( RECEIVE_SYSERROR );
     }
-
-    if (( lf = line_file_create()) == NULL ) {
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
-	}
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	}
-	return( RECEIVE_SYSERROR );
-    }
-
 
     if ( snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n",
 	    354 ) < 0 ) {
