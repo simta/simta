@@ -23,7 +23,7 @@
 
 struct header simta_headers[] = {
     { "Date",			NULL,		NULL },
-#define HEAD_ORIG_DATE		0
+#define HEAD_DATE		0
     { "From",			NULL,		NULL },
 #define HEAD_FROM		1
     { "Sender",			NULL,		NULL },
@@ -250,16 +250,19 @@ header_end( struct line_file *lf, char *line )
     int
 header_correct( struct line_file *lf, struct envelope *env )
 {
-    struct line		*l;
-    struct header	*h;
-    char		*colon;
-    size_t		header_len;
-    struct passwd	*pw;
-    int			result;
-    char		*sender;
-    char		*prepend_line = NULL;
-    size_t		prepend_len = 0;
-    size_t		len;
+    struct line			*l;
+    struct header		*h;
+    char			*colon;
+    size_t			header_len;
+    struct passwd		*pw;
+    int				result;
+    char			*sender;
+    char			*prepend_line = NULL;
+    size_t			prepend_len = 0;
+    size_t			len;
+    time_t			clock;
+    struct tm			*tm;
+    char			daytime[ 35 ];
 
     if (( result = header_exceptions( lf )) != 0 ) {
 	fprintf( stderr, "header_exceptions error\n" );
@@ -341,12 +344,11 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     sprintf( sender, "%s@%s", pw->pw_name, env->e_hostname );
 
-    /* "From:" header */
     if ( simta_headers[ HEAD_FROM ].h_line == NULL ) {
 	/* generate header */
 
-	if (( len = ( strlen( sender ) + strlen( "From: " ) + 1 ))
-		> prepend_len ) {
+	if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
+		strlen( sender ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
 		perror( "realloc" );
@@ -355,8 +357,10 @@ header_correct( struct line_file *lf, struct envelope *env )
 
 	    prepend_len = len;
 
-	    sprintf( prepend_line, "From: %s", sender );
 	}
+
+	sprintf( prepend_line, "%s: %s",
+		simta_headers[ HEAD_FROM ].h_key, sender );
 
 	if (( simta_headers[ HEAD_FROM ].h_line =
 		line_prepend( lf, prepend_line )) == NULL ) {
@@ -388,8 +392,8 @@ header_correct( struct line_file *lf, struct envelope *env )
 	if ( simta_headers[ HEAD_FROM ].h_data != NULL ) {
 	    /* From header wasn't generated, check for conflict */
 	    if ( strcasecmp( env->e_mail, sender ) != 0 ) {
-		if (( len = ( strlen( sender ) + strlen( "Sender: " ) + 1 ))
-			> prepend_len ) {
+		if (( len = ( strlen( simta_headers[ HEAD_SENDER ].h_key ) +
+			strlen( sender ) + 3 )) > prepend_len ) {
 		    if (( prepend_line = (char*)realloc( prepend_line, len ))
 			    == NULL ) {
 			perror( "realloc" );
@@ -397,9 +401,10 @@ header_correct( struct line_file *lf, struct envelope *env )
 		    }
 
 		    prepend_len = len;
-
-		    sprintf( prepend_line, "Sender: %s", sender );
 		}
+
+		sprintf( prepend_line, "%s: %s",
+			simta_headers[ HEAD_SENDER ].h_key, sender );
 
 		if (( simta_headers[ HEAD_SENDER ].h_line =
 			line_prepend( lf, prepend_line )) == NULL ) {
@@ -417,12 +422,65 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if ( simta_headers[ HEAD_ORIG_DATE ].h_line == NULL ) {
-	/* XXX action */
+    if ( simta_headers[ HEAD_DATE ].h_line == NULL ) {
+	if ( time( &clock ) < 0 ) {
+	    perror( "time" );
+	    return( -1 );
+	}
+
+	if (( tm = localtime( &clock )) == NULL ) {
+	    perror( "localtime" );
+	    return( -1 );
+	}
+
+	if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
+		== 0 ) {
+	    perror( "strftime" );
+	    return( -1 );
+	}
+
+	if (( len = ( strlen( simta_headers[ HEAD_DATE ].h_key ) +
+		strlen( daytime ) + 3 )) > prepend_len ) {
+
+	    if (( prepend_line = (char*)realloc( prepend_line, len ))
+		    == NULL ) {
+		perror( "realloc" );
+		return( -1 );
+	    }
+
+	    prepend_len = len;
+	}
+
+	sprintf( prepend_line, "%s: %s",
+		simta_headers[ HEAD_DATE ].h_key, daytime );
+
+	if (( simta_headers[ HEAD_DATE ].h_line =
+		line_prepend( lf, prepend_line )) == NULL ) {
+	    perror( "malloc" );
+	    return( -1 );
+	}
     }
 
     if ( simta_headers[ HEAD_MESSAGE_ID ].h_line == NULL ) {
-	/* XXX action */
+	if (( len = ( strlen( simta_headers[ HEAD_MESSAGE_ID ].h_key ) +
+		strlen( env->e_id ) + 3 )) > prepend_len ) {
+	    if (( prepend_line = (char*)realloc( prepend_line, len ))
+		    == NULL ) {
+		perror( "realloc" );
+		return( -1 );
+	    }
+
+	    prepend_len = len;
+	}
+
+	sprintf( prepend_line, "%s: %s",
+		simta_headers[ HEAD_MESSAGE_ID ].h_key, env->e_id );
+
+	if (( simta_headers[ HEAD_MESSAGE_ID ].h_line =
+		line_prepend( lf, prepend_line )) == NULL ) {
+	    perror( "malloc" );
+	    return( -1 );
+	}
     }
 
     if ( simta_headers[ HEAD_TO ].h_line == NULL ) {
