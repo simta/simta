@@ -133,7 +133,8 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
     struct passwd	*passwd = NULL;
     DBC			*dbcp = NULL;
     DBT			key, value;
-    struct stab_entry	*lookup = NULL, *i = NULL;
+    struct host		*host = NULL;
+    struct stab_entry	*i = NULL;
     FILE		*f;
 
     /* Check to see if we have seen addr already */
@@ -164,7 +165,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
     /* Check for domain in hosts table */
     //printf( "%s in hosts table?", domain );
-    if (( lookup = ll_lookup( hosts, domain )) == NULL ) {
+    if (( host = ll_lookup( hosts, domain )) == NULL ) {
         //printf( "...no\n" );
         return( 0 );
     } else {
@@ -172,7 +173,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
     }
 
     /* Expand user using lookup table for host */
-    for ( i = lookup; i != NULL; i = i->st_next ) {
+    for ( i = host->h_expansion; i != NULL; i = i->st_next ) {
         if ( strcmp( i->st_key, "alias" ) == 0 ) {
 
 	    //printf( "Using alias file\n" );
@@ -284,7 +285,6 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 	    memset( buf, 0, MAXPATHLEN * 2 );
 	    sprintf( buf, "%s/.forward", passwd->pw_dir );
 
-	    printf( "checking for %s", buf );
 	    if ( access( buf, R_OK ) == 0 ) {
 		printf( "...found\n" );
 		if (( f =  fopen( buf, "r" )) == NULL ) {
