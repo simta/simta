@@ -114,8 +114,6 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     char			d_original[ MAXPATHLEN ];
     char			d_out[ MAXPATHLEN ];
 
-    syslog( LOG_DEBUG, "expand %s", unexpanded_env->e_id );
-
     memset( &exp, 0, sizeof( struct expand ));
     exp.exp_env = unexpanded_env;
     fast_file_start = simta_fast_files;
@@ -145,7 +143,6 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	return( 1 );
     }
 
-syslog( LOG_DEBUG, "expand: start loop" );
     for ( rcpt = unexpanded_env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 	/* Add ONE address from the original envelope's rcpt list */
 	/* this address has no parent, it is a "root" address because
@@ -156,7 +153,6 @@ syslog( LOG_DEBUG, "expand: start loop" );
 	exp.exp_parent = NULL;
 #endif /* HAVE_LDAP */
 
-syslog( LOG_DEBUG, "expand: add address %s", rcpt->r_rcpt );
 	if ( add_address( &exp, rcpt->r_rcpt, base_error_env,
 		ADDRESS_TYPE_EMAIL ) != 0 ) {
 	    /* add_address syslogs errors */
@@ -472,6 +468,7 @@ cleanup4:
 cleanup3:
     for ( p = host_stab; p != NULL; p = p->st_next ) {
 	env = p->st_data;
+	p->st_data = NULL;
 
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
@@ -485,8 +482,6 @@ cleanup3:
 	}
 
 	env_free( env );
-	p->st_data = NULL;
-	p = p->st_next;
     }
 
     if ( simta_fast_files != fast_file_start ) {
