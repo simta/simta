@@ -15,6 +15,7 @@
 #include <sys/wait.h>
 
 #include <stdio.h>
+#include <syslog.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -27,6 +28,11 @@ char		*maillocalargv[] = { "mail.local", 0, 0 };
 char		*maillocal =	"/usr/lib/mail.local";
 
 
+    /* return 0 on success, 1 on syscall failure
+     *
+     * syslog errors before returning
+     */
+
     int
 mail_local( char *recipient, SNET *snet )
 {
@@ -37,28 +43,28 @@ mail_local( char *recipient, SNET *snet )
     char		*line;
 
     if ( pipe( fd ) < 0 ) {
-	perror( "pipe" );
-	exit( 1 );
+	syslog( LOG_ERR, "mail_local pipe: %m" );
+	return( 1 );
     }
 
     switch ( pid = fork()) {
     case -1 :
-	perror( "fork" );
-	exit( 1 );
+	syslog( LOG_ERR, "mail_local fork: %m" );
+	return( 1 );
 
     case 0 :
 	if ( close( fd[ 1 ] ) < 0 ) {
-	    perror( "close" );
+	    syslog( LOG_ERR, "mail_local close: %m" );
 	    exit( 1 );
 	}
 
 	if ( dup2( fd[ 0 ], 0 ) < 0 ) {
-	    perror( "dup2" );
+	    syslog( LOG_ERR, "mail_local dup2: %m" );
 	    exit( 1 );
 	}
 
 	if ( close( fd[ 0 ] ) < 0 ) {
-	    perror( "close" );
+	    syslog( LOG_ERR, "mail_local close: %m" );
 	    exit( 1 );
 	}
 
@@ -66,18 +72,18 @@ mail_local( char *recipient, SNET *snet )
 
 	execv( maillocal, maillocalargv );
 	/* if we are here, there is an error */
-	perror( "execv" );
+	syslog( LOG_ERR, "mail_local execv: %m" );
 	exit( 1 );
 
     default :
 	if ( close( fd[ 0 ] ) < 0 ) {
-	    perror( "close" );
-	    exit( 1 );
+	    syslog( LOG_ERR, "mail_local close: %m" );
+	    return( 1 );
 	}
 
 	if (( fp = fdopen( fd[ 1 ], "w" )) == NULL ) {
-	    perror( "fdopen" );
-	    exit( 1 );
+	    syslog( LOG_ERR, "mail_local fdopen: %m" );
+	    return( 1 );
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
@@ -87,27 +93,27 @@ mail_local( char *recipient, SNET *snet )
 	errno = 0;
 
 	if (( fclose( fp ) != 0 ) || ( errno != 0 )) {
-	    perror( "fclose" );
-	    exit( 1 );
+	    syslog( LOG_ERR, "mail_local fclose: %m" );
+	    return( 1 );
 	}
 
 	if (( waitpid( pid, &status, 0 ) < 0 ) && ( errno != ECHILD )) {
-	    perror( "waitpid" );
-	    exit( 1 );
+	    syslog( LOG_ERR, "mail_local waitpid: %m" );
+	    return( 1 );
 	}
 
 	if ( WIFEXITED( status )) {
 	    if ( WEXITSTATUS( status )) {
-		fprintf( stderr, "mail.local %d dies with %d\n", pid, 
+		syslog( LOG_ERR, "mail.local %d died %d\n", pid, 
 			WEXITSTATUS( status ));
 	    } else {
-		printf( "mail.local %d done\n", pid );
+		syslog( LOG_INFO, "mail.local %d done\n", pid );
 	    }
 	} else if ( WIFSIGNALED( status )) {
-	    fprintf( stderr, "mail.local %d died on signal %d\n", pid, 
+	    syslog( LOG_ERR, "mail.local %d died on signal %d\n", pid, 
 		    WTERMSIG( status ));
 	} else {
-	    fprintf( stderr, "mail.local %d died\n", pid );
+	    syslog( LOG_ERR, "mail.local %d died\n", pid );
 	}
     }
 
