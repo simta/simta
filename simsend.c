@@ -9,6 +9,7 @@
  */
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/param.h>
 
 #ifdef TLS
 #include <openssl/ssl.h>
@@ -21,10 +22,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <pwd.h>
 
 #include <snet.h>
 
 #include "message.h"
+#include "envelope.h"
 
 struct header header_list[] = {
     { "Date",			NULL,		NULL },
@@ -48,6 +51,7 @@ struct header header_list[] = {
 
 int header_exceptions( struct message * );
 int headers( struct message * );
+int count_words( char * );
 
 
     /* Some mail clents exhibit bad behavior when generating headers.
@@ -95,6 +99,29 @@ header_exceptions( struct message *m )
 }
 
 
+    int
+count_words( char *l )
+{
+    int			space = 1;
+    int			words = 0;
+    char		*c;
+
+    for ( c = l; *c != '\0'; c++ ) {
+	if ( isspace( *c ) == 0 ) {
+	    /* not space */
+	    if ( space == 1 ) {
+		words++;
+		space = 0;
+	    }
+	} else {
+	    /* space */
+	    space = 1;
+	}
+    }
+
+    return( words );
+}
+
     /* return 0 if all went well.
      * return 1 if we reject the message.
      * return -1 if there was a serious error.
@@ -103,16 +130,21 @@ header_exceptions( struct message *m )
     int
 headers( struct message *m )
 {
+    int			words;
     struct line		*l;
     struct line		*bl;
     struct header	*h;
     char		*colon;
     size_t		header_len;
+    struct passwd	*pw;
+    char		*from_line;
 
     if ( header_exceptions( m ) != 0 ) {
 	return( 1 );
     }
 
+    /* put header information in to data structures for later processing */
+    /* put a blank line between the message headers and body, if needed */
     for ( l = m->m_first_line; l != NULL ; l = l->line_next ) {
 	if ( *(l->line_data) == '\0' ) {
 	    /* null line means that message data begins */
@@ -149,6 +181,7 @@ headers( struct message *m )
 	    }
 
 	} else {
+	    /* not a valid header */
 	    /* no colon, or colon was the first thing on the line */
 	    /* add a blank line between headers and the body */
 	    if (( bl = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
@@ -173,15 +206,51 @@ headers( struct message *m )
 	}
     }
 
+    /* examine header data structures */
+
+    /* "From:" header */
     if ( header_list[ HEAD_FROM ].h_line == NULL ) {
-	if (( header_list[ HEAD_FROM ].h_line =
-		message_prepend_line( m, "From: XXX" )) == NULL ) {
+	/* generate header */
+
+	if (( pw = getpwuid( getuid())) == NULL ) {
+	    perror( "getpwuid" );
+	    return( 1 );
+	}
+
+	if (( from_line = (char*)malloc( strlen( pw->pw_name ) +
+		strlen( m->m_env->e_hostname ) + 9 )) == NULL ) {
 	    return( -1 );
 	}
-    }
 
-    if ( message_from( m, &header_list[ HEAD_FROM ] ) != 0 ) {
-	return( -1 );
+	sprintf( from_line, "From: %s@%s", pw->pw_name, m->m_env->e_hostname );
+
+	if (( header_list[ HEAD_FROM ].h_line =
+		message_prepend_line( m, from_line )) == NULL ) {
+	    return( -1 );
+	}
+	m->m_env->e_mail = header_list[ HEAD_FROM ].h_line->line_data + 6;
+
+    } else {
+	/* handle following cases from doc/sendmail/headers:
+	 * From: user
+	 * From: user@domain
+	 * From: Firstname Lastname <user@domain>
+	 * From: "Firstname Lastname" <user@domian>
+	 *
+	 * FWS
+	 * (comments)
+	 */
+
+	/* XXX totally fucked */
+
+	words = count_words( h->h_line->line_data + 5 );
+
+	if ( words == 0 ) {
+	    return( 1 );
+
+	} else if ( words == 1 ) {
+	} else {
+	}
     }
 
     if ( header_list[ HEAD_SENDER ].h_line == NULL ) {

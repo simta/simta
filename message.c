@@ -76,15 +76,6 @@ message_create( void )
 }
 
 
-    int
-message_from( struct message *m, struct header *h )
-{
-    m->m_env->e_mail = h->h_line->line_data;
-
-    return( 0 );
-}
-
-
     /* add a line to the message */
 
     struct line *
