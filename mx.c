@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -13,6 +14,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <syslog.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -31,37 +33,37 @@ extern SSL_CTX  *ctx;
 #include "simta.h"
 
     struct dnsr_result *
-get_a( DNSR *dnsr, char *host )
+get_a( char *hostname )
 {
-    struct dnsr_result	*result = NULL;
+    struct dnsr_result	*result;
 
-    if ( simta_debug ) fprintf( stderr, "get_a: %s\n", host );
+    if ( simta_debug ) fprintf( stderr, "get_a: %s...", hostname );
 
-    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
-	syslog( LOG_ERR, "get_a dnsr_query %s failed: %s", host,
-	    dnsr_err2string( dnsr_errno( dnsr )));
-	goto error;
+    if ( simta_dnsr == NULL ) {
+        if (( simta_dnsr = dnsr_new( )) == NULL ) {
+            syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
+	    return( NULL );
+	}
     }
 
-    if ( simta_debug ) fprintf( stderr, "a on %s?", host );
-    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "get_a dnsr_result %s failed: %s", host, 
-	    dnsr_err2string( dnsr_errno( dnsr )));
-	goto error;
+    /* Check for A */
+    if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+	    hostname )) < 0 ) {
+	syslog( LOG_ERR, "check_hostname: dnsr_query: %s: %s", hostname,
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	return( NULL );
     }
-    if ( simta_debug ) fprintf( stderr, "...yes\n" );
-    if ( simta_debug ) fprintf( stderr, "   valid a record?" );
-
+    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
+	syslog( LOG_ERR, "check_hostname: dnsr_result: %s: %s", hostname, 
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	return( NULL );
+    }
     if ( result->r_ancount > 0 ) {
-	if ( simta_debug ) fprintf( stderr, "...yes\n" );
+	if ( simta_debug ) fprintf( stderr, "ok\n" );
 	return( result );
     }
-    if ( simta_debug ) fprintf( stderr, "...no\n" );
 
-error:
-    if ( result != NULL ) {
-	dnsr_free_result( result );
-    }
+    if ( simta_debug ) fprintf( stderr, "failed\n" );
     return( NULL );
 }
 
@@ -75,100 +77,100 @@ error:
  */
 
     struct dnsr_result *
-get_mx( DNSR *dnsr, char *host )
+get_mx( char *hostname )
 {
     int                 i;
     struct dnsr_result	*result = NULL;
     struct dnsr_result	*result_a = NULL;
 
-    /* Check for MX of address */
-    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host )) != 0 ) {
-	syslog( LOG_ERR, "get_mx dnsr_query %s failed: %s", host,
-	    dnsr_err2string( dnsr_errno( dnsr )));
-	goto error;
+    if ( simta_dnsr == NULL ) {
+        if (( simta_dnsr = dnsr_new( )) == NULL ) {
+            syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
+	    return( NULL );
+	}
     }
 
-    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "get_mx dnsr_result %s failed: %s", host,
-	    dnsr_err2string( dnsr_errno( dnsr )));
-	goto error;
+    /* Check for MX */
+    if (( dnsr_query( simta_dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN,
+	    hostname )) != 0 ) {
+	syslog( LOG_ERR, "check_hostname: dnsr_query: %s: %s", hostname,
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	return( NULL );
     }
-
+    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
+	syslog( LOG_ERR, "check_hostname: dnsr_result: %s: %s", hostname,
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	return( NULL );
+    }
     if ( result->r_ancount > 0 ) {
+	/* Check to see if hostname is mx'ed to us
+	 * Only do dynamic configuration when exchange matches our
+	 * actual host name.  Others must be configured by hand.
+	 */
 	for ( i = 0; i < result->r_ancount; i++ ) {
-	    if ( result->r_answer[ i ].rr_ip != NULL ) {
-		return( result );
-	    } else {
-		if (( result_a = get_a( dnsr,
-			result->r_answer[ i ].rr_mx.mx_exchange )) != NULL ) {
-		    free( result );
-		    return( result_a );
+	    if ( strcasecmp( simta_hostname,
+		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) {
+		if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
+			HOST_LOCAL ) != 0 ) {
+		    dnsr_free_result( result );
+		    return( NULL );
 		}
 	    }
 	}
-    } else {
-	if ( result != NULL ) {
-	    dnsr_free_result( result );
-	}
+	return( result );
     }
+    dnsr_free_result( result );
 
-    /* No MX - Check for A of address */
-    return( get_a( dnsr, host ));
-
-error:
-    if ( result != NULL ) {
-	dnsr_free_result( result );
-    }
     return( NULL );
 }
 
     int
-check_reverse( DNSR **dnsr, char *dn, struct in_addr *in )
+check_reverse( char *dn, struct in_addr *in )
 {
     int				i, j;
     char			*temp;
     struct dnsr_result		*result_ptr = NULL, *result_a = NULL;
 
-    if ( *dnsr == NULL ) {
-        if (( *dnsr = dnsr_new( )) == NULL ) {
+    if ( simta_dnsr == NULL ) {
+        if (( simta_dnsr = dnsr_new( )) == NULL ) {
             syslog( LOG_ERR, "check_reverse: dnsr_new: %m" );
 	    return( -1 );
 	}
     }
 
-    if (( temp = dnsr_ntoptr( *dnsr, in )) == NULL ) {
+    if (( temp = dnsr_ntoptr( simta_dnsr, in )) == NULL ) {
         syslog( LOG_ERR, "check_reverse: dnsr_ntoptr: %s",
-	    dnsr_err2string( dnsr_errno( *dnsr )));
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( -1 );
     }
 
     /* Get PTR for connection */
-    if ( dnsr_query( *dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
+    if ( dnsr_query( simta_dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
         syslog( LOG_ERR, "check_reverse: dnsr_query: %s",
-	    dnsr_err2string( dnsr_errno( *dnsr )));
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	free( temp );
 	return( -1 );
     }
 
     free( temp );
 
-    if (( result_ptr = dnsr_result( *dnsr, NULL )) == NULL ) {
+    if (( result_ptr = dnsr_result( simta_dnsr, NULL )) == NULL ) {
         syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
-	    dnsr_err2string( dnsr_errno( *dnsr )));
+	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( -1 );
     }
 
     for ( i = 0; i < result_ptr->r_ancount; i++ ) {
 	/* Get A record on PTR result */
-	if (( dnsr_query( *dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+	if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
 		result_ptr->r_answer[ i ].rr_dn.dn_name )) < 0 ) {
 	    syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
-		dnsr_err2string( dnsr_errno( *dnsr )));
+		dnsr_err2string( dnsr_errno( simta_dnsr )));
 	    goto error;
 	}
-	if (( result_a = dnsr_result( *dnsr, NULL )) == NULL ) {
+	if (( result_a = dnsr_result( simta_dnsr, NULL )) == NULL ) {
 	    syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
-		dnsr_err2string( dnsr_errno( *dnsr )));
+		dnsr_err2string( dnsr_errno( simta_dnsr )));
 	    goto error;
 	}
 
@@ -195,67 +197,35 @@ error:
 }
 
     int
-check_hostname( DNSR **dnsr, char *hostname )
+check_hostname( char *hostname )
 {
-    int				i;
     struct dnsr_result		*result;
 
-    if ( *dnsr == NULL ) {
-        if (( *dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "check_hostname: dnsr_new: %m" );
-	    return( -1 );
-	}
-    }
-
-    /* Check for MX */
-    if (( dnsr_query( *dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, hostname )) != 0 ) {
-	syslog( LOG_ERR, "check_hostname: dnsr_query: %s: %s", hostname,
-	    dnsr_err2string( dnsr_errno( *dnsr )));
-	return( -1 );
-    }
-    if (( result = dnsr_result( *dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "check_hostname: dnsr_result: %s: %s", hostname,
-	    dnsr_err2string( dnsr_errno( *dnsr )));
-	return( -1 );
-    }
-    if ( result->r_ancount > 0 ) {
-	/* Check to see if hostname is mx'ed to us
-	 * Only do dynamic configuration when exchange matches our
-	 * actual host name.  Others must be configured by hand.
-	 */
-	for ( i = 0; i < result->r_ancount; i++ ) {
-	    if ( strcasecmp( simta_hostname,
-		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) {
-		if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
-			HOST_LOCAL ) != 0 ) {
-		    dnsr_free_result( result );
-		    return( -1 );
-		}
-	    }
-	}
+    if (( result = get_mx( hostname )) != NULL ) {
 	dnsr_free_result( result );
 	return( 0 );
     }
-    dnsr_free_result( result );
 
-    /* Check for A */
-    if (( dnsr_query( *dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, hostname )) < 0 ) {
-	syslog( LOG_ERR, "check_hostname: dnsr_query: %s: %s", hostname,
-	    dnsr_err2string( dnsr_errno( *dnsr )));
-	return( -1 );
-    }
-    if (( result = dnsr_result( *dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "check_hostname: dnsr_result: %s: %s", hostname, 
-	    dnsr_err2string( dnsr_errno( *dnsr )));
-	return( -1 );
-    }
-    if ( result->r_ancount > 0 ) {
+    if (( result = get_a( hostname )) != NULL ) {
 	dnsr_free_result( result );
 	return( 0 );
     }
-    dnsr_free_result( result );
-
     return( 1 );
+}
+
+    struct dnsr_result *
+get_dnsr( char *hostname )
+{
+    struct dnsr_result		*result;
+
+    if (( result = get_mx( hostname )) != NULL ) {
+	return( result );
+    }
+
+    if (( result = get_a( hostname )) != NULL ) {
+	return( result );
+    }
+    return( NULL );
 }
 
     int
@@ -296,4 +266,71 @@ add_host( char *hostname, int type )
 error:
     free( host );
     return( -1 );
+}
+
+    int
+dnsr_connect( char *hostname, int *s )
+{
+    int			i, j;
+    struct dnsr_result	*result, *result_ip;
+    struct sockaddr_in  sin;
+
+    if (( result = get_dnsr( hostname )) == NULL ) {
+	return( SIMTA_ERROR_DNSR );
+    }
+
+    for ( i = 0; i < result->r_ancount; i++ ) {
+	switch( result->r_answer[ i ].rr_type ) {
+	case DNSR_TYPE_MX:
+	    if ( result->r_answer[ i ].rr_ip != NULL ) {
+		memcpy( &(sin.sin_addr.s_addr),
+		    &(result->r_answer[ i ].rr_ip->ip_ip ),
+		    sizeof( struct in_addr ));
+		if ( connect( *s, (struct sockaddr*)&sin,
+			sizeof( sin )) >= 0 ) {
+		    dnsr_free_result( result );
+		    return( 0);
+		}
+
+	    } else {
+		if (( result_ip =
+			get_a( result->r_answer[ i ].rr_mx.mx_exchange ))
+			== NULL ) {
+		    continue;
+		}
+		for ( j = 0; j < result_ip->r_ancount; j++ ) {
+		    memcpy( &(sin.sin_addr.s_addr),
+			&(result_ip->r_answer[ j ].rr_a ),
+			sizeof( struct in_addr ));
+		    if ( connect( *s, (struct sockaddr*)&sin,
+			    sizeof( sin )) >= 0 ) {
+			dnsr_free_result( result );
+			dnsr_free_result( result_ip );
+			return( 0 );
+		    }
+		}
+		dnsr_free_result( result_ip );
+	    }
+	    break;
+
+	case DNSR_TYPE_A:
+	    memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ i ].rr_a ),
+		sizeof( struct in_addr ));
+	    if ( connect( *s, (struct sockaddr*)&sin, sizeof( sin )) >= 0 ) {
+		dnsr_free_result( result );
+		return( 0);
+	    }
+	    break;
+
+	default:
+	    syslog( LOG_WARNING, "dnsr_connect %s: unknown dnsr result: %d",
+		hostname, result->r_answer[ i ].rr_type );
+	    continue;
+	}
+    }
+
+error:
+    dnsr_free_result( result );
+    return( -1 );
+
 }
