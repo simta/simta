@@ -26,6 +26,21 @@ is
 .B sendmail
 interface
 
+.B simsendmail
+is
+.B simta's
+.B sendmail interface.  simsendmail is intended as a replacement for sendmail
+in that any program that currently uses sendmail for communication
+may use simsendmail instead.  simsendmail's behavior, including
+command line options, should be identical to sendmail.
+
+With no flags, simsendmail reads standard input until it reaches
+either the end of file or a special marker consisting only of a
+single dot on a line.  The single dot may be ignored as an end of
+file marker with the -i option.   simsendmail then sends a copy of
+the message found there to all of the to-addresses listed.
+
+
 .sp
 .SH OPTIONS
 .TP 19
@@ -36,10 +51,11 @@ set the "From:" header's address.
 ignore a single dot on a line as an end of message marker.
 .TP 19
 .B \-t
-read message headers for recipients in the To, Cc, and Bcc headers.
+read message headers for recipients.  Recipients may be found in the To,
+Cc, and Bcc headers.
 .TP 19
 .B \-v
-verbose mode.
+verbose mode.  Announce alias expansions, etc.
 .sp
 .SH SEE ALSO
 .BR sendmail (1)
