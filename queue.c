@@ -172,7 +172,6 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 	hq->hq_next = *host_q;
 	*host_q = hq;
 
-	/* XXX DNS test for local queues more than simta_gethostname? */
 	if (( localhostname = simta_gethostname()) == NULL ) {
 	    return( NULL );
 	}
@@ -520,7 +519,6 @@ q_runner_dir( char *dir )
 	exit( EX_TEMPFAIL );
     }
 
-    /* XXX queue runner only reads dir once */
     /* read dir for efiles, sort by hostname & efile time */
     if ( q_read_dir( dir, &host_q ) != 0 ) {
 	exit( EX_TEMPFAIL );

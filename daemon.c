@@ -346,7 +346,19 @@ main( ac, av )
         exit( 1 );
     }
 
-    /* XXX LOCK pidfd */
+    /* lock envelope fd for delivery attempt */
+    if ( lockf( pidfd, F_TLOCK, 0 ) != 0 ) {
+	if ( errno == EAGAIN ) {
+	    /* file locked by a diferent process */
+	    syslog( LOG_WARNING, "lockf %s: daemon already running",
+		    SIMTA_PATH_PIDFILE );
+	    exit( 1 );
+
+	} else {
+	    syslog( LOG_ERR, "lockf %s: %m", SIMTA_PATH_PIDFILE );
+	    exit( 1 );
+	}
+    }
 
     if ( ftruncate( pidfd, (off_t)0 ) < 0 ) {
         perror( "ftruncate" );
