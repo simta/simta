@@ -6,16 +6,20 @@
 /*****     message.h     *****/
 
 
-struct message {
-    struct envelope	*m_env;
-    struct line		*m_first_line;
-    struct line		*m_last_line;
-};
-
 struct line {
     struct line		*line_next;
     struct line		*line_prev;
     char		*line_data;
+};
+
+struct data {
+    struct line		*d_first_line;
+    struct line		*d_last_line;
+};
+
+struct message {
+    struct envelope	*m_env;
+    struct data		*m_data;
 };
 
 struct header {
@@ -30,9 +34,14 @@ struct header {
 #define ___P(x)         ()
 #endif /* __STDC__ */
 
-struct message	*message_create ___P(( char * ));
-struct message	*message_infile ___P(( char *, char * ));
-struct line	*message_add_line ___P(( struct message *, char * ));
-struct line	*message_prepend_line ___P(( struct message *, char * ));
-int		message_outfile ___P(( struct message * ));
+struct line	*data_add_line ___P(( struct data *, char * ));
+struct line	*data_prepend_line ___P(( struct data *, char * ));
+struct data	*data_infile ___P(( char *, char * ));
+void		data_stdout ___P(( struct data * ));
+
+struct message	*message_infiles ___P(( char *, char * ));
 void		message_stdout ___P(( struct message * ));
+int		message_outfiles ___P(( struct message * ));
+
+/* XXX Bad functions */
+struct message	*message_create ___P(( char * ));

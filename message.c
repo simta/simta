@@ -33,59 +33,10 @@
 #include "receive.h"
 
 
-    /* create & return a message structure for message id.  if id is NULL,
-     * generate a new id.
-     */
-
-    struct message *
-message_create( char *id )
-{
-    struct message	*m;
-    struct timeval	tv;
-
-    if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
-	return( NULL );
-    }
-
-    m->m_first_line = NULL;
-    m->m_last_line = NULL;
-
-    if (( m->m_env = env_create()) == NULL ) {
-	return( NULL );
-    }
-
-    if ( gethostname( m->m_env->e_hostname, MAXHOSTNAMELEN ) != 0 ) {
-	return( NULL );
-    }
-
-    if ( id == NULL ) {
-	if ( gettimeofday( &tv, NULL ) != 0 ) {
-	    return( NULL );
-	}
-
-	sprintf( m->m_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
-		(unsigned long)tv.tv_usec );
-    } else {
-	/* XXX OVERFLOW */
-	strcpy( m->m_env->e_id, id );
-    }
-
-    if (( m->m_env->e_sin = (struct sockaddr_in*)malloc(
-	    sizeof( struct sockaddr_in ))) == NULL ) {
-	return( NULL );
-    }
-    memset( m->m_env->e_sin, 0, sizeof( struct sockaddr_in ));
-    m->m_env->e_sin->sin_family = AF_INET;
-    m->m_env->e_sin->sin_addr.s_addr = INADDR_ANY;
-
-    return( m );
-}
-
-
-    /* add a line to the message */
+    /* add a line to the message data */
 
     struct line *
-message_add_line( struct message *m, char *line )
+data_add_line( struct data *d, char *line )
 {
     struct line		*l;
 
@@ -99,25 +50,25 @@ message_add_line( struct message *m, char *line )
 
     l->line_next = NULL;
 
-    if ( m->m_first_line == NULL ) {
-	m->m_first_line = l;
-	m->m_last_line = l;
+    if ( d->d_first_line == NULL ) {
+	d->d_first_line = l;
+	d->d_last_line = l;
 	l->line_prev = NULL;
 
     } else {
-	l->line_prev = m->m_last_line;
-	m->m_last_line->line_next = l;
-	m->m_last_line = l;
+	l->line_prev = d->d_last_line;
+	d->d_last_line->line_next = l;
+	d->d_last_line = l;
     }
 
     return( l );
 }
 
 
-    /* prepend a line to the message */
+    /* prepend a line to the message data */
 
     struct line *
-message_prepend_line( struct message *m, char *line )
+data_prepend_line( struct data *d, char *line )
 {
     struct line		*l;
 
@@ -129,42 +80,106 @@ message_prepend_line( struct message *m, char *line )
 	return( NULL );
     }
 
-    l->line_next = m->m_first_line;
+    l->line_next = d->d_first_line;
     l->line_prev = NULL;
 
-    if ( m->m_first_line == NULL ) {
-	m->m_first_line = l;
-	m->m_last_line = l;
+    if ( d->d_first_line == NULL ) {
+	d->d_first_line = l;
+	d->d_last_line = l;
 
     } else {
-	m->m_first_line = l;
+	d->d_first_line = l;
     }
 
     return( l );
 }
 
 
-    /* print a message to stdout for debugging purposes */
+    struct data *
+data_infile( char *dir, char *id )
+{
+    char			filename[ MAXPATHLEN ];
+    char			*line;
+    SNET			*snet;
+    struct line			*l;
+    struct data			*d;
+
+    if (( d = (struct data*)malloc( sizeof( struct data ))) == NULL ) {
+	return( NULL );
+    }
+
+    memset( d, 0, sizeof( struct data ));
+
+    /* read data file */
+    sprintf( filename, "%s/D%s", dir, id );
+
+    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	return( NULL );
+    }
+
+    while (( line = snet_getline( snet, NULL )) != NULL ) {
+	if (( l = data_add_line( d, line )) == NULL ) {
+	    return( NULL );
+	}
+    }
+
+    if ( snet_close( snet ) < 0 ) {
+	return( NULL );
+    }
+
+    return( d );
+}
+
+
+    /* print data to stdout for debugging purposes */
 
     void
-message_stdout( struct message *m )
+data_stdout( struct data *d )
 {
     struct line		*l;
     int			x = 0;
 
-    printf( "ENVELOPE:\n" );
-    env_stdout( m->m_env );
-
-    printf( "\nMESSAGE:\n" );
-    for ( l = m->m_first_line; l != NULL ; l = l->line_next ) {
+    for ( l = d->d_first_line; l != NULL ; l = l->line_next ) {
 	x++;
 	printf( "%d:\t%s\n", x, l->line_data );
     }
 }
 
 
+    struct message *
+message_infiles( char *dir, char *id )
+{
+    struct message		*m;
+
+    if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
+	return( NULL );
+    }
+
+    if (( m->m_env = env_infile( dir, id )) == NULL ) {
+	return( NULL );
+    }
+
+    if (( m->m_data = data_infile( dir, id )) == NULL ) {
+	return( NULL );
+    }
+
+    return( m );
+}
+
+
+    void
+message_stdout( struct message *m )
+{
+    printf( "ENVELOPE:\n" );
+    env_stdout( m->m_env );
+
+    printf( "\nMESSAGE DATA:\n" );
+    data_stdout( m->m_data );
+}
+
+
     int
-message_outfile( struct message *m )
+message_outfiles( struct message *m )
 {
     int			fd;
     time_t		clock;
@@ -218,7 +233,7 @@ message_outfile( struct message *m )
 	goto cleanup;
     }
 
-    for ( l = m->m_first_line; l != NULL; l = l->line_next ) {
+    for ( l = m->m_data->d_first_line; l != NULL; l = l->line_next ) {
 	if ( fprintf( dff, "%s\n", l->line_data ) < 0 ) {
 	    perror( "fprintf" );
 	    goto cleanup;
@@ -284,71 +299,54 @@ cleanup:
 }
 
 
-    /* return a struct message from the Efile and Dfile for the message
-     * id from directory dir.
-     */
+    /* XXX totally wrong */
 
     struct message *
-message_infile( char *dir, char *id )
+message_create( char *id )
 {
-    char			*filename;
-    char			*line;
-    SNET			*snet;
     struct message		*m;
-    struct line			*l;
+    struct timeval		tv;
 
-    if (( m = message_create( id )) == NULL ) {
+    if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
 	return( NULL );
     }
 
-    if (( filename = (char *)malloc( strlen( dir ) + strlen( id ) + 3 ))
-	    == NULL ) {
+    memset( m, 0, sizeof( struct message ));
+
+    if (( m->m_data = (struct data*)malloc( sizeof( struct data ))) == NULL ) {
 	return( NULL );
     }
 
-    /* read envelope file */
-    sprintf( filename, "%s/E%s", dir, id );
-
-    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+    memset( m->m_data, 0, sizeof( struct data ));
+	
+    if (( m->m_env = env_create()) == NULL ) {
 	return( NULL );
     }
 
-    /* get from-address */
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
+    if ( gethostname( m->m_env->e_hostname, MAXHOSTNAMELEN ) != 0 ) {
 	return( NULL );
     }
 
-    if (( m->m_env->e_mail = strdup( line )) == NULL ) {
-	return( NULL );
-    }
-
-    /* get to-addresses */
-    while (( line = snet_getline( snet, NULL )) != NULL ) {
-	if ( env_recipient( m->m_env, line ) != 0 ) {
+    if ( id == NULL ) {
+	if ( gettimeofday( &tv, NULL ) != 0 ) {
 	    return( NULL );
 	}
+
+	sprintf( m->m_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
+		(unsigned long)tv.tv_usec );
+    } else {
+	/* XXX OVERFLOW */
+	strcpy( m->m_env->e_id, id );
     }
 
-    if ( snet_close( snet ) < 0 ) {
+    if (( m->m_env->e_sin = (struct sockaddr_in*)malloc(
+	    sizeof( struct sockaddr_in ))) == NULL ) {
 	return( NULL );
     }
 
-    /* read message file */
-    sprintf( filename, "%s/D%s", dir, id );
-
-    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
-	return( NULL );
-    }
-
-    while (( line = snet_getline( snet, NULL )) != NULL ) {
-	if (( l = message_add_line( m, line )) == NULL ) {
-	    return( NULL );
-	}
-    }
-
-    if ( snet_close( snet ) < 0 ) {
-	return( NULL );
-    }
+    memset( m->m_env->e_sin, 0, sizeof( struct sockaddr_in ));
+    m->m_env->e_sin->sin_family = AF_INET;
+    m->m_env->e_sin->sin_addr.s_addr = INADDR_ANY;
 
     return( m );
 }

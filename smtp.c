@@ -76,7 +76,7 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
     }
 
     /* send message */
-    for ( l = m->m_first_line; l != NULL; l = l->line_next ) {
+    for ( l = m->m_data->d_first_line; l != NULL; l = l->line_next ) {
 	if ( *l->line_data == '.' ) {
 	    /* don't send EOF */
 	    if ( snet_writef( snet, ".%s\r\n", l->line_data ) < 0 ) {

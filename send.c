@@ -55,7 +55,7 @@ main( int argc, char *argv[] )
 
     /* XXX ERROR CHECKING */
 
-    if (( m = message_infile( "tmp", TEST_ID )) == NULL ) {
+    if (( m = message_infiles( "tmp", TEST_ID )) == NULL ) {
 	perror( "message_infile" );
 	exit( 1 );
     }
