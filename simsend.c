@@ -82,6 +82,10 @@ main( int argc, char *argv[] )
     int			read_headers = 0;
     int			pidfd;
     int			pid;
+    uid_t		uid;
+    struct recipient	*r;
+    struct passwd	*passwd;
+    char		*pw_name;
     FILE		*pf;
     struct stat		sbuf;
 
@@ -409,12 +413,30 @@ main( int argc, char *argv[] )
 	goto cleanup;
     }
 
+    uid = getuid();
+    if (( passwd = getpwuid( uid )) == NULL ) {
+	pw_name = "No password entry";
+    } else if ( passwd->pw_name == NULL ) {
+	pw_name = "No user name in password entry";
+    } else {
+	pw_name = passwd->pw_name;
+    }
+
+    syslog( LOG_INFO, "Local %s: From <%s>: UID %d: %s", env->e_id,
+	    env->e_mail, uid, pw_name );
+    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+	syslog( LOG_INFO, "Local %s: To <%s>", env->e_id, r->r_rcpt );
+    }
+
     /* store Efile */
     env->e_dir = simta_dir_local;
     if ( env_outfile( env ) != 0 ) {
+	syslog( LOG_INFO, "Local %s: Message Aborted", env->e_id );
 	perror( "env_outfile" );
 	goto cleanup;
     }
+
+    syslog( LOG_INFO, "Local %s: Message Accepted", env->e_id );
 
 signal_server:
     /* if possible, signal server */
