@@ -143,7 +143,7 @@ get_mx( char *hostname )
     struct host *
 host_local( char *hostname )
 {
-    int			i;
+    int			i, cname_offset = 0;
     struct host		*host;
     struct dnsr_result	*result;
 
@@ -173,13 +173,15 @@ host_local( char *hostname )
 	for ( i = 0; i < result->r_ancount; i++ ) {
 	    switch( result->r_answer[ i ].rr_type ) {
 	    case DNSR_TYPE_CNAME:
+		cname_offset++;
 		break;
 
 	    case DNSR_TYPE_MX:
 		if (( strcasecmp( simta_low_pref_mx_domain->h_name,
 			result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
 			&& ( result->r_answer[ i ].rr_mx.mx_preference >
-			result->r_answer[ 0 ].rr_mx.mx_preference )) {
+			result->r_answer[
+			cname_offset ].rr_mx.mx_preference )) {
 		    dnsr_free_result( result );
 		    return( simta_low_pref_mx_domain );
 		}
