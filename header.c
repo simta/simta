@@ -196,21 +196,16 @@ skip_cfws( struct line **l, char **c )
 header_stdout( struct header h[])
 {
     while ( h->h_key != NULL ) {
-	/* print key */
-	printf( "%s: ", h->h_key );
-
 	if ( h->h_line != NULL ) {
-	    printf( "%s", h->h_line->line_data );
+	    printf( "%s\n", h->h_line->line_data );
 
 	    if ( h->h_data != NULL ) {
-		printf( "\n%s data: %s", h->h_key, h->h_data );
+		printf( "\tdata: %s\n", h->h_data );
 	    }
 
 	} else {
-	    printf( "NULL" );
+	    printf( "%s NULL\n", h->h_key );
 	}
-
-	printf( "\n" );
 
 	h++;
     }
@@ -670,7 +665,6 @@ parse_addr( struct line **start_line, char **start, int mode )
     struct line_token			domain;
     int					result;
 
-    /* XXX only supported modes for now */
     if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER )) {
 	fprintf( stderr, "parse_addr: unsupported mode\n" );
 	return( -1 );
@@ -895,7 +889,7 @@ parse_addr( struct line **start_line, char **start, int mode )
 
     if ( mode == MAILBOX_SENDER ) {
 	if ( match_addr( &local, &domain, sender ) == 0 ) {
-	    fprintf( stderr, "Sender: address should be <%s>\n", sender );
+	    fprintf( stderr, "Sender header address should be <%s>\n", sender );
 	    return( 1 );
 	}
 
@@ -919,9 +913,7 @@ parse_mailbox_list( struct line *l, char *c, int mode )
     struct line				*next_l;
     struct line_token			local;
     int					result;
-    int					addrs = 0;
 
-    /* XXX only supported modes for now */
     if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER )) {
 	fprintf( stderr, "parse_mailbox_list: unsupported mode\n" );
 	return( -1 );
@@ -996,22 +988,20 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 		if (( result = parse_addr( &l, &c, mode )) != 0 ) {
 		    return( result );
 		}
-
-		addrs++;
-
-		if ( addrs > 1 ) {
-		    if ( mode == MAILBOX_SENDER ) {
-			fprintf( stderr, "Sender: is a single address\n" );
-			return( 1 );
-
-		    } else if ( mode == MAILBOX_FROM_CORRECT ) {
-			simta_generate_sender = 1;
-		    }
-		}
 	
 		if ( c == NULL ) {
 		    /* SINGLE_ADDR_DONE */
 		    return( 0 );
+	
+		}
+
+		/* c != NULL means more than one address on the line */
+		if ( mode == MAILBOX_SENDER ) {
+		    fprintf( stderr, "Sender header is a single address\n" );
+		    return( 1 );
+
+		} else if ( mode == MAILBOX_FROM_CORRECT ) {
+		    simta_generate_sender = 1;
 		}
 
 		/* START */
@@ -1066,21 +1056,18 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 	    return( result );
 	}
 
-	addrs++;
-
-	if ( addrs > 1 ) {
-	    if ( mode == MAILBOX_SENDER ) {
-		fprintf( stderr, "Sender: is a single address\n" );
-		return( 1 );
-
-	    } else if ( mode == MAILBOX_FROM_CORRECT ) {
-		simta_generate_sender = 1;
-	    }
-	}
-
 	if ( c == NULL ) {
 	    /* AA_LEFT_DONE */
 	    return( 0 );
+	}
+
+	/* c != NULL means more than one address on the line */
+	if ( mode == MAILBOX_SENDER ) {
+	    fprintf( stderr, "Sender header is a single address\n" );
+	    return( 1 );
+
+	} else if ( mode == MAILBOX_FROM_CORRECT ) {
+	    simta_generate_sender = 1;
 	}
     }
 }
