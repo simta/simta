@@ -44,7 +44,7 @@ main( int argc, char *argv[])
     int			rc;
     struct in_addr	addr;
 
-    if ( argc < 1 ) {
+    if ( argc != 2 ) {
 	fprintf( stderr, "Usage: %s address\n", argv[ 0 ]);
 	exit( EX_USAGE );
     }
