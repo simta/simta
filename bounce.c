@@ -121,7 +121,7 @@ bounce_stdout( struct envelope *bounce_env )
     /* dfile message headers */
     printf(  "From: mailer-daemon@%s\n", simta_hostname );
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
-	printf(  "To: %s\n", r->r_rcpt );
+	printf(  "To: <%s>\n", r->r_rcpt );
     }
     printf(  "\n" );
 
@@ -265,19 +265,20 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     bounce_env->e_dir = simta_dir_fast;
 
-    if (( *(env->e_mail) == '\0' ) || 
-	    ( strcasecmp( env->e_mail, simta_postmaster ) == 0 )) {
-        if ( env_recipient( bounce_env, simta_postmaster ) != 0 ) {
+    if ( *(env->e_mail) == '\0' ) {
+        if ( env_recipient( bounce_env, NULL ) != 0 ) {
             goto cleanup1;
         }
 
-	/* if the postmaster is a recipient,
+	/* if the postmaster is a failed recipient,
 	 * we need to put the bounce in the dead queue.
 	 */
+	/* XXX check for postmaster@localhost */
 	for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ((( env->e_flags & ENV_BOUNCE ) ||
 		    ( r->r_status == R_FAILED )) &&
-		    ( strcasecmp( simta_postmaster, r->r_rcpt ) == 0 )) {
+		    (( strcasecmp( "postmaster", r->r_rcpt ) == 0 ) ||
+		    ( *(r->r_rcpt) == '\0' ))) {
 		bounce_env->e_dir = simta_dir_dead;
 		break;
 	    }
