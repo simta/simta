@@ -64,6 +64,7 @@ struct sockaddr_in  	*receive_sin;
 int			receive_global_relay = 0;
 int			receive_tls = 0;
 char			*receive_hello = NULL;
+char			*receive_smtp_command = NULL;
 char			*receive_remote_hostname;
 
 #define	RECEIVE_OK		0x0000
@@ -130,6 +131,8 @@ hello( struct envelope *env, char *hostname )
 f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( ac != 2 ) {
+	syslog( LOG_ERR, "Receive: Bad HELO syntax: %s", receive_smtp_command );
+
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_helo snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -165,6 +168,8 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      * without this initialization.
      */
     if ( ac != 2 ) {
+	syslog( LOG_ERR, "Receive: Bad EHLO syntax: %s", receive_smtp_command );
+
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -242,6 +247,9 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     char		*domain;
 
     if ( ac != 2 ) {
+	syslog( LOG_ERR, "Receive: Bad MAIL FROM syntax: %s",
+		receive_smtp_command );
+
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -333,6 +341,9 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     struct host		*host;
 
     if ( ac != 2 ) {
+	syslog( LOG_ERR, "Receive: Bad RCPT TO syntax: %s",
+		receive_smtp_command );
+
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -521,6 +532,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
      * having invalid syntax.
      */
     if ( ac != 1 ) {
+	syslog( LOG_ERR, "Receive: Bad DATA syntax: %s", receive_smtp_command );
+
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -841,6 +854,8 @@ f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
      */
 
     if ( ac != 1 ) {
+	syslog( LOG_ERR, "Receive: Bad QUIT syntax: %s", receive_smtp_command );
+
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_quit snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -876,6 +891,8 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
      * having invalid syntax.
      */
     if ( ac != 1 ) {
+	syslog( LOG_ERR, "Receive: Bad RSET syntax: %s", receive_smtp_command );
+
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rset snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -985,7 +1002,9 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if ( ac != 1 ) {
-	syslog( LOG_ERR, "f_starttls: syntax_error" );
+	syslog( LOG_ERR, "Receive: Bad STARTTLS syntax: %s",
+		receive_smtp_command );
+
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -1176,6 +1195,16 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	tv.tv_sec = simta_receive_wait;
 	tv.tv_usec = 0;
 
+	if ( receive_smtp_command != NULL ) {
+	    free( receive_smtp_command );
+	    receive_smtp_command = NULL;
+	}
+
+	if (( receive_smtp_command = strdup( line )) == NULL ) {
+	    syslog( LOG_ERR, "receive strdup: %m" );
+	    goto syserror;
+	}
+
 	/*
 	 * This routine needs to be revised to take rfc822 quoting into
 	 * account.  E.g.  MAIL FROM:<"foo \: bar"@umich.edu>
@@ -1240,6 +1269,11 @@ closeconnection:
 
     if ( av != NULL ) {
 	acav_free( acav );
+    }
+
+    if ( receive_smtp_command != NULL ) {
+	free( receive_smtp_command );
+	receive_smtp_command = NULL;
     }
 
     if ( receive_hello != NULL ) {
