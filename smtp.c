@@ -72,7 +72,37 @@ _smtp_connect_try( SNET **snetp, struct sockaddr_in *sin, struct host_q *hq )
 	goto error;
     }
 
-    if (( ret = smtp_reply( SMTP_EHLO, *snetp, hq, NULL )) != SMTP_OK ) {
+    ret = smtp_reply( SMTP_EHLO, *snetp, hq, NULL );
+    switch( ret ) {
+
+    case SMTP_OK:
+	break;
+
+    case SMTP_ERROR:
+
+	/* say HELO */
+	/* RFC 2821 2.2.1
+	 * (However, for compatibility with older conforming implementations,
+	 * SMTP clients and servers MUST support the original HELO mechanisms
+	 * as a fallback.)
+	 *
+	 * RFC 2821 3.2
+	 * For a particular connection attempt, if the server returns a
+	 * "command not recognized" response to EHLO, the client SHOULD be
+	 * able to fall back and send HELO.
+	 */
+
+	if ( snet_writef( *snetp, "HELO %s\r\n", simta_hostname ) < 0 ) {
+	    syslog( LOG_NOTICE, "_smtp_connect_try %s: failed writef",
+		hq->hq_hostname );
+	    goto error;
+	}
+	if (( ret = smtp_reply( SMTP_HELO, *snetp, hq, NULL )) != SMTP_OK ) {
+	    goto error;
+	}
+	break;
+
+    default:
 	goto error;
     }
     return( SMTP_OK );
@@ -368,11 +398,13 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	    break;
 
 	case SMTP_HELO:
-	    syslog( LOG_NOTICE, "smtp_reply %s HELO: %s", hq->hq_hostname, line );
+	    syslog( LOG_NOTICE, "smtp_reply %s HELO: %s", hq->hq_hostname,
+		line );
 	    break;
 
 	case SMTP_EHLO:
-	    syslog( LOG_NOTICE, "smtp_reply %s EHLO: %s", hq->hq_hostname, line );
+	    syslog( LOG_NOTICE, "smtp_reply %s EHLO: %s", hq->hq_hostname,
+		line );
 	    break;
 
 	case SMTP_MAIL:
@@ -529,8 +561,8 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_EHLO:
 	    syslog( LOG_NOTICE, "smtp_reply %s failed EHLO reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), snet,
-		    &tv, line, "Bad SMTP EHLO reply" )) == SMTP_OK ) {
+	    if (( smtp_reply = smtp_consume_banner( NULL, snet,
+		    &tv, line, NULL )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
