@@ -9,9 +9,9 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
-#define	R_DELIVERED	0
-#define	R_FAILED	1
-#define	R_TEMPFAIL	2
+#define	R_TEMPFAIL	0
+#define	R_DELIVERED	1
+#define	R_FAILED	2
 
 struct recipient {
     struct recipient	*r_next;
@@ -44,7 +44,8 @@ struct envelope {
 #define E_TLS			(1<<0)
 #define E_READY			(1<<1)
 #define ENV_BOUNCE		(1<<2)
-#define ENV_DELIVERED		(1<<3)
+#define ENV_ATTEMPT		(1<<3)
+#define ENV_OLD			(1<<4)
 
 /* NOT USED */
 void		env_stdout ___P(( struct envelope * ));

@@ -15,4 +15,4 @@
 int bounce_text ___P(( struct envelope *, char *, char *, char * ));
 void bounce_stdout ___P(( struct envelope * ));
 int bounce_dfile_out ___P(( struct envelope *, SNET * ));
-struct envelope *bounce ___P(( struct envelope *, SNET * ));
+struct envelope *bounce ___P(( struct host_q *, struct envelope *, SNET * ));

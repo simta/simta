@@ -635,7 +635,6 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     case '2':
 	syslog( LOG_NOTICE, "smtp_send %s %s: message accepted",
 		hq->hq_hostname, env->e_id );
-	env->e_flags = ENV_DELIVERED;
 	if ( *(line + 3) == '-' ) {
 	    if (( line = snet_getline_multi( snet, smtp_logger, &tv ))
 		    == NULL ) {

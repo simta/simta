@@ -236,7 +236,7 @@ cleanup:
 
 
     struct envelope *
-bounce( struct envelope *env, SNET *message )
+bounce( struct host_q *hq, struct envelope *env, SNET *message )
 {
     struct envelope             *bounce_env;
     char                        dfile_fname[ MAXPATHLEN ];
@@ -251,8 +251,6 @@ bounce( struct envelope *env, SNET *message )
     struct tm                   *tm;
     struct timeval		tv;
     char                        daytime[ 35 ];
-
-    syslog( LOG_DEBUG, "bounce.starting" );
 
     if (( bounce_env = env_create( simta_postmaster )) == NULL ) {
 	return( NULL );
@@ -270,48 +268,45 @@ bounce( struct envelope *env, SNET *message )
             goto cleanup1;
         }
 
+	/* if the mail is undeliverable, and the postmaster is a
+	 * recipient, we need to put the bounce in the dead queue.
+	 */
 	for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	    if (( r->r_delivered == R_FAILED ) &&
+	    if ((( env->e_flags & ENV_BOUNCE ) ||
+		    ( r->r_delivered == R_FAILED )) &&
 		    ( strcasecmp( simta_postmaster, r->r_rcpt ) == 0 )) {
-
 		bounce_env->e_dir = simta_dir_dead;
 		break;
 	    }
 	}
 
     } else {
-	/* XXX what if no env->e_mail? */
         if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
             goto cleanup1;
         }
     }
 
-    sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
-
+    sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, env->e_id );
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
         syslog( LOG_ERR, "bounce open %s: %m", dfile_fname );
         goto cleanup2;
     }
-
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
         syslog( LOG_ERR, "bounce fdopen %s: %m", dfile_fname );
         close( dfile_fd );
         goto cleanup3;
     }
-
     if ( time( &clock ) < 0 ) {
         syslog( LOG_ERR, "bounce time: %m" );
         close( dfile_fd );
         goto cleanup3;
     }
-
     if (( tm = localtime( &clock )) == NULL ) {
         syslog( LOG_ERR, "bounce localtime: %m" );
         close( dfile_fd );
         goto cleanup3;
     }
-
     if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
             == 0 ) {
         syslog( LOG_ERR, "bounce strftime: %m" );
@@ -319,7 +314,6 @@ bounce( struct envelope *env, SNET *message )
         goto cleanup3;
     }
 
-    /* XXX From: address */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
     if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
 	fprintf( dfile, "To: %s\n", simta_postmaster );
@@ -329,52 +323,58 @@ bounce( struct envelope *env, SNET *message )
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", bounce_env->e_id );
     fprintf( dfile, "\n" );
-
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
 
-    if ( env->e_old_dfile != 0 ) {
+    if ( env->e_flags & ENV_OLD ) {
         fprintf( dfile, "It was over three days old.\n" );
         fprintf( dfile, "\n" );
     }
 
-    if ( env->e_err_text != NULL ) {
-	fprintf( dfile, "The following error occured:\n" );
+    if ( hq->hq_err_text != NULL ) {
+	fprintf( dfile, "The following error occured during delivery to "
+		"host %s:\n", hq->hq_hostname );
+	for ( l = hq->hq_err_text->l_first; l != NULL; l = l->line_next ) {
+	    fprintf( dfile, "%s\n", l->line_data );
+	}
 
+    } else if ( env->e_err_text != NULL ) {
+	fprintf( dfile, "The following error occured during delivery to "
+		"host %s:\n", hq->hq_hostname );
 	for ( l = env->e_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
 	}
 
-	fprintf( dfile, "\n" );
+    } else {
+	fprintf( dfile, "An error occured during delivery to host %s.\n",
+		hq->hq_hostname );
     }
 
-    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-        if (( env->e_err_text != NULL ) || ( env->e_old_dfile != 0 ) || 
-		( r->r_delivered == R_FAILED ) || ( r->r_err_text != NULL )) {
-            fprintf( dfile, "address %s\n", r->r_rcpt );
+    fprintf( dfile, "\n" );
 
+    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+	if (( env->e_flags & ENV_BOUNCE ) || ( r->r_delivered == R_FAILED )) {
+            fprintf( dfile, "address %s\n", r->r_rcpt );
             if ( r->r_err_text != NULL ) {
                 for ( l = r->r_err_text->l_first; l != NULL;
 			l = l->line_next ) {
                     fprintf( dfile, "%s\n", l->line_data );
                 }
             }
-
             fprintf( dfile, "\n" );
         }
     }
 
-    fprintf( dfile, "Bounced message:\n" );
-    fprintf( dfile, "\n" );
-
-    while (( line = snet_getline( message, NULL )) != NULL ) {
-        line_no++;
-
-        if ( line_no > SIMTA_BOUNCE_LINES ) {
-            break;
-        }
-
-        fprintf( dfile, "%s\n", line );
+    if ( message != NULL ) {
+	fprintf( dfile, "Bounced message:\n" );
+	fprintf( dfile, "\n" );
+	while (( line = snet_getline( message, NULL )) != NULL ) {
+	    line_no++;
+	    if ( line_no > SIMTA_BOUNCE_LINES ) {
+		break;
+	    }
+	    fprintf( dfile, "%s\n", line );
+	}
     }
 
     if ( fclose( dfile ) != 0 ) {
@@ -386,17 +386,13 @@ bounce( struct envelope *env, SNET *message )
 	if (( m = message_create( bounce_env->e_id )) == NULL ) {
 	    goto cleanup3;
 	}
-
 	m->m_dir = bounce_env->e_dir;
 	m->m_etime.tv_sec = tv.tv_sec;
 	m->m_env = bounce_env;
-
 	if ( env_outfile( bounce_env, bounce_env->e_dir ) != 0 ) {
-	    free( m );
-	    goto cleanup3;
+	    goto cleanup4;
 	}
-
-	message_queue( simta_null_q, m );
+	bounce_env->e_message = m;
 
     } else {
 	if ( env_outfile( bounce_env, bounce_env->e_dir ) != 0 ) {
@@ -406,8 +402,12 @@ bounce( struct envelope *env, SNET *message )
 
     return( bounce_env );
 
+cleanup4:
+    message_free( m );
 cleanup3:
-    unlink( dfile_fname );
+    if ( unlink( dfile_fname ) != 0 ) {
+	syslog( LOG_ERR, "bounce unlink %s: %m", dfile_fname );
+    }
 cleanup2:
     env_reset( bounce_env );
 cleanup1:
