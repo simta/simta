@@ -1,3 +1,27 @@
+AC_DEFUN([CHECK_LDAP],
+[
+    AC_MSG_CHECKING(for ldap)
+    ldapdirs="/usr"
+    AC_ARG_WITH(ldap,
+	    AC_HELP_STRING([--with-ldap=DIR], [path to ldap]),
+	    ldapdirs="$withval")
+    found_ldap="no";
+    for dir in $ldapdirs; do
+	ldapdir="$dir"
+	if test -f "$dir/include/ldap.h"; then
+	    found_ldap="yes";
+	    break;
+	fi
+    done
+    if test x_$found_ldap != x_yes; then
+	AC_MSG_ERROR(cannot find ldap libraries)
+    else
+	LIBS="$LIBS -lldap";
+    fi
+    AC_MSG_RESULT(yes)
+])
+
+
 AC_DEFUN([CHECK_SSL],
 [
     AC_MSG_CHECKING(for ssl)
