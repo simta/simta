@@ -216,22 +216,22 @@ add_errdat (struct errdat * errdat, char *val)
 
     if (errdat->errnum == 0) {
 	if ((errdat->errval = malloc (sizeof (char *) * 2)) == NULL) {
-	   return (0); 
+	   return (1); 
 	}
     }
     else {
 	if ((errdat->errval = realloc (errdat->errval,
 				sizeof (char *) * (errdat->errnum + 2)))
 		 == NULL) {
-	   return (0); 
+	   return (1); 
 	}
     }
     if ((errdat->errval[errdat->errnum] = strdup (val)) == NULL) {
-	return 0;
+	return 1;
     }
     errdat->errnum++;
     errdat->errval[errdat->errnum] = NULL;
-    return (1);
+    return (0);
 }
 	
 
