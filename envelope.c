@@ -360,7 +360,8 @@ env_recipient( struct envelope *e, char *addr )
 
     /* Efile syntax:
      *
-     * SIMTA_VERSION_STRING
+     * VSIMTA_EFILE_VERSION
+     * Emessage-id
      * Idinode
      * Hdestination-host
      * Ffrom-addr@sender.com
@@ -379,6 +380,7 @@ env_outfile( struct envelope *e )
     char		ef[ MAXPATHLEN + 1 ];
 
     assert( e->e_dir != NULL );
+    assert( e->e_id != NULL );
 
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
     sprintf( ef, "%s/E%s", e->e_dir, e->e_id );
@@ -396,8 +398,14 @@ env_outfile( struct envelope *e )
 	return( -1 );
     }
 
-    /* SIMTA_VERSION_STRING */
-    if ( fprintf( tff, "%s\n", SIMTA_VERSION_STRING ) < 0 ) {
+    /* VSIMTA_EFILE_VERSION */
+    if ( fprintf( tff, "V%d\n", SIMTA_EFILE_VERSION ) < 0 ) {
+	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	goto cleanup;
+    }
+
+    /* Emessage-id */
+    if ( fprintf( tff, "E%s\n", e->e_id ) < 0 ) {
 	syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	goto cleanup;
     }
@@ -406,7 +414,6 @@ env_outfile( struct envelope *e )
     if ( e->e_dinode <= 0 ) {
 	panic( "env_outfile: bad dinode" );
     }
-
     if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {
 	syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	goto cleanup;
@@ -496,7 +503,6 @@ cleanup:
     return( -1 );
 }
 
-
     /* calling this function updates the attempt time */
 
     int
@@ -532,6 +538,7 @@ env_read_queue_info( struct envelope *e )
     char		fname[ MAXPATHLEN + 1 ];
     struct stat		sb;
     int			ret = 1;
+    int			version;
 
     sprintf( fname, "%s/E%s", e->e_dir, e->e_id );
 
@@ -554,15 +561,53 @@ env_read_queue_info( struct envelope *e )
 
     e->e_last_attempt.tv_sec = sb.st_mtime;
 
-    /* version info */
+    /* Vsimta-version */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
 	goto cleanup;
     }
-
-    if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
+    if ( *line != 'V' ) {
 	syslog( LOG_ERR, "env_read_queue_info %s bad version syntax", fname );
 	goto cleanup;
+    }
+    /* code to deal with v0.1 type version numbers.
+     * version 2 and beyond use integer as version not floats.
+     */
+#ifdef SIMTA_OLD_EFILE_VERSION_1
+    if ( strcmp( line + 1, "0.1" ) == 0 ) {
+	version = 1;
+    } else {
+#endif /* SIMTA_OLD_EFILE_VERSION_1 */
+	if ( sscanf( line + 1, "%d", &version ) != 1 ) {
+	    syslog( LOG_ERR, "env_read_queue_info: %s: bad version syntax",
+		fname );
+	    goto cleanup;
+	}
+#ifdef SIMTA_OLD_EFILE_VERSION_1
+    }
+#endif /* SIMTA_OLD_EFILE_VERSION_1 */
+    if (( version > SIMTA_EFILE_VERSION ) || ( version < 1 )) {
+	syslog( LOG_ERR, "env_read_queue_info: %s: unsupported version",
+	    fname );
+	goto cleanup;
+    }
+
+    if ( version >= 2 ) {
+	/* Emessage-id */
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
+	    goto cleanup;
+	}
+	if ( *line != 'E' ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: bad Emessage-id syntax",
+		fname );
+	    goto cleanup;
+	}
+	if ( strcmp( line + 1, e->e_id ) != 0 ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: message-id mismatch",
+		fname );
+	    goto cleanup;
+	}
     }
 
     /* Dinode info */
@@ -601,12 +646,12 @@ env_read_queue_info( struct envelope *e )
 
     /* Ffrom-address */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_delivery_info %s unexpected EOF", fname );
+	syslog( LOG_ERR, "env_read_queue_info %s unexpected EOF", fname );
 	goto cleanup;
     }
 
     if ( *line != 'F' ) {
-	syslog( LOG_ERR, "env_read_delivery_info %s bad from syntax",
+	syslog( LOG_ERR, "env_read_queue_info %s bad from syntax",
 		fname );
 	goto cleanup;
     }
@@ -635,6 +680,7 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     char			*hostname;
     int				ret = 1;
     ino_t			dinode;
+    int				version;
 
     sprintf( filename, "%s/E%s", env->e_dir, env->e_id );
 
@@ -657,16 +703,55 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 	}
     }
 
-    /* SIMTA_VERSION_STRING */
+    /* Vsimta-version */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_delivery_info %s unexpected EOF", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF", filename );
+	goto cleanup;
+    }
+    if ( *line != 'V' ) {
+	syslog( LOG_ERR, "env_read_delivery_info %s bad version syntax",
+	    filename );
+	goto cleanup;
+    }
+    /* code to deal with v0.1 type version numbers.
+     * version 2 and beyond use integer as version not floats.
+     */
+#ifdef SIMTA_OLD_EFILE_VERSION_1
+    if ( strcmp( line + 1, "0.1" ) == 0 ) {
+	version = 1;
+    } else {
+#endif /* SIMTA_OLD_EFILE_VERSION_1 */
+	if ( sscanf( line + 1, "%d", &version ) != 1 ) {
+	    syslog( LOG_ERR, "env_read_delivery_info %s: bad version syntax",
+		filename );
+	    goto cleanup;
+	}
+#ifdef SIMTA_OLD_EFILE_VERSION_1
+    }
+#endif /* SIMTA_OLD_EFILE_VERSION_1 */
+    if ( version > SIMTA_EFILE_VERSION ) {
+	syslog( LOG_ERR, "env_read_delivery_info: %s: unsupported version",
+	    filename );
 	goto cleanup;
     }
 
-    if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
-	syslog( LOG_ERR, "env_read_delivery_info %s bad version syntax",
+    if ( version >= 2 ) {
+	/* Emessage-id */
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF",
 		filename );
-	goto cleanup;
+	    goto cleanup;
+	}
+	if ( *line != 'E' ) {
+	    syslog( LOG_ERR,
+		"env_read_delivery_info %s: bad Emessage-id syntax", filename );
+	    goto cleanup;
+	}
+	if ( strcmp( line + 1, env->e_id ) != 0 ) {
+	    syslog( LOG_ERR, "env_read_delivery_info %s: message-id mismatch",
+		filename );
+	    goto cleanup;
+	}
     }
 
     /* Dinode info */
@@ -684,22 +769,25 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 
     sscanf( line + 1, "%lu", &dinode );
     if ( dinode == 0 ) {
-	syslog( LOG_ERR, "env_read_queue_info %s: bad Dinode info", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s: bad Dinode info",
+	    filename );
 	goto cleanup;
     } else if ( dinode != env->e_dinode ) {
-	syslog( LOG_ERR, "env_read_queue_info %s: bad Dinode info re-read",
+	syslog( LOG_ERR, "env_read_delivery_info %s: bad Dinode info re-read",
 		filename );
 	goto cleanup;
     }
 
     /* expansion info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF",
+	    filename );
 	goto cleanup;
     }
 
     if ( *line != 'H' ) {
-	syslog( LOG_ERR, "env_read_queue_info %s: bad host syntax", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s: bad host syntax",
+	    filename );
 	goto cleanup;
     }
 
@@ -707,13 +795,13 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 
     if ( env->e_hostname == NULL ) {
 	if ( *hostname != '\0' ) {
-	    syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
+	    syslog( LOG_ERR, "env_read_delivery_info %s: bad hostname re-read",
 		    filename );
 	    goto cleanup;
 	}
     } else {
 	if ( strcmp( hostname, env->e_hostname ) != 0 ) {
-	    syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
+	    syslog( LOG_ERR, "env_read_delivery_info %s: bad hostname re-read",
 		    filename );
 	    goto cleanup;
 	}
@@ -732,7 +820,7 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     }
 
     if ( strcmp( env->e_mail, line + 1 ) != 0 ) {
-	syslog( LOG_ERR, "env_read_queue_info %s: bad sender re-read",
+	syslog( LOG_ERR, "env_read_delivery_info %s: bad sender re-read",
 		filename );
 	goto cleanup;
     }
