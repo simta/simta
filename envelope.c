@@ -346,7 +346,6 @@ env_outfile( struct envelope *e, char *dir )
 	}
 
     } else {
-	/* XXX NULL From addr OK? */
 	if ( fprintf( tff, "F\n" ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	    fclose( tff );

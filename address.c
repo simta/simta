@@ -63,7 +63,7 @@ address_bounce_create( struct expand *exp )
 {
     struct envelope		*bounce_env;
 
-    if (( bounce_env = env_create( simta_postmaster )) == NULL ) {
+    if (( bounce_env = env_create( NULL )) == NULL ) {
 	return( NULL );
     }
 

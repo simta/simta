@@ -251,7 +251,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     struct timeval		tv;
     char                        daytime[ 35 ];
 
-    if (( bounce_env = env_create( simta_postmaster )) == NULL ) {
+    if (( bounce_env = env_create( NULL )) == NULL ) {
 	return( NULL );
     }
 
