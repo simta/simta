@@ -1091,7 +1091,7 @@ smtp_receive( fd, sin )
     int					i;
     int					rc;
     int					value = RECEIVE_SYSERROR;
-    char				**av;
+    char				**av = NULL;
     char				*line;
     char				*ctl_domain;
     char				hostname[ DNSR_MAX_NAME + 1 ];
@@ -1123,7 +1123,7 @@ smtp_receive( fd, sin )
 	}
     }
 
-    if ( *ctl_domain = '\0' );
+    *ctl_domain = '\0';
 
     if (( rc = check_reverse( &simta_dnsr, hostname,
 	    &(sin->sin_addr))) != 0 ) {
@@ -1165,6 +1165,12 @@ smtp_receive( fd, sin )
 	goto closeconnection;
     }
 
+    if (( acav = acav_alloc( )) == NULL ) {
+	syslog( LOG_ERR, "receive argcargv_alloc: %m" );
+	value = RECEIVE_SYSERROR;
+	goto syserror;
+    }
+
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
@@ -1175,12 +1181,6 @@ smtp_receive( fd, sin )
 	 * This routine needs to be revised to take rfc822 quoting into
 	 * account.  E.g.  MAIL FROM:<"foo \: bar"@umich.edu>
 	 */
-
-	if (( acav = acav_alloc( )) == NULL ) {
-	    syslog( LOG_ERR, "receive argcargv_alloc: %m" );
-    	    value = RECEIVE_SYSERROR;
-	    goto syserror;
-	}
 
 	if (( ac = acav_parse2821( acav, line, &av )) < 0 ) {
 	    syslog( LOG_ERR, "receive argcargv: %m" );
@@ -1211,15 +1211,12 @@ smtp_receive( fd, sin )
 	if ( i >= ncommands ) {
 	    if ( snet_writef( snet, "%d Command %s unregcognized\r\n",
 		    500, av[ 0 ]) < 0 ) {
-		acav_free( acav );
 		goto closeconnection;
 	    }
-	    acav_free( acav );
 	    continue;
 	}
 
 	value = (*(commands[ i ].c_func))( snet, env, ac, av );
-	acav_free( acav );
 
 	if ( value != RECEIVE_OK ) {
 	    break;
@@ -1248,6 +1245,10 @@ syserror:
 closeconnection:
     if ( snet_close( snet ) != 0 ) {
 	syslog( LOG_ERR, "receive snet_close: %m" );
+    }
+
+    if ( av != NULL ) {
+	acav_free( acav );
     }
 
     if ( receive_hello != NULL ) {
