@@ -344,7 +344,8 @@ f_mail( snet, env, ac, av )
 		return( RECEIVE_OK );
 
 	    default:
-		syslog( LOG_ERR, "f_mail get_mx %s: local error", domain );
+		syslog( LOG_ERR, "f_mail get_mx %s: %s", domain,
+		    dnsr_err2string( dnsr_errno( simta_dnsr )));
 		return( RECEIVE_SYSERROR );
 	    }
 	}
@@ -491,7 +492,7 @@ f_rcpt( snet, env, ac, av )
 	if ( simta_dnsr == NULL ) {
 	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
 		syslog( LOG_ERR, "f_rcpt dnsr_new: %s",
-			dnsr_err2string((int)dnsr_errno( simta_dnsr )));
+			dnsr_err2string(dnsr_errno( simta_dnsr )));
 		if ( snet_writef( snet,
 			"%d Requested action aborted: "
 			"local error in processing.\r\n", 451 ) < 0 ) {
