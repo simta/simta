@@ -24,6 +24,9 @@
 #define	SIMTA_EXPANSION_FAILED		0
 #define	SIMTA_EXPANSION_SUCCESS		1
 
+#define	EXIT_OK			1
+#define	EXIT_FAST_FILE		2
+
 
 /* global variables */
 extern int			simta_debug;

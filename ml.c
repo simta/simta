@@ -320,6 +320,4 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	    return( -1 );
 	}
     }
-
-    exit( 0 );
 }

@@ -241,20 +241,20 @@ q_runner( struct host_q **host_q )
     struct host_q		*hq;
     struct message		*m;
 
-    if (( result = q_run( host_q )) != 0 ) {
-	if ( simta_fast_files < 1 ) {
-	    return( result );
-	}
+    result = q_run( host_q );
 
-	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
-	    for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
-		if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
-		    /* XXX check return */
-		    message_slow( m );
+    if ( simta_fast_files < 1 ) {
+	return( result );
+    }
 
-		    if ( simta_fast_files < 1 ) {
-			return( result );
-		    }
+    for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
+	for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
+	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
+		/* XXX check return */
+		message_slow( m );
+
+		if ( simta_fast_files < 1 ) {
+		    return( result );
 		}
 	    }
 	}
@@ -402,10 +402,26 @@ q_run( struct host_q **host_q )
 }
 
 
-    /* XXX q_runner_dir needs to signal the daemon if leaves any fast files */
+    /* XXX expand error codes to handle more than OK and FAST_FILE */
 
     int
 q_runner_dir( char *dir )
+{
+    int				r;
+
+    r = q_runner_d( dir );
+
+    if ( simta_fast_files != 0 ) {
+	syslog( LOG_ERR, "q_runner_dir exiting with %d fast_files",
+		simta_fast_files );
+	return( EXIT_FAST_FILE );
+    }
+
+    return( EXIT_OK );
+}
+
+    int
+q_runner_d( char *dir )
 {
     struct host_q		*host_q = NULL;
     struct host_q		*hq;

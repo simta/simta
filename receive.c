@@ -277,7 +277,7 @@ f_mail( snet, env, ac, av )
      */
     if ( *addr != '\0' ) {
 
-	/* XXX - Should this exit? */
+	/* XXX - Should this return? */
 	if (( dnsr = dnsr_new( )) == NULL ) {
 	    syslog( LOG_ERR, "dnsr_new: %s",
 		dnsr_err2string( dnsr_errno( dnsr )));
@@ -757,8 +757,6 @@ f_quit( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-
-
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
      * parameters.  In the absence of specific extensions offered by the
@@ -783,10 +781,8 @@ f_quit( snet, env, ac, av )
 
     if ( snet_close( snet ) < 0 ) {
 	syslog( LOG_ERR, "f_quit: snet_close: %m" );
-	exit( 1 );
+	return( 1 );
     }
-
-    exit( 0 );
 }
 
     int
@@ -955,8 +951,6 @@ struct command	commands[] = {
 };
 int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
-    /* XXX receive needs to signal the daemon if it leaves any fast files */
-
     int
 receive( fd, sin )
     int			fd;
@@ -974,8 +968,7 @@ receive( fd, sin )
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_attach: %m" );
-	/* We *could* use write(2) to report an error before we exit here */
-	exit( 1 );
+	return( 1 );
     }
 
     if ( maxconnections != 0 ) {
@@ -983,7 +976,7 @@ receive( fd, sin )
 	    syslog( LOG_INFO, "connections refused: server busy" );
 	    snet_writef( snet,
 		"%d Service busy, closing transmission channel\r\n", 421 );
-	    exit( 1 );
+	    return( 1 );
 	}
     }
 
@@ -1003,14 +996,14 @@ receive( fd, sin )
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
-	exit( 1 );
+	return( 1 );
     }
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "dnsr_result failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
-	exit( 1 );
+	return( 1 );
     }
 
     /* Get A record on PTR result */
@@ -1020,14 +1013,14 @@ receive( fd, sin )
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
-	exit( 1 );
+	return( 1 );
     }
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "dnsr_result failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
-	exit( 1 );
+	return( 1 );
     }
 
     /* Verify A record matches IP */
@@ -1044,7 +1037,7 @@ receive( fd, sin )
 	    snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
-	    exit( 1 );
+	    return( 1 );
 	}
     }
 
@@ -1055,7 +1048,7 @@ receive( fd, sin )
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
-	exit( 1 );
+	return( 1 );
     }
     env->e_sin = sin;
     env->e_dir = simta_dir_fast;
@@ -1121,7 +1114,7 @@ receive( fd, sin )
 	}
     }
 
-    exit( 1 );
+    return( 1 );
 }
 
 

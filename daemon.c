@@ -34,11 +34,11 @@
 #include <snet.h>
 
 #include "ll.h"
-#include "receive.h"
 #include "queue.h"
 #include "q_cleanup.h"
 #include "envelope.h"
 #include "simta.h"
+#include "receive.h"
 
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
@@ -88,7 +88,9 @@ hup( sig )
 chld( sig )
     int			sig;
 {
-    int			pid, status;
+    int			pid;
+    int			status;
+    int			s;
     extern int		errno;
     struct proc_type	**p;
     struct proc_type	*p_remove;
@@ -106,39 +108,57 @@ chld( sig )
 	    p_remove = *p;
 	    *p = p_remove->p_next;
 
-	    switch( p_remove->p_type ) {
+	    switch ( p_remove->p_type ) {
+
 	    case Q_LOCAL:
 		q_runner_local--;
 		break;
+
 	    case Q_SLOW:
 		q_runner_slow--;
 		break;
+
 	    case SIMTA_CHILD:
 		connections--;
 		break;
+
 	    default:
-		syslog( LOG_ERR, "%d: unknown process type", p_remove->p_type );
+		syslog( LOG_ERR, "chld %d: unknown process type",
+			p_remove->p_type );
 		exit( 1 );
 	    }
 
 	    free( p_remove );
+
 	} else {
-	    syslog( LOG_ERR, "%d: unkown child process", pid );
+	    syslog( LOG_ERR, "chld %d: unkown child process", pid );
 	    exit( 1 );
 	}
 
 	if ( WIFEXITED( status )) {
-	    if ( WEXITSTATUS( status )) {
-		syslog( LOG_ERR, "child %d exited with %d", pid,
-			WEXITSTATUS( status ));
-	    } else {
-		syslog( LOG_INFO, "child %d done", pid );
+	    s = WEXITSTATUS( status );
+
+	    switch ( s ) {
+	    case EXIT_OK:
+		break;
+
+	    case EXIT_FAST_FILE:
+		syslog( LOG_ERR, "chld %d exited %d: fast file error", pid, s );
+		exit( 1 );
+
+	    default:
+		syslog( LOG_ERR, "chld %d exited %d: unknown value", pid, s );
+		exit( 1 );
 	    }
+
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "child %d died on signal %d", pid,
+	    syslog( LOG_ERR, "chld %d died on signal %d", pid,
 		    WTERMSIG( status ));
+	    exit( 1 );
+
 	} else {
-	    syslog( LOG_ERR, "child %d died", pid );
+	    syslog( LOG_ERR, "chld %d died", pid );
+	    exit( 1 );
 	}
     }
 
@@ -698,19 +718,29 @@ main( ac, av )
 
 		/* reset USR1, CHLD and HUP */
 		if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
-		    syslog( LOG_ERR, "sigaction: %m" );
+		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
 		    exit( 1 );
 		}
 		if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
-		    syslog( LOG_ERR, "sigaction: %m" );
+		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
 		    exit( 1 );
 		}
 		if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
-		    syslog( LOG_ERR, "sigaction: %m" );
+		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
 		    exit( 1 );
 		}
 
-		exit( receive( fd, &sin ));
+		receive( fd, &sin );
+
+		/* XXX handle more error cases */
+		if ( simta_fast_files != 0 ) {
+		    syslog( LOG_ERR,
+			    "daemon.receive exiting with %d fast_files",
+			    simta_fast_files );
+		    exit( EXIT_FAST_FILE );
+		}
+
+		exit( EXIT_OK );
 
 	    case -1 :
 		/*
