@@ -1,4 +1,281 @@
+
+imple mail delivery
+
+mail from:<mcneal@umich.edu>
+rcpt to:<mcneal@umich.edu>
+data
+Subject:  simple test
+From: mcneal@umich.edu
+This is a simple mail test.
+.
+quit
+
+	-> Should be sent to end user
+
+-------------------------------------
 Vacation
+
+mail from:<mcneal@umich.edu>
+rcpt to:<xpaul@umich.edu>
+data
+Subject:  vacation test
+From: mcneal@umich.edu
+This is a vacation test and should be sent to the vacation host and end user.
+.
+quit
+
+	-> Should be sent to vacation host        
+
+-------------------------------------
+group-*
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test1-errors@umich.edu>
+rcpt to:<simta-test1-requests@umich.edu>
+rcpt to:<simta-test1-owners@umich.edu>
+data
+Subject:  group-* test
+From: mcneal@umich.edu
+This is a group-* test and should be sent to sitma-test1 not simta-test1-*.  Wes should not get this
+.
+quit
+
+	-> Should all goto simta-test1 not simta-test1-*
+	-> Envelope from address should be changed to simta-test1
+
+-------------------------------------
+Default to group-owners
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test3-errors@umich.edu>
+data
+Subject:  no -errors test
+From: mcneal@umich.edu
+Should goto owner
+.
+quit
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test3-requests@umich.edu>
+data
+Subject:  no -requests test
+From: mcneal@umich.edu
+Should goto owner
+.
+quit
+	-> Should all goto simta-test3-owner
+	-> Envelope from address should be changed to simta-test3
+
+-------------------------------------
+(?)Multiple bases
+
+-------------------------------------
+Multiple dn
+
+mail from:<mcneal@umich.edu>
+rcpt to:<patrick.mcneal@umich.edu>
+data
+Subject:  multiple dn
+From: mcneal@umich.edu
+Should goto mcneal@umich.edu
+.
+quit
+	
+	-> Should goto mcneal@umich.edu
+
+-------------------------------------
+Ambiguous addresses
+
+mail from:<mcneal@umich.edu>
+rcpt to:<john.smith@umich.edu>
+data
+Subject:  ambigous address
+From: mcneal@umich.edu
+Should create a bounce with list of people
+.
+quit
+
+	-> Should create bounce
+
+-------------------------------------
+( ? ) exact RDN matches are not ambiguous
+
+-------------------------------------
+Group errors
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test4@umich.edu>
+data
+Subject:  group error
+From: mcneal@umich.edu
+Should get a message because member no longer exists
+.
+quit
+
+	-> Should get a message to simta-test4-errors because member no longer exists
+
+-------------------------------------
+Group Moderation
+
+mail from:<fake@umich.edu>
+rcpt to:<simta-test-moderated@umich.edu>
+data
+Subject:  group moderation
+From: fake@umich.edu
+This should goto moderator
+.
+quit
+	
+	-> should goto moderator
+
+-------------------------------------
+( ? ) User had no mail forwarding address
+
+-------------------------------------
+Suppress no email address
+
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test-supress-no-email@umich.edu>
+data
+Subject:  supress-no-email
+From: mcneal@umich.edu
+There should be no bounce
+.
+quit
+	-> Owner should not get error
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test-no-supress-email@umich.edu>
+data
+Subject:  no-supress-email
+From: mcneal@umich.edu
+There should be a note to owner of group for member with no e-mail
+.
+quit
+
+	-> Owner should get error
+
+-------------------------------------
+Included groups
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test5@umich.edu>
+data
+Subject:  nested groups
+From: mcneal@umich.edu
+mcneal should get this
+.
+quit
+
+	-> should get message
+
+-------------------------------------
+( ? ) Virus 0, 1, 2, 3
+
+-------------------------------------
+Members Only Group: member, direct
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test-members-only@umich.edu>
+data
+Subject:  Members Only Group: not a member, direct
+From: mcneal@umich.edu
+mcneal should get this
+.
+quit
+
+	-> should go through
+-------------------------------------
+Members Only Group: not a member, direct
+
+mail from:<editor@umich.edu>
+rcpt to:<simta-test-members-only@umich.edu>
+data
+Subject:  Members Only Group: not a member, direct
+From: editor@umich.edu
+should get a bounce
+.
+quit
+
+	-> should get a bounce
+-------------------------------------
+Members Only Group: member, permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test-permitted-group@umich.edu>
+data
+Subject:  Members Only Group: member, permitted group
+From: mcneal@umich.edu
+mcneal should get this
+.
+quit
+
+	-> should go through
+-------------------------------------
+Members Only Group: not a member, permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta-test-permitted-group@umich.edu>
+data
+Subject:  Members Only Group: not a member, permitted group
+From: editor@umich.edu
+mcneal should get this
+.
+quit
+
+	-> should go through
+-------------------------------------
+Members Only Group: member, not permitted group
+
+mail from:<mcneal@umich.edu>
+rcpt to:<simta-test-not-permitted@umich.edu>
+data
+Subject:  Members Only Group: member, not permitted group
+From: mcneal@umich.edu
+mcneal should get this
+.
+quit
+
+	-> mcneal should get it
+-------------------------------------
+Members Only Group: not a member, not permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta-test-not-permitted@umich.edu>
+data
+Subject:  Members Only Group: not a member, not permitted group
+From: editor@umich.edu
+This should be bit-bucketed
+.
+quit
+
+	-> bit bucket
+-------------------------------------
+
+-------------------------------------
+.forward
+
+( ? )Group bounces envelope's from do not get rewritten
+
+-------------------------------------
+How are mail and mailForwardingAddress handled when there are multiple addresses
+ imbedded?  How about users with no @?
+
+-------------------------------------
+Return path is properly set in the text of a message on local delivery.
+
+-------------------------------------
+Test secondary MX
+
+-------------------------------------
+Test cname without mx/a
+
+-------------------------------------
+Test non-strict-rfc checking
+
+
+
 	if vacation attr is set for a user, send mail to vacation host
 
 group-errors
