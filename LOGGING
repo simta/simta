@@ -1,0 +1,32 @@
+: Expand .*: .*: From <.*>$
+: Expand .*: .*: To <.*>$
+: Expand .*: .*: Expanded [0-9]* recipients$
+: Expand .*: .*: Bounced [0-9]* recipients$
+: Expand .*: Message Deleted: Expansion complete$
+
+: Deliver.SMTP .*: Connection Accepted .* \[.*\]: 2.*$
+: Deliver.SMTP .*: From <.*> Accepted: 2.*$
+: Deliver.SMTP .*: From <.*> Tempfailed: 4.*$
+: Deliver.SMTP .*: To <.*> Accepted: 2.*$
+: Deliver.SMTP .*: To <.*> Rejected: 5.*$
+: Deliver.SMTP .*: To <.*> Tempfailed: 4.*$
+: Deliver.SMTP .*: Message Accepted .* \[.*\]: 2.*$
+
+: Deliver .*: Message Deleted: Delivered$
+: Deliver .*: Message Deleted: Bounced$
+
+: Bounce .*: .*: From <>$
+: Bounce .*: .*: To <.*>$
+: Bounce .*: .*: Bouncing address <.*>$
+: Bounce .*: .*: Message Completed$
+
+: Receive .*: From <.*@.*> Accepted: Relay \[.*\] .*$
+: Receive .*: Rejected: Too many failed recipients From <.*@.*> Relay \[.*\] .*$
+: Receive .*: From <.*> Accepted: Relay \[.*\] .*$
+: Receive .*: To <.*> Accepted$
+: Receive .*: To <.*> Rejected: User not local$
+: Receive .*: Message Accepted$
+: Receive .*: Message deleted after acceptance:         Found the .* virus !!!$
+: Receive .*: Message Abandoned$
+: Receive .*: To <.*@.*> Rejected: RBL rbl-plus.mail-abuse.org From <.*@.*> Relay \[.*\] .*$
+: Receive: Rejected: Relay \[.*\] by rbl.mail.umich.edu$
