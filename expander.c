@@ -65,7 +65,7 @@ main( int argc, char *argv[])
 	    sender = strdup (optarg);
 	    nextargc = nextargc + 2;
 	    break;
-	otherwise:
+	default:
 	    fprintf( stderr, "Usage: %s conf_file address\n", argv[ 0 ]);
 	    exit( EX_USAGE );
 	}
