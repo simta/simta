@@ -566,7 +566,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     if ( simta_headers[ HEAD_MESSAGE_ID ].h_line == NULL ) {
 	if (( len = ( strlen( simta_headers[ HEAD_MESSAGE_ID ].h_key ) +
-		strlen( env->e_id ) + 3 )) > prepend_len ) {
+		strlen( env->e_id ) + 6 + strlen( simta_hostname ))) >
+		prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
 		perror( "realloc" );
