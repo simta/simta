@@ -98,9 +98,9 @@ smtp_consume_banner( struct line_file **err_text, SNET *snet,
 	}
 
 	return( SMTP_OK );
-    } else {
-	ret = SMTP_OK;
     }
+
+    ret = SMTP_OK;
 
 consume:
     if ( *(line + 3) == '-' ) {
