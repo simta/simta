@@ -265,7 +265,7 @@ deliver( struct host_q *hq )
 	if ( local_mailer == NULL ) {
 	    if (( local_mailer = get_local_mailer()) == NULL ) {
 		syslog( LOG_ALERT, "deliver local: no local mailer!" );
-		exit( 1 );
+		return( -1 );
 	    }
 	}
 
@@ -287,7 +287,7 @@ deliver( struct host_q *hq )
 
     } else {
 	syslog( LOG_ERR, "deliver: unreachable code" );
-	exit( 1 );
+	return( -1 );
     }
 
     for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
@@ -307,7 +307,7 @@ deliver( struct host_q *hq )
 
 	    } else {
 		syslog( LOG_ERR, "open %s: %m", dfile_fname );
-		exit( 1 );
+		return( -1 );
 	    }
 	}
 
@@ -316,14 +316,14 @@ deliver( struct host_q *hq )
 	/* stat dfile to see if it's old */
 	if ( fstat( dfile_fd, &sb ) != 0 ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
-	    exit( 1 );
+	    return( -1 );
 	}
 
 	q->q_dtime.tv_sec = sb.st_mtime;
 
 	if ( gettimeofday( &tv, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "gettimeofday" );
-	    exit( 1 );
+	    return( -1 );
 	}
 
 	/* XXX consider Dfiles old if they're over 3 days? */
@@ -345,7 +345,7 @@ deliver( struct host_q *hq )
 		if ( sent != 0 ) {
 		    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
 			syslog( LOG_ERR, "lseek: %m" );
-			exit( 1 );
+			return( -1 );
 		    }
 		}
 
@@ -363,7 +363,7 @@ deliver( struct host_q *hq )
 		if (( result = (*local_mailer)( dfile_fd, q->q_env->e_mail,
 			r )) < 0 ) {
 		    /* syserror */
-		    exit( 1 );
+		    return( -1 );
 
 		} else if ( result == 0 ) {
 		    /* success */
@@ -395,13 +395,13 @@ deliver( struct host_q *hq )
 	} else if ( hq->hq_status == HOST_REMOTE ) {
 	    if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
 		syslog( LOG_ERR, "snet_attach: %m" );
-		exit( 1 );
+		return( -1 );
 	    }
 
 	    if ( sent != 0 ) {
 		if (( result = smtp_rset( snet, logger )) ==
 			SMTP_ERR_SYSCALL ) {
-		    exit( 1 );
+		    return( -1 );
 
 		} else if ( result == SMTP_ERR_SYNTAX ) {
 		    break;
@@ -411,17 +411,17 @@ deliver( struct host_q *hq )
 	    /* open connection, completely ready to send at least one message */
 	    if ( snet == NULL ) {
 		if (( snet = smtp_connect( hq->hq_name, 25 )) == NULL ) {
-		    exit( 1 );
+		    return( -1 );
 		}
 
 		if (( result = smtp_helo( snet, logger )) ==
 			SMTP_ERR_SYSCALL ) {
-		    exit( 1 );
+		    return( -1 );
 
 		} else if ( result == SMTP_ERR_SYNTAX ) {
 		    if ( snet_close( dfile_snet ) != 0 ) {
 			syslog( LOG_ERR, "close: %m" );
-			exit( 1 );
+			return( -1 );
 		    }
 		    return( 0 );
 
@@ -429,7 +429,7 @@ deliver( struct host_q *hq )
 		    /* mail loop */
 		    if ( snet_close( dfile_snet ) != 0 ) {
 			syslog( LOG_ERR, "close: %m" );
-			exit( 1 );
+			return( -1 );
 		    }
 
 		    syslog( LOG_ALERT, "Hostname %s is not a remote host",
@@ -443,7 +443,7 @@ deliver( struct host_q *hq )
 
 	    if (( result = smtp_send( snet, q->q_env, dfile_snet, logger ))
 		    == SMTP_ERR_SYSCALL ) {
-		exit( 1 );
+		return( -1 );
 
 	    } else if ( result == SMTP_ERR_SYNTAX ) {
 		/* XXX error case? */
@@ -455,32 +455,32 @@ deliver( struct host_q *hq )
 	if ( q->q_env->e_failed > 0 ) {
 	    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
 		syslog( LOG_ERR, "lseek: %m" );
-		exit( 1 );
+		return( -1 );
 	    }
 
 	    if ( dfile_snet == NULL ) {
 		if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 ))
 			== NULL ) {
 		    syslog( LOG_ERR, "snet_attach: %m" );
-		    exit( 1 );
+		    return( -1 );
 		}
 	    }
 
 	    if (( result = bounce( q->q_env, dfile_snet )) < 0 ) {
-		exit( 1 );
+		return( -1 );
 	    }
 	}
 
 	if ( dfile_snet == NULL ) {
 	    if ( close( dfile_fd ) != 0 ) {
 		syslog( LOG_ERR, "close: %m" );
-		exit( 1 );
+		return( -1 );
 	    }
 
 	} else {
 	    if ( snet_close( dfile_snet ) != 0 ) {
 		syslog( LOG_ERR, "snet_close: %m" );
-		exit( 1 );
+		return( -1 );
 	    }
 	}
 
@@ -490,12 +490,12 @@ deliver( struct host_q *hq )
 	    q->q_action = Q_REMOVE;
 
 	    if ( env_unlink( q->q_env ) != 0 ) {
-		exit( 1 );
+		return( -1 );
 	    }
 
 	    if ( unlink( dfile_fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", dfile_fname );
-		exit( 1 );
+		return( -1 );
 	    }
 
 	    q_file_free( q );
@@ -511,13 +511,13 @@ deliver( struct host_q *hq )
 		env_cleanup( q->q_env );
 
 		if ( env_outfile( q->q_env, q->q_env->e_dir ) != 0 ) {
-		    exit( 1 );
+		    return( -1 );
 		}
 
 	    } else {
 		/* all retries.  touch envelope */
 		if ( env_touch( q->q_env ) != 0 ) {
-		    exit( 1 );
+		    return( -1 );
 		}
 	    }
 	} 
@@ -525,7 +525,7 @@ deliver( struct host_q *hq )
 
     if ( snet != NULL ) {
 	if (( result = smtp_quit( snet, logger )) < 0 ) {
-	    exit( 1 );
+	    return( -1 );
 	}
     }
 
@@ -858,12 +858,12 @@ bounce( struct envelope *env, SNET *message )
 
     if (( q = q_file_env( bounce_env )) == NULL ) {
 	syslog( LOG_ERR, "q_file_env: %m" );
-	exit( 1 );
+	return( -1 );
     }
 
     if ( ll__insert( &(null_queue->hq_qfiles), q, efile_time_compare ) != 0 ) {
 	syslog( LOG_ERR, "ll__insert: %m" );
-	exit( 1 );
+	return( -1 );
     }
 
     /* XXX DEBUG simta_queued_messages++; */
