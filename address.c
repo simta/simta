@@ -5,7 +5,7 @@
 #include <strings.h>
 #include <pwd.h>
 
-#include <BerkeleyDB/db.h>
+#include <db.h>
 
 #include "address.h"
 #include "bdb.h"

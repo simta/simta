@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <BerkeleyDB/db.h>
+#include <db.h>
 
 #include "bdb.h"
 
