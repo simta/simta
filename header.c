@@ -255,8 +255,11 @@ header_correct( struct line_file *lf, struct envelope *env )
     char		*colon;
     size_t		header_len;
     struct passwd	*pw;
-    char		*from_line;
     int			result;
+    char		*sender;
+    char		*prepend_line = NULL;
+    size_t		prepend_len = 0;
+    size_t		len;
 
     if (( result = header_exceptions( lf )) != 0 ) {
 	fprintf( stderr, "header_exceptions error\n" );
@@ -274,9 +277,8 @@ header_correct( struct line_file *lf, struct envelope *env )
 	 * between 33 and 126, inclusive), except colon.
 	 */
 
-	/* XXX need to check for non-whitespace chars? */
+	/* line is FWS if first character of the line is whitespace */
 	if ( isspace( (int)*l->line_data ) != 0 ) {
-	    /* line contains folded white space */
 	    continue;
 	}
 
@@ -326,25 +328,38 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     /* examine header data structures */
 
+    if (( pw = getpwuid( getuid())) == NULL ) {
+	perror( "getpwuid" );
+	return( -1 );
+    }
+
+    if (( sender = (char*)malloc( strlen( pw->pw_name ) +
+	    strlen( env->e_hostname ) + 2 )) == NULL ) {
+	perror( "malloc" );
+	return( -1 );
+    }
+
+    sprintf( sender, "%s@%s", pw->pw_name, env->e_hostname );
+
     /* "From:" header */
     if ( simta_headers[ HEAD_FROM ].h_line == NULL ) {
 	/* generate header */
 
-	if (( pw = getpwuid( getuid())) == NULL ) {
-	    perror( "getpwuid" );
-	    return( -1 );
-	}
+	if (( len = ( strlen( sender ) + strlen( "From: " ) + 1 ))
+		> prepend_len ) {
+	    if (( prepend_line = (char*)realloc( prepend_line, len ))
+		    == NULL ) {
+		perror( "realloc" );
+		return( -1 );
+	    }
 
-	if (( from_line = (char*)malloc( strlen( pw->pw_name ) +
-		strlen( env->e_hostname ) + 9 )) == NULL ) {
-	    perror( "malloc" );
-	    return( -1 );
-	}
+	    prepend_len = len;
 
-	sprintf( from_line, "From: %s@%s", pw->pw_name, env->e_hostname );
+	    sprintf( prepend_line, "From: %s", sender );
+	}
 
 	if (( simta_headers[ HEAD_FROM ].h_line =
-		line_prepend( lf, from_line )) == NULL ) {
+		line_prepend( lf, prepend_line )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
 	}
@@ -370,7 +385,36 @@ header_correct( struct line_file *lf, struct envelope *env )
     }
 
     if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
-	/* XXX action */
+	if ( simta_headers[ HEAD_FROM ].h_data != NULL ) {
+	    /* From header wasn't generated, check for conflict */
+	    if ( strcasecmp( env->e_mail, sender ) != 0 ) {
+		if (( len = ( strlen( sender ) + strlen( "Sender: " ) + 1 ))
+			> prepend_len ) {
+		    if (( prepend_line = (char*)realloc( prepend_line, len ))
+			    == NULL ) {
+			perror( "realloc" );
+			return( -1 );
+		    }
+
+		    prepend_len = len;
+
+		    sprintf( prepend_line, "Sender: %s", sender );
+		}
+
+		if (( simta_headers[ HEAD_SENDER ].h_line =
+			line_prepend( lf, prepend_line )) == NULL ) {
+		    perror( "malloc" );
+		    return( -1 );
+		}
+	    }
+	}
+
+    } else {
+	/* XXX sufficient check? */
+	if ( strcasecmp( env->e_mail, sender ) != 0 ) {
+	    fprintf( stderr, "Header %s: Illegal value\n",
+		    simta_headers[ HEAD_SENDER ].h_key );
+	}
     }
 
     if ( simta_headers[ HEAD_ORIG_DATE ].h_line == NULL ) {
@@ -396,6 +440,10 @@ header_correct( struct line_file *lf, struct envelope *env )
 #ifdef DEBUG
     header_stdout( simta_headers );
 #endif /* DEBUG */
+
+    if ( prepend_line != NULL ) {
+	free( prepend_line );
+    }
 
     return( 0 );
 }
