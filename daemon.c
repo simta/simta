@@ -128,8 +128,8 @@ main( int ac, char **av )
     extern char		*optarg;
     struct passwd	*simta_pw;
     char		*simta_uname = "simta";
-    char		*config_fname;
-    char		*config_base_dir;
+    char		*config_fname = SIMTA_FILE_CONFIG;
+    char		*config_base_dir = SIMTA_BASE_DIR;
     int			authlevel = 0;
     char                *ca = "cert/ca.pem";
     char                *cert = "cert/cert.pem";
@@ -150,13 +150,39 @@ main( int ac, char **av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
-    config_fname = SIMTA_FILE_CONFIG;
-    config_base_dir = SIMTA_BASE_DIR;
+    /* Turn off getopt's error messages */
+    opterr = 0;
 
-    while (( c = getopt( ac, av, "ab:cdD:f:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
+    /* First read config file so command line can override it */
+    while (( c = getopt( ac, av, "df:" )) != -1 ) {
+	switch ( c ) {
+	case 'd' :		/* simta_debug */
+	    simta_debug++;
+	    break;
+
+	case 'f' :
+	    config_fname = optarg;
+	    break;
+
+	case '?':
+	    continue;
+
+	case ':':
+	    err++;
+	}
+    }
+
+    if ( simta_read_config( config_fname ) < 0 ) {
+	exit( 1 );
+    }
+
+    /* Turn on getopt's error messages */
+    opterr = 1;
+
+    while (( c = getopt( ac, av, "ab:cdD:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
 	case 'a' :		/* Automatically config with DNS */
-	    simta_dns_config = 1;
+	    simta_dns_config = 0;
 	    break;
 
 	case 'b' :		/*X listen backlog */
@@ -167,16 +193,8 @@ main( int ac, char **av )
 	    dontrun++;
 	    break;
 
-	case 'd' :		/* simta_debug */
-	    simta_debug++;
-	    break;
-
 	case 'D' :
 	    config_base_dir = optarg;
-	    break;
-
-	case 'f' :
-	    config_fname = optarg;
 	    break;
 
 	case 'I' :
@@ -241,8 +259,6 @@ main( int ac, char **av )
             privatekey = optarg;
             break;
 
-
-
 	default :
 	    err++;
 	}
@@ -257,6 +273,11 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
         fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
 	fprintf( stderr, "\n" );
+	exit( 1 );
+    }
+
+    /* init and test simta config / defaults */
+    if ( simta_config( config_base_dir ) != 0 ) {
 	exit( 1 );
     }
 
@@ -279,15 +300,6 @@ main( int ac, char **av )
 #else /* ultrix */
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
-
-    /*
-     * Read config file before chdir(), in case config file is relative path.
-     */
-
-    /* init simta config / defaults */
-    if ( simta_config( config_fname, config_base_dir ) != 0 ) {
-	exit( 1 );
-    }
 
     if ( chdir( spooldir ) < 0 ) {
 	perror( spooldir );

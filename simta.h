@@ -52,6 +52,7 @@ extern char				*simta_dir_dead;
 extern char				*simta_dir_local;
 extern char				*simta_domain;
 extern char				*simta_mail_filter;
+extern char				*simta_base_dir;
 extern char				simta_hostname[];
 extern char				simta_dname[];
 extern char				simta_dname_slow[];
@@ -71,8 +72,8 @@ void	panic ( char * );
 char	*simta_sender ( void );
 char	*simta_resolvconf ( void );
 int	simta_init_hosts ( void );
-int	simta_config( char *, char * );
-int     simta_domain_config( char * );
+int	simta_config( char * );
+int     simta_read_config( char * );
 
 /*****     bounce.c     *****/
 

@@ -19,6 +19,7 @@
 
 #include <snet.h>
 
+#include <stdio.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <assert.h>
@@ -27,13 +28,13 @@
 #include <pwd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <syslog.h>
 
 #include "denser.h"
 #include "ll.h"
 #include "queue.h"
 #include "expand.h"
-#include "nlist.h"
 #include "envelope.h"
 #include "ml.h"
 #include "simta.h"
@@ -51,7 +52,7 @@ struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
 struct host		*simta_default_host = NULL;
 unsigned int		simta_bounce_seconds = 259200;
-int			simta_dns_config = 0;
+int			simta_dns_config = 1;
 int			simta_no_sync = 0;
 int			simta_max_received_headers = 100;
 int			simta_max_bounce_lines;
@@ -72,40 +73,13 @@ char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
 char			*simta_dir_slow = NULL;
 char			*simta_dir_fast = NULL;
-char			simta_hostname[ MAXHOSTNAMELEN + 1 ] = "\0";
+char			*simta_base_dir = NULL;
+char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
 char			simta_ename[ MAXPATHLEN + 1 ];
 char			simta_ename_slow[ MAXPATHLEN + 1 ];
 char			simta_dname[ MAXPATHLEN + 1 ];
 char			simta_dname_slow[ MAXPATHLEN + 1 ];
 DNSR			*simta_dnsr = NULL;
-
-
-struct nlist		simta_nlist[] = {
-#define	NLIST_MASQUERADE		0
-    { "masquerade",					NULL,	0 },
-#define	NLIST_PUNT					1
-    { "punt",						NULL,	0 },
-#define	NLIST_BASE_DIR					2
-    { "base_dir",					NULL,	0 },
-#define	NLIST_RECEIVE_WAIT				3
-    { "receive_wait",					NULL,	0 },
-#define	NLIST_BOUNCE_LINES				4
-    { "bounce_lines",					NULL,	0 },
-#define	NLIST_BOUNCE_SECONDS				5
-    { "bounce_seconds",					NULL,	0 },
-#define	NLIST_MAX_RECEIVED_HEADERS			6
-    { "max_received_headers",				NULL,	0 },
-#define	NLIST_MAIL_FILTER				7
-    { "mail_filter",					NULL,	0 },
-#define	NLIST_DOMAIN_CONFIG				8
-    { "domain",						NULL,	0 },
-#ifdef HAVE_LDAP
-#define	NLIST_LDAP					9
-    { "ldap",						NULL,	0 },
-#endif /* HAVE_LDAP */
-    { NULL,						NULL,	0 },
-};
-
 
     void
 panic( char *message )
@@ -139,15 +113,327 @@ simta_sender( void )
 }
 
 
+/* XXX - need to add support for:
+ * include files/dirs
+ *   in dirs, only read .conf files, have depth limit and exit on duplicate
+ * Timeouts
+ * virtual users - user@wcbn.org -> wcbn.user@domain
+ * bit bucket
+ */
     int
-simta_config( char *conf_fname, char *base_dir )
+simta_read_config( char *fname )
 {
-    int			result;
+    int			lineno = 0;
+    int			fd;
+    int			ac;
+    extern int		simta_debug;
+    char		*line;
+    ACAV		*acav;
+    char		**av;
+    SNET		*snet;
+    char		domain[ DNSR_MAX_HOSTNAME + 1 ];
+
+    if ( simta_debug ) printf( "simta_config: %s\n", fname );
+
+    /* open fname */
+    if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
+	if ( errno == ENOENT )  {
+	    errno = 0;
+	    if ( simta_debug ) printf(
+		"warning: %s: simta config file not found", fname );
+	    syslog( LOG_INFO, "%s: simta config file not found", fname );
+	    return( 1 );
+	}
+	perror( fname );
+	return( -1 );
+    }
+
+    if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
+	perror( "simta_read_config: snet_attach" );
+	close( fd );
+	return( -1 );
+    }
+
+    if (( acav = acav_alloc( )) == NULL ) {
+	perror( "simta_read_config: acav_alloc" );
+	snet_close( snet );
+	return( -1 );
+    }
+
+    while (( line = snet_getline( snet, NULL )) != NULL ) {
+	lineno++;
+
+	if (( line[ 0 ] == '\0' ) || ( line[ 0 ] == '#' )) {
+	    /* blank line or comment */
+	    continue;
+	}
+
+	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
+	    perror( "simta_read_config: acav_parse:" );
+	    goto error;
+	}
+
+	if ( *av[ 0 ] == '@' ) {
+	    if ( strlen( av[ 0 ] + 1 ) > DNSR_MAX_HOSTNAME ) {
+		printf( "len: %d\n", strlen( av[ 0 ] + 1 ));
+		fprintf( stderr, "%s: line %d: domain name too long\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    /* XXX - need to lower-case domain */
+	    strcpy( domain, av[ 0 ] + 1 );
+
+	    if ( strcasecmp( av[ 1 ], "BOUNCE" ) == 0 ) {
+		if ( ac != 2 ) {
+		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "%s -> BOUNCE\n", domain );
+
+	    } else if ( strcasecmp( av[ 1 ], "REFUSE" ) == 0 ) {
+		if ( ac != 2 ) {
+		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "%s -> REFUSE\n", domain );
+
+	    } else if ( strcasecmp( av[ 1 ], "HIGH_PREF_MX" ) == 0 ) {
+		if ( ac != 2 ) {
+		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "%s -> HIGH_PREF_MX\n", domain );
+
+	    } else if ( strcasecmp( av[ 1 ], "ALIAS" ) == 0 ) {
+		if ( ac != 2 ) {
+		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "%s -> ALIAS\n", domain );
+
+	    } else if ( strcasecmp( av[ 1 ], "PASSWORD" ) == 0 ) {
+		if ( ac != 2 ) {
+		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "%s -> PASSWORD\n", domain );
+
+#ifdef HAVE_LDAP
+	    } else { if ( strcasecmp( av[ 1 ], "LDAP" ) == 0 ) {
+		if ( ac != 3 ) {
+		    fprintf( stderr, "%s: line %d: expected 2 argument\n",
+			fname, lineno );
+		    goto error;
+		}
+		if ( simta_ldap_config( av[ 2 ] ) != 0 ) {
+		    return( -1 );
+		}
+		/* XXX add hosts that ldap will resolv for to simta_hosts */
+		if (( host = malloc( sizeof( struct host ))) == NULL ) {
+		    perror( "simta_config malloc" );
+		    return( -1 );
+		}
+		memset( host, 0, sizeof( struct host ));
+		host->h_type = HOST_MX;
+		host->h_expansion = NULL;
+		/* XXX hardcoded "umich.edu" for ldap searchdomain for now */
+		host->h_name = "umich.edu";
+		/* add ldap to host expansion table */
+		if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_LDAP,
+			EXPANSION_TYPE_LDAP ) != 0 ) {
+		    perror( "simta_config ll_insert_tail" );
+		    return( -1 );
+		}
+		if ( ll_insert( &simta_hosts, host->h_name, host,
+			NULL ) != 0 ) {
+		    fprintf( stderr, "simta_config ll_insert: " );
+		    perror( NULL );
+		    return( -1 );
+		}
+		if ( simta_debug ) printf( "%s -> LDAP\n", domain );
+		}
+#endif /* HAVE_LDAP */
+	    } else {
+		fprintf( stderr, "%s: line %d: unknown keyword: %s\n",
+		    fname, lineno, av[ 1 ] );
+		goto error;
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "MASQUERADE" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
+		fprintf( stderr,
+		    "%s: line %d: domain name too long\n", fname, lineno );
+		goto error;
+	    }
+	    /* XXX - need to lower-case domain */
+	    if (( simta_domain = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MASQUERADE as %s\n", simta_domain );
+
+	} else if ( strcasecmp( av[ 0 ], "PUNT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
+		fprintf( stderr,
+		    "%s: line %d: domain name too long\n", fname, lineno );
+		goto error;
+	    }
+	    /* XXX - need to lower-case domain */
+	    if (( simta_punt_host = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "PUNT to %s\n", simta_punt_host );
+
+	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( strlen( av[ 1 ]  ) > MAXPATHLEN ) {
+		fprintf( stderr,
+		    "%s: line %d: path too long\n", fname, lineno );
+		goto error;
+	    }
+	    if (( simta_base_dir = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "base dir: %s\n", simta_base_dir );
+
+	} else if ( strcasecmp( av[ 0 ], "RECEIVE_WAIT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_receive_wait = atoi( av[ 1 ] );
+	    if ( simta_receive_wait <= 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: RECEIVE_EAIT must be greater than 0",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RECEIVE_WAIT %d\n", simta_receive_wait );
+
+	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_max_bounce_lines = atoi( av[ 1 ] );
+	    if ( simta_max_bounce_lines < 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: BOUNCE_LINES less than 0", fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "BOUNCE_LINES: %d\n", simta_max_bounce_lines );
+
+	} else if ( strcasecmp( av[ 0 ], "BOUNCE_SECONDS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_bounce_seconds = atoi( av[ 1 ] );
+	    if ( simta_bounce_seconds < 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: BOUNCE_SECONDS less than 0", fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "BOUNCE_SECONDS: %d\n", simta_bounce_seconds );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVED_HEADERS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_max_received_headers = atoi( av [ 1 ] );
+	    if ( simta_max_received_headers <= 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: MAX_RECEIVED_HEADERS must be greater than 0",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_RECEIVED_HEADERS: %d\n",
+		simta_max_received_headers );
+
+	} else if ( strcasecmp( av[ 0 ], "CONTENT_FILTER" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "CONTENT_FILTER: %s\n", simta_mail_filter );
+
+	} else if ( strcasecmp( av[ 0 ], "DNS_CONFIG_OFF" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_dns_config = 0;
+
+	    if ( simta_debug ) printf( "DNS_CONFIG_OFF\n" );
+
+	} else {
+	    fprintf( stderr, "%s: line %d: unknown keyword: %s\n",
+		fname, lineno, av[ 0 ] );
+	    goto error;
+	}
+    }
+    acav_free( acav );
+
+    if ( snet_close( snet ) != 0 ) {
+	perror( "simta_domain_config: snet_close" );
+	return( -1 );
+    }
+
+    return( 0 );
+
+error:
+    snet_close( snet );
+    acav_free( acav );
+    return( -1 );
+}
+
+    int
+simta_config( char *base_dir )
+{
     struct host		*host = NULL;
-    char		fname[ MAXPATHLEN ];
+    char		path[ MAXPATHLEN + 1 ];
+
+    if ( simta_punt_host != NULL ) {
+	if ( strcasecmp( simta_punt_host, simta_hostname ) == 0 ) {
+	    fprintf( stderr, "punt host can't be localhost\n" );
+	    return( -1 );
+	}
+    }
 
     /* Set up simta_hostname */
-    if ( gethostname( simta_hostname, MAXHOSTNAMELEN ) != 0 ) {
+    if ( gethostname( simta_hostname, DNSR_MAX_HOSTNAME ) != 0 ) {
 	perror( "gethostname" );
 	return( -1 );
     }
@@ -216,138 +502,6 @@ simta_config( char *conf_fname, char *base_dir )
 	return( -1 );
     }
 
-    /* read config file */
-    if (( result = nlist( simta_nlist, conf_fname )) < 0 ) {
-	return( -1 );
-
-    } else if ( result == 0 ) {
-	/* currently checking for the following fields:
-	 *	    masquerade
-	 *	    punt
-	 */
-
-	if ( simta_nlist[ NLIST_MASQUERADE ].n_data != NULL ) {
-	    simta_domain = simta_nlist[ NLIST_MASQUERADE ].n_data;
-	}
-
-	if ( simta_nlist[ NLIST_PUNT ].n_data != NULL ) {
-	    simta_punt_host = simta_nlist[ NLIST_PUNT ].n_data;
-
-	    if ( strcasecmp( simta_punt_host, simta_hostname ) == 0 ) {
-		fprintf( stderr,
-			"file %s line %d: punt host can't be localhost",
-			conf_fname, simta_nlist[ NLIST_PUNT ].n_lineno );
-		return( -1 );
-	    }
-	}
-
-	if ( simta_nlist[ NLIST_BASE_DIR ].n_data != NULL ) {
-	    base_dir = simta_nlist[ NLIST_BASE_DIR ].n_data;
-	}
-
-	if ( simta_nlist[ NLIST_BOUNCE_LINES ].n_data != NULL ) {
-	    simta_max_bounce_lines =
-		atoi( simta_nlist[ NLIST_BOUNCE_LINES ].n_data );
-	    if ( simta_max_bounce_lines < 0 ) {
-		fprintf( stderr,
-		    "file %s line %d: bounce_seconds may not be less than 0",
-		    conf_fname,
-		    simta_nlist[ NLIST_BOUNCE_LINES ].n_lineno );
-		return( -1 );
-	    }
-	}
-
-	if ( simta_nlist[ NLIST_BOUNCE_SECONDS ].n_data != NULL ) {
-	    simta_bounce_seconds =
-		atoi( simta_nlist[ NLIST_BOUNCE_SECONDS ].n_data );
-	    if ( simta_bounce_seconds < 0 ) {
-		fprintf( stderr,
-		    "file %s line %d: bounce_seconds may not be less than 0",
-		    conf_fname,
-		    simta_nlist[ NLIST_BOUNCE_SECONDS ].n_lineno );
-		return( -1 );
-	    }
-	}
-
-	if ( simta_nlist[ NLIST_RECEIVE_WAIT ].n_data != NULL ) {
-	    simta_receive_wait =
-		atoi( simta_nlist[ NLIST_RECEIVE_WAIT ].n_data );
-	    if ( simta_receive_wait <= 0 ) {
-		fprintf( stderr,
-		    "file %s line %d: receive_wait must be greater than 0",
-		    conf_fname,
-		    simta_nlist[ NLIST_RECEIVE_WAIT ].n_lineno );
-		return( -1 );
-	    }
-	}
-
-	if ( simta_nlist[ NLIST_MAX_RECEIVED_HEADERS ].n_data != NULL ) {
-	    simta_receive_wait =
-		atoi( simta_nlist[ NLIST_MAX_RECEIVED_HEADERS ].n_data );
-	    if ( simta_max_received_headers <= 0 ) {
-		fprintf( stderr,
-		    "file %s line %d: receive_wait must be greater than 0",
-		    conf_fname,
-		    simta_nlist[ NLIST_MAX_RECEIVED_HEADERS ].n_lineno );
-		return( -1 );
-	    }
-	}
-
-	if ( simta_nlist[ NLIST_MAIL_FILTER ].n_data != NULL ) {
-	    simta_mail_filter = simta_nlist[ NLIST_MAIL_FILTER ].n_data;
-	}
-
-	if ( simta_nlist[ NLIST_DOMAIN_CONFIG ].n_data != NULL ) {
-	    if ( simta_domain_config(
-		    simta_nlist[ NLIST_DOMAIN_CONFIG ].n_data ) != 0 ) {
-		return( -1 );
-	    }
-	}
-
-#ifdef HAVE_LDAP
-	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
-	    if ( simta_ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) != 0 ) {
-		return( -1 );
-	    }
-	}
-
-	/* XXX add hosts that ldap will resolv for to simta_hosts */
-
-	if (( host = malloc( sizeof( struct host ))) == NULL ) {
-	    perror( "simta_config malloc" );
-	    return( -1 );
-	}
-	memset( host, 0, sizeof( struct host ));
-
-	host->h_type = HOST_MX;
-	host->h_expansion = NULL;
-	/* XXX hardcoded "umich.edu" for ldap searchdomain for now */
-	host->h_name = "umich.edu";
-
-	/* add ldap to host expansion table */
-	if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_LDAP,
-		EXPANSION_TYPE_LDAP ) != 0 ) {
-	    perror( "simta_config ll_insert_tail" );
-	    return( -1 );
-	}
-
-	if ( ll_insert( &simta_hosts, host->h_name, host, NULL ) != 0 ) {
-	    fprintf( stderr, "simta_config ll_insert: " );
-	    perror( NULL );
-	    return( -1 );
-	}
-
-#endif /* HAVE_LDAP */
-
-    } else {
-	/* no config file found */
-	if ( simta_verbose != 0 ) {
-	    printf( "simta_config file not found: %s\n", conf_fname );
-	    syslog( LOG_INFO, "simta_config file not found: %s",
-		    conf_fname );
-	}
-    }
-
     /* check base_dir before using it */
     if ( base_dir == NULL ) {
 	fprintf( stderr, "No base directory defined.\n" );
@@ -355,94 +509,29 @@ simta_config( char *conf_fname, char *base_dir )
     }
 
     /* set up data dir pathnames */
-    sprintf( fname, "%s/%s", base_dir, "fast" );
-    if (( simta_dir_fast = strdup( fname )) == NULL ) {
+    sprintf( path, "%s/%s", base_dir, "fast" );
+    if (( simta_dir_fast = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }
 
-    sprintf( fname, "%s/%s", base_dir, "slow" );
-    if (( simta_dir_slow = strdup( fname )) == NULL ) {
+    sprintf( path, "%s/%s", base_dir, "slow" );
+    if (( simta_dir_slow = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }
 
-    sprintf( fname, "%s/%s", base_dir, "dead" );
-    if (( simta_dir_dead = strdup( fname )) == NULL ) {
+    sprintf( path, "%s/%s", base_dir, "dead" );
+    if (( simta_dir_dead = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }
 
-    sprintf( fname, "%s/%s", base_dir, "local" );
-    if (( simta_dir_local = strdup( fname )) == NULL ) {
+    sprintf( path, "%s/%s", base_dir, "local" );
+    if (( simta_dir_local = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }
 
     return( 0 );
 }
-
-    int
-simta_domain_config( char * fname )
-{
-    ACAV		*acav;
-    int			ac;
-    char		**av;
-    int			lineno = 0;
-    int			fd;
-    char		*line;
-    char		*rval;
-    char		*lval;
-    SNET		*snet;
-    struct nlist	*n;
-
-    /* open fname */
-    if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
-	fprintf( stderr, "simta_domain_config: open %s: ", fname );
-	perror( NULL );
-	return( -1 );
-    }
-
-    if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
-	perror( "simta_domain_config: snet_attach" );
-	close( fd );
-	return( -1 );
-    }
-
-    if (( acav = acav_alloc( )) == NULL ) {
-	perror( "simta_domain_config: acav_alloc" );
-	snet_close( snet );
-	return( -1 );
-    }
-
-    while (( line = snet_getline( snet, NULL )) != NULL ) {
-	lineno++;
-
-	if (( line[ 0 ] == '\0' ) || ( line[ 0 ] == '#' )) {
-	    /* blank line or comment */
-	    continue;
-	}
-
-	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
-	    perror( "simta_domain_config: acav_parse:" );
-	    goto error;
-	}
-
-	fprintf( stderr, "%d: host: %s\n", lineno, acav[ 0 ] );
-
-    }
-
-    if ( snet_close( snet ) != 0 ) {
-	perror( "simta_domain_config: snet_close" );
-	return( -1 );
-    }
-
-    acav_free( acav );
-    return( 0 );
-
-error:
-    snet_close( snet );
-    acav_free( acav );
-    return( -1 );
-}
-

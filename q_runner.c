@@ -59,8 +59,13 @@ main( int argc, char *argv[] )
 	op = argv[ 2 ];
     }
 
+    if ( simta_read_config( conf_file ) < 0 ) {
+	fprintf( stderr, "simta_read_config error\n" );
+	exit( EX_DATAERR );
+    }
+
     /* init simta config / defaults */
-    if ( simta_config( argv[ 1 ], conf_file ) != 0 ) {
+    if ( simta_config( argv[ 1 ] ) != 0 ) {
 	fprintf( stderr, "simta_config error\n" );
 	exit( EX_DATAERR );
     }
