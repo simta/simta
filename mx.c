@@ -44,87 +44,58 @@ get_mx( DNSR *dnsr, char *host )
     int                 i;
     struct dnsr_result	*result = NULL;
 
+    if ( simta_debug ) fprintf( stderr, "get_mx: %s\n", host );
+
     /* Check for MX of address */
     if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host ))
 	    != 0 ) {
+	if ( simta_debug ) fprintf( stderr, "get_mx: dnsr_query failed\n" );
 	syslog( LOG_ERR, "dnsr_query %s failed", host );
 	goto error;
     }
 
-    /* Check for vaild result */
     if ( simta_debug ) fprintf( stderr, "mx on %s?", host );
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-	if ( simta_debug ) fprintf( stderr, "...no\n" );
-
-	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
-		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
-
-	    /* No MX - Check for A of address */
-	    if ( simta_debug ) fprintf( stderr, "a on %s?", host );
-	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
-		syslog( LOG_ERR, "dnsr_query %s failed", host );
-		goto error;
-	    }
-	    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-		if ( simta_debug ) fprintf( stderr, "...no\n" );
-		if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
-			|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
-		    goto error;
-		} else {
-		    syslog( LOG_ERR, "dnsr_query %s failed", host );
-		    goto error;
-		}
-	    } else {
-		if ( simta_debug ) fprintf( stderr, "...yes\n" );
-	    }
-	} else {
-	    if ( simta_debug ) dnsr_perror( dnsr, "mx" );
-	    syslog( LOG_ERR, "dnsr_query %s failed", host );
-	    goto error;
-	}
-
-    } else {
-	if ( simta_debug ) fprintf( stderr, "...yes\n" );
-
-        /* Check for valid A record in MX */
-        /* XXX - Should we search for A if no A returned in MX? */
-
-	if ( simta_debug ) fprintf( stderr, "Valid a record?" );
-        for ( i = 0; i < result->r_ancount; i++ ) {
-            if ( result->r_answer[ i ].rr_ip != NULL ) {
-		if ( simta_debug ) fprintf( stderr, "...yes\n" );
-                break;
-            }
-        }
-        if ( i >= result->r_ancount ) {
-	    if ( simta_debug ) fprintf( stderr, "...no\n" );
-
-	    /* No valid MX - Check for A of address */
-	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
-		syslog( LOG_ERR, "dnsr_query %s failed", host );
-		goto error;
-	    }
-	    if ( simta_debug ) fprintf( stderr, "requeset a record\n" );
-	    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-		if ( simta_debug ) fprintf( stderr, "...no\n" );
-		if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
-			|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
-		    goto error;
-		} else {
-		    syslog( LOG_ERR, "dnsr_query %s failed", host );
-		    goto error;
-		}
-	    } else {
-		if ( simta_debug ) fprintf( stderr, "...yes\n" );
-	    }
-
-        }
+	syslog( LOG_ERR, "dnsr_result %s failed", host );
+	goto error;
     }
 
-    return( result );
+    if ( simta_debug ) fprintf( stderr, "...yes\n" );
+    if ( simta_debug ) fprintf( stderr, "   valid mx record?" );
+
+    if ( result->r_ancount > 0 ) {
+	for ( i = 0; i < result->r_ancount; i++ ) {
+	    if ( result->r_answer[ i ].rr_ip != NULL ) {
+		if ( simta_debug ) fprintf( stderr, "...yes\n" );
+		return( result );
+	    }
+	}
+    }
+    if ( simta_debug ) fprintf( stderr, "...no\n" );
+    dnsr_free_result( result );
+
+    /* No MX - Check for A of address */
+    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
+	syslog( LOG_ERR, "dnsr_query %s failed", host );
+	goto error;
+    }
+
+    if ( simta_debug ) fprintf( stderr, "a on %s?", host );
+    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+	syslog( LOG_ERR, "dnsr_result %s failed", host );
+	goto error;
+    }
+    if ( simta_debug ) fprintf( stderr, "...yes\n" );
+    if ( simta_debug ) fprintf( stderr, "   valid a record?" );
+
+    if ( result->r_ancount > 0 ) {
+	if ( simta_debug ) fprintf( stderr, "...yes\n" );
+	return( result );
+    }
+    if ( simta_debug ) fprintf( stderr, "...no\n" );
 
 error:
-    free( result );
+    dnsr_free_result( result );
     return( NULL );
 }
 
