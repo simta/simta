@@ -66,6 +66,7 @@ bounce( struct envelope *env, SNET *message )
     struct tm                   *tm;
     struct timeval		tv;
     char                        daytime[ 35 ];
+    char			*localhost;
 
     memset( &bounce_env, 0, sizeof( struct envelope ));
 
@@ -90,8 +91,8 @@ bounce( struct envelope *env, SNET *message )
         }
     }
 
-    /* all bounces get created in SLOW */
-    bounce_env.e_dir = SIMTA_DIR_SLOW;
+    /* all bounces get created in FAST */
+    bounce_env.e_dir = SIMTA_DIR_FAST;
 
     sprintf( dfile_fname, "%s/D%s", bounce_env.e_dir, bounce_env.e_id );
 
@@ -126,7 +127,13 @@ bounce( struct envelope *env, SNET *message )
         goto cleanup;
     }
 
+    if (( localhost = simta_gethostname()) == NULL ) {
+        close( dfile_fd );
+        goto cleanup;
+    }
+
     /* XXX From: address */
+    fprintf( dfile, "From: mailer-daemon@%s\n", localhost );
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", env->e_id );
     fprintf( dfile, "\n" );
@@ -135,21 +142,25 @@ bounce( struct envelope *env, SNET *message )
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
 
-    /* XXX mail loop message */
-    if ( env->e_mail_loop != 0 ) {
-        fprintf( dfile, "There was a mail loop.\n" );
-        fprintf( dfile, "\n" );
-    }
-
     /* XXX oldfile message */
     if ( env->e_old_dfile != 0 ) {
         fprintf( dfile, "It was over three days old.\n" );
         fprintf( dfile, "\n" );
     }
 
+    if (( l = env->e_err_text->l_first ) != NULL ) { 
+	fprintf( dfile, "The following error occured:\n" );
+
+	while ( l != NULL ) {
+	    fprintf( dfile, "%s\n", l->line_data );
+	}
+
+	fprintf( dfile, "\n" );
+    }
+
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-        if (( r->r_delivered == R_FAILED ) || ( env->e_old_dfile != 0 ) ||
-		( env->e_mail_loop != 0 )) {
+        if (( env->e_err_text != NULL ) || ( env->e_old_dfile != 0 ) || 
+		( r->r_delivered == R_FAILED )) {
             fprintf( dfile, "address %s\n", r->r_rcpt );
 
             if ( r->r_text != NULL ) {

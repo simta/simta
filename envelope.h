@@ -32,7 +32,6 @@ struct envelope {
     char		e_id[ 30 ];
     int			e_flags;
     int			e_old_dfile;
-    int			e_mail_loop;
     int			e_success;
     int			e_failed;
     int			e_tempfail;
