@@ -16,23 +16,24 @@ DEAD_Q=/var/spool/simta/dead
 
 SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
 	simsend.c rcptlist.c tz.c tlsconnect.c address.c \
-	createdb.c
+	createdb.c bounce.c dn.c oklist.c
 SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		tz.o address.o line_file.o ll.o bdb.o header.o simta.o \
 		queue.c ml.o smtp.o expand.o mx.o bounce.o nlist.o \
-		q_cleanup.o
+		q_cleanup.o dn.o oklist.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o tz.o header.o \
 		simta.o ll.o nlist.o address.o bdb.o bounce.o queue.o expand.o \
-		smtp.c ml.o mx.o
+		smtp.c ml.o mx.o dn.o oklist.o
 SIMLOGOBJ=	simlog.o
 DIPOBJ=		dip.o mx.o ll.o
 EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \
 		envelope.o tz.o ml.o simta.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o nlist.o q_cleanup.o mx.o
+		header.o bounce.o nlist.o q_cleanup.o mx.o dn.o oklist.o
 QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
 		envelope.o tz.o ml.o simta.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o nlist.o q_cleanup.o mx.o
+		header.o bounce.o nlist.o q_cleanup.o mx.o \
+		dn.o oklist.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		smtp.o simta.o mx.o
 CREATEDBOBJ=	createdb.o argcargv.o bdb.o
