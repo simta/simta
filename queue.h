@@ -12,10 +12,6 @@
 #endif /* __STDC__ */
 
 
-#define	SLOW_DIR	"slow"
-#define	FAST_DIR	"fast"
-#define	LOCAL_DIR	"local"
-
 /* states for q_action */
 #define	Q_REMOVE	1
 #define	Q_REORDER	2

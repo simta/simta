@@ -35,10 +35,7 @@
 #include "header.h"
 #include "simta.h"
 
-/* XXX need for FAST_DIR.  really need a simta.h */
 #include "queue.h"
-
-#define	TEST_DIR	"local"
 
 #ifdef __STDC__
 #define ___P(x)         x
@@ -258,7 +255,7 @@ main( int argc, char *argv[] )
 		}
 
 		/* open Dfile */
-		sprintf( dfile_fname, "%s/D%s", FAST_DIR, env->e_id );
+		sprintf( dfile_fname, "%s/D%s", SIMTA_DIR_LOCAL, env->e_id );
 
 		if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
 			O_EXCL, 0600 ))
@@ -343,7 +340,7 @@ main( int argc, char *argv[] )
 	}
 
 	/* open Dfile */
-	sprintf( dfile_fname, "%s/D%s", FAST_DIR, env->e_id );
+	sprintf( dfile_fname, "%s/D%s", SIMTA_DIR_LOCAL, env->e_id );
 
 	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
 		O_EXCL, 0600 ))
@@ -379,7 +376,7 @@ main( int argc, char *argv[] )
     }
 
     /* store Efile */
-    if ( env_outfile( env, FAST_DIR ) != 0 ) {
+    if ( env_outfile( env, SIMTA_DIR_LOCAL ) != 0 ) {
 	perror( "env_outfile" );
 	goto cleanup;
     }

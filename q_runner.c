@@ -34,6 +34,7 @@
 #include "line_file.h"
 #include "ml.h"
 #include "smtp.h"
+#include "simta.h"
 
 /* XXX default postmaster? */
 #define	SIMTA_POSTMASTER	"postmaster"
@@ -109,7 +110,7 @@ bounce( struct envelope *env, SNET *message )
 	}
     }
 
-    sprintf( dfile_fname, "%s/D%s", FAST_DIR, bounce_env->e_id );
+    sprintf( dfile_fname, "%s/D%s", SIMTA_DIR_FAST, bounce_env->e_id );
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
 	    < 0 ) {
@@ -165,7 +166,7 @@ bounce( struct envelope *env, SNET *message )
 	goto cleanup;
     }
 
-    if ( env_outfile( bounce_env, FAST_DIR ) != 0 ) {
+    if ( env_outfile( bounce_env, SIMTA_DIR_FAST ) != 0 ) {
 	goto cleanup;
     }
 
@@ -244,8 +245,8 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
-    if (( dirp = opendir( SLOW_DIR )) == NULL ) {
-	syslog( LOG_ERR, "opendir %s: %m", SLOW_DIR );
+    if (( dirp = opendir( SIMTA_DIR_SLOW )) == NULL ) {
+	syslog( LOG_ERR, "opendir %s: %m", SIMTA_DIR_SLOW );
 	exit( 1 );
     }
 
@@ -272,7 +273,7 @@ main( int argc, char *argv[] )
 		exit( 1 );
 	    }
 
-	    if (( result = env_infile( env, SLOW_DIR )) < 0 ) {
+	    if (( result = env_infile( env, SIMTA_DIR_SLOW )) < 0 ) {
 		/* syserror */
 		exit( 1 );
 

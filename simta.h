@@ -12,6 +12,9 @@
 #endif /* __STDC__ */
 
 #define	SIMTA_PATH_PIDFILE	"/var/run/simta.pid"
+#define	SIMTA_DIR_LOCAL		"/var/spool/simta/local"
+#define	SIMTA_DIR_FAST		"/var/spool/simta/fast"
+#define	SIMTA_DIR_SLOW		"/var/spool/simta/slow"
 
 char	*simta_local_domain ___P(( void ));
 char	*simta_sender ___P(( void ));

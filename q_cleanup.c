@@ -31,6 +31,7 @@
 #include "ll.h"
 #include "queue.h"
 #include "envelope.h"
+#include "simta.h"
 
 
 int	inode_compare ___P(( void *, void * ));
@@ -108,7 +109,7 @@ move_to_slow( char *dir )
 
 	if (( *entry->d_name == 'E' ) || ( *entry->d_name == 'D' )) {
 	    sprintf( fname, "%s/%s", dir, entry->d_name );
-	    sprintf( lname, "%s/%s", SLOW_DIR, entry->d_name );
+	    sprintf( lname, "%s/%s", SIMTA_DIR_SLOW, entry->d_name );
 
 	    if ( link( fname, lname ) != 0 ) {
 		syslog( LOG_ERR, "link %s %s: %m", fname, lname );
@@ -186,16 +187,16 @@ main( int argc, char *argv[] )
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
-    if ( move_to_slow( FAST_DIR ) != 0 ) {
+    if ( move_to_slow( SIMTA_DIR_FAST ) != 0 ) {
 	return( 1 );
     }
 
-    if ( move_to_slow( LOCAL_DIR ) != 0 ) {
+    if ( move_to_slow( SIMTA_DIR_LOCAL ) != 0 ) {
 	return( 1 );
     }
 
-    if (( dirp = opendir( SLOW_DIR )) == NULL ) {
-	syslog( LOG_ERR, "opendir %s: %m", SLOW_DIR );
+    if (( dirp = opendir( SIMTA_DIR_SLOW )) == NULL ) {
+	syslog( LOG_ERR, "opendir %s: %m", SIMTA_DIR_SLOW );
 	return( 1 );
     }
 
@@ -240,7 +241,7 @@ main( int argc, char *argv[] )
 
 	} else if ( *entry->d_name == 't' ) {
 	    /* clip orphan tfiles */
-	    sprintf( fname, "%s/%s", SLOW_DIR, entry->d_name );
+	    sprintf( fname, "%s/%s", SIMTA_DIR_SLOW, entry->d_name );
 
 	    if ( unlink( fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", fname );
@@ -253,11 +254,11 @@ main( int argc, char *argv[] )
 
 	} else {
 	    /* not a tfile, Efile or Dfile */
-	    syslog( LOG_WARNING, "unknown file: %s/%s\n", SLOW_DIR,
+	    syslog( LOG_WARNING, "unknown file: %s/%s\n", SIMTA_DIR_SLOW,
 		    entry->d_name );
 
 #ifdef DEBUG
-	    printf( "Warning unknown file:\t%s/%s\n", SLOW_DIR, entry->d_name );
+	    printf( "Warning unknown file:\t%s/%s\n", SIMTA_DIR_SLOW, entry->d_name );
 #endif /* DEBUG */
 
 	}
@@ -274,7 +275,7 @@ main( int argc, char *argv[] )
 
 	if ( q->q_efile == 0 ) {
 	    /* Dfile missing its Efile */
-	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+	    sprintf( fname, "%s/D%s", SIMTA_DIR_SLOW, q->q_id );
 
 	    if ( unlink( fname ) != 0 ) {
 		syslog( LOG_ERR, "unlink %s: %m", fname );
@@ -287,15 +288,17 @@ main( int argc, char *argv[] )
 
 	} else if ( q->q_dfile == 0 ) {
 	    /* Efile missing its Dfile */
-	    syslog( LOG_WARNING, "Missing Dfile: %s/D%s\n", SLOW_DIR, q->q_id );
+	    syslog( LOG_WARNING, "Missing Dfile: %s/D%s\n", SIMTA_DIR_SLOW,
+		    q->q_id );
 
 #ifdef DEBUG
-	    printf( "Warning orphan Efile:\t%s/E%s\n", SLOW_DIR, q->q_id );
+	    printf( "Warning orphan Efile:\t%s/E%s\n", SIMTA_DIR_SLOW,
+		    q->q_id );
 #endif /* DEBUG */
 
 	} else {
 	    /* get Dfile ref count */
-	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+	    sprintf( fname, "%s/D%s", SIMTA_DIR_SLOW, q->q_id );
 
 	    if ( stat( fname, &sb ) != 0 ) {
 		syslog( LOG_ERR, "stat %s: %m", fname );
@@ -330,7 +333,7 @@ main( int argc, char *argv[] )
 	for ( q = (struct q_file*)st->st_data; q != NULL;
 		q = q->q_inode_next ) {
 
-	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+	    sprintf( fname, "%s/E%s", SIMTA_DIR_SLOW, q->q_id );
 
 	    if (( result = env_unexpanded( fname, &q->q_unexpanded )) < 0 ) {
 		exit( 1 );
@@ -368,7 +371,7 @@ main( int argc, char *argv[] )
 		    printf( "unlink\t%s\n", fname );
 #endif /* DEBUG */
 
-		    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+		    sprintf( fname, "%s/D%s", SIMTA_DIR_SLOW, q->q_id );
 
 		    if ( unlink( fname ) != 0 ) {
 			syslog( LOG_ERR, "unlink %s: %m", fname );
