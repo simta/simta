@@ -27,11 +27,11 @@ acav_alloc( void )
 {
     ACAV *acav;
 
-    if ( ( acav = (ACAV*)malloc( sizeof( ACAV ) ) ) == NULL ) {
+    if (( acav = (ACAV*)malloc( sizeof( ACAV ))) == NULL ) {
 	return( NULL );
     }
-    if ( ( acav->acv_argv =
-	    (char **)malloc( sizeof(char *) * ( ACV_ARGC ) ) ) == NULL ) {
+    if (( acav->acv_argv =
+	    (char **)malloc( sizeof(char *) * ( ACV_ARGC ))) == NULL ) {
 	return( NULL );
     }
     acav->acv_argc = ACV_ARGC;
