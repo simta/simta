@@ -382,7 +382,13 @@ q_runner( struct host_q **host_q )
 			}
 
 			if ( env_truncate_and_unlink( unexpanded,
-				snet_lock ) != 0 ) {
+				snet_lock ) == 0 ) {
+			    queue_envelope( host_q, env_bounce );
+			    syslog( LOG_NOTICE,
+				    "Deliver %s: Message Deleted: Bounced",
+				    unexpanded->e_id );
+
+			} else {
 			    if ( env_unlink( env_bounce ) != 0 ) {
 				syslog( LOG_NOTICE, "Deliver %s: System "
 					"Error: Can't unwind bounce", 
@@ -392,12 +398,6 @@ q_runner( struct host_q **host_q )
 					"Deleted: System error, unwound "
 					"bounce", env_bounce->e_id );
 			    }
-
-			} else {
-			    queue_envelope( host_q, env_bounce );
-			    syslog( LOG_NOTICE,
-				    "Deliver %s: Message Deleted: Bounced",
-				    env_bounce->e_id );
 			}
 
 			snet_close( snet_dfile );
@@ -676,12 +676,12 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
         } else if (( d.d_delivered != 0 ) &&
 		(( d.d_n_rcpt_accepted != 0 ) ||
 		( d.d_n_rcpt_failed != 0 ))) {
-	    r_sort = &(env_deliver->e_rcpt);
 	    syslog( LOG_NOTICE, "Deliver %s: Rewriting Envelope",
 		    env_deliver->e_id );
 	    syslog( LOG_NOTICE, "Deliver %s: From <%s>", env_deliver->e_id,
 		    env_deliver->e_mail );
 
+	    r_sort = &(env_deliver->e_rcpt);
 	    while ( *r_sort != NULL ) {
 		if ((*r_sort)->r_status != R_TEMPFAIL ) {
 		    remove = *r_sort;
@@ -729,10 +729,10 @@ message_cleanup:
 	    if ( env_unlink( env_bounce ) != 0 ) {
 		syslog( LOG_NOTICE,
 			"Deliver %s: System Error: Can't unwind bounce",
-			env_deliver->e_id );
+			env_bounce->e_id );
 	    } else {
 		syslog( LOG_NOTICE, "Deliver %s: Message Deleted: "
-			"System error, unwound bounce", env_deliver->e_id );
+			"System error, unwound bounce", env_bounce->e_id );
 	    }
 
 	    env_free( env_bounce );
