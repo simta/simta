@@ -227,9 +227,7 @@ check_hostname( DNSR **dnsr, char *hostname )
 	    if ( strcasecmp( simta_hostname,
 		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) {
 		if ( add_host( result->r_answer[ i ].rr_mx.mx_exchange,
-			( result->r_answer[ i ].rr_mx.mx_preference ==
-			  result->r_answer[ 0 ].rr_mx.mx_preference
-			  ? HOST_LOCAL : HOST_MX )) != 0 ) {
+			HOST_LOCAL ) != 0 ) {
 		    dnsr_free_result( result );
 		    return( -1 );
 		}

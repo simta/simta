@@ -78,7 +78,7 @@ struct command {
 };
 
 static int	rfc_2821_trimaddr( int, char *, char **, char ** );
-static int	local_address( char * );
+static int	local_address( char *addr, char *domain, struct host *host );
 static int	hello( struct envelope *, char * );
 static int	f_helo( SNET *, struct envelope *, int, char *[] );
 static int	f_ehlo( SNET *, struct envelope *, int, char *[] );
@@ -175,7 +175,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      */
     if (( env->e_flags & E_READY ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
-	    syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
+	    syslog( LOG_INFO, "f_ehlo %s: abandoned", env->e_id );
 	}
 	env_reset( env );
     }
@@ -318,6 +318,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     static int
 f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 {
+    int			rc;
     char		*addr, *domain;
     struct host		*host;
 
@@ -343,7 +344,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	syslog( LOG_INFO, "f_rcpt rfc_2821_trimaddr rejected: %s", av[ 1 ]);
 	if ( snet_writef( snet, "553 Requested action not taken: "
 		"bad address syntax\r\n", 553 ) < 0 ) {
-	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
@@ -379,6 +380,20 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * the bounce.
 	 */
 	/* XXX check config file, check MXes */
+	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
+	    if ( rc < 0 ) {
+		syslog( LOG_ERR, "f_rcpt check_host: %s: failed", domain );
+		return( RECEIVE_SYSERROR );
+	    } else {
+		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
+			domain ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
+		syslog( LOG_ERR, "f_rcpt check_host %s: unknown host", domain );
+		return( RECEIVE_OK );
+	    }
+	}
 
 	if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
 	    if ( snet_writef( snet, "551 User not local; please try <%s>\r\n",
@@ -408,32 +423,29 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * SHOULD be returned.
 	 */
 
-	if ( host->h_type == HOST_LOCAL ) {
-	    switch( local_address( addr )) {
-	    case NOT_LOCAL:
-		syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
-		if ( snet_writef( snet,
-			"%d Requested action not taken: User not found.\r\n",
-			550 ) < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
-		return( RECEIVE_OK );
-
-	    case LOCAL_ERROR:
-	    default:
-		syslog( LOG_ERR, "f_rcpt local_address %s: error", addr );
-		if ( snet_writef( snet,
-			"%d Requested action aborted: "
-			"local error in processing.\r\n", 451 ) < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
-		return( RECEIVE_SYSERROR );
-
-	    case LOCAL_ADDRESS:
-		break;
+	switch( local_address( addr, domain, host )) {
+	case NOT_LOCAL:
+	    syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
+	    if ( snet_writef( snet,
+		    "%d Requested action not taken: User not found.\r\n",
+		    550 ) < 0 ) {
+		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		return( RECEIVE_CLOSECONNECTION );
 	    }
+	    return( RECEIVE_OK );
+
+	case LOCAL_ERROR:
+	default:
+	    syslog( LOG_ERR, "f_rcpt local_address %s: error", addr );
+	    if ( snet_writef( snet, "%d Requested action aborted: "
+		    "local error in processing.\r\n", 451 ) < 0 ) {
+		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	    return( RECEIVE_SYSERROR );
+
+	case LOCAL_ADDRESS:
+	    break;
 	}
     }
 
@@ -916,7 +928,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if (( env->e_flags & E_READY ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
-	    syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
+	    syslog( LOG_INFO, "starttls %s: abandoned", env->e_id );
 	}
 
     } else {
@@ -1143,30 +1155,15 @@ closeconnection:
 
 
     static int
-local_address( char *addr )
+local_address( char *addr, char *domain, struct host *host )
 {
     int			rc;
-    char		*domain;
     char		*at;
-    struct host		*host;
     struct passwd	*passwd;
     struct stab_entry	*i;
     DBT			value;
 
-    /* Check for domain in domain table */
     if (( at = strchr( addr, '@' )) == NULL ) {
-	return( NOT_LOCAL );
-    }
-
-    /* always accept mail for the local postmaster */
-    /* XXX accept mail for all local postmasters? */
-    if ( strcasecmp( simta_postmaster, addr ) == 0 ) {
-	return( LOCAL_ADDRESS );
-    }
-
-    domain = at + 1;
-
-    if (( host = (struct host*)ll_lookup( simta_hosts, domain )) == NULL ) {
 	return( NOT_LOCAL );
     }
 
