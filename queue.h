@@ -12,13 +12,9 @@
 #endif /* __STDC__ */
 
 
-/* states for q_action */
-#define	Q_REMOVE	1
-#define	Q_REORDER	2
-
 /* states for struct message->m_action */
-#define	Q_REMOVE	1
-#define	Q_REORDER	2
+#define	M_REMOVE	1
+#define	M_REORDER	2
 
 /* states for host_q->hq_status */
 #define HOST_NULL	0
@@ -48,6 +44,7 @@ struct message {
     char			*m_dir;
     int				m_old_dfile;
     int				m_mail_loop;
+    int				m_action;
     struct timespec		m_etime;
 };
 

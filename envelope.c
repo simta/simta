@@ -107,6 +107,8 @@ env_rcpt_free( struct envelope *env )
 	rcpt_free( r );
 	r = r_next;
     }
+
+    env->e_rcpt = NULL;
 }
 
 
@@ -133,17 +135,18 @@ env_reset( struct envelope *env )
 	env->e_mail = NULL;
     }
 
-    if ( env->e_rcpt != NULL ) {
-	for ( r = env->e_rcpt; r != NULL; r = rnext ) {
-	    rnext = r->r_next;
-	    free( r->r_rcpt );
-	    free( r );
-	}
-	env->e_rcpt = NULL;
+    for ( r = env->e_rcpt; r != NULL; r = rnext ) {
+	rnext = r->r_next;
+	free( r->r_rcpt );
+	free( r );
     }
 
+    env->e_rcpt = NULL;
     *env->e_id = '\0';
     env->e_flags = 0;
+    env->e_failed = 0;
+    env->e_tempfail = 0;
+    env->e_success = 0;
     return;
 }
 

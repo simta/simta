@@ -288,8 +288,8 @@ q_runner( struct host_q **host_q )
 		return( -1 );
 	    }
 
-	    /* free env.e_rcpts */
-	    env_rcpt_free( &env );
+	    /* reset envelope */
+	    env_reset( &env );
 
 	    if ( result > 0 ) {
 		/* message not expandable, try the next one */
@@ -394,5 +394,369 @@ q_runner_dir( char *dir )
     int
 q_deliver( struct host_q *hq )
 {
+    char                        dfile_fname[ MAXPATHLEN ];
+    int                         dfile_fd;
+    SNET                        *dfile_snet = NULL;
+    int                         result;
+    int                         sent;
+    char                        *at;
+    SNET                        *snet = NULL;
+    SNET			*snet_lock;
+    struct timeval              tv;
+    struct message		*m;
+    struct message		*m_remove;
+    struct message		**m_clean;
+    struct envelope		env;
+    struct recipient            *r;
+    struct stat                 sb;
+    void                        (*logger)(char *) = NULL;
+    static int                  (*local_mailer)(int, char *,
+                                        struct recipient *) = NULL;
+
+#ifdef DEBUG
+    logger = stdout_logger;
+    printf( "q_deliver:\n" );
+    q_stdout( hq );
+    printf( "\n" );
+#endif /* DEBUG */
+
+    if ( hq->hq_status == HOST_LOCAL ) {
+        /* figure out what our local mailer is */
+        if ( local_mailer == NULL ) {
+            if (( local_mailer = get_local_mailer()) == NULL ) {
+                syslog( LOG_ALERT, "deliver local: no local mailer!" );
+                return( -1 );
+            }
+        }
+
+    } else if ( hq->hq_status == HOST_REMOTE ) {
+        /* XXX DEBUG send only to terminator (or alias rsug), for now */
+	if (( strcasecmp( hq->hq_hostname, "rsug.itd.umich.edu" ) != 0 ) &&
+		( strcasecmp( hq->hq_hostname,
+		"terminator.rsug.itd.umich.edu" ) != 0 )) {
+            return( 0 );
+        }
+
+        /* HOST_REMOTE sent is used to count how many messages have been
+         * sent to a SMTP host.
+         */
+        sent = 0;
+
+    } else {
+        syslog( LOG_ERR, "deliver: illega host queue status" );
+        return( -1 );
+    }
+
+    for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
+	/* lock & read envelope to deliver */
+	if (( result = env_lock( m, &env, &snet_lock )) < 0 ) {
+	    return( -1 );
+
+	} else if ( result > 0 ) {
+	    m->m_action = M_REMOVE;
+	    continue;
+	}
+
+	/* open Dfile to deliver & check to see if it's geriatric */
+        errno = 0;
+        sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
+
+        if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+            if ( errno == ENOENT ) {
+                errno = 0;
+                syslog( LOG_WARNING, "deliver: missing Dfile: %s",
+                        dfile_fname );
+                m->m_action = M_REMOVE;
+
+		if ( snet_close( snet_lock ) != 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( -1 );
+		}
+                continue;
+
+            } else {
+                syslog( LOG_ERR, "open %s: %m", dfile_fname );
+                return( -1 );
+            }
+        }
+
+        /* stat dfile to see if it's old */
+        if ( fstat( dfile_fd, &sb ) != 0 ) {
+            syslog( LOG_ERR, "snet_attach: %m" );
+            return( -1 );
+        }
+
+        if ( gettimeofday( &tv, NULL ) != 0 ) {
+            syslog( LOG_ERR, "gettimeofday" );
+            return( -1 );
+        }
+
+        /* consider Dfiles old if they're over 3 days */
+        if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
+            m->m_old_dfile = 1;
+        }
+
+        if ( hq->hq_status == HOST_LOCAL ) {
+            /* HOST_LOCAL sent is incremented every time we send
+             * a message to a user via. a local mailer.
+             */
+            sent = 0;
+
+            for ( r = env.e_rcpt; r != NULL; r = r->r_next ) {
+                if ( sent != 0 ) {
+                    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
+                        syslog( LOG_ERR, "lseek: %m" );
+                        return( -1 );
+                    }
+                }
+
+                for ( at = r->r_rcpt; ; at++ ) {
+                    if ( *at == '@' ) {
+                        *at = '\0';
+                        break;
+
+                    } else if ( *at == '\0' ) {
+                        at = NULL;
+                        break;
+                    }
+                }
+
+                if (( result = (*local_mailer)( dfile_fd, env.e_mail,
+                        r )) < 0 ) {
+                    /* syserror */
+                    return( -1 );
+
+                } else if ( result == 0 ) {
+                    /* success */
+                    r->r_delivered = R_DELIVERED;
+                    env.e_success++;
+
+                } else if ( result == EX_TEMPFAIL ) {
+                    if ( env.e_old_dfile != 0 ) {
+                        r->r_delivered = R_FAILED;
+                        env.e_failed++;
+                    } else {
+                        r->r_delivered = R_TEMPFAIL;
+                        env.e_tempfail++;
+                    }
+
+                } else {
+                    /* hard failure */
+                    r->r_delivered = R_FAILED;
+                    env.e_failed++;
+                }
+
+                if ( at != NULL ) {
+                    *at = '@';
+                }
+
+                sent++;
+            }
+
+        } else if ( hq->hq_status == HOST_REMOTE ) {
+            if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
+                syslog( LOG_ERR, "snet_attach: %m" );
+                return( -1 );
+            }
+
+            if ( sent != 0 ) {
+                if (( result = smtp_rset( snet, logger )) ==
+                        SMTP_ERR_SYSCALL ) {
+                    return( -1 );
+
+                } else if ( result == SMTP_ERR_SYNTAX ) {
+                    break;
+                }
+            }
+
+            /* open connection, completely ready to send at least one message */
+            if ( snet == NULL ) {
+                if (( snet = smtp_connect( hq->hq_hostname, 25 )) == NULL ) {
+                    return( -1 );
+                }
+
+                if (( result = smtp_helo( snet, logger )) ==
+                        SMTP_ERR_SYSCALL ) {
+                    return( -1 );
+
+                } else if ( result == SMTP_ERR_SYNTAX ) {
+                    if ( snet_close( dfile_snet ) != 0 ) {
+                        syslog( LOG_ERR, "close: %m" );
+                        return( -1 );
+                    }
+
+                    /* XXX do something if remote host is fucked up? */
+
+		    if ( snet_close( snet_lock ) != 0 ) {
+			syslog( LOG_ERR, "snet_close: %m" );
+			return( -1 );
+		    }
+
+		    return( 0 );
+
+                } else if ( result == SMTP_ERR_MAIL_LOOP ) {
+                    /* mail loop */
+                    if ( snet_close( dfile_snet ) != 0 ) {
+                        syslog( LOG_ERR, "close: %m" );
+                        return( -1 );
+                    }
+
+                    syslog( LOG_ALERT, "Mail loop detected: "
+                            "Hostname %s is not a remote host",
+                            hq->hq_hostname );
+
+                    hq->hq_status = HOST_MAIL_LOOP;
+
+		    if ( snet_close( snet_lock ) != 0 ) {
+			syslog( LOG_ERR, "snet_close: %m" );
+			return( -1 );
+		    }
+
+                    return( 0 );
+                }
+            }
+
+            if (( result = smtp_send( snet, &env, dfile_snet, logger ))
+                    == SMTP_ERR_SYSCALL ) {
+                return( -1 );
+
+            } else if ( result == SMTP_ERR_SYNTAX ) {
+                /* message not sent */
+                if ( env_touch( &env ) != 0 ) {
+                    return( -1 );
+                }
+
+		/* XXX message rejection or down server? */
+
+		if ( env.e_old_dfile == 0 ) {
+		    env.e_tempfail = 1;
+		    env.e_success = 0;
+		    env.e_failed = 0;
+
+		} else {
+		    env.e_tempfail = 0;
+		    env.e_success = 0;
+		    env.e_failed = 1;
+		}
+	    }
+
+            sent++;
+        }
+
+        if ( env.e_failed > 0 ) {
+            if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
+                syslog( LOG_ERR, "lseek: %m" );
+                return( -1 );
+            }
+
+            if ( dfile_snet == NULL ) {
+                if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 ))
+                        == NULL ) {
+                    syslog( LOG_ERR, "snet_attach: %m" );
+                    return( -1 );
+                }
+            }
+
+            if (( result = bounce( &env, dfile_snet )) < 0 ) {
+                return( -1 );
+            }
+        }
+
+        if ( dfile_snet == NULL ) {
+            if ( close( dfile_fd ) != 0 ) {
+                syslog( LOG_ERR, "close: %m" );
+                return( -1 );
+            }
+
+        } else {
+            if ( snet_close( dfile_snet ) != 0 ) {
+                syslog( LOG_ERR, "snet_close: %m" );
+                return( -1 );
+            }
+        }
+
+        if ( env.e_tempfail == 0  ) {
+            /* no retries, only successes and bounces */
+            /* delete Efile then Dfile */
+            m->m_action = M_REMOVE;
+
+            if ( env_unlink( &env ) != 0 ) {
+                return( -1 );
+            }
+
+            if ( unlink( dfile_fname ) != 0 ) {
+                syslog( LOG_ERR, "unlink %s: %m", dfile_fname );
+                return( -1 );
+            }
+
+
+        } else {
+            /* some retries; place in retry list */
+            m->m_action = M_REORDER;
+
+	    if ( gettimeofday( &tv, NULL ) != 0 ) {
+		syslog( LOG_ERR, "gettimeofday" );
+		return( -1 );
+	    }
+
+	    m->m_etime.tv_sec = tv.tv_sec;
+
+            if (( env.e_success != 0 ) || ( env.e_failed != 0 )) {
+
+                /* some retries, and some sent.  re-write envelope */
+                env_cleanup( &env );
+
+                if ( env_outfile( &env, env.e_dir ) != 0 ) {
+                    return( -1 );
+                }
+
+            } else {
+                /* all retries.  touch envelope */
+                if ( env_touch( &env ) != 0 ) {
+                    return( -1 );
+                }
+            }
+        } 
+
+	if ( snet_close( snet_lock ) != 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+    }
+
+    if ( snet != NULL ) {
+        if (( result = smtp_quit( snet, logger )) < 0 ) {
+            return( -1 );
+        }
+    }
+
+    /* clean up queue */
+    m_clean = &hq->hq_message_first;
+
+    while ( *m_clean != NULL ) {
+        if ((*m_clean)->m_action == M_REMOVE ) {
+
+            m_remove = *m_clean;
+            *m_clean = m_remove->m_next;
+
+            message_free( m_remove );
+            hq->hq_entries--;
+
+        } else if ((*m_clean)->m_action == M_REORDER ) {
+	    if ( hq->hq_message_last != *m_clean ) {
+		m_remove = *m_clean;
+		m_remove->m_action = 0;
+		*m_clean = m_remove->m_next;
+
+		hq->hq_message_last->m_next = m_remove;
+		hq->hq_message_last = m_remove;
+		m_remove->m_next = NULL;
+	    }
+
+        } else {
+            m_clean = &((*m_clean)->m_next);
+        }
+    }
+
     return( 0 );
 }
