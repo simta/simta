@@ -114,6 +114,14 @@ main( int ac, char *av[] )
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
+
+	if ( SSL_CTX_load_verify_locations( ctx, cryptofile, NULL ) != 1 ) {
+	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+
+	SSL_CTX_set_verify( ctx, SSL_VERIFY_PEER, NULL );
     }
 
     host = av[ optind ];
@@ -212,12 +220,13 @@ main( int ac, char *av[] )
 		starttls = 0;
 		if ( *line == '2' )  {
 		    switch ( snet_starttls( snet, ctx, 0 )) {
-		    case 0 :
-fprintf( stderr, "snet_starttls: 0\n" );
-		    case 1 :
-fprintf( stderr, "snet_starttls: 1\n" );
+		    case 1 :		/* Worked! */
+			break;
+
+		    case 0 :		/* Failed! */
 		    default :
-fprintf( stderr, "snet_starttls: X\n" );
+			fprintf( stderr, "snet_starttls: %s\n",
+				ERR_error_string( ERR_get_error(), NULL ) );
 			break;
 		    }
 		}
