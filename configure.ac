@@ -54,6 +54,7 @@ AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])
 AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
 AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
+AC_CHECK_LIB([crypt], [crypt])
 
 AC_CONFIG_SUBDIRS(libsnet)
 AC_CONFIG_SUBDIRS(denser)
