@@ -14,7 +14,6 @@ main( int argc, char **argv )
 {
     int			c, err = 0, linenum = 0, aac, i, len, ret;
     int			verbose = 0;
-    extern int		optind;
     extern char		*optarg;
     char		**aargv, *prog, *input = NULL, *output = NULL;
     char		line[ MAXPATHLEN * 2 ];
