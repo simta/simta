@@ -397,13 +397,13 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR, "f_rcpt check_host: %s: failed", domain );
 		    return( RECEIVE_SYSERROR );
 		} else {
+		    syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED unknown domain",
+			    env->e_id, addr );
 		    if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			    domain ) < 0 ) {
 			syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 			return( RECEIVE_CLOSECONNECTION );
 		    }
-		    syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED unknown domain",
-			    env->e_id, addr );
 		    return( RECEIVE_OK );
 		}
 	    }
@@ -411,14 +411,14 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	if (( host = host_local( domain )) == NULL ) {
 	    if ( simta_global_relay == 0 ) {
+		syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED domain not local",
+			env->e_id, addr );
 		if ( snet_writef( snet,
 			"551 User not local; please try <%s>\r\n",
 			domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
-		syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED domain not local",
-			env->e_id, addr );
 		return( RECEIVE_OK );
 	    }
 
@@ -1241,6 +1241,8 @@ closeconnection:
     if ( env != NULL ) {
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    expand_and_deliver( &hq_receive, env );
+	} else if ( *(env->e_id ) != '\0' ) {
+	    syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
 	}
 
 	env_free( env );
