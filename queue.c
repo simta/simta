@@ -423,6 +423,7 @@ q_run( struct host_q **host_q )
 
 	    if ( result != 0 ) {
 		/* message not expandable, try the next one */
+/* XXX CHECK FOR OLD UNEXPANDED MESSAGE AND BOUNCE */
 		continue;
 
 	    } else {
@@ -881,7 +882,12 @@ message_cleanup:
 		message_free( env_bounce->e_message );
 		env_bounce->e_message = NULL;
 	    }
-	    env_unlink( env_bounce );
+
+	    if ( env_unlink( env_bounce ) != 0 ) {
+		syslog( LOG_DEBUG, "q_deliver env_unlink %s: can't unwind "
+			"expansion", env_deliver->e_id );
+	    }
+
 	    env_free( env_bounce );
 	    env_bounce = NULL;
 	}

@@ -207,7 +207,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	/* XXX LDAP Check to see that we only write out TYPE_EMAIL addresses? */
 #endif /* HAVE_LDAP */
 
-
 	if (( domain = strchr( i->st_key, '@' )) == NULL ) {
 	    syslog( LOG_ERR, "expand.strchr: unreachable code" );
 	    goto cleanup2;
@@ -409,7 +408,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     }
 
     if ( simta_expand_debug != 0 ) {
-	return( 0 );
+	return_value = 0;
+	goto cleanup2;
     }
 
     /* trunacte & delete unexpanded message */
@@ -423,7 +423,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
-    env_unlink( unexpanded_env );
+    if ( env_unlink( unexpanded_env ) != 0 ) {
+	syslog( LOG_ERR, "expand env_unlink %s: can't delete original message",
+		unexpanded_env->e_id );
+    }
 
     return_value = 0;
     goto cleanup2;

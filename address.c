@@ -506,6 +506,16 @@ ldap_exclusive:
 not_found:
 #endif /* HAVE_LDAP */
 
+    /* If we can't resolve the local postmaster's address, try to deliver
+     * it locally.  If it can't be delivered locally, it will be put in the
+     * dead queue in three days.
+     */
+    if ( strcasecmp( simta_postmaster, e_addr->e_addr ) == 0 ) {
+	syslog( LOG_ERR, "address_expand %s FINAL: can't resolve local "
+		"postmaster, attempting local delivery", e_addr->e_addr );
+	return( ADDRESS_FINAL );
+    }
+
     syslog( LOG_DEBUG, "address_expand %s FINAL: not found", e_addr->e_addr );
 
     if ( bounce_text( e_addr->e_addr_errors, "address not found: ",

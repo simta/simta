@@ -267,8 +267,6 @@ env_outfile( struct envelope *e, char *dir )
     char		tf[ MAXPATHLEN ];
     char		ef[ MAXPATHLEN ];
 
-    syslog( LOG_DEBUG, "env_outfile %s %s", e->e_id, e->e_hostname );
-
     e->e_dir = dir;
 
     sprintf( tf, "%s/t%s", dir, e->e_id );
@@ -294,7 +292,8 @@ env_outfile( struct envelope *e, char *dir )
     }
 
     /* Hdestination-host */
-    if (( e->e_expanded != NULL ) && ( *e->e_expanded != '\0' )) {
+    if (( e->e_expanded != NULL ) && ( *e->e_expanded != '\0' ) &&
+	    ( strcasecmp( dir, simta_dir_dead ) != 0 )) {
 	if ( fprintf( tff, "H%s\n", e->e_expanded ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	    fclose( tff );
@@ -364,9 +363,11 @@ env_outfile( struct envelope *e, char *dir )
 	goto cleanup;
     }
 
-    if ( dir == simta_dir_fast ) {
+    if (( strcasecmp( dir, simta_dir_fast )) == 0 ) {
 	simta_fast_files++;
     }
+
+    syslog( LOG_DEBUG, "env_outfile %s %s %s", dir, e->e_id, e->e_expanded );
 
     return( 0 );
 
