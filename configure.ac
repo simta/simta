@@ -26,6 +26,7 @@ AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
 
 AC_CONFIG_SUBDIRS(libsnet)
+AC_CONFIG_SUBDIRS(denser)
 
 AC_CONFIG_FILES([ Makefile ])
 AC_OUTPUT

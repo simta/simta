@@ -264,6 +264,7 @@ PACKAGE_BUGREPORT='simta@umich.edu'
 
 ac_default_prefix=/usr/local
 ac_subdirs_all="$ac_subdirs_all libsnet"
+ac_subdirs_all="$ac_subdirs_all denser"
 
 # Initialize some variables set by options.
 ac_init_help=
@@ -2313,6 +2314,10 @@ fi
 
 
 subdirs="$subdirs libsnet"
+
+
+
+subdirs="$subdirs denser"
 
 
 ac_config_files="$ac_config_files Makefile"

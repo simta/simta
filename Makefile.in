@@ -35,6 +35,9 @@ all : ${TARGETS}
 daemon.o : daemon.c
 	${CC} ${CFLAGS} -DVERSION=\"`cat VERSION`\" -c daemon.c -o daemon.o
 
+receive.o : denser/denser.o receive.c
+	${CC} ${CFLAGS} -DVERSION=\"`cat VERSION`\" -c receive.c -o receive.o
+
 tz.o : tz.c
 	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ -c tz.c -o tz.o
 
@@ -61,6 +64,9 @@ FRC :
 libsnet/libsnet.a : FRC
 	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC} DEFS="${DEFS}" \
 		INCPATH="${INCPATH}"
+
+denser/denser.o	: FRC
+	cd denser; ${MAKE} ${MFLAGS} CC=${CC} INCPATH="${INCPATH}"
 
 VERSION=`date +%Y%m%d`
 DISTDIR=../simta-${VERSION}
