@@ -262,7 +262,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
     /* Expand user using expansion table for domain */
     for ( s = host->h_expansion; s != NULL; s = s->st_next ) {
-	switch ( s->st_key ) {
+	switch ((int)(s->st_data)) {
 	case EXPANSION_TYPE_ALIAS:
 	    switch ( alias_expand( exp, e_addr )) {
 	    case ALIAS_EXCLUDE:

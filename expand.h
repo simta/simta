@@ -1,9 +1,9 @@
 /**********          expand.h          **********/
 
 /* expansion types */
-#define	EXPAND_TYPE_PASSWORD		1
-#define	EXPAND_TYPE_ALIAS		2
-#define	EXPAND_TYPE_LDAP		3
+#define	EXPANSION_TYPE_PASSWORD		1
+#define	EXPANSION_TYPE_ALIAS		2
+#define	EXPANSION_TYPE_LDAP		3
 
 /* return codes for expand_and_deliver(...) */
 #define	EXPAND_OK			0
