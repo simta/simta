@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <sysexits.h>
 
 #include <snet.h>
 
@@ -229,6 +230,31 @@ env_infile( struct envelope *e, char *filename )
     return( 0 );
 }
 
+
+    /* remove any recipients that don't need to be tried later */
+
+    void
+env_cleanup( struct envelope *e )
+{
+    struct recipient	**r;
+    struct recipient	*remove;
+
+    r = &(e->e_rcpt);
+
+    while ( *r != NULL ) {
+	if ((*r)->r_exit != EX_TEMPFAIL ) {
+	    remove = *r;
+	    *r = (*r)->r_next;
+	    free( remove->r_rcpt );
+	    free( remove );
+	} else {
+	    r = &((*r)->r_next);
+	}
+    }
+}
+
+
+    struct recipient	*r;
 
     /* Efile syntax:
      *

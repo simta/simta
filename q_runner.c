@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <sysexits.h>
+#include <utime.h>
 
 #include <snet.h>
 
@@ -371,13 +372,20 @@ deliver_local( struct host_q *hq )
 	    q->q_action = Q_REMOVE;
 
 	} else if (( q->q_success == 0 ) && ( q->q_bounce == 0 )) {
-	    /* all addresses are to be retried, no re-writing */
-	    /* XXX touch efile */
+	    /* all addresses are to be retried, no re-writing.  touch Efile */
+	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+
+	    if ( utime( fname, NULL ) != 0 ) {
+		syslog( LOG_ERR, "utime %s: %m", fname );
+		exit( 1 );
+	    }
+
 	    q->q_action = Q_REORDER;
 
 	} else {
-	    /* XXX some retries, and some sent.  need to re-write envelope */
+	    /* some retries, and some sent.  re-write envelope */
 	    q->q_action = Q_REORDER;
+	    env_cleanup( q->q_env );
 	}
     }
 

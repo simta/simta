@@ -30,6 +30,7 @@ struct envelope {
 
 void		env_reset ___P(( struct envelope * ));
 void		env_stdout ___P(( struct envelope * ));
+void		env_cleanup ___P(( struct envelope *e ));
 
 /* return pointer on success, NULL on syserror, no syslog */
 struct envelope	*env_create ___P(( char * ));

@@ -27,6 +27,7 @@ q_file_stdout( struct q_file *q )
 	    q->q_etime.tv_nsec );
     printf( "efiles:\t%d\n", q->q_efile );
     printf( "dfiles:\t%d\n", q->q_dfile );
+    /* env_stdout( q->q_env ); */
 }
 
 
