@@ -225,6 +225,7 @@ check_reverse( DNSR **dnsr, char *dn, struct in_addr *in )
     if ( dnsr_query( *dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
         syslog( LOG_ERR, "check_hostname: dnsr_query: %s",
 	    dnsr_err2string( dnsr_errno( *dnsr )));
+	free( temp );
 	return( -1 );
     }
 
