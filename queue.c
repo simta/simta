@@ -514,7 +514,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     SNET                        *snet_dfile = NULL;
     SNET                        *snet_smtp = NULL;
     SNET			*snet_lock;
-    SNET			*snet_bounce = NULL;
     char                        dfile_fname[ MAXPATHLEN ];
     char                        efile_fname[ MAXPATHLEN ];
     struct recipient		**r_sort;
@@ -616,8 +615,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		( d.d_n_rcpt_failed > 0 )) {
-	    snet_bounce = NULL;
-
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
 		panic( "q_deliver lseek fail" );
@@ -627,14 +624,15 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 ))
 			== NULL ) {
 		    syslog( LOG_ERR, "q_deliver snet_attach: %m" );
-		} else {
-		    snet_bounce = snet_dfile;
 		}
 	    } else {
-		snet_bounce = snet_dfile;
+		if ( lseek( snet_fd( snet_dfile ), (off_t)0, SEEK_SET ) != 0 ) {
+		    syslog( LOG_ERR, "q_deliver lseek: %m" );
+		    panic( "q_deliver lseek fail" );
+		}
 	    }
 
-	    if (( env_bounce = bounce( deliver_q, env_deliver, snet_bounce ))
+	    if (( env_bounce = bounce( deliver_q, env_deliver, snet_dfile ))
 		    == NULL ) {
 		syslog( LOG_ERR, "q_deliver bounce failed" );
 		goto message_cleanup;

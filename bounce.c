@@ -261,25 +261,23 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     bounce_env->e_dir = simta_dir_fast;
 
-    if ( *(env->e_mail) == '\0' ) {
-        if ( env_recipient( bounce_env, NULL ) != 0 ) {
-            goto cleanup1;
-        }
-
-	/* if the postmaster is a failed recipient,
-	 * we need to put the bounce in the dead queue.
-	 */
-	/* XXX check for postmaster@localhost */
-	for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	    if ((( env->e_flags & ENV_BOUNCE ) ||
-		    ( r->r_status == R_FAILED )) &&
-		    ( *(r->r_rcpt) == '\0' ) ||
-		    (( strcasecmp( "postmaster", r->r_rcpt ) == 0 ))) {
+    /* if the postmaster is a failed recipient,
+     * we need to put the bounce in the dead queue.
+     */
+    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+	if ((( env->e_flags & ENV_BOUNCE ) ||
+		( r->r_status == R_FAILED ))) {
+	    if ( *(r->r_rcpt) == '\0' ) {
 		bounce_env->e_dir = simta_dir_dead;
 		break;
 	    }
 	}
+    }
 
+    if ( *(env->e_mail) == '\0' ) {
+        if ( env_recipient( bounce_env, NULL ) != 0 ) {
+            goto cleanup1;
+        }
     } else {
         if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
             goto cleanup1;
@@ -337,7 +335,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     if ( *(env->e_hostname) == '\0' ) {
         fprintf( dfile, "There was a local error in expanding the "
-		" recipients of your message\n" );
+		"recipients of your message\n\n" );
     }
 
     if ( env->e_flags & ENV_OLD ) {
@@ -350,20 +348,21 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	for ( l = hq->hq_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
 	}
+	fprintf( dfile, "\n" );
+    } else {
+	fprintf( dfile, "An error occured during delivery to host %s.\n\n",
+		hq->hq_hostname );
+    }
 
-    } else if ( env->e_err_text != NULL ) {
-	fprintf( dfile, "The following error occured during delivery to "
-		"host %s:\n", hq->hq_hostname );
+    if ( env->e_err_text != NULL ) {
+	fprintf( dfile, "The following error occured during delivery of "
+		"message %s:\n", env->e_id );
 	for ( l = env->e_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
 	}
 
-    } else {
-	fprintf( dfile, "An error occured during delivery to host %s.\n",
-		hq->hq_hostname );
+	fprintf( dfile, "\n" );
     }
-
-    fprintf( dfile, "\n" );
 
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	if (( env->e_flags & ENV_BOUNCE ) || ( r->r_status == R_FAILED )) {
@@ -378,16 +377,14 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
         }
     }
 
-    if ( message != NULL ) {
-	fprintf( dfile, "Bounced message:\n" );
-	fprintf( dfile, "\n" );
-	while (( line = snet_getline( message, NULL )) != NULL ) {
-	    line_no++;
-	    if ( line_no > simta_max_bounce_lines ) {
-		break;
-	    }
-	    fprintf( dfile, "%s\n", line );
+    fprintf( dfile, "Bounced message:\n" );
+    fprintf( dfile, "\n" );
+    while (( line = snet_getline( message, NULL )) != NULL ) {
+	line_no++;
+	if ( line_no > simta_max_bounce_lines ) {
+	    break;
 	}
+	fprintf( dfile, "%s\n", line );
     }
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
