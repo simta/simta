@@ -564,6 +564,7 @@ q_runner_dir( char *dir )
 
 	    if ( queue_envelope( &host_q, env ) != 0 ) {
 		env_free( env );
+		continue;
 	    }
 
 	    simta_message_count++;
