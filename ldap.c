@@ -19,7 +19,6 @@
 #include <ldap.h>
 #include <unistd.h>
 #include <errno.h>
-#include <sysexits.h>
 #include <netdb.h>
 
 #include "ll.h"
@@ -97,12 +96,12 @@ ldap_config( char *fname )
 			if (( *l = (struct list*)malloc( sizeof( struct list )))
 				== NULL ) {
 			    perror( "malloc" );
-			    exit( 1 );
+			    return( -1 );
 			}
 
 			if (((*l)->l_string = strdup( c )) == NULL ) {
 			    perror( "strdup" );
-			    exit( 1 );
+			    return( -1 );
 			}
 
 			(*l)->l_next = NULL;
@@ -175,14 +174,14 @@ ldap_config( char *fname )
 				if (( l_new = (struct list*)malloc(
 					sizeof( struct list ))) == NULL ) {
 				    perror( "malloc" );
-				    exit( 1 );
+				    return( -1 );
 				}
 				memset( l_new, 0, sizeof( struct list ));
 
 				if (( l_new->l_string = (char*)malloc( len ))
 					== NULL ) {
 				    perror( "malloc" );
-				    exit( 1 );
+				    return( -1 );
 				}
 				memset( l_new->l_string, 0, len );
 

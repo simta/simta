@@ -14,8 +14,8 @@ SLOW_Q=/var/spool/simta/slow
 FAST_Q=/var/spool/simta/fast
 DEAD_Q=/var/spool/simta/dead
 
-SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
-	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c address.c \
+SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
+	simsend.c rcptlist.c tz.c tlsconnect.c address.c \
 	createdb.c
 SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		tz.o address.o line_file.o ll.o bdb.o header.o simta.o \

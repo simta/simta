@@ -89,30 +89,30 @@ procmail( int f, char *sender, struct recipient *recipient )
 	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
 	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "procmail close: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	/* stdout -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 1 ) < 0 ) {
 	    syslog( LOG_ERR, "procmail dup2: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	/* stderr -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 2 ) < 0 ) {
 	    syslog( LOG_ERR, "procmail dup2: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "procmail close: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	/* f -> stdin */
 	if ( dup2( f, 0 ) < 0 ) {
 	    syslog( LOG_ERR, "procmail dup2: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	procmail_argv[ 2 ] = sender;
@@ -121,7 +121,7 @@ procmail( int f, char *sender, struct recipient *recipient )
 	execv( procmail_bin, procmail_argv );
 	/* if we are here, there is an error */
 	syslog( LOG_ERR, "procmail execv: %m" );
-	exit( -1 );
+	exit( 1 );
 
     default :
 	/* use fd[ 1 ] to communicate with child, child uses fd[ 0 ] */
@@ -224,30 +224,30 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
 	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local close: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	/* stdout -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 1 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local dup2: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	/* stderr -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 2 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local dup2: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local close: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	/* f -> stdin */
 	if ( dup2( f, 0 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_local dup2: %m" );
-	    exit( -1 );
+	    exit( 1 );
 	}
 
 	maillocal_argv[ 2 ] = sender;
@@ -256,7 +256,7 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	execv( maillocal_bin, maillocal_argv );
 	/* if we are here, there is an error */
 	syslog( LOG_ERR, "mail_local execv: %m" );
-	exit( -1 );
+	exit( 1 );
 
     default :
 	/* use fd[ 1 ] to communicate with child, child uses fd[ 0 ] */
@@ -320,4 +320,6 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	    return( -1 );
 	}
     }
+
+    exit( 0 );
 }

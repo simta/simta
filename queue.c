@@ -404,13 +404,13 @@ q_runner_dir( char *dir )
 #endif /* DEBUG */
 
 	if (( simta_null_q = host_q_lookup( &host_q, "\0" )) == NULL ) {
-	    exit( EX_TEMPFAIL );
+	    return( -1 );
 	}
     }
 
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
-	exit( EX_TEMPFAIL );
+	return( -1 );
     }
 
     /* clear errno before trying to read */
@@ -420,13 +420,13 @@ q_runner_dir( char *dir )
     while (( entry = readdir( dirp )) != NULL ) {
 	if ( *entry->d_name == 'E' ) {
 	    if (( m = message_create( entry->d_name + 1 )) == NULL ) {
-		exit( EX_TEMPFAIL );
+		return( -1 );
 	    }
 
 	    m->m_dir = dir;
 
 	    if (( result = env_info( m, hostname, MAXHOSTNAMELEN )) < 0 ) {
-		exit( EX_TEMPFAIL );
+		return( -1 );
 
 	    } else if ( result > 0 ) {
 		/* free message */
@@ -435,11 +435,11 @@ q_runner_dir( char *dir )
 	    }
 
 	    if (( hq = host_q_lookup( &host_q, hostname )) == NULL ) {
-		exit( EX_TEMPFAIL );
+		return( -1 );
 	    }
 
 	    if ( message_queue( hq, m ) < 0 ) {
-		exit( EX_TEMPFAIL );
+		return( -1 );
 	    }
 	}
     }
@@ -456,7 +456,7 @@ q_runner_dir( char *dir )
 #endif /* DEBUG */
 
     if ( q_runner( &host_q ) != 0 ) {
-	exit( EX_TEMPFAIL );
+	return( -1 );
     }
 
     return( 0 );

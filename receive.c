@@ -37,7 +37,6 @@ extern SSL_CTX	*ctx;
 #include "envelope.h"
 #include "address.h"
 #include "receive.h"
-#include "auth.h"
 #include "denser.h"
 #include "bprint.h"
 #include "argcargv.h"

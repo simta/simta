@@ -72,13 +72,13 @@ main( int argc, char *argv[] )
     }
 
     if ( strcasecmp( op, "LOCAL" ) == 0 ) {
-	return( q_runner_dir( simta_dir_local ));
+	exit( q_runner_dir( simta_dir_local ));
 
     } else if ( strcasecmp( op, "SLOW" ) == 0 ) {
-	return( q_runner_dir( simta_dir_slow ));
+	exit( q_runner_dir( simta_dir_slow ));
 
     } else if ( strcasecmp( op, "CLEAN" ) == 0 ) {
-	return( q_cleanup());
+	exit( q_cleanup());
 
     } else {
 	fprintf( stderr,

@@ -26,7 +26,6 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <fcntl.h>
-#include <sysexits.h>
 #include <utime.h>
 
 #include <stdio.h>
