@@ -214,6 +214,7 @@ main( int argc, char *argv[] )
 	    /* check to see if we deliver locally */
 	    if ( strcasecmp( localhostname, q->q_expanded ) == 0 ) {
 		/* get message_data */
+		printf( "Deliver locally:\t%s\n", q->q_id );
 		errno = 0;
 
 		sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
@@ -239,6 +240,8 @@ main( int argc, char *argv[] )
 		    perror( "snet_close" );
 		    exit( 1 );
 		}
+		printf( "Clip %s/E%s\n", SLOW_DIR, q->q_id );
+		printf( "Clip %s\n", fname );
 	    }
 
 	    /* if send failure, update efile modification time */

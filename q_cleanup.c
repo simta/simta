@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <netdb.h>
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
@@ -27,6 +28,7 @@
 
 #include "ll.h"
 #include "queue.h"
+#include "envelope.h"
 
 
 int	inode_compare ___P(( void *, void * ));
@@ -139,7 +141,6 @@ move_to_slow( char *dir )
 main( int argc, char *argv[] )
 {
     DIR				*dirp;
-    SNET			*snet;
     struct dirent		*entry;
     struct q_file		*q;
     struct q_file		*q_inode;
@@ -148,7 +149,6 @@ main( int argc, char *argv[] )
     struct stab_entry		*st;
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
-    char			*line;
 
     if ( move_to_slow( FAST_DIR ) != 0 ) {
 	perror( "move_to_slow" );
@@ -265,40 +265,8 @@ main( int argc, char *argv[] )
     for ( st = inode_stab; st != NULL; st = st->st_next ) {
 	for ( q = (struct q_file*)st->st_data; q != NULL;
 		q = q->q_inode_next ) {
-	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
-
-	    if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
-		    == NULL ) {
-		perror( "snet_open" );
-		exit( 1 );
-	    }
-
-	    /* XXX envelope syntax checking? */
-
-	    /* first line of an envelope should be version info */
-	    if (( line = snet_getline( snet, NULL )) == NULL ) {
-		fprintf( stderr, "%s: syntax error: no first line\n", fname );
-		exit( 1 );
-	    }
-
-	    /* second line of an envelope has expansion info */
-	    if (( line = snet_getline( snet, NULL )) == NULL ) {
-		fprintf( stderr, "%s: syntax error: no second line\n", fname );
-		exit( 1 );
-	    }
-
-	    if ( *line != 'H' ) {
-		fprintf( stderr, "%s: bad destination host syntax", fname );
-		exit( 1 );
-	    }
-
-	    /* check to see if envelope has been expanded */
-	    if ( *(line + 1) == '\0' ) {
-		q->q_unexpanded = 1;
-	    }
-
-	    if ( snet_close( snet ) != 0 ) {
-		perror( "snet_close" );
+	    if (( q->q_unexpanded = env_unexpanded( SLOW_DIR, q->q_id )) < 0 ) {
+		perror( "env_unexpanded" );
 		exit( 1 );
 	    }
 
@@ -306,6 +274,8 @@ main( int argc, char *argv[] )
 	     * envelopes that share the same inode.
 	     */
 	    if ( q->q_unexpanded == 1 ) {
+		printf( "Unexpanded envelope:\t%s/E%s\n", SLOW_DIR, q->q_id );
+
 		for ( q = (struct q_file*)st->st_data; q != NULL;
 			q = q->q_inode_next ) {
 		    if ( q->q_unexpanded != 1 ) {
