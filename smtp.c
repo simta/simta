@@ -455,7 +455,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 
 	case SMTP_MAIL:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_TEMPFAIL;
-	    syslog( LOG_NOTICE, "deliver.SMTP %s: From <%s> Tempfailed: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP %s: From <%s> Tempfailed: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
 		    line, "Bad SMTP MAIL FROM reply" ));
@@ -463,7 +463,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_RCPT:
 	    d->d_rcpt->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfail++;
-	    syslog( LOG_NOTICE, "deliver.SMTP %s: To <%s> Tempfailed: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP %s: To <%s> Tempfailed: %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, line );
 	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), snet, &tv,
 		    line, "Bad SMTP RCPT TO reply" ));
@@ -537,7 +537,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 
 	case SMTP_MAIL:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_BOUNCE;
-	    syslog( LOG_NOTICE, "deliver.SMTP %s: From <%s> Rejected: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP %s: From <%s> Rejected: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), snet, &tv,
 		    line, "Bad SMTP MAIL FROM reply" ));
@@ -545,7 +545,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_RCPT:
 	    d->d_rcpt->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
-	    syslog( LOG_NOTICE, "deliver.SMTP %s: To <%s> Rejected: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP %s: To <%s> Rejected: %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, line );
 	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), snet, &tv,
 		    line, "Bad SMTP RCPT TO reply" ));

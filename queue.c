@@ -837,7 +837,7 @@ deliver_local( struct deliver *d )
 	    goto lseek_fail;
 	}
 
-	syslog( LOG_INFO, "deliver_local %s %s: attempting local delivery",
+	syslog( LOG_NOTICE, "Deliver.local %s: From <%s>",
 		d->d_env->e_id, r->r_rcpt );
 	ml_error = (*simta_local_mailer)( d->d_dfile_fd, d->d_env->e_mail, r );
 
@@ -847,7 +847,7 @@ lseek_fail:
 	    /* success */
 	    r->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
-	    syslog( LOG_INFO, "deliver_local %s %s: delivered locally",
+	    syslog( LOG_NOTICE, "Deliver.local %s: To <%s> Accepted",
 		    d->d_env->e_id, r->r_rcpt );
 	    break;
 
@@ -855,9 +855,8 @@ lseek_fail:
 	case EX_TEMPFAIL:
 	    r->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfail++;
-	    syslog( LOG_INFO, "deliver_local %s %s: local delivery "
-		    "tempfail %d", d->d_env->e_id, r->r_rcpt,
-		    ml_error );
+	    syslog( LOG_NOTICE, "Deliver.local %s: To <%s> Tempfailed: %d",
+		    d->d_env->e_id, r->r_rcpt, ml_error );
 	    break;
 
 	case EX_DATAERR:
@@ -865,10 +864,13 @@ lseek_fail:
 	    /* hard failure caused by bad user data, or no local user */
 	    r->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
-	    syslog( LOG_INFO, "deliver_local %s %s: local delivery "
-		    "hard failure", d->d_env->e_id, r->r_rcpt );
+	    syslog( LOG_NOTICE, "Deliver.local %s: To <%s> Failed: %d",
+		    d->d_env->e_id, r->r_rcpt, ml_error );
 	    break;
 	}
+
+	syslog( LOG_NOTICE, "Deliver.local %s: Message Delivered",
+		d->d_env->e_id );
     }
 
     d->d_delivered = 1;
