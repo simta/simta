@@ -1186,16 +1186,6 @@ receive( fd, sin )
 	}
     }
 
-#ifdef HAVE_LIBWRAP
-    if ( hosts_ctl( "simta", STRING_UNKNOWN, inet_ntoa( sin->sin_addr ),
-	    STRING_UNKNOWN ) == 0 ) {
-	syslog( LOG_INFO, "receive connection refused %s: access denied",
-		inet_ntoa( sin->sin_addr ));
-	snet_writef( snet, "421 Access Denied\r\n" );
-	goto closeconnection;
-    }
-#endif /* HAVE_LIBWRAP */
-
     if ( simta_dnsr == NULL ) {
 	if (( simta_dnsr = dnsr_new( )) == NULL ) {
 	    syslog( LOG_ERR, "receive dnsr_new: %s",
@@ -1235,6 +1225,17 @@ receive( fd, sin )
 	    inet_ntoa( sin->sin_addr ));
 	goto syserror;
     }
+
+#ifdef HAVE_LIBWRAP
+    /* first STRING_UNKNOWN should be domain name of incoming host */
+    if ( hosts_ctl( "simta", STRING_UNKNOWN, inet_ntoa( sin->sin_addr ),
+	    STRING_UNKNOWN ) == 0 ) {
+	syslog( LOG_INFO, "receive connection refused %s: access denied",
+		inet_ntoa( sin->sin_addr ));
+	snet_writef( snet, "421 Access Denied\r\n" );
+	goto closeconnection;
+    }
+#endif /* HAVE_LIBWRAP */
 
     if (( env = env_create( NULL )) == NULL ) {
 	goto syserror;
