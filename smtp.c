@@ -73,6 +73,10 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
 #ifdef DNSR_WORKS
 
+#ifdef DEBUG
+    printf( "smtp_connect dsnr: %s\n", hq->hq_hostname );
+#endif /* DEBUG */
+
     if (( dnsr = dnsr_open( )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect: dnsr_open failed" );
 	return( SMTP_ERR_SYSCALL );
@@ -148,6 +152,10 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    (unsigned int)hp->h_length );
 
 #endif /* DNSR_WORKS */
+
+#ifdef DEBUG
+    printf( "smtp_connect dsnr done\n" );
+#endif /* DEBUG */
 
     if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
 	syslog( LOG_ERR, "smtp_connect: socket: %m" );

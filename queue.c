@@ -527,6 +527,10 @@ q_deliver( struct host_q *hq )
                     }
                 }
 
+#ifdef DEBUG
+    printf( "q_deliver.local: %s\n", r->r_rcpt );
+#endif /* DEBUG */
+
                 if (( result = (*local_mailer)( dfile_fd, env.e_mail,
                         r )) < 0 ) {
                     /* syserror */
@@ -562,6 +566,11 @@ q_deliver( struct host_q *hq )
             }
 
             if ( sent != 0 ) {
+
+#ifdef DEBUG
+    printf( "q_deliver.remote smtp_rset\n" );
+#endif /* DEBUG */
+
                 if (( result = smtp_rset( snet, hq )) == SMTP_ERR_SYSCALL ) {
                     return( -1 );
 
@@ -570,6 +579,10 @@ q_deliver( struct host_q *hq )
 		    goto cleanup;
                 }
             }
+
+#ifdef DEBUG
+    printf( "q_deliver.remote smtp_connect\n" );
+#endif /* DEBUG */
 
             /* open connection, completely ready to send at least one message */
             if ( snet == NULL ) {
@@ -581,6 +594,10 @@ q_deliver( struct host_q *hq )
 		    goto cleanup;
                 }
             }
+
+#ifdef DEBUG
+    printf( "q_deliver.remote smtp_send\n" );
+#endif /* DEBUG */
 
             if (( result = smtp_send( snet, hq, &env, dfile_snet ))
 		    == SMTP_ERR_SYSCALL ) {
