@@ -65,6 +65,7 @@ int			simta_dns_config = 1;
 int			simta_no_sync = 0;
 int			simta_max_received_headers = 100;
 int			simta_max_bounce_lines;
+int			simta_max_failed_rcpts = 0;
 int			simta_receive_wait = 600;
 int			simta_ignore_reverse = 0;
 int			simta_message_count = 0;
@@ -424,6 +425,35 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    simta_smtp_extension++;
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_FAILED_RCPTS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+
+	    simta_max_failed_rcpts = strtol( av[ 1 ], &endptr, 10 );
+	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
+		fprintf( stderr, "%s: line %d: invalid argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_max_failed_rcpts == LONG_MIN ) {
+		fprintf( stderr, "%s: line %d: argument too small\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_max_failed_rcpts == LONG_MAX ) {
+		fprintf( stderr, "%s: line %d: argument too big\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_max_failed_rcpts < 0 ) {
+		fprintf( stderr, "%s: line %d: invalid negative argument\n",
+		    fname, lineno );
+		goto error;
+	    }
 
 	} else {
 	    fprintf( stderr, "%s: line %d: unknown keyword: %s\n",
