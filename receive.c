@@ -893,7 +893,7 @@ f_rset( snet, env, ac, av )
 
     if (( env->e_flags & E_READY ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
-	    syslog( LOG_INFO, "f_mail %s: abandoned", env->e_id );
+	    syslog( LOG_INFO, "f_rset %s: abandoned", env->e_id );
 	}
 	env_reset( env );
     }
