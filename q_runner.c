@@ -69,7 +69,6 @@ dfile_fstat( int fd, struct q_file *q )
     }
 
     /* XXX 3 days? */
-    /* XXX error message */
     if (( tv.tv_sec - q->q_dtime.tv_sec ) > ( 60 * 60 * 24 * 3 )) {
 	q->q_env->e_old_dfile = 1;
     }
@@ -136,13 +135,18 @@ bounce( struct envelope *env, SNET *message )
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
 
+    if ( env->e_old_dfile != 0 ) {
+	fprintf( dfile, "It was over three days old.\n" );
+	fprintf( dfile, "\n" );
+    }
+
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	if ( r->r_delivered == R_FAILED ) {
-	    fprintf( dfile, "address %s:\n", r->r_rcpt );
+	    fprintf( dfile, "address %s\n", r->r_rcpt );
 
 	    if ( r->r_text != NULL ) {
 		for ( l = r->r_text->l_first; l != NULL; l = l->line_next ) {
-		    fprintf( dfile, "%s:\n", l->line_data );
+		    fprintf( dfile, "%s\n", l->line_data );
 		}
 	    }
 
