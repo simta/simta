@@ -295,7 +295,9 @@ header_file_out( struct line_file *lf, FILE *file )
     struct line			*l;
 
     for ( l = lf->l_first; l != NULL; l = l->line_next ) {
-	fprintf( file, "%s\n", l->line_data );
+	if ( fprintf( file, "%s\n", l->line_data ) < 0 ) {
+	    return( 1 );
+	}
     }
 
     return( 0 );

@@ -42,6 +42,8 @@ extern SSL_CTX	*ctx;
 #include "expand.h"
 #include "mx.h"
 #include "simta.h"
+#include "line_file.h"
+#include "header.h"
 
 extern char		*version;
 struct stab_entry	*expansion = NULL;
@@ -461,6 +463,10 @@ f_data( snet, env, ac, av )
     FILE		*dff;
     char		df[ 25 ];
     char		daytime[ 30 ];
+    struct line_file	*lf;
+    struct line		*l;
+    int			header = 1;
+    int			line_no = 0;
 
     if ( ac != 1 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
@@ -506,9 +512,19 @@ f_data( snet, env, ac, av )
 
     snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n", 354 );
 
+    if (( lf = line_file_create()) == NULL ) {
+	syslog( LOG_ERR, "malloc: %m" );
+	return( -1 );
+    }
+
+    header = 1;
+
     /* should implement a byte count to limit DofS attacks */
     /* XXX not to mention a timeout! */
+    /* XXX not to mention line length limits! */
     while (( line = snet_getline( snet, NULL )) != NULL ) {
+	line_no++;
+
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
 		break;
@@ -516,11 +532,66 @@ f_data( snet, env, ac, av )
 	    line++;
 	}
 
-	if (( err == 0 ) && ( fprintf( dff, "%s\n", line ) < 0 )) {
-	    syslog( LOG_ERR, "f_data: fprintf: %m" );
-	    err = 1;
+	if ( header == 1 ) {
+	    if ( header_end( lf, line ) != 0 ) {
+		/* XXX reject message based on headers here */
+
+		/* XXX punt message based on headers here */
+
+		if ( err == 0 ) {
+		    if ( header_file_out( lf, dff ) != 0 ) {
+			syslog( LOG_ERR, "f_data header_file_out: %m" );
+			err = 1;
+		    }
+		}
+
+		/* print line to dfile */
+		if ( err == 0 ) {
+		    if ( fprintf( dff, "%s\n", line ) < 0 ) {
+			syslog( LOG_ERR, "f_data fprintf: %m" );
+			err = 1;
+		    }
+		}
+
+		header = 0;
+
+	    } else {
+		/* append line to headers */
+		if ( err == 0 ) {
+		    if (( l = line_append( lf, line )) == NULL ) {
+			syslog( LOG_ERR, "f_data line_append: %m" );
+			err = 1;
+		    }
+
+		    l->line_no = line_no;
+		}
+	    }
+
+	} else {
+	    if ( err == 0 ) {
+		if ( fprintf( dff, "%s\n", line ) < 0 ) {
+		    syslog( LOG_ERR, "f_data fprintf: %m" );
+		    err = 1;
+		}
+	    }
 	}
     }
+
+    if ( header == 1 ) {
+	/* XXX reject message based on headers here */
+
+	/* XXX punt message based on headers here */
+
+	if ( err == 0 ) {
+	    if ( header_file_out( lf, dff ) != 0 ) {
+		syslog( LOG_ERR, "f_data header_file_out: %m" );
+		err = 1;
+	    }
+	}
+    }
+
+    line_file_free( lf );
+
     if ( line == NULL ) {	/* EOF */
 	syslog( LOG_INFO, "%s: connection dropped", env->e_id );
 	err = -1;
