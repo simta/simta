@@ -71,7 +71,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct envelope		*env_p;
     int				failed_expansions = 0, ret = 0;
     int				expansions = 0;
-    char			*destination_host;
     char			*domain = NULL;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
@@ -207,7 +206,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	m->m_etime.tv_sec = env_p->e_etime.tv_sec;
 
 	/* find / create the expanded host queue */
-	if (( hq = host_q_lookup( hq_stab, destination_host )) == NULL ) {
+	if (( hq = host_q_lookup( hq_stab, env_p->e_expanded )) == NULL ) {
 	    return( -1 );
 	}
 
@@ -296,6 +295,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 #ifdef DEBUG
     printf( "expanded host_q:\n" );
     q_stab_stdout( *hq_stab );
+    printf( "\n" );
 #endif /* DEBUG */
 
     return( 0 );
