@@ -347,7 +347,8 @@ not_found:
     /* If we can't resolve the local postmaster's address, expand it to
      * the dead queue.
      */
-    if ( e_addr->e_addr_at == NULL ) {
+    if (( e_addr->e_addr_at == NULL ) || ( strncasecmp( e_addr->e_addr,
+	    "postmaster", e_addr->e_addr_at - e_addr->e_addr ) == 0 )) {
 	e_addr->e_addr_type = ADDRESS_TYPE_DEAD;
 	syslog( LOG_ERR, "address_expand <%s> FINAL: can't resolve local "
 		"postmaster, expanding to dead queue", e_addr->e_addr );

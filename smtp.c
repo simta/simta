@@ -560,12 +560,22 @@ smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )
 
     for ( d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
 	    d->d_rcpt = d->d_rcpt->r_next ) {
-	assert( *(d->d_rcpt->r_rcpt) != '\0' );
-	if ( snet_writef( snet, "RCPT TO:<%s>\r\n", d->d_rcpt->r_rcpt ) < 0 ) {
-	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
-		    hq->hq_hostname );
-	    hq->hq_status = HOST_DOWN;
-	    return( SMTP_BAD_CONNECTION );
+	if( *(d->d_rcpt->r_rcpt) != '\0' ) {
+	    if ( snet_writef( snet, "RCPT TO:<%s>\r\n",
+		    d->d_rcpt->r_rcpt ) < 0 ) {
+		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
+			hq->hq_hostname );
+		hq->hq_status = HOST_DOWN;
+		return( SMTP_BAD_CONNECTION );
+	    }
+
+	} else {
+	    if ( snet_writef( snet, "RCPT TO:<postmaster>\r\n" ) < 0 ) {
+		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
+			hq->hq_hostname );
+		hq->hq_status = HOST_DOWN;
+		return( SMTP_BAD_CONNECTION );
+	    }
 	}
 
 	if (( smtp_result = smtp_reply( SMTP_RCPT, snet, hq, d )) != SMTP_OK ) {
