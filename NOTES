@@ -1,0 +1,39 @@
+Access control:
+
+    Use tcp_wrappers during "MAIL FROM:" phase.  This allows SMTP-SASL
+    to by-pass tcp_wrappers.  By having a command-line option to
+    disable "open relay" checks, we can have the function that
+    smtp.itd.umich.edu currently has: on campus clients can send mail
+    anywhere, off-campus clients need to authenticate.  (This doesn't
+    give the "off-campus clients can send mail to campus".)
+
+    We also need the equivalent of "DeniedFrom" so that admins can
+    break loops without denying connections from whole domains.
+
+Queuing:
+
+    We attempt to deliever newly received mail immediately.  If we
+    successfully deliver mail for a host, we check for a queue for the
+    host, and become a queue runner for that host.  This reduces admin
+    intervention required to recover from a large queue.  (Some limit
+    is probably necessary.)
+
+    To allow parallel processing of queues, a queue runner first
+    attempts a connection.  If connection succeeds, the top message is
+    de-queued.  If delivery temp-fails, the message is re-queued to the
+    bottom of the queue.  (This doesn't prevent many connection attempts
+    when there are few messages queued.)
+
+    We need to be careful not to "lose" queued messages.
+
+    On startup, we could remove all queues and rebuild them from the
+    spool files.  The main process can (probably) continue to run
+    during this process.  It may be possible to scan continuously, but
+    we want to avoid unnecessary locks.
+
+Bounce:
+
+    As the delivery proceeds, a transcript is kept of "critical"
+    errors.  At the end of the delivery process, the transcript is
+    converted into a DSN and added to the end of the envelope list, to
+    be delivered as normal mail.
