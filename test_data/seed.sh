@@ -8,6 +8,12 @@ mkdir ../slow
 mkdir ../fast
 mkdir ../local
 
+# add an Efile with bad syntax
+cp Ebadsyntax ../slow/Ebadsyntax
+cp Ebadsyntax ../slow/Dbadsyntax
+cp Ebadsyntax ../slow/Ebadsyntax1
+ln ../slow/Dbadsyntax ../slow/Dbadsyntax1
+
 # add orphan E and D files
 cp Eexpanded ../slow/Eorphan
 cp Eunexpanded ../slow/Eunorphan
