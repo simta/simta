@@ -40,8 +40,7 @@ LDAP				*ld;
 
 
 int ldap_config( void );
-int isgroup( LDAPMessage * );
-int isperson( LDAPMessage * );
+int isvalue( LDAPMessage *, char *, struct list * );
 
 
     int
@@ -222,45 +221,19 @@ ldap_config( void )
 
 
     int
-isperson( LDAPMessage *e )
+isvalue( LDAPMessage *e, char *attr, struct list *master )
 {
     int				x;
     char			**values;
     struct list			*l;
 
-    if (( values = ldap_get_values( ld, e, "objectClass" )) == NULL ) {
+    if (( values = ldap_get_values( ld, e, attr )) == NULL ) {
 	/* XXX ldaperror? */
 	return( -1 );
     }
 
     for ( x = 0; values[ x ] != NULL; x++ ) {
-	for ( l = ldap_people; l != NULL; l = l->l_next ) {
-	    if ( strcasecmp( values[ x ], l->l_string ) == 0 ) {
-		ldap_value_free( values );
-		return( 1 );
-	    }
-	}
-    }
-
-    ldap_value_free( values );
-
-    return( 0 );
-}
-
-    int
-isgroup( LDAPMessage *e )
-{
-    int				x;
-    char			**values;
-    struct list			*l;
-
-    if (( values = ldap_get_values( ld, e, "objectClass" )) == NULL ) {
-	/* XXX ldaperror? */
-	return( -1 );
-    }
-
-    for ( x = 0; values[ x ] != NULL; x++ ) {
-	for ( l = ldap_groups; l != NULL; l = l->l_next ) {
+	for ( l = master ; l != NULL; l = l->l_next ) {
 	    if ( strcasecmp( values[ x ], l->l_string ) == 0 ) {
 		ldap_value_free( values );
 		return( 1 );
@@ -450,7 +423,7 @@ printf( "search base %s, filter %s\n", lud->lud_dn, lud->lud_filter );
 	goto error;
     }
 
-    if (( result = isgroup( entry )) < 0 ) {
+    if (( result = isvalue( entry, "objectClass", ldap_groups )) < 0 ) {
 	ldap_perror( ld, "ldap_get_values 1" );
 	goto error;
 
@@ -459,7 +432,7 @@ printf( "search base %s, filter %s\n", lud->lud_dn, lud->lud_filter );
 
     } else {
 
-	if (( result = isperson( entry )) < 0 ) {
+	if (( result = isvalue( entry, "objectClass", ldap_people )) < 0 ) {
 	    ldap_perror( ld, "ldap_get_values 2" );
 	    goto error;
 
