@@ -39,6 +39,7 @@
 
 #include <snet.h>
 
+#include "denser.h"
 #include "queue.h"
 #include "envelope.h"
 #include "expand.h"

@@ -48,6 +48,7 @@ extern char				*simta_punt_host;
 extern struct host_q			*simta_null_q;
 extern struct stab_entry		*simta_hosts;
 char					*simta_postmaster;
+extern DNSR				*simta_dnsr;
 
 char	*simta_sender ___P(( void ));
 char	*simta_resolvconf ___P(( void ));

@@ -22,6 +22,7 @@
 
 #include <db.h>
 
+#include "denser.h"
 #include "line_file.h"
 #include "queue.h"
 #include "ll.h"

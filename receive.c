@@ -35,6 +35,7 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
+#include "denser.h"
 #include "config.h"
 #include "queue.h"
 #include "ll.h"
@@ -42,7 +43,6 @@ extern SSL_CTX	*ctx;
 #include "envelope.h"
 #include "expand.h"
 #include "receive.h"
-#include "denser.h"
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
@@ -255,7 +255,6 @@ f_mail( snet, env, ac, av )
     char			*av[];
 {
     char		*addr, *domain;
-    DNSR		*dnsr;
     struct dnsr_result	*result;
 
     /*
@@ -319,15 +318,16 @@ f_mail( snet, env, ac, av )
 	}
 	domain++;
 
-	if (( dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "f_mail dnsr_new: %s",
-		    dnsr_err2string( dnsr_errno( dnsr )));
-	    return( RECEIVE_SYSERROR );
+	if ( simta_dnsr == NULL ) {
+	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
+		syslog( LOG_ERR, "f_mail dnsr_new: %s",
+			dnsr_err2string( dnsr_errno( simta_dnsr )));
+		return( RECEIVE_SYSERROR );
+	    }
 	}
 
-	/* XXX free result? */
-	if (( result = get_mx( dnsr, domain )) == NULL ) {
-	    switch ( dnsr_errno( dnsr )) {
+	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
+	    switch ( dnsr_errno( simta_dnsr )) {
 	    case DNSR_ERROR_NAME:
 	    case DNSR_ERROR_NO_ANSWER:
 		syslog( LOG_ERR, "f_mail get_mx %s: unknown host", domain );
@@ -344,8 +344,10 @@ f_mail( snet, env, ac, av )
 	    }
 	}
 
-	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
-		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
+	dnsr_free_result( result );
+
+	if (( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )
+		|| ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 	    /* No valid DNS */
 	    syslog( LOG_INFO, "f_mail get_mx %s: can't verify address",
 		    domain );
@@ -404,7 +406,6 @@ f_rcpt( snet, env, ac, av )
 {
     int			high_mx_pref;
     char		*addr, *domain;
-    DNSR		*dnsr;
     struct dnsr_result	*result;
 
     if ( ac != 2 ) {
@@ -488,22 +489,23 @@ f_rcpt( snet, env, ac, av )
 
     if ( strncasecmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
 	/* DNS check for invalid domain */
-	/* XXX - this should be an optional check */
-	if (( dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "f_rcpt dnsr_new: %s",
-		    dnsr_err2string((int)dnsr_errno( dnsr )));
-	    if ( snet_writef( snet,
-		    "%d Requested action aborted: "
-		    "local error in processing.\r\n", 451 ) < 0 ) {
-		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_BADCONNECTION );
+	if ( simta_dnsr == NULL ) {
+	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
+		syslog( LOG_ERR, "f_rcpt dnsr_new: %s",
+			dnsr_err2string((int)dnsr_errno( simta_dnsr )));
+		if ( snet_writef( snet,
+			"%d Requested action aborted: "
+			"local error in processing.\r\n", 451 ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_OK );
 	    }
-	    return( RECEIVE_OK );
 	}
 
-	if (( result = get_mx( dnsr, domain )) == NULL ) {
-	    if ((( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )) ||
-		    ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
+	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
+	    if ((( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )) ||
+		    ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 		syslog( LOG_INFO, "f_rcpt get_mx %s: unknown host", domain );
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			domain ) < 0 ) {
@@ -513,7 +515,6 @@ f_rcpt( snet, env, ac, av )
 		return( RECEIVE_OK );
 
 	    } else {
-		/* XXX better error reporting */
 		syslog( LOG_ERR, "f_rcpt get_mx error" );
 		if ( snet_writef( snet,
 			"%d Requested action aborted: local error "
@@ -525,9 +526,10 @@ f_rcpt( snet, env, ac, av )
 	    }
 	}
 
-	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
-		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
+	if (( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )
+		|| ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 	    /* No valid DNS */
+	    dnsr_free_result( result );
 	    syslog( LOG_INFO, "f_rcpt get_mx %s: can't verify address",
 		    domain );
 	    if ( snet_writef( snet, "%d Can't verify address %s\r\n",
@@ -561,6 +563,7 @@ f_rcpt( snet, env, ac, av )
 	if ( env->e_relay ) {
 	    break;
 	}
+	dnsr_free_result( result );
 	if ( snet_writef( snet, "%d User not local; please try <%s>\r\n",
 		551, addr ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -568,6 +571,8 @@ f_rcpt( snet, env, ac, av )
 	}
 	return( RECEIVE_OK );
     }
+
+    dnsr_free_result( result );
 
     /*
      * For local mail, we now have 5 minutes (rfc1123 5.3.2) to decline
@@ -1153,10 +1158,9 @@ receive( fd, sin )
     int					value;
     char				**av, *line;
     struct timeval			tv;
-    struct dnsr_result			*result;
+    struct dnsr_result			*result = NULL;
     extern int				connections;
     extern int				maxconnections;
-    DNSR				*dnsr;
     struct in_addr      		addr;
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
@@ -1185,30 +1189,32 @@ receive( fd, sin )
     }
 #endif /* HAVE_LIBWRAP */
 
-    if (( dnsr = dnsr_new( )) == NULL ) {
-	syslog( LOG_ERR, "receive dnsr_new: %s",
-		dnsr_err2string( dnsr_errno( dnsr )));
-	goto syserror;
+    if ( simta_dnsr == NULL ) {
+	if (( simta_dnsr = dnsr_new( )) == NULL ) {
+	    syslog( LOG_ERR, "receive dnsr_new: %s",
+		    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	    goto syserror;
+	}
     }
 
     /* Get PTR for connection */
-    if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
+    if ( dnsr_query( simta_dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
 	    inet_ntoa( sin->sin_addr )) < 0 ) {
 	syslog( LOG_ERR, "receive dnsr_query failed" );
 	goto syserror;
     }
-    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "receive dnsr_result failed" );
 	goto syserror;
     }
 
     /* Get A record on PTR result */
-    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+    if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
 	    result->r_answer[ 0 ].rr_dn.dn_name )) < 0 ) {
 	syslog( LOG_ERR, "receive dnsr_query failed" );
 	goto syserror;
     }
-    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "receive dnsr_result failed" );
 	goto syserror;
     }
@@ -1317,6 +1323,10 @@ closeconnection:
 	break;
     }
 
+    if ( result != NULL ) {
+	dnsr_free_result( result );
+    }
+
     if (( env != NULL ) && (( env->e_flags & E_READY ) != 0 )) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    case EXPAND_OK:
@@ -1328,7 +1338,6 @@ closeconnection:
 	    case EXPAND_FATAL:
 		syslog( LOG_ERR, "receive expand_and_deliver error" );
 		env_reset( env );
-		return;
 	}
     }
 }

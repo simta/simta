@@ -18,6 +18,7 @@
 #include <string.h>
 #include <syslog.h>
 
+#include "denser.h"
 #include "ll.h"
 #include "queue.h"
 #include "expand.h"
@@ -48,6 +49,7 @@ char			simta_ename[ MAXPATHLEN + 1 ];
 char			simta_ename_slow[ MAXPATHLEN + 1 ];
 char			simta_dname[ MAXPATHLEN + 1 ];
 char			simta_dname_slow[ MAXPATHLEN + 1 ];
+DNSR			*simta_dnsr = NULL;
 
 
 struct nlist		simta_nlist[] = {

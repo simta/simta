@@ -28,6 +28,7 @@
 
 #include <snet.h>
 
+#include "denser.h"
 #include "ll.h"
 #include "queue.h"
 #include "q_cleanup.h"

@@ -1,5 +1,6 @@
 /**********         nlist.c          ***********/
 #include "config.h"
+#include <sys/param.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -12,8 +13,13 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#include <stdlib.h>
+#include <netdb.h>
+#include <unistd.h>
+
 #include <snet.h>
 
+#include "denser.h"
 #include "simta.h"
 #include "nlist.h"
 

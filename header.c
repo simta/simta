@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
+#include "denser.h"
 #include "queue.h"
 #include "line_file.h"
 #include "envelope.h"

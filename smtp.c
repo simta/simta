@@ -30,11 +30,11 @@
 #include <string.h>
 #include <syslog.h>
 
+#include "denser.h"
 #include "queue.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "smtp.h"
-#include "denser.h"
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
@@ -117,13 +117,12 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 {
     int				i;
     int				s;
-    int				dnsr_result = 0;
+    int				dnsr_count = 0;
     int				smtp_result;
     char			*line;
     char			*remote_host;
     char			*c;
     SNET			*snet;
-    DNSR			*dnsr;
     struct dnsr_result		*result;
     struct sockaddr_in		sin;
     struct timeval		tv;
@@ -131,12 +130,14 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     /* mark it down for now, mark it up if we actually succeed */
     hq->hq_status = HOST_DOWN;
 
-    if (( dnsr = dnsr_new( )) == NULL ) {
-	syslog( LOG_ERR, "smtp_connect %s dnsr_new: %m", hq->hq_hostname );
-	return( SMTP_ERROR );
+    if ( simta_dnsr == NULL ) {
+	if (( simta_dnsr = dnsr_new( )) == NULL ) {
+	    syslog( LOG_ERR, "smtp_connect %s dnsr_new: %m", hq->hq_hostname );
+	    return( SMTP_ERROR );
+	}
     }
 
-    if (( result = get_mx( dnsr, hq->hq_hostname )) == NULL ) {
+    if (( result = get_mx( simta_dnsr, hq->hq_hostname )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect %s get_mx: failed", hq->hq_hostname );
 	return( SMTP_BAD_CONNECTION );
     }
@@ -147,26 +148,28 @@ smtp_connect( SNET **snetp, struct host_q *hq )
             memcpy( &(sin.sin_addr.s_addr),
 		    &(result->r_answer[ i ].rr_ip->ip_ip ),
 		    sizeof( struct in_addr ));
-            dnsr_result++;
+            dnsr_count++;
             break;
 
         case DNSR_TYPE_A:
             memcpy( &(sin.sin_addr.s_addr),
 		    &(result->r_answer[ i ].rr_a ),
 		    sizeof( struct in_addr ));
-            dnsr_result++;
+            dnsr_count++;
             break;
 
         default:
             continue;
         }
 
-        if ( dnsr_result != 0 ) {
+        if ( dnsr_count != 0 ) {
             break;
         }
     }
 
-    if ( dnsr_result == 0 ) {
+    dnsr_free_result( result );
+
+    if ( dnsr_count == 0 ) {
 	syslog( LOG_ERR, "smtp_connect %s get_mx: no valid result",
 		hq->hq_hostname );
 	return( SMTP_ERROR );

@@ -78,32 +78,22 @@ get_mx( DNSR *dnsr, char *host )
     struct dnsr_result	*result = NULL;
     struct dnsr_result	*result_a = NULL;
 
-    if ( simta_debug ) fprintf( stderr, "get_mx: %s\n", host );
-
     /* Check for MX of address */
-    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host ))
-	    != 0 ) {
-	if ( simta_debug ) fprintf( stderr, "get_mx: dnsr_query failed\n" );
+    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host )) != 0 ) {
 	syslog( LOG_ERR, "get_mx dnsr_query %s failed", host );
 	goto error;
     }
 
-    if ( simta_debug ) fprintf( stderr, "mx on %s?", host );
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "get_mx dnsr_result %s failed", host );
 	goto error;
     }
 
-    if ( simta_debug ) fprintf( stderr, "...yes\n" );
-    if ( simta_debug ) fprintf( stderr, "   valid mx record?" );
-
     if ( result->r_ancount > 0 ) {
 	for ( i = 0; i < result->r_ancount; i++ ) {
 	    if ( result->r_answer[ i ].rr_ip != NULL ) {
-		if ( simta_debug ) fprintf( stderr, "...yes\n" );
 		return( result );
 	    } else {
-		if ( simta_debug ) fprintf( stderr, "...no\n" );
 		if (( result_a = get_a( dnsr,
 			result->r_answer[ i ].rr_mx.mx_exchange )) != NULL ) {
 		    free( result );
@@ -112,7 +102,6 @@ get_mx( DNSR *dnsr, char *host )
 	    }
 	}
     } else {
-	if ( simta_debug ) fprintf( stderr, "...no\n" );
 	if ( result != NULL ) {
 	    dnsr_free_result( result );
 	}
