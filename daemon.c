@@ -30,11 +30,15 @@
 #include <snet.h>
 
 #include "receive.h"
+#include "ll.h"
 
 #define _PATH_SPOOL	"/var/spool/simta"
 
 int		debug = 0;
 int		backlog = 5;
+
+char			localhost[ MAXHOSTNAMELEN + 1 ];
+struct stab_entry 	*hosts = NULL;
 
 char		*maildomain = NULL;
 char		*version = VERSION;
@@ -160,6 +164,25 @@ main( ac, av )
     /*
      * Read config file before chdir(), in case config file is relative path.
      */
+
+    if ( gethostname( localhost, MAXHOSTNAMELEN + 1 ) !=0 ) {
+	perror( "gethostname" );
+	exit( 1 );
+    }
+
+    /* Add localhost to hosts list */
+    if ( ll_insert( &hosts, localhost, NULL, NULL ) != 0 ) {
+	perror( "ll_insert" );
+	exit( 1 );
+    }
+
+    if ( ll_lookup( hosts, localhost ) != NULL ) {
+	fprintf( stderr, "Can't find %s\n", localhost );
+	exit( 1 );
+    }
+
+    if ( debug ) printf( "localhost: %s\n", localhost );
+
 
     if ( chdir( spooldir ) < 0 ) {
 	perror( spooldir );
