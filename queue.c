@@ -731,8 +731,6 @@ smtp_cleanup:
 	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_BOUNCE );
 	}
 
-syslog( LOG_DEBUG, "XXX smtp_cleanup 1" );
-
 	if ((( env_deliver->e_tempfail > 0 ) ||
 		( hq->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
@@ -744,13 +742,11 @@ syslog( LOG_DEBUG, "XXX smtp_cleanup 1" );
 		goto oldfile_error;
 	    }
 
-syslog( LOG_DEBUG, "XXX smtp_cleanup 1" );
 	    if ( gettimeofday( &tv, NULL ) != 0 ) {
 		syslog( LOG_ERR, "q_deliver gettimeofday" );
 		goto oldfile_error;
 	    }
 
-syslog( LOG_DEBUG, "XXX smtp_cleanup 1" );
 	    /* consider Dfiles old if they're over 3 days */
 	    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
 oldfile_error:
@@ -900,8 +896,6 @@ message_cleanup:
 	}
 
 	message_free( m );
-
-syslog( LOG_DEBUG, "XXX here" );
 
         if ( snet_dfile == NULL ) {
 	    if ( dfile_fd >= 0 ) {
