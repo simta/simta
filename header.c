@@ -298,7 +298,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 		return( -1 );
 	    }
 
-	    if (( result = header_uncomment( &(h->h_data))) != result ) {
+	    if (( result = header_uncomment( &(h->h_data))) != 0 ) {
 		return( result );
 	    }
 	}
@@ -453,10 +453,13 @@ header_uncomment( char **line )
 
     while ( *r != '\0' ) {
 	if ( *r == '\\' ) {
+	    /* XXX copy the backslash, or just the escaped char? */
+	    /*
 	    if ( comment == 0 ) {
 		*w = *r;
 		w++;
 	    }
+	    */
 
 	    r++;
 
