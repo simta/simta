@@ -171,6 +171,8 @@ env_sender( struct envelope *env, char *e_mail )
 	syslog( LOG_ERR, "env_sender strdup: %m" );
 	return( 1 );
     }
+
+    return( 0 );
 }
 
 
@@ -460,7 +462,6 @@ env_info( struct message *m, char *hostname, size_t len )
     char		fname[ MAXPATHLEN + 1 ];
     struct stat		sb;
     int			ret = 1;
-    int			old_version = 0;
 
     sprintf( fname, "%s/E%s", m->m_dir, m->m_id );
 
@@ -578,8 +579,6 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
     char			filename[ MAXPATHLEN + 1 ];
     int				ret = 1;
 
-    memset( env, 0, sizeof( struct envelope ));
-
     sprintf( filename, "%s/E%s", m->m_dir, m->m_id );
 
     strcpy( env->e_id, m->m_id );
@@ -609,7 +608,6 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	goto cleanup;
     }
 
-    /* XXX Old Version workaround */
     if ( strcmp( line, SIMTA_VERSION_STRING ) == 0 ) {
 	/* Dinode info */
 	if (( line = snet_getline( snet, NULL )) == NULL ) {

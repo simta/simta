@@ -424,6 +424,8 @@ q_run( struct host_q **host_q )
     char                        dfile_fname[ MAXPATHLEN ];
     struct timeval              tv;
 
+    memset( &env_local, 0, sizeof( struct envelope ));
+
     if ( *host_q == NULL ) {
 	return;
     }
@@ -699,6 +701,8 @@ q_deliver( struct host_q *hq )
 
     syslog( LOG_DEBUG, "q_deliver: delivering %s from %d total %d",
 	    hq->hq_hostname, hq->hq_from, hq->hq_entries );
+
+    memset( &env_local, 0, sizeof( struct envelope ));
 
     if ( hq->hq_status == HOST_LOCAL ) {
         /* figure out what our local mailer is */
@@ -1077,7 +1081,7 @@ message_cleanup:
 	if ( m->m_env != NULL ) {
 	    env_free( m->m_env );
 	} else {
-	    env_reset( env_deliver );
+	    env_reset( &env_local );
 	}
 
 	message_free( m );
