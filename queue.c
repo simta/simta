@@ -412,12 +412,10 @@ q_deliver( struct host_q *hq )
     struct envelope		env;
     struct recipient            *r;
     struct stat                 sb;
-    void                        (*logger)(char *) = NULL;
     static int                  (*local_mailer)(int, char *,
                                         struct recipient *) = NULL;
 
 #ifdef DEBUG
-    logger = stdout_logger;
     printf( "q_deliver:\n" );
     q_stdout( hq );
     printf( "\n" );
@@ -701,10 +699,9 @@ cleanup:
 
             } else if ( hq->hq_status != HOST_DOWN ) {
                 /* all retries.  touch envelope */
-                if ( futimes( snet_fd( snet_lock ), NULL ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver futimes: %m" );
+		if ( env_touch( &env ) != 0 ) {
                     return( -1 );
-                }
+		}
             }
 
 	    /* move message to SLOW if it isn't there already */

@@ -15,7 +15,6 @@
 
 #include "simta.h"
 #include "nlist.h"
-#include "err.h"
 
 #define	SPACECHARS	" \t"
 

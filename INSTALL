@@ -4,8 +4,10 @@ simta Installation
 1.  Requirements
 
     To build simta, you will need:
-	-A local mail delivery program (mail.local or procmail)
-	-C compiler
+	- c compiler
+	- local mail delivery program (mail.local or procmail)
+	- libssl
+	- Berekely db
 
 2.  Configuring the source tree
 
