@@ -77,14 +77,14 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
 
     /* send message */
     for ( l = m->m_first_line; l != NULL; l = l->line_next ) {
-	if ( strcmp( SMTP_EOF, l->line_data ) == 0 ) {
+	if ( *l->line_data == '.' ) {
 	    /* don't send EOF */
-	    if ( snet_writef( snet, "..\r\n" ) < 0 ) {
+	    if ( snet_writef( snet, ".%s\r\n", l->line_data ) < 0 ) {
 		return( 1 );
 	    }
 
 #ifdef DEBUG
-	    printf( "--> ..\n" );
+	    printf( "--> .%s\n", l->line_data );
 #endif /* DEBUG */
 
 	} else {

@@ -306,8 +306,6 @@ message_recipient( struct message *m, char *addr )
      * id from directory dir.
      */
 
-    /* XXX this function needs better error reporting */
-
     struct message *
 message_infile( char *dir, char *id )
 {
@@ -335,12 +333,10 @@ message_infile( char *dir, char *id )
 
     /* get from-address */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	/* XXX better errror reporting */
 	return( NULL );
     }
 
     if (( m->m_env->e_mail = strdup( line )) == NULL ) {
-	/* XXX better errror reporting */
 	return( NULL );
     }
 

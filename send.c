@@ -50,8 +50,10 @@ main( int argc, char *argv[] )
 
 #ifdef DEBUG
     logger = stdout_logger;
-    printf( "Send: Message-ID: %s\n\n", TEST_ID );
+    printf( "send: Message-ID: %s\n\n", TEST_ID );
 #endif /* DEBUG */
+
+    /* XXX ERROR CHECKING */
 
     if (( m = message_infile( "tmp", TEST_ID )) == NULL ) {
 	perror( "message_infile" );
