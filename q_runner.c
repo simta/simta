@@ -206,7 +206,6 @@ main( int argc, char *argv[] )
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*hs;
     int				result;
-    char			fname[ MAXPATHLEN ];
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
@@ -245,18 +244,13 @@ main( int argc, char *argv[] )
 		exit( 1 );
 	    }
 
-	    sprintf( fname, "%s/%s", SLOW_DIR, entry->d_name );
-
-	    if (( result = env_infile( env, fname )) < 0 ) {
+	    if (( result = env_infile( env, SLOW_DIR )) < 0 ) {
 		/* syserror */
-		syslog( LOG_ERR, "env_infile %s: %m", fname );
 		exit( 1 );
 
 	    } else if ( result > 1 ) {
 		/* syntax error */
 		env_free( env );
-		/* XXX env_infile should syslog errors */
-		syslog( LOG_WARNING, "env_infile %s: syntax error", fname );
 		continue;
 	    }
 
@@ -335,7 +329,7 @@ deliver_local( struct host_q *hq )
     int				result;
     int				dfile_fd;
     char			*at;
-    char			fname[ MAXPATHLEN ];
+    char			dfile_fname[ MAXPATHLEN ];
     static int			(*local_mailer)(int, char *, char *) = NULL;
     struct stat			sb;
     SNET			*dfile_snet;
@@ -352,17 +346,17 @@ deliver_local( struct host_q *hq )
 
 	/* get message_data */
 	errno = 0;
-	sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+	sprintf( dfile_fname, "%s/D%s", q->q_env->e_dir, q->q_id );
 
-	if (( dfile_fd = open( fname, O_RDONLY, 0 )) < 0 ) {
+	if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
 	    if ( errno == ENOENT ) {
 		errno = 0;
-		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
+		syslog( LOG_WARNING, "Missing Dfile: %s", dfile_fname );
 		q->q_action = Q_REMOVE;
 		continue;
 
 	    } else {
-		syslog( LOG_ERR, "open %s: %m", fname );
+		syslog( LOG_ERR, "open %s: %m", dfile_fname );
 		exit( 1 );
 	    }
 	}
@@ -461,31 +455,20 @@ deliver_local( struct host_q *hq )
 	if ( q->q_env->e_tempfail == 0  ) {
 	    /* no retries, only successes and bounces */
 	    /* delete Efile then Dfile */
-	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
-	    if ( unlink( fname ) != 0 ) {
-		syslog( LOG_ERR, "unlink %s: %m", fname );
+	    if ( env_unlink( q->q_env ) != 0 ) {
 		exit( 1 );
 	    }
 
-	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
-
-	    if ( unlink( fname ) != 0 ) {
-		syslog( LOG_ERR, "unlink %s: %m", fname );
+	    if ( unlink( dfile_fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", dfile_fname );
 		exit( 1 );
 	    }
 
 	    q->q_action = Q_REMOVE;
 
 	} else {
-	    /* some retries.  touch efile */
-	    /* XXX update q->q_etime */
-	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
-
-	    if ( utime( fname, NULL ) != 0 ) {
-		syslog( LOG_ERR, "utime %s: %m", fname );
-		exit( 1 );
-	    }
+	    /* some retries */
 
 	    q->q_action = Q_REORDER;
 
@@ -494,8 +477,13 @@ deliver_local( struct host_q *hq )
 		/* some retries, and some sent.  re-write envelope */
 		env_cleanup( q->q_env );
 
-		if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
-		    syslog( LOG_ERR, "utime %s: %m", fname );
+		if ( env_outfile( q->q_env, q->q_env->e_dir ) != 0 ) {
+		    exit( 1 );
+		}
+
+	    } else {
+		/* all retries.  touch envelope */
+		if ( env_touch( q->q_env ) != 0 ) {
 		    exit( 1 );
 		}
 	    }

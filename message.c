@@ -242,7 +242,6 @@ message_infiles( char *dir, char *id )
 {
     struct message		*m;
     int				result;
-    char			fname[ MAXPATHLEN ];
 
     if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
 	return( NULL );
@@ -253,9 +252,7 @@ message_infiles( char *dir, char *id )
 	return( NULL );
     }
 
-    sprintf( fname, "%s/E%s", dir, id );
-
-    if (( result = env_infile( m->m_env, fname )) < 0 ) {
+    if (( result = env_infile( m->m_env, dir )) < 0 ) {
 	/* syserror */
 	return( NULL );
     } else if ( result > 0 ) {

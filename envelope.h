@@ -27,6 +27,7 @@ struct envelope {
     char		e_hostname[ MAXHOSTNAMELEN ];
     char		e_expanded[ MAXHOSTNAMELEN ];
     char		*e_helo;
+    char		*e_dir;;
     char		*e_mail;
     struct recipient	*e_rcpt;
     char		e_id[ 30 ];
@@ -58,3 +59,5 @@ int		env_unexpanded ___P(( char *, int * ));
 int		env_infile ___P(( struct envelope *, char * ));
 int		env_gettimeofday_id ___P(( struct envelope * ));
 int		env_fstat ___P(( struct envelope *, int ));
+int		env_touch ___P(( struct envelope * ));
+int		env_unlink ___P(( struct envelope * ));

@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <syslog.h>
+#include <utime.h>
 
 #include <snet.h>
 
@@ -200,6 +201,8 @@ env_fstat( struct envelope *e, int fd )
      * Roptional-to-addr@recipient.com
      */
 
+     /* call env_create( id ) before this function */
+
      /* return 0 on success
       * return 1 on syntax error
       * return -1 on sys error
@@ -207,10 +210,15 @@ env_fstat( struct envelope *e, int fd )
       */
 
     int
-env_infile( struct envelope *e, char *filename )
+env_infile( struct envelope *e, char *dir )
 {
     char			*line;
     SNET			*snet;
+    char			filename[ MAXPATHLEN ];
+
+    sprintf( filename, "%s/E%s", dir, e->e_id );
+
+    e->e_dir = dir;
 
     if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_open %s: %m", filename );
@@ -322,6 +330,8 @@ env_outfile( struct envelope *e, char *dir )
     FILE		*tff;
     char		tf[ MAXPATHLEN ];
     char		ef[ MAXPATHLEN ];
+
+    e->e_dir = dir;
 
     sprintf( tf, "%s/t%s", dir, e->e_id );
     sprintf( ef, "%s/E%s", dir, e->e_id );
@@ -468,6 +478,52 @@ env_unexpanded( char *fname, int *unexpanded )
 	*unexpanded = -1;
 	return( -1 );
     }
+
+    return( 0 );
+}
+
+
+    int
+env_unlink( struct envelope *env )
+{
+    char			fname[ MAXPATHLEN ];
+
+    sprintf( fname, "%s/E%s", env->e_dir, env->e_id );
+
+    if ( unlink( fname ) != 0 ) {
+	syslog( LOG_ERR, "unlink %s: %m", fname );
+	return( -1 );
+    }
+
+    env_free( env );
+
+    return( 0 );
+}
+
+
+    int
+env_touch( struct envelope *env )
+{
+    char			fname[ MAXPATHLEN ];
+    struct stat			sb;
+
+    sprintf( fname, "%s/E%s", env->e_dir, env->e_id );
+
+    if ( utime( fname, NULL ) != 0 ) {
+	syslog( LOG_ERR, "utime %s: %m", fname );
+	return( -1 );
+    }
+
+    if ( stat( fname, &sb ) != 0 ) {
+	syslog( LOG_ERR, "stat %s: %m", fname );
+	return( -1 );
+    }
+
+#ifdef sun
+    env->e_etime.tv_sec = sb.st_mtime;
+#else	/* sun */
+    env->e_etime = sb.st_mtimespec;
+#endif	/* sun */
 
     return( 0 );
 }
