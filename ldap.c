@@ -26,13 +26,14 @@
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
+int	ldap_message_stdout ___P(( LDAPMessage *m ));
+
 
 static char			*attrs[] = { "*", NULL };
 struct list			*ldap_searches = NULL;
 struct list			*ldap_people = NULL;
 struct list			*ldap_groups = NULL;
 LDAP				*ld = NULL;
-
 
 
     int
@@ -257,53 +258,34 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
 
 
     int
-ldap_expand( char *orig_addr )
+ldap_expand( char *addr )
 {
+    int			whiteout;
     int			result;
     int			count = 0;
-    int			i;
-    struct timeval	timeout = {60,0};
-    LDAPMessage		*res;
-    LDAPMessage		*message;
-    LDAPMessage		*entry;
-    BerElement		*ber;
-    char		*addr;
-    char		*at;
-    char		*dn;
-    char		*attribute;
-    char		**values;
-    char		*buf = NULL;
     size_t		buf_len = 0;
     size_t		len;
+    size_t		place;
+    char		*at;
     char		*c;
     char		*d;
     char		*insert;
-    size_t		place;
-    char		*domain = "umich.edu";
+    char		*domain;
+    char		*buf = NULL;
+    LDAPMessage		*res;
+    LDAPMessage		*message;
+    LDAPMessage		*entry;
     LDAPURLDesc		*lud;
     struct list		*l;
+    struct timeval	timeout = {60,0};
 
-    /* ready addr */
-    if (( at = strchr( orig_addr, '@' )) == NULL ) {
-	/* XXX syslog error */
-	printf( "ldap_expand( %s ): bad address\n", orig_addr );
+    if (( at = strchr( addr, '@' )) == NULL ) {
+	/* XXX daemon error handling/reporting */
+	printf( "ldap_expand( %s ): bad address\n", addr );
 	return( 0 );
     }
 
-    *at = '\0';
-
-    if (( addr = strdup( orig_addr )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
-
-    *at = '@';
-
-    for ( insert = addr; *insert != '\0'; insert++ ) {
-	if (( *insert == '_' ) || ( *insert == '.' )) {
-	    *insert = ' ';
-	}
-    }
+    domain = at + 1;
 
 #ifdef DEBUG
     printf( "ldap_expand( %s )\n", addr );
@@ -312,26 +294,21 @@ ldap_expand( char *orig_addr )
     if ( ld == NULL ) {
 	/* XXX static hostname for now */
 	if (( ld = ldap_init( "da.dir.itd.umich.edu", 4343 )) == NULL ) {
+	    /* XXX daemon error handling/reporting */
 	    perror( "ldap_init" );
-	    free( addr );
 	    return( -1 );
 	}
     }
 
 #ifdef DEBUG
-    printf( "1\n" );
+    printf( "ldap_init da.dair.itd.umich.edu success\n" );
 #endif /* DEBUG */
 
     for ( l = ldap_searches; l != NULL; l = l->l_next ) {
-
-#ifdef DEBUG
-    printf( "3\n" );
-#endif /* DEBUG */
-
 	/* make sure buf is big enough search url */
 	if (( len = strlen( l->l_string) + 1 ) > buf_len ) {
 	    if (( buf = (char*)realloc( buf, len )) == NULL ) {
-		free( addr );
+		/* XXX daemon error handling/reporting */
 		return( -1 );
 	    }
 
@@ -342,6 +319,7 @@ ldap_expand( char *orig_addr )
 	c = l->l_string;
 
 	while ( *c != '\0' ) {
+
 	    if ( *c != '%' ) {
 		/* raw character, copy to data buffer */
 		*d = *c;
@@ -362,22 +340,13 @@ ldap_expand( char *orig_addr )
 		if (( *( c + 1 ) == 's' ) ||  ( *( c + 1 ) == 'h' )) {
 		    /* we currently support %s -> username, %h -> hostname */
 		    if ( *( c + 1 ) == 's' ) {
-
-			if ( at == NULL ) {
-			    if (( at = strchr( addr, '@' )) == NULL ) {
-				/* XXX syslog error */
-				printf( "ldap_expand( %s ): bad address\n", addr );
-				free( addr );
-				return( 0 );
-			    }
-			}
-
 			*at = '\0';
-
 			insert = addr;
+			whiteout = 1;
 
 		    } else {
 			insert = domain;
+			whiteout = 0;
 		    }
 
 		    /* if needed, resize buf to handle upcoming insert */
@@ -386,7 +355,6 @@ ldap_expand( char *orig_addr )
 
 			if (( buf = (char*)realloc( buf, len )) == NULL ) {
 			    perror( "malloc" );
-			    free( addr );
 			    return( -1 );
 			}
 
@@ -395,8 +363,14 @@ ldap_expand( char *orig_addr )
 		    }
 
 		    /* insert word */
-		    while ( *insert != '\0' ) {
-			*d = *insert;
+		    while (( *insert != '\0' ) && ( insert != at )) {
+			if ((( *insert == '.' ) || ( *insert == '_' ))
+				&& ( whiteout != 0 )) {
+			    *d = ' ';
+			} else {
+			    *d = *insert;
+			}
+
 			insert++;
 			d++;
 		    }
@@ -405,6 +379,7 @@ ldap_expand( char *orig_addr )
 		    c += 2;
 
 		} else {
+		    /* XXX daemon error handling/reporting */
 		    /* XXX unknown/unsupported sequence, copy & warn for now */
 		    fprintf( stderr, "unknown sequence: %c\n", *( c + 1 ));
 		    *d = *c;
@@ -416,29 +391,25 @@ ldap_expand( char *orig_addr )
 	*d = '\0';
 
 	if ( ldap_url_parse( buf, &lud ) != 0 ) {
+	    /* XXX daemon error handling/reporting */
 	    fprintf( stderr, "ldap_url_parse %s:", buf );
 	    perror( NULL );
-	    free( addr );
 	    return( -1 );
 	}
-
 
 #ifdef DEBUG
     printf( "search base %s, filter %s\n", lud->lud_dn, lud->lud_filter );
 #endif /* DEBUG */
 
-#ifdef DEBUG
-    printf( "2\n" );
-#endif /* DEBUG */
-
 	if ( ldap_search_st( ld, lud->lud_dn, lud->lud_scope,
 		lud->lud_filter, attrs, 0, &timeout, &res ) != LDAP_SUCCESS ) {
+	    /* XXX daemon error handling/reporting */
 	    ldap_perror( ld, "ldap_search_st" );
-	    free( addr );
 	    return( -1 );
 	}
 
 	if (( count = ldap_count_entries( ld, res )) < 0 ) {
+	    /* XXX daemon error handling/reporting */
 	    ldap_perror( ld, "ldap_count_entries" );
 	    goto error;
 	}
@@ -453,11 +424,12 @@ ldap_expand( char *orig_addr )
 #endif /* DEBUG */
 
     if ( count == 0 ) {
-	free( addr );
+	/* XXX daemon error handling/reporting */
 	return( 0 );
     }
 
     if (( entry = ldap_first_entry( ld, res )) == NULL ) {
+	/* XXX daemon error handling/reporting */
 	ldap_perror( ld, "ldap_first_entry" );
 	goto error;
     }
@@ -467,11 +439,13 @@ ldap_expand( char *orig_addr )
 #endif /* DEBUG */
 
     if (( message = ldap_first_message( ld, res )) == NULL ) {
+	/* XXX daemon error handling/reporting */
 	ldap_perror( ld, "ldap_first_message" );
 	goto error;
     }
 
     if (( result = ldap_value( entry, "objectClass", ldap_groups )) < 0 ) {
+	/* XXX daemon error handling/reporting */
 	ldap_perror( ld, "ldap_get_values 1" );
 	goto error;
 
@@ -484,6 +458,7 @@ ldap_expand( char *orig_addr )
     } else {
 
 	if (( result = ldap_value( entry, "objectClass", ldap_people )) < 0 ) {
+	    /* XXX daemon error handling/reporting */
 	    ldap_perror( ld, "ldap_get_values 2" );
 	    goto error;
 
@@ -491,7 +466,14 @@ ldap_expand( char *orig_addr )
 
 #ifdef DEBUG
 	    printf( "%s IS A PERSON!\n", addr );
+
+	    if ( ldap_message_stdout( entry ) != 0 ) {
+		/* XXX daemon error handling/reporting */
+		return( -1 );
+	    }
 #endif /* DEBUG */
+
+	    /* YYY ADD mailForwardingAddress here! */
 
 	} else {
 	    /* not a group, or a person */
@@ -500,17 +482,28 @@ ldap_expand( char *orig_addr )
 	    printf( "%s IS NOT A PERSON OR A GROUP!\n", addr );
 #endif /* DEBUG */
 
-	    free( addr );
+	    /* XXX daemon error handling/reporting */
 	    return( -1 );
 	}
+    }
 
+    /* XXX need to do more than just return */
+    ldap_msgfree( res );
+    return( 1 );
+
+error:
+    /* XXX daemon error handling/reporting */
+    ldap_msgfree( res );
+    return( -1 );
+}
+
+
+#ifdef XXX_NOT_DEF
 	/* get individual's email address(es) */
 	if (( values = ldap_get_values( ld, entry, "mailForwardingAddress" ))
 		== NULL ) {
-
-#ifdef DEBUG
+	    /* XXX daemon error handling/reporting */
 	    ldap_perror( ld, "ldap_get_values 2" );
-#endif /* DEBUG */
 
 	    goto error;
 	} else {
@@ -520,71 +513,72 @@ ldap_expand( char *orig_addr )
 #endif /* DEBUG */
 
 	}
+#endif /* XXX_NOT_DEF */
+
+
+    int
+ldap_message_stdout( LDAPMessage *m )
+{
+    LDAPMessage		*entry;
+    LDAPMessage		*message;
+    char		*dn;
+    char		*attribute;
+    BerElement		*ber;
+    char		**values;
+    int			i;
+
+    if (( entry = ldap_first_entry( ld, m )) == NULL ) {
+	ldap_perror( ld, "ldap_first_entry" );
+	return( -1 );
+    }
+
+    if (( message = ldap_first_message( ld, m )) == NULL ) {
+	ldap_perror( ld, "ldap_first_message" );
+	return( -1 );
     }
 
     if (( dn = ldap_get_dn( ld, message )) == NULL ) {
 	ldap_perror( ld, "ldap_get_dn" );
-	goto error;
+	return( -1 );
     }
 
-
-#ifdef DEBUG
     printf( "dn: %s\n", dn );
-#endif /* DEBUG */
 
     /* Print attriubtes and values */
     if (( attribute = ldap_first_attribute( ld, message, &ber )) == NULL ) {
 	ldap_perror( ld, "ldap_first_attribute" );
-	goto error;
+	return( -1 );
     }
 
-#ifdef DEBUG
     printf( "%s:\n", attribute );
-#endif /* DEBUG */
 
     if (( values = ldap_get_values( ld, entry, attribute )) == NULL ) {
 	ldap_perror( ld, "ldap_get_values" );
-	goto error;
+	return( -1 );
     }
 
-#ifdef DEBUG
     for ( i = 0; values[ i ] != NULL; i++ ) {
 	printf( "	%s\n", values[ i ] );
     }
-#endif /* DEBUG */
 
     ldap_value_free( values );
 
     while (( attribute = ldap_next_attribute( ld, message, ber )) != NULL ) {
-
-#ifdef DEBUG
 	printf( "%s:\n", attribute );
-#endif /* DEBUG */
 
 	if (( values = ldap_get_values( ld, entry, attribute )) == NULL ) {
 	    ldap_perror( ld, "ldap_get_values" );
-	    goto error;
+	    return( -1 );
 	}
 
-#ifdef DEBUG
-    for ( i = 0; values[ i ] != NULL; i++ ) {
-	printf( "	%s\n", values[ i ] );
-    }
-#endif /* DEBUG */
+	for ( i = 0; values[ i ] != NULL; i++ ) {
+	    printf( "	%s\n", values[ i ] );
+	}
 
 	ldap_value_free( values );
     }
 
     ber_free( ber, 0 );
 
-    /* Check for ldap_first_attribute error? */
-
-    /* XXX need to do more than just return */
-    free( addr );
-    return( 1 );
-
-error:
-    ldap_msgfree( res );
-    free( addr );
-    return( -1 );
+    return( 0 );
 }
