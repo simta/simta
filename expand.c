@@ -477,7 +477,7 @@ cleanup1:
 	j = i;
 	i = i->st_next;
 	if ( j->st_data != NULL ) {
-	    e_addr = (struct exp_addr*)i->st_data;
+	    e_addr = (struct exp_addr*)j->st_data;
 	    free( e_addr->e_addr );
 	    free( e_addr );
 	}
