@@ -67,6 +67,7 @@ catch_sigint( int sigint )
 main( int argc, char *argv[] )
 {
     SNET		*snet_stdin;
+    char		*addr;
     char		*line;
     char		*wsp;
     struct line_file	*lf;
@@ -191,10 +192,26 @@ main( int argc, char *argv[] )
 
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {
-	if ( env_recipient( env, argv[ x ] ) != 0 ) {
+	if (( addr = strdup( argv[ x ] )) == NULL ) {
+	    perror( "strdup" );
+	    exit( EX_TEMPFAIL );
+	}
+
+	if (( result = is_emailaddr( &addr )) < 0 ) {
+	    perror( "malloc" );
+	    exit( EX_TEMPFAIL );
+
+	} else if ( result == 0 ) {
+	    fprintf( stderr, "Invalid email address: %s\n", addr );
+	    exit( EX_DATAERR );
+	}
+
+	if ( env_recipient( env, addr ) != 0 ) {
 	    perror( "malloc" );
 	    exit( EX_TEMPFAIL );
 	}
+
+	free( addr );
     }
 
     /* create line_file for headers */
