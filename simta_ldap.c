@@ -808,7 +808,7 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	    vals = ldap_get_values( ld, e, "title" );
 	}
 	if (vals && vals[0]) {
-	    if (bounce_text( e_addr->e_addr_errors, rdn, "\t", vals[0] ) != 0) {
+	    if (bounce_text( e_addr->e_addr_errors, rdn, "\t", vals[0] ) == 0) {
 		return;
 	    }
 
@@ -956,8 +956,9 @@ simta_ldap_address_local( char *name, char *domain )
     if ( count == 0 ) {
 	dup_name = strdup (name);
 	if ( simta_address_type(dup_name ) != LDS_USER) {
-	    rc = simta_local_search (noattrs, dup_name, domain, &count);
-	}
+            rc = simta_local_search (noattrs, dup_name, domain, &count);
+        }      
+		
 	free (dup_name);
     }
 
@@ -987,6 +988,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     char	*ndn;		/* a "normalized dn" */
 
     int		rc;
+    char	**vals;
+    char	**rdns;
+    char	*senderbuf;
 
     dn = ldap_get_dn( ld, entry );
    
@@ -994,6 +998,26 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	dn_normalize_case(dn);
 	e_addr->e_addr_dn = strdup (dn);
     }
+    simta_ldapuser (exp->exp_env->e_mail, &sender_name, &sender_domain);
+
+    dn = ldap_get_dn (ld, entry );
+
+    vals = ldap_get_values (ld, entry, "associateddomain");
+    rdns = ldap_explode_dn (dn, 1);
+
+    senderbuf = (char *) malloc (strlen(rdns[0]) + strlen (vals[0]) + 12);
+    if (! senderbuf ) {
+	syslog (LOG_ERR,
+                "simta_ldap_expand_group: Failed allocating senderbuf: %s", dn);
+                    ldap_memfree (dn);
+                    ldap_value_free( vals );
+                    ldap_value_free( rdns );
+                    return (LDAP_SYSERROR);
+    }
+    sprintf (senderbuf, "%s-errorsto@%s", rdns[0], vals[0]);
+    ldap_memfree (dn);
+    ldap_value_free( vals);
+    ldap_value_free(rdns);
  
     switch ( type ) 
     {
@@ -1002,6 +1026,11 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	dnvals = ldap_get_values( ld, entry, "errorsto");
 	mailvals = ldap_get_values( ld, entry, "rfc822errorsto");
 	errmsg = ": Group exists but has no errors-to address\n";
+
+	if (dnvals == NULL &&  mailvals == NULL) {
+	    dnvals = ldap_get_values( ld, entry, "owner");
+	}
+	    
 	break;
 
     case LDS_GROUP_REQUEST:
@@ -1009,6 +1038,10 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	dnvals = ldap_get_values( ld, entry, "requeststo");
 	mailvals = ldap_get_values( ld, entry, "rfc822requeststo");
 	errmsg = ": Group exists but has no requests-to address\n";
+
+	if (dnvals == NULL &&  mailvals == NULL) {
+	    dnvals = ldap_get_values( ld, entry, "owner");
+	}
 	break;
 
     case LDS_GROUP_OWNER:
@@ -1031,7 +1064,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	*/
 	moderator = ldap_get_values( ld, entry, "moderator");
 	if (moderator) {
-	    simta_ldapuser (exp->exp_env->e_mail, &sender_name, &sender_domain);
 
 	    for (idx = 0; moderator[idx]; idx++) {
 		simta_ldapuser (moderator[idx], &mod_name, &mod_domain);
@@ -1109,6 +1141,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		ldap_value_free(mailvals );
 	    }
 	    ldap_memfree (dn);
+	    free (senderbuf);
 	    return (rc);
 	}
 
@@ -1121,24 +1154,29 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	for ( idx = 0; dnvals[ idx ] != NULL; idx++ ) {
 	    ndn = dn_normalize_case (dnvals[ idx ]); 
 	    if ( *(e_addr->e_addr_from) == '\0' ) {
-		if ( add_address( exp, ndn,
-			    e_addr->e_addr_errors, ADDRESS_TYPE_LDAP,
-			    e_addr->e_addr_from ) != 0 ) {
+		if ( add_address( exp, ndn, e_addr->e_addr_errors, 
+			ADDRESS_TYPE_LDAP, e_addr->e_addr_from ) != 0 ) {
 		    syslog (LOG_ERR,
-			    "simta_ldap_expand_group: %s failed adding: %s", dn,
-			    mailvals[ idx ]);
+			"simta_ldap_expand_group: %s failed adding: %s", dn,
+			mailvals[ idx ]);
 		    break;
 		}
 	    } else {
-		if ( add_address( exp, ndn,
-			    e_addr->e_addr_errors, ADDRESS_TYPE_LDAP,
-			    XXX_ERRORS_TO_ADDRESS ) != 0 ) {
+		if (type == LDS_GROUP_MEMBERS ) {
+		    rc =  add_address( exp, ndn, e_addr->e_addr_errors, 
+				ADDRESS_TYPE_LDAP, senderbuf );
+		} else {
+		    rc =  add_address( exp, ndn, e_addr->e_addr_errors,    
+                                ADDRESS_TYPE_LDAP, e_addr->e_addr_from );       
+                }
+		if (rc != 0 ) {
 		    syslog (LOG_ERR,
-			    "simta_ldap_expand_group: %s failed adding: %s", dn,
-			    mailvals[ idx ]);
+			"simta_ldap_expand_group: %s failed adding: %s", dn,
+			dnvals[ idx ]);
 		    break;
 		}
 	    }
+
 	}
 	ldap_value_free( dnvals);
     }
@@ -1150,11 +1188,17 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    attrval = mailvals[ idx ];
 
 	    if (strchr (attrval, '@') ) {		
-		if ( add_address( exp, attrval,
-			e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL) != 0 ) {
-		    syslog (LOG_ERR, 
-			    "simta_ldap_expand_group: %s failed adding: %s", dn,
-				attrval);
+		if (type == LDS_GROUP_MEMBERS ) {
+		    rc =  add_address( exp, attrval, e_addr->e_addr_errors, 
+				ADDRESS_TYPE_EMAIL, senderbuf );
+		} else {
+		    rc =  add_address( exp, attrval, e_addr->e_addr_errors,    
+                                ADDRESS_TYPE_EMAIL, e_addr->e_addr_from );     
+                }
+		if (rc != 0 ) {
+		    syslog (LOG_ERR,
+			"simta_ldap_expand_group: %s failed adding: %s", dn,
+			attrval);
 		    break;
 		}
 	    }
@@ -1164,6 +1208,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     if ((valfound == 0) && (errmsg != NULL)) {
 	bounce_text( e_addr->e_addr_errors, dn, errmsg, NULL);
     }	
+    free (senderbuf);
     ldap_memfree (dn);
     return LDAP_EXCLUDE;
 }
@@ -1223,8 +1268,8 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	    for ( idx = 0; values[ idx ] != NULL; idx++ ) {
 		attrval = values[ idx ];
 		if ( add_address( exp, attrval,
-			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
-			  e_addr->e_addr_from) != 0 ) {
+			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ,
+				e_addr->e_addr_from) != 0 ) {
 		    syslog (LOG_ERR, 
     "simta_ldap_process_entry: failed adding mailforwardingaddress: %s", addr);
 		    ldap_value_free( values );
@@ -1248,7 +1293,7 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 		    snprintf( buf, sizeof (buf), "%s@%s", uid[0], vacationhost);
 		    if ( add_address( exp, buf,
 			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
-			  e_addr->e_addr_from) != 0 ) {
+			  e_addr->e_addr_from ) != 0 ) {
 			syslog (LOG_ERR, 
 	"simta_ldap_process_entry: failed adding vacation address: %s", buf);
 		    }
@@ -1593,9 +1638,9 @@ simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     ** and search again
     */
     nametype = simta_address_type(name );
-    if ( nametype != LDS_USER) 
+    if ( nametype != LDS_USER) {
 	rc = simta_ldap_name_search (exp, e_addr, name, domain, nametype);
-
+    }
     free (name);
     return (rc);
 }
