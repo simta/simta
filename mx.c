@@ -95,7 +95,7 @@ get_mx( DNSR *dnsr, char *host )
                 break;
             }
         }
-        if ( i > result->r_ancount ) {
+        if ( i >= result->r_ancount ) {
 	    if ( simta_debug ) fprintf( stderr, "...no\n" );
 
 	    /* No valid MX - Check for A of address */
