@@ -36,7 +36,7 @@
 char		*maillocal_argv[] = { "mail.local", "-f", 0, "--", 0, 0 };
 char		*maillocal_bin = SIMTA_MAIL_LOCAL;
 
-char		*procmail_argv[] = { "procmail", "-f", 0, "-d", 0, 0 };
+char		*procmail_argv[] = { "procmail", "-f", 0, "-d", 0, "-Y", 0 };
 char		*procmail_bin = SIMTA_PROCMAIL;
 
     int

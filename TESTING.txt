@@ -36,8 +36,9 @@ Virus 0, 1, 2, 3
 
 How are mail and mailForwardingAddress handled when there are multiple addresses imbedded?  How about users with no @?
 
-Return path is properly set in the text of a message on local delivery.
+Does .forward work?
 
+Return path is properly set in the text of a message on local delivery.
 
 Here are the contents of the files I was using to test simta with:
 
