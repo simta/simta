@@ -1,0 +1,23 @@
+# Process this file with autoconf to produce a configure script.
+
+AC_INIT(simta, VERSION, simta@umich.edu)
+AC_PREREQ(2.52)
+AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
+AC_CONFIG_AUX_DIR([config])
+
+# Local Stuff
+AC_PREFIX_DEFAULT(/usr/local)
+
+# Checks for programs.
+AC_PROG_CC
+AC_PROG_INSTALL
+
+CHECK_SSL
+
+AC_CHECK_LIB([nsl], [inet_ntoa])
+AC_CHECK_LIB([socket], [socket])
+
+AC_CONFIG_SUBDIRS(libsnet)
+
+AC_CONFIG_FILES([ Makefile ])
+AC_OUTPUT

@@ -34,7 +34,7 @@ INCPATH=	-Ilibsnet -I/usr/local/openssl/include
 DEFS=	-DLOG_SIMTA=${SIMTALOG} -DTLS -DSOLARIS
 CFLAGS=	${DEFS} ${OPTOPTS} ${INCPATH}
 TAGSFILE=	tags
-LIBPATH=	-Llibsnet -L/usr/local/openssl/lib
+LIBPATH=	-Llibsnet/.libs -L/usr/local/openssl/lib
 LIBS=	${ADDLIBS} -lsnet -lssl -lcrypto
 
 TARGETS=	simta tlsconnect
@@ -73,6 +73,12 @@ clean :
 	cd libsnet; ${MAKE} ${MFLAGS} clean
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
 	rm -f ${TARGETS}
+
+realclean : clean
+	rm -rf autom4te.cache
+	rm -f config.status config.log
+	rm -f Makefile
+	cd libsnet; ${MAKE} ${MFLAGS} distclean
 
 tags : ${SRC}
 	cwd=`pwd`; \
