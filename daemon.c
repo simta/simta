@@ -558,7 +558,6 @@ main( int ac, char **av )
 	FD_SET( s, &fdset );
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 )) {
-syslog( LOG_DEBUG, "select" );
 	    if ( select( s + 1, &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
 		if ( errno != EINTR ) {
 		    syslog( LOG_ERR, "select: %m" );
@@ -579,7 +578,6 @@ syslog( LOG_DEBUG, "select" );
 
 	/* check to see if any children need to be accounted for */
 	while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-syslog( LOG_DEBUG, "child signal %d", pid );
 	    child_signal--;
 	    cleaned++;
 	    p_search = &proc_stab;
@@ -656,7 +654,6 @@ syslog( LOG_DEBUG, "child signal %d", pid );
 
 	if (( tv_now.tv_sec > tv_launch.tv_sec ) ||
 		( tv_now.tv_sec == tv_launch.tv_sec )) {
-syslog( LOG_DEBUG, "q_runner_slow launch" );
 	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
 	    tv_sleep.tv_sec = launch_seconds;
 
@@ -668,7 +665,6 @@ syslog( LOG_DEBUG, "q_runner_slow launch" );
 	}
 
 	if ( simsendmail_signal != 0 ) {
-syslog( LOG_DEBUG, "simsendmail signal" );
 	    simsendmail_signal = 0;
 	    if ( q_runner_local < q_runner_local_max ) {
 		simta_child( CHILD_Q_LOCAL, s );
@@ -678,7 +674,6 @@ syslog( LOG_DEBUG, "simsendmail signal" );
 
 	/* check to see if we have any incoming connections */
 	if ( FD_ISSET( s, &fdset )) {
-syslog( LOG_DEBUG, "incoming connection" );
 	    simta_child( CHILD_RECEIVE, s );
 	}
     }

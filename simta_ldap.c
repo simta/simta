@@ -521,7 +521,6 @@ simta_ldap_string( char *filter, char *user, char *domain )
     char		*c;
     char		*d;
     char		*insert;
-    int			whiteout;
     size_t		place;
 
     /* make sure buf is big enough search url */
@@ -538,71 +537,79 @@ simta_ldap_string( char *filter, char *user, char *domain )
     c = filter;
 
     while ( *c != '\0' ) {
+	switch ( *c ) {
+	case '%':
+	    switch ( * ( c + 1 )) {
+		case 's':
+		    /* if needed, resize buf to handle upcoming insert */
+		    if (( len += strlen( user )) > buf_len ) {
+			place = d - buf;
+			if (( buf = (char*)realloc( buf, len )) == NULL ) {
+			    syslog( LOG_ERR, "realloc: %m" );
+			    return( NULL );
+			}
+			d = buf + place;
+			buf_len = len;
+		    }
 
-	if ( *c != '%' ) {
+		    /* insert word */
+		    for ( insert = user; *insert != '\0', insert++ ) {
+			if (( *insert == '.' ) || ( *insert == '_' )) {
+			    *d = ' ';
+			} else {
+			    *d = *insert;
+			}
+			d++;
+		    }
+
+		    /* advance read cursor */
+		    c += 2;
+		    break;
+
+		case 'h':
+		    /* if needed, resize buf to handle upcoming insert */
+		    if (( len += strlen( domain )) > buf_len ) {
+			place = d - buf;
+			if (( buf = (char*)realloc( buf, len )) == NULL ) {
+			    syslog( LOG_ERR, "realloc: %m" );
+			    return( NULL );
+			}
+			d = buf + place;
+			buf_len = len;
+		    }
+
+		    /* insert word */
+		    for ( insert = domain; *insert != '\0', insert++ ) {
+			*d = *insert;
+			d++;
+		    }
+
+		    /* advance read cursor */
+		    c += 2;
+		    break;
+
+		case '%':
+		    /* %% -> copy single % to data buffer */
+		    *d = *c;
+		    /* advance cursors */
+		    c += 2;
+		    d++;
+		    break;
+
+		default:
+		    c++;
+		    break;
+	    }
+	    break;
+
+	default:
 	    /* raw character, copy to data buffer */
 	    *d = *c;
 
 	    /* advance cursors */
 	    d++;
 	    c++;
-
-	} else if ( *( c + 1 ) == '%' ) {
-	    /* %% -> copy single % to data buffer */
-	    *d = *c;
-
-	    /* advance cursors */
-	    c += 2;
-	    d++;
-
-	} else {
-	    if (( *( c + 1 ) == 's' ) ||  ( *( c + 1 ) == 'h' )) {
-		/* we currently support %s -> username, %h -> hostname */
-		if ( *( c + 1 ) == 's' ) {
-		    insert = user;
-		    whiteout = 1;
-
-		} else {
-		    insert = domain;
-		    whiteout = 0;
-		}
-
-		/* if needed, resize buf to handle upcoming insert */
-		if (( len += strlen( insert )) > buf_len ) {
-		    place = d - buf;
-
-		    if (( buf = (char*)realloc( buf, len )) == NULL ) {
-			syslog( LOG_ERR, "realloc: %m" );
-			return( NULL );
-		    }
-
-		    d = buf + place;
-		    buf_len = len;
-		}
-
-		/* insert word */
-		while ( *insert != '\0' ) {
-		    if ((( *insert == '.' ) || ( *insert == '_' ))
-			    && ( whiteout != 0 )) {
-			*d = ' ';
-		    } else {
-			*d = *insert;
-		    }
-
-		    insert++;
-		    d++;
-		}
-
-		/* advance read cursor */
-		c += 2;
-
-	    } else {
-		/* XXX unknown/unsupported sequence, copy & warn for now */
-		syslog( LOG_WARNING, "unknown ldap print sequence: %c\n",
-			*( c + 1 ));
-		*d = *c;
-		c++;
-	    }
+	    break;
 	}
     }
 
