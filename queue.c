@@ -389,15 +389,6 @@ q_run( struct host_q **host_q )
 	deliver_q = NULL;
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
-	    syslog( LOG_DEBUG, "q_run deliver queue here" );
-	    if ( hq->hq_hostname != NULL ) {
-		syslog( LOG_DEBUG, "q_run adding %s to deliver queue",
-			hq->hq_hostname );
-	    } else {
-		syslog( LOG_DEBUG, "q_run adding %s to deliver queue",
-			"NULL" );
-	    }
-
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
 		hq->hq_deliver = NULL;
 
@@ -428,7 +419,7 @@ q_run( struct host_q **host_q )
 			}
 		    }
 
-		    dq = &((*dq)->hq_next);
+		    dq = &((*dq)->hq_deliver);
 		}
 
 		hq->hq_deliver = *dq;
