@@ -69,7 +69,7 @@ dist : clean
 clean :
 	cd libsnet; ${MAKE} ${MFLAGS} clean
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
-	rm -f simta
+	rm -f ${TARGETS}
 
 tags : ${SRC}
 	cwd=`pwd`; \
