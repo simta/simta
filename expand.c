@@ -199,11 +199,11 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		/* the address is a terminal local address */
 		break;
 
-	    default:
-		syslog( LOG_ERR,
-			"expand.address_expand: out of bounds return" );
 	    case ADDRESS_SYSERROR:
 		goto cleanup1;
+
+	    default:
+		abort();
 	    }
 	}
     }
@@ -225,22 +225,23 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    continue;
 	}
 
-	if ( e_addr->e_addr_type == ADDRESS_TYPE_EMAIL ) {
+	switch ( e_addr->e_addr_type ) {
+	case ADDRESS_TYPE_EMAIL:
 	    if (( domain = strchr( i->st_key, '@' )) == NULL ) {
 		syslog( LOG_ERR, "expand.strchr: unreachable code" );
 		goto cleanup2;
 	    }
 	    domain++;
 	    env = (struct envelope*)ll_lookup( host_stab, domain );
+	    break;
 
-	} else if ( e_addr->e_addr_type == ADDRESS_TYPE_DEAD ) {
+	case ADDRESS_TYPE_DEAD:
 	    domain = NULL;
 	    env = env_dead;
+	    break;
 
-	} else {
-	    /* not a terminal expansion, do not add */
-	    syslog( LOG_WARNING, "expand unknown address type output" );
-	    continue;
+	default:
+	    abort();
 	}
 
 	if ( env == NULL ) {
