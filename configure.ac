@@ -6,7 +6,6 @@ AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
 AC_CONFIG_AUX_DIR([libsnet])
 
 # Setup local variables
-
 AC_ARG_WITH(resolvconf, AC_HELP_STRING([--with-resolv=RESOLV], [default resolv.conf]), resolvconf="$withval", resolvconf="/etc/resolv.conf" )
 AC_SUBST(resolvconf)
 
@@ -35,6 +34,7 @@ AC_STRUCT_TM
 AC_STRUCT_GMTOFF
 
 CHECK_SSL
+CHECK_DB
 
 AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])

@@ -158,3 +158,30 @@ AC_DEFUN([PROG_MAIL_LOCAL],
 	AC_MSG_RESULT(disabled);
     fi
 ])
+
+AC_DEFUN([CHECK_DB],
+[
+    AC_MSG_CHECKING(for db)
+    dbdirs="/usr/local/db /usr/db \
+            /usr/pkg /usr/local /usr /usr/local/BerkeleyDB"
+    AC_ARG_WITH(db,
+            AC_HELP_STRING([--with-db=DIR], [path to db]),
+            dbdirs="$withval")
+    for dir in $dbdirs; do
+        dbdir="$dir"
+        if test -f "$dir/lib/libdb.a"; then
+            found_db="yes";
+            CFLAGS="$CFLAGS -I$dbdir/include";
+            break;
+        fi
+    done
+    if test x_$found_db != x_yes; then
+        AC_MSG_ERROR(cannot find db )
+    else
+        LIBS="$LIBS -ldb";
+        LDFLAGS="$LDFLAGS -L$dbdir/lib";
+        HAVE_DB=yes
+    fi
+    AC_SUBST(HAVE_DB)
+    AC_MSG_RESULT(yes)
+])
