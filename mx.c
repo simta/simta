@@ -6,6 +6,7 @@
 
 #include <netinet/in.h>
 
+#include <inttypes.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>

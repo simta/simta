@@ -11,6 +11,7 @@
 #include <sys/param.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <string.h>

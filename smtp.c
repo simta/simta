@@ -20,6 +20,7 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
+#include <inttypes.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <strings.h>

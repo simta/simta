@@ -44,6 +44,7 @@ AC_STRUCT_GMTOFF
 CHECK_DB
 
 AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])
+AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
 AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
 
