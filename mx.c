@@ -25,7 +25,6 @@ extern SSL_CTX  *ctx;
 #include "mx.h"
 #include "simta.h"
 
-extern int	debug;
 
     int
 get_mx( DNSR *dnsr, char *host )

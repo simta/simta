@@ -37,14 +37,13 @@
 #include "address.h"
 #include "simta.h"
 
-int			debug = 0;
 
     int
 main( int argc, char *argv[] )
 {
     char			*dir;
 
-    debug = 1;
+    simta_debug = 1;
 
     if ( argc != 2 ) {
 	fprintf( stderr, "Usage: %s ( LOCAL | SLOW )\n", argv[ 0 ]);

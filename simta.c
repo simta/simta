@@ -21,8 +21,12 @@
 #include "queue.h"
 #include "simta.h"
 
-char	*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
-struct stab_entry	*simta_hosts;
+/* global variables */
+struct host_q		*simta_null_q = NULL;
+struct stab_entry	*simta_hosts = NULL;
+char			*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
+int			simta_debug = 0;
+int			simta_verbose = 0;
 
     char*
 simta_gethostname( void )

@@ -35,7 +35,6 @@ expansion_stab_stdout( void *string )
     printf( "%s\n", (char *)string );
 }
 
-extern int debug;
 
 /*
  * Return values:
@@ -149,7 +148,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
     /* Check to see if we have seen addr already */
     if ( ll_lookup( *seen, address ) != NULL ) {
 	/* Already expanded */
-	if ( debug ) printf( "address_expand: %s: already expanded\n",
+	if ( simta_debug ) printf( "address_expand: %s: already expanded\n",
 	    address );
 	return( 0 );
     } else {
@@ -344,7 +343,6 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 		    }
 		}
 	    }
-
         }
     }
 

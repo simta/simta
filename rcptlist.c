@@ -5,7 +5,6 @@
 #include "rcptlist.h"
 
 
-
     struct rcptlist *
 r_alloc( rcpt )
     char 	*rcpt;

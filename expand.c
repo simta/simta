@@ -44,10 +44,6 @@
 #include "address.h"
 #include "simta.h"
 
-#define	SIMTA_EXPANSION_FAILED		0
-#define	SIMTA_EXPANSION_SUCCESS		1
-
-extern int	debug;
 
     /* return 0 on success
      * return -1 on syserror
@@ -87,17 +83,17 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     /* expand unexpanded_env->e_rcpt addresses */
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
 	/* expand r->rcpt */
-	if ( address_expand( r->r_rcpt, &expansion, &seen ) < 0 ) {
+	if ( address_expand( r->r_rcpt, &expansion, &seen ) <= 0 ) {
 	    /* if expansion for recipient r fails, we mark it and
 	     * note that we've failed at least one expansion.
 	     */ 
 	    failed_expansions++;
 	    r->r_delivered = SIMTA_EXPANSION_FAILED;
-	    if ( debug ) printf( "expanding %s failed\n", r->r_rcpt );
+	    if ( simta_debug ) printf( "expanding %s failed\n", r->r_rcpt );
         } else {
 	    expansions++;
 	    r->r_delivered = SIMTA_EXPANSION_SUCCESS;
-	    if ( debug != 0 ) {
+	    if ( simta_debug != 0 ) {
 		if ( expansion == NULL ) {
 		    printf( "expanding %s succeded ERROR!\n", r->r_rcpt );
 		} else {
@@ -131,7 +127,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
 	domain++;
 
-	if ( debug ) printf( "%s in host_stab?...", domain );
+	if ( simta_debug ) printf( "%s in host_stab?...", domain );
 	if (( env_p = ll_lookup( host_stab, domain )) == NULL ) {
 	    /* Create envelope and add it to list */
 	    if (( env_p = env_create( NULL )) == NULL ) {
@@ -169,9 +165,9 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		syslog( LOG_ERR, "epxand: ll_lookup: %m\n" );
 		return( -1 );
 	    }
-	    if ( debug ) printf( "no - added to host_stab\n" );
+	    if ( simta_debug ) printf( "no - added to host_stab\n" );
 	} else {
-	    if ( debug ) printf( "yes\n" );
+	    if ( simta_debug ) printf( "yes\n" );
 	}
 
 	if (( r = (struct recipient *)malloc( sizeof( struct recipient )))
@@ -186,7 +182,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	r->r_next = env_p->e_rcpt;
 	env_p->e_rcpt = r;
 
-	if ( debug ) {
+	if ( simta_debug ) {
 	    printf( "  added %s\n", r->r_rcpt );
 	}
     }
@@ -223,7 +219,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
-    if ( debug ) printf( "envelopes written\n" );
+    if ( simta_debug ) printf( "envelopes written\n" );
 
     if ( failed_expansions == 0 ) {
 	/* all rcpts expanded */

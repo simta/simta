@@ -47,8 +47,6 @@
 #include "simta.h"
 #include "bounce.h"
 
-extern struct host_q		*simta_null_q;
-
 
     int
 bounce( struct envelope *env, SNET *message )
@@ -134,6 +132,7 @@ bounce( struct envelope *env, SNET *message )
 
     /* XXX From: address */
     fprintf( dfile, "From: mailer-daemon@%s\n", localhost );
+    fprintf( dfile, "To: %s\n", env->e_mail );
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", env->e_id );
     fprintf( dfile, "\n" );

@@ -241,6 +241,12 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
+	if ( line_append( hq->hq_err_text, "Bad SMTP connection banner" )
+		== NULL ) {
+	    syslog( LOG_ERR, "smtp_connect: line_append %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
 	if ( line_append( hq->hq_err_text, line ) == NULL ) {
 	    syslog( LOG_ERR, "smtp_connect: line_append %m" );
 	    return( SMTP_ERR_SYSCALL );
@@ -493,6 +499,11 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
+	if ( line_append( hq->hq_err_text, "Bad SMTP helo reply" ) == NULL ) {
+	    syslog( LOG_ERR, "smtp_connect: line_append %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
 	if ( line_append( hq->hq_err_text, line ) == NULL ) {
 	    syslog( LOG_ERR, "smtp_connect: line_append %m" );
 	    return( SMTP_ERR_SYSCALL );
@@ -665,6 +676,12 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
+	if ( line_append( env->e_err_text, "Bad SMTP MAIL FROM reply" )
+		== NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_append %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
 	if ( line_append( env->e_err_text, line ) == NULL ) {
 	    syslog( LOG_ERR, "smtp_send: line_append %m" );
 	    return( SMTP_ERR_SYSCALL );
@@ -791,6 +808,11 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 		return( SMTP_ERR_SYSCALL );
 	    }
 
+	    if ( line_append( r->r_text, "Bad SMTP RCPT TO reply" ) == NULL ) {
+		syslog( LOG_ERR, "smtp_send: line_append: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
 	    if ( line_append( r->r_text, line ) == NULL ) {
 		syslog( LOG_ERR, "smtp_send: line_append: %m" );
 		return( SMTP_ERR_SYSCALL );
@@ -913,6 +935,11 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	/* capture error message */
 	if (( env->e_err_text = line_file_create()) == NULL ) {
 	    syslog( LOG_ERR, "smtp_send: line_file_create %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	if ( line_append( env->e_err_text, "Bad SMTP DATA reply" ) == NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_append %m" );
 	    return( SMTP_ERR_SYSCALL );
 	}
 
@@ -1093,6 +1120,12 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_SYSCALL );
 	}
 
+	if ( line_append( env->e_err_text, "Bad SMTP DATA_EOF reply" )
+		== NULL ) {
+	    syslog( LOG_ERR, "smtp_send: line_append %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
 	if ( line_append( env->e_err_text, line ) == NULL ) {
 	    syslog( LOG_ERR, "smtp_send: line_append %m" );
 	    return( SMTP_ERR_SYSCALL );
@@ -1213,6 +1246,11 @@ smtp_rset( SNET *snet, struct host_q *hq )
 	/* capture error message */
 	if (( hq->hq_err_text = line_file_create()) == NULL ) {
 	    syslog( LOG_ERR, "smtp_connect: line_file_create %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	if ( line_append( hq->hq_err_text, "Bad SMTP RSET reply" ) == NULL ) {
+	    syslog( LOG_ERR, "smtp_connect: line_append %m" );
 	    return( SMTP_ERR_SYSCALL );
 	}
 

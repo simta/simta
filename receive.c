@@ -43,8 +43,7 @@ extern SSL_CTX	*ctx;
 #include "mx.h"
 #include "simta.h"
 
-extern char	*version;
-extern int	debug;
+extern char		*version;
 struct stab_entry	*expansion = NULL;
 struct stab_entry	*seen = NULL;
 

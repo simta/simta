@@ -47,8 +47,6 @@
 #include "simta.h"
 #include "bounce.h"
 
-/* GLOBAL VARS */
-struct host_q		*simta_null_q = NULL;
 
 int	q_deliver ___P(( struct host_q * ));
 int	deliver_local ___P(( struct envelope *, int ));

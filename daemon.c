@@ -52,7 +52,6 @@ int		q_runner_local = 0;
 int		q_runner_slow = 0;
 
 int		simsendmail_signal = 0;
-int		debug = 0;
 int		backlog = 5;
 int		connections = 0;
 int		maxconnections = SIMTA_MAXCONNECTIONS;	/* 0 = no limit */
@@ -193,8 +192,8 @@ main( ac, av )
 	    dontrun++;
 	    break;
 
-	case 'd' :		/* debug */
-	    debug++;
+	case 'd' :		/* simta_debug */
+	    simta_debug++;
 	    break;
 
 	case 'M' :
@@ -381,7 +380,7 @@ main( ac, av )
     /*
      * Disassociate from controlling tty.
      */
-    if ( !debug ) {
+    if ( !simta_debug ) {
 	int		i, dt;
 	switch ( fork()) {
 	case 0 :
