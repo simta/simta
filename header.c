@@ -31,7 +31,7 @@
 #define	MAILBOX_SENDER		3
 #define	MAILBOX_TO_CORRECT	4
 #define	MAILBOX_RECIPIENTS_CORRECT	5
-#define	MAILBOX_GROUP_CORRECT	5
+#define	MAILBOX_GROUP_CORRECT	6
 
 
 struct line_token {
@@ -48,9 +48,10 @@ int	is_dot_atom_text ___P(( int ));
 int	line_token_da ___P(( struct line_token *, struct line *, char * ));
 int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
 int	line_token_dl ___P(( struct line_token *, struct line *, char * ));
-int	parse_addr ___P(( struct line **, char **, int ));
-int	parse_mailbox_list ___P(( struct line *, char *, int ));
-int	parse_recipients ___P(( struct line *, char * ));
+int	parse_addr ___P(( struct envelope *, struct line **, char **, int ));
+int	parse_mailbox_list ___P(( struct envelope *, struct line *, char *,
+	int ));
+int	parse_recipients ___P(( struct envelope *, struct line *, char * ));
 int	match_addr ___P(( struct line_token *, struct line_token *, char * ));
 
 
@@ -440,7 +441,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     /* From: */
     if (( l = simta_headers[ HEAD_FROM ].h_line ) != NULL ) {
-	if (( result = parse_mailbox_list( l, l->line_data + 5,
+	if (( result = parse_mailbox_list( env, l, l->line_data + 5,
 		MAILBOX_FROM_CORRECT )) != 0 ) {
 	    return( result );
 	}
@@ -471,7 +472,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     /* Sender: */
     if (( l = simta_headers[ HEAD_SENDER ].h_line ) != NULL ) {
-	if (( result = parse_mailbox_list( l, l->line_data + 7,
+	if (( result = parse_mailbox_list( env, l, l->line_data + 7,
 		MAILBOX_SENDER )) != 0 ) {
 	    return( result );
 	}
@@ -562,19 +563,19 @@ header_correct( struct line_file *lf, struct envelope *env )
     }
 
     if (( l = simta_headers[ HEAD_TO ].h_line ) != NULL ) {
-	if (( result = parse_recipients( l, l->line_data + 3 )) != 0 ) {
+	if (( result = parse_recipients( env, l, l->line_data + 3 )) != 0 ) {
 	    return( result );
 	}
     }
 
     if ( simta_headers[ HEAD_CC ].h_line != NULL ) {
-	if (( result = parse_recipients( l, l->line_data + 3 )) != 0 ) {
+	if (( result = parse_recipients( env, l, l->line_data + 3 )) != 0 ) {
 	    return( result );
 	}
     }
 
     if (( l = simta_headers[ HEAD_BCC ].h_line ) != NULL ) {
-	if (( result = parse_recipients( l, l->line_data + 4 )) != 0 ) {
+	if (( result = parse_recipients( env, l, l->line_data + 4 )) != 0 ) {
 	    return( result );
 	}
 
@@ -662,7 +663,8 @@ header_correct( struct line_file *lf, struct envelope *env )
 
 
     int
-parse_addr( struct line **start_line, char **start, int mode )
+parse_addr( struct envelope *env, struct line **start_line, char **start,
+	int mode )
 {
     char				*next_c;
     char				*r;
@@ -877,7 +879,7 @@ parse_addr( struct line **start_line, char **start, int mode )
 
 
     int
-parse_mailbox_list( struct line *l, char *c, int mode )
+parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 {
     char				*next_c;
     struct line				*next_l;
@@ -1006,7 +1008,7 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 	 * AA_LEFT: email_addr [ ( , ) -> START ] )
 	 */
 
-	if (( result = parse_addr( &l, &c, mode )) != 0 ) {
+	if (( result = parse_addr( env, &l, &c, mode )) != 0 ) {
 	    return( result );
 	}
 
@@ -1095,7 +1097,7 @@ parse_mailbox_list( struct line *l, char *c, int mode )
      */
 
     int
-parse_recipients( struct line *start_l, char *start_c )
+parse_recipients( struct envelope *env, struct line *start_l, char *start_c )
 {
     char				*c;
     char				*next_c;
@@ -1126,7 +1128,7 @@ parse_recipients( struct line *start_l, char *start_c )
 	return( 1 );
 
     } else if ( *c == '<' ) {
-	return( parse_mailbox_list( start_l, start_c,
+	return( parse_mailbox_list( env, start_l, start_c,
 		MAILBOX_RECIPIENTS_CORRECT ));
     }
 
@@ -1160,19 +1162,19 @@ parse_recipients( struct line *start_l, char *start_c )
     if (( next_c == NULL ) || ( *next_c == ',' ) ||
 	    ( *next_c == '@' )) {
 	/* first word was a single email addr */
-	return( parse_mailbox_list( start_l, start_c,
+	return( parse_mailbox_list( env, start_l, start_c,
 		MAILBOX_RECIPIENTS_CORRECT ));
     }
 
     while ( next_c != NULL ) {
 	if ( *next_c == ':' ) {
 	    /* group name */
-	    return( parse_mailbox_list( next_l, next_c + 1,
+	    return( parse_mailbox_list( env, next_l, next_c + 1,
 		    MAILBOX_GROUP_CORRECT ));
 
 	} else if ( *next_c == '<' ) {
 	    /* no group name, email address */
-	    return( parse_mailbox_list( next_l, next_c,
+	    return( parse_mailbox_list( env, next_l, next_c,
 		    MAILBOX_RECIPIENTS_CORRECT ));
 	}
 
