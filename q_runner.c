@@ -336,7 +336,7 @@ main( int argc, char *argv[] )
 	} else if ( hq->hq_status == HOST_REMOTE ) {
 	    deliver_remote( hq );
 
-	} else if ( hq->hq_status == HOST_BOUNCE ) {
+	} else if ( hq->hq_status == HOST_MAIL_LOOP ) {
 	    /* XXX deliver_bounce( hq ); */
 
 	} else {
@@ -617,7 +617,7 @@ deliver_remote( struct host_q *hq )
 		syslog( LOG_ALERT, "Hostname %s is not a remote host",
 			hq->hq_name );
 
-		hq->hq_status = HOST_BOUNCE;
+		hq->hq_status = HOST_MAIL_LOOP;
 		/* XXX deliver_bounce( hq ); */
 		return;
 	    }

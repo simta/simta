@@ -24,7 +24,7 @@
 #define HOST_NULL	0
 #define HOST_LOCAL	1
 #define HOST_REMOTE	2
-#define HOST_BOUNCE	3
+#define HOST_MAIL_LOOP	3
 
 struct q_file {
     char			*q_id;
