@@ -59,8 +59,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*expansion = NULL;
     struct stab_entry		*seen = NULL;
-    struct stab_entry		*failed = NULL;
     struct stab_entry		*i = NULL;
+    struct expn			*expn;
     struct recipient		*r;
     struct recipient		*remove;
     struct recipient		**r_sort;
@@ -83,7 +83,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     /* expand unexpanded_env->e_rcpt addresses */
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
 	/* expand r->rcpt */
-	if ( address_expand( r->r_rcpt, &expansion, &seen ) <= 0 ) {
+	if ( address_expand( r->r_rcpt, r, &expansion, &seen ) <= 0 ) {
 	    /* if expansion for recipient r fails, we mark it and
 	     * note that we've failed at least one expansion.
 	     */ 
@@ -104,14 +104,11 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     }
 
     for ( i = expansion; i != NULL; i = i->st_next ) {
-	ret = address_expand( i->st_key, &expansion, &seen );
-	if ( ret < 0 ) {
-	    if ( ll_insert( &failed, i->st_key, i->st_key, NULL ) != 0 ) {
-		syslog( LOG_ERR, "expand: ll_insert: %m\n" );
-		return( -1 );
-	    }
-	    i->st_data = NULL;
-	} else if ( ret > 0 ) {
+	expn = (struct expn*)i->st_data;
+	ret = address_expand( i->st_key,
+	    expn->e_rcpt_parent, &expansion, &seen );
+	if ( ret != 0 ) {
+	    free( i->st_data );
 	    i->st_data = NULL;
 	}
     }

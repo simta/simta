@@ -26,6 +26,7 @@
 #define SIMTA_ALIAS_DB		"/etc/alias.db"
 #define SIMTA_MAX_RUNNERS_SLOW	3
 #define SIMTA_MAX_RUNNERS_LOCAL	3
+#define SIMTA_MAX_LINE_LEN	1024
 
 
 /* global variables */
