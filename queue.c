@@ -93,6 +93,10 @@ message_slow( struct message *m )
 	}
     }
 
+    if ( strcmp( simta_dir_fast, m->m_dir ) == 0 ) {
+	simta_fast_files--;
+    }
+
     return( 0 );
 }
 
@@ -733,15 +737,9 @@ cleanup:
 		return( -1 );
 	    }
 
-	    if ( unlink( efile_fname ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver unlink %s: %m", efile_fname );
+	    if ( env_unlink( &env ) != 0 ) {
 		return( -1 );
 	    }
-
-            if ( unlink( dfile_fname ) != 0 ) {
-                syslog( LOG_ERR, "q_deliver unlink %s: %m", dfile_fname );
-                return( -1 );
-            }
 
         } else {
             /* some retries; place in retry list */

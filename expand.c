@@ -308,6 +308,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    return( -1 );
 	}
 
+	simta_fast_files++;
+
 	/* create message to put in host queue */
 	if (( m = message_create( env_p->e_id )) == NULL ) {
 	    return( -1 );
@@ -355,14 +357,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
-    /* unlink original unexpanded Efile */
-    if ( unlink( e_original ) != 0 ) {
-	syslog( LOG_ERR, "unlink %s: %m", e_original );
-    }
-
-    /* unlink original unexpanded Dfile */
-    if ( unlink( d_original ) != 0 ) {
-	syslog( LOG_ERR, "unlink %s: %m", d_original );
+    if ( env_unlink( unexpanded_env ) != 0 ) {
+	return( -1 );
     }
 
     /* XXX free host_stab */

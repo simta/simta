@@ -726,6 +726,8 @@ f_data( snet, env, ac, av )
 	goto cleanup;
     }
 
+    simta_fast_files++;
+
     /*
      * We could perhaps check that snet_writef() gets a good return.
      * However, if we've already fully instanciated the message in the
