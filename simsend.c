@@ -76,6 +76,7 @@ main( int argc, char *argv[] )
     struct line		*l;
     struct envelope	*env;
     int			usage = 0;
+    int			line_no = 0;
     int			c;
     int			ignore_dot = 0;
     int			x;
@@ -171,7 +172,7 @@ main( int argc, char *argv[] )
     }
 
     if ( env_gettimeofday_id( env ) != 0 ) {
-	perror( "env_gettimeofday_id" );
+	perror( "gettimeofday" );
 	exit( EX_TEMPFAIL );
     }
 
@@ -179,16 +180,16 @@ main( int argc, char *argv[] )
 
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {
-	/* XXX syntax checking? */
+	/* XXX check argv[ x ] for correct email address syntax? */
 	if ( env_recipient( env, argv[ x ] ) != 0 ) {
-	    perror( "env_recipient" );
+	    perror( "malloc" );
 	    exit( EX_TEMPFAIL );
 	}
     }
 
     /* create line_file for headers */
     if (( lf = line_file_create()) == NULL ) {
-	perror( "line_file_create" );
+	perror( "malloc" );
 	exit( EX_TEMPFAIL );
     }
 
@@ -215,8 +216,10 @@ main( int argc, char *argv[] )
     }
 
     while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
+	line_no++;
+
 	if ( strlen( line ) > 998 ) {
-	    fprintf( stderr, "line too long\n" );
+	    fprintf( stderr, "%s: line %d too long\n", argv[ 0 ], line_no );
 
 	    if ( header == 0 ) {
 		goto cleanup;
@@ -245,6 +248,12 @@ main( int argc, char *argv[] )
 		    }
 		}
 
+		/* make sure we have a recipient */
+		if ( env->e_rcpt == NULL ) {
+		    fprintf( stderr, "%s: no recipients\n", argv[ 0 ]);
+		    exit( EX_DATAERR );
+		}
+
 		/* open Dfile */
 		sprintf( dfile_fname, "%s/D%s", FAST_DIR, env->e_id );
 
@@ -253,7 +262,7 @@ main( int argc, char *argv[] )
 			< 0 ) {
 		    fprintf( stderr, "open %s: ", dfile_fname );
 		    perror( NULL );
-		    return( -1 );
+		    exit( EX_TEMPFAIL );
 		}
 
 		if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
@@ -290,7 +299,7 @@ main( int argc, char *argv[] )
 		for ( wsp = line; *wsp != '\0'; wsp++ ) {
 		    if (( *wsp != ' ' ) && ( *wsp != '\t' )) {
 			if (( l = line_append( lf, line )) == NULL ) {
-			    perror( "line_append" );
+			    perror( "malloc" );
 			    exit( EX_TEMPFAIL );
 			}
 
@@ -336,7 +345,7 @@ main( int argc, char *argv[] )
 		< 0 ) {
 	    fprintf( stderr, "open %s: ", dfile_fname );
 	    perror( NULL );
-	    return( -1 );
+	    exit( EX_TEMPFAIL );
 	}
 
 	if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
@@ -379,5 +388,5 @@ cleanup:
 	unlink( dfile_fname );
     }
 
-    return( -1 );
+    exit( EX_TEMPFAIL );
 }

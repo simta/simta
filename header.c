@@ -21,17 +21,17 @@
 #include "receive.h"
 #include "simta.h"
 
-#define	TOKEN_UNDEFINED		0
-#define	TOKEN_QUOTED_STRING	1
-#define	TOKEN_DOT_ATOM		2
-#define	TOKEN_DOMAIN_LITERAL	3
+#define	TOKEN_UNDEFINED			0
+#define	TOKEN_QUOTED_STRING		1
+#define	TOKEN_DOT_ATOM			2
+#define	TOKEN_DOMAIN_LITERAL		3
 
-#define	MAILBOX_FROM_VERIFY	1
-#define	MAILBOX_FROM_CORRECT	2
-#define	MAILBOX_SENDER		3
-#define	MAILBOX_TO_CORRECT	4
+#define	MAILBOX_FROM_VERIFY		1
+#define	MAILBOX_FROM_CORRECT		2
+#define	MAILBOX_SENDER			3
+#define	MAILBOX_TO_CORRECT		4
 #define	MAILBOX_RECIPIENTS_CORRECT	5
-#define	MAILBOX_GROUP_CORRECT	6
+#define	MAILBOX_GROUP_CORRECT		6
 
 
 struct line_token {
@@ -42,7 +42,8 @@ struct line_token {
     struct line		*t_end_line;
 };
 
-
+void	header_stdout ___P(( struct header[] ));
+void	header_exceptions ___P(( struct line_file * ));
 int	skip_cfws ___P(( struct line **, char ** ));
 int	is_dot_atom_text ___P(( int ));
 int	line_token_da ___P(( struct line_token *, struct line *, char * ));
@@ -225,7 +226,7 @@ header_stdout( struct header h[])
      * die -1 if there was a serious error.
      */
 
-    int
+    void
 header_exceptions( struct line_file *lf )
 {
     char		*c;
@@ -233,7 +234,7 @@ header_exceptions( struct line_file *lf )
 
     if ( lf->l_first == NULL ) {
 	/* empty message */
-	return( 0 );
+	return;
     }
 
     /* mail(1) on Solaris gives non-rfc compliant first header line */
@@ -250,8 +251,6 @@ header_exceptions( struct line_file *lf )
 	    *end = '\0';
 	}
     }
-
-    return( 0 );
 }
 
 
@@ -393,10 +392,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     }
 
     /* check headers for known mail clients behaving badly */
-    if (( result = header_exceptions( lf )) != 0 ) {
-	fprintf( stderr, "header_exceptions error\n" );
-	return( result );
-    }
+    header_exceptions( lf );
 
     /* put header information in to data structures for later processing */
     for ( l = lf->l_first; l != NULL ; l = l->line_next ) {
@@ -599,6 +595,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	*lp = l;
+
+	/* XXX free bcc lines */
     }
 
 #ifdef DEBUG
@@ -607,12 +605,6 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     if ( prepend_line != NULL ) {
 	free( prepend_line );
-    }
-
-    /* make sure we have a recipient */
-    if ( env->e_rcpt == NULL ) {
-	fprintf( stderr, "No recipients\n" );
-	return( 1 );
     }
 
     return( 0 );
@@ -678,7 +670,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	int mode )
 {
     char				*addr;
-    int					addr_len;
+    size_t				addr_len;
     char				*next_c;
     char				*r;
     char				*w;
@@ -885,10 +877,10 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 		simta_generate_sender = 1;
 	    }
 	}
-
     }
 
     if ( env != NULL ) {
+	/* XXX only handle DA addresses */
 	if (( local.t_type != TOKEN_DOT_ATOM ) &&
 		( domain.t_type != TOKEN_DOT_ATOM )) {
 	    fprintf( stderr, "unsupported text in email address\n" );
@@ -904,7 +896,6 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	}
 
 	w = addr;
-	r = local.t_start;
 
 	for ( r = local.t_start; r != local.t_end + 1; r++ ) {
 	    *w = *r;
@@ -1152,17 +1143,12 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
      */
 
     int
-parse_recipients( struct envelope *env, struct line *start_l, char *start_c )
+parse_recipients( struct envelope *env, struct line *l, char *c )
 {
-    char				*c;
     char				*next_c;
-    struct line				*l;
     struct line				*next_l;
     struct line_token			local;
     int					result;
-
-    c = start_c;
-    l = start_l;
 
     /* is there data on the line? */
     if (( result = skip_cfws( &l, &c )) != 0 ) {
@@ -1183,8 +1169,7 @@ parse_recipients( struct envelope *env, struct line *start_l, char *start_c )
 	return( 1 );
 
     } else if ( *c == '<' ) {
-	return( parse_mailbox_list( env, start_l, start_c,
-		MAILBOX_RECIPIENTS_CORRECT ));
+	return( parse_mailbox_list( env, l, c, MAILBOX_RECIPIENTS_CORRECT ));
     }
 
     /* at least one word on the line */
@@ -1217,18 +1202,18 @@ parse_recipients( struct envelope *env, struct line *start_l, char *start_c )
     if (( next_c == NULL ) || ( *next_c == ',' ) ||
 	    ( *next_c == '@' )) {
 	/* first word was a single email addr */
-	return( parse_mailbox_list( env, start_l, start_c,
+	return( parse_mailbox_list( env, local.t_start_line, local.t_start,
 		MAILBOX_RECIPIENTS_CORRECT ));
     }
 
     while ( next_c != NULL ) {
 	if ( *next_c == ':' ) {
-	    /* group name */
+	    /* previous tokens were group name, next are addresses */
 	    return( parse_mailbox_list( env, next_l, next_c + 1,
 		    MAILBOX_GROUP_CORRECT ));
 
 	} else if ( *next_c == '<' ) {
-	    /* no group name, email address */
+	    /* previous tokens were display name for this address */
 	    return( parse_mailbox_list( env, next_l, next_c,
 		    MAILBOX_RECIPIENTS_CORRECT ));
 	}
