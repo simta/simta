@@ -250,13 +250,11 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     int                         dfile_fd;
     FILE                        *dfile;
     struct recipient            *r;
-    struct message		*m;
     struct line                 *l;
     int                         line_no = 0;
     char                        *line;
     time_t                      clock;
     struct tm                   *tm;
-    struct timeval		tv;
     struct stat			sbuf;
     char                        daytime[ 35 ];
 
@@ -342,8 +340,8 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
 
-    if ( env->e_flags & ENV_UNEXPANDED ) {
-        fprintf( dfile, "There was a local error in processing the "
+    if ( *(env->e_expanded) == '\0' ) {
+        fprintf( dfile, "There was a local error in expanding the "
 		" recipients of your message\n" );
     }
 
@@ -409,29 +407,12 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
         goto cleanup3;
     }
 
-    /* if it's not going to the DEAD queue, add it to our work list */
-    if ( bounce_env->e_dir != simta_dir_dead ) {
-	if (( m = message_create( bounce_env->e_id )) == NULL ) {
-	    goto cleanup3;
-	}
-	m->m_dir = bounce_env->e_dir;
-	m->m_etime.tv_sec = tv.tv_sec;
-	m->m_env = bounce_env;
-	if ( env_outfile( bounce_env ) != 0 ) {
-	    goto cleanup4;
-	}
-	bounce_env->e_message = m;
-
-    } else {
-	if ( env_outfile( bounce_env ) != 0 ) {
-	    goto cleanup3;
-	}
+    if ( env_outfile( bounce_env ) != 0 ) {
+	goto cleanup3;
     }
 
     return( bounce_env );
 
-cleanup4:
-    message_free( m );
 cleanup3:
     if ( unlink( dfile_fname ) != 0 ) {
 	syslog( LOG_ERR, "bounce %s unlink %s: %m", env->e_id, dfile_fname );

@@ -37,22 +37,9 @@ struct host_q {
     int				hq_status;
     int				hq_entries;
     int				hq_from;
-    struct message		*hq_message_first;
-    struct message		*hq_message_last;
+    struct envelope		*hq_env_first;
+    struct envelope		*hq_env_last;
     struct line_file		*hq_err_text;
-};
-
-struct message {
-    struct message		*m_next;
-    struct host_q		*m_hq;
-    char			*m_id;
-    char			*m_dir;
-    struct timespec		m_etime;
-    struct envelope		*m_env;
-    int				m_efile;
-    int				m_expanded;
-    int				m_from;
-    ino_t			m_dfile;
 };
 
 int	q_runner ___P(( struct host_q ** ));
@@ -64,12 +51,11 @@ struct	message	*message_create ___P(( char * ));
 void	message_free ___P(( struct message * ));
 int	message_slow ___P(( struct message * ));
 void	message_remove ___P(( struct message * ));
-void	message_queue ___P(( struct host_q *, struct message * ));
+void	queue_remove_envelope ___P(( struct envelope * ));
+int	queue_envelope( struct host_q **, struct envelope *);
 
 /* debugging functions */
 void	q_stab_syslog ___P(( struct host_q * ));
 void	q_stab_stdout ___P(( struct host_q * ));
 void	q_syslog ___P(( struct host_q * ));
 void	q_stdout ___P(( struct host_q * ));
-void	message_syslog ___P(( struct message * ));
-void	message_stdout ___P(( struct message * ));

@@ -110,8 +110,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     struct exp_addr		*e_addr;
     char			*domain;
     SNET			*snet = NULL;
-    struct message		*m;
-    struct host_q		*hq;
     struct stab_entry		*host_stab = NULL;
     int				return_value = 1;
     int				fast_file_start;
@@ -284,33 +282,11 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	env = i->st_data;
 
 	if ( simta_expand_debug == 0 ) {
-	    if ( env->e_dir != simta_dir_dead ) {
-		/* create message to put in host queue */
-		if (( m = message_create( env->e_id )) == NULL ) {
-		    /* message_create syslogs errors */
-		    goto cleanup3;
-		}
-
-		/* create all messages we are expanding in the FAST queue */
-		m->m_dir = env->e_dir;
-
-		/* find / create the expanded host queue */
-		if (( hq = host_q_lookup( hq_stab, env->e_expanded ))
-			== NULL ) {
-		    /* host_q_lookup syslogs errors */
-		    message_free( m );
-		    goto cleanup3;
-		}
-	    } else {
-		m = NULL;
-	    }
-
 	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
 	    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
 
 	    if ( link( d_original, d_out ) != 0 ) {
 		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_out );
-		message_free( m );
 		goto cleanup3;
 	    }
 
@@ -322,17 +298,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		if ( unlink( d_out ) != 0 ) {
 		    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
 		}
-		message_free( m );
 		goto cleanup3;
 	    }
 
-	    if ( m != NULL ) {
-		m->m_etime.tv_sec = env->e_etime.tv_sec;
-		m->m_env = env;
-		env->e_message = m;
-		m->m_from = env_from( env );
-		message_queue( hq, m );
-	    }
+	    queue_envelope( hq_stab, env );
 
 	} else {
 	    env_stdout( env );
@@ -348,23 +317,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	if ( simta_expand_debug == 0 ) {
 	    if ( env->e_err_text != NULL ) {
 		env_p = &(env->e_next);
-
-		/* create message to put in host queue */
-		if (( m = message_create( env->e_id )) == NULL ) {
-		    /* message_create syslogs errors */
-		    goto cleanup4;
-		}
-
-		/* create all messages we are expanding in the FAST queue */
-		m->m_dir = simta_dir_fast;
-
-		/* find / create the null host queue */
-		if (( hq = host_q_lookup( hq_stab, NULL ))
-			== NULL ) {
-		    /* host_q_lookup syslogs errors */
-		    message_free( m );
-		    goto cleanup4;
-		}
 
 		if ( env == base_error_env ) {
 		    /* send the message back to the original sender */
@@ -385,7 +337,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 			}
 		    }
 
-		    message_free( m );
 		    goto cleanup4;
 		}
 
@@ -414,18 +365,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		    if ( unlink( d_out ) != 0 ) {
 			syslog( LOG_ERR, "expand unlink %s: %m", d_out );
 		    }
-		    message_free( m );
 		    goto cleanup4;
 		}
 
-		/* env has corrected etime after disk access */
-		m->m_etime.tv_sec = env->e_etime.tv_sec;
-		m->m_env = env;
-		env->e_message = m;
-
-		/* queue message "m" in host queue "hq" */
-		m->m_from = env_from( env );
-		message_queue( hq, m );
+		queue_envelope( hq_stab, env );
 
 	    } else {
 		*env_p = env->e_next;
@@ -463,15 +406,16 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     goto cleanup2;
 
 cleanup4:
-    env_p = &(exp.exp_errors);
-    while (( env = *env_p ) != NULL ) {
-	if ( env->e_message != NULL ) {
-	    message_remove( env->e_message );
-	    message_free( env->e_message );
+    while ( exp.exp_errors != NULL ) {
+	env = exp.exp_errors;
+	exp.exp_errors = exp.exp_errors->e_next;
+
+	/* unlink if written to disk */
+	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
+	    queue_remove_envelope( env );
 	    env_unlink( env );
 	}
 
-	*env_p = env->e_next;
 	env_free( env );
     }
 
@@ -479,9 +423,8 @@ cleanup3:
     for ( i = host_stab; i != NULL; i = i->st_next ) {
 	env = i->st_data;
 
-	if ( env->e_message != NULL ) {
-	    message_remove( env->e_message );
-	    message_free( env->e_message );
+	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
+	    queue_remove_envelope( env );
 	    env_unlink( env );
 	}
 

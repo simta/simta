@@ -9,6 +9,8 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
+#define ENV_ID_LENGTH		30
+
 #define	R_TEMPFAIL	0
 #define	R_DELIVERED	1
 #define	R_FAILED	2
@@ -22,13 +24,14 @@ struct recipient {
 
 struct envelope {
     struct envelope	*e_next;
-    struct message	*e_message;
+    struct envelope	*e_hq_next;
+    struct host_q	*e_hq;
     char		e_expanded[ MAXHOSTNAMELEN + 1 ];
     char		*e_dir;
     char		*e_mail;
     struct recipient	*e_rcpt;
     struct line_file	*e_err_text;
-    char		e_id[ 30 ];
+    char		e_id[ ENV_ID_LENGTH + 1 ];
     int			e_flags;
     int			e_success;
     int			e_failed;
@@ -37,13 +40,12 @@ struct envelope {
     struct timespec	e_etime;
 };
 
-#define E_TLS			(1<<1)
-#define E_READY			(1<<2)
-#define ENV_BOUNCE		(1<<3)
-#define ENV_ATTEMPT		(1<<4)
-#define ENV_OLD			(1<<5)
-#define ENV_UNEXPANDED		(1<<6)
-#define ENV_DELIVERED		(1<<7)
+#define ENV_ON_DISK		(1<<1)
+#define ENV_OLD			(1<<2)
+#define ENV_EFILE		(1<<3)
+#define ENV_DFILE		(1<<4)
+#define E_TLS			(1<<5)
+#define ENV_BOUNCE		(1<<6)
 
 /* NOT USED */
 void		env_stdout ___P(( struct envelope * ));
@@ -59,13 +61,13 @@ struct envelope	*env_dup ___P(( struct envelope * ));
 void		env_reset ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
 int		env_gettimeofday_id ___P(( struct envelope * ));
+int		env_set_id ___P(( struct envelope *, char * ));
 int		env_recipient ___P(( struct envelope *, char * ));
 int		env_sender ___P(( struct envelope *, char * ));
 int		env_outfile ___P(( struct envelope * ));
 int		env_touch ___P(( struct envelope * ));
-int		env_info ___P(( struct message *, char *, size_t ));
 int		env_slow ___P(( struct envelope * ));
 int		env_from ___P(( struct envelope * ));
 int		env_unlink ___P(( struct envelope * ));
-int		env_read ___P(( struct message *, struct envelope *,
-			SNET ** ));
+int		env_read_hostname ___P(( struct envelope * ));
+int		env_read_recipients ___P(( struct envelope *, SNET ** ));

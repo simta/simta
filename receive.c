@@ -173,7 +173,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      * EHLO is redundant, but not harmful other than in the performance cost
      * of executing unnecessary commands.
      */
-    if (( env->e_flags & E_READY ) == 0 ) {
+    if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
 	    syslog( LOG_INFO, "f_ehlo %s: abandoned", env->e_id );
 	}
@@ -281,7 +281,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
-    if (( env->e_flags & E_READY ) != 0 ) {
+    if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    default:
 	    case EXPAND_SYSERROR:
@@ -331,7 +331,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     /* Must already have "MAIL FROM:", and no valid message */
-    if (( env->e_mail == NULL ) || (( env->e_flags & E_READY ) != 0 )) {
+    if (( env->e_mail == NULL ) || (( env->e_flags & ENV_ON_DISK ) != 0 )) {
 	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -505,7 +505,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
      * Also note that having already accepted a message is bad.
      * A previous reset is also not a good thing.
      */
-    if (( env->e_mail == NULL ) || (( env->e_flags & E_READY ) != 0 )) {
+    if (( env->e_mail == NULL ) || (( env->e_flags & ENV_ON_DISK ) != 0 )) {
 	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -709,9 +709,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 	return( RECEIVE_SYSERROR );
     }
-
-    /* mark message as ready to roll */
-    env->e_flags = env->e_flags | E_READY;
     syslog( LOG_INFO, "f_data %s: accepted", env->e_id );
 
     /*
@@ -785,7 +782,7 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    if (( env->e_flags & E_READY ) == 0 ) {
+    if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
 	    syslog( LOG_INFO, "f_rset %s: abandoned", env->e_id );
 	}
@@ -926,7 +923,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	    buf, sizeof( buf )));
     X509_free( peer );
 
-    if (( env->e_flags & E_READY ) == 0 ) {
+    if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
 	    syslog( LOG_INFO, "starttls %s: abandoned", env->e_id );
 	}
@@ -1145,7 +1142,7 @@ closeconnection:
     }
 
     if ( env != NULL ) {
-	if (( env->e_flags & E_READY ) != 0 ) {
+	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    expand_and_deliver( &hq_receive, env );
 	}
 

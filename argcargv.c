@@ -109,7 +109,6 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 	}
     }
 
-done:
     acav->acv_argv[ ac ] = NULL; 
     *argv = acav->acv_argv;
     return( ac );

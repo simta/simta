@@ -42,8 +42,8 @@
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
+#include "queue.h"
 #include "ml.h"
 #include "line_file.h"
 #include "smtp.h"
@@ -52,79 +52,14 @@
 #include "bounce.h"
 
 
-void	q_deliver ___P(( struct host_q * ));
+void	q_deliver ( struct host_q **, struct host_q * );
 int	deliver_local ___P(( struct envelope *, int ));
 
-
-    int
-message_slow( struct message *m )
-{
-    /* move message to SLOW if it isn't there already */
-    if ( strcmp( m->m_dir, simta_dir_slow ) != 0 ) {
-	sprintf( simta_ename, "%s/E%s", m->m_dir, m->m_id );
-	sprintf( simta_dname, "%s/D%s", m->m_dir, m->m_id );
-	sprintf( simta_ename_slow, "%s/E%s", simta_dir_slow, m->m_id );
-	sprintf( simta_dname_slow, "%s/D%s", simta_dir_slow, m->m_id );
-
-	if ( link( simta_ename, simta_ename_slow ) != 0 ) {
-	    syslog( LOG_ERR, "message_slow link %s %s: %m", simta_ename,
-		    simta_ename_slow );
-	    return( -1 );
-	}
-
-	if ( link( simta_dname, simta_dname_slow ) != 0 ) {
-	    syslog( LOG_ERR, "message_slow link %s %s: %m", simta_dname,
-		    simta_dname_slow );
-	    return( -1 );
-	}
-
-	if ( unlink( simta_ename ) != 0 ) {
-	    syslog( LOG_ERR, "message_slow unlink %s: %m", simta_ename );
-	    return( -1 );
-	}
-
-	if ( strcmp( simta_dir_fast, m->m_dir ) == 0 ) {
-	    simta_fast_files--;
-	}
-
-	if ( unlink( simta_dname ) != 0 ) {
-	    syslog( LOG_ERR, "message_slow unlink %s: %m", simta_dname );
-	    return( -1 );
-	}
-    }
-
-    syslog( LOG_INFO, "message_slow %s: moved", m->m_id );
-
-    return( 0 );
-}
-
-
-    void
-message_syslog( struct message *m )
-{
-    int				env = 0;
-
-    if ( m->m_env != NULL ) {
-	env++;
-    }
-
-    if ( m->m_hq != NULL ) {
-	if ( m->m_hq->hq_hostname != NULL ) {
-	    syslog( LOG_DEBUG, "message %s: %d host %s", m->m_id, env,
-		    m->m_hq->hq_hostname );
-	} else {
-	    syslog( LOG_DEBUG, "message %s: %d host %s", m->m_id, env,
-		    "NULL" );
-	}
-    } else {
-	syslog( LOG_DEBUG, "message %s: %d no host", m->m_id, env );
-    }
-}
 
     void
 q_syslog( struct host_q *hq )
 {
-    struct message		*m;
+    struct envelope		*env;
 
     if ( hq == simta_null_q ) {
 	syslog( LOG_DEBUG, "queue_syslog NULL queue" );
@@ -132,8 +67,8 @@ q_syslog( struct host_q *hq )
 	syslog( LOG_DEBUG, "queue_syslog %s", hq->hq_hostname );
     }
 
-    for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
-	message_syslog( m );
+    for ( env = hq->hq_env_first; env != NULL; env = env->e_hq_next ) {
+	env_syslog(  env );
     }
 }
 
@@ -150,25 +85,19 @@ q_stab_syslog( struct host_q *hq )
 
 
     void
-message_stdout( struct message *m )
-{
-    while ( m != NULL ) {
-	printf( "\t%s\n", m->m_id );
-	m = m->m_next;
-    }
-}
-
-
-    void
 q_stdout( struct host_q *hq )
 {
+    struct envelope		*env;
+
     if (( hq->hq_hostname == NULL ) || ( *hq->hq_hostname == '\0' )) {
 	printf( "%d\tNULL:\n", hq->hq_entries );
     } else {
 	printf( "%d\t%s:\n", hq->hq_entries, hq->hq_hostname );
     }
 
-    message_stdout( hq->hq_message_first );
+    for ( env = hq->hq_env_first; env != NULL; env = env->e_hq_next ) {
+	env_syslog( env );
+    }
 }
 
 
@@ -180,83 +109,6 @@ q_stab_stdout( struct host_q *hq )
     }
 
     printf( "\n" );
-}
-
-
-    struct message *
-message_create( char *id )
-{
-    struct message		*m;
-
-    if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
-	syslog( LOG_ERR, "message_create malloc: %m" );
-	return( NULL );
-    }
-    memset( m, 0, sizeof( struct message ));
-
-    if (( m->m_id = strdup( id )) == NULL ) {
-	syslog( LOG_ERR, "message_create strdup: %m" );
-	free( m );
-	return( NULL );
-    }
-
-    return( m );
-}
-
-
-    void
-message_free( struct message *m )
-{
-    if ( m != NULL ) {
-	free( m->m_id );
-	free( m );
-    }
-}
-
-
-    void
-message_queue( struct host_q *hq, struct message *m )
-{
-    struct message		**mp;
-
-    hq->hq_entries++;
-    m->m_hq = hq;
-
-    if ( m->m_from != 0 ) {
-	hq->hq_from++;
-    }
-
-    mp = &(hq->hq_message_first);
-    for ( ; ; ) {
-	if (( *mp == NULL ) || ( m->m_etime.tv_sec < (*mp)->m_etime.tv_sec )) {
-	    break;
-	}
-
-	mp = &((*mp)->m_next);
-    }
-
-    m->m_next = *mp;
-    *mp = m;
-}
-
-
-    void
-message_remove( struct message *m )
-{
-    struct message		**mp;
-
-    if ( m != NULL ) {
-	for ( mp = &(m->m_hq->hq_message_first ); *mp != m;
-		mp = &((*mp)->m_next))
-	    ;
-
-	*mp = m->m_next;
-	m->m_hq->hq_entries--;
-
-	if ( m->m_from != 0 ) {
-	    m->m_hq->hq_from--;
-	}
-    }
 }
 
 
@@ -283,7 +135,7 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 	simta_null_q->hq_status = HOST_NULL;
     }
 
-    if ( hostname == NULL ) {
+    if ( *hostname == '\0' ) {
 	return( simta_null_q );
     }
 
@@ -322,17 +174,75 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 
 
     int
+queue_envelope( struct host_q **hq_stab, struct envelope *env )
+{
+    struct envelope		**ep;
+    struct host_q		*hq;
+
+    /* don't queue it if it's going in the dead queue */
+    if ( env->e_dir == simta_dir_dead ) {
+	return( 0 );
+    }
+
+    if (( hq = host_q_lookup( hq_stab, env->e_expanded )) == NULL ) {
+	return( 1 );
+    }
+
+    /* XXX make sure that env has etime */
+
+    ep = &(hq->hq_env_first);
+    for ( ep = &(hq->hq_env_first); *ep != NULL; ep = &((*ep)->e_hq_next)) {
+	if ( env->e_etime.tv_sec < (*ep)->e_etime.tv_sec ) {
+	    break;
+	}
+    }
+    env->e_hq_next = *ep;
+    *ep = env;
+
+    hq->hq_entries++;
+    env->e_hq = hq;
+
+    if ( env->e_mail != NULL ) {
+	hq->hq_from++;
+    }
+
+    return( 0 );
+}
+
+
+    void
+queue_remove_envelope( struct envelope *env )
+{
+    struct envelope		**ep;
+
+    if ( env != NULL ) {
+	for ( ep = &(env->e_hq->hq_env_first ); *ep != env;
+		ep = &((*ep)->e_hq_next))
+	    ;
+
+	*ep = env->e_hq_next;
+	env->e_hq->hq_entries--;
+
+	if ( env->e_mail != NULL ) {
+	    env->e_hq->hq_from--;
+	}
+
+	env->e_hq = NULL;
+	env->e_hq_next = NULL;
+    }
+}
+
+
+    int
 q_runner( struct host_q **host_q )
 {
     SNET			*snet_lock;
     SNET			*snet;
-    struct envelope		*env_bounce;
     struct host_q		*hq;
     struct host_q		*deliver_q;
     struct host_q		**dq;
-    struct message		*unexpanded;
-    struct envelope		*env;
-    struct envelope		env_local;
+    struct envelope		*env_bounce;
+    struct envelope		*unexpanded;
     int				result;
     struct stat			sb;
     char                        dfile_fname[ MAXPATHLEN ];
@@ -350,8 +260,6 @@ q_runner( struct host_q **host_q )
     if ( *host_q == NULL ) {
 	return( simta_fast_files );
     }
-
-    memset( &env_local, 0, sizeof( struct envelope ));
 
     /* get start time for metrics */
     metrics = gettimeofday( &tv_start, NULL );
@@ -401,7 +309,7 @@ q_runner( struct host_q **host_q )
 
 	    } else if (( hq->hq_status == HOST_DOWN ) ||
 		    ( hq->hq_status == HOST_BOUNCE )) {
-		q_deliver( hq );
+		q_deliver( host_q, hq );
 
 	    } else {
 		syslog( LOG_ERR, "q_runner: host_type %d out of range %s",
@@ -411,35 +319,29 @@ q_runner( struct host_q **host_q )
 
 	/* deliver all mail in every expanded queue */
 	while ( deliver_q != NULL ) {
-	    q_deliver( deliver_q );
+	    q_deliver( host_q, deliver_q );
 	    deliver_q = deliver_q->hq_deliver;
 	}
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
 	    /* delivered all expanded mail, check for unexpanded */
-	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
+	    if (( unexpanded = simta_null_q->hq_env_first ) == NULL ) {
 		/* no more unexpanded mail.  we're done */
 		goto q_runner_done;
 	    }
 
 	    /* pop message off unexpanded message queue */
-	    simta_null_q->hq_message_first = unexpanded->m_next;
+	    simta_null_q->hq_env_first = unexpanded->e_hq_next;
 	    simta_null_q->hq_entries--;
 
-	    if ( unexpanded->m_from != 0 ) {
+	    if ( unexpanded->e_mail != NULL ) {
 		simta_null_q->hq_from--;
 	    }
 
-	    if (( env = unexpanded->m_env ) == NULL ) {
+	    if ( unexpanded->e_rcpt == NULL ) {
 		/* lock & read envelope to expand */
-		env = &env_local;
-		if ( env_read( unexpanded, &env_local, &snet_lock ) != 0 ) {
-		    /* message not valid.  disregard */
-		    if ( strcmp( unexpanded->m_dir, simta_dir_fast ) == 0 ) {
-			simta_fast_files--;
-		    }
-		    message_free( unexpanded );
+		if ( env_read_recipients( unexpanded, &snet_lock ) != 0 ) {
 		    continue;
 		}
 	    } else {
@@ -447,13 +349,13 @@ q_runner( struct host_q **host_q )
 	    }
 
 	    /* expand message */
-	    result = expand( host_q, env );
+	    result = expand( host_q, unexpanded );
 
 	    if ( result != 0 ) {
 		/* message not expandable */
-		if ( strcasecmp( env->e_dir, simta_dir_slow ) == 0 ) {
-		    sprintf( dfile_fname, "%s/D%s", unexpanded->m_dir,
-			    unexpanded->m_id );
+		if ( unexpanded->e_dir == simta_dir_slow ) {
+		    sprintf( dfile_fname, "%s/D%s", unexpanded->e_dir,
+			    unexpanded->e_id );
 
 		    if ( stat( dfile_fname, &sb ) != 0 ) {
 			syslog( LOG_ERR, "q_runner stat %s: %m", dfile_fname );
@@ -469,26 +371,18 @@ q_runner( struct host_q **host_q )
 		    if (( tv.tv_sec - sb.st_mtime ) > ( 60 * 60 * 24 * 3 )) {
 oldfile_error:
 			syslog( LOG_DEBUG, "q_runner %s: old unexpandable "
-				"message, bouncing", env->e_id );
-			env->e_flags = ( env->e_flags | ENV_UNEXPANDED );
-			env->e_flags = ( env->e_flags | ENV_BOUNCE );
-			env->e_flags = ( env->e_flags | ENV_OLD );
+				"message, bouncing", unexpanded->e_id );
+			unexpanded->e_flags = ( unexpanded->e_flags | ENV_OLD );
+			unexpanded->e_flags =
+				( unexpanded->e_flags | ENV_BOUNCE );
 
 			if (( snet = snet_open( dfile_fname, O_RDWR, 0,
-				1024 * 1024 )) == NULL ) {
-
-			} else {
-			    if (( env_bounce = bounce( hq, env, snet ))
-				    == NULL ) {
-			    } else {
-				if ( env_bounce->e_message != NULL ) {
-				    env_bounce->e_message->m_from =
-					    env_from( env_bounce );
-				    message_queue( simta_null_q,
-					    env_bounce->e_message );
-				}
-
-				if ( env_unlink( env ) != 0 ) {
+				1024 * 1024 )) != NULL ) {
+			    if (( env_bounce = bounce( hq, unexpanded, snet ))
+				    != NULL ) {
+				if ( env_unlink( unexpanded ) == 0 ) {
+				    queue_envelope( host_q, env_bounce );
+				} else {
 				    env_unlink( env_bounce );
 				}
 			    }
@@ -496,7 +390,7 @@ oldfile_error:
  		    }
 
 		} else {
-		    env_slow( env );
+		    env_slow( unexpanded );
 		}
 	    }
 
@@ -508,12 +402,7 @@ oldfile_error:
 		}
 	    }
 
-	    if ( unexpanded->m_env != NULL ) {
-		env_free( unexpanded->m_env );
-	    } else {
-		env_reset( &env_local );
-	    }
-	    message_free( unexpanded );
+	    env_free( unexpanded );
 
 	    if ( result == 0 ) {
 		/* at least one address was expanded.  try to deliver it */
@@ -570,7 +459,7 @@ q_runner_done:
 
 
     void
-q_deliver( struct host_q *hq )
+q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 {
     int                         dfile_fd = 0;
     SNET                        *snet_dfile = NULL;
@@ -579,81 +468,66 @@ q_deliver( struct host_q *hq )
     SNET			*snet_bounce = NULL;
     char                        dfile_fname[ MAXPATHLEN ];
     char                        efile_fname[ MAXPATHLEN ];
+    int				attempt;
+    int				delivered;
     int                         ml_error;
     int                         unlinked;
     int				smtp_error;
     int                         sent;
     char                        *at;
     struct timeval              tv;
-    struct message		**mp;
-    struct message		*m;
+    struct envelope		**ep;
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env_deliver;
     struct envelope		*env_bounce = NULL;
-    struct envelope		env_local;
     struct recipient            *r;
     struct stat                 sb;
     static int                  (*local_mailer)(int, char *,
                                         struct recipient *) = NULL;
 
     syslog( LOG_DEBUG, "q_deliver: delivering %s from %d total %d",
-	    hq->hq_hostname, hq->hq_from, hq->hq_entries );
+	    deliver_q->hq_hostname, deliver_q->hq_from, deliver_q->hq_entries );
 
-    memset( &env_local, 0, sizeof( struct envelope ));
-
-    if ( hq->hq_status == HOST_LOCAL ) {
+    if ( deliver_q->hq_status == HOST_LOCAL ) {
         /* figure out what our local mailer is */
         if ( local_mailer == NULL ) {
             if (( local_mailer = get_local_mailer()) == NULL ) {
                 syslog( LOG_ALERT, "q_deliver: no local mailer" );
-                hq->hq_status = HOST_DOWN;
+                deliver_q->hq_status = HOST_DOWN;
             }
         }
 
-    } else if ( hq->hq_status == HOST_MX ) {
+    } else if ( deliver_q->hq_status == HOST_MX ) {
         /* HOST_MX sent is used to count how many messages have been
          * sent to a SMTP host.
          */
         sent = 0;
 
-    } else if (( hq->hq_status != HOST_BOUNCE ) &&
-	    ( hq->hq_status != HOST_DOWN )) {
+    } else if (( deliver_q->hq_status != HOST_BOUNCE ) &&
+	    ( deliver_q->hq_status != HOST_DOWN )) {
         syslog( LOG_ERR, "q_deliver fatal error: unreachable code" );
-	hq->hq_status = HOST_DOWN;
+	deliver_q->hq_status = HOST_DOWN;
     }
 
-    mp = &hq->hq_message_first;
+    for ( ep = &deliver_q->hq_env_first; *ep != NULL; ) {
+	env_deliver = *ep;
+	*ep = env_deliver->e_hq_next;
+	deliver_q->hq_entries--;
 
-    while ( *mp != NULL ) {
-	m = *mp;
-	*mp = m->m_next;
-	hq->hq_entries--;
-
-	if ( m->m_from != 0 ) {
-	    hq->hq_from--;
+	if ( env_deliver->e_mail != NULL ) {
+	    deliver_q->hq_from--;
 	}
 
-	if (( env_deliver = m->m_env ) == NULL ) {
+	if ( env_deliver->e_rcpt == NULL ) {
 	    /* lock & read envelope to deliver */
-	    env_deliver = &env_local;
-	    if ( env_read( m, &env_local, &snet_lock ) != 0 ) {
-		/* message not valid.  disregard */
-		if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
-		    /* XXX trouble here, we're stranding fast files? */
-		    syslog( LOG_ERR, "q_deliver fast_file error 1" );
-		    simta_fast_files--;
-		}
-		message_free( m );
+	    if ( env_read_recipients( env_deliver, &snet_lock ) != 0 ) {
+		/* envelope not valid.  disregard */
+		env_free( env_deliver );
 		continue;
 	    }
 
 	} else {
-	    if ( env_deliver->e_err_text != NULL ) {
-		line_file_free( env_deliver->e_err_text );
-		env_deliver->e_err_text = NULL;
-	    }
-	    /* don't need a lock, file is in the fast queue */
 	    snet_lock = NULL;
 	}
 
@@ -664,25 +538,23 @@ q_deliver( struct host_q *hq )
 	unlinked = 0;
 
 	/* open Dfile to deliver */
-        sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
+        sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
 
         if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
 	    syslog( LOG_WARNING, "q_deliver bad Dfile: %s", dfile_fname );
-	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
-		/* XXX trouble here, we're stranding fast files? */
-		syslog( LOG_ERR, "q_deliver fast_file error 2" );
-		simta_fast_files--;
-	    }
 	    goto message_cleanup;
         }
 
-        if ( hq->hq_status == HOST_LOCAL ) {
+	attempt = 0;
+	delivered = 0;
+
+        if ( deliver_q->hq_status == HOST_LOCAL ) {
             /* HOST_LOCAL sent is incremented every time we send
              * a message to a user via. a local mailer.
              */
 	    syslog( LOG_INFO, "q_deliver %s: attempting local delivery",
 		    env_deliver->e_id );
-	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_ATTEMPT );
+	    attempt = 1;
             sent = 0;
             for ( r = env_deliver->e_rcpt; r != NULL; r = r->r_next ) {
 		at = NULL;
@@ -738,9 +610,9 @@ lseek_fail:
                 sent++;
             }
 
-	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_DELIVERED );
+	    delivered = 1;
 
-        } else if ( hq->hq_status == HOST_MX ) {
+        } else if ( deliver_q->hq_status == HOST_MX ) {
 	    syslog( LOG_INFO, "q_deliver %s: attempting remote delivery",
 		    env_deliver->e_id );
             if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
@@ -753,8 +625,8 @@ lseek_fail:
             if ( snet_smtp == NULL ) {
 		simta_smtp_outbound_attempts++;
 		syslog( LOG_DEBUG, "q_deliver %s: calling smtp_connect( %s )",
-			env_deliver->e_id, hq->hq_hostname );
-                if (( smtp_error = smtp_connect( &snet_smtp, hq )) !=
+			env_deliver->e_id, deliver_q->hq_hostname );
+                if (( smtp_error = smtp_connect( &snet_smtp, deliver_q )) !=
 			SMTP_OK ) {
 		    goto smtp_cleanup;
 		}
@@ -763,18 +635,19 @@ lseek_fail:
             if ( sent != 0 ) {
 		syslog( LOG_DEBUG, "q_deliver %s: calling smtp_reset",
 			env_deliver->e_id );
-                if (( smtp_error = smtp_rset( snet_smtp, hq )) != SMTP_OK ) {
+                if (( smtp_error = smtp_rset( snet_smtp, deliver_q ))
+			!= SMTP_OK ) {
 		    goto smtp_cleanup;
                 }
             }
 
-	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_ATTEMPT );
+	    attempt = 1;
 	    syslog( LOG_DEBUG, "q_deliver %s: calling smtp_send",
 		    env_deliver->e_id );
-            if (( smtp_error = smtp_send( snet_smtp, hq, env_deliver,
+            if (( smtp_error = smtp_send( snet_smtp, deliver_q, env_deliver,
 		    snet_dfile )) == SMTP_OK ) {
 		simta_smtp_outbound_delivered++;
-		env_deliver->e_flags = ( env_deliver->e_flags | ENV_DELIVERED );
+		delivered = 1;
 
 	    } else {
 smtp_cleanup:
@@ -785,7 +658,7 @@ smtp_cleanup:
 			if ( snet_eof( snet_smtp ) != 0 ) {
 			    syslog( LOG_DEBUG, "q_deliver %s: call smtp_quit",
 				    env_deliver->e_id );
-			    smtp_quit( snet_smtp, hq );
+			    smtp_quit( snet_smtp, deliver_q );
 			}
 
 		    case SMTP_BAD_CONNECTION:
@@ -802,7 +675,7 @@ smtp_cleanup:
         }
 
 	if ((( env_deliver->e_tempfail > 0 ) ||
-		( hq->hq_status == HOST_DOWN )) &&
+		( deliver_q->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
 	    /* stat dfile to see if it's old */
 	    if ( fstat( dfile_fd, &sb ) != 0 ) {
@@ -827,7 +700,7 @@ oldfile_error:
 	    }
 	}
 
-	if (( hq->hq_status == HOST_BOUNCE ) ||
+	if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		( env_deliver->e_failed > 0 )) {
 	    snet_bounce = NULL;
@@ -849,7 +722,7 @@ oldfile_error:
 	    }
 
 	    /* create bounce message */
-	    if (( env_bounce = bounce( hq, env_deliver, snet_bounce ))
+	    if (( env_bounce = bounce( deliver_q, env_deliver, snet_bounce ))
 		    == NULL ) {
 		syslog( LOG_ERR, "q_deliver bounce failed" );
 		goto message_cleanup;
@@ -862,21 +735,21 @@ oldfile_error:
 	 * DELETE ORIGINAL
 	 *     - HOST_BOUNCE
 	 *     - ENV_BOUNCE
-	 *     - if ENV_DELIVERED && env_deliver->e_tempfail == 0
+	 *     - if delivered && env_deliver->e_tempfail == 0
 	 *
 	 * REWRITE ORIGINAL
-	 *     - if ENV_DELIVERED && ( tempfails && ( fails || successes ))
+	 *     - if delivered && ( tempfails && ( fails || successes ))
 	 *
 	 * TOUCH ORIGINAL
-	 *     - if ENV_ATTEMPT
+	 *     - if ( attempt != 0 ) && ( env->e_dir == simta_dir_slow )
 	 *
 	 * IGNORE ORIGINAL
 	 *     - everything else
 	 */
 
-        if (( hq->hq_status == HOST_BOUNCE ) ||
+        if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
-		((( env_deliver->e_flags & ENV_DELIVERED ) != 0 ) &&
+		(( delivered != 0 ) &&
 		( env_deliver->e_tempfail == 0 ))) {
 	    /* Delete the message if:
 	     *     - the queue status is HOST_BOUNCE
@@ -904,7 +777,7 @@ oldfile_error:
 	    }
 	    unlinked = 1;
 
-        } else if ((( env_deliver->e_flags & ENV_DELIVERED ) != 0 ) &&
+        } else if (( delivered != 0 ) &&
 		(( env_deliver->e_success != 0 ) ||
 		( env_deliver->e_failed != 0 ))) {
 	    /* Rewrite the message if:
@@ -937,8 +810,8 @@ oldfile_error:
 		simta_fast_files--;
 	    }
 
-	} else if (( env_deliver->e_flags & ENV_ATTEMPT ) &&
-		( strcmp( env_deliver->e_dir, simta_dir_fast ) != 0 )) {
+	} else if (( attempt != 0 ) &&
+		( env_deliver->e_dir == simta_dir_slow )) {
 	    /* Touch the message if:
 	     *     - an attempt to deliver the envelope has been made
 	     */
@@ -947,24 +820,17 @@ oldfile_error:
 	}
 
 	if ( env_bounce != NULL ) {
-	    if ( env_bounce->e_message != NULL ) {
-		env_bounce->e_message->m_from = env_from( env_bounce );
-		message_queue( simta_null_q, env_bounce->e_message );
-		syslog( LOG_INFO, "q_deliver %s: bounce %s queued",
-			env_deliver->e_id, env_bounce->e_id );
-	    }
+	    queue_envelope( host_q, env_bounce );
 	    env_bounce = NULL;
 	}
 
 message_cleanup:
 	if ( env_bounce != NULL ) {
-	    if ( env_bounce->e_message != NULL ) {
-		message_free( env_bounce->e_message );
-		env_bounce->e_message = NULL;
-	    }
-
 	    if ( env_unlink( env_bounce ) != 0 ) {
 		syslog( LOG_INFO, "q_deliver env_unlink %s: can't unwind "
+			"expansion", env_deliver->e_id );
+	    } else {
+		syslog( LOG_INFO, "q_deliver env_unlink %s: unwound "
 			"expansion", env_deliver->e_id );
 	    }
 
@@ -976,13 +842,7 @@ message_cleanup:
 	    env_slow( env_deliver );
 	}
 
-	if ( m->m_env != NULL ) {
-	    env_free( m->m_env );
-	} else {
-	    env_reset( &env_local );
-	}
-
-	message_free( m );
+	env_free( env_deliver );
 
         if ( snet_dfile == NULL ) {
 	    if ( dfile_fd >= 0 ) {
@@ -1007,7 +867,7 @@ message_cleanup:
 
     if ( snet_smtp != NULL ) {
 	syslog( LOG_DEBUG, "q_deliver: calling smtp_quit" );
-        smtp_quit( snet_smtp, hq );
+        smtp_quit( snet_smtp, deliver_q );
 	if ( snet_close( snet_smtp ) != 0 ) {
 	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
 	}
@@ -1019,12 +879,9 @@ message_cleanup:
 q_runner_dir( char *dir )
 {
     struct host_q		*host_q = NULL;
-    struct host_q		*hq;
-    struct message		*m;
     struct dirent		*entry;
+    struct envelope		*env;
     DIR				*dirp;
-    int				result;
-    char			hostname[ MAXHOSTNAMELEN + 1 ];
 
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
@@ -1046,21 +903,24 @@ q_runner_dir( char *dir )
 	    break;
 
 	} else if ( *entry->d_name == 'E' ) {
-	    if (( m = message_create( entry->d_name + 1 )) == NULL ) {
-		continue;
-	    }
-	    m->m_dir = dir;
-
-	    if (( result = env_info( m, hostname, MAXHOSTNAMELEN )) != 0 ) {
-		message_free( m );
+	    if (( env = env_create( NULL )) == NULL ) {
 		continue;
 	    }
 
-	    if (( hq = host_q_lookup( &host_q, hostname )) == NULL ) {
-		message_free( m );
+	    if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
+		env_free( env );
 		continue;
 	    }
-	    message_queue( hq, m );
+	    env->e_dir = dir;
+
+	    if ( env_read_hostname( env ) != 0 ) {
+		env_free( env );
+		continue;
+	    }
+
+	    if ( queue_envelope( &host_q, env ) != 0 ) {
+		env_free( env );
+	    }
 	}
     }
 

@@ -34,48 +34,29 @@
 #include "envelope.h"
 #include "simta.h"
 
-int	q_clean ___P(( char *, struct message ** ));
-int	move_to_slow ___P(( struct message **, struct message ** ));
+int	q_clean( char *, struct envelope ** );
+int	move_to_slow( struct envelope **, struct envelope **);
 
 
     /*
-     * 1. Clean SLOW queue:
-     *	    - Delete all orphan Dfiles & tfiles
-     *	    - Warn about orphan Efiles & unknown files
-     *	    - Build list of valid Efile/Dfile pairs
-     *
-     * 2. Clean LOCAL queue:
-     *	    - Delete all orphan Dfiles & tfiles
-     *	    - Warn about orphan Efiles & unknown files
-     *	    - Build list of valid Efile/Dfile pairs
-     *
-     * 3. Move LOCAL queue:
-     *	    - Move all messages to SLOW, if collision delete LOCAL copy
-     *
-     * 4. Clean FAST queue:
-     *	    - Delete all orphan Dfiles & tfiles
-     *	    - Warn about orphan Efiles & unknown files
-     *	    - Build list of valid Efile/Dfile pairs
-     *
-     * 5. Move FAST queue:
-     *	    - Move all messages to SLOW, if collision delete FAST copy
-     *
-     * 6. for all Dfiles in SLOW:
-     *	    - if ref count > 1 && unexpanded, delete all other messages
+     * - Clean & build SLOW queue
+     * - Clean & build  LOCAL queue
+     * - Move LOCAL queue to SLOW
+     * - Clean & build  FAST queue
+     * - Move FAST queue to SLOW
+     * - for all Dfiles in SLOW:
+     *	    + if ref count > 1 && unexpanded, delete all other messages
      *		with matching dfile inode #s.
      */
-
-
-    /* call openlog() before this function */
 
     int
 q_cleanup( void )
 {
-    struct message		*slow = NULL;
-    struct message		*other = NULL;
-    struct message		*m;
-    struct message		*m_delete;
-    struct message		**mp;
+    struct envelope		*slow = NULL;
+    struct envelope		*other = NULL;
+    struct envelope		*env;
+    struct envelope		*e_delete;
+    struct envelope		**env_p;
     char			fname[ MAXPATHLEN ];
     struct stat			sb;
     int				result;
@@ -92,9 +73,6 @@ q_cleanup( void )
 	return( -1 );
     }
 
-    /* XXX debug check for NULL? */
-    other = NULL;
-
     if ( q_clean( simta_dir_fast, &other ) != 0 ) {
 	return( -1 );
     }
@@ -103,15 +81,8 @@ q_cleanup( void )
 	return( -1 );
     }
 
-    /* XXX debug check for NULL? */
-    other = NULL;
-
-    /* XXX */
-
-    /*
-     * 6. for all Dfiles in SLOW:
+    /* 6. for all Dfiles in SLOW:
 	    if ( Dfile_ref_count > 1 ) {
-
 		if ( Efile == EXPANDED ) {
 		    if ( matching_inode_list == EXPANDED ) {
 			add to matching_inode_list;
@@ -123,13 +94,12 @@ q_cleanup( void )
 		    add to matching_inodes_list;
 		}
 	    }
-
      */
 
-    while (( m = slow ) != NULL ) {
-	slow = m->m_next;
+    while (( env = slow ) != NULL ) {
+	slow = slow->e_next;
 
-	sprintf( fname, "%s/D%s", simta_dir_slow, m->m_id );
+	sprintf( fname, "%s/D%s", simta_dir_slow, env->e_id );
 
 	if ( stat( fname, &sb ) != 0 ) {
 	    fprintf( stderr, "stat %s: ", fname );
@@ -137,93 +107,64 @@ q_cleanup( void )
 	    return( -1 );
 	}
 
-	m->m_dfile = sb.st_ino;
+	env->e_dinode = sb.st_ino;
 
 	if ( sb.st_nlink > 1 ) {
-	    sprintf( fname, "%s/E%s", simta_dir_slow, m->m_id );
-
-	    if (( result = env_info( m, NULL, 0 )) != 0 ) {
-		if ( result < 0 ) {
-		    fprintf( stderr, "q_cleanup env_info %s: ", fname );
-		    perror( NULL );
-		    return( -1 );
-
-		} else {
-		    fprintf( stderr, "q_cleanup bad efile: %s\n", fname );
-		    message_free( m );
-		    continue;
-		}
+	    if (( result = env_read_hostname( env )) != 0 ) {
+		fprintf( stderr, "q_cleanup env_info %s: ", env->e_id  );
+		perror( NULL );
+		return( -1 );
 	    }
 
-	    for ( mp = &other; *mp != NULL; mp = &((*mp)->m_next)) {
-		if ( m->m_dfile <= (*mp)->m_dfile ) {
+	    for ( env_p = &other; *env_p != NULL; env_p = &((*env_p)->e_next)) {
+		if ( env->e_dinode <= (*env_p)->e_dinode ) {
 		    break;
 		}
 	    }
 
-	    if (( *mp != NULL ) && ( m->m_dfile == (*mp)->m_dfile )) {
-		if ((*mp)->m_expanded == 0 ) {
+	    if (( *env_p != NULL ) && ( env->e_dinode == (*env_p)->e_dinode )) {
+		if ((*env_p)->e_expanded == 0 ) {
 		    /* unexpanded message in queue, delete current message */
-
-		    if ( unlink( fname ) != 0 ) {
-			fprintf( stderr, "q_cleanup unlink %s: ", fname );
+		    if ( env_unlink( env ) != 0 ) {
+			fprintf( stderr, "q_cleanup env_unlink %s: ",
+				env->e_id );
 			perror( NULL );
 			return( -1 );
 		    }
-
-		    sprintf( fname, "%s/D%s", simta_dir_slow, m->m_id );
-
-		    if ( unlink( fname ) != 0 ) {
-			fprintf( stderr, "q_cleanup unlink %s: ", fname );
-			perror( NULL );
-			return( -1 );
-		    }
-
-		    message_free( m );
+		    env_free( env );
 		    continue;
 
-		} else if ( m->m_expanded == 0 ) {
+		} else if (*(env->e_expanded) == '\0' ) {
 		    /* have unexpanded message, delete queued messages */
 		    do {
-			m_delete = *mp;
-			*mp = m_delete->m_next;
+			e_delete = *env_p;
+			*env_p = e_delete->e_next;
 
-			sprintf( fname, "%s/E%s", simta_dir_slow,
-				m_delete->m_id );
-
-			if ( unlink( fname ) != 0 ) {
-			    fprintf( stderr, "q_cleanup unlink %s: ", fname );
+			if ( env_unlink( e_delete ) != 0 ) {
+			    fprintf( stderr, "q_cleanup env_unlink %s: ",
+				    e_delete->e_id );
 			    perror( NULL );
 			    return( -1 );
 			}
 
-			sprintf( fname, "%s/D%s", simta_dir_slow,
-				m_delete->m_id );
+			env_free( env );
 
-			if ( unlink( fname ) != 0 ) {
-			    fprintf( stderr, "q_cleanup unlink %s: ", fname );
-			    perror( NULL );
-			    return( -1 );
-			}
-
-			message_free( m_delete );
-
-		    } while (( *mp != NULL ) &&
-			    ( m->m_dfile == (*mp)->m_dfile ));
+		    } while (( *env_p != NULL ) &&
+			    ( env->e_dinode == (*env_p)->e_dinode ));
 		}
 	    }
 
-	    m->m_next = *mp;
-	    *mp = m;
+	    env->e_next = *env_p;
+	    *env_p = env;
 
 	} else {
-	    message_free( m );
+	    env_free( env );
 	}
     }
 
-    while (( m = other ) != NULL ) {
-	other = m->m_next;
-    	message_free( m );
+    while (( env = other ) != NULL ) {
+	other = other->e_next;
+    	env_free( env );
     }
 
     /* XXX check for existance of a DEAD queue */
@@ -233,75 +174,49 @@ q_cleanup( void )
 
 
     int
-move_to_slow( struct message **slow_q, struct message **other_q )
+move_to_slow( struct envelope **slow_q, struct envelope **other_q )
 {
-    struct message		*m;	
-    struct message		**slow;
+    struct envelope		*move;
+    struct envelope		**slow;
     int				result;
-    char			d_original[ MAXPATHLEN ];
-    char			e_original[ MAXPATHLEN ];
-    char			d_slow[ MAXPATHLEN ];
-    char			e_slow[ MAXPATHLEN ];
 
-    slow = slow_q;
-
-    while (( m = *other_q ) != NULL ) {
-	*other_q = m->m_next;
+    for ( slow = slow_q; *other_q != NULL; ) {
+	/* pop move odd other_q */
+	move = *other_q;
+	*other_q = move->e_next;
 
 	for ( ; ; ) {
-	    result = 0;
-
-	    if (( *slow != NULL ) && (( result = strcmp( m->m_id,
-		    (*slow)->m_id )) > 0 )) {
-		slow = &((*slow)->m_next);
+	    if (( *slow != NULL ) && (( result = strcmp( move->e_id,
+		    (*slow)->e_id )) > 0 )) {
+		/* advance the slow list by one */
+		slow = &((*slow)->e_next);
 
 	    } else {
-		sprintf( d_original, "%s/D%s", m->m_dir, m->m_id );
-		sprintf( e_original, "%s/E%s", m->m_dir, m->m_id );
-
-		if (( *slow == NULL ) || ( result != 0 )) {
+		if (( *slow == NULL ) || ( result < 0 )) {
 		    /* move message files to SLOW */
-		    sprintf( d_slow, "%s/D%s", simta_dir_slow, m->m_id );
-		    sprintf( e_slow, "%s/E%s", simta_dir_slow, m->m_id );
-
-		    if ( link( d_original, d_slow ) != 0 ) {
-			fprintf( stderr, "move_to_slow link %s %s: ",
-				d_original, d_slow );
+		    if ( env_slow( move ) != 0 ) {
+			fprintf( stderr, "env_slow %s: ", move->e_id );
 			perror( NULL );
-			return( -1 );
+			return( 1 );
 		    }
 
-		    if ( link( e_original, e_slow ) != 0 ) {
-			fprintf( stderr, "move_to_slow link %s %s: ",
-				e_original, e_slow );
-			perror( NULL );
-			return( -1 );
-		    }
-
-		    /* insert node */
-		    m->m_next = *slow;
-		    m->m_dir = simta_dir_slow;
-		    *slow = m;
-		    slow = &(m->m_next);
+		    /* insert move to slow_q */
+		    move->e_next = *slow;
+		    move->e_dir = simta_dir_slow;
+		    *slow = move;
 
 		} else {
 		    /* collision - delete message files from other_q */
-		    slow = &((*slow)->m_next);
-		    message_free( m );
+		    if ( env_unlink( move ) != 0 ) {
+			fprintf( stderr, "env_unlink %s: ", move->e_id );
+			perror( NULL );
+			return( 1 );
+		    }
+
+		    env_free( move );
 		}
 
-		if ( unlink( e_original ) != 0 ) {
-		    fprintf( stderr, "move_to_slow unlink %s: ", e_original );
-		    perror( NULL );
-		    return( -1 );
-		}
-
-		if ( unlink( d_original ) != 0 ) {
-		    fprintf( stderr, "move_to_slow unlink %s: ", d_original );
-		    perror( NULL );
-		    return( -1 );
-		}
-
+		slow = &((*slow)->e_next);
 		break;
 	    }
 	}
@@ -312,19 +227,19 @@ move_to_slow( struct message **slow_q, struct message **other_q )
 
 
     int
-q_clean( char *dir, struct message **messages )
+q_clean( char *dir, struct envelope **messages )
 {
     DIR				*dirp;
     struct dirent		*entry;
-    struct message		*m;
-    struct message		**mp;
-    char			fname[ MAXPATHLEN ];
+    struct envelope		*env;
+    struct envelope		**env_p;
     int				result;
+    int				fatal = 0;
 
     if (( dirp = opendir( dir )) == NULL ) {
 	fprintf( stderr, "q_clean opendir %s: ", dir );
 	perror( NULL );
-	return( -1 );
+	return( 1 );
     }
 
     /* clear errno before trying to read */
@@ -337,7 +252,6 @@ q_clean( char *dir, struct message **messages )
      * foreach file in dir:
      *	    - ignore "." && ".."
      *	    - add message info for "D*" || "E*"
-     *	    - delete "t*"
      *	    - warn anything else
      */
 
@@ -354,55 +268,43 @@ q_clean( char *dir, struct message **messages )
 	}
 
 	if (( *entry->d_name == 'E' ) || ( *entry->d_name == 'D' )) {
-	    mp = messages; 
-
-	    for ( ; ; ) {
-		if (( *mp == NULL ) || (( result = strcmp( entry->d_name + 1,
-			(*mp)->m_id )) <= 0 )) {
-		    if (( *mp == NULL ) || ( result != 0 )) {
-			if (( m = message_create( entry->d_name + 1 ))
-				== NULL ) {
-			    perror( "malloc" );
-			    return( -1 );
-			}
-
-			m->m_dir = dir;
-			m->m_next = *mp;
-			*mp = m;
-
-		    } else {
-			m = *mp;
-		    }
-
-		    if ( *entry->d_name == 'E' ) {
-			m->m_efile = 1;
-
-		    } else {
-			m->m_dfile = 1;
-		    }
-
+	    for ( env_p = messages; *env_p != NULL;
+		    env_p = &((*env_p)->e_next)) {
+		if (( result =
+			strcmp( entry->d_name + 1, (*env_p)->e_id )) <= 0 ) {
 		    break;
 		}
-
-		mp = &((*mp)->m_next); 
 	    }
 
-	} else if ( *entry->d_name == 't' ) {
-	    /* clip orphan tfiles */
-	    sprintf( fname, "%s/%s", dir, entry->d_name );
+	    if (( *env_p == NULL ) || ( result != 0 )) {
+		if (( env = env_create( NULL )) == NULL ) {
+		    perror( "malloc" );
+		    return( 1 );
+		}
 
-	    if ( unlink( fname ) != 0 ) {
-		fprintf( stderr, "unlink %s: ", fname );
-		perror( NULL );
-		return( -1 );
+		if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
+		    fprintf( stderr, "Illegal name length: %s\n",
+			    entry->d_name );
+		    env_free( env );
+		    continue;
+		}
+
+		env->e_dir = dir;
+		env->e_next = *env_p;
+		*env_p = env;
+
+	    } else {
+		env = *env_p;
 	    }
 
-#ifdef DEBUG
-	    printf( "q_clean unlink tfile:\t%s\n", fname );
-#endif /* DEBUG */
+	    if ( *entry->d_name == 'E' ) {
+		env->e_flags = env->e_flags | ENV_EFILE;
+	    } else {
+		env->e_flags = env->e_flags | ENV_DFILE;
+	    }
 
 	} else {
-	    /* not a tfile, Efile or Dfile */
+	    /* not a Efile or Dfile */
 	    fprintf( stderr, "unknown file: %s/%s\n", dir, entry->d_name );
 	}
     }
@@ -411,40 +313,33 @@ q_clean( char *dir, struct message **messages )
     if ( errno != 0 ) {
 	fprintf( stderr, "q_clean readdir %s: ", dir );
 	perror( NULL );
-	return( -1 );
+	return( 1 );
     }
 
     /*
      * foreach message in messages:
-     *	    - warn Efile no Dfile
-     *	    - delete Dfile no Efile
+     *	    - warn Efile no Dfile, and refuse to run
+     *	    - warn Dfile no Efile
      */
 
-    mp = messages; 
+    for ( env_p = messages; *env_p != NULL; ) {
+	env = *env_p;
 
-    while (( m = *mp ) != NULL ) {
-	if ( m->m_dfile == 0 ) {
-	    fprintf( stderr, "%s/E%s: Missing Dfile\n", dir, m->m_id );
+	if (( env->e_flags & ENV_DFILE ) == 0 ) {
+	    fprintf( stderr, "%s/E%s: Missing Dfile\n", dir, env->e_id );
+	    fatal++;
+	    *env_p = env->e_next;
+	    env_free( env );
 
-	    *mp = m->m_next;
-	    message_free( m );
-
-	} else if ( m->m_efile == 0 ) {
-	    sprintf( fname, "%s/D%s", dir, m->m_id );
-
-	    if ( unlink( fname ) != 0 ) {
-		fprintf( stderr, "unlink %s: ", fname );
-		perror( NULL );
-		return( -1 );
-	    }
-
-	    *mp = m->m_next;
-	    message_free( m );
+	} else if (( env->e_flags & ENV_EFILE ) == 0 ) {
+	    fprintf( stderr, "%s/D%s: Missing Efile\n", dir, env->e_id );
+	    *env_p = env->e_next;
+	    env_free( env );
 
 	} else {
-	    mp = &((*mp)->m_next);
+	    env_p = &((*env_p)->e_next);
 	}
     }
 
-    return( 0 );
+    return( fatal );
 }
