@@ -139,7 +139,11 @@ bounce( struct envelope *env, SNET *message )
 
     /* XXX From: address */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
-    fprintf( dfile, "To: %s\n", bounce_env.e_mail );
+    if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
+	fprintf( dfile, "To: %s\n", simta_postmaster );
+    } else {
+	fprintf( dfile, "To: %s\n", env->e_mail );
+    }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", bounce_env.e_id );
     fprintf( dfile, "\n" );

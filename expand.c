@@ -142,6 +142,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	expn = (struct expn*)i->st_data;
 	rc = address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
 	    &seen, &ae_error );
+	if ( simta_debug ) printf( "\naddress_expand %s: %d\n", i->st_key, rc );
 	if ( rc < 0 ) {
 	    /* System failure */
 	    failed_expansions++;
@@ -165,7 +166,15 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		i->st_data = NULL;
 		break;
 
+	    case SIMTA_EXPAND_ERROR_NOT_LOCAL:
+		if ( simta_debug ) printf( " not local - removing\n" );
+		failed_expansions++;
+		free( i->st_data );
+		i->st_data = NULL;
+		break;
+
 	    default:
+		/* XXX do you want to report an error here? */
 		break;
 	    }
 	} else {

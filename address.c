@@ -491,6 +491,7 @@ address_expand( char *address, struct recipient *rcpt,
 #ifdef HAVE_LDAP
         else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
 	    /* XXX put ldap resolver here */
+	    printf( "LDAP HERE!\n" );
 	}
 #endif /* HAVE_LDAP */
 

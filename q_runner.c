@@ -46,6 +46,7 @@ main( int argc, char *argv[] )
 {
     char			*conf_file = NULL;
     char			*op;
+
     simta_debug = 1;
 
     if (( argc != 4 ) && ( argc != 3 )) {
