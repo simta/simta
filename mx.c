@@ -59,13 +59,8 @@ get_a( char *hostname )
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
-    if ( result->r_ancount > 0 ) {
-	if ( simta_debug ) fprintf( stderr, "ok\n" );
-	return( result );
-    }
 
-    if ( simta_debug ) fprintf( stderr, "failed\n" );
-    return( NULL );
+    return( result );
 }
 
 /* rfc 2821 3.6
@@ -258,9 +253,15 @@ check_hostname( char *hostname )
     }
 
     if (( result = get_a( hostname )) != NULL ) {
-	dnsr_free_result( result );
-	return( 0 );
+	    if ( result->r_ancount > 0 ) {
+		dnsr_free_result( result );
+		return( 0 );
+	    } else {
+		dnsr_free_result( result );
+		return( 1 );
+	    }
     }
+
     return( 1 );
 }
 
