@@ -18,6 +18,7 @@
 #define ACV_WHITE		0
 #define ACV_WORD		1
 #define ACV_BRACKET		2
+#define ACV_DQUOTE		3
 
 static ACAV *acavg = NULL;
 
@@ -68,6 +69,18 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 	    }
 	    break;
 
+	case '\\' :
+	    if ( state == ACV_DQUOTE ) {
+		line++;
+	    }
+	    break;
+
+	case '>' :
+	    if ( state == ACV_BRACKET ) {
+		state = ACV_WORD;
+	    }
+	    break;
+
 	default :
 	    if ( state == ACV_WHITE ) {
 		acav->acv_argv[ ac++ ] = line;
@@ -81,19 +94,15 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 		    acav->acv_argc += ACV_ARGC;
 		}
 		state = ACV_WORD;
-
-		/* here's the hack for 2821 */
-		if ( strncasecmp( line, "TO:<", 4 ) == 0 ) {
-		    if (( ac == 2 ) &&
-			    ( strcasecmp( acav->acv_argv[ 0 ], "RCPT" ))) {
-			goto done;
-		    }
-
-		} else if ( strncasecmp( line, "FROM:<", 6 ) == 0 ) {
-		    if (( ac == 2 ) &&
-			    ( strcasecmp( acav->acv_argv[ 0 ], "MAIL" ))) {
-			goto done;
-		    }
+	    }
+	    if ( *line == '<' && state == ACV_WORD ) {
+	    	state = ACV_BRACKET;
+	    }
+	    if ( *line == '"' ) {
+		if ( state == ACV_BRACKET ) {
+		    state = ACV_DQUOTE;
+		} else if ( state == ACV_DQUOTE ) {
+		    state = ACV_BRACKET;
 		}
 	    }
 	    break;
@@ -105,6 +114,23 @@ done:
     *argv = acav->acv_argv;
     return( ac );
 }
+
+#ifdef notdef
+main( int ac, char *av[] )
+{
+    char	**nav;
+    int		nac, i;
+
+    printf( "av: %s\n", av[ 1 ] );
+
+    nac = acav_parse2821( NULL, av[ 1 ], &nav );
+
+    for ( i = 0; i < nac; i++ ) {
+	printf( "nav[ %d ] = %s\n", i, nav[ i ] );
+    }
+    exit( 0 );
+}
+#endif // notdef
 
 /*
  * acav->acv_argv = **argv[] if passed an ACAV
