@@ -43,8 +43,8 @@
 #include "ml.h"
 #include "line_file.h"
 #include "smtp.h"
-#include "simta.h"
 #include "expand.h"
+#include "simta.h"
 
 /* GLOBAL VARS */
 struct host_q		*simta_null_q;
