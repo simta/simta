@@ -35,6 +35,7 @@ env_gettimeofday_id( struct envelope *e )
     struct timeval		tv;
 
     if ( gettimeofday( &tv, NULL ) != 0 ) {
+	syslog( LOG_ERR, "gettimeofday: %m" );
 	return( -1 );
     }
 
@@ -52,6 +53,7 @@ env_create( char *id )
 
     if (( env = (struct envelope *)malloc( sizeof( struct envelope ))) ==
 	    NULL ) {
+	syslog( LOG_ERR, "malloc: %m" );
 	return( NULL );
     }
     memset( env, 0, sizeof( struct envelope ));
@@ -161,11 +163,13 @@ env_recipient( struct envelope *e, char *addr )
 
     if (( r = (struct recipient*)malloc( sizeof( struct recipient )))
 	    == NULL ) {
+	syslog( LOG_ERR, "malloc: %m" );
 	return( -1 );
     }
     memset( r, 0, sizeof( struct recipient ));
 
     if (( r->r_rcpt = strdup( addr )) == NULL ) {
+	syslog( LOG_ERR, "strdup: %m" );
 	return( -1 );
     }
 
@@ -182,7 +186,7 @@ env_fstat( struct envelope *e, int fd )
     struct stat			sb;
 
     if ( fstat( fd, &sb ) != 0 ) {
-	syslog( LOG_ERR, "stat: %m" );
+	syslog( LOG_ERR, "fstat: %m" );
 	return( -1 );
     }
 
@@ -264,6 +268,7 @@ env_infile( struct envelope *e, char *dir )
 
     if ( *(line + 1) != '\0' ) {
 	if (( e->e_mail = strdup( line + 1 )) == NULL ) {
+	    syslog( LOG_ERR, "strdup: %m" );
 	    return( -1 );
 	}
     }
@@ -281,6 +286,7 @@ env_infile( struct envelope *e, char *dir )
     }
 
     if ( snet_close( snet ) < 0 ) {
+	syslog( LOG_ERR, "snet_close: %m" );
 	return( -1 );
     }
 
@@ -311,8 +317,6 @@ env_cleanup( struct envelope *e )
 }
 
 
-    struct recipient	*r;
-
     /* Efile syntax:
      *
      * Vversion
@@ -339,7 +343,7 @@ env_outfile( struct envelope *e, char *dir )
     /* make E (t) file */
     if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
 	syslog( LOG_ERR, "open %s: %m", tf );
-	return( 1 );
+	return( -1 );
     }
 
     if (( tff = fdopen( fd, "w" )) == NULL ) {
@@ -408,7 +412,7 @@ env_outfile( struct envelope *e, char *dir )
 
     /* get efile modification time */
     if ( env_fstat( e, fd ) != 0 ) {
-	return( -1 );
+	goto cleanup;
     }
 
     if ( fclose( tff ) != 0 ) {
@@ -426,7 +430,7 @@ env_outfile( struct envelope *e, char *dir )
 cleanup:
     unlink( tf );
 
-    return( 1 );
+    return( -1 );
 }
 
 
@@ -450,6 +454,7 @@ env_unexpanded( char *fname, int *unexpanded )
 
     if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
 	    == NULL ) {
+	syslog( LOG_ERR, "snet_open: %m" );
 	return( -1 );
     }
 
@@ -476,6 +481,7 @@ env_unexpanded( char *fname, int *unexpanded )
 
     if ( snet_close( snet ) != 0 ) {
 	*unexpanded = -1;
+	syslog( LOG_ERR, "snet_close: %m" );
 	return( -1 );
     }
 
