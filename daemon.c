@@ -127,8 +127,6 @@ main( ac, av )
 	    spooldir = optarg;
 	    break;
 
-	/* config dir or users and services */
-
 	default :
 	    err++;
 	}
@@ -140,6 +138,10 @@ main( ac, av )
 		prog );
 	exit( 1 );
     }
+
+    /*
+     * Read config file before chdir(), in case config file is relative path.
+     */
 
     if ( chdir( spooldir ) < 0 ) {
 	perror( spooldir );
@@ -205,7 +207,7 @@ main( ac, av )
 		    (void)close( i );
 		}
 	    }
-	    if (( i = open( "/", O_RDONLY, 0 )) != 0 ) {
+	    if (( i = open( "/", O_RDONLY, 0 )) == 0 ) {
 		dup2( i, 1 );
 		dup2( i, 2 );
 	    }

@@ -10,26 +10,47 @@ Access control:
     We also need the equivalent of "DeniedFrom" so that admins can
     break loops without denying connections from whole domains.
 
+Maximum processes:
+
+    The parent has a maximum number of children it can start, M.
+    (See below for how queue runners are handled.)  Each child has
+    a maximum number of child they can start, N.  The total maximum
+    number of simta processes is M * N.
+
 Queuing:
 
     We attempt to deliever newly received mail immediately.  If we
-    successfully deliver mail for a host, we check for a queue for the
-    host, and become a queue runner for that host.  This reduces admin
-    intervention required to recover from a large queue.  (Some limit
-    is probably necessary.)
+    successfully deliver mail for a host, we check for a queue for
+    the host, and become a queue runner for that host.  This reduces
+    admin intervention required to recover from a large queue.  To
+    limit the maximum number of queue runners, only the first 1/2
+    of the accepting children will become queue runners.  The second
+    1/2 are exclusively reserved for accepting new connections.
 
-    To allow parallel processing of queues, a queue runner first
-    attempts a connection.  If connection succeeds, the top message is
-    de-queued.  If delivery temp-fails, the message is re-queued to the
-    bottom of the queue.  (This doesn't prevent many connection attempts
-    when there are few messages queued.)
+    A queue runner first attempts to reserve a message.  If this
+    succeeds, a connection is attempted.  If the connection succeeds,
+    the reserved message is deleted and dequeued.  If the connection
+    fails, the reservation is cancelled.  If delivery temp-fails,
+    the message is re-queued to the bottom of the queue.
 
-    We need to be careful not to "lose" queued messages.
+    Reserving stores pid & time.  A message that's been recently
+    reserved can't be reserved again inside some time limit.  This
+    prevents a remote-crash-causing message from repeated crash a
+    remote host.
 
-    On startup, we could remove all queues and rebuild them from the
-    spool files.  The main process can (probably) continue to run
-    during this process.  It may be possible to scan continuously, but
-    we want to avoid unnecessary locks.
+    On startup, all reservations are cancelled.  All mail in tmp
+    is moved to queues.  SMTP is started and a queue runner is
+    started.
+
+    System must handle case where queued message has no coresponding
+    file.
+
+    q_insert -> q_reserve ->	q_delete
+				q_unreserve
+				q_reinsert
+
+    q_reinsert adds the message to the end, then removes it from
+    the beginning.
 
 Bounce:
 
@@ -37,6 +58,31 @@ Bounce:
     errors.  At the end of the delivery process, the transcript is
     converted into a DSN and added to the end of the envelope list, to
     be delivered as normal mail.
+
+    Double bounces?
+
+simsendmail:
+
+    This is a setuid program, living in /usr/lib/sendmail.  It
+    accepts mail from stdin, possibly reads a config file to control
+    e.g. masquerading, and queues mail in /var/spool/simta/local.
+    Once the mail is queued, it signals simta with USR1.  If simta
+    is running, it examines /var/spool/simta/local on SIGUSR1 or
+    each time a queue runner is started.
+
+modules:
+
+    content filtering
+    rbl
+    addressing
+
+misc:
+
+    need an option so no SMTP port is opened.
+
+    do we need equivalent of /usr/lib/sendmail -q?
+
+    fsync newly queued messages?
 
 RFCs:
 
