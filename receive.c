@@ -567,6 +567,8 @@ f_starttls( snet, env, ac, av )
     char			*av[];
 {
     int				rc;
+    X509			*peer;
+    char			buf[ 1024 ];
 
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
@@ -593,6 +595,14 @@ f_starttls( snet, env, ac, av )
 	snet_writef( snet, "%d SSL didn't work error! XXX\r\n", 501 );
 	return( 1 );
     }
+    if (( peer = SSL_get_peer_certificate( snet->sn_ssl ))
+	    == NULL ) {
+	syslog( LOG_ERR, "no peer certificate" );
+	return( -1 );
+    }
+
+    syslog( LOG_INFO, "CERT Subject: %s\n", X509_NAME_oneline( X509_get_subject_name( peer ), buf, sizeof( buf )));
+    X509_free( peer );
 
     env_reset( env );
     env->e_flags = E_TLS;
