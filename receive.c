@@ -687,8 +687,7 @@ receive( fd, sin )
 	    }
 	}
 	if ( i >= ncommands ) {
-	    snet_writef( snet, "%d Command %s unregcognized\r\n",
-		    500, av[ 0 ] );
+	    snet_writef( snet, "%d Command %s unregcognized\r\n", 500, av[ 0 ]);
 	    continue;
 	}
 
