@@ -253,17 +253,23 @@ main( int argc, char *argv[] )
 		}
 
 		/* XXX */
-		if ( mail_local( fd, "q_runner", "asdasdad" ) < 0 ) {
+		if (( mailed = mail_local( fd, "q_runner", "epcjr" )) < 0 ) {
+		    exit( 1 );
+		}
+
+		/* XXX */
+		if ( lseek( fd, 0, SEEK_SET ) != 0 ) {
+		    syslog( LOG_ERR, "lseek: %m" );
 		    exit( 1 );
 		}
 
 		/* XXX */
 		if (( mailed = mail_local( fd, "q_runner", "epcjr" )) < 0 ) {
 		    exit( 1 );
-
 		}
 
 		/* XXX mailed == 1 is recoverable failure */
+		/* XXX touch Efile, see if Dfile time > bounce time */
 
 		if ( close( fd ) != 0 ) {
 		    syslog( LOG_ERR, "close: %m" );
@@ -294,6 +300,9 @@ main( int argc, char *argv[] )
 		    printf( "unlink\t%s\n", fname );
 #endif /* DEBUG */
 		}
+
+	    } else {
+		/* off machine delivery */
 	    }
 
 	    /* if send failure, update efile modification time */

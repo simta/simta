@@ -76,3 +76,26 @@ AC_DEFUN([AC_STRUCT_GMTOFF],
 	HAVE_TM_GMTOFF="-DHAVE_TM_GMTOFF";
     fi
 ])
+
+
+AC_DEFUN([PROG_MAIL_LOCAL],
+[
+    AC_MSG_CHECKING(for mail.local)
+    mail_local_dirs="/usr/lib /usr/sbin"
+    AC_ARG_WITH(mail_local,
+	    AC_HELP_STRING([--with-mail_local=DIR], [path to mail.local]),
+	    mail_local_dirs="$withval")
+    for dir in $mail_local_dirs; do
+	mail_local_dir="$dir"
+	if test -f "$dir/mail.local"; then
+	    found_mail_local="yes";
+	    break
+	fi
+    done
+    if test x_$found_mail_local != x_yes; then
+	AC_MSG_ERROR([not found: See INSTALL])
+    else
+	AC_SUBST( SIMTA_MAIL_LOCAL, [$dir/mail.local])
+	AC_MSG_RESULT(yes)
+    fi
+])

@@ -57,6 +57,10 @@ send : libsnet/libsnet.a ${SENDOBJ} Makefile
 simlog : libsnet/libsnet.a ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
 
+ml.o : ml.c
+	${CC} ${CFLAGS} -DSIMTA_MAIL_LOCAL=\"@SIMTA_MAIL_LOCAL@\" \
+		-c ml.c -o ml.o
+
 q_runner : libsnet/libsnet.a ${QRUNNEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${LIBPATH} ${LIBS}
 

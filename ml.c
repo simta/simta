@@ -25,8 +25,7 @@
 
 
 char		*maillocalargv[] = { "mail.local", "-f", 0, "-d", "--", 0, 0 };
-char		*maillocal =	"/usr/lib/mail.local";
-
+char		*maillocal = SIMTA_MAIL_LOCAL;
 
     /* return 0 on success
      * <0 on syscall failure
