@@ -725,12 +725,22 @@ q_deliver( struct host_q *hq )
                     return( -1 );
 
                 } else if ( result == SMTP_ERR_NO_BOUNCE ) {
+                    /* XXX do something if remote host is fucked up? */
+
+		    /* for each dfile in queue */
+			/* if (( dfile is old ) || ( invalid queue )) */
+			    /* generate bounce */
+			    /* unlink original message *.
+			/* else if dfile isn't in SLOW */
+			    /* move E/Dfile pair to SLOW */
+			/* endif */
+		    /* end each */
+
+
                     if ( snet_close( dfile_snet ) != 0 ) {
                         syslog( LOG_ERR, "close: %m" );
                         return( -1 );
                     }
-
-                    /* XXX do something if remote host is fucked up? */
 
 		    if ( snet_close( snet_lock ) != 0 ) {
 			syslog( LOG_ERR, "snet_close: %m" );
