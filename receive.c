@@ -88,7 +88,6 @@ hello( env, hostname )
     struct envelope		*env;
     char			*hostname;
 {
-    syslog( LOG_DEBUG, "hello starting" );
 
     /* If we get "HELO" twice, just toss the new one */
     if ( env->e_helo == NULL ) {
@@ -116,8 +115,6 @@ f_helo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_helo starting" );
-
     if ( ac != 2 ) {
 	syslog( LOG_INFO, "f_helo syntax error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
@@ -152,8 +149,6 @@ f_ehlo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_ehlo starting" );
-
     /* XXX - rfc 2821 4.1.4
      * A session that will contain mail transactions MUST first be
      * initialized by the use of the EHLO command.  An SMTP server SHOULD
@@ -267,8 +262,6 @@ f_mail( snet, env, ac, av )
     char		*addr, *domain;
     struct dnsr_result	*result;
 
-    syslog( LOG_DEBUG, "f_mail starting" );
-
     /*
      * Contrary to popular belief, it is not an error to give more than
      * one "MAIL FROM:" command.  According to rfc822, this is just like
@@ -338,7 +331,6 @@ f_mail( snet, env, ac, av )
 	    }
 	}
 
-	syslog( LOG_DEBUG, "f_mail calling get_mx( %s )", domain );
 	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
 	    switch ( dnsr_errno( simta_dnsr )) {
 	    case DNSR_ERROR_NAME:
@@ -356,7 +348,6 @@ f_mail( snet, env, ac, av )
 		return( RECEIVE_SYSERROR );
 	    }
 	}
-	syslog( LOG_DEBUG, "f_mail called get_mx( %s )", domain );
 
 	dnsr_free_result( result );
 
@@ -372,8 +363,6 @@ f_mail( snet, env, ac, av )
 	    return( RECEIVE_OK );
 	}
     }
-
-    syslog( LOG_DEBUG, "f_mail survived densr" );
 
     if ( env->e_mail != NULL ) {
 	/* XXX check for an accepted message */
@@ -423,8 +412,6 @@ f_rcpt( snet, env, ac, av )
     int			high_mx_pref;
     char		*addr, *domain;
     struct dnsr_result	*result;
-
-    syslog( LOG_DEBUG, "f_rcpt starting" );
 
     if ( ac != 2 ) {
 	syslog( LOG_INFO, "f_rcpt syntax error" );
@@ -521,7 +508,6 @@ f_rcpt( snet, env, ac, av )
 	    }
 	}
 
-	syslog( LOG_DEBUG, "f_rcpt calling get_mx( %s )", domain );
 	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
 	    if ((( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )) ||
 		    ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
@@ -545,7 +531,6 @@ f_rcpt( snet, env, ac, av )
 	    }
 	}
 
-	syslog( LOG_DEBUG, "f_rcpt called get_mx( %s )", domain );
 	if (( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NAME )
 		|| ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 	    /* No valid DNS */
@@ -641,8 +626,6 @@ f_rcpt( snet, env, ac, av )
 	}
     }
 
-    syslog( LOG_DEBUG, "f_rcpt survived get_mx( %s )", domain );
-
     if ( env_recipient( env, addr ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
@@ -675,8 +658,6 @@ f_data( snet, env, ac, av )
     struct line		*l;
     int			header = 1;
     int			line_no = 0;
-
-    syslog( LOG_DEBUG, "f_data starting" );
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -932,8 +913,6 @@ f_quit( snet, env, ac, av )
      * having invalid syntax.
      */
 
-    syslog( LOG_DEBUG, "f_quit starting" );
-
     if ( ac != 1 ) {
 	syslog( LOG_INFO, "f_quit syntax error" );
 	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
@@ -970,8 +949,6 @@ f_rset( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_rset starting" );
-
     /*
      * We could presume that this indicates another message.  However,
      * since some mailers send this just before "QUIT", and we're
@@ -1010,8 +987,6 @@ f_noop( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_noop starting" );
-
     if ( snet_writef( snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
 	syslog( LOG_ERR, "f_noop snet_writef: %m" );
 	return( RECEIVE_BADCONNECTION );
@@ -1028,8 +1003,6 @@ f_help( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_help starting" );
-
     if ( snet_writef( snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
 	syslog( LOG_ERR, "f_help snet_writef: %m" );
 	return( RECEIVE_BADCONNECTION );
@@ -1068,8 +1041,6 @@ f_vrfy( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_vrfy starting" );
-
     if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_vrfy snet_writef: %m" );
 	return( RECEIVE_BADCONNECTION );
@@ -1086,8 +1057,6 @@ f_expn( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_expn starting" );
-
     if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_expn snet_writef: %m" );
 	return( RECEIVE_BADCONNECTION );
@@ -1107,8 +1076,6 @@ f_starttls( snet, env, ac, av )
     int				rc;
     X509			*peer;
     char			buf[ 1024 ];
-
-    syslog( LOG_DEBUG, "f_starttls starting" );
 
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
