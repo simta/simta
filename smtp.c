@@ -65,14 +65,14 @@ _smtp_connect_try( struct sockaddr_in *sin, struct host_q *hq )
 
     /* XXX MAIL LOOP DETECTION */
 
-    /* say HELO */
-    if ( snet_writef( snet, "HELO %s\r\n", simta_hostname ) < 0 ) {
+    /* say EHLO */
+    if ( snet_writef( snet, "EHLO %s\r\n", simta_hostname ) < 0 ) {
 	syslog( LOG_NOTICE, "_smtp_connect_try %s: failed writef",
 	    hq->hq_hostname );
 	goto error;
     }
 
-    if ( smtp_reply( SMTP_HELO, snet, hq, NULL ) == SMTP_OK ) {
+    if ( smtp_reply( SMTP_EHLO, snet, hq, NULL ) == SMTP_OK ) {
 	return( snet );
     }
 
@@ -230,6 +230,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	break;
 
     case SMTP_HELO:
+    case SMTP_EHLO:
 	tv.tv_sec = SMTP_TIME_HELO;
 	break;
 
@@ -281,6 +282,10 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 
 	case SMTP_HELO:
 	    syslog( LOG_INFO, "smtp_reply %s HELO: %s", hq->hq_hostname, line );
+	    break;
+
+	case SMTP_EHLO:
+	    syslog( LOG_INFO, "smtp_reply %s EHLO: %s", hq->hq_hostname, line );
 	    break;
 
 	case SMTP_MAIL:

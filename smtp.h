@@ -8,12 +8,13 @@
 
 #define	SMTP_CONNECT		1
 #define	SMTP_HELO		2
-#define	SMTP_MAIL		3
-#define	SMTP_RCPT		4
-#define	SMTP_DATA		5
-#define	SMTP_DATA_EOF		6
-#define	SMTP_RSET		7
-#define	SMTP_QUIT		8
+#define	SMTP_EHLO		3
+#define	SMTP_MAIL		4
+#define	SMTP_RCPT		5
+#define	SMTP_DATA		6
+#define	SMTP_DATA_EOF		7
+#define	SMTP_RSET		8
+#define	SMTP_QUIT		9
 
 #define	SMTP_OK			0
 #define	SMTP_ERROR		1
