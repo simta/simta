@@ -91,11 +91,6 @@ smtp_grab( struct line_file **err_text, SNET *snet, struct timeval *tv,
 	}
     }
 
-    if ( line_append( *err_text, line ) == NULL ) {
-	syslog( LOG_ERR, "smtp_grab line_append: unexpected EOF" );
-	return( SMTP_ERROR );
-    }
-
     return( SMTP_OK );
 
 consume:
@@ -773,6 +768,7 @@ smtp_quit( SNET *snet, struct host_q *hq )
 	    /* we're up if we're not BOUNCEing */
 	    hq->hq_status = 0;
 	}
+	return;
 
     default:
 	syslog( LOG_NOTICE, "smtp_quit %s bad SMTP banner: %s",

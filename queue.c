@@ -376,6 +376,7 @@ q_run( struct host_q **host_q )
 	    q_deliver( deliver_q );
 	    deliver_q = deliver_q->hq_deliver;
 	}
+syslog( LOG_DEBUG, "XXX HERE" );
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
@@ -419,7 +420,7 @@ q_run( struct host_q **host_q )
 	    if ( unexpanded->m_env != NULL ) {
 		env_free( unexpanded->m_env );
 	    } else {
-		env_reset( env );
+		env_reset( &env_local );
 	    }
 	    message_free( unexpanded );
 
@@ -539,6 +540,7 @@ q_deliver( struct host_q *hq )
     char                        dfile_fname[ MAXPATHLEN ];
     char                        efile_fname[ MAXPATHLEN ];
     int                         ml_error;
+    int                         unlinked;
     int				smtp_error;
     int                         sent;
     char                        *at;
@@ -610,6 +612,7 @@ q_deliver( struct host_q *hq )
 	env_deliver->e_success = 0;
 	env_deliver->e_failed = 0;
 	env_deliver->e_tempfail = 0;
+	unlinked = 0;
 
 	/* open Dfile to deliver & check to see if it's geriatric */
         sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
@@ -628,6 +631,8 @@ q_deliver( struct host_q *hq )
             /* HOST_LOCAL sent is incremented every time we send
              * a message to a user via. a local mailer.
              */
+	    syslog( LOG_INFO, "q_deliver %s: attempting local delivery",
+		    env_deliver->e_id );
 	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_ATTEMPT );
             sent = 0;
             for ( r = env_deliver->e_rcpt; r != NULL; r = r->r_next ) {
@@ -706,6 +711,8 @@ lseek_fail:
             }
 
 	    env_deliver->e_flags = ( env_deliver->e_flags | ENV_ATTEMPT );
+	    syslog( LOG_INFO, "q_deliver %s: attempting delivery via SMTP",
+		    env_deliver->e_id );
             if (( smtp_error = smtp_send( snet_smtp, hq, env_deliver,
 		    snet_dfile )) != SMTP_OK ) {
 smtp_cleanup:
@@ -777,7 +784,7 @@ oldfile_error:
 		syslog( LOG_ERR, "q_deliver bounce failed" );
 		goto message_cleanup;
             }
-	    syslog( LOG_INFO, "q_deliver %s bounce %s generated",
+	    syslog( LOG_INFO, "q_deliver %s: bounce %s generated",
 		    env_deliver->e_id, env_bounce->e_id );
         }
 
@@ -820,6 +827,7 @@ oldfile_error:
 	    }
 
 	    if ( env_unlink( env_deliver ) != 0 ) {
+		unlinked = 1;
 		goto message_cleanup;
 	    }
 
@@ -857,7 +865,9 @@ oldfile_error:
 	}
 
 	if ( env_bounce != NULL ) {
-	    message_queue( simta_null_q, m );
+	    if ( env_bounce->e_message != NULL ) {
+		message_queue( simta_null_q, env_bounce->e_message );
+	    }
 	    env_bounce = NULL;
 	}
 
@@ -873,7 +883,9 @@ message_cleanup:
 	}
 
 	if ( m->m_env != NULL ) {
-	    env_slow( m->m_env );
+	    if ( unlinked != 0 ) {
+		env_slow( m->m_env );
+	    }
 	    env_free( m->m_env );
 	} else {
 	    env_reset( env_deliver );

@@ -286,7 +286,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
         }
     }
 
-    sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, env->e_id );
+    sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
         syslog( LOG_ERR, "bounce open %s: %m", dfile_fname );
