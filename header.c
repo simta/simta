@@ -73,7 +73,7 @@ count_words( char *l )
     char		*c;
 
     for ( c = l; *c != '\0'; c++ ) {
-	if ( isspace( (int)*c ) == 0 ) {
+	if (( *c != ' ' ) && ( *c != '\t' )) {
 	    /* not space */
 	    if ( space == 1 ) {
 		words++;
@@ -253,9 +253,6 @@ header_correct( struct line_file *lf, struct envelope *env )
     struct line			*l;
     struct header		*h;
     char			*colon;
-    char			*l_angle;
-    char			*r_angle;
-    char			*comma;
     size_t			header_len;
     struct passwd		*pw;
     int				result;
@@ -267,6 +264,7 @@ header_correct( struct line_file *lf, struct envelope *env )
     struct tm			*tm;
     char			daytime[ 35 ];
 
+    /* check headers for known mail clients behaving badly */
     if (( result = header_exceptions( lf )) != 0 ) {
 	fprintf( stderr, "header_exceptions error\n" );
 	return( result );
@@ -332,8 +330,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
     }
 
-    /* examine header data structures */
-
+    /* create default sender for comparison with header data */
     if (( pw = getpwuid( getuid())) == NULL ) {
 	perror( "getpwuid" );
 	return( -1 );
@@ -347,6 +344,9 @@ header_correct( struct line_file *lf, struct envelope *env )
 
     sprintf( sender, "%s@%s", pw->pw_name, env->e_hostname );
 
+    /* examine & correct header data */
+
+    /* From: */
     if ( simta_headers[ HEAD_FROM ].h_line == NULL ) {
 	/* generate header */
 
@@ -374,108 +374,23 @@ header_correct( struct line_file *lf, struct envelope *env )
 	env->e_mail = simta_headers[ HEAD_FROM ].h_line->line_data + 6;
 
     } else {
-	/*
-	 * From: user
-	 * From: user@domain
-	 * From: Firstname Lastname <user@domain>
-	 * From: "Firstname Lastname" <user@domian>
-	 * From: user@domian (Firstname Lastname)
-	 */
+	if (( result = header_first_mailbox(
+		&(simta_headers[ HEAD_FROM ].h_data))) != 0 ) {
+	    if ( result < 0 ) {
+		perror( "header_first_mailbox realloc" );
 
-	/* from            =   "From:" mailbox-list CRLF
-	 *
-	 * mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
-	 *
-	 * mailbox         =   name-addr / addr-spec
-	 *
-	 * name-addr       =   [display-name] angle-addr
-	 *
-	 * display-name    =   phrase
-	 *
-	 * phrase          =   1*word / obs-phrase
-	 *
-	 * word            =   atom / quoted-string
-	 *
-	 * atom            =   [CFWS] 1*atext [CFWS]
-	 *
-	 * atext           =   ALPHA / DIGIT / ; Any character except controls,
-	 *			"!" / "#" /     ;  SP, and specials.
-	 *			"$" / "%" /     ;  Used for atoms
-	 *			"&" / "'" /
-	 *			"*" / "+" /
-	 *			"-" / "/" /
-	 *			"=" / "?" /
-	 *			"^" / "_" /
-	 *			"`" / "{" /
-	 *			"|" / "}" /
-	 *			"~"
-	 *
-	 * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
-	 *
-	 * addr-spec       =   local-part "@" domain
-	 *
-	 * local-part      =   dot-atom / quoted-string / obs-local-part
-	 *
-	 * domain          =   dot-atom / domain-literal / obs-domain
-	 *
-	 * domain-literal  =   [CFWS] "[" *([FWS] dcontent) [FWS] "]" [CFWS]
-	 *
-	 * dcontent        =   dtext / quoted-pair
-	 *
-	 * dtext           =   NO-WS-CTL /     ; Non white space controls
-	 *
-	 *			%d33-90 /       ; The rest of the US-ASCII
-	 *			%d94-126        ;  characters not including "[",
-	 *					;  "]", or "\"
-	 *
-	 * dot-atom        =   [CFWS] dot-atom-text [CFWS]
-	 *
-	 * dot-atom-text   =   1*atext *("." 1*atext)
-	 */
-
-	/* use first addr, addrs are seperated by commas */
-	for ( comma = simta_headers[ HEAD_FROM ].h_data; comma != '\0';
-		comma++ ) {
-	    if ( *comma == ',' ) {
-		break;
-	    }
-	}
-
-	if ( *comma == ',' ) {
-	    *comma = '\0';
-	}
-
-	/* check for angle-addr */
-	for ( l_angle = simta_headers[ HEAD_FROM ].h_data; l_angle != '\0';
-		l_angle++ ) {
-	    if ( *l_angle == '<' ) {
-		break;
-	    }
-	}
-
-	if ( *l_angle == '<' ) {
-	    for ( r_angle = l_angle; r_angle != '\0'; r_angle++ ) {
-		if ( *r_angle == '>' ) {
-		    break;
-		}
-	    }
-
-	    if ( *l_angle != '<' ) {
-		fprintf( stderr, "Illegal header angle-addr syntax: %s\n",
+	    } else {
+		fprintf( stderr, "Header %s: Illegal syntax\n",
 			simta_headers[ HEAD_FROM ].h_key );
-		return( 1 );
 	    }
 
-	    /* XXX check for illegal syntax before l_angle, after r_angle? */
-
-	} else {
-	    /* no angle_addr */
+	    return( result );
 	}
 
-	/* XXX wrong */
 	env->e_mail = simta_headers[ HEAD_FROM ].h_data;
     }
 
+    /* Sender: */
     if ( simta_headers[ HEAD_SENDER ].h_line == NULL ) {
 	if ( simta_headers[ HEAD_FROM ].h_data != NULL ) {
 	    /* From header wasn't generated, check for conflict */
@@ -503,7 +418,6 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
 
     } else {
-	/* XXX sufficient check? */
 	if ( strcasecmp( env->e_mail, sender ) != 0 ) {
 	    fprintf( stderr, "Header %s: Illegal value\n",
 		    simta_headers[ HEAD_SENDER ].h_key );
@@ -707,6 +621,159 @@ header_uncomment( char **line )
     }
 
     *w = '\0';
+
+    after = strlen( *line );
+
+    if ( before > after ) {
+	if (( *line = (char*)realloc( *line, after + 1 )) == NULL ) {
+	    return( -1 );
+	}
+    }
+
+    return( 0 );
+}
+
+
+    /* mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
+     *
+     * mailbox         =   name-addr / addr-spec
+     *
+     * name-addr       =   [display-name] angle-addr
+     *
+     * display-name    =   phrase
+     *
+     * phrase          =   1*word / obs-phrase
+     *
+     * word            =   atom / quoted-string
+     *
+     * atom            =   [CFWS] 1*atext [CFWS]
+     *
+     * atext           =   ALPHA / DIGIT / ; Any character except controls,
+     *			     "!" / "#" /     ;  SP, and specials.
+     *			     "$" / "%" /     ;  Used for atoms
+     *			     "&" / "'" /
+     *			     "*" / "+" /
+     *			     "-" / "/" /
+     *			     "=" / "?" /
+     *			     "^" / "_" /
+     *			     "`" / "{" /
+     *			     "|" / "}" /
+     *			     "~"
+     *
+     * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
+     *
+     * addr-spec       =   local-part "@" domain
+     *
+     * local-part      =   dot-atom / quoted-string / obs-local-part
+     *
+     * domain          =   dot-atom / domain-literal / obs-domain
+     *
+     * domain-literal  =   [CFWS] "[" *([FWS] dcontent) [FWS] "]" [CFWS]
+     *
+     * dcontent        =   dtext / quoted-pair
+     *
+     * dtext           =   NO-WS-CTL /     ; Non white space controls
+     *
+     *			%d33-90 /       ; The rest of the US-ASCII
+     *			%d94-126        ;  characters not including "[",
+     *					;  "]", or "\"
+     *
+     * dot-atom        =   [CFWS] dot-atom-text [CFWS]
+     *
+     * dot-atom-text   =   1*atext *("." 1*atext)
+     *
+     * qtext           =       NO-WS-CTL /     ; Non white space controls
+     *
+     *			    %d33 /          ; The rest of the US-ASCII
+     *			    %d35-91 /       ;  characters not including "\"
+     *			    %d93-126        ;  or the quote character
+     *
+     * qcontent        =       qtext / quoted-pair
+     *
+     * quoted-string   =       [CFWS]
+     *			    DQUOTE *([FWS] qcontent) [FWS] DQUOTE
+     *			    [CFWS]
+     */
+
+    /*
+     * XXX only handle the following mailbox cases, not RFC complient:
+     *
+     * From:
+     * From: user
+     * From: user@domain
+     * From: <>
+     * From: <user@domain>
+     * From: Firstname Lastname <user@domain>
+     * From: Firstname Lastname <>
+     * From: "Firstname Lastname" <user@domian>
+     * From: "Firstname Lastname" <>
+     */
+
+    int
+header_first_mailbox( char **line )
+{
+    size_t			before;
+    size_t			after;
+    char			*comma;
+    char			*r;
+    char			*c;
+    int				words;
+    int				angle = 0;
+
+    before = strlen( *line );
+
+    /* XXX only use first addr, addrs are seperated by commas */
+    for ( comma = *line; *comma != '\0'; comma++ ) {
+	if ( *comma == ',' ) {
+	    *comma = '\0';
+	    break;
+	}
+    }
+
+    if (( words = count_words( *line )) == 0 ) {
+	*line = '\0';
+
+    } else if ( words == 1 ) {
+	if ( **line == '<' ) {
+	    angle = 1;
+	    r = (*line) + 1;
+
+	} else {
+	    r = *line;
+	}
+
+    } else {
+	/* more than one word, require angle brackets */
+	angle = 1;
+
+	/* XXX r = last_word + 1 */
+    }
+
+    /* put c on the last character of the last word */
+    for ( c = r; c != '\0'; c++ ) {
+	if (( *c == ' ' ) || ( *c == '\t' )) {
+	    break;
+	}
+    }
+
+    c--;
+
+    if ( angle == 0 ) {
+	if ( *c == '>' ) {
+	    /* angle bracket syntax error */
+	    return( 1 );
+	}
+
+    } else {
+	if ( *c != '>' ) {
+	    /* angle bracket syntax error */
+	    return( 1 );
+	}
+    }
+
+    *c = '\0';
+
+    /* XXX ZZZ copy and check address */
 
     after = strlen( *line );
 
