@@ -78,6 +78,7 @@ dist : clean
 	echo ${VERSION} > ${DISTDIR}/VERSION
 
 clean :
+	cd denser; ${MAKE} ${MFLAGS} clean
 	cd libsnet; ${MAKE} ${MFLAGS} clean
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
 	rm -f ${TARGETS}
