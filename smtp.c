@@ -581,6 +581,31 @@ smtp_connect( SNET **snetp, struct host_q *hq )
         }
     }
 
+    if ( simta_punt_host != NULL ) {
+	dnsr_free_result( result );
+	if (( result = get_a( simta_punt_host )) == NULL ) {
+	    return( SMTP_ERROR );
+	}
+	for ( i = 0; i < result->r_ancount; i++ ) {
+	    switch( result->r_answer[ i ].rr_type ) {
+
+	    case DNSR_TYPE_A:
+		memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ i ].rr_a ),
+		    sizeof( struct in_addr ));
+		if ( _smtp_connect_try( &snet, &sin, hq ) == SMTP_OK ) {
+		    goto done;
+		}
+		break;
+
+	    default:
+		syslog( LOG_WARNING, "dnsr_connect %s: unknown dnsr result: %d",
+		    simta_punt_host, result->r_answer[ i ].rr_type );
+		continue;
+	    }
+	}
+    }
+
+
 done:
     dnsr_free_result( result );
     if ( snet != NULL ) {
