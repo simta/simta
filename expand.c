@@ -171,7 +171,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		break;
 
 	    case SIMTA_EXPAND_ERROR_OFF_HOST:
-		/* XXX do you want to report an error here? */
+		/* this is not really an "error", addresses that aren't 
+		 * domains we are expanding for  are just ignored and added
+		 * to the expanded envelope as they are.
+		 */
 #ifdef DEBUG
 		printf( "SIMTA_EXPAND_ERROR_OFF_HOST\n" );
 #endif /* DEBUG */
