@@ -103,7 +103,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		} else {
 		    printf( "expanding %s succeded\n", r->r_rcpt );
 		}
-	    } else if ( debug != 0 ) {
 	    }
 	}
     }
