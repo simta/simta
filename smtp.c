@@ -689,6 +689,9 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    return( SMTP_ERROR );
 	}
 	for ( i = 0; i < result->r_ancount; i++ ) {
+	    memset( &(hq->hq_sin), 0, sizeof( struct sockaddr_in ));
+	    hq->hq_sin.sin_family = AF_INET;
+	    hq->hq_sin.sin_port = htons( SIMTA_SMTP_PORT );
 	    switch( result->r_answer[ i ].rr_type ) {
 
 	    case DNSR_TYPE_A:
@@ -697,6 +700,8 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 			sizeof( struct in_addr ));
 		if ( _smtp_connect_try( &snet, &(hq->hq_sin), hq )
 			== SMTP_OK ) {
+		    syslog( LOG_DEBUG, "host %s punted to %s",
+			hq->hq_hostname, simta_punt_host );
 		    goto done;
 		}
 		break;
