@@ -443,7 +443,6 @@ q_deliver( struct host_q *hq )
 	/* open Dfile to deliver & check to see if it's geriatric */
         errno = 0;
         sprintf( dfile_fname, "%s/D%s", m->m_dir, m->m_id );
-	sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
 
         if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
             if ( errno == ENOENT ) {
@@ -688,7 +687,9 @@ cleanup:
                 }
             }
 
+	    /* move message to SLOW if it isn't there already */
 	    if ( env.e_dir != SIMTA_DIR_SLOW ) {
+		sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
 		sprintf( dfile_slow, "%s/D%s", SIMTA_DIR_SLOW, env.e_id );
 		sprintf( efile_slow, "%s/E%s", SIMTA_DIR_SLOW, env.e_id );
 
