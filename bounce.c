@@ -204,8 +204,6 @@ bounce( struct envelope *env, SNET *message )
         goto cleanup;
     }
 
-    simta_fast_files++;
-
     /* if it's not going to the DEAD queue, add it to our work list */
     if ( bounce_env.e_dir != simta_dir_dead ) {
 	if (( m = message_create( bounce_env.e_id )) == NULL ) {

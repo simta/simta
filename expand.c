@@ -308,8 +308,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    return( -1 );
 	}
 
-	simta_fast_files++;
-
 	/* create message to put in host queue */
 	if (( m = message_create( env_p->e_id )) == NULL ) {
 	    return( -1 );

@@ -52,6 +52,7 @@ struct message {
 };
 
 int	q_runner ___P(( struct host_q ** ));
+int	q_run ___P(( struct host_q ** ));
 int	q_runner_dir ___P(( char * ));
 
 struct	host_q	*host_q_lookup ___P(( struct host_q **, char * )); 

@@ -91,10 +91,10 @@ message_slow( struct message *m )
 	    syslog( LOG_ERR, "message_slow unlink %s: %m", dfile_fname );
 	    return( -1 );
 	}
-    }
 
-    if ( strcmp( simta_dir_fast, m->m_dir ) == 0 ) {
-	simta_fast_files--;
+	if ( strcmp( simta_dir_fast, m->m_dir ) == 0 ) {
+	    simta_fast_files--;
+	}
     }
 
     return( 0 );
@@ -236,6 +236,19 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 
     int
 q_runner( struct host_q **host_q )
+{
+    int				result;
+
+    if (( result = q_run( host_q )) != 0 ) {
+	/* XXX deal with fast_files here */
+    }
+
+    return( result );
+}
+
+
+    int
+q_run( struct host_q **host_q )
 {
     struct host_q		*hq;
     struct host_q		*deliver_q;
@@ -512,6 +525,11 @@ q_deliver( struct host_q *hq )
 	    *mp = m->m_next;
 	    message_free( m );
 	    hq->hq_entries--;
+
+	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
+		simta_fast_files--;
+	    }
+
 	    continue;
 	}
 
@@ -533,6 +551,10 @@ q_deliver( struct host_q *hq )
 		*mp = m->m_next;
 		message_free( m );
 		hq->hq_entries--;
+
+		if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
+		    simta_fast_files--;
+		}
 
                 continue;
 

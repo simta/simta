@@ -328,6 +328,10 @@ env_outfile( struct envelope *e, char *dir )
 	goto cleanup;
     }
 
+    if ( dir == simta_dir_fast ) {
+	simta_fast_files++;
+    }
+
     return( 0 );
 
 cleanup:
@@ -520,7 +524,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	    if ( errno == EAGAIN ) {
 		/* file locked by a diferent process */
 		if ( snet_close( snet ) < 0 ) {
-		    syslog( LOG_ERR, "snet_close: %m" );
+		    syslog( LOG_ERR, "snet_close %s: %m", filename );
 		    return( -1 );
 		}
 
@@ -538,7 +542,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	syslog( LOG_ERR, "%s unexpected EOF", filename );
 
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
+	    syslog( LOG_ERR, "snet_close %s: %m", filename );
 	    return( -1 );
 	}
 
@@ -549,7 +553,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	syslog( LOG_ERR, "%s bad version syntax", filename );
 
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
+	    syslog( LOG_ERR, "snet_close %s: %m", filename );
 	    return( -1 );
 	}
 
@@ -561,7 +565,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	syslog( LOG_ERR, "%s unexpected EOF", filename );
 
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
+	    syslog( LOG_ERR, "snet_close %s: %m", filename );
 	    return( -1 );
 	}
 
@@ -572,7 +576,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	syslog( LOG_ERR, "%s bad host syntax", filename );
 
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
+	    syslog( LOG_ERR, "snet_close %s: %m", filename );
 	    return( -1 );
 	}
 
@@ -584,7 +588,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	syslog( LOG_ERR, "%s unexpected EOF", filename );
 
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
+	    syslog( LOG_ERR, "snet_close %s: %m", filename );
 	    return( -1 );
 	}
 
@@ -595,7 +599,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	syslog( LOG_ERR, "%s bad from syntax", filename );
 
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
+	    syslog( LOG_ERR, "snet_close %s: %m", filename );
 	    return( -1 );
 	}
 
@@ -618,7 +622,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
 	    syslog( LOG_ERR, "%s bad recieved syntax", filename );
 
 	    if ( snet_close( snet ) < 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
+		syslog( LOG_ERR, "snet_close %s: %m", filename );
 		return( -1 );
 	    }
 
@@ -640,7 +644,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
     /* close snet if no need to maintain lock */
     if ( s_lock == NULL ) {
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
+	    syslog( LOG_ERR, "snet_close %s: %m", filename );
 	    return( -1 );
 	}
     }
