@@ -205,7 +205,7 @@ AC_DEFUN([CHECK_DB],
 [
     AC_MSG_CHECKING(for db)
     dbdirs="/usr/local/db /usr/db \
-            /usr/pkg /usr/local /usr /usr/local/BerkeleyDB"
+            /usr/pkg /usr/local /usr"
     AC_ARG_WITH(db,
             AC_HELP_STRING([--with-db=DIR], [path to db]),
             dbdirs="$withval")

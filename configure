@@ -2708,7 +2708,7 @@ echo "${ECHO_T}$ac_cv_struct_gmtoff" >&6
     echo "$as_me:$LINENO: checking for db" >&5
 echo $ECHO_N "checking for db... $ECHO_C" >&6
     dbdirs="/usr/local/db /usr/db \
-            /usr/pkg /usr/local /usr /usr/local/BerkeleyDB"
+            /usr/pkg /usr/local /usr"
 
 # Check whether --with-db or --without-db was given.
 if test "${with_db+set}" = set; then
