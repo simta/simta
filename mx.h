@@ -6,4 +6,4 @@ int check_hostname( char * );
 struct host * add_host( char *, int );
 int add_expansion( struct host *, int );
 struct host * host_local( char * );
-int check_rbl( struct in_addr *, char ** );
+int check_rbl( struct in_addr *, char *domain, char ** );

@@ -58,6 +58,10 @@ extern SSL_CTX	*ctx;
 #include "simta_ldap.h"
 #endif
 
+#define RECEIVE_RBL_UNKNOWN	0
+#define RECEIVE_RBL_BLOCKED	1
+#define RECEIVE_RBL_NOT_BLOCKED	2
+
 #define SIMTA_EXTENSION_SIZE    (1<<0)
 
 extern char		*version;
@@ -66,6 +70,7 @@ struct sockaddr_in  	*receive_sin;
 int			receive_global_relay = 0;
 int			recieve_failed_rcpts = 0;
 int			receive_tls = 0;
+int			receive_remote_rbl_status = RECEIVE_RBL_UNKNOWN;
 char			*receive_hello = NULL;
 char			*receive_smtp_command = NULL;
 char			*receive_remote_hostname;
@@ -82,6 +87,7 @@ char			*receive_remote_hostname;
 #define	NOT_LOCAL			2
 #define	LOCAL_ERROR			3
 #define	MX_ADDRESS			4
+#define	LOCAL_ADDRESS_RBL		5
 
 struct command {
     char	*c_name;
@@ -658,6 +664,37 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		 * to prevent dup 421 message.  OK?
 		 */
 		return( RECEIVE_OK );
+
+	    case LOCAL_ADDRESS_RBL:
+		if ( simta_user_rbl_domain != NULL ) {
+		    if ( receive_remote_rbl_status == RECEIVE_RBL_UNKNOWN ) {
+			/* Check and save RBL status */
+			switch ( check_rbl( &(receive_sin->sin_addr),
+				simta_user_rbl_domain, NULL )) {
+			case 0:
+			    receive_remote_rbl_status = RECEIVE_RBL_BLOCKED;
+			    break;
+
+			case 1:
+			    receive_remote_rbl_status = RECEIVE_RBL_NOT_BLOCKED;
+			    break;
+
+			default:
+			    return( RECEIVE_CLOSECONNECTION );
+			}
+		    }
+
+		    if ( receive_remote_rbl_status == RECEIVE_RBL_BLOCKED ) {
+			syslog( LOG_INFO,
+				"Receive %s: To <%s> Rejected: User RBL:",
+				env->e_id, addr );
+			snet_writef( snet,
+			    "550 Address blocked.  http://someaddress.edu "
+			    "for more information\r\n" );
+			return( RECEIVE_OK );
+		    }
+		}
+		break;
 
 	    case LOCAL_ADDRESS:
 	    case MX_ADDRESS:
@@ -1385,7 +1422,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     }
 
     if ( simta_rbl_domain != NULL ) {
-	switch( check_rbl( &(sin->sin_addr), &rbl_err_txt )) {
+	switch( check_rbl( &(sin->sin_addr), simta_rbl_domain, &rbl_err_txt )) {
 	case 0:
 	    syslog( LOG_NOTICE,
 		"receive connection blocked by %s: %s",
@@ -1619,6 +1656,9 @@ local_address( char *addr, char *domain, struct host *host )
 
 	    case LDAP_LOCAL:
 		return( LOCAL_ADDRESS );
+
+	    case LDAP_LOCAL_RBL:
+		return( LOCAL_ADDRESS_RBL );
 	    }
 	    break;
 #endif /* HAVE_LDAP */

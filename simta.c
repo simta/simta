@@ -86,6 +86,7 @@ char			*simta_punt_host = NULL;
 char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
 char			*simta_rbl_domain = NULL;
+char			*simta_user_rbl_domain = NULL;
 char			*simta_queue_filter = NULL;
 char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
@@ -401,6 +402,19 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "RBL_DOMAIN: %s\n",
 		simta_rbl_domain );
+
+	} else if ( strcasecmp( av[ 0 ], "USER_RBL_DOMAIN" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if (( simta_user_rbl_domain = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "USER_RBL_DOMAIN: %s\n",
+		simta_user_rbl_domain );
 
         } else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
 	    if ( simta_tls ) {

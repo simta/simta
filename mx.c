@@ -438,22 +438,17 @@ add_expansion( struct host *host, int type )
  * your configuration.
  */
     int 
-check_rbl( struct in_addr *in, char **txt )
+check_rbl( struct in_addr *in, char *domain, char **txt )
 {
     int			i;
     char		*reverse_ip;
     struct dnsr_result	*result;
 
-    if ( simta_rbl_domain == NULL ) {
-	syslog( LOG_ERR, "check_rbl: simta_rbl_domain not set" );
-	return( -1 );
-    }
-    if (( reverse_ip = dnsr_ntoptr( simta_dnsr, in,
-	    simta_rbl_domain )) == NULL ) {
+    if (( reverse_ip = dnsr_ntoptr( simta_dnsr, in, domain )) == NULL ) {
 	syslog( LOG_ERR, "check_rbl: dnsr_ntoptr failed" );
 	return( -1 );
     }
-    if ( simta_debug ) printf( "check_rbl for %s...", reverse_ip );
+    if ( simta_debug ) fprintf( stderr, "check_rbl for %s...", reverse_ip );
 
     if (( result = get_a( reverse_ip )) == NULL ) {
 	free( reverse_ip );
@@ -468,6 +463,10 @@ check_rbl( struct in_addr *in, char **txt )
     }
     dnsr_free_result( result );
 
+    if ( txt == NULL ) {
+	return( 0 );
+    }
+
     if (( result = get_txt( reverse_ip )) == NULL ) {
 	free( reverse_ip );
 	return( -1 );
@@ -475,11 +474,7 @@ check_rbl( struct in_addr *in, char **txt )
     free( reverse_ip );
 
     if ( result->r_ancount <= 0 ) {
-	if (( *txt = strdup( "no block message\n" )) == NULL ) {
-	    syslog( LOG_ERR, "check_rbl: strdup: %m" );
-	    dnsr_free_result( result );
-	    return( -1 );
-	}
+	*txt = NULL;
     } else {
 	for ( i = 0; i < result->r_ancount; i++ ) {
 	    switch( result->r_answer[ i ].rr_type ) {
@@ -487,8 +482,7 @@ check_rbl( struct in_addr *in, char **txt )
 		if (( *txt = strdup( result->r_answer[ i ].rr_txt.t_txt ))
 			== NULL ) {
 		    syslog( LOG_ERR, "check_rbl: strdup: %m" );
-		    dnsr_free_result( result );
-		    return( -1 );
+		    goto error;
 		}
 		goto done;
 
@@ -499,15 +493,15 @@ check_rbl( struct in_addr *in, char **txt )
 		break;
 	    }
 	}
-	if (( *txt = strdup( "no txt record\n" )) == NULL ) {
-	    syslog( LOG_ERR, "check_rbl: strdup: %m" );
-	    dnsr_free_result( result );
-	    return( -1 );
-	}
+	*txt = NULL;
     }
 done:
     if ( simta_debug ) printf( "blocked: %s\n", *txt );
     dnsr_free_result( result );
 
     return( 0 );
+
+error:
+    dnsr_free_result( result );
+    return( -1 );
 }
