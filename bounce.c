@@ -338,13 +338,18 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
         fprintf( dfile, "This message is old and undeliverable.\n\n" );
     }
 
-    if ( hq->hq_err_text != NULL ) {
+    if ( hq == NULL ) {
+	fprintf( dfile, "An error occured during "
+		"the expansion of the message recipients.\n\n" );
+
+    } else if ( hq->hq_err_text != NULL ) {
 	fprintf( dfile, "The following error occured during delivery to "
 		"host %s:\n", hq->hq_hostname );
 	for ( l = hq->hq_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
 	}
 	fprintf( dfile, "\n" );
+
     } else {
 	fprintf( dfile, "An error occured during delivery to host %s.\n\n",
 		hq->hq_hostname );

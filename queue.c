@@ -374,7 +374,7 @@ q_runner( struct host_q **host_q )
 			    goto unexpanded_clean_up;
 			}
 
-			if (( env_bounce = bounce( hq, unexpanded,
+			if (( env_bounce = bounce( NULL, unexpanded,
 				snet_dfile )) == NULL ) {
 			    snet_close( snet_dfile );
 			    goto unexpanded_clean_up;
