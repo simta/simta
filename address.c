@@ -489,9 +489,9 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
 
     /* Check password file */
     if ( e_addr->e_addr_at != NULL ) {
-	*(e_addr->e_addr_at) = '\0';
+	*e_addr->e_addr_at = '\0';
 	passwd = getpwnam( e_addr->e_addr );
-	*(e_addr->e_addr_at) = '@';
+	*e_addr->e_addr_at = '@';
     } else {
 	passwd = getpwnam( "postmaster" );
     }
@@ -590,9 +590,10 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     memset( &value, 0, sizeof( DBT ));
 
     if ( e_addr->e_addr_at != NULL ) {
-	*(e_addr->e_addr_at) = '\0';
-	strcpy( e_addr->e_addr_at, address );
-	*(e_addr->e_addr_at) = '@';
+	*e_addr->e_addr_at = '\0';
+	/* XXX - len check */
+	strcpy( address, e_addr->e_addr );
+	*e_addr->e_addr_at = '@';
     } else {
 	strcpy( address, "postmaster" );
     }
