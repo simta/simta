@@ -6,7 +6,9 @@ BINDIR=@bindir@
 ETCDIR=@sysconfdir@
 SBINDIR=@sbindir@
 RUNDIR=/var/run
+RUNFILE=/var/run/simta.pid
 LIBDIR=/usr/lib
+SPOOLDIR=/var/spool/simta/
 LOCAL_Q=/var/spool/simta/local
 SLOW_Q=/var/spool/simta/slow
 FAST_Q=/var/spool/simta/fast
@@ -54,19 +56,23 @@ all : ${TARGETS}
 
 install : all FRC
 	-mkdir -p ${RUNDIR}
+	-touch ${RUNFILE}
+	-chown -R simta ${RUNFILE}
+	-chgrp -R simta ${RUNFILE}
+	-chmod 755 ${RUNFILE}
+	-mkdir -p ${MANDIR}/man1
 	-mkdir -p ${LOCAL_Q}
 	-mkdir -p ${SLOW_Q}
 	-mkdir -p ${FAST_Q}
-	${INSTALL} -m 0755 -c simta ${SBINDIR}/
-	${INSTALL} -m 0755 -c simsendmail ${LIBDIR}/
+	-chown -R simta ${SPOOLDIR}
+	-chgrp -R simta ${SPOOLDIR}
+	-chmod -R 700 ${SPOOLDIR}
+	${INSTALL} -m 755 -o simta -g simta -c simta ${SBINDIR}/
+	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${LIBDIR}/
+	ln -f ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
 	for i in ${MAN1TARGETS}; do \
 	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
 	done
-
-install-suid : all FRC install
-	${INSTALL} -m 6755 -g mail -o root -c simta ${SBINDIR}/
-	${INSTALL} -m 6755 -g mail -o root -c simsendmail ${LIBDIR}/
-	ln -f ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
 
 simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}

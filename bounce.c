@@ -84,7 +84,7 @@ bounce( struct envelope *env, SNET *message )
         }
 
     } else {
-        if ( env_recipient( &bounce_env, SIMTA_POSTMASTER ) != 0 ) {
+        if ( env_recipient( &bounce_env, simta_postmaster ) != 0 ) {
             return( -1 );
         }
     }
@@ -92,7 +92,7 @@ bounce( struct envelope *env, SNET *message )
     /* all bounces get created in FAST */
     bounce_env.e_dir = SIMTA_DIR_FAST;
 
-    sprintf( dfile_fname, "%s/D%s", bounce_env.e_dir, bounce_env.e_id );
+    sprintf( dfile_fname, "%s/D%s", SIMTA_DIR_FAST, bounce_env.e_id );
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
@@ -127,7 +127,11 @@ bounce( struct envelope *env, SNET *message )
 
     /* XXX From: address */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
-    fprintf( dfile, "To: %s\n", env->e_mail );
+    if ( env->e_mail != NULL ) {
+	fprintf( dfile, "To: %s\n", simta_postmaster );
+    } else {
+	fprintf( dfile, "To: %s\n", simta_postmaster );
+    }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", env->e_id );
     fprintf( dfile, "\n" );
@@ -184,7 +188,7 @@ bounce( struct envelope *env, SNET *message )
         goto cleanup;
     }
 
-    if ( env_outfile( &bounce_env, bounce_env.e_dir ) != 0 ) {
+    if ( env_outfile( &bounce_env, SIMTA_DIR_FAST ) != 0 ) {
         goto cleanup;
     }
 
@@ -192,7 +196,7 @@ bounce( struct envelope *env, SNET *message )
 	return( -1 );
     }
 
-    m->m_dir = bounce_env.e_dir;
+    m->m_dir = SIMTA_DIR_FAST;
     m->m_etime.tv_sec = tv.tv_sec;
 
     if ( message_queue( simta_null_q, m ) != 0 ) {

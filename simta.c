@@ -29,6 +29,7 @@ char			*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 int			simta_debug = 0;
 int			simta_verbose = 0;
 char			*simta_punt_host = NULL;
+char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
 char			simta_hostname[ MAXHOSTNAMELEN + 1 ] = "\0";
 
@@ -81,6 +82,14 @@ simta_config( void )
 
     /* simta_domain defaults to simta_hostname */
     simta_domain = simta_hostname;
+
+    if (( simta_postmaster = (char*)malloc( 12 + strlen( simta_hostname )))
+	    == NULL ) {
+	perror( "malloc" );
+	return( -1 );
+    }
+
+    sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
 
     /* read config file */
     if (( result = nlist( simta_nlist, SIMTA_FILE_CONFIG )) < 0 ) {

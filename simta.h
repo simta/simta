@@ -20,7 +20,6 @@
 #define	SIMTA_DIR_FAST		"/var/spool/simta/fast"
 #define	SIMTA_DIR_SLOW		"/var/spool/simta/slow"
 #define SIMTA_DIR_LOG		"/var/simta/log"
-#define	SIMTA_POSTMASTER	"postmaster"
 #define	SIMTA_BOUNCE_LINES	100
 #define	SIMTA_VERSION_STRING	"V0"
 #define SIMTA_ALIAS_DB		"/etc/alias.db"
@@ -37,6 +36,7 @@ extern char			simta_hostname[];
 extern char			*simta_punt_host;
 extern struct host_q		*simta_null_q;
 extern struct stab_entry	*simta_hosts;
+char				*simta_postmaster;
 
 
 char	*simta_sender ___P(( void ));

@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pwd.h>
 
 #ifdef TLS
 #include <openssl/ssl.h>
@@ -179,6 +180,8 @@ main( ac, av )
     unsigned short	port = 0;
     extern int		optind;
     extern char		*optarg;
+    struct passwd	*simta_pw;
+    char		*simta_uname = "simta";
 
     if (( prog = strrchr( av[ 0 ], '/' )) == NULL ) {
 	prog = av[ 0 ];
@@ -255,6 +258,15 @@ main( ac, av )
     if ( maxconnections < 0 ) {
 	fprintf( stderr, "%d: invalid max-connections\n", maxconnections );
     }
+
+    /* get our user info from /etc/passwd */
+    if (( simta_pw = getpwnam( simta_uname )) == NULL ) {
+	fprintf( stderr, "getpwnam %s: user not found\n", simta_uname );
+	exit( 1 );
+    }
+
+    /* set our umask */
+    umask( 022 );
 
     /* openlog now, as some support functions require it. */
 #ifdef ultrix
@@ -333,12 +345,25 @@ main( ac, av )
 		SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL );
     }
 
+printf( "here1\n" );
 
     if ( dontrun ) {
 	exit( 0 );
     }
 
     if ( q_run != 0 ) {
+	/* set our gid */
+	if ( setgid( simta_pw->pw_gid ) != 0 ) {
+	    perror( "setgid" );
+	    exit( 1 );
+	}
+
+	/* set our uid */
+	if ( setuid( simta_pw->pw_uid ) != 0 ) {
+	    perror( "setuid" );
+	    exit( 1 );
+	}
+
 	exit( q_runner_dir( SIMTA_DIR_SLOW ));
     }
 
@@ -386,7 +411,7 @@ main( ac, av )
         exit( 1 );
     }
 
-    /* lock envelope fd for delivery attempt */
+    /* lock simta pid fd */
     if ( lockf( pidfd, F_TLOCK, 0 ) != 0 ) {
 	if ( errno == EAGAIN ) {
 	    /* file locked by a diferent process */
@@ -405,6 +430,8 @@ main( ac, av )
         exit( 1 );
     }
 
+printf( "here2\n" );
+
     if ( cleanup != 0 ) {
 	if ( q_cleanup() != 0 ) {
 	    exit( 1 );
@@ -413,6 +440,24 @@ main( ac, av )
 
     /* close the log fd gracefully before we daemonize */
     closelog();
+
+printf( "here3\n" );
+
+    /* set our gid */
+    if ( setgid( simta_pw->pw_gid ) != 0 ) {
+	perror( "setgid" );
+	exit( 1 );
+    }
+
+printf( "here4\n" );
+
+    /* set our uid */
+    if ( setuid( simta_pw->pw_uid ) != 0 ) {
+	perror( "setuid" );
+	exit( 1 );
+    }
+
+printf( "here5\n" );
 
     /*
      * Disassociate from controlling tty.

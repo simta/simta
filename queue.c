@@ -93,13 +93,13 @@ message_create( char *id )
     struct message		*m;
 
     if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
-	syslog( LOG_ERR, "malloc: %m" );
+	syslog( LOG_ERR, "message_create malloc: %m" );
 	return( NULL );
     }
     memset( m, 0, sizeof( struct message ));
 
     if (( m->m_id = strdup( id )) == NULL ) {
-	syslog( LOG_ERR, "strdup: %m" );
+	syslog( LOG_ERR, "message_create strdup: %m" );
 	return( NULL );
     }
 
@@ -157,13 +157,13 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 
     if ( hq == NULL ) {
 	if (( hq = (struct host_q*)malloc( sizeof( struct host_q ))) == NULL ) {
-	    syslog( LOG_ERR, "malloc: %m" );
+	    syslog( LOG_ERR, "host_q_lookup malloc: %m" );
 	    return( NULL );
 	}
 	memset( hq, 0, sizeof( struct host_q ));
 
 	if (( hq->hq_hostname = strdup( hostname )) == NULL ) {
-	    syslog( LOG_ERR, "malloc: %m" );
+	    syslog( LOG_ERR, "host_q_lookup malloc: %m" );
 	    return( NULL );
 	}
 
@@ -292,7 +292,7 @@ q_runner( struct host_q **host_q )
 
 	    /* release lock */
 	    if ( snet_close( snet_lock ) != 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
+		syslog( LOG_ERR, "q_runner snet_close: %m" );
 		return( -1 );
 	    }
 
@@ -336,7 +336,7 @@ q_runner_dir( char *dir )
     }
 
     if (( dirp = opendir( dir )) == NULL ) {
-	syslog( LOG_ERR, "opendir %s: %m", dir );
+	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
 	exit( EX_TEMPFAIL );
     }
 
@@ -705,19 +705,19 @@ cleanup:
             }
 
 	    /* move message to SLOW if it isn't there already */
-	    if ( env.e_dir != SIMTA_DIR_SLOW ) {
+	    if ( strcmp( env.e_dir, SIMTA_DIR_SLOW ) != 0 ) {
 		sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
 		sprintf( dfile_slow, "%s/D%s", SIMTA_DIR_SLOW, env.e_id );
 		sprintf( efile_slow, "%s/E%s", SIMTA_DIR_SLOW, env.e_id );
 
 		if ( link( dfile_fname, dfile_slow ) != 0 ) {
-		    syslog( LOG_ERR, "link %s %s: %m", dfile_fname,
+		    syslog( LOG_ERR, "q_deliver link %s %s: %m", dfile_fname,
 			    dfile_slow );
 		    return( -1 );
 		}
 
 		if ( link( efile_fname, efile_slow ) != 0 ) {
-		    syslog( LOG_ERR, "link %s %s: %m", efile_fname,
+		    syslog( LOG_ERR, "q_deliver link %s %s: %m", efile_fname,
 			    efile_slow );
 		    return( -1 );
 		}
