@@ -70,7 +70,7 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 	    break;
 
 	case '\\' :
-	    if ( state == ACV_DQUOTE ) {
+	    if (( state == ACV_DQUOTE ) && (*(line + 1) != '\0' )) {
 		line++;
 	    }
 	    break;

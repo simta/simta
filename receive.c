@@ -1325,7 +1325,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     SNET				*snet;
     char				*rbl_err_txt;
     struct envelope			*env = NULL;
-    ACAV				*acav;
+    ACAV				*acav = NULL;
     int					ac;
     int					i;
     int					rc;
@@ -1470,7 +1470,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
 
 	if ( ac == 0 ) {
-	    if ( snet_writef( snet, "%d Command unrecognized\r\n", 501 ) < 0 ) {
+	    if ( snet_writef( snet, "500 Command unrecognized\r\n" ) < 0 ) {
 		goto closeconnection;
 	    }
 	    continue;
@@ -1490,8 +1490,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
 
 	if ( i >= ncommands ) {
-	    if ( snet_writef( snet, "%d Command %s unregcognized\r\n",
-		    500, av[ 0 ]) < 0 ) {
+	    if ( snet_writef( snet, "500 Command unregcognized\r\n" ) < 0 ) {
 		goto closeconnection;
 	    }
 	    continue;
@@ -1522,7 +1521,7 @@ closeconnection:
 	syslog( LOG_ERR, "receive snet_close: %m" );
     }
 
-    if ( av != NULL ) {
+    if ( acav != NULL ) {
 	acav_free( acav );
     }
 
