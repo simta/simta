@@ -199,7 +199,6 @@ queue_envelope( struct host_q **host_q_head, struct envelope *env )
     }
 
     /* sort queued envelopes by access time */
-    ep = &(hq->hq_env_first);
     for ( ep = &(hq->hq_env_first); *ep != NULL; ep = &((*ep)->e_hq_next)) {
 	if ( env->e_last_attempt.tv_sec < (*ep)->e_last_attempt.tv_sec ) {
 	    break;
@@ -488,7 +487,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     int				smtp_error;
     char                        *at;
     struct timeval              tv;
-    struct envelope		**ep;
     struct recipient		**r_sort;
     struct recipient		*remove;
     struct envelope		*env_deliver;
@@ -506,15 +504,19 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	deliver_q->hq_status = HOST_DOWN;
     }
 
-    for ( ep = &deliver_q->hq_env_first; *ep != NULL; ) {
-	env_deliver = *ep;
-	*ep = env_deliver->e_hq_next;
+    /* XXX epcjr and mcneal - determine if the host is local in the sense
+     * that we use the local mailer or the SMTP outbounder here.
+     */
 
-	deliver_q->hq_entries--;
+    while ( deliver_q->hq_env_first != NULL ) {
+	env_deliver = deliver_q->hq_env_first;
+	deliver_q->hq_env_first = deliver_q->hq_env_first->e_hq_next;
 
 	if ( env_deliver->e_mail != NULL ) {
 	    deliver_q->hq_from--;
 	}
+
+	deliver_q->hq_entries--;
 
 	if ( env_deliver->e_rcpt == NULL ) {
 	    /* lock & read envelope to deliver */
@@ -550,7 +552,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		    env_deliver->e_id );
 	    attempt = 1;
             for ( r = env_deliver->e_rcpt; r != NULL; r = r->r_next ) {
-		at = NULL;
 		ml_error = EX_TEMPFAIL;
 
 		if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
@@ -558,44 +559,45 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		    goto lseek_fail;
 		}
 
-                for ( at = r->r_rcpt; ; at++ ) {
-                    if ( *at == '@' ) {
-                        *at = '\0';
-                        break;
-
-                    } else if ( *at == '\0' ) {
-                        break;
-                    }
-                }
+		if (( at = index( r->r_rcpt, '@' )) != NULL ) {
+		    *at = '\0';
+		}
 
 		syslog( LOG_INFO, "q_deliver %s %s: attempting local delivery",
 			env_deliver->e_id, r->r_rcpt );
                 ml_error = (*local_mailer)( dfile_fd, env_deliver->e_mail, r );
 
+                if ( at != NULL ) {
+                    *at = '@';
+                }
+
 lseek_fail:
-                if ( ml_error == 0 ) {
+                switch ( ml_error ) {
+		case EXIT_SUCCESS:
                     /* success */
                     r->r_delivered = R_DELIVERED;
                     env_deliver->e_success++;
 		    syslog( LOG_INFO, "q_deliver %s %s: delivered locally",
 			    env_deliver->e_id, r->r_rcpt );
+		    break;
 
-		} else if ( ml_error == EX_TEMPFAIL ) {
+                default:
+		case EX_TEMPFAIL:
 		    r->r_delivered = R_TEMPFAIL;
 		    env_deliver->e_tempfail++;
 		    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
-			    "tempfail", env_deliver->e_id, r->r_rcpt );
+			    "tempfail %d", env_deliver->e_id, r->r_rcpt,
+			    ml_error );
+		    break;
 
-                } else {
-                    /* hard failure */
+                case EX_DATAERR:
+                case EX_NOUSER:
+                    /* hard failure caused by bad user data, or no local user */
                     r->r_delivered = R_FAILED;
                     env_deliver->e_failed++;
 		    syslog( LOG_INFO, "q_deliver %s %s: local delivery "
 			    "hard failure", env_deliver->e_id, r->r_rcpt );
-                }
-
-                if ( at != NULL ) {
-                    *at = '@';
+		    break;
                 }
             }
 
