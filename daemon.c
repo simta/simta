@@ -222,7 +222,7 @@ main( ac, av )
     config_fname = SIMTA_FILE_CONFIG;
     config_base_dir = SIMTA_BASE_DIR;
 
-    while (( c = getopt( ac, av, "b:C:cdD:f:M:m:p:rs:V" )) != -1 ) {
+    while (( c = getopt( ac, av, "b:C:cdD:f:M:m:p:rRs:V" )) != -1 ) {
 	switch ( c ) {
 	case 'b' :		/* listen backlog */
 	    backlog = atoi( optarg );
@@ -267,6 +267,10 @@ main( ac, av )
 
 	case 'r' :
 	    use_randfile = 1;
+	    break;
+
+	case 'R' :
+	    simta_global_relay = 1;
 	    break;
 
 	case 's' :		/* spool dir */

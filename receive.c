@@ -355,8 +355,13 @@ f_mail( snet, env, ac, av )
     }
 
     /* check for authorized relay */
-    if ( strncmp( env->e_mail, "mcneal@umich.edu",
+    if ( simta_global_relay != 0 ) {
+	syslog( LOG_INFO, "relay to %s for %s", addr, env->e_mail );
+	env->e_relay = 1;
+
+    } else if ( strncmp( env->e_mail, "mcneal@umich.edu",
 	    strlen( "mcneal@umich.edu" )) == 0 ) {
+	/* everyone likes mcneal */
 	syslog( LOG_INFO, "relay to %s for %s", addr, env->e_mail );
 	env->e_relay = 1;
     }
