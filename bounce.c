@@ -152,8 +152,6 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     struct tm                   *tm;
     char                        daytime[ 35 ];
 
-    syslog( LOG_DEBUG, "bounce_dfile_out.starting" );
-
     sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))

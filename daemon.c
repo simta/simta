@@ -672,7 +672,6 @@ main( ac, av )
 		proc_stab = p;
 		q_runner_slow++;
 
-		syslog( LOG_DEBUG, "launching q_runner" );
 		switch ( pid = fork()) {
 		case 0 :
 		    close( s );

@@ -287,8 +287,6 @@ q_runner( struct host_q **host_q )
     struct host_q		*hq;
     struct message		*m;
 
-    syslog( LOG_DEBUG, "q_runner starting" );
-
     q_run( host_q );
 
     if ( simta_fast_files < 1 ) {
@@ -441,8 +439,6 @@ q_run( struct host_q **host_q )
     int
 q_runner_dir( char *dir )
 {
-    syslog( LOG_DEBUG, "q_runner_dir starting" );
-
     q_runner_d( dir );
 
     if ( simta_fast_files != 0 ) {
