@@ -12,7 +12,7 @@ char	*token_domain( char * );
 char	*token_quoted_string( char * );
 char	*token_dot_atom( char * );
 int	header_timestamp( struct envelope *, FILE * );
-int	header_end( struct line_file *, char * );
+int	header_end( int, char * );
 int	header_punt( struct line_file * );
 int	header_correct( int, struct line_file *, struct envelope * );
 int	header_correct( int, struct line_file *, struct envelope * );

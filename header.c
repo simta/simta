@@ -357,7 +357,7 @@ header_timestamp( struct envelope *env, FILE *file )
      */
 
     int
-header_end( struct line_file *lf, char *line )
+header_end( int line_no, char *line )
 {
     char		*c;
 
@@ -367,9 +367,8 @@ header_end( struct line_file *lf, char *line )
     }
 
     if (( *line == ' ' ) || ( *line == '\t' )) {
-
 	/* line could be FWS if it's not the first line */
-	if ( lf->l_first != NULL ) {
+	if ( line_no > 1 ) {
 	    return( 0 );
 	}
 

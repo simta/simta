@@ -50,6 +50,7 @@ struct stab_entry	*simta_hosts = NULL;
 struct stab_entry	*simta_default_host = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 int			simta_no_sync = 0;
+int			simta_max_received_headers = 100;
 int			simta_receive_wait = 600;
 int			simta_ignore_reverse = 0;
 int			simta_message_count = 0;
@@ -77,22 +78,24 @@ DNSR			*simta_dnsr = NULL;
 
 struct nlist		simta_nlist[] = {
 #define	NLIST_MASQUERADE		0
-    { "masquerade",	NULL,	0 },
-#define	NLIST_PUNT			1
-    { "punt",		NULL,	0 },
-#define	NLIST_BASE_DIR			2
-    { "base_dir",	NULL,	0 },
-#define	NLIST_RECEIVE_WAIT		3
-    { "receive_wait",	NULL,	0 },
-#define	NLIST_BOUNCE_SECONDS		4
-    { "bounce_seconds",	NULL,	0 },
-#define	NLIST_MAIL_FILTER		5
-    { "mail_filter",	NULL,	0 },
+    { "masquerade",					NULL,	0 },
+#define	NLIST_PUNT					1
+    { "punt",						NULL,	0 },
+#define	NLIST_BASE_DIR					2
+    { "base_dir",					NULL,	0 },
+#define	NLIST_RECEIVE_WAIT				3
+    { "receive_wait",					NULL,	0 },
+#define	NLIST_BOUNCE_SECONDS				4
+    { "bounce_seconds",					NULL,	0 },
+#define	NLIST_MAX_RECEIVED_HEADERS			5
+    { "max_received_headers",				NULL,	0 },
+#define	NLIST_MAIL_FILTER				6
+    { "mail_filter",					NULL,	0 },
 #ifdef HAVE_LDAP
-#define	NLIST_LDAP			6
-    { "ldap",		NULL,	0 },
+#define	NLIST_LDAP					7
+    { "ldap",						NULL,	0 },
 #endif /* HAVE_LDAP */
-    { NULL,		NULL,	0 },
+    { NULL,						NULL,	0 },
 };
 
 
@@ -239,7 +242,7 @@ simta_config( char *conf_fname, char *base_dir )
 		fprintf( stderr,
 		    "file %s line %d: bounce_seconds may not be less than 0",
 		    conf_fname,
-		    simta_nlist[ NLIST_RECEIVE_WAIT ].n_lineno );
+		    simta_nlist[ NLIST_BOUNCE_SECONDS ].n_lineno );
 		return( -1 );
 	    }
 	}
@@ -252,6 +255,18 @@ simta_config( char *conf_fname, char *base_dir )
 		    "file %s line %d: receive_wait must be greater than 0",
 		    conf_fname,
 		    simta_nlist[ NLIST_RECEIVE_WAIT ].n_lineno );
+		return( -1 );
+	    }
+	}
+
+	if ( simta_nlist[ NLIST_MAX_RECEIVED_HEADERS ].n_data != NULL ) {
+	    simta_receive_wait =
+		atoi( simta_nlist[ NLIST_MAX_RECEIVED_HEADERS ].n_data );
+	    if ( simta_max_received_headers <= 0 ) {
+		fprintf( stderr,
+		    "file %s line %d: receive_wait must be greater than 0",
+		    conf_fname,
+		    simta_nlist[ NLIST_MAX_RECEIVED_HEADERS ].n_lineno );
 		return( -1 );
 	    }
 	}

@@ -478,16 +478,15 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int					dfile_fd;
-    int					data_errors = 0;
     int					header = 1;
     int					line_no = 0;
+    int					data_errors = 0;
+    int					received_count = 0;
     int					message_result;
     char				*line;
     char				*smtp_message = NULL;
     struct tm				*tm;
     FILE				*dff;
-    struct line_file			*lf;
-    struct line				*l;
     struct timeval			tv;
     time_t				clock;
     struct stat				sbuf;
@@ -535,11 +534,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     sprintf( dfile_fname, "%s/D%s", simta_dir_fast, env->e_id );
-
-    if (( lf = line_file_create()) == NULL ) {
-	syslog( LOG_ERR, "f_data line_file_create: %m" );
-	return( RECEIVE_SYSERROR );
-    }
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
 	    < 0 ) {
@@ -592,19 +586,19 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
-	line_file_free( lf );
 	return( RECEIVE_CLOSECONNECTION );
     }
 
+    /* start in header mode */
     header = 1;
 
     /* XXX should implement a byte count to limit DofS attacks */
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
+	line_no++;
 	tv.tv_sec = simta_receive_wait;
 	tv.tv_usec = 0;
-	line_no++;
 
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
@@ -614,57 +608,21 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	if ( header == 1 ) {
-	    if ( header_end( lf, line ) != 0 ) {
-		/* XXX reject message based on headers here */
-
-		if ( data_errors == 0 ) {
-		    if ( header_file_out( lf, dff ) != 0 ) {
-			syslog( LOG_ERR, "f_data header_file_out: %m" );
-			data_errors++;
-		    } else {
-			if ( fprintf( dff, "%s\n", line ) < 0 ) {
-			    syslog( LOG_ERR, "f_data fprintf: %m" );
-			    data_errors++;
-			}
-		    }
-		}
-
+	    if ( header_end( line_no, line ) != 0 ) {
 		header = 0;
-
-	    } else {
-		/* append line to headers */
-		if ( data_errors == 0 ) {
-		    if (( l = line_append( lf, line )) == NULL ) {
-			syslog( LOG_ERR, "f_data line_append: %m" );
-			data_errors++;
-		    } else {
-			l->line_no = line_no;
-		    }
-		}
-	    }
-
-	} else {
-	    if ( data_errors == 0 ) {
-		if ( fprintf( dff, "%s\n", line ) < 0 ) {
-		    syslog( LOG_ERR, "f_data fprintf: %m" );
-		    data_errors++;
-		}
+	    } else if ( strncasecmp( line, "Received:", 9 ) == 0 ) {
+		received_count++;
 	    }
 	}
-    }
 
-    if ( header == 1 ) {
-	/* XXX reject message based on headers here */
-
-	if ( data_errors == 0 ) {
-	    if ( header_file_out( lf, dff ) != 0 ) {
-		syslog( LOG_ERR, "f_data header_file_out: %m" );
+	if (( received_count <= simta_max_received_headers ) &&
+		( data_errors == 0 )) {
+	    if ( fprintf( dff, "%s\n", line ) < 0 ) {
+		syslog( LOG_ERR, "f_data fprintf: %m" );
 		data_errors++;
 	    }
 	}
     }
-
-    line_file_free( lf );
 
     if ( line == NULL ) {	/* EOF */
 	syslog( LOG_INFO, "f_data %s: connection dropped", env->e_id );
@@ -677,7 +635,19 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( data_errors != 0 ) {
+    if ( data_errors != 0 ) { /* syserror */
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_SYSERROR );
+    }
+
+    if ( received_count > simta_max_received_headers ) { /* message rejection */
+	syslog( LOG_INFO, "f_data %s rejected: %d received headers", env->e_id,
+		received_count );
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data fclose: %m" );
 	}
@@ -685,8 +655,13 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
 
+	if ( snet_writef( snet, "552 (%s): Too many received headers\r\n",
+		env->e_id ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
 
-	return( RECEIVE_SYSERROR );
+	return( RECEIVE_OK );
     }
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
