@@ -700,7 +700,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	 *     Service Extensions.
 	 */
 	if ( strlen( line ) > 1000 ) {
-	    data_errors++;
+	    line_too_long++;
 	}
 
 	if ( header == 1 ) {
