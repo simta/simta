@@ -147,11 +147,7 @@ f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
  * SMTP Extensions RFC.
  */
     int
-f_ehlo( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     /* rfc 2821 4.1.4
      * A session that will contain mail transactions MUST first be
@@ -230,9 +226,7 @@ f_ehlo( snet, env, ac, av )
 
 
     static char *
-smtp_trimaddr( addr, leader )
-    char	*addr;
-    char	*leader;
+smtp_trimaddr( char *addr, char *leader )
 {
     char	*p, *q;
 
@@ -256,11 +250,7 @@ smtp_trimaddr( addr, leader )
 
 
     int
-f_mail( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int			rc;
     char		*addr;
@@ -363,11 +353,7 @@ f_mail( snet, env, ac, av )
 
 
     int
-f_rcpt( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int			high_mx_pref, rc;
     char		*addr, *domain;
@@ -563,11 +549,7 @@ f_rcpt( snet, env, ac, av )
 
 
     int
-f_data( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     struct timeval			tv;
     char				*line;
@@ -837,11 +819,7 @@ cleanup:
 }
 
     int
-f_quit( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -871,11 +849,7 @@ f_quit( snet, env, ac, av )
 
 
     int
-f_rset( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     /*
      * We could presume that this indicates another message.  However,
@@ -916,11 +890,7 @@ f_rset( snet, env, ac, av )
 
 
     int
-f_noop( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_noop( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( snet_writef( snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
 	syslog( LOG_ERR, "f_noop snet_writef: %m" );
@@ -932,11 +902,7 @@ f_noop( snet, env, ac, av )
 
 
     int
-f_help( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_help( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( snet_writef( snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
 	syslog( LOG_ERR, "f_help snet_writef: %m" );
@@ -969,11 +935,7 @@ f_help( snet, env, ac, av )
      */
 
     int
-f_vrfy( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_vrfy( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_vrfy snet_writef: %m" );
@@ -984,11 +946,7 @@ f_vrfy( snet, env, ac, av )
 
 
     int
-f_expn( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_expn( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_expn snet_writef: %m" );
@@ -1000,11 +958,7 @@ f_expn( snet, env, ac, av )
 
 #ifdef HAVE_LIBSSL
     int
-f_starttls( snet, env, ac, av )
-    SNET			*snet;
-    struct envelope		*env;
-    int				ac;
-    char			*av[];
+f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int				rc;
     X509			*peer;
@@ -1086,9 +1040,7 @@ int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
 
     void
-smtp_receive( fd, sin )
-    int			fd;
-    struct sockaddr_in	*sin;
+smtp_receive( int fd, struct sockaddr_in *sin )
 {
     SNET				*snet;
     struct envelope			*env = NULL;
