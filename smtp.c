@@ -597,6 +597,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 smtp_connect( SNET **snetp, struct host_q *hq )
 {
     int				i, j;
+    char			*ip;
     SNET			*snet = NULL;
     struct dnsr_result		*result, *result_ip;
 
@@ -628,14 +629,31 @@ smtp_connect( SNET **snetp, struct host_q *hq )
                     continue;
                 }
                 for ( j = 0; j < result_ip->r_ancount; j++ ) {
-		    /* XXX - How to loop over this? */
-                    memcpy( &(hq->hq_sin.sin_addr.s_addr),
-			    &(result_ip->r_answer[ j ].rr_a ),
-			    sizeof( struct in_addr ));
-		    if ( _smtp_connect_try( &snet, &(hq->hq_sin), hq )
-			    == SMTP_OK ) {
-			dnsr_free_result( result_ip );
-			goto done;
+		    switch( result->r_answer[ i ].rr_type ) {
+		    case DNSR_TYPE_A:
+			memcpy( &(hq->hq_sin.sin_addr.s_addr),
+				&(result_ip->r_answer[ j ].rr_a ),
+				sizeof( struct in_addr ));
+			ip = inet_ntoa( hq->hq_sin.sin_addr );
+			if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
+				( strcmp( ip, "0.0.0.0" ) == 0 )) {
+			    syslog( LOG_DEBUG,
+				"dnsr_connect %s: skipping invalid MX IP: %s",
+				hq->hq_hostname, ip );
+			    continue;
+			}
+			if ( _smtp_connect_try( &snet, &(hq->hq_sin), hq )
+				== SMTP_OK ) {
+			    dnsr_free_result( result_ip );
+			    goto done;
+			}
+			break;
+
+		    default:
+			syslog( LOG_DEBUG,
+			    "dnsr_connect %s: unknown dnsr a rr: %d",
+			    hq->hq_hostname, result->r_answer[ i ].rr_type );
+			continue;
 		    }
                 }       
                 dnsr_free_result( result_ip );
@@ -645,6 +663,14 @@ smtp_connect( SNET **snetp, struct host_q *hq )
         case DNSR_TYPE_A:
             memcpy( &(hq->hq_sin.sin_addr.s_addr),
 		    &(result->r_answer[ i ].rr_a ), sizeof( struct in_addr ));
+	    ip = inet_ntoa( hq->hq_sin.sin_addr );
+	    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
+		    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
+		syslog( LOG_DEBUG,
+		    "dnsr_connect %s: skipping invalid A record: %s",
+		    hq->hq_hostname, ip );
+		continue;
+	    }
 	    if ( _smtp_connect_try( &snet, &(hq->hq_sin), hq ) == SMTP_OK ) {
 		goto done;
 	    }
