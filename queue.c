@@ -13,9 +13,18 @@
 
 
     void
+host_q_stdout( struct host_q *hq )
+{
+    printf( "host_q:\t%s\n", hq->hq_name );
+}
+
+
+    void
 q_file_stdout( struct q_file *q )
 {
     printf( "qfile id:\t%s\n", q->q_id );
+    printf( "qfile efile time:\t%ld.%d\n", q->q_etime.tv_sec,
+	    q->q_etime.tv_nsec );
     printf( "efiles:\t%d\n", q->q_efile );
     printf( "dfiles:\t%d\n", q->q_dfile );
 }
@@ -36,4 +45,22 @@ q_file_create( char *id )
     }
 
     return( q );
+}
+
+
+    struct host_q*
+host_q_create( char *hostname )
+{
+    struct host_q		*hq;
+
+    if (( hq = (struct host_q*)malloc( sizeof( struct host_q ))) == NULL ) {
+	return( NULL );
+    }
+    memset( hq, 0, sizeof( struct host_q ));
+
+    if (( hq->hq_name = strdup( hostname )) == NULL ) {
+	return( NULL );
+    }
+
+    return( hq );
 }

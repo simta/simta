@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include <snet.h>
 
@@ -84,6 +85,12 @@ env_stdout( struct envelope *e )
 	printf( "Message-Id:\t%s\n", e->e_id );
     }
 
+    if ( *e->e_hostname == '\0' ) {
+	printf( "hostname NULL\n" );
+    } else {
+	printf( "hostname %s\n", e->e_hostname );
+    }
+
     if ( e->e_mail != NULL ) {
 	printf( "mail:\t%s\n", e->e_mail );
     } else {
@@ -93,7 +100,6 @@ env_stdout( struct envelope *e )
     for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
 	printf( "rcpt:\t%s\n", r->r_rcpt );
     }
-
 }
 
 
@@ -146,18 +152,63 @@ env_infile( char *dir, char *id )
 	return( NULL );
     }
 
-    /* get from-address */
+    /* Message-ID */
+    /* XXX buffer overflow */
+    strcpy( e->e_id, id );
+
+    /*** Vversion ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	return( NULL );
     }
 
-    if (( e->e_mail = strdup( line )) == NULL ) {
+    /* XXX better version checking */
+    if ( *line != 'V' ) {
+	/* XXX EIO? */
+	errno = EIO;
 	return( NULL );
     }
 
-    /* get to-addresses */
+    /*** Hdestination-host ***/
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	return( NULL );
+    }
+
+    if ( *line != 'H' ) {
+	/* XXX EIO? */
+	errno = EIO;
+	return( NULL );
+    }
+
+    if ( *(line + 1) != '\0' ) {
+	strcpy( e->e_hostname, line + 1 );
+    }
+
+    /*** Ffrom-address ***/
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	return( NULL );
+    }
+
+    if ( *line != 'F' ) {
+	/* XXX EIO? */
+	errno = EIO;
+	return( NULL );
+    }
+
+    if ( *(line + 1) != '\0' ) {
+	if (( e->e_mail = strdup( line + 1 )) == NULL ) {
+	    return( NULL );
+	}
+    }
+
+    /*** Rto-addresses ***/
     while (( line = snet_getline( snet, NULL )) != NULL ) {
-	if ( env_recipient( e, line ) != 0 ) {
+	if ( *line != 'R' ) {
+	    /* XXX EIO? */
+	    errno = EIO;
+	    return( NULL );
+	}
+
+	if ( env_recipient( e, line + 1 ) != 0 ) {
 	    return( NULL );
 	}
     }
