@@ -70,6 +70,7 @@ struct header simta_headers[] = {
     { NULL,			NULL,		NULL }
 };
 
+int				simta_generate_sender;
 
     /* 
      * return non-zero if the headers can't be uncommented
@@ -332,6 +333,8 @@ header_correct( struct line_file *lf, struct envelope *env )
     struct tm			*tm;
     char			daytime[ 35 ];
 
+    simta_generate_sender = 0;
+
     /* check headers for known mail clients behaving badly */
     if (( result = header_exceptions( lf )) != 0 ) {
 	fprintf( stderr, "header_exceptions error\n" );
@@ -547,7 +550,12 @@ header_correct( struct line_file *lf, struct envelope *env )
 email_addr( struct line **start_line, char **start )
 {
     char				*next_c;
+    char				*r;
+    char				*w;
     struct line				*next_l;
+    char				*local_domain;
+    char				*buf;
+    size_t				buf_len;
     struct line_token			local;
     struct line_token			domain;
     int					result;
@@ -558,6 +566,8 @@ email_addr( struct line **start_line, char **start )
     } else {
 	next_c = *start;
     }
+
+    domain.t_start = NULL;
 
     next_l = *start_line;
 
@@ -600,51 +610,123 @@ email_addr( struct line **start_line, char **start )
 	return( 1 );
     }
 
-    /* XXX single addr completion */
-    if (( next_c == NULL ) || ( *next_c != '@' )) {
+    if (( next_c == NULL ) || ( *next_c == ',' ) ||
+	    (( *next_c == '>' ) && ( **start == '<' ))) {
+	/* single addr completion */
+	if (( local_domain = simta_local_domain()) == NULL ) {
+	    return( -1 );
+	}
+
+	buf_len = strlen( local_domain );
+	buf_len += 2; /* @ & \0 */
+	buf_len += strlen( local.t_end_line->line_data );
+
+	if (( buf = (char*)malloc( buf_len )) == NULL ) {
+	    perror( "malloc" );
+	    return( -1 );
+	}
+
+	r = local.t_end_line->line_data;
+	w = buf;
+
+	while ( r != local.t_end + 1 ) {
+	    if ( r == local.t_start ) {
+		local.t_start = w;
+	    }
+
+	    if ( r == *start ) {
+		*start = w;
+	    }
+
+	    *w = *r;
+	    w++;
+	    r++;
+	}
+
+	*w = '@';
+	w++;
+
+	local.t_end = w - 1;
+	domain.t_start = w;
+	domain.t_start_line = local.t_start_line;
+	domain.t_end_line = local.t_start_line;
+
+	while ( *local_domain != '\0' ) {
+	    *w = *local_domain;
+	    w++;
+	    local_domain++;
+	}
+
+	domain.t_end = w - 1;
+
+	while ( *r != '\0' ) {
+	    *w = *r;
+	    w++;
+	    r++;
+	}
+
+	*w = *r;
+
+	free( local.t_end_line->line_data );
+	local.t_end_line->line_data = buf;
+
+	next_c = domain.t_end + 1;
+	next_l = domain.t_end_line;
+
+	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "Header From: unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "Header From: unbalanced )\n" );
+	    }
+	    return( 1 );
+	}
+
+    } else if ( *next_c != '@' ) {
 	fprintf( stderr, "Header From: '@' expected\n" );
 	return( 1 );
-    }
-
-    next_c++;
-
-    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	if ( result > 0 ) {
-	    fprintf( stderr, "Header From: unbalanced \(\n" );
-	} else {
-	    fprintf( stderr, "Header From: unbalanced )\n" );
-	}
-	return( 1 );
-    }
-
-    if ( next_c == NULL ) {
-	fprintf( stderr, "Header From: domain expected\n" );
-	return( 1 );
-
-    } else if ( *next_c == '[' ) {
-	if ( line_token_dl( &domain, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "Header From: unmatched [\n" );
-	    return( 1 );
-	}
 
     } else {
-	if ( line_token_da( &domain, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "Header From: expected atext, bad token: %s\n",
-		    next_c );
+	next_c++;
+
+	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "Header From: unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "Header From: unbalanced )\n" );
+	    }
 	    return( 1 );
 	}
-    }
 
-    next_c = domain.t_end + 1;
-    next_l = domain.t_end_line;
+	if ( next_c == NULL ) {
+	    fprintf( stderr, "Header From: domain expected\n" );
+	    return( 1 );
 
-    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
-	if ( result > 0 ) {
-	    fprintf( stderr, "Header From: unbalanced \(\n" );
+	} else if ( *next_c == '[' ) {
+	    if ( line_token_dl( &domain, next_l, next_c ) != 0 ) {
+		fprintf( stderr, "Header From: unmatched [\n" );
+		return( 1 );
+	    }
+
 	} else {
-	    fprintf( stderr, "Header From: unbalanced )\n" );
+	    if ( line_token_da( &domain, next_l, next_c ) != 0 ) {
+		fprintf( stderr, "Header From: expected atext, bad token: %s\n",
+			next_c );
+		return( 1 );
+	    }
 	}
-	return( 1 );
+
+	next_c = domain.t_end + 1;
+	next_l = domain.t_end_line;
+
+	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "Header From: unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "Header From: unbalanced )\n" );
+	    }
+	    return( 1 );
+	}
     }
 
     if ( **start == '<' ) {
@@ -691,6 +773,8 @@ email_addr( struct line **start_line, char **start )
     *start = next_c;
     *start_line = next_l;
 
+    /* XXX if ( fromaddr != simta_sender ) { simta_generate_sender = 1 ; } */
+
     return( 0 );
 }
 
@@ -702,6 +786,7 @@ header_mbox_correct( struct line *l, char *c )
     struct line				*next_l;
     struct line_token			local;
     int					result;
+    int					from_addrs = 0;
 
     for ( ; ; ) {
 
@@ -764,6 +849,12 @@ header_mbox_correct( struct line *l, char *c )
 		if (( result = email_addr( &l, &c )) != 0 ) {
 		    return( result );
 		}
+
+		from_addrs++;
+
+		if ( from_addrs > 1 ) {
+		    simta_generate_sender = 1;
+		}
 	
 		if ( c == NULL ) {
 		    /* SINGLE_ADDR_DONE */
@@ -821,6 +912,12 @@ header_mbox_correct( struct line *l, char *c )
 
 	if (( result = email_addr( &l, &c )) != 0 ) {
 	    return( result );
+	}
+
+	from_addrs++;
+
+	if ( from_addrs > 1 ) {
+	    simta_generate_sender = 1;
 	}
 
 	if ( c == NULL ) {
