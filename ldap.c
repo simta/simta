@@ -263,7 +263,8 @@ ldap_expand( char *addr )
     LDAPURLDesc		*lud;
     struct list		*l;
 
-    if ( ldap_config() != 0 ) {
+    /* XXX BAD PATHNAME */
+    if ( ldap_config( "./simta_ldap.conf" ) != 0 ) {
 	exit( 1 );
     }
 

@@ -24,6 +24,7 @@
 #include "simta.h"
 
 #ifdef HAVE_LDAP
+#include <ldap.h>
 #include "ldap.h"
 #endif /* HAVE_LDAP */
 
@@ -81,7 +82,7 @@ simta_sender( void )
 
 
     int
-simta_config( char *fname, char *base_dir )
+simta_config( char *conf_fname, char *base_dir )
 {
     int			result;
     struct host		*host = NULL;
@@ -92,9 +93,11 @@ simta_config( char *fname, char *base_dir )
 	perror( "gethostname" );
 	return( -1 );
     }
+printf( "here 1\n" );
 
     /* simta_domain defaults to simta_hostname */
     simta_domain = simta_hostname;
+printf( "here 2\n" );
 
     if (( simta_postmaster = (char*)malloc( 12 + strlen( simta_hostname )))
 	    == NULL ) {
@@ -103,16 +106,21 @@ simta_config( char *fname, char *base_dir )
     }
 
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
+#ifdef HAVE_LDAP
+printf( "here 3\n" );
+#endif
 
     /* read config file */
-    if (( result = nlist( simta_nlist, fname )) < 0 ) {
+    if (( result = nlist( simta_nlist, conf_fname )) < 0 ) {
 	return( -1 );
+printf( "here 4\n" );
 
     } else if ( result == 0 ) {
 	/* currently checking for the following fields:
 	 *	    masquerade
 	 *	    punt
 	 */
+printf( "here 5\n" );
 
 	if ( simta_nlist[ NLIST_MASQUERADE ].n_data != NULL ) {
 	    simta_domain = simta_nlist[ NLIST_MASQUERADE ].n_data;
@@ -124,12 +132,14 @@ simta_config( char *fname, char *base_dir )
 	    if ( strcasecmp( simta_punt_host, simta_hostname ) == 0 ) {
 		fprintf( stderr,
 			"file %s line %d: punt host can't be localhost",
-			fname, simta_nlist[ NLIST_PUNT ].n_lineno );
+			conf_fname, simta_nlist[ NLIST_PUNT ].n_lineno );
 		return( -1 );
 	    }
 	}
 
+printf( "have ldap\n" );
 #ifdef HAVE_LDAP
+printf( "have ldap\n" );
 	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
 	    if ( ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) < 0 ) {
 		return( -1 );
@@ -138,11 +148,12 @@ simta_config( char *fname, char *base_dir )
 #endif /* HAVE_LDAP */
 
     } else {
+printf( "here 6\n" );
 	/* no config file found */
 	if ( simta_verbose != 0 ) {
-	    printf( "simta_config file not found: %s\n", fname );
+	    printf( "simta_config file not found: %s\n", conf_fname );
 	    syslog( LOG_INFO, "simta_config file not found: %s",
-		    fname );
+		    conf_fname );
 	}
     }
 

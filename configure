@@ -277,7 +277,7 @@ PACKAGE_BUGREPORT='simta@umich.edu'
 ac_default_prefix=/usr/local
 ac_subdirs_all="$ac_subdirs_all libsnet"
 ac_subdirs_all="$ac_subdirs_all denser"
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS resolvconf aliasdb maxconnections CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA SIMTA_MAIL_LOCAL SIMTA_PROCMAIL OPTOPTS HAVE_TM_GMTOFF SRC SIMTA_OBJ SIMTALIBS SIMTALDFLAGS SIMTACPPFLAGS HAVE_DB TLSDEFS HAVE_SSL subdirs LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS resolvconf aliasdb maxconnections CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA SIMTA_MAIL_LOCAL SIMTA_PROCMAIL OPTOPTS HAVE_TM_GMTOFF SRC SIMTA_OBJ SIMSEND_OBJ Q_RUNNER_OBJ SIMTALIBS SIMTALDFLAGS SIMTACPPFLAGS HAVE_DB TLSDEFS HAVE_SSL subdirs LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -2701,6 +2701,8 @@ echo "${ECHO_T}$ac_cv_struct_gmtoff" >&6
 
 
 
+
+
     echo "$as_me:$LINENO: checking for db" >&5
 echo $ECHO_N "checking for db... $ECHO_C" >&6
     dbdirs="/usr/local/db /usr/db \
@@ -2758,8 +2760,6 @@ fi;
 	    ldapdir="$dir"
 	    if test -f "$dir/include/ldap.h"; then
 		found_ldap="yes";
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
 		break
 	    fi
 	done
@@ -2768,11 +2768,15 @@ echo "${ECHO_T}yes" >&6
 	    echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 	else
+	    echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
 	    LIBS="$LIBS -lldap -llber";
 	    CFLAGS="$CFLAGS -I$ldapdir/include";
 	    LDFLAGS="$LDFLAGS -L$ldapdir/lib";
 	    SRC="$SRC ldap.c"
-	    SIMTAOBJ="$SIMTAOBJ ldap.o"
+	    SIMTA_OBJ="$SIMTA_OBJ ldap.o"
+	    SIMSEND_OBJ="$SIMSEND_OBJ ldap.o"
+	    Q_RUNNER_OBJ="$Q_RUNNER_OBJ ldap.o"
 	    cat >>confdefs.h <<\_ACEOF
 #define HAVE_LDAP 1
 _ACEOF
@@ -3770,6 +3774,8 @@ s,@OPTOPTS@,$OPTOPTS,;t t
 s,@HAVE_TM_GMTOFF@,$HAVE_TM_GMTOFF,;t t
 s,@SRC@,$SRC,;t t
 s,@SIMTA_OBJ@,$SIMTA_OBJ,;t t
+s,@SIMSEND_OBJ@,$SIMSEND_OBJ,;t t
+s,@Q_RUNNER_OBJ@,$Q_RUNNER_OBJ,;t t
 s,@SIMTALIBS@,$SIMTALIBS,;t t
 s,@SIMTALDFLAGS@,$SIMTALDFLAGS,;t t
 s,@SIMTACPPFLAGS@,$SIMTACPPFLAGS,;t t

@@ -18,7 +18,6 @@ AC_DEFUN([CHECK_LDAP],
 	    ldapdir="$dir"
 	    if test -f "$dir/include/ldap.h"; then
 		found_ldap="yes";
-		AC_MSG_RESULT(yes)
 		break
 	    fi
 	done
@@ -26,11 +25,14 @@ AC_DEFUN([CHECK_LDAP],
 	if test x_$found_ldap != x_yes; then
 	    AC_MSG_RESULT(no)
 	else
+	    AC_MSG_RESULT(yes)
 	    LIBS="$LIBS -lldap -llber";
 	    CFLAGS="$CFLAGS -I$ldapdir/include";
 	    LDFLAGS="$LDFLAGS -L$ldapdir/lib";
 	    SRC="$SRC ldap.c"
-	    SIMTAOBJ="$SIMTAOBJ ldap.o"
+	    SIMTA_OBJ="$SIMTA_OBJ ldap.o"
+	    SIMSEND_OBJ="$SIMSEND_OBJ ldap.o"
+	    Q_RUNNER_OBJ="$Q_RUNNER_OBJ ldap.o"
 	    AC_DEFINE(HAVE_LDAP)
 	fi
 
