@@ -114,9 +114,13 @@ bounce_stdout( struct envelope *bounce_env )
     printf( "***   Bounce Message %s  ***\n", bounce_env->e_id );
 
     /* dfile message headers */
-    printf(  "From: mailer-daemon@%s\n", simta_hostname );
+    printf(  "From: <mailer-daemon@%s>\n", simta_hostname );
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
-	printf(  "To: <%s>\n", r->r_rcpt );
+	if ( *r->r_rcpt == '\0' ) {
+	    printf(  "To: <postmaster@%s>\n", simta_hostname );
+	} else {
+	    printf(  "To: <%s>\n", r->r_rcpt );
+	}
     }
     printf(  "\n" );
 
@@ -177,7 +181,11 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     /* dfile message headers */
     fprintf( dfile, "From: <mailer-daemon@%s>\n", simta_hostname );
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
-	fprintf( dfile, "To: <%s>\n", r->r_rcpt );
+	if ( r->r_rcpt == NULL || *r->r_rcpt == '\0' ) {
+	    fprintf( dfile, "To: <postmaster@%s>\n", simta_hostname );
+	} else {
+	    fprintf( dfile, "To: <%s>\n", r->r_rcpt );
+	}
     }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: <%s@%s>\n", bounce_env->e_id, simta_hostname );
@@ -308,7 +316,11 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     fprintf( dfile, "From: <mailer-daemon@%s>\n", simta_hostname );
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
-	fprintf( dfile, "To: <%s>\n", r->r_rcpt );
+	if ( r->r_rcpt == NULL || *r->r_rcpt == '\0' ) {
+	    fprintf( dfile, "To: <postmaster@%s>\n", simta_hostname );
+	} else {
+	    fprintf( dfile, "To: <%s>\n", r->r_rcpt );
+	}
     }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: <%s@%s>\n", bounce_env->e_id, simta_hostname );
