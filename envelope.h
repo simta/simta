@@ -55,4 +55,4 @@ int		env_outfile ___P(( struct envelope *, char * ));
 /* return 0 on success, -1 on syserror, 1 on syntax error, no syslog */
 int		env_unexpanded ___P(( char *, int * ));
 int		env_infile ___P(( struct envelope *, char * ));
-int		env_time ___P(( struct envelope * ));
+int		env_gettimeofday_id ___P(( struct envelope * ));

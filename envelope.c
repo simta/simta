@@ -26,7 +26,7 @@
 
 
     int
-env_time( struct envelope *e )
+env_gettimeofday_id( struct envelope *e )
 {
     struct timeval		tv;
 

@@ -388,7 +388,7 @@ message_create( char *id )
     }
 
     if ( id == NULL ) {
-	if ( env_time( m->m_env ) != 0 ) {
+	if ( env_gettimeofday_id( m->m_env ) != 0 ) {
 	    return( NULL );
 	}
     } 

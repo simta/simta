@@ -67,8 +67,8 @@ bounce( struct envelope *env, SNET *message )
 	return( -1 );
     }
 
-    if ( env_time( bounce_env ) != 0 ) {
-	syslog( LOG_ERR, "env_time: %m" );
+    if ( env_gettimeofday_id( bounce_env ) != 0 ) {
+	syslog( LOG_ERR, "env_gettimeofday_id: %m" );
 	return( -1 );
     }
 
