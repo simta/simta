@@ -24,7 +24,7 @@
 #include "ml.h"
 
 
-char		*maillocalargv[] = { "mail.local", 0, 0 };
+char		*maillocalargv[] = { "mail.local", "-f", 0, "-d", "--", 0, 0 };
 char		*maillocal =	"/usr/lib/mail.local";
 
 
@@ -34,7 +34,7 @@ char		*maillocal =	"/usr/lib/mail.local";
      */
 
     int
-mail_local( char *recipient, SNET *snet )
+mail_local( char *sender, char *recipient, SNET *snet )
 {
     int			fd[ 2 ];
     int			pid;
@@ -68,7 +68,9 @@ mail_local( char *recipient, SNET *snet )
 	    exit( 1 );
 	}
 
-	maillocalargv[ 1 ] = recipient;
+	maillocalargv[ 2 ] = sender;
+
+	maillocalargv[ 5 ] = recipient;
 
 	execv( maillocal, maillocalargv );
 	/* if we are here, there is an error */

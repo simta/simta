@@ -253,7 +253,7 @@ main( int argc, char *argv[] )
 		}
 
 		/* XXX */
-		if ( mail_local( "epcjr", snet ) != 0 ) {
+		if ( mail_local( "q_runner", "epcjr", snet ) != 0 ) {
 		    exit( 1 );
 		}
 
