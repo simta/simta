@@ -345,8 +345,6 @@ main( ac, av )
 		SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL );
     }
 
-printf( "here1\n" );
-
     if ( dontrun ) {
 	exit( 0 );
     }
@@ -430,8 +428,6 @@ printf( "here1\n" );
         exit( 1 );
     }
 
-printf( "here2\n" );
-
     if ( cleanup != 0 ) {
 	if ( q_cleanup() != 0 ) {
 	    exit( 1 );
@@ -441,23 +437,17 @@ printf( "here2\n" );
     /* close the log fd gracefully before we daemonize */
     closelog();
 
-printf( "here3\n" );
-
     /* set our gid */
     if ( setgid( simta_pw->pw_gid ) != 0 ) {
 	perror( "setgid" );
 	exit( 1 );
     }
 
-printf( "here4\n" );
-
     /* set our uid */
     if ( setuid( simta_pw->pw_uid ) != 0 ) {
 	perror( "setuid" );
 	exit( 1 );
     }
-
-printf( "here5\n" );
 
     /*
      * Disassociate from controlling tty.
