@@ -248,35 +248,19 @@ f_mail( snet, env, ac, av )
      * "RSET".
      */
 
-    switch( ac ) {
-    case 2:
-	/* RFC 2821 Section 4.1.1.2
-	 * "MAIL FROM:" ("<>" / Reverse-Path ) CRLF
-	 */
-	if (( addr = smtp_trimaddr( av[ 1 ], "FROM:" )) == NULL ) {
-	    snet_writef( snet, "%d Syntax error\r\n", 501 );
-	    return( 1 );
-	}
-	break;
-    case 3:
-	/* Accept:
-	 * "MAIL FROM:" SP ("<>" / Reverse-Path ) CRLF
-	 */
-	if ( strncasecmp( av[ 1 ], "from:", strlen( "from:" )) != 0 ) {
-	    snet_writef( snet, "%d Syntax error\r\n", 501 );
-	    return( 1 );
-	}
-	if (( addr = smtp_trimaddr( av[ 2 ], "" )) == NULL ) {
-	    snet_writef( snet, "%d Syntax error\r\n", 501 );
-	    return( 1 );
-	}
-	break;
-    default:
+    if ( ac != 2) {
     	/* XXX handle MAIL FROM:<foo> AUTH=bar */
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	return( 1 );
     }
 
+    /* RFC 2821 Section 4.1.1.2
+     * "MAIL FROM:" ("<>" / Reverse-Path ) CRLF
+     */
+    if (( addr = smtp_trimaddr( av[ 1 ], "FROM:" )) == NULL ) {
+	snet_writef( snet, "%d Syntax error\r\n", 501 );
+	return( 1 );
+    }
 
     if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
 	snet_writef( snet, "%d Requested action not taken\r\n", 553 );
@@ -454,6 +438,12 @@ f_rcpt( snet, env, ac, av )
 	    550 );
 	return( 1 );
     default:
+	snet_writef( snet,
+	    "%d Requested action aborted: local error in processing.\r\n",
+	    451 );
+	return( 1 );
+    }
+    if ( address_expand( addr ) < 0 ) {
 	snet_writef( snet,
 	    "%d Requested action aborted: local error in processing.\r\n",
 	    451 );

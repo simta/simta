@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <db.h>
+#include <BerkeleyDB/db.h>
 
 #include "bdb.h"
 
@@ -113,40 +113,41 @@ err:
 }
 
     int
-db_walk( DB *dbp )
+db_cursor_set( DB *dbp, DBC **dbcp, DBT *key, DBT *value )
 {
-    DBT key, value;
-    DBC *dbcp;
-    int ret, t_ret;
+    int 	ret;
 
     /* Acquire a cursor for the database. */
-    if (( ret = dbp->cursor( dbp, NULL, &dbcp, 0 )) != 0 ) {
-	return( ret );
+    if ( *dbcp == NULL ) {
+	if (( ret = dbp->cursor( dbp, NULL, dbcp, 0 )) != 0 ) {
+	    return( ret );
+	}
     }
 
-    /* Re-initialize the key/data pair. */
-    memset( &key, 0, sizeof( key ));
-    memset( &value, 0, sizeof( value ));
+    return( (*dbcp)->c_get( *dbcp, key, value, DB_SET ));
+}
+
+
+    int
+db_cursor_next( DB *dbp, DBC **dbcp, DBT *key, DBT *value )
+{
+    int 	ret;
+
+    /* Acquire a cursor for the database. */
+    if ( *dbcp == NULL ) {
+	if (( ret = dbp->cursor( dbp, NULL, dbcp, 0 )) != 0 ) {
+	    return( ret );
+	}
+    }
 
     /* Walk through the database and print out the key/data pairs. */
-    while (( ret = dbcp->c_get( dbcp, &key, &value, DB_NEXT )) == 0) {
-	printf( "%s : %s\n", (char *)key.data, (char *)value.data );
-	memset( &key, 0, sizeof( key ));
-	memset( &value, 0, sizeof( value ));
-    }
-    if ( ret != DB_NOTFOUND ) {
-	goto err;
-    } else {
-	ret = 0;
-    }
+    return( (*dbcp)->c_get( *dbcp, key, value, DB_NEXT_DUP ));
+}
 
-err:
-    /* Close the cursor. */
-    if (( t_ret = dbcp->c_close( dbcp )) != 0 && ret == 0 ) {
-	ret = t_ret;
-    }
-
-    return( ret );
+    int
+db_cursor_close( DBC *dbcp )
+{
+    return( dbcp->c_close( dbcp ));
 }
 
     int
