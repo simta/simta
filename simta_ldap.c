@@ -499,9 +499,6 @@ simta_group_err_env (struct expand *exp, struct exp_addr *e_addr,
 	    if (bounce_env->e_rcpt != NULL) {
 		e_addr->e_addr_errors = bounce_env;
 	    }
-	    else {
-		env_free (bounce_env);
-	    }
 	}
 	else
 	{   /*
