@@ -374,7 +374,9 @@ header_correct( struct line_file *lf, struct envelope *env )
 	/* XXX action */
     }
 
+#ifdef DEBUG
     header_stdout( simta_headers );
+#endif /* DEBUG */
 
     return( 0 );
 }
