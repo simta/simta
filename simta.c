@@ -47,6 +47,11 @@
 #include "ldap.h"
 #endif /* HAVE_LDAP */
 
+#ifndef TRUE
+#define TRUE 1
+#define FALSE 0
+#endif
+
 /* global variables */
 
 int			(*simta_local_mailer)(int, char *, struct recipient *);
@@ -54,6 +59,7 @@ struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
 struct host		*simta_default_host = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_smtp_extension = 0;
 int			simta_strict_smtp_syntax = 1;
 int			simta_dns_config = 1;
 int			simta_no_sync = 0;
@@ -68,6 +74,7 @@ int			simta_fast_files = 0;
 int			simta_global_relay = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
+long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
 char			*simta_punt_host = NULL;
 char			*simta_postmaster = NULL;
@@ -126,6 +133,7 @@ simta_read_config( char *fname )
     int			fd;
     int			ac;
     extern int		simta_debug;
+    char		*endptr;
     char		*line;
     ACAV		*acav;
     char		**av;
@@ -386,6 +394,36 @@ simta_read_config( char *fname )
 	    simta_dns_config = 0;
 
 	    if ( simta_debug ) printf( "DNS_CONFIG_OFF\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_MESSAGE_SIZE" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+
+	    simta_max_message_size = strtol( av[ 1 ], &endptr, 10 );
+	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
+		fprintf( stderr, "%s: line %d: invalid argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_max_message_size == LONG_MIN ) {
+		fprintf( stderr, "%s: line %d: argument too small\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_max_message_size == LONG_MAX ) {
+		fprintf( stderr, "%s: line %d: argument too big\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_max_message_size < 0 ) {
+		fprintf( stderr, "%s: line %d: invalid negative argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_smtp_extension++;
 
 	} else {
 	    fprintf( stderr, "%s: line %d: unknown keyword: %s\n",

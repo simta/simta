@@ -30,6 +30,7 @@
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
+extern int				sitma_smtp_extension;
 extern int				simta_strict_smtp_syntax;
 extern int				simta_no_sync;
 extern int				simta_ignore_reverse;
@@ -45,6 +46,8 @@ extern int				simta_debug;
 extern int				simta_expand_debug;
 extern int				simta_verbose;
 extern int				simta_fast_files;
+extern long int				simta_max_message_size;
+extern unsigned int			simta_max_message_size_value;
 extern char				*simta_dir_fast;
 extern char				*simta_dir_slow;
 extern char				*simta_dir_dead;

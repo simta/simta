@@ -58,6 +58,8 @@ extern SSL_CTX	*ctx;
 #include "simta_ldap.h"
 #endif
 
+#define SIMTA_EXTENSION_SIZE    (1<<0)
+
 extern char		*version;
 struct host_q		*hq_receive = NULL;
 struct sockaddr_in  	*receive_sin;
@@ -163,6 +165,8 @@ f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
     static int
 f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 {
+    extern int		simta_smtp_extension;
+
     /* rfc 2821 4.1.4
      * A session that will contain mail transactions MUST first be
      * initialized by the use of the EHLO command.  An SMTP server SHOULD
@@ -206,7 +210,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-#ifdef XXXHAVE_LIBSSL
+#ifdef notdef
     /* RFC 2487 SMTP TLS */
     if ( receive_tls == 0 ) {
 	if ( snet_writef( snet, "%d-%s Hello %s\r\n", 250, simta_hostname,
@@ -229,13 +233,23 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 	syslog( LOG_NOTICE, "f_ehlo %s", av[ 1 ]);
     }
-#else /* XXXHAVE_LIBSSL */
+#else /* notdef */
 
-    if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
-	    av[ 1 ]) < 0 ) {
+    if ( snet_writef( snet, "%d%s%s Hello %s\r\n", 250,
+	    simta_smtp_extension-- ? "-" : " ",
+	    simta_hostname, av[ 1 ]) < 0 ) {
 	syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
+    if ( simta_max_message_size >= 0 ) {
+	if ( snet_writef( snet, "%d%sSIZE=%d\r\n", 250,
+		simta_smtp_extension-- ? "-" : " ",
+		simta_max_message_size ) < 0 ) {
+	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+    }
+
     syslog( LOG_NOTICE, "f_ehlo %s", av[ 1 ]);
 #endif /* HAVE_LIBSSL */
 
@@ -266,32 +280,112 @@ f_mail_usage( SNET *snet )
     static int
 f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 {
-    int			rc;
+    int			rc, i;
+    int			parameters;
+    int			seen_extensions = 0;
+    long int		message_size;
     char		*addr;
     char		*domain;
+    char		*endptr;
 
-    if ( ac == 2 ) {
-	if ( strncasecmp( av[ 1 ], "FROM:", 5 ) != 0 ) {
-	    return( f_mail_usage( snet ));
-	}
+    if ( ac < 2 ) {
+	return( f_mail_usage( snet ));
+    }
 
-	if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 1 ] + 5, &addr,
-		&domain ) != 0 ) {
-	    return( f_mail_usage( snet ));
-	}
-
-    } else if (( simta_strict_smtp_syntax == 0 ) && ( ac == 3 )) {
-	if ( strcasecmp( av[ 1 ], "FROM:" ) != 0 ) {
-	    return( f_mail_usage( snet ));
-	}
-
+    if (( simta_strict_smtp_syntax == 0 ) && ( strcasecmp( av[ 1 ], "FROM:" ) == 0 )) {
+	/* av[ 1 ] = "FROM:", av[ 2 ] = "<ADDRESS>" */
 	if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 2 ], &addr,
 		&domain ) != 0 ) {
 	    return( f_mail_usage( snet ));
 	}
+	parameters = 3;
+
+    } else if ( strncasecmp( av[ 1 ], "FROM:", strlen( "FROM:" )) == 0 ) {
+	/* av[ 1 ] = "FROM:<ADDRESS>" */
+	if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 1 ] + strlen( "FROM:" ),
+		&addr, &domain ) != 0 ) {
+	    return( f_mail_usage( snet ));
+	}
+    	parameters = 2;
 
     } else {
 	return( f_mail_usage( snet ));
+    }
+
+    for ( i = parameters; i < ac; i++ ) {
+	if ( strncasecmp( av[ i ], "SIZE", strlen( "SIZE" )) == 0 ) {
+	    /* RFC 1870 Messaeg Size Declaration */
+	    if ( seen_extensions & SIMTA_EXTENSION_SIZE ) {
+		syslog( LOG_ERR,
+		    "Receive: duplicate size specified: %s",
+		    receive_smtp_command );
+		if ( snet_writef( snet,
+			"501 duplicate size specified\r\n" ) < 0 ) {
+		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
+		return( RECEIVE_OK );
+	    } else {
+		seen_extensions = seen_extensions | SIMTA_EXTENSION_SIZE;
+	    }
+
+	    if ( strncasecmp( av[ i ], "SIZE=", strlen( "SIZE=" )) != 0 ) {
+		syslog( LOG_ERR,
+		    "Receive: invalid SIZE parameter: %s",
+		    receive_smtp_command );
+		if ( snet_writef( snet,
+			"501 invalid SIZE command\r\n" ) < 0 ) {
+		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
+		return( RECEIVE_OK );
+	    }
+
+	    if ( simta_max_message_size > 0 ) {
+
+		message_size = strtol( av[ i ] + strlen( "SIZE=" ),
+		    &endptr, 10 );
+		if (( *(av[ i ] + strlen( "SIZE=" )) == '\0' )
+			|| ( *endptr != '\0' )
+			|| ( message_size == LONG_MIN )
+			|| ( message_size == LONG_MAX ) 
+			|| ( message_size < 0 )) {
+			/* XXX - need max size check */
+		    syslog( LOG_ERR,
+			"Receive: invalid SIZE parameter: %s",
+			receive_smtp_command );
+		    if ( snet_writef( snet,
+			    "501 invalid SIZE parameter: %s\r\n",
+			    av[ i ] + strlen( "SIZE=" )) < 0 ) {
+			syslog( LOG_ERR, "f_mail snet_writef: %m" );
+			return( RECEIVE_CLOSECONNECTION );
+		    }
+		    return( RECEIVE_OK );
+		}
+		if ( message_size > simta_max_message_size ) {
+		    syslog( LOG_ERR,
+			"Receive: message exceeds max message size: %s",
+			receive_smtp_command );
+		    if ( snet_writef( snet,
+	    "552 message exceeds fixed maximum message size\r\n" ) < 0 ) {
+			syslog( LOG_ERR, "f_mail snet_writef: %m" );
+			return( RECEIVE_CLOSECONNECTION );
+		    }
+		    return( RECEIVE_OK );
+		}
+	    }
+
+	} else {
+	    syslog( LOG_ERR, "Receive: unsupported SMTP service extension: %s",
+		receive_smtp_command );
+	    if ( snet_writef( snet,
+		    "501 unsupported SMPT service extension: %s\r\n",
+		    av[ i ] ) < 0 ) {
+		syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	    return( RECEIVE_OK );
+	}
     }
 
     /*
@@ -740,7 +834,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
 
-	if ( snet_writef( snet, "552 (%s): Too many received headers\r\n",
+	if ( snet_writef( snet, "554 (%s): Too many received headers\r\n",
 		env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -853,7 +947,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	syslog( LOG_INFO, "Receive %s: Message Rejected: %s", env->e_id,
 		smtp_message ? smtp_message : "no message" );
 
-	if ( snet_writef( snet, "552 (%s): %s\r\n", env->e_id,
+	if ( snet_writef( snet, "554 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "rejected" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
