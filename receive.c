@@ -398,7 +398,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     if (( domain != NULL ) && ( simta_global_relay == 0 )) {
 	if (( rc = check_hostname( domain )) != 0 ) {
 	    if ( rc < 0 ) {
-		syslog( LOG_ERR, "f_mail check_host: %s: failed", domain );
+		syslog( LOG_ERR, "f_mail check_hostname: %s: failed", domain );
 		return( RECEIVE_SYSERROR );
 	    } else {
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
@@ -406,7 +406,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
-		syslog( LOG_ERR, "f_mail check_host %s: unknown host", domain );
+		syslog( LOG_ERR, "f_mail %s: unknown host", domain );
 		return( RECEIVE_OK );
 	    }
 	}
@@ -565,7 +565,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	     */
 	    if (( rc = check_hostname( domain )) != 0 ) {
 		if ( rc < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt check_host: %s: failed", domain );
+		    syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed", domain );
 		    return( RECEIVE_SYSERROR );
 		} else {
 		    syslog( LOG_INFO,
