@@ -742,8 +742,11 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 
     simta_ldapuser (exp->exp_env->e_mail, &sender_name, &sender_domain);
 
+    /*
+     * You can't send mail to groups that have no associatedDomain.
+     */
     if (( vals = ldap_get_values (ld, entry, "associateddomain")) == NULL ) {
-	return( LDAP_NOT_FOUND );
+	return( LDAP_EXCLUDE );
     }
     rdns = ldap_explode_dn (dn, 1);
 
