@@ -115,5 +115,13 @@ RFCs:
 
 Existing MX's:
 
-   crap.rsug.itd.umich.edu  ->	rsug.itd.umich.edu
-   rsug.itd.umich.edu	    ->	terminator.itd.umich.edu
+    simtatest1.rsug.itd.umich.edu	->	plates.rsug.itd.umich.edu
+    simtatest1.rsug.itd.umich.edu	->	(0)eq.rsug.itd.umich.edu
+					->	(1)plates.rsug.itd.umich.edu
+
+Existing A's:
+    simtatest3.rsug.itd.umich.edu	->	plates.rsug.itd.umich.edu
+
+Exiting cname:
+    /* For sending mail on plates to simtatest4 */
+    simtatest4.rsug.itd.umich.edu	->	plates.rsug.itd.umich.edu
