@@ -959,7 +959,7 @@ simta_ldap_address_local( char *name, char *domain )
     ** Strip off any "-owners", or "-otherstuff"
     ** and search again
     */
-    nametype = simta_address_type(name );
+    nametype = simta_address_type(dup_name );
 
     rc = simta_local_search (noattrs, dup_name, domain, &count);
     free (dup_name);
