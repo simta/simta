@@ -61,9 +61,6 @@ struct line_token {
 };
 
 
-char	*token_domain_literal ___P(( char * ));
-char	*token_quoted_string ___P(( char * ));
-char	*token_dot_atom ___P(( char * ));
 char	*skip_ws ___P(( char * ));
 int	line_token_dot_atom ___P(( struct line_token *, struct line *,
 	char * ));
@@ -1563,25 +1560,25 @@ line_token_domain_literal( struct line_token *token, struct line *l,
 
 
     char *
-token_domain_literal( char *start )
+token_domain_literal( char *i )
 {
-    if ( *start != '[' ) {
+    if ( *i != '[' ) {
 	return( NULL );
     }
 
     for ( ; ; ) {
-	start++;
+	i++;
 
-	switch( *start ) {
+	switch( *i ) {
 
 	case ']':
 	    /* end of domain literal */
-	    return( start );
+	    return( i );
 
 	case '\\':
-	    start++;
+	    i++;
 
-	    if ( *start == '\0' ) {
+	    if ( *i == '\0' ) {
 		/* eol */
 	    	return( NULL );
 	    }
@@ -1636,6 +1633,24 @@ is_dot_atom_text( int c )
 
     default:
 	return( 0 );
+    }
+}
+
+
+    char *
+token_domain( char *i )
+{
+    if (( isalpha( *i ) == 0 ) && ( isdigit( *i ) == 0 )) {
+	return( NULL );
+    }
+
+    for ( ; ; ) {
+	if (( isalpha(*( i + 1 )) == 0 ) && ( isdigit(*( i + 1 )) == 0 ) &&
+		(*( i + 1 ) != '.' ) && (*( i + 1 ) != '-' )) {
+	    return( i );
+	}
+
+	i++;
     }
 }
 

@@ -14,6 +14,10 @@ struct header {
 
 
 /* public */
+char	*token_domain_literal ___P(( char * ));
+char	*token_domain ___P(( char * ));
+char	*token_quoted_string ___P(( char * ));
+char	*token_dot_atom ___P(( char * ));
 int	header_timestamp ___P(( struct envelope *, FILE * ));
 int	header_end ___P(( struct line_file *, char * ));
 int	header_punt ___P(( struct line_file * ));

@@ -64,6 +64,9 @@ char			*receive_hello = NULL;
 #define	RECEIVE_SYSERROR	0x0001
 #define	RECEIVE_CLOSECONNECTION	0x0010
 
+#define	RFC_2821_MAIL_FROM	0x0001
+#define	RFC_2821_RCPT_TO	0x0010
+
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
 #define	NOT_LOCAL			2
@@ -74,6 +77,7 @@ struct command {
     int		(*c_func)( SNET *, struct envelope *, int, char *[] );
 };
 
+static int	rfc_2821_trimaddr( int, char *, char **, char ** );
 static int	local_address( char * );
 static int	f_helo( SNET *, struct envelope *, int, char *[] );
 static int	f_ehlo( SNET *, struct envelope *, int, char *[] );
@@ -91,7 +95,6 @@ static int	f_starttls( SNET *, struct envelope *, int, char *[] );
 #endif /* HAVE_LIBSSL */
 
 static int	hello( struct envelope *, char * );
-static char	*smtp_trimaddr( char *, char * );
 
 
     static int
@@ -223,6 +226,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
     return( RECEIVE_OK );
 }
 
+
     int
 f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 {
@@ -238,35 +242,23 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    /* RFC 2821 Section 4.1.1.2
-     * "MAIL FROM:" ("<>" / Reverse-Path ) CRLF
-     */
-    if (( addr = smtp_trimaddr( av[ 1 ], "FROM:" )) == NULL ) {
-	/* not a correct address */
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
-	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
-
     /*
      * rfc1123 (5.3.2) Timeouts in SMTP.  We have a maximum of 5 minutes
      * before we must return something to a "MAIL" command.  Soft failures
      * can either be accepted (trusted) or the soft failures can be passed
      * along.  "451" is probably the correct error.
      */
-    if ( *addr != '\0' ) {
-	if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
-	    if ( snet_writef( snet, "%d Requested action not taken: "
-		    "bad address syntax\r\n", 553 ) < 0 ) {
-		syslog( LOG_ERR, "f_mail snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    return( RECEIVE_OK );
+    if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 1 ], &addr,
+	    &domain ) != 0 ) {
+	if ( snet_writef( snet, "%d Requested action not taken: "
+		"bad address syntax\r\n", 553 ) < 0 ) {
+	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
 	}
-	domain++;
+	return( RECEIVE_OK );
+    }
 
+    if (( domain != NULL ) && ( simta_global_relay == 0 )) {
 	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_mail check_host: %s: failed", domain );
@@ -326,7 +318,6 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     int
 f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 {
-    int			rc;
     char		*addr, *domain;
     struct host		*host;
 
@@ -347,10 +338,11 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    if (( addr = smtp_trimaddr( av[ 1 ], "TO:" )) == NULL ) {
-	syslog( LOG_ERR, "f_rcpt smtp_trimaddr error" );
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
-	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+    if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 1 ], &addr,
+	    &domain ) != 0 ) {
+	if ( snet_writef( snet, "553 Requested action not taken: "
+		"bad address syntax\r\n", 553 ) < 0 ) {
+	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
@@ -363,34 +355,11 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
      * information and simply send to the final destination specified as the
      * last element in the route and SHOULD do so.
      */
-    /* short-circuit route-addrs */
-    if ( *addr == '@' ) {
-	if (( addr = strchr( addr, ':' )) == NULL ) {
-	    syslog( LOG_ERR, "f_rcpt strchr error addr" );
-	    if ( snet_writef( snet, "%d Requested action not taken\r\n",
-		    553 ) < 0 ) {
-		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    return( RECEIVE_OK );
-	}
-	addr++;
-    }
 
     /*
      * We're not currently going to parse for the "%-hack".  This sort
      * of relay is heavily discouraged due to SPAM abuses.
      */
-    if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
-	syslog( LOG_ERR, "f_rcpt strchr error domain" );
-	if ( snet_writef( snet, "%d Requested action not taken\r\n",
-		553 ) < 0 ) {
-	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
-    domain++;
 
     /*
      * Again, soft failures can either be accepted (trusted) or the soft
@@ -401,30 +370,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
      * probably preserve the results of our DNS check.
      */
 
-    /* rfc 2821 3.6
-     * The reserved mailbox name "postmaster" may be used in a RCPT
-     * command without domain qualification (see section 4.1.1.3) and
-     * MUST be accepted if so used.
-     */
-
-    if ( strncasecmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
-	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
-	    if ( rc < 0 ) {
-		syslog( LOG_ERR, "f_mail check_host: %s: failed", domain );
-		return( RECEIVE_SYSERROR );
-	    } else {
-		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
-			domain ) < 0 ) {
-		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
-		syslog( LOG_ERR, "f_mail check_host %s: unknown host", domain );
-		return( RECEIVE_OK );
-	    }
-	}
-    }
-
-    if ( simta_global_relay == 0 ) {
+    if (( domain != NULL ) && ( simta_global_relay == 0 )) {
 	/*
 	 * Here we do an initial lookup in our domain table.  This is our
 	 * best opportunity to decline recipients that are not local or
@@ -1372,3 +1318,110 @@ smtp_trimaddr( char *addr, char *leader )
      * Domain = (sub-domain 1*("." sub-domain)) / address-literal
      * sub-domain = Let-dig [Ldh-str]
      */
+
+    static int
+rfc_2821_trimaddr( int mode, char *addr, char **local_part, char **domain )
+{
+    char			*i;
+    char			*j;
+
+    if ( addr == NULL ) {
+	return( 1 );
+    }
+
+    /* check syntax, and set cursor */
+    if ( mode == RFC_2821_MAIL_FROM ) {
+	if ( strncasecmp( addr, "FROM:", 5 ) != 0 ) {
+	    return( 1 );
+	}
+	i = addr + 5;
+
+    } else if ( mode == RFC_2821_RCPT_TO ) {
+	if ( strncasecmp( addr, "TO:", 3 ) != 0 ) {
+	    return( 1 );
+	}
+	i = addr + 3;
+
+    } else {
+	return( 1 );
+    }
+
+    /* check local-part syntax */
+    if ( *i != '<' ) {
+	return( 1 );
+    }
+    i++;
+
+    *local_part = i;
+
+    if ( *i == '@' ) {
+	/* XXX DO A-D-L */
+	return( 1 );
+    }
+
+    /* <> is a valid address for MAIL FROM commands */
+    if ( *i == '>' ) {
+	if ( mode == RFC_2821_MAIL_FROM ) {
+	    *i = '\0';
+	    *domain = NULL;
+	    return( 0 );
+
+	} else {
+	    return( 1 );
+	}
+
+    } else if ( *i == '"' ) {
+	if (( j = token_quoted_string( i )) == NULL ) {
+	    return( 1 );
+	}
+
+    } else {
+	if (( j = token_dot_atom( i )) == NULL ) {
+	    return( 1 );
+	}
+    }
+
+    j++;
+
+    /* rfc 2821 3.6
+     * The reserved mailbox name "postmaster" may be used in a RCPT
+     * command without domain qualification (see section 4.1.1.3) and
+     * MUST be accepted if so used.
+     */
+
+    if (( *j == '>' ) && ( mode == RFC_2821_RCPT_TO )) {
+	/* <postmaster> is always a valid recipient */
+	if ( strncasecmp( "postmaster", i, j - i ) == 0 ) {
+	    *j = '\0';
+	    *domain = NULL;
+	    return( 0 );
+	}
+	return( 1 );
+
+    } else if ( *j != '@' ) {
+	return( 1 );
+    }
+
+    i = j + 1;
+
+    /* check domain syntax */
+    if ( *i == '[' ) {
+	if (( j = token_domain_literal( i )) == NULL ) {
+	    return( 1 );
+	}
+    } else {
+	if (( j = token_domain( i )) == NULL ) {
+	    return( 1 );
+	}
+    }
+
+    j++;
+
+    if (( *j != '>' ) || ( *( j + 1 ) != '\0' ))  {
+	return( 1 );
+    }
+
+    *j = '\0';
+
+    return( 0 );
+}
