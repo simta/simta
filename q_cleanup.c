@@ -153,11 +153,6 @@ main( int argc, char *argv[] )
 	    printf( "Warning orphan Efile:\t%s/E%s\n", SLOW_DIR, q->q_id );
 
 	} else {
-	    /* 3. for all pairs of E and D files:
-	     *    -if Dfile ref count > 1 and its Efile isn't expanded, clip all
-	     *         other Efile Dfile pairs that share the unexpanded Dfile's
-	     *         inode.
-	     */
 	    /* get Dfile ref count */
 	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
@@ -167,19 +162,19 @@ main( int argc, char *argv[] )
 	    }
 
 	    q->q_dfile_ino = sb.st_ino;
-	    q->q_dfile_nlink = sb.st_nlink;
+	    if (( q->q_dfile_nlink = sb.st_nlink ) > 1 ) {
+		/* Insert inode stab here */
+		if (( q_inode = ll__lookup( inode_stab, q, inode_compare ))
+			== NULL ) {
+		    if ( ll__insert( &inode_stab, q, inode_compare ) != 0 ) {
+			perror( "ll__insert" );
+			exit( 1 );
+		    }
 
-	    /* Insert inode stab here */
-	    if (( q_inode = ll__lookup( inode_stab, q, inode_compare ))
-		    == NULL ) {
-		if ( ll__insert( &inode_stab, q, inode_compare ) != 0 ) {
-		    perror( "ll__insert" );
-		    exit( 1 );
+		} else {
+		    q->q_inode_next = q_inode->q_inode_next;
+		    q_inode->q_inode_next = q;
 		}
-
-	    } else {
-		q->q_inode_next = q_inode->q_inode_next;
-		q_inode->q_inode_next = q;
 	    }
 	}
     }
