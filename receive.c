@@ -223,31 +223,6 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
     return( RECEIVE_OK );
 }
 
-
-    static char *
-smtp_trimaddr( char *addr, char *leader )
-{
-    char	*p, *q;
-
-    if (( addr == NULL ) || ( leader == NULL )) {
-	return( NULL );
-    }
-
-    if ( strncasecmp( addr, leader, strlen( leader )) != 0 ) {
-	return( NULL );
-    }
-    p = addr + strlen( leader );
-    q = p + strlen( p ) - 1;
-    if (( *p != '<' ) || ( *q != '>' )) {
-	return( NULL );
-    }
-    *q = '\0';
-    p++;	/* p points to the address */
-
-    return( p );
-}
-
-
     int
 f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 {
@@ -1338,7 +1313,28 @@ local_address( char *addr )
     return( NOT_LOCAL );
 }
 
+    static char *
+smtp_trimaddr( char *addr, char *leader )
+{
+    char	*p, *q;
 
+    if (( addr == NULL ) || ( leader == NULL )) {
+	return( NULL );
+    }
+
+    if ( strncasecmp( addr, leader, strlen( leader )) != 0 ) {
+	return( NULL );
+    }
+    p = addr + strlen( leader );
+    q = p + strlen( p ) - 1;
+    if (( *p != '<' ) || ( *q != '>' )) {
+	return( NULL );
+    }
+    *q = '\0';
+    p++;	/* p points to the address */
+
+    return( p );
+}
 
     /*
      * Path = "<" [ A-d-l ":" ] Mailbox ">"
