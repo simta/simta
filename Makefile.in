@@ -11,6 +11,7 @@ SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	simsend.o message.o
+LOGGEROBJ=	logger.o
 
 SIMTALOG=LOG_MAIL
 
@@ -43,6 +44,9 @@ tlsconnect : libsnet/libsnet.a ${TLSCONOBJ} Makefile
 
 simsendmail : libsnet/libsnet.a ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} ${LIBS}
+
+logger : libsnet/libsnet.a ${LOGGEROBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o logger ${LOGGEROBJ} ${LIBPATH} ${LIBS}
 
 FRC :
 
