@@ -216,8 +216,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
-    if ( simta_debug ) printf( "envelopes written\n" );
-
     if ( failed_expansions == 0 ) {
 	/* all rcpts expanded */
 

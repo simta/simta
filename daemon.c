@@ -47,6 +47,7 @@ struct proc_type {
 
 #define Q_LOCAL		1
 #define Q_SLOW		2
+#define SIMTA_CHILD	3
 
 struct proc_type	*proc_stab = NULL;
 int		q_runner_local = 0;
@@ -89,7 +90,6 @@ chld( sig )
     struct proc_type	*p_remove;
 
     while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-	/* if the pid isn't simsendmail's q runner, it's a connection */
 	p = &proc_stab;
 
 	for ( p = &proc_stab; *p != NULL; p = &((*p)->p_next)) {
@@ -102,16 +102,25 @@ chld( sig )
 	    p_remove = *p;
 	    *p = p_remove->p_next;
 
-	    if ( p_remove->p_type == Q_LOCAL ) {
+	    switch( p_remove->p_type ) {
+	    case Q_LOCAL:
 		q_runner_local--;
-	    } else {
+		break;
+	    case Q_SLOW:
 		q_runner_slow--;
+		break;
+	    case SIMTA_CHILD:
+		connections--;
+		break;
+	    default:
+		syslog( LOG_ERR, "%d: unknown process type", p_remove->p_type );
+		exit( 1 );
 	    }
 
 	    free( p_remove );
-
 	} else {
-	    connections--;
+	    syslog( LOG_ERR, "%d: unkown child process", pid );
+	    exit( 1 );
 	}
 
 	if ( WIFEXITED( status )) {
@@ -631,7 +640,6 @@ main( ac, av )
 		continue;
 	    }
 
-	    connections++;
 	    /* start child */
 	    switch ( c = fork()) {
 	    case 0 :
@@ -665,6 +673,19 @@ main( ac, av )
 		break;
 
 	    default :
+		connections++;
+
+		if (( p = (struct proc_type*)malloc(
+			sizeof( struct proc_type ))) == NULL ) {
+		    syslog( LOG_ERR," malloc: %m" );
+		    /* XXX - should we exit or break? */
+		    break;
+		}
+		p->p_id = c;
+		p->p_type = SIMTA_CHILD;
+		p->p_next = proc_stab;
+		proc_stab = p;
+
 		close( fd );
 		syslog( LOG_INFO, "receive child %d for %s", c,
 			inet_ntoa( sin.sin_addr ));

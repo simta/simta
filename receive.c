@@ -844,7 +844,7 @@ receive( fd, sin )
     }
 
     if ( maxconnections != 0 ) {
-	if ( connections > maxconnections ) {
+	if ( connections >= maxconnections ) {
 	    syslog( LOG_INFO, "connections refused: server busy" );
 	    snet_writef( snet,
 		"%d Service busy, closing transmission channel\r\n", 421 );
