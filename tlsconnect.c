@@ -9,6 +9,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif TLS
+
 #include <snet.h>
 
 char	*host = "rsug";
@@ -25,21 +31,29 @@ logger( char *p )
     int
 main( int ac, char *av[] )
 {
-    int			i, c, err = 0, s, rc;
+    int			i, c, err = 0, s;
     unsigned short	port = 0;
     struct hostent	*hp;
     struct timeval	timeout = { 10, 0 }, tv;
     struct sockaddr_in	sin;
     SNET		*snet, *stty;
-    char		*line;
-    char		*err_txt;
+    SSL_CTX		*ctx = NULL;
+    char		*line, *cryptofile = NULL;
     fd_set		fdset;
-    int			starttls = 0;
+    int			starttls = 0, use_randfile = 0;
 
-    if (( c = getopt( ac, av, "p:" )) != EOF ) {
+    while (( c = getopt( ac, av, "C:rp:" )) != EOF ) {
 	switch ( c ) {
 	case 'p' :
 	    port = htons( atoi( optarg ));
+	    break;
+
+	case 'r' :
+	    use_randfile = 1;
+	    break;
+
+	case 'C' :
+	    cryptofile = optarg;
 	    break;
 
 	case '?' :
@@ -53,6 +67,55 @@ main( int ac, char *av[] )
 	fprintf( stderr, "Usage:\t%s -p port hostname\n", av[ 0 ] );
 	exit( 1 );
     }
+
+    if ( cryptofile != NULL ) {
+	SSL_load_error_strings();
+	SSL_library_init();
+
+	if ( use_randfile ) {
+	    char	randfile[ MAXPATHLEN ];
+
+	    if ( RAND_file_name( randfile, sizeof( randfile )) == NULL ) {
+		fprintf( stderr, "RAND_file_name: %s\n",
+			ERR_error_string( ERR_get_error(), NULL ));
+		exit( 1 );
+	    }
+	    if ( RAND_load_file( randfile, -1 ) <= 0 ) {
+		fprintf( stderr, "RAND_load_file: %s: %s\n", randfile,
+			ERR_error_string( ERR_get_error(), NULL ));
+		exit( 1 );
+	    }
+	    if ( RAND_write_file( randfile ) < 0 ) {
+		fprintf( stderr, "RAND_write_file: %s: %s\n", randfile,
+			ERR_error_string( ERR_get_error(), NULL ));
+		exit( 1 );
+	    }
+	}
+
+	if (( ctx = SSL_CTX_new( SSLv23_client_method())) == NULL ) {
+	    fprintf( stderr, "SSL_CTX_new: %s\n",
+		    ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+
+	if ( SSL_CTX_use_PrivateKey_file( ctx, cryptofile, SSL_FILETYPE_PEM )
+		!= 1 ) {
+	    fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
+		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+	if ( SSL_CTX_use_certificate_chain_file( ctx, cryptofile ) != 1 ) {
+	    fprintf( stderr, "SSSL_CTX_use_certificate_chain_file: %s: %s\n",
+		    cryptofile, ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+	if ( SSL_CTX_check_private_key( ctx ) != 1 ) {
+	    fprintf( stderr, "SSL_CTX_check_private_key: %s\n",
+		    ERR_error_string( ERR_get_error(), NULL ));
+	    exit( 1 );
+	}
+    }
+
     host = av[ optind ];
 
     if (( hp = gethostbyname( host )) == NULL ) {
@@ -110,10 +173,6 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-    if (( err_txt = snet_inittls( snet, 0, 1, NULL )) != NULL ) {
-	fprintf( stderr, "snet_inittls failed: %s\n", err_txt );
-    }
-
     FD_ZERO( &fdset );
     for (;;) {
 	FD_SET( snet_fd( stty ), &fdset );
@@ -145,15 +204,22 @@ main( int ac, char *av[] )
 		    fprintf( stderr, "Connection closed\n" );
 		    exit( 0 );
 		} else {
-		    perror( "snet_getline_multi" );
+		    perror( "XXX snet_getline_multi" );
 		    exit( 1 );
 		}
 	    }
 	    if ( starttls ) {
-		/* do something */
 		starttls = 0;
-		if (( err_txt = snet_starttls( snet, 0 )) != NULL ) {
-		    fprintf( stderr, "Something happened %s\n", err_txt );
+		if ( *line == '2' )  {
+		    switch ( snet_starttls( snet, ctx, 0 )) {
+		    case 0 :
+fprintf( stderr, "snet_starttls: 0\n" );
+		    case 1 :
+fprintf( stderr, "snet_starttls: 1\n" );
+		    default :
+fprintf( stderr, "snet_starttls: X\n" );
+			break;
+		    }
 		}
 	    }
 	}
