@@ -16,22 +16,21 @@ DEAD_Q=/var/spool/simta/dead
 
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c address.c \
-	createdb.c
+	createdb.c ldap.c
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o queue.c \
-		ml.o smtp.o expand.o mx.o bounce.o nlist.o q_cleanup.o
+		ml.o smtp.o expand.o mx.o bounce.o nlist.o q_cleanup.o \
+		ldap.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	simsend.o line_file.o envelope.o tz.o header.o simta.o \
 		ll.o nlist.o
 SIMLOGOBJ=	simlog.o
 QRUNNEROBJ=	q_runner.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		simta.o smtp.o expand.o address.o bdb.o header.o bounce.o \
-		nlist.o q_cleanup.o
+		nlist.o q_cleanup.o ldap.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		smtp.o simta.o
 CREATEDBOBJ=	createdb.o argcargv.o bdb.o
-
-LDAPOBJ=	ldap.o
 
 SIMTALOG=LOG_MAIL
 SIMTA_ALIAS_DB=	@aliasdb@
@@ -44,7 +43,7 @@ INSTALL=	@INSTALL@
 INCPATH=	-Idenser -Ilibsnet @CPPFLAGS@
 DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS
 LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@
-LIBS=		-ldnsr -lsnet @LIBS@
+LIBS=		-ldnsr -lsnet -lldap @LIBS@
 TAGSFILE=	tags
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
 
@@ -57,9 +56,6 @@ MAN1TARGETS=	simsendmail.1
 TARGETS=	simta tlsconnect simsendmail q_runner createdb
 
 all : ${TARGETS}
-
-ldap:	${LDAPOBJ}
-	${CC} ${CFLAGS} -o ldaptest ${LDAPOBJ} ${LIBPATH} -lldap -lsnet
 
 install : all FRC
 	-mkdir -p ${RUNDIR}

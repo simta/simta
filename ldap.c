@@ -22,14 +22,9 @@
 #include <sysexits.h>
 #include <netdb.h>
 
-#include "argcargv.h"
+#include "ldap.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
-
-struct list {
-    char			*l_string;
-    struct list			*l_next;
-};
 
 
 static char			*attrs[] = { "*", NULL };
@@ -38,9 +33,6 @@ struct list			*ldap_people = NULL;
 struct list			*ldap_groups = NULL;
 LDAP				*ld;
 
-
-int ldap_config( void );
-int isvalue( LDAPMessage *, char *, struct list * );
 
 
     int
@@ -221,7 +213,7 @@ ldap_config( void )
 
 
     int
-isvalue( LDAPMessage *e, char *attr, struct list *master )
+ldap_value( LDAPMessage *e, char *attr, struct list *master )
 {
     int				x;
     char			**values;
@@ -248,7 +240,7 @@ isvalue( LDAPMessage *e, char *attr, struct list *master )
 
 
     int
-main( int argc, char **argv )
+ldap_expand( char *addr )
 {
     int			result;
     int			count;
@@ -271,11 +263,6 @@ main( int argc, char **argv )
     char		*domain = "umich.edu";
     LDAPURLDesc		*lud;
     struct list		*l;
-
-    if ( argc != 2 ) {
-	fprintf( stderr, "Usage: %s name\n", argv[ 0 ]);
-	exit( 1 );
-    }
 
     if ( ldap_config() != 0 ) {
 	exit( 1 );
@@ -336,13 +323,13 @@ main( int argc, char **argv )
 		if (( *( c + 1 ) == 's' ) ||  ( *( c + 1 ) == 'h' )) {
 		    /* we currently support %s -> username, %h -> hostname */
 		    if ( *( c + 1 ) == 's' ) {
-			for ( insert = argv[ 1 ]; *insert != '\0'; insert++ ) {
+			for ( insert = addr; *insert != '\0'; insert++ ) {
 			    if (( *insert == '_' ) || ( *insert == '.' )) {
 				*insert = ' ';
 			    }
 			}
 
-			insert = argv[ 1 ];
+			insert = addr;
 
 		    } else {
 			insert = domain;
@@ -423,7 +410,7 @@ printf( "search base %s, filter %s\n", lud->lud_dn, lud->lud_filter );
 	goto error;
     }
 
-    if (( result = isvalue( entry, "objectClass", ldap_groups )) < 0 ) {
+    if (( result = ldap_value( entry, "objectClass", ldap_groups )) < 0 ) {
 	ldap_perror( ld, "ldap_get_values 1" );
 	goto error;
 
@@ -432,7 +419,7 @@ printf( "search base %s, filter %s\n", lud->lud_dn, lud->lud_filter );
 
     } else {
 
-	if (( result = isvalue( entry, "objectClass", ldap_people )) < 0 ) {
+	if (( result = ldap_value( entry, "objectClass", ldap_people )) < 0 ) {
 	    ldap_perror( ld, "ldap_get_values 2" );
 	    goto error;
 
