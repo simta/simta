@@ -163,7 +163,7 @@ DISTDIR=../simta-${VERSION}
 
 dist : clean
 	mkdir ${DISTDIR}
-	tar chfFFX - EXCLUDE . | ( cd ${DISTDIR}; tar xvf - )
+	tar -ch -f - -X EXCLUDE . | ( cd ${DISTDIR}; tar xvf - )
 	chmod +w ${DISTDIR}/Makefile
 	echo ${VERSION} > ${DISTDIR}/VERSION
 
