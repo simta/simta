@@ -241,6 +241,13 @@ main( ac, av )
 	fprintf( stderr, "%d: invalid max-connections\n", maxconnections );
     }
 
+    /* openlog now, as some support functions require it. */
+#ifdef ultrix
+    openlog( prog, LOG_NOWAIT|LOG_PID );
+#else /* ultrix */
+    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+#endif /*ultrix */
+
     /*
      * Read config file before chdir(), in case config file is relative path.
      */
@@ -364,12 +371,12 @@ main( ac, av )
     if ( lockf( pidfd, F_TLOCK, 0 ) != 0 ) {
 	if ( errno == EAGAIN ) {
 	    /* file locked by a diferent process */
-	    syslog( LOG_WARNING, "lockf %s: daemon already running",
+	    fprintf( stderr, "lockf %s: daemon already running",
 		    SIMTA_FILE_PID );
 	    exit( 1 );
 
 	} else {
-	    syslog( LOG_ERR, "lockf %s: %m", SIMTA_FILE_PID );
+	    fprintf( stderr, "lockf %s: %m", SIMTA_FILE_PID );
 	    exit( 1 );
 	}
     }
@@ -384,6 +391,9 @@ main( ac, av )
 	    exit( 1 );
 	}
     }
+
+    /* close the log fd gracefully before we daemonize */
+    closelog();
 
     /*
      * Disassociate from controlling tty.
@@ -416,16 +426,12 @@ main( ac, av )
 	}
     }
 
-    /*
-     * Start logging.
-     */
+    /* Start logging in daemon mode */
 #ifdef ultrix
     openlog( prog, LOG_NOWAIT|LOG_PID );
 #else /* ultrix */
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
-#endif /* ultrix */
-
-    syslog( LOG_DEBUG, "%s starting", prog );
+#endif /*ultrix */
 
     if (( pf = fdopen( pidfd, "w" )) == NULL ) {
         syslog( LOG_ERR, "can't fdopen pidfd" );
@@ -511,8 +517,7 @@ main( ac, av )
 		    p->p_next = proc_stab;
 		    proc_stab = p;
 
-		    syslog( LOG_INFO, "q_runner_dir.local child %d for %s",
-			    pid, inet_ntoa( sin.sin_addr ));
+		    syslog( LOG_INFO, "q_runner_dir.local child %d", pid );
 		    break;
 		}
 	    }
@@ -589,8 +594,7 @@ main( ac, av )
 		    p->p_next = proc_stab;
 		    proc_stab = p;
 
-		    syslog( LOG_INFO, "q_runner_dir.slow child %d for %s", pid,
-			    inet_ntoa( sin.sin_addr ));
+		    syslog( LOG_INFO, "q_runner_dir.slow child %d", pid );
 		    break;
 		}
 	    }
