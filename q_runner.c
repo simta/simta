@@ -61,17 +61,16 @@ dfile_fstat( int fd, struct q_file *q )
 	exit( 1 );
     }
 
-#ifdef sun
     q->q_dtime.tv_sec = sb.st_mtime;
-#else	/* sun */
-    q->q_dtime = sb.st_mtimespec;
-#endif	/* sun */
-
-    /* XXX check to set q->q_env->e_old_dfile? */
 
     if ( gettimeofday( &tv, NULL ) != 0 ) {
 	syslog( LOG_ERR, "gettimeofday" );
 	return( -1 );
+    }
+
+    /* XXX 3 days? */
+    if (( tv.tv_sec - q->q_dtime.tv_sec ) > ( 60 * 60 * 24 * 3 )) {
+	q->q_env->e_old_dfile = 1;
     }
 
     return( 0 );
