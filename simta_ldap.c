@@ -1158,7 +1158,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 			ADDRESS_TYPE_LDAP, e_addr->e_addr_from ) != 0 ) {
 		    syslog (LOG_ERR,
 			"simta_ldap_expand_group: %s failed adding: %s", dn,
-			mailvals[ idx ]);
+			dnvals[ idx ]);
 		    break;
 		}
 	    } else {
