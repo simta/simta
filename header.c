@@ -380,8 +380,8 @@ header_correct( struct line_file *lf, struct envelope *env )
 		perror( "header_first_mailbox realloc" );
 
 	    } else {
-		fprintf( stderr, "Header %s: Illegal syntax %d\n",
-			simta_headers[ HEAD_FROM ].h_key, result );
+		fprintf( stderr, "Header %s: Illegal syntax\n",
+			simta_headers[ HEAD_FROM ].h_key );
 	    }
 
 	    return( result );
