@@ -1096,7 +1096,6 @@ smtp_receive( fd, sin )
     char				*ctl_domain;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
-    struct dnsr_result			*result = NULL;
     extern int				connections;
     extern int				maxconnections;
 
@@ -1253,10 +1252,6 @@ closeconnection:
 
     if ( receive_hello != NULL ) {
 	free( receive_hello );
-    }
-
-    if ( result != NULL ) {
-	dnsr_free_result( result );
     }
 
     if ( env != NULL ) {
