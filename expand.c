@@ -46,6 +46,7 @@
 #include "simta.h"
 #include "bounce.h"
 #include "line_file.h"
+#include "oklist.h"
 
 int				simta_expand_debug = 0;
 
@@ -519,6 +520,11 @@ cleanup1:
 	i = i->st_next;
 	if ( j->st_data != NULL ) {
 	    e_addr = (struct exp_addr*)j->st_data;
+#ifdef HAVE_LDAP  
+	    ok_destroy (e_addr);
+	    if (e_addr->e_addr_dn )
+		free (e_addr->e_addr_dn);
+#endif
 	    free( e_addr->e_addr );
 	    free( e_addr );
 	}
@@ -535,6 +541,8 @@ ldap_check_ok( struct expand *exp, struct exp_addr *exclusive_addr )
 {
     struct exp_addr		*parent;
     struct recipient		*r;
+
+    void			*match;
 
     /* XXX this should also check to see if exclusive_addr has an ok list */
     if ( exclusive_addr == NULL ) {
@@ -557,10 +565,8 @@ ldap_check_ok( struct expand *exp, struct exp_addr *exclusive_addr )
 	return( 0 );
     }
 
-    /* pturgyan, here is a struct rcpt *r, and a ldap ok list */
-    /* return 1 if there is a match */
-    /* go to town, my man */
-
-    return( 0 );
+    match = ll_lookup( exclusive_addr->e_addr_ok, parent->e_addr_dn );
+    
+    return( match ? 1 : 0 );
 }
 #endif /* HAVE_LDAP */
