@@ -34,7 +34,7 @@
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
-#include "ldap.h"
+#include "simta_ldap.h"
 #endif /* HAVE_LDAP */
 
 DB		*dbp = NULL;

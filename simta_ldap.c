@@ -38,7 +38,7 @@
 #include "expand.h"
 #include "bounce.h"
 #include "argcargv.h"
-#include "ldap.h"
+#include "simta_ldap.h"
 #include "dn.h"
 #include "oklist.h"
 
