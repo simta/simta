@@ -30,6 +30,8 @@
 #define	MAILBOX_FROM_CORRECT	2
 #define	MAILBOX_SENDER		3
 #define	MAILBOX_TO_CORRECT	4
+#define	MAILBOX_RECIPIENTS_CORRECT	5
+#define	MAILBOX_GROUP_CORRECT	5
 
 
 struct line_token {
@@ -48,6 +50,7 @@ int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
 int	line_token_dl ___P(( struct line_token *, struct line *, char * ));
 int	parse_addr ___P(( struct line **, char **, int ));
 int	parse_mailbox_list ___P(( struct line *, char *, int ));
+int	parse_recipients ___P(( struct line *, char * ));
 int	match_addr ___P(( struct line_token *, struct line_token *, char * ));
 
 
@@ -558,17 +561,22 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if ( simta_headers[ HEAD_TO ].h_line != NULL ) {
-	/* XXX add to recipients if no -t flag? */
-	/* To: blah: woof woof; */
+    if (( l = simta_headers[ HEAD_TO ].h_line ) != NULL ) {
+	if (( result = parse_recipients( l, l->line_data + 3 )) != 0 ) {
+	    return( result );
+	}
     }
 
     if ( simta_headers[ HEAD_CC ].h_line != NULL ) {
-	/* XXX add cc recipients if no -t flag? */
+	if (( result = parse_recipients( l, l->line_data + 3 )) != 0 ) {
+	    return( result );
+	}
     }
 
     if (( l = simta_headers[ HEAD_BCC ].h_line ) != NULL ) {
-	/* XXX add bcc recipients if no -t flag? */
+	if (( result = parse_recipients( l, l->line_data + 4 )) != 0 ) {
+	    return( result );
+	}
 
 	/* remove bcc lines */
 	if ( l->line_prev != NULL ) {
@@ -668,7 +676,9 @@ parse_addr( struct line **start_line, char **start, int mode )
     struct line_token			domain;
     int					result;
 
-    if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER )) {
+    if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER ) &&
+	    ( mode != MAILBOX_RECIPIENTS_CORRECT ) &&
+	    ( mode != MAILBOX_GROUP_CORRECT )) {
 	fprintf( stderr, "parse_addr: unsupported mode\n" );
 	return( -1 );
     }
@@ -723,7 +733,8 @@ parse_addr( struct line **start_line, char **start, int mode )
     }
 
     if (( next_c == NULL ) || ( *next_c == ',' ) ||
-	    (( *next_c == '>' ) && ( **start == '<' ))) {
+	    (( *next_c == '>' ) && ( **start == '<' )) ||
+	    (( mode == MAILBOX_GROUP_CORRECT ) && ( *next_c == ';' ))) {
 	/* single addr completion */
 	if (( local_domain = simta_local_domain()) == NULL ) {
 	    return( -1 );
@@ -873,7 +884,9 @@ parse_mailbox_list( struct line *l, char *c, int mode )
     struct line_token			local;
     int					result;
 
-    if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER )) {
+    if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER ) &&
+	    ( mode != MAILBOX_RECIPIENTS_CORRECT ) &&
+	    ( mode != MAILBOX_GROUP_CORRECT )) {
 	fprintf( stderr, "parse_mailbox_list: unsupported mode\n" );
 	return( -1 );
     }
@@ -935,7 +948,8 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 	    }
 	
 	    if (( next_c == NULL ) || ( *next_c == ',' ) ||
-		    ( *next_c == '@' )) {
+		    ( *next_c == '@' ) || (( mode == MAILBOX_GROUP_CORRECT ) &&
+		    ( *next_c == ';' ))) {
 
 		/* SINGLE_ADDR: email_addr ( NULL ) -> AA_LEFT ) */
 	
@@ -1006,10 +1020,35 @@ parse_mailbox_list( struct line *l, char *c, int mode )
 	}
 
 	if ( c == NULL ) {
+	    if ( mode == MAILBOX_GROUP_CORRECT ) {
+		fprintf( stderr, "';' expected\n" );
+		return( 1 );
+	    }
+
 	    return( 0 );
 	} 
 
 	if ( *c != ',' ) {
+	    if (( mode == MAILBOX_GROUP_CORRECT ) && ( *c == ';' )) {
+		c++;
+
+		if (( result = skip_cfws( &l, &c )) != 0 ) {
+		    if ( result > 0 ) {
+			fprintf( stderr, "unbalanced \(\n" );
+		    } else {
+			fprintf( stderr, "unbalanced )\n" );
+		    }
+		    return( 1 );
+		}
+
+		if ( c != NULL ) {
+		    fprintf( stderr, "illegal words after group address\n" );
+		    return( 1 );
+		}
+
+		return( 0 );
+	    }
+
 	    fprintf( stderr, "illegal words after address\n" );
 	    return( 1 );
 	}
@@ -1041,6 +1080,133 @@ parse_mailbox_list( struct line *l, char *c, int mode )
     }
 }
 
+
+    /* RFC 2822:
+     *
+     * address         =   mailbox / group
+     * mailbox         =   name-addr / addr-spec
+     * name-addr       =   [display-name] angle-addr
+     * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS]
+     * addr-spec       =   local-part "@" domain
+     * group           =   display-name ":" [mailbox-list / CFWS] ";" [CFWS]
+     * display-name    =   phrase
+     * phrase          =   1*word
+     * word            =   atom / quoted-string
+     */
+
+    int
+parse_recipients( struct line *start_l, char *start_c )
+{
+    char				*c;
+    char				*next_c;
+    struct line				*l;
+    struct line				*next_l;
+    struct line_token			local;
+    int					result;
+
+    c = start_c;
+    l = start_l;
+
+    /* is there data on the line? */
+    if (( result = skip_cfws( &l, &c )) != 0 ) {
+	if ( result > 0 ) {
+	    fprintf( stderr, "unbalanced \(\n" );
+	} else {
+	    fprintf( stderr, "unbalanced )\n" );
+	}
+	return( 1 );
+    }
+
+    if ( c == NULL ) {
+	fprintf( stderr, "NULL address\n" );
+	return( 1 );
+
+    } else if ( *c == ':' ) {
+	fprintf( stderr, "':' without group\n" );
+	return( 1 );
+
+    } else if ( *c == '<' ) {
+	return( parse_mailbox_list( start_l, start_c,
+		MAILBOX_RECIPIENTS_CORRECT ));
+    }
+
+    /* at least one word on the line */
+    if ( *c == '"' ) {
+	if ( line_token_qs( &local, l, c ) != 0 ) {
+	    fprintf( stderr, "unbalanced \"\n" );
+	    return( 1 );
+	}
+
+    } else {
+	if ( line_token_da( &local, l, c ) != 0 ) {
+	    fprintf( stderr, "expected atext, bad token: %s\n",
+		    next_c );
+	    return( 1 );
+	}
+    }
+
+    next_c = local.t_end + 1;
+    next_l = local.t_end_line;
+
+    if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	if ( result > 0 ) {
+	    fprintf( stderr, "unbalanced \(\n" );
+	} else {
+	    fprintf( stderr, "unbalanced )\n" );
+	}
+	return( 1 );
+    }
+
+    if (( next_c == NULL ) || ( *next_c == ',' ) ||
+	    ( *next_c == '@' )) {
+	/* first word was a single email addr */
+	return( parse_mailbox_list( start_l, start_c,
+		MAILBOX_RECIPIENTS_CORRECT ));
+    }
+
+    while ( next_c != NULL ) {
+	if ( *next_c == ':' ) {
+	    /* group name */
+	    return( parse_mailbox_list( next_l, next_c + 1,
+		    MAILBOX_GROUP_CORRECT ));
+
+	} else if ( *next_c == '<' ) {
+	    /* no group name, email address */
+	    return( parse_mailbox_list( next_l, next_c,
+		    MAILBOX_RECIPIENTS_CORRECT ));
+	}
+
+	/* skip to next token */
+	if ( *next_c == '"' ) {
+	    if ( line_token_qs( &local, next_l, next_c ) != 0 ) {
+		fprintf( stderr, "unbalanced \"\n" );
+		return( 1 );
+	    }
+
+	} else {
+	    if ( line_token_da( &local, next_l, next_c ) != 0 ) {
+		fprintf( stderr, "expected atext, bad token: %s\n",
+			next_c );
+		return( 1 );
+	    }
+	}
+
+	next_c = local.t_end + 1;
+	next_l = local.t_end_line;
+
+	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "unbalanced )\n" );
+	    }
+	    return( 1 );
+	}
+    }
+
+    fprintf( stderr, "unexpected end of header\n" );
+    return( 1 );
+}
 
 
     int
