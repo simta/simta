@@ -123,7 +123,7 @@ get_mx( char *hostname )
 			    return( NULL );
 			}
 			if ( simta_red_action_default( red ) != 0 ) {
-			    return( -1 );
+			    return( NULL );
 			}
 		    }
 		}
@@ -144,7 +144,7 @@ get_mx( char *hostname )
 			    return( NULL );
 			}
 			if ( simta_red_action_default( red ) != 0 ) {
-			    return( -1 );
+			    return( NULL );
 			}
 		    }
 		}
