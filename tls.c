@@ -24,9 +24,9 @@ extern int		verbose;
 extern SSL_CTX		*ctx;
 extern struct timeval	timeout;
 
-char 			*ca = _RADMIND_TLS_CA;
-char 			*cert = _RADMIND_TLS_CERT;
-char 			*privatekey = _RADMIND_TLS_CERT;
+char 			*ca = _SIMTA_TLS_CA;
+char 			*cert = _SIMTA_TLS_CERT;
+char 			*privatekey = _SIMTA_TLS_CERT;
 
     int
 _randfile( void )
@@ -178,25 +178,6 @@ tls_client_start( SNET *sn, char *host, int authlevel )
 {
     X509            *peer;
     char             buf[ 1024 ];
-    struct timeval  tv;
-    char            *line;
-
-    if( snet_writef( sn, "STARTTLS\r\n" ) < 0 ) {
-	perror( "snet_writef" );
-	return( -1 );
-    }
-    if ( verbose ) printf( ">>> STARTTLS\n" );
-
-    /* Check to see if command succeeded */
-    tv = timeout;      
-    if (( line = snet_getline_multi( sn, logger, &tv )) == NULL ) {
-	perror( "snet_getline_multi" );
-	return( -1 );
-    }
-    if ( *line != '2' ) {
-	fprintf( stderr, "%s\n",  line );
-	return( -1 );
-    }
 
     /*
      * Begin TLS
