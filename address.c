@@ -29,7 +29,7 @@ address_local( char *address )
     }
     *p = '\0';
 
-    /* XXX check alias file *
+    /* XXX check alias file */
 
     /* Check password file */
     if (( passwd = getpwnam( user )) == NULL ) {
@@ -59,7 +59,7 @@ address_expand( char *address, char **expansion )
 
     expansion = NULL;
 
-    /* XXX check alias file *
+    /* XXX check alias file */
 
     /* Check password file */
     if (( passwd = getpwnam( address )) == NULL ) {
