@@ -48,6 +48,7 @@ struct stab_entry	*simta_hosts = NULL;
     int
 main( int argc, char *argv[])
 {
+    int 			i, valid_result = 0;
     struct sockaddr_in		sin;
     DNSR			*dnsr;
     struct dnsr_result		*result;
@@ -67,17 +68,41 @@ main( int argc, char *argv[])
 	return( SMTP_ERR_REMOTE );
     }
 
-    if ( result->r_answer[ 0 ].rr_ip == NULL ) {
-	printf( "dnsr is broke\n" );
-	return( 1 );
-    }
+    for ( i = 0; i < result->r_ancount; i++ ) {
+	if ( simta_debug ) fprintf( stderr, "checking result %i:\n", i );
+        if ( result->r_answer[ i ].rr_ip == NULL ) {
+	    if ( simta_debug ) fprintf( stderr, "\tskipping null IP\n" );
+#ifdef DEBUG
+            printf( "dnsr is broke\n" );
+#endif /* DEBUG */
+            syslog( LOG_ERR,
+                "smtp_connect: get_mx: dnsr returned illegal value" );
+            return( SMTP_ERR_SYSCALL );
+        }
 
-    if ( result->r_answer[ 0 ].rr_type == DNSR_TYPE_MX ) {
-	memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ 0 ].rr_ip->ip_ip ),
-	    sizeof( struct in_addr ));
-    } else {
-	memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ 0 ].rr_a ),
-	    sizeof( struct in_addr ));
+        switch( result->r_answer[ i ].rr_type ) {
+        case DNSR_TYPE_MX:
+	    if ( simta_debug ) fprintf( stderr, "\tMX\n" );
+	    memcpy( &(sin.sin_addr.s_addr),
+		&(result->r_answer[ i ].rr_ip->ip_ip ),
+		sizeof( struct in_addr ));
+	    valid_result++;
+            break;
+
+        case DNSR_TYPE_A:
+	    if ( simta_debug ) fprintf( stderr, "\tA\n" );
+            memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ i ].rr_a ),
+                sizeof( struct in_addr ));
+	    valid_result++;
+            break;
+
+        default:
+	    if ( simta_debug ) fprintf( stderr, "\tskipping non MX/A\n" );
+            continue;
+        }
+	if ( valid_result ) {
+	    break;
+	}
     }
 
     printf( "%s\n", inet_ntoa( sin.sin_addr ));
