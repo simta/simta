@@ -713,9 +713,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
      */
     if ( snet_writef( snet, "%d OK (%s)\r\n", 250, env->e_id ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	}
 	return( RECEIVE_CLOSECONNECTION );
     }
 
