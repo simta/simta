@@ -610,22 +610,14 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     }
 
     if ( result->r_ancount == 0 ) {
-	unsigned int		len;
-	char			*hostunknown = "Host unknown: ", *text;
-
 	if ( hq->hq_err_text == NULL ) {
 	    if (( hq->hq_err_text = line_file_create()) == NULL ) {
 		syslog( LOG_ERR, "smtp_connect line_file_create: %m" );
 		goto done;
 	    }
 	}
-	len = strlen( hostunknown ) + strlen( hq->hq_hostname ) + 1;
-	if (( text = malloc( len )) == NULL ) {
-	    syslog( LOG_ERR, "smtp_connect malloc: %m" );
-	    goto done;
-	}
-	sprintf( text, "%s%s", hostunknown, hq->hq_hostname );
-	if ( line_append( hq->hq_err_text, text, NO_COPY ) == NULL ) {
+	if ( line_append( hq->hq_err_text, "Host does not exist", COPY ) ==
+		NULL ) {
 	    syslog( LOG_ERR, "smtp_connect line_append: %m" );
 	    goto done;
 	}
