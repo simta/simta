@@ -103,7 +103,7 @@ queue_cleanup( struct host_q *hq )
 	    q_file_free( q );
 	    free( qs_remove );
 
-	} else if ( q->q_action = Q_REORDER ) {
+	} else if ( q->q_action == Q_REORDER ) {
 	    /* XXX add reorder code */
 	    qs = &((*qs)->st_next);
 
