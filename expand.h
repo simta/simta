@@ -48,9 +48,6 @@ struct expand_output {
     struct expand_output	*eo_next;
 };
 
-struct envelope *eo_lookup( struct expand_output *, char *, char * );
-int eo_insert( struct expand_output **, struct envelope * );
-
 struct expand {
     struct envelope		*exp_env;	/* original envelope */
     struct stab_entry		*exp_addr_list;	/* expanded addresses */
@@ -81,6 +78,9 @@ struct exp_addr {
 /* expand.c */
 int	expand_and_deliver( struct host_q **, struct envelope * );
 int	expand( struct host_q **, struct envelope * );
+struct envelope *eo_lookup( struct expand_output *, char *, char * );
+int eo_insert( struct expand_output **, struct envelope * );
+int expand_string_recipients( struct expand *, struct exp_addr *, char * );
 
 /* address.c */
 int address_error( struct envelope *, char *, char *, char * );

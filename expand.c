@@ -32,6 +32,7 @@
 #include "simta.h"
 #include "line_file.h"
 #include "oklist.h"
+#include "header.h"
 
 int				simta_expand_debug = 0;
 
@@ -297,7 +298,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    /* fill in env */
 	    if ( domain != NULL ) {
 		env->e_dir = simta_dir_fast;
-		strcpy( env->e_hostname, domain );
+		strncpy( env->e_hostname, domain, MAXHOSTNAMELEN );
 	    } else {
 		env->e_dir = simta_dir_dead;
 		env_dead = env;
@@ -350,8 +351,8 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		    unexpanded_env->e_id, env->e_id, n_rcpts );
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
-	    syslog( LOG_NOTICE, "expand %s: writing %s %s", unexpanded_env->e_id,
-		    env->e_id, env->e_hostname );
+	    syslog( LOG_NOTICE, "expand %s: writing %s %s",
+		    unexpanded_env->e_id, env->e_id, env->e_hostname );
 	    if ( env_outfile( env ) != 0 ) {
 		/* env_outfile syslogs errors */
 		if ( unlink( d_out ) != 0 ) {
@@ -370,8 +371,8 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
     }
 
     if ( env_out == 0 ) {
-	syslog( LOG_NOTICE, "expand %s: no terminal recipients, deleting message",
-		unexpanded_env->e_id );
+	syslog( LOG_NOTICE, "expand %s: no terminal recipients, "
+		"deleting message", unexpanded_env->e_id );
     }
 
     /* write errors out to disk */
@@ -597,3 +598,106 @@ ldap_check_ok( struct expand *exp, struct exp_addr *exclusive_addr )
     return( match ? 1 : 0 );
 }
 #endif /* HAVE_LDAP */
+
+
+    int
+expand_string_recipients( struct expand *exp, struct exp_addr *e_addr,
+	char *line )
+{
+    char				*start;
+    char				*end;
+    char				*email_start;
+    char				swap;
+
+    for ( ; ; ) {
+	if (( start = skip_cws( line )) == NULL ) {
+	    return( 0 );
+	}
+
+	if (( *start != '"' ) && ( *start != '<' )) {
+	    if (( end = token_dot_atom( start )) == NULL ) {
+		return( 0 );
+	    }
+
+	    if ( *(end+1) == '@' ) {
+		/* Consume sender@domain */
+		email_start = start;
+		start = end + 2;
+
+		if ( *start == '[' ) {
+		    if (( end = token_domain_literal( start )) == NULL ) {
+			return( 0 );
+		    }
+		} else {
+		    if (( end = token_domain( start )) == NULL ) {
+			return( 0 );
+		    }
+		}
+
+		end++;
+		swap = *end;
+		*end = '\0';
+
+		if ( add_address( exp, email_start, e_addr->e_addr_errors,
+			ADDRESS_TYPE_EMAIL, e_addr->e_addr_from ) != 0 ) {
+		    *end = swap;
+		    return( 1 );
+		}
+
+		*end = swap;
+	    }
+
+	    if (( start = skip_cws( end + 1 )) == NULL ) {
+		return( 0 );
+	    }
+
+	    continue;
+	}
+
+	while ( *start != '<' ) {
+	    if ( *start == '"' ) {
+		if (( end = token_quoted_string( start )) == NULL ) {
+		    return( 0 );
+		}
+
+	    } else {
+		if (( end = token_dot_atom( start )) == NULL ) {
+		    return( 0 );
+		}
+	    }
+
+	    if (( start = skip_cws( end + 1 )) == NULL ) {
+		return( 0 );
+	    }
+	}
+
+	email_start = start;
+	for ( end = start + 1; *end != '>'; end++ ) {
+	    if ( *end == '\0' ) {
+		return( 0 );
+	    }
+	}
+
+	*end = '\0';
+
+	if ( add_address( exp, email_start, e_addr->e_addr_errors,
+		ADDRESS_TYPE_EMAIL, e_addr->e_addr_from ) != 0 ) {
+	    *end = '>';
+	    return( 1 );
+	}
+
+	*end = '>';
+
+	if (( start = skip_cws( end + 1 )) == NULL ) {
+	    return( 0 );
+	}
+
+	if ( *start != ',' ) {
+	    return( 0 );
+	}
+
+	start++;
+    }
+
+    return( 0 );
+}

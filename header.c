@@ -925,6 +925,43 @@ correct_emailaddr( char **addr )
 
 
     char *
+skip_cws( char *start )
+{
+    char		*c;
+    int			comment_mode = 0;
+
+    for ( c = start; ; c++ ) {
+	switch ( *c ) {
+	case ' ':
+	case '\t':
+	    break;
+
+	case '\0':
+	    return( NULL );
+
+	case '(':
+	    comment_mode++;
+	    break;
+
+	case ')':
+	    if ( comment_mode != 0 ) {
+		comment_mode = 0;
+	    } else {
+		return( c );
+	    }
+	    break;
+
+	default:
+	    if ( comment_mode == 0 ) {
+		return( c );
+	    }
+	    break;
+	}
+    }
+}
+
+
+    char *
 skip_ws( char *start )
 {
     while (( *start == ' ' ) || ( *start == '\t' )) {

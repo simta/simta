@@ -7,6 +7,7 @@ struct header {
 
 
 /* public */
+char	*skip_cws( char * );
 char	*token_domain_literal( char * );
 char	*token_domain( char * );
 char	*token_quoted_string( char * );
