@@ -209,6 +209,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	return( SMTP_ERROR );
     }
 
+    *snetp = snet;
     tv.tv_sec = SMTP_TIME_CONNECT;
     tv.tv_usec = 0;
 
@@ -338,7 +339,6 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 		return( SMTP_BAD_CONNECTION );
 	    }
 	}
-	*snetp = snet;
 	hq->hq_status = HOST_MX;
 	return( SMTP_OK );
 
