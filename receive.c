@@ -301,17 +301,6 @@ f_mail( snet, env, ac, av )
 	return( RECEIVE_OK );
     }
 
-    if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
-	syslog( LOG_ERR, "f_mail %s: strchr error", addr );
-	if ( snet_writef( snet, "%d Requested action not taken\r\n",
-		553 ) < 0 ) {
-	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-	    return( RECEIVE_BADCONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
-    domain++;
-
     /*
      * rfc1123 (5.3.2) Timeouts in SMTP.  We have a maximum of 5 minutes
      * before we must return something to a "MAIL" command.  Soft failures
@@ -319,6 +308,17 @@ f_mail( snet, env, ac, av )
      * along.  "451" is probably the correct error.
      */
     if ( *addr != '\0' ) {
+	if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
+	    syslog( LOG_ERR, "f_mail %s: strchr error", addr );
+	    if ( snet_writef( snet, "%d Requested action not taken\r\n",
+		    553 ) < 0 ) {
+		syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		return( RECEIVE_BADCONNECTION );
+	    }
+	    return( RECEIVE_OK );
+	}
+	domain++;
+
 	if (( dnsr = dnsr_new( )) == NULL ) {
 	    syslog( LOG_ERR, "f_mail dnsr_new: %s",
 		    dnsr_err2string( dnsr_errno( dnsr )));
@@ -938,7 +938,7 @@ f_quit( snet, env, ac, av )
     }
 
     syslog( LOG_INFO, "f_quit OK" );
-    return( RECEIVE_OK );
+    return( RECEIVE_QUIT );
 }
 
 
@@ -1157,7 +1157,7 @@ receive( fd, sin )
     struct sockaddr_in	*sin;
 {
     SNET				*snet;
-    struct envelope			*env;
+    struct envelope			*env = NULL;
     ACAV				*acav;
     int					ac, i;
     int					value;
@@ -1327,7 +1327,7 @@ closeconnection:
 	break;
     }
 
-    if (( env->e_flags & E_READY ) != 0 ) {
+    if (( env != NULL ) && (( env->e_flags & E_READY ) != 0 )) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    case EXPAND_OK:
 		env_reset( env );
