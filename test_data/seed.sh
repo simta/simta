@@ -1,6 +1,9 @@
 #!/bin/sh
 
 # make simta storage dirs
+rm -rf ../slow
+rm -rf ../fast
+rm -rf ../local
 mkdir ../slow
 mkdir ../fast
 mkdir ../local
