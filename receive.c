@@ -321,6 +321,7 @@ f_mail( snet, env, ac, av )
 		return( RECEIVE_OK );
 	    }
 	}
+
     }
 
     /*
@@ -372,7 +373,7 @@ f_rcpt( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    int			high_mx_pref;
+    int			high_mx_pref, rc;
     char		*addr, *domain;
     struct dnsr_result	*result;
 
@@ -454,58 +455,23 @@ f_rcpt( snet, env, ac, av )
      */
 
     if ( strncasecmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
-	/* DNS check for invalid domain */
-	if ( simta_dnsr == NULL ) {
-	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
-		syslog( LOG_ERR, "f_rcpt dnsr_new: returned NULL" );
-		if ( snet_writef( snet,
-			"%d Requested action aborted: "
-			"local error in processing.\r\n", 451 ) < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_BADCONNECTION );
-		}
-		return( RECEIVE_OK );
-	    }
-	}
 
-	if (( result = get_mx( simta_dnsr, domain )) == NULL ) {
-	    switch ( dnsr_errno( simta_dnsr )) {
-	    case DNSR_ERROR_SYSTEM:
-		syslog( LOG_ERR, "f_rcpt get_mx %s: %m", domain );
+	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
+	    if ( rc < 0 ) {
+		syslog( LOG_ERR, "f_mail check_host: %s: failed", domain );
+		env_reset( env );
 		return( RECEIVE_SYSERROR );
-
-	    case DNSR_ERROR_NAME:
-	    case DNSR_ERROR_NO_ANSWER:
-		syslog( LOG_INFO, "f_rcpt get_mx %s: unknown host", domain );
+	    } else {
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			domain ) < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		    return( RECEIVE_BADCONNECTION );
 		}
-		return( RECEIVE_OK );
-
-	    case DNSR_ERROR_TIMEOUT:
-		syslog( LOG_ERR, "f_rcpt get_mx %s: timeout", domain );
-		if ( snet_writef( snet, "%d: Requested action aborted:"
-			"error in processing - DNS timeout\r\n", 451 ) < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_BADCONNECTION );
-		}
-		return( RECEIVE_OK );
-
-	    default:
-		syslog( LOG_ERR, "f_rcpt get_mx %s: %s", domain,
-			dnsr_err2string( dnsr_errno( simta_dnsr )));
-		if ( snet_writef( snet, "%d: Requested action aborted:"
-			"error in processing\r\n", 451 ) < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_BADCONNECTION );
-		}
+		syslog( LOG_ERR, "f_mail check_host %s: unknown host", domain );
 		return( RECEIVE_OK );
 	    }
 	}
     }
-
 
     if ( simta_global_relay == 0 ) {
 	/*
