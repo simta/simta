@@ -271,7 +271,7 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	}
 
 	if ( smtp_quit( snet, logger ) < 0 ) {
-	    exit( 1 );
+	    return( SMTP_ERR_SYSCALL );
 	}
 
 	return( SMTP_ERR_MAIL_LOOP );

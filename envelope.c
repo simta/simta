@@ -490,6 +490,8 @@ env_unlink( struct envelope *env )
 
     sprintf( fname, "%s/E%s", env->e_dir, env->e_id );
 
+    /* XXX truncate */
+
     if ( unlink( fname ) != 0 ) {
 	syslog( LOG_ERR, "unlink %s: %m", fname );
 	return( -1 );
