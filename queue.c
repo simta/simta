@@ -247,14 +247,14 @@ queue_remove_envelope( struct envelope *env )
 q_runner( struct host_q **host_q )
 {
     SNET			*snet_lock;
-    SNET			*snet;
+    SNET			*snet_dfile;
     struct host_q		*hq;
     struct host_q		*deliver_q;
     struct host_q		**dq;
     struct envelope		*env_bounce;
     struct envelope		*unexpanded;
     int				result;
-    struct stat			sb;
+    int				dfile_fd;
     char                        dfile_fname[ MAXPATHLEN ];
     struct timeval		tv_start;
     struct timeval		tv_end;
@@ -365,43 +365,54 @@ q_runner( struct host_q **host_q )
 
 	    if ( result != 0 ) {
 		/* message not expandable */
-		if ( unexpanded->e_dir == simta_dir_slow ) {
+		if ( unexpanded->e_dir != simta_dir_slow ) {
+		    env_slow( unexpanded );
+
+		} else {
+		    /* message already in the slow queue, check it's age */
 		    sprintf( dfile_fname, "%s/D%s", unexpanded->e_dir,
 			    unexpanded->e_id );
-
-		    if ( stat( dfile_fname, &sb ) != 0 ) {
-			syslog( LOG_ERR, "q_runner stat %s: %m", dfile_fname );
-			goto oldfile_error;
+		    if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+			syslog( LOG_WARNING, "q_deliver bad Dfile: %s",
+				dfile_fname );
+			goto unexpanded_clean_up;
 		    }
 
-		    env_age( unexpanded, &(sb.st_mtime));
+		    if ( env_age( unexpanded, dfile_fd ) != 0 ) {
+			close( dfile_fd );
+			goto unexpanded_clean_up;
+		    }
 
-		    if (( unexpanded->e_flags & ENV_OLD ) != 0 ) {
+		    if (( unexpanded->e_flags & ENV_OLD ) == 0 ) {
+			close( dfile_fd );
+		    } else {
 			syslog( LOG_DEBUG, "q_runner %s: old unexpandable "
 				"message, bouncing", unexpanded->e_id );
 			unexpanded->e_flags =
 				( unexpanded->e_flags | ENV_BOUNCE );
+			if (( snet_dfile = snet_attach( dfile_fd,
+				1024 * 1024 )) == NULL ) {
+			    close( dfile_fd );
+			    goto unexpanded_clean_up;
+			}
 
-			if (( snet = snet_open( dfile_fname, O_RDWR, 0,
-				1024 * 1024 )) != NULL ) {
-			    if (( env_bounce = bounce( hq, unexpanded, snet ))
-				    != NULL ) {
-				if ( env_unlink( unexpanded ) == 0 ) {
-				    queue_envelope( host_q, env_bounce );
-				} else {
-				    env_unlink( env_bounce );
-				}
+			if (( env_bounce = bounce( hq, unexpanded,
+				snet_dfile )) == NULL ) {
+			    snet_close( snet_dfile );
+			    goto unexpanded_clean_up;
+			} else {
+			    if ( env_unlink( unexpanded ) != 0 ) {
+				env_unlink( env_bounce );
+			    } else {
+				queue_envelope( host_q, env_bounce );
 			    }
 			}
- 		    }
-
-		} else {
-oldfile_error:
-		    env_slow( unexpanded );
+			snet_close( snet_dfile );
+		    }
 		}
 	    }
 
-	    /* clean up */
+unexpanded_clean_up:
 	    if ( snet_lock != NULL ) {
 		/* release lock */
 		if ( snet_close( snet_lock ) != 0 ) {
@@ -484,7 +495,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     struct envelope		*env_deliver;
     struct envelope		*env_bounce = NULL;
     struct recipient            *r;
-    struct stat                 sb;
     int                  	(*local_mailer)(int, char *,
                                         struct recipient *);
 
@@ -654,30 +664,26 @@ smtp_cleanup:
 	    }
         }
 
+	/* check the age ot the envelope if the envelope has any tempfails or
+	 * the host is HOST_DOWN, if we're not already bouncing the envelope
+	 */
 	if ((( env_deliver->e_tempfail > 0 ) ||
 		( deliver_q->hq_status == HOST_DOWN )) &&
 		( ! ( env_deliver->e_flags & ENV_BOUNCE ))) {
-	    /* stat dfile to see if it's old */
-	    if ( fstat( dfile_fd, &sb ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver fstat %s: %m", dfile_fname );
-		goto oldfile_error;
-	    }
 
-	    if ( env_age( env_deliver, &(sb.st_mtime)) != 0 ) {
-		goto oldfile_error;
-	    }
-
-	    /* consider Dfiles old if they're over 3 days */
-	    if (( env_deliver->e_flags & ENV_OLD ) != 0 ) {
-		syslog( LOG_INFO, "q_deliver %s: old message, bouncing",
-			env_deliver->e_id );
-		env_deliver->e_flags = ( env_deliver->e_flags | ENV_BOUNCE );
-	    } else {
-		syslog( LOG_DEBUG, "q_deliver %s: not old", env_deliver->e_id );
+	    if ( env_age( env_deliver, dfile_fd ) == 0 ) {
+		if (( env_deliver->e_flags & ENV_OLD ) != 0 ) {
+		    syslog( LOG_INFO, "q_deliver %s: old message, bouncing",
+			    env_deliver->e_id );
+		    env_deliver->e_flags =
+			    ( env_deliver->e_flags | ENV_BOUNCE );
+		} else {
+		    syslog( LOG_DEBUG, "q_deliver %s: not old",
+			    env_deliver->e_id );
+		}
 	    }
 	}
 
-oldfile_error:
 	if (( deliver_q->hq_status == HOST_BOUNCE ) ||
 		( env_deliver->e_flags & ENV_BOUNCE ) ||
 		( env_deliver->e_failed > 0 )) {
