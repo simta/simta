@@ -831,6 +831,8 @@ q_deliver( struct host_q *hq )
                 return( -1 );
             }
 
+	    env_reset( &env );
+
             if ( unlink( dfile_fname ) != 0 ) {
                 syslog( LOG_ERR, "unlink %s: %m", dfile_fname );
                 return( -1 );

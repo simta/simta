@@ -592,8 +592,6 @@ env_unlink( struct envelope *env )
 	return( -1 );
     }
 
-    env_free( env );
-
     return( 0 );
 }
 
@@ -733,6 +731,7 @@ env_lock( struct message *m, struct envelope *env, SNET **s )
 
     sprintf( filename, "%s/E%s", m->m_dir, m->m_id );
 
+    strcpy( env->e_id, m->m_id );
     env->e_dir = m->m_dir;
 
     if (( snet = snet_open( filename, O_RDWR, 0, 1024 * 1024 )) == NULL ) {

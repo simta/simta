@@ -6,3 +6,7 @@ rm -f /var/spool/simta/slow/*
 # deliver some rsug mail
 cp Ersug /var/spool/simta/slow/
 cp Drsug /var/spool/simta/slow/
+
+# deliver some terminator mail
+cp Eterminator /var/spool/simta/slow/
+cp Dterminator /var/spool/simta/slow/
