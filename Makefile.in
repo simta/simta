@@ -52,19 +52,19 @@ smtp.o : smtp.c
 tz.o : tz.c
 	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ -c tz.c -o tz.o
 
-simta : libsnet/libsnet.a ${SIMTAOBJ} Makefile
+simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${LIBPATH} ${LIBS}
 
-tlsconnect : libsnet/libsnet.a ${TLSCONOBJ} Makefile
+tlsconnect : libsnet/libsnet.a denser/denser.o ${TLSCONOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o tlsconnect ${TLSCONOBJ} ${LIBPATH} ${LIBS}
 
-simsendmail : libsnet/libsnet.a ${SIMSENDOBJ} Makefile
+simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} ${LIBS}
 
-send : libsnet/libsnet.a ${SENDOBJ} Makefile
+send : libsnet/libsnet.a denser/denser.o ${SENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o send ${SENDOBJ} ${LIBPATH} ${LIBS}
 
-simlog : libsnet/libsnet.a ${SIMLOGOBJ} Makefile
+simlog : libsnet/libsnet.a denser/denser.o ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
 
 ml.o : ml.c
@@ -73,10 +73,10 @@ ml.o : ml.c
 		-DSIMTA_PROCMAIL=\"@SIMTA_PROCMAIL@\" \
 		-c ml.c -o ml.o
 
-q_runner : libsnet/libsnet.a ${QRUNNEROBJ} Makefile
+q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${LIBPATH} ${LIBS}
 
-q_cleanup : libsnet/libsnet.a ${QCLEANUPOBJ} Makefile
+q_cleanup : libsnet/libsnet.a denser/denser.o ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
 
 FRC :
