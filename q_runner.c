@@ -47,6 +47,29 @@ void	q_file_stab_stdout ___P(( void * ));
 void	deliver_remote ___P(( struct host_q * ));
 int	deliver_local ___P(( struct host_q * ));
 int	bounce ___P(( struct envelope *, SNET * ));
+int	dfile_fstat ___P(( int, struct q_file * ));
+
+
+    int
+dfile_fstat( int fd, struct q_file *q )
+{
+    struct stat			sb;
+
+    if ( fstat( fd, &sb ) != 0 ) {
+	syslog( LOG_ERR, "snet_attach: %m" );
+	exit( 1 );
+    }
+
+#ifdef sun
+    q->q_dtime.tv_sec = sb.st_mtime;
+#else	/* sun */
+    q->q_dtime = sb.st_mtimespec;
+#endif	/* sun */
+
+    /* XXX check to set q->q_env->e_old_dfile? */
+
+    return( 0 );
+}
 
 
     int
@@ -322,17 +345,17 @@ main( int argc, char *argv[] )
     int
 deliver_local( struct host_q *hq )
 {
-    struct q_file		*q;
-    struct stab_entry		*qs;
-    struct recipient		*r;
-    int				sent;
     int				result;
     int				dfile_fd;
-    char			*at;
-    char			dfile_fname[ MAXPATHLEN ];
-    static int			(*local_mailer)(int, char *, char *) = NULL;
-    struct stat			sb;
+    int				sent;
+    struct q_file		*q;
+    struct stab_entry		*qs;
     SNET			*dfile_snet;
+    char			dfile_fname[ MAXPATHLEN ];
+
+    char			*at;
+    static int			(*local_mailer)(int, char *, char *) = NULL;
+    struct recipient		*r;
 
     if ( local_mailer == NULL ) {
 	if (( local_mailer = get_local_mailer()) == NULL ) {
@@ -366,12 +389,9 @@ deliver_local( struct host_q *hq )
 	q->q_env->e_tempfail = 0;
 	q->q_env->e_success = 0;
 
-	if ( fstat( dfile_fd, &sb ) != 0 ) {
-	    syslog( LOG_ERR, "snet_attach: %m" );
+	if ( dfile_fstat( dfile_fd, q ) != 0 ) {
 	    exit( 1 );
 	}
-
-	/* XXX if old dfile set env->e_old_dfile */
 
 	for ( r = q->q_env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( sent != 0 ) {
@@ -499,14 +519,14 @@ deliver_local( struct host_q *hq )
     void
 deliver_remote( struct host_q *hq )
 {
-    struct q_file		*q;
-    struct stab_entry		*qs;
-    struct stat			sb;
     int				result;
     int				dfile_fd;
-    SNET			*dfile_snet;
     int				sent = 0;
-    char			fname[ MAXPATHLEN ];
+    struct q_file		*q;
+    struct stab_entry		*qs;
+    SNET			*dfile_snet;
+    char			dfile_fname[ MAXPATHLEN ];
+
     SNET			*snet = NULL;
     void                        (*logger)(char *) = NULL;
 
@@ -525,27 +545,24 @@ deliver_remote( struct host_q *hq )
 
 	/* get message_data */
 	errno = 0;
-	sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+	sprintf( dfile_fname, "%s/D%s", q->q_env->e_dir, q->q_id );
 
-	if (( dfile_fd = open( fname, O_RDONLY, 0 )) < 0 ) {
+	if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
 	    if ( errno == ENOENT ) {
 		errno = 0;
-		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
+		syslog( LOG_WARNING, "Missing Dfile: %s", dfile_fname );
 		q->q_action = Q_REMOVE;
 		continue;
 
 	    } else {
-		syslog( LOG_ERR, "open %s: %m", fname );
+		syslog( LOG_ERR, "open %s: %m", dfile_fname );
 		exit( 1 );
 	    }
 	}
 
-	if ( fstat( dfile_fd, &sb ) != 0 ) {
-	    syslog( LOG_ERR, "snet_attach: %m" );
+	if ( dfile_fstat( dfile_fd, q ) != 0 ) {
 	    exit( 1 );
 	}
-
-	/* XXX if old dfile set env->e_old_dfile */
 
 	if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
@@ -623,31 +640,20 @@ deliver_remote( struct host_q *hq )
 	if ( q->q_env->e_tempfail == 0  ) {
 	    /* no retries, only successes and bounces */
 	    /* delete Efile then Dfile */
-	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
-	    if ( unlink( fname ) != 0 ) {
-		syslog( LOG_ERR, "unlink %s: %m", fname );
+	    if ( env_unlink( q->q_env ) != 0 ) {
 		exit( 1 );
 	    }
 
-	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
-
-	    if ( unlink( fname ) != 0 ) {
-		syslog( LOG_ERR, "unlink %s: %m", fname );
+	    if ( unlink( dfile_fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", dfile_fname );
 		exit( 1 );
 	    }
 
 	    q->q_action = Q_REMOVE;
 
 	} else {
-	    /* some retries.  touch efile */
-	    /* XXX update q->q_etime */
-	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
-
-	    if ( utime( fname, NULL ) != 0 ) {
-		syslog( LOG_ERR, "utime %s: %m", fname );
-		exit( 1 );
-	    }
+	    /* some retries */
 
 	    q->q_action = Q_REORDER;
 
@@ -656,8 +662,13 @@ deliver_remote( struct host_q *hq )
 		/* some retries, and some sent.  re-write envelope */
 		env_cleanup( q->q_env );
 
-		if ( env_outfile( q->q_env, SLOW_DIR ) != 0 ) {
-		    syslog( LOG_ERR, "utime %s: %m", fname );
+		if ( env_outfile( q->q_env, q->q_env->e_dir ) != 0 ) {
+		    exit( 1 );
+		}
+
+	    } else {
+		/* all retries.  touch envelope */
+		if ( env_touch( q->q_env ) != 0 ) {
 		    exit( 1 );
 		}
 	    }
