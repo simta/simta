@@ -871,9 +871,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 			free( senderbuf );
 			ldap_memfree( dn );
 			return( LDAP_SYSERROR );
+		    } else {
+			ldap_value_free( permitted );
 		    }
-
-		    ldap_value_free( permitted );
 		}
 
 		if (( moderator = ldap_get_values( ld, entry,
@@ -890,13 +890,13 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 			free( senderbuf );
 			ldap_memfree( dn );
 			return( LDAP_SYSERROR );
+		    } else {
+			ldap_value_free( moderator );
 		    }
-
-		    ldap_value_free( moderator );
 		}
+	    } else {
+		ldap_value_free( memonly );
 	    }
-
-	    ldap_value_free( memonly );
 
 	} else if (( moderator = ldap_get_values( ld, entry,
 		"moderator")) != NULL ) {
