@@ -192,7 +192,9 @@ f_mail( snet, env, ac, av )
     char			*av[];
 {
     struct timeval	tv;
-    char		*addr;
+    char		*addr, *domain;
+    DNSR		*dnsr;
+    int			i;
 
     /*
      * Check if we have a message already ready to send.
@@ -214,6 +216,12 @@ f_mail( snet, env, ac, av )
 	return( 1 );
     }
 
+    if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
+	snet_writef( snet, "%d Requested action not taken\r\n", 553 );
+	return( 1 );
+    }
+    domain++;
+
     /*
      * rfc1123 (5.3.2) Timeouts in SMTP.  We have a maximum of 5 minutes
      * before we must return something to a "MAIL" command.  Soft failures
@@ -221,7 +229,57 @@ f_mail( snet, env, ac, av )
      * along.  "451" is probably the correct error.
      */
     if ( *addr != '\0' ) {
-	/* DNS check for invalid domain */
+
+	/* XXX - Should this exit? */
+	if (( dnsr = dnsr_open( )) == NULL ) {
+	    syslog( LOG_ERR, "dnsr_open failed" );
+	    snet_writef( snet,
+		"%d Requested action aborted: local error in processing.\r\n",
+		451 );
+	    return( -1 );
+	}
+
+	/* Check for MX of address */
+	if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, domain )) < 0 ) {
+	    syslog( LOG_ERR, "dnsr_query %s failed", domain );
+	    snet_writef( snet,
+		"%d Requested action aborted: local error in processing.\r\n",
+		451 );
+	    return( -1 );
+	}
+	if ( dnsr_result( dnsr, NULL ) != 0 ) {
+
+	    /* Check for A of address */
+	    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, domain )) < 0 ) {
+		syslog( LOG_ERR, "dnsr_query %s failed", domain );
+		snet_writef( snet,
+		    "%d Requested action aborted: local error in processing.\r\n",
+		    451 );
+		return( -1 );
+	    }
+	    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+		syslog( LOG_ERR, "dnsr_query %s failed", domain );
+		snet_writef( snet,
+		    "%d Requested action aborted: No valid DNS for %s.\r\n",
+		    451, domain );
+		return( -1 );
+	    }
+	} else {
+	    /* Check for valid A record */
+	    /* XXX - Should we search for A if no A returned in MX? */
+	    for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
+		if ( dnsr->d_result->answer[ i ].r_ip != NULL ) {
+		    break;
+		}
+	    }
+	    if ( i > dnsr->d_result->ancount ) {
+		syslog( LOG_ERR, "%s: no valid A record for MX", domain );
+		snet_writef( snet,
+		    "%d Requested action aborted: Invalid DNS for %s.\r\n",
+		    451, domain );
+		return( -1 );
+	    }
+	}
     }
 
     if ( env->e_mail != NULL ) {

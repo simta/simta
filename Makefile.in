@@ -43,7 +43,7 @@ tz.o : tz.c
 	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ -c tz.c -o tz.o
 
 simta : libsnet/libsnet.a ${SIMTAOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${LIBPATH} -ldnsr ${LIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${LIBPATH} ${LIBS}
 
 tlsconnect : libsnet/libsnet.a ${TLSCONOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o tlsconnect ${TLSCONOBJ} ${LIBPATH} ${LIBS}
