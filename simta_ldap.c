@@ -734,7 +734,7 @@ simta_local_search (char ** attrs, char * user, char * domain, int *count)
 
 /*
 ** Looks at the incoming email address
-** looking for "-errors", "-requests", "-members", or "-owners"
+** looking for "-errors", "-requests", or "-owners"
 **
 */
     static int 
@@ -756,11 +756,6 @@ simta_address_type (char * address)
                    (strcasecmp(paddr, REQUESTS) == 0)) {
             addrtype = LDS_GROUP_REQUEST;
             *(--paddr) = '\0';
-#if 0
-        } else if ( strcasecmp( paddr, MEMBERS ) == 0 ) {
-            addrtype = LDS_GROUP_MEMBERS;
-            *(--paddr) = '\0';
-#endif
         } else if ((strcasecmp(paddr, OWNER) == 0) ||
                    (strcasecmp(paddr, OWNERS) == 0)) {
             addrtype = LDS_GROUP_OWNER;
@@ -939,28 +934,28 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     int
 simta_ldap_address_local( char *name, char *domain )
 {
-
-    int		count = 0;
-    int		rc;
     char	*dup_name;
+    char	*pname;
+    int		rc;
+    int		count = 0;
 
     if ( ld == NULL ) {
-	if ( (rc = simta_ldap_init( )) != 0 ) 
+	if ( (rc = simta_ldap_init( )) != 0 ) {
 	    return( rc );
+	}
     }
 
-    if ((rc = simta_local_search (noattrs, name, domain, &count)) != 0) {
-	return (rc);
+    dup_name = strdup (name);
+    /*
+    ** Strip . and _                 
+    */
+    for (pname = dup_name; *pname; pname++) {
+	if (*pname == '.' || *pname == '_')
+	    *pname = ' ';
     }
-    
-    if ( count == 0 ) {
-	dup_name = strdup (name);
-	if ( simta_address_type(dup_name ) != LDS_USER) {
-            rc = simta_local_search (noattrs, dup_name, domain, &count);
-        }      
-		
-	free (dup_name);
-    }
+
+    rc = simta_local_search (noattrs, dup_name, domain, &count);
+    free (dup_name);
 
     return( (count > 0) ? LDAP_LOCAL : LDAP_NOT_LOCAL );
 }
@@ -1619,25 +1614,13 @@ simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	if (*pname == '.' || *pname == '_')
 	    *pname = ' ';
     }
-    
-    rc = simta_ldap_name_search (exp, e_addr, name, domain, LDS_USER);
-    if (rc != LDAP_NOT_FOUND )
-    {   /*
-	** Either we found the name and processed it,
-	** or we got some error that will keep us from going on.
-	*/
-	free (name);
-	return (rc);
-    }
-
     /*
     ** Strip off any "-owners", or "-otherstuff"
     ** and search again
     */
     nametype = simta_address_type(name );
-    if ( nametype != LDS_USER) {
-	rc = simta_ldap_name_search (exp, e_addr, name, domain, nametype);
-    }
+    rc = simta_ldap_name_search (exp, e_addr, name, domain, nametype);
+
     free (name);
     return (rc);
 }
