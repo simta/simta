@@ -23,7 +23,6 @@
 #define SIMTA_ERROR_DNSR		1
 #define SIMTA_ERROR_SYSTEM		-1
 
-
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
