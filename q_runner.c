@@ -111,6 +111,7 @@ main( int argc, char *argv[] )
     struct stab_entry		*qs;
     struct stat			sb;
     int				result;
+    int				fd;
     char			fname[ MAXPATHLEN ];
     char			localhostname[ MAXHOSTNAMELEN ];
 
@@ -234,8 +235,7 @@ main( int argc, char *argv[] )
 		errno = 0;
 		sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
-		if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
-			== NULL ) {
+		if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
 		    if ( errno == ENOENT ) {
 
 #ifdef DEBUG
@@ -247,18 +247,18 @@ main( int argc, char *argv[] )
 			continue;
 
 		    } else {
-			syslog( LOG_ERR, "snet_open %s: %m", fname );
+			syslog( LOG_ERR, "open %s: %m", fname );
 			exit( 1 );
 		    }
 		}
 
 		/* XXX */
-		if ( mail_local( "q_runner", "epcjr", snet ) != 0 ) {
+		if ( mail_local( fd, "q_runner", "epcjr" ) != 0 ) {
 		    exit( 1 );
 		}
 
-		if ( snet_close( snet ) != 0 ) {
-		    syslog( LOG_ERR, "snet_close: %m" );
+		if ( close( fd ) != 0 ) {
+		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );
 		}
 
