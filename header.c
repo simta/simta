@@ -582,7 +582,8 @@ email_addr( struct line **start_line, char **start )
 
     } else {
 	if ( line_token_da( &local, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "Header From: bad token: %s\n", next_c );
+	    fprintf( stderr, "Header From: expected atext, bad token: %s\n",
+		    next_c );
 	    return( 1 );
 	}
     }
@@ -599,6 +600,7 @@ email_addr( struct line **start_line, char **start )
 	return( 1 );
     }
 
+    /* XXX single addr completion */
     if (( next_c == NULL ) || ( *next_c != '@' )) {
 	fprintf( stderr, "Header From: '@' expected\n" );
 	return( 1 );
@@ -627,7 +629,8 @@ email_addr( struct line **start_line, char **start )
 
     } else {
 	if ( line_token_da( &domain, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "Header From: bad token: %s\n", next_c );
+	    fprintf( stderr, "Header From: expected atext, bad token: %s\n",
+		    next_c );
 	    return( 1 );
 	}
     }
@@ -729,7 +732,9 @@ header_mbox_correct( struct line *l, char *c )
 
 	    } else {
 		if ( line_token_da( &local, l, c ) != 0 ) {
-		    fprintf( stderr, "Header From: bad token: %s\n", c );
+		    fprintf( stderr,
+			    "Header From: expected atext, bad token: %s\n",
+			    next_c );
 		    return( 1 );
 		}
 	    }
@@ -783,8 +788,9 @@ header_mbox_correct( struct line *l, char *c )
 
 		    } else {
 			if ( line_token_da( &local, next_l, next_c ) != 0 ) {
-			    fprintf( stderr, "Header From: bad token: %s\n",
-				    next_c);
+			    fprintf( stderr, "Header From: expected atext, "
+				    "bad token: %s\n",
+				    next_c );
 			    return( 1 );
 			}
 		    }
@@ -867,7 +873,7 @@ header_from_correct( struct line_file *lf )
 	    return( 0 );
 
 	} else {
-	    /* XXX blank line.  correct? */
+	    /* XXX blank line.  replace with simta_sender()? */
 	    fprintf( stderr, "From: no data\n" );
 	    return( 1 );
 	}
