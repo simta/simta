@@ -152,8 +152,16 @@ Low Preference MX:
 					 -> 141.211.144.10
 					   (jack.mr.itd.umich.edu.)
 
+MX record:
+    simta-low-pref-mx.rsug.itd.umich.edu -> 0  savannah.staff.itd.umich.edu.
+				 	 -> 20 simta-mx.rsug.itd.umich.edu.
+
 A record:
     simta-mx.rsug.itd.umich.edu		-> 141.211.144.10
    					   (jim.mr.itd.umich.edu.)
 					-> 141.211.144.11
 					   (jack.mr.itd.umich.edu.)
+
+Same preference MX
+    simta-same-pref-mx.rsug.itd.umich.edu -> 20 savannah.staff.itd.umich.edu
+					  -> 20 simta-mx.rsug.itd.umich.edu
