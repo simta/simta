@@ -1142,6 +1142,7 @@ struct command	commands[] = {
 };
 int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
+
     void
 receive( fd, sin )
     int			fd;
@@ -1180,7 +1181,7 @@ receive( fd, sin )
 	    STRING_UNKNOWN ) == 0 ) {
 	syslog( LOG_INFO, "receive connection refused %s: access denied",
 		inet_ntoa( sin->sin_addr ));
-	snet_writef( snet, "%d Access Denied\r\n", 421 );
+	snet_writef( snet, "421 Access Denied\r\n" );
 	goto closeconnection;
     }
 #endif /* HAVE_LIBWRAP */
@@ -1322,18 +1323,20 @@ closeconnection:
 	dnsr_free_result( result );
     }
 
-    if (( env != NULL ) && (( env->e_flags & E_READY ) != 0 )) {
-	switch ( expand_and_deliver( &hq_receive, env )) {
-	    case EXPAND_OK:
-		break;
+    if ( env != NULL ) {
+	if (( env->e_flags & E_READY ) != 0 )) {
+	    switch ( expand_and_deliver( &hq_receive, env )) {
+		case EXPAND_OK:
+		    break;
 
-	    default:
-	    case EXPAND_SYSERROR:
-	    case EXPAND_FATAL:
-		syslog( LOG_ERR, "receive expand_and_deliver error" );
-		break;
+		default:
+		case EXPAND_SYSERROR:
+		case EXPAND_FATAL:
+		    syslog( LOG_ERR, "receive expand_and_deliver error" );
+		    break;
+	    }
 	}
-    }
 
-    env_free( env );
+	env_free( env );
+    }
 }
