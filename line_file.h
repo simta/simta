@@ -17,7 +17,6 @@ struct line_file {
     struct line		*l_last;
 };
 
-
 #ifdef __STDC__
 #define ___P(x)         x
 #else /* __STDC__ */
