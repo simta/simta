@@ -204,7 +204,7 @@ f_mail( snet, env, ac, av )
     struct dnsr_result	*result;
 
     /*
-     * Check if we have a message already ready to send.
+     * XXX - Check if we have a message already ready to send.
      */
 
     /*
@@ -509,6 +509,21 @@ f_data( snet, env, ac, av )
 
     if ( ac != 1 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
+	return( 1 );
+    }
+
+    /* rfc 2821 3.3
+     * If there was no MAIL, or no RCPT, command, or all such commands
+     * were rejected, the server MAY return a "command out of sequence"
+     * (503) or "no valid recipients" (554) reply in response to the DATA
+     * command.
+     */
+    if ( env->e_mail == NULL ) {
+	snet_writef( snet, "%d Bad sequence of commands\r\n", 503 );
+	return( 1 );
+    }
+    if ( env->e_rcpt == NULL ) {
+	snet_writef( snet, "%d no valid recipients\r\n", 554 );
 	return( 1 );
     }
 
@@ -1016,6 +1031,14 @@ receive( fd, sin )
 	    snet_writef( snet, "%d Command unrecognized\r\n", 501 );
 	    continue;
 	}
+
+	/* XXX - Do we want to check this? */
+	/* rfc 2821 2.4
+	 * No sending SMTP system is permitted to send envelope commands
+	 * in any character set other than US-ASCII; receiving systems
+	 * SHOULD reject such commands, normally using "500 syntax error
+	 * - invalid character" replies.
+	 */
 
 	for ( i = 0; i < ncommands; i++ ) {
 	    if ( strcasecmp( av[ 0 ], commands[ i ].c_name ) == 0 ) {
