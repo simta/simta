@@ -38,6 +38,7 @@ struct envelope {
     int			e_success;
     int			e_failed;
     int			e_tempfail;
+    int			e_oldversion;
     ino_t		e_dinode;
     struct timespec	e_etime;
 };
