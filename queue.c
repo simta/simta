@@ -709,7 +709,7 @@ q_deliver( struct host_q *hq )
             }
 
             if ( sent != 0 ) {
-                if (( result = smtp_rset( snet, logger )) ==
+                if (( result = smtp_rset( snet, hq->hq_hostname, logger )) ==
                         SMTP_ERR_SYSCALL ) {
                     return( -1 );
 
@@ -720,15 +720,11 @@ q_deliver( struct host_q *hq )
 
             /* open connection, completely ready to send at least one message */
             if ( snet == NULL ) {
-                if (( snet = smtp_connect( hq->hq_hostname, 25 )) == NULL ) {
-                    return( -1 );
-                }
-
-                if (( result = smtp_helo( snet, logger )) ==
-                        SMTP_ERR_SYSCALL ) {
+                if (( result = smtp_connect( &snet, hq->hq_hostname, 25,
+			logger )) == SMTP_ERR_SYSCALL ) {
                     return( -1 );
 
-                } else if ( result == SMTP_ERR_SYNTAX ) {
+                } else if ( result == SMTP_ERR_NO_BOUNCE ) {
                     if ( snet_close( dfile_snet ) != 0 ) {
                         syslog( LOG_ERR, "close: %m" );
                         return( -1 );
@@ -743,8 +739,7 @@ q_deliver( struct host_q *hq )
 
 		    return( 0 );
 
-                } else if ( result == SMTP_ERR_MAIL_LOOP ) {
-                    /* mail loop */
+                } else if ( result == SMTP_ERR_BOUNCE_Q ) {
                     if ( snet_close( dfile_snet ) != 0 ) {
                         syslog( LOG_ERR, "close: %m" );
                         return( -1 );
@@ -765,8 +760,8 @@ q_deliver( struct host_q *hq )
                 }
             }
 
-            if (( result = smtp_send( snet, &env, dfile_snet, logger ))
-                    == SMTP_ERR_SYSCALL ) {
+            if (( result = smtp_send( snet, hq->hq_hostname, &env, dfile_snet,
+		    logger )) == SMTP_ERR_SYSCALL ) {
                 return( -1 );
 
             } else if ( result == SMTP_ERR_SYNTAX ) {
@@ -888,7 +883,7 @@ q_deliver( struct host_q *hq )
     }
 
     if ( snet != NULL ) {
-        if (( result = smtp_quit( snet, logger )) < 0 ) {
+        if (( result = smtp_quit( snet, hq->hq_hostname, logger )) < 0 ) {
             return( -1 );
         }
     }

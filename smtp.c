@@ -32,6 +32,7 @@
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
+#include "simta.h"
 
 #undef	DNSR_WORKS
 
@@ -60,18 +61,23 @@ smtp_eval( char *code, char *line )
 }
 
 
-    /* return pointer on success
-     * return NULL on failure
+    /* return 0 on success
+     * return -1 on sysfailure
+     * return 1 on remote failure
      *
      * syslog errors
      */
 
-    SNET *
-smtp_connect( char *hostname, int port )
+    int
+smtp_connect( SNET **snetp, char *hostname, int port, void (*logger)(char *))
 {
+    SNET			*snet;
+    char			*line;
+    char			*local_host;
+    char			*remote_host;
+    char			*i;
     struct sockaddr_in		sin;
     int				s;
-    SNET			*snet;
 #ifdef DNSR_WORKS
     int				i;
     DNSR			*dnsr;
@@ -79,28 +85,31 @@ smtp_connect( char *hostname, int port )
     struct hostent		*hp;
 #endif /* DNSR_WORKS */
 
+    *snetp = snet;
+
 #ifdef DNSR_WORKS
     if (( dnsr = dnsr_open( )) == NULL ) {
 	syslog( LOG_ERR, "dnsr_open failed" );
-	return( NULL );
+	return( SMTP_ERR_SYSCALL );
     }
 
     /* Try to get MX */
     if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, hostname )) < 0 ) {
         syslog( LOG_ERR, "dnsr_query %s failed", hostname );
-	return( NULL );
+	return( SMTP_ERR_NO_BOUNCE );
     }
+
     if ( dnsr_result( dnsr, NULL ) != 0 ) {
 
         /* No MX - Try to get A */
         if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
 		hostname )) < 0 ) {    
             syslog( LOG_ERR, "dnsr_query %s failed", hostname );
-            return( NULL );
+            return( SMTP_ERR_NO_BOUNCE );
         }       
         if ( dnsr_result( dnsr, NULL ) != 0 ) {
             syslog( LOG_ERR, "dnsr_query %s failed", hostname );
-            return( NULL );
+            return( SMTP_ERR_NO_BOUNCE );
         }
 
 	/* Got an A record */
@@ -118,20 +127,12 @@ smtp_connect( char *hostname, int port )
         }
         if ( i > dnsr->d_result->ancount ) {
             syslog( LOG_ERR, "%s: no valid A record for MX", hostname );
-            return( NULL );
+            return( SMTP_ERR_NO_BOUNCE );
         }
 
 #ifdef DEBUG
-if ( dnsr == NULL ) {
-    printf( "here 1\n" );
-}
-
-if ( dnsr->d_result == NULL ) {
-    printf( "here 2\n" );
-}
-
 if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
-    printf( "here 4\n" );
+    printf( "dnsr is broke\n" );
 }
 #endif /* DEBUG */
 
@@ -141,18 +142,24 @@ if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
 
 #else /* DNSR_WORKS */
     if (( hp = gethostbyname( hostname )) == NULL ) {
-	syslog( LOG_ERR, "gethostbyname %s: %m", hostname );
-	return( NULL );
+	if (( h_errno == HOST_NOT_FOUND ) || ( h_errno == TRY_AGAIN ) ||
+		( h_errno == NO_DATA )) {
+	    syslog( LOG_NOTICE, "gethostbyname %s: %m", hostname );
+	    return( SMTP_ERR_NO_BOUNCE );
+
+	} else {
+	    syslog( LOG_ERR, "gethostbyname %s: %m", hostname );
+	    return( SMTP_ERR_SYSCALL );
+	}
     }
 
     memcpy( &(sin.sin_addr.s_addr), hp->h_addr_list[ 0 ],
 	    (unsigned int)hp->h_length );
-
 #endif /* DNSR_WORKS */
 
     if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
 	syslog( LOG_ERR, "socket: %m" );
-	return( NULL );
+	return( SMTP_ERR_SYSCALL );
     }
 
     sin.sin_family = AF_INET;
@@ -161,42 +168,28 @@ if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
     if ( connect( s, (struct sockaddr*)&sin,
 	    sizeof( struct sockaddr_in )) < 0 ) {
 	syslog( LOG_ERR, "connect: %m" );
-	return( NULL );
+	return( SMTP_ERR_SYSCALL );
     }
 
     if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_attach: %m" );
-	return( NULL );
+	return( SMTP_ERR_SYSCALL );
     }
 
-    return( snet );
-}
-
-
-    /* return 0 on success
-     * return -1 on syscall failure
-     * return 1 on recoverable error
-     *
-     * syslog errors
-     */
-
-    int
-smtp_helo( SNET *snet, void (*logger)(char *))
-{
-    char			*line;
-    char			local_host[ MAXHOSTNAMELEN ];
-    char			*remote_host;
-    char			*i;
-
-    if ( gethostname( local_host, MAXHOSTNAMELEN ) != 0 ) {
-	syslog( LOG_ERR, "gethostname: %m" );
+    if (( local_host = simta_gethostname()) == NULL ) {
 	return( SMTP_ERR_SYSCALL );
     }
 
     /* read connect banner */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_NOTICE, "smtp_helo: unexpected EOF" );
-	return( SMTP_ERR_SYNTAX );
+	syslog( LOG_NOTICE, "smtp_connect: unexpected EOF" );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     if ( logger != NULL ) {
@@ -204,7 +197,26 @@ smtp_helo( SNET *snet, void (*logger)(char *))
     }
 
     if ( smtp_eval( SMTP_CONNECT, line ) != 0 ) {
-	return( SMTP_ERR_SYNTAX );
+	if ( smtp_eval( SMTP_FAILED, line ) != 0 ) {
+	    syslog( LOG_NOTICE, "smtp_connect %s: no SMTP server: %s", hostname,
+		    line );
+
+	    if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_BOUNCE_Q );
+
+	} else {
+	    syslog( LOG_NOTICE, "smtp_connect %s: bad SMTP banner: %s",
+		    hostname, line );
+
+	    if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_NO_BOUNCE );
+	}
     }
 
     remote_host = line + 3;
@@ -219,7 +231,14 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 
     /* check for remote hostname existance */
     if ( *remote_host == '\0' ) {
-	return( SMTP_ERR_SYNTAX );
+	syslog( LOG_NOTICE, "smtp_connect %s: bad SMTP banner, "
+		"expecting remote hostname: %s", hostname, line );
+
+	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     i = remote_host;
@@ -233,8 +252,15 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	    (size_t)(i - remote_host) ) == 0 ) {
 	while ( *(line + 3) == '-' ) {
 	    if (( line = snet_getline( snet, NULL )) == NULL ) {
-		syslog( LOG_NOTICE, "smtp_helo: unexpected EOF" );
-		return( SMTP_ERR_SYNTAX );
+		syslog( LOG_NOTICE, "smtp_connect %s: unexpected EOF",
+			hostname );
+
+		if ( snet_close( snet ) < 0 ) {
+		    syslog( LOG_ERR, "snet_close: %m" );
+		    return( SMTP_ERR_SYSCALL );
+		}
+
+		return( SMTP_ERR_NO_BOUNCE );
 	    }
 
 	    if ( logger != NULL ) {
@@ -242,17 +268,25 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	    }
 	}
 
-	if ( smtp_quit( snet, logger ) < 0 ) {
+	syslog( LOG_WARNING, "smtp_connect %s: mail loop", hostname );
+
+	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
 	    return( SMTP_ERR_SYSCALL );
 	}
 
-	return( SMTP_ERR_MAIL_LOOP );
+	return( SMTP_ERR_BOUNCE_Q );
     }
 
     while ( *(line + 3) == '-' ) {
 	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_NOTICE, "smtp_helo: unexpected EOF" );
-	    return( SMTP_ERR_SYNTAX );
+	    syslog( LOG_NOTICE, "smtp_connect %s: unexpected EOF", hostname );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_NO_BOUNCE );
 	}
 
 	if ( logger != NULL ) {
@@ -262,7 +296,14 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 
     /* say HELO */
     if ( snet_writef( snet, "HELO %s\r\n", local_host ) < 0 ) {
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_connect %s: failed writef", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
 #ifdef DEBUG
@@ -271,11 +312,24 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 
     /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_connect %s: unexpected EOF", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	return( SMTP_ERR_SYNTAX );
+	syslog( LOG_NOTICE, "smtp_connect %s: bad banner: %s", hostname, line );
+
+	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     return( 0 );
@@ -283,14 +337,20 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 
 
     int
-smtp_rset( SNET *snet, void (*logger)(char *))
+smtp_rset( SNET *snet, char *hostname, void (*logger)(char *))
 {
     char			*line;
 
     /* say RSET */
     if ( snet_writef( snet, "RSET\r\n" ) < 0 ) {
-	syslog( LOG_ERR, "smtp_rset: snet_writef: %m" );
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_rset %s: failed writef", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
 #ifdef DEBUG
@@ -299,14 +359,24 @@ smtp_rset( SNET *snet, void (*logger)(char *))
 
     /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_ERR, "smtp_rset: snet_getline_multi: %m" );
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_rset %s: unexpected EOF", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
-    /* XXX only catching last line of smtp error banner */
     if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	syslog( LOG_NOTICE, "smtp_rset: bad reply: %s", line );
-	return( SMTP_ERR_SYNTAX );
+	syslog( LOG_NOTICE, "smtp_rset %s: bad banner: %s", hostname, line );
+
+	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
     return( 0 );
@@ -321,14 +391,20 @@ smtp_rset( SNET *snet, void (*logger)(char *))
      */
 
     int
-smtp_quit( SNET *snet, void (*logger)(char *))
+smtp_quit( SNET *snet, char *hostname, void (*logger)(char *))
 {
     char			*line;
 
     /* say QUIT */
     if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
-	syslog( LOG_ERR, "smtp_quit snet_writef: %m" );
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_quit %s: failed writef", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
 #ifdef DEBUG
@@ -337,18 +413,22 @@ smtp_quit( SNET *snet, void (*logger)(char *))
 
     /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	syslog( LOG_ERR, "smtp_quit snet_getline_multi: %m" );
-	return( SMTP_ERR_SYSCALL );
+	syslog( LOG_NOTICE, "smtp_quit %s: unexpected EOF", hostname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( SMTP_ERR_SYSCALL );
+	}
+
+	return( SMTP_ERR_NO_BOUNCE );
     }
 
-    /* XXX only preserving last line of banner error message */
     if ( smtp_eval( SMTP_DISCONNECT, line ) != 0 ) {
-	syslog( LOG_NOTICE, "smtp_quit bad banner: %s", line );
-	return( SMTP_ERR_SYNTAX );
+	syslog( LOG_NOTICE, "smtp_quit %s: bad banner: %s", hostname, line );
     }
 
     if ( snet_close( snet ) != 0 ) {
-	syslog( LOG_NOTICE, "smtp_quit snet_close: %m" );
+	syslog( LOG_NOTICE, "snet_close: %m" );
 	return( SMTP_ERR_SYSCALL );
     }
 
@@ -365,7 +445,7 @@ smtp_quit( SNET *snet, void (*logger)(char *))
      */
 
     int
-smtp_send( SNET *snet, struct envelope *env, SNET *message,
+smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
 	void (*logger)(char *))
 {
     char		*line;

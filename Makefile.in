@@ -19,7 +19,6 @@ QRUNNEROBJ=	q_runner.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		simta.o smtp.o expand.o address.o bdb.o header.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		smtp.o simta.o
-CONNECT_TESTOBJ=	connect_test.o smtp.o line_file.o envelope.o tz.o
 
 SIMTALOG=LOG_MAIL
 SIMTA_ALIAS_DB=	@aliasdb@
@@ -88,9 +87,6 @@ q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
 
 q_cleanup : libsnet/libsnet.a denser/denser.o ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
-
-connect_test :	libsnet/libsnet.a denser/denser.o ${CONNECT_TESTOBJ}
-	${CC} ${CFLAGS} ${LDFLAGS} -o connect_test ${CONNECT_TESTOBJ} ${LIBPATH} ${LIBS}
 
 FRC :
 
