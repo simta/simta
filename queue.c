@@ -839,6 +839,7 @@ message_cleanup:
 	if ( d.d_unlinked == 0 ) {
 	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q ) &&
 		    ( deliver_q->hq_no_punt == 0 )) {
+		env_clear_errors( env_deliver );
 		env_deliver->e_flags |= ENV_FLAG_PUNT;
 		queue_envelope( host_q, env_deliver );
 	    } else {
