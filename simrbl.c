@@ -33,41 +33,104 @@
 #include "ll.h"
 #include "simta.h"
 
+#define SIMRBL_EXIT_NOT_BLOCKED	0
+#define SIMRBL_EXIT_BLOCKED	1
+#define SIMRBL_EXIT_ERROR	2
+
+
     int
 main( int argc, char *argv[])
 {
     extern int          optind;
     extern char         *optarg;
     char		*error_txt;
+    char		c;
+    char		*server = NULL;
+    int			rc;
+    int			err = 0;
+    int			quiet = 0;
 
     struct in_addr	addr;
 
-    if ( argc < 1 ) {
-	fprintf( stderr, "Usage: %s address\n", argv[ 0 ]);
+
+    while(( c = getopt( argc, argv, "dl:s:q" )) != -1 ) {
+	switch( c ) {
+	case 'd':
+	    simta_debug++;
+	    break;
+
+	case 'l':
+	    simta_rbl_domain = optarg;
+	    break;
+
+	case 'q':
+	    quiet++;
+	    break;
+
+	case 's':
+	    server = optarg;
+	    break;
+
+	default:
+	    err++;
+	    break;
+	}
+    }
+
+    if (( argc - optind ) != 1 ) {
+	err++;
+    }
+
+    if ( err ) {
+	fprintf( stderr, "Usage: %s [ -dq ] [ -l rbl-doman ] ", argv[ 0 ] );
+	fprintf( stderr, "[ -s server ] " );
+	fprintf( stderr, "address\n" );
 	exit( EX_USAGE );
     }
 
-    simta_rbl_domain = "rbl.mail.umich.edu";
+    if ( server != NULL ) {
+	if (( simta_dnsr = dnsr_new( )) == NULL ) {
+	    perror( "dnsr_new" );
+	    exit( SIMRBL_EXIT_ERROR );
+	}
+	if (( rc = dnsr_nameserver( simta_dnsr, optarg )) != 0 ) {
+	    dnsr_perror( simta_dnsr, "dnsr_nameserver" );
+	    exit( SIMRBL_EXIT_ERROR );
+	}
+	if ( simta_debug ) fprintf( stderr, "using nameserver: %s\n", server );
+    }
 
-    if ( inet_pton( AF_INET, argv[ 1 ], &addr ) <= 0 ) {
+    if ( simta_rbl_domain == NULL ) {
+	simta_rbl_domain = "rbl.mail.umich.edu";
+    }
+
+    if ( simta_user_rbl_domain == NULL ) {
+	simta_user_rbl_domain = "rbl-plus.mail-abuse.org";
+    }
+
+    rc = inet_pton( AF_INET, argv[ optind ], &addr );
+    if ( rc < 0 ) {
 	perror( "inet_pton" );
-	exit( 1 );
+	exit( SIMRBL_EXIT_ERROR );
+    } else if ( rc == 0 ) {
+	fprintf( stderr, "%s: invalid address\n", argv[ optind ] );
+	exit( SIMRBL_EXIT_ERROR );
     }
 
-    switch ( check_rbl( &addr, &error_txt )) {
-    case 0:
-	printf( "blocked by %s: %s\n", simta_rbl_domain, error_txt );
-	free( error_txt );
-	break;
-
-    case 1:
-	printf( "not blocked\n" );
-	break;
-
-    default:
-	fprintf( stderr, "check_rbl failed\n" );
-	break;
+    if (( rc = check_rbl( &addr, simta_rbl_domain, &error_txt )) < 0 ) {
+	if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
+	exit( SIMRBL_EXIT_ERROR );
     }
 
-    exit( 0 );
+    if ( rc == 0 ) {
+	if ( !quiet ) printf( "blocked\n" );
+	if ( error_txt != NULL ) {
+	    if ( !quiet ) printf( "%s\n", error_txt );
+	    free( error_txt );
+	}
+	exit( SIMRBL_EXIT_BLOCKED );
+    } else {
+	if ( !quiet ) printf( "not blocked\n" );
+	exit( SIMRBL_EXIT_NOT_BLOCKED );
+    }
 }
