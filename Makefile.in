@@ -15,7 +15,8 @@ FAST_Q=/var/spool/simta/fast
 DEAD_Q=/var/spool/simta/dead
 
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
-	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c address.c
+	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c address.c \
+	createdb.c
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o queue.c \
 		ml.o smtp.o expand.o mx.o bounce.o nlist.o q_cleanup.o
@@ -28,6 +29,7 @@ QRUNNEROBJ=	q_runner.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		nlist.o q_cleanup.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		smtp.o simta.o
+CREATEDBOBJ=	createdb.o argcargv.o bdb.o
 
 SIMTALOG=LOG_MAIL
 SIMTA_ALIAS_DB=	@aliasdb@
@@ -80,7 +82,12 @@ simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} ${LIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} \
+	${LIBS}
+
+createdb : ${CREATEDBOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o createdb ${CREATEDBOBJ} ${SIMTALIBPATH} \
+	${SIMTALIBS}
 
 daemon.o : daemon.c
 	${CC} ${CFLAGS} \
