@@ -171,7 +171,7 @@ main( int argc, char *argv[] )
 	exit( EX_USAGE );
     }
 
-    if ( simta_read_config ( SIMTA_FILE_CONFIG < 0 )) {
+    if ( simta_read_config( SIMTA_FILE_CONFIG ) < 0 ) {
 	exit( EX_TEMPFAIL );
     }
 
@@ -290,10 +290,8 @@ main( int argc, char *argv[] )
 		sprintf( dfile_fname, "%s/D%s", simta_dir_local, env->e_id );
 
 		if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
-			O_EXCL, 0600 ))
-			< 0 ) {
-		    fprintf( stderr, "open %s: ", dfile_fname );
-		    perror( NULL );
+			O_EXCL, 0600 )) < 0 ) {
+		    perror( dfile_fname );
 		    exit( EX_TEMPFAIL );
 		}
 
@@ -374,10 +372,8 @@ main( int argc, char *argv[] )
 	sprintf( dfile_fname, "%s/D%s", simta_dir_local, env->e_id );
 
 	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
-		O_EXCL, 0600 ))
-		< 0 ) {
-	    fprintf( stderr, "open %s: ", dfile_fname );
-	    perror( NULL );
+		O_EXCL, 0600 )) < 0 ) {
+	    perror( dfile_fname );
 	    exit( EX_TEMPFAIL );
 	}
 
