@@ -86,6 +86,7 @@ static int			ldapdebug;
 
 static char			*vacationhost;
 static char			*vacationattr;
+static char			*mailfwdattr;
 /*
 ** Prototypes
 */
@@ -679,6 +680,27 @@ simta_ldap_config( char *fname )
 		fprintf( stderr, "Unknown objectclass type: %s\n", linecopy );
 	    }
 
+	} else if ( strncasecmp( av[ 0 ], "mailforwardingattr", 12 ) == 0 ) {
+
+	    if (ac < 2) {
+		fprintf( stderr, "Missing mailforwardingattr value: %s\n", 
+				linecopy );
+		continue;
+	    }
+		  
+	    if (mailfwdattr) {
+		fprintf( stderr, 
+		"Overwriting previous mailforwarding attr: %s with %s\n",
+			mailfwdattr, av [ 1 ]);
+
+		free (mailfwdattr); 
+	    }
+
+	    if (( mailfwdattr = (char*)strdup (av [ 1 ])) == NULL ) {
+		perror( "strdup" );
+		acav_free( acav );
+		return( -1 );
+	    }
 	} else if ( strncasecmp( av[ 0 ], "vacationhost", 12 ) == 0 ) {
 
 	    if (ac < 2) {
@@ -753,6 +775,10 @@ simta_ldap_config( char *fname )
     if (ldap_port == 0)
 	ldap_port = 389;
 
+    if (!mailfwdattr) {
+	mailfwdattr = strdup ("mail");
+	fprintf( stderr, "Defaulting mailfwdattr to \'mail\'\n");
+    }
     return( 0 );
 }
 
@@ -1110,8 +1136,7 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
     &&  (simta_ldap_value( entry, "objectClass", ldap_people ) == 1 ) ) {
 
 	/* get individual's email address(es) */
-	if (( values = ldap_get_values( ld, entry, 
-				"mailForwardingAddress" )) == NULL ) {
+	if (( values = ldap_get_values( ld, entry, mailfwdattr)) == NULL ) {
 	    /*
 	    ** This guy has no mailforwardingaddress	
 	    ** Depending on if we're expanding a group
@@ -1868,8 +1893,7 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
 
 	if ( ldap_people
 	&&  (simta_ldap_value( entry, "objectClass", ldap_people ) == 1 ) ) {
-	    if (( vals = ldap_get_values( ld, entry,
-                                "mailForwardingAddress" )) != NULL ) {
+	    if (( vals = ldap_get_values( ld, entry, mailfwdattr )) != NULL ) {
 		add_errmailvals (e_addr, vals, dn);
 		ldap_value_free( vals );
 	    }
