@@ -374,80 +374,87 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
      * probably preserve the results of our DNS check.
      */
 
-    if (( domain != NULL ) && ( simta_global_relay == 0 )) {
-	/*
-	 * Here we do an initial lookup in our domain table.  This is our
-	 * best opportunity to decline recipients that are not local or
-	 * unknown, since if we give an error the connecting client generates
-	 * the bounce.
-	 */
-	/* XXX check config file, check MXes */
-	if (( rc = check_hostname( domain )) != 0 ) {
-	    if ( rc < 0 ) {
-		syslog( LOG_ERR, "f_rcpt check_host: %s: failed", domain );
-		return( RECEIVE_SYSERROR );
-	    } else {
-		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
-			domain ) < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
+    if ( domain != NULL ) {
+	if ( simta_global_relay == 0 ) {
+	    /*
+	     * Here we do an initial lookup in our domain table.  This is
+	     * our best opportunity to decline recipients that are not
+	     * local or unknown, since if we give an error the connecting
+	     * client generates the bounce.
+	     */
+	    if (( rc = check_hostname( domain )) != 0 ) {
+		if ( rc < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt check_host: %s: failed", domain );
+		    return( RECEIVE_SYSERROR );
+		} else {
+		    if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
+			    domain ) < 0 ) {
+			syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+			return( RECEIVE_CLOSECONNECTION );
+		    }
+		    syslog( LOG_ERR, "f_rcpt check_host %s: unknown host",
+			    domain );
+		    return( RECEIVE_OK );
 		}
-		syslog( LOG_ERR, "f_rcpt check_host %s: unknown host", domain );
-		return( RECEIVE_OK );
 	    }
 	}
 
 	if (( host = host_local( domain )) == NULL ) {
-	    if ( snet_writef( snet, "551 User not local; please try <%s>\r\n",
-		    addr ) < 0 ) {
-		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
+	    if ( simta_global_relay == 0 ) {
+		if ( snet_writef( snet,
+			"551 User not local; please try <%s>\r\n",
+			domain ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
+		return( RECEIVE_OK );
 	    }
-	    return( RECEIVE_OK );
-	}
 
-	/*
-	 * For local mail, we now have 5 minutes (rfc1123 5.3.2) to decline
-	 * to receive the message.  If we're in the default configuration, we
-	 * check the passwd and alias file.  Other configurations use "mailer"
-	 * specific checks.
-	 */
+	} else {
+	    /*
+	     * For local mail, we now have 5 minutes (rfc1123 5.3.2)
+	     * to decline to receive the message.  If we're in the
+	     * default configuration, we check the passwd and alias file.
+	     * Other configurations use "mailer" specific checks.
+	     */
 
-	/* rfc 2821 section 3.7
-	 * A relay SMTP server is usually the target of a DNS MX record that
-	 * designates it, rather than the final delivery system.  The relay
-	 * server may accept or reject the task of relaying the mail in the same
-	 * way it accepts or rejects mail for a local user.  If it accepts the
-	 * task, it then becomes an SMTP client, establishes a transmission
-	 * channel to the next SMTP server specified in the DNS (according to
-	 * the rules in section 5), and sends it the mail.  If it declines to
-	 * relay mail to a particular address for policy reasons, a 550 response
-	 * SHOULD be returned.
-	 */
+	    /* rfc 2821 section 3.7
+	     * A relay SMTP server is usually the target of a DNS MX record
+	     * that designates it, rather than the final delivery system.
+	     * The relay server may accept or reject the task of relaying
+	     * the mail in the same way it accepts or rejects mail for
+	     * a local user.  If it accepts the task, it then becomes an
+	     * SMTP client, establishes a transmission channel to the next
+	     * SMTP server specified in the DNS (according to the rules
+	     * in section 5), and sends it the mail.  If it declines to 
+	     * relay mail to a particular address for policy reasons, a 550
+	     * response SHOULD be returned.
+	     */
 
-	switch( local_address( addr, domain, host )) {
-	case NOT_LOCAL:
-	    syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
-	    if ( snet_writef( snet,
-		    "%d Requested action not taken: User not found.\r\n",
-		    550 ) < 0 ) {
-		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
+	    switch( local_address( addr, domain, host )) {
+	    case NOT_LOCAL:
+		syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
+		if ( snet_writef( snet,
+			"%d Requested action not taken: User not found.\r\n",
+			550 ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
+		return( RECEIVE_OK );
+
+	    case LOCAL_ERROR:
+	    default:
+		syslog( LOG_ERR, "f_rcpt local_address %s: error", addr );
+		if ( snet_writef( snet, "%d Requested action aborted: "
+			"local error in processing.\r\n", 451 ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
+		return( RECEIVE_SYSERROR );
+
+	    case LOCAL_ADDRESS:
+		break;
 	    }
-	    return( RECEIVE_OK );
-
-	case LOCAL_ERROR:
-	default:
-	    syslog( LOG_ERR, "f_rcpt local_address %s: error", addr );
-	    if ( snet_writef( snet, "%d Requested action aborted: "
-		    "local error in processing.\r\n", 451 ) < 0 ) {
-		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    return( RECEIVE_SYSERROR );
-
-	case LOCAL_ADDRESS:
-	    break;
 	}
     }
 
