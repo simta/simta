@@ -254,6 +254,7 @@ header_correct( struct line_file *lf, struct envelope *env )
     size_t		header_len;
     struct passwd	*pw;
     char		*from_line;
+    int			result;
 
     if ( header_exceptions( lf ) != 0 ) {
 	return( -1 );
@@ -290,11 +291,15 @@ header_correct( struct line_file *lf, struct envelope *env )
 	}
     }
 
-    /* unfold all the headers */
+    /* unfold, uncomment all the headers */
     for ( h = simta_headers; h->h_key != NULL; h++ ) {
 	if ( h->h_line != NULL ) {
 	    if (( h->h_data = header_unfold( h->h_line )) == NULL ) {
 		return( -1 );
+	    }
+
+	    if (( result = header_uncomment( &(h->h_data))) != result ) {
+		return( result );
 	    }
 	}
     }
@@ -388,7 +393,7 @@ header_unfold( struct line *line )
     /* eliminate all leading WSP */
     c++;
 
-    while (( *c == ' ' ) || ( c == '\t' )) {
+    while (( *c == ' ' ) || ( *c == '\t' )) {
 	c++;
     }
 
@@ -424,4 +429,79 @@ header_unfold( struct line *line )
     }
 
     return( unfolded );
+}
+
+
+    /* return -1 on syserror
+     * return 0 on success
+     * return 1 if the headers can't be uncommented
+     */
+
+    int
+header_uncomment( char **line )
+{
+    size_t		before;
+    size_t		after;
+    int			comment = 0;
+    char		*r;
+    char		*w;
+
+    before = strlen( *line );
+
+    r = *line;
+    w = *line;
+
+    while ( *r != '\0' ) {
+	if ( *r == '\\' ) {
+	    if ( comment == 0 ) {
+		*w = *r;
+		w++;
+	    }
+
+	    r++;
+
+	    if ( *r == '\0' ) {
+		break;
+	    }
+
+	    if ( comment == 0 ) {
+		*w = *r;
+		w++;
+	    }
+	    r++;
+
+	} else if ( *r == '(' ) {
+	    /* start comment */
+	    comment++;
+
+	} else if ( *r == ')' ) {
+	    comment--;
+
+	    if ( comment < 0 ) {
+		/* comment out of order */
+		return( 1 );
+	    }
+
+	} else {
+	    if ( comment == 0 ) {
+		*w = *r;
+		w++;
+	    }
+	}
+
+	r++;
+    }
+
+    *w = '\0';
+
+    after = strlen( *line );
+
+    if ( before > after ) {
+	if (( *line = (char*)realloc( *line, after + 1 )) == NULL ) {
+	    perror( "realloc" );
+	    return( -1 );
+	}
+    }
+
+    return( 0 );
 }
