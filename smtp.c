@@ -35,7 +35,7 @@
 #include "timeval.h"
 #include "simta.h"
 
-#undef	DNSR_WORKS
+#define	DNSR_WORKS
 
 #ifdef DEBUG
 void	(*smtp_logger)(char *) = stdout_logger;
