@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <strings.h>
+#include <syslog.h>
 #include <time.h>
 #include <pwd.h>
 #include <unistd.h>
@@ -37,6 +38,7 @@ expansion_stab_stdout( void *string )
 }
 
 extern struct stab_entry *hosts;
+extern int debug;
 
 /*
  * Return values:
@@ -46,9 +48,10 @@ extern struct stab_entry *hosts;
  */
 
     int
-address_local( char *address )
+address_local( char *addr )
 {
     int			ret = 0;
+    int			rc = 0;
     char		*user= NULL, *domain = NULL, *p = NULL;	
     struct passwd	*passwd = NULL;
     DBT			value;
@@ -56,7 +59,8 @@ address_local( char *address )
     struct host		*host;
 
     /* Check for domain in domain table */
-    if (( domain = strchr( address, '@' )) == NULL ) {
+    if (( domain = strchr( addr, '@' )) == NULL ) {
+	syslog( LOG_ERR, "address_local: %s: invalid e-mail address", addr );
 	return( -1 );
     }
     domain++;
@@ -65,10 +69,12 @@ address_local( char *address )
     }
 
     /* Get user */
-    if (( user = strdup( address )) == NULL ) {
+    if (( user = strdup( addr )) == NULL ) {
+	syslog( LOG_ERR, "address_local: strdup: %m" );
 	return( -1 );
     }
     if (( p = strchr( user, '@' )) == NULL ) {
+	syslog( LOG_ERR, "address_local: %s: invalid e-mail address", user );
 	ret = -1;
 	goto done;
     }
@@ -79,7 +85,9 @@ address_local( char *address )
 	if ( strcmp( i->st_key, "alias" ) == 0 ) {
 	    /* check alias file */
 	    if ( dbp == NULL ) {
-		if ( db_open_r( &dbp, DATABASE, NULL ) != 0 ) {
+		if (( rc = db_open_r( &dbp, DATABASE, NULL )) != 0 ) {
+		    syslog( LOG_ERR, "address_local: db_open_r: %s",
+			db_strerror( rc ));
 		    ret = -1;
 		    goto done;
 		}
@@ -90,7 +98,9 @@ address_local( char *address )
 	    }
 	    /* XXX where do we want to do this? */
 	    /*
-	    if ( db_close( dbp ) != 0 ) {
+	    if (( rc = db_close( dbp )) != 0 ) {
+		syslog( LOG_ERR, "address_local: db_close: %s",
+		    db_strerr( rc ));
 		ret = -1;
 		goto done;
 	    }
@@ -105,6 +115,8 @@ address_local( char *address )
 
 	} else {
 	    /* unknown lookup */
+	    syslog( LOG_ERR, "address_local: %s: unknown expansion",
+		i->st_key );
 	    ret = -1;
 	    goto done;
 	}
@@ -139,44 +151,45 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
     /* Check to see if we have seen addr already */
     if ( ll_lookup( *seen, address ) != NULL ) {
-	//printf( "...seen\n" );
+	/* Already expanded */
+	if ( debug ) printf( "address_expand: %s: already expanded\n",
+	    address );
 	return( 0 );
     } else {
 	/* Add address to seen list */
-	//printf( "...new\n" );
 	/* XXX - Must free */
-	data = strdup( address );
+	if (( data = strdup( address )) == NULL ) {
+	    syslog( LOG_ERR, "address_expand: strdup: %m" );
+	}
 	if ( ll_insert( seen, data, data, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "address_expand: ll_insert: %m" );
 	    return( -1 );
 	}
-	//printf( "%s insterted into seen list\n", data );
     }
 
     /* Get user and domain */
+    /* XXX - Must free */
     if (( address_local = strdup( address )) == NULL ) {
+	syslog( LOG_ERR, "address_expand: strdup: %m" );
 	return( -1 );
     }
     user = address_local;
     if (( domain = strchr( address_local, '@' )) == NULL ) {
+	syslog( LOG_ERR, "address_expand: strchr: %s: invalid address",
+	    address_local );
         return( -1 );
     }
     *domain = '\0';
     domain++;
 
     /* Check for domain in hosts table */
-    //printf( "%s in hosts table?", domain );
     if (( host = ll_lookup( hosts, domain )) == NULL ) {
-        //printf( "...no\n" );
         return( 0 );
-    } else {
-        //printf( "...yes\n" );
     }
 
     /* Expand user using lookup table for host */
     for ( i = host->h_expansion; i != NULL; i = i->st_next ) {
         if ( strcmp( i->st_key, "alias" ) == 0 ) {
-
-	    //printf( "Using alias file\n" );
 
             /* check alias file */
 	    memset( &key, 0, sizeof( DBT ));
@@ -186,7 +199,10 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 	    key.size = strlen( user ) + 1;
 
 	    if ( dbp == NULL ) {
+		/* alias DB is option */
 		if (( ret = db_open_r( &dbp, DATABASE, NULL )) != 0 ) {
+		    syslog( LOG_ERR, "address_expand: db_open_r: %s",
+			db_strerror( ret ));
 		    return( -1 );
 		}
 	    }
@@ -194,16 +210,17 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 	    /* Set cursor and get first result */
 	    if (( ret = db_cursor_set( dbp, &dbcp, &key, &value )) != 0 ) {
 		if ( ret != DB_NOTFOUND ) {
+		    syslog( LOG_ERR, "address_expand: db_cursor_set: %s",
+			db_strerror( ret ));
 		    return( -1 );
 		} else {
-		    //printf( "%s not in alias file\n", user );
 		    continue;
 		}
 	    }
-	    //printf( "%s in alias file\n", user );
 
 	    /* Create address from user and domain */
 	    memset( buf, 0, MAXPATHLEN * 2 );
+
 	    /* Check for e-mail address in alias file */
 	    if ( strchr( (char*)value.data, '@' ) != NULL ) {
 		sprintf( buf, "%s", (char*)value.data );
@@ -214,18 +231,15 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 	    /* Check to see if we have seen this address before to prevent
 	     * it from being expanded again 
 	     */
-	    //printf( "have I seen %s?", buf );
 	    if ( ll_lookup( *seen, buf ) == NULL ) {
 		/* Add address to expansion */
-		//printf( "...no\n" );
 		data = strdup( buf );
-		//printf( "Adding %s to expansion\n", data );
 		if ( ll_insert_tail( expansion, data, data ) != 0 ) {
+		    syslog( LOG_ERR, "address_expand: ll_insert_tail: %m" );
 		    return( -1 );
 		}
 		count++;
 	    } else {
-		//printf( "...yes\n" );
 		continue;
 	    }
 
@@ -235,6 +249,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
 		/* Create address from user and domain */
 		memset( buf, 0, MAXPATHLEN * 2 );
+
 		/* Check for e-mail address in alias file */
 		if ( strchr( (char*)value.data, '@' ) != NULL ) {
 		    sprintf( buf, "%s", (char*)value.data );
@@ -245,18 +260,18 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 		/* Check to see if we have seen this address before to prevent
 		 * it from being expanded again 
 		 */
-		//printf( "have I seen %s?", buf );
 		if ( ll_lookup( *seen, buf ) == NULL ) {
 		    /* Add address to expansion */
-		    //printf( "...no\n" );
-		    data = strdup( buf );
-		    //printf( "Adding %s to expansion\n", data );
+		    if (( data = strdup( buf )) == NULL ) {
+			syslog( LOG_ERR, "address_expand: strdup: %m" );
+			return( -1 );
+		    }
 		    if ( ll_insert_tail( expansion, data, data ) != 0 ) {
+			syslog( LOG_ERR, "address_expand: ll_insert_tail: %m" );
 			return( -1 );
 		    }
 		    count++;
 		} else {
-		    //printf( "...yes\n" );
 		    continue;
 		}
 
@@ -264,6 +279,8 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 	    }
 
 	    if ( ret != DB_NOTFOUND ) {
+		syslog( LOG_ERR, "address_expand: db_cursor_next: %s",
+		    db_strerror( ret ));
 		return( -1 );
 	    }
 
@@ -273,11 +290,8 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
         } else if ( strcmp( i->st_key, "password" ) == 0 ) {
 
-	    //printf( "Using password file\n" );
-
             /* Check password file */
 	    if (( passwd = getpwnam( user )) == NULL ) {
-		//printf( "%s not in password file\n", user );
 		continue;
 	    }
 
@@ -286,8 +300,8 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 	    sprintf( buf, "%s/.forward", passwd->pw_dir );
 
 	    if ( access( buf, R_OK ) == 0 ) {
-		printf( "...found\n" );
 		if (( f =  fopen( buf, "r" )) == NULL ) {
+		    syslog( LOG_ERR, "address_expand: fopen: %s: %m", buf );
 		    return( -1 );
 		}
 		while ( fgets( buf, MAXPATHLEN, f ) != NULL ) {
@@ -301,6 +315,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
 		    /* Check for valid e-mail address */
 		    if (( temp = strdup( buf )) == NULL ) {
+			syslog( LOG_ERR, "address_expand: strdup: %m" );
 			return( -1 );
 		    }
 		    if ( is_emailaddr( &temp ) != 1 ) {
@@ -314,6 +329,8 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 		    if ( ll_lookup( *seen, temp ) == NULL ) {
 			/* Add address to expansion */
 			if ( ll_insert_tail( expansion, temp, temp ) != 0 ) {
+			    syslog( LOG_ERR,
+				"address_expand: ll_insert_tail: %m" );
 			    return( -1 );
 			}
 			count++;
@@ -321,16 +338,14 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 			continue;
 		    }
 		}
-	    } else {
-		printf( "...not found\n" );
 	    }
 
-        } else {
-            //printf( "unknown lookup %s\n", i->st_key );
         }
     }
 
-    if ( db_cursor_close( dbcp ) != 0 ) {
+    if (( ret = db_cursor_close( dbcp )) != 0 ) {
+	syslog( LOG_ERR, "address_expand: db_cursor_close: %s",
+	    db_strerror( ret ));
 	return( -1 );
     }
 
