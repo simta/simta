@@ -29,6 +29,7 @@ extern SSL_CTX  *ctx;
 #include "denser.h"
 #include "queue.h"
 #include "envelope.h"
+#include "expand.h"
 #include "mx.h"
 #include "simta.h"
 
@@ -117,8 +118,6 @@ get_mx( char *hostname )
 			dnsr_free_result( result );
 			return( NULL );
 		    }
-		    syslog( LOG_ERR, "get_mx: %s: cname %s -> simta_hosts",
-			hostname, result->r_answer[ i ].rr_name );
 		}
 		break;
 
@@ -154,20 +153,27 @@ host_local( char *hostname )
     struct host		*host;
     struct dnsr_result	*result;
 
+    syslog( LOG_ERR, "host_local: %s", hostname );
+
     /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
+	syslog( LOG_ERR, "host_local: %s found in simta_hosts", hostname );
 	return( host );
     }
 
+    syslog( LOG_ERR, "host_local: %s getting DNS", hostname );
     /* Check DNS */
     if (( result = get_mx( hostname )) == NULL ) {
+	syslog( LOG_ERR, "host_local: %s no DNS", hostname );
 	return( NULL );
     }
     dnsr_free_result( result );
 
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
+	syslog( LOG_ERR, "host_local: %s found in DNS", hostname );
 	return( host );
     }
+    syslog( LOG_ERR, "host_local: %s NOT FOUND!", hostname );
 
     return( NULL );
 }
@@ -291,14 +297,19 @@ add_host( char *hostname, int type )
 	return( -1 );
     }
     memset( host, 0, sizeof( struct host ));
+
     host->h_type = type;
+    /* XXX - Must cleanup */
+    host->h_name = strdup( hostname );
 
     /* Add list of expansions */
-    if ( ll_insert_tail( &(host->h_expansion), "alias", "alias" ) != 0 ) {
+    if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_ALIAS,
+	    EXPANSION_TYPE_ALIAS ) != 0 ) {
 	syslog( LOG_ERR, "add_host: ll_insert_tail failed" );
 	goto error;
     }
-    if ( ll_insert_tail( &(host->h_expansion), "password", "password" ) != 0 ) {
+    if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_PASSWORD,
+	    EXPANSION_TYPE_PASSWORD ) != 0 ) {
 	syslog( LOG_ERR, "add_host: ll_insert_tail failed" );
 	goto error;
     }
@@ -309,6 +320,7 @@ add_host( char *hostname, int type )
 	goto error;
     }
 
+    syslog( LOG_ERR, "add_host: added %s", host->h_name );
     return( 0 );
 
 error:
