@@ -31,9 +31,12 @@
 
 #include "receive.h"
 #include "ll.h"
+#include "simta.h"
 
+/* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
 
+int		simsendmail_signal = 0;
 int		debug = 0;
 int		backlog = 5;
 int		connections = 0;
@@ -45,9 +48,17 @@ struct stab_entry 	*hosts = NULL;
 char		*maildomain = NULL;
 char		*version = VERSION;
 
+void		usr1 ___P(( int ));
 void		hup ___P(( int ));
 void		chld ___P(( int ));
 int		main ___P(( int, char *av[] ));
+
+    void
+usr1( sig )
+    int			sig;
+{
+    simsendmail_signal = 1;
+}
 
     void
 hup( sig )
@@ -94,15 +105,18 @@ main( ac, av )
     int		ac;
     char	*av[];
 {
-    struct sigaction	sa, osahup, osachld;
+    struct sigaction	sa, osahup, osachld, osausr1;
     struct sockaddr_in	sin;
     struct servent	*se;
     int			c, s, err = 0, fd, sinlen;
     int			dontrun = 0;
     int			reuseaddr = 1;
+    int			pidfd;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
     char		*cryptofile = NULL;
+    fd_set		fdset;
+    FILE		*pf;
     int			use_randfile = 0;
     unsigned short	port = 0;
     extern int		optind;
@@ -303,12 +317,35 @@ main( ac, av )
 	exit( 1 );
     }
 
+    /* open and truncate the pid file */
+    if (( pidfd = open( SIMTA_PATH_PIDFILE, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
+	fprintf( stderr, "open %s: ", SIMTA_PATH_PIDFILE );
+        perror( NULL );
+        exit( 1 );
+    }
+
+#ifdef notdef
+    /* file locking isn't very portable... */
+    if ( flock( pidfd, LOCK_EX | LOCK_NB ) < 0 ) {
+        if ( errno == EWOULDBLOCK ) {
+            fprintf( stderr, "%s: already running!\n", prog );
+        } else {
+            perror( "flock" );
+        }
+        exit( 1 );
+    }
+#endif notdef
+
+    if ( ftruncate( pidfd, (off_t)0 ) < 0 ) {
+        perror( "ftruncate" );
+        exit( 1 );
+    }
+
     /*
      * Disassociate from controlling tty.
      */
     if ( !debug ) {
 	int		i, dt;
-
 	switch ( fork()) {
 	case 0 :
 	    if ( setsid() < 0 ) {
@@ -317,7 +354,8 @@ main( ac, av )
 	    }
 	    dt = getdtablesize();
 	    for ( i = 0; i < dt; i++ ) {
-		if ( i != s ) {			/* keep socket open */
+		/* keep socket & pidfd open */
+		if (( i != s ) && ( i != pidfd )) {
 		    (void)close( i );
 		}
 	    }
@@ -343,6 +381,18 @@ main( ac, av )
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /* ultrix */
 
+    if (( pf = fdopen( pidfd, "w" )) == NULL ) {
+        syslog( LOG_ERR, "can't fdopen pidfd" );
+        exit( 1 );
+    }
+    fprintf( pf, "%d\n", (int)getpid());
+
+#ifdef notdef
+    fflush( pf );       /* leave pf open, since it's flock-ed */
+#else notdef
+    fclose( pf );
+#endif notdef
+
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = hup;
@@ -359,6 +409,14 @@ main( ac, av )
 	exit( 1 );
     }
 
+    /* catch SIGUSR1 */
+    memset( &sa, 0, sizeof( struct sigaction ));
+    sa.sa_handler = usr1;
+    if ( sigaction( SIGUSR1, &sa, &osausr1 ) < 0 ) {
+	syslog( LOG_ERR, "sigaction: %m" );
+	exit( 1 );
+    }
+
     syslog( LOG_INFO, "restart %s", version );
 
     /*
@@ -367,48 +425,78 @@ main( ac, av )
     for (;;) {
 	/* should select() so we can manage an event queue */
 
-	sinlen = sizeof( struct sockaddr_in );
-	if (( fd = accept( s, (struct sockaddr *)&sin, &sinlen )) < 0 ) {
-	    if ( errno != EINTR ) {	/* other errors? */
-		syslog( LOG_ERR, "accept: %m" );
+	if ( simsendmail_signal != 0 ) {
+	    simsendmail_signal = 0;
+
+	    if ( debug ) {
+		printf( "simsendmail signaled\n" );
 	    }
-	    continue;
 	}
 
-	connections++;
+	FD_ZERO( &fdset );
+	FD_SET( s, &fdset );
 
-	/* start child */
-	switch ( c = fork()) {
-	case 0 :
-	    close( s );
-
-	    /* reset CHLD and HUP */
-	    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
-		syslog( LOG_ERR, "sigaction: %m" );
+	if ( select( s + 1, &fdset, NULL, NULL, NULL ) < 0 ) {
+	    if ( errno != EINTR ) {
+		syslog( LOG_ERR, "select: %m" );
 		exit( 1 );
+
+	    } else {
+		continue;
 	    }
-	    if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
-		syslog( LOG_ERR, "sigaction: %m" );
-		exit( 1 );
+	}
+
+	if ( FD_ISSET( s, &fdset )) {
+
+	    sinlen = sizeof( struct sockaddr_in );
+
+	    if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
+		if ( errno != EINTR ) {
+		    syslog( LOG_ERR, "accept: %m" );
+		}
+		continue;
 	    }
 
-	    exit( receive( fd, &sin ));
+	    connections++;
 
-	case -1 :
-	    /*
-	     * We don't tell the client why we're closing -- they will
-	     * queue mail and try later.  We don't sleep() because we'd
-	     * like to cause as much mail as possible to queue on remote
-	     * hosts, thus spreading out load on our (memory bound) server.
-	     */
-	    close( fd );
-	    syslog( LOG_ERR, "fork: %m" );
-	    break;
+	    /* start child */
+	    switch ( c = fork()) {
+	    case 0 :
+		close( s );
 
-	default :
-	    close( fd );
-	    syslog( LOG_INFO, "child %d for %s", c, inet_ntoa( sin.sin_addr ));
-	    break;
+		/* reset USR1, CHLD and HUP */
+		if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
+		    syslog( LOG_ERR, "sigaction: %m" );
+		    exit( 1 );
+		}
+		if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
+		    syslog( LOG_ERR, "sigaction: %m" );
+		    exit( 1 );
+		}
+		if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
+		    syslog( LOG_ERR, "sigaction: %m" );
+		    exit( 1 );
+		}
+
+		exit( receive( fd, &sin ));
+
+	    case -1 :
+		/*
+		 * We don't tell the client why we're closing -- they will
+		 * queue mail and try later.  We don't sleep() because we'd
+		 * like to cause as much mail as possible to queue on remote
+		 * hosts, thus spreading out load on our (memory bound) server.
+		 */
+		close( fd );
+		syslog( LOG_ERR, "fork: %m" );
+		break;
+
+	    default :
+		close( fd );
+		syslog( LOG_INFO, "child %d for %s", c,
+			inet_ntoa( sin.sin_addr ));
+		break;
+	    }
 	}
     }
 }

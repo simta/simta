@@ -84,6 +84,9 @@ main( int argc, char *argv[] )
     int			result;
     FILE		*dfile = NULL;
     int			read_headers = 0;
+    int			pidfd;
+    int			pid;
+    FILE		*pf;
 
     /* ignore a good many options */
     opterr = 0;
@@ -381,7 +384,24 @@ main( int argc, char *argv[] )
 	goto cleanup;
     }
 
-    /* XXX signal */
+    /* if possible, signal server */
+    if (( pidfd = open( SIMTA_PATH_PIDFILE, O_RDONLY, 0 )) < 0 ) {
+	return( 0 );
+    }
+
+    if (( pf = fdopen( pidfd, "r" )) == NULL ) {
+	return( 0 );
+    }
+
+    fscanf( pf, "%d\n", &pid );
+
+    if ( pid <= 0 ) {
+	return( 0 );
+    }
+
+    if ( kill( pid, SIGUSR1 ) < 0 ) {
+	return( 0 );
+    }
 
     return( 0 );
 

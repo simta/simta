@@ -11,5 +11,7 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
+#define	SIMTA_PATH_PIDFILE	"/var/run/simta.pid"
+
 char	*simta_local_domain ___P(( void ));
 char	*simta_sender ___P(( void ));

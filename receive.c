@@ -881,6 +881,7 @@ receive( fd, sin )
 	exit( 1 );
     }
 
+
     /* Verify A record matches IP */
     {
 	/* XXX - how should this be checked? */
@@ -895,6 +896,7 @@ receive( fd, sin )
 	    snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
+
 	    exit( 1 );
 	}
     }
