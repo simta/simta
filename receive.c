@@ -255,11 +255,11 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 		receive_smtp_command );
 
 	if ( snet_writef( snet,
-		"501 Syntax violates RFC 2821 section 4.1.1.2:\r\n"
+		"501-Syntax violates RFC 2821 section 4.1.1.2:\r\n"
 		"501-     \"MAIL FROM:\" (\"<>\" / Reverse-Path ) "
 		"[ SP Mail-parameters ] CRLF\r\n"
 		"501-         Reverse-path = Path\r\n"
-		"501-         Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
+		"501          Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
 		) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -355,12 +355,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		receive_smtp_command );
 
 	if ( snet_writef( snet,
-		"501 Syntax violates RFC 2821 section 4.1.1.3:\r\n"
+		"501-Syntax violates RFC 2821 section 4.1.1.3:\r\n"
 		"501-     \"RCPT TO:\" (\"<Postmaster@\" domain \">\" / "
 		"\"<Postmaster>\" / Forward-Path ) "
 		"[ SP Rcpt-parameters ] CRLF\r\n"
 		"501-         Forward-path = Path\r\n"
-		"501-         Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
+		"501          Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
 		) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
