@@ -226,9 +226,13 @@ main( int ac, char **av )
     config_fname = SIMTA_FILE_CONFIG;
     config_base_dir = SIMTA_BASE_DIR;
 
-    while (( c = getopt( ac, av, "b:cdD:f:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
+    while (( c = getopt( ac, av, "ab:cdD:f:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
-	case 'b' :		/* listen backlog */
+	case 'a' :		/* Automatically config with DNS */
+	    simta_dns_config = 1;
+	    break;
+
+	case 'b' :		/*X listen backlog */
 	    backlog = atoi( optarg );
 	    break;
 
@@ -319,7 +323,7 @@ main( int ac, char **av )
 
     if ( err || optind != ac ) {
 	fprintf( stderr, "Usage:\t%s", prog );
-	fprintf( stderr, " [ -cdrVq ] [ -b backlog ]" );
+	fprintf( stderr, " [ -acdrVq ] [ -b backlog ]" );
 	fprintf( stderr, " [ -M maildomain ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
 	fprintf( stderr, " [ -s spooldir]" );
