@@ -473,12 +473,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
     }
 
-    syslog( LOG_NOTICE, "%s: TO:<%s> ACCEPTED", env->e_id,
-	    env->e_rcpt->r_rcpt );
-
     if ( env_recipient( env, addr ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
+
+    syslog( LOG_NOTICE, "%s: TO:<%s> ACCEPTED", env->e_id, 
+	env->e_rcpt->r_rcpt );
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
