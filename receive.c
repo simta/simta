@@ -146,6 +146,19 @@ f_ehlo( snet, env, ac, av )
 	return( 1 );
     }
 
+    /* rfc 2821 4.1.4
+     * An EHLO command MAY be issued by a client later in the session.  If
+     * it is issued after the session begins, the SMTP server MUST clear all
+     * buffers and reset the state exactly as if a RSET command had been
+     * issued.  In other words, the sequence of RSET followed immediately by
+     * EHLO is redundant, but not harmful other than in the performance cost
+     * of executing unnecessary commands.
+     */
+
+    if ( env->e_helo != NULL ) {
+	env_reset( env );
+    }
+
     if ( hello( env, av[ 1 ] ) < 0 ) {
 	return( -1 );
     }
