@@ -39,12 +39,18 @@ DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS
 LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@
 TAGSFILE=	tags
-
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
+
+SIMTALIBPATH=	${LIBPATH} @SIMTALDFLAGS@
+SIMTALIBS=	${LIBS} @SIMTALIBS@
+SIMTAINCPATH=	${INCPATH} @SIMTACPPFLAGS@
+SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
+
 
 TARGETS=	simta tlsconnect simsendmail q_runner
 
 all : ${TARGETS}
+
 
 install : all FRC
 	-mkdir -p ${RUNDIR}
@@ -64,6 +70,12 @@ install-suid : all FRC
 	${INSTALL} -m 6755 -g mail -o root -c simsendmail ${LIBDIR}/
 	ln -f ${LIBDIR}/simsendmail ${LIBDIR}/sendmail
 
+simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} ${LIBS}
+
 daemon.o : daemon.c
 	${CC} ${CFLAGS} \
 	    -DVERSION=\"`cat VERSION`\" \
@@ -80,22 +92,20 @@ simta.o : simta.c
 		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
 		-c simta.c -o simta.o
 
+bdb.o : bdb.c
+	${CC} ${SIMTACFLAGS} \
+		-c bdb.c -o bdb.o
+
 address.o : address.c
-	${CC} ${CFLAGS} \
+	${CC} ${SIMTACFLAGS} \
 		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
 		-c address.c -o address.o
 
 tz.o : tz.c
 	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ -c tz.c -o tz.o
 
-simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${LIBPATH} ${LIBS}
-
 tlsconnect : libsnet/libsnet.a denser/denser.o ${TLSCONOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o tlsconnect ${TLSCONOBJ} ${LIBPATH} ${LIBS}
-
-simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} ${LIBPATH} ${LIBS}
 
 simlog : libsnet/libsnet.a denser/denser.o ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
@@ -107,7 +117,7 @@ ml.o : ml.c
 		-c ml.c -o ml.o
 
 q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${LIBPATH} ${LIBS}
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 q_cleanup : libsnet/libsnet.a denser/denser.o ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
@@ -142,6 +152,7 @@ realclean : clean
 	rm -f config.status config.log
 	rm -f Makefile
 	cd libsnet; ${MAKE} ${MFLAGS} distclean
+	cd denser; ${MAKE} ${MFLAGS} realclean
 
 tags : ${SRC}
 	cwd=`pwd`; \

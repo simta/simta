@@ -171,15 +171,18 @@ AC_DEFUN([CHECK_DB],
         dbdir="$dir"
         if test -f "$dir/lib/libdb.a"; then
             found_db="yes";
-            CPPFLAGS="-I$dbdir/include $CPPFLAGS";
+            SIMTACPPFLAGS="-I$dbdir/include";
             break;
         fi
     done
     if test x_$found_db != x_yes; then
         AC_MSG_ERROR(cannot find db )
     else
-        LIBS="$LIBS -ldb";
-        LDFLAGS="$LDFLAGS -L$dbdir/lib";
+        SIMTALIBS="-ldb";
+        SIMTALDFLAGS="-L$dbdir/lib -R$dbdir/lib";
+	AC_SUBST(SIMTALIBS)
+	AC_SUBST(SIMTALDFLAGS)
+	AC_SUBST(SIMTACPPFLAGS)
         HAVE_DB=yes
     fi
     AC_SUBST(HAVE_DB)
