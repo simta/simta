@@ -89,7 +89,7 @@ AC_DEFUN([PROG_PROCMAIL],
     # procmail_dirs will be "yes", "no", or a user defined path
     if test x_$procmail_dirs != x_no; then
 	if test x_$procmail_dirs = x_yes; then
-	    procmail_dirs="/usr/local/bin /usr/local/procmail/bin"
+	    procmail_dirs="/usr/bin /usr/local/bin /usr/local/procmail/bin"
 	fi
 	for dir in $procmail_dirs; do
 	    procmail_dir="$dir"

@@ -24,7 +24,7 @@
 #include "ml.h"
 
 
-char		*maillocal_argv[] = { "mail.local", "-f", 0, "-d", "--", 0, 0 };
+char		*maillocal_argv[] = { "mail.local", "-f", 0, "--", 0, 0 };
 char		*maillocal_bin = SIMTA_MAIL_LOCAL;
 
 char		*procmail_argv[] = { "procmail", "-f", 0, "-d", 0, 0 };
@@ -215,7 +215,7 @@ mail_local( int f, char *sender, char *recipient )
 	}
 
 	maillocal_argv[ 2 ] = sender;
-	maillocal_argv[ 5 ] = recipient;
+	maillocal_argv[ 4 ] = recipient;
 
 	execv( maillocal_bin, maillocal_argv );
 	/* if we are here, there is an error */
