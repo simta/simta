@@ -903,20 +903,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    ldap_memfree (dn);
 	    return LDAP_SYSERROR;
 	}
-	if (env_sender ( e_addr->e_addr_errors, "<>") != 0) {
-       	    syslog (LOG_ERR,
-               "simta_ldap_expand_group: failed setting error sender: %s", dn);
-	    if (dnvals ) {
-		ldap_value_free( dnvals);
-	    }
-	    if (mailvals ) {
-		ldap_value_free(mailvals );
-	    }
-	    free (senderbuf);
-	    ldap_memfree (dn);
-	    return LDAP_SYSERROR;
-	}
-
 
 	break;
     }   /* end of switch */
