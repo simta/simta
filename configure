@@ -2729,7 +2729,7 @@ echo "$as_me: error: cannot find db " >&2;}
    { (exit 1); exit 1; }; }
     else
         SIMTALIBS="$SIMTALIBS -ldb";
-        SIMTALDFLAGS="-L$dbdir/lib";
+        SIMTALDFLAGS="-L$dbdir/lib -Wl,-rpath -Wl,$dbdir/lib";
 
 
 
