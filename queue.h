@@ -46,6 +46,9 @@ struct message {
     char			*m_id;
     char			*m_dir;
     struct timespec		m_etime;
+    int				m_efile;
+    int				m_expanded;
+    ino_t			m_dfile;
 };
 
 int	q_runner ___P(( struct host_q ** ));

@@ -30,6 +30,7 @@
 
 #include "ll.h"
 #include "queue.h"
+#include "q_cleanup.h"
 #include "envelope.h"
 #include "line_file.h"
 #include "ml.h"
@@ -41,23 +42,10 @@
     int
 main( int argc, char *argv[] )
 {
-    char			*dir;
-
     simta_debug = 1;
 
     if ( argc != 2 ) {
-	fprintf( stderr, "Usage: %s ( LOCAL | SLOW )\n", argv[ 0 ]);
-	exit( EX_USAGE );
-    }
-
-    if ( strcasecmp( argv[ 1 ], "LOCAL" ) == 0 ) {
-	dir = SIMTA_DIR_LOCAL;
-
-    } else if ( strcasecmp( argv[ 1 ], "SLOW" ) == 0 ) {
-	dir = SIMTA_DIR_SLOW;
-
-    } else {
-	fprintf( stderr, "Usage: %s ( LOCAL | SLOW )\n", argv[ 0 ]);
+	fprintf( stderr, "Usage: %s ( LOCAL | SLOW | CLEAN )\n", argv[ 0 ]);
 	exit( EX_USAGE );
     }
 
@@ -68,5 +56,17 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
-    return( q_runner_dir( dir ));
+    if ( strcasecmp( argv[ 1 ], "LOCAL" ) == 0 ) {
+	return( q_runner_dir( SIMTA_DIR_LOCAL ));
+
+    } else if ( strcasecmp( argv[ 1 ], "SLOW" ) == 0 ) {
+	return( q_runner_dir( SIMTA_DIR_SLOW ));
+
+    } else if ( strcasecmp( argv[ 1 ], "CLEAN" ) == 0 ) {
+	return( q_cleanup());
+
+    } else {
+	fprintf( stderr, "Usage: %s ( LOCAL | SLOW | CLEAN )\n", argv[ 0 ]);
+	exit( EX_USAGE );
+    }
 }

@@ -1647,7 +1647,7 @@ line_token_unfold( struct line_token *token )
 
 	    sprintf( tmp, "%s ", token->t_unfolded );
 	    free( token->t_unfolded );
-	    strncat( tmp, c, token->t_end - c + 1 );
+	    strncat( tmp, c, (size_t)(token->t_end - c + 1));
 	    token->t_unfolded = tmp;
 
 	    return( 0 );

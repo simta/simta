@@ -17,7 +17,7 @@ SIMSENDOBJ=	simsend.o line_file.o envelope.o tz.o header.o simta.o \
 SIMLOGOBJ=	simlog.o
 QRUNNEROBJ=	q_runner.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		simta.o smtp.o expand.o address.o bdb.o header.o bounce.o \
-		nlist.o
+		nlist.o q_cleanup.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		smtp.o simta.o
 
