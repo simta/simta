@@ -59,61 +59,61 @@ stdout_logger( char *line )
     int
 smtp_connect( SNET **snetp, struct host_q *hq )
 {
-    SNET			*snet;
+    int				i;
+    int				s;
+    int				valid_result = 0;
     char			*line;
     char			*remote_host;
     char			*c;
-    struct sockaddr_in		sin;
-    int				i, valid_result = 0, s;
-    struct timeval		tv;
+    SNET			*snet;
     DNSR			*dnsr;
     struct dnsr_result		*result;
+    struct sockaddr_in		sin;
+    struct timeval		tv;
 
-    if ( simta_debug ) fprintf( stderr, "smtp_connect dnsr: %s\n", hq->hq_hostname );
+    syslog( LOG_DEBUG, "smtp_connect starting" );
 
     if (( dnsr = dnsr_new( )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_new: %m" );
+	syslog( LOG_ERR, "smtp_connect dnsr_new: %m" );
 	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
 
     if (( result = get_mx( dnsr, hq->hq_hostname )) == NULL ) {
-	if ( simta_debug ) fprintf( stderr, "smtp_connect: get_mx failed\n" );
 	hq->hq_status = HOST_DOWN;
+	syslog( LOG_ERR, "smtp_connect get_mx: %m" );
 	return( SMTP_ERR_REMOTE );
     }
-    if ( simta_debug ) fprintf( stderr, "smtp_connect: get_mx success\n" );
 
     for ( i = 0; i < result->r_ancount; i++ ) {
-        if ( simta_debug ) fprintf( stderr, "checking result %i:\n", i );
-
         switch( result->r_answer[ i ].rr_type ) {
         case DNSR_TYPE_MX:
-            if ( simta_debug ) fprintf( stderr, "\tMX\n" );
             memcpy( &(sin.sin_addr.s_addr),
-                &(result->r_answer[ i ].rr_ip->ip_ip ),
-                sizeof( struct in_addr ));
+		    &(result->r_answer[ i ].rr_ip->ip_ip ),
+		    sizeof( struct in_addr ));
             valid_result++;
             break;
 
         case DNSR_TYPE_A:
-            if ( simta_debug ) fprintf( stderr, "\tA\n" );
-            memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ i ].rr_a ),
-                sizeof( struct in_addr ));
+            memcpy( &(sin.sin_addr.s_addr),
+		    &(result->r_answer[ i ].rr_a ),
+		    sizeof( struct in_addr ));
             valid_result++;
             break;
 
         default:
-            if ( simta_debug ) fprintf( stderr, "\tskipping non MX/A\n" );
             continue;
         }
-        if ( valid_result ) {
+
+        if ( valid_result != 0 ) {
             break;
         }
     }
 
-    if ( simta_debug ) fprintf( stderr, "%s\n", inet_ntoa( sin.sin_addr ));
-
+    if ( valid_result == 0 ) {
+	syslog( LOG_ERR, "smtp_connect: get_mx: no valid result" );
+	return( SMTP_ERR_SYSCALL );
+    }
 
     if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
 	syslog( LOG_ERR, "smtp_connect: socket: %m" );
@@ -123,15 +123,12 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     sin.sin_family = AF_INET;
     sin.sin_port = htons( SIMTA_SMTP_PORT );
 
-    if ( simta_debug ) fprintf( stderr, "smtp_connect: calling connect\n" );
     if ( connect( s, (struct sockaddr*)&sin,
 	    sizeof( struct sockaddr_in )) < 0 ) {
-	perror( "smtp_connect: connect" );
 	syslog( LOG_ERR, "smtp_connect: connect: %m" );
 	return( SMTP_ERR_REMOTE );
     }
 
-    if ( simta_debug ) fprintf( stderr, "smtp_connect: calling snet_attach\n" );
     if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect: snet_attach: %m" );
 	return( SMTP_ERR_SYSCALL );
@@ -379,10 +376,6 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	return( SMTP_ERR_REMOTE );
     }
 
-#ifdef DEBUG
-    printf( "--> HELO %s\n", simta_hostname );
-#endif /* DEBUG */
-
     tv.tv_sec = SMTP_TIME_HELO;
     tv.tv_usec = 0;
 
@@ -519,6 +512,8 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     struct recipient	*r;
     struct timeval	tv;
 
+    syslog( LOG_DEBUG, "smtp_send starting" );
+
     /* MAIL FROM: */
     if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
 	if ( snet_writef( snet, "MAIL FROM: <>\r\n" ) < 0 ) {
@@ -534,10 +529,6 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_REMOTE );
 	}
 
-#ifdef DEBUG
-    printf( "--> MAIL FROM: <>\n" );
-#endif /* DEBUG */
-
     } else {
 	if ( snet_writef( snet, "MAIL FROM: <%s>\r\n", env->e_mail ) < 0 ) {
 	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
@@ -551,10 +542,6 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    hq->hq_status = HOST_DOWN;
 	    return( SMTP_ERR_REMOTE );
 	}
-
-#ifdef DEBUG
-    printf( "--> MAIL FROM: <%s>\n", env->e_mail );
-#endif /* DEBUG */
     }
 
     /* read reply banner */
@@ -692,10 +679,6 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    return( SMTP_ERR_REMOTE );
 	}
 
-#ifdef DEBUG
-    printf( "--> RCPT TO: <%s>\n", r->r_rcpt );
-#endif /* DEBUG */
-
 	/* read reply banner */
 
 	tv.tv_sec = SMTP_TIME_RCPT;
@@ -811,10 +794,6 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
-
-#ifdef DEBUG
-    printf( "--> DATA\n" );
-#endif /* DEBUG */
 
     tv.tv_sec = SMTP_TIME_DATA_INIT;
     tv.tv_usec = 0;
@@ -956,10 +935,6 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 		return( SMTP_ERR_REMOTE );
 	    }
 
-#ifdef DEBUG
-	    printf( "--> .%s\n", line );
-#endif /* DEBUG */
-
 	} else {
 	    if ( snet_writef( snet, "%s\r\n", line ) < 0 ) {
 		syslog( LOG_NOTICE, "smtp_send %s: failed writef",
@@ -972,10 +947,6 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 
 		return( SMTP_ERR_REMOTE );
 	    }
-
-#ifdef DEBUG
-	    printf( "--> %s\n", line );
-#endif /* DEBUG */
 	}
     }
 
@@ -989,10 +960,6 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 
 	return( SMTP_ERR_REMOTE );
     }
-
-#ifdef DEBUG
-    printf( "--> .\n" );
-#endif /* DEBUG */
 
     tv.tv_sec = SMTP_TIME_DATA_EOF;
     tv.tv_usec = 0;
@@ -1128,6 +1095,8 @@ smtp_rset( SNET *snet, struct host_q *hq )
     char			*line;
     struct timeval		tv;
 
+    syslog( LOG_DEBUG, "smtp_rset starting" );
+
     /* say RSET */
     if ( snet_writef( snet, "RSET\r\n" ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_rset %s: failed writef", hq->hq_hostname );
@@ -1140,10 +1109,6 @@ smtp_rset( SNET *snet, struct host_q *hq )
 	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
-
-#ifdef DEBUG
-    printf( "--> RSET\n" );
-#endif /* DEBUG */
 
     /* read reply banner */
 
@@ -1248,6 +1213,8 @@ smtp_quit( SNET *snet, struct host_q *hq )
     char			*line;
     struct timeval		tv;
 
+    syslog( LOG_DEBUG, "smtp_quit starting" );
+
     /* say QUIT */
     if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_quit %s: failed writef", hq->hq_hostname );
@@ -1258,12 +1225,9 @@ smtp_quit( SNET *snet, struct host_q *hq )
 	}
 
 	hq->hq_status = HOST_DOWN;
+	syslog( LOG_NOTICE, "smtp_quit: returning" );
 	return( SMTP_ERR_REMOTE );
     }
-
-#ifdef DEBUG
-    printf( "--> QUIT\n" );
-#endif /* DEBUG */
 
     /* read reply banner */
 
