@@ -53,6 +53,8 @@ void	(*smtp_logger)(char *) = NULL;
 smtp_consume_banner( struct line_file **err_text, SNET *snet,
 	struct timeval *tv, char *line, char *error )
 {
+    int				ret = SMTP_ERROR;
+
     if ( err_text != NULL ) {
 	if ( *err_text == NULL ) {
 	    if (( *err_text = line_file_create()) == NULL ) {
@@ -76,29 +78,29 @@ smtp_consume_banner( struct line_file **err_text, SNET *snet,
 	    syslog( LOG_ERR, "smtp_consume_banner line_append: %m" );
 	    goto consume;
 	}
-    }
 
-    while (*(line + 3) == '-' ) {
-	if (( line = snet_getline( snet, tv )) == NULL ) {
-	    syslog( LOG_ERR,
-		    "smtp_consume_banner snet_getline: unexpected EOF" );
-	    return( SMTP_BAD_CONNECTION );
-	}
+	while (*(line + 3) == '-' ) {
+	    if (( line = snet_getline( snet, tv )) == NULL ) {
+		syslog( LOG_ERR,
+			"smtp_consume_banner snet_getline: unexpected EOF" );
+		return( SMTP_BAD_CONNECTION );
+	    }
 
-	if ( smtp_logger != NULL ) {
-	    (*smtp_logger)( line );
-	}
+	    if ( smtp_logger != NULL ) {
+		(*smtp_logger)( line );
+	    }
 
-	if ( err_text != NULL ) {
 	    if ( line_append( *err_text, line ) == NULL ) {
 		syslog( LOG_ERR,
 			"smtp_consume_banner line_append: unexpected EOF" );
 		goto consume;
 	    }
 	}
-    }
 
-    return( SMTP_OK );
+	return( SMTP_OK );
+    } else {
+	ret = SMTP_OK;
+    }
 
 consume:
     if ( *(line + 3) == '-' ) {
@@ -108,7 +110,7 @@ consume:
 	}
     }
 
-    return( SMTP_ERROR );
+    return( ret );
 }
 
 
