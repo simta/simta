@@ -685,12 +685,15 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    }
 
 		    if ( receive_remote_rbl_status == RECEIVE_RBL_BLOCKED ) {
+			recieve_failed_rcpts++;
 			syslog( LOG_INFO,
-				"Receive %s: To <%s> Rejected: User RBL:",
-				env->e_id, addr );
+				"Receive %s: To <%s> From <%> Rejected IP "
+				"%s by MAPS",
+				env->e_id, addr, env->e_mail,
+				inet_ntoa( receive_sin->sin_addr ));
 			snet_writef( snet,
-			    "550 Address blocked.  http://someaddress.edu "
-			    "for more information\r\n" );
+			    "550 No access from your IP.  "
+			    "Contact postmaster@umich.edu\r\n" );
 			return( RECEIVE_OK );
 		    }
 		}
@@ -996,7 +999,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	/*
-	 * We could perhaps check that snet_writef() gets a good return.
+	 * We could perhaps 
 	 * However, if we've already fully instanciated the message in the
 	 * queue, a failure indication from snet_writef() may be false, the
 	 * other end may have in reality recieved the "250 OK", and deleted
@@ -1427,8 +1430,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    syslog( LOG_NOTICE,
 		"receive connection blocked by %s: %s",
 		simta_rbl_domain, rbl_err_txt );
-	    snet_writef( snet, "421 Access Denied: %s\r\n",
-		rbl_err_txt );
+	    snet_writef( snet, "550 No access from your IP: "
+		"%s\r\n", rbl_err_txt );
 	    free( rbl_err_txt );
 	    goto closeconnection;
 
