@@ -692,7 +692,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 				"Relay [%s] by %s",
 				env->e_id, addr, env->e_mail,
 				inet_ntoa( receive_sin->sin_addr ),
-				simta_rbl_domain );
+				simta_user_rbl_domain );
 			snet_writef( snet,
 			    "550 No access from IP %s.  See %s\r\n",
 			    inet_ntoa( receive_sin->sin_addr ),
