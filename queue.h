@@ -20,8 +20,9 @@
 #define HOST_NULL	0
 #define HOST_LOCAL	1
 #define HOST_REMOTE	2
-#define HOST_MAIL_LOOP	3
-#define HOST_MX		4
+#define HOST_BOUNCE	3
+#define HOST_DOWN	4
+#define HOST_MX		5
 
 struct host_list {
     char			*h_name;
@@ -41,6 +42,7 @@ struct host_q {
     int				hq_entries;
     struct message		*hq_message_first;
     struct message		*hq_message_last;
+    struct line_file		*hq_err_text;
 };
 
 struct message {

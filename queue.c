@@ -383,9 +383,12 @@ q_runner( struct host_q **host_q )
 	    } else {
 		hq->hq_deliver = NULL;
 
-		if ( hq->hq_status == HOST_MAIL_LOOP ) {
-		    /* bounce queue */
-		    /* XXX BOUNCE */
+		if ( hq->hq_status == HOST_BOUNCE ) {
+		    /* XXX bounce queue */
+
+		} else if ( hq->hq_status == HOST_DOWN ) {
+		    /* XXX if dfile is old, bounce */
+		    /* XXX else move mail to SLOW & clear queue */
 		}
 	    }
 	}
@@ -713,15 +716,14 @@ q_deliver( struct host_q *hq )
 
             /* open connection, completely ready to send at least one message */
             if ( snet == NULL ) {
-                if (( result = smtp_connect( &snet, hq->hq_hostname, 25,
-			logger )) == SMTP_ERR_SYSCALL ) {
+                if (( result = smtp_connect( &snet, hq ))
+			== SMTP_ERR_SYSCALL ) {
                     return( -1 );
 
-                } else if ( result == SMTP_ERR_NO_BOUNCE ) {
-                    /* XXX do something if remote host is fucked up? */
+                } else if ( result == SMTP_ERR_REMOTE ) {
 
 		    /* for each dfile in queue */
-			/* if (( dfile is old ) || ( invalid queue )) */
+			/* if (( dfile is old ) || ( q_status == bounce )) */
 			    /* generate bounce */
 			    /* unlink original message *.
 			/* else if dfile isn't in SLOW */
@@ -729,30 +731,11 @@ q_deliver( struct host_q *hq )
 			/* endif */
 		    /* end each */
 
-
                     if ( snet_close( dfile_snet ) != 0 ) {
                         syslog( LOG_ERR, "close: %m" );
                         return( -1 );
                     }
 
-		    if ( snet_close( snet_lock ) != 0 ) {
-			syslog( LOG_ERR, "snet_close: %m" );
-			return( -1 );
-		    }
-
-		    return( 0 );
-
-                } else if ( result == SMTP_ERR_BOUNCE_Q ) {
-                    if ( snet_close( dfile_snet ) != 0 ) {
-                        syslog( LOG_ERR, "close: %m" );
-                        return( -1 );
-                    }
-
-                    syslog( LOG_ALERT, "Mail loop detected: "
-                            "Hostname %s is not a remote host",
-                            hq->hq_hostname );
-
-                    hq->hq_status = HOST_MAIL_LOOP;
 
 		    if ( snet_close( snet_lock ) != 0 ) {
 			syslog( LOG_ERR, "snet_close: %m" );
