@@ -1,0 +1,278 @@
+Vacation
+	if vacation attr is set for a user, send mail to vacation host
+
+group-errors
+group-requests
+group-owners
+	if group- exists, sends message to LDAP entry, otherwise use it as full address.
+	If these values are not set, send to group owner
+
+group
+	When sending a message to a group, the envelope from address is changed to the group name.
+
+Verify that multiple base work, ie CN ( patrick.mcneal@umich.edu )
+
+Ambiguous addresses should create a bounce. ( john.smith@umich.edu )
+
+If addressed to group-errors/group-requests but there are no associated addresses in the group entry, send to group-owner.
+
+exact RDN matches are not ambiguous
+
+Errors with group should be sent to group-errors.  IE - if a member is no longer in it.
+
+Group Moderation
+
+Group envelope's from gets rewritten
+
+Group bounces envelope's from do not get rewritten
+
+User had no mail forwarding address
+
+Group with suppress no email address
+
+groups within groups
+
+Virus 0, 1, 2, 3
+
+How are mail and mailForwardingAddress handled when there are multiple addresses imbedded?  How about users with no @?
+
+Return path is properly set in the text of a message on local delivery.
+
+
+Here are the contents of the files I was using to test simta with:
+
+    static int
+f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ test syntax "Helo hostname"
+}
+
+
+    static int
+f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ test syntax "ehlo hostname"
++ test after valid "MAIL FROM" & "RCPT TO"
++ test after valid DATA
+- test after valid START_TLS
+}
+
+
+    static int
+f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
+{
+- - Test LDAP -owners, etc
+
++ Test rfc_2821_trimaddr
++ Test <>
++ Test <postmaster>
++ Test <user@local_domain> with global relay
++ Test <user@not_local_domain> with global relay
++ Test after valid DATA
++ Test after valid MAIL FROM & RCPT TO
+- Test <user@local_domain> & no global relay (mcneal)
+- Test <user@not_local_domain> & no global relay (mcneal)
+}
+
+
+    static int
+f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ Test bad syntax
++ Test before valid MAIL FROM
++ Test after valid DATA
++ Test <postmaster>
++ Test <>
++ Test <user@local>, global relay
++ Test <user@not_local>, global relay
++ Test local_user@local_domain
+? Test not_local_user@local_domain, with global relay
+    works, but should we reject instead of geneting a bounce?
+- Test not_local_user@local_domain, no global relay
+- Test <user@local>, no global relay (mcneal)
+- Test <user@not_local>, no global relay (mcneal)
+- Test check_hostname( @valid_dns ) (mcneal)
+- Test check_hostname( @not_valid_dns ) (mcneal)
+}
+
+
+    static int
+f_data( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ Test bad syntax
++ Do DATA before valid MAIL FROM
++ Do DATA after valid DATA
++ Do DATA before any valid RCPT TOs
++ Test EOF before and after header section
+- Check to see that the "Received From" header is sane
+- Test timeout for data 
+- ADD support for fucked up headers
+}
+
+    static int
+f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ Test bad syntax
+}
+
+
+    static int
+f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ Test bad syntax
++ RSET a partial message
++ RSET a complete message 
+}
+
+
+    static int
+f_noop( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ Exercise
+}
+
+
+    static int
+f_help( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ Exercise
+}
+
+
+    static int
+f_vrfy( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ Exercise
+}
+
+
+    static int
+f_expn( SNET *snet, struct envelope *env, int ac, char *av[])
+{
++ Exercise
+}
+
+
+#ifdef HAVE_LIBSSL
+    static int
+f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
+{
+X Exercise
+    failed
+- Test TLS syntax
+- Test TLS start more than once
+- Test starting TLS (wes? mcneal?)
+- Test starting TLS after MAIL FROM, RCPT TO, DATA
+}
+#endif /* HAVE_LIBSSL */
+
+
+    void
+smtp_receive( int fd, struct sockaddr_in *sin )
+{
++ Exceed maximum number of inbound SMTP requests.
++ Exercise access control based on IP
++ Exercise access control based on domain name
++ Test SMTP inbounder timeout
++ Test argc 2821 parsing code
++ Test illegal commands
++ Test commands whose lines are too long
++ Test every SMTP command
++	{ "HELO",		f_helo },
++	{ "EHLO",		f_ehlo },
++	{ "RSET",		f_rset },
++	{ "NOOP",		f_noop },
++	{ "QUIT",		f_quit },
++	{ "HELP",		f_help },
++	{ "VRFY",		f_vrfy },
++	{ "EXPN",		f_expn },
++	{ "MAIL",		f_mail },
++	{ "RCPT",		f_rcpt },
++	{ "DATA",		f_data },
+    #ifdef HAVE_LIBSSL
+X	{ "STARTTLS",	f_starttls },
+    didn't work
+    #endif /* HAVE_LIBSSL */
+- check reverse on incoming connection (mcneal)
+}
+
+
+    static int
+local_address( char *addr, char *domain, struct host *host )
+{
+- Test for addresses in the alias db
+- Test for addresses in the passwd file
+#ifdef HAVE_LDAP
+- Test for addresses in LDAP
+#endif /* HAVE_LDAP */
+}
+
+
+    static int
+rfc_2821_trimaddr( int mode, char *arg, char **address, char **domain )
+{
++ Flowchart
+}
+
+
+    void
+deliver_local( struct deliver *d )
+{
+- - Deliver locally to <local_user@local_host>
+- Deliver locally to <postmaster>
+- Deliver locally successfully
+- Deliver locally tempfail
+- Deliver locally EX_NOUSER or EX_DATAERR
+}
+
+
+    int
+q_runner( struct host_q **host_q )
+{
+- Test for no messages in queue
+- Test for only bad messages in queue
+- Test for some bad messages in queue
+- Test for a HOST_DOWN queue
+- Test for a HOST_BOUNCE queue
+- Test q_deliver
+- Test for an unexpanded message on the disk
+- Test for an unexpandable message
+- Test for an unexpandable message in the fast queue
+- Test for an old unexpandable message
+- Test bounce()
+- Test for an expandable message
+}
+
+
+    void
+q_deliver( struct host_q **host_q, struct host_q *deliver_q )
+{
+- deliver a message with a bad dfile
+- deliver mail to a local mailer host
+- deliver mail to a remote host
+- deliver mail to a remote host that is down
+- deliver mail to a remote host that will bounce the queue
+- bounce an old, undeliverable piece of mail
+- bounce an envelope during delivery
+- bounce only some of the recipients of a message
+- worst case: some fails, some tempfails, some successes
+}
+
+
+    int
+q_runner_dir( char *dir )
+{
+- test directory existance, permissions, etc
+- test env_read_queue_info
+- test q_runner
+}
+
+
+    void
+deliver_remote( struct deliver *d, SNET **snet_smtp, struct host_q *deliver_q )
+{
+- smet_connect()
+- smet_send()
+- smet_rset()
+- smet_quit()
+}
