@@ -159,7 +159,7 @@ f_ehlo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    /* XXX - rfc 2821 4.1.4
+    /* rfc 2821 4.1.4
      * A session that will contain mail transactions MUST first be
      * initialized by the use of the EHLO command.  An SMTP server SHOULD
      * accept commands for non-mail transactions (e.g., VRFY or EXPN)
@@ -495,7 +495,6 @@ f_rcpt( snet, env, ac, av )
 	    break;
 
 	default:
-	    /* XXX Is 551 correct?  550 is for policy */
 	    dnsr_free_result( result );
 	    if ( snet_writef( snet, "%d User not local; please try <%s>\r\n",
 		    551, addr ) < 0 ) {
@@ -576,6 +575,7 @@ f_data( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    struct timeval			tv;
     char		*line;
     int			err = RECEIVE_OK;
     int			dfile_fd;
@@ -688,10 +688,12 @@ f_data( snet, env, ac, av )
 
     header = 1;
 
-    /* should implement a byte count to limit DofS attacks */
-    /* XXX not to mention a timeout! */
-    /* XXX not to mention line length limits! */
-    while (( line = snet_getline( snet, NULL )) != NULL ) {
+    /* XXX should implement a byte count to limit DofS attacks */
+    tv.tv_sec = simta_receive_wait;
+    tv.tv_usec = 0;
+    while (( line = snet_getline( snet, &tv )) != NULL ) {
+	tv.tv_sec = simta_receive_wait;
+	tv.tv_usec = 0;
 	line_no++;
 
 	if ( *line == '.' ) {
@@ -699,6 +701,20 @@ f_data( snet, env, ac, av )
 		break;
 	    }
 	    line++;
+	}
+
+	/*
+	 * RFC 2821 4.5.3:
+	 * 
+	 * text line
+	 *     The maximum total length of a text line including the <CRLF> is
+	 *     1000 characters (not counting the leading dot duplicated for
+	 *     transparency).  This number may be increased by the use of SMTP
+	 *     Service Extensions.
+	 */
+
+	if ( strlen( line > 1000 )) {
+	    /* XXX reject message based on line length? */
 	}
 
 	if ( header == 1 ) {
@@ -778,7 +794,6 @@ f_data( snet, env, ac, av )
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data f_close: %m" );
 	}
-	goto cleanup;
     }
 
     if ( err != 0 ) {
