@@ -33,6 +33,7 @@
 /* global variables */
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
+int			simta_receive_wait = 600;
 int			simta_message_count = 0;
 int			simta_smtp_outbound_attempts = 0;
 int			simta_smtp_outbound_delivered = 0;
@@ -62,8 +63,10 @@ struct nlist		simta_nlist[] = {
     { "punt",		NULL,	0 },
 #define	NLIST_BASE_DIR			2
     { "base_dir",	NULL,	0 },
+#define	NLIST_RECEIVE_WAIT		3
+    { "receive_wait",	NULL,	0 },
 #ifdef HAVE_LDAP
-#define	NLIST_LDAP			3
+#define	NLIST_LDAP			4
     { "ldap",		NULL,	0 },
 #endif /* HAVE_LDAP */
     { NULL,		NULL,	0 },
@@ -191,8 +194,19 @@ simta_config( char *conf_fname, char *base_dir )
 	    base_dir = simta_nlist[ NLIST_BASE_DIR ].n_data;
 	}
 
-#ifdef HAVE_LDAP
+	if ( simta_nlist[ NLIST_RECEIVE_WAIT ].n_data != NULL ) {
+	    simta_receive_wait =
+		atoi( simta_nlist[ NLIST_RECEIVE_WAIT ].n_data );
+	    if ( simta_receive_wait <= 0 ) {
+		fprintf( stderr,
+		    "file %s line %d: receive_wait must be greater than 0",
+		    conf_fname,
+		    simta_nlist[ NLIST_RECEIVE_WAIT ].n_lineno );
+		return( -1 );
+	    }
+	}
 
+#ifdef HAVE_LDAP
 	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
 	    if ( simta_ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) != 0 ) {
 		return( -1 );

@@ -1242,10 +1242,10 @@ receive( fd, sin )
 	goto closeconnection;
     }
 
-    tv.tv_sec = 60 * 10;	/* 10 minutes, should get this from config */
+    tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
-	tv.tv_sec = 60 * 10;
+	tv.tv_sec = simta_receive_wait;
 	tv.tv_usec = 0;
 
 	/*
