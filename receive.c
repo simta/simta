@@ -1087,7 +1087,7 @@ receive( fd, sin )
     extern int				maxconnections;
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "snet_attach: %m" );
+	syslog( LOG_ERR, "receive snet_attach: %m" );
 	return( 1 );
     }
 
@@ -1098,7 +1098,7 @@ receive( fd, sin )
 
     if ( hosts_ctl( "simta", STRING_UNKNOWN, inet_ntoa( sin->sin_addr ),
 	    STRING_UNKNOWN ) == 0 ) {
-	syslog( LOG_INFO, "connection refused %s: access denied",
+	syslog( LOG_INFO, "receive connection refused %s: access denied",
 		inet_ntoa( sin->sin_addr ));
 	/* XXX 421 access denied? */
 	snet_writef( snet, "%d Access Denied\r\n", 421 );
@@ -1109,7 +1109,7 @@ receive( fd, sin )
 
     if ( maxconnections != 0 ) {
 	if ( connections >= maxconnections ) {
-	    syslog( LOG_INFO, "connections refused: server busy" );
+	    syslog( LOG_INFO, "receive connections refused: server busy" );
 	    snet_writef( snet,
 		"%d Service busy, closing transmission channel\r\n", 421 );
 	    if ( simta_debug ) fprintf( stderr,
@@ -1119,7 +1119,7 @@ receive( fd, sin )
     }
 
     if (( dnsr = dnsr_new( )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_new: %s",
+	syslog( LOG_ERR, "receive dnsr_new: %s",
 	    dnsr_err2string( dnsr_errno( dnsr )));
 	snet_writef( snet,
 	    "%d Requested action aborted: local error in processing.\r\n",
@@ -1133,7 +1133,7 @@ receive( fd, sin )
     /* Get PTR for connection */
     if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
 	    inet_ntoa( sin->sin_addr )) < 0 ) {
-	syslog( LOG_ERR, "dnsr_query failed" );
+	syslog( LOG_ERR, "receive dnsr_query failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
@@ -1143,7 +1143,7 @@ receive( fd, sin )
 	return( 1 );
     }
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_result failed" );
+	syslog( LOG_ERR, "receive dnsr_result failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
@@ -1156,7 +1156,7 @@ receive( fd, sin )
     /* Get A record on PTR result */
     if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
 	    result->r_answer[ 0 ].rr_dn.dn_name )) < 0 ) {
-	syslog( LOG_ERR, "dnsr_query failed" );
+	syslog( LOG_ERR, "receive dnsr_query failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
@@ -1166,7 +1166,7 @@ receive( fd, sin )
 	return( 1 );
     }
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_result failed" );
+	syslog( LOG_ERR, "receive dnsr_result failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
@@ -1185,7 +1185,7 @@ receive( fd, sin )
 	memcpy( &addr.s_addr, &(result->r_answer[ 0 ].rr_a), sizeof( int ));
 
 	if ( strcmp( inet_ntoa( addr ), inet_ntoa( sin->sin_addr )) != 0 ) {
-	    syslog( LOG_INFO, "%s: connection rejected: invalid A record",
+	    syslog( LOG_INFO, "receive %s: connection rejected: invalid A record",
 		inet_ntoa( sin->sin_addr ));
 	    snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
@@ -1197,7 +1197,7 @@ receive( fd, sin )
     /* Check bad guy list */
 
     if (( env = env_create( NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_create: %m" );
+	syslog( LOG_ERR, "receive env_create: %m" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
@@ -1229,7 +1229,7 @@ receive( fd, sin )
 	 */
 
 	if (( acav = acav_alloc( )) == NULL ) {
-	    syslog( LOG_ERR, "argcargv_alloc: %m" );
+	    syslog( LOG_ERR, "receive argcargv_alloc: %m" );
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing.\r\n",
 		451 );
@@ -1241,7 +1241,7 @@ receive( fd, sin )
 	}
 
 	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
-	    syslog( LOG_ERR, "argcargv: %m" );
+	    syslog( LOG_ERR, "receive argcargv: %m" );
 	    break;
 	}
 
@@ -1282,10 +1282,6 @@ receive( fd, sin )
     if ( simta_debug ) fprintf( stderr, 
 	">>> %d %s Service not available, closing transmission channel\r\n",
 	421, simta_hostname );
-
-    if ( line == NULL ) {
-	syslog( LOG_ERR, "snet_getline: %m" );
-    }
 
     if (( env->e_flags & E_READY ) != 0 ) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
