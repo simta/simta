@@ -16,6 +16,8 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 
+#include <syslog.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -67,6 +69,8 @@ inode_stab_stdout( void *data )
 	q_file_stdout( q );
 	q = q->q_inode_next;
     }
+
+    printf( "\n" );
 }
 
 
@@ -81,6 +85,7 @@ move_to_slow( char *dir )
     char			fname[ MAXPATHLEN ];
 
     if (( dirp = opendir( dir )) == NULL ) {
+	syslog( LOG_ERR, "opendir: %m" );
 	return( 1 );
     }
 
@@ -90,7 +95,7 @@ move_to_slow( char *dir )
     /* examine a directory */
     while (( entry = readdir( dirp )) != NULL ) {
 
-	/* ignore '.' and '..' */
+	/* ignore "." and ".." */
 	if ( entry->d_name[ 0 ] == '.' ) {
 	    if ( entry->d_name[ 1 ] == '\0' ) {
 		continue;
@@ -104,23 +109,51 @@ move_to_slow( char *dir )
 	if (( *entry->d_name == 'E' ) || ( *entry->d_name == 'D' )) {
 	    sprintf( fname, "%s/%s", dir, entry->d_name );
 	    sprintf( lname, "%s/%s", SLOW_DIR, entry->d_name );
-	    printf( "move %s %s\n", fname, lname );
+
+	    if ( link( fname, lname ) != 0 ) {
+		syslog( LOG_ERR, "link %s %s: %m", fname, lname );
+		return( 1 );
+	    }
+
+	    if ( unlink( fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", fname );
+		return( 1 );
+	    }
+
+#ifdef DEBUG
+	    printf( "move\t%s %s\n", fname, lname );
+#endif /* DEBUG */
 
 	} else if ( *entry->d_name == 't' ) {
-	    printf( "Clip tfile:\t%s/%s\n", dir, entry->d_name );
+	    sprintf( fname, "%s/%s", dir, entry->d_name );
+
+	    if ( unlink( fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", fname );
+		return( 1 );
+	    }
+
+#ifdef DEBUG
+	    printf( "unlink\t%s\n", fname );
+#endif /* DEBUG */
 
 	} else {
+	    syslog( LOG_WARNING, "unknown file: %s/%s\n", dir, entry->d_name );
+
+#ifdef DEBUG
 	    printf( "Warning unknown file:\t%s/%s\n", dir, entry->d_name );
+#endif /* DEBUG */
 	}
     }
 
     /* did readdir finish, or encounter an error? */
     if ( errno != 0 ) {
+	syslog( LOG_ERR, "readdir %m" );
 	return( 1 );
     }
 
     return( 0 );
 }
+
 
     /* 1. move everything from FAST and LOCAL to SLOW:
      *     -collisions are fatal
@@ -149,20 +182,20 @@ main( int argc, char *argv[] )
     struct stab_entry		*st;
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
+    int				result;
+
+    openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
     if ( move_to_slow( FAST_DIR ) != 0 ) {
-	perror( "move_to_slow" );
 	return( 1 );
     }
 
     if ( move_to_slow( LOCAL_DIR ) != 0 ) {
-	perror( "move_to_slow" );
 	return( 1 );
     }
 
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
-	fprintf( stderr, "opendir: %s: ", SLOW_DIR );
-	perror( NULL );
+	syslog( LOG_ERR, "opendir %s: %m", SLOW_DIR );
 	return( 1 );
     }
 
@@ -172,7 +205,7 @@ main( int argc, char *argv[] )
     /* examine a directory */
     while (( entry = readdir( dirp )) != NULL ) {
 
-	/* ignore '.' and '..' */
+	/* ignore "." and ".." */
 	if ( entry->d_name[ 0 ] == '.' ) {
 	    if ( entry->d_name[ 1 ] == '\0' ) {
 		continue;
@@ -188,13 +221,12 @@ main( int argc, char *argv[] )
 		    ll_lookup( file_stab, entry->d_name + 1 )) == NULL ) {
 
 		if (( q = q_file_create( entry->d_name + 1 )) == NULL ) {
-		    perror( "q_file_create" );
 		    exit( 1 );
 		}
 
 		if (( ll_insert( &file_stab, q->q_id, q, NULL ))
 			!= 0 ) {
-		    perror( "ll_insert" );
+		    syslog( LOG_ERR, "ll_insert: %m" );
 		    exit( 1 );
 		}
 	    }
@@ -207,37 +239,65 @@ main( int argc, char *argv[] )
 
 	} else if ( *entry->d_name == 't' ) {
 	    /* clip orphan tfiles */
-	    printf( "Clip tfile:\t%s/%s\n", SLOW_DIR, entry->d_name );
+	    sprintf( fname, "%s/%s", SLOW_DIR, entry->d_name );
+
+	    if ( unlink( fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", fname );
+		return( 1 );
+	    }
+
+#ifdef DEBUG
+	    printf( "unlink tfile:\t%s\n", fname );
+#endif /* DEBUG */
+
 	} else {
 	    /* not a tfile, Efile or Dfile */
+	    syslog( LOG_WARNING, "unknown file: %s/%s\n", SLOW_DIR,
+		    entry->d_name );
+
+#ifdef DEBUG
 	    printf( "Warning unknown file:\t%s/%s\n", SLOW_DIR, entry->d_name );
+#endif /* DEBUG */
+
 	}
     }
 
     /* did readdir finish, or encounter an error? */
     if ( errno != 0 ) {
-	perror( "readdir" );
+	syslog( LOG_ERR, "readdir: %m" );
 	return( 1 );
     }
 
     for ( st = file_stab; st != NULL; st = st->st_next ) {
-	/* printf( "key:\t%s\n", st->st_key ); */
 	q = (struct q_file*)st->st_data;
 
 	if ( q->q_efile == 0 ) {
 	    /* Dfile missing its Efile */
-	    printf( "Clip orphan Dfile:\t%s/D%s\n", SLOW_DIR, q->q_id );
+	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+	    if ( unlink( fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", fname );
+		return( 1 );
+	    }
+
+#ifdef DEBUG
+	    printf( "unlink orphan Dfile:\t%s\n", fname );
+#endif /* DEBUG */
 
 	} else if ( q->q_dfile == 0 ) {
 	    /* Efile missing its Dfile */
+	    syslog( LOG_WARNING, "Missing Dfile: %s/E%s\n", SLOW_DIR, q->q_id );
+
+#ifdef DEBUG
 	    printf( "Warning orphan Efile:\t%s/E%s\n", SLOW_DIR, q->q_id );
+#endif /* DEBUG */
 
 	} else {
 	    /* get Dfile ref count */
 	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
 	    if ( stat( fname, &sb ) != 0 ) {
-		perror( "stat" );
+		syslog( LOG_ERR, "stat %s: %m", fname );
 		exit( 1 );
 	    }
 
@@ -247,7 +307,7 @@ main( int argc, char *argv[] )
 		if (( q_inode = ll__lookup( inode_stab, q, inode_compare ))
 			== NULL ) {
 		    if ( ll__insert( &inode_stab, q, inode_compare ) != 0 ) {
-			perror( "ll__insert" );
+			syslog( LOG_ERR, "ll__insert: %m" );
 			exit( 1 );
 		    }
 
@@ -259,28 +319,61 @@ main( int argc, char *argv[] )
 	}
     }
 
+#ifdef DEBUG
+    printf( "\n" );
     ll_walk( inode_stab, inode_stab_stdout );
+#endif /* DEBUG */
 
     /* check to see if any Efiles haven't been expanded */
     for ( st = inode_stab; st != NULL; st = st->st_next ) {
 	for ( q = (struct q_file*)st->st_data; q != NULL;
 		q = q->q_inode_next ) {
-	    if (( q->q_unexpanded = env_unexpanded( SLOW_DIR, q->q_id )) < 0 ) {
-		perror( "env_unexpanded" );
+
+	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+
+	    if (( result = env_unexpanded( fname, &q->q_unexpanded )) < 0 ) {
+		syslog( LOG_ERR, "env_unexpanded %s: %m", fname );
 		exit( 1 );
+
+	    } else if ( result > 0 ) {
+		/* syntax error */
+		syslog( LOG_WARNING, "file %s: syntax error", fname );
+		continue;
 	    }
 
-	    /* found an unexpanded envelope.  delete all other expanded
+	    /* if an unexpanded envelope exists, delete all other
 	     * envelopes that share the same inode.
 	     */
 	    if ( q->q_unexpanded == 1 ) {
-		printf( "Unexpanded envelope:\t%s/E%s\n", SLOW_DIR, q->q_id );
+
+#ifdef DEBUG
+		printf( "Unexpanded envelope:\t%s\n", fname );
+#endif /* DEBUG */
 
 		for ( q = (struct q_file*)st->st_data; q != NULL;
 			q = q->q_inode_next ) {
 		    if ( q->q_unexpanded != 1 ) {
-			printf( "Clip %s/E%s\n", SLOW_DIR, q->q_id );
-			printf( "Clip %s/D%s\n", SLOW_DIR, q->q_id );
+
+		    if ( unlink( fname ) != 0 ) {
+			syslog( LOG_ERR, "unlink %s: %m", fname );
+			return( 1 );
+		    }
+
+#ifdef DEBUG
+		    printf( "unlink\t%s\n", fname );
+#endif /* DEBUG */
+
+		    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+		    if ( unlink( fname ) != 0 ) {
+			syslog( LOG_ERR, "unlink %s: %m", fname );
+			return( 1 );
+		    }
+
+#ifdef DEBUG
+		    printf( "unlink\t%s\n", fname );
+#endif /* DEBUG */
+
 		    }
 		}
 		break;

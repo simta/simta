@@ -30,7 +30,7 @@ struct envelope {
 
 struct envelope	*env_create ___P(( void ));
 struct envelope	*env_infile ___P(( char *, char * ));
-int		env_unexpanded ___P(( char *, char * ));
+int		env_unexpanded ___P(( char *, int * ));
 int		env_outfile ___P(( struct envelope *, char * ));
 int		env_recipient ___P(( struct envelope *, char * ));
 void		env_reset ___P(( struct envelope * ));

@@ -332,56 +332,54 @@ cleanup:
 }
 
 
-    /* return 0 if envelope is expanded.
-     * return 1 if envelope is not expanded
-     * return -1 on system error
+    /*
+     * return 0 if everything went fine
+     * return -1 on syscall error
+     * return 1 on syntax error
+     *
+     * unexpanded = 0 if envelope is expanded
+     * unexpanded = 1 if envelope is not expanded
+     * unexpanded = -1 on error
      */
 
     int
-env_unexpanded( char *dir, char *id )
+env_unexpanded( char *fname, int *unexpanded )
 {
-    char		fname[ MAXPATHLEN ];
     char		*line;
-    int			unexpanded = 0;
     SNET		*snet;
 
-    sprintf( fname, "%s/E%s", dir, id );
+    *unexpanded = -1;
 
     if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
 	    == NULL ) {
 	return( -1 );
     }
 
-    /* XXX envelope syntax checking? */
-
     /* first line of an envelope should be version info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	/* XXX syntax error EIO? */
-	errno = EIO;
-	return( -1 );
+	return( 1 );
     }
 
     /* second line of an envelope has expansion info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	/* XXX syntax error EIO? */
-	errno = EIO;
-	return( -1 );
+	return( 1 );
     }
 
     if ( *line != 'H' ) {
-	/* XXX syntax error EIO? */
-	errno = EIO;
-	return( -1 );
+	return( 1 );
     }
 
     /* check to see if envelope has been expanded */
     if ( *(line + 1) == '\0' ) {
-	unexpanded = 1;
+	*unexpanded = 1;
+    } else {
+	*unexpanded = 0;
     }
 
     if ( snet_close( snet ) != 0 ) {
+	*unexpanded = -1;
 	return( -1 );
     }
 
-    return( unexpanded );
+    return( 0 );
 }

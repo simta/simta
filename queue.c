@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <syslog.h>
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
@@ -36,11 +37,13 @@ q_file_create( char *id )
     struct q_file		*q;
 
     if (( q = (struct q_file*)malloc( sizeof( struct q_file ))) == NULL ) {
+	syslog( LOG_ERR, "malloc: %m" );
 	return( NULL );
     }
     memset( q, 0, sizeof( struct q_file ));
 
     if (( q->q_id = strdup( id )) == NULL ) {
+	syslog( LOG_ERR, "malloc: %m" );
 	return( NULL );
     }
 
