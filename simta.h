@@ -26,6 +26,10 @@
 #define	EXIT_OK				1
 #define	EXIT_FAST_FILE			2
 
+#define SIMTA_ERROR_NONE		0
+#define SIMTA_ERROR_DNSR		1
+#define SIMTA_ERROR_SYSTEM		-1
+
 
 /* global variables */
 
