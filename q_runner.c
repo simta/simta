@@ -68,7 +68,7 @@ main( int argc, char *argv[] )
     /* init simta config / defaults */
     if ( simta_config( argv[ 1 ], conf_file ) != 0 ) {
 	fprintf( stderr, "simta_config error\n" );
-	exit( 1 );
+	exit( EX_DATAERR );
     }
 
     if ( strcasecmp( op, "LOCAL" ) == 0 ) {

@@ -17,6 +17,7 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
+#include <sysexits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,6 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <fcntl.h>
-#include <sysexits.h>
 #include <utime.h>
 
 #include <stdio.h>
@@ -524,13 +524,14 @@ q_deliver( struct host_q *hq )
 
 	} else if ( result > 0 ) {
 	    /* message not valid.  disregard */
-	    *mp = m->m_next;
-	    message_free( m );
-	    hq->hq_entries--;
 
 	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
 		simta_fast_files--;
 	    }
+
+	    *mp = m->m_next;
+	    message_free( m );
+	    hq->hq_entries--;
 
 	    continue;
 	}
@@ -550,13 +551,13 @@ q_deliver( struct host_q *hq )
 		    return( -1 );
 		}
 
-		*mp = m->m_next;
-		message_free( m );
-		hq->hq_entries--;
-
 		if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
 		    simta_fast_files--;
 		}
+
+		*mp = m->m_next;
+		message_free( m );
+		hq->hq_entries--;
 
                 continue;
 
