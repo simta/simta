@@ -5,12 +5,20 @@ AC_PREREQ(2.52)
 AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
 AC_CONFIG_AUX_DIR([libsnet])
 
+# Setup local variables
+
+AC_ARG_WITH(resolvconf, AC_HELP_STRING([--with-resolv=RESOLV], [default resolv.conf]), resolvconf="$withval", resolvconf="/etc/resolv.conf" )
+AC_SUBST(resolvconf)
+
 # Local Stuff
 AC_PREFIX_DEFAULT(/usr/local)
 
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL
+
+# Check for files
+AC_CHECK_FILE($resolvconf,,AC_MSG_ERROR(No valid resolv.conf)) 
 
 # Find local mailers
 SET_LOCALDELIVERY

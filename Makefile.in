@@ -6,6 +6,8 @@ BINDIR=@bindir@
 ETCDIR=@sysconfdir@
 SBINDIR=@sbindir@
 
+RESOLV_CONF=@resolvconf@
+
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o 
@@ -36,8 +38,16 @@ all : ${TARGETS}
 daemon.o : daemon.c
 	${CC} ${CFLAGS} -DVERSION=\"`cat VERSION`\" -c daemon.c -o daemon.o
 
-receive.o : denser/denser.o receive.c
-	${CC} ${CFLAGS} -DVERSION=\"`cat VERSION`\" -c receive.c -o receive.o
+receive.o : receive.c
+	${CC} ${CFLAGS} \
+		-DVERSION=\"`cat VERSION`\" \
+		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
+		-c receive.c -o receive.o
+
+smtp.o : smtp.c
+	${CC} ${CFLAGS} \
+		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
+		-c smtp.c -o smtp.o
 
 tz.o : tz.c
 	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ -c tz.c -o tz.o

@@ -37,7 +37,7 @@ extern SSL_CTX	*ctx;
 #include "timeval.h"
 
 extern char	*version;
-char		*dnsr_resolvconf_path = "/Volumes/Local/Users/editor/src/simta/resolv.conf";
+char		*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 
 struct command {
     char	*c_name;
@@ -80,7 +80,7 @@ get_mx( DNSR *dnsr, char *host )
     if ( dnsr_result( dnsr, NULL ) != 0 ) {
 
 	/* No - Check for A of address */
-	if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host )) < 0 ) {
+	if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
 	    syslog( LOG_ERR, "dnsr_query %s failed", host );
 	    return( -1 );
 	}
