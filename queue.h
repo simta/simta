@@ -49,7 +49,7 @@ struct host_q {
     int				hq_status;
     int				hq_entries;
     int				hq_from;
-    struct envelope		*hq_env_first;
+    struct envelope		*hq_env_head;
     struct line_file		*hq_err_text;
     struct dnsr_result		*hq_dnsr_result;
 };

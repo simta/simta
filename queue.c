@@ -60,7 +60,7 @@ q_syslog( struct host_q *hq )
 	syslog( LOG_DEBUG, "queue_syslog %s", hq->hq_hostname );
     }
 
-    for ( env = hq->hq_env_first; env != NULL; env = env->e_hq_next ) {
+    for ( env = hq->hq_env_head; env != NULL; env = env->e_hq_next ) {
 	env_syslog(  env );
     }
 
@@ -92,7 +92,7 @@ q_stdout( struct host_q *hq )
 	printf( "%d\t%s:\n", hq->hq_entries, hq->hq_hostname );
     }
 
-    for ( env = hq->hq_env_first; env != NULL; env = env->e_hq_next ) {
+    for ( env = hq->hq_env_head; env != NULL; env = env->e_hq_next ) {
 	env_syslog( env );
     }
 
@@ -194,7 +194,7 @@ queue_envelope( struct host_q **host_q_head, struct envelope *env )
     }
 
     /* sort queued envelopes by access time */
-    for ( ep = &(hq->hq_env_first); *ep != NULL; ep = &((*ep)->e_hq_next)) {
+    for ( ep = &(hq->hq_env_head); *ep != NULL; ep = &((*ep)->e_hq_next)) {
 	if ( env->e_last_attempt.tv_sec < (*ep)->e_last_attempt.tv_sec ) {
 	    break;
 	}
@@ -219,7 +219,7 @@ queue_remove_envelope( struct envelope *env )
     struct envelope		**ep;
 
     if ( env != NULL ) {
-	for ( ep = &(env->e_hq->hq_env_first ); *ep != env;
+	for ( ep = &(env->e_hq->hq_env_head ); *ep != env;
 		ep = &((*ep)->e_hq_next))
 	    ;
 
@@ -328,13 +328,13 @@ q_runner( struct host_q **host_q )
 
 	/* EXPAND ONE MESSAGE */
 	for ( ; ; ) {
-	    if (( unexpanded = simta_null_q->hq_env_first ) == NULL ) {
+	    if (( unexpanded = simta_null_q->hq_env_head ) == NULL ) {
 		/* no more unexpanded mail.  we're done */
 		goto q_runner_done;
 	    }
 
 	    /* pop message off unexpanded message queue */
-	    simta_null_q->hq_env_first = unexpanded->e_hq_next;
+	    simta_null_q->hq_env_head = unexpanded->e_hq_next;
 	    simta_null_q->hq_entries--;
 
 	    if ( *(unexpanded->e_mail) != '\0' ) {
@@ -543,9 +543,9 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
      */
 
     /* process each envelope in the queue */
-    while ( deliver_q->hq_env_first != NULL ) {
-	env_deliver = deliver_q->hq_env_first;
-	deliver_q->hq_env_first = deliver_q->hq_env_first->e_hq_next;
+    while ( deliver_q->hq_env_head != NULL ) {
+	env_deliver = deliver_q->hq_env_head;
+	deliver_q->hq_env_head = deliver_q->hq_env_head->e_hq_next;
 
 	if ( *(env_deliver->e_mail) != '\0' ) {
 	    deliver_q->hq_from--;
