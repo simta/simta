@@ -111,7 +111,8 @@ simalias : ${SIMALIASOBJ} Makefile
 
 simalias.o : simalias.c
 	${CC} ${SIMTACFLAGS} \
-	-c simalias.c -o simalias.o
+		-D_SIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
+		-c simalias.c -o simalias.o
 
 daemon.o : daemon.c
 	${CC} ${SIMTACFLAGS} \
