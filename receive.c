@@ -1518,25 +1518,25 @@ mail_filter( int f, char **smtp_message )
 	return( MESSAGE_TEMPFAIL );
 
     case 0 :
-	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
-	if ( close( fd[ 1 ] ) < 0 ) {
+	/* use fd[ 1 ] to communicate with parent, parent uses fd[ 0 ] */
+	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "mail_filter close: %m" );
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	/* stdout -> fd[ 0 ] */
-	if ( dup2( fd[ 0 ], 1 ) < 0 ) {
+	/* stdout -> fd[ 1 ] */
+	if ( dup2( fd[ 1 ], 1 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_filter dup2: %m" );
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	/* stderr -> fd[ 0 ] */
-	if ( dup2( fd[ 0 ], 2 ) < 0 ) {
+	/* stderr -> fd[ 1 ] */
+	if ( dup2( fd[ 1 ], 2 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_filter dup2: %m" );
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	if ( close( fd[ 0 ] ) < 0 ) {
+	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "mail_filter close: %m" );
 	    exit( MESSAGE_TEMPFAIL );
 	}
@@ -1553,20 +1553,24 @@ mail_filter( int f, char **smtp_message )
 	exit( MESSAGE_TEMPFAIL );
 
     default :
-	/* use fd[ 1 ] to communicate with child, child uses fd[ 0 ] */
-	if ( close( fd[ 0 ] ) < 0 ) {
+	/* use fd[ 0 ] to communicate with child, child uses fd[ 1 ] */
+	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "mail_filter close: %m" );
 	    return( MESSAGE_TEMPFAIL );
 	}
 
-	if (( snet = snet_attach( fd[ 1 ], 1024 * 1024 )) == NULL ) {
+	if (( snet = snet_attach( fd[ 0 ], 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
+	    close( fd[ 0 ] );
 	    return( MESSAGE_TEMPFAIL );
 	}
 
+syslog( LOG_DEBUG, "filter HERE" );
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
+syslog( LOG_DEBUG, "filter line: %s", line );
 	    if ( *smtp_message == NULL ) {
 		if (( *smtp_message = strdup( line )) == NULL ) {
+		    snet_close( snet );
 		    return( MESSAGE_TEMPFAIL );
 		}
 	    }
