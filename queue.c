@@ -683,6 +683,10 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		if ( snet_lock != NULL ) {
 		    snet_close( snet_lock );
 		}
+		/* requeue env_deliver */
+		env_clear_errors( env_deliver );
+		env_deliver->e_flags |= ENV_FLAG_PUNT;
+		queue_envelope( host_q, env_deliver );
 		return;
 	    }
 	    break;
