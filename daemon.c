@@ -32,6 +32,7 @@
 #include "ll.h"
 #include "receive.h"
 #include "queue.h"
+#include "q_cleanup.h"
 #include "envelope.h"
 #include "simta.h"
 
@@ -149,6 +150,7 @@ main( ac, av )
     struct timeval	tv_launch;
     struct servent	*se;
     struct proc_type	*p;
+    int			cleanup = 1;
     int			launch_seconds;
     int			q_runner_local_max;
     int			q_runner_slow_max;
@@ -378,6 +380,21 @@ main( ac, av )
     }
 
     /*
+     * Start logging.
+     */
+#ifdef ultrix
+    openlog( prog, LOG_NOWAIT|LOG_PID );
+#else /* ultrix */
+    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+#endif /* ultrix */
+
+    if ( cleanup != 0 ) {
+	if ( q_cleanup() != 0 ) {
+	    exit( 1 );
+	}
+    }
+
+    /*
      * Disassociate from controlling tty.
      */
     if ( !simta_debug ) {
@@ -407,15 +424,6 @@ main( ac, av )
 	    exit( 0 );
 	}
     }
-
-    /*
-     * Start logging.
-     */
-#ifdef ultrix
-    openlog( prog, LOG_NOWAIT|LOG_PID );
-#else /* ultrix */
-    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
-#endif /* ultrix */
 
     if (( pf = fdopen( pidfd, "w" )) == NULL ) {
         syslog( LOG_ERR, "can't fdopen pidfd" );
