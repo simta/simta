@@ -46,7 +46,6 @@ int	line_token_qs ___P(( struct line_token *, struct line *, char * ));
 int	line_token_dl ___P(( struct line_token *, struct line *, char * ));
 int	parse_addr ___P(( struct line **, char **, int ));
 int	parse_mailbox_list ___P(( struct line *, char *, int ));
-int	parse_header_from ___P(( struct line_file * ));
 int	match_addr ___P(( struct line_token *, struct line_token *, char * ));
 
 
@@ -439,8 +438,34 @@ header_correct( struct line_file *lf, struct envelope *env )
     /* examine & correct header data */
 
     /* From: */
-    if (( result = parse_header_from( lf )) != 0 ) {
-	return( result );
+    if (( l = simta_headers[ HEAD_FROM ].h_line ) != NULL ) {
+	if (( result = parse_mailbox_list( l, l->line_data + 5,
+		MAILBOX_FROM_CORRECT )) != 0 ) {
+	    return( result );
+	}
+
+    } else {
+	/* generate From: header */
+
+	if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
+		strlen( sender ) + 3 )) > prepend_len ) {
+	    if (( prepend_line = (char*)realloc( prepend_line, len ))
+		    == NULL ) {
+		perror( "realloc" );
+		return( -1 );
+	    }
+
+	    prepend_len = len;
+	}
+
+	sprintf( prepend_line, "%s: %s",
+		simta_headers[ HEAD_FROM ].h_key, sender );
+
+	if (( simta_headers[ HEAD_FROM ].h_line =
+		line_prepend( lf, prepend_line )) == NULL ) {
+	    perror( "malloc" );
+	    return( -1 );
+	}
     }
 
     /* Sender: */
@@ -1033,59 +1058,6 @@ parse_mailbox_list( struct line *l, char *c, int mode )
     }
 }
 
-
-    int
-parse_header_from( struct line_file *lf )
-{
-    struct line			*l;
-    struct line			*next_l;
-    char			*next_c;
-    int				result;
-    char			*sender;
-    char			*prepend_line = NULL;
-    size_t			prepend_len = 0;
-    size_t			len;
-
-    if (( sender = simta_sender()) == NULL ) {
-	return( -1 );
-    }
-
-    /* From: */
-    if (( l = simta_headers[ HEAD_FROM ].h_line ) != NULL ) {
-	next_c = l->line_data + 5;
-	next_l = l;
-
-	if (( result = parse_mailbox_list( next_l, next_c,
-		MAILBOX_FROM_CORRECT )) != 0 ) {
-	    return( result );
-	}
-
-    } else {
-	/* generate From: header */
-
-	if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
-		strlen( sender ) + 3 )) > prepend_len ) {
-	    if (( prepend_line = (char*)realloc( prepend_line, len ))
-		    == NULL ) {
-		perror( "realloc" );
-		return( -1 );
-	    }
-
-	    prepend_len = len;
-	}
-
-	sprintf( prepend_line, "%s: %s",
-		simta_headers[ HEAD_FROM ].h_key, sender );
-
-	if (( simta_headers[ HEAD_FROM ].h_line =
-		line_prepend( lf, prepend_line )) == NULL ) {
-	    perror( "malloc" );
-	    return( -1 );
-	}
-    }
-
-    return( 0 );
-}
 
 
     int
