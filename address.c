@@ -147,11 +147,9 @@ address_local( char *addr )
 	return( ADDRESS_NOT_LOCAL );
     }
 
-    *at = '\0';
     domain = at + 1;
 
     if (( host = (struct host*)ll_lookup( simta_hosts, domain )) == NULL ) {
-	*at = '@';
 	return( ADDRESS_NOT_LOCAL );
     }
 
@@ -163,29 +161,36 @@ address_local( char *addr )
 		if (( rc = db_open_r( &dbp, SIMTA_ALIAS_DB, NULL )) != 0 ) {
 		    syslog( LOG_ERR, "address_local: db_open_r: %s",
 			    db_strerror( rc ));
-		    *at = '@';
 		    return( ADDRESS_SYSERROR );
 		}
 	    }
 
-	    if ( db_get( dbp, addr, &value ) == 0 ) {
-		*at = '@';
+	    *at = '\0';
+	    rc = db_get( dbp, addr, &value );
+	    *at = '@';
+
+	    if ( rc == 0 ) {
 		return( ADDRESS_LOCAL );
 	    }
 
 	} else if ( strcmp( i->st_key, "password" ) == 0 ) {
 	    /* Check password file */
-	    if (( passwd = getpwnam( addr )) != NULL ) {
-		*at = '@';
+	    *at = '\0';
+	    passwd = getpwnam( addr );
+	    *at = '@';
+
+	    if ( passwd != NULL ) {
 		return( ADDRESS_LOCAL );
 	    }
 
 #ifdef HAVE_LDAP
 	} else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
 	    /* Check LDAP */
+	    *at = '\0';
+	    rc = ldap_address_local( addr, domain );
 	    *at = '@';
 
-	    switch ( ldap_address_local( addr ) == ADDRESS_LOCAL ) {
+	    switch ( rc ) {
 	    default:
 		syslog( LOG_ERR,
 			"address_local ldap_address_local: bad return value" );
@@ -193,7 +198,6 @@ address_local( char *addr )
 		return( ADDRESS_SYSERROR );
 
 	    case LDAP_NOT_LOCAL:
-		*at = '\0';
 		continue;
 
 	    case LDAP_LOCAL:
@@ -205,12 +209,10 @@ address_local( char *addr )
 	    /* unknown lookup */
 	    syslog( LOG_ERR, "address_local: %s: unknown expansion",
 		    i->st_key );
-	    *at = '@';
 	    return( ADDRESS_SYSERROR );
 	}
     }
 
-    *at = '@';
     return( ADDRESS_NOT_LOCAL );
 }
 

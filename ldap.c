@@ -156,23 +156,14 @@ ldap_string( char *filter, char *user, char *domain )
      */
 
     int
-ldap_address_local( char *addr )
+ldap_address_local( char *user, char *domain )
 {
-    char		*at;
     char		*search_string;
     struct list		*l;
     int			count = 0;
-    char		*domain;
     LDAPMessage		*res;
     LDAPURLDesc		*lud;
     struct timeval	timeout = {60,0};
-
-    /* addr should be user@some.domain */
-    if (( at = strchr( addr, '@' )) == NULL ) {
-	return( LDAP_NOT_LOCAL );
-    }
-
-    domain = at + 1;
 
     if ( ld == NULL ) {
 	/* XXX static hostname for now */
@@ -187,13 +178,10 @@ ldap_address_local( char *addr )
      *     - query the LDAP db with the search string
      */
     for ( l = ldap_searches; l != NULL; l = l->l_next ) {
-	/* break the address to user and domain chunks for ldap_sting */
-	*at = '\0';
-	if (( search_string = ldap_string( l->l_string, addr, domain ))
+	if (( search_string = ldap_string( l->l_string, user, domain ))
 		== NULL ) {
 	    return( LDAP_SYSERROR );
 	}
-	*at = '@';
 
 	if ( ldap_url_parse( search_string, &lud ) != 0 ) {
 	    syslog( LOG_ERR, "ldap_url_parse %s: %m", search_string );
