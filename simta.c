@@ -20,6 +20,7 @@
 
 #include "ll.h"
 #include "queue.h"
+#include "expand.h"
 #include "nlist.h"
 #include "simta.h"
 
@@ -135,7 +136,8 @@ simta_config( char *conf_fname, char *base_dir )
 	    perror( NULL );
 	}
 
-	syslog( LOG_INFO, "simta_config access %s: %m", SIMTA_ALIAS_DB );
+	syslog( LOG_INFO, "simta_config access %s: %m, not using alias db",
+		SIMTA_ALIAS_DB );
     }
 
     if ( ll_insert_tail( &(host->h_expansion), "password",

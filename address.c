@@ -235,7 +235,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
     /* XXX buf should be large enough to accomodate any valid email address */
     char		buf[ 1024 ];
 
-    syslog( LOG_DEBUG, "address_expand: address %s from rcpt %s\n",
+    syslog( LOG_DEBUG, "address_expand ( address %s, parent rcpt %s )",
 	    e_addr->e_addr, e_addr->e_addr_rcpt->r_rcpt );
 
     switch ( e_addr->e_addr_type ) {
@@ -243,7 +243,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
     case ADDRESS_TYPE_EMAIL:
 	/* Get user and domain, addres should now be valid */
 	if (( at = strchr( e_addr->e_addr, '@' )) == NULL ) {
-	    syslog( LOG_ERR, "address_expand strchr: @ not found!" );
+	    syslog( LOG_ERR, "address_expand %s: bad address format",
+		    e_addr->e_addr );
 	    return( ADDRESS_SYSERROR );
 	}
 
@@ -251,17 +252,21 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
 	/* Check to see if domain is off the local host */
 	if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
+	    syslog( LOG_DEBUG, "address_expand %s FINAL: domain not local",
+		    e_addr->e_addr );
 	    return( ADDRESS_FINAL );
 	}
 	break;
 
 #ifdef HAVE_LDAP
     case ADDRESS_TYPE_LDAP:
+	syslog( LOG_DEBUG, "address_expand %s: ldap data", e_addr->e_addr );
 	goto ldap_exclusive;
 #endif /*  HAVE_LDAP */
 
     default:
-	syslog( LOG_ERR, "address_expand bad address type" );
+	syslog( LOG_ERR, "address_expand bad address type %d",
+		e_addr->e_addr_type );
 	return( ADDRESS_SYSERROR );
     }
 
@@ -300,6 +305,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
 		/* not in alias db, try next expansion */
 		*at = '@';
+		syslog( LOG_DEBUG, "address_expand %s: not in alias db",
+			e_addr->e_addr );
 		continue;
 	    }
 
@@ -310,6 +317,9 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 		    *at = '@';
 		    return( ADDRESS_SYSERROR );
 		}
+
+		syslog( LOG_DEBUG, "address_expand %s alias db: %s",
+			e_addr->e_addr, (char*)value.data );
 
 		/* Get next db result, if any */
 		memset( &value, 0, sizeof( DBT ));
@@ -336,6 +346,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
 	    if ( passwd == NULL ) {
 		/* not in passwd file, try next expansion */
+		syslog( LOG_DEBUG, "address_expand %s: not in passwd file",
+			e_addr->e_addr );
 		continue;
 	    }
 
@@ -368,6 +380,9 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 			}
 
 			/* tho the .forward is bad, it expanded */
+			syslog( LOG_WARNING,
+				"address_expand %s: .forward line too long",
+				e_addr->e_addr );
 			return( ADDRESS_EXCLUDE );
 		    }
 
@@ -384,12 +399,17 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
 			return( ADDRESS_SYSERROR );
 		    }
+
+		    syslog( LOG_DEBUG, "address_expand %s .forward: %s",
+			    e_addr->e_addr, buf );
 		}
 
 		return( ADDRESS_EXCLUDE );
 
 	    } else {
 		/* No .forward, it's a local address */
+		syslog( LOG_DEBUG, "address_expand %s FINAL: passwd file",
+			e_addr->e_addr );
 		return( ADDRESS_FINAL );
 	    }
 	}
@@ -403,26 +423,28 @@ ldap_exclusive:
 		return( ADDRESS_EXCLUDE );
 
 	    case LDAP_FINAL:
-		/* XXX if its in the db, can it be terminal? */
 		return( ADDRESS_FINAL );
 
 	    case LDAP_NOT_FOUND:
 		if ( host == NULL ) {
-		    /* data is exclusively for ldap */
-		    break;
+		    /* data is exclusively for ldap, and it didn't find it */
+		    goto not_found;
 		}
 		continue;
 
 	    default:
 		syslog( LOG_ERR, "address_expand default ldap switch" );
 	    case LDAP_SYSERROR:
-		/* XXX make sure a syslog LOG_ERR occurs up the chain */
 		return( ADDRESS_SYSERROR );
 	    }
 	}
 #endif /* HAVE_LDAP */
 
     }
+
+not_found:
+
+    syslog( LOG_DEBUG, "address_expand %s FINAL: not found", e_addr->e_addr );
 
     if ( rcpt_error( e_addr->e_addr_rcpt, "address not found: ",
 	    e_addr->e_addr, NULL ) != 0 ) {
