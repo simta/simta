@@ -249,7 +249,6 @@ env_recipient( struct envelope *e, char *addr )
 
     if (( addr == NULL ) || ( *addr == '\0' )) {
 	/* if no rcpt, simta_postmaster is default */
-	syslog( LOG_ERR, "env_recipient NULL recipient" );
 	if (( r->r_rcpt = strdup( simta_postmaster )) == NULL ) {
 	    syslog( LOG_ERR, "env_recipient strdup: %m" );
 	    free( r );
