@@ -169,7 +169,7 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 
     /* read connect banner */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "gethostname: %m" );
+	syslog( LOG_NOTICE, "smtp_helo: unexpected EOF" );
 	return( SMTP_ERR_SYNTAX );
     }
 
@@ -207,7 +207,7 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	    (size_t)(i - remote_host) ) == 0 ) {
 	while ( *(line + 3) == '-' ) {
 	    if (( line = snet_getline( snet, NULL )) == NULL ) {
-		syslog( LOG_ERR, "snet_getline: %m" );
+		syslog( LOG_NOTICE, "smtp_helo: unexpected EOF" );
 		return( SMTP_ERR_SYNTAX );
 	    }
 
@@ -225,7 +225,7 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 
     while ( *(line + 3) == '-' ) {
 	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "snet_getline: %m" );
+	    syslog( LOG_NOTICE, "smtp_helo: unexpected EOF" );
 	    return( SMTP_ERR_SYNTAX );
 	}
 

@@ -19,6 +19,7 @@
 #define	SIMTA_BOUNCE_LINES	100
 #define	SIMTA_VERSION_STRING	"V0"
 
+char	*simta_gethostname ___P(( void ));
 char	*simta_local_domain ___P(( void ));
 char	*simta_sender ___P(( void ));
 char	*simta_resolvconf ___P(( void ));

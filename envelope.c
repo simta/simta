@@ -53,15 +53,6 @@ env_gettimeofday_id( struct envelope *e )
 env_create( char *id )
 {
     struct envelope	*env;
-    static char		localhostname[ MAXHOSTNAMELEN ] = "\0";
-
-    /* XXX divine local host name with gethostname */
-    if ( *localhostname == '\0' ) {
-	if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
-	    syslog( LOG_ERR, "gethostname: %m" );
-	    return( NULL );
-	}
-    }
 
     if (( env = (struct envelope *)malloc( sizeof( struct envelope ))) ==
 	    NULL ) {
@@ -77,7 +68,10 @@ env_create( char *id )
 	*env->e_id = '\0';
     }
 
-    env->e_hostname = localhostname;
+    /* XXX divine local host name with simta_gethostname */
+    if (( env->e_hostname = simta_gethostname()) == NULL ) {
+	return( NULL );
+    }
 
     env->e_sin = NULL;
     env->e_helo = NULL;
@@ -93,7 +87,6 @@ env_create( char *id )
 rcpt_free( struct recipient *r )
 {
     if ( r != NULL ) {
-	rcpt_free( r->r_next );
 	free( r->r_rcpt );
 	line_file_free( r->r_text );
 	free( r );
@@ -102,9 +95,30 @@ rcpt_free( struct recipient *r )
 
 
     void
+env_rcpt_free( struct envelope *env )
+{
+    struct recipient		*r;
+    struct recipient		*r_next;
+
+    r = env->e_rcpt;
+
+    while ( r != NULL ) {
+	r_next = r->r_next;
+	rcpt_free( r );
+	r = r_next;
+    }
+}
+
+
+    void
 env_free( struct envelope *env )
 {
-    rcpt_free( env->e_rcpt );
+    env_rcpt_free( env );
+
+    if ( env->e_mail != NULL ) {
+	free( env->e_mail );
+    }
+
     free( env );
 }
 
@@ -143,12 +157,6 @@ env_stdout( struct envelope *e )
 	printf( "Message-Id NULL\n" );
     } else {
 	printf( "Message-Id:\t%s\n", e->e_id );
-    }
-
-    if ( *e->e_hostname == '\0' ) {
-	printf( "hostname NULL\n" );
-    } else {
-	printf( "hostname %s\n", e->e_hostname );
     }
 
     if ( *e->e_expanded == '\0' ) {
@@ -830,7 +838,8 @@ env_lock( struct message *m, struct envelope *env, SNET **s )
 		return( -1 );
 	    }
 
-	    /* XXX free previously allocated recipients */
+	    /* free previously allocated recipients */
+	    env_rcpt_free( env );
 
 	    return( 1 );
 	}

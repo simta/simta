@@ -25,7 +25,7 @@ struct envelope {
     char		*e_hostname;
     char		e_expanded[ MAXHOSTNAMELEN ];
     char		*e_helo;
-    char		*e_dir;;
+    char		*e_dir;
     char		*e_mail;
     struct recipient	*e_rcpt;
     char		e_id[ 30 ];
@@ -47,6 +47,7 @@ void		env_cleanup ___P(( struct envelope *e ));
 struct envelope	*env_create ___P(( char * ));
 void		env_free ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
+void		env_rcpt_free ___P(( struct envelope * ));
 
 /* return 0 on success, -1 on syserror, syslog */
 int		env_recipient ___P(( struct envelope *, char * ));

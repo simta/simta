@@ -307,6 +307,7 @@ header_timestamp( struct envelope *env, FILE *file )
     time_t			clock;
     struct tm			*tm;
     char			daytime[ 30 ];
+    char			*localhostname;
 
     if ( env->e_sin != NULL ) {
 	memcpy( &sin, env->e_sin, sizeof( struct sockaddr_in )); 
@@ -330,9 +331,13 @@ header_timestamp( struct envelope *env, FILE *file )
 	return( -1 );
     }
 
+    if (( localhostname = simta_gethostname()) == NULL ) {
+	return( -1 );
+    }
+
     /* Received header */
     if ( fprintf( file, "Received: FROM %s ([%s])\n\tBY %s ID %s ;\n\t%s %s\n",
-	    env->e_mail, inet_ntoa( sin.sin_addr ), env->e_hostname,
+	    env->e_mail, inet_ntoa( sin.sin_addr ), localhostname,
 	    env->e_id, daytime, tz( tm )) < 0 ) {
 	return( -1 );
     }

@@ -22,6 +22,22 @@ char	*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 
 
     char*
+simta_gethostname( void )
+{
+    static char			localhostname[ MAXHOSTNAMELEN + 1 ] = "\0";
+
+    if ( *localhostname == '\0' ) {
+	if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
+	    perror( "gethostname" );
+	    return( NULL );
+	}
+    }
+
+    return( localhostname );
+}
+
+
+    char*
 simta_local_domain( void )
 {
     static char			domain[ MAXHOSTNAMELEN + 1 ] = "\0";

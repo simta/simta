@@ -104,6 +104,14 @@ message_create( char *id )
 }
 
 
+    void
+message_free( struct message *m )
+{
+    free( m->m_id );
+    free( m );
+}
+
+
     int
 message_queue( struct host_q *hq, struct message *m )
 {
@@ -135,7 +143,7 @@ message_queue( struct host_q *hq, struct message *m )
 host_q_lookup( struct host_q **host_q, char *hostname ) 
 {
     struct host_q		*hq;
-    static char			localhostname[ MAXHOSTNAMELEN ] = "\0";
+    char			*localhostname;
 
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	if ( strcasecmp( hq->hq_hostname, hostname ) == 0 ) {
@@ -159,12 +167,9 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 	hq->hq_next = *host_q;
 	*host_q = hq;
 
-	/* XXX DNS test for local queues more than gethostname? */
-	if ( *localhostname == '\0' ) {
-	    if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
-		syslog( LOG_ERR, "gethostname: %m" );
-		return( NULL );
-	    }
+	/* XXX DNS test for local queues more than simta_gethostname? */
+	if (( localhostname = simta_gethostname()) == NULL ) {
+	    return( NULL );
 	}
 
 	if ( strcasecmp( localhostname, hq->hq_hostname ) == 0 ) {
@@ -216,7 +221,7 @@ q_runner( struct host_q **host_q )
 	    if ((( hq->hq_status == HOST_LOCAL ) ||
 		    ( hq->hq_status == HOST_REMOTE )) &&
 		    ( hq->hq_entries > 0 )) {
-		/* hq is expanded and has at lease one message */
+		/* hq is expanded and has at least one message */
 		dq = &deliver_q;
 
 		for ( ; ; ) {
@@ -233,7 +238,8 @@ q_runner( struct host_q **host_q )
 		hq->hq_deliver = NULL;
 
 		if ( hq->hq_status == HOST_MAIL_LOOP ) {
-		    /* XXX bounce queue */
+		    /* bounce queue */
+		    /* XXX BOUNCE */
 		}
 	    }
 	}
@@ -245,7 +251,7 @@ q_runner( struct host_q **host_q )
 		return( -1 );
 
 	    } else if ( result > 0 ) {
-		/* XXX error case */
+		/* XXX error case.  queue down?  move to DIR_SLOW? */
 	    }
 
 	    deliver_q = deliver_q->hq_deliver;
@@ -268,7 +274,8 @@ q_runner( struct host_q **host_q )
 		return( -1 );
 
 	    } else if ( result > 0 ) {
-		/* XXX free message */
+		/* free message */
+		message_free( unexpanded );
 		continue;
 	    }
 
@@ -284,7 +291,8 @@ q_runner( struct host_q **host_q )
 		return( -1 );
 	    }
 
-	    /* XXX free env.e_rcpts */
+	    /* free env.e_rcpts */
+	    env_rcpt_free( &env );
 
 	    if ( result > 0 ) {
 		/* message not expandable, try the next one */
@@ -330,7 +338,8 @@ q_read_dir( char *dir, struct host_q **host_q )
 		return( -1 );
 
 	    } else if ( result > 0 ) {
-		/* XXX free message */
+		/* free message */
+		message_free( m );
 		continue;
 	    }
 

@@ -63,8 +63,8 @@ struct message {
     struct message		*m_next;
     char			*m_id;
     char			*m_dir;
-    int				m_action;
     int				m_old_dfile;
+    int				m_mail_loop;
     struct timespec		m_etime;
 };
 
@@ -73,6 +73,7 @@ void	message_stdout ___P(( struct message * ));
 void	q_stdout ___P(( struct host_q * ));
 void	q_list_stdout ___P(( struct host_q * ));
 struct message	*message_create ___P(( char * ));
+void	message_free ___P(( struct message * ));
 int	message_queue ___P(( struct host_q *, struct message * ));
 struct host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
 int	bounce ___P(( struct envelope *, SNET * ));
