@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <strings.h>
+#include <time.h>
 #include <pwd.h>
 #include <unistd.h>
 
@@ -11,6 +12,9 @@
 #include "ll.h"
 #include "address.h"
 #include "bdb.h"
+#include "simta.h"
+#include "envelope.h"
+#include "header.h"
 
 #define DATABASE SIMTA_ALIAS_DB
 
@@ -114,7 +118,8 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 {
     int			ret = 0, count = 0, len = 0;
     char		*user = NULL, *data = NULL, *domain = NULL;
-    char		*address_local;
+    char		*address_local = NULL;
+    char		*temp = NULL;
     char		buf[ MAXPATHLEN * 2 ];
     struct passwd	*passwd = NULL;
     DBC			*dbcp = NULL;
@@ -285,18 +290,21 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 		    }
 		    buf[ len - 1 ] = '\0';
 
-		    /* Check for e-mail address */
-		    if ( strchr( buf, '@' ) == NULL ) {
+		    /* Check for valid e-mail address */
+		    if (( temp = strdup( buf )) == NULL ) {
+			return( -1 );
+		    }
+		    if ( is_emailaddr( &temp ) != 1 ) {
+			free( temp );
 			continue;
 		    }
 
 		    /* Check to see if we have seen this address before to
 		     * prevent it from being expanded again 
 		     */
-		    if ( ll_lookup( *seen, buf ) == NULL ) {
+		    if ( ll_lookup( *seen, temp ) == NULL ) {
 			/* Add address to expansion */
-			data = strdup( buf );
-			if ( ll_insert_tail( expansion, data, data ) != 0 ) {
+			if ( ll_insert_tail( expansion, temp, temp ) != 0 ) {
 			    return( -1 );
 			}
 			count++;
