@@ -615,6 +615,7 @@ receive( fd, sin )
     struct envelope			*env;
     int					ac, i;
     char				**av, *line;
+    char				*err_txt;
     struct timeval			tv;
 
     srandom( (unsigned)getpid());
@@ -629,8 +630,9 @@ receive( fd, sin )
     /*
      * Initialize TLS
      */
-    if ( snet_inittls( snet, 1, 1 ) < 0 ) {
-	snet_writef( snet, "%d TLS temporarily not available\r\n", 454 );
+    if (( err_txt = snet_inittls( snet, 1, 1, "./CRYPTO.pem" )) != NULL ) {
+	snet_writef( snet, "%d TLS temporarily not available (%s)\r\n", 454,
+		err_txt );
 	return( 1 );
     }
 #endif TLS

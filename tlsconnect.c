@@ -110,8 +110,8 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-    if ( snet_inittls( snet, 0, 1 ) < 0 ) {
-	fprintf( stderr, "snet_inittls failed\n" );
+    if (( err_txt = snet_inittls( snet, 0, 1, NULL )) != NULL ) {
+	fprintf( stderr, "snet_inittls failed: %s\n", err_txt );
     }
 
     FD_ZERO( &fdset );
