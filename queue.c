@@ -595,7 +595,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
      */
     if ( deliver_q->hq_status == HOST_UNKNOWN ) {
 	if ((( red = host_local( deliver_q->hq_hostname )) == NULL ) ||
-		( red->red_host_type = RED_HOST_TYPE_SECONDARY_MX )) {
+		( red->red_host_type == RED_HOST_TYPE_SECONDARY_MX )) {
 	    deliver_q->hq_status = HOST_MX;
 	} else if (( simta_dnsr != NULL ) &&
 		( simta_dnsr->d_errno == DNSR_ERROR_TIMEOUT )) {
