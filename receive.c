@@ -259,7 +259,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if (( domain != NULL ) && ( simta_global_relay == 0 )) {
-	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
+	if (( rc = check_hostname( domain )) != 0 ) {
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_mail check_host: %s: failed", domain );
 		return( RECEIVE_SYSERROR );
@@ -379,7 +379,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * the bounce.
 	 */
 	/* XXX check config file, check MXes */
-	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
+	if (( rc = check_hostname( domain )) != 0 ) {
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_rcpt check_host: %s: failed", domain );
 		return( RECEIVE_SYSERROR );
@@ -1007,8 +1007,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     ctl_domain = hostname;
     *ctl_domain = '\0';
 
-    if (( rc = check_reverse( &simta_dnsr, ctl_domain,
-	    &(sin->sin_addr))) != 0 ) {
+    if (( rc = check_reverse( ctl_domain, &(sin->sin_addr))) != 0 ) {
 	if ( rc < 0 ) {
 	    syslog( LOG_INFO, "receive %s: connection rejected: %s",
 		dnsr_err2string( dnsr_errno( simta_dnsr )),
