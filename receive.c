@@ -6,6 +6,7 @@
 #include "config.h"
 
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/param.h>
@@ -77,6 +78,7 @@ struct command {
     int		(*c_func)( SNET *, struct envelope *, int, char *[] );
 };
 
+static int	mail_filter( int, char ** );
 static int	rfc_2821_trimaddr( int, char *, char **, char ** );
 static int	local_address( char *addr, char *domain, struct host *host );
 static int	hello( struct envelope *, char * );
@@ -470,7 +472,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     int					data_errors = 0;
     int					header = 1;
     int					line_no = 0;
+    int					message_result;
     char				*line;
+    char				*smtp_message = NULL;
     struct tm				*tm;
     FILE				*dff;
     struct line_file			*lf;
@@ -689,8 +693,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
     env->e_dinode = sbuf.st_ino;
 
-    /* XXX Virus / Spam external program here */
-
     if ( fclose( dff ) != 0 ) {
 	syslog( LOG_ERR, "f_data fclose: %m" );
 	if ( unlink( dfile_fname ) < 0 ) {
@@ -700,29 +702,121 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    /* make E (t) file */
-    env->e_dir = simta_dir_fast;
-    if ( env_outfile( env ) != 0 ) {
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+    if ( simta_mail_filter == NULL ) {
+	message_result = MESSAGE_ACCEPT;
+
+    } else {
+	/* open Dfile to deliver */
+        if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+	    syslog( LOG_ERR, "f_data open dfile %s: %m", dfile_fname );
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    }
+	    return( RECEIVE_SYSERROR );
+
 	}
 
-	return( RECEIVE_SYSERROR );
-    }
-    syslog( LOG_INFO, "f_data %s: accepted", env->e_id );
+	syslog( LOG_DEBUG, "calling mail filter %s", simta_mail_filter );
+	message_result = mail_filter( dfile_fd, &smtp_message );
 
-    /*
-     * We could perhaps check that snet_writef() gets a good return.
-     * However, if we've already fully instanciated the message in the
-     * queue, a failure indication from snet_writef() may be false, the
-     * other end may have in reality recieved the "250 OK", and deleted
-     * the message.  Thus, it's safer to ignore the return value of
-     * snet_writef(), perhaps causing the sending-SMTP agent to transmit
-     * the message again.
-     */
-    if ( snet_writef( snet, "%d OK (%s)\r\n", 250, env->e_id ) < 0 ) {
-	syslog( LOG_ERR, "f_data snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
+	if ( close( dfile_fd ) != 0 ) {
+	    syslog( LOG_ERR, "f_data close: %m" );
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    }
+	    return( RECEIVE_SYSERROR );
+	}
+    }
+
+    switch ( message_result ) {
+    case MESSAGE_ACCEPT:
+	env->e_dir = simta_dir_fast;
+	if ( env_outfile( env ) != 0 ) {
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    }
+
+	    return( RECEIVE_SYSERROR );
+	}
+
+	syslog( LOG_INFO, "f_data %s: accepted", env->e_id );
+
+	/*
+	 * We could perhaps check that snet_writef() gets a good return.
+	 * However, if we've already fully instanciated the message in the
+	 * queue, a failure indication from snet_writef() may be false, the
+	 * other end may have in reality recieved the "250 OK", and deleted
+	 * the message.  Thus, it's safer to ignore the return value of
+	 * snet_writef(), perhaps causing the sending-SMTP agent to transmit
+	 * the message again.
+	 */
+
+	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
+		smtp_message ? smtp_message : "accepted" ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+	break;
+
+    case MESSAGE_ACCEPT_AND_DELETE:
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    return( RECEIVE_SYSERROR );
+	}
+
+	syslog( LOG_INFO, "f_data %s accepted and deleted: %s", env->e_id,
+		smtp_message );
+
+	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
+		smtp_message ? smtp_message : "accepted" ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+	break;
+
+    case MESSAGE_REJECT:
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    return( RECEIVE_SYSERROR );
+	}
+
+	syslog( LOG_INFO, "f_data %s rejected: %s", env->e_id,
+		smtp_message );
+
+	if ( snet_writef( snet, "552 (%s): %s\r\n", env->e_id,
+		smtp_message ? smtp_message : "rejected" ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+	break;
+
+    case MESSAGE_TEMPFAIL:
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    return( RECEIVE_SYSERROR );
+	}
+
+	syslog( LOG_INFO, "f_data %s tempfail: %s", env->e_id,
+		smtp_message );
+
+	if ( snet_writef( snet, "452 (%s): %s\r\n", env->e_id,
+		smtp_message ? smtp_message :
+		"Temporary system failure" ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+	break;
+
+    default:
+	panic( "f_data mail_filter return out of range" );
+    }
+
+    if ( smtp_message != NULL ) {
+	free( smtp_message );
     }
 
     return( RECEIVE_OK );
@@ -1402,4 +1496,111 @@ rfc_2821_trimaddr( int mode, char *arg, char **address, char **domain )
     *q = '\0';
 
     return( 0 );
+}
+
+
+    int
+mail_filter( int f, char **smtp_message )
+{
+    int			fd[ 2 ];
+    int			pid;
+    int			status;
+    SNET		*snet;
+    char		*line;
+    char		*filter_argv[] = { 0, 0 };
+
+    if ( pipe( fd ) < 0 ) {
+	syslog( LOG_ERR, "mail_filter pipe: %m" );
+	return( MESSAGE_TEMPFAIL );
+    }
+
+    switch ( pid = fork()) {
+    case -1 :
+	close( fd[ 0 ]);
+	close( fd[ 1 ]);
+	syslog( LOG_ERR, "mail_filter fork: %m" );
+	return( MESSAGE_TEMPFAIL );
+
+    case 0 :
+	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
+	if ( close( fd[ 1 ] ) < 0 ) {
+	    syslog( LOG_ERR, "mail_filter close: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* stdout -> fd[ 0 ] */
+	if ( dup2( fd[ 0 ], 1 ) < 0 ) {
+	    syslog( LOG_ERR, "mail_filter dup2: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* stderr -> fd[ 0 ] */
+	if ( dup2( fd[ 0 ], 2 ) < 0 ) {
+	    syslog( LOG_ERR, "mail_filter dup2: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	if ( close( fd[ 0 ] ) < 0 ) {
+	    syslog( LOG_ERR, "mail_filter close: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* f -> stdin */
+	if ( dup2( f, 0 ) < 0 ) {
+	    syslog( LOG_ERR, "mail_filter dup2: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	if (( filter_argv[ 0 ] = rindex( simta_mail_filter, '/' )) == NULL ) {
+	    filter_argv[ 0 ] = simta_mail_filter;
+	}
+
+	execv( simta_mail_filter, filter_argv );
+	/* if we are here, there is an error */
+	syslog( LOG_ERR, "mail_filter execv: %m" );
+	exit( MESSAGE_TEMPFAIL );
+
+    default :
+	/* use fd[ 1 ] to communicate with child, child uses fd[ 0 ] */
+	if ( close( fd[ 0 ] ) < 0 ) {
+	    syslog( LOG_ERR, "mail_filter close: %m" );
+	    return( MESSAGE_TEMPFAIL );
+	}
+
+	if (( snet = snet_attach( fd[ 1 ], 1024 * 1024 )) == NULL ) {
+	    syslog( LOG_ERR, "snet_attach: %m" );
+	    return( MESSAGE_TEMPFAIL );
+	}
+
+	while (( line = snet_getline( snet, NULL )) != NULL ) {
+	    if ( *smtp_message == NULL ) {
+		if (( *smtp_message = strdup( line )) == NULL ) {
+		    return( MESSAGE_TEMPFAIL );
+		}
+	    }
+	}
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "mail_filter snet_close: %m" );
+	    return( MESSAGE_TEMPFAIL );
+	}
+
+	if (( waitpid( pid, &status, 0 ) < 0 ) && ( errno != ECHILD )) {
+	    syslog( LOG_ERR, "mail_filter waitpid: %m" );
+	    return( MESSAGE_TEMPFAIL );
+	}
+
+	if ( WIFEXITED( status )) {
+	    return( WEXITSTATUS( status ));
+
+	} else if ( WIFSIGNALED( status )) {
+	    syslog( LOG_ERR, "mail_filter %d died on signal %d\n", pid, 
+		    WTERMSIG( status ));
+	    return( MESSAGE_TEMPFAIL );
+
+	} else {
+	    syslog( LOG_ERR, "mail_filter %d died\n", pid );
+	    return( MESSAGE_TEMPFAIL );
+	}
+    }
 }

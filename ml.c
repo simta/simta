@@ -69,6 +69,7 @@ procmail( int f, char *sender, struct recipient *recipient )
     int			status;
     SNET		*snet;
     char		*line;
+    char		*at;
 
     if (( procmail_bin == NULL ) || ( *procmail_bin == '\0' )) {
 	syslog( LOG_ERR, "procmail not supported" );
@@ -116,7 +117,13 @@ procmail( int f, char *sender, struct recipient *recipient )
 	}
 
 	procmail_argv[ 2 ] = sender;
-	procmail_argv[ 4 ] = recipient->r_rcpt;
+
+	if (( at = index( recipient->r_rcpt, '@' )) != NULL ) {
+	    *at = '\0';
+	    procmail_argv[ 4 ] = recipient->r_rcpt;
+	} else {
+	    procmail_argv[ 4 ] = "postmaster";
+	}
 
 	execv( procmail_bin, procmail_argv );
 	/* if we are here, there is an error */
@@ -204,6 +211,7 @@ mail_local( int f, char *sender, struct recipient *recipient )
     int			status;
     SNET		*snet;
     char		*line;
+    char		*at;
 
     if (( maillocal_bin == NULL ) || ( *maillocal_bin == '\0' )) {
 	syslog( LOG_WARNING, "mail.local not supported" );
@@ -252,6 +260,13 @@ mail_local( int f, char *sender, struct recipient *recipient )
 
 	maillocal_argv[ 2 ] = sender;
 	maillocal_argv[ 4 ] = recipient->r_rcpt;
+
+	if (( at = index( recipient->r_rcpt, '@' )) != NULL ) {
+	    *at = '\0';
+	    maillocal_argv[ 4 ] = recipient->r_rcpt;
+	} else {
+	    maillocal_argv[ 4 ] = "postmaster";
+	}
 
 	execv( maillocal_bin, maillocal_argv );
 	/* if we are here, there is an error */

@@ -58,6 +58,7 @@ int			simta_fast_files = 0;
 int			simta_global_relay = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
+char			*simta_mail_filter = NULL;
 char			*simta_punt_host = NULL;
 char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
@@ -84,8 +85,10 @@ struct nlist		simta_nlist[] = {
     { "receive_wait",	NULL,	0 },
 #define	NLIST_BOUNCE_SECONDS		4
     { "bounce_seconds",	NULL,	0 },
+#define	NLIST_MAIL_FILTER		5
+    { "mail_filter",	NULL,	0 },
 #ifdef HAVE_LDAP
-#define	NLIST_LDAP			5
+#define	NLIST_LDAP			6
     { "ldap",		NULL,	0 },
 #endif /* HAVE_LDAP */
     { NULL,		NULL,	0 },
@@ -249,6 +252,10 @@ simta_config( char *conf_fname, char *base_dir )
 		    simta_nlist[ NLIST_RECEIVE_WAIT ].n_lineno );
 		return( -1 );
 	    }
+	}
+
+	if ( simta_nlist[ NLIST_MAIL_FILTER ].n_data != NULL ) {
+	    simta_mail_filter = simta_nlist[ NLIST_MAIL_FILTER ].n_data;
 	}
 
 #ifdef HAVE_LDAP

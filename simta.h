@@ -5,6 +5,12 @@
 
 /*****     simta.h     *****/
 
+/* These codes are for mail filter return values */
+#define	MESSAGE_ACCEPT			0
+#define	MESSAGE_ACCEPT_AND_DELETE	1
+#define	MESSAGE_REJECT			2
+#define	MESSAGE_TEMPFAIL		4
+
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
@@ -42,6 +48,7 @@ extern char				*simta_dir_slow;
 extern char				*simta_dir_dead;
 extern char				*simta_dir_local;
 extern char				*simta_domain;
+extern char				*simta_mail_filter;
 extern char				simta_hostname[];
 extern char				simta_dname[];
 extern char				simta_dname_slow[];

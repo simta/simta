@@ -828,7 +828,6 @@ smtp_cleanup:
     void
 deliver_local( struct deliver *d )
 {
-    char                        *at;
     struct recipient		*r;
     int                         ml_error;
 
@@ -845,17 +844,9 @@ deliver_local( struct deliver *d )
 	    goto lseek_fail;
 	}
 
-	if (( at = index( r->r_rcpt, '@' )) != NULL ) {
-	    *at = '\0';
-	}
-
 	syslog( LOG_INFO, "deliver_local %s %s: attempting local delivery",
 		d->d_env->e_id, r->r_rcpt );
 	ml_error = (*simta_local_mailer)( d->d_dfile_fd, d->d_env->e_mail, r );
-
-	if ( at != NULL ) {
-	    *at = '@';
-	}
 
 lseek_fail:
 	switch ( ml_error ) {
