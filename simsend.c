@@ -171,8 +171,12 @@ main( int argc, char *argv[] )
 	exit( EX_USAGE );
     }
 
+    if ( simta_read_config ( SIMTA_FILE_CONFIG < 0 )) {
+	exit( EX_TEMPFAIL );
+    }
+
     /* init simta config / defaults */
-    if ( simta_config( SIMTA_FILE_CONFIG, SIMTA_BASE_DIR ) != 0 ) {
+    if ( simta_config( SIMTA_BASE_DIR ) != 0 ) {
 	exit( EX_TEMPFAIL );
     }
 
