@@ -93,11 +93,9 @@ simta_config( char *conf_fname, char *base_dir )
 	perror( "gethostname" );
 	return( -1 );
     }
-printf( "here 1\n" );
 
     /* simta_domain defaults to simta_hostname */
     simta_domain = simta_hostname;
-printf( "here 2\n" );
 
     if (( simta_postmaster = (char*)malloc( 12 + strlen( simta_hostname )))
 	    == NULL ) {
@@ -110,14 +108,12 @@ printf( "here 2\n" );
     /* read config file */
     if (( result = nlist( simta_nlist, conf_fname )) < 0 ) {
 	return( -1 );
-printf( "here 4\n" );
 
     } else if ( result == 0 ) {
 	/* currently checking for the following fields:
 	 *	    masquerade
 	 *	    punt
 	 */
-printf( "here 5\n" );
 
 	if ( simta_nlist[ NLIST_MASQUERADE ].n_data != NULL ) {
 	    simta_domain = simta_nlist[ NLIST_MASQUERADE ].n_data;
@@ -134,7 +130,6 @@ printf( "here 5\n" );
 	    }
 	}
 
-printf( "have ldap\n" );
 #ifdef HAVE_LDAP
 	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
 	    if ( ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) < 0 ) {
@@ -144,7 +139,6 @@ printf( "have ldap\n" );
 #endif /* HAVE_LDAP */
 
     } else {
-printf( "here 6\n" );
 	/* no config file found */
 	if ( simta_verbose != 0 ) {
 	    printf( "simta_config file not found: %s\n", conf_fname );
