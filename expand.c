@@ -251,7 +251,8 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    }
 
 	} else {
-	    supress_addrs( memonly->el_exp_addr, loop_color++ );
+	    supress_addrs( memonly->el_exp_addr->e_addr_children,
+		    loop_color++ );
 	}
     }
 #endif /* HAVE_LDAP */
@@ -266,10 +267,18 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 #ifdef HAVE_LDAP
 	if ((( e_addr->e_addr_status & STATUS_LDAP_SUPRESSED ) != 0 ) &&
 		( !unblocked_path_to_root( e_addr, loop_color++ ))) {
+	    if ( simta_expand_debug != 0 ) {
+		printf( "Supressed: %s\n", e_addr->e_addr );
+	    }
 	    continue;
 	}
 
 	if ( e_addr->e_addr_env_moderated != NULL ) {
+	    if ( simta_expand_debug != 0 ) {
+		printf( "Moderated: %s\n", e_addr->e_addr );
+		env_stdout( e_addr->e_addr_env_moderated );
+		continue;
+	    }
 	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
 	    e_addr->e_addr_env_moderated->e_dir = simta_dir_fast;
 	    e_addr->e_addr_env_moderated->e_dinode = unexpanded_env->e_dinode;
@@ -314,8 +323,15 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 #endif /* HAVE_LDAP */
 
 	if (( e_addr->e_addr_status & STATUS_TERMINAL ) == 0 ) {
+	    if ( simta_expand_debug != 0 ) {
+		printf( "Non-terminal: %s\n", e_addr->e_addr );
+	    }
 	    /* not a terminal expansion, do not add */
 	    continue;
+	}
+
+	if ( simta_expand_debug != 0 ) {
+	    printf( "Terminal: %s\n", e_addr->e_addr );
 	}
 
 	switch ( e_addr->e_addr_type ) {
@@ -648,25 +664,24 @@ cleanup1:
 
 #ifdef HAVE_LDAP
     void
-supress_addrs( struct exp_addr *e, int color )
+supress_addrs( struct exp_link *list, int color )
 {
     struct exp_link		*el;
 
-    assert(( e->e_addr_status & STATUS_EMAIL_SENDER ) == 0 );
+    for ( el = list; el != NULL; el = el->el_next ) {
+	assert(( el->el_exp_addr->e_addr_status & STATUS_EMAIL_SENDER ) == 0 );
 
-    if ( e->e_addr_anti_loop == color ) {
-	return;
-    }
-    e->e_addr_anti_loop = color;
+	if ( el->el_exp_addr->e_addr_anti_loop == color ) {
+	    return;
+	}
+	el->el_exp_addr->e_addr_anti_loop = color;
 
-    if (( e->e_addr_status & STATUS_LDAP_SUPRESSED ) != 0 ) {
-	return;
-    }
+	if (( el->el_exp_addr->e_addr_status & STATUS_LDAP_SUPRESSED ) != 0 ) {
+	    return;
+	}
 
-    e->e_addr_status |= STATUS_LDAP_SUPRESSED;
-
-    for ( el = e->e_addr_children; el != NULL; el = el->el_next ) {
-	supress_addrs( el->el_exp_addr, color );
+	el->el_exp_addr->e_addr_status |= STATUS_LDAP_SUPRESSED;
+	supress_addrs( el->el_exp_addr->e_addr_children, color );
     }
 
     return;
@@ -811,7 +826,7 @@ is_permitted( struct exp_addr *memonly )
 moderate_membersonly( struct expand *exp, struct exp_addr *e_addr,
 	char **moderators )
 {
-    int		idx;
+    int			idx;
 
     if (( e_addr->e_addr_env_moderated =
 	    env_create( exp->exp_env->e_mail )) == NULL ) {
@@ -829,7 +844,7 @@ moderate_membersonly( struct expand *exp, struct exp_addr *e_addr,
     }
 
     if ( e_addr->e_addr_env_moderated->e_rcpt == NULL ) {
-	/* no valid email addresses.  a real monkey. */
+	/* no valid email addresses */
 	env_free( e_addr->e_addr_env_moderated );
 	e_addr->e_addr_env_moderated = NULL;
     }
