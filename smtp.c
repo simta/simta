@@ -601,9 +601,35 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     SNET			*snet = NULL;
     struct dnsr_result		*result, *result_ip;
 
+    assert( *snetp == NULL );
+
     hq->hq_status = HOST_DOWN;
 
     if (( result = get_dnsr_result( hq->hq_hostname )) == NULL ) {
+        return( SMTP_ERROR );
+    }
+
+    if ( result->r_ancount == 0 ) {
+	unsigned int		len;
+	char			*hostunknown = "Host unknown: ", *text;
+
+	if ( hq->hq_err_text == NULL ) {
+	    if (( hq->hq_err_text = line_file_create()) == NULL ) {
+		syslog( LOG_ERR, "smtp_connect line_file_create: %m" );
+		return( SMTP_ERROR );
+	    }
+	}
+	len = strlen( hostunknown ) + strlen( hq->hq_hostname ) + 1;
+	if (( text = malloc( len )) == NULL ) {
+	    syslog( LOG_ERR, "smtp_connect malloc: %m" );
+	    return( SMTP_ERROR );
+	}
+	sprintf( text, "%s%s", hostunknown, hq->hq_hostname );
+	if ( line_append( hq->hq_err_text, text, NO_COPY ) == NULL ) {
+	    syslog( LOG_ERR, "smtp_connect line_append: %m" );
+	    return( SMTP_ERROR );
+	}
+	hq->hq_status = HOST_BOUNCE;
         return( SMTP_ERROR );
     }
 
