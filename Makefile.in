@@ -21,10 +21,10 @@ SIMTALOG=LOG_MAIL
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
-INCPATH=	-Ilibsnet @CPPFLAGS@
+INCPATH=	-Idenser -Ilibsnet @CPPFLAGS@
 DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS
-LIBPATH=	-Llibsnet/.libs @LDFLAGS@
-LIBS=		-lsnet @LIBS@
+LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@
+LIBS=		-ldnsr -lsnet @LIBS@
 TAGSFILE=	tags
 
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
