@@ -83,11 +83,6 @@ main( int argc, char *argv[])
 	return( 1 );
     }
 
-    if ( env_sender( env, NULL ) != 0 ) {
-	perror( "malloc" );
-	return( 1 );
-    }
-
     if ( env_recipient( env, argv[ nextargc + 1 ]) != 0 ) {
 	perror( "malloc" );
 	return( 1 );
