@@ -1155,14 +1155,13 @@ smtp_receive( fd, sin )
     SNET				*snet;
     struct envelope			*env = NULL;
     ACAV				*acav;
-    int					ac, i;
+    int					ac, i, rc;
     int					value = RECEIVE_SYSERROR;
     char				**av, *line;
     struct timeval			tv;
     struct dnsr_result			*result = NULL;
     extern int				connections;
     extern int				maxconnections;
-    struct in_addr      		addr;
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "receive snet_attach: %m" );
@@ -1187,37 +1186,18 @@ smtp_receive( fd, sin )
 	}
     }
 
-    /* XXX make this dnsr check optional */
-    /* Get PTR for connection */
-    if ( dnsr_query( simta_dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
-	    inet_ntoa( sin->sin_addr )) < 0 ) {
-	syslog( LOG_ERR, "receive dnsr_query failed" );
-	goto syserror;
-    }
-    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "receive dnsr_result failed" );
-	goto syserror;
-    }
-
-    /* Get A record on PTR result */
-    if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
-	    result->r_answer[ 0 ].rr_dn.dn_name )) < 0 ) {
-	syslog( LOG_ERR, "receive dnsr_query failed" );
-	goto syserror;
-    }
-    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "receive dnsr_result failed" );
-	goto syserror;
-    }
-
-    /* Verify A record matches IP */
-    /* XXX - how should this be checked? */
-    memcpy( &addr.s_addr, &(result->r_answer[ 0 ].rr_a), sizeof( int ));
-
-    if ( strcmp( inet_ntoa( addr ), inet_ntoa( sin->sin_addr )) != 0 ) {
-	syslog( LOG_INFO, "receive %s: connection rejected: invalid A record",
-	    inet_ntoa( sin->sin_addr ));
-	goto syserror;
+    if (( rc = check_hostname( simta_dnsr, NULL, &(sin->sin_addr))) != 0 ) {
+	if ( rc < 0 ) {
+	    syslog( LOG_INFO, "receive %s: connection rejected: %s",
+		dnsr_err2string( dnsr_errno( simta_dnsr )),
+		inet_ntoa( sin->sin_addr ));
+	    goto syserror;
+	} else {
+	    syslog( LOG_INFO, "receive %s: connection rejected:"
+		"invalid reverse", inet_ntoa( sin->sin_addr ));
+	    snet_writef( snet, "421 Access Denied\r\n" );
+	    goto closeconnection;
+	}
     }
 
 #ifdef HAVE_LIBWRAP
