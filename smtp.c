@@ -24,6 +24,7 @@
 
 #include <snet.h>
 
+#include "queue.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "smtp.h"

@@ -13,8 +13,6 @@
 #define	R_FAILED	1
 #define	R_TEMPFAIL	2
 
-#define	ENVELOPE_VERSION	0
-
 struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
@@ -55,9 +53,13 @@ int		env_recipient ___P(( struct envelope *, char * ));
 int		env_outfile ___P(( struct envelope *, char * ));
 
 /* return 0 on success, -1 on syserror, 1 on syntax error, syslog */
+int		env_hostname ___P(( char * ));
 int		env_unexpanded ___P(( char *, int * ));
 int		env_infile ___P(( struct envelope *, char * ));
 int		env_gettimeofday_id ___P(( struct envelope * ));
 int		env_fstat ___P(( struct envelope *, int ));
 int		env_touch ___P(( struct envelope * ));
 int		env_unlink ___P(( struct envelope * ));
+int		env_info ___P(( struct message *, char * ));
+int		env_deliver ___P(( struct message *, struct envelope *,
+			SNET ** ));

@@ -16,6 +16,10 @@
 #define	Q_REMOVE	1
 #define	Q_REORDER	2
 
+/* states for struct message->m_action */
+#define	Q_REMOVE	1
+#define	Q_REORDER	2
+
 /* states for host_q->hq_status */
 #define HOST_NULL	0
 #define HOST_LOCAL	1
@@ -46,19 +50,33 @@ struct q_file {
 };
 
 struct host_q {
-    char			*hq_name;
+    struct host_q		*hq_next;
+    struct host_q		*hq_deliver;
+    char			*hq_hostname;
     int				hq_status;
     int				hq_entries;
-    struct stab_entry		*hq_qfiles;
-    struct host_q		*hq_next;
+    struct message		*hq_message_first;
+    struct message		*hq_message_last;
+};
+
+struct message {
+    struct message		*m_next;
+    char			*m_id;
+    char			*m_dir;
+    int				m_action;
+    int				m_old_dfile;
+    struct timespec		m_etime;
 };
 
 
-/* types of q_runners */
-#define	Q_RUNNER_LOCAL	1
-
-int		q_runner ___P(( int ));
-
-/* shared with q_cleanup.c */
-void		q_file_stdout ___P(( struct q_file * ));
-struct q_file	*q_file_char ___P(( char * ));
+void	message_stdout ___P(( struct message * ));
+void	q_stdout ___P(( struct host_q * ));
+void	q_list_stdout ___P(( struct host_q * ));
+struct message	*message_create ___P(( char * ));
+int	message_queue ___P(( struct host_q *, struct message * ));
+struct host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
+int	bounce ___P(( struct envelope *, SNET * ));
+int	q_deliver ___P(( struct host_q * ));
+int	q_runner ___P(( struct host_q * ));
+int	q_read_dir ___P(( char *, struct host_q ** ));
+int	q_runner_dir ___P(( char * ));

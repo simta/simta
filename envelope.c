@@ -22,9 +22,12 @@
 #include <errno.h>
 #include <syslog.h>
 #include <utime.h>
+#include <unistd.h>
 
 #include <snet.h>
 
+#include "simta.h"
+#include "queue.h"
 #include "envelope.h"
 #include "line_file.h"
 
@@ -208,7 +211,7 @@ env_fstat( struct envelope *e, int fd )
 
     /* Efile syntax:
      *
-     * Vversion
+     * SIMTA_VERSION_STRING
      * Hdestination-host
      * Ffrom-addr@sender.com
      * Rto-addr@recipient.com
@@ -244,22 +247,49 @@ env_infile( struct envelope *e, char *dir )
 	return( -1 );
     }
 
-    /*** Vversion ***/
+    /* SIMTA_VERSION_STRING */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s: unexpected EOF", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
 	return( 1 );
     }
 
-    /* XXX better version checking */
-    if ( *line != 'V' ) {
+    if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
+	syslog( LOG_ERR, "%s bad version syntax", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
 	return( 1 );
     }
 
     /*** Hdestination-host ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s: unexpected EOF", filename, line );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
 	return( 1 );
     }
 
     if ( *line != 'H' ) {
+	syslog( LOG_ERR, "%s: bad host syntax", filename, line );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
 	return( 1 );
     }
 
@@ -269,10 +299,24 @@ env_infile( struct envelope *e, char *dir )
 
     /*** Ffrom-address ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s: unexpected EOF", filename, line );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
 	return( 1 );
     }
 
     if ( *line != 'F' ) {
+	syslog( LOG_ERR, "%s: bad from syntax", filename, line );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
 	return( 1 );
     }
 
@@ -287,6 +331,13 @@ env_infile( struct envelope *e, char *dir )
     /*** Rto-addresses ***/
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	if ( *line != 'R' ) {
+	    syslog( LOG_ERR, "%s: bad recipient syntax", filename, line );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( -1 );
+	    }
+
 	    return( 1 );
 	}
 
@@ -329,7 +380,7 @@ env_cleanup( struct envelope *e )
 
     /* Efile syntax:
      *
-     * Vversion
+     * SIMTA_VERSION_STRING
      * Hdestination-host
      * Ffrom-addr@sender.com
      * Rto-addr@recipient.com
@@ -362,8 +413,8 @@ env_outfile( struct envelope *e, char *dir )
 	goto cleanup;
     }
 
-    /* Vversion */
-    if ( fprintf( tff, "V%d\n", ENVELOPE_VERSION ) < 0 ) {
+    /* SIMTA_VERSION_STRING */
+    if ( fprintf( tff, "%s\n", SIMTA_VERSION_STRING ) < 0 ) {
 	syslog( LOG_ERR, "fprintf: %m" );
 	fclose( tff );
 	goto cleanup;
@@ -455,6 +506,7 @@ cleanup:
      */
 
     int
+/* XXX not vetted */
 env_unexpanded( char *fname, int *unexpanded )
 {
     char		*line;
@@ -470,11 +522,27 @@ env_unexpanded( char *fname, int *unexpanded )
 
     /* first line of an envelope should be version info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s: unexpected EOF", fname, line );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
 	return( 1 );
     }
 
+    /* XXX Version check? */
+
     /* second line of an envelope has expansion info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s: unexpected EOF", fname, line );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
 	return( 1 );
     }
 
@@ -538,6 +606,237 @@ env_touch( struct envelope *env )
     }
 
     env->e_etime.tv_sec = sb.st_mtime;
+
+    return( 0 );
+}
+
+
+    /*
+     * return 0 if everything went fine
+     * return -1 on syscall error
+     * return 1 on syntax error
+     */
+
+    int
+env_info( struct message *m, char *hostname )
+{
+    char		*line;
+    SNET		*snet;
+    char		fname[ MAXPATHLEN + 1 ];
+    struct stat		sb;
+
+    *hostname = '\0';
+
+    sprintf( fname, "%s/E%s", m->m_dir, m->m_id );
+
+    if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
+	    == NULL ) {
+	syslog( LOG_ERR, "snet_open: %m" );
+	return( -1 );
+    }
+
+    if ( fstat( snet_fd( snet ), &sb ) != 0 ) {
+	syslog( LOG_ERR, "fstat %s: %m", fname );
+	return( -1 );
+    }
+
+    m->m_etime.tv_sec = sb.st_mtime;
+
+    /* first line of an envelope should be version info */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s: unexpected EOF", fname, line );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
+	syslog( LOG_ERR, "%s bad version syntax", fname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    /* second line of an envelope has expansion info */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s: unexpected EOF", fname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    if ( *line != 'H' ) {
+	syslog( LOG_ERR, "%s: bad host syntax", fname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    if ( strlen( line + 1 ) > MAXHOSTNAMELEN ) {
+	syslog( LOG_ERR, "%s hostname too long", fname );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    strcpy( hostname, line + 1 );
+
+    if ( snet_close( snet ) != 0 ) {
+	syslog( LOG_ERR, "snet_close: %m" );
+	return( -1 );
+    }
+
+    return( 0 );
+}
+
+
+
+    int
+env_deliver( struct message *m, struct envelope *env, SNET **s )
+{
+    char			*line;
+    SNET			*snet;
+    char			filename[ MAXPATHLEN + 1 ];
+
+    sprintf( filename, "%s/E%s", m->m_dir, m->m_id );
+
+    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	syslog( LOG_ERR, "snet_open %s: %m", filename );
+	return( 1 );
+    }
+
+    *s = snet;
+
+    /* lock envelope fd for delivery attempt */
+    if ( lockf( snet_fd( snet ), F_TLOCK, 0 ) != 0 ) {
+	if ( errno == EAGAIN ) {
+	    /* file locked by a diferent process */
+	    return( 1 );
+
+	} else {
+	    syslog( LOG_ERR, "lockf %s: %m", filename );
+	    return( -1 );
+	}
+    }
+
+    /* SIMTA_VERSION_STRING */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s unexpected EOF", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
+	syslog( LOG_ERR, "%s bad version syntax", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    /* Hdestination-host */
+    /* XXX already have destination host, check that it hasn't changed? */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s unexpected EOF", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    if ( *line != 'H' ) {
+	syslog( LOG_ERR, "%s bad host syntax", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    /* Ffrom-address */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "%s unexpected EOF", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    if ( *line != 'F' ) {
+	syslog( LOG_ERR, "%s bad from syntax", filename );
+
+	if ( snet_close( snet ) < 0 ) {
+	    syslog( LOG_ERR, "snet_close: %m" );
+	    return( -1 );
+	}
+
+	return( 1 );
+    }
+
+    if ( *(line + 1) != '\0' ) {
+	if (( env->e_mail = strdup( line + 1 )) == NULL ) {
+	    syslog( LOG_ERR, "strdup: %m" );
+	    return( -1 );
+	}
+    }
+
+    /* Rto-addresses */
+    while (( line = snet_getline( snet, NULL )) != NULL ) {
+	if ( *line != 'R' ) {
+	    syslog( LOG_ERR, "%s bad recieved syntax", filename );
+
+	    if ( snet_close( snet ) < 0 ) {
+		syslog( LOG_ERR, "snet_close: %m" );
+		return( -1 );
+	    }
+
+	    /* XXX free previously allocated recipients */
+
+	    return( 1 );
+	}
+
+	if ( env_recipient( env, line + 1 ) != 0 ) {
+	    return( -1 );
+	}
+    }
+
+    /* close snet after deliver attempt to maintain lock */
 
     return( 0 );
 }

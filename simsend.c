@@ -30,12 +30,11 @@
 
 #include <snet.h>
 
+#include "queue.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"
 #include "simta.h"
-
-#include "queue.h"
 
 #ifdef __STDC__
 #define ___P(x)         x

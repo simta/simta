@@ -29,31 +29,36 @@
 #include <snet.h>
 
 #include "ll.h"
-#include "envelope.h"
 #include "queue.h"
+#include "envelope.h"
 #include "line_file.h"
 #include "ml.h"
 #include "smtp.h"
 #include "simta.h"
 
-struct host_q		*null_queue;
-
 
     int
 main( int argc, char *argv[] )
 {
-    int				r;
+    char			*dir;
 
     if ( argc != 2 ) {
-	fprintf( stderr, "Usage: %s mode\n", argv[ 0 ]);
+	fprintf( stderr, "Usage: %s ( LOCAL | SLOW )\n", argv[ 0 ]);
+	exit( EX_USAGE );
+    }
+
+    if ( strcasecmp( argv[ 1 ], "LOCAL" ) == 0 ) {
+	dir = SIMTA_DIR_LOCAL;
+
+    } else if ( strcasecmp( argv[ 1 ], "SLOW" ) == 0 ) {
+	dir = SIMTA_DIR_SLOW;
+
+    } else {
+	fprintf( stderr, "Usage: %s ( LOCAL | SLOW )\n", argv[ 0 ]);
 	exit( EX_USAGE );
     }
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
-    r = q_runner( atoi( argv[ 1 ]));
-
-    printf( "return %d\n", r );
-
-    return( r );
+    return( q_runner_dir( dir ));
 }

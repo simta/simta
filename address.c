@@ -8,6 +8,14 @@
 #include <pwd.h>
 #include <unistd.h>
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* TLS */
+
+#include <snet.h>
+
 #include <db.h>
 
 #include "queue.h"

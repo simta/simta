@@ -10,12 +10,12 @@ SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c address.c
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o queue.c \
-		ml.o smtp.o
+		ml.o smtp.o expand.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	simsend.o line_file.o envelope.o tz.o header.o simta.o
 SIMLOGOBJ=	simlog.o
 QRUNNEROBJ=	q_runner.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
-		simta.o smtp.o
+		simta.o smtp.o expand.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o ml.o \
 		smtp.o simta.o
 CONNECT_TESTOBJ=	connect_test.o smtp.o line_file.o envelope.o tz.o
@@ -36,7 +36,7 @@ TAGSFILE=	tags
 
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
 
-TARGETS=	simta tlsconnect simsendmail q_runner q_cleanup
+TARGETS=	simta tlsconnect simsendmail q_runner
 
 all : ${TARGETS}
 

@@ -451,14 +451,14 @@ main( ac, av )
 			exit( 1 );
 		    }
 
-		    exit( q_runner( Q_RUNNER_LOCAL ));
+		    exit( q_runner_dir( SIMTA_DIR_LOCAL ));
 
 		case -1 :
 		    syslog( LOG_ERR, "fork: %m" );
 		    break;
 
 		default :
-		    syslog( LOG_INFO, "q_runner local child %d for %s", c,
+		    syslog( LOG_INFO, "q_runner_dir.local child %d for %s", c,
 			    inet_ntoa( sin.sin_addr ));
 		    break;
 		}

@@ -24,6 +24,7 @@
 
 #include <snet.h>
 
+#include "queue.h"
 #include "envelope.h"
 #include "ml.h"
 #include "line_file.h"

@@ -5,6 +5,14 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* TLS */
+
+#include <snet.h>
+
 #include <time.h>
 
 #include <stdio.h>
@@ -15,6 +23,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
+#include "queue.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"
