@@ -235,7 +235,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
     /* XXX buf should be large enough to accomodate any valid email address */
     char		buf[ 1024 ];
 
-    syslog( LOG_DEBUG, "address_expand ( address %s, parent rcpt %s )",
+    syslog( LOG_DEBUG, "address_expand %s, parent rcpt %s",
 	    e_addr->e_addr, e_addr->e_addr_rcpt->r_rcpt );
 
     switch ( e_addr->e_addr_type ) {
@@ -420,12 +420,18 @@ ldap_exclusive:
 	    switch ( ldap_expand( exp, e_addr )) {
 
 	    case LDAP_EXCLUDE:
+		syslog( LOG_DEBUG, "address_expand %s EXPANDED: ldap",
+			e_addr->e_addr );
 		return( ADDRESS_EXCLUDE );
 
 	    case LDAP_FINAL:
+		syslog( LOG_DEBUG, "address_expand %s FINAL: ldap",
+			e_addr->e_addr );
 		return( ADDRESS_FINAL );
 
 	    case LDAP_NOT_FOUND:
+		syslog( LOG_DEBUG, "address_expand %s: not in ldap db",
+			e_addr->e_addr );
 		if ( host == NULL ) {
 		    /* data is exclusively for ldap, and it didn't find it */
 		    goto not_found;
