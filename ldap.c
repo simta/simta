@@ -1,3 +1,6 @@
+
+#include "config.h"
+
 #ifdef TLS
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -321,19 +324,21 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     struct list		*l;
     struct timeval	timeout = {60,0};
 
+    if ( e_addr->e_addr_type == ADDRESS_TYPE_LDAP ) {
+	/* XXX not implemented yet */
+	return( ADDRESS_SYSERROR );
+    }
+
     /* addr should be user@some.domain */
-    if (( at = strchr( addr, '@' )) == NULL ) {
-	if ( rcpt_error( rcpt, "bad address format: ", addr, NULL ) != 0 ) {
+    if (( at = strchr( e_addr->e_addr, '@' )) == NULL ) {
+	if ( rcpt_error( e_addr->e_addr_rcpt, "bad address format: ",
+		e_addr->e_addr, NULL ) != 0 ) {
 	    /* rcpt_error syslogs syserrors */
 	}
 	return( ADDRESS_SYSERROR );
     }
 
     domain = at + 1;
-
-#ifdef DEBUG
-    printf( "ldap_expand( %s )\n", addr );
-#endif /* DEBUG */
 
     if ( ld == NULL ) {
 	/* XXX static hostname for now */
@@ -342,10 +347,6 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	    return( ADDRESS_SYSERROR );
 	}
     }
-
-#ifdef DEBUG
-    printf( "ldap_init da.dair.itd.umich.edu success\n" );
-#endif /* DEBUG */
 
     /* for each base string in ldap_searches:
      *     - Build search string where:
@@ -390,7 +391,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 		    /* we currently support %s -> username, %h -> hostname */
 		    if ( *( c + 1 ) == 's' ) {
 			*at = '\0';
-			insert = addr;
+			insert = e_addr->e_addr;
 			whiteout = 1;
 
 		    } else {
@@ -444,10 +445,6 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	    return( ADDRESS_SYSERROR );
 	}
 
-#ifdef DEBUG
-    printf( "search base %s, filter %s\n", lud->lud_dn, lud->lud_filter );
-#endif /* DEBUG */
-
 	if ( ldap_search_st( ld, lud->lud_dn, lud->lud_scope,
 		lud->lud_filter, attrs, 0, &timeout, &res ) != LDAP_SUCCESS ) {
 	    syslog( LOG_ERR, "ldap_search_st: %s",
@@ -499,7 +496,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	} else if ( result > 0 ) {
 
 #ifdef DEBUG
-	    printf( "%s IS A GROUP!\n", addr );
+	    printf( "%s IS A GROUP!\n", e_addr->e_addr );
 #endif /* DEBUG */
 
 	}
@@ -514,7 +511,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	} else if ( result > 0 ) {
 
 #ifdef DEBUG
-	    printf( "%s IS A PERSON!\n", addr );
+	    printf( "%s IS A PERSON!\n", e_addr->e_addr );
 
 	    /*
 	    if ( ldap_message_stdout( entry ) != 0 ) {
@@ -532,19 +529,13 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	    }
 
 	    for ( x = 0; values[ x ] != NULL; x++ ) {
-		if ( ll_lookup( *seen, addr ) == NULL ) {
-		    /* XXX daemon error handling/reporting */
-		    if ( add_address( expansion, values[ x ], rcpt ) != 0 ) {
-			perror( "add_address" );
-			return( -1 );
-		    }
-
-#ifdef DEBUG
-		    printf( "mailforwardingaddress added: %s\n", values[ x ]);
-#endif /* DEBUG */
-
-		    count++;
+		if ( add_address( exp, values[ x ],
+			e_addr->e_addr_rcpt, ADDRESS_TYPE_EMAIL ) != 0 ) {
+		    perror( "add_address" );
+		    return( -1 );
 		}
+
+		count++;
 	    }
 
 	    ldap_value_free( values );
@@ -553,7 +544,7 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 	    /* not a group, or a person */
 
 #ifdef DEBUG
-	    printf( "%s IS NOT A PERSON OR A GROUP!\n", addr );
+	    printf( "%s IS NOT A PERSON OR A GROUP!\n", e_addr->e_addr );
 #endif /* DEBUG */
 
 	    /* XXX daemon error handling/reporting */
