@@ -175,14 +175,16 @@ main( ac, av )
 	perror( "ll_insert" );
 	exit( 1 );
     }
-
-    if ( ll_lookup( hosts, localhost ) != NULL ) {
-	fprintf( stderr, "Can't find %s\n", localhost );
+    if ( ll_insert_tail( (struct stab_entry**)&(hosts->st_data),
+	    "alias", "alias" ) != 0 ) {
+	perror( "ll_insert_tail" );
 	exit( 1 );
     }
-
-    if ( debug ) printf( "localhost: %s\n", localhost );
-
+    if ( ll_insert_tail( (struct stab_entry**)&(hosts->st_data),
+	    "password", "password" ) != 0 ) {
+	perror( "ll_insert_tail" );
+	exit( 1 );
+    }
 
     if ( chdir( spooldir ) < 0 ) {
 	perror( spooldir );

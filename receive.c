@@ -40,6 +40,8 @@ extern SSL_CTX	*ctx;
 
 extern char	*version;
 char		*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
+struct stab_entry	*expansion = NULL;
+struct stab_entry	*seen = NULL;
 
 struct command {
     char	*c_name;
@@ -66,13 +68,6 @@ static int	hello ___P(( struct envelope *, char * ));
 static char	*smtp_trimaddr ___P(( char *, char * ));
 
 int get_mx( DNSR *dnsr, char *host );
-void expansion_stab_stdout( void * );
-
-    void
-expansion_stab_stdout( void *string )
-{
-    printf( "%s\n", (char *)string );
-}
 
     int
 get_mx( DNSR *dnsr, char *host )
@@ -331,10 +326,11 @@ f_rcpt( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+    int			ret;
     char		*addr, *domain;
     struct recipient	*r;
-    struct stab_entry	*expansion = NULL;
     DNSR		*dnsr;
+    struct stab_entry	*cur = NULL, *p = NULL;
 
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
@@ -392,13 +388,13 @@ f_rcpt( snet, env, ac, av )
 	if (( dnsr = dnsr_open( )) == NULL ) {
 	    syslog( LOG_ERR, "dnsr_open failed" );
 	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing.\r\n",
+		"%d-1 Requested action aborted: local error in processing.\r\n",
 		451 );
 	    return( -1 );
 	}
 	if ( get_mx( dnsr, domain ) != 0 ) {
 	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing.\r\n",
+		"%d-2 Requested action aborted: local error in processing.\r\n",
 		451 );
 	    return( -1 );
 	}
@@ -448,16 +444,49 @@ f_rcpt( snet, env, ac, av )
 	return( 1 );
     default:
 	snet_writef( snet,
-	    "%d Requested action aborted: local error in processing.\r\n",
+	    "%d-3 Requested action aborted: local error in processing.\r\n",
 	    451 );
 	return( 1 );
     }
-    if ( address_expand( addr, &expansion ) < 0 ) {
+
+    //printf( "expanding %s", addr );
+    ret = address_expand( addr, &expansion, &seen );
+    if ( ret < 0 ) {
+	/* Error */
 	snet_writef( snet,
-	    "%d Requested action aborted: local error in processing.\r\n",
+	    "%d-4 Requested action aborted: local error in processing.\r\n",
 	    451 );
 	return( 1 );
+    } else if ( ret == 0 ) {
+	/* No Expansion */
+	//printf( "No expansion.\n" );
+    } else {
+	/* Expand Expansion */
+	cur = expansion;
+	while ( cur != NULL ) {
+	    //printf( "expanding expansion %s", (char*)cur->st_key );
+	    ret = address_expand( (char *)cur->st_key, &expansion, &seen );
+	    if ( ret < 0 ) {
+		/* Error */
+		snet_writef( snet,
+		    "%d-4 Requested action aborted: local error in processing.\r\n",
+		    451 );
+		return( 1 );
+	    } else if ( ret == 0 ) {
+		/* No Expansion */
+		//printf( "No expansion.  Next.\n" );
+		cur = cur->st_next;
+	    } else {
+		/* Expansion */
+		p = cur;
+		cur = cur->st_next;
+		//printf( "Removing %s: expanded to %d addresses\n", (char*)p->st_key, ret );
+		ll_remove( &expansion, p->st_key );
+	    }
+	}
     }
+
+    //printf( "\nList:\n" );
     ll_walk( expansion, expansion_stab_stdout );
 
     if (( r = (struct recipient *)malloc( sizeof(struct recipient))) == NULL ) {
