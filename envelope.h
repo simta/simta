@@ -42,6 +42,7 @@ struct envelope {
 #define ENV_DFILE		(1<<3)
 #define ENV_OLD			(1<<4)
 #define ENV_BOUNCE		(1<<5)
+#define ENV_TEMPFAIL		(1<<6)
 
 struct envelope	*env_create ___P(( char * ));
 struct envelope	*env_dup ___P(( struct envelope * ));

@@ -6,14 +6,15 @@
 /*****     smtp.h     *****/
 
 
-#define SMTP_CONNECT    	"22"
-#define SMTP_SUCCESS         	"250"
-#define SMTP_DATAOK         	"354"
-#define SMTP_USER_UNKNOWN	"55"
-#define SMTP_TEMPFAIL		"45"
-#define SMTP_FAILED		"554"
-#define SMTP_FAILED_FROM	"553"
-#define SMTP_DISCONNECT 	"221"
+#define	SMTP_CONNECT		1
+#define	SMTP_HELO		2
+#define	SMTP_MAIL		3
+#define	SMTP_RCPT		4
+#define	SMTP_DATA		5
+#define	SMTP_DATA_EOF		6
+#define	SMTP_RSET		7
+#define	SMTP_QUIT		8
+
 #define SMTP_EOF         	"."
 
 #define	SMTP_OK			0
@@ -24,7 +25,7 @@
 #define	SMTP_TIME_HELO		60 * 5
 #define	SMTP_TIME_MAIL		60 * 5
 #define	SMTP_TIME_RCPT		60 * 5
-#define	SMTP_TIME_DATA_INIT	60 * 2
+#define	SMTP_TIME_DATA		60 * 2
 #define	SMTP_TIME_DATA_EOF	60 * 10
 #define	SMTP_TIME_RSET		60 * 5
 #define	SMTP_TIME_QUIT		60 * 5
@@ -38,12 +39,13 @@
 #endif /* __STDC__ */
 
 
-void	stdout_logger ___P(( char * ));
-int	smtp_grab ___P(( struct line_file **, SNET *, struct timeval *,
-		char *, char * ));
+void	stdout_logger ( char * );
+int	smtp_reply( int, SNET*, struct host_q *, struct deliver * );
+int	smtp_consume_banner ( struct line_file **, SNET *,
+		struct timeval *, char *, char * );
 
 
-int	smtp_connect ___P(( SNET **, struct host_q * ));
-int	smtp_rset ___P(( SNET *, struct host_q * ));
-int	smtp_send ___P(( SNET *, struct host_q *, struct deliver * ));
-void	smtp_quit ___P(( SNET *, struct host_q * ));
+int	smtp_connect ( SNET **, struct host_q * );
+int	smtp_rset ( SNET *, struct host_q * );
+int	smtp_send ( SNET *, struct host_q *, struct deliver * );
+void	smtp_quit ( SNET *, struct host_q * );

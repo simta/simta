@@ -21,6 +21,7 @@
 
 struct deliver {
     struct envelope		*d_env;
+    struct recipient		*d_rcpt;
     int				d_dfile_fd;
     SNET			*d_dfile_snet;
     int				d_success;
