@@ -688,12 +688,15 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			recieve_failed_rcpts++;
 			syslog( LOG_INFO,
 				"Receive %s: To <%s> From <%s> Rejected IP "
-				"%s by MAPS",
+				"%s by %s",
 				env->e_id, addr, env->e_mail,
-				inet_ntoa( receive_sin->sin_addr ));
+				inet_ntoa( receive_sin->sin_addr ),
+				simta_rbl_domain );
 			snet_writef( snet,
-			    "550 No access from your IP.  "
-			    "Contact postmaster@umich.edu\r\n" );
+			    "550 No access from IP %s.  "
+			    "See http://spambusters.mail.umich.edu/"
+			    "tools/blockstatus\r\n",
+			    inet_ntoa( receive_sin->sin_addr ));
 			return( RECEIVE_OK );
 		    }
 		}
@@ -1414,7 +1417,10 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		syslog( LOG_NOTICE, "receive %s: connection rejected: "
 		    "invalid reverse", inet_ntoa( sin->sin_addr ));
 		snet_writef( snet,
-			"421 Access Denied - Invalid reverse address\r\n" );
+		    "421 No access from IP %s.  "
+		    "See http://spambusters.mail.umich.edu/"
+		    "tools/blockstatus\r\n",
+		    inet_ntoa( receive_sin->sin_addr ));
 		goto closeconnection;
 
 	    } else {
@@ -1430,8 +1436,9 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    syslog( LOG_NOTICE,
 		"Receive: Rejected IP %s by %s",
 		inet_ntoa( sin->sin_addr ), simta_rbl_domain );
-	    snet_writef( snet, "550 No access from your IP: "
-		"%s\r\n", rbl_err_txt );
+	    snet_writef( snet, "550 No access from IP %s.  "
+		"See http://spambusters.mail.umich.edu/tools/blockstatus\r\n",
+		inet_ntoa( receive_sin->sin_addr ));
 	    free( rbl_err_txt );
 	    goto closeconnection;
 
