@@ -169,8 +169,8 @@ simta_config( char *conf_fname, char *base_dir )
 
     /* Add list of expansions */
     if ( access( SIMTA_ALIAS_DB, R_OK ) == 0 ) {
-	if ( ll_insert_tail( &(host->h_expansion), "alias",
-		"alias" ) != 0 ) {
+	if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_ALIAS,
+		EXPANSION_TYPE_ALIAS ) != 0 ) {
 	    perror( "simta_config ll_insert_tail" );
 	    return( -1 );
 	}
@@ -185,8 +185,8 @@ simta_config( char *conf_fname, char *base_dir )
 		SIMTA_ALIAS_DB );
     }
 
-    if ( ll_insert_tail( &(host->h_expansion), "password",
-	    "password" ) != 0 ) {
+    if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_PASSWORD,
+	    EXPANSION_TYPE_ALIAS ) != 0 ) {
 	fprintf( stderr, "simta_config ll_insert_tail: " );
 	perror( NULL );
 	return( -1 );
@@ -272,8 +272,8 @@ simta_config( char *conf_fname, char *base_dir )
 	host->h_name = "umich.edu";
 
 	/* add ldap to host expansion table */
-	if ( ll_insert_tail( &(host->h_expansion), "ldap",
-		"ldap" ) != 0 ) {
+	if ( ll_insert_tail( &(host->h_expansion), EXPANSION_TYPE_LDAP,
+		EXPANSION_TYPE_LDAP ) != 0 ) {
 	    perror( "simta_config ll_insert_tail" );
 	    return( -1 );
 	}

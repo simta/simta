@@ -262,7 +262,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 
     /* Expand user using expansion table for domain */
     for ( s = host->h_expansion; s != NULL; s = s->st_next ) {
-        if ( strcmp( s->st_key, "alias" ) == 0 ) {
+        if ( strcmp( s->st_key, EXPANSION_TYPE_ALIAS ) == 0 ) {
 	    switch ( alias_expand( exp, e_addr )) {
 	    case ALIAS_EXCLUDE:
 		syslog( LOG_DEBUG, "address_expand <%s> EXPANDED: alias",
@@ -281,7 +281,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 		panic( "address_expand default alias switch" );
 	    }
 
-        } else if ( strcmp( s->st_key, "password" ) == 0 ) {
+        } else if ( strcmp( s->st_key, EXPANSION_TYPE_PASSWORD ) == 0 ) {
 	    switch ( password_expand( exp, e_addr )) {
 	    case PASSWORD_EXCLUDE:
 		syslog( LOG_DEBUG, "address_expand <%s> EXPANDED: password",
@@ -307,7 +307,7 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 	}
 
 #ifdef HAVE_LDAP
-        else if ( strcmp( s->st_key, "ldap" ) == 0 ) {
+        else if ( strcmp( s->st_key, EXPANSION_TYPE_LDAP ) == 0 ) {
 ldap_exclusive:
 	    switch ( simta_ldap_expand( exp, e_addr )) {
 	    case LDAP_EXCLUDE:
