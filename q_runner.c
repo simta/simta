@@ -141,13 +141,14 @@ bounce( struct envelope *env, SNET *message )
     }
 
     /* XXX add to NULL queue, update q->q_etime */
-    if (( q = q_file_create( bounce_env->e_id )) == NULL ) {
-	syslog( LOG_ERR, "q_file_create: %m" );
+    if (( q = q_file_env( bounce_env )) == NULL ) {
+	syslog( LOG_ERR, "q_file_env: %m" );
 	exit( 1 );
     }
 
     q->q_env = bounce_env;
     q->q_expanded = q->q_env->e_expanded;
+    q->q_etime = &(q->q_env->e_etime);
 
     if ( ll__insert( &(null_queue->hq_qfiles), q, efile_time_compare ) != 0 ) {
 	syslog( LOG_ERR, "ll__insert: %m" );
@@ -209,7 +210,6 @@ main( int argc, char *argv[] )
     struct host_q		*hq;
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*hs;
-    struct stat			sb;
     int				result;
     char			fname[ MAXPATHLEN ];
 
@@ -265,27 +265,12 @@ main( int argc, char *argv[] )
 		continue;
 	    }
 
-	    if (( q = q_file_create( entry->d_name + 1 )) == NULL ) {
-		syslog( LOG_ERR, "q_file_create: %m" );
+	    if (( q = q_file_env( env )) == NULL ) {
+		syslog( LOG_ERR, "q_file_env: %m" );
 		exit( 1 );
 	    }
-
-	    q->q_env = env;
-	    q->q_expanded = q->q_env->e_expanded;
 
 	    /* XXX DNS lookup if q->q_expanded == NULL? */
-
-	    /* get efile modification time */
-	    if ( stat( fname, &sb ) != 0 ) {
-		syslog( LOG_ERR, "stat %s: %m", fname );
-		exit( 1 );
-	    }
-
-#ifdef sun
-	    q->q_etime.tv_sec = sb.st_mtime;
-#else	/* sun */
-	    q->q_etime = sb.st_mtimespec;
-#endif	/* sun */
 
 	    if (( hq = host_q_lookup( &host_stab, q->q_expanded )) == NULL ) {
 		exit( 1 );

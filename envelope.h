@@ -35,6 +35,7 @@ struct envelope {
     int			e_success;
     int			e_failed;
     int			e_tempfail;
+    struct timespec	e_etime;
 };
 
 #define E_TLS		(1<<0)

@@ -220,8 +220,8 @@ main( int argc, char *argv[] )
 	    if (( q = (struct q_file*)
 		    ll_lookup( file_stab, entry->d_name + 1 )) == NULL ) {
 
-		if (( q = q_file_create( entry->d_name + 1 )) == NULL ) {
-		    syslog( LOG_ERR, "q_file_create: %m" );
+		if (( q = q_file_char( entry->d_name + 1 )) == NULL ) {
+		    syslog( LOG_ERR, "q_file_char: %m" );
 		    exit( 1 );
 		}
 

@@ -13,6 +13,7 @@
 
 #include "ll.h"
 #include "queue.h"
+#include "envelope.h"
 
 
     int
@@ -24,15 +25,15 @@ efile_time_compare( void *a, void *b )
     qa = (struct q_file*)a;
     qb = (struct q_file*)b;
 
-    if ( qa->q_etime.tv_sec > qb->q_etime.tv_sec ) {
+    if ( qa->q_etime->tv_sec > qb->q_etime->tv_sec ) {
 	return( 1 );
-    } else if ( qa->q_etime.tv_sec < qb->q_etime.tv_sec ) {
+    } else if ( qa->q_etime->tv_sec < qb->q_etime->tv_sec ) {
 	return( -1 );
     }
 
-    if ( qa->q_etime.tv_nsec > qb->q_etime.tv_nsec ) {
+    if ( qa->q_etime->tv_nsec > qb->q_etime->tv_nsec ) {
 	return( 1 );
-    } else if ( qa->q_etime.tv_nsec < qb->q_etime.tv_nsec ) {
+    } else if ( qa->q_etime->tv_nsec < qb->q_etime->tv_nsec ) {
 	return( -1 );
     }
 
@@ -51,20 +52,41 @@ host_q_stdout( struct host_q *hq )
 q_file_stdout( struct q_file *q )
 {
     printf( "qfile id:\t%s\n", q->q_id );
-    printf( "qfile efile time:\t%ld.%ld\n", q->q_etime.tv_sec,
-	    q->q_etime.tv_nsec );
+    printf( "qfile efile time:\t%ld.%ld\n", q->q_etime->tv_sec,
+	    q->q_etime->tv_nsec );
     printf( "efiles:\t%d\n", q->q_efile );
     printf( "dfiles:\t%d\n", q->q_dfile );
     /* env_stdout( q->q_env ); */
 }
 
 
+    struct q_file *
+q_file_env( struct envelope *env )
+{
+    struct q_file		*q;
+
+    if (( q = (struct q_file*)malloc( sizeof( struct q_file ))) == NULL ) {
+	return( NULL );
+    }
+    memset( q, 0, sizeof( struct q_file ));
+
+    if (( q->q_id = strdup( env->e_id )) == NULL ) {
+	return( NULL );
+    }
+
+    q->q_env = env;
+    q->q_expanded = env->e_expanded;
+    q->q_etime = &(q->q_env->e_etime);
+
+    return( q );
+}
+
     /* return pointer to a struct q_file with q->q_id = id
      * return NULL if syserror
      */
 
     struct q_file *
-q_file_create( char *id )
+q_file_char( char *id )
 {
     struct q_file		*q;
 

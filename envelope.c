@@ -10,6 +10,8 @@
 #endif /* TLS */
 
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <netdb.h>
 #include <unistd.h>
@@ -181,6 +183,7 @@ env_recipient( struct envelope *e, char *addr )
      /* return 0 on success
       * return 1 on syntax error
       * return -1 on sys error
+      * syslog errors
       */
 
     int
@@ -188,10 +191,24 @@ env_infile( struct envelope *e, char *filename )
 {
     char			*line;
     SNET			*snet;
+    struct stat			sb;
 
     if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	syslog( LOG_ERR, "snet_open %s: %m", filename );
 	return( -1 );
     }
+
+    /* get efile modification time */
+    if ( fstat( snet_fd( snet ), &sb ) != 0 ) {
+	syslog( LOG_ERR, "stat %s: %m", filename );
+	return( -1 );
+    }
+
+#ifdef sun
+    e->e_etime.tv_sec = sb.st_mtime;
+#else	/* sun */
+    e->e_etime = sb.st_mtimespec;
+#endif	/* sun */
 
     /*** Vversion ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {

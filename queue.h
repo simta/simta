@@ -39,8 +39,8 @@ struct q_file {
     int				q_dfile;
     ino_t			q_dfile_ino;
     nlink_t			q_dfile_nlink;
-    struct timespec		q_etime;
     struct timespec		q_dtime;
+    struct timespec		*q_etime;
 };
 
 struct host_q {
@@ -50,7 +50,8 @@ struct host_q {
 };
 
 /* return NULL on syserror, doesn't syslog() */
-struct q_file	*q_file_create ___P(( char * ));
+struct q_file	*q_file_char ___P(( char * ));
+struct q_file	*q_file_env ___P(( struct envelope * ));
 void		q_file_free ___P(( struct q_file * ));
 void		q_file_stdout ___P(( struct q_file * ));
 
