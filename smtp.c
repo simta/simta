@@ -33,6 +33,8 @@
 #include "argcargv.h"
 #include "timeval.h"
 
+#undef	DNSR_WORKS
+
 
     void
 stdout_logger( char *line )
@@ -67,18 +69,17 @@ smtp_eval( char *code, char *line )
     SNET *
 smtp_connect( char *hostname, int port )
 {
-    /* struct hostent		*hp; */
     struct sockaddr_in		sin;
-    int				i, s;
+    int				s;
     SNET			*snet;
+#ifdef DNSR_WORKS
+    int				i;
     DNSR			*dnsr;
+#else /* DNSR_WORKS */
+    struct hostent		*hp;
+#endif /* DNSR_WORKS */
 
-    /* Replaced with dnsr call 
-    if (( hp = gethostbyname( hostname )) == NULL ) {
-	syslog( LOG_ERR, "gethostbyname %s: %m", hostname );
-	return( NULL );
-    }
-    */
+#ifdef DNSR_WORKS
     if (( dnsr = dnsr_open( )) == NULL ) {
 	syslog( LOG_ERR, "dnsr_open failed" );
 	return( NULL );
@@ -137,6 +138,17 @@ if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
 	memcpy( &(sin.sin_addr.s_addr),
 		&(dnsr->d_result->answer[ i ].r_ip->ip ), sizeof( struct in_addr ));
     }
+
+#else /* DNSR_WORKS */
+    if (( hp = gethostbyname( hostname )) == NULL ) {
+	syslog( LOG_ERR, "gethostbyname %s: %m", hostname );
+	return( NULL );
+    }
+
+    memcpy( &(sin.sin_addr.s_addr), hp->h_addr_list[ 0 ],
+	    (unsigned int)hp->h_length );
+
+#endif /* DNSR_WORKS */
 
     if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
 	syslog( LOG_ERR, "socket: %m" );
