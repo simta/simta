@@ -8,9 +8,11 @@
 #endif /* HAVE_LIBSSL */
 
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/param.h>
 
+#include <syslog.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -28,8 +30,45 @@
 #include "envelope.h"
 #include "simta.h"
 
+int	q_cleanup_child( void );
 int	q_clean( char *, struct envelope ** );
 int	move_to_slow( struct envelope **, struct envelope **);
+
+
+    int
+q_cleanup( void )
+{
+    int				pid;
+    int				status;
+
+    switch ( pid = fork()) {
+    case -1 :
+	syslog( LOG_ERR, "q_cleanup fork: %m" );
+	return( 1 );
+
+    case 0 :
+	exit( q_cleanup_child());
+
+    default :
+	if ( waitpid( pid, &status, 0 ) < 0 ) {
+	    syslog( LOG_ERR, "q_cleanup waitpid: %m" );
+	    return( 1  );
+	}
+
+	if ( WIFEXITED( status )) {
+	    return( WEXITSTATUS( status ));
+
+	} else if ( WIFSIGNALED( status )) {
+	    syslog( LOG_ERR, "q_cleanup %d died on signal %d\n", pid, 
+		    WTERMSIG( status ));
+	    return( 1 );
+
+	} else {
+	    syslog( LOG_ERR, "q_cleanup %d died\n", pid );
+	    return( 1 );
+	}
+    }
+}
 
 
     /*
@@ -44,7 +83,7 @@ int	move_to_slow( struct envelope **, struct envelope **);
      */
 
     int
-q_cleanup( void )
+q_cleanup_child( void )
 {
     struct envelope		*slow = NULL;
     struct envelope		*other = NULL;
