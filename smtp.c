@@ -8,6 +8,7 @@
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 
 #ifdef TLS
@@ -26,7 +27,12 @@
 #include "message.h"
 #include "envelope.h"
 #include "smtp.h"
+#include "denser.h"
+#include "bprint.h"
+#include "argcargv.h"
+#include "timeval.h"
 
+char          *dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 
     void
 stdout_logger( char *line )
@@ -166,18 +172,62 @@ smtp_send_message( SNET *snet, struct message *m, void (*logger)(char *))
     SNET *
 smtp_connect( char *hostname, int port )
 {
-    struct hostent		*hp;
+    /* struct hostent		*hp; */
     struct sockaddr_in		sin;
-    int				s;
+    int				i, s;
     SNET			*snet;
+    DNSR			*dnsr;
 
+    /* Replaced with dnsr call 
     if (( hp = gethostbyname( hostname )) == NULL ) {
 	syslog( LOG_ERR, "gethostbyname %s: %m", hostname );
 	return( NULL );
     }
+    */
+    if (( dnsr = dnsr_open( )) == NULL ) {
+	syslog( LOG_ERR, "dnsr_open failed" );
+	return( NULL );
+    }
 
-    memcpy( &(sin.sin_addr.s_addr), hp->h_addr_list[ 0 ],
-	    (unsigned int)hp->h_length );
+    /* Try to get MX */
+    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, hostname )) < 0 ) {
+        syslog( LOG_ERR, "dnsr_query %s failed", hostname );
+	return( NULL );
+    }
+    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+
+        /* No MX - Try to get A */
+        if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+		hostname )) < 0 ) {    
+            syslog( LOG_ERR, "dnsr_query %s failed", hostname );
+            return( NULL );
+        }       
+        if ( dnsr_result( dnsr, NULL ) != 0 ) {
+            syslog( LOG_ERR, "dnsr_query %s failed", hostname );
+            return( NULL );
+        }
+
+	/* Got an A record */
+	memcpy( &(sin.sin_addr.s_addr),
+		&(dnsr->d_result->answer[ 0 ].r_a.address), sizeof( int ));
+    } else {
+
+	/* Got an MX record */
+        /* Check for valid A record in MX */
+        /* XXX - Should we search for A if no A returned in MX? */
+        for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
+            if ( dnsr->d_result->answer[ i ].r_ip != NULL ) {
+                break;
+            }
+        }
+        if ( i > dnsr->d_result->ancount ) {
+            syslog( LOG_ERR, "%s: no valid A record for MX", hostname );
+            return( NULL );
+        }
+
+	memcpy( &(sin.sin_addr.s_addr),
+		&(dnsr->d_result->answer[ i ].r_ip->ip ), sizeof( struct in_addr ));
+    }
 
     if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
 	syslog( LOG_ERR, "socket: %m" );
@@ -258,7 +308,8 @@ smtp_helo( SNET *snet, void (*logger)(char *))
     }
 
     /* check to see if remote smtp server is actually the local machine */
-    if ( strncasecmp( local_host, remote_host, (int)(i - remote_host) ) == 0 ) {
+    if ( strncasecmp( local_host, remote_host,
+	    (size_t)(i - remote_host) ) == 0 ) {
 	while ( *(line + 3) == '-' ) {
 	    if (( line = snet_getline( snet, NULL )) == NULL ) {
 		syslog( LOG_ERR, "snet_getline: %m" );
