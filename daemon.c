@@ -226,10 +226,6 @@ main( int ac, char **av )
 	    spooldir = optarg;
 	    break;
 
-	case 'S' :		/* don't sync */
-	    simta_no_sync = 1;
-	    break;
-
 	case 'V' :		/* virgin */
 	    printf( "%s\n", version );
 	    exit( 0 );
@@ -262,10 +258,13 @@ main( int ac, char **av )
 
     if ( err || optind != ac ) {
 	fprintf( stderr, "Usage:\t%s", prog );
-	fprintf( stderr, " [ -acdrVq ] [ -b backlog ]" );
+	fprintf( stderr, " [ -' 'aCcdIrVq ] [ -b backlog ]" );
+	fprintf( stderr, " [ -D base-dir ]" );
+	fprintf( stderr, " [ -f config-file ]" );
 	fprintf( stderr, " [ -M maildomain ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
-	fprintf( stderr, " [ -s spooldir]" );
+	fprintf( stderr, " [ -Q queue]" );
+	fprintf( stderr, " [ -s spooldir ]" );
 	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
         fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
 	fprintf( stderr, "\n" );
