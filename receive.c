@@ -324,7 +324,6 @@ f_mail( snet, env, ac, av )
 		return( RECEIVE_OK );
 	    }
 	}
-
     }
 
     /*
@@ -458,7 +457,6 @@ f_rcpt( snet, env, ac, av )
      */
 
     if ( strncasecmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
-
 	if (( rc = check_hostname( &simta_dnsr, domain )) != 0 ) {
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_mail check_host: %s: failed", domain );
@@ -621,6 +619,7 @@ f_data( snet, env, ac, av )
 	}
 	return( RECEIVE_OK );
     }
+
     if ( env->e_rcpt == NULL ) {
 	if ( snet_writef( snet, "%d no valid recipients\r\n", 554 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
@@ -907,6 +906,7 @@ f_rset( snet, env, ac, av )
     return( RECEIVE_OK );
 }
 
+
     int
 f_noop( snet, env, ac, av )
     SNET			*snet;
@@ -988,6 +988,7 @@ f_expn( snet, env, ac, av )
     }
     return( RECEIVE_OK );
 }
+
 
 #ifdef HAVE_LIBSSL
     int
@@ -1351,3 +1352,42 @@ local_address( char *addr )
 
     return( NOT_LOCAL );
 }
+
+
+
+    /*
+     * Path = "<" [ A-d-l ":" ] Mailbox ">"
+     * A-d-l = At-domain *( "," A-d-l )
+     *     ; Note that this form, the so-called "source route",
+     *     ; MUST BE accepted, SHOULD NOT be generated, and SHOULD be
+     *     ; ignored.
+     * At-domain = "@" domain
+     * Mailbox = Local-part "@" Domain
+     * Local-part = Dot-string / Quoted-string
+     *     ; MAY be case-sensitive
+     * Dot-string = Atom *("." Atom)
+     * Atom = 1*atext
+     * Quoted-string = DQUOTE *qcontent DQUOTE
+     * String = Atom / Quoted-string
+ 
+ 
+ 
+     * address-literal = "[" IPv4-address-literal /
+     * IPv6-address-literal /
+     * General-address-literal "]"
+     *     ; See section 4.1.3
+     * 
+ 
+     * Mail-parameters = esmtp-param *(SP esmtp-param)
+     * Rcpt-parameters = esmtp-param *(SP esmtp-param)
+     * 
+     * esmtp-param     = esmtp-keyword ["=" esmtp-value]
+     * esmtp-keyword   = (ALPHA / DIGIT) *(ALPHA / DIGIT / "-")
+     * esmtp-value     = 1*(%d33-60 / %d62-127)
+     *     ; any CHAR excluding "=", SP, and control characters
+     * Keyword  = Ldh-str
+     * Argument = Atom
+ 
+     * Domain = (sub-domain 1*("." sub-domain)) / address-literal
+     * sub-domain = Let-dig [Ldh-str]
+     */

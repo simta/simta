@@ -67,10 +67,6 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 	    }
 	    break;
 
-	case '>' :
-	    state = ACV_WORD;
-	    break;
-
 	default :
 	    if ( state == ACV_WHITE ) {
 		acav->acv_argv[ ac++ ] = line;
@@ -86,12 +82,13 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 		state = ACV_WORD;
 	    }
 	    if ( *line == '<' ) {
-		state = ACV_BRACKET;
+		goto done;
 	    }
 	    break;
 	}
     }
 
+done:
     acav->acv_argv[ ac ] = NULL; 
     *argv = acav->acv_argv;
     return( ac );
