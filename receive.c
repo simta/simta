@@ -28,6 +28,7 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
+#include "simta.h"
 #include "queue.h"
 #include "ll.h"
 #include "address.h"
@@ -38,6 +39,7 @@ extern SSL_CTX	*ctx;
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
+#include "expand.h"
 
 extern char	*version;
 extern int	debug;
@@ -578,11 +580,8 @@ f_data( snet, env, ac, av )
     int			fd;
     time_t		clock;
     struct tm		*tm;
-    struct recipient	*r;
-    FILE		*dff, *tff;
+    FILE		*dff;
     char		df[ 25 ];
-    char		tf[ 25 ];
-    char		ef[ 25 ];
     char		daytime[ 30 ];
 
     if ( ac != 1 ) {
@@ -590,9 +589,8 @@ f_data( snet, env, ac, av )
 	return( 1 );
     }
 
-    sprintf( df, "tmp/D%s", env->e_id );
-    sprintf( tf, "tmp/t%s", env->e_id );
-    sprintf( ef, "tmp/E%s", env->e_id );
+    /* XXX - do we want to write D file into tmp? */
+    sprintf( df, "%s/D%s", SIMTA_DIR_FAST, env->e_id );
 
     if (( fd = open( df, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
 	syslog( LOG_ERR, "f_data: open %s: %m", df );
@@ -662,49 +660,12 @@ f_data( snet, env, ac, av )
     }
 
     /* make E (t) file */
-    if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
-	syslog( LOG_ERR, "f_data: open %s: %m", tf );
-	return( -1 );
-    }
-    if (( tff = fdopen( fd, "w" )) == NULL ) {
-	syslog( LOG_ERR, "f_data: fdopen: %m" );
-	err = -1;
-	close( fd );
-	goto cleanup2;
-    }
-    if ( fprintf( tff, "%s\n", env->e_mail ) < 0 ) {
-	syslog( LOG_ERR, "f_data: fprintf mail: %m" );
-	err = 1;
-	fclose( tff );
-	snet_writef( snet,
-	    "%d Requested action not taken: insufficient system storage\r\n",
-	    452 );
-	goto cleanup2;
-    }
-    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( fprintf( tff, "%s\n", r->r_rcpt ) < 0 ) {
-	    syslog( LOG_ERR, "f_data: fprintf rcpt: %m" );
-	    err = 1;
-	    fclose( tff );
-	    snet_writef( snet,
-	       "%d Requested action not taken: insufficient system storage\r\n",
-		452 );
-	    goto cleanup2;
-	}
-    }
-    /* sync? */
-    if ( fclose( tff ) == EOF ) {
+    if ( env_outfile( env, SIMTA_DIR_FAST ) != 0 ) {
 	err = 1;
 	snet_writef( snet,
 	    "%d Requested action not taken: insufficient system storage\r\n",
 	    452 );
-	goto cleanup2;
-    }
-
-    if ( rename( tf, ef ) < 0 ) {
-	syslog( LOG_ERR, "f_data: rename %s %s: %m", tf, ef );
-	err = -1;
-	goto cleanup2;
+	goto cleanup;
     }
 
     /*
@@ -724,10 +685,6 @@ f_data( snet, env, ac, av )
 
     return( 0 );
 
-cleanup2:
-    if ( unlink( tf ) < 0 ) {
-	syslog( LOG_ERR, "f_data unlink %s: %m", tf );
-    }
 cleanup:
     if ( unlink( df ) < 0 ) {
 	syslog( LOG_ERR, "f_data unlink %s: %m", df );
@@ -742,6 +699,9 @@ f_quit( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
+
+    struct host_q		*hq_stab = NULL;
+
     snet_writef( snet, "%d %s Service closing transmission channel\r\n",
 	    221, env->e_hostname );
 
@@ -750,6 +710,11 @@ f_quit( snet, env, ac, av )
     /*
      * Deliver a pending message without fork()ing.
      */
+    if ( expand( &hq_stab, env ) !=0 ) {
+	/* What do we do in an error? */
+	syslog( LOG_ERR, "f_quit: expand failed\n" );
+    }
+
     exit( 0 );
 }
 
@@ -1008,6 +973,7 @@ receive( fd, sin )
 	exit( 1 );
     }
     env->e_sin = sin;
+    env->e_dir = SIMTA_DIR_FAST;
 
     snet_writef( snet, "%d %s Simple Internet Message Transfer Agent ready\r\n",
 	    220, env->e_hostname );
