@@ -241,6 +241,17 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	i++;
     }
 
+    while ( *(line + 3) == '-' ) {
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "gethostname: %m" );
+	    return( SMTP_ERR_SYNTAX );
+	}
+
+	if ( logger != NULL ) {
+	    (*logger)( line );
+	}
+    }
+
     /* check to see if remote smtp server is actually the local machine */
     if ( strncasecmp( local_host, remote_host, (int)(i - remote_host) ) == 0 ) {
 	/* XXX gracefully close the connection? */
