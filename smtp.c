@@ -741,6 +741,7 @@ smtp_quit( SNET *snet, struct host_q *hq )
     if (( line = snet_getline( snet, &tv )) == NULL ) {
 	syslog( LOG_NOTICE, "smtp_quit %s: unexpected EOF",
 		hq->hq_hostname );
+	return;
     }
     if ( smtp_logger != NULL ) {
 	(*smtp_logger)( line );
@@ -761,6 +762,7 @@ smtp_quit( SNET *snet, struct host_q *hq )
 		    == NULL ) {
 		syslog( LOG_NOTICE, "smtp_quit %s: unexpected EOF",
 			hq->hq_hostname );
+		return;
 	    }
 	}
 
