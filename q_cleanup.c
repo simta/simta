@@ -135,8 +135,7 @@ q_cleanup_child( void )
 	sprintf( fname, "%s/D%s", simta_dir_slow, env->e_id );
 
 	if ( stat( fname, &sb ) != 0 ) {
-	    fprintf( stderr, "stat %s: ", fname );
-	    perror( NULL );
+	    syslog( LOG_ERR, "q_cleanup_child stat %s: %m", fname );
 	    return( -1 );
 	}
 
@@ -144,8 +143,8 @@ q_cleanup_child( void )
 
 	if ( sb.st_nlink > 1 ) {
 	    if (( result = env_read_queue_info( env )) != 0 ) {
-		fprintf( stderr, "q_cleanup env_info %s: ", env->e_id  );
-		perror( NULL );
+		syslog( LOG_ERR, "q_cleanup_child env_info %s: %m",
+			env->e_id  );
 		return( -1 );
 	    }
 
@@ -159,9 +158,8 @@ q_cleanup_child( void )
 		if ((*env_p)->e_hostname == 0 ) {
 		    /* unexpanded message in queue, delete current message */
 		    if ( env_unlink( env ) != 0 ) {
-			fprintf( stderr, "q_cleanup env_unlink %s: ",
+			syslog( LOG_ERR, "q_cleanup_child env_unlink %s: %m",
 				env->e_id );
-			perror( NULL );
 			return( -1 );
 		    }
 		    env_free( env );
@@ -174,9 +172,9 @@ q_cleanup_child( void )
 			*env_p = e_delete->e_next;
 
 			if ( env_unlink( e_delete ) != 0 ) {
-			    fprintf( stderr, "q_cleanup env_unlink %s: ",
+			    syslog( LOG_ERR,
+				    "q_cleanup_child env_unlink %s: %m",
 				    e_delete->e_id );
-			    perror( NULL );
 			    return( -1 );
 			}
 
@@ -231,8 +229,8 @@ move_to_slow( struct envelope **slow_q, struct envelope **other_q )
 		if (( *slow == NULL ) || ( result < 0 )) {
 		    /* move message files to SLOW */
 		    if ( env_slow( move ) != 0 ) {
-			fprintf( stderr, "env_slow %s: ", move->e_id );
-			perror( NULL );
+			syslog( LOG_ERR, "move_to_slow env_slow %s: %m",
+				move->e_id );
 			return( 1 );
 		    }
 
@@ -244,8 +242,6 @@ move_to_slow( struct envelope **slow_q, struct envelope **other_q )
 		} else {
 		    /* collision - delete message files from other_q */
 		    if ( env_unlink( move ) != 0 ) {
-			fprintf( stderr, "env_unlink %s: ", move->e_id );
-			perror( NULL );
 			return( 1 );
 		    }
 
@@ -273,8 +269,7 @@ q_clean( char *dir, struct envelope **messages )
     int				fatal = 0;
 
     if (( dirp = opendir( dir )) == NULL ) {
-	fprintf( stderr, "q_clean opendir %s: ", dir );
-	perror( NULL );
+	syslog( LOG_ERR, "q_clean opendir %s: %m", dir );
 	return( 1 );
     }
 
@@ -314,12 +309,12 @@ q_clean( char *dir, struct envelope **messages )
 
 	    if (( *env_p == NULL ) || ( result != 0 )) {
 		if (( env = env_create( NULL )) == NULL ) {
-		    perror( "malloc" );
+		    syslog( LOG_ERR, "q_clean malloc: %m" );
 		    return( 1 );
 		}
 
 		if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
-		    fprintf( stderr, "Illegal name length: %s\n",
+		    syslog( LOG_ERR, "q_clean: illegal name length: %s\n",
 			    entry->d_name );
 		    env_free( env );
 		    continue;
@@ -341,14 +336,14 @@ q_clean( char *dir, struct envelope **messages )
 
 	} else {
 	    /* not a Efile or Dfile */
-	    fprintf( stderr, "unknown file: %s/%s\n", dir, entry->d_name );
+	    syslog( LOG_ERR, "q_clean unknown file: %s/%s\n", dir,
+		    entry->d_name );
 	}
     }
 
     /* did readdir finish, or encounter an error? */
     if ( errno != 0 ) {
-	fprintf( stderr, "q_clean readdir %s: ", dir );
-	perror( NULL );
+	syslog( LOG_ERR, "q_clean readdir %s: %m", dir );
 	return( 1 );
     }
 
@@ -362,13 +357,15 @@ q_clean( char *dir, struct envelope **messages )
 	env = *env_p;
 
 	if (( env->e_flags & ENV_DFILE ) == 0 ) {
-	    fprintf( stderr, "%s/E%s: Missing Dfile\n", dir, env->e_id );
+	    syslog( LOG_ALERT, "q_clean: %s/E%s: Missing Dfile\n", dir,
+		    env->e_id );
 	    fatal++;
 	    *env_p = env->e_next;
 	    env_free( env );
 
 	} else if (( env->e_flags & ENV_EFILE ) == 0 ) {
-	    fprintf( stderr, "%s/D%s: Missing Efile\n", dir, env->e_id );
+	    syslog( LOG_ALERT, "q_clean %s/D%s: Missing Efile\n", dir,
+		    env->e_id );
 	    *env_p = env->e_next;
 	    env_free( env );
 
