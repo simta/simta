@@ -34,7 +34,7 @@
 #include "timeval.h"
 #include "simta.h"
 
-#undef	DNSR_WORKS
+#define	DNSR_WORKS
 
 
     void
@@ -60,13 +60,6 @@ smtp_eval( char *code, char *line )
     return( 0 );
 }
 
-
-    /* return 0 on success
-     * return -1 on sysfailure
-     * return 1 on remote failure
-     *
-     * syslog errors
-     */
 
     int
 smtp_connect( SNET **snetp, char *hostname, int port, void (*logger)(char *))
@@ -197,7 +190,7 @@ if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
     }
 
     if ( smtp_eval( SMTP_CONNECT, line ) != 0 ) {
-	if ( smtp_eval( SMTP_FAILED, line ) != 0 ) {
+	if ( smtp_eval( SMTP_FAILED, line ) == 0 ) {
 	    syslog( LOG_NOTICE, "smtp_connect %s: no SMTP server: %s", hostname,
 		    line );
 
@@ -393,13 +386,6 @@ smtp_rset( SNET *snet, char *hostname, void (*logger)(char *))
 }
 
 
-    /* return 0 on success
-     * return 1 on syntax error
-     * return -1 on syscall error
-     *
-     * syslog errors
-     */
-
     int
 smtp_quit( SNET *snet, char *hostname, void (*logger)(char *))
 {
@@ -450,14 +436,6 @@ smtp_quit( SNET *snet, char *hostname, void (*logger)(char *))
     return( 0 );
 }
 
-
-    /* return 0 on success
-     * return -1 on syscall failure
-     * return 1 on recoverable error
-     *
-     * syslog errors
-     * envelope struct tracks success/failures for each recipient
-     */
 
     int
 smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
@@ -523,13 +501,19 @@ smtp_send( SNET *snet, char *hostname, struct envelope *env, SNET *message,
     }
 
     if ( smtp_eval( SMTP_OK, line ) != 0 ) {
-	syslog( LOG_NOTICE, "smtp_send %s: bad banner: %s", hostname, line );
+	if ( smtp_eval( SMTP_FAILED_FROM, line ) == 0 ) {
+	    return( SMTP_ERR_BOUNCE_MESSAGE );
 
-	if ( smtp_quit( snet, hostname, logger ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
+	} else {
+	    syslog( LOG_NOTICE, "smtp_send %s: bad banner: %s", hostname,
+		    line );
+
+	    if ( smtp_quit( snet, hostname, logger ) < 0 ) {
+		return( SMTP_ERR_SYSCALL );
+	    }
+
+	    return( SMTP_ERR_NO_BOUNCE );
 	}
-
-	return( SMTP_ERR_NO_BOUNCE );
     }
 
     /* RCPT TO: */

@@ -12,12 +12,14 @@
 #define SMTP_USER_UNKNOWN	"55"
 #define SMTP_TEMPFAIL		"45"
 #define SMTP_FAILED		"554"
+#define SMTP_FAILED_FROM	"553"
 #define SMTP_DISCONNECT 	"221"
 #define SMTP_EOF         	"."
 
-#define	SMTP_ERR_SYSCALL	-1
-#define	SMTP_ERR_NO_BOUNCE	1
-#define	SMTP_ERR_BOUNCE_Q	2
+#define	SMTP_ERR_SYSCALL		-1
+#define	SMTP_ERR_NO_BOUNCE		1
+#define	SMTP_ERR_BOUNCE_MESSAGE		2
+#define	SMTP_ERR_BOUNCE_Q		3
 
 #ifdef __STDC__
 #define ___P(x)         x
