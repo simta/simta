@@ -267,13 +267,13 @@ main( int argc, char *argv[] )
 		exit( 1 );
 	    }
 
+	    /* XXX envelope syntax checking? */
+
 	    /* first line of an envelope should be version info */
 	    if (( line = snet_getline( snet, NULL )) == NULL ) {
 		fprintf( stderr, "%s: syntax error: no first line\n", fname );
 		exit( 1 );
 	    }
-
-	    /* XXX envelope syntax checking? */
 
 	    /* second line of an envelope has expansion info */
 	    if (( line = snet_getline( snet, NULL )) == NULL ) {

@@ -53,15 +53,9 @@ ll_insert( struct stab_entry **stab, char *key, void *data,
 	ll_compare = ll_default_compare;
     }
 
-    if ( ll_lookup( *stab, key ) != NULL ) {
-	/* return fail, as item already exists */
-	return( 1 );
-    }
-
     if (( st = (struct stab_entry*)malloc( sizeof( struct stab_entry )))
 	    == NULL ) {
-	perror( "malloc" );
-	exit( 1 );
+	return( 1 );
     }
     memset( st, 0, sizeof( struct stab_entry ));
 

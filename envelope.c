@@ -185,6 +185,7 @@ env_infile( char *dir, char *id )
 
     /*** Ffrom-address ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {
+	/* XXX set errno? */
 	return( NULL );
     }
 
@@ -196,10 +197,12 @@ env_infile( char *dir, char *id )
 
     if ( *(line + 1) != '\0' ) {
 	if (( e->e_mail = strdup( line + 1 )) == NULL ) {
+	    /* XXX set errno? */
 	    return( NULL );
 	}
     }
 
+    /* XXX require 1 to-address? */
     /*** Rto-addresses ***/
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	if ( *line != 'R' ) {
