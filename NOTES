@@ -143,9 +143,9 @@ Multiple A record:
 				      	   (deathsmarathon.mr.itd.umich.edu.)
 
 Low Preference MX:
-    simta-mx.rsug.itd.umich.edu		-> 141.211.144.10
+    simta-low-pref-mx.rsug.itd.umich.edu -> 141.211.144.10
    					   (jim.mr.itd.umich.edu.)
-					-> 141.211.144.10
+					 -> 141.211.144.10
 					   (jack.mr.itd.umich.edu.)
 
 A record:
