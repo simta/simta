@@ -64,7 +64,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     char			*remote_host;
     char			*c;
     struct sockaddr_in		sin;
-    int				s;
+    int				i, valid_result = 0, s;
     struct timeval		tv;
     DNSR			*dnsr;
     struct dnsr_result		*result;
@@ -84,22 +84,43 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     }
     if ( simta_debug ) fprintf( stderr, "smtp_connect: get_mx success\n" );
 
+    for ( i = 0; i < result->r_ancount; i++ ) {
+        if ( simta_debug ) fprintf( stderr, "checking result %i:\n", i );
+        if ( result->r_answer[ i ].rr_ip == NULL ) {
+            if ( simta_debug ) fprintf( stderr, "\tskipping null IP\n" );
+#ifdef DEBUG       
+            printf( "dnsr is broke\n" );
+#endif /* DEBUG */ 
+            syslog( LOG_ERR,
+                "smtp_connect: get_mx: dnsr returned illegal value" );
+            return( SMTP_ERR_SYSCALL );
+        }
 
-    if ( result->r_answer[ 0 ].rr_ip == NULL ) {
-#ifdef DEBUG
-	printf( "dnsr is broke\n" );
-#endif /* DEBUG */
-	syslog( LOG_ERR, "smtp_connect: get_mx: dnsr returned illegal value" );
-	return( SMTP_ERR_SYSCALL );
+        switch( result->r_answer[ i ].rr_type ) {
+        case DNSR_TYPE_MX:
+            if ( simta_debug ) fprintf( stderr, "\tMX\n" );
+            memcpy( &(sin.sin_addr.s_addr),
+                &(result->r_answer[ i ].rr_ip->ip_ip ),
+                sizeof( struct in_addr ));
+            valid_result++;
+            break;
+
+        case DNSR_TYPE_A:
+            if ( simta_debug ) fprintf( stderr, "\tA\n" );
+            memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ i ].rr_a ),
+                sizeof( struct in_addr ));
+            valid_result++;
+            break;
+
+        default:
+            if ( simta_debug ) fprintf( stderr, "\tskipping non MX/A\n" );
+            continue;
+        }
+        if ( valid_result ) {
+            break;
+        }
     }
 
-    if ( result->r_answer[ 0 ].rr_type == DNSR_TYPE_MX ) {
-	memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ 0 ].rr_ip->ip_ip ),
-	    sizeof( struct in_addr ));
-    } else {
-	memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ 0 ].rr_a ),
-	    sizeof( struct in_addr ));
-    }
     if ( simta_debug ) fprintf( stderr, "%s\n", inet_ntoa( sin.sin_addr ));
 
 
