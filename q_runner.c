@@ -69,6 +69,7 @@ dfile_fstat( int fd, struct q_file *q )
     }
 
     /* XXX 3 days? */
+    /* XXX error message */
     if (( tv.tv_sec - q->q_dtime.tv_sec ) > ( 60 * 60 * 24 * 3 )) {
 	q->q_env->e_old_dfile = 1;
     }
@@ -139,8 +140,10 @@ bounce( struct envelope *env, SNET *message )
 	if ( r->r_delivered == R_FAILED ) {
 	    fprintf( dfile, "address %s:\n", r->r_rcpt );
 
-	    for ( l = r->r_text->l_first; l != NULL; l = l->line_next ) {
-		fprintf( dfile, "%s:\n", l->line_data );
+	    if ( r->r_text != NULL ) {
+		for ( l = r->r_text->l_first; l != NULL; l = l->line_next ) {
+		    fprintf( dfile, "%s:\n", l->line_data );
+		}
 	    }
 
 	    fprintf( dfile, "\n" );
@@ -359,7 +362,8 @@ deliver_local( struct host_q *hq )
     char			dfile_fname[ MAXPATHLEN ];
 
     char			*at;
-    static int			(*local_mailer)(int, char *, char *) = NULL;
+    static int			(*local_mailer)(int, char *,
+					struct recipient *) = NULL;
     struct recipient		*r;
 
     if ( local_mailer == NULL ) {
@@ -418,7 +422,7 @@ deliver_local( struct host_q *hq )
 	    }
 
 	    if (( result = (*local_mailer)( dfile_fd, q->q_env->e_mail,
-		    r->r_rcpt )) < 0 ) {
+		    r )) < 0 ) {
 		/* syserror */
 		exit( 1 );
 
@@ -431,7 +435,6 @@ deliver_local( struct host_q *hq )
 		if ( q->q_env->e_old_dfile != 0 ) {
 		    r->r_delivered = R_FAILED;
 		    q->q_env->e_failed++;
-
 		} else {
 		    r->r_delivered = R_TEMPFAIL;
 		    q->q_env->e_tempfail++;

@@ -80,3 +80,8 @@ touch -t 01010101 ../slow/Drsugbad
 
 # terminator Efile with no Dfile
 cp Eterminator ../slow/Elocalalone
+
+# deliver some terminator mail
+cp Etermbad ../slow/Etermbad
+cp Dterminator ../slow/Dtermbad
+touch -t 01010101 ../slow/Dtermbad

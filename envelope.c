@@ -26,6 +26,7 @@
 #include <snet.h>
 
 #include "envelope.h"
+#include "message.h"
 
 
     int
@@ -79,13 +80,14 @@ rcpt_free( struct recipient *r )
     if ( r != NULL ) {
 	rcpt_free( r->r_next );
 	free( r->r_rcpt );
+	line_file_free( r->r_text );
 	free( r );
     }
 }
 
 
     void
-env_free ( struct envelope *env )
+env_free( struct envelope *env )
 {
     rcpt_free( env->e_rcpt );
     free( env );

@@ -42,6 +42,8 @@ struct header {
 struct line_file	*line_file_create ___P(( void ));
 struct line	*line_prepend ___P(( struct line_file *, char * ));
 struct line	*line_append ___P(( struct line_file *, char * ));
+void		line_file_free ___P(( struct line_file * ));
+void		line_free ___P(( struct line * ));
 
 struct line	*data_add_line ___P(( struct message_data *, char * ));
 struct line	*data_prepend_line ___P(( struct message_data *, char * ));

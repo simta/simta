@@ -20,10 +20,13 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sysexits.h>
+#include <netdb.h>
 
 #include <snet.h>
 
+#include "envelope.h"
 #include "ml.h"
+#include "message.h"
 
 
 char		*maillocal_argv[] = { "mail.local", "-f", 0, "--", 0, 0 };
@@ -33,7 +36,7 @@ char		*procmail_argv[] = { "procmail", "-f", 0, "-d", 0, 0 };
 char		*procmail_bin = SIMTA_PROCMAIL;
 
     int
-(*get_local_mailer( void ))( int, char *, char * )
+(*get_local_mailer( void ))( int, char *, struct recipient * )
 {
     if (( procmail_bin != NULL ) && ( *procmail_bin != '\0' )) {
 	return( procmail );
@@ -55,7 +58,7 @@ char		*procmail_bin = SIMTA_PROCMAIL;
      */
 
     int
-procmail( int f, char *sender, char *recipient )
+procmail( int f, char *sender, struct recipient *recipient )
 {
     int			fd[ 2 ];
     int			pid;
@@ -110,7 +113,7 @@ procmail( int f, char *sender, char *recipient )
 	}
 
 	procmail_argv[ 2 ] = sender;
-	procmail_argv[ 4 ] = recipient;
+	procmail_argv[ 4 ] = recipient->r_rcpt;
 
 	execv( procmail_bin, procmail_argv );
 	/* if we are here, there is an error */
@@ -132,9 +135,17 @@ procmail( int f, char *sender, char *recipient )
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
 	    syslog( LOG_INFO, "procmail %d: %s", pid, line );
 
-#ifdef DEBUG
-	    printf( "procmail %d: %s\n", pid, line );
-#endif /* DEBUG */
+	    if ( recipient->r_text == NULL ) {
+		if (( recipient->r_text = line_file_create()) == NULL ) {
+		    syslog( LOG_ERR, "line_file_create: %m" );
+		    return( -1 );
+		}
+	    }
+
+	    if ( line_append( recipient->r_text, line ) == NULL ) {
+		syslog( LOG_ERR, "line_append: %m" );
+		return( -1 );
+	    }
 	}
 
 	if ( snet_close( snet ) < 0 ) {
@@ -182,7 +193,7 @@ procmail( int f, char *sender, char *recipient )
      */
 
     int
-mail_local( int f, char *sender, char *recipient )
+mail_local( int f, char *sender, struct recipient *recipient )
 {
     int			fd[ 2 ];
     int			pid;
@@ -237,7 +248,7 @@ mail_local( int f, char *sender, char *recipient )
 	}
 
 	maillocal_argv[ 2 ] = sender;
-	maillocal_argv[ 4 ] = recipient;
+	maillocal_argv[ 4 ] = recipient->r_rcpt;
 
 	execv( maillocal_bin, maillocal_argv );
 	/* if we are here, there is an error */
@@ -257,11 +268,19 @@ mail_local( int f, char *sender, char *recipient )
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
-	    syslog( LOG_INFO, "mail_local %d: %s", pid, line );
+	    syslog( LOG_INFO, "mail.local %d: %s", pid, line );
 
-#ifdef DEBUG
-	    printf( "mail_local %d: %s\n", pid, line );
-#endif /* DEBUG */
+	    if ( recipient->r_text == NULL ) {
+		if (( recipient->r_text = line_file_create()) == NULL ) {
+		    syslog( LOG_ERR, "line_file_create: %m" );
+		    return( -1 );
+		}
+	    }
+
+	    if ( line_append( recipient->r_text, line ) == NULL ) {
+		syslog( LOG_ERR, "line_append: %m" );
+		return( -1 );
+	    }
 	}
 
 	if ( snet_close( snet ) < 0 ) {

@@ -49,6 +49,27 @@ line_file_create( void )
 }
 
 
+    void
+line_free( struct line *line )
+{
+    if ( line != NULL ) {
+	line_free( line->line_next );
+	free( line->line_data );
+	free( line );
+    }
+}
+
+
+    void
+line_file_free( struct line_file *lf )
+{
+    if ( lf != NULL ) {
+	line_free( lf->l_first );
+	free( lf );
+    }
+}
+
+
     /* append a line to a line_file structure  */
 
     struct line *
