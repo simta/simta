@@ -131,10 +131,10 @@ get_mx( char *hostname )
 			&& ( result->r_answer[ i ].rr_mx.mx_preference <=
 			result->r_answer[ 0 ].rr_mx.mx_preference )) {
 		    if (( red = simta_red_lookup_host(
-			    result->r_answer[ i ].rr_mx.mx_exchange ))
+			    result->r_answer[ i ].rr_name ))
 			    == NULL ) {
 			if (( red = simta_red_add_host(
-				result->r_answer[ i ].rr_mx.mx_exchange,
+				result->r_answer[ i ].rr_name,
 				RED_HOST_TYPE_LOCAL )) == NULL ) {
 			    dnsr_free_result( result );
 			    return( NULL );
