@@ -17,6 +17,7 @@
 #define NEEDSESCAPE(c)  ((c) == '\\' || (c) == '"')
 
 # define TOUPPER(c)        (islower(c) ? toupper(c) : (c))
+# define TOLOWER(c)        (isupper(c) ? tolower(c) : (c))
 
 /*
  * dn_normalize - put dn into a canonical format.  the dn is
@@ -138,7 +139,7 @@ dn_normalize_case( char *dn )
 
 	/* normalize case */
 	for ( s = dn; *s; s++ ) {
-		*s = TOUPPER( (unsigned char) *s );
+		*s = TOLOWER( (unsigned char) *s );
 	}
 
 	return( dn );
