@@ -182,7 +182,7 @@ simta_config( char *conf_fname, char *base_dir )
 #ifdef HAVE_LDAP
 
 	if ( simta_nlist[ NLIST_LDAP ].n_data != NULL ) {
-	    if ( ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) < 0 ) {
+	    if ( ldap_config( simta_nlist[ NLIST_LDAP ].n_data ) != 0 ) {
 		return( -1 );
 	    }
 	}

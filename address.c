@@ -492,6 +492,14 @@ address_expand( char *address, struct recipient *rcpt,
         else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
 	    /* XXX put ldap resolver here */
 	    printf( "LDAP HERE!\n" );
+
+	    if (( ret = ldap_expand( address )) == 0 ) {
+		/* XXX no user in db */
+	    } else if ( ret > 0 ) {
+		/* XXX db returned results */
+	    } else {
+		/* XXX error with db, undo entire envelope expansion */
+	    }
 	}
 #endif /* HAVE_LDAP */
 
