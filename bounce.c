@@ -153,7 +153,7 @@ bounce( struct envelope *env, SNET *message )
 
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
         if (( env->e_err_text != NULL ) || ( env->e_old_dfile != 0 ) || 
-		( r->r_delivered == R_FAILED )) {
+		( r->r_delivered == R_FAILED ) || ( r->r_text != NULL )) {
             fprintf( dfile, "address %s\n", r->r_rcpt );
 
             if ( r->r_text != NULL ) {

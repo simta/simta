@@ -73,9 +73,16 @@ int	parse_mailbox_list ___P(( struct envelope *, struct line *, char *,
 int	parse_recipients ___P(( struct envelope *, struct line *, char * ));
 int	match_sender ___P(( struct line_token *, struct line_token *, char * ));
 int	line_token_unfold ___P(( struct line_token * ));
+int	header_lines( struct line_file *, struct header *, int );
 
 
-struct header simta_headers[] = {
+struct header recieve_headers[] = {
+    { "Content-Type",		NULL,		NULL },
+#define CONTENT_TYPE		0
+    { NULL,			NULL,		NULL }
+};
+
+struct header headers_simsendmail[] = {
     { "Date",			NULL,		NULL },
 #define HEAD_DATE		0
     { "From",			NULL,		NULL },
@@ -385,39 +392,13 @@ header_end( struct line_file *lf, char *line )
 }
 
 
-    /* return 0 if all went well.
-     * return 1 if we reject the message.
-     * return -1 if there was a serious error.
-     */
-
-    /* all errors out to stderr, as you should only be correcting headers
-     * from simsendmail, for now.
-     */
-
     int
-header_correct( int read_headers, struct line_file *lf, struct envelope *env )
+header_lines( struct line_file *lf, struct header headers[], int stderr_on )
 {
     struct line			*l;
-    struct line			**lp;
     struct header		*h;
     char			*colon;
     size_t			header_len;
-    int				result;
-    char			*sender;
-    char			*prepend_line = NULL;
-    size_t			prepend_len = 0;
-    size_t			len;
-    time_t			clock;
-    struct tm			*tm;
-    char			daytime[ 35 ];
-    struct envelope		*to_env = NULL;
-
-    if ( read_headers != 0 ) {
-	to_env = env;
-    }
-
-    /* check headers for known mail clients behaving badly */
-    header_exceptions( lf );
 
     /* put header information in to data structures for later processing */
     for ( l = lf->l_first; l != NULL ; l = l->line_next ) {
@@ -441,7 +422,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	header_len = ( colon - ( l->line_data ));
 
 	/* field name followed by a colon */
-	for ( h = simta_headers; h->h_key != NULL; h++ ) {
+	for ( h = headers; h->h_key != NULL; h++ ) {
 	    if ( strncasecmp( h->h_key, l->line_data, header_len ) == 0 ) {
 		/* correct field name */
 		if ( h->h_line == NULL ) {
@@ -449,12 +430,58 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 		} else {
 		    /* header h->h_key appears at least twice */
-		    fprintf( stderr, "line %d: illegal duplicate header %s\n",
-			    l->line_no, h->h_key );
+		    if ( stderr_on != 0 ) {
+			fprintf( stderr,
+				"line %d: illegal duplicate header %s\n",
+				l->line_no, h->h_key );
+		    } else {
+			/* XXX syslog? */
+		    }
+
 		    return( 1 );
 		}
 	    }
 	}
+    }
+
+    return( 0 );
+}
+
+
+
+    /* return 0 if all went well.
+     * return 1 if we reject the message.
+     * return -1 if there was a serious error.
+     */
+
+    /* all errors out to stderr, as you should only be correcting headers
+     * from simsendmail, for now.
+     */
+
+    int
+header_correct( int read_headers, struct line_file *lf, struct envelope *env )
+{
+    struct line			*l;
+    struct line			**lp;
+    int				result;
+    char			*sender;
+    char			*prepend_line = NULL;
+    size_t			prepend_len = 0;
+    size_t			len;
+    time_t			clock;
+    struct tm			*tm;
+    char			daytime[ 35 ];
+    struct envelope		*to_env = NULL;
+
+    if ( read_headers != 0 ) {
+	to_env = env;
+    }
+
+    /* check headers for known mail clients behaving badly */
+    header_exceptions( lf );
+
+    if ( header_lines( lf, headers_simsendmail, 1 ) != 0 ) {
+	return( 1 );
     }
 
     simta_generate_sender = 0;
@@ -466,7 +493,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     /* examine & correct header data */
 
     /* From: */
-    if (( l = simta_headers[ HEAD_FROM ].h_line ) != NULL ) {
+    if (( l = headers_simsendmail[ HEAD_FROM ].h_line ) != NULL ) {
 	if (( result = parse_mailbox_list( NULL, l, l->line_data + 5,
 		MAILBOX_FROM_CORRECT )) != 0 ) {
 	    return( result );
@@ -475,7 +502,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     } else {
 	/* generate From: header */
 
-	if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
+	if (( len = ( strlen( headers_simsendmail[ HEAD_FROM ].h_key ) +
 		strlen( sender ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
@@ -487,9 +514,9 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: %s",
-		simta_headers[ HEAD_FROM ].h_key, sender );
+		headers_simsendmail[ HEAD_FROM ].h_key, sender );
 
-	if (( simta_headers[ HEAD_FROM ].h_line =
+	if (( headers_simsendmail[ HEAD_FROM ].h_line =
 		line_prepend( lf, prepend_line )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
@@ -497,7 +524,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     }
 
     /* Sender: */
-    if (( l = simta_headers[ HEAD_SENDER ].h_line ) != NULL ) {
+    if (( l = headers_simsendmail[ HEAD_SENDER ].h_line ) != NULL ) {
 	if (( result = parse_mailbox_list( env, l, l->line_data + 7,
 		MAILBOX_SENDER )) != 0 ) {
 	    return( result );
@@ -505,7 +532,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     } else {
         if ( simta_generate_sender != 0 ) {
-	    if (( len = ( strlen( simta_headers[ HEAD_SENDER ].h_key ) +
+	    if (( len = ( strlen( headers_simsendmail[ HEAD_SENDER ].h_key ) +
 		    strlen( sender ) + 3 )) > prepend_len ) {
 		if (( prepend_line = (char*)realloc( prepend_line, len ))
 			== NULL ) {
@@ -516,9 +543,9 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		prepend_len = len;
 
                 sprintf( prepend_line, "%s: %s",
-                        simta_headers[ HEAD_SENDER ].h_key, sender );
+                        headers_simsendmail[ HEAD_SENDER ].h_key, sender );
 
-                if (( simta_headers[ HEAD_SENDER ].h_line =
+                if (( headers_simsendmail[ HEAD_SENDER ].h_line =
                         line_prepend( lf, prepend_line )) == NULL ) {
                     perror( "malloc" );
                     return( -1 );
@@ -527,7 +554,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
         }
     }
 
-    if ( simta_headers[ HEAD_DATE ].h_line == NULL ) {
+    if ( headers_simsendmail[ HEAD_DATE ].h_line == NULL ) {
 	if ( time( &clock ) < 0 ) {
 	    perror( "time" );
 	    return( -1 );
@@ -544,7 +571,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    return( -1 );
 	}
 
-	if (( len = ( strlen( simta_headers[ HEAD_DATE ].h_key ) +
+	if (( len = ( strlen( headers_simsendmail[ HEAD_DATE ].h_key ) +
 		strlen( daytime ) + 3 )) > prepend_len ) {
 
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
@@ -557,17 +584,17 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: %s",
-		simta_headers[ HEAD_DATE ].h_key, daytime );
+		headers_simsendmail[ HEAD_DATE ].h_key, daytime );
 
-	if (( simta_headers[ HEAD_DATE ].h_line =
+	if (( headers_simsendmail[ HEAD_DATE ].h_line =
 		line_prepend( lf, prepend_line )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
 	}
     }
 
-    if ( simta_headers[ HEAD_MESSAGE_ID ].h_line == NULL ) {
-	if (( len = ( strlen( simta_headers[ HEAD_MESSAGE_ID ].h_key ) +
+    if ( headers_simsendmail[ HEAD_MESSAGE_ID ].h_line == NULL ) {
+	if (( len = ( strlen( headers_simsendmail[ HEAD_MESSAGE_ID ].h_key ) +
 		strlen( env->e_id ) + 6 + strlen( simta_hostname ))) >
 		prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
@@ -580,29 +607,29 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: <%s@%s>",
-		simta_headers[ HEAD_MESSAGE_ID ].h_key, env->e_id,
+		headers_simsendmail[ HEAD_MESSAGE_ID ].h_key, env->e_id,
 		simta_hostname );
 
-	if (( simta_headers[ HEAD_MESSAGE_ID ].h_line =
+	if (( headers_simsendmail[ HEAD_MESSAGE_ID ].h_line =
 		line_prepend( lf, prepend_line )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
 	}
     }
 
-    if (( l = simta_headers[ HEAD_TO ].h_line ) != NULL ) {
+    if (( l = headers_simsendmail[ HEAD_TO ].h_line ) != NULL ) {
 	if (( result = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    return( result );
 	}
     }
 
-    if ( simta_headers[ HEAD_CC ].h_line != NULL ) {
+    if ( headers_simsendmail[ HEAD_CC ].h_line != NULL ) {
 	if (( result = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    return( result );
 	}
     }
 
-    if (( l = simta_headers[ HEAD_BCC ].h_line ) != NULL ) {
+    if (( l = headers_simsendmail[ HEAD_BCC ].h_line ) != NULL ) {
 	if (( result = parse_recipients( to_env, l, l->line_data + 4 )) != 0 ) {
 	    return( result );
 	}
@@ -627,7 +654,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     }
 
 #ifdef DEBUG
-    header_stdout( simta_headers );
+    header_stdout( headers_simsendmail );
 #endif /* DEBUG */
 
     if ( prepend_line != NULL ) {
@@ -995,7 +1022,8 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     if ( mode == MAILBOX_SENDER ) {
 	if ( match_sender( &local, &domain, sender ) == 0 ) {
 	    fprintf( stderr, "line %d: sender address should be <%s>\n",
-		    simta_headers[ HEAD_SENDER ].h_line->line_no, sender );
+		    headers_simsendmail[ HEAD_SENDER ].h_line->line_no,
+		    sender );
 	    return( 1 );
 	}
 
