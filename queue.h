@@ -15,6 +15,7 @@ struct q_file {
     char			*q_id;
     int				q_efile;
     int				q_dfile;
+    ino_t			q_dfile_ino;
     struct timespec		q_etime;
     struct timespec		q_dtime;
 };

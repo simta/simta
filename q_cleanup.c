@@ -1,3 +1,5 @@
+/**********          q_cleanup.c          **********/
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
@@ -34,7 +36,6 @@ main( int argc, char *argv[] )
     struct dirent		*entry;
     struct q_file		*q;
     struct stab_entry		*file_stab = NULL;
-    struct stab_entry		*valid_stab = NULL;
     struct stab_entry		*st = NULL;
     struct stat			sb;
     char			fname[ MAXPATHLEN ];
@@ -84,8 +85,12 @@ main( int argc, char *argv[] )
 		q->q_dfile++;
 	    }
 
+	} else if ( *entry->d_name == 't' ) {
+	    /* clip orphan tfiles */
+	    printf( "Clip tfile:\t%s/%s\n", SLOW_DIR, entry->d_name );
 	} else {
-	    /* XXX not an efile or a dfile */
+	    /* not a tfile, Efile or Dfile */
+	    printf( "Unknown file:\t%s/%s\n", SLOW_DIR, entry->d_name );
 	}
     }
 
@@ -95,35 +100,34 @@ main( int argc, char *argv[] )
 	return( 1 );
     }
 
-    /* ll_walk( file_stab, print_file_stab ); */
-
     for ( st = file_stab; st != NULL; st = st->st_next ) {
 	/* printf( "key:\t%s\n", st->st_key ); */
 	q = (struct q_file*)st->st_data;
 
-	if (( q->q_efile != 1 ) || ( q->q_dfile != 1 )) {
-	    /* XXX q is missing either its efile or dfile */
-	    /* printf( "XXXfile:\t%s\n", q->q_id ); */
+	if ( q->q_efile == 0 ) {
+	    /* Dfile missing its Efile */
+	    printf( "Clip orphan Dfile:\t%s/D%s\n", SLOW_DIR, q->q_id );
+
+	} else if ( q->q_dfile == 0 ) {
+	    /* Efile missing its Dfile */
+	    printf( "Warning orphan Efile:\t%s/E%s\n", SLOW_DIR, q->q_id );
 
 	} else {
-	    /* get efile modification time */
-	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+	    /* 3. for all pairs of E and D files:
+	     *    -if Dfile ref count > 1 and its Efile isn't expanded, clip all
+	     *         other Efile Dfile pairs that share the unexpanded Dfile's
+	     *         inode.
+	     */
+	    /* get Dfile ref count */
+	    sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
 	    if ( stat( fname, &sb ) != 0 ) {
 		perror( "stat" );
 		exit( 1 );
 	    }
-
-	    q->q_etime = sb.st_mtimespec;
-
-	    if (( ll_insert( &valid_stab, q->q_id, q, NULL )) != 0 ) {
-		perror( "ll_insert" );
-		exit( 1 );
-	    }
+	    printf( "ref count %s/D%s:\t%d\n", SLOW_DIR, q->q_id, sb.st_nlink );
 	}
     }
-
-    /* ll_walk( valid_stab, print_file_stab ); */
 
     return( 0 );
 }

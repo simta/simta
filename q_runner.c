@@ -11,11 +11,11 @@
 #include "ll.h"
 #include "queue.h"
 
-void print_file_stab( void * );
+void file_stab_stdout( void * );
 
 
     void
-print_file_stab( void *data )
+file_stab_stdout( void *data )
 {
     struct q_file		*q;
 
@@ -95,7 +95,7 @@ main( int argc, char *argv[] )
 	return( 1 );
     }
 
-    /* ll_walk( file_stab, print_file_stab ); */
+    /* ll_walk( file_stab, file_stab_stdout ); */
 
     for ( st = file_stab; st != NULL; st = st->st_next ) {
 	/* printf( "key:\t%s\n", st->st_key ); */
@@ -123,7 +123,7 @@ main( int argc, char *argv[] )
 	}
     }
 
-    ll_walk( valid_stab, print_file_stab );
+    ll_walk( valid_stab, file_stab_stdout );
 
     return( 0 );
 }
