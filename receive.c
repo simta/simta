@@ -53,13 +53,11 @@ static int	f_rset ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_noop ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_quit ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	f_help ___P(( SNET *, struct envelope *, int, char *[] ));
+static int	f_vrfy ___P(( SNET *, struct envelope *, int, char *[] ));
+static int	f_expn ___P(( SNET *, struct envelope *, int, char *[] ));
 #ifdef TLS
 static int	f_starttls ___P(( SNET *, struct envelope *, int, char *[] ));
 #endif /* TLS */
-#ifdef notdef
-static int	f_vrfy ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_expn ___P(( SNET *, struct envelope *, int, char *[] ));
-#endif /* notdef */
 
 static int	hello ___P(( struct envelope *, char * ));
 
@@ -655,6 +653,50 @@ f_help( snet, env, ac, av )
     return( 0 );
 }
 
+/*
+ * rfc 2821 section 3.5.3:
+ * A server MUST NOT return a 250 code in response to a VRFY or EXPN
+ * command unless it has actually verified the address.  In particular,
+ * a server MUST NOT return 250 if all it has done is to verify that the
+ * syntax given is valid.  In that case, 502 (Command not implemented)
+ * or 500 (Syntax error, command unrecognized) SHOULD be returned.  As
+ * stated elsewhere, implementation (in the sense of actually validating
+ * addresses and returning information) of VRFY and EXPN are strongly
+ * recommended.  Hence, implementations that return 500 or 502 for VRFY
+ * are not in full compliance with this specification.
+ *
+ * rfc 2821 section 7.3:
+ * As discussed in section 3.5, individual sites may want to disable
+ * either or both of VRFY or EXPN for security reasons.  As a corollary
+ * to the above, implementations that permit this MUST NOT appear to
+ * have verified addresses that are not, in fact, verified.  If a site
+ * disables these commands for security reasons, the SMTP server MUST
+ * return a 252 response, rather than a code that could be confused with
+ * successful or unsuccessful verification.
+ */
+
+    int
+f_vrfy( snet, env, ac, av )
+    SNET			*snet;
+    struct envelope		*env;
+    int				ac;
+    char			*av[];
+{
+    snet_writef( snet, "%d Command not implemented\r\n", 502 );
+    return( 0 );
+}
+
+    int
+f_expn( snet, env, ac, av )
+    SNET			*snet;
+    struct envelope		*env;
+    int				ac;
+    char			*av[];
+{
+    snet_writef( snet, "%d Command not implemented\r\n", 502 );
+    return( 0 );
+}
+
 #ifdef TLS
     int
 f_starttls( snet, env, ac, av )
@@ -718,13 +760,11 @@ struct command	commands[] = {
     { "NOOP",		f_noop },
     { "QUIT",		f_quit },
     { "HELP",		f_help },
+    { "VRFY",		f_vrfy },
+    { "EXPN",		f_expn },
 #ifdef TLS
     { "STARTTLS",	f_starttls },
 #endif /* TLS */
-#ifdef notdef
-    { "VRFY",		f_vrfy },
-    { "EXPN",		f_expn },
-#endif /* notdef */
 };
 int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
