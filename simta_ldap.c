@@ -1144,15 +1144,13 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	    ldap_value_free( values );
 
 	    if (( values = ldap_get_values( ld, entry, mailattr)) != NULL ) {
-		e_addr->e_addr_mail = strdup (values[0]);
-		ldap_value_free( values );
-
-		if (! e_addr->e_addr_mail ) {
-		    syslog( LOG_ERR, "simta_ldap_process_entry: strdup mailattr failed" );
-		    return( LDAP_SYSERROR );
+		if ( simta_mbx_compare( values[ 0 ],
+			exp->exp_env->e_mail ) == 0 ) {
+		    e_addr->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
 		}
-
+		ldap_value_free( values );
 	    }
+
 	    /*
 	    * If the user is on vacation, send a copy of the mail to
 	    * the vacation server.  The address is constructed from
