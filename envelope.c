@@ -82,11 +82,6 @@ env_create( char *id )
     }
 
     env->e_hostname = simta_hostname;
-    env->e_sin = NULL;
-    env->e_helo = NULL;
-    env->e_mail = NULL;
-    env->e_rcpt = NULL;
-    env->e_flags = 0;
 
     return( env );
 }

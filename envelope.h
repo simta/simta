@@ -32,6 +32,7 @@ struct envelope {
     struct line_file	*e_err_text;
     char		e_id[ 30 ];
     int			e_flags;
+    int			e_relay;
     int			e_old_dfile;
     int			e_success;
     int			e_failed;
