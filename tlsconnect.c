@@ -93,7 +93,6 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-#ifdef notdef
     if ( SSL_CTX_use_PrivateKey_file( ctx, "CERT.pem", SSL_FILETYPE_PEM )
 	    != 1 ) {
 	fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
@@ -110,7 +109,6 @@ main( int ac, char *av[] )
 		ERR_error_string( ERR_get_error(), NULL ));
 	exit( 1 );
     }
-#endif notdef
 
     if ( SSL_CTX_load_verify_locations( ctx, "CA.pem", NULL ) != 1 ) {
 	fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
