@@ -735,7 +735,7 @@ env_lock( struct message *m, struct envelope *env, SNET **s )
 
     env->e_dir = m->m_dir;
 
-    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+    if (( snet = snet_open( filename, O_RDWR, 0, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_open %s: %m", filename );
 	return( 1 );
     }
