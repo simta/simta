@@ -40,6 +40,7 @@ extern int				simta_max_received_headers;
 extern int				simta_max_bounce_lines;
 extern int				simta_smtp_outbound_attempts;
 extern int				simta_smtp_outbound_delivered;
+extern int				simta_max_failed_rcpts;
 extern int				simta_dns_config;
 extern int				simta_global_relay;
 extern int				simta_debug;
