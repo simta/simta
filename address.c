@@ -188,7 +188,12 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
 	    /* Create address from user and domain */
 	    memset( buf, 0, MAXPATHLEN * 2 );
-	    sprintf( buf, "%s@%s", (char*)value.data, domain );
+	    /* Check for e-mail address in alias file */
+	    if ( strchr( (char*)value.data, '@' ) != NULL ) {
+		sprintf( buf, "%s", (char*)value.data );
+	    } else {
+		sprintf( buf, "%s@%s", (char*)value.data, domain );
+	    }
 
 	    /* Check to see if we have seen this address before to prevent
 	     * it from being expanded again 
@@ -214,7 +219,12 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
 
 		/* Create address from user and domain */
 		memset( buf, 0, MAXPATHLEN * 2 );
-		sprintf( buf, "%s@%s", (char*)value.data, domain );
+		/* Check for e-mail address in alias file */
+		if ( strchr( (char*)value.data, '@' ) != NULL ) {
+		    sprintf( buf, "%s", (char*)value.data );
+		} else {
+		    sprintf( buf, "%s@%s", (char*)value.data, domain );
+		}
 
 		/* Check to see if we have seen this address before to prevent
 		 * it from being expanded again 

@@ -39,6 +39,7 @@ extern SSL_CTX	*ctx;
 #include "timeval.h"
 
 extern char	*version;
+extern int	debug;
 char		*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 struct stab_entry	*expansion = NULL;
 struct stab_entry	*seen = NULL;
@@ -487,7 +488,7 @@ f_rcpt( snet, env, ac, av )
     }
 
     //printf( "\nList:\n" );
-    //ll_walk( expansion, expansion_stab_stdout );
+    if ( debug ) ll_walk( expansion, expansion_stab_stdout );
 
     for ( cur = expansion; cur != NULL; cur = cur->st_next ) { 
 
