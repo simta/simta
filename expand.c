@@ -298,13 +298,18 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		goto cleanup3;
 	    }
 
+	    syslog( LOG_NOTICE, "Expand %s: %s: From <%s>",
+		    unexpanded_env->e_id, env->e_id, env->e_mail );
+
 	    n_rcpts = 0;
 	    for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 		n_rcpts++;
-		syslog( LOG_NOTICE, "%s: %s: EXPANDED <%s>",
+		syslog( LOG_NOTICE, "Expand %s: %s: To <%s>",
 			unexpanded_env->e_id, env->e_id, rcpt->r_rcpt );
 	    }
-	    syslog( LOG_NOTICE, "%s: %s: EXPANSION COMPLETED %d recipients",
+
+	    syslog( LOG_NOTICE,
+		    "Expand %s: %s: Expanded %d recipients",
 		    unexpanded_env->e_id, env->e_id, n_rcpts );
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
@@ -427,7 +432,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		unexpanded_env->e_id );
     }
 
-    syslog( LOG_NOTICE, "%s: DELETED EXPANSION COMPLETE", 
+    syslog( LOG_NOTICE, "Expand %s: DELETED expansion complete", 
 	    unexpanded_env->e_id );
 
     return_value = 0;

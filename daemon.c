@@ -581,7 +581,7 @@ main( int ac, char **av )
 
 	/* check to see if any children need to be accounted for */
 	while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-	    child_signal--;
+	    child_signal = 0;
 	    cleaned++;
 	    p_search = &proc_stab;
 
@@ -691,7 +691,6 @@ simta_daemon_child( int type, int s )
     int			pid;
     int			fd;
     int			sinlen;
-    struct sigaction	osahup, osachld, osausr1;
 
     if (( p = (struct proc_type*)malloc(
 	    sizeof( struct proc_type ))) == NULL ) {

@@ -182,7 +182,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      */
     if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
-	    syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
+	    syslog( LOG_NOTICE, "Receive %s: Message ABANDONED", env->e_id );
 	}
 	env_reset( env );
     }
@@ -299,7 +299,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 		break;
 	}
     } else if ( *(env->e_id) != '\0' ) {
-	syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
+	syslog( LOG_NOTICE, "Receive %s: Message ABANDONED", env->e_id );
     }
 
     env_reset( env );
@@ -313,9 +313,9 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    syslog( LOG_NOTICE, "%s: FROM:<%s> RELAY %s [%s]", env->e_id, env->e_mail,
-	    inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname ?
-	    receive_remote_hostname : "" );
+    syslog( LOG_NOTICE, "Receive %s: From <%s> ACCEPTED Relay %s [%s]",
+	    env->e_id, env->e_mail, inet_ntoa( receive_sin->sin_addr ),
+	    receive_remote_hostname ? receive_remote_hostname : "" );
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -352,7 +352,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 1 ], &addr,
 	    &domain ) != 0 ) {
-	syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED bad address syntax",
+	syslog( LOG_NOTICE, "Receive %s: To <%s> REJECTED bad address syntax",
 		env->e_id, av[ 1 ]);
 	if ( snet_writef( snet, "553 Requested action not taken: "
 		"bad address syntax\r\n", 553 ) < 0 ) {
@@ -397,7 +397,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR, "f_rcpt check_host: %s: failed", domain );
 		    return( RECEIVE_SYSERROR );
 		} else {
-		    syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED unknown domain",
+		    syslog( LOG_NOTICE,
+			    "Receive %s: To <%s> REJECTED unknown domain",
 			    env->e_id, addr );
 		    if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			    domain ) < 0 ) {
@@ -411,7 +412,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	if (( host = host_local( domain )) == NULL ) {
 	    if ( simta_global_relay == 0 ) {
-		syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED domain not local",
+		syslog( LOG_NOTICE,
+			"Receive %s: To <%s> REJECTED domain not local",
 			env->e_id, addr );
 		if ( snet_writef( snet,
 			"551 User not local; please try <%s>\r\n",
@@ -445,7 +447,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	    switch( local_address( addr, domain, host )) {
 	    case NOT_LOCAL:
-		syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED user not local",
+		syslog( LOG_NOTICE,
+			"Receive %s: To <%s> REJECTED user not local",
 			env->e_id, addr );
 		if ( snet_writef( snet,
 			"%d Requested action not taken: User not found.\r\n",
@@ -477,7 +480,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    syslog( LOG_NOTICE, "%s: TO:<%s> ACCEPTED", env->e_id,
+    syslog( LOG_NOTICE, "Receive %s: To <%s> ACCEPTED", env->e_id,
 	    env->e_rcpt->r_rcpt );
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
@@ -661,8 +664,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if ( received_count > simta_max_received_headers ) { /* message rejection */
-	syslog( LOG_NOTICE, "%s: REJECTED: %d received headers", env->e_id,
-		received_count );
+	syslog( LOG_NOTICE, "Receive %s: Message REJECTED: %d received headers",
+		env->e_id, received_count );
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data fclose: %m" );
 	}
@@ -747,7 +750,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * the message again.
 	 */
 
-	syslog( LOG_NOTICE, "%s: ACCEPTED", env->e_id );
+	syslog( LOG_NOTICE, "Receive %s: Message ACCEPTED", env->e_id );
 
 	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "accepted" ) < 0 ) {
@@ -763,8 +766,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_NOTICE, "%s: ACCEPTED AND DELETED: %s", env->e_id,
-		smtp_message ? smtp_message : "no message" );
+	syslog( LOG_NOTICE, "Receive %s: Message DELETED after acceptance: %s",
+		env->e_id, smtp_message ? smtp_message : "no message" );
 
 	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "accepted and deleted" ) < 0 ) {
@@ -780,7 +783,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_NOTICE, "%s: REJECTED: %s", env->e_id,
+	syslog( LOG_NOTICE, "Receive %s: Message REJECTED: %s", env->e_id,
 		smtp_message ? smtp_message : "no message" );
 
 	if ( snet_writef( snet, "552 (%s): %s\r\n", env->e_id,
@@ -797,7 +800,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_NOTICE, "%s: TEMPFAIL: %s", env->e_id,
+	syslog( LOG_NOTICE, "Receive %s: Message TEMPFAIL: %s", env->e_id,
 		smtp_message ? smtp_message : "no message" );
 
 	if ( snet_writef( snet, "452 (%s): %s\r\n", env->e_id,
@@ -877,7 +880,7 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
-	    syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
+	    syslog( LOG_NOTICE, "Receive %s: Message ABANDONED", env->e_id );
 	}
 	env_reset( env );
     }
@@ -1027,7 +1030,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 		break;
 	}
     } else if ( *(env->e_id) != '\0' ) {
-	syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
+	syslog( LOG_NOTICE, "Receive %s: Message ABANDONED", env->e_id );
     }
 
     env_reset( env );
@@ -1242,7 +1245,7 @@ closeconnection:
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    expand_and_deliver( &hq_receive, env );
 	} else if ( *(env->e_id ) != '\0' ) {
-	    syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
+	    syslog( LOG_NOTICE, "Receive %s: Message ABANDONED", env->e_id );
 	}
 
 	env_free( env );

@@ -434,7 +434,7 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
 	}
 
 	if ( linetoolong ) {
-	    syslog( LOG_NOTICE, "password_expand <%s>: .forward line too long",
+	    syslog( LOG_WARNING, "password_expand <%s>: .forward line too long",
 		    e_addr->e_addr );
 	    linetoolong = 0;
 	} else {

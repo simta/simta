@@ -35,6 +35,7 @@ QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o ml.o \
 		smtp.o simta.o mx.o
 CREATEDBOBJ=	createdb.o argcargv.o bdb.o
+SLAOBJ=		sla.o
 
 SIMTALOG=LOG_MAIL
 SIMTA_ALIAS_DB=	@aliasdb@
@@ -57,7 +58,7 @@ SIMTAINCPATH=	@SIMTACPPFLAGS@ ${INCPATH}
 SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
 MAN1TARGETS=	simsendmail.1
-TARGETS=	simta tlsconnect simsendmail q_runner createdb expander
+TARGETS=	simta tlsconnect simsendmail q_runner createdb expander sla
 
 all : ${TARGETS}
 
@@ -84,6 +85,10 @@ install : all FRC
 
 simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+sla : libsnet/libsnet.a ${SLAOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
 
 simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
