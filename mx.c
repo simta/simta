@@ -156,28 +156,21 @@ host_local( char *hostname )
     struct host		*host;
     struct dnsr_result	*result;
 
-    syslog( LOG_DEBUG, "host_local: %s", hostname );
-
     /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	syslog( LOG_DEBUG, "host_local: %s found in simta_hosts", hostname );
 	return( host );
     }
 
-    syslog( LOG_DEBUG, "host_local: %s getting DNS", hostname );
     /* Check DNS */
     if (( result = get_mx( hostname )) == NULL ) {
-	syslog( LOG_DEBUG, "host_local: %s no DNS", hostname );
 	return( NULL );
     }
     dnsr_free_result( result );
 
     /* Look for hostname in host table */
     if (( host = ll_lookup( simta_hosts, hostname )) != NULL ) {
-	syslog( LOG_DEBUG, "host_local: %s found in DNS", hostname );
 	return( host );
     }
-    syslog( LOG_DEBUG, "host_local: %s NOT FOUND!", hostname );
 
     return( NULL );
 }
