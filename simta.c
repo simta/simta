@@ -114,7 +114,7 @@ simta_config_host( struct stab_entry **hosts, char *hostname )
 	return( -1 );
     }
 
-    if ( ll_insert( *hosts, hostname, host, NULL ) != 0 ) {
+    if ( ll_insert( hosts, hostname, host, NULL ) != 0 ) {
 	syslog( LOG_ERR, "simta_config_host: ll_insert: %m" );
 	return( -1 );
     }
