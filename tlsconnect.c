@@ -110,7 +110,7 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-    if ( snet_inittls( snet, 0 ) < 0 ) {
+    if ( snet_inittls( snet, 0, 1 ) < 0 ) {
 	fprintf( stderr, "snet_inittls failed\n" );
     }
 
@@ -153,7 +153,7 @@ main( int ac, char *av[] )
 		/* do something */
 		starttls = 0;
 		if (( err_txt = snet_starttls( snet, 0 )) != NULL ) {
-		    fprintf( stderr, "Something happened %d\n", err_txt );
+		    fprintf( stderr, "Something happened %s\n", err_txt );
 		}
 	    }
 	}

@@ -629,7 +629,7 @@ receive( fd, sin )
     /*
      * Initialize TLS
      */
-    if ( snet_inittls( snet, 1 ) < 0 ) {
+    if ( snet_inittls( snet, 1, 1 ) < 0 ) {
 	snet_writef( snet, "%d TLS temporarily not available\r\n", 454 );
 	return( 1 );
     }
