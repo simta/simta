@@ -31,14 +31,14 @@ extern struct stab_entry *hosts;
 /*
  * Return values:
  *	< 0	error
- *	  0 	local address
- * 	> 0	non-local address
+ * 	  0	non-local address
+ *	  1 	local address
  */
 
     int
 address_local( char *address )
 {
-    int			ret;
+    int			ret = 0;
     char		*user= NULL, *domain = NULL, *p = NULL;	
     struct passwd	*passwd = NULL;
     DBT			value;
@@ -58,52 +58,50 @@ address_local( char *address )
 	return( -1 );
     }
     if (( p = strchr( user, '@' )) == NULL ) {
-	free( user );
-	return( -1 );
+	ret = -1;
+	goto done;
     }
     *p = '\0';
 
     /* Search for user using lookup ll */
     for ( i = lookup; i != NULL; i = i->st_next ) {
 	if ( strcmp( i->st_key, "alias" ) == 0 ) {
-
-
 	    /* check alias file */
 	    if ( dbp == NULL ) {
-		if (( ret = db_open_r( &dbp, DATABASE, NULL )) != 0 ) {
-		    free( user );
-		    return( -1 );
+		if ( db_open_r( &dbp, DATABASE, NULL ) != 0 ) {
+		    ret = -1;
+		    goto done;
 		}
 	    }
-	    if (( ret = db_get( dbp, user, &value )) == 0 ) {
-		free( user );
-		return( 0 );
+	    if ( db_get( dbp, user, &value ) == 0 ) {
+		ret = 1;
+		goto done;
 	    }
 	    /* XXX where do we want to do this? */
 	    /*
-	    if (( ret = db_close( dbp )) != 0 ) {
-		free( user );
-		return( -1 );
+	    if ( db_close( dbp ) != 0 ) {
+		ret = -1;
+		goto done;
 	    }
 	    */
 
 	} else if ( strcmp( i->st_key, "password" ) == 0 ) {
-
-
 	    /* Check password file */
 	    if (( passwd = getpwnam( user )) != NULL ) {
-		free( user );
-		return( 0 );
+		ret = 1;
+		goto done;
 	    }
-	    /* XXX do we check .forward? */
 
 	} else {
-	    //printf( "unknown lookup %s\n", i->st_key );
-	    return( 1 );
+	    /* unknown lookup */
+	    ret = -1;
+	    goto done;
 	}
     }
+
+done:
     free( user );
-    return( 1 );
+    return( ret );
 }
 
 /*

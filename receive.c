@@ -438,11 +438,11 @@ f_rcpt( snet, env, ac, av )
 
     switch( address_local( addr )) {
     case 0:
-	break;
-    case 1:
 	snet_writef( snet, "%d Requested action not taken: User not found.\r\n",
 	    550 );
 	return( 1 );
+    case 1:
+	break;
     default:
 	snet_writef( snet,
 	    "%d-3 Requested action aborted: local error in processing.\r\n",
@@ -450,62 +450,19 @@ f_rcpt( snet, env, ac, av )
 	return( 1 );
     }
 
-    //printf( "expanding %s", addr );
-    ret = address_expand( addr, &expansion, &seen );
-    if ( ret < 0 ) {
-	/* Error */
-	snet_writef( snet,
-	    "%d-4 Requested action aborted: local error in processing.\r\n",
-	    451 );
-	return( 1 );
-    } else if ( ret == 0 ) {
-	/* No Expansion */
-	//printf( "No expansion.\n" );
-    } else {
-	/* Expand Expansion */
-	cur = expansion;
-	while ( cur != NULL ) {
-	    //printf( "expanding expansion %s", (char*)cur->st_key );
-	    ret = address_expand( (char *)cur->st_key, &expansion, &seen );
-	    if ( ret < 0 ) {
-		/* Error */
-		snet_writef( snet,
-		    "%d-4 Requested action aborted: local error in processing.\r\n",
-		    451 );
-		return( 1 );
-	    } else if ( ret == 0 ) {
-		/* No Expansion */
-		//printf( "No expansion.  Next.\n" );
-		cur = cur->st_next;
-	    } else {
-		/* Expansion */
-		p = cur;
-		cur = cur->st_next;
-		//printf( "Removing %s: expanded to %d addresses\n", (char*)p->st_key, ret );
-		ll_remove( &expansion, p->st_key );
-	    }
-	}
+    if (( r = (struct recipient *)malloc( sizeof(struct recipient)))
+	    == NULL ) {
+	syslog( LOG_ERR, "f_rcpt: malloc: %m" );
+	return( -1 );
     }
-
-    //printf( "\nList:\n" );
-    if ( debug ) ll_walk( expansion, expansion_stab_stdout );
-
-    for ( cur = expansion; cur != NULL; cur = cur->st_next ) { 
-
-	if (( r = (struct recipient *)malloc( sizeof(struct recipient)))
-		== NULL ) {
-	    syslog( LOG_ERR, "f_rcpt: malloc: %m" );
-	    return( -1 );
-	}
-	if (( r->r_rcpt = strdup( (char*)cur->st_data )) == NULL ) {
-	    syslog( LOG_ERR, "f_rcpt: strdup: %m" );
-	    return( -1 );
-	}
-	r->r_next = env->e_rcpt;
-	env->e_rcpt = r;
-
-	syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
+    if (( r->r_rcpt = strdup( (char*)cur->st_data )) == NULL ) {
+	syslog( LOG_ERR, "f_rcpt: strdup: %m" );
+	return( -1 );
     }
+    r->r_next = env->e_rcpt;
+    env->e_rcpt = r;
+
+    syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
 
     snet_writef( snet, "%d OK\r\n", 250 );
     return( 0 );
