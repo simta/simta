@@ -1226,12 +1226,10 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
  	    * the vacationhost (specified in the config file) and
 	    * the uid (XXX this this attr should be configurable XXX).
 	    */
-syslog( LOG_DEBUG, "simta_ldap_process_entry: check vacation %s %s", vacationhost, vacationattr );
 	    onvacation = NULL;
 	    if ( vacationhost != NULL && vacationattr != NULL
             && (onvacation = ldap_get_values( ld, entry, vacationattr)) != NULL 
 	    && strcasecmp( onvacation[0], "TRUE" ) == 0 ) {
-syslog( LOG_DEBUG, "simta_ldap_process_entry: on vacation" );
 
 		if ( (uid = ldap_get_values( ld, entry, "uid" )) != NULL ) {
 		    snprintf( buf, sizeof (buf), "%s@%s", uid[0], vacationhost);
@@ -1245,8 +1243,6 @@ syslog( LOG_DEBUG, "simta_ldap_process_entry: on vacation" );
 		    syslog( LOG_ERR, "user without a uid on vacation (%s)",
 				 addr );
 	    	}
-	    } else {
-syslog( LOG_DEBUG, "simta_ldap_process_entry: not on vacation" );
 	    }
 	    if ( onvacation ) {
 		ldap_value_free( onvacation );
@@ -2005,13 +2001,5 @@ errexit:
 	    syslog(LOG_ERR, "simta_ldap_config: Config file close %m" );
 	}
     }    
-    if (vacationhost) {
-	free (vacationhost);
-	vacationhost = NULL;
-    }
-    if (vacationattr) {
-	free (vacationattr);
-	vacationattr = NULL;
-    }
     return( ret );
 }
