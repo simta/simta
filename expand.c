@@ -44,13 +44,13 @@ int				simta_expand_debug = 0;
      */
 
     int
-expand_and_deliver( struct host_q **hq_stab, struct envelope *unexpanded_env )
+expand_and_deliver( struct host_q **hq, struct envelope *unexpanded_env )
 {
     syslog( LOG_DEBUG, "expand_and_deliver %s", unexpanded_env->e_id );
 
-    switch ( expand( hq_stab, unexpanded_env )) {
+    switch ( expand( hq, unexpanded_env )) {
     case 0:
-	if ( q_runner( hq_stab ) != 0 ) {
+	if ( q_runner( hq ) != 0 ) {
 	    syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
 	    return( EXPAND_FATAL );
 	}
@@ -93,21 +93,22 @@ exp_addr_prune( struct exp_addr *e_addr )
      */
 
     int
-expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
+expand( struct host_q **hq, struct envelope *unexpanded_env )
 {
     struct expand		exp;
     struct envelope		*base_error_env;
     struct envelope		*env_dead = NULL;
     struct envelope		*env;
     struct envelope		**env_p;
-    struct recipient		*r;
-    struct stab_entry		*i;
-    struct stab_entry		*j;
+    struct recipient		*rcpt;
+    struct stab_entry		*p;
+    struct stab_entry		*q;
     struct exp_addr		*e_addr;
     char			*domain;
     SNET			*snet = NULL;
     struct stab_entry		*host_stab = NULL;
     int				return_value = 1;
+    int				env_out = 0;
     int				fast_file_start;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
@@ -132,7 +133,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
      */ 
 
     /* set our iterator to NULL to signify we're at the start of the loop */
-    i = NULL;
+    p = NULL;
 
     if (( base_error_env = address_bounce_create( &exp )) == NULL ) {
 	syslog( LOG_ERR, "expand.env_create: %m" );
@@ -144,7 +145,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	return( 1 );
     }
 
-    for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
+    for ( rcpt = unexpanded_env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 	/* Add ONE address from the original envelope's rcpt list */
 	/* this address has no parent, it is a "root" address because
 	 * it's a rcpt.
@@ -154,27 +155,29 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	exp.exp_parent = NULL;
 #endif /* HAVE_LDAP */
 
-	if ( add_address( &exp, r->r_rcpt, base_error_env, ADDRESS_TYPE_EMAIL )
-		!= 0 ) {
+	if ( add_address( &exp, rcpt->r_rcpt, base_error_env,
+		ADDRESS_TYPE_EMAIL ) != 0 ) {
 	    /* add_address syslogs errors */
 	    goto cleanup1;
 	}
 
+	if ( p == NULL ) {
+	    /* we need to start by processing the first addr in the
+	     * expansion structure.
+	     */
+	    p = exp.exp_addr_list;
+	}
+
 	for ( ; ; ) {
-	    if ( i == NULL ) {
-		/* we need to start by processing the first addr in the
-		 * expansion structure.
-		 */
-		i = exp.exp_addr_list;
-	    } else if ( i->st_next == NULL ) {
+	    if ( p->st_next == NULL ) {
 		/* there are no more address for processing at this time */
 		break;
 	    } else {
 		/* process the next address */
-		i = i->st_next;
+		p = p->st_next;
 	    }
 
-	    e_addr = (struct exp_addr*)i->st_data;
+	    e_addr = (struct exp_addr*)p->st_data;
 
 #ifdef HAVE_LDAP
 	    exp.exp_parent = e_addr;
@@ -188,8 +191,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		break;
 
 	    case ADDRESS_FINAL:
-		e_addr->e_addr_status =
-			( e_addr->e_addr_status | STATUS_TERMINAL );
+		e_addr->e_addr_status |= STATUS_TERMINAL;
 		/* the address is a terminal local address */
 		break;
 
@@ -203,8 +205,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     }
 
     /* Create one expanded envelope for every host we expanded address for */
-    for ( i = exp.exp_addr_list; i != NULL; i = i->st_next ) {
-	e_addr = (struct exp_addr*)i->st_data;
+    for ( p = exp.exp_addr_list; p != NULL; p = p->st_next ) {
+	e_addr = (struct exp_addr*)p->st_data;
 
 #ifdef HAVE_LDAP
 	/* prune exclusive groups the sender is not a member of */
@@ -221,7 +223,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	switch ( e_addr->e_addr_type ) {
 	case ADDRESS_TYPE_EMAIL:
-	    if (( domain = strchr( i->st_key, '@' )) == NULL ) {
+	    if (( domain = strchr( p->st_key, '@' )) == NULL ) {
 		syslog( LOG_ERR, "expand.strchr: unreachable code" );
 		goto cleanup2;
 	    }
@@ -269,17 +271,20 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    }
 	}
 
-	if ( env_recipient( env, i->st_key ) != 0 ) {
+	if ( env_recipient( env, p->st_key ) != 0 ) {
 	    goto cleanup2;
 	}
+
+	syslog( LOG_INFO, "expand: recipient %s added to env %s for host %s",
+		p->st_key, env->e_id, env->e_hostname );
     }
 
     sprintf( d_original, "%s/D%s", unexpanded_env->e_dir,
 	    unexpanded_env->e_id );
 
     /* Write out all expanded envelopes and place them in to the host_q */
-    for ( i = host_stab; i != NULL; i = i->st_next ) {
-	env = i->st_data;
+    for ( p = host_stab; p != NULL; p = p->st_next ) {
+	env = p->st_data;
 
 	if ( simta_expand_debug == 0 ) {
 	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
@@ -301,7 +306,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		goto cleanup3;
 	    }
 
-	    queue_envelope( hq_stab, env );
+	    env_out++;
+	    queue_envelope( hq, env );
 
 	} else {
 	    env_stdout( env );
@@ -309,7 +315,12 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
-    /* XXX if ( expanded_out == 0 ) { mail loop? } */
+    if ( env_out == 0 ) {
+	if ( bounce_text( base_error_env, "No final user, mail loop detected",
+		NULL, NULL ) != 0 ) {
+	    goto cleanup3;
+	}
+    }
 
     /* write errors out to disk */
     env_p = &(exp.exp_errors);
@@ -320,7 +331,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 		if ( env == base_error_env ) {
 		    /* send the message back to the original sender */
-		    if (( snet = snet_open( d_original, O_RDWR, 0,
+		    if (( snet = snet_open( d_original, O_RDONLY, 0,
 			    1024 * 1024 )) == NULL ) {
 			syslog( LOG_ERR, "expand.snet_open %s: %m",
 				d_original );
@@ -367,7 +378,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		    goto cleanup4;
 		}
 
-		queue_envelope( hq_stab, env );
+		queue_envelope( hq, env );
 
 	    } else {
 		*env_p = env->e_next;
@@ -385,7 +396,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	goto cleanup2;
     }
 
-    /* trunacte & delete unexpanded message */
+    /* truncate & delete unexpanded message */
     sprintf( e_original, "%s/E%s", unexpanded_env->e_dir,
 	    unexpanded_env->e_id );
 
@@ -419,8 +430,8 @@ cleanup4:
     }
 
 cleanup3:
-    for ( i = host_stab; i != NULL; i = i->st_next ) {
-	env = i->st_data;
+    for ( p = host_stab; p != NULL; p = p->st_next ) {
+	env = p->st_data;
 
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    queue_remove_envelope( env );
@@ -428,31 +439,32 @@ cleanup3:
 	}
 
 	env_free( env );
-	i->st_data = NULL;
-	i = i->st_next;
+	p->st_data = NULL;
+	p = p->st_next;
     }
 
     if ( simta_fast_files != fast_file_start ) {
+	syslog( LOG_WARNING, "expand: could not unwind expansion" );
 	return( -1 );
     }
 
 cleanup2:
     /* free host_stab */
-    i = host_stab;
-    while ( i != NULL ) {
-	j = i;
-	i = i->st_next;
-	free( j );
+    p = host_stab;
+    while ( p != NULL ) {
+	q = p;
+	p = p->st_next;
+	free( q );
     }
 
 cleanup1:
     /* free exp_addr_list */
-    i = exp.exp_addr_list;
-    while ( i != NULL ) {
-	j = i;
-	i = i->st_next;
-	if ( j->st_data != NULL ) {
-	    e_addr = (struct exp_addr*)j->st_data;
+    p = exp.exp_addr_list;
+    while ( p != NULL ) {
+	q = p;
+	p = p->st_next;
+	if ( q->st_data != NULL ) {
+	    e_addr = (struct exp_addr*)q->st_data;
 #ifdef HAVE_LDAP  
 	    ok_destroy (e_addr);
 	    if (e_addr->e_addr_dn )
@@ -461,7 +473,7 @@ cleanup1:
 	    free( e_addr->e_addr );
 	    free( e_addr );
 	}
-	free( j );
+	free( q );
     }
 
     return( return_value );
@@ -473,7 +485,7 @@ cleanup1:
 ldap_check_ok( struct expand *exp, struct exp_addr *exclusive_addr )
 {
     struct exp_addr		*parent;
-    struct recipient		*r;
+    struct recipient		*rcpt;
 
     void			*match;
 
@@ -488,13 +500,13 @@ ldap_check_ok( struct expand *exp, struct exp_addr *exclusive_addr )
 	parent = parent->e_addr_parent;
     }
 
-    for ( r = exp->exp_env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( strcasecmp( r->r_rcpt, parent->e_addr ) == 0 ) {
+    for ( rcpt = exp->exp_env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
+	if ( strcasecmp( rcpt->r_rcpt, parent->e_addr ) == 0 ) {
 	    break;
 	}
     }
 
-    if ( r == NULL ) {
+    if ( rcpt == NULL ) {
 	return( 0 );
     }
 
