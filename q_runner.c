@@ -1,3 +1,9 @@
+#ifdef __STDC__
+#define ___P(x)		x
+#else /* __STDC__ */
+#define ___P(x)		()
+#endif /* __STDC__ */
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
@@ -13,9 +19,9 @@
 #include "queue.h"
 #include "message.h"
 
-void	host_stab_stdout( void * );
-void	q_file_stab_stdout( void * );
-int	efile_time_compare( void *, void * );
+void	host_stab_stdout ___P(( void * ));
+void	q_file_stab_stdout ___P(( void * ));
+int	efile_time_compare ___P(( void *, void * ));
 
 
     int

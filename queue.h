@@ -5,6 +5,12 @@
 
 /*****     queue.h     *****/
 
+#ifdef __STDC__
+#define ___P(x)		x
+#else /* __STDC__ */
+#define ___P(x)		()
+#endif /* __STDC__ */
+
 
 #define	SLOW_DIR	"slow"
 #define	FAST_DIR	"fast"
@@ -33,7 +39,7 @@ struct host_q {
 };
 
 
-struct q_file	*q_file_create( char * );
-struct host_q	*host_q_create( char * );
-void		q_file_stdout( struct q_file * );
-void		host_q_stdout( struct host_q * );
+struct q_file	*q_file_create ___P(( char * ));
+struct host_q	*host_q_create ___P(( char * ));
+void		q_file_stdout ___P(( struct q_file * ));
+void		host_q_stdout ___P(( struct host_q * ));

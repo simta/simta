@@ -16,7 +16,7 @@ struct rcptlist {
 
 
 struct rcptlist		*r_alloc ___P(( char * ));
-int                     r_prepend ___P(( struct rcptlist **, char * ) );
+int                     r_prepend ___P(( struct rcptlist **, char * ));
 int                     r_append ___P(( char *, struct rcptlist **, 
-						struct rcptlist ** ) );
+						struct rcptlist ** ));
 void			r_output ___P(( struct rcptlist * ));

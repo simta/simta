@@ -1,5 +1,11 @@
 /**********          q_cleanup.c          **********/
 
+#ifdef __STDC__
+#define ___P(x)		x
+#else /* __STDC__ */
+#define ___P(x)		()
+#endif /* __STDC__ */
+
 #ifdef TLS
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -23,9 +29,9 @@
 #include "queue.h"
 
 
-int	inode_compare( void *, void * );
-void	inode_stab_stdout( void * );
-int	move_to_slow( char * );
+int	inode_compare ___P(( void *, void * ));
+void	inode_stab_stdout ___P(( void * ));
+int	move_to_slow ___P(( char * ));
 
 
     int
