@@ -5,6 +5,8 @@
 
 /*****     simta.h     *****/
 
+#define SIMTA_OLD_EFILE_VESRION_1	1
+
 /* These codes are for mail filter return values */
 #define	MESSAGE_ACCEPT			0
 #define	MESSAGE_ACCEPT_AND_DELETE	1
@@ -15,7 +17,7 @@
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
 #define	SIMTA_BOUNCE_LINES		100
-#define	SIMTA_VERSION_STRING		"V0.1"
+#define	SIMTA_EFILE_VERSION		2
 #define SIMTA_MAX_RUNNERS_SLOW		200
 #define SIMTA_MAX_RUNNERS_LOCAL		25
 #define	SIMTA_EXPANSION_FAILED		0
