@@ -251,6 +251,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    }
 
 	    if ( env_gettimeofday_id( env ) != 0 ) {
+syslog( LOG_DEBUG, "Expand.debug %s: created 1", env->e_id );
 		env_free( env );
 		goto cleanup2;
 	    }

@@ -78,7 +78,7 @@ main( int argc, char *argv[])
     }
 
     /* init simta config / defaults */
-    if ( simta_config( NULL ) != 0 ) {
+    if ( simta_config( simta_base_dir ) != 0 ) {
 	fprintf( stderr, "simta_config error\n" );
 	exit( EX_DATAERR );
     }
