@@ -353,6 +353,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 
 			case '(':
 			case ')':
+			case '*':
 			    *d++ = '\\';    /*  Fall Thru */
 			
 			default:
