@@ -87,16 +87,24 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     /* expand unexpanded_env->e_rcpt addresses */
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
 	/* expand r->rcpt */
-	if ( debug ) printf( "expanding %s\n", r->r_rcpt );
 	if ( address_expand( r->r_rcpt, &expansion, &seen ) < 0 ) {
 	    /* if expansion for recipient r fails, we mark it and
 	     * note that we've failed at least one expansion.
 	     */ 
 	    failed_expansions++;
 	    r->r_delivered = SIMTA_EXPANSION_FAILED;
+	    if ( debug ) printf( "expanding %s failed\n", r->r_rcpt );
         } else {
 	    expansions++;
 	    r->r_delivered = SIMTA_EXPANSION_SUCCESS;
+	    if ( debug != 0 ) {
+		if ( expansion == NULL ) {
+		    printf( "expanding %s succeded ERROR!\n", r->r_rcpt );
+		} else {
+		    printf( "expanding %s succeded\n", r->r_rcpt );
+		}
+	    } else if ( debug != 0 ) {
+	    }
 	}
     }
 

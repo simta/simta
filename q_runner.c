@@ -46,6 +46,8 @@ main( int argc, char *argv[] )
     char			*dir;
     char			localhost[ MAXHOSTNAMELEN ];
 
+    debug = 1;
+
     if ( argc != 2 ) {
 	fprintf( stderr, "Usage: %s ( LOCAL | SLOW )\n", argv[ 0 ]);
 	exit( EX_USAGE );
