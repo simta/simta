@@ -108,28 +108,37 @@ AC_DEFUN([PROG_PROCMAIL],
     else
 	AC_MSG_RESULT(disabled);
     fi
-
 ])
 
 
 AC_DEFUN([PROG_MAIL_LOCAL],
 [
     AC_MSG_CHECKING(for mail.local)
-    mail_local_dirs="/usr/lib /usr/sbin"
+    mail_local_dirs="yes"
     AC_ARG_WITH(mail_local,
 	    AC_HELP_STRING([--with-mail_local=DIR], [path to mail.local]),
 	    mail_local_dirs="$withval")
-    for dir in $mail_local_dirs; do
-	mail_local_dir="$dir"
-	if test -f "$dir/mail.local"; then
-	    found_mail_local="yes";
-	    break
+
+    # mail_local_dirs will be "yes", "no", or a user defined path
+    if test x_$mail_local_dirs != x_no; then
+	if test x_$mail_local_dirs = x_yes; then
+	    mail_local_dirs="/usr/lib /usr/sbin"
 	fi
-    done
-    if test x_$found_mail_local != x_yes; then
-	AC_MSG_RESULT(no)
+	for dir in $mail_local_dirs; do
+	    mail_local_dir="$dir"
+	    if test -f "$dir/mail.local"; then
+		found_mail_local="yes";
+		AC_MSG_RESULT(yes)
+		break
+	    fi
+	done
+	if test x_$found_mail_local != x_yes; then
+	    AC_MSG_RESULT(no)
+	else
+	    AC_SUBST( SIMTA_MAIL_LOCAL, [$dir/mail.local])
+	fi
+
     else
-	AC_SUBST( SIMTA_MAIL_LOCAL, [$dir/mail.local])
-	AC_MSG_RESULT(yes)
+	AC_MSG_RESULT(disabled);
     fi
 ])
