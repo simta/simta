@@ -724,15 +724,9 @@ simta_daemon_child( int type, int s )
 
     case CHILD_RECEIVE:
 	p->p_type = CHILD_RECEIVE;
-
 	if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
-	    if ( errno == EINTR ) {
-		free( p );
-		return;
-	    }
-
-	    syslog( LOG_ERR, "accept: %m" );
-	    abort();
+	    free( p );
+	    return;
 	}
 	break;
 
