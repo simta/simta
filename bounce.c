@@ -277,8 +277,8 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ((( env->e_flags & ENV_BOUNCE ) ||
 		    ( r->r_status == R_FAILED )) &&
-		    (( strcasecmp( "postmaster", r->r_rcpt ) == 0 ) ||
-		    ( *(r->r_rcpt) == '\0' ))) {
+		    ( *(r->r_rcpt) == '\0' ) ||
+		    (( strcasecmp( "postmaster", r->r_rcpt ) == 0 ))) {
 		bounce_env->e_dir = simta_dir_dead;
 		break;
 	    }
@@ -344,8 +344,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     }
 
     if ( env->e_flags & ENV_OLD ) {
-        fprintf( dfile, "This message has been undeliverable for at least "
-		"three days.\n" );
+        fprintf( dfile, "This message is old and undeliverable.\n\n" );
     }
 
     if ( hq->hq_err_text != NULL ) {
