@@ -26,6 +26,7 @@ struct host_list {
 
 struct host {
     int         		h_type;		/* Type of host */
+    char			*h_name;
     struct stab_entry		*h_expansion;	/* Ordered list of expansion */
 };
 

@@ -35,7 +35,6 @@ expansion_stab_stdout( void *string )
     printf( "%s\n", (char *)string );
 }
 
-extern struct stab_entry *hosts;
 extern int debug;
 
 /*
@@ -62,7 +61,7 @@ address_local( char *addr )
 	return( -1 );
     }
     domain++;
-    if (( host = (struct host*)ll_lookup( hosts, domain )) == NULL ) {
+    if (( host = (struct host*)ll_lookup( simta_hosts, domain )) == NULL ) {
 	return( 1 );
     }
 
@@ -181,7 +180,7 @@ address_expand( char *address, struct stab_entry **expansion, struct stab_entry 
     domain++;
 
     /* Check for domain in hosts table */
-    if (( host = ll_lookup( hosts, domain )) == NULL ) {
+    if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
 	/* Add address to expansion */
 	if (( data = strdup( address )) == NULL ) {
 	    syslog( LOG_ERR, "address_expand: strdup: %m" );

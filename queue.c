@@ -218,7 +218,7 @@ q_runner( struct host_q **host_q )
 
     for ( ; ; ) {
 	/* BUILD DELIVER_Q */
-	/* sort the hosts in the deliver_q by number of messages */
+	/* sort the deliver_q by number of messages */
 	deliver_q = NULL;
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {

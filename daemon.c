@@ -57,9 +57,6 @@ int		backlog = 5;
 int		connections = 0;
 int		maxconnections = SIMTA_MAXCONNECTIONS;	/* 0 = no limit */
 
-char			localhost[ MAXHOSTNAMELEN + 1 ];
-struct stab_entry 	*hosts = NULL;
-
 char		*maildomain = NULL;
 char		*version = VERSION;
 
@@ -247,13 +244,8 @@ main( ac, av )
      * Read config file before chdir(), in case config file is relative path.
      */
 
-    if ( gethostname( localhost, MAXHOSTNAMELEN + 1 ) !=0 ) {
-	perror( "gethostname" );
-	exit( 1 );
-    }
-
-    /* Add localhost to hosts list */
-    if ( simta_config_host( &hosts, localhost ) != 0 ) {
+    /* init hosts list */
+    if ( simta_init_hosts() != 0 ) {
 	exit( 1 );
     }
 

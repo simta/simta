@@ -20,8 +20,10 @@
 #define	SIMTA_VERSION_STRING	"V0"
 #define SIMTA_ALIAS_DB		"/etc/alias.db"
 
+extern struct stab_entry	*simta_hosts;
+
 char	*simta_gethostname ___P(( void ));
 char	*simta_local_domain ___P(( void ));
 char	*simta_sender ___P(( void ));
 char	*simta_resolvconf ___P(( void ));
-int	simta_config_host ___P(( struct stab_entry **hosts, char *hostname ));
+int	simta_init_hosts ___P(( void ));

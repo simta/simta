@@ -38,13 +38,11 @@
 #include "simta.h"
 
 int			debug = 0;
-struct stab_entry       *hosts = NULL;
 
     int
 main( int argc, char *argv[] )
 {
     char			*dir;
-    char			localhost[ MAXHOSTNAMELEN ];
 
     debug = 1;
 
@@ -66,13 +64,8 @@ main( int argc, char *argv[] )
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
-    if ( gethostname( localhost, MAXHOSTNAMELEN + 1 ) !=0 ) {
-	perror( "gethostname" );
-	exit( 1 );
-    }
-
     /* Add localhost to hosts list */
-    if ( simta_config_host( &hosts, localhost ) != 0 ) {
+    if ( simta_init_hosts() != 0 ) {
 	exit( 1 );
     }
 

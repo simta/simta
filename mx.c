@@ -26,7 +26,6 @@ extern SSL_CTX  *ctx;
 #include "simta.h"
 
 extern int	debug;
-extern struct stab_entry	*hosts;
 
     int
 get_mx( DNSR *dnsr, char *host )
@@ -83,7 +82,7 @@ mx_local( struct envelope *env, DNSR *dnsr, char *domain )
     struct host *host;
 
     /* Look for domain in host table */
-    if (( host = ll_lookup( hosts, domain )) != NULL ) {
+    if (( host = ll_lookup( simta_hosts, domain )) != NULL ) {
         if ( host->h_type == HOST_LOCAL ) {
             return( 1 );
         } else if ( host->h_type == HOST_MX ) {
@@ -125,7 +124,8 @@ mx_local( struct envelope *env, DNSR *dnsr, char *domain )
             }
 
             /* Add host to host list */
-            if ( ll_insert( &hosts, dnsr->d_result->answer[ i ].r_mx.exchange,
+            if ( ll_insert( &simta_hosts,
+		    dnsr->d_result->answer[ i ].r_mx.exchange,
                     host, NULL ) != 0 ) {
                 syslog( LOG_ERR, "mx_local: ll_insert failed" );
                 free( host );

@@ -22,6 +22,7 @@
 #include "simta.h"
 
 char	*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
+struct stab_entry	*simta_hosts;
 
     char*
 simta_gethostname( void )
@@ -84,10 +85,13 @@ simta_sender( void )
     return( sender );
 }
 
+
     int
-simta_config_host( struct stab_entry **hosts, char *hostname )
+simta_init_hosts( void )
 {
     struct host		*host = NULL;
+
+    simta_hosts = NULL;
 
     /* Add localhost to hosts list */
     if (( host = malloc( sizeof( struct host ))) == NULL ) {
@@ -96,6 +100,10 @@ simta_config_host( struct stab_entry **hosts, char *hostname )
     }
     host->h_type = HOST_LOCAL;
     host->h_expansion = NULL;
+
+    if (( host->h_name = simta_gethostname()) == NULL ) {
+	return( -1 );
+    }
 
     /* Add list of expansions */
     if ( access( SIMTA_ALIAS_DB, R_OK ) == 0 ) {
@@ -114,7 +122,7 @@ simta_config_host( struct stab_entry **hosts, char *hostname )
 	return( -1 );
     }
 
-    if ( ll_insert( hosts, hostname, host, NULL ) != 0 ) {
+    if ( ll_insert( &simta_hosts, host->h_name, host, NULL ) != 0 ) {
 	syslog( LOG_ERR, "simta_config_host: ll_insert: %m" );
 	return( -1 );
     }

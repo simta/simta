@@ -47,7 +47,6 @@ extern char	*version;
 extern int	debug;
 struct stab_entry	*expansion = NULL;
 struct stab_entry	*seen = NULL;
-extern struct stab_entry	*hosts;
 
 struct command {
     char	*c_name;
