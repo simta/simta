@@ -221,7 +221,7 @@ AC_DEFUN([CHECK_DB],
         AC_MSG_ERROR(cannot find db )
     else
         SIMTALIBS="$SIMTALIBS -ldb";
-        SIMTALDFLAGS="-L$dbdir/lib";
+        SIMTALDFLAGS="-L$dbdir/lib -Wl,-rpath -Wl,$dbdir/lib";
 	AC_SUBST(SIMTALIBS)
 	AC_SUBST(SIMTALDFLAGS)
 	AC_SUBST(SIMTACPPFLAGS)
