@@ -1000,8 +1000,6 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     }
     simta_ldapuser (exp->exp_env->e_mail, &sender_name, &sender_domain);
 
-    dn = ldap_get_dn (ld, entry );
-
     vals = ldap_get_values (ld, entry, "associateddomain");
     rdns = ldap_explode_dn (dn, 1);
 
