@@ -487,20 +487,24 @@ f_rcpt( snet, env, ac, av )
     }
 
     //printf( "\nList:\n" );
-    ll_walk( expansion, expansion_stab_stdout );
+    //ll_walk( expansion, expansion_stab_stdout );
 
-    if (( r = (struct recipient *)malloc( sizeof(struct recipient))) == NULL ) {
-	syslog( LOG_ERR, "f_rcpt: malloc: %m" );
-	return( -1 );
-    }
-    if (( r->r_rcpt = strdup( addr )) == NULL ) {
-	syslog( LOG_ERR, "f_rcpt: strdup: %m" );
-	return( -1 );
-    }
-    r->r_next = env->e_rcpt;
-    env->e_rcpt = r;
+    for ( cur = expansion; cur != NULL; cur = cur->st_next ) { 
 
-    syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
+	if (( r = (struct recipient *)malloc( sizeof(struct recipient)))
+		== NULL ) {
+	    syslog( LOG_ERR, "f_rcpt: malloc: %m" );
+	    return( -1 );
+	}
+	if (( r->r_rcpt = strdup( (char*)cur->st_data )) == NULL ) {
+	    syslog( LOG_ERR, "f_rcpt: strdup: %m" );
+	    return( -1 );
+	}
+	r->r_next = env->e_rcpt;
+	env->e_rcpt = r;
+
+	syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
+    }
 
     snet_writef( snet, "%d OK\r\n", 250 );
     return( 0 );
