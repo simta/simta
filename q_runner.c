@@ -146,10 +146,6 @@ bounce( struct envelope *env, SNET *message )
 	exit( 1 );
     }
 
-    q->q_env = bounce_env;
-    q->q_expanded = q->q_env->e_expanded;
-    q->q_etime = &(q->q_env->e_etime);
-
     if ( ll__insert( &(null_queue->hq_qfiles), q, efile_time_compare ) != 0 ) {
 	syslog( LOG_ERR, "ll__insert: %m" );
 	exit( 1 );

@@ -57,3 +57,4 @@ int		env_outfile ___P(( struct envelope *, char * ));
 int		env_unexpanded ___P(( char *, int * ));
 int		env_infile ___P(( struct envelope *, char * ));
 int		env_gettimeofday_id ___P(( struct envelope * ));
+int		env_fstat ___P(( struct envelope *, int ));

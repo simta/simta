@@ -171,6 +171,26 @@ env_recipient( struct envelope *e, char *addr )
 }
 
 
+    int
+env_fstat( struct envelope *e, int fd )
+{
+    struct stat			sb;
+
+    if ( fstat( fd, &sb ) != 0 ) {
+	syslog( LOG_ERR, "stat: %m" );
+	return( -1 );
+    }
+
+#ifdef sun
+    e->e_etime.tv_sec = sb.st_mtime;
+#else	/* sun */
+    e->e_etime = sb.st_mtimespec;
+#endif	/* sun */
+
+    return( 0 );
+}
+
+
     /* Efile syntax:
      *
      * Vversion
@@ -191,7 +211,6 @@ env_infile( struct envelope *e, char *filename )
 {
     char			*line;
     SNET			*snet;
-    struct stat			sb;
 
     if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_open %s: %m", filename );
@@ -199,16 +218,9 @@ env_infile( struct envelope *e, char *filename )
     }
 
     /* get efile modification time */
-    if ( fstat( snet_fd( snet ), &sb ) != 0 ) {
-	syslog( LOG_ERR, "stat %s: %m", filename );
+    if ( env_fstat( e, snet_fd( snet )) != 0 ) {
 	return( -1 );
     }
-
-#ifdef sun
-    e->e_etime.tv_sec = sb.st_mtime;
-#else	/* sun */
-    e->e_etime = sb.st_mtimespec;
-#endif	/* sun */
 
     /*** Vversion ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {
@@ -382,6 +394,11 @@ env_outfile( struct envelope *e, char *dir )
 	    fclose( tff );
 	    goto cleanup;
 	}
+    }
+
+    /* get efile modification time */
+    if ( env_fstat( e, fd ) != 0 ) {
+	return( -1 );
     }
 
     if ( fclose( tff ) != 0 ) {
