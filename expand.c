@@ -558,17 +558,18 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	goto cleanup2;
     }
 
-    /* truncate & delete unexpanded message */
-    sprintf( e_original, "%s/E%s", unexpanded_env->e_dir,
-	    unexpanded_env->e_id );
-
     if ( unexpanded_env->e_dir != simta_dir_fast ) {
+	/* truncate orignal Efile */
+	sprintf( e_original, "%s/E%s", unexpanded_env->e_dir,
+		unexpanded_env->e_id );
+
 	if ( truncate( e_original, (off_t)0 ) != 0 ) {
 	    syslog( LOG_ERR, "expand.truncate %s: %m", e_original );
 	    goto cleanup4;
 	}
     }
 
+    /* delete original message */
     if ( env_unlink( unexpanded_env ) != 0 ) {
 	syslog( LOG_ERR, "expand env_unlink %s: can't delete original message",
 		unexpanded_env->e_id );
