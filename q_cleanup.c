@@ -351,7 +351,7 @@ q_clean( char *dir, struct envelope **messages )
 
 	} else {
 	    /* unknown file */
-	    bad_filesystem++;
+	    bad_filesystem = 1;
 	    syslog( LOG_WARNING, "q_clean unknown file: %s/%s\n", dir,
 		    entry->d_name );
 	}
@@ -369,26 +369,23 @@ q_clean( char *dir, struct envelope **messages )
 	if (( env->e_flags & ENV_FLAG_DFILE ) == 0 ) {
 	    syslog( LOG_ALERT, "q_clean: %s/E%s: Missing Dfile\n", dir,
 		    env->e_id );
-	    bad_filesystem++;
+	    bad_filesystem = 1;
 	    *env_p = env->e_next;
 	    env_free( env );
 
 	} else if (( env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
 	    syslog( LOG_ALERT, "q_clean %s/D%s: Missing Efile\n", dir,
 		    env->e_id );
-	    if ( simta_filesystem_cleanup ) {
-		if ( bad_filesystem != 0 ) {
-		    if ( file_list_add( &f_list, STRANDED_D, dir, env->e_id )
-			    != 0 ) {
-			return( 1 );
-		    }
+	    if (( simta_filesystem_cleanup ) && ( bad_filesystem == 0 )) {
+		if ( file_list_add( &f_list, STRANDED_D, dir, env->e_id )
+			!= 0 ) {
+		    return( 1 );
 		}
-
 	    } else {
-		bad_filesystem++;
-		*env_p = env->e_next;
-		env_free( env );
+		bad_filesystem = 1;
 	    }
+	    *env_p = env->e_next;
+	    env_free( env );
 
 	} else {
 	    env_p = &((*env_p)->e_next);
@@ -400,11 +397,11 @@ q_clean( char *dir, struct envelope **messages )
 	f_list = f->f_next;
 
 	if (( simta_filesystem_cleanup ) && ( bad_filesystem == 0 )) {
-	    syslog( LOG_NOTICE, "q_cleanup: unlinking %s", f->f_name );
 	    if ( unlink( f->f_name ) != 0 ) {
 		syslog( LOG_ERR, "q_cleanup: unlink %s: %m", f->f_name );
 		return( 1 );
 	    }
+	    syslog( LOG_NOTICE, "q_cleanup: unlinked %s", f->f_name );
 	}
 
 	free( f->f_name );
