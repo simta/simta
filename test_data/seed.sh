@@ -76,6 +76,7 @@ cp Drsug ../slow/Drsug
 # fail some rsug mail
 cp Ersugbad ../slow/Ersugbad
 cp Drsug ../slow/Drsugbad
+touch -t 01010101 ../slow/Drsugbad
 
 # terminator Efile with no Dfile
 cp Eterminator ../slow/Elocalalone
