@@ -773,6 +773,7 @@ is_emailaddr( char **addr )
 	if (( new = (char*)malloc( len )) == NULL ) {
 	    return( -1 );
 	}
+	memset( new, 0, len );
 
 	w = new;
 
@@ -895,6 +896,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	    perror( "malloc" );
 	    return( -1 );
 	}
+	memset( buf, 0, buf_len );
 
 	r = local.t_end_line->line_data;
 	w = buf;
@@ -1609,9 +1611,9 @@ line_token_unfold( struct line_token *token )
 	    perror( "line_token_unfold malloc" );
 	    return( -1 );
 	}
+	memset( token->t_unfolded, 0, len );
 
 	strncpy( token->t_unfolded, token->t_start, len - 1 );
-	*(token->t_unfolded + len ) = '\0';
 
 	return( 0 );
     }

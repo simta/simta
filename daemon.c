@@ -379,15 +379,6 @@ main( ac, av )
         exit( 1 );
     }
 
-    /*
-     * Start logging.
-     */
-#ifdef ultrix
-    openlog( prog, LOG_NOWAIT|LOG_PID );
-#else /* ultrix */
-    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
-#endif /* ultrix */
-
     if ( cleanup != 0 ) {
 	if ( q_cleanup() != 0 ) {
 	    exit( 1 );
@@ -424,6 +415,17 @@ main( ac, av )
 	    exit( 0 );
 	}
     }
+
+    /*
+     * Start logging.
+     */
+#ifdef ultrix
+    openlog( prog, LOG_NOWAIT|LOG_PID );
+#else /* ultrix */
+    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+#endif /* ultrix */
+
+    syslog( LOG_DEBUG, "%s starting", prog );
 
     if (( pf = fdopen( pidfd, "w" )) == NULL ) {
         syslog( LOG_ERR, "can't fdopen pidfd" );
