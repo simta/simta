@@ -21,6 +21,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#endif TLS
+
 #include <snet.h>
 
 #include "receive.h"

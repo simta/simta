@@ -19,6 +19,10 @@
 #include <unistd.h>
 #include <time.h>
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#endif TLS
+
 #include <snet.h>
 
 #include "receive.h"
@@ -143,6 +147,11 @@ f_ehlo( snet, env, ac, av )
     snet_writef( snet, "\r\n" );
 #endif notdef
 
+    /*
+     * Should put something here that isn't a compile-time option, so
+     * we can have something that ends with '250 ' instead of '250-' .
+     */
+
     return( 0 );
 }
 
@@ -213,7 +222,8 @@ f_mail( snet, env, ac, av )
 	syslog( LOG_ERR, "f_mail: gettimeofday: %m" );
 	return( -1 );
     }
-    sprintf( env->e_id, "%lX.%lX", tv.tv_sec, tv.tv_usec );
+    sprintf( env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
+	    (unsigned long)tv.tv_usec );
 
     if (( env->e_mail = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "f_mail: strdup: %m" );
@@ -553,7 +563,7 @@ f_starttls( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    char			*err_txt;
+    SSL_CTX			*ctx;
 
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
@@ -574,9 +584,11 @@ f_starttls( snet, env, ac, av )
     /*
      * Begin TLS
      */
-    if (( err_txt = snet_starttls( snet, 1 )) != NULL ) {
-	snet_writef( snet, "%d STARTTLS: %s\r\n", 500, err_txt );
-	return( 1 );
+    switch ( snet_starttls( snet, ctx, 1 )) {
+    case 0 :
+    case 1 :
+    default :
+	break;
     }
 
     env_reset( env );
@@ -615,27 +627,13 @@ receive( fd, sin )
     struct envelope			*env;
     int					ac, i;
     char				**av, *line;
-    char				*err_txt;
     struct timeval			tv;
-
-    srandom( (unsigned)getpid());
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_attach: %m" );
 	/* We *could* use write(2) to report an error before we exit here */
 	exit( 1 );
     }
-
-#ifdef TLS
-    /*
-     * Initialize TLS
-     */
-    if (( err_txt = snet_inittls( snet, 1, 1, "./CRYPTO.pem" )) != NULL ) {
-	snet_writef( snet, "%d TLS temporarily not available (%s)\r\n", 454,
-		err_txt );
-	return( 1 );
-    }
-#endif TLS
 
     if ((( env = env_create()) == NULL ) ||
 	    ( gethostname( env->e_hostname, MAXHOSTNAMELEN ) < 0 )) {
