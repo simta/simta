@@ -286,7 +286,11 @@ q_runner( struct host_q **host_q )
     int				min;
     int				sec;
 
-    syslog( LOG_DEBUG, "q_runner starting" );
+    if ( simta_queue_filter ) {
+	syslog( LOG_DEBUG, "q_runner starting: %s", simta_queue_filter );
+    } else {
+	syslog( LOG_DEBUG, "q_runner starting" );
+    }
 
     assert( simta_fast_files >= 0 );
 

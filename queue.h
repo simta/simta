@@ -54,7 +54,6 @@ struct host_q {
 int	q_runner( struct host_q ** );
 int	q_runner_dir( char * );
 
-int	q_cleanup( void );
 struct	host_q	*host_q_create_or_lookup( struct host_q **, char * ); 
 void	queue_remove_envelope( struct envelope * );
 int	queue_envelope( struct host_q **, struct envelope *);

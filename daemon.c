@@ -58,6 +58,7 @@ struct proc_type {
 #define CHILD_Q_LOCAL		1
 #define CHILD_Q_SLOW		2
 #define CHILD_RECEIVE		3
+#define CHILD_CLEANUP		4
 
 struct proc_type	*proc_stab = NULL;
 int		q_runner_local = 0;
@@ -78,6 +79,7 @@ void		hup ( int );
 void		chld( int );
 int		main( int, char *av[] );
 void		simta_daemon_child( int, int );
+int		simta_wait_for_child( int );
 
 SSL_CTX		*ctx = NULL;
 
@@ -161,6 +163,7 @@ main( int ac, char **av )
     int			reuseaddr = 1;
     int			pidfd;
     int			q_run = 0;
+    char		*p_name;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
     fd_set		fdset;
@@ -368,6 +371,14 @@ main( int ac, char **av )
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
 
+    /* ignore SIGPIPE */
+    memset( &sa, 0, sizeof( struct sigaction ));
+    sa.sa_handler = SIG_IGN;
+    if ( sigaction( SIGPIPE, &sa, NULL ) < 0 ) {
+	syslog( LOG_ERR, "sigaction: %m" );
+	exit( 1 );
+    }
+
     if ( chdir( spooldir ) < 0 ) {
 	perror( spooldir );
 	exit( 1 );
@@ -401,11 +412,12 @@ main( int ac, char **av )
 	exit( 0 );
     }
 
+    /* if we're not a q_runner or filesystem cleaner, open smtp service */
     if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 )) {
 	if ( port == 0 ) {
 	    if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
-		fprintf( stderr, "%s: can't find smtp service: continuing\n",
-			prog );
+		fprintf( stderr, "%s: can't find smtp service: "
+			"defaulting to port 25\n", prog );
 		port = htons( 25 );
 	    } else {
 		port = se->s_port;
@@ -439,7 +451,9 @@ main( int ac, char **av )
 	    perror( "listen" );
 	    exit( 1 );
 	}
+    }
 
+    if ( q_run == 0 ) {
 	/* open and truncate the pid file */
 	if (( pidfd = open( SIMTA_FILE_PID, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
 	    fprintf( stderr, "open %s: ", SIMTA_FILE_PID );
@@ -467,12 +481,6 @@ main( int ac, char **av )
 	}
     }
 
-    /* close the log fd gracefully before we daemonize */
-    /* XXX do this after setgid and setuid for error logging purposes? */
-    if ( simta_filesystem_cleanup == 0 ) {
-	closelog();
-    }
-
     /* set our initgroups */
     if ( initgroups( simta_pw->pw_name, 0 ) != 0 ) {
 	perror( "setuid" );
@@ -497,9 +505,16 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    if ( simta_filesystem_cleanup != 0 ) {
-	exit( q_cleanup());
+    if ( q_run ) {
+	exit( simta_wait_for_child( CHILD_Q_SLOW ));
+    } else if ( simta_filesystem_cleanup ) {
+	exit( simta_wait_for_child( CHILD_CLEANUP ));
+    } else if ( simta_wait_for_child( CHILD_CLEANUP ) != 0 ) {
+	exit( 1 );
     }
+
+    /* close the log fd gracefully before we daemonize */
+    closelog();
 
     /*
      * Disassociate from controlling tty.
@@ -539,14 +554,6 @@ main( int ac, char **av )
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
 
-    if ( q_run != 0 ) {
-	exit( q_runner_dir( simta_dir_slow ));
-    }
-
-    if ( q_cleanup() != 0 ) {
-	exit( 1 );
-    }
-
     if (( pf = fdopen( pidfd, "w" )) == NULL ) {
         syslog( LOG_ERR, "can't fdopen pidfd" );
         exit( 1 );
@@ -577,14 +584,6 @@ main( int ac, char **av )
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = usr1;
     if ( sigaction( SIGUSR1, &sa, &osausr1 ) < 0 ) {
-	syslog( LOG_ERR, "sigaction: %m" );
-	exit( 1 );
-    }
-
-    /* ignore SIGPIPE */
-    memset( &sa, 0, sizeof( struct sigaction ));
-    sa.sa_handler = SIG_IGN;
-    if ( sigaction( SIGPIPE, &sa, NULL ) < 0 ) {
 	syslog( LOG_ERR, "sigaction: %m" );
 	exit( 1 );
     }
@@ -646,25 +645,22 @@ main( int ac, char **av )
 
 	    switch ( p_remove->p_type ) {
 	    case CHILD_Q_LOCAL:
-		syslog( LOG_NOTICE, "chld %d: q_runner.local done",
-			p_remove->p_id );
+		p_name = "local q_runner";
 		q_runner_local--;
 		break;
 
 	    case CHILD_Q_SLOW:
-		syslog( LOG_NOTICE, "chld %d: q_runner.slow done",
-			p_remove->p_id );
+		p_name = "slow q_runner";
 		q_runner_slow--;
 		break;
 
 	    case CHILD_RECEIVE:
-		syslog( LOG_NOTICE, "chld %d: daemon.receive done",
-			p_remove->p_id );
+		p_name = "connect receive";
 		connections--;
 		break;
 
 	    default:
-		syslog( LOG_ERR, "chld %d: unknown process type %d",
+		syslog( LOG_ERR, "Child %d: done: unknown process type %d",
 			p_remove->p_id, p_remove->p_type );
 		panic( "bad process type" );
 	    }
@@ -679,17 +675,18 @@ main( int ac, char **av )
 		    break;
 
 		default:
-		    syslog( LOG_ERR, "chld %d: exited %d", pid, exitstatus );
+		    syslog( LOG_ERR, "Child %d: %s exited: %d", pid,
+			    p_name, exitstatus );
 		    exit( 1 );
 		}
 
 	    } else if ( WIFSIGNALED( status )) {
-		syslog( LOG_ERR, "chld %d died on signal %d", pid,
-			WTERMSIG( status ));
+		syslog( LOG_ERR, "Child %d: %s died: signal %d", pid,
+			p_name, WTERMSIG( status ));
 		exit( 1 );
 
 	    } else {
-		syslog( LOG_ERR, "chld %d died", pid );
+		syslog( LOG_ERR, "Child %d: %s died", pid, p_name );
 		exit( 1 );
 	    }
 	}
@@ -722,6 +719,82 @@ main( int ac, char **av )
 	/* check to see if we have any incoming connections */
 	if ( FD_ISSET( s, &fdset )) {
 	    simta_daemon_child( CHILD_RECEIVE, s );
+	}
+    }
+}
+
+
+    int
+simta_wait_for_child( int child_type )
+{
+    int				pid;
+    int				status;
+    char			*p_name;
+
+    switch ( pid = fork()) {
+    case -1 :
+	syslog( LOG_ERR, "q_cleanup fork: %m" );
+	return( 1 );
+
+    case 0 :
+	switch ( child_type ) {
+	case CHILD_CLEANUP:
+	    exit( q_cleanup());
+
+	case CHILD_Q_SLOW:
+	    exit( q_runner_dir( simta_dir_slow ));
+
+	default:
+	    syslog( LOG_ERR, "wait_for_child: child_type out of range" );
+	    exit( 1 );
+	}
+
+    default :
+	switch ( child_type ) {
+	case CHILD_CLEANUP:
+	    if ( simta_filesystem_cleanup ) {
+		p_name = "clean filesystem";
+		syslog( LOG_NOTICE, "Child %d: %s start", pid, p_name );
+	    } else {
+		p_name = "check filesystem";
+		syslog( LOG_NOTICE, "Child %d: %s start", pid, p_name );
+	    }
+	    break;
+
+	case CHILD_Q_SLOW:
+	    p_name = "single q_runner";
+	    if ( simta_queue_filter ) {
+		syslog( LOG_NOTICE, "Child %d: %s start: %s", pid, p_name,
+			simta_queue_filter );
+	    } else {
+		syslog( LOG_NOTICE, "Child %d: %s start", pid, p_name );
+	    }
+	    break;
+
+	default:
+	    syslog( LOG_ERR, "Child %d: start: p_name %d out of range",
+		    pid, p_name );
+	    break;
+	}
+
+	if ( waitpid( pid, &status, 0 ) < 0 ) {
+	    syslog( LOG_ERR, "q_cleanup waitpid: %m" );
+	    return( 1  );
+	}
+
+	if ( WIFEXITED( status )) {
+	    syslog( LOG_NOTICE, "Child %d: %s exited: %d", pid, p_name,
+		    WEXITSTATUS( status ));
+	    return( WEXITSTATUS( status ));
+
+	} else if ( WIFSIGNALED( status )) {
+	    syslog( LOG_ERR, "Child %d: %s died: signal %d", pid, p_name,
+		    WTERMSIG( status ));
+	    return( 1 );
+
+	} else {
+	    syslog( LOG_ERR, "Child %d: %s died", pid, p_name );
+	    return( 1 );
 	}
     }
 }
@@ -810,22 +883,23 @@ simta_daemon_child( int type, int s )
 	switch ( type ) {
 	case CHILD_Q_LOCAL:
 	    q_runner_local++;
-	    syslog( LOG_NOTICE, "q_runner_dir.local child %d", pid );
+	    syslog( LOG_NOTICE, "Child %d: start: local q_runner", pid );
 	    break;
 
 	case CHILD_Q_SLOW:
 	    q_runner_slow++;
-	    syslog( LOG_NOTICE, "q_runner_dir.slow child %d", pid );
+	    syslog( LOG_NOTICE, "Child %d: start: slow q_runner", pid );
 	    break;
 
 	case CHILD_RECEIVE:
 	    close( fd );
 	    connections++;
-	    syslog( LOG_NOTICE, "receive child %d for %s", pid,
+	    syslog( LOG_NOTICE, "Child %d: start: receive: %s", pid,
 		    inet_ntoa( sin.sin_addr ));
 	    break;
 
 	default:
+	    syslog( LOG_NOTICE, "Child %d: start: unknown type %d", pid, type );
 	    panic( "simta_daemon_child type out of range" );
 	}
 

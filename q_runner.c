@@ -49,7 +49,7 @@ main( int argc, char *argv[] )
 
     if (( argc != 4 ) && ( argc != 3 )) {
 	fprintf( stderr,
-		"Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW | CLEAN )\n",
+		"Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW )\n",
 		argv[ 0 ]);
 	exit( EX_USAGE );
     }
@@ -79,9 +79,6 @@ main( int argc, char *argv[] )
 
     } else if ( strcasecmp( op, "SLOW" ) == 0 ) {
 	exit( q_runner_dir( simta_dir_slow ));
-
-    } else if ( strcasecmp( op, "CLEAN" ) == 0 ) {
-	exit( q_cleanup());
 
     } else {
 	fprintf( stderr,

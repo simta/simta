@@ -40,6 +40,7 @@ struct envelope {
 #define ENV_FLAG_BOUNCE		(1<<4)
 #define ENV_FLAG_TEMPFAIL	(1<<5)
 #define ENV_FLAG_PUNT		(1<<6)
+#define ENV_FLAG_DELETE		(1<<7)
 
 struct envelope	*env_create( char * );
 struct envelope	*env_dup( struct envelope * );

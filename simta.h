@@ -83,6 +83,7 @@ extern DNSR				*simta_dnsr;
 extern int				(*simta_local_mailer)(int, char *,
 						struct recipient *);
 
+int	q_cleanup( void );
 int	smtp_receive ( int, struct sockaddr_in * );
 void	panic ( char * );
 char	*simta_sender ( void );

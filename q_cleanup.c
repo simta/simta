@@ -48,42 +48,6 @@ int	move_to_slow( struct envelope **, struct envelope **);
 int	file_list_add( struct file_list **, int, char *, char * );
 
 
-    int
-q_cleanup( void )
-{
-    int				pid;
-    int				status;
-
-    switch ( pid = fork()) {
-    case -1 :
-	syslog( LOG_ERR, "q_cleanup fork: %m" );
-	return( 1 );
-
-    case 0 :
-	exit( q_cleanup_child());
-
-    default :
-	if ( waitpid( pid, &status, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "q_cleanup waitpid: %m" );
-	    return( 1  );
-	}
-
-	if ( WIFEXITED( status )) {
-	    return( WEXITSTATUS( status ));
-
-	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "q_cleanup %d died on signal %d\n", pid, 
-		    WTERMSIG( status ));
-	    return( 1 );
-
-	} else {
-	    syslog( LOG_ERR, "q_cleanup %d died\n", pid );
-	    return( 1 );
-	}
-    }
-}
-
-
     /*
      * - Clean & build SLOW queue
      * - Clean & build  LOCAL queue
@@ -96,7 +60,7 @@ q_cleanup( void )
      */
 
     int
-q_cleanup_child( void )
+q_cleanup( void )
 {
     struct envelope		*slow = NULL;
     struct envelope		*other = NULL;
