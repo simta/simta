@@ -719,8 +719,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	syslog( LOG_INFO, "Receive %s: Message Tempfail:"
 		" Too many failed recipients" , env->e_id );
 
-	if ( snet_writef( snet, "451 (%s): Too many failed recipients\r\n",
-		env->e_id ) < 0 ) {
+	if ( snet_writef( snet, "451 Requested action aborted:"
+		" Too many failed recipients\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
