@@ -466,6 +466,59 @@ q_runner_done:
 }
 
 
+    int
+q_runner_dir( char *dir )
+{
+    struct host_q		*host_q = NULL;
+    struct dirent		*entry;
+    struct envelope		*env;
+    DIR				*dirp;
+
+    if (( dirp = opendir( dir )) == NULL ) {
+	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
+	return( EXIT_OK );
+    }
+
+    errno = 0;
+
+    /* organize a directory's messages by host and timestamp */
+    while (( entry = readdir( dirp )) != NULL ) {
+	if ( *entry->d_name == 'E' ) {
+	    if (( env = env_create( NULL )) == NULL ) {
+		continue;
+	    }
+
+	    if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
+		env_free( env );
+		continue;
+	    }
+	    env->e_dir = dir;
+
+	    if ( env_read_queue_info( env ) != 0 ) {
+		env_free( env );
+		continue;
+	    }
+
+	    if ( queue_envelope( &host_q, env ) != 0 ) {
+		env_free( env );
+	    }
+
+	    simta_message_count++;
+	}
+    }
+
+    if ( errno != 0 ) {
+	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
+    }
+
+    if ( q_runner( &host_q ) != 0 ) {
+	return( EXIT_FAST_FILE );
+    }
+
+    return( EXIT_OK );
+}
+
+
     void
 q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 {
@@ -711,59 +764,6 @@ message_cleanup:
     }
 
     return;
-}
-
-
-    int
-q_runner_dir( char *dir )
-{
-    struct host_q		*host_q = NULL;
-    struct dirent		*entry;
-    struct envelope		*env;
-    DIR				*dirp;
-
-    if (( dirp = opendir( dir )) == NULL ) {
-	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
-	return( EXIT_OK );
-    }
-
-    errno = 0;
-
-    /* organize a directory's messages by host and timestamp */
-    while (( entry = readdir( dirp )) != NULL ) {
-	if ( *entry->d_name == 'E' ) {
-	    if (( env = env_create( NULL )) == NULL ) {
-		continue;
-	    }
-
-	    if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
-		env_free( env );
-		continue;
-	    }
-	    env->e_dir = dir;
-
-	    if ( env_read_queue_info( env ) != 0 ) {
-		env_free( env );
-		continue;
-	    }
-
-	    if ( queue_envelope( &host_q, env ) != 0 ) {
-		env_free( env );
-	    }
-
-	    simta_message_count++;
-	}
-    }
-
-    if ( errno != 0 ) {
-	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
-    }
-
-    if ( q_runner( &host_q ) != 0 ) {
-	return( EXIT_FAST_FILE );
-    }
-
-    return( EXIT_OK );
 }
 
 
