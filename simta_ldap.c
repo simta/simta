@@ -931,31 +931,24 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 
 	for ( idx = 0; dnvals[ idx ] != NULL; idx++ ) {
 	    ndn = dn_normalize_case (dnvals[ idx ]); 
-	    if ( *(e_addr->e_addr_from) == '\0' ) {
-		if ( add_address( exp, ndn, e_addr->e_addr_errors, 
-			ADDRESS_TYPE_LDAP, e_addr->e_addr_from ) != 0 ) {
-		    syslog (LOG_ERR,
-			"simta_ldap_expand_group: %s failed adding: NULL", dn);
-		    break;
-		}
+
+	    /* If sending to group members 
+	    ** -- change from address to be: group-errors@associateddomaon
+	    ** -- otherwise use the original sender.
+	    */
+	    if (( *(e_addr->e_addr_from) != '\0' ) &&
+		    (( type == LDS_GROUP_MEMBERS ) || ( type == LDS_USER ))) {
+		rc =  add_address( exp, ndn, e_addr->e_addr_errors, 
+			    ADDRESS_TYPE_LDAP, senderbuf );
 	    } else {
-		/* If sending to group members 
-		** -- change from address to be: group-errors@associateddomaon
-		** -- otherwise use the original sender.
-		*/
-		if ((type == LDS_GROUP_MEMBERS ) || (type == LDS_USER )) {
-		    rc =  add_address( exp, ndn, e_addr->e_addr_errors, 
-				ADDRESS_TYPE_LDAP, senderbuf );
-		} else {
-		    rc =  add_address( exp, ndn, e_addr->e_addr_errors,    
-                                ADDRESS_TYPE_LDAP, e_addr->e_addr_from );       
-                }
-		if (rc != 0 ) {
-		    syslog (LOG_ERR,
-			"simta_ldap_expand_group: %s failed adding: %s", dn,
-			dnvals[ idx ]);
-		    break;
-		}
+		rc =  add_address( exp, ndn, e_addr->e_addr_errors,    
+			    ADDRESS_TYPE_LDAP, e_addr->e_addr_from );       
+	    }
+	    if (rc != 0 ) {
+		syslog (LOG_ERR,
+		    "simta_ldap_expand_group: %s failed adding: %s", dn,
+		    dnvals[ idx ]);
+		break;
 	    }
 	}
 	ldap_value_free( dnvals);
@@ -968,7 +961,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    attrval = mailvals[ idx ];
 
 	    if (strchr (attrval, '@') ) {		
-		if ((type == LDS_GROUP_MEMBERS ) || (type == LDS_USER )) {
+		if (( *(e_addr->e_addr_from) != '\0' ) &&
+			(( type == LDS_GROUP_MEMBERS ) ||
+			( type == LDS_USER ))) {
 		    rc = address_string_recipients( exp, attrval,
 			    e_addr, senderbuf );
 		} else {
