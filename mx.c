@@ -254,6 +254,9 @@ check_hostname( DNSR *dnsr, char *dn, struct in_addr *in )
 	for ( j = 0; j < result_a->r_ancount; j++ ) {
 	    if ( memcmp( &(in->s_addr), &(result_a->r_answer[ j ].rr_a),
 		    sizeof( int )) == 0 ) {
+		if ( dn != NULL ) {
+		    strcpy( dn, result_ptr->r_answer[ i ].rr_dn.dn_name );
+		}
 		dnsr_free_result( result_a );
 		dnsr_free_result( result_ptr );
 		return( 0 );
