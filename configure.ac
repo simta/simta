@@ -41,9 +41,13 @@ AC_SUBST(OPTOPTS)
 AC_STRUCT_TM
 AC_STRUCT_GMTOFF
 
-CHECK_DB
+AC_SUBST(SRC, [])
+AC_SUBST(SIMTA_OBJ, [])
 
-AC_CHECK_LIB([ldap], [ldap_init], , [CHECK_LDAP])
+CHECK_DB
+CHECK_LDAP
+
+#AC_CHECK_LIB([ldap], [ldap_init], , [CHECK_LDAP])
 AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])
 AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
 AC_CHECK_LIB([nsl], [inet_ntoa])

@@ -1,24 +1,43 @@
 AC_DEFUN([CHECK_LDAP],
 [
     AC_MSG_CHECKING(for ldap)
-    ldapdirs="/usr"
+
+    ldapdirs="yes"
+
     AC_ARG_WITH(ldap,
 	    AC_HELP_STRING([--with-ldap=DIR], [path to ldap]),
 	    ldapdirs="$withval")
-    found_ldap="no";
-    for dir in $ldapdirs; do
-	ldapdir="$dir"
-	if test -f "$dir/include/ldap.h"; then
-	    found_ldap="yes";
-	    break;
+
+    # ldapdirs will be "yes", "no", or a user defined path
+    if test x_$ldapdirs != x_no; then
+	if test x_$ldapdirs = x_yes; then
+	    ldapdirs="/usr /usr/local /usr/local/ldap /usr/local/openldap"
 	fi
-    done
-    if test x_$found_ldap != x_yes; then
-	AC_MSG_ERROR(cannot find ldap libraries)
+
+	for dir in $ldapdirs; do
+	    ldapdir="$dir"
+	    if test -f "$dir/include/ldap.h"; then
+		found_ldap="yes";
+		AC_MSG_RESULT(yes)
+		break
+	    fi
+	done
+
+	if test x_$found_ldap != x_yes; then
+	    AC_MSG_RESULT(no)
+	else
+	    LIBS="$LIBS -lldap -llber";
+	    CFLAGS="$CFLAGS -I$ldapdir/include";
+	    LDFLAGS="$LDFLAGS -L$ldapdir/lib";
+	    SRC="$SRC ldap.c"
+	    SIMTAOBJ="$SIMTAOBJ ldap.o"
+	    AC_DEFINE(HAVE_LDAP)
+	fi
+
     else
-	LIBS="$LIBS -lldap";
+	AC_MSG_RESULT(disabled)
+
     fi
-    AC_MSG_RESULT(yes)
 ])
 
 

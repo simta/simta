@@ -277,7 +277,7 @@ PACKAGE_BUGREPORT='simta@umich.edu'
 ac_default_prefix=/usr/local
 ac_subdirs_all="$ac_subdirs_all libsnet"
 ac_subdirs_all="$ac_subdirs_all denser"
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS resolvconf aliasdb maxconnections CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA SIMTA_MAIL_LOCAL SIMTA_PROCMAIL OPTOPTS HAVE_TM_GMTOFF SIMTALIBS SIMTALDFLAGS SIMTACPPFLAGS HAVE_DB TLSDEFS HAVE_SSL subdirs LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS resolvconf aliasdb maxconnections CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA SIMTA_MAIL_LOCAL SIMTA_PROCMAIL OPTOPTS HAVE_TM_GMTOFF SRC SIMTA_OBJ SIMTALIBS SIMTALDFLAGS SIMTACPPFLAGS HAVE_DB TLSDEFS HAVE_SSL subdirs LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -2698,6 +2698,9 @@ echo "${ECHO_T}$ac_cv_struct_gmtoff" >&6
 
 
 
+
+
+
     echo "$as_me:$LINENO: checking for db" >&5
 echo $ECHO_N "checking for db... $ECHO_C" >&6
     dbdirs="/usr/local/db /usr/db \
@@ -2733,99 +2736,57 @@ echo "$as_me: error: cannot find db " >&2;}
 echo "${ECHO_T}yes" >&6
 
 
-
-echo "$as_me:$LINENO: checking for ldap_init in -lldap" >&5
-echo $ECHO_N "checking for ldap_init in -lldap... $ECHO_C" >&6
-if test "${ac_cv_lib_ldap_ldap_init+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lldap  $LIBS"
-cat >conftest.$ac_ext <<_ACEOF
-#line $LINENO "configure"
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-/* Override any gcc2 internal prototype to avoid an error.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-/* We use char because int might match the return type of a gcc2
-   builtin and then its argument prototype would still apply.  */
-char ldap_init ();
-int
-main ()
-{
-ldap_init ();
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
-  (eval $ac_link) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-         { ac_try='test -s conftest$ac_exeext'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  ac_cv_lib_ldap_ldap_init=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-ac_cv_lib_ldap_ldap_init=no
-fi
-rm -f conftest.$ac_objext conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-echo "$as_me:$LINENO: result: $ac_cv_lib_ldap_ldap_init" >&5
-echo "${ECHO_T}$ac_cv_lib_ldap_ldap_init" >&6
-if test $ac_cv_lib_ldap_ldap_init = yes; then
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBLDAP 1
-_ACEOF
-
-  LIBS="-lldap $LIBS"
-
-else
-
     echo "$as_me:$LINENO: checking for ldap" >&5
 echo $ECHO_N "checking for ldap... $ECHO_C" >&6
-    ldapdirs="/usr"
+
+    ldapdirs="yes"
+
 
 # Check whether --with-ldap or --without-ldap was given.
 if test "${with_ldap+set}" = set; then
   withval="$with_ldap"
   ldapdirs="$withval"
 fi;
-    found_ldap="no";
-    for dir in $ldapdirs; do
-	ldapdir="$dir"
-	if test -f "$dir/include/ldap.h"; then
-	    found_ldap="yes";
-	    break;
+
+    # ldapdirs will be "yes", "no", or a user defined path
+    if test x_$ldapdirs != x_no; then
+	if test x_$ldapdirs = x_yes; then
+	    ldapdirs="/usr /usr/local /usr/local/ldap /usr/local/openldap"
 	fi
-    done
-    if test x_$found_ldap != x_yes; then
-	{ { echo "$as_me:$LINENO: error: cannot find ldap libraries" >&5
-echo "$as_me: error: cannot find ldap libraries" >&2;}
-   { (exit 1); exit 1; }; }
-    else
-	LIBS="$LIBS -lldap";
-    fi
-    echo "$as_me:$LINENO: result: yes" >&5
+
+	for dir in $ldapdirs; do
+	    ldapdir="$dir"
+	    if test -f "$dir/include/ldap.h"; then
+		found_ldap="yes";
+		echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
+		break
+	    fi
+	done
 
-fi
+	if test x_$found_ldap != x_yes; then
+	    echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+	else
+	    LIBS="$LIBS -lldap -llber";
+	    CFLAGS="$CFLAGS -I$ldapdir/include";
+	    LDFLAGS="$LDFLAGS -L$ldapdir/lib";
+	    SRC="$SRC ldap.c"
+	    SIMTAOBJ="$SIMTAOBJ ldap.o"
+	    cat >>confdefs.h <<\_ACEOF
+#define HAVE_LDAP 1
+_ACEOF
 
+	fi
+
+    else
+	echo "$as_me:$LINENO: result: disabled" >&5
+echo "${ECHO_T}disabled" >&6
+
+    fi
+
+
+#AC_CHECK_LIB([ldap], [ldap_init], , [CHECK_LDAP])
 
 echo "$as_me:$LINENO: checking for SSL_accept in -lssl" >&5
 echo $ECHO_N "checking for SSL_accept in -lssl... $ECHO_C" >&6
@@ -3807,6 +3768,8 @@ s,@SIMTA_MAIL_LOCAL@,$SIMTA_MAIL_LOCAL,;t t
 s,@SIMTA_PROCMAIL@,$SIMTA_PROCMAIL,;t t
 s,@OPTOPTS@,$OPTOPTS,;t t
 s,@HAVE_TM_GMTOFF@,$HAVE_TM_GMTOFF,;t t
+s,@SRC@,$SRC,;t t
+s,@SIMTA_OBJ@,$SIMTA_OBJ,;t t
 s,@SIMTALIBS@,$SIMTALIBS,;t t
 s,@SIMTALDFLAGS@,$SIMTALDFLAGS,;t t
 s,@SIMTACPPFLAGS@,$SIMTACPPFLAGS,;t t
