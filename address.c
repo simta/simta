@@ -109,29 +109,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
      */
 
     switch ( addr_type ) {
-
     case ADDRESS_TYPE_EMAIL:
-	/* verify and correct address syntax */
-#ifdef notdef
-	switch ( is_emailaddr( address )) {
-	case 1:
-	    /* addr correct, check if we have seen it already */
-	    break;
-
-	case 0:
-	    /* address is not syntactically correct */
-	    if ( bounce_text( error_env, "bad email address format: ",
-		    address, NULL ) != 0 ) {
-		free( address );
-		return( 1 );
-	    }
-	    free( address );
-	    return( 1 );
-
-	default:
-	    panic( "add_address addr_type out of range" );
-	}
-#endif /* notdef */
 	break;
 
 #ifdef HAVE_LDAP
@@ -140,9 +118,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 #endif /* HAVE_LDAP */
 
     default:
-	syslog( LOG_ERR, "add_address bad type" );
-	free( address );
-	return( 1 );
+	panic( "add_address type out of range" );
     }
 
     if (( e = (struct exp_addr*)ll_lookup( exp->exp_addr_list, address ))

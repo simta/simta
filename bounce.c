@@ -177,7 +177,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     /* dfile message headers */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
-	printf(  "To: <%s>\n", r->r_rcpt );
+	fprintf( dfile, "To: <%s>\n", r->r_rcpt );
     }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: <%s@%s>\n", bounce_env->e_id, simta_hostname );
@@ -312,7 +312,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	fprintf( dfile, "From: <%s>\n", env->e_mail );
     }
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
-	printf(  "To: <%s>\n", r->r_rcpt );
+	fprintf( dfile, "To: <%s>\n", r->r_rcpt );
     }
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: <%s@%s>\n", bounce_env->e_id, simta_hostname );

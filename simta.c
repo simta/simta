@@ -82,7 +82,7 @@ DNSR			*simta_dnsr = NULL;
     void
 panic( char *message )
 {
-    syslog( LOG_WARNING, "%s", message );
+    syslog( LOG_CRIT, "%s", message );
     abort();
 }
 
