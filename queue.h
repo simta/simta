@@ -1,0 +1,19 @@
+/*
+ * Copyright (c) 1998 Regents of The University of Michigan.
+ * All Rights Reserved.  See COPYRIGHT.
+ */
+
+/*****     queue.h     *****/
+
+
+struct q_file {
+    char			*q_id;
+    int				q_efile;
+    int				q_dfile;
+    struct timespec		q_etime;
+    struct timespec		q_dtime;
+};
+
+
+struct q_file	*q_file_create( char * );
+void		q_file_stdout( struct q_file * );

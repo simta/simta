@@ -190,9 +190,6 @@ message_stdout( struct message *m )
     } else {
 	printf( "MESSAGE DATA:\tNULL\n" );
     }
-
-    printf( "efiles:\t%d\n", m->m_efile );
-    printf( "dfiles:\t%d\n", m->m_dfile );
 }
 
 
