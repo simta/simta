@@ -718,8 +718,6 @@ main( ac, av )
 	}
 
 	if ( FD_ISSET( s, &fdset )) {
-	    syslog( LOG_DEBUG, "incoming connection" );
-
 	    sinlen = sizeof( struct sockaddr_in );
 	    if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
 		if ( errno != EINTR ) {

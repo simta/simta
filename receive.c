@@ -54,6 +54,11 @@ extern SSL_CTX	*ctx;
 extern char		*version;
 struct host_q		*hq_receive = NULL;
 
+#define	RECEIVE_OK		0x0000
+#define	RECEIVE_QUIT		0x0001
+#define	RECEIVE_SYSERROR	0x0010
+#define	RECEIVE_BADCONNECTION	0x0100
+
 struct command {
     char	*c_name;
     int		(*c_func) ___P(( SNET *, struct envelope *, int, char *[] ));
@@ -77,13 +82,12 @@ static int	f_starttls ___P(( SNET *, struct envelope *, int, char *[] ));
 static int	hello ___P(( struct envelope *, char * ));
 static char	*smtp_trimaddr ___P(( char *, char * ));
 
+
     static int
 hello( env, hostname )
     struct envelope		*env;
     char			*hostname;
 {
-    syslog( LOG_DEBUG, "hello starting" );
-
     /* If we get "HELO" twice, just toss the new one */
     if ( env->e_helo == NULL ) {
 	/*
@@ -95,16 +99,13 @@ hello( env, hostname )
 	 */
 	if (( env->e_helo = strdup( hostname )) == NULL ) {
 	    syslog( LOG_ERR, "f_helo: strdup: %m" );
-	    return( -1 );
+	    return( RECEIVE_SYSERROR );
 	}
-
-	syslog( LOG_INFO, "helo: %s", env->e_helo );
-    } else {
-	syslog( LOG_INFO, "helo: %s (again)", hostname );
     }
 
-    return( 0 );
+    return( RECEIVE_OK );
 }
+
 
     int
 f_helo( snet, env, ac, av )
@@ -113,23 +114,29 @@ f_helo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_helo starting" );
-
     if ( ac != 2 ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_INFO, "f_helo syntax error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_helo snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     if ( hello( env, av[ 1 ] ) < 0 ) {
-	return( -1 );
+	return( RECEIVE_SYSERROR );
     }
 
-    snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname, av[ 1 ]);
-    if ( simta_debug ) fprintf( stderr, ">>> %d %s Hello %s\r\n",
-	250, simta_hostname, av[ 1 ] );
-    return( 0 );
+    if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
+	    av[ 1 ]) < 0 ) {
+	syslog( LOG_ERR, "f_helo snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+
+    syslog( LOG_INFO, "f_helo %s", av[ 1 ]);
+    return( RECEIVE_OK );
 }
+
 
 /*
  * SMTP Extensions RFC.
@@ -141,8 +148,6 @@ f_ehlo( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_ehlo starting" );
-
     /* XXX - rfc 2821 4.1.4
      * A session that will contain mail transactions MUST first be
      * initialized by the use of the EHLO command.  An SMTP server SHOULD
@@ -151,9 +156,12 @@ f_ehlo( snet, env, ac, av )
      */
 
     if ( ac != 2 ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_INFO, "f_ehlo syntax error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     /* rfc 2821 4.1.4
@@ -169,53 +177,53 @@ f_ehlo( snet, env, ac, av )
 	env_reset( env );
     }
 
-    if ( hello( env, av[ 1 ] ) < 0 ) {
-	return( -1 );
-    }
-
     /* rfc 2821 3.6
      * The domain name given in the EHLO command MUST BE either a primary
      * host name (a domain name that resolves to an A RR) or, if the host
      * has no name, an address literal as described in section 4.1.1.1.
      */
 
-    snet_writef( snet, "%d-%s Hello %s\r\n", 250, simta_hostname, av[ 1 ]);
-    if ( simta_debug ) fprintf( stderr, ">>> %d-%s Hello %s\r\n",
-	250, simta_hostname, av[ 1 ] );
+    if ( hello( env, av[ 1 ] ) < 0 ) {
+	return( RECEIVE_SYSERROR );
+    }
 
 #ifdef HAVE_LIBSSL
     /* RFC 2487 SMTP TLS */
-    /*
-     * Note that this must be last, as it has '250 ' instead of
-     * '250-' as above.
-     */
     if (( env->e_flags & E_TLS ) == 0 ) {
-	snet_writef( snet, "%d STARTTLS\r\n", 250 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d STARTTLS\r\n", 250 );
+	if ( snet_writef( snet, "%d-%s Hello %s\r\n", 250, simta_hostname,
+		av[ 1 ]) < 0 ) {
+	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+
+	if ( snet_writef( snet, "%d STARTTLS\r\n", 250 ) < 0 ) {
+	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	syslog( LOG_INFO, "f_ehlo %s start_tls", av[ 1 ]);
+
+    } else {
+	if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
+		av[ 1 ]) < 0 ) {
+	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	syslog( LOG_INFO, "f_ehlo %s", av[ 1 ]);
     }
+
+#else /* HAVE_LIBSSL */
+
+    if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
+	    av[ 1 ]) < 0 ) {
+	syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+    syslog( LOG_INFO, "f_ehlo %s", av[ 1 ]);
 #endif /* HAVE_LIBSSL */
 
-#ifdef notdef
-    /*
-     * RFC 2554 SMTP SASL
-     */
-    snet_writef( snet, "%d AUTH", 250 );
-    if ( simta_debug ) fprintf( stderr, ">>> %d AUTH", 250 );
-    for ( s = sasl; s->s_name; s++ ) {
-	snet_writef( snet, " %s", s->s_name );
-	if ( simta_debug ) fprintf( stderr, " %s", s->s_name );
-    }
-    snet_writef( snet, "\r\n" );
-    if ( simta_debug ) fprintf( stderr, "\r\n", 501 );
-#endif /* notdef */
-
-    /*
-     * Should put something here that isn't a compile-time option, so
-     * we can have something that ends with '250 ' instead of '250-' .
-     */
-
-    return( 0 );
+    return( RECEIVE_OK );
 }
+
 
     static char *
 smtp_trimaddr( addr, leader )
@@ -223,8 +231,6 @@ smtp_trimaddr( addr, leader )
     char	*leader;
 {
     char	*p, *q;
-
-    syslog( LOG_DEBUG, "smtp_trimaddr starting" );
 
     if ( strncasecmp( addr, leader, strlen( leader )) != 0 ) {
 	return( NULL );
@@ -240,6 +246,7 @@ smtp_trimaddr( addr, leader )
     return( p );
 }
 
+
     int
 f_mail( snet, env, ac, av )
     SNET			*snet;
@@ -247,12 +254,9 @@ f_mail( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    struct timeval	tv;
     char		*addr, *domain;
     DNSR		*dnsr;
     struct dnsr_result	*result;
-
-    syslog( LOG_DEBUG, "f_mail starting" );
 
     /*
      * Contrary to popular belief, it is not an error to give more than
@@ -263,48 +267,50 @@ f_mail( snet, env, ac, av )
     if (( env->e_flags & E_READY ) != 0 ) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    case EXPAND_OK:
+		env_reset( env );
 		break;
 
-	    /* XXX fix these cases */
 	    default:
 	    case EXPAND_SYSERROR:
 	    case EXPAND_FATAL:
-		return( -1 );
+		syslog( LOG_ERR, "f_mail expand_and_deliver error" );
+		env_reset( env );
+		return( RECEIVE_SYSERROR );
 	}
-
-	env_reset( env );
     }
 
+    /* XXX handle MAIL FROM:<foo> AUTH=bar */
     if ( ac != 2 ) {
-    	/* XXX handle MAIL FROM:<foo> AUTH=bar */
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_INFO, "f_mail syntax error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     /* RFC 2821 Section 4.1.1.2
      * "MAIL FROM:" ("<>" / Reverse-Path ) CRLF
      */
     if (( addr = smtp_trimaddr( av[ 1 ], "FROM:" )) == NULL ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_ERR, "f_mail smtp_trimaddr error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
-	snet_writef( snet, "%d Requested action not taken\r\n", 553 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Requested action not taken\r\n", 553 );
-	return( 1 );
+	syslog( LOG_ERR, "f_mail %s: strchr error", addr );
+	if ( snet_writef( snet, "%d Requested action not taken\r\n",
+		553 ) < 0 ) {
+	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
     domain++;
-
-    if ( *domain == '\0' ) {
-	snet_writef( snet, "%d Requested action not taken\r\n", 553 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Requested action not taken\r\n", 553 );
-	return( 1 );
-    }
 
     /*
      * rfc1123 (5.3.2) Timeouts in SMTP.  We have a maximum of 5 minutes
@@ -313,49 +319,41 @@ f_mail( snet, env, ac, av )
      * along.  "451" is probably the correct error.
      */
     if ( *addr != '\0' ) {
-
-	/* XXX - Should this return? */
 	if (( dnsr = dnsr_new( )) == NULL ) {
 	    syslog( LOG_ERR, "f_mail dnsr_new: %s",
-		dnsr_err2string( dnsr_errno( dnsr )));
-	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing.\r\n",
-		451 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Requested action aborted: local error in processing.\r\n", 451 );
-	    return( -1 );
+		    dnsr_err2string( dnsr_errno( dnsr )));
+	    return( RECEIVE_SYSERROR );
 	}
 
+	/* XXX free result? */
 	if (( result = get_mx( dnsr, domain )) == NULL ) {
-	    if ( simta_debug ) fprintf( stderr, "get_mx: %s\n",
-		dnsr_err2string( dnsr_errno( dnsr )));
 	    switch ( dnsr_errno( dnsr )) {
 	    case DNSR_ERROR_NAME:
 	    case DNSR_ERROR_NO_ANSWER:
-		snet_writef( snet, "%d %s: unknown host\r\n", 550, domain );
-		syslog( LOG_ERR, "f_mail get_mx: unknown host" );
-		if ( simta_debug ) fprintf( stderr,
-		    ">>> %d %s: unknown host\r\n", 550, domain );
-		return( 1 );
+		syslog( LOG_ERR, "f_mail get_mx %s: unknown host", domain );
+		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
+			domain ) < 0 ) {
+		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_OK );
+
 	    default:
-		syslog( LOG_ERR, "f_mail get_mx: local error" );
-		snet_writef( snet,
-		    "%d Requested action aborted: local error "
-		    "in processing\r\n", 451 );
-		if ( simta_debug ) fprintf( stderr,
-		    ">>> %d Requested action aborted: local error "
-		    "in processing\r\n", 451 );
-		return( -1 );
+		syslog( LOG_ERR, "f_mail get_mx %s: local error", domain );
+		return( RECEIVE_SYSERROR );
 	    }
 	}
 
 	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
 		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 	    /* No valid DNS */
-	    snet_writef( snet, "%d Can't verify address\r\n", 451 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Can't verify address\r\n", 451 );
-	    return( 1 );
+	    syslog( LOG_INFO, "f_mail get_mx %s: can't verify address",
+		    domain );
+	    if ( snet_writef( snet, "%d Can't verify address\r\n", 451 ) < 0 ) {
+		syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		return( RECEIVE_BADCONNECTION );
+	    }
+	    return( RECEIVE_OK );
 	}
     }
 
@@ -365,36 +363,36 @@ f_mail( snet, env, ac, av )
 	env_reset( env );
     }
 
-    /* XXX gettimeofday_id */
-    if ( gettimeofday( &tv, NULL ) < 0 ) {
-	syslog( LOG_ERR, "f_mail: gettimeofday: %m" );
-	return( -1 );
+    if ( env_gettimeofday_id( env ) != 0 ) {
+	syslog( LOG_ERR, "f_mail env_gettimeofday_id: %m" );
+	return( RECEIVE_SYSERROR );
     }
-    sprintf( env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
-	    (unsigned long)tv.tv_usec );
 
     if (( env->e_mail = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "f_mail: strdup: %m" );
-	return( -1 );
+	return( RECEIVE_SYSERROR );
     }
 
     /* check for authorized relay */
     if ( simta_global_relay != 0 ) {
-	syslog( LOG_INFO, "f_mail relay to %s for %s", addr, env->e_mail );
+	syslog( LOG_INFO, "f_mail global relay for %s", env->e_mail );
 	env->e_relay = 1;
 
     } else if ( strncmp( env->e_mail, "mcneal@umich.edu",
 	    strlen( "mcneal@umich.edu" )) == 0 ) {
 	/* everyone likes mcneal */
-	syslog( LOG_INFO, "f_mail relay to %s for %s", addr, env->e_mail );
+	syslog( LOG_INFO, "f_mail relay for %s", env->e_mail );
 	env->e_relay = 1;
     }
 
     syslog( LOG_INFO, "f_mail %s: mail: <%s>", env->e_id, env->e_mail );
 
-    snet_writef( snet, "%d OK\r\n", 250 );
-    if ( simta_debug ) fprintf( stderr, ">>> %d OK\r\n", 250 );
-    return( 0 );
+    if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
+	syslog( LOG_ERR, "f_mail snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+
+    return( RECEIVE_OK );
 }
 
     int
@@ -410,28 +408,32 @@ f_rcpt( snet, env, ac, av )
     DNSR		*dnsr;
     struct dnsr_result	*result;
 
-    syslog( LOG_DEBUG, "f_rcpt starting" );
-
     if ( ac != 2 ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_INFO, "f_rcpt syntax error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
-    /*
-     * Must already have "MAIL FROM:"
-     */
+    /* Must already have "MAIL FROM:" */
     if ( env->e_mail == NULL ) {
-	snet_writef( snet, "%d Bad sequence of commands\r\n", 503 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Bad sequence of commands\r\n", 503 );
-	return( 1 );
+	syslog( LOG_INFO, "f_rcpt bad sequence" );
+	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
+	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     if (( addr = smtp_trimaddr( av[ 1 ], "TO:" )) == NULL ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_ERR, "f_rcpt smtp_trimaddr error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     /* rfc 2821 3.7
@@ -441,13 +443,16 @@ f_rcpt( snet, env, ac, av )
      * information and simply send to the final destination specified as the
      * last element in the route and SHOULD do so.
      */
-
-    if ( *addr == '@' ) {		/* short-circuit route-addrs */
+    /* short-circuit route-addrs */
+    if ( *addr == '@' ) {
 	if (( addr = strchr( addr, ':' )) == NULL ) {
-	    snet_writef( snet, "%d Requested action not taken\r\n", 553 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Requested action not taken\r\n", 553 );
-	    return( 1 );
+	    syslog( LOG_ERR, "f_rcpt strchr error addr" );
+	    if ( snet_writef( snet, "%d Requested action not taken\r\n",
+		    553 ) < 0 ) {
+		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		return( RECEIVE_BADCONNECTION );
+	    }
+	    return( RECEIVE_OK );
 	}
 	addr++;
     }
@@ -457,10 +462,13 @@ f_rcpt( snet, env, ac, av )
      * of relay is heavily discouraged due to SPAM abuses.
      */
     if ((( domain = strchr( addr, '@' )) == NULL ) || ( domain == addr )) {
-	snet_writef( snet, "%d Requested action not taken\r\n", 553 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Requested action not taken\r\n", 553 );
-	return( 1 );
+	syslog( LOG_ERR, "f_rcpt strchr error domain" );
+	if ( snet_writef( snet, "%d Requested action not taken\r\n",
+		553 ) < 0 ) {
+	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
     domain++;
 
@@ -483,45 +491,52 @@ f_rcpt( snet, env, ac, av )
 	/* DNS check for invalid domain */
 	/* XXX - this should be an optional check */
 	if (( dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "dnsr_new: %s",
-		dnsr_err2string( (int)dnsr_errno( dnsr )));
-	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing.\r\n",
-		451 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Requested action aborted: "
-		"local error in processing.\r\n",
-		451 );
-	    return( -1 );
+	    syslog( LOG_ERR, "f_rcpt dnsr_new: %s",
+		    dnsr_err2string((int)dnsr_errno( dnsr )));
+	    if ( snet_writef( snet,
+		    "%d Requested action aborted: "
+		    "local error in processing.\r\n", 451 ) < 0 ) {
+		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		return( RECEIVE_BADCONNECTION );
+	    }
+	    return( RECEIVE_OK );
 	}
 
 	if (( result = get_mx( dnsr, domain )) == NULL ) {
-	    if ( simta_debug ) fprintf( stderr, "get_mx: %s: %s\n",
-		domain, dnsr_err2string( dnsr_errno( dnsr )));
 	    if ((( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )) ||
 		    ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
-		snet_writef( snet, "%d %s: unknown host\r\n", 550, domain );
-		if ( simta_debug ) fprintf( stderr,
-		    ">>> %d %s: unknown host\r\n", 550, domain );
-		return( 1 );
+		syslog( LOG_INFO, "f_rcpt get_mx %s: unknown host", domain );
+		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
+			domain ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_OK );
+
 	    } else {
-		snet_writef( snet,
-		    "%d Requested action aborted: local error "
-		    "in processing\r\n", 451 );
-		if ( simta_debug ) fprintf( stderr,
-		    ">>> %d Requested action aborted: local error "
-		    "in processing\r\n", 451 );
-		return( -1 );
+		/* XXX better error reporting */
+		syslog( LOG_ERR, "f_rcpt get_mx error" );
+		if ( snet_writef( snet,
+			"%d Requested action aborted: local error "
+			"in processing\r\n", 451 ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_BADCONNECTION );
+		}
+		return( RECEIVE_SYSERROR );
 	    }
 	}
 
 	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
 		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 	    /* No valid DNS */
-	    snet_writef( snet, "%d Can't verify address\r\n", 451 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Can't verify address\r\n", 451 );
-	    return( 1 );
+	    syslog( LOG_INFO, "f_rcpt get_mx %s: can't verify address",
+		    domain );
+	    if ( snet_writef( snet, "%d Can't verify address %s\r\n",
+		    451, domain ) < 0 ) {
+		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		return( RECEIVE_BADCONNECTION );
+	    }
+	    return( RECEIVE_OK );
 	}
     }
 
@@ -547,11 +562,12 @@ f_rcpt( snet, env, ac, av )
 	if ( env->e_relay ) {
 	    break;
 	}
-	snet_writef( snet, "%d User not local; please try <%s>\r\n",
-	    551, addr );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d User not local; please try <%s>\r\n", 551, addr );
-	return( 1 );
+	if ( snet_writef( snet, "%d User not local; please try <%s>\r\n",
+		551, addr ) < 0 ) {
+	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     /*
@@ -573,28 +589,28 @@ f_rcpt( snet, env, ac, av )
      * SHOULD be returned.
      */
 
-    if ( high_mx_pref ) {
+    if (( high_mx_pref != 0 ) && ( env->e_relay == 0 )) {
 	switch( address_local( addr )) {
-
 	case ADDRESS_NOT_LOCAL:
-	    if ( env->e_relay ) {
-		break;
+	    syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
+	    if ( snet_writef( snet,
+		    "%d Requested action not taken: User not found.\r\n",
+		    550 ) < 0 ) {
+		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		return( RECEIVE_BADCONNECTION );
 	    }
-	    snet_writef( snet,
-		"%d Requested action not taken: User not found.\r\n", 550 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Requested action not taken: User not found.\r\n", 550 );
-	    return( 1 );
+	    return( RECEIVE_OK );
 
 	case ADDRESS_SYSERROR:
 	default:
-	    snet_writef( snet,
-		"%d 3 Requested action aborted: local error in processing.\r\n",
-		451 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d 3 Requested action aborted: "
-		"local error in processing.\r\n", 451 );
-	    return( 1 );
+	    syslog( LOG_ERR, "f_rcpt address_local %s: error", addr );
+	    if ( snet_writef( snet,
+		    "%d Requested action aborted: "
+		    "local error in processing.\r\n", 451 ) < 0 ) {
+		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		return( RECEIVE_BADCONNECTION );
+	    }
+	    return( RECEIVE_SYSERROR );
 
 	case ADDRESS_LOCAL:
 	    break;
@@ -604,20 +620,22 @@ f_rcpt( snet, env, ac, av )
     if (( r = (struct recipient *)malloc( sizeof(struct recipient)))
 	    == NULL ) {
 	syslog( LOG_ERR, "f_rcpt: malloc: %m" );
-	return( -1 );
+	return( RECEIVE_SYSERROR );
     }
     if (( r->r_rcpt = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "f_rcpt: strdup: %m" );
-	return( -1 );
+	return( RECEIVE_SYSERROR );
     }
     r->r_next = env->e_rcpt;
     env->e_rcpt = r;
 
-    syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
+    if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
+	syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
 
-    snet_writef( snet, "%d OK\r\n", 250 );
-    if ( simta_debug ) fprintf( stderr, ">>> %d OK\r\n", 250 );
-    return( 0 );
+    syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
+    return( RECEIVE_OK );
 }
 
     int
@@ -628,19 +646,17 @@ f_data( snet, env, ac, av )
     char			*av[];
 {
     char		*line;
-    int			err = 0;
+    int			err = RECEIVE_OK;
     int			fd;
     time_t		clock;
     struct tm		*tm;
     FILE		*dff;
     char		df[ 25 ];
     char		daytime[ 30 ];
-    struct line_file	*lf;
+    struct line_file	*lf = NULL;
     struct line		*l;
     int			header = 1;
     int			line_no = 0;
-
-    syslog( LOG_DEBUG, "f_data starting" );
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -650,9 +666,12 @@ f_data( snet, env, ac, av )
      * having invalid syntax.
      */
     if ( ac != 1 ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_INFO, "f_data syntax error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     /* rfc 2821 3.3
@@ -662,30 +681,35 @@ f_data( snet, env, ac, av )
      * command.
      */
     if ( env->e_mail == NULL ) {
-	snet_writef( snet, "%d Bad sequence of commands\r\n", 503 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Bad sequence of commands\r\n", 503 );
-	return( 1 );
+	syslog( LOG_INFO, "f_data: bad sequence of commands" );
+	if ( snet_writef( snet, "%d Bad sequence of commands\r\n", 503 ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
     if ( env->e_rcpt == NULL ) {
-	snet_writef( snet, "%d no valid recipients\r\n", 554 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d no valid recipients\r\n",
-	    554 );
-	return( 1 );
+	syslog( LOG_INFO, "f_data: no recipients" );
+	if ( snet_writef( snet, "%d no valid recipients\r\n", 554 ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
-    /* XXX - do we want to write D file into tmp? */
     sprintf( df, "%s/D%s", simta_dir_fast, env->e_id );
 
     if (( fd = open( df, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
-	syslog( LOG_ERR, "f_data: open %s: %m", df );
-	return( -1 );
+	syslog( LOG_ERR, "f_data open %s: %m", df );
+	return( RECEIVE_SYSERROR );
     }
 
     if (( dff = fdopen( fd, "w" )) == NULL ) {
-	syslog( LOG_ERR, "f_data: fdopen: %m" );
-	err = -1;
-	close( fd );
+	syslog( LOG_ERR, "f_data fdopen: %m" );
+	err = RECEIVE_SYSERROR;
+	if ( close( fd ) != 0 ) {
+	    syslog( LOG_ERR, "f_data close: %m" );
+	}
 	goto cleanup;
     }
 
@@ -702,25 +726,31 @@ f_data( snet, env, ac, av )
 	    ( env->e_helo == NULL ) ? "NULL" : env->e_helo,
 	    inet_ntoa( env->e_sin->sin_addr ), simta_hostname, env->e_id,
 	    daytime, tz( tm )) < 0 ) {
-	syslog( LOG_ERR, "f_data: fprintf \"Received\": %m" );
-	err = 1;
-	fclose( dff );
-	snet_writef( snet,
-	    "%d Requested action not taken: insufficient system storage\r\n",
-	    452 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Requested action not taken: "
-	    "insufficient system storage\r\n", 452 );
+	syslog( LOG_ERR, "f_data fprintf: %m" );
+	err = RECEIVE_SYSERROR;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
 	goto cleanup;
     }
 
-    snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n", 354 );
-    if ( simta_debug ) fprintf( stderr,
-	">>> %d Start mail input; end with <CRLF>.<CRLF>\r\n", 354 );
-
     if (( lf = line_file_create()) == NULL ) {
-	syslog( LOG_ERR, "malloc: %m" );
-	return( -1 );
+	syslog( LOG_ERR, "f_data malloc: %m" );
+	err = RECEIVE_SYSERROR;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	goto cleanup;
+    }
+
+    if ( snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n",
+	    354 ) < 0 ) {
+	syslog( LOG_ERR, "f_data snet_writef: %m" );
+	err = RECEIVE_BADCONNECTION;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+	goto cleanup;
     }
 
     header = 1;
@@ -742,25 +772,23 @@ f_data( snet, env, ac, av )
 	    if ( header_end( lf, line ) != 0 ) {
 		/* XXX reject message based on headers here */
 
-		/* punt message based on headers */
-		if ( simta_punt_host != NULL ) {
-		    if ( header_punt( lf ) != 0 ) {
-			env->e_punt = simta_punt_host;
-		    }
-		}
-
-		if ( err == 0 ) {
+		if ( err == RECEIVE_OK ) {
 		    if ( header_file_out( lf, dff ) != 0 ) {
 			syslog( LOG_ERR, "f_data header_file_out: %m" );
-			err = 1;
-		    }
-		}
+			err = RECEIVE_SYSERROR;
 
-		/* print line to dfile */
-		if ( err == 0 ) {
-		    if ( fprintf( dff, "%s\n", line ) < 0 ) {
-			syslog( LOG_ERR, "f_data fprintf: %m" );
-			err = 1;
+			if ( fclose( dff ) != 0 ) {
+			    syslog( LOG_ERR, "f_data fclose: %m" );
+			}
+		    } else {
+			if ( fprintf( dff, "%s\n", line ) < 0 ) {
+			    syslog( LOG_ERR, "f_data fprintf: %m" );
+			    err = RECEIVE_SYSERROR;
+
+			    if ( fclose( dff ) != 0 ) {
+				syslog( LOG_ERR, "f_data fclose: %m" );
+			    }
+			}
 		    }
 		}
 
@@ -768,21 +796,27 @@ f_data( snet, env, ac, av )
 
 	    } else {
 		/* append line to headers */
-		if ( err == 0 ) {
+		if ( err == RECEIVE_OK ) {
 		    if (( l = line_append( lf, line )) == NULL ) {
 			syslog( LOG_ERR, "f_data line_append: %m" );
-			err = 1;
+			err = RECEIVE_SYSERROR;
+			if ( fclose( dff ) != 0 ) {
+			    syslog( LOG_ERR, "f_data fclose: %m" );
+			}
+		    } else {
+			l->line_no = line_no;
 		    }
-
-		    l->line_no = line_no;
 		}
 	    }
 
 	} else {
-	    if ( err == 0 ) {
+	    if ( err == RECEIVE_OK ) {
 		if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		    syslog( LOG_ERR, "f_data fprintf: %m" );
-		    err = 1;
+		    err = RECEIVE_SYSERROR;
+		    if ( fclose( dff ) != 0 ) {
+			syslog( LOG_ERR, "f_data fclose: %m" );
+		    }
 		}
 	    }
 	}
@@ -791,52 +825,43 @@ f_data( snet, env, ac, av )
     if ( header == 1 ) {
 	/* XXX reject message based on headers here */
 
-	/* punt message based on headers */
-	if ( simta_punt_host != NULL ) {
-	    if ( header_punt( lf ) != 0 ) {
-		env->e_punt = simta_punt_host;
-	    }
-	}
-
-	if ( err == 0 ) {
+	if ( err == RECEIVE_OK ) {
 	    if ( header_file_out( lf, dff ) != 0 ) {
 		syslog( LOG_ERR, "f_data header_file_out: %m" );
-		err = 1;
+		err = RECEIVE_SYSERROR;
+		if ( fclose( dff ) != 0 ) {
+		    syslog( LOG_ERR, "f_data fclose: %m" );
+		}
 	    }
 	}
     }
 
     line_file_free( lf );
+    lf = NULL;
 
     if ( line == NULL ) {	/* EOF */
 	syslog( LOG_INFO, "%s: connection dropped", env->e_id );
-	err = -1;
-	fclose( dff );
+	err = RECEIVE_BADCONNECTION;
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data f_close: %m" );
+	}
 	goto cleanup;
     }
 
-    /* sync? */
-    if ( fclose( dff ) == EOF || err ) {
-	err = 1;
-	snet_writef( snet,
-	    "%d Requested action not taken: insufficient system storage\r\n",
-	    452 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Requested action not taken: insufficient system storage\r\n",
-	    452 );
+    if ( err != 0 ) {
+	goto cleanup;
+    }
+
+    if ( fclose( dff ) != 0 ) {
+	syslog( LOG_ERR, "f_data fclose: %m" );
+	err = RECEIVE_SYSERROR;
 	goto cleanup;
     }
 
     /* make E (t) file */
     /* XXX make sure this is accounted for in fast file db */
     if ( env_outfile( env, simta_dir_fast ) != 0 ) {
-	err = 1;
-	snet_writef( snet,
-	    "%d Requested action not taken: insufficient system storage\r\n",
-	    452 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Requested action not taken: insufficient system storage\r\n",
-	    452 );
+	err = RECEIVE_SYSERROR;
 	goto cleanup;
     }
 
@@ -849,17 +874,24 @@ f_data( snet, env, ac, av )
      * snet_writef(), perhaps causing the sending-SMTP agent to transmit
      * the message again.
      */
-    snet_writef( snet, "%d OK (%s)\r\n", 250, env->e_id );
-    if ( simta_debug ) fprintf( stderr, ">>> %d OK (%s)\r\n", 250, env->e_id );
+    if ( snet_writef( snet, "%d OK (%s)\r\n", 250, env->e_id ) < 0 ) {
+	syslog( LOG_ERR, "f_data snet_writef: %m" );
+	err = RECEIVE_BADCONNECTION;
+	goto cleanup;
+    }
 
     syslog( LOG_INFO, "%s: accepted", env->e_id );
 
     /* mark message as ready to roll */
     env->e_flags = env->e_flags | E_READY;
 
-    return( 0 );
+    return( RECEIVE_OK );
 
 cleanup:
+    if ( lf != NULL ) {
+	line_file_free( lf );
+    }
+
     if ( unlink( df ) < 0 ) {
 	syslog( LOG_ERR, "f_data unlink %s: %m", df );
     }
@@ -873,8 +905,6 @@ f_quit( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_quit starting" );
-
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
      * parameters.  In the absence of specific extensions offered by the
@@ -884,38 +914,33 @@ f_quit( snet, env, ac, av )
      */
 
     if ( ac != 1 ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_INFO, "f_quit syntax error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_quit snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     if (( env->e_flags & E_READY ) != 0 ) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    case EXPAND_OK:
+		env_reset( env );
 		break;
 
-	    /* XXX fix these cases */
 	    default:
 	    case EXPAND_SYSERROR:
 	    case EXPAND_FATAL:
-		return( -1 );
+		syslog( LOG_ERR, "f_quit expand_and_deliver error" );
+		env_reset( env );
+		return( RECEIVE_SYSERROR );
 	}
-
-	env_reset( env );
     }
 
-    snet_writef( snet, "%d %s Service closing transmission channel\r\n",
-	221, simta_hostname );
-    if ( simta_debug ) fprintf( stderr,
-	">>> %d %s Service closing transmission channel\r\n",
-	221, simta_hostname );
-
-    if ( snet_close( snet ) < 0 ) {
-	syslog( LOG_ERR, "f_quit: snet_close: %m" );
-	return( 1 );
-    }
-    return( 0 );
+    syslog( LOG_INFO, "f_quit OK" );
+    return( RECEIVE_OK );
 }
+
 
     int
 f_rset( snet, env, ac, av )
@@ -924,8 +949,6 @@ f_rset( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_rset starting" );
-
     /*
      * We could presume that this indicates another message.  However,
      * since some mailers send this just before "QUIT", and we're
@@ -940,14 +963,21 @@ f_rset( snet, env, ac, av )
      * having invalid syntax.
      */
     if ( ac != 1 ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_INFO, "f_rset syntax error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_rset snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
-    snet_writef( snet, "%d OK\r\n", 250 );
-    if ( simta_debug ) fprintf( stderr, ">>> %d OK\r\n", 250 );
-    return( 0 );
+    if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
+	syslog( LOG_ERR, "f_rset snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+
+    syslog( LOG_INFO, "f_rset OK" );
+    return( RECEIVE_OK );
 }
 
     int
@@ -957,12 +987,14 @@ f_noop( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_noop starting" );
-
-    snet_writef( snet, "%d simta v%s\r\n", 250, version );
-    if ( simta_debug ) fprintf( stderr, ">>> %d simta v%s\r\n", 250, version );
-    return( 0 );
+    if ( snet_writef( snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
+	syslog( LOG_ERR, "f_noop snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+    syslog( LOG_INFO, "f_noop OK" );
+    return( RECEIVE_OK );
 }
+
 
     int
 f_help( snet, env, ac, av )
@@ -971,12 +1003,14 @@ f_help( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_help starting" );
-
-    snet_writef( snet, "%d simta v%s\r\n", 211, version );
-    if ( simta_debug ) fprintf( stderr, ">>> %d simta v%s\r\n", 211, version );
-    return( 0 );
+    if ( snet_writef( snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
+	syslog( LOG_ERR, "f_help snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+    syslog( LOG_INFO, "f_help OK" );
+    return( RECEIVE_OK );
 }
+
 
 /*
  * rfc 2821 section 3.5.3:
@@ -1007,13 +1041,14 @@ f_vrfy( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_vrfy starting" );
-
-    snet_writef( snet, "%d Command not implemented\r\n", 502 );
-    if ( simta_debug ) fprintf( stderr, ">>> %d Command not implemented\r\n",
-	502 );
-    return( 0 );
+    if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
+	syslog( LOG_ERR, "f_vrfy snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+    syslog( LOG_INFO, "f_help OK" );
+    return( RECEIVE_OK );
 }
+
 
     int
 f_expn( snet, env, ac, av )
@@ -1022,12 +1057,12 @@ f_expn( snet, env, ac, av )
     int				ac;
     char			*av[];
 {
-    syslog( LOG_DEBUG, "f_expn starting" );
-
-    snet_writef( snet, "%d Command not implemented\r\n", 502 );
-    if ( simta_debug ) fprintf( stderr, ">>> %d Command not implemented\r\n",
-	502 );
-    return( 0 );
+    if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
+	syslog( LOG_ERR, "f_expn snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
+    syslog( LOG_INFO, "f_expn OK" );
+    return( RECEIVE_OK );
 }
 
 #ifdef HAVE_LIBSSL
@@ -1042,44 +1077,53 @@ f_starttls( snet, env, ac, av )
     X509			*peer;
     char			buf[ 1024 ];
 
-    syslog( LOG_DEBUG, "f_starttls starting" );
-
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
      * session is already active.  No mention of what to do if it does...
      */
     if (( env->e_flags & E_TLS ) != 0 ) {
 	syslog( LOG_ERR, "f_starttls: called twice" );
-	return( -1 );
+	return( RECEIVE_SYSERROR );
     }
 
     if ( ac != 1 ) {
-	snet_writef( snet, "%d Syntax error\r\n", 501 );
-	if ( simta_debug ) fprintf( stderr, ">>> %d Syntax error\r\n", 501 );
-	return( 1 );
+	syslog( LOG_ERR, "f_starttls: syntax_error" );
+	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
-    snet_writef( snet, "%d Ready to start TLS\r\n", 220 );
-    if ( simta_debug ) fprintf( stderr, ">>> %d Ready to start TLS\r\n", 220 );
+    if ( snet_writef( snet, "%d Ready to start TLS\r\n", 220 ) < 0 ) {
+	syslog( LOG_ERR, "f_starttls snet_writef: %m" );
+	return( RECEIVE_BADCONNECTION );
+    }
 
-    /*
-     * Begin TLS
-     */
+    /* XXX Begin TLS - hope this works */
     if (( rc = snet_starttls( snet, ctx, 1 )) != 1 ) {
 	syslog( LOG_ERR, "f_starttls: snet_starttls: %s",
-		ERR_error_string( ERR_get_error(), NULL ) );
-	snet_writef( snet, "%d SSL didn't work error! XXX\r\n", 501 );
-	return( 1 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d SSL didn't work error! XXX\r\n", 501 );
-    }
-    if (( peer = SSL_get_peer_certificate( snet->sn_ssl ))
-	    == NULL ) {
-	syslog( LOG_ERR, "no peer certificate" );
-	return( -1 );
+		ERR_error_string( ERR_get_error(), NULL ));
+	if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_SYSERROR );
     }
 
-    syslog( LOG_INFO, "CERT Subject: %s\n", X509_NAME_oneline( X509_get_subject_name( peer ), buf, sizeof( buf )));
+    if (( peer = SSL_get_peer_certificate( snet->sn_ssl )) == NULL ) {
+	syslog( LOG_ERR,
+		"starttls SSL_get_peer_certificate: no peer certificate" );
+	if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_SYSERROR );
+    }
+
+    syslog( LOG_INFO, "CERT Subject: %s\n",
+	    X509_NAME_oneline( X509_get_subject_name( peer ),
+	    buf, sizeof( buf )));
     X509_free( peer );
 
     env_reset( env );
@@ -1107,7 +1151,7 @@ struct command	commands[] = {
 };
 int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
-    int
+    void
 receive( fd, sin )
     int			fd;
     struct sockaddr_in	*sin;
@@ -1116,151 +1160,95 @@ receive( fd, sin )
     struct envelope			*env;
     ACAV				*acav;
     int					ac, i;
+    int					value;
     char				**av, *line;
     struct timeval			tv;
-    DNSR				*dnsr;
     struct dnsr_result			*result;
     extern int				connections;
     extern int				maxconnections;
-
-    syslog( LOG_DEBUG, "receive starting" );
+    DNSR				*dnsr;
+    struct in_addr      		addr;
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "receive snet_attach: %m" );
-	return( 1 );
+	return;
+    }
+
+    if ( maxconnections != 0 ) {
+	if ( connections >= maxconnections ) {
+	    syslog( LOG_INFO, "receive connection refused: server busy" );
+	    if ( snet_writef( snet, "%d Service busy, closing transmission "
+		    "channel\r\n", 421 ) < 0 ) {
+		syslog( LOG_ERR, "receive snet_writef: %m" );
+	    }
+	    goto closeconnection;
+	}
     }
 
 #ifdef HAVE_LIBWRAP
-    /* Find out the endpoint addresses of this conversation and check
-     * whether this host can access our service.
-     */
-
     if ( hosts_ctl( "simta", STRING_UNKNOWN, inet_ntoa( sin->sin_addr ),
 	    STRING_UNKNOWN ) == 0 ) {
 	syslog( LOG_INFO, "receive connection refused %s: access denied",
 		inet_ntoa( sin->sin_addr ));
-	/* XXX 421 access denied? */
 	snet_writef( snet, "%d Access Denied\r\n", 421 );
-	return( 1 );
+	goto closeconnection;
     }
 #endif /* HAVE_LIBWRAP */
 
-
-    if ( maxconnections != 0 ) {
-	if ( connections >= maxconnections ) {
-	    syslog( LOG_INFO, "receive connections refused: server busy" );
-	    snet_writef( snet,
-		"%d Service busy, closing transmission channel\r\n", 421 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Service busy, closing transmission channel\r\n", 421 );
-	    return( 1 );
-	}
-    }
-
     if (( dnsr = dnsr_new( )) == NULL ) {
 	syslog( LOG_ERR, "receive dnsr_new: %s",
-	    dnsr_err2string( dnsr_errno( dnsr )));
-	snet_writef( snet,
-	    "%d Requested action aborted: local error in processing.\r\n",
-	    451 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Requested action aborted: local error in processing.\r\n",
-	    451 );
-	return( -1 );
+		dnsr_err2string( dnsr_errno( dnsr )));
+	goto syserror;
     }
 
     /* Get PTR for connection */
     if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
 	    inet_ntoa( sin->sin_addr )) < 0 ) {
 	syslog( LOG_ERR, "receive dnsr_query failed" );
-	snet_writef( snet,
-		"%d Service not available, closing transmission channel\r\n",
-		421 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Service not available, closing transmission channel\r\n",
-	    421 );
-	return( 1 );
+	goto syserror;
     }
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "receive dnsr_result failed" );
-	snet_writef( snet,
-		"%d Service not available, closing transmission channel\r\n",
-		421 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Service not available, closing transmission channel\r\n",
-	    421 );
-	return( 1 );
+	goto syserror;
     }
 
     /* Get A record on PTR result */
     if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
 	    result->r_answer[ 0 ].rr_dn.dn_name )) < 0 ) {
 	syslog( LOG_ERR, "receive dnsr_query failed" );
-	snet_writef( snet,
-		"%d Service not available, closing transmission channel\r\n",
-		421 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Service not available, closing transmission channel\r\n",
-	    421 );
-	return( 1 );
+	goto syserror;
     }
     if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "receive dnsr_result failed" );
-	snet_writef( snet,
-		"%d Service not available, closing transmission channel\r\n",
-		421 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Service not available, closing transmission channel\r\n",
-	    421 );
-	return( 1 );
+	goto syserror;
     }
 
     /* Verify A record matches IP */
-    {
-	/* XXX - how should this be checked? */
+    /* XXX - how should this be checked? */
+    memcpy( &addr.s_addr, &(result->r_answer[ 0 ].rr_a), sizeof( int ));
 
-	struct in_addr      addr;
-
-	memcpy( &addr.s_addr, &(result->r_answer[ 0 ].rr_a), sizeof( int ));
-
-	if ( strcmp( inet_ntoa( addr ), inet_ntoa( sin->sin_addr )) != 0 ) {
-	    syslog( LOG_INFO, "receive %s: connection rejected: invalid A record",
-		inet_ntoa( sin->sin_addr ));
-	    snet_writef( snet,
-		"%d Service not available, closing transmission channel\r\n",
-		421 );
-	    return( 1 );
-	}
+    if ( strcmp( inet_ntoa( addr ), inet_ntoa( sin->sin_addr )) != 0 ) {
+	syslog( LOG_INFO, "receive %s: connection rejected: invalid A record",
+	    inet_ntoa( sin->sin_addr ));
+	goto syserror;
     }
 
-    /* Check bad guy list */
-
     if (( env = env_create( NULL )) == NULL ) {
-	syslog( LOG_ERR, "receive env_create: %m" );
-	snet_writef( snet,
-		"%d Service not available, closing transmission channel\r\n",
-		421 );
-	if ( simta_debug ) fprintf( stderr,
-	    ">>> %d Service not available, closing transmission channel\r\n",
-	    421 );
-	return( 1 );
+	goto syserror;
     }
     env->e_sin = sin;
     env->e_dir = simta_dir_fast;
 
-    snet_writef( snet, "%d %s Simple Internet Message Transfer Agent ready\r\n",
-	    220, simta_hostname );
-    if ( simta_debug ) fprintf( stderr,
-	">>> %d %s Simple Internet Message Transfer Agent ready\r\n",
-	220, simta_hostname );
+    if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
+	    "ready\r\n", 220, simta_hostname ) < 0 ) {
+	goto closeconnection;
+    }
 
     tv.tv_sec = 60 * 10;	/* 10 minutes, should get this from config */
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
 	tv.tv_sec = 60 * 10;
 	tv.tv_usec = 0;
-
-	if ( simta_debug ) fprintf( stderr, "<<< %s\n", line );
 
 	/*
 	 * This routine needs to be revised to take rfc822 quoting into
@@ -1269,25 +1257,18 @@ receive( fd, sin )
 
 	if (( acav = acav_alloc( )) == NULL ) {
 	    syslog( LOG_ERR, "receive argcargv_alloc: %m" );
-	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing.\r\n",
-		451 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Requested action aborted: "
-		"local error in processing.\r\n",
-		451 );
-	    return( -1 );
+	    goto syserror;
 	}
 
 	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
 	    syslog( LOG_ERR, "receive argcargv: %m" );
-	    break;
+	    goto syserror;
 	}
 
 	if ( ac == 0 ) {
-	    snet_writef( snet, "%d Command unrecognized\r\n", 501 );
-	    if ( simta_debug ) fprintf( stderr,
-		">>> %d Command unrecognized\r\n", 501 );
+	    if ( snet_writef( snet, "%d Command unrecognized\r\n", 501 ) < 0 ) {
+		goto closeconnection;
+	    }
 	    continue;
 	}
 
@@ -1305,37 +1286,59 @@ receive( fd, sin )
 	    }
 	}
 	if ( i >= ncommands ) {
-	    snet_writef( snet, "%d Command %s unregcognized\r\n", 500, av[ 0 ]);
+	    if ( snet_writef( snet, "%d Command %s unregcognized\r\n",
+		    500, av[ 0 ]) < 0 ) {
+		acav_free( acav );
+		goto closeconnection;
+	    }
+	    acav_free( acav );
 	    continue;
 	}
 
-	if ( (*(commands[ i ].c_func))( snet, env, ac, av ) < 0 ) {
+	if (( value = (*(commands[ i ].c_func))( snet, env, ac, av )) !=
+		RECEIVE_OK ) {
+	    acav_free( acav );
 	    break;
 	}
 	acav_free( acav );
     }
 
-    snet_writef( snet,
-	    "%d %s Service not available, closing transmission channel\r\n",
-	    421, simta_hostname );
-    if ( simta_debug ) fprintf( stderr, 
-	">>> %d %s Service not available, closing transmission channel\r\n",
-	421, simta_hostname );
+    switch ( value ) {
+    default:
+syserror:
+    case RECEIVE_SYSERROR:
+	if ( snet_writef( snet, "%d %s Service not available, closing "
+		"transmission channel\r\n", 421, simta_hostname ) < 0 ) {
+	    syslog( LOG_ERR, "receive snet_writef: %m" );
+	}
+closeconnection:
+    case RECEIVE_BADCONNECTION:
+	if ( snet_close( snet ) != 0 ) {
+	    syslog( LOG_ERR, "receive snet_close: %m" );
+	}
+	break;
+
+    case RECEIVE_QUIT:
+	snet_writef( snet, "%d %s Service closing transmission channel\r\n",
+		221, simta_hostname );
+	if ( snet_close( snet ) != 0 ) {
+	    syslog( LOG_ERR, "receive snet_close: %m" );
+	}
+	break;
+    }
 
     if (( env->e_flags & E_READY ) != 0 ) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    case EXPAND_OK:
+		env_reset( env );
 		break;
 
-	    /* XXX fix these cases */
 	    default:
 	    case EXPAND_SYSERROR:
 	    case EXPAND_FATAL:
-		return( -1 );
+		syslog( LOG_ERR, "receive expand_and_deliver error" );
+		env_reset( env );
+		return;
 	}
-
-	env_reset( env );
     }
-
-    return( 1 );
 }
