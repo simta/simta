@@ -138,11 +138,15 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	if ( i->st_data == NULL ) {
 	    printf( "die die die\n" );
 	}
+
 	if ( simta_debug ) printf( "\n%s:\n", i->st_key );
 	expn = (struct expn*)i->st_data;
+
 	rc = address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
-	    &seen, &ae_error );
+		&seen, &ae_error );
+
 	if ( simta_debug ) printf( "\naddress_expand %s: %d\n", i->st_key, rc );
+
 	if ( rc < 0 ) {
 	    /* System failure */
 	    failed_expansions++;
@@ -151,6 +155,27 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	} else if ( rc == 0 ) {
 	    switch( ae_error ) {
+
+	    case SIMTA_EXPAND_ERROR_NONE:
+		/* XXX do you want to report an error here? */
+#ifdef DEBUG
+		printf( "SIMTA_EXPAND_ERROR_NONE\n" );
+#ifdef /* DEBUG */
+		break;
+
+	    case SIMTA_EXPAND_ERROR_SYSTEM:
+		/* XXX do you want to report an error here? */
+#ifdef DEBUG
+		printf( "SIMTA_EXPAND_ERROR_SYSTEM\n" );
+#ifdef /* DEBUG */
+		break;
+
+	    case SIMTA_EXPAND_ERROR_OFF_HOST:
+		/* XXX do you want to report an error here? */
+#ifdef DEBUG
+		printf( "SIMTA_EXPAND_ERROR_OFF_HOST\n" );
+#ifdef /* DEBUG */
+		break;
 
 	    case SIMTA_EXPAND_ERROR_BAD_FORMAT:
 		if ( simta_debug ) printf( " bad format - removing\n" );
@@ -175,7 +200,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 #ifdef NOT_DEF
 #ifdef HAVE_LDAP
-	    case SIMTA_LDAP_DOWN:
+	    case SIMTA_EXPAND_ERROR_LDAP:
 		/* XXX unwind expansion here */
 		break;
 #endif /* HAVE_LDAP */
@@ -183,8 +208,12 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	    default:
 		/* XXX do you want to report an error here? */
+#ifdef DEBUG
+		printf( "SIMTA_EXPAND_ERROR_default\n" );
+#ifdef /* DEBUG */
 		break;
 	    }
+
 	} else {
 	    /* indicate address expanded */
 	    free( i->st_data );
@@ -214,11 +243,13 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	 */
 	if ( unexpanded_env->e_punt != NULL ) {
 	    if ( simta_debug ) printf( "punting to %s\n",
-		unexpanded_env->e_punt );
+		    unexpanded_env->e_punt );
+
 	    if (( env_p = new_host_env( &host_stab, unexpanded_env->e_punt,
 		    unexpanded_env->e_mail, d_original )) == NULL ) {
 		return( -1 );
 	    }
+
 	} else {
 	    if ( simta_debug ) printf( "%s in host_stab?...", domain );
 	    if (( env_p = ll_lookup( host_stab, domain )) == NULL ) {

@@ -251,9 +251,9 @@ address_expand( char *address, struct recipient *rcpt,
     if ( ll_lookup( *seen, address ) != NULL ) {
 	/* Already expanded */
 	if ( simta_debug ) printf( "%s: already seen\n", address );
-
 	*ae_error = SIMTA_EXPAND_ERROR_SEEN;
 	return( 0 );
+
     } else {
 	/* Add address to seen list */
 	if ( add_address( seen, address, rcpt ) != 0 ) {

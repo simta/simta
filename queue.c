@@ -219,7 +219,9 @@ q_runner( struct host_q **host_q )
 	deliver_q = NULL;
 
 	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
-	    if ( simta_debug ) fprintf( stderr, "q_runner: %s\n", hq->hq_hostname );
+	    if ( simta_debug ) fprintf( stderr, "q_runner: %s\n",
+		    hq->hq_hostname );
+
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
 		hq->hq_deliver = NULL;
 
@@ -269,9 +271,9 @@ q_runner( struct host_q **host_q )
 	for ( ; ; ) {
 
 #ifdef DEBUG
-    printf( "host_q before expand:\n" );
-    q_stab_stdout( *host_q );
-    printf( "\n" );
+	    printf( "host_q before expand:\n" );
+	    q_stab_stdout( *host_q );
+	    printf( "\n" );
 #endif /* DEBUG */
 
 	    /* delivered all expanded mail, check for unexpanded */
@@ -280,7 +282,7 @@ q_runner( struct host_q **host_q )
 		return( 0 );
 	    }
 
-	    /* pop message off message queue */
+	    /* pop message off unexpanded message queue */
 	    simta_null_q->hq_message_first = unexpanded->m_next;
 	    simta_null_q->hq_entries--;
 
