@@ -186,7 +186,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) == SMTP_ERROR_SYSCALL ) {
+	if ( smtp_quit( snet, hq ) == SMTP_ERR_SYSCALL ) {
 	    return( SMTP_ERR_SYSCALL );
 	} else {
 	    return( SMTP_ERR_REMOTE );
@@ -299,7 +299,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) == SMTP_ERROR_SYSCALL ) {
+	if ( smtp_quit( snet, hq ) == SMTP_ERR_SYSCALL ) {
 	    return( SMTP_ERR_SYSCALL );
 	} else {
 	    return( SMTP_ERR_REMOTE );
@@ -350,7 +350,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) == SMTP_ERROR_SYSCALL ) {
+	if ( smtp_quit( snet, hq ) == SMTP_ERR_SYSCALL ) {
 	    return( SMTP_ERR_SYSCALL );
 	} else {
 	    return( SMTP_ERR_REMOTE );
@@ -440,7 +440,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) == SMTP_ERROR_SYSCALL ) {
+	if ( smtp_quit( snet, hq ) == SMTP_ERR_SYSCALL ) {
 	    return( SMTP_ERR_SYSCALL );
 	} else {
 	    return( SMTP_ERR_REMOTE );
@@ -612,7 +612,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) == SMTP_ERROR_SYSCALL ) {
+	if ( smtp_quit( snet, hq ) == SMTP_ERR_SYSCALL ) {
 	    return( SMTP_ERR_SYSCALL );
 	} else {
 	    return( SMTP_ERR_REMOTE );
@@ -866,7 +866,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) == SMTP_ERROR_SYSCALL ) {
+	if ( smtp_quit( snet, hq ) == SMTP_ERR_SYSCALL ) {
 	    return( SMTP_ERR_SYSCALL );
 	} else {
 	    return( SMTP_ERR_REMOTE );
@@ -1036,7 +1036,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) == SMTP_ERROR_SYSCALL ) {
+	if ( smtp_quit( snet, hq ) == SMTP_ERR_SYSCALL ) {
 	    return( SMTP_ERR_SYSCALL );
 	} else {
 	    return( SMTP_ERR_REMOTE );
@@ -1213,7 +1213,7 @@ smtp_rset( SNET *snet, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) == SMTP_ERROR_SYSCALL ) {
+	if ( smtp_quit( snet, hq ) == SMTP_ERR_SYSCALL ) {
 	    return( SMTP_ERR_SYSCALL );
 	} else {
 	    return( SMTP_ERR_REMOTE );
