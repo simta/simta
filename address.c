@@ -500,6 +500,7 @@ address_expand( char *address, struct recipient *rcpt,
 		return( ADDRESS_EXCLUDE );
 
 	    case LDAP_FINAL:
+		/* XXX if its in the db, can it be terminal? */
 		free( user );
 		return( ADDRESS_FINAL );
 

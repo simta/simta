@@ -39,12 +39,27 @@ struct list			*ldap_groups = NULL;
 LDAP				*ld = NULL;
 
 
+    /* this function should return:
+     *     LDAP_SYSERROR if there is an error
+     *     LDAP_LOCAL if addr is found in the db
+     *     LDAP_NOT_LOCAL if addr is not found in the db
+     */
+
     int
 ldap_address_local( char *addr )
 {
-    return( ADDRESS_NOT_LOCAL );
+    return( LDAP_NOT_LOCAL );
 }
 
+
+    /* given a config filename, this function sets up the search strings,
+     * etc, that ldap needs later on.  This function is called *before*
+     * simta becomes a daemon, so errors on stderr are ok.  Note that
+     * we should still syslog all errors.
+     *
+     * XXX note that the ldap host is hardcoded at the moment, we will
+     * want to be able to set that here.
+     */
 
     int
 ldap_config( char *fname )
@@ -259,6 +274,21 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
     return( 0 );
 }
 
+
+    /* this function should return:
+     *     LDAP_NOT_FOUND if addr is not found in the database
+     *     LDAP_FINAL if addr is a terminal expansion
+     *     LDAP_EXCLUDE if addr is an error, and/or expands to other addrs.
+     *     LDAP_SYSERROR if there is a system error
+     *
+     * XXX is LDAP_FINAL useless?  if its in the db, it can never be terminal?
+     *
+     * expansion (not system) errors should be reported back to the sender
+     * using rcpt_error(...);
+     *
+     * add_address(...) is used to add a new email address to the expansion
+     * list.
+     */
 
     int
 ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
