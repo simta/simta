@@ -45,6 +45,8 @@ struct host_q {
     struct host_q		*hq_next;
     struct host_q		*hq_deliver;
     char			*hq_hostname;
+    char			*hq_smtp_hostname;
+    struct sockaddr_in		hq_sin;
     int				hq_status;
     int				hq_entries;
     int				hq_from;
