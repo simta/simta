@@ -287,11 +287,12 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     char		*domain;
     char		*endptr;
 
-    if (( !simta_strict_smtp_syntax ) && ( ac == 3 )) {
-	if ( strcasecmp( av[ 1 ], "FROM:" ) != 0 ) {
-	    return( f_mail_usage( snet ));
-	}
+    if ( ac < 2 ) {
+	return( f_mail_usage( snet ));
+    }
 
+    if (( !simta_strict_smtp_syntax ) && ( ac >= 3 ) &&
+	    ( strcasecmp( av[ 1 ], "FROM:" ) == 0 )) {
 	/* av[ 1 ] = "FROM:", av[ 2 ] = "<ADDRESS>" */
 	if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 2 ], &addr,
 		&domain ) != 0 ) {
@@ -299,7 +300,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 	parameters = 3;
 
-    } else if ( ac == 2 ) {
+    } else {
 	if ( strncasecmp( av[ 1 ], "FROM:", strlen( "FROM:" )) != 0 ) {
 	    return( f_mail_usage( snet ));
 	}
@@ -310,9 +311,6 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( f_mail_usage( snet ));
 	}
     	parameters = 2;
-
-    } else {
-	return( f_mail_usage( snet ));
     }
 
     for ( i = parameters; i < ac; i++ ) {
