@@ -93,11 +93,11 @@ ll_insert_tail( struct stab_entry **stab, char *key, void *data )
     st->st_data = data;
 
     /* Move to tail of table */
-    for ( i = stab; (*i)->st_next != NULL; i = &((*i)->st_next) ) {
+    for ( i = stab; *i != NULL; i = &((*i)->st_next) ) {
     }
 
-    (*i)->st_next = st;
-    st->st_next = NULL; 
+    st->st_next = *i;
+    *i = st;
 
     return( 0 );
 }
