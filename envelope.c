@@ -141,13 +141,10 @@ env_recipient( struct envelope *e, char *addr )
      */
 
     int
-env_infile( struct envelope *e, char *dir )
+env_infile( struct envelope *e, char *filename )
 {
-    char			filename[ MAXPATHLEN ];
     char			*line;
     SNET			*snet;
-
-    sprintf( filename, "%s/E%s", dir, e->e_id );
 
     if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
 	return( -1 );

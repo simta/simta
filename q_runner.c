@@ -116,8 +116,6 @@ main( int argc, char *argv[] )
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
-printf( "HERE\n" );
-
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
 	syslog( LOG_ERR, "opendir %s: %m", SLOW_DIR );
 	exit( 1 );
