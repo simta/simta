@@ -56,7 +56,6 @@ struct message {
 };
 
 int	q_runner ___P(( struct host_q ** ));
-void	q_run ___P(( struct host_q ** ));
 int	q_runner_dir ___P(( char * ));
 
 int	q_cleanup ___P(( void ));

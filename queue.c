@@ -321,94 +321,8 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 }
 
 
-    /* return 0 on success
-     * return -1 on fatal error (fast files are left behind)
-     * syslog errors
-     */
-
     int
 q_runner( struct host_q **host_q )
-{
-    struct host_q		*hq;
-    struct message		*m;
-    struct timeval		tv_start;
-    struct timeval		tv_end;
-    int				r;
-    int				day;
-    int				hour;
-    int				min;
-    int				sec;
-
-    syslog( LOG_DEBUG, "q_runner starting" );
-
-    if (( r = gettimeofday( &tv_start, NULL )) != 0 ) {
-	syslog( LOG_ERR, "q_runner gettimeofday: %m" );
-    }
-
-    q_run( host_q );
-
-    if ( r == 0 ) {
-	if ( gettimeofday( &tv_end, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "q_runner gettimeofday: %m" );
-	    return( 0 );
-
-	} else {
-	    tv_end.tv_sec -= tv_start.tv_sec;
-	    day = ( tv_end.tv_sec / 86400 );
-	    hour = (( tv_end.tv_sec % 86400 ) / 3600 );
-	    min = (( tv_end.tv_sec % 3600 ) / 60 );
-	    sec = ( tv_end.tv_sec % 60 );
-
-	    if ( simta_message_count > 0 ) {
-		if ( day > 0 ) {
-		    if ( day > 99 ) {
-			day = 99;
-		    }
-
-		    syslog( LOG_INFO, "q_runner metrics: %d messages, "
-			    "%d outbound_attempts, %d outbound_delivered, "
-			    "%d+%02d:%02d:%02d",
-			    simta_message_count, simta_smtp_outbound_attempts,
-			    simta_smtp_outbound_delivered,
-			    day, hour, min, sec );
-
-		} else {
-		    syslog( LOG_INFO, "q_runner metrics: %d messages, "
-			    "%d outbound_attempts, %d outbound_delivered, "
-			    "%02d:%02d:%02d",
-			    simta_message_count, simta_smtp_outbound_attempts,
-			    simta_smtp_outbound_delivered,
-			    hour, min, sec );
-		}
-	    }
-	}
-    }
-
-    if ( simta_fast_files < 1 ) {
-	return( 0 );
-    }
-
-    for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
-	for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
-	    if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
-		message_syslog( m );
-		message_slow( m );
-
-		if ( simta_fast_files < 1 ) {
-		    syslog( LOG_DEBUG, "q_runner exiting" );
-		    return( 0 );
-		}
-	    }
-	}
-    }
-
-    syslog( LOG_DEBUG, "q_runner exiting error" );
-    return( -1 );
-}
-
-
-    void
-q_run( struct host_q **host_q )
 {
     SNET			*snet_lock;
     SNET			*snet;
@@ -423,12 +337,24 @@ q_run( struct host_q **host_q )
     struct stat			sb;
     char                        dfile_fname[ MAXPATHLEN ];
     struct timeval              tv;
+    struct timeval		tv_start;
+    struct timeval		tv_end;
+    int				metrics;
+    int				day;
+    int				hour;
+    int				min;
+    int				sec;
+
+    syslog( LOG_DEBUG, "q_runner starting" );
+
+    if ( *host_q == NULL ) {
+	return( simta_fast_files );
+    }
 
     memset( &env_local, 0, sizeof( struct envelope ));
 
-    if ( *host_q == NULL ) {
-	return;
-    }
+    /* get start time for metrics */
+    metrics = gettimeofday( &tv_start, NULL );
 
     for ( ; ; ) {
 	/* build the deliver_q by number of messages */
@@ -494,7 +420,7 @@ q_run( struct host_q **host_q )
 	    /* delivered all expanded mail, check for unexpanded */
 	    if (( unexpanded = simta_null_q->hq_message_first ) == NULL ) {
 		/* no more unexpanded mail.  we're done */
-		return;
+		goto q_runner_done;
 	    }
 
 	    /* pop message off unexpanded message queue */
@@ -596,6 +522,51 @@ oldfile_error:
 	    }
 	}
     }
+
+q_runner_done:
+    if ( metrics == 0 ) {
+	/* get end time for metrics */
+	if ( gettimeofday( &tv_end, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "q_runner gettimeofday: %m" );
+
+	} else {
+	    tv_end.tv_sec -= tv_start.tv_sec;
+	    day = ( tv_end.tv_sec / 86400 );
+	    hour = (( tv_end.tv_sec % 86400 ) / 3600 );
+	    min = (( tv_end.tv_sec % 3600 ) / 60 );
+	    sec = ( tv_end.tv_sec % 60 );
+
+	    if ( simta_message_count > 0 ) {
+		if ( day > 0 ) {
+		    if ( day > 99 ) {
+			day = 99;
+		    }
+
+		    syslog( LOG_INFO, "q_runner metrics: %d messages, "
+			    "%d outbound_attempts, %d outbound_delivered, "
+			    "%d+%02d:%02d:%02d",
+			    simta_message_count, simta_smtp_outbound_attempts,
+			    simta_smtp_outbound_delivered,
+			    day, hour, min, sec );
+
+		} else {
+		    syslog( LOG_INFO, "q_runner metrics: %d messages, "
+			    "%d outbound_attempts, %d outbound_delivered, "
+			    "%02d:%02d:%02d",
+			    simta_message_count, simta_smtp_outbound_attempts,
+			    simta_smtp_outbound_delivered,
+			    hour, min, sec );
+		}
+	    }
+	}
+    }
+
+    if ( simta_fast_files != 0 ) {
+	syslog( LOG_ERR, "q_runner exiting with %d fast_files",
+		simta_fast_files );
+    }
+
+    return( simta_fast_files );
 }
 
 
@@ -1058,7 +1029,7 @@ q_runner_dir( char *dir )
 
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_runner_d opendir %s: %m", dir );
-	return;
+	return( EXIT_OK );
     }
 
     /* organize a directory's messages by host and timestamp */
@@ -1094,14 +1065,9 @@ q_runner_dir( char *dir )
 	}
     }
 
-    q_runner( &host_q );
-
-    if ( simta_fast_files != 0 ) {
-	syslog( LOG_ERR, "q_runner_dir exiting with %d fast_files",
-		simta_fast_files );
+    if ( q_runner( &host_q ) != 0 ) {
 	return( EXIT_FAST_FILE );
     }
 
     return( EXIT_OK );
 }
-

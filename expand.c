@@ -55,12 +55,10 @@ expand_and_deliver( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
     switch ( expand( hq_stab, unexpanded_env )) {
     case 0:
-	q_runner( hq_stab );
-	if ( simta_fast_files > 0 ) {
+	if ( q_runner( hq_stab ) != 0 ) {
 	    syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
 	    return( EXPAND_FATAL );
 	}
-	syslog( LOG_DEBUG, "expand_and_deliver returning OK" );
 	return( EXPAND_OK );
 
     default:
