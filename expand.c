@@ -308,6 +308,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		m->m_etime.tv_sec = env->e_etime.tv_sec;
 		m->m_env = env;
 		env->e_message = m;
+		m->m_from = env_from( env );
 		message_queue( hq, m );
 	    }
 
@@ -400,6 +401,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		env->e_message = m;
 
 		/* queue message "m" in host queue "hq" */
+		m->m_from = env_from( env );
 		message_queue( hq, m );
 
 	    } else {

@@ -434,8 +434,7 @@ env_touch( struct envelope *env )
 
     /*
      * return 0 if everything went fine
-     * return -1 on syscall error
-     * return 1 on syntax error
+     * return 1 on error
      */
 
     int
@@ -445,35 +444,25 @@ env_info( struct message *m, char *hostname, size_t len )
     SNET		*snet;
     char		fname[ MAXPATHLEN + 1 ];
     struct stat		sb;
+    int			ret = 1;
 
     sprintf( fname, "%s/E%s", m->m_dir, m->m_id );
 
     if (( snet = snet_open( fname, O_RDWR, 0, 1024 * 1024 ))
 	    == NULL ) {
 	syslog( LOG_ERR, "env_info snet_open: %m" );
-	return( -1 );
+	return( 1 );
     }
 
     /* test to see if env is locked by a q_runner */
     if ( lockf( snet_fd( snet ), F_TEST, 0 ) != 0 ) {
-	if ( errno == EAGAIN ) {
-	    /* file locked by a diferent process */
-	    if ( snet_close( snet ) < 0 ) {
-		syslog( LOG_ERR, "env_info snet_close: %m" );
-		return( -1 );
-	    }
-
-	    return( 1 );
-
-	} else {
-	    syslog( LOG_ERR, "env_info lockf %s: %m", fname );
-	    return( -1 );
-	}
+	syslog( LOG_ERR, "env_info lockf %s: %m", fname );
+	goto cleanup;
     }
 
     if ( fstat( snet_fd( snet ), &sb ) != 0 ) {
 	syslog( LOG_ERR, "env_info fstat %s: %m", fname );
-	return( -1 );
+	goto cleanup;
     }
 
     m->m_etime.tv_sec = sb.st_mtime;
@@ -481,47 +470,23 @@ env_info( struct message *m, char *hostname, size_t len )
     /* first line of an envelope should be version info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_info %s: unexpected EOF", fname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "env_info snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
+	goto cleanup;
     }
 
     if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
 	syslog( LOG_ERR, "env_info %s bad version syntax", fname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "env_info snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
+	goto cleanup;
     }
 
     /* second line of an envelope has expansion info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_info %s: unexpected EOF", fname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "env_info snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
+	goto cleanup;
     }
 
     if ( *line != 'H' ) {
 	syslog( LOG_ERR, "env_info %s: bad host syntax", fname );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "env_info snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
+	goto cleanup;
     }
 
     if ( *(line + 1 ) != '\0' ) {
@@ -534,12 +499,32 @@ env_info( struct message *m, char *hostname, size_t len )
 	strncpy( hostname, line + 1, len );
     }
 
-    if ( snet_close( snet ) != 0 ) {
-	syslog( LOG_ERR, "env_info snet_close: %m" );
-	return( -1 );
+    /* third line of an envelope has from info */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "env_info %s: unexpected EOF", fname );
+	goto cleanup;
     }
 
-    return( 0 );
+    if ( *line != 'F' ) {
+	syslog( LOG_ERR, "env_info %s: bad from syntax", fname );
+	goto cleanup;
+    }
+
+    if (( *(line + 1 ) != '\0' ) && ( strcasecmp( *(line + 1),
+	    simta_postmaster ) != 0 )) {
+	m->m_from = 1;
+    } else {
+	m->m_from = 0;
+    }
+
+    ret = 0;
+
+cleanup:
+    if ( snet_close( snet ) != 0 ) {
+	syslog( LOG_ERR, "env_info snet_close: %m" );
+    }
+
+    return( ret );
 }
 
 
@@ -710,6 +695,21 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
     }
 
     return( 0 );
+}
+
+
+    int
+env_from( struct envelope *env )
+{
+    if ( env->e_mail == NULL ) {
+	return( 0 );
+    }
+
+    if ( strcasecmp( env->e_mail, simta_postmaster ) == 0 ) {
+	return( 0 );
+    }
+
+    return( 1 );
 }
 
 

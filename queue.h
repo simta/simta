@@ -36,6 +36,7 @@ struct host_q {
     char			*hq_hostname;
     int				hq_status;
     int				hq_entries;
+    int				hq_from;
     struct message		*hq_message_first;
     struct message		*hq_message_last;
     struct line_file		*hq_err_text;
@@ -50,14 +51,15 @@ struct message {
     struct envelope		*m_env;
     int				m_efile;
     int				m_expanded;
+    int				m_from;
     ino_t			m_dfile;
 };
 
 int	q_runner ___P(( struct host_q ** ));
-int	q_run ___P(( struct host_q ** ));
+void	q_run ___P(( struct host_q ** ));
 int	q_runner_dir ___P(( char * ));
 
-int	q_runner_d ___P(( char * ));
+void	q_runner_d ___P(( char * ));
 struct	host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
 void	q_stdout ___P(( struct host_q * ));
 void	q_stab_stdout ___P(( struct host_q * ));
