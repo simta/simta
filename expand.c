@@ -274,16 +274,17 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	}
 
 	if ( e_addr->e_addr_env_moderated != NULL ) {
-	    if ( simta_expand_debug != 0 ) {
-		printf( "Moderated: %s\n", e_addr->e_addr );
-		env_stdout( e_addr->e_addr_env_moderated );
-		continue;
-	    }
 	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
 	    e_addr->e_addr_env_moderated->e_dir = simta_dir_fast;
 	    e_addr->e_addr_env_moderated->e_dinode = unexpanded_env->e_dinode;
 	    if ( env_id( e_addr->e_addr_env_moderated ) != 0 ) {
 		goto cleanup3;
+	    }
+
+	    if ( simta_expand_debug != 0 ) {
+		printf( "Moderated: %s\n", e_addr->e_addr );
+		env_stdout( e_addr->e_addr_env_moderated );
+		continue;
 	    }
 
 	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_moderated->e_dir,
