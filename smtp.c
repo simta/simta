@@ -49,6 +49,37 @@ void	(*smtp_logger)(char *) = stdout_logger;
 void	(*smtp_logger)(char *) = NULL;
 #endif /* DEBUG */
 
+    SNET *
+_smtp_connect_snet( struct sockaddr_in *sin, char *hostname )
+{
+    int		s;
+    SNET 	*snet;
+
+    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
+	syslog( LOG_ERR, "_smtp_connect_snet %s socket: %m", hostname );
+	return( NULL );
+    }
+
+    if ( connect( s, (struct sockaddr*)sin,
+	    sizeof( struct sockaddr_in )) < 0 ) {
+	syslog( LOG_ERR, "_smtp_connect_snet %s connect: %m", hostname );
+	if ( close( s ) != 0 ) {
+	    syslog( LOG_ERR, "_smtp_connect_snet %s close: %m", hostname );
+	}
+	return( NULL );
+    }
+
+    if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
+	syslog( LOG_ERR, "_smtp_connect_snet %s snet_attach: %m", hostname );
+	if ( close( s ) != 0 ) {
+	    syslog( LOG_ERR, "_smtp_connect_snet %s close: %m", hostname );
+	}
+	return( NULL );
+    }
+
+    return( snet );
+}
+
 
     int
 smtp_consume_banner( struct line_file **err_text, SNET *snet,
@@ -412,104 +443,98 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
     int
 smtp_connect( SNET **snetp, struct host_q *hq )
 {
-    int				i;
-    int				s;
-    int				dnsr_count = 0;
+    int				i, j;
     int				smtp_result;
     SNET			*snet;
-    struct dnsr_result		*result;
+    struct dnsr_result		*result, *result_ip;
     struct sockaddr_in		sin;
 
     hq->hq_status = HOST_DOWN;
 
-    if (( result = get_mx( hq->hq_hostname )) == NULL ) {
-	syslog( LOG_ERR, "smtp_connect %s get_mx: failed", hq->hq_hostname );
-	return( SMTP_BAD_CONNECTION );
+    if (( result = get_dnsr_result( hq->hq_hostname )) == NULL ) {
+        return( SMTP_ERROR );
     }
 
     for ( i = 0; i < result->r_ancount; i++ ) {
-	if ( result->r_answer[ i ].rr_ip == NULL ) {
-	    continue;
-	}
+	memset( &sin, 0, sizeof( struct sockaddr_in ));
+	sin.sin_family = AF_INET;
+	sin.sin_port = htons( SIMTA_SMTP_PORT );
+
         switch( result->r_answer[ i ].rr_type ) {
         case DNSR_TYPE_MX:
-            memcpy( &(sin.sin_addr.s_addr),
-		    &(result->r_answer[ i ].rr_ip->ip_ip ),
-		    sizeof( struct in_addr ));
-            dnsr_count++;
+            if ( result->r_answer[ i ].rr_ip != NULL ) {
+                memcpy( &(sin.sin_addr.s_addr),
+                    &(result->r_answer[ i ].rr_ip->ip_ip ),
+                    sizeof( struct in_addr ));
+            } else {  
+                if (( result_ip =
+                        get_a( result->r_answer[ i ].rr_mx.mx_exchange ))
+                        == NULL ) {
+                    continue;
+                }
+                for ( j = 0; j < result_ip->r_ancount; j++ ) {
+		    /* XXX - How to loop over this? */
+                    memcpy( &(sin.sin_addr.s_addr),
+                        &(result_ip->r_answer[ j ].rr_a ),
+                        sizeof( struct in_addr ));
+                }       
+                dnsr_free_result( result_ip );
+		result_ip = NULL;
+            }
             break;
 
         case DNSR_TYPE_A:
-            memcpy( &(sin.sin_addr.s_addr),
-		    &(result->r_answer[ i ].rr_a ),
-		    sizeof( struct in_addr ));
-            dnsr_count++;
+            memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ i ].rr_a ),
+                sizeof( struct in_addr ));
             break;
 
         default:
+            syslog( LOG_WARNING, "dnsr_connect %s: unknown dnsr result: %d",
+                hq->hq_hostname, result->r_answer[ i ].rr_type );
             continue;
         }
 
-        if ( dnsr_count != 0 ) {
-            break;
-        }
-    }
+	if (( snet = _smtp_connect_snet( &sin, hq->hq_hostname )) == NULL ) {
+	    /* XXX - When do we retrun SMTP_BAD_CNNECTION or SMTP_ERROR? */
+	    continue;
+	}
 
-    dnsr_free_result( result );
+	if (( smtp_result = smtp_reply( SMTP_CONNECT, snet, hq, NULL ))
+		!= SMTP_OK ) {
+	    goto error1;
+	}
 
-    if ( dnsr_count == 0 ) {
-	syslog( LOG_ERR, "smtp_connect %s get_mx: no valid result",
+	/* XXX MAIL LOOP DETECTION */
+
+	/* say HELO */
+	if ( snet_writef( snet, "HELO %s\r\n", simta_hostname ) < 0 ) {
+	    syslog( LOG_NOTICE, "smtp_connect %s: failed writef",
 		hq->hq_hostname );
-	return( SMTP_ERROR );
-    }
-
-    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
-	syslog( LOG_ERR, "smtp_connect %s socket: %m", hq->hq_hostname );
-	return( SMTP_ERROR );
-    }
-
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons( SIMTA_SMTP_PORT );
-
-    if ( connect( s, (struct sockaddr*)&sin,
-	    sizeof( struct sockaddr_in )) < 0 ) {
-	syslog( LOG_ERR, "smtp_connect %s connect: %m", hq->hq_hostname );
-	if ( close( s ) != 0 ) {
-	    syslog( LOG_ERR, "smtp_connect %s close: %m", hq->hq_hostname );
+	    goto error1;
 	}
-	return( SMTP_BAD_CONNECTION );
-    }
 
-    if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "smtp_connect %s snet_attach: %m", hq->hq_hostname );
-	if ( close( s ) != 0 ) {
-	    syslog( LOG_ERR, "smtp_connect %s close: %m", hq->hq_hostname );
+	if (( smtp_result = smtp_reply( SMTP_HELO, snet, hq,
+		NULL )) == SMTP_OK ) {
+	    hq->hq_status = HOST_MX;
+	    *snetp = snet;
+	    return( smtp_result );
 	}
-	return( SMTP_ERROR );
+
+error1:
+	if ( snet_close( snet ) != 0 ) {
+	    syslog( LOG_WARNING, "dnsr_connect %s: snet_close: %m",
+		    hq->hq_hostname );
+	    goto error2;
+	}
     }
 
-    *snetp = snet;
+error2:
+    dnsr_free_result( result );
+    dnsr_free_result( result_ip );
 
-    if (( smtp_result = smtp_reply( SMTP_CONNECT, snet, hq, NULL ))
-	    != SMTP_OK ) {
-	return( smtp_result );
-    }
+    return( SMTP_BAD_CONNECTION );
 
-    /* XXX MAIL LOOP DETECTION */
-
-    /* say HELO */
-    if ( snet_writef( snet, "HELO %s\r\n", simta_hostname ) < 0 ) {
-	syslog( LOG_NOTICE, "smtp_connect %s: failed writef", hq->hq_hostname );
-	return( SMTP_BAD_CONNECTION );
-    }
-
-    if (( smtp_result = smtp_reply( SMTP_HELO, snet, hq, NULL )) == SMTP_OK ) {
-	hq->hq_status = HOST_MX;
-    }
-
-    return( smtp_result );
 }
-
 
     int
 smtp_send( SNET *snet, struct host_q *hq, struct deliver *d )

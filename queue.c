@@ -42,7 +42,7 @@
 #include "expand.h"
 #include "simta.h"
 #include "bounce.h"
-
+#include "mx.h"
 
 void	q_deliver ( struct host_q **, struct host_q * );
 void	deliver_local( struct deliver *d );
@@ -519,6 +519,7 @@ q_runner_dir( char *dir )
 q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 {
     int                         dfile_fd;
+    int				rc;
     SNET                        *snet_dfile = NULL;
     SNET                        *snet_smtp = NULL;
     SNET			*snet_lock;

@@ -214,7 +214,7 @@ check_hostname( char *hostname )
 }
 
     struct dnsr_result *
-get_dnsr( char *hostname )
+get_dnsr_result( char *hostname )
 {
     struct dnsr_result		*result;
 
@@ -266,70 +266,4 @@ add_host( char *hostname, int type )
 error:
     free( host );
     return( -1 );
-}
-
-    int
-dnsr_connect( char *hostname, int *s )
-{
-    int			i, j;
-    struct dnsr_result	*result, *result_ip;
-    struct sockaddr_in  sin;
-
-    if (( result = get_dnsr( hostname )) == NULL ) {
-	return( SIMTA_ERROR_DNSR );
-    }
-
-    for ( i = 0; i < result->r_ancount; i++ ) {
-	switch( result->r_answer[ i ].rr_type ) {
-	case DNSR_TYPE_MX:
-	    if ( result->r_answer[ i ].rr_ip != NULL ) {
-		memcpy( &(sin.sin_addr.s_addr),
-		    &(result->r_answer[ i ].rr_ip->ip_ip ),
-		    sizeof( struct in_addr ));
-		if ( connect( *s, (struct sockaddr*)&sin,
-			sizeof( sin )) >= 0 ) {
-		    dnsr_free_result( result );
-		    return( 0);
-		}
-
-	    } else {
-		if (( result_ip =
-			get_a( result->r_answer[ i ].rr_mx.mx_exchange ))
-			== NULL ) {
-		    continue;
-		}
-		for ( j = 0; j < result_ip->r_ancount; j++ ) {
-		    memcpy( &(sin.sin_addr.s_addr),
-			&(result_ip->r_answer[ j ].rr_a ),
-			sizeof( struct in_addr ));
-		    if ( connect( *s, (struct sockaddr*)&sin,
-			    sizeof( sin )) >= 0 ) {
-			dnsr_free_result( result );
-			dnsr_free_result( result_ip );
-			return( 0 );
-		    }
-		}
-		dnsr_free_result( result_ip );
-	    }
-	    break;
-
-	case DNSR_TYPE_A:
-	    memcpy( &(sin.sin_addr.s_addr), &(result->r_answer[ i ].rr_a ),
-		sizeof( struct in_addr ));
-	    if ( connect( *s, (struct sockaddr*)&sin, sizeof( sin )) >= 0 ) {
-		dnsr_free_result( result );
-		return( 0);
-	    }
-	    break;
-
-	default:
-	    syslog( LOG_WARNING, "dnsr_connect %s: unknown dnsr result: %d",
-		hostname, result->r_answer[ i ].rr_type );
-	    continue;
-	}
-    }
-
-    dnsr_free_result( result );
-    return( -1 );
-
 }
