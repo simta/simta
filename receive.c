@@ -955,6 +955,8 @@ struct command	commands[] = {
 };
 int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
+    /* XXX receive needs to signal the daemon if it leaves any fast files */
+
     int
 receive( fd, sin )
     int			fd;

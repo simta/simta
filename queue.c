@@ -238,9 +238,26 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 q_runner( struct host_q **host_q )
 {
     int				result;
+    struct host_q		*hq;
+    struct message		*m;
 
     if (( result = q_run( host_q )) != 0 ) {
-	/* XXX deal with fast_files here */
+	if ( simta_fast_files < 1 ) {
+	    return( result );
+	}
+
+	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
+	    for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
+		if ( strcmp( m->m_dir, simta_dir_fast ) == 0 ) {
+		    /* XXX check return */
+		    message_slow( m );
+
+		    if ( simta_fast_files < 1 ) {
+			return( result );
+		    }
+		}
+	    }
+	}
     }
 
     return( result );
@@ -384,6 +401,8 @@ q_run( struct host_q **host_q )
     }
 }
 
+
+    /* XXX q_runner_dir needs to signal the daemon if leaves any fast files */
 
     int
 q_runner_dir( char *dir )
