@@ -53,3 +53,7 @@ cp Dseed ../local/Dlocal
 cp Dseed ../local/tp1
 cp Dseed ../local/tp2
 cp Dseed ../local/garbage
+
+# populate LOCAL
+cp Elocal ../slow/Elocal
+cp Dlocal ../slow/Dlocal
