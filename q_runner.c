@@ -35,6 +35,8 @@
 #include "ml.h"
 #include "smtp.h"
 
+/* XXX default postmaster? */
+#define	SIMTA_POSTMASTER	"postmaster"
 #define	BOUNCE_LINES		100
 
 struct host_q		*null_queue;
@@ -84,11 +86,19 @@ bounce( struct envelope *env, SNET *message )
 	goto cleanup;
     }
 
-    /* XXX what if env->e_mailed == NULL? */
-    if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
-	syslog( LOG_ERR, "env_recipient: %m" );
-	fclose( dfile );
-	goto cleanup;
+    if (( env->e_mail != NULL ) && ( *env->e_mail != '\0' )) {
+	if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
+	    syslog( LOG_ERR, "env_recipient: %m" );
+	    fclose( dfile );
+	    goto cleanup;
+	}
+
+    } else {
+	if ( env_recipient( bounce_env, SIMTA_POSTMASTER ) != 0 ) {
+	    syslog( LOG_ERR, "env_recipient: %m" );
+	    fclose( dfile );
+	    goto cleanup;
+	}
     }
 
     fprintf( dfile, "Headers\n" );
