@@ -610,7 +610,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    if ( header_end( lf, line ) != 0 ) {
 		/* XXX reject message based on headers here */
 
-		if ( data_errors == 0 ) {
+		if (( data_errors == 0 ) && ( line_too_long == 0 )) {
 		    if ( header_file_out( lf, dff ) != 0 ) {
 			syslog( LOG_ERR, "f_data header_file_out: %m" );
 			data_errors++;
@@ -626,7 +626,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	    } else {
 		/* append line to headers */
-		if ( data_errors == 0 ) {
+		if (( data_errors == 0 ) && ( line_too_long == 0 )) {
 		    if (( l = line_append( lf, line )) == NULL ) {
 			syslog( LOG_ERR, "f_data line_append: %m" );
 			data_errors++;
@@ -637,7 +637,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 
 	} else {
-	    if ( data_errors == 0 ) {
+	    if (( data_errors == 0 ) && ( line_too_long == 0 )) {
 		if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		    syslog( LOG_ERR, "f_data fprintf: %m" );
 		    data_errors++;
@@ -649,7 +649,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     if ( header == 1 ) {
 	/* XXX reject message based on headers here */
 
-	if ( data_errors == 0 ) {
+	if (( data_errors == 0 ) && ( line_too_long == 0 )) {
 	    if ( header_file_out( lf, dff ) != 0 ) {
 		syslog( LOG_ERR, "f_data header_file_out: %m" );
 		data_errors++;
