@@ -14,7 +14,10 @@ env_create()
 {
     struct envelope	*env;
 
-    env = (struct envelope *)malloc( sizeof( struct envelope ));
+    if (( env = (struct envelope *)malloc( sizeof( struct envelope ))) ==
+	    NULL ) {
+	return( NULL );
+    }
 
     env->e_next = NULL;
     env->e_sin = NULL;

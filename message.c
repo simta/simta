@@ -5,11 +5,14 @@
 
 /**********	message.c	**********/
 
+#include <sys/param.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 
+#include "envelope.h"
 #include "message.h"
 
 
@@ -26,6 +29,10 @@ message_create( void )
 
     m->m_first_line = NULL;
     m->m_last_line = NULL;
+
+    if (( m->m_env = env_create()) == NULL ) {
+	return( NULL );
+    }
 
     return( m );
 }

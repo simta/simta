@@ -6,6 +6,7 @@
 /*****     message.h     *****/
 
 struct message {
+    struct envelope	*m_env;
     struct line		*m_first_line;
     struct line		*m_last_line;
 };
