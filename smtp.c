@@ -130,14 +130,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     /* mark it down for now, mark it up if we actually succeed */
     hq->hq_status = HOST_DOWN;
 
-    if ( simta_dnsr == NULL ) {
-	if (( simta_dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "smtp_connect %s dnsr_new: %m", hq->hq_hostname );
-	    return( SMTP_ERROR );
-	}
-    }
-
-    if (( result = get_mx( simta_dnsr, hq->hq_hostname )) == NULL ) {
+    if (( result = get_mx( hq->hq_hostname )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect %s get_mx: failed", hq->hq_hostname );
 	return( SMTP_BAD_CONNECTION );
     }
