@@ -196,12 +196,13 @@ denser/denser.o	: FRC
 	cd denser; ${MAKE} ${MFLAGS} CC=${CC} INCPATH="${INCPATH}"
 
 VERSION=`date +%Y%m%d`
-DISTDIR=../simta-${VERSION}
+DISTDIR=simta-${VERSION}
 
 dist : clean
-	mkdir ${DISTDIR}
-	tar -c -f - -X EXCLUDE . | tar xpf - -C ${DISTDIR}
-	echo ${VERSION} > ${DISTDIR}/VERSION
+	mkdir ../${DISTDIR}
+	tar -c -f - -X EXCLUDE . | tar xpf - -C ../${DISTDIR}
+	echo ${VERSION} > ../${DISTDIR}/VERSION
+	cd ..; tar cfz ${DISTDIR}.tgz ${DISTDIR}
 
 clean :
 	cd denser; ${MAKE} ${MFLAGS} clean
