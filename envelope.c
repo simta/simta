@@ -510,11 +510,11 @@ env_info( struct message *m, char *hostname, size_t len )
 	goto cleanup;
     }
 
-    if (( *(line + 1 ) != '\0' ) && ( strcasecmp( *(line + 1),
-	    simta_postmaster ) != 0 )) {
-	m->m_from = 1;
-    } else {
+    if (( *(line + 1 ) == '\0' ) || ( strcasecmp( (line + 1),
+	    simta_postmaster ) == 0 )) {
 	m->m_from = 0;
+    } else {
+	m->m_from = 1;
     }
 
     ret = 0;

@@ -304,6 +304,8 @@ q_runner( struct host_q **host_q )
     struct host_q		*hq;
     struct message		*m;
 
+    syslog( LOG_DEBUG, "q_runner starting" );
+
     q_run( host_q );
 
     if ( simta_fast_files < 1 ) {
@@ -346,6 +348,8 @@ q_run( struct host_q **host_q )
     struct stat			sb;
     char                        dfile_fname[ MAXPATHLEN ];
     struct timeval              tv;
+
+    syslog( LOG_DEBUG, "q_run starting" );
 
     if ( *host_q == NULL ) {
 	syslog( LOG_DEBUG, "q_run done: no queues" );
@@ -540,6 +544,8 @@ oldfile_error:
     int
 q_runner_dir( char *dir )
 {
+    syslog( LOG_DEBUG, "q_runner_dir: %s starting", dir );
+
     q_runner_d( dir );
 
     if ( simta_fast_files != 0 ) {
@@ -563,6 +569,8 @@ q_runner_d( char *dir )
     int				result;
     char			hostname[ MAXHOSTNAMELEN + 1 ];
 
+    syslog( LOG_DEBUG, "q_runner_d: %s starting", dir );
+
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_runner_d opendir %s: %m", dir );
 	return;
@@ -570,6 +578,7 @@ q_runner_d( char *dir )
 
     /* organize a directory's messages by host and timestamp */
     for ( ; ; ) {
+
 	errno = 0;
 	entry = readdir( dirp );
 
