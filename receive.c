@@ -244,27 +244,54 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 
 
     static int
+f_mail_usage( SNET *snet )
+{
+    syslog( LOG_ERR, "Receive: Bad MAIL FROM syntax: %s",
+	    receive_smtp_command );
+
+    if ( snet_writef( snet,
+	    "501-Syntax violates RFC 2821 section 4.1.1.2:\r\n"
+	    "501-     \"MAIL FROM:\" (\"<>\" / Reverse-Path ) "
+	    "[ SP Mail-parameters ] CRLF\r\n"
+	    "501-         Reverse-path = Path\r\n"
+	    "501          Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
+	    ) < 0 ) {
+	syslog( LOG_ERR, "f_mail_usage snet_writef: %m" );
+	return( RECEIVE_CLOSECONNECTION );
+    }
+    return( RECEIVE_OK );
+}
+
+
+    static int
 f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int			rc;
     char		*addr;
     char		*domain;
 
-    if ( ac != 2 ) {
-	syslog( LOG_ERR, "Receive: Bad MAIL FROM syntax: %s",
-		receive_smtp_command );
-
-	if ( snet_writef( snet,
-		"501-Syntax violates RFC 2821 section 4.1.1.2:\r\n"
-		"501-     \"MAIL FROM:\" (\"<>\" / Reverse-Path ) "
-		"[ SP Mail-parameters ] CRLF\r\n"
-		"501-         Reverse-path = Path\r\n"
-		"501          Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
-		) < 0 ) {
-	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
+    if ( ac == 2 ) {
+	if ( strncasecmp( av[ 1 ], "FROM:", 5 ) != 0 ) {
+	    return( f_mail_usage( snet ));
 	}
-	return( RECEIVE_OK );
+
+	if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 1 ] + 5, &addr,
+		&domain ) != 0 ) {
+	    return( f_mail_usage( snet ));
+	}
+
+    } else if (( simta_strict_smtp_syntax == 0 ) && ( ac == 3 )) {
+	if ( strcasecmp( av[ 1 ], "FROM:" ) != 0 ) {
+	    return( f_mail_usage( snet ));
+	}
+
+	if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 2 ], &addr,
+		&domain ) != 0 ) {
+	    return( f_mail_usage( snet ));
+	}
+
+    } else {
+	return( f_mail_usage( snet ));
     }
 
     /*
@@ -273,17 +300,6 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
      * can either be accepted (trusted) or the soft failures can be passed
      * along.  "451" is probably the correct error.
      */
-    if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 1 ], &addr,
-	    &domain ) != 0 ) {
-	syslog( LOG_NOTICE, "f_mail rfc_2821_trimaddr rejected: %s", av[ 1 ]);
-	if ( snet_writef( snet, "%d Requested action not taken: "
-		"bad address syntax\r\n", 553 ) < 0 ) {
-	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
-
     if (( domain != NULL ) && ( simta_global_relay == 0 )) {
 	if (( rc = check_hostname( domain )) != 0 ) {
 	    if ( rc < 0 ) {
@@ -344,29 +360,31 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 
 
     static int
+f_rcpt_usage( SNET *snet )
+{
+    syslog( LOG_ERR, "Receive: Bad RCPT TO syntax: %s", receive_smtp_command );
+
+    if ( snet_writef( snet,
+	    "501-Syntax violates RFC 2821 section 4.1.1.3:\r\n"
+	    "501-     \"RCPT TO:\" (\"<Postmaster@\" domain \">\" / "
+	    "\"<Postmaster>\" / Forward-Path ) "
+	    "[ SP Rcpt-parameters ] CRLF\r\n"
+	    "501-         Forward-path = Path\r\n"
+	    "501          Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
+	    ) < 0 ) {
+	syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+	return( RECEIVE_CLOSECONNECTION );
+    }
+    return( RECEIVE_OK );
+}
+
+
+    static int
 f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int			rc;
     char		*addr, *domain;
     struct host		*host;
-
-    if ( ac != 2 ) {
-	syslog( LOG_ERR, "Receive: Bad RCPT TO syntax: %s",
-		receive_smtp_command );
-
-	if ( snet_writef( snet,
-		"501-Syntax violates RFC 2821 section 4.1.1.3:\r\n"
-		"501-     \"RCPT TO:\" (\"<Postmaster@\" domain \">\" / "
-		"\"<Postmaster>\" / Forward-Path ) "
-		"[ SP Rcpt-parameters ] CRLF\r\n"
-		"501-         Forward-path = Path\r\n"
-		"501          Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
-		) < 0 ) {
-	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
 
     /* Must already have "MAIL FROM:", and no valid message */
     if (( env->e_mail == NULL ) || (( env->e_flags & ENV_ON_DISK ) != 0 )) {
@@ -377,16 +395,28 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 1 ], &addr,
-	    &domain ) != 0 ) {
-	syslog( LOG_INFO, "Receive %s: To <%s> Rejected: bad address syntax",
-		env->e_id, av[ 1 ]);
-	if ( snet_writef( snet, "553 Requested action not taken: "
-		"bad address syntax\r\n", 553 ) < 0 ) {
-	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
+    if ( ac == 2 ) {
+	if ( strncasecmp( av[ 1 ], "TO:", 3 ) != 0 ) {
+	    return( f_rcpt_usage( snet ));
 	}
-	return( RECEIVE_OK );
+
+	if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 1 ] + 3, &addr,
+		&domain ) != 0 ) {
+	    return( f_rcpt_usage( snet ));
+	}
+
+    } else if (( simta_strict_smtp_syntax == 0 ) && ( ac == 3 )) {
+	if ( strcasecmp( av[ 1 ], "TO:" ) != 0 ) {
+	    return( f_rcpt_usage( snet ));
+	}
+
+	if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 2 ], &addr,
+		&domain ) != 0 ) {
+	    return( f_rcpt_usage( snet ));
+	}
+
+    } else {
+	return( f_rcpt_usage( snet ));
     }
 
     /* rfc 2821 3.7
@@ -1436,31 +1466,21 @@ local_address( char *addr, char *domain, struct host *host )
      */
 
     static int
-rfc_2821_trimaddr( int mode, char *arg, char **address, char **domain )
+rfc_2821_trimaddr( int mode, char *left_angle, char **address,
+		char **domain )
 {
     char			*p;
     char			*q;
 
-    if ( arg == NULL ) {
+    if (( mode != RFC_2821_MAIL_FROM ) && ( mode != RFC_2821_RCPT_TO )) {
 	return( 1 );
     }
 
-    /* check syntax, and set cursor */
-    if ( mode == RFC_2821_MAIL_FROM ) {
-	if ( strncasecmp( arg, "FROM:<", 6 ) != 0 ) {
-	    return( 1 );
-	}
-	p = arg + 6;
-
-    } else if ( mode == RFC_2821_RCPT_TO ) {
-	if ( strncasecmp( arg, "TO:<", 4 ) != 0 ) {
-	    return( 1 );
-	}
-	p = arg + 4;
-
-    } else {
+    if (( left_angle == NULL ) || ( *left_angle != '<' )) {
 	return( 1 );
     }
+
+    p = left_angle + 1;
 
     /* do at-domain-literal */
     if ( *p == '@' ) {
