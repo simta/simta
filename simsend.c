@@ -99,13 +99,6 @@ headers( struct message *m )
 	}
     }
 
-    if ( header_nl[ HEAD_ORIG_DATE ].n_data == NULL ) {
-	/* no date header */
-	if ( message_prepend_line( m, "Date: default" ) == NULL ) {
-	    return( -1 );
-	}
-    }
-
     if ( header_nl[ HEAD_FROM ].n_data == NULL ) {
 	if ( message_prepend_line( m, "From: default" ) == NULL ) {
 	    return( -1 );
@@ -113,15 +106,12 @@ headers( struct message *m )
     }
 
     if ( header_nl[ HEAD_SENDER ].n_data == NULL ) {
-	if ( message_prepend_line( m, "Sender: default" ) == NULL ) {
-	    perror( "message_prepend_line" );
-	    return( -1 );
-	}
+	/* XXX action */
     }
 
-    if ( header_nl[ HEAD_TO ].n_data == NULL ) {
-	if ( message_prepend_line( m, "To: default" ) == NULL ) {
-	    perror( "message_prepend_line" );
+    if ( header_nl[ HEAD_ORIG_DATE ].n_data == NULL ) {
+	/* no date header */
+	if ( message_prepend_line( m, "Date: default" ) == NULL ) {
 	    return( -1 );
 	}
     }
@@ -131,6 +121,10 @@ headers( struct message *m )
 	    perror( "message_prepend_line" );
 	    return( -1 );
 	}
+    }
+
+    if ( header_nl[ HEAD_TO ].n_data == NULL ) {
+	/* XXX action */
     }
 
     if ( header_nl[ HEAD_REPLY_TO ].n_data == NULL ) {
