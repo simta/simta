@@ -58,7 +58,7 @@ AC_DEFUN([CHECK_SNET],
 
 
 # AC_STRUCT_GMTOFF
-# If struct tm.tm_gmtoff, define HAVE_TM_GMTOFF.
+# If struct tm.tm_gmtoff exists, define HAVE_TM_GMTOFF.
 #
 # AC_STRUCT_TM defines $ac_cv_struct_tm to the library where struct
 # tm resides.
