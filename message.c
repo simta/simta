@@ -66,6 +66,7 @@ message_create( char *id )
 	sprintf( m->m_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 		(unsigned long)tv.tv_usec );
     } else {
+	/* XXX OVERFLOW */
 	strcpy( m->m_env->e_id, id );
     }
 

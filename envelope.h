@@ -28,6 +28,7 @@ struct envelope {
 #define E_TLS		(1<<0)
 
 struct envelope	*env_create ___P(( void ));
+struct envelope	*env_infile ___P(( char *, char * ));
 int		env_recipient ___P(( struct envelope *, char * ));
 void		env_reset ___P(( struct envelope * ));
 void		env_stdout ___P(( struct envelope * ));

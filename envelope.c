@@ -3,12 +3,20 @@
  * All Rights Reserved.  See COPYRIGHT.
  */
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* TLS */
+
 #include <netdb.h>
+#include <fcntl.h>
 #include <syslog.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
+#include <snet.h>
 
 #include "envelope.h"
 
@@ -99,4 +107,46 @@ env_recipient( struct envelope *e, char *addr )
     e->e_rcpt = r;
 
     return( 0 );
+}
+
+
+    struct envelope *
+env_infile( char *dir, char *id )
+{
+    char			filename[ MAXPATHLEN ];
+    char			*line;
+    SNET			*snet;
+    struct envelope		*e;
+
+    if (( e = env_create()) == NULL ) {
+	return( NULL );
+    }
+
+    sprintf( filename, "%s/E%s", dir, id );
+
+    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	return( NULL );
+    }
+
+    /* get from-address */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	return( NULL );
+    }
+
+    if (( e->e_mail = strdup( line )) == NULL ) {
+	return( NULL );
+    }
+
+    /* get to-addresses */
+    while (( line = snet_getline( snet, NULL )) != NULL ) {
+	if ( env_recipient( e, line ) != 0 ) {
+	    return( NULL );
+	}
+    }
+
+    if ( snet_close( snet ) < 0 ) {
+	return( NULL );
+    }
+
+    return( e );
 }
