@@ -31,7 +31,6 @@
 #include "ll.h"
 #include "simta.h"
 #include "line_file.h"
-#include "oklist.h"
 #include "header.h"
 
 int				simta_expand_debug = 0;
@@ -70,20 +69,6 @@ expand_and_deliver( struct host_q **hq, struct envelope *unexpanded_env )
 	return( EXPAND_SYSERROR );
     }
 }
-
-
-#ifdef HAVE_LDAP
-    void
-exp_addr_prune( struct exp_addr *e_addr )
-{
-    if ( e_addr != NULL ) {
-	e_addr->e_addr_status =
-		( e_addr->e_addr_status & ( ~STATUS_TERMINAL ));
-	exp_addr_prune( e_addr->e_addr_peer );
-	exp_addr_prune( e_addr->e_addr_child );
-    }
-}
-#endif /* HAVE_LDAP */
 
 
     struct envelope *
@@ -158,6 +143,10 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
     char			d_out[ MAXPATHLEN ];
+#ifdef HAVE_LDAP
+    int				loop_color = 1;
+    struct exp_link		*memonly;
+#endif /* HAVE_LDAP */
 
     memset( &exp, 0, sizeof( struct expand ));
     exp.exp_env = unexpanded_env;
@@ -248,22 +237,36 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	}
     }
 
+#ifdef HAVE_LDAP
+    for ( memonly = exp.exp_memonly; memonly != NULL;
+	    memonly = memonly->el_next ) {
+	if (( is_permitted( memonly->el_exp_addr )) ||
+		( sender_is_child( memonly->el_exp_addr, loop_color++ ))) {
+	    memonly->el_exp_addr->e_addr_status =
+		    ( memonly->el_exp_addr->e_addr_status &
+		    ( ~STATUS_LDAP_MEMONLY ));
+
+	} else {
+	    supress_addrs( memonly->el_exp_addr, loop_color++ );
+	}
+    }
+#endif /* HAVE_LDAP */
+
     /* Create one expanded envelope for every host we expanded address for */
     for ( p = exp.exp_addr_list; p != NULL; p = p->st_next ) {
 	e_addr = (struct exp_addr*)p->st_data;
-
-#ifdef HAVE_LDAP
-	/* prune exclusive groups the sender is not a member of */
-	if ((( e_addr->e_addr_status & STATUS_EMAIL_SENDER ) == 0 ) &&
-		(( e_addr->e_addr_status & STATUS_LDAP_EXCLUSIVE ) != 0 )) {
-	    exp_addr_prune( e_addr->e_addr_child );
-	}
-#endif /* HAVE_LDAP */
 
 	if (( e_addr->e_addr_status & STATUS_TERMINAL ) == 0 ) {
 	    /* not a terminal expansion, do not add */
 	    continue;
 	}
+
+#ifdef HAVE_LDAP
+	if ((( e_addr->e_addr_status & STATUS_LDAP_SUPRESSED ) != 0 ) &&
+		( !unblocked_path_to_root( e_addr, loop_color++ ))) {
+	    continue;
+	}
+#endif /* HAVE_LDAP */
 
 	switch ( e_addr->e_addr_type ) {
 	case ADDRESS_TYPE_EMAIL:
@@ -548,17 +551,22 @@ cleanup2:
     }
 
 cleanup1:
-    /* free exp_addr_list */
-    p = exp.exp_addr_list;
-    while ( p != NULL ) {
+#ifdef HAVE_LDAP  
+    exp_addr_link_free( exp.exp_memonly );
+#endif /* HAVE_LDAP */
+
+    for ( p = exp.exp_addr_list; p != NULL; ) {
 	q = p;
 	p = p->st_next;
 	if ( q->st_data != NULL ) {
 	    e_addr = (struct exp_addr*)q->st_data;
 #ifdef HAVE_LDAP  
-	    ok_destroy (e_addr);
-	    if (e_addr->e_addr_dn )
-		free (e_addr->e_addr_dn);
+	    exp_addr_link_free( e_addr->e_addr_parents );
+	    exp_addr_link_free( e_addr->e_addr_children );
+	    permitted_destroy( e_addr );
+	    if ( e_addr->e_addr_dn ) {
+		free( e_addr->e_addr_dn );
+	    }
 #endif
 	    free( e_addr->e_addr );
 	    free( e_addr->e_addr_from );
@@ -572,37 +580,162 @@ cleanup1:
 
 
 #ifdef HAVE_LDAP
-    int
-ldap_check_ok( struct expand *exp, struct exp_addr *exclusive_addr )
+    void
+supress_addrs( struct exp_addr *e, int color )
 {
-    struct exp_addr		*parent;
-    struct recipient		*rcpt;
+    struct exp_link		*el;
 
-    void			*match;
+    assert(( e->e_addr_status & STATUS_EMAIL_SENDER ) == 0 );
 
-    /* XXX this should also check to see if exclusive_addr has an ok list */
-    if ( exclusive_addr == NULL ) {
+    if ( e->e_addr_anti_loop == color ) {
+	return;
+    }
+    e->e_addr_anti_loop = color;
+
+    if (( e->e_addr_status & STATUS_LDAP_SUPRESSED ) != 0 ) {
+	return;
+    }
+
+    e->e_addr_status |= STATUS_LDAP_SUPRESSED;
+
+    for ( el = e->e_addr_children; el != NULL; el = el->el_next ) {
+	supress_addrs( el->el_exp_addr, color );
+    }
+
+    return;
+}
+
+
+    int
+sender_is_child( struct exp_addr *e, int color )
+{
+    struct exp_link		*el;
+
+    if ( e->e_addr_anti_loop == color ) {
+	return;
+    }
+    e->e_addr_anti_loop = color;
+
+    if (( e->e_addr_status & STATUS_EMAIL_SENDER ) != 0 ) {
+	return( 1 );
+    }
+
+    if (( e->e_addr_status & STATUS_NO_EMAIL_SENDER ) != 0 ) {
 	return( 0 );
     }
 
-    parent = exp->exp_parent;
-
-    while ( parent->e_addr_type != ADDRESS_TYPE_EMAIL ) {
-	parent = parent->e_addr_parent;
-    }
-
-    for ( rcpt = exp->exp_env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
-	if ( strcasecmp( rcpt->r_rcpt, parent->e_addr ) == 0 ) {
-	    break;
+    for ( el = e->e_addr_children; el != NULL; el = el->el_next ) {
+	if ( sender_is_child( el->el_exp_addr, color )) {
+	    e->e_addr_status |= STATUS_EMAIL_SENDER;
+	    return( 1 );
 	}
     }
 
-    if ( rcpt == NULL ) {
+    e->e_addr_status |= STATUS_NO_EMAIL_SENDER;
+    return( 0 );
+}
+
+
+    int
+unblocked_path_to_root( struct exp_addr *e, int color )
+{
+    struct exp_link		*el;
+
+    if ( e->e_addr_anti_loop == color ) {
+	return;
+    }
+    e->e_addr_anti_loop = color;
+
+    if (( e->e_addr_status & STATUS_LDAP_MEMONLY ) != 0 ) {
 	return( 0 );
     }
 
-    match = ll_lookup( exclusive_addr->e_addr_ok, parent->e_addr_dn );
-    
-    return( match ? 1 : 0 );
+    if (( e->e_addr_status & STATUS_NO_ROOT_PATH ) != 0 ) {
+	return( 0 );
+    }
+
+    if (( e->e_addr_status & STATUS_ROOT_PATH ) != 0 ) {
+	return( 1 );
+    }
+
+    for ( el = e->e_addr_parents; el != NULL; el = el->el_next ) {
+	if (( el->el_exp_addr == NULL ) ||
+		( unblocked_path_to_root( el->el_exp_addr, color ))) {
+	    e->e_addr_status |= STATUS_ROOT_PATH;
+	    return( 1 );
+	}
+    }
+
+    e->e_addr_status |= STATUS_NO_ROOT_PATH;
+    return( 0 );
+}
+
+
+    int
+permitted_create( struct exp_addr *e_addr, char **permitted )
+{
+    int		idx;
+    char	*namedup;
+
+    if (permitted && *permitted)
+    {
+	/* 
+	** Normalize the permitted group list 
+	** normalization happens "in-place"
+	*/   
+	for (idx = 0;  permitted[idx] != NULL; idx++) {
+	    dn_normalize_case (permitted[idx]);
+
+	    if ((namedup = strdup (permitted[idx])) == NULL)
+		return (1);
+
+	    if ( ll_insert ( &e_addr->e_addr_ok, namedup, namedup, NULL ) != 0 )
+		return (1);
+	}		
+    }
+    return 0;
+}
+
+
+    void
+permitted_destroy ( struct exp_addr *e_addr)
+{
+
+    struct stab_entry  *pstab;
+    struct stab_entry  *nstab;
+
+    pstab = e_addr->e_addr_ok;
+    while ( pstab != NULL ) {
+        nstab = pstab;
+        pstab = pstab->st_next;
+        if ( nstab->st_key != NULL ) {
+            free( nstab->st_key );
+        }
+        free( nstab );
+    }
+    return;
+}
+
+
+    int
+is_permitted( struct exp_addr *memonly )
+{
+    struct exp_link		*parent;
+    struct stab_entry		*ok;
+
+    for ( ok = memonly->e_addr_ok; ok != NULL; ok = ok->st_next ) {
+	for ( parent = memonly->e_addr_parents; parent != NULL;
+		parent = parent->el_next ) {
+	    if ( parent->el_exp_addr == NULL ) {
+		continue;
+	    }
+
+	    if (( strcmp( ok->st_key, parent->el_exp_addr->e_addr_dn ) == 0 )) {
+		return( 1 );
+	    }
+	}
+    }
+
+    return( 0 );
 }
 #endif /* HAVE_LDAP */

@@ -37,8 +37,12 @@
 #define STATUS_TERMINAL			(1<<1)
 
 #ifdef HAVE_LDAP
-#define	STATUS_LDAP_EXCLUSIVE		(1<<2)
-#define	STATUS_EMAIL_SENDER		(1<<3)
+#define	STATUS_LDAP_MEMONLY		(1<<2)
+#define	STATUS_LDAP_SUPRESSED		(1<<3)
+#define	STATUS_EMAIL_SENDER		(1<<4)
+#define	STATUS_NO_EMAIL_SENDER		(1<<5)
+#define	STATUS_ROOT_PATH		(1<<6)
+#define	STATUS_NO_ROOT_PATH		(1<<7)
 #endif /* HAVE_LDAP */
 
 struct expand_output {
@@ -53,25 +57,31 @@ struct expand {
     struct stab_entry		*exp_addr_list;	/* expanded addresses */
     struct envelope		*exp_errors;	/* error envelope list */
 #ifdef HAVE_LDAP
-    struct exp_addr		*exp_root;
     struct exp_addr		*exp_parent;
+    struct exp_link		*exp_memonly;
 #endif /* HAVE_LDAP */
 };
 
+#ifdef HAVE_LDAP
+struct exp_link {
+    struct exp_link		*el_next;
+    struct exp_addr		*el_exp_addr;
+};
+#endif /* HAVE_LDAP */
+
 struct exp_addr {
+    int				e_addr_type;	/* address data type */
+    int				e_addr_status;
     char			*e_addr;	/* address string */
     char			*e_addr_at;	/* char the email addresses @ */
     char			*e_addr_from;
-    int				e_addr_type;	/* address data type */
     struct envelope		*e_addr_errors;	/* address error handle */
-    int				e_addr_status;
 #ifdef HAVE_LDAP
-    struct exp_addr		*e_addr_parent;
-    struct exp_addr		*e_addr_peer;
-    struct exp_addr		*e_addr_child;
-    struct stab_entry		*e_addr_ok;
-    struct stab_entry		*e_addr_x_children;
+    int				e_addr_anti_loop;
     char			*e_addr_dn;
+    struct stab_entry		*e_addr_ok;
+    struct exp_link		*e_addr_parents;
+    struct exp_link		*e_addr_children;
 #endif /* HAVE_LDAP */
 };
 
@@ -94,6 +104,12 @@ int address_string_recipients( struct expand *, char *, struct exp_addr *,
 	char * );
 
 #ifdef HAVE_LDAP
-int ldap_check_ok( struct expand *, struct exp_addr * );
-void exp_addr_prune( struct exp_addr * );
+int exp_addr_link( struct exp_link **, struct exp_addr * );
+void exp_addr_link_free( struct exp_link * );
+int unblocked_path_to_root( struct exp_addr *, int );
+int sender_is_child( struct exp_addr *, int );
+void supress_addrs( struct exp_addr *, int );
+int permitted_create( struct exp_addr *, char ** );
+void permitted_destroy( struct exp_addr * );
+int is_permitted( struct exp_addr * );
 #endif /* HAVE_LDAP */

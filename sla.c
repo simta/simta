@@ -32,7 +32,6 @@
 #include "ll.h"
 #include "simta.h"
 #include "line_file.h"
-#include "oklist.h"
 
     int
 main( int argc, char *argv[] )

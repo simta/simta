@@ -40,7 +40,6 @@
 #include "argcargv.h"
 #include "simta_ldap.h"
 #include "dn.h"
-#include "oklist.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
@@ -882,15 +881,31 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		ldap_value_free (moderator);
 	    }
 	}
+
 	/*
 	** MembersOnly group?
 	*/
 	memonly = ldap_get_values( ld, entry, "membersonly");
 	if (memonly) {
 	    if(strcasecmp (memonly[0], "TRUE") == 0) {
+		e_addr->e_addr_status |= STATUS_LDAP_MEMONLY;
+
+		if ( exp_addr_link( &(exp->exp_memonly), e_addr ) != 0 ) {
+		    ldap_value_free ( memonly );
+		    if (dnvals ) {
+			ldap_value_free( dnvals);
+		    }
+		    if (mailvals ) {
+			ldap_value_free(mailvals );
+		    }
+		    free (senderbuf);
+		    ldap_memfree (dn);
+		    return ( LDAP_SYSERROR );
+		}
+
 		permitted = ldap_get_values( ld, entry, "permittedgroup");
 		if (permitted ) {
-		    rc = ok_create ( e_addr, permitted, dn);
+		    rc = permitted_create ( e_addr, permitted );
 
 		    if (rc != 0) {
 			ldap_value_free (permitted);
@@ -906,11 +921,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 			ldap_memfree (dn);
 			return (rc);
 		    }
+
 		    ldap_value_free (permitted);
 		}
-		if (ldap_check_ok (exp, e_addr) == 0) {
-		    e_addr->e_addr_status |= STATUS_LDAP_EXCLUSIVE;
-                }
 	    }
 	    ldap_value_free ( memonly );
 	}
@@ -931,8 +944,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    ** -- change from address to be: group-errors@associateddomaon
 	    ** -- otherwise use the original sender.
 	    */
-	    if (( *(e_addr->e_addr_from) != '\0' ) &&
-		    (( type == LDS_GROUP_MEMBERS ) || ( type == LDS_USER ))) {
+	    if (( type == LDS_GROUP_MEMBERS ) || ( type == LDS_USER )) {
 		rc =  add_address( exp, ndn, e_addr->e_addr_errors, 
 			    ADDRESS_TYPE_LDAP, senderbuf );
 	    } else {
@@ -956,9 +968,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    attrval = mailvals[ idx ];
 
 	    if (strchr (attrval, '@') ) {		
-		if (( *(e_addr->e_addr_from) != '\0' ) &&
-			(( type == LDS_GROUP_MEMBERS ) ||
-			( type == LDS_USER ))) {
+		if (( type == LDS_GROUP_MEMBERS ) || ( type == LDS_USER )) {
 		    rc = address_string_recipients( exp, attrval,
 			    e_addr, senderbuf );
 		} else {

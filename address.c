@@ -39,25 +39,6 @@
 #endif /* HAVE_LDAP */
 
 
-    void
-expand_tree_stdout( struct exp_addr *e, int i )
-{
-    int				x;
-
-    if ( e != NULL ) {
-	for ( x = 0; x < i; x++ ) {
-	    printf( " " );
-	}
-	printf( "%x %s\n", e, e->e_addr );
-
-#ifdef HAVE_LDAP
-	expand_tree_stdout( e->e_addr_child, i + 1 );
-	expand_tree_stdout( e->e_addr_peer, i );
-#endif /* HAVE_LDAP */
-    }
-}
-
-
     struct envelope *
 address_bounce_create( struct expand *exp )
 {
@@ -217,9 +198,6 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 {
     char			*address;
     struct exp_addr		*e;
-#ifdef HAVE_LDAP
-    struct exp_addr		*parent;
-#endif /* HAVE_LDAP */
 
     if (( address = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "add_address: strdup: %m" );
@@ -283,30 +261,20 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	}
 #endif /* HAVE_LDAP */
 
-#ifdef HAVE_LDAP
-	e->e_addr_child = NULL;
-	if ( exp->exp_parent == NULL ) {
-	    e->e_addr_parent = NULL;
-	    e->e_addr_peer = exp->exp_root;
-	    exp->exp_root = e;
-	} else {
-	    e->e_addr_parent = exp->exp_parent;
-	    e->e_addr_peer = exp->exp_parent->e_addr_child;
-	    exp->exp_parent->e_addr_child = e;
-	}
-#endif /* HAVE_LDAP */
-
     } else {
 	/* free local address and use the previously allocated one */
 	free( address );
     }
 
 #ifdef HAVE_LDAP
-    if (( e->e_addr_status & STATUS_EMAIL_SENDER ) != 0 ) {
-	for ( parent = exp->exp_parent; parent != NULL;
-		parent = parent->e_addr_parent ) {
-	    parent->e_addr_status =
-		    ( parent->e_addr_status | STATUS_EMAIL_SENDER );
+    /* add links */
+    if ( exp_addr_link( &(e->e_addr_parents), exp->exp_parent ) != 0 ) {
+	return( 1 );
+    }
+
+    if ( exp->exp_parent != NULL ) {
+	if ( exp_addr_link( &(exp->exp_parent->e_addr_children), e ) != 0 ) {
+	    return( 1 );
 	}
     }
 #endif /* HAVE_LDAP */
@@ -681,18 +649,41 @@ done:
 }
 
 #ifdef HAVE_LDAP
-
     int
-ok_list_add( struct expand *exp, struct exp_addr *exclusive, char *ok_addr )
+exp_addr_link( struct exp_link **links, struct exp_addr *add )
 {
+    struct exp_link		*link;
+
+    for ( link = *links; link != NULL; link = link->el_next ) {
+	if ( link->el_exp_addr == add ) {
+	    return( 0 );
+	}
+    }
+
+    if (( link = malloc( sizeof( struct exp_link ))) == NULL ) {
+	syslog( LOG_ERR, "exp_addr_link: malloc: %m" );
+	return( 1 );
+    }
+    memset( link, 0, sizeof( struct exp_link ));
+
+    link->el_exp_addr = add;
+    link->el_next = *links;
+    *links = link;
+
     return( 0 );
 }
 
 
-    int
-exclusive_check( struct expand *exp, struct exp_addr *exclusive )
+    void
+exp_addr_link_free( struct exp_link *links )
 {
-    return( 0 );
-}
+    struct exp_link		*link;
 
+    while (( link = links ) != NULL ) {
+	links = links->el_next;
+	free( link );
+    }
+
+    return;
+}
 #endif /* HAVE_LDAP */
