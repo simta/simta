@@ -36,6 +36,7 @@ struct list {
 /* return codes for ldap_address_local */
 #define LDAP_LOCAL		2
 #define LDAP_NOT_LOCAL		3
+#define LDAP_LOCAL_RBL		4
 
 /* Envelope e_flags bits used by ldap expansion */
 #define SUPPRESSNOEMAILERROR    (1<<0)
