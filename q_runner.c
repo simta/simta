@@ -228,25 +228,14 @@ main( int argc, char *argv[] )
     struct stat			sb;
     int				result;
     char			fname[ MAXPATHLEN ];
-    char			localhostname[ MAXHOSTNAMELEN ];
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
-    if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
-	syslog( LOG_ERR, "gethostname: %m" );
-	exit( 1 );
-    }
-
     /* create and preserve NULL queue for bunced messages later on */
-    if (( null_queue = host_q_create( "\0" )) == NULL ) {
+    if (( null_queue = host_q_lookup( &host_stab, "\0" )) == NULL ) {
 	syslog( LOG_ERR, "host_q_create: %m" );
 	exit( 1 );
     }
-
-    if ( ll_insert( &host_stab, null_queue->hq_name, null_queue, NULL ) != 0 ) {
-	syslog( LOG_ERR, "ll_insert: %m" );
-	exit( 1 );
-    }	
 
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
 	syslog( LOG_ERR, "opendir %s: %m", SLOW_DIR );
@@ -314,21 +303,8 @@ main( int argc, char *argv[] )
 	    q->q_etime = sb.st_mtimespec;
 #endif	/* sun */
 
-	    if (( hq = (struct host_q*)ll_lookup( host_stab, q->q_expanded ))
-		    == NULL ) {
-		if (( hq = host_q_create( q->q_expanded )) == NULL ) {
-		    syslog( LOG_ERR, "host_q_create: %m" );
-		    exit( 1 );
-		}
-
-		if ( ll_insert( &host_stab, hq->hq_name, hq, NULL ) != 0 ) {
-		    syslog( LOG_ERR, "ll_insert: %m" );
-		    exit( 1 );
-		}	
-
-		if ( strcasecmp( localhostname, hq->hq_name ) == 0 ) {
-		    hq->hq_local = 1;
-		}
+	    if (( hq = host_q_lookup( &host_stab, q->q_expanded )) == NULL ) {
+		exit( 1 );
 	    }
 
 	    if ( ll__insert( &(hq->hq_qfiles), q, efile_time_compare ) != 0 ) {
@@ -521,7 +497,7 @@ deliver_local( struct host_q *hq )
 	}
     }
 
-    queue_cleanup( hq );
+    host_q_cleanup( hq );
 
     return( 0 );
 }
@@ -698,7 +674,7 @@ deliver_remote( struct host_q *hq )
 	}
     }
 
-    queue_cleanup( hq );
+    host_q_cleanup( hq );
 
     return;
 }

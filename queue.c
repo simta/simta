@@ -7,6 +7,8 @@
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
+#include <unistd.h>
+#include <syslog.h>
 
 #include "ll.h"
 #include "queue.h"
@@ -83,8 +85,43 @@ host_q_create( char *hostname )
 }
 
 
+    struct host_q *
+host_q_lookup( struct stab_entry **host_stab, char *host ) 
+{
+    struct host_q		*hq;
+    static char			localhostname[ MAXHOSTNAMELEN ] = "\0";
+
+    if ( *localhostname == '\0' ) {
+	if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
+	    syslog( LOG_ERR, "gethostname: %m" );
+	    return( NULL );
+	}
+    }
+
+    if (( hq = (struct host_q*)ll_lookup( *host_stab, host ))
+	    == NULL ) {
+	if (( hq = host_q_create( host )) == NULL ) {
+	    syslog( LOG_ERR, "host_q_create: %m" );
+	    return( NULL );
+	}
+
+	if ( ll_insert( host_stab, hq->hq_name, hq, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "ll_insert: %m" );
+	    return( NULL );
+	}	
+
+	/* XXX DNS test for local queues */
+	if ( strcasecmp( localhostname, hq->hq_name ) == 0 ) {
+	    hq->hq_local = 1;
+	}
+    }
+
+    return( hq );
+}
+
+
     void
-queue_cleanup( struct host_q *hq )
+host_q_cleanup( struct host_q *hq )
 {
     struct stab_entry		**qs;
     struct stab_entry		*qs_remove;
