@@ -7,12 +7,13 @@
 
 /* states for host_q->hq_status */
 #define HOST_NULL	0
-#define HOST_LOCAL	1
-#define HOST_MX		2
-#define HOST_BOUNCE	3
-#define HOST_DOWN	4
-#define HOST_PUNT	5
-#define HOST_PUNT_DOWN	6
+#define HOST_UNKNOWN	1
+#define HOST_LOCAL	2
+#define HOST_MX		3
+#define HOST_BOUNCE	4
+#define HOST_DOWN	5
+#define HOST_PUNT	6
+#define HOST_PUNT_DOWN	7
 
 struct deliver {
     struct envelope		*d_env;

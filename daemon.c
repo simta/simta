@@ -152,7 +152,8 @@ main( int ac, char **av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
-    while (( c = getopt( ac, av, " ab:cCdD:f:Im:M:p:qrRs:Vw:x:y:z:" )) != -1 ) {
+    while (( c = getopt( ac, av, " ab:cCdD:f:Im:M:p:qQ:rRs:Vw:x:y:z:" ))
+	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
 	    simta_strict_smtp_syntax = 0;
@@ -205,6 +206,12 @@ main( int ac, char **av )
 	case 'q' :
 	    /* q_runner option: just run slow queue */
 	    q_run++;
+	    break;
+
+	case 'Q' :
+	    /* q_runner option: just run specific slow queue */
+	    q_run++;
+	    simta_queue_filter = optarg;
 	    break;
 
 	case 'r' :
@@ -444,16 +451,16 @@ main( int ac, char **av )
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
 
+    if ( q_run != 0 ) {
+	exit( q_runner_dir( simta_dir_slow ));
+    }
+
     if ( q_cleanup() != 0 ) {
 	exit( 1 );
     }
 
     if ( simta_filesystem_cleanup != 0 ) {
 	exit( 0 );
-    }
-
-    if ( q_run != 0 ) {
-	exit( q_runner_dir( simta_dir_slow ));
     }
 
     if (( pf = fdopen( pidfd, "w" )) == NULL ) {

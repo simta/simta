@@ -33,6 +33,8 @@
 ] [
 .B \-q
 ] [
+.BI \-Q\  option
+] [
 .B \-r
 ] [
 .B \-R
@@ -55,8 +57,39 @@
 .B simta
 is a mailer daemon.
 
-simsendmail(1) is simta's local entry point.  A local queue runner can
-be launched with -q.
+slow, local, fast, and dead queue directories.  
+
+SIMTA FILESYSTEM OVERVIEW
+
+simta uses four different directories in it's spool space as queues for
+message storage.  The four are the fast, slow, local, and dead queues.
+Email messages are stored in queues as a pair of files, an 'E' file with
+message delivery information, and a 'D' file with the actual message
+contents.  On startup simta will refuse to run if there is a file in any
+queue that does not belong to a Efile Dfile pairing.
+
+In certain instances when a simta process crashes or is killed, stray Dfiles
+and tfiles can be left behind.  These files are remnants of messages that
+were not fully accepted before the system halted.  Efiles should never
+exist alone, and no other files should be in the queus at all.  Stranded
+Dfiles and tfiles can be legitimately deleted, all other files need to
+be removed from the queue by hand before simta will run.  Check the simta
+spool directory's partition's lost+found directory to make sure that files
+are stranded because of simta stopping rather than a filesystem problem
+before using the -C option to clean the queues of stranded D and tfiles.
+
+queue use
+
+Message composition (Efile Dfile, etc.)
+Efile syntax
+unexpanded messages vs. expanded messages.
+
+
+
+
+simsendmail(1) is simta's local entry point.  
+
+A slow queue runner can be launched with -q.
 
 Simta reads simta.conf(4)
 
@@ -99,6 +132,9 @@ Specify which port simta will listen for TCP connection on
 .TP 19
 .B \-q
 Just run a queue runner for the slow queue
+.TP 19
+.B \-Q filter
+Run the slow queues that match the filter.
 .TP 19
 .B \-r
 Uses randfile for tls communication

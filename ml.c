@@ -36,7 +36,7 @@
 char		*maillocal_argv[] = { "mail.local", "-f", 0, "--", 0, 0 };
 char		*maillocal_bin = SIMTA_MAIL_LOCAL;
 
-char		*procmail_argv[] = { "procmail", "-o", "-f", 0, "-d", 0, 0 };
+char		*procmail_argv[] = { "procmail", "-f", 0, "-d", 0, 0 };
 char		*procmail_bin = SIMTA_PROCMAIL;
 
     int
@@ -117,13 +117,13 @@ procmail( int f, char *sender, struct recipient *recipient )
 	    exit( EX_TEMPFAIL);
 	}
 
-	procmail_argv[ 3 ] = sender;
+	procmail_argv[ 2 ] = sender;
 
 	if (( at = index( recipient->r_rcpt, '@' )) != NULL ) {
 	    *at = '\0';
-	    procmail_argv[ 5 ] = recipient->r_rcpt;
+	    procmail_argv[ 4 ] = recipient->r_rcpt;
 	} else {
-	    procmail_argv[ 5 ] = "postmaster";
+	    procmail_argv[ 4 ] = "postmaster";
 	}
 
 	execv( procmail_bin, procmail_argv );

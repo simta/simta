@@ -84,6 +84,7 @@ char			*simta_punt_host = NULL;
 char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
 char			*simta_rbl_domain = NULL;
+char			*simta_queue_filter = NULL;
 char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
 char			*simta_dir_slow = NULL;

@@ -29,6 +29,7 @@
 
 #include <snet.h>
 
+#include "wildcard.h"
 #include "denser.h"
 #include "ll.h"
 #include "envelope.h"
@@ -40,7 +41,7 @@
 #include "simta.h"
 #include "mx.h"
 
-void	q_deliver ( struct host_q **, struct host_q * );
+void	q_deliver( struct host_q **, struct host_q * );
 void	deliver_local( struct deliver *d );
 void	deliver_remote( struct deliver *d, struct host_q * );
 void	hq_clear_errors( struct host_q * );
@@ -175,12 +176,8 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 	/* add this host to the host_q_head */
 	hq->hq_next = *host_q_head;
 	*host_q_head = hq;
-
-	if ( host_local( hq->hq_hostname ) != NULL ) {
-	    hq->hq_status = HOST_LOCAL;
-	} else {
-	    hq->hq_status = HOST_MX;
-	}
+	/* determine if it's LOCAL or MX later */
+	hq->hq_status = HOST_UNKNOWN;
     }
 
     return( hq );
@@ -310,11 +307,13 @@ q_runner( struct host_q **host_q )
 	    }
 
 	    switch ( hq->hq_status ) {
+	    case HOST_UNKNOWN:
 	    case HOST_LOCAL:
 	    case HOST_MX:
 		/*
-		 * hq is expanded and has at least one message, insert in to
-		 * the delivery queue.
+		 * we're going to try to deliver this messages in this host 
+		 * queue, so put it in the delivery queue.
+		 *
 		 * sort mail queues by number of messages with non-generated
 		 * From addresses first, then by overall number of messages in
 		 * the queue.
@@ -353,6 +352,8 @@ q_runner( struct host_q **host_q )
 
 	/* punt any undelivered mail, if possible */
 	if (( simta_punt_q != NULL ) && ( simta_punt_q->hq_entries > 0 )) {
+	    syslog( LOG_DEBUG, "q_runner: punting undelivered mail to %s",
+		    simta_punt_host );
 	    q_deliver( host_q, simta_punt_q );
 	}
 
@@ -416,7 +417,6 @@ q_runner( struct host_q **host_q )
 				snet_dfile )) == NULL ) {
 			    snet_close( snet_dfile );
 			    goto unexpanded_clean_up;
-
 			}
 
 			if ( env_truncate_and_unlink( unexpanded,
@@ -538,6 +538,15 @@ q_runner_dir( char *dir )
 		continue;
 	    }
 
+	    if ( simta_queue_filter != NULL ) {
+		/* check to see if we should skip this message */
+		if (( env->e_hostname == NULL ) || ( wildcard(
+			simta_queue_filter, env->e_hostname, 0 ) == 0 )) {
+		    env_free( env );
+		    continue;
+		}
+	    }
+
 	    if ( queue_envelope( &host_q, env ) != 0 ) {
 		env_free( env );
 	    }
@@ -570,9 +579,18 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     syslog( LOG_DEBUG, "q_deliver: delivering %s from %d total %d",
 	    deliver_q->hq_hostname, deliver_q->hq_from, deliver_q->hq_entries );
 
-    /* XXX epcjr and mcneal - determine if the host is local in the sense
-     * that we use the local mailer or the SMTP outbounder here.
+    /* determine if the host we are delivering to is a local host or a
+     * remote host if we have not done so already.
      */
+    if ( deliver_q->hq_status == HOST_UNKNOWN ) {
+	if ( host_local( deliver_q->hq_hostname ) != NULL ) {
+	    deliver_q->hq_status = HOST_LOCAL;
+	} else if ( simta_dnsr->d_errno == DNSR_ERROR_TIMEOUT ) {
+	    deliver_q->hq_status = HOST_DOWN;
+	} else {
+	    deliver_q->hq_status = HOST_MX;
+	}
+    }
 
     /* always try to punt the mail */
     if ( deliver_q->hq_status == HOST_PUNT_DOWN ) {
@@ -988,17 +1006,13 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 		d->d_env->e_id );
 
 	if (( r_smtp = smtp_send( hq, d )) == SMTP_OK ) {
-	    if (( hq->hq_status == HOST_PUNT_DOWN ) &&
-		    ( d->d_delivered == 0 )) {
-		env_clear_errors( d->d_env );
-	    }
-
 	    switch ( hq->hq_status ) {
 	    case HOST_DOWN:
 		hq->hq_status = HOST_MX;
 		break;
 
 	    case HOST_PUNT_DOWN:
+		env_clear_errors( d->d_env );
 		hq->hq_status = HOST_PUNT;
 		break;
 
@@ -1086,6 +1100,8 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	     * and we only try remote delivery to mx entries that have a
 	     * lower mx_preference than we do.
 	     */
+	    hq->hq_no_punt = 0;
+	    d->d_mx_preference_cutoff = 0;
 	    for ( d->d_cur_dnsr_result = 0;
 		    d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
 		    d->d_cur_dnsr_result++ ) {
