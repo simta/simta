@@ -133,7 +133,9 @@ f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
     if ( ac != 2 ) {
 	syslog( LOG_ERR, "Receive: Bad HELO syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	if ( snet_writef( snet,
+		"501 Syntax violates RFC 2821 section 4.1.1.1: "
+		"\"HELO\" SP Domain CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_helo snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -170,7 +172,9 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
     if ( ac != 2 ) {
 	syslog( LOG_ERR, "Receive: Bad EHLO syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	if ( snet_writef( snet,
+		"501 Syntax violates RFC 2821 section 4.1.1.1: "
+		"\"EHLO\" SP Domain CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -250,7 +254,13 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	syslog( LOG_ERR, "Receive: Bad MAIL FROM syntax: %s",
 		receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	if ( snet_writef( snet,
+		"501 Syntax violates RFC 2821 section 4.1.1.2:\r\n"
+		"501-     \"MAIL FROM:\" (\"<>\" / Reverse-Path ) "
+		"[ SP Mail-parameters ] CRLF\r\n"
+		"501-         Reverse-path = Path\r\n"
+		"501-         Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
+		) < 0 ) {
 	    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -344,7 +354,14 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	syslog( LOG_ERR, "Receive: Bad RCPT TO syntax: %s",
 		receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	if ( snet_writef( snet,
+		"501 Syntax violates RFC 2821 section 4.1.1.3:\r\n"
+		"501-     \"RCPT TO:\" (\"<Postmaster@\" domain \">\" / "
+		"\"<Postmaster>\" / Forward-Path ) "
+		"[ SP Rcpt-parameters ] CRLF\r\n"
+		"501-         Forward-path = Path\r\n"
+		"501-         Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
+		) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -534,7 +551,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     if ( ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad DATA syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	if ( snet_writef( snet,
+		"501 Syntax violates RFC 2821 section 4.1.1.4: "
+		"\"DATA\" CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -856,7 +875,9 @@ f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
     if ( ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad QUIT syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	if ( snet_writef( snet,
+		"501 Syntax violates RFC 2821 section 4.1.1.10: "
+		"\"QUIT\" CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_quit snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -893,7 +914,9 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
     if ( ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad RSET syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error\r\n", 501 ) < 0 ) {
+	if ( snet_writef( snet,
+		"501 Syntax violates RFC 2821 section 4.1.1.5: "
+		"\"RSET\" CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_rset snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
