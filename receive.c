@@ -64,6 +64,7 @@ struct sockaddr_in  	*receive_sin;
 int			receive_global_relay = 0;
 int			receive_tls = 0;
 char			*receive_hello = NULL;
+char			*receive_remote_hostname;
 
 #define	RECEIVE_OK		0x0000
 #define	RECEIVE_SYSERROR	0x0001
@@ -181,7 +182,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      */
     if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
-	    syslog( LOG_INFO, "f_ehlo %s: abandoned", env->e_id );
+	    syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
 	}
 	env_reset( env );
     }
@@ -297,6 +298,8 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	    case EXPAND_OK:
 		break;
 	}
+    } else if ( *(env->e_id) != '\0' ) {
+	syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
     }
 
     env_reset( env );
@@ -310,7 +313,9 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    syslog( LOG_INFO, "f_mail %s: mail: <%s>", env->e_id, env->e_mail );
+    syslog( LOG_NOTICE, "%s: FROM:<%s> RELAY %s (%s)", env->e_id, env->e_mail,
+	    inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname ?
+	    receive_remote_hostname : "no remote hostname" );
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -347,7 +352,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 1 ], &addr,
 	    &domain ) != 0 ) {
-	syslog( LOG_INFO, "f_rcpt rfc_2821_trimaddr rejected: %s", av[ 1 ]);
+	syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED bad address syntax",
+		env->e_id, av[ 1 ]);
 	if ( snet_writef( snet, "553 Requested action not taken: "
 		"bad address syntax\r\n", 553 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -396,8 +402,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 			return( RECEIVE_CLOSECONNECTION );
 		    }
-		    syslog( LOG_ERR, "f_rcpt check_host %s: unknown host",
-			    domain );
+		    syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED unknown domain",
+			    env->e_id, addr );
 		    return( RECEIVE_OK );
 		}
 	    }
@@ -411,6 +417,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
+		syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED domain not local",
+			env->e_id, addr );
 		return( RECEIVE_OK );
 	    }
 
@@ -437,7 +445,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	    switch( local_address( addr, domain, host )) {
 	    case NOT_LOCAL:
-		syslog( LOG_INFO, "f_rcpt %s: address not local", addr );
+		syslog( LOG_NOTICE, "%s: TO:<%s> REJECTED user not local",
+			env->e_id, addr );
 		if ( snet_writef( snet,
 			"%d Requested action not taken: User not found.\r\n",
 			550 ) < 0 ) {
@@ -464,6 +473,9 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
     }
 
+    syslog( LOG_NOTICE, "%s: TO:<%s> ACCEPTED", env->e_id,
+	    env->e_rcpt->r_rcpt );
+
     if ( env_recipient( env, addr ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
@@ -473,7 +485,6 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    syslog( LOG_INFO, "%s: rcpt: <%s>", env->e_id, env->e_rcpt->r_rcpt );
     return( RECEIVE_OK );
 }
 
@@ -650,7 +661,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if ( received_count > simta_max_received_headers ) { /* message rejection */
-	syslog( LOG_INFO, "f_data %s rejected: %d received headers", env->e_id,
+	syslog( LOG_NOTICE, "%s: REJECTED: %d received headers", env->e_id,
 		received_count );
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data fclose: %m" );
@@ -701,7 +712,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	    }
 	    return( RECEIVE_SYSERROR );
-
 	}
 
 	syslog( LOG_DEBUG, "calling mail filter %s", simta_mail_filter );
@@ -727,8 +737,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "f_data %s: accepted", env->e_id );
-
 	/*
 	 * We could perhaps check that snet_writef() gets a good return.
 	 * However, if we've already fully instanciated the message in the
@@ -738,6 +746,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * snet_writef(), perhaps causing the sending-SMTP agent to transmit
 	 * the message again.
 	 */
+
+	syslog( LOG_NOTICE, "%s: ACCEPTED", env->e_id );
 
 	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "accepted" ) < 0 ) {
@@ -753,8 +763,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "f_data %s accepted and deleted: %s", env->e_id,
-		smtp_message );
+	syslog( LOG_NOTICE, "%s: ACCEPTED AND DELETED: %s", env->e_id,
+		smtp_message ? smtp_message : "no message" );
 
 	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "accepted and deleted" ) < 0 ) {
@@ -770,8 +780,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "f_data %s rejected: %s", env->e_id,
-		smtp_message );
+	syslog( LOG_NOTICE, "%s: REJECTED: %s", env->e_id,
+		smtp_message ? smtp_message : "no message" );
 
 	if ( snet_writef( snet, "552 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "rejected" ) < 0 ) {
@@ -787,8 +797,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "f_data %s tempfail: %s", env->e_id,
-		smtp_message );
+	syslog( LOG_NOTICE, "%s: TEMPFAIL: %s", env->e_id,
+		smtp_message ? smtp_message : "no message" );
 
 	if ( snet_writef( snet, "452 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message :
@@ -809,6 +819,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
     return( RECEIVE_OK );
 }
+
 
     static int
 f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
@@ -866,7 +877,7 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
 	if ( *(env->e_id) != '\0' ) {
-	    syslog( LOG_INFO, "f_rset %s: abandoned", env->e_id );
+	    syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
 	}
 	env_reset( env );
     }
@@ -1005,12 +1016,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	    buf, sizeof( buf )));
     X509_free( peer );
 
-    if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
-	if ( *(env->e_id) != '\0' ) {
-	    syslog( LOG_INFO, "starttls %s: abandoned", env->e_id );
-	}
-
-    } else {
+    if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	switch ( expand_and_deliver( &hq_receive, env )) {
 	    default:
 	    case EXPAND_SYSERROR:
@@ -1020,9 +1026,12 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	    case EXPAND_OK:
 		break;
 	}
+    } else if ( *(env->e_id) != '\0' ) {
+	syslog( LOG_NOTICE, "%s: ABANDONED", env->e_id );
     }
 
     env_reset( env );
+
     receive_tls = 1;
 
     return( 0 );
@@ -1059,7 +1068,6 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     int					rc;
     char				**av = NULL;
     char				*line;
-    char				*ctl_domain;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
     extern int				connections;
@@ -1089,10 +1097,10 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
     }
 
-    ctl_domain = hostname;
-    *ctl_domain = '\0';
+    receive_remote_hostname = hostname;
+    *hostname = '\0';
 
-    if (( rc = check_reverse( ctl_domain, &(sin->sin_addr))) != 0 ) {
+    if (( rc = check_reverse( hostname, &(sin->sin_addr))) != 0 ) {
 	if ( rc < 0 ) {
 	    syslog( LOG_INFO, "receive %s: connection rejected: %s",
 		dnsr_err2string( dnsr_errno( simta_dnsr )),
@@ -1117,17 +1125,25 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     }
 
 #ifdef HAVE_LIBWRAP
-    if ( *ctl_domain == '\0' ) {
-	ctl_domain = STRING_UNKNOWN;
+    if ( *receive_remote_hostname == '\0' ) {
+	receive_remote_hostname = STRING_UNKNOWN;
     }
 
     /* first STRING_UNKNOWN should be domain name of incoming host */
-    if ( hosts_ctl( "simta", ctl_domain, inet_ntoa( sin->sin_addr ),
-	    STRING_UNKNOWN ) == 0 ) {
+    if ( hosts_ctl( "simta", receive_remote_hostname,
+	    inet_ntoa( sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
 	syslog( LOG_INFO, "receive connection refused %s: access denied",
 		inet_ntoa( sin->sin_addr ));
 	snet_writef( snet, "421 Access Denied - remote access restricted\r\n" );
 	goto closeconnection;
+    }
+
+    if ( receive_remote_hostname == STRING_UNKNOWN ) {
+	receive_remote_hostname = NULL;
+    }
+#else /* HAVE_LIBWRAP */
+    if ( *receive_remote_hostname == '\0' ) {
+	receive_remote_hostname = NULL;
     }
 #endif /* HAVE_LIBWRAP */
 

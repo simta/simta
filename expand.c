@@ -297,6 +297,9 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		goto cleanup3;
 	    }
 
+	    /* XXX MID: new-MID EXPANDED <rcpt@domain> */
+	    /* XXX MID: new-MID EXPANSION COMPLETED #rcpt */
+
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
 	    syslog( LOG_INFO, "expand %s: writing %s %s", unexpanded_env->e_id,
 		    env->e_id, env->e_hostname );
@@ -411,6 +414,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	}
     }
 
+    /* XXX MID: DELETED EXPANSION COMPLETE */
     if ( env_unlink( unexpanded_env ) != 0 ) {
 	syslog( LOG_ERR, "expand env_unlink %s: can't delete original message",
 		unexpanded_env->e_id );
