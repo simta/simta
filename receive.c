@@ -1262,7 +1262,7 @@ receive( fd, sin )
 	    goto syserror;
 	}
 
-	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
+	if (( ac = acav_parse2821( acav, line, &av )) < 0 ) {
 	    syslog( LOG_ERR, "receive argcargv: %m" );
 	    goto syserror;
 	}
