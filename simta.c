@@ -33,6 +33,9 @@
 /* global variables */
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
+int			simta_message_count;
+int			simta_smtp_outbound_attempts = 0;
+int			simta_smtp_outbound_delivered = 0;
 int			simta_fast_files = 0;
 int			simta_global_relay = 0;
 int			simta_debug = 0;

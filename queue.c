@@ -331,15 +331,34 @@ q_runner( struct host_q **host_q )
 {
     struct host_q		*hq;
     struct message		*m;
+    struct timeval		tv_start;
+    struct timeval		tv_end;
+    int				r;
 
     syslog( LOG_DEBUG, "q_runner starting" );
 
+    if (( r = gettimeofday( &tv_start, NULL )) != 0 ) {
+	syslog( LOG_ERR, "q_runner gettimeofday: %m" );
+    }
+
     q_run( host_q );
+
+    if ( r == 0 ) {
+	if ( gettimeofday( &tv_end, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "q_runner gettimeofday: %m" );
+	    return( 0 );
+	} else {
+	    syslog( LOG_INFO, "q_runner metrics: %d messages, "
+		    "%d outbound_attempts, %d outbound_delivered, %d seconds", 
+		    simta_message_count, simta_smtp_outbound_attempts,
+		    simta_smtp_outbound_delivered,
+		    tv_end.tv_sec - tv_start.tv_sec );
+	}
+    }
 
     if ( simta_fast_files < 1 ) {
 	return( 0 );
     }
-
 
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	for ( m = hq->hq_message_first; m != NULL; m = m->m_next ) {
@@ -376,8 +395,6 @@ q_run( struct host_q **host_q )
     struct stat			sb;
     char                        dfile_fname[ MAXPATHLEN ];
     struct timeval              tv;
-
-    syslog( LOG_DEBUG, "q_run starting" );
 
     if ( *host_q == NULL ) {
 	return;
@@ -582,15 +599,13 @@ q_runner_d( char *dir )
     int				result;
     char			hostname[ MAXHOSTNAMELEN + 1 ];
 
-    syslog( LOG_DEBUG, "q_runner_d: %s starting", dir );
-
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_runner_d opendir %s: %m", dir );
 	return;
     }
 
     /* organize a directory's messages by host and timestamp */
-    for ( ; ; ) {
+    for ( simta_message_count = 0; ; simta_message_count++ ) {
 
 	errno = 0;
 	entry = readdir( dirp );
@@ -807,6 +822,7 @@ lseek_fail:
 
             /* open outbound SMTP connection */
             if ( snet_smtp == NULL ) {
+		simta_smtp_outbound_attempts++;
 		syslog( LOG_DEBUG, "q_deliver %s: calling smtp_connect( %s )",
 			env_deliver->e_id, hq->hq_hostname );
                 if (( smtp_error = smtp_connect( &snet_smtp, hq )) !=
@@ -828,6 +844,7 @@ lseek_fail:
 		    env_deliver->e_id );
             if (( smtp_error = smtp_send( snet_smtp, hq, env_deliver,
 		    snet_dfile )) == SMTP_OK ) {
+		simta_smtp_outbound_delivered++;
 		env_deliver->e_flags = ( env_deliver->e_flags | ENV_DELIVERED );
 
 	    } else {

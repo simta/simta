@@ -29,6 +29,9 @@
 
 
 /* global variables */
+extern int				simta_message_count;
+extern int				simta_smtp_outbound_attempts;
+extern int				simta_smtp_outbound_delivered;
 extern int				simta_global_relay;
 extern int				simta_debug;
 extern int				simta_expand_debug;
