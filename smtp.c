@@ -112,9 +112,9 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     if ( simta_debug ) fprintf( stderr, "smtp_connect: calling connect\n" );
     if ( connect( s, (struct sockaddr*)&sin,
 	    sizeof( struct sockaddr_in )) < 0 ) {
-	perror( "smtp_connect: connect: %m" );
+	perror( "smtp_connect: connect" );
 	syslog( LOG_ERR, "smtp_connect: connect: %m" );
-	return( SMTP_ERR_SYSCALL );
+	return( SMTP_ERR_REMOTE );
     }
 
     if ( simta_debug ) fprintf( stderr, "smtp_connect: calling snet_attach\n" );
@@ -175,11 +175,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_REMOTE );
+	return ( smtp_quit( snet, hq ));
 
     } else if ( *line != '2' ) {
 	hq->hq_status = HOST_BOUNCE;
@@ -288,11 +284,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_REMOTE );
+	return ( smtp_quit( snet, hq ));
     }
 
     c = remote_host;
@@ -339,11 +331,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_REMOTE );
+	return ( smtp_quit( snet, hq ));
     }
 
     if ( *(line + 3) == '-' ) {
@@ -433,11 +421,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_REMOTE );
+	return ( smtp_quit( snet, hq ));
 
     } else if ( *line != '2' ) {
 	hq->hq_status = HOST_BOUNCE;
@@ -611,11 +595,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_REMOTE );
+	return ( smtp_quit( snet, hq ));
 
     } else if ( *line != '2' ) {
 
@@ -873,11 +853,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_REMOTE );
+	return ( smtp_quit( snet, hq ));
 
     } else if ( *line != '3' ) {
 
@@ -1055,11 +1031,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_REMOTE );
+	return ( smtp_quit( snet, hq ));
 
     } else if ( *line != '2' ) {
 
@@ -1234,11 +1206,7 @@ smtp_rset( SNET *snet, struct host_q *hq )
 	    }
 	}
 
-	if ( smtp_quit( snet, hq ) < 0 ) {
-	    return( SMTP_ERR_SYSCALL );
-	}
-
-	return( SMTP_ERR_REMOTE );
+	return ( smtp_quit( snet, hq ));
     }
 
     if ( *(line + 3) == '-' ) {

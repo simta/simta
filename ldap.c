@@ -473,10 +473,11 @@ ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
 #ifdef DEBUG
 	    printf( "%s IS A PERSON!\n", addr );
 
+	    /*
 	    if ( ldap_message_stdout( entry ) != 0 ) {
-		/* XXX daemon error handling/reporting */
 		return( -1 );
 	    }
+	    */
 #endif /* DEBUG */
 
 	    /* get individual's email address(es) */

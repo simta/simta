@@ -244,37 +244,38 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		    (char *)i->st_key );
 	    continue;
 	}
-	if (( domain = strchr( i->st_key, '@' )) == NULL ) {
-	    syslog( LOG_ERR, "expand: no domain" );
-	    return( -1 );
-	}
-	domain++;
-	if ( simta_debug ) printf( "adding %s to host queue\n",
-	    (char *)i->st_key );
 
 	/* If envelope is marked for punt, create one host entry
 	 * for punt machine.  Otherwise, create host queue entry.
 	 */
+
 	if ( unexpanded_env->e_punt != NULL ) {
 	    if ( simta_debug ) printf( "punting to %s\n",
 		    unexpanded_env->e_punt );
 
-	    if (( env_p = new_host_env( &host_stab, unexpanded_env->e_punt,
-		    unexpanded_env->e_mail, d_original )) == NULL ) {
+	    domain = unexpanded_env->e_punt;
+
+	} else {
+	    if (( domain = strchr( i->st_key, '@' )) == NULL ) {
+		syslog( LOG_ERR, "expand: no domain" );
 		return( -1 );
 	    }
 
-	} else {
-	    if ( simta_debug ) printf( "%s in host_stab?...", domain );
-	    if (( env_p = ll_lookup( host_stab, domain )) == NULL ) {
-		if (( env_p = new_host_env( &host_stab, domain,
-			unexpanded_env->e_mail, d_original )) == NULL ) {
-		    return( -1 );
-		}
-		if ( simta_debug ) printf( "no - added to host_stab\n" );
-	    } else {
-		if ( simta_debug ) printf( "yes\n" );
+	    domain++;
+
+	    if ( simta_debug ) printf( "adding %s to host queue\n",
+		(char *)i->st_key );
+	}
+
+	if ( simta_debug ) printf( "%s in host_stab?...", domain );
+	if (( env_p = ll_lookup( host_stab, domain )) == NULL ) {
+	    if (( env_p = new_host_env( &host_stab, domain,
+		    unexpanded_env->e_mail, d_original )) == NULL ) {
+		return( -1 );
 	    }
+	    if ( simta_debug ) printf( "no - added to host_stab\n" );
+	} else {
+	    if ( simta_debug ) printf( "yes\n" );
 	}
 
 	if (( r = (struct recipient *)malloc( sizeof( struct recipient )))
@@ -298,7 +299,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
     /* Place all expanded envelopes into host_q */
     for ( i = host_stab; i != NULL; i = i->st_next ) {
-
 	if ( simta_debug ) printf( "creating env for %s\n", i->st_key );
 
 	env_p = i->st_data;
@@ -364,6 +364,10 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     if ( unlink( d_original ) != 0 ) {
 	syslog( LOG_ERR, "unlink %s: %m", d_original );
     }
+
+    /* XXX free host_stab */
+    /* XXX free expansion */
+    /* XXX free seen */
 
 #ifdef DEBUG
     printf( "expanded host_q after:\n" );

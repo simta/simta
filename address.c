@@ -32,6 +32,11 @@
 #include "simta.h"
 #include "bdb.h"
 
+#ifdef HAVE_LDAP
+#include <ldap.h>
+#include "ldap.h"
+#endif /* HAVE_LDAP */
+
 DB		*dbp = NULL;
 
 int verify_and_correct_address( char **address, struct recipient *rcpt );
@@ -72,7 +77,7 @@ verify_and_correct_address( char **address, struct recipient *rcpt )
 		" overflow" );
 	    return( -1 );
 	}
-	if ( simta_debug ) printf( "added err_text for %s: %s\n",
+	if ( simta_debug ) printf( "1 added err_text for %s: %s\n",
 	    rcpt->r_rcpt, err_text );
 	if ( line_append( rcpt->r_text, err_text ) == NULL ) {
 	    syslog( LOG_ERR, "verify_and_correct_address: line_append: %m" );
@@ -308,7 +313,8 @@ address_expand( char *address, struct recipient *rcpt,
     }
 
     /* Expand user using expansion table for domain */
-    for ( i = host->h_expansion; i != NULL; i = i->st_next ) {
+    for ( i = host->h_expansion; (( i != NULL ) && ( count == 0 ));
+	    i = i->st_next ) {
         if ( strcmp( i->st_key, "alias" ) == 0 ) {
 
             /* check alias file */
@@ -408,10 +414,6 @@ address_expand( char *address, struct recipient *rcpt,
 		return( -1 );
 	    }
 
-	    if ( count != 0 ) {
-		break;
-	    }
-
         } else if ( strcmp( i->st_key, "password" ) == 0 ) {
 	    if ( simta_debug ) printf( "checking password file for %s...",
 		user );
@@ -499,6 +501,7 @@ address_expand( char *address, struct recipient *rcpt,
 		/* XXX no user in db */
 	    } else if ( ret > 0 ) {
 		/* XXX db returned results */
+		count++;
 	    } else {
 		/* XXX error with db, undo entire envelope expansion */
 	    }
@@ -528,7 +531,7 @@ address_expand( char *address, struct recipient *rcpt,
 	    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
 	    return( -1 );
 	}
-	if ( simta_debug ) printf( "added err_text for %s: %s\n",
+	if ( simta_debug ) printf( "2 added err_text for %s: %s\n",
 	    rcpt->r_rcpt, err_text );
 	if ( line_append( rcpt->r_text, err_text )
 		== NULL ) {
