@@ -525,6 +525,10 @@ main( int ac, char **av )
         exit( 1 );
     }
     fprintf( pf, "%d\n", (int)getpid());
+    if ( fflush( pf ) != 0 ) {
+	syslog( LOG_ERR, "fflush: %m" );
+	exit( 1 );
+    }
 
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
