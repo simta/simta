@@ -2492,15 +2492,18 @@ if test "${with_ssl+set}" = set; then
 fi;
     for dir in $ssldirs; do
 	ssldir="$dir"
-	if test -f "$dir/include/openssl/ssl.h"; then
-	    found_ssl="yes";
-	    CPPFLAGS="$CPPFLAGS -I$ssldir/include";
-	    break;
-	fi
 	if test -f "$dir/include/ssl.h"; then
 	    found_ssl="yes";
 	    CPPFLAGS="$CPPFLAGS -I$ssldir/include";
-	    break
+	    LDFLAGS="$LDFLAGS -L$ssldir/lib";
+	    break;
+	fi
+
+	if test -f "$dir/include/openssl/ssl.h"; then
+	    found_ssl="yes";
+	    CPPFLAGS="$CPPFLAGS -I$ssldir/include/openssl";
+	    LDFLAGS="$LDFLAGS -L$ssldir/lib";
+	    break;
 	fi
     done
     if test x_$found_ssl != x_yes; then
@@ -2511,7 +2514,6 @@ echo "$as_me: error: cannot find ssl libraries" >&2;}
 	TLSDEFS=-DTLS;
 
 	LIBS="$LIBS -lssl -lcrypto";
-	LDFLAGS="$LDFLAGS -L$ssldir/lib";
 	HAVE_SSL=yes
     fi
 

@@ -9,15 +9,18 @@ AC_DEFUN([CHECK_SSL],
 	    ssldirs="$withval")
     for dir in $ssldirs; do
 	ssldir="$dir"
-	if test -f "$dir/include/openssl/ssl.h"; then
-	    found_ssl="yes";
-	    CPPFLAGS="$CPPFLAGS -I$ssldir/include";
-	    break;
-	fi
 	if test -f "$dir/include/ssl.h"; then
 	    found_ssl="yes";
 	    CPPFLAGS="$CPPFLAGS -I$ssldir/include";
-	    break
+	    LDFLAGS="$LDFLAGS -L$ssldir/lib";
+	    break;
+	fi
+
+	if test -f "$dir/include/openssl/ssl.h"; then
+	    found_ssl="yes";
+	    CPPFLAGS="$CPPFLAGS -I$ssldir/include/openssl";
+	    LDFLAGS="$LDFLAGS -L$ssldir/lib";
+	    break;
 	fi
     done
     if test x_$found_ssl != x_yes; then
@@ -26,7 +29,6 @@ AC_DEFUN([CHECK_SSL],
 	TLSDEFS=-DTLS;
 	AC_SUBST(TLSDEFS)
 	LIBS="$LIBS -lssl -lcrypto";
-	LDFLAGS="$LDFLAGS -L$ssldir/lib";
 	HAVE_SSL=yes
     fi
     AC_SUBST(HAVE_SSL)
