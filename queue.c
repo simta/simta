@@ -197,10 +197,10 @@ q_deliver( struct host_q *hq )
 
 
     int
-q_runner( struct host_q *host_q )
+q_runner( struct host_q **host_q )
 {
     struct host_q		*hq;
-    struct host_q		*deliver_q = NULL;
+    struct host_q		*deliver_q;
     struct host_q		**dq;
     struct message		*unexpanded;
     SNET			*snet_lock;
@@ -210,12 +210,14 @@ q_runner( struct host_q *host_q )
     for ( ; ; ) {
 	/* BUILD DELIVER_Q */
 	/* sort the hosts in the deliver_q by number of messages */
-	for ( hq = host_q; hq != NULL; hq = hq->hq_next ) {
+	deliver_q = NULL;
+
+	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	    if ((( hq->hq_status == HOST_LOCAL ) ||
 		    ( hq->hq_status == HOST_REMOTE )) &&
 		    ( hq->hq_entries > 0 )) {
 		/* hq is expanded and has at lease one message */
-		dq = & deliver_q;
+		dq = &deliver_q;
 
 		for ( ; ; ) {
 		    if (( *dq == NULL ) ||
@@ -271,10 +273,9 @@ q_runner( struct host_q *host_q )
 	    }
 
 	    /* expand message */
-	    if (( result = expand( &hq, &env )) != 0 ) {
+	    if (( result = expand( host_q, &env )) != 0 ) {
 		/* expand had an unrecoverable system error */
 		return( -1 );
-
 	    }
 
 	    /* release lock */
@@ -282,6 +283,8 @@ q_runner( struct host_q *host_q )
 		syslog( LOG_ERR, "snet_close: %m" );
 		return( -1 );
 	    }
+
+	    /* XXX free env.e_rcpts */
 
 	    if ( result > 0 ) {
 		/* message not expandable, try the next one */
@@ -374,7 +377,7 @@ q_runner_dir( char *dir )
     q_list_stdout( host_q );
 #endif /* DEBUG */
 
-    if ( q_runner( host_q ) != 0 ) {
+    if ( q_runner( &host_q ) != 0 ) {
 	exit( EX_TEMPFAIL );
     }
 

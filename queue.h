@@ -77,6 +77,6 @@ int	message_queue ___P(( struct host_q *, struct message * ));
 struct host_q	*host_q_lookup ___P(( struct host_q **, char * )); 
 int	bounce ___P(( struct envelope *, SNET * ));
 int	q_deliver ___P(( struct host_q * ));
-int	q_runner ___P(( struct host_q * ));
+int	q_runner ___P(( struct host_q ** ));
 int	q_read_dir ___P(( char *, struct host_q ** ));
 int	q_runner_dir ___P(( char * ));
