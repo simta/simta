@@ -746,17 +746,11 @@ oldfile_error:
 	     *     - the envelope has been delivered, and no rcpts tempfailed
 	     */
 
-	    sprintf( efile_fname, "%s/E%s", env_deliver->e_dir,
-		    env_deliver->e_id );
-
 	    if ( snet_lock != NULL ) {
 		if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
+		    sprintf( efile_fname, "%s/E%s", env_deliver->e_dir,
+			    env_deliver->e_id );
 		    syslog( LOG_ERR, "q_deliver ftruncate %s: %m",
-			    efile_fname );
-		}
-	    } else {
-		if ( truncate( efile_fname, (off_t)0 ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver truncate %s: %m",
 			    efile_fname );
 		}
 	    }
