@@ -32,6 +32,7 @@
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
+extern int				simta_authlevel;
 extern int				simta_use_alias_db;
 extern int				simta_umich_imap_letters;
 extern int				simta_filesystem_cleanup;
@@ -53,6 +54,9 @@ extern int				simta_expand_debug;
 extern int				simta_verbose;
 extern int				simta_fast_files;
 extern int				simta_tls;
+#ifdef HAVE_LIBSASL
+extern int				simta_sasl;
+#endif /* HAVE_LIBSASL */
 extern int				simta_inbound_smtp;
 extern int				simta_smtp_extension;
 extern long int				simta_max_message_size;

@@ -17,6 +17,10 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 #include <snet.h>
 
 #include <stdio.h>
@@ -62,6 +66,7 @@ struct simta_red	*simta_default_host = NULL;
 struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_authlevel = 0;
 int			simta_use_alias_db = 0;
 int			simta_umich_imap_letters = 0;
 int			simta_filesystem_cleanup = 0;
@@ -82,6 +87,7 @@ int			simta_global_relay = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
 int			simta_tls = 0;
+int			simta_sasl = 0;
 int			simta_inbound_smtp = 1;
 long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
@@ -536,7 +542,6 @@ simta_read_config( char *fname )
                 goto error;
             }
             simta_tls = 1;
-            simta_smtp_extension++;
             if ( simta_debug ) printf( "TLS_ON\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "UMICH_IMAP_LETTERS" ) == 0 ) {
@@ -655,6 +660,16 @@ simta_read_config( char *fname )
 	   }
 	   if ( simta_debug ) printf( "LOW_PREF_MX: %s\n",
 		   simta_secondary_mx->red_host_name );
+
+	} else if ( strcasecmp( av[ 0 ], "SASL_ON" ) == 0 ) {
+	   if ( ac != 1 ) {
+	       fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		   fname, lineno );
+	       goto error;
+	   }
+	   simta_sasl++;
+	   simta_smtp_extension++;
+	   if ( simta_debug ) printf( "SASL_ON\n" );
 
 	} else {
 	    fprintf( stderr, "%s: line %d: unknown keyword: %s\n",

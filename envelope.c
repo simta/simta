@@ -28,6 +28,10 @@
 #include <utime.h>
 #include <unistd.h>
 
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 #include <snet.h>
 
 #include "denser.h"

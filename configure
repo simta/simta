@@ -815,6 +815,7 @@ Optional Packages:
   --with-db=DIR           path to db
   --with-ldap=DIR         path to ldap
   --with-libwrap=DIR      path to libwrap
+  --with-sasl=DIR         path to sasl
   --with-ssl=DIR          path to ssl
 
 Some influential environment variables:
@@ -2822,6 +2823,45 @@ _ACEOF
 	echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
     fi
+
+
+    echo "$as_me:$LINENO: checking for sasl" >&5
+echo $ECHO_N "checking for sasl... $ECHO_C" >&6
+    sasldirs="/usr/local/sasl2 /usr/lib/sasl2 /usr/sasl2 \
+            /usr/pkg /usr/local /usr"
+
+# Check whether --with-sasl or --without-sasl was given.
+if test "${with_sasl+set}" = set; then
+  withval="$with_sasl"
+  sasldirs="$withval"
+fi;
+    for dir in $sasldirs; do
+        sasldir="$dir"
+        if test -f "$dir/include/sasl/sasl.h"; then
+            found_sasl="yes";
+            CPPFLAGS="$CPPFLAGS -I$sasldir/include";
+            break;
+        fi
+        if test -f "$dir/include/sasl.h"; then
+            found_sasl="yes";
+            CPPFLAGS="$CPPFLAGS -I$sasldir/include";
+            break
+        fi
+    done
+    if test x_$found_sasl != x_yes; then
+        { { echo "$as_me:$LINENO: error: cannot find sasl libraries" >&5
+echo "$as_me: error: cannot find sasl libraries" >&2;}
+   { (exit 1); exit 1; }; }
+    else
+        cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBSASL 1
+_ACEOF
+
+        LIBS="$LIBS -lsasl2";
+        LDFLAGS="$LDFLAGS -L$sasldir/lib";
+    fi
+    echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
 
 
 #AC_CHECK_LIB([ldap], [ldap_init], , [CHECK_LDAP])

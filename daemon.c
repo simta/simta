@@ -33,6 +33,10 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 #include <snet.h>
 
 #include "denser.h"
@@ -103,6 +107,43 @@ chld( int sig )
     return;
 }
 
+#ifdef HAVE_LIBSASL
+static int
+sasl_my_log(void *context __attribute__((unused)),
+            int priority,
+            const char *message)
+{
+    const char *label;
+
+    if (! message)
+        return SASL_BADPARAM;
+
+    switch (priority) {
+    case SASL_LOG_ERR:
+        label = "Error";
+        break;
+    case SASL_LOG_NOTE:
+        label = "Info";
+        break;
+    default:
+        label = "Other";
+        break;
+  }
+
+    syslog( LOG_ERR, "SASL %s: %s\n", label, message);
+
+  return SASL_OK;     
+}
+
+static sasl_callback_t callbacks[] = {
+  {
+    SASL_CB_LOG, &sasl_my_log, NULL
+  }, {
+    SASL_CB_LIST_END, NULL, NULL
+  }
+};
+#endif /* HAVE_LIBSASL */
+
     int
 main( int ac, char **av )
 {
@@ -132,12 +173,14 @@ main( int ac, char **av )
     char		*simta_uname = "simta";
     char		*config_fname = SIMTA_FILE_CONFIG;
     char		*config_base_dir = SIMTA_BASE_DIR;
-    int			authlevel = 0;
     char                *ca = "cert/ca.pem";
     char                *cert = "cert/cert.pem";
     char                *privatekey = "cert/cert.pem";
     int			status;
     int			exitstatus;
+#ifdef HAVE_LIBSASL
+    int			rc;
+#endif /* HAVE_LIBSASL */
     struct proc_type	**p_search;
     struct proc_type	*p_remove;
 
@@ -261,8 +304,8 @@ main( int ac, char **av )
 	    exit( 0 );
 
         case 'w' :              /* authlevel 0:none, 1:serv, 2:client & serv */
-            authlevel = atoi( optarg );
-            if (( authlevel < 0 ) || ( authlevel > 2 )) {
+            simta_authlevel = atoi( optarg );
+            if (( simta_authlevel < 0 ) || ( simta_authlevel > 2 )) {
                 fprintf( stderr, "%s: %s: invalid authorization level\n",
                         prog, optarg );
                 exit( 1 );
@@ -335,14 +378,24 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    if ( authlevel > 0 ) {
-	if ( tls_server_setup( use_randfile, authlevel, ca, cert,
+    if ( simta_authlevel > 0 ) {
+	if ( tls_server_setup( use_randfile, simta_authlevel, ca, cert,
 		privatekey ) != 0 ) {
 	    exit( 1 );
 	}
 	simta_tls = 1;
 	simta_smtp_extension++;
     }
+
+#ifdef HAVE_LIBSASL
+    if ( simta_sasl ) {
+	if (( rc = sasl_server_init( callbacks, "simta" )) != SASL_OK ) {
+	    fprintf( stderr, "sasl_server_init: %s\n",
+		sasl_errstring( rc, NULL, NULL ));
+	    exit( 1 );
+	}
+    }
+#endif /* HAVE_LIBSASL */
 
     if ( dontrun ) {
 	exit( 0 );

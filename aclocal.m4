@@ -255,3 +255,34 @@ AC_DEFUN([CHECK_LIBWRAP],
 	AC_MSG_RESULT(yes)
     fi
 ])
+
+AC_DEFUN([CHECK_SASL],
+[
+    AC_MSG_CHECKING(for sasl)
+    sasldirs="/usr/local/sasl2 /usr/lib/sasl2 /usr/sasl2 \
+            /usr/pkg /usr/local /usr"
+    AC_ARG_WITH(sasl,
+            AC_HELP_STRING([--with-sasl=DIR], [path to sasl]),
+            sasldirs="$withval")
+    for dir in $sasldirs; do
+        sasldir="$dir"
+        if test -f "$dir/include/sasl/sasl.h"; then
+            found_sasl="yes";
+            CPPFLAGS="$CPPFLAGS -I$sasldir/include";
+            break;
+        fi
+        if test -f "$dir/include/sasl.h"; then
+            found_sasl="yes";
+            CPPFLAGS="$CPPFLAGS -I$sasldir/include";
+            break
+        fi
+    done
+    if test x_$found_sasl != x_yes; then
+        AC_MSG_ERROR(cannot find sasl libraries)
+    else
+        AC_DEFINE(HAVE_LIBSASL)
+        LIBS="$LIBS -lsasl2";
+        LDFLAGS="$LDFLAGS -L$sasldir/lib";
+    fi
+    AC_MSG_RESULT(yes)
+])
