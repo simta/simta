@@ -306,11 +306,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
         goto cleanup3;
     }
 
-    if ( env->e_mail == '\0' ) {
-	fprintf( dfile, "From: <mailer-daemon@%s>\n", simta_hostname );
-    } else {
-	fprintf( dfile, "From: <%s>\n", env->e_mail );
-    }
+    fprintf( dfile, "From: <mailer-daemon@%s>\n", simta_hostname );
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
 	fprintf( dfile, "To: <%s>\n", r->r_rcpt );
     }
