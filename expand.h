@@ -12,10 +12,9 @@
 #define	ADDRESS_SYSERROR		5
 
 /* address types */
-#define	ADDRESS_TYPE_EMAIL		0x0001
+#define	ADDRESS_TYPE_EMAIL		1
 #ifdef HAVE_LDAP
-#define	ADDRESS_TYPE_LDAP		0x0010
-#define	ADDRESS_MASK_EXCLUSIVE		0x0100
+#define	ADDRESS_TYPE_LDAP		2
 #endif /* HAVE_LDAP */
 
 struct expand {
@@ -24,7 +23,7 @@ struct expand {
 #ifdef HAVE_LDAP
     /* these variables are needed to do exclusive groups */
     struct exp_addr		*exp_addr_root;	/* root of address tree */
-    struct exp_addr		*exp_addr_current; /* root of address tree */
+    struct exp_addr		*exp_addr_parent;
 #endif /* HAVE_LDAP */
 };
 

@@ -59,7 +59,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
     struct expand		exp;
     struct recipient		*r;
-    struct stab_entry		*i;
+    struct stab_entry		*i = NULL;
     struct exp_addr		*e_addr;
     char			*domain;
     SNET			*snet;
@@ -76,15 +76,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     exp.exp_env = unexpanded_env;
     simta_rcpt_errors = 0;
 
-    /* add all of the addresses in the rcpt list into the expansion list */
-    for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( add_address( &exp, r->r_rcpt, r, ADDRESS_TYPE_EMAIL ) != 0 ) {
-	    /* add_address syslogs errors */
-	    /* XXX free */
-	    return( 1 );
-	}
-    }
-
     /* call address_expand on each address in the expansion list.
      *
      * if an address is expandable, the address(es) that it expands to will
@@ -97,32 +88,52 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
      * of the addresses in expanded envelope(s).
      */ 
 
-    for ( i = exp.exp_addr_list; i != NULL; i = i->st_next ) {
-	e_addr = (struct exp_addr*)i->st_data;
-
+    for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
 #ifdef HAVE_LDAP
-	exp.exp_addr_current = e_addr;
+	exp.exp_addr_parent = NULL;
 #endif /* HAVE_LDAP */
 
-	switch ( address_expand( &exp, e_addr )) {
-
-	case ADDRESS_EXCLUDE:
-	    /* the address is not a terminal local address */
-	    free( i->st_data );
-	    i->st_data = NULL;
-	    break;
-
-	case ADDRESS_FINAL:
-	    /* the address is a terminal local address */
-	    break;
-
-	default:
-	    syslog( LOG_ERR, "expand address_expand switch: unreachable code" );
-	case ADDRESS_SYSERROR:
-	    /* XXX expansion terminal failure */
-	    free( i->st_data );
-	    i->st_data = NULL;
+	if ( add_address( &exp, r->r_rcpt, r, ADDRESS_TYPE_EMAIL ) != 0 ) {
+	    /* add_address syslogs errors */
+	    /* XXX free */
 	    return( 1 );
+	}
+
+	for ( ; ; ) {
+	    if ( i == NULL ) {
+		i = exp.exp_addr_list;
+	    } else if ( i->st_next == NULL ) {
+		break;
+	    } else {
+		i = i->st_next;
+	    }
+
+	    e_addr = (struct exp_addr*)i->st_data;
+
+#ifdef HAVE_LDAP
+	    exp.exp_addr_parent = e_addr;
+#endif /* HAVE_LDAP */
+
+	    switch ( address_expand( &exp, e_addr )) {
+	    case ADDRESS_EXCLUDE:
+		/* the address is not a terminal local address */
+		free( i->st_data );
+		i->st_data = NULL;
+		break;
+
+	    case ADDRESS_FINAL:
+		/* the address is a terminal local address */
+		break;
+
+	    default:
+		syslog( LOG_ERR,
+			"expand address_expand switch: unreachable code" );
+	    case ADDRESS_SYSERROR:
+		/* XXX expansion terminal failure */
+		free( i->st_data );
+		i->st_data = NULL;
+		return( 1 );
+	    }
 	}
     }
 
@@ -265,6 +276,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    printf( "\n" );
 	}
     }
+
+    /* XXX what if no epanded envs?  mail loop? */
 
     if ( simta_expand_debug != 0 ) {
 	return( 0 );
