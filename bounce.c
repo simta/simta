@@ -138,10 +138,10 @@ bounce_stdout( struct envelope *bounce_env )
 }
 
 
-    int
+    ino_t
 bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 {
-    int				return_value = 1;
+    int				return_value = 0;
     int				line_no = 0;
     char                        dfile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
@@ -151,13 +151,14 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     time_t                      clock;
     struct tm                   *tm;
     char                        daytime[ 35 ];
+    struct stat			sbuf;
 
     sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
         syslog( LOG_ERR, "bounce_dfile_out open %s: %m", dfile_fname );
-	return( 1 );
+	return( 0 );
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
@@ -165,7 +166,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
         if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce_dfile_out fclose %s: %m", dfile_fname );
 	}
-	return( 1 );
+	return( 0 );
     }
 
     if ( time( &clock ) < 0 ) {
@@ -216,23 +217,28 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 	}
     }
 
-    return_value = 0;
+    if ( fstat( dfile_fd, &sbuf ) != 0 ) {
+	syslog( LOG_ERR, "bounce_dfile_out fstat %s: %m", dfile_fname );
+        goto cleanup;
+    }
+
+    return_value = 1;
 
 cleanup:
     if ( fclose( dfile ) != 0 ) {
 	syslog( LOG_ERR, "bounce_dfile_out fclose %s: %m", dfile_fname );
-	return_value = 1;
+	return_value = 0;
     }
 
-    if ( return_value == 0 ) {
-	return( 0 );
+    if ( return_value != 0 ) {
+	return( sbuf.st_ino );
     }
 
     if ( unlink( dfile_fname ) != 0 ) {
 	syslog( LOG_ERR, "bounce_dfile_out unlink %s: %m", dfile_fname );
     }
 
-    return( return_value );
+    return( 0 );
 }
 
 

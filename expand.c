@@ -391,8 +391,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		    }
 		}
 
-		/* write out error text */
-		if ( bounce_dfile_out( env, snet ) != 0 ) {
+		/* write out error text, get Dfile inode */
+		if (( env->e_dinode = bounce_dfile_out( env, snet )) == 0 ) {
 		    if ( snet != NULL ) {
 			if ( snet_close( snet ) != 0 ) {
 			    syslog( LOG_ERR, "expand.snet_close %s: %m",
