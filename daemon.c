@@ -49,18 +49,20 @@ struct proc_type {
     int			p_type;
 };
 
-#define Q_LOCAL		1
-#define Q_SLOW		2
-#define SIMTA_CHILD	3
+#define CHILD_Q_LOCAL		1
+#define CHILD_Q_SLOW		2
+#define CHILD_RECEIVE		3
 
 struct proc_type	*proc_stab = NULL;
 int		q_runner_local = 0;
 int		q_runner_slow = 0;
 
 int		simsendmail_signal = 0;
+int		child_signal = 0;
 int		backlog = 5;
 int		connections = 0;
 int		maxconnections = SIMTA_MAXCONNECTIONS;	/* 0 = no limit */
+struct sigaction	sa, osahup, osachld, osausr1;
 
 char		*maildomain = NULL;
 char		*version = VERSION;
@@ -69,6 +71,7 @@ void		usr1( int );
 void		hup ( int );
 void		chld( int );
 int		main( int, char *av[] );
+void		simta_child( int, int );
 
     void
 usr1( int sig )
@@ -91,6 +94,8 @@ hup( int sig )
     void
 chld( int sig )
 {
+    child_signal++;
+
     return;
 }
 
@@ -101,21 +106,20 @@ SSL_CTX		*ctx = NULL;
     int
 main( int ac, char **av )
 {
-    struct sigaction	sa, osahup, osachld, osausr1;
     struct sockaddr_in	sin;
     struct timeval	tv_sleep;
     struct timeval	tv_now;
     struct timeval	tv_launch;
     struct servent	*se;
-    struct proc_type	*p;
+    int			pid;
     int			cleanup = 1;
+    int			cleaned = 0;
     int			launch_seconds;
     int			q_runner_local_max;
     int			q_runner_slow_max;
-    int			c, s, err = 0, fd, sinlen;
+    int			c, s, err = 0;
     int			dontrun = 0;
     int			reuseaddr = 1;
-    int			pid;
     int			pidfd;
     int			q_run = 0;
     char		*prog;
@@ -128,8 +132,8 @@ main( int ac, char **av )
     extern char		*optarg;
     struct passwd	*simta_pw;
     char		*simta_uname = "simta";
-    char		*config_fname = SIMTA_FILE_CONFIG;
-    char		*config_base_dir = SIMTA_BASE_DIR;
+    char		*config_fname;
+    char		*config_base_dir;
     int			authlevel = 0;
     char                *ca = "cert/ca.pem";
     char                *cert = "cert/cert.pem";
@@ -150,39 +154,13 @@ main( int ac, char **av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
-    /* Turn off getopt's error messages */
-    opterr = 0;
+    config_fname = SIMTA_FILE_CONFIG;
+    config_base_dir = SIMTA_BASE_DIR;
 
-    /* First read config file so command line can override it */
-    while (( c = getopt( ac, av, "df:" )) != -1 ) {
-	switch ( c ) {
-	case 'd' :		/* simta_debug */
-	    simta_debug++;
-	    break;
-
-	case 'f' :
-	    config_fname = optarg;
-	    break;
-
-	case '?':
-	    continue;
-
-	case ':':
-	    err++;
-	}
-    }
-
-    if ( simta_read_config( config_fname ) < 0 ) {
-	exit( 1 );
-    }
-
-    /* Turn on getopt's error messages */
-    opterr = 1;
-
-    while (( c = getopt( ac, av, "ab:cdD:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
+    while (( c = getopt( ac, av, "ab:cdD:f:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
 	case 'a' :		/* Automatically config with DNS */
-	    simta_dns_config = 0;
+	    simta_dns_config = 1;
 	    break;
 
 	case 'b' :		/*X listen backlog */
@@ -193,8 +171,16 @@ main( int ac, char **av )
 	    dontrun++;
 	    break;
 
+	case 'd' :		/* simta_debug */
+	    simta_debug++;
+	    break;
+
 	case 'D' :
 	    config_base_dir = optarg;
+	    break;
+
+	case 'f' :
+	    config_fname = optarg;
 	    break;
 
 	case 'I' :
@@ -259,6 +245,8 @@ main( int ac, char **av )
             privatekey = optarg;
             break;
 
+
+
 	default :
 	    err++;
 	}
@@ -273,11 +261,6 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
         fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
 	fprintf( stderr, "\n" );
-	exit( 1 );
-    }
-
-    /* init and test simta config / defaults */
-    if ( simta_config( config_base_dir ) != 0 ) {
 	exit( 1 );
     }
 
@@ -300,6 +283,15 @@ main( int ac, char **av )
 #else /* ultrix */
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
+
+    /*
+     * Read config file before chdir(), in case config file is relative path.
+     */
+
+    /* init simta config / defaults */
+    if ( simta_config( config_base_dir ) != 0 ) {
+	exit( 1 );
+    }
 
     if ( chdir( spooldir ) < 0 ) {
 	perror( spooldir );
@@ -562,222 +554,34 @@ main( int ac, char **av )
 
     /* main daemon loop */
     for (;;) {
-	if ( simsendmail_signal != 0 ) {
-	    syslog( LOG_DEBUG, "simsendmail signaled" );
-	    simsendmail_signal = 0;
-
-	    if ( q_runner_local < q_runner_local_max ) {
-		if (( p = (struct proc_type*)malloc(
-			sizeof( struct proc_type ))) == NULL ) {
-		    syslog( LOG_ERR, "malloc: %m" );
-		    continue;
-		}
-		memset( p, 0, sizeof( struct proc_type ));
-
-		p->p_type = Q_LOCAL;
-		p->p_next = proc_stab;
-		proc_stab = p;
-		q_runner_local++;
-
-		switch ( pid = fork()) {
-		case 0 :
-		    close( s );
-
-		    /* reset USR1, CHLD and HUP */
-		    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
-			syslog( LOG_ERR, "sigaction: %m" );
-			exit( EXIT_OK );
-		    }
-		    if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
-			syslog( LOG_ERR, "sigaction: %m" );
-			exit( EXIT_OK );
-		    }
-		    if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
-			syslog( LOG_ERR, "sigaction: %m" );
-			exit( EXIT_OK );
-		    }
-
-		    exit( q_runner_dir( simta_dir_local ));
-
-		case -1 :
-		    syslog( LOG_ERR, "fork: %m" );
-		    break;
-
-		default :
-		    syslog( LOG_INFO, "q_runner_dir.local child %d", pid );
-		    p->p_id = pid;
-		    break;
-		}
-	    }
-	}
-
 	FD_ZERO( &fdset );
 	FD_SET( s, &fdset );
 
-	if ( select( s + 1, &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
-	    if ( errno != EINTR ) {
-		syslog( LOG_ERR, "select: %m" );
+	if (( simsendmail_signal == 0 ) && ( child_signal == 0 )) {
+syslog( LOG_DEBUG, "select" );
+	    if ( select( s + 1, &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
+		if ( errno != EINTR ) {
+		    syslog( LOG_ERR, "select: %m" );
+		    abort();
+		}
 	    }
-
-	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-		syslog( LOG_ERR, "gettimeofday: %m" );
-		continue;
-	    }
-
-	    if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec )
-		    < 1 ) {
-		tv_sleep.tv_sec = 1;
-	    }
-	    tv_sleep.tv_usec = 0;
-
-	    continue;
 	}
 
-	/* check to see if we need to launch q_runner_dir( simta_dir_slow ) */
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "gettimeofday: %m" );
-	    continue;
+	    abort();
 	}
 
-	if (( tv_now.tv_sec > tv_launch.tv_sec ) ||
-		(( tv_now.tv_sec == tv_launch.tv_sec ) &&
-		( tv_now.tv_usec >= tv_launch.tv_usec ))) {
-	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
-	    tv_launch.tv_usec = tv_now.tv_usec;
-
-	    /* launch q_runner */
-	    if ( q_runner_slow < q_runner_slow_max ) {
-		if (( p = (struct proc_type*)malloc(
-			sizeof( struct proc_type ))) == NULL ) {
-		    syslog( LOG_ERR, "malloc: %m" );
-		    continue;
-		}
-		memset( p, 0, sizeof( struct proc_type ));
-
-		p->p_type = Q_SLOW;
-		p->p_next = proc_stab;
-		proc_stab = p;
-		q_runner_slow++;
-
-		switch ( pid = fork()) {
-		case 0 :
-		    close( s );
-
-		    /* reset USR1, CHLD and HUP */
-		    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
-			syslog( LOG_ERR, "sigaction: %m" );
-			exit( EXIT_OK );
-		    }
-		    if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
-			syslog( LOG_ERR, "sigaction: %m" );
-			exit( EXIT_OK );
-		    }
-		    if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
-			syslog( LOG_ERR, "sigaction: %m" );
-			exit( EXIT_OK );
-		    }
-
-		    exit( q_runner_dir( simta_dir_slow ));
-
-		case -1 :
-		    syslog( LOG_ERR, "fork: %m" );
-		    break;
-
-		default :
-		    p->p_id = pid;
-		    syslog( LOG_INFO, "q_runner_dir.slow child %d", pid );
-		    break;
-		}
-	    } else {
-		syslog( LOG_INFO, "q_runner_dir.slow maximum reached" );
-	    }
-
-	} else {
-	    /* compute sleep time */
-	    if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec ) < 1 ) {
-		tv_sleep.tv_sec = 1;
-	    }
-	    tv_sleep.tv_usec = 0;
-	}
-
-	/* check to see if we have any incoming connections */
-	if ( FD_ISSET( s, &fdset )) {
-	    sinlen = sizeof( struct sockaddr_in );
-	    if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
-		if ( errno != EINTR ) {
-		    syslog( LOG_ERR, "accept: %m" );
-		}
-		continue;
-	    }
-
-	    /* start child */
-	    if (( p = (struct proc_type*)malloc(
-		    sizeof( struct proc_type ))) == NULL ) {
-		syslog( LOG_ERR," malloc: %m" );
-		close( fd );
-		continue;
-	    }
-	    memset( p, 0, sizeof( struct proc_type ));
-
-	    connections++;
-	    p->p_type = SIMTA_CHILD;
-	    p->p_next = proc_stab;
-	    proc_stab = p;
-
-	    switch ( pid = fork()) {
-
-	    case 0 :
-		close( s );
-
-		/* reset USR1, CHLD and HUP */
-		if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
-		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
-		    exit( EXIT_OK );
-		}
-		if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
-		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
-		    exit( EXIT_OK );
-		}
-		if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
-		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
-		    exit( EXIT_OK );
-		}
-
-		smtp_receive( fd, &sin );
-
-		/* XXX handle more error cases */
-		if ( simta_fast_files != 0 ) {
-		    syslog( LOG_ERR,
-			    "daemon.receive exiting with %d fast_files",
-			    simta_fast_files );
-		    exit( EXIT_FAST_FILE );
-		} else {
-		    syslog( LOG_ERR, "daemon.receive exiting" );
-		    exit( EXIT_OK );
-		}
-
-	    case -1 :
-		/*
-		 * We don't tell the client why we're closing -- they will
-		 * queue mail and try later.  We don't sleep() because we'd
-		 * like to cause as much mail as possible to queue on remote
-		 * hosts, thus spreading out load on our (memory bound) server.
-		 */
-		close( fd );
-		syslog( LOG_ERR, "fork: %m" );
-		break;
-
-	    default :
-		p->p_id = pid;
-		close( fd );
-		syslog( LOG_INFO, "receive child %d for %s", pid,
-			inet_ntoa( sin.sin_addr ));
-		break;
-	    }
+	/* compute sleep time */
+	if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec ) < 0 ) {
+	    tv_sleep.tv_sec = 0;
 	}
 
 	/* check to see if any children need to be accounted for */
 	while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
+syslog( LOG_DEBUG, "child signal %d", pid );
+	    child_signal--;
+	    cleaned++;
 	    p_search = &proc_stab;
 
 	    for ( p_search = &proc_stab; *p_search != NULL;
@@ -796,19 +600,19 @@ main( int ac, char **av )
 	    *p_search = p_remove->p_next;
 
 	    switch ( p_remove->p_type ) {
-	    case Q_LOCAL:
+	    case CHILD_Q_LOCAL:
 		syslog( LOG_INFO, "chld %d: q_runner.local done",
 			p_remove->p_id );
 		q_runner_local--;
 		break;
 
-	    case Q_SLOW:
+	    case CHILD_Q_SLOW:
 		syslog( LOG_INFO, "chld %d: q_runner.slow done",
 			p_remove->p_id );
 		q_runner_slow--;
 		break;
 
-	    case SIMTA_CHILD:
+	    case CHILD_RECEIVE:
 		syslog( LOG_INFO, "chld %d: daemon.receive done",
 			p_remove->p_id );
 		connections--;
@@ -829,13 +633,8 @@ main( int ac, char **av )
 		case EXIT_OK:
 		    break;
 
-		case EXIT_FAST_FILE:
-		    syslog( LOG_ERR, "chld %d: fast file error", pid );
-		    exit( 1 );
-
 		default:
-		    syslog( LOG_ERR, "chld %d exited %d: unknown value", pid,
-			    exitstatus );
+		    syslog( LOG_ERR, "chld %d: exited %d", pid, exitstatus );
 		    exit( 1 );
 		}
 
@@ -849,5 +648,155 @@ main( int ac, char **av )
 		exit( 1 );
 	    }
 	}
+
+	if ( cleaned > 0 ) {
+	    cleaned = 0;
+	    continue;
+	}
+
+	if (( tv_now.tv_sec > tv_launch.tv_sec ) ||
+		( tv_now.tv_sec == tv_launch.tv_sec )) {
+syslog( LOG_DEBUG, "q_runner_slow launch" );
+	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
+	    tv_sleep.tv_sec = launch_seconds;
+
+	    if ( q_runner_slow < q_runner_slow_max ) {
+		simta_child( CHILD_Q_SLOW, s );
+	    }
+
+	    continue;
+	}
+
+	if ( simsendmail_signal != 0 ) {
+syslog( LOG_DEBUG, "simsendmail signal" );
+	    simsendmail_signal = 0;
+	    if ( q_runner_local < q_runner_local_max ) {
+		simta_child( CHILD_Q_LOCAL, s );
+	    }
+	    continue;
+	}
+
+	/* check to see if we have any incoming connections */
+	if ( FD_ISSET( s, &fdset )) {
+syslog( LOG_DEBUG, "incoming connection" );
+	    simta_child( CHILD_RECEIVE, s );
+	}
     }
+}
+
+
+    void
+simta_child( int type, int s )
+{
+    struct sockaddr_in	sin;
+    struct proc_type	*p;
+    int			pid;
+    int			fd;
+    int			sinlen;
+    struct sigaction	osahup, osachld, osausr1;
+
+    if (( p = (struct proc_type*)malloc(
+	    sizeof( struct proc_type ))) == NULL ) {
+	syslog( LOG_ERR, "malloc: %m" );
+	abort();
+    }
+
+    memset( p, 0, sizeof( struct proc_type ));
+
+    switch ( type ) {
+    case CHILD_Q_LOCAL:
+	p->p_type = CHILD_Q_LOCAL;
+	break;
+
+    case CHILD_Q_SLOW:
+	p->p_type = CHILD_Q_SLOW;
+	break;
+
+    case CHILD_RECEIVE:
+	p->p_type = CHILD_RECEIVE;
+
+	if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
+	    if ( errno == EINTR ) {
+		free( p );
+		return;
+	    }
+
+	    syslog( LOG_ERR, "accept: %m" );
+	    abort();
+	}
+	break;
+
+    default:
+	panic( "simta_child type out of range" );
+    }
+
+    p->p_next = proc_stab;
+    proc_stab = p;
+
+    switch ( pid = fork()) {
+    case 0 :
+	close( s );
+	/* reset USR1, CHLD and HUP */
+	if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
+	    syslog( LOG_ERR, "sigaction: %m" );
+	    exit( EXIT_OK );
+	}
+	if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
+	    syslog( LOG_ERR, "sigaction: %m" );
+	    exit( EXIT_OK );
+	}
+	if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
+	    syslog( LOG_ERR, "sigaction: %m" );
+	    exit( EXIT_OK );
+	}
+
+	switch ( type ) {
+	case CHILD_Q_LOCAL:
+	    exit( q_runner_dir( simta_dir_local ));
+	    break;
+
+	case CHILD_Q_SLOW:
+	    exit( q_runner_dir( simta_dir_slow ));
+	    break;
+
+	case CHILD_RECEIVE:
+	    exit( smtp_receive( fd, &sin ));
+	    break;
+
+	default:
+	    panic( "simta_child type out of range" );
+	}
+
+    case -1 :
+	syslog( LOG_ERR, "fork: %m" );
+	abort();
+
+    default :
+	switch ( type ) {
+	case CHILD_Q_LOCAL:
+	    q_runner_local++;
+	    syslog( LOG_INFO, "q_runner_dir.local child %d", pid );
+	    break;
+
+	case CHILD_Q_SLOW:
+	    q_runner_slow++;
+	    syslog( LOG_INFO, "q_runner_dir.slow child %d", pid );
+	    break;
+
+	case CHILD_RECEIVE:
+	    close( fd );
+	    connections++;
+	    syslog( LOG_INFO, "receive child %d for %s", pid,
+		    inet_ntoa( sin.sin_addr ));
+	    break;
+
+	default:
+	    panic( "simta_child type out of range" );
+	}
+
+	p->p_id = pid;
+	break;
+    }
+
+    return;
 }

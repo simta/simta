@@ -499,11 +499,7 @@ q_runner_dir( char *dir )
 	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
     }
 
-    if ( q_runner( &host_q ) != 0 ) {
-	return( EXIT_FAST_FILE );
-    }
-
-    return( EXIT_OK );
+    exit ( q_runner( &host_q ) != 0 );
 }
 
 

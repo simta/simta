@@ -22,8 +22,7 @@
 #define	SIMTA_EXPANSION_FAILED		0
 #define	SIMTA_EXPANSION_SUCCESS		1
 
-#define	EXIT_OK				1
-#define	EXIT_FAST_FILE			2
+#define	EXIT_OK				0
 
 #define SIMTA_ERROR_NONE		0
 #define SIMTA_ERROR_DNSR		1
@@ -67,7 +66,7 @@ extern DNSR				*simta_dnsr;
 extern int				(*simta_local_mailer)(int, char *,
 						struct recipient *);
 
-void	smtp_receive ( int, struct sockaddr_in * );
+int	smtp_receive ( int, struct sockaddr_in * );
 void	panic ( char * );
 char	*simta_sender ( void );
 char	*simta_resolvconf ( void );

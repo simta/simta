@@ -1048,7 +1048,7 @@ struct command	commands[] = {
 int		ncommands = sizeof( commands ) / sizeof( commands[ 0 ] );
 
 
-    void
+    int
 smtp_receive( int fd, struct sockaddr_in *sin )
 {
     SNET				*snet;
@@ -1067,7 +1067,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "receive snet_attach: %m" );
-	return;
+	return( 0 );
     }
 
     if ( maxconnections != 0 ) {
@@ -1229,6 +1229,8 @@ closeconnection:
 
 	env_free( env );
     }
+
+    return( simta_fast_files );
 }
 
 
