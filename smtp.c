@@ -120,6 +120,20 @@ smtp_connect( char *hostname, int port )
             return( NULL );
         }
 
+#ifdef DEBUG
+if ( dnsr == NULL ) {
+    printf( "here 1\n" );
+}
+
+if ( dnsr->d_result == NULL ) {
+    printf( "here 2\n" );
+}
+
+if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
+    printf( "here 4\n" );
+}
+#endif /* DEBUG */
+
 	memcpy( &(sin.sin_addr.s_addr),
 		&(dnsr->d_result->answer[ i ].r_ip->ip ), sizeof( struct in_addr ));
     }
