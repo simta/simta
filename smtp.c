@@ -183,6 +183,7 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 	case SMTP_CONNECT:
 	case SMTP_HELO:
 	case SMTP_RSET:
+	case SMTP_QUIT:
 	    break;
 
 	case SMTP_MAIL:
@@ -280,6 +281,11 @@ smtp_reply( int smtp_command, SNET *snet, struct host_q *hq, struct deliver *d )
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
+
+	case SMTP_QUIT:
+	    syslog( LOG_NOTICE, "smtp_reply %s tempfail QUIT reply: %s",
+		    hq->hq_hostname, line );
+	    return( smtp_consume_banner( NULL, snet, &tv, line, NULL ));
 
 	default:
 	    abort();
@@ -444,6 +450,8 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	}
 	return( SMTP_ERROR );
     }
+
+    *snetp = snet;
 
     if (( smtp_result = smtp_reply( SMTP_CONNECT, snet, hq, NULL ))
 	    != SMTP_OK ) {
