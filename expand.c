@@ -87,6 +87,7 @@ expand_and_deliver( struct host_q **hq_stab, struct envelope *unexpanded_env )
 }
 
 
+#ifdef HAVE_LDAP
     void
 exp_addr_prune( struct exp_addr *e_addr )
 {
@@ -97,6 +98,7 @@ exp_addr_prune( struct exp_addr *e_addr )
 	exp_addr_prune( e_addr->e_addr_child );
     }
 }
+#endif /* HAVE_LDAP */
 
 
     /* return 0 on success

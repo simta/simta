@@ -29,11 +29,11 @@ AC_DEFUN([CHECK_LDAP],
 	    LIBS="$LIBS -lldap -llber";
 	    CFLAGS="$CFLAGS -I$ldapdir/include";
 	    LDFLAGS="$LDFLAGS -L$ldapdir/lib";
-	    SRC="$SRC ldap.c"
-	    SIMTA_OBJ="$SIMTA_OBJ ldap.o"
-	    SIMSEND_OBJ="$SIMSEND_OBJ ldap.o"
-	    Q_RUNNER_OBJ="$Q_RUNNER_OBJ ldap.o"
-	    EXPANDER_OBJ="$EXPANDER_OBJ ldap.o"
+	    SRC="$SRC simta_ldap.c dn.c oklist.c"
+	    SIMTA_OBJ="$SIMTA_OBJ simta_ldap.o dn.o oklist.o"
+	    SIMSEND_OBJ="$SIMSEND_OBJ simta_ldap.o dn.o oklist.o"
+	    Q_RUNNER_OBJ="$Q_RUNNER_OBJ simta_ldap.o dn.o oklist.o"
+	    EXPANDER_OBJ="$EXPANDER_OBJ simta_ldap.o dn.o oklist.o"
 	    AC_DEFINE(HAVE_LDAP)
 	fi
 
