@@ -13,7 +13,7 @@ SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o \
 		address.o line_file.o
 TLSCONOBJ=	tlsconnect.o
-SIMSENDOBJ=	simsend.o line_file.o envelope.o tz.o
+SIMSENDOBJ=	simsend.o line_file.o envelope.o tz.o header.o
 SIMLOGOBJ=	simlog.o
 QRUNNEROBJ=	q_runner.c queue.o ll.o line_file.o envelope.o tz.o ml.o smtp.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o tz.o
@@ -25,7 +25,7 @@ CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
 INCPATH=	-Idenser -Ilibsnet @CPPFLAGS@
-DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS
+DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -DDEBUG
 LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@
 TAGSFILE=	tags
