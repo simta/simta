@@ -258,17 +258,11 @@ headers( struct message *m )
     }
 
     if ( header_list[ HEAD_ORIG_DATE ].h_line == NULL ) {
-	/* no date header */
-	if ( message_prepend_line( m, "Date: default" ) == NULL ) {
-	    return( -1 );
-	}
+	/* XXX action */
     }
 
     if ( header_list[ HEAD_MESSAGE_ID ].h_line == NULL ) {
-	if ( message_prepend_line( m, "Message-ID: default" ) == NULL ) {
-	    perror( "message_prepend_line" );
-	    return( -1 );
-	}
+	/* XXX action */
     }
 
     if ( header_list[ HEAD_TO ].h_line == NULL ) {
@@ -285,11 +279,6 @@ headers( struct message *m )
 
     if ( header_list[ HEAD_BCC ].h_line == NULL ) {
 	/* XXX action */
-    }
-
-    if ( message_prepend_line( m, "Received: default" ) == NULL ) {
-	perror( "message_prepend_line" );
-	return( -1 );
     }
 
     return( 0 );
@@ -379,7 +368,7 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
-    if (( m = message_create()) == NULL ) {
+    if (( m = message_create( NULL )) == NULL ) {
 	perror( "message_create" );
 	exit( 1 );
     }

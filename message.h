@@ -23,9 +23,11 @@ struct header {
     char		*h_data;
 };
 
-struct message *message_create( void );
+struct message *message_create( char * );
+struct message *message_file( char *, char * );
 struct line *message_line( struct message *, char * );
 struct line *message_prepend_line( struct message *, char * );
-void message_stdout( struct message * );
-int message_store( struct message * );
 int message_recipient( struct message *, char * );
+int message_store( struct message * );
+int message_send( int, struct message * );
+void message_stdout( struct message * );

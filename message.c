@@ -12,6 +12,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* TLS */
+
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,26 +26,19 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <snet.h>
+
 #include "envelope.h"
 #include "message.h"
 #include "receive.h"
 
 
-    /* create & return a message structure */
-
-    /*
-    struct envelope {
-	struct envelope	*e_next;
-	struct sockaddr_in	*e_sin;
-	char		*e_helo;
-	char		*e_mail;
-	struct recipient	*e_rcpt;
-	int			e_flags;
-    };
-    */
+    /* create & return a message structure for message id.  if id is NULL,
+     * generate a new id.
+     */
 
     struct message *
-message_create( void )
+message_create( char *id )
 {
     struct message	*m;
     struct timeval	tv;
@@ -60,12 +59,16 @@ message_create( void )
 	return( NULL );
     }
 
-    if ( gettimeofday( &tv, NULL ) != 0 ) {
-	return( NULL );
-    }
+    if ( id == NULL ) {
+	if ( gettimeofday( &tv, NULL ) != 0 ) {
+	    return( NULL );
+	}
 
-    sprintf( m->m_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
-	    (unsigned long)tv.tv_usec );
+	sprintf( m->m_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
+		(unsigned long)tv.tv_usec );
+    } else {
+	strcpy( m->m_env->e_id, id );
+    }
 
     memset( &sin, 0, sizeof( struct sockaddr_in ));
     sin.sin_family = AF_INET;
@@ -146,6 +149,10 @@ message_stdout( struct message *m )
     struct line		*l;
     int			x = 0;
 
+    printf( "ENVELOPE:\n" );
+    env_stdout( m->m_env );
+
+    printf( "\nMESSAGE:\n" );
     for ( l = m->m_first_line; l != NULL ; l = l->line_next ) {
 	x++;
 	printf( "%d:\t%s\n", x, l->line_data );
@@ -284,9 +291,86 @@ message_recipient( struct message *m, char *addr )
 	return( -1 );
     }
 
-    r->r_rcpt = addr;
+    if (( r->r_rcpt = strdup( addr )) == NULL ) {
+	return( -1 );
+    }
+
     r->r_next = m->m_env->e_rcpt;
     m->m_env->e_rcpt = r;
 
     return( 0 );
+}
+
+
+    /* return a struct message from the Efile and Dfile for the message
+     * id from directory dir.
+     */
+
+    /* XXX this function needs better error reporting */
+
+    struct message *
+message_file( char *dir, char *id )
+{
+    char			*filename;
+    char			*line;
+    SNET			*snet;
+    struct message		*m;
+    struct line			*l;
+
+    if (( m = message_create( id )) == NULL ) {
+	return( NULL );
+    }
+
+    if (( filename = (char *)malloc( strlen( dir ) + strlen( id ) + 3 ))
+	    == NULL ) {
+	return( NULL );
+    }
+
+    /* read envelope file */
+    sprintf( filename, "%s/E%s", dir, id );
+
+    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	return( NULL );
+    }
+
+    /* get from-address */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	/* XXX better errror reporting */
+	return( NULL );
+    }
+
+    if (( m->m_env->e_mail = strdup( line )) == NULL ) {
+	/* XXX better errror reporting */
+	return( NULL );
+    }
+
+    /* get to-addresses */
+    while (( line = snet_getline( snet, NULL )) != NULL ) {
+	if ( message_recipient( m, line ) != 0 ) {
+	    return( NULL );
+	}
+    }
+
+    if ( snet_close( snet ) < 0 ) {
+	return( NULL );
+    }
+
+    /* read message file */
+    sprintf( filename, "%s/D%s", dir, id );
+
+    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	return( NULL );
+    }
+
+    while (( line = snet_getline( snet, NULL )) != NULL ) {
+	if (( l = message_line( m, line )) == NULL ) {
+	    return( NULL );
+	}
+    }
+
+    if ( snet_close( snet ) < 0 ) {
+	return( NULL );
+    }
+
+    return( m );
 }

@@ -6,6 +6,7 @@
 #include <netdb.h>
 #include <syslog.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "envelope.h"
 
@@ -58,4 +59,21 @@ env_reset( struct envelope *env )
     *env->e_id = '\0';
     env->e_flags = 0;
     return;
+}
+
+
+    void
+env_stdout( struct envelope *e )
+{
+    struct recipient		*r;
+
+    if ( e->e_mail != NULL ) {
+	printf( "mail: %s\n", e->e_mail );
+    } else {
+	printf( "mail NULL\n" );
+    }
+
+    for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
+	printf( "rcpt: %s\n", r->r_rcpt );
+    }
 }

@@ -29,3 +29,4 @@ struct envelope {
 
 struct envelope	*env_create ___P(( void ));
 void		env_reset ___P(( struct envelope * ));
+void		env_stdout ___P(( struct envelope * ));
