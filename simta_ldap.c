@@ -1154,7 +1154,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		    break;
 		}
 	    } else {
-		if (type == LDS_GROUP_MEMBERS ) {
+		if ((type == LDS_GROUP_MEMBERS ) || (type == LDS_USER )) {
 		    rc =  add_address( exp, ndn, e_addr->e_addr_errors, 
 				ADDRESS_TYPE_LDAP, senderbuf );
 		} else {
@@ -1180,7 +1180,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    attrval = mailvals[ idx ];
 
 	    if (strchr (attrval, '@') ) {		
-		if (type == LDS_GROUP_MEMBERS ) {
+		if ((type == LDS_GROUP_MEMBERS ) || (type == LDS_USER )) {
 		    rc =  add_address( exp, attrval, e_addr->e_addr_errors, 
 				ADDRESS_TYPE_EMAIL, senderbuf );
 		} else {
