@@ -1,4 +1,4 @@
-################## Some of this may need to be edited ##################
+# @configure_input@
 
 DESTDIR=@prefix@
 MANDIR=@mandir@
@@ -10,12 +10,10 @@ SBINDIR=@sbindir@
 SIMTALOG=LOG_MAIL
 
 CC=@CC@
-# These options might work on your system:
+
 OPTOPTS= @OPTOPTS@
 
 INSTALL=@INSTALL@
-
-################ Nothing below should need editing ###################
 
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c
