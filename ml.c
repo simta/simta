@@ -26,6 +26,7 @@
 
 #include <snet.h>
 
+#include "denser.h"
 #include "queue.h"
 #include "envelope.h"
 #include "ml.h"
