@@ -38,6 +38,19 @@
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
 
+struct proc_type {
+    struct proc_type	*p_next;
+    int			p_id;
+    int			p_type;
+};
+
+#define Q_LOCAL		1
+#define Q_SLOW		2
+
+struct proc_type	*proc_stab = NULL;
+int		q_runner_local = 0;
+int		q_runner_slow = 0;
+
 int		simsendmail_signal = 0;
 int		simsendmail_pid = 0;
 int		debug = 0;
@@ -76,18 +89,33 @@ chld( sig )
 {
     int			pid, status;
     extern int		errno;
+    struct proc_type	**p;
+    struct proc_type	*p_remove;
 
     while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
 	/* if the pid isn't simsendmail's q runner, it's a connection */
-	if ( pid == simsendmail_pid ) {
-	    simsendmail_pid = 0;
+	p = &proc_stab;
+
+	for ( p = &proc_stab; *p != NULL; p = &((*p)->p_next)) {
+	    if ((*p)->p_id == pid ) {
+		break;
+	    }
+	}
+
+	if ( *p != NULL ) {
+	    p_remove = *p;
+	    *p = p_remove->p_next;
+
+	    if ( p_remove->p_type == Q_LOCAL ) {
+		q_runner_local--;
+	    } else {
+		q_runner_slow--;
+	    }
+
+	    free( p_remove );
 
 	} else {
 	    connections--;
-
-	    if ( connections < 0 ) {
-		/* XXX connections should never be less than 0 */
-	    }
 	}
 
 	if ( WIFEXITED( status )) {
@@ -122,6 +150,9 @@ main( ac, av )
     struct sigaction	sa, osahup, osachld, osausr1;
     struct sockaddr_in	sin;
     struct servent	*se;
+    struct proc_type	*p;
+    int			q_runner_local_max;
+    int			q_runner_slow_max;
     int			c, s, err = 0, fd, sinlen;
     int			dontrun = 0;
     int			reuseaddr = 1;
@@ -142,6 +173,10 @@ main( ac, av )
     } else {
 	prog++;
     }
+
+    /* XXX make these options, etc */
+    q_runner_local_max = 5;
+    q_runner_slow_max = 5;
 
     while (( c = getopt( ac, av, "b:C:cdM:m:p:rs:V" )) != -1 ) {
 	switch ( c ) {
@@ -443,9 +478,9 @@ main( ac, av )
      */
     for (;;) {
 	if ( simsendmail_signal != 0 ) {
-	    /* XXX only one simsendmail q handler for now */
 	    simsendmail_signal = 0;
-	    if ( simsendmail_pid == 0 ) {
+
+	    if ( q_runner_local < q_runner_local_max ) {
 		switch ( simsendmail_pid = fork()) {
 		case 0 :
 		    close( s );
@@ -471,19 +506,25 @@ main( ac, av )
 		    break;
 
 		default :
-		    syslog( LOG_INFO, "q_runner_dir.local child %d for %s", c,
-			    inet_ntoa( sin.sin_addr ));
+		    if (( p = (struct proc_type*)malloc(
+			    sizeof( struct proc_type ))) == NULL ) {
+			syslog( LOG_ERR, "malloc: %m" );
+			exit( 1 );
+		    }
+
+		    p->p_id = simsendmail_pid;
+		    p->p_type = Q_LOCAL;
+		    p->p_next = proc_stab;
+		    proc_stab = p;
+
+		    syslog( LOG_INFO, "q_runner_dir.local child %d for %s",
+			    simsendmail_pid, inet_ntoa( sin.sin_addr ));
 		    break;
 		}
-	    } else {
-		/* do nothing: simsendmail queue handler already running */
-		/* XXX check to see if sendmail_pid is alive? */
-	    }
-
-	    if ( debug ) {
-		printf( "simsendmail signaled\n" );
 	    }
 	}
+
+	/* XXX compute time 'till next q_runner here */
 
 	FD_ZERO( &fdset );
 	FD_SET( s, &fdset );
@@ -497,6 +538,8 @@ main( ac, av )
 		continue;
 	    }
 	}
+
+	/* XXX check to see if we need to launch q_runner( SLOW ) */
 
 	if ( FD_ISSET( s, &fdset )) {
 	    sinlen = sizeof( struct sockaddr_in );
