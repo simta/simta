@@ -75,7 +75,7 @@ smtp_connect( SNET **snetp, char *hostname, int port, void (*logger)(char *))
     char			*line;
     char			*local_host;
     char			*remote_host;
-    char			*i;
+    char			*c;
     struct sockaddr_in		sin;
     int				s;
 #ifdef DNSR_WORKS
@@ -241,15 +241,15 @@ if ( dnsr->d_result->answer[ i ].r_ip == NULL ) {
 	return( SMTP_ERR_NO_BOUNCE );
     }
 
-    i = remote_host;
+    c = remote_host;
 
-    while (( *i != ' ' ) && ( *i != '\t' )) {
-	i++;
+    while (( *c != ' ' ) && ( *c != '\t' )) {
+	c++;
     }
 
     /* check to see if remote smtp server is actually the local machine */
     if ( strncasecmp( local_host, remote_host,
-	    (size_t)(i - remote_host) ) == 0 ) {
+	    (size_t)(c - remote_host) ) == 0 ) {
 	while ( *(line + 3) == '-' ) {
 	    if (( line = snet_getline( snet, NULL )) == NULL ) {
 		syslog( LOG_NOTICE, "smtp_connect %s: unexpected EOF",

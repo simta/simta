@@ -26,6 +26,7 @@
 
 #include <snet.h>
 
+#include "ll.h"
 #include "simta.h"
 #include "queue.h"
 #include "envelope.h"

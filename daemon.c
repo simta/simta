@@ -168,7 +168,6 @@ main( ac, av )
     FILE		*pf;
     int			use_randfile = 0;
     unsigned short	port = 0;
-    struct host		*host;
     extern int		optind;
     extern char		*optarg;
 

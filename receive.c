@@ -28,9 +28,9 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
-#include "simta.h"
 #include "queue.h"
 #include "ll.h"
+#include "simta.h"
 #include "address.h"
 #include "receive.h"
 #include "envelope.h"
