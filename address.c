@@ -202,6 +202,12 @@ address_local( char *addr )
 	return( ADDRESS_NOT_LOCAL );
     }
 
+    /* always accept mail for the local postmaster */
+    /* XXX accept mail for all local postmasters? */
+    if ( strcasecmp( simta_postmaster, addr ) == 0 ) {
+	return( ADDRESS_LOCAL );
+    }
+
     domain = at + 1;
 
     if (( host = (struct host*)ll_lookup( simta_hosts, domain )) == NULL ) {
@@ -301,6 +307,12 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 	}
 
 	domain = at + 1;
+
+	if ( strlen( domain ) > MAXHOSTNAMELEN ) {
+	    syslog( LOG_ERR, "address_expand %s: ERROR domain too long",
+		    e_addr->e_addr );
+	    return( ADDRESS_SYSERROR );
+	}
 
 	/* Check to see if domain is off the local host */
 	if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
@@ -506,13 +518,13 @@ ldap_exclusive:
 not_found:
 #endif /* HAVE_LDAP */
 
-    /* If we can't resolve the local postmaster's address, try to deliver
-     * it locally.  If it can't be delivered locally, it will be put in the
-     * dead queue in three days.
+    /* If we can't resolve the local postmaster's address, expand it to
+     * the dead queue.
      */
     if ( strcasecmp( simta_postmaster, e_addr->e_addr ) == 0 ) {
+	e_addr->e_addr_type = ADDRESS_TYPE_DEAD;
 	syslog( LOG_ERR, "address_expand %s FINAL: can't resolve local "
-		"postmaster, attempting local delivery", e_addr->e_addr );
+		"postmaster, expanding to dead queue", e_addr->e_addr );
 	return( ADDRESS_FINAL );
     }
 

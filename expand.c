@@ -97,6 +97,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 {
     struct expand		exp;
     struct envelope		*base_error_env;
+    struct envelope		*env_dead = NULL;
     struct envelope		*env;
     struct envelope		**env_p;
     struct recipient		*r;
@@ -112,7 +113,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     int				fast_file_start;
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
-    char			d_fast[ MAXPATHLEN ];
+    char			d_out[ MAXPATHLEN ];
 
     syslog( LOG_DEBUG, "expand %s", unexpanded_env->e_id );
 
@@ -197,7 +198,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
     /* Create one expanded envelope for every host we expanded address for */
     for ( i = exp.exp_addr_list; i != NULL; i = i->st_next ) {
-	if ( i->st_data == NULL ) {
+	if (( e_addr = (struct exp_addr*)i->st_data ) == NULL ) {
 	    /* not a terminal expansion, do not add */
 	    continue;
 	}
@@ -207,32 +208,37 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	/* XXX LDAP Check to see that we only write out TYPE_EMAIL addresses? */
 #endif /* HAVE_LDAP */
 
-	if (( domain = strchr( i->st_key, '@' )) == NULL ) {
-	    syslog( LOG_ERR, "expand.strchr: unreachable code" );
-	    goto cleanup2;
-	}
-	domain++;
-
-	if (( env = (struct envelope*)ll_lookup( host_stab, domain ))
-		== NULL ) {
-	    if ( strlen( domain ) > MAXHOSTNAMELEN ) {
-		syslog( LOG_ERR, "expand.strlen: domain too long" );
+	if ( e_addr->e_addr_type == ADDRESS_TYPE_EMAIL ) {
+	    if (( domain = strchr( i->st_key, '@' )) == NULL ) {
+		syslog( LOG_ERR, "expand.strchr: unreachable code" );
 		goto cleanup2;
 	    }
+	    domain++;
+	    env = (struct envelope*)ll_lookup( host_stab, domain );
 
+	} else if ( e_addr->e_addr_type == ADDRESS_TYPE_DEAD ) {
+	    domain = NULL;
+	    env = env_dead;
+	}
+
+	if ( env == NULL ) {
 	    /* Create envelope and add it to list */
 	    if (( env = env_create( unexpanded_env->e_mail )) == NULL ) {
 		syslog( LOG_ERR, "expand.env_create: %m" );
 		goto cleanup2;
 	    }
 
-	    /* fill in env */
-	    env->e_dir = simta_dir_fast;
-	    strcpy( env->e_expanded, domain );
-
 	    if ( env_gettimeofday_id( env ) != 0 ) {
 		env_free( env );
 		goto cleanup2;
+	    }
+
+	    /* fill in env */
+	    if ( domain != NULL ) {
+		env->e_dir = simta_dir_fast;
+		strcpy( env->e_expanded, domain );
+	    } else {
+		env->e_dir = simta_dir_dead;
 	    }
 
 	    /* Add env to host_stab */
@@ -256,45 +262,52 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	env = i->st_data;
 
 	if ( simta_expand_debug == 0 ) {
-	    /* create message to put in host queue */
-	    if (( m = message_create( env->e_id )) == NULL ) {
-		/* message_create syslogs errors */
-		goto cleanup3;
+	    if ( env->e_dir != simta_dir_dead ) {
+		/* create message to put in host queue */
+		if (( m = message_create( env->e_id )) == NULL ) {
+		    /* message_create syslogs errors */
+		    goto cleanup3;
+		}
+
+		/* create all messages we are expanding in the FAST queue */
+		m->m_dir = env->e_dir;
+
+		/* find / create the expanded host queue */
+		if (( hq = host_q_lookup( hq_stab, env->e_expanded ))
+			== NULL ) {
+		    /* host_q_lookup syslogs errors */
+		    message_free( m );
+		    goto cleanup3;
+		}
+	    } else {
+		m = NULL;
 	    }
 
-	    /* create all messages we are expanding in the FAST queue */
-	    m->m_dir = simta_dir_fast;
+	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
+	    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
 
-	    /* find / create the expanded host queue */
-	    if (( hq = host_q_lookup( hq_stab, env->e_expanded )) == NULL ) {
-		/* host_q_lookup syslogs errors */
+	    if ( link( d_original, d_out ) != 0 ) {
+		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_out );
 		message_free( m );
 		goto cleanup3;
 	    }
 
-	    /* Dfile: link Dold_id simta_dir_fast/Dnew_id */
-	    sprintf( d_fast, "%s/D%s", simta_dir_fast, env->e_id );
-
-	    if ( link( d_original, d_fast ) != 0 ) {
-		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_fast );
-		message_free( m );
-		goto cleanup3;
-	    }
-
-	    /* Efile: write simta_dir_fast/Enew_id for all recipients at host */
-	    if ( env_outfile( env, simta_dir_fast ) != 0 ) {
+	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
+	    if ( env_outfile( env, env->e_dir ) != 0 ) {
 		/* env_outfile syslogs errors */
-		if ( unlink( d_fast ) != 0 ) {
-		    syslog( LOG_ERR, "expand unlink %s: %m", d_fast );
+		if ( unlink( d_out ) != 0 ) {
+		    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
 		}
 		message_free( m );
 		goto cleanup3;
 	    }
 
-	    m->m_etime.tv_sec = env->e_etime.tv_sec;
-	    m->m_env = env;
-	    env->e_message = m;
-	    message_queue( hq, m );
+	    if ( m != NULL ) {
+		m->m_etime.tv_sec = env->e_etime.tv_sec;
+		m->m_env = env;
+		env->e_message = m;
+		message_queue( hq, m );
+	    }
 
 	} else {
 	    env_stdout( env );
@@ -358,9 +371,9 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		    if ( snet_close( snet ) != 0 ) {
 			syslog( LOG_ERR, "expand.snet_close %s: %m",
 				d_original );
-			sprintf( d_fast, "%s/D%s", env->e_dir, env->e_id );
-			if ( unlink( d_fast ) != 0 ) {
-			    syslog( LOG_ERR, "expand unlink %s: %m", d_fast );
+			sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
+			if ( unlink( d_out ) != 0 ) {
+			    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
 			}
 			goto cleanup4;
 		    }
@@ -369,9 +382,9 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 		if ( env_outfile( env, simta_dir_fast ) != 0 ) {
 		    /* env_outfile syslogs errors */
-		    sprintf( d_fast, "%s/D%s", env->e_dir, env->e_id );
-		    if ( unlink( d_fast ) != 0 ) {
-			syslog( LOG_ERR, "expand unlink %s: %m", d_fast );
+		    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
+		    if ( unlink( d_out ) != 0 ) {
+			syslog( LOG_ERR, "expand unlink %s: %m", d_out );
 		    }
 		    message_free( m );
 		    goto cleanup4;

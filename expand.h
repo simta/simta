@@ -18,8 +18,9 @@
 
 /* address types */
 #define	ADDRESS_TYPE_EMAIL		1
+#define	ADDRESS_TYPE_DEAD		2
 #ifdef HAVE_LDAP
-#define	ADDRESS_TYPE_LDAP		2
+#define	ADDRESS_TYPE_LDAP		3
 #endif /* HAVE_LDAP */
 
 struct expand {
