@@ -543,7 +543,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    ( recieve_failed_rcpts >= simta_max_failed_rcpts )) {
 	if ( recieve_failed_rcpts == simta_max_failed_rcpts ) {
 	    syslog( LOG_INFO, "Receive %s: Rejected:"
-		" Too many failed recepients", env->e_id );
+		" Too many failed recipients", env->e_id );
 	    recieve_failed_rcpts++;
 	}
 	if ( snet_writef( snet, "%d Requested action aborted: "
