@@ -23,9 +23,12 @@ int	ldap_expand ___P(( struct expand *, struct exp_addr * ));
 /* return codes for ldap_address_local */
 #define LDAP_LOCAL		2
 #define LDAP_NOT_LOCAL		3
-int	ldap_address_local ___P(( char * ));
 
 /* Public functions */
-int	ldap_value ___P(( LDAPMessage *, char *, struct list * ));
+int	ldap_address_local ___P(( char * ));
 int	ldap_config ___P(( char * ));
 /* XXX neex ldap_close */
+
+/* Private functions */
+int	ldap_value ___P(( LDAPMessage *, char *, struct list * ));
+char	*ldap_string ___P(( char *, char *, char * ));

@@ -42,6 +42,113 @@ struct list			*ldap_groups = NULL;
 LDAP				*ld = NULL;
 
 
+    /* return a statically allocated string if all goes well, NULL if not.
+     *
+     *     - Build search string where:
+     *         + %s -> username
+     *         + %h -> hostname
+     */
+
+    char *
+ldap_string( char *filter, char *user, char *domain )
+{
+    size_t		len;
+    static size_t	buf_len = 0;
+    static char		*buf = NULL;
+    char		*c;
+    char		*d;
+    char		*insert;
+    int			whiteout;
+    size_t		place;
+
+    /* make sure buf is big enough search url */
+    if (( len = strlen( filter ) + 1 ) > buf_len ) {
+	if (( buf = (char*)realloc( buf, len )) == NULL ) {
+	    syslog( LOG_ERR, "realloc: %m" );
+	    return( NULL );
+	}
+
+	buf_len = len;
+    }
+
+    d = buf;
+    c = filter;
+
+    while ( *c != '\0' ) {
+
+	if ( *c != '%' ) {
+	    /* raw character, copy to data buffer */
+	    *d = *c;
+
+	    /* advance cursors */
+	    d++;
+	    c++;
+
+	} else if ( *( c + 1 ) == '%' ) {
+	    /* %% -> copy single % to data buffer */
+	    *d = *c;
+
+	    /* advance cursors */
+	    c += 2;
+	    d++;
+
+	} else {
+	    if (( *( c + 1 ) == 's' ) ||  ( *( c + 1 ) == 'h' )) {
+		/* we currently support %s -> username, %h -> hostname */
+		if ( *( c + 1 ) == 's' ) {
+		    insert = user;
+		    whiteout = 1;
+
+		} else {
+		    insert = domain;
+		    whiteout = 0;
+		}
+
+		/* if needed, resize buf to handle upcoming insert */
+		if (( len += strlen( insert )) > buf_len ) {
+		    place = d - buf;
+
+		    if (( buf = (char*)realloc( buf, len )) == NULL ) {
+			syslog( LOG_ERR, "realloc: %m" );
+			return( NULL );
+		    }
+
+		    d = buf + place;
+		    buf_len = len;
+		}
+
+		/* insert word */
+		while ( *insert != '\0' ) {
+		    if ((( *insert == '.' ) || ( *insert == '_' ))
+			    && ( whiteout != 0 )) {
+			*d = ' ';
+		    } else {
+			*d = *insert;
+		    }
+
+		    insert++;
+		    d++;
+		}
+
+		/* advance read cursor */
+		c += 2;
+
+	    } else {
+		/* XXX unknown/unsupported sequence, copy & warn for now */
+		syslog( LOG_WARNING, "unknown ldap print sequence: %c\n",
+			*( c + 1 ));
+		*d = *c;
+		c++;
+	    }
+	}
+    }
+
+    *d = '\0';
+
+    return( buf );
+}
+
+
     /* this function should return:
      *     LDAP_SYSERROR if there is an error
      *     LDAP_LOCAL if addr is found in the db
@@ -51,7 +158,71 @@ LDAP				*ld = NULL;
     int
 ldap_address_local( char *addr )
 {
-    return( LDAP_NOT_LOCAL );
+    char		*at;
+    char		*search_string;
+    struct list		*l;
+    int			count = 0;
+    char		*domain;
+    LDAPMessage		*res;
+    LDAPURLDesc		*lud;
+    struct timeval	timeout = {60,0};
+
+    /* addr should be user@some.domain */
+    if (( at = strchr( addr, '@' )) == NULL ) {
+	return( LDAP_NOT_LOCAL );
+    }
+
+    domain = at + 1;
+
+    if ( ld == NULL ) {
+	/* XXX static hostname for now */
+	if (( ld = ldap_init( "da.dir.itd.umich.edu", 4343 )) == NULL ) {
+	    syslog( LOG_ERR, "ldap_init: %m" );
+	    return( LDAP_SYSERROR );
+	}
+    }
+
+    /* for each base string in ldap_searches:
+     *     - Build search string
+     *     - query the LDAP db with the search string
+     */
+    for ( l = ldap_searches; l != NULL; l = l->l_next ) {
+	/* break the address to user and domain chunks for ldap_sting */
+	*at = '\0';
+	if (( search_string = ldap_string( l->l_string, addr, domain ))
+		== NULL ) {
+	    return( LDAP_SYSERROR );
+	}
+	*at = '@';
+
+	if ( ldap_url_parse( search_string, &lud ) != 0 ) {
+	    syslog( LOG_ERR, "ldap_url_parse %s: %m", search_string );
+	    return( LDAP_SYSERROR );
+	}
+
+	if ( ldap_search_st( ld, lud->lud_dn, lud->lud_scope,
+		lud->lud_filter, attrs, 0, &timeout, &res ) != LDAP_SUCCESS ) {
+	    syslog( LOG_ERR, "ldap_search_st: %s",
+		    ldap_err2string( ldap_result2error( ld, res, 1 )));
+	    return( LDAP_SYSERROR );
+	}
+
+	if (( count = ldap_count_entries( ld, res )) < 0 ) {
+	    syslog( LOG_ERR, "ldap_count_entries: %s",
+		    ldap_err2string( ldap_result2error( ld, res, 1 )));
+	    return( LDAP_SYSERROR );
+	}
+
+	/* XXX ldap_msgfree here? */
+
+	if ( count > 0 ) {
+	    ldap_msgfree( res );
+	    return( LDAP_LOCAL );
+	}
+    }
+
+    ldap_msgfree( res );
+    return( LDAP_NOT_FOUND );
 }
 
 
@@ -304,17 +475,11 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
 ldap_expand( struct expand *exp, struct exp_addr *e_addr )
 {
     int			x;
-    int			whiteout;
     int			result;
     int			count = 0;
-    size_t		buf_len = 0;
-    size_t		len;
-    size_t		place;
     char		*at;
-    char		*c;
-    char		*d;
-    char		*insert;
     char		*domain;
+    char		*search_string;
     char		*buf = NULL;
     char		**values;
     LDAPMessage		*res;
@@ -349,95 +514,17 @@ ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     }
 
     /* for each base string in ldap_searches:
-     *     - Build search string where:
-     *         + %s -> username
-     *         + %h -> hostname
+     *     - Build search string
      *     - query the LDAP db with the search string
      */
     for ( l = ldap_searches; l != NULL; l = l->l_next ) {
-	/* make sure buf is big enough search url */
-	if (( len = strlen( l->l_string) + 1 ) > buf_len ) {
-	    if (( buf = (char*)realloc( buf, len )) == NULL ) {
-		syslog( LOG_ERR, "realloc: %m" );
-		return( LDAP_SYSERROR );
-	    }
-
-	    buf_len = len;
+	/* break the address to user and domain chunks for ldap_sting */
+	*at = '\0';
+	if (( search_string = ldap_string( l->l_string, e_addr->e_addr,
+		domain )) == NULL ) {
+	    return( LDAP_SYSERROR );
 	}
-
-	d = buf;
-	c = l->l_string;
-
-	while ( *c != '\0' ) {
-
-	    if ( *c != '%' ) {
-		/* raw character, copy to data buffer */
-		*d = *c;
-
-		/* advance cursors */
-		d++;
-		c++;
-
-	    } else if ( *( c + 1 ) == '%' ) {
-		/* %% -> copy single % to data buffer */
-		*d = *c;
-
-		/* advance cursors */
-		c += 2;
-		d++;
-
-	    } else {
-		if (( *( c + 1 ) == 's' ) ||  ( *( c + 1 ) == 'h' )) {
-		    /* we currently support %s -> username, %h -> hostname */
-		    if ( *( c + 1 ) == 's' ) {
-			*at = '\0';
-			insert = e_addr->e_addr;
-			whiteout = 1;
-
-		    } else {
-			insert = domain;
-			whiteout = 0;
-		    }
-
-		    /* if needed, resize buf to handle upcoming insert */
-		    if (( len += strlen( insert )) > buf_len ) {
-			place = d - buf;
-
-			if (( buf = (char*)realloc( buf, len )) == NULL ) {
-			    syslog( LOG_ERR, "realloc: %m" );
-			    return( LDAP_SYSERROR );
-			}
-
-			d = buf + place;
-			buf_len = len;
-		    }
-
-		    /* insert word */
-		    while (( *insert != '\0' ) && ( insert != at )) {
-			if ((( *insert == '.' ) || ( *insert == '_' ))
-				&& ( whiteout != 0 )) {
-			    *d = ' ';
-			} else {
-			    *d = *insert;
-			}
-
-			insert++;
-			d++;
-		    }
-
-		    /* advance read cursor */
-		    c += 2;
-
-		} else {
-		    /* XXX unknown/unsupported sequence, copy & warn for now */
-		    fprintf( stderr, "unknown sequence: %c\n", *( c + 1 ));
-		    *d = *c;
-		    c++;
-		}
-	    }
-	}
-
-	*d = '\0';
+	*at = '@';
 
 	if ( ldap_url_parse( buf, &lud ) != 0 ) {
 	    /* XXX correct error reporting? */
