@@ -44,35 +44,44 @@
     int
 main( int argc, char *argv[] )
 {
+    char			*conf_file = NULL;
+    char			*op;
     simta_debug = 1;
 
-    if ( argc != 4 ) {
+    if (( argc != 4 ) && ( argc != 3 )) {
 	fprintf( stderr,
-		"Usage: %s conf_file base_dir ( LOCAL | SLOW | CLEAN )\n",
+		"Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW | CLEAN )\n",
 		argv[ 0 ]);
 	exit( EX_USAGE );
     }
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
+    if ( argc == 4 ) {
+	conf_file = argv[ 2 ];
+	op = argv[ 3 ];
+    } else {
+	op = argv[ 2 ];
+    }
+
     /* init simta config / defaults */
-    if ( simta_config( argv[ 1 ], argv[ 2 ]) != 0 ) {
+    if ( simta_config( argv[ 1 ], conf_file ) != 0 ) {
 	fprintf( stderr, "simta_config error\n" );
 	exit( 1 );
     }
 
-    if ( strcasecmp( argv[ 3 ], "LOCAL" ) == 0 ) {
+    if ( strcasecmp( op, "LOCAL" ) == 0 ) {
 	return( q_runner_dir( simta_dir_local ));
 
-    } else if ( strcasecmp( argv[ 3 ], "SLOW" ) == 0 ) {
+    } else if ( strcasecmp( op, "SLOW" ) == 0 ) {
 	return( q_runner_dir( simta_dir_slow ));
 
-    } else if ( strcasecmp( argv[ 3 ], "CLEAN" ) == 0 ) {
+    } else if ( strcasecmp( op, "CLEAN" ) == 0 ) {
 	return( q_cleanup());
 
     } else {
 	fprintf( stderr,
-		"Usage: %s conf_file base_dir ( LOCAL | SLOW | CLEAN )\n",
+		"Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW | CLEAN )\n",
 		argv[ 0 ]);
 	exit( EX_USAGE );
     }

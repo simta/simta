@@ -223,9 +223,13 @@ simta_config( char *conf_fname, char *base_dir )
 	}
     }
 
-    /* XXX check base_dir before using it? */
-    /* set up data dir pathnames */
+    /* check base_dir before using it */
+    if ( base_dir == NULL ) {
+	fprintf( stderr, "No base directory defined.\n" );
+	return( -1 );
+    }
 
+    /* set up data dir pathnames */
     sprintf( fname, "%s/%s", base_dir, "fast" );
     if (( simta_dir_fast = strdup( fname )) == NULL ) {
 	perror( "strdup" );
