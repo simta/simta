@@ -5,7 +5,7 @@
 
 /*****     simta.h     *****/
 
-#define SIMTA_OLD_EFILE_VESRION_1	1
+#define SIMTA_OLD_EFILE_VERSION_1	0
 
 /* These codes are for mail filter return values */
 #define	MESSAGE_ACCEPT			0
