@@ -95,7 +95,7 @@ expand( struct host_q **hq_stab, struct envelope *env )
 	}
 
 	/* queue message "m" in host queue "hq" */
-	if ( message_queue( hq, m ) < 0 ) {
+	if ( message_queue( hq, m ) != 0 ) {
 	    return( -1 );
 	}
 
