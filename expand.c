@@ -145,6 +145,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	return( 1 );
     }
 
+syslog( LOG_DEBUG, "expand: start loop" );
     for ( rcpt = unexpanded_env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 	/* Add ONE address from the original envelope's rcpt list */
 	/* this address has no parent, it is a "root" address because
@@ -155,21 +156,20 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	exp.exp_parent = NULL;
 #endif /* HAVE_LDAP */
 
+syslog( LOG_DEBUG, "expand: add address %s", rcpt->r_rcpt );
 	if ( add_address( &exp, rcpt->r_rcpt, base_error_env,
 		ADDRESS_TYPE_EMAIL ) != 0 ) {
 	    /* add_address syslogs errors */
 	    goto cleanup1;
 	}
 
-	if ( p == NULL ) {
-	    /* we need to start by processing the first addr in the
-	     * expansion structure.
-	     */
-	    p = exp.exp_addr_list;
-	}
-
 	for ( ; ; ) {
-	    if ( p->st_next == NULL ) {
+	    if ( p == NULL ) {
+		/* we need to start by processing the first addr in the
+		 * expansion structure.
+		 */
+		p = exp.exp_addr_list;
+	    } else if ( p->st_next == NULL ) {
 		/* there are no more address for processing at this time */
 		break;
 	    } else {
@@ -187,15 +187,18 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	    case ADDRESS_EXCLUDE:
 		e_addr->e_addr_status =
 			( e_addr->e_addr_status & ( ~STATUS_TERMINAL ));
+syslog( LOG_DEBUG, "expand %s: non-terminal", e_addr->e_addr );
 		/* the address is not a terminal local address */
 		break;
 
 	    case ADDRESS_FINAL:
 		e_addr->e_addr_status |= STATUS_TERMINAL;
+syslog( LOG_DEBUG, "expand %s: terminal", e_addr->e_addr );
 		/* the address is a terminal local address */
 		break;
 
 	    case ADDRESS_SYSERROR:
+syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		goto cleanup1;
 
 	    default:
@@ -317,7 +320,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 
     if ( env_out == 0 ) {
 	syslog( LOG_INFO, "expand %s: no terminal recipients, deleting message",
-		env->e_id );
+		unexpanded_env->e_id );
     }
 
     /* write errors out to disk */
