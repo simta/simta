@@ -141,7 +141,8 @@ simta_config( char *conf_fname, char *base_dir )
 
     /* get our local mailer */
     if (( simta_local_mailer = get_local_mailer()) == NULL ) {
-	assert( simta_local_mailer == NULL );
+	fprintf( stderr, "simta_config: get_local_mailer failed!\n" );
+	return( -1 );
     }
 
     /* set up simta_hosts stab */

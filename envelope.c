@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 
+#include <assert.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -333,6 +334,8 @@ env_outfile( struct envelope *e )
     FILE		*tff;
     char		tf[ MAXPATHLEN + 1 ];
     char		ef[ MAXPATHLEN + 1 ];
+
+    assert( e->e_dir != NULL );
 
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
     sprintf( ef, "%s/E%s", e->e_dir, e->e_id );

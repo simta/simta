@@ -414,7 +414,7 @@ q_runner( struct host_q **host_q )
 		    continue;
 		}
 	    } else {
-		assert( unexpanded->e_dir != simta_dir_fast );
+		assert( unexpanded->e_dir == simta_dir_fast );
 		snet_lock = NULL;
 	    }
 
@@ -602,8 +602,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 
 	    deliver_remote( &d, &snet_smtp, deliver_q );
 	} else {
-	    assert (( deliver_q->hq_status != HOST_DOWN ) &&
-		    ( deliver_q->hq_status != HOST_BOUNCE ));
+	    assert (( deliver_q->hq_status == HOST_DOWN ) ||
+		    ( deliver_q->hq_status == HOST_BOUNCE ));
 	}
 
 	/* XXX else assert */

@@ -362,7 +362,6 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 		syslog( LOG_INFO, "expand %s: writing bounce %s %s",
 			unexpanded_env->e_id, env->e_id, env->e_hostname );
-		env->e_dir = simta_dir_fast;
 		if ( env_outfile( env ) != 0 ) {
 		    /* env_outfile syslogs errors */
 		    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
