@@ -195,6 +195,7 @@ address_expand( char *address, struct recipient *rcpt, struct stab_entry **expan
 
     /* Check to see if simta is server mail for domain */
     if (( host = ll_lookup( simta_hosts, domain )) == NULL ) {
+if ( simta_debug ) printf( "%s not found in simta_hosts list\n", domain );
 	/* No - Add address to expansion list for off host delivery */
 	if (( data = strdup( address )) == NULL ) {
 	    syslog( LOG_ERR, "address_expand: strdup: %m" );
@@ -332,11 +333,15 @@ address_expand( char *address, struct recipient *rcpt, struct stab_entry **expan
 	    }
 
         } else if ( strcmp( i->st_key, "password" ) == 0 ) {
+	    if ( simta_debug ) printf( "checking password file for %s...",
+		user );
 
             /* Check password file */
 	    if (( passwd = getpwnam( user )) == NULL ) {
+		if ( simta_debug ) printf( "not found\n" );
 		continue;
 	    }
+	    if ( simta_debug ) printf( "found\n" );
 
 	    /* Check .forward */
 	    memset( buf, 0, MAXPATHLEN * 2 );
@@ -389,6 +394,24 @@ address_expand( char *address, struct recipient *rcpt, struct stab_entry **expan
 			continue;
 		    }
 		}
+	    } else {
+		/* Add address to expansion */
+		if (( temp = strdup( address )) == NULL ) {
+		    syslog( LOG_ERR, "address_expand: strdup: %m\n" );
+		    return( -1 );
+		}
+		if (( expn = (struct expn*)malloc( sizeof( struct expn )))
+			== NULL ) {
+		    syslog( LOG_ERR, "address_expand: malloc: %m" );
+		    return( -1 );
+		}
+		expn->e_expn = temp;
+		expn->e_rcpt_parent = rcpt;
+		if ( ll_insert_tail( expansion, temp, expn ) != 0 ) {
+		    syslog( LOG_ERR, "address_expand: ll_insert_tail: %m" );
+		    return( -1 );
+		}
+		count++;
 	    }
         }
     }
