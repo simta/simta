@@ -372,12 +372,11 @@ deliver_local( struct host_q *hq )
 
 	} else if (( q->q_success == 0 ) && ( q->q_bounce == 0 )) {
 	    /* all addresses are to be retried, no re-writing */
-	    /* if old defile, bounce all addrs */
-	    /* touch efile */
+	    /* XXX touch efile */
 	    q->q_action = Q_REORDER;
 
 	} else {
-	    /* some retries, and some sent.  need to re-write envelope */
+	    /* XXX some retries, and some sent.  need to re-write envelope */
 	    q->q_action = Q_REORDER;
 	}
     }
