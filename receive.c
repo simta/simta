@@ -1187,7 +1187,7 @@ smtp_receive( fd, sin )
 	}
     }
 
-    if (( rc = check_hostname( simta_dnsr, hostname,
+    if (( rc = check_reverse( simta_dnsr, hostname,
 	    &(sin->sin_addr))) != 0 ) {
 	if ( rc < 0 ) {
 	    syslog( LOG_INFO, "receive %s: connection rejected: %s",

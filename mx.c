@@ -202,7 +202,7 @@ mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
 }
 
     int
-check_hostname( DNSR *dnsr, char *dn, struct in_addr *in )
+check_reverse( DNSR *dnsr, char *dn, struct in_addr *in )
 {
     int				i, j;
     char			*temp;
