@@ -256,13 +256,13 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    /* fill in env */
 	    if ( domain != NULL ) {
 		env->e_dir = simta_dir_fast;
-		strcpy( env->e_expanded, domain );
+		strcpy( env->e_hostname, domain );
 	    } else {
 		env->e_dir = simta_dir_dead;
 	    }
 
 	    /* Add env to host_stab */
-	    if ( ll_insert( &host_stab, env->e_expanded, env, NULL ) != 0 ) {
+	    if ( ll_insert( &host_stab, env->e_hostname, env, NULL ) != 0 ) {
 		syslog( LOG_ERR, "expand.ll_insert: %m" );
 		env_free( env );
 		goto cleanup2;
@@ -292,7 +292,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
 	    syslog( LOG_INFO, "expand %s: writing %s %s", unexpanded_env->e_id,
-		    env->e_id, env->e_expanded );
+		    env->e_id, env->e_hostname );
 	    if ( env_outfile( env ) != 0 ) {
 		/* env_outfile syslogs errors */
 		if ( unlink( d_out ) != 0 ) {
@@ -357,7 +357,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		}
 
 		syslog( LOG_INFO, "expand %s: writing bounce %s %s",
-			unexpanded_env->e_id, env->e_id, env->e_expanded );
+			unexpanded_env->e_id, env->e_id, env->e_hostname );
 		env->e_dir = simta_dir_fast;
 		if ( env_outfile( env ) != 0 ) {
 		    /* env_outfile syslogs errors */

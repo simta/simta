@@ -184,7 +184,7 @@ queue_envelope( struct host_q **hq_stab, struct envelope *env )
 	return( 0 );
     }
 
-    if (( hq = host_q_lookup( hq_stab, env->e_expanded )) == NULL ) {
+    if (( hq = host_q_lookup( hq_stab, env->e_hostname )) == NULL ) {
 	return( 1 );
     }
 
@@ -192,7 +192,7 @@ queue_envelope( struct host_q **hq_stab, struct envelope *env )
 
     ep = &(hq->hq_env_first);
     for ( ep = &(hq->hq_env_first); *ep != NULL; ep = &((*ep)->e_hq_next)) {
-	if ( env->e_etime.tv_sec < (*ep)->e_etime.tv_sec ) {
+	if ( env->e_last_attempt.tv_sec < (*ep)->e_last_attempt.tv_sec ) {
 	    break;
 	}
     }
@@ -341,7 +341,7 @@ q_runner( struct host_q **host_q )
 
 	    if ( unexpanded->e_rcpt == NULL ) {
 		/* lock & read envelope to expand */
-		if ( env_read_recipients( unexpanded, &snet_lock ) != 0 ) {
+		if ( env_read_delivery_info( unexpanded, &snet_lock ) != 0 ) {
 		    continue;
 		}
 	    } else {
@@ -521,7 +521,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 
 	if ( env_deliver->e_rcpt == NULL ) {
 	    /* lock & read envelope to deliver */
-	    if ( env_read_recipients( env_deliver, &snet_lock ) != 0 ) {
+	    if ( env_read_delivery_info( env_deliver, &snet_lock ) != 0 ) {
 		/* envelope not valid.  disregard */
 		env_free( env_deliver );
 		continue;
@@ -913,7 +913,7 @@ q_runner_dir( char *dir )
 	    }
 	    env->e_dir = dir;
 
-	    if ( env_read_hostname( env ) != 0 ) {
+	    if ( env_read_queue_info( env ) != 0 ) {
 		env_free( env );
 		continue;
 	    }

@@ -225,7 +225,7 @@ env_syslog( struct envelope *e )
     }
 
     syslog( LOG_DEBUG, "message %s rcpt %d host %s",
-	    e->e_id, count, e->e_expanded );
+	    e->e_id, count, e->e_hostname );
 }
 
     void
@@ -239,10 +239,10 @@ env_stdout( struct envelope *e )
 	printf( "Message-Id:\t%s\n", e->e_id );
     }
 
-    if ( *e->e_expanded == '\0' ) {
+    if ( *e->e_hostname == '\0' ) {
 	printf( "expanded NULL\n" );
     } else {
-	printf( "expanded %s\n", e->e_expanded );
+	printf( "expanded %s\n", e->e_hostname );
     }
 
     if ( e->e_mail != NULL ) {
@@ -343,9 +343,9 @@ env_outfile( struct envelope *e )
     }
 
     /* Hdestination-host */
-    if (( e->e_expanded != NULL ) && ( *e->e_expanded != '\0' ) &&
+    if (( e->e_hostname != NULL ) && ( *e->e_hostname != '\0' ) &&
 	    ( e->e_dir != simta_dir_dead )) {
-	if ( fprintf( tff, "H%s\n", e->e_expanded ) < 0 ) {
+	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	    fclose( tff );
 	    goto cleanup;
@@ -400,7 +400,7 @@ env_outfile( struct envelope *e )
 	goto cleanup;
     }
 
-    e->e_etime.tv_sec = sb.st_mtime;
+    e->e_last_attempt.tv_sec = sb.st_mtime;
 
     /* sync? */
     if ( fclose( tff ) != 0 ) {
@@ -418,7 +418,7 @@ env_outfile( struct envelope *e )
     }
 
     syslog( LOG_DEBUG, "env_outfile %s %s %s", e->e_dir, e->e_id,
-	    e->e_expanded );
+	    e->e_hostname );
 
     e->e_flags = ( e->e_flags | ENV_ON_DISK );
     return( 0 );
@@ -448,14 +448,14 @@ env_touch( struct envelope *env )
 	return( -1 );
     }
 
-    env->e_etime.tv_sec = sb.st_mtime;
+    env->e_last_attempt.tv_sec = sb.st_mtime;
 
     return( 0 );
 }
 
 
     int
-env_read_hostname( struct envelope *e )
+env_read_queue_info( struct envelope *e )
 {
     char		*line;
     char		*hostname;
@@ -483,7 +483,7 @@ env_read_hostname( struct envelope *e )
 	goto cleanup;
     }
 
-    e->e_etime.tv_sec = sb.st_mtime;
+    e->e_last_attempt.tv_sec = sb.st_mtime;
 
     /* version info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
@@ -531,18 +531,7 @@ env_read_hostname( struct envelope *e )
 	goto cleanup;
     }
 
-    strcpy( e->e_expanded, hostname );
-
-    /* from info */
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_hostname %s: unexpected EOF", fname );
-	goto cleanup;
-    }
-
-    if ( *line != 'F' ) {
-	syslog( LOG_ERR, "env_read_hostname %s: bad from syntax", fname );
-	goto cleanup;
-    }
+    strcpy( e->e_hostname, hostname );
 
     ret = 0;
 
@@ -556,12 +545,14 @@ cleanup:
 
 
     int
-env_read_recipients( struct envelope *env, SNET **s_lock )
+env_read_delivery_info( struct envelope *env, SNET **s_lock )
 {
     char			*line;
     SNET			*snet;
     char			filename[ MAXPATHLEN + 1 ];
+    char			*hostname;
     int				ret = 1;
+    ino_t			dinode;
 
     sprintf( filename, "%s/E%s", env->e_dir, env->e_id );
 
@@ -598,6 +589,40 @@ env_read_recipients( struct envelope *env, SNET **s_lock )
     /* Dinode info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_read_recipients %s: unexpected EOF", filename );
+	goto cleanup;
+    }
+
+    sscanf( line + 1, "%lu", &dinode );
+    if ( dinode == 0 ) {
+	syslog( LOG_ERR, "env_read_hostname %s: bad Dinode info", filename );
+	goto cleanup;
+    } else if ( dinode != env->e_dinode ) {
+	syslog( LOG_ERR, "env_read_hostname %s: bad Dinode info re-read",
+		filename );
+	goto cleanup;
+    }
+
+    /* expansion info */
+    if (( line = snet_getline( snet, NULL )) == NULL ) {
+	syslog( LOG_ERR, "env_read_hostname %s: unexpected EOF", filename );
+	goto cleanup;
+    }
+
+    if ( *line != 'H' ) {
+	syslog( LOG_ERR, "env_read_hostname %s: bad host syntax", filename );
+	goto cleanup;
+    }
+
+    hostname = line + 1;
+
+    if ( strlen( hostname ) > MAXHOSTNAMELEN ) {
+	syslog( LOG_ERR, "env_read_hostname %s: hostname too long", filename );
+	goto cleanup;
+    }
+
+    if ( strcmp( hostname, env->e_hostname ) != 0 ) {
+	syslog( LOG_ERR, "env_read_hostname %s: bad hostname re-read",
+		filename );
 	goto cleanup;
     }
 

@@ -110,7 +110,7 @@ q_cleanup( void )
 	env->e_dinode = sb.st_ino;
 
 	if ( sb.st_nlink > 1 ) {
-	    if (( result = env_read_hostname( env )) != 0 ) {
+	    if (( result = env_read_queue_info( env )) != 0 ) {
 		fprintf( stderr, "q_cleanup env_info %s: ", env->e_id  );
 		perror( NULL );
 		return( -1 );
@@ -123,7 +123,7 @@ q_cleanup( void )
 	    }
 
 	    if (( *env_p != NULL ) && ( env->e_dinode == (*env_p)->e_dinode )) {
-		if ((*env_p)->e_expanded == 0 ) {
+		if ((*env_p)->e_hostname == 0 ) {
 		    /* unexpanded message in queue, delete current message */
 		    if ( env_unlink( env ) != 0 ) {
 			fprintf( stderr, "q_cleanup env_unlink %s: ",
@@ -134,7 +134,7 @@ q_cleanup( void )
 		    env_free( env );
 		    continue;
 
-		} else if (*(env->e_expanded) == '\0' ) {
+		} else if (*(env->e_hostname) == '\0' ) {
 		    /* have unexpanded message, delete queued messages */
 		    do {
 			e_delete = *env_p;

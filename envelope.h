@@ -26,7 +26,7 @@ struct envelope {
     struct envelope	*e_next;
     struct envelope	*e_hq_next;
     struct host_q	*e_hq;
-    char		e_expanded[ MAXHOSTNAMELEN + 1 ];
+    char		e_hostname[ MAXHOSTNAMELEN + 1 ];
     char		*e_dir;
     char		*e_mail;
     struct recipient	*e_rcpt;
@@ -37,7 +37,7 @@ struct envelope {
     int			e_failed;
     int			e_tempfail;
     ino_t		e_dinode;
-    struct timespec	e_etime;
+    struct timespec	e_last_attempt;
 };
 
 #define ENV_ON_DISK		(1<<1)
@@ -69,5 +69,5 @@ int		env_touch ___P(( struct envelope * ));
 int		env_slow ___P(( struct envelope * ));
 int		env_from ___P(( struct envelope * ));
 int		env_unlink ___P(( struct envelope * ));
-int		env_read_hostname ___P(( struct envelope * ));
-int		env_read_recipients ___P(( struct envelope *, SNET ** ));
+int		env_read_queue_info ___P(( struct envelope * ));
+int		env_read_delivery_info ___P(( struct envelope *, SNET ** ));

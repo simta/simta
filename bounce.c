@@ -340,7 +340,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
 
-    if ( *(env->e_expanded) == '\0' ) {
+    if ( *(env->e_hostname) == '\0' ) {
         fprintf( dfile, "There was a local error in expanding the "
 		" recipients of your message\n" );
     }
