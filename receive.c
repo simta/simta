@@ -438,20 +438,16 @@ f_rcpt( snet, env, ac, av )
 
     default:
 	/* XXX Is 551 correct?  550 is for policy */
+	/* relay for testing */
+	if ( strncmp( env->e_mail, "mcneal@umich.edu",
+		strlen( "mcneal@umich.edu" )) == 0 ) {
+	    syslog( LOG_INFO, "relay to %s for %s", addr, env->e_mail );
+	    break;
+	}
 	snet_writef( snet, "%d User not local; please try <%s>\r\n",
 	    551, addr );
 	return( 1 );
     }
-    /* XXX Do we still need to do this? */
-    /* no config file, no DNS, use our hostname */
-    /*
-    if ( strcasecmp( domain, env->e_hostname ) != 0 ) {
-	// XXX Is 551 correct?  550 is for policy
-	snet_writef( snet, "%d User not local; please try <%s>\r\n",
-	    551, addr );
-	return( 1 );
-    }
-    */
 
     /*
      * For local mail, we now have 5 minutes (rfc1123 5.3.2) to decline
