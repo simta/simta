@@ -11,3 +11,4 @@
 
 int		receive ___P(( int, struct sockaddr_in * ));
 int		argcargv ___P(( char *, char **[] ));
+char		*tz ___P(( struct tm * ));

@@ -21,6 +21,8 @@
 #include "auth.h"
 #include "base64.h"
 
+extern char *krb_err_txt[];
+
 /*
  * SASL Authenticate command.  This code can't be copied wholesale unless
  * the protocol's SASL authentication mechanism exactly matches the

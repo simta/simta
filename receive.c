@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <snet.h>
 
@@ -313,7 +314,8 @@ f_data( snet, env, ac, av )
     char		*line;
     int			err = 0;
     int			fd;
-    struct timeval	tv;
+    time_t		clock;
+    struct tm		*tm;
     struct recipient	*r;
     FILE		*dff, *tff;
     char		df[ 25 ];
@@ -330,12 +332,6 @@ f_data( snet, env, ac, av )
     sprintf( tf, "tmp/t%s", env->e_id );
     sprintf( ef, "tmp/E%s", env->e_id );
 
-    if ( gettimeofday( &tv, NULL ) < 0 ) {
-	syslog( LOG_ERR, "f_data: gettimeofday: %m" );
-	return( -1 );
-    }
-    cftime( daytime, "%e %b %Y %T %Z", &tv.tv_sec );
-
     if (( fd = open( df, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
 	syslog( LOG_ERR, "f_data: open %s: %m", df );
 	return( -1 );
@@ -348,14 +344,19 @@ f_data( snet, env, ac, av )
 	goto cleanup;
     }
 
+    clock = time( &clock );
+    tm = localtime( &clock );
+    strftime( daytime, sizeof( daytime ), "%e %b %Y %T", tm );
+
     /*
      * At this point, we must have decided what we'll put in the Received:
-     * header, since that is the first line in the file.
+     * header, since that is the first line in the file.  This is where
+     * we might want to put the sender's domain name, if we obtained one.
      */
-    if ( fprintf( dff, "Received: FROM %s ([%s])\n\tBY %s ID %s ; \n\t%s\n",
+    if ( fprintf( dff, "Received: FROM %s ([%s])\n\tBY %s ID %s ; \n\t%s %s\n",
 	    ( env->e_helo == NULL ) ? "NULL" : env->e_helo,
 	    inet_ntoa( env->e_sin->sin_addr ), env->e_hostname,
-	    env->e_id, daytime ) < 0 ) {
+	    env->e_id, daytime, tz( tm )) < 0 ) {
 	syslog( LOG_ERR, "f_data: fprintf \"Received\": %m" );
 	err = 1;
 	fclose( dff );
@@ -531,7 +532,6 @@ f_help( snet, env, ac, av )
 struct command	commands[] = {
     { "HELO",		f_helo },
     { "EHLO",		f_ehlo },
-    { "AUTH",		f_auth },
     { "MAIL",		f_mail },
     { "RCPT",		f_rcpt },
     { "DATA",		f_data },

@@ -9,36 +9,35 @@ SBINDIR=${DESTDIR}/sbin
 SIMTALOG=LOG_MAIL
 
 # Stock compiler:
-#CC=	cc
+CC=	cc
 
 # For gcc:
-CC=	gcc
+#CC=	gcc
 # These options might work on your system:
 OPTOPTS=-Wall -Wstrict-prototypes -Wmissing-prototypes -Wconversion
-CFLAGS=-Ilibnet -ggdb
 
 # For most platforms:
 INSTALL=	install
 
 # For Solaris:
-INSTALL=	/usr/ucb/install
-ADDLIBS=	-lsocket -lnsl
+#INSTALL=	/usr/ucb/install
+#ADDLIBS=	
 
 ################ Nothing below should need editing ###################
 
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
-	simsend.c rfc822.c rcptlist.c
-SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o auth.o base64.o
-SIMSENDMAILOBJ=	simsend.o rfc822.o rcptlist.o base64.o auth.o
+	simsend.c rfc822.c rcptlist.c tz.c
+SIMTAOBJ=	daemon.o receive.o argcargv.o envelope.o base64.o tz.o
 
-INCPATH=	-I/usr/include/kerberos -Ilibsnet
+INCPATH=	-Ilibsnet
 DEFS=	-DLOG_SIMTA=${SIMTALOG}
 CFLAGS=	${DEFS} ${OPTOPTS} ${INCPATH}
 TAGSFILE=	tags
-LIBPATH=	-L/usr/local/lib -Llibsnet
-LIBS=	${ADDLIBS} -lsnet -ldes -lkrb
+LIBPATH=	-Llibsnet
+#LIBS=	${ADDLIBS} -lsnet
+LIBS=	${ADDLIBS} -lsnet 
 
-TARGETS=	simta simsendmail
+TARGETS=	simta
 
 all : ${TARGETS}
 
