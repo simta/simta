@@ -1209,7 +1209,6 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	} else {
 
 	    for ( idx = 0; values[ idx ] != NULL; idx++ ) {
-
 		attrval = values[ idx ];
 		if ( add_address( exp, attrval,
 			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL ) != 0 ) {
@@ -1220,17 +1219,19 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 		}
 	    }
 	    ldap_value_free( values );
+
 	    /*
 	    * If the user is on vacation, send a copy of the mail to
 	    * the vacation server.  The address is constructed from
  	    * the vacationhost (specified in the config file) and
 	    * the uid (XXX this this attr should be configurable XXX).
 	    */
+syslog( LOG_DEBUG, "simta_ldap_process_entry: check vacation" );
 	    onvacation = NULL;
 	    if ( vacationhost != NULL && vacationattr != NULL
             && (onvacation = ldap_get_values( ld, entry, vacationattr)) != NULL 
 	    && strcasecmp( onvacation[0], "TRUE" ) == 0 ) {
-
+syslog( LOG_DEBUG, "simta_ldap_process_entry: on vacation" );
 
 		if ( (uid = ldap_get_values( ld, entry, "uid" )) != NULL ) {
 		    snprintf( buf, sizeof (buf), "%s@%s", uid[0], vacationhost);
@@ -1244,9 +1245,12 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 		    syslog( LOG_ERR, "user without a uid on vacation (%s)",
 				 addr );
 	    	}
+	    } else {
+syslog( LOG_DEBUG, "simta_ldap_process_entry: not on vacation" );
 	    }
-	    if (onvacation)
+	    if ( onvacation ) {
 		ldap_value_free( onvacation );
+	    }
 	}
 
 	return (LDAP_EXCLUDE);
