@@ -236,7 +236,7 @@ env_infile( struct envelope *e, char *dir )
 
     if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_open %s: %m", filename );
-	return( -1 );
+	return( 1 );
     }
 
     /* get efile modification time */

@@ -376,10 +376,6 @@ smtp_send( SNET *snet, struct envelope *env, SNET *message,
 	return( SMTP_ERR_SYNTAX );
     }
 
-    env->e_failed = 0;
-    env->e_tempfail = 0;
-    env->e_success = 0;
-
     /* RCPT TO: */
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	if ( snet_writef( snet, "RCPT TO: %s\r\n", r->r_rcpt ) < 0 ) {

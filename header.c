@@ -42,6 +42,7 @@ struct line_token {
     struct line		*t_end_line;
 };
 
+
 char	*token_domain_literal ___P(( char * ));
 char	*token_quoted_string ___P(( char * ));
 char	*token_dot_atom ___P(( char * ));

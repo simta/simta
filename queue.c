@@ -46,12 +46,23 @@
 #include "smtp.h"
 #include "simta.h"
 
-int	simta_queued_messages;
+/* GLOBAL VARS */
+int			simta_queued_messages;
 struct host_q		*null_queue;
 struct stab_entry	*simta_bad_efiles;
 
-void	host_stab_stdout ___P(( void * ));
-void	q_file_stab_stdout ___P(( void * ));
+/* LOCAL FUNCTIONS */
+void		host_stab_stdout ___P(( void * ));
+void		host_q_stdout ___P(( struct host_q * ));
+void		q_file_stab_stdout ___P(( void * ));
+void		q_file_free ___P(( struct q_file * ));
+struct q_file	*q_file_env ___P(( struct envelope * ));
+struct host_q	*host_q_create ___P(( char * ));
+struct host_q	*host_q_lookup ___P(( struct stab_entry **, char * )); 
+int		efile_time_compare ___P(( void *, void * ));
+int		bounce ___P(( struct envelope *, SNET * ));
+int		deliver ___P(( struct host_q * ));
+int		resolv_null_q ___P(( struct host_q * ));
 
 
     void
@@ -222,7 +233,7 @@ host_q_lookup( struct stab_entry **host_stab, char *host )
 	    return( NULL );
 	}	
 
-	/* XXX DNS test for local queues */
+	/* XXX DNS test for local queues more than gethostname? */
 	if ( strcasecmp( localhostname, hq->hq_name ) == 0 ) {
 	    hq->hq_status = HOST_LOCAL;
 
@@ -237,6 +248,29 @@ host_q_lookup( struct stab_entry **host_stab, char *host )
     return( hq );
 }
 
+
+    /* syslog errors
+     * return -1 on syserror
+     * return 0 on success
+     */
+
+    int
+resolv_null_q( struct host_q *hq )
+{
+    struct stab_entry		*qs;
+    struct q_file		*q;
+    struct envelope		*unexpanded;
+
+    for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
+	q = (struct q_file*)qs->st_data;
+	unexpanded = q->q_env;
+	/* XXX Address lookup needed for unexpanded envelope */
+    }
+
+    /* XXX re-queue to appropriate host queues */
+
+    return( 0 );
+}
 
 
     int
@@ -270,7 +304,7 @@ deliver( struct host_q *hq )
 	}
 
     } else if ( hq->hq_status == HOST_REMOTE ) {
-	/* XXX send only to terminator (or alias rsug), for now */
+	/* XXX DEBUG send only to terminator (or alias rsug), for now */
 	if (( strcasecmp( hq->hq_name, "terminator.rsug.itd.umich.edu" ) != 0 )
 		&& ( strcasecmp( hq->hq_name, "rsug.itd.umich.edu" ) != 0 )) {
 	    return( 0 );
@@ -302,7 +336,7 @@ deliver( struct host_q *hq )
 		errno = 0;
 		syslog( LOG_WARNING, "deliver: missing Dfile: %s",
 			dfile_fname );
-		q->q_action = Q_IGNORE;
+		q->q_action = Q_REMOVE;
 		continue;
 
 	    } else {
@@ -326,7 +360,7 @@ deliver( struct host_q *hq )
 	    return( -1 );
 	}
 
-	/* XXX consider Dfiles old if they're over 3 days? */
+	/* consider Dfiles old if they're over 3 days */
 	if (( tv.tv_sec - q->q_dtime.tv_sec ) > ( 60 * 60 * 24 * 3 )) {
 	    q->q_env->e_old_dfile = 1;
 	}
@@ -423,6 +457,7 @@ deliver( struct host_q *hq )
 			syslog( LOG_ERR, "close: %m" );
 			return( -1 );
 		    }
+		    /* XXX do something if remote host is fucked up? */
 		    return( 0 );
 
 		} else if ( result == SMTP_ERR_MAIL_LOOP ) {
@@ -432,11 +467,11 @@ deliver( struct host_q *hq )
 			return( -1 );
 		    }
 
-		    syslog( LOG_ALERT, "Hostname %s is not a remote host",
+		    syslog( LOG_ALERT, "Mail loop detected: "
+			    "Hostname %s is not a remote host",
 			    hq->hq_name );
 
 		    hq->hq_status = HOST_MAIL_LOOP;
-		    /* XXX deliver_bounce( hq ); */
 		    return( 0 );
 		}
 	    }
@@ -446,7 +481,14 @@ deliver( struct host_q *hq )
 		return( -1 );
 
 	    } else if ( result == SMTP_ERR_SYNTAX ) {
-		/* XXX error case? */
+		if ( env_touch( q->q_env ) != 0 ) {
+		    return( -1 );
+		}
+
+		q->q_action = Q_REORDER;
+
+		/* XXX message not sent, break? */
+		break;
 	    }
 
 	    sent++;
@@ -546,19 +588,11 @@ deliver( struct host_q *hq )
 	    simta_queued_messages--;
 	    hq->hq_entries--;
 
-	} else if ( q->q_action == Q_IGNORE ) {
-
-	    qs_remove = *qclean;
-	    *qclean = (*qclean)->st_next;
-	    qs_remove->st_next = simta_bad_efiles;
-	    simta_bad_efiles = qs_remove;
-	    simta_queued_messages--;
-	    hq->hq_entries--;
-
 	} else if ( q->q_action == Q_REORDER ) {
 
 	    qs_remove = *qclean;
 	    *qclean = (*qclean)->st_next;
+	    q->q_action = 0;
 
 	    if ( ll__insert( &(hq->hq_qfiles), q, efile_time_compare ) != 0 ) {
 		syslog( LOG_ERR, "ll__insert: %m" );
@@ -595,6 +629,7 @@ q_runner( int mode )
     struct q_file		*q;
     struct envelope		*env;
     struct host_q		*hq;
+    struct host_q		*deliver_q;
     struct stab_entry		*host_stab = NULL;
     struct stab_entry		*hs;
     struct stab_entry		*bad;
@@ -647,25 +682,10 @@ q_runner( int mode )
 
 	    /* organize Efiles by host and modification time */
 	    if ( *entry->d_name == 'E' ) {
-		/* check to see if this is a known bad efile */
-		for ( bad = simta_bad_efiles; bad != NULL;
-			bad = bad->st_next ) {
-		    q = (struct q_file*)bad->st_data;
-
-		    if ( strcmp( entry->d_name + 1, q->q_id ) == 0 ) {
-			break;
-		    }
-		}
-
-		if ( bad != NULL ) {
-		    continue;
-		}
-
 		if (( env = env_create( entry->d_name + 1 )) == NULL ) {
 		    return( EX_TEMPFAIL );
 		}
 
-		/* XXX what if file's not there? */
 		if (( result = env_infile( env, dir )) < 0 ) {
 		    /* syserror */
 		    return( EX_TEMPFAIL );
@@ -681,8 +701,6 @@ q_runner( int mode )
 		    return( EX_TEMPFAIL );
 		}
 
-		/* XXX DNS lookup if q->q_expanded == NULL? */
-
 		if (( hq = host_q_lookup( &host_stab, q->q_expanded ))
 			== NULL ) {
 		    return( EX_TEMPFAIL );
@@ -696,7 +714,7 @@ q_runner( int mode )
 
 		hq->hq_entries++;
 
-		/* XXX DEBUG */
+		/* XXX DEBUG: remove when null queue can be processed */
 		if ( null_queue != hq ) {
 		    simta_queued_messages++;
 		}
@@ -726,18 +744,22 @@ q_runner( int mode )
 	     *           needs to be generated.
 	     */
 
+	    deliver_q = NULL;
+
 	    for ( hs = host_stab; hs != NULL; hs = hs->st_next ) {
 		hq = (struct host_q*)hs->st_data;
 
 		if ( hq->hq_status == HOST_NULL ) {
-		    /* XXX NULL host queue.  Add DNS code */
+		    continue;
 
 		} else if (( hq->hq_status == HOST_LOCAL ) ||
 			( hq->hq_status == HOST_REMOTE )) {
-		    deliver( hq );
+		    /* XXX sort by entries */
+		    hq->hq_next = deliver_q;
+		    deliver_q = hq;
 
 		} else if ( hq->hq_status == HOST_MAIL_LOOP ) {
-		    /* XXX deliver_bounce( hq ); */
+		    /* XXX bounce all MAIL_LOOPed hosts */
 
 		} else {
 		    /* big error */
@@ -746,11 +768,22 @@ q_runner( int mode )
 		}
 	    }
 
+	    /* resolve DNS for NULL queue */
+	    if ( resolv_null_q( null_queue ) != 0 ) {
+		return( EX_TEMPFAIL );
+	    }
+
+	    while ( deliver_q != NULL ) {
+		if ( deliver( deliver_q ) != 0 ) {
+		    return( EX_TEMPFAIL );
+		}
+
+		deliver_q = deliver_q->hq_next;
+	    }
+
 	    /* loop until all messages in all host queues are gone */
 	    if ( simta_queued_messages == 0 ) {
 		break;
-	    } else {
-printf( "messages: %d\n", simta_queued_messages );
 	    }
 	}
 
@@ -775,6 +808,9 @@ bounce( struct envelope *env, SNET *message )
     int				line_no = 0;
     char			*line;
     struct q_file		*q;
+    time_t			clock;
+    struct tm			*tm;
+    char			daytime[ 35 ];
 
     if (( bounce_env = env_create( NULL )) == NULL ) {
 	return( -1 );
@@ -809,13 +845,36 @@ bounce( struct envelope *env, SNET *message )
 	goto cleanup;
     }
 
-    /* XXX headers */
-    fprintf( dfile, "Headers\n" );
-    fprintf( dfile, "\n" );
+    if ( time( &clock ) < 0 ) {
+	syslog( LOG_ERR, "time: %m" );
+	close( dfile_fd );
+	goto cleanup;
+    }
 
+    if (( tm = localtime( &clock )) == NULL ) {
+	syslog( LOG_ERR, "localtime: %m" );
+	close( dfile_fd );
+	goto cleanup;
+    }
+
+    if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
+	    == 0 ) {
+	syslog( LOG_ERR, "strftime: %m" );
+	close( dfile_fd );
+	goto cleanup;
+    }
+
+    /* XXX From: address */
+    fprintf( dfile, "Date: %s\n", daytime );
+    fprintf( dfile, "Message-ID: %s\n", env->e_id );
+
+    /* XXX bounce message */
     fprintf( dfile, "Your mail was bounced.\n" );
     fprintf( dfile, "\n" );
 
+    /* XXX mail loop message? */
+
+    /* XXX oldfile message */
     if ( env->e_old_dfile != 0 ) {
 	fprintf( dfile, "It was over three days old.\n" );
 	fprintf( dfile, "\n" );

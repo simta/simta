@@ -180,7 +180,6 @@ main( int argc, char *argv[] )
 
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {
-	/* XXX check argv[ x ] for correct email address syntax? */
 	if ( env_recipient( env, argv[ x ] ) != 0 ) {
 	    perror( "malloc" );
 	    exit( EX_TEMPFAIL );
