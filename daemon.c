@@ -5,6 +5,7 @@
 
 #include "config.h"
 
+#include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -410,6 +411,12 @@ main( ac, av )
 	    exit( 1 );
 	}
 
+	/* we're debugging under linux */
+	if ( prctl( PR_SET_DUMPABLE, 1, 0, 0, 0 ) != 0 ) {
+	    perror( "prctl" );
+	    exit( 1 );
+	}
+
 	exit( q_runner_dir( simta_dir_slow ));
     }
 
@@ -495,6 +502,12 @@ main( ac, av )
     /* set our uid */
     if ( setuid( simta_pw->pw_uid ) != 0 ) {
 	perror( "setuid" );
+	exit( 1 );
+    }
+
+    /* we're debugging under linux */
+    if ( prctl( PR_SET_DUMPABLE, 1, 0, 0, 0 ) != 0 ) {
+	perror( "prctl" );
 	exit( 1 );
     }
 
