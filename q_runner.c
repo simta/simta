@@ -44,6 +44,7 @@ struct stab_entry       *hosts = NULL;
 main( int argc, char *argv[] )
 {
     char			*dir;
+    char			localhost[ MAXHOSTNAMELEN ];
 
     if ( argc != 2 ) {
 	fprintf( stderr, "Usage: %s ( LOCAL | SLOW )\n", argv[ 0 ]);
@@ -62,6 +63,16 @@ main( int argc, char *argv[] )
     }
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
+
+    if ( gethostname( localhost, MAXHOSTNAMELEN + 1 ) !=0 ) {
+	perror( "gethostname" );
+	exit( 1 );
+    }
+
+    /* Add localhost to hosts list */
+    if ( simta_config_host( &hosts, localhost ) != 0 ) {
+	exit( 1 );
+    }
 
     return( q_runner_dir( dir ));
 }
