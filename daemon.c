@@ -143,7 +143,7 @@ chld( sig )
 		break;
 
 	    case EXIT_FAST_FILE:
-		syslog( LOG_ERR, "chld %d exited %d: fast file error", pid, s );
+		syslog( LOG_ERR, "chld %d: fast file error", pid );
 		exit( 1 );
 
 	    default:
@@ -154,14 +154,16 @@ chld( sig )
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "chld %d died on signal %d", pid,
 		    WTERMSIG( status ));
+	    exit( 1 );
 
 	} else {
 	    syslog( LOG_ERR, "chld %d died", pid );
+	    exit( 1 );
 	}
     }
 
     if ( pid < 0 && errno != ECHILD ) {
-	syslog( LOG_ERR, "wait3: %m" );
+	syslog( LOG_ERR, "chld wait3: %m" );
 	exit( 1 );
     }
 
@@ -259,6 +261,7 @@ main( ac, av )
 	    break;
 
 	case 'q' :
+	    /* q_runner option: just run slow queue */
 	    q_run++;
 	    break;
 
@@ -469,6 +472,7 @@ main( ac, av )
     }
 
     /* close the log fd gracefully before we daemonize */
+    /* XXX do this after setgid and setuid for error logging purposes? */
     closelog();
 
     /* set our gid */
@@ -564,11 +568,24 @@ main( ac, av )
     tv_launch.tv_sec = 0;
     tv_launch.tv_usec = 0;
 
+    /* main daemon loop */
     for (;;) {
 	if ( simsendmail_signal != 0 ) {
 	    simsendmail_signal = 0;
 
 	    if ( q_runner_local < q_runner_local_max ) {
+		if (( p = (struct proc_type*)malloc(
+			sizeof( struct proc_type ))) == NULL ) {
+		    syslog( LOG_ERR, "malloc: %m" );
+		    continue;
+		}
+		memset( &p, 0, sizeof( struct proc_type ));
+
+		p->p_type = Q_LOCAL;
+		p->p_next = proc_stab;
+		proc_stab = p;
+		q_runner_local++;
+
 		switch ( pid = fork()) {
 		case 0 :
 		    close( s );
@@ -576,15 +593,15 @@ main( ac, av )
 		    /* reset USR1, CHLD and HUP */
 		    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
 			syslog( LOG_ERR, "sigaction: %m" );
-			exit( 1 );
+			exit( EXIT_OK );
 		    }
 		    if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
 			syslog( LOG_ERR, "sigaction: %m" );
-			exit( 1 );
+			exit( EXIT_OK );
 		    }
 		    if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
 			syslog( LOG_ERR, "sigaction: %m" );
-			exit( 1 );
+			exit( EXIT_OK );
 		    }
 
 		    exit( q_runner_dir( simta_dir_local ));
@@ -594,18 +611,8 @@ main( ac, av )
 		    break;
 
 		default :
-		    if (( p = (struct proc_type*)malloc(
-			    sizeof( struct proc_type ))) == NULL ) {
-			syslog( LOG_ERR, "malloc: %m" );
-			exit( 1 );
-		    }
-
-		    p->p_id = pid;
-		    p->p_type = Q_LOCAL;
-		    p->p_next = proc_stab;
-		    proc_stab = p;
-
 		    syslog( LOG_INFO, "q_runner_dir.local child %d", pid );
+		    p->p_id = pid;
 		    break;
 		}
 	    }
@@ -617,35 +624,49 @@ main( ac, av )
 	if ( select( s + 1, &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
 	    if ( errno != EINTR ) {
 		syslog( LOG_ERR, "select: %m" );
-		exit( 1 );
+	    }
 
-	    } else {
-		if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-		    syslog( LOG_ERR, "gettimeofday: %m" );
-		    exit( 1 );
-		}
-
-		if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec )
-			< 1 ) {
-		    tv_sleep.tv_sec = 1;
-		}
-		tv_sleep.tv_usec = 0;
-
+	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+		syslog( LOG_ERR, "gettimeofday: %m" );
 		continue;
 	    }
+
+	    if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec )
+		    < 1 ) {
+		tv_sleep.tv_sec = 1;
+	    }
+	    tv_sleep.tv_usec = 0;
+
+	    continue;
 	}
 
 	/* check to see if we need to launch q_runner_dir( simta_dir_slow ) */
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "gettimeofday: %m" );
-	    exit( 1 );
+	    continue;
 	}
 
 	if (( tv_now.tv_sec > tv_launch.tv_sec ) ||
 		(( tv_now.tv_sec == tv_launch.tv_sec ) &&
 		( tv_now.tv_usec >= tv_launch.tv_usec ))) {
+
+	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
+	    tv_launch.tv_usec = tv_now.tv_usec;
+
 	    /* launch q_runner */
 	    if ( q_runner_slow < q_runner_slow_max ) {
+		if (( p = (struct proc_type*)malloc(
+			sizeof( struct proc_type ))) == NULL ) {
+		    syslog( LOG_ERR, "malloc: %m" );
+		    continue;
+		}
+		memset( &p, 0, sizeof( struct proc_type ));
+
+		p->p_type = Q_SLOW;
+		p->p_next = proc_stab;
+		proc_stab = p;
+		q_runner_slow++;
+
 		switch ( pid = fork()) {
 		case 0 :
 		    close( s );
@@ -653,15 +674,15 @@ main( ac, av )
 		    /* reset USR1, CHLD and HUP */
 		    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
 			syslog( LOG_ERR, "sigaction: %m" );
-			exit( 1 );
+			exit( EXIT_OK );
 		    }
 		    if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
 			syslog( LOG_ERR, "sigaction: %m" );
-			exit( 1 );
+			exit( EXIT_OK );
 		    }
 		    if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
 			syslog( LOG_ERR, "sigaction: %m" );
-			exit( 1 );
+			exit( EXIT_OK );
 		    }
 
 		    exit( q_runner_dir( simta_dir_slow ));
@@ -671,24 +692,11 @@ main( ac, av )
 		    break;
 
 		default :
-		    if (( p = (struct proc_type*)malloc(
-			    sizeof( struct proc_type ))) == NULL ) {
-			syslog( LOG_ERR, "malloc: %m" );
-			exit( 1 );
-		    }
-
 		    p->p_id = pid;
-		    p->p_type = Q_SLOW;
-		    p->p_next = proc_stab;
-		    proc_stab = p;
-
 		    syslog( LOG_INFO, "q_runner_dir.slow child %d", pid );
 		    break;
 		}
 	    }
-
-	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
-	    tv_launch.tv_usec = tv_now.tv_usec;
 
 	    /* XXX continue, or check to see if FD_ISSET? */
 	    continue;
@@ -711,22 +719,35 @@ main( ac, av )
 	    }
 
 	    /* start child */
-	    switch ( c = fork()) {
+	    if (( p = (struct proc_type*)malloc(
+		    sizeof( struct proc_type ))) == NULL ) {
+		syslog( LOG_ERR," malloc: %m" );
+		continue;
+	    }
+	    memset( &p, 0, sizeof( struct proc_type ));
+
+	    connections++;
+	    p->p_type = SIMTA_CHILD;
+	    p->p_next = proc_stab;
+	    proc_stab = p;
+
+	    switch ( pid = fork()) {
+
 	    case 0 :
 		close( s );
 
 		/* reset USR1, CHLD and HUP */
 		if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
 		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
-		    exit( 1 );
+		    exit( EXIT_OK );
 		}
 		if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
 		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
-		    exit( 1 );
+		    exit( EXIT_OK );
 		}
 		if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
 		    syslog( LOG_ERR, "daemon.receive sigaction: %m" );
-		    exit( 1 );
+		    exit( EXIT_OK );
 		}
 
 		receive( fd, &sin );
@@ -738,7 +759,6 @@ main( ac, av )
 			    simta_fast_files );
 		    exit( EXIT_FAST_FILE );
 		}
-
 		exit( EXIT_OK );
 
 	    case -1 :
@@ -753,21 +773,9 @@ main( ac, av )
 		break;
 
 	    default :
-		connections++;
-
-		if (( p = (struct proc_type*)malloc(
-			sizeof( struct proc_type ))) == NULL ) {
-		    syslog( LOG_ERR," malloc: %m" );
-		    /* XXX - should we exit or break? */
-		    break;
-		}
-		p->p_id = c;
-		p->p_type = SIMTA_CHILD;
-		p->p_next = proc_stab;
-		proc_stab = p;
-
+		p->p_id = pid;
 		close( fd );
-		syslog( LOG_INFO, "receive child %d for %s", c,
+		syslog( LOG_INFO, "receive child %d for %s", pid,
 			inet_ntoa( sin.sin_addr ));
 		break;
 	    }
