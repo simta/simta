@@ -54,6 +54,10 @@ extern SSL_CTX	*ctx;
 #include "line_file.h"
 #include "header.h"
 
+#ifdef HAVE_LDAP
+#include "simta_ldap.h"
+#endif
+
 extern char		*version;
 struct host_q		*hq_receive = NULL;
 struct sockaddr_in  	*receive_sin;
