@@ -28,14 +28,18 @@ extern SSL_CTX  *ctx;
 
 /* -1	non-recoverable error
  *  0	success
- *  1	no MX record
+ *  1	no record
  */
+
+extern int	simta_debug;
 
     int
 get_mx( DNSR *dnsr, char *host )
 {
     int                 i;
     int			dnsr_error;
+
+    if ( simta_debug ) fprintf( stderr, "get_mx: %s\n", host );
 
     /* Check for MX of address */
     if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host, &dnsr_error ))
@@ -45,9 +49,11 @@ get_mx( DNSR *dnsr, char *host )
     }
 
     /* Check for vaild result */
+    if ( simta_debug ) fprintf( stderr, "dnsr_result ( mx ): " );
     if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
 	if (( dnsr_error == DNSR_ERROR_NAME )
 		|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
+	    if ( simta_debug ) fprintf( stderr, "no MX\n" );
 
 	    /* No MX - Check for A of address */
 	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host,
@@ -55,9 +61,11 @@ get_mx( DNSR *dnsr, char *host )
 		syslog( LOG_ERR, "dnsr_query %s failed", host );
 		return( -1 );
 	    }
+	    if ( simta_debug ) fprintf( stderr, "dnsr_result ( a ): " );
 	    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
 		if (( dnsr_error == DNSR_ERROR_NAME )
 			|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
+		    if ( simta_debug ) fprintf( stderr, "no a\n" );
 		    return( 1 );
 		} else {
 		    syslog( LOG_ERR, "dnsr_query %s failed", host );
@@ -65,11 +73,13 @@ get_mx( DNSR *dnsr, char *host )
 		}
 	    }
 	} else {
+	    if ( simta_debug ) fprintf( stderr, "failed\n" );
 	    syslog( LOG_ERR, "dnsr_query %s failed", host );
 	    return( -1 );
 	}
 
     } else {
+	if ( simta_debug ) fprintf( stderr, "found MX\n" );
 
         /* Check for valid A record in MX */
         /* XXX - Should we search for A if no A returned in MX? */

@@ -213,7 +213,7 @@ f_mail( snet, env, ac, av )
      * "RSET".
      */
 
-    if ( ac != 2) {
+    if ( ac != 2 ) {
     	/* XXX handle MAIL FROM:<foo> AUTH=bar */
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
 	return( 1 );
@@ -249,12 +249,23 @@ f_mail( snet, env, ac, av )
 		451 );
 	    return( -1 );
 	}
-	if ( get_mx( dnsr, domain ) != 0 ) {
+	switch ( get_mx( dnsr, domain )) {
+	case -1:
+	    /* System error */
 	    snet_writef( snet,
-		"%d Requested action aborted: local error in processing.\r\n",
+		"%d Requested action aborted: local error in processing\r\n",
 		451 );
 	    return( -1 );
+
+	case 1:
+	    /* No valid DNS */
+	    snet_writef( snet, "%d Can't verify address\r\n", 451 );
+	    return( 1 );
+
+	default:
+	    break;
 	}
+
     }
 
     if ( env->e_mail != NULL ) {
@@ -355,11 +366,21 @@ f_rcpt( snet, env, ac, av )
 		451 );
 	    return( -1 );
 	}
-	if ( get_mx( dnsr, domain ) != 0 ) {
+	switch ( get_mx( dnsr, domain )) {
+	case -1:
+	    /* System error */
 	    snet_writef( snet,
-		"%d-2 Requested action aborted: local error in processing.\r\n",
+		"%d Requested action aborted: local error in processing\r\n",
 		451 );
 	    return( -1 );
+
+	case 1:
+	    /* No valid DNS */
+	    snet_writef( snet, "%d Can't verify address\r\n", 451 );
+	    return( 1 );
+
+	default:
+	    break;
 	}
     }
 
