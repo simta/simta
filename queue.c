@@ -849,15 +849,21 @@ smtp_cleanup:
 		    switch ( smtp_error ) {
 		    default:
 		    case SMTP_ERROR:
-			syslog( LOG_DEBUG, "q_deliver %s: calling smtp_quit",
-				env_deliver->e_id );
-			smtp_quit( snet_smtp, hq );
+			if ( snet_eof( snet_smtp ) != 0 ) {
+			    syslog( LOG_DEBUG, "q_deliver %s: call smtp_quit",
+				    env_deliver->e_id );
+			    smtp_quit( snet_smtp, hq );
+			}
 
 		    case SMTP_BAD_CONNECTION:
+			syslog( LOG_DEBUG, "q_deliver %s: call snet_close",
+				env_deliver->e_id );
 			if ( snet_close( snet_smtp ) < 0 ) {
 			    syslog( LOG_ERR, "snet_close: %m" );
 			}
 			snet_smtp = NULL;
+			syslog( LOG_DEBUG, "q_deliver %s: done snet_close",
+				env_deliver->e_id );
 		    }
 		}
 	    }

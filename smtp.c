@@ -224,7 +224,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     case '4':
 	hq->hq_status = HOST_BOUNCE;
     default:
-	syslog( LOG_NOTICE, "smtp_connect %s bad SMTP banner: %s",
+	syslog( LOG_NOTICE, "smtp_connect %s: bad connection banner: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
 		"Bad SMTP connection banner" )) == SMTP_OK ) {
@@ -243,7 +243,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     }
     if ( *remote_host == '\0' ) {
 	hq->hq_status = HOST_BOUNCE;
-	syslog( LOG_NOTICE, "smtp_connect %s: bad SMTP banner, "
+	syslog( LOG_NOTICE, "smtp_connect %s: bad connection banner, "
 		"expecting remote hostname: %s", hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
 		"SMTP connection banner: No remote hostname" )) == SMTP_OK ) {
@@ -327,7 +327,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     default:
 	hq->hq_status = HOST_BOUNCE;
     case '4':
-	syslog( LOG_NOTICE, "smtp_connect %s bad SMTP banner: %s",
+	syslog( LOG_NOTICE, "smtp_connect %s bad HELO response: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
 		"Bad SMTP HELO reply" )) == SMTP_OK ) {
@@ -393,8 +393,8 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     switch ( *line ) {
     case '2':
 	if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' )) {
-	    syslog( LOG_INFO, "smtp_send %s MAIL FROM <s> OK",
-		    hq->hq_hostname );
+	    syslog( LOG_INFO, "smtp_send %s MAIL FROM <%s> OK",
+		    hq->hq_hostname, "NULL" );
 	} else {
 	    syslog( LOG_INFO, "smtp_send %s MAIL FROM <%s> OK",
 		    hq->hq_hostname, env->e_mail );
@@ -411,7 +411,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	break;
 
     default:
-	syslog( LOG_NOTICE, "smtp_send %s bad SMTP banner: %s",
+	syslog( LOG_NOTICE, "smtp_send %s bad MAIL FROM reply: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(env->e_err_text), snet, &tv, line,
 		"Bad SMTP MAIL FROM banner" )) == SMTP_OK ) {
@@ -420,7 +420,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 	return( smtp_result );
 
     case '4':
-	syslog( LOG_NOTICE, "smtp_send %s bad SMTP banner: %s",
+	syslog( LOG_NOTICE, "smtp_send %s bad MAIL FROM banner: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
 		"Bad SMTP MAIL FROM reply" )) == SMTP_OK ) {
@@ -558,7 +558,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
     default:
 	env->e_flags = ENV_BOUNCE;
     case '4':
-	syslog( LOG_NOTICE, "smtp_send %s: bad SMTP banner: %s",
+	syslog( LOG_NOTICE, "smtp_send %s: bad DATA reply: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(env->e_err_text), snet, &tv, line,
 		"Bad DATA banner" )) == SMTP_OK ) {
@@ -642,7 +642,7 @@ smtp_send( SNET *snet, struct host_q *hq, struct envelope *env, SNET *message )
 
     default:
 	env->e_flags = ENV_BOUNCE;
-	syslog( LOG_NOTICE, "smtp_send %s: bad SMTP banner: %s",
+	syslog( LOG_NOTICE, "smtp_send %s: bad DATA_EOF reply: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(env->e_err_text), snet, &tv, line,
 		"Bad DATA banner" )) != SMTP_OK ) {
@@ -707,7 +707,7 @@ smtp_rset( SNET *snet, struct host_q *hq )
 
     default:
 	hq->hq_status = HOST_BOUNCE;
-	syslog( LOG_NOTICE, "smtp_rset %s bad SMTP banner: %s",
+	syslog( LOG_NOTICE, "smtp_rset %s bad RSET reply: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
 		"Bad SMTP RSET reply" )) == SMTP_OK ) {
@@ -771,7 +771,7 @@ smtp_quit( SNET *snet, struct host_q *hq )
 	return;
 
     default:
-	syslog( LOG_NOTICE, "smtp_quit %s bad SMTP banner: %s",
+	syslog( LOG_NOTICE, "smtp_quit %s bad QUIT reply: %s",
 		hq->hq_hostname, line );
 	if (( smtp_result = smtp_grab( &(hq->hq_err_text), snet, &tv, line,
 		"Bad SMTP QUIT reply" )) == SMTP_OK ) {
