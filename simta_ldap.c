@@ -87,7 +87,7 @@ LDAP				*ld = NULL;
 
 static char			*ldap_host;
 static int			ldap_port;
-static int			ldap_timeout;
+static struct timeval		ldap_timeout = { LDAP_TIMEOUT_VAL, 0};
 static int			starttls;
 static char			*binddn;
 static char			*bindpw;
@@ -363,7 +363,6 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
     char	*search_dn;    
     LDAPMessage *res;
     LDAPMessage	*entry;
-    struct timeval timeout = {0, 0};
 
     char	*dn;
     char	**vals;
@@ -372,14 +371,12 @@ add_errdnvals (struct expand *exp, struct exp_addr *e_addr, char ** expdnvals)
     int		match;
     int		rc;
 
-    timeout.tv_sec = ldap_timeout;
-
     for (idx = 0; expdnvals[idx]; idx++)
     {
 	search_dn = expdnvals[idx];
 	res = NULL;
 	rc = ldap_search_st( ld, search_dn, LDAP_SCOPE_BASE, "(objectclass=*)",
-                        attrs, 0, &timeout, &res );
+                        attrs, 0, &ldap_timeout, &res );
      
 	if ( rc != LDAP_SUCCESS
 	&&   rc != LDAP_SIZELIMIT_EXCEEDED
@@ -658,10 +655,8 @@ simta_local_search (char ** attrs, char * user, char * domain, int *count)
     char		*search_string;
     struct ldap_search_list *lds;
     LDAPMessage		*res;
-    struct timeval	timeout = {0, 0};
     int			rc;
 
-    timeout.tv_sec = ldap_timeout;
     *count = 0;
     /* for each base string in ldap_searches:
      *     - Build search string
@@ -676,7 +671,7 @@ simta_local_search (char ** attrs, char * user, char * domain, int *count)
 	res = NULL;
 	rc = ldap_search_st( ld, lds->lds_plud->lud_dn, 
 			lds->lds_plud->lud_scope, search_string, attrs, 0, 
-			&timeout, &res );
+			&ldap_timeout, &res );
 	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
 	    syslog( LOG_ERR, 
 	"simta_local_search: ldap_search_st Failed: %s", ldap_err2string(rc ));
@@ -1295,9 +1290,6 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
     LDAPMessage		*res;
     LDAPMessage		*entry;
     struct ldap_search_list             *lds;
-    struct timeval      timeout = {0, 0};
-
-    timeout.tv_sec = ldap_timeout;
 
     /* for each base string in ldap_searches:
      *    If this search string is of the specified addrtype:
@@ -1317,7 +1309,7 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
 	res = NULL;
 	rc = ldap_search_st( ld, lds->lds_plud->lud_dn,
 			lds->lds_plud->lud_scope, search_string, 
-			attrs, 0, &timeout, &res );
+			attrs, 0, &ldap_timeout, &res );
 
 	if ( rc != LDAP_SUCCESS && rc != LDAP_SIZELIMIT_EXCEEDED ) {
 
@@ -1435,13 +1427,11 @@ simta_ldap_dn_expand (struct expand *exp, struct exp_addr *e_addr )
     int			match;
     LDAPMessage		*res;
     LDAPMessage		*entry;
-    struct timeval      timeout = {0, 0};
 
-    timeout.tv_sec = ldap_timeout;
     search_dn = e_addr->e_addr;
     res = NULL;
     rc = ldap_search_st( ld, search_dn, LDAP_SCOPE_BASE, "(objectclass=*)", 
-			attrs, 0, &timeout, &res );
+			attrs, 0, &ldap_timeout, &res );
 
     if ( rc != LDAP_SUCCESS 
     &&   rc != LDAP_SIZELIMIT_EXCEEDED 
@@ -1609,16 +1599,16 @@ simta_mbx_compare ( char * firstemail, char * secondemail)
 simta_ldap_config( char *fname )
 {
     int			lineno = 0;
-    int			fd;
+    int			fd = 0;
     char		*line;
     char		*linecopy	= NULL;
-    SNET		*snet;
+    SNET		*snet		= NULL;
     char		*c;
     struct ldap_search_list **lds;
     struct list		*l_new;
     struct list		**add;
 
-    ACAV		*acav;		/* config file tokenizing stuff */
+    ACAV		*acav	= NULL;	/* config file tokenizing stuff */
     char		**av;
     int			ac;
     int			acidx;
@@ -1629,29 +1619,27 @@ simta_ldap_config( char *fname )
     LDAPURLDesc		*plud;		/* a parsed ldapurl */
     int			rdnpref;	
     int			search_type;
-    int			rc;		/* universal return code */
+    int			ldaprc;		/* ldap return code */
 
     /* open fname */
     if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
-	fprintf( stderr, "simta_ldap_config open %s: ", fname );
-	perror( NULL );
-	return( -1 );
+	syslog ( LOG_ERR, "simta_ldap_config open %s: %m", fname );
+	goto errexit;
     }
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
-	perror( "simta_ldap_config snet_attach" );
-	return( -1 );
+	syslog ( LOG_ERR, "simta_ldap_config: snet_attach: %m" );
+	goto errexit;
     }
 
     if (( acav = acav_alloc( )) == NULL ) {
-	fprintf (stderr, "acav_alloc error:\n" );
-	return ( -1 );
+	syslog ( LOG_ERR, "simta_ldap_config: acav_alloc error" );
+	goto errexit;
     }	
 
     for ( lds = &ldap_searches; *lds != NULL; lds = &((*lds)->lds_next))
     	    ;
 
-    
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	lineno++;
 	if ( line[0] == '#' || line[0] == '\0' ) {
@@ -1665,28 +1653,29 @@ simta_ldap_config( char *fname )
         linecopy = strdup (line);
 
 	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
-	    acav_free (acav);
-	    fprintf( stderr, "acav_parse returned -1");
-	    return (-1);
+	    syslog ( LOG_ERR, "simta_ldap_config: acav_parse returned -1");
+	    goto errexit;
 	}	    
 
 	if (( strcasecmp( av[ 0 ], "uri" ) == 0 ) ||
 	    ( strcasecmp( av[ 0 ], "url" ) == 0 )) {
 	    if (ac < 2) {
-		fprintf( stderr, "Missing uri: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "simta_ldap_config: Missing uri\n" );
+		goto errexit;
 	    }
 
- 	    if ( ldap_is_ldap_url( av[ 1 ] ) != 0 ) {
+ 	    if ( ldap_is_ldap_url( av[ 1 ] ) == 0 ) {
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "uri not an ldap uri\n" );
+		goto errexit;
+	    } else {
 
                 /* Parse the URL */
-		rc = ldap_url_parse( av[ 1 ], &plud );
-
-		if (rc != LDAP_URL_SUCCESS)
-		{
-		    fprintf (stderr, 
-		"ldap_url_parse parse error: %d for line: %s\n", rc, linecopy);
-		    continue;
+		if ((ldaprc = ldap_url_parse( av[ 1 ], &plud )) != LDAP_URL_SUCCESS){ 
+		    syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		    syslog ( LOG_ERR, "ldap_url_parse parse error: %d\n", ldaprc);
+		    goto errexit;
 		}
 		
 		rdnpref = FALSE;
@@ -1707,29 +1696,32 @@ simta_ldap_config( char *fname )
 			    search_type = LDS_USER;
 			}
 			else
-			    fprintf (stderr,
-				"Unknown Searchtype in url: %d\n", lineno);
+		    	    ldap_free_urldesc (plud);
+		    	    syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		    	    syslog ( LOG_ERR, "Unknown Searchtype in url\n");
+		    	    goto errexit;
 		    }
-		    else 
-		        fprintf (stderr,
-				    "Unknown extension in URL: %d\n", lineno);
+		    else {
+			ldap_free_urldesc (plud);
+		    	syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		    	syslog ( LOG_ERR, "Unknown extension in url\n");
+		    	goto errexit;
+		    }
 		    acidx++;
 		}
 
 		if (( *lds = (struct ldap_search_list *)malloc
 			    ( sizeof( struct ldap_search_list ))) == NULL ) { 
-		    perror( "malloc" ); 
-		    acav_free( acav );
+		    syslog ( LOG_ERR, "ldap_search_list malloc error: %m" ); 
 		    ldap_free_urldesc (plud);
-		    return( -1 );
+		    goto errexit;
 		}
 		memset( *lds, 0, sizeof( struct ldap_search_list ));
 
 		if (((*lds)->lds_string = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-   		    acav_free( acav );
+		    syslog ( LOG_ERR, "ldap_search_list strdup error: %m" ); 
 		    ldap_free_urldesc (plud);
-		    return( -1 );
+		    goto errexit;
 		}
 
 		(*lds)->lds_plud = plud;
@@ -1739,231 +1731,253 @@ simta_ldap_config( char *fname )
 
 		lds = &((*lds)->lds_next);
 
-	    } else {
-		fprintf( stderr, "uri not an ldap uri: %s\n", linecopy );
 	    }
-
 	} else if ( strcasecmp( av[ 0 ], "attributes" ) == 0 ) {
 	    if (ac < 2) {
-		fprintf( stderr, "Missing attribute value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing attribute value(s)\n");
+		goto errexit;
 	    }
-            if (attrs = (char **) calloc ( (unsigned) ac , sizeof (char *)) == NULL) { 
-		perror( "calloc attrs");
-		acav_free( acav );
-		return( -1 );
+            if ((attrs = (char **) calloc ( (unsigned) ac , sizeof (char *))) == NULL) { 
+		syslog ( LOG_ERR, "ac calloc error: %m" ); 
+		goto errexit;
 	    }
 	    
 	    for (acidx = 1, attridx = 0; acidx < ac; acidx++, attridx++) {
 		attrs[attridx] = strdup (av[ acidx ]);
 		if (attrs[attridx] == NULL) {
-		    perror( "strdup attrs" );
-		    free (attrs);
-		    acav_free( acav );
+		    syslog ( LOG_ERR, "ac calloc error: %m" ); 
+		    goto errexit;
 		    return( -1 );
 		}
 	    }
 	} else if ( strcasecmp( av[ 0 ], "host" ) == 0 ) { 
 	    if (ac != 2) {
-		fprintf( stderr, "Missing host value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing host value\n");
+		goto errexit;
 	    }
-	    ldap_host = strdup ( av[ 1 ] );
+	    if ((ldap_host = strdup ( av[ 1 ] )) == NULL) {
+		syslog ( LOG_ERR, "host strdup error: %m" ); 
+		goto errexit;
+		return( -1 );
+	    } 
 
 	} else if ( strcasecmp( av[ 0 ], "port" ) == 0 ) {
 	    if (ac != 2) {
-		fprintf( stderr, "Missing port value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing port value\n");
+		goto errexit;
 	    }
 	    ldap_port = atoi (av[ 1 ]);
 	    
 	} else if ( strcasecmp( av[ 0 ], "timeout" ) == 0 ) {
 	    if (ac != 2) {
-		fprintf( stderr, "Missing timeout value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing timeout value\n");
+		goto errexit;
 	    }
-	    ldap_timeout = atoi (av[ 1 ]);
+	    ldap_timeout.tv_sec = atoi (av[ 1 ]);
+	    ldap_timeout.tv_usec = 0;
 	    
 	} else if ( strcasecmp( av[ 0 ], "ldapdebug" ) == 0 ) {
 	    if (ac != 2) {
-		fprintf( stderr, "Missing ldapdebug value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing ldapdebug value\n");
+		goto errexit;
 	    }
 	    ldapdebug = atoi (av[ 1 ]);
 	    
 	} else if ( strcasecmp( av[ 0 ], "starttls" ) == 0 ) {
 	    if (ac != 2) {
-		fprintf( stderr, "Missing starttls value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing starttls value\n");
+		goto errexit;
 	    }
 	    intval = atoi (av[ 1 ]);
 	    if (intval < 0 || intval > 2) {
-		fprintf( stderr, "Invalid starttls value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Invalid starttls value\n");
+		goto errexit;
 	    }
 	    starttls = intval;
 	    
 	} else if (( strcasecmp( av[ 0 ], "bindpw" ) == 0 ) ||
 		   ( strcasecmp( av[ 0 ], "bindpassword" ) == 0 )) {
 	    if (ac != 2) {
-		fprintf( stderr, "Missing bindpw/bindpassword value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing bindpw/bindpassword value\n");
+		goto errexit;
 	    }
-	    bindpw = strdup ( av[ 1 ] );
+	    if ((bindpw = strdup ( av[ 1 ] )) == NULL) {
+		syslog ( LOG_ERR, "bindpw strdup error: %m" ); 
+		goto errexit;
+		return( -1 );
+	    } 
 
 	} else if ( strcasecmp( av[ 0 ], "binddn" ) == 0 ) {
 	
 	    if (ac != 2) {
-		fprintf( stderr, "Missing binddn value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing binddn/bindpassword value\n");
+		goto errexit;
 	    }
-	    binddn = strdup ( av[ 1 ] );
+	    if ((binddn = strdup ( av[ 1 ] )) == NULL) {
+		syslog ( LOG_ERR, "binddn strdup error: %m" ); 
+		goto errexit;
+		return( -1 );
+	    } 
 	    
 	} else if (( strcasecmp( av[ 0 ], "oc" ) == 0 ) ||
 		   ( strcasecmp( av[ 0 ], "objectclass" ) == 0 )) {
 	    
 	    if (ac != 3) {
-		fprintf( stderr, "Missing objectclass parameter: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing objectclass value\n");
+		goto errexit;
 	    }
 
-	    add = NULL;
 
 	    if ( strcasecmp( av[ 1 ], "person" ) == 0 ) {
 		add = &ldap_people;
-
 	    } else if ( strcasecmp( av[ 1 ], "group" ) == 0 ) {
 		add = &ldap_groups;
-	    }
-
-	    if ( add == NULL ) {
-		fprintf( stderr, "Unknown objectclass type: %s\n", linecopy );
 	    } else {
-		/* av [ 2] is a objectclass name */
-
-		if (( l_new = (struct list*)
-			malloc( sizeof( struct list ))) == NULL ) {
-		    perror( "malloc" );
-    		    acav_free( acav );
-		    return( -1 );
-		}
-		memset( l_new, 0, sizeof( struct list ));
-
-		if (( l_new->l_string = (char*)strdup (av [ 2 ])) == NULL ) {
-		    perror( "strdup" );
-    		    acav_free( acav );
-		    return( -1 );
-		}
-	
-		l_new->l_next = *add;
-		*add = l_new;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Unknown objectclass type\n");
+		goto errexit;
 	    }
+
+	    /* av [ 2] is a objectclass name */
+
+	    if (( l_new = (struct list*) malloc( sizeof( struct list ))) == NULL ) {
+		syslog ( LOG_ERR, "list malloc error: %m" ); 
+		goto errexit;
+	    }
+	    memset( l_new, 0, sizeof( struct list ));
+
+	    if (( l_new->l_string = (char*)strdup (av [ 2 ])) == NULL ) {
+		syslog ( LOG_ERR, "list strdup error: %m" ); 
+		goto errexit;
+	    }
+	
+	    l_new->l_next = *add;
+	    *add = l_new;
 
 	} else if ( strcasecmp( av[ 0 ], "mailforwardingattr" ) == 0 ) {
 
 	    if (ac != 2) {
-		fprintf( stderr, "Missing mailforwardingattr value: %s\n", 
-				linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing mailforwardingattr value\n");
+		goto errexit;
 	    }
 		  
 	    if (mailfwdattr) {
-		fprintf( stderr, 
-		"Overwriting previous mailforwarding attr: %s with %s\n",
-			mailfwdattr, av [ 1 ]);
-
-		free (mailfwdattr); 
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Multiple mailforwarding attributes\n");
+		goto errexit;
 	    }
 
 	    if (( mailfwdattr = (char*)strdup (av [ 1 ])) == NULL ) {
-		perror( "strdup" );
-		acav_free( acav );
-		return( -1 );
+		syslog ( LOG_ERR, "mailfwdattr strdup error: %m" ); 
+		goto errexit;
 	    }
 	} else if ( strcasecmp( av[ 0 ], "vacationhost" ) == 0 ) {
 
 	    if (ac != 2) {
-		fprintf( stderr, "Missing vacationhost value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing vacationhost value\n");
+		goto errexit;
 	    }
 		  
 	    if (vacationhost) {
-		fprintf( stderr, 
-			"Overwriting previous vacation host: %s with %s\n",
-			vacationhost, av [ 1 ]);
-
-		free (vacationhost); 
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Multiple vacationhost attributes\n");
+		goto errexit;
 	    }
 
 	    if (( vacationhost = (char*)strdup (av [ 1 ])) == NULL ) {
-		perror( "strdup" );
-		acav_free( acav );
-		return( -1 );
+		syslog ( LOG_ERR, "vacationhost strdup error: %m" ); 
+		goto errexit;
 	    }
 	} else if ( strcasecmp( av[ 0 ], "vacationattr" ) == 0 ) {
 
 	    if (ac != 2) {
-		fprintf( stderr, "Missing vacationattr value: %s\n", linecopy );
-		continue;
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Missing vacationattr value\n");
+		goto errexit;
 	    }
 		  
 	    if (vacationattr) {
-		fprintf( stderr, 
-		"Overwriting previous vacation attribute name: %s with %s\n",
-			vacationattr, av [ 1 ]);
-
-		free (vacationattr); 
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Multiple vacationattr attributes\n");
+		goto errexit;
 	    }
 
 	    if (( vacationattr = (char*)strdup (av [ 1 ])) == NULL ) {
-		perror( "strdup" );
-		acav_free( acav );
-		return( -1 );
+		syslog ( LOG_ERR, "vacationattr strdup error: %m" ); 
+		goto errexit;
 	    }
 	} else {
-	    fprintf( stderr, "Unknown simta/ldap config option: %s\n", linecopy );
+	    syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+	    syslog ( LOG_ERR, "Unknown simta/ldap config option\n");
+	    goto errexit;
 	}
     }
-    if (linecopy) 	
-	free (linecopy);
-
-    acav_free( acav );
-
-    if ( snet_close( snet ) != 0 ) {
-	perror( "nlist snet_close" );
-	return( -1 );
-    }
-
     /* check to see that ldap is configured correctly */
 
     if ( ldap_people == NULL ) {
-	fprintf( stderr, "%s: No ldap people\n", fname );
-	return( 1 );
+        syslog ( LOG_ERR, "No ldap people objectclass specified\n");
+	goto errexit;
     }
-
     if ( ldap_searches == NULL ) {
-	fprintf( stderr, "%s: No ldap searches\n", fname );
-	return( 1 );
+        syslog ( LOG_ERR, "No ldap searches specified\n");
+	goto errexit;
     }
     if (! ldap_host) {
-        fprintf( stderr, "No ldap server specified in initial uri\n");
-	return (1);
+        syslog ( LOG_ERR, "No ldap server specified\n");
+	goto errexit;
     }
     if (ldap_port <= 0) {
 	ldap_port = 389;
     }
-
-    if (ldap_timeout <= 0) {
-	ldap_timeout = LDAP_TIMEOUT_VAL;
+    if (ldap_timeout.tv_sec <= 0) {
+	ldap_timeout.tv_sec = LDAP_TIMEOUT_VAL;
+	ldap_timeout.tv_usec = 0;
     }
-
     if (!mailfwdattr) {
 	mailfwdattr = strdup ("mail");
-	fprintf( stderr, "Defaulting mailfwdattr to \'mail\'\n");
+	syslog ( LOG_ERR, "Defaulting mailforwardingaddress to \'mail\'" ); 
     }
-
     if (attrs == NULL)
 	attrs = allattrs;
-    
-    return( 0 );
+
+    return (0);
+
+errexit:    
+    if (linecopy) {
+	free (linecopy);
+    }
+    if ( acav ){
+	acav_free( acav );
+    }
+    if (snet ) {
+	if (snet_close( snet ) != 0 ) {
+	    syslog(LOG_ERR, "simta_ldap_config: snet_close %m" );
+	}
+    }
+    if (fd) {
+	if (close (fd)) {
+	    syslog(LOG_ERR, "simta_ldap_config: Config file close %m" );
+	}
+    }    
+    if (vacationhost) {
+	free (vacationhost);
+	vacationhost = NULL;
+    }
+    if (vacationattr) {
+	free (vacationattr);
+	vacationattr = NULL;
+    }
+    return( -1 );
 }
