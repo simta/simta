@@ -59,6 +59,7 @@ struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
 struct host		*simta_default_host = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
 int			simta_strict_smtp_syntax = 1;
 int			simta_dns_config = 1;

@@ -113,7 +113,6 @@ main( int ac, char **av )
     struct timeval	tv_launch;
     struct servent	*se;
     int			pid;
-    int			cleanup = 1;
     int			launch_seconds;
     int			q_runner_local_max;
     int			q_runner_slow_max;
@@ -185,7 +184,7 @@ main( int ac, char **av )
     opterr = 1;
     optind = 1;
 
-    while (( c = getopt( ac, av, " ab:cdD:f:Im:M:p:qrRs:Vw:x:y:z:" )) != -1 ) {
+    while (( c = getopt( ac, av, " ab:cCdD:f:Im:M:p:qrRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
 	    simta_strict_smtp_syntax = 0;
@@ -201,6 +200,10 @@ main( int ac, char **av )
 
 	case 'c' :		/* check config files */
 	    dontrun++;
+	    break;
+
+	case 'C' :		/* clean up directories */
+	    simta_filesystem_cleanup++;
 	    break;
 
 	case 'd':
@@ -446,12 +449,6 @@ main( int ac, char **av )
 	    perror( "ftruncate" );
 	    exit( 1 );
 	}
-
-	if ( cleanup != 0 ) {
-	    if ( q_cleanup() != 0 ) {
-		exit( 1 );
-	    }
-	}
     }
 
     /* close the log fd gracefully before we daemonize */
@@ -519,6 +516,14 @@ main( int ac, char **av )
 #else /* ultrix */
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
+
+    if ( q_cleanup() != 0 ) {
+	exit( 1 );
+    }
+
+    if ( simta_filesystem_cleanup != 0 ) {
+	exit( 0 );
+    }
 
     if ( q_run != 0 ) {
 	exit( q_runner_dir( simta_dir_slow ));

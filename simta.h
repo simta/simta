@@ -32,6 +32,7 @@
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
+extern int				simta_filesystem_cleanup;
 extern int				sitma_smtp_extension;
 extern int				simta_strict_smtp_syntax;
 extern int				simta_no_sync;

@@ -30,9 +30,18 @@
 #include "envelope.h"
 #include "simta.h"
 
+#define	INCOMPLETE_T		1
+#define	STRANDED_D		2
+
+struct file_list {
+    struct file_list		*f_next;
+    char			*f_name;
+};
+
 int	q_cleanup_child( void );
 int	q_clean( char *, struct envelope ** );
 int	move_to_slow( struct envelope **, struct envelope **);
+int	file_list_add( struct file_list **, int, char *, char * );
 
 
     int
@@ -266,7 +275,9 @@ q_clean( char *dir, struct envelope **messages )
     struct envelope		*env;
     struct envelope		**env_p;
     int				result;
-    int				fatal = 0;
+    int				bad_filesystem = 0;
+    struct file_list		*f_list = NULL;
+    struct file_list		*f;
 
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_clean opendir %s: %m", dir );
@@ -278,13 +289,6 @@ q_clean( char *dir, struct envelope **messages )
 
     /* start from scratch */
     *messages = NULL;
-
-    /*
-     * foreach file in dir:
-     *	    - ignore "." && ".."
-     *	    - add message info for "D*" || "E*"
-     *	    - warn anything else
-     */
 
     while (( entry = readdir( dirp )) != NULL ) {
 	/* ignore "." and ".." */
@@ -334,9 +338,21 @@ q_clean( char *dir, struct envelope **messages )
 		env->e_flags = env->e_flags | ENV_DFILE;
 	    }
 
+	} else if (( simta_filesystem_cleanup ) && ( *entry->d_name == 't' )) {
+	    syslog( LOG_NOTICE, "q_clean incomplete t file: %s/%s\n", dir,
+		    entry->d_name );
+	    if ( bad_filesystem != 0 ) {
+		/* Keep track of stranded t files */
+		if ( file_list_add( &f_list, INCOMPLETE_T, dir, entry->d_name )
+			!= 0 ) {
+		    return( 1 );
+		}
+	    }
+
 	} else {
-	    /* not a Efile or Dfile */
-	    syslog( LOG_ERR, "q_clean unknown file: %s/%s\n", dir,
+	    /* unknown file */
+	    bad_filesystem++;
+	    syslog( LOG_WARNING, "q_clean unknown file: %s/%s\n", dir,
 		    entry->d_name );
 	}
     }
@@ -347,32 +363,106 @@ q_clean( char *dir, struct envelope **messages )
 	return( 1 );
     }
 
-    /*
-     * foreach message in messages:
-     *	    - warn Efile no Dfile, and refuse to run
-     *	    - warn Dfile no Efile
-     */
-
     for ( env_p = messages; *env_p != NULL; ) {
 	env = *env_p;
 
 	if (( env->e_flags & ENV_DFILE ) == 0 ) {
 	    syslog( LOG_ALERT, "q_clean: %s/E%s: Missing Dfile\n", dir,
 		    env->e_id );
-	    fatal++;
+	    bad_filesystem++;
 	    *env_p = env->e_next;
 	    env_free( env );
 
 	} else if (( env->e_flags & ENV_EFILE ) == 0 ) {
 	    syslog( LOG_ALERT, "q_clean %s/D%s: Missing Efile\n", dir,
 		    env->e_id );
-	    *env_p = env->e_next;
-	    env_free( env );
+	    if ( simta_filesystem_cleanup ) {
+		if ( bad_filesystem != 0 ) {
+		    if ( file_list_add( &f_list, STRANDED_D, dir, env->e_id )
+			    != 0 ) {
+			return( 1 );
+		    }
+		}
+
+	    } else {
+		bad_filesystem++;
+		*env_p = env->e_next;
+		env_free( env );
+	    }
 
 	} else {
 	    env_p = &((*env_p)->e_next);
 	}
     }
 
-    return( fatal );
+    while ( f_list != NULL ) {
+	f = f_list;
+	f_list = f->f_next;
+
+	if (( simta_filesystem_cleanup ) && ( bad_filesystem == 0 )) {
+	    syslog( LOG_NOTICE, "q_cleanup: unlinking %s", f->f_name );
+	    if ( unlink( f->f_name ) != 0 ) {
+		syslog( LOG_ERR, "q_cleanup: unlink %s: %m", f->f_name );
+		return( 1 );
+	    }
+	}
+
+	free( f->f_name );
+	free( f );
+    }
+
+    return( bad_filesystem );
+}
+
+
+    int
+file_list_add( struct file_list **f_list, int mode, char *dir, char *f_id )
+{
+    struct file_list		*f;
+    size_t			len;
+
+    switch ( mode ) {
+    case STRANDED_D:
+	len = strlen( dir ) + strlen( f_id ) + 3;
+	break;
+
+    case INCOMPLETE_T:
+	len = strlen( dir ) + strlen( f_id ) + 2;
+	break;
+
+    default:
+	syslog( LOG_ERR, "file_list_add: unknown mode" );
+	return( 1 );
+    }
+
+    if (( f = (struct file_list*)malloc( sizeof( struct file_list )))
+	    == NULL ) {
+	syslog( LOG_ERR, "file_list_add malloc: %m" );
+	return( 1 );
+    }
+    memset( f, 0, sizeof( struct file_list ));
+
+    if (( f->f_name = (char*)malloc( len )) == NULL ) {
+	syslog( LOG_ERR, "file_list_add malloc: %m" );
+	return( 1 );
+    }
+
+    switch ( mode ) {
+    case STRANDED_D:
+	sprintf( f->f_name, "%s/D%s", dir, f_id );
+	break;
+
+    case INCOMPLETE_T:
+	sprintf( f->f_name, "%s/%s", dir, f_id );
+	break;
+
+    default:
+	syslog( LOG_ERR, "file_list_add: unknown mode" );
+	return( 1 );
+    }
+
+    f->f_next = *f_list;
+    *f_list = f;
+
+    return( 0 );
 }
