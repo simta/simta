@@ -27,8 +27,8 @@ struct envelope {
     ino_t		e_dinode;
     int			e_flags;
     struct timespec	e_last_attempt;
+    char		*e_hostname;
     char		e_id[ ENV_ID_LENGTH + 1 ];
-    char		e_hostname[ MAXHOSTNAMELEN + 1 ];
 };
 
 #define ENV_ON_DISK		(1<<1)
@@ -49,6 +49,7 @@ int		env_gettimeofday_id( struct envelope * );
 int		env_set_id( struct envelope *, char * );
 int		env_recipient( struct envelope *, char * );
 int		env_sender( struct envelope *, char * );
+int		env_hostname( struct envelope *, char * );
 int		env_outfile( struct envelope * );
 int		env_touch( struct envelope * );
 int		env_slow( struct envelope * );

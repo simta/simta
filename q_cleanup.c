@@ -155,7 +155,7 @@ q_cleanup_child( void )
 	    }
 
 	    if (( *env_p != NULL ) && ( env->e_dinode == (*env_p)->e_dinode )) {
-		if ((*env_p)->e_hostname == 0 ) {
+		if ((*env_p)->e_hostname == NULL ) {
 		    /* unexpanded message in queue, delete current message */
 		    if ( env_unlink( env ) != 0 ) {
 			syslog( LOG_ERR, "q_cleanup_child env_unlink %s: %m",
@@ -165,7 +165,7 @@ q_cleanup_child( void )
 		    env_free( env );
 		    continue;
 
-		} else if (*(env->e_hostname) == '\0' ) {
+		} else if ( env->e_hostname == NULL ) {
 		    /* have unexpanded message, delete queued messages */
 		    do {
 			e_delete = *env_p;

@@ -186,6 +186,25 @@ env_rcpt_free( struct envelope *env )
 
 
     int
+env_hostname( struct envelope *env, char *hostname )
+{
+    if ( env->e_hostname != NULL ) {
+	syslog( LOG_ERR, "env_hostname: %s already has a hostname", env->e_id );
+	return( 1 );
+    }
+
+    if (( hostname != NULL ) && ( *hostname != '\0' )) {
+	if (( env->e_hostname = strdup( hostname )) == NULL ) {
+	    syslog( LOG_ERR, "env_hostname strdup: %m" );
+	    return( 1 );
+	}
+    }
+
+    return( 0 );
+}
+
+
+    int
 env_sender( struct envelope *env, char *e_mail )
 {
     if ( env->e_mail != NULL ) {
@@ -220,6 +239,11 @@ env_reset( struct envelope *env )
 	    env->e_err_text = NULL;
 	}
 
+	if ( env->e_hostname != NULL ) {
+	    free( env->e_hostname );
+	    env->e_hostname = NULL;
+	}
+
 	env_rcpt_free( env );
 
 	*env->e_id = '\0';
@@ -250,7 +274,7 @@ env_syslog( struct envelope *e )
     }
 
     syslog( LOG_DEBUG, "message %s rcpt %d host %s",
-	    e->e_id, count, e->e_hostname );
+	    e->e_id, count, e->e_hostname ? e->e_hostname : "NULL" );
 }
 
     void
@@ -264,7 +288,7 @@ env_stdout( struct envelope *e )
 	printf( "Message-Id:\t%s\n", e->e_id );
     }
 
-    if ( *e->e_hostname == '\0' ) {
+    if ( e->e_hostname == NULL ) {
 	printf( "expanded NULL\n" );
     } else {
 	printf( "expanded %s\n", e->e_hostname );
@@ -371,7 +395,7 @@ env_outfile( struct envelope *e )
     }
 
     /* Hdestination-host */
-    if (( *e->e_hostname != '\0' ) && ( e->e_dir != simta_dir_dead )) {
+    if (( e->e_hostname != NULL ) && ( e->e_dir != simta_dir_dead )) {
 	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	    goto cleanup;
@@ -438,7 +462,7 @@ env_outfile( struct envelope *e )
     }
 
     syslog( LOG_DEBUG, "env_outfile %s %s %s", e->e_dir, e->e_id,
-	    e->e_hostname );
+	    e->e_hostname ? e->e_hostname : "" );
 
     e->e_flags |= ENV_ON_DISK;
 
@@ -553,12 +577,9 @@ env_read_queue_info( struct envelope *e )
 
     hostname = line + 1;
 
-    if ( strlen( hostname ) > MAXHOSTNAMELEN ) {
-	syslog( LOG_ERR, "env_read_queue_info %s: hostname too long", fname );
+    if ( env_hostname( e, hostname ) != 0 ) {
 	goto cleanup;
     }
-
-    strcpy( e->e_hostname, hostname );
 
     /* Ffrom-address */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
@@ -666,16 +687,16 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 
     hostname = line + 1;
 
-    if ( strlen( hostname ) > MAXHOSTNAMELEN ) {
-	syslog( LOG_ERR, "env_read_queue_info %s: hostname too long",
-		filename );
-	goto cleanup;
-    }
-
-    if ( strcmp( hostname, env->e_hostname ) != 0 ) {
+    if (( env->e_hostname == NULL ) && ( *hostname != '\0' )) {
 	syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
 		filename );
 	goto cleanup;
+    } else {
+	if ( strcmp( hostname, env->e_hostname ) != 0 ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
+		    filename );
+	    goto cleanup;
+	}
     }
 
     /* Ffrom-address */

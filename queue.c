@@ -131,7 +131,7 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 	simta_null_q->hq_status = HOST_NULL;
     }
 
-    if ( *hostname == '\0' ) {
+    if ( hostname == NULL ) {
 	return( simta_null_q );
     }
 

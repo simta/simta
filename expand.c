@@ -115,8 +115,11 @@ eo_insert( struct expand_output **eo_list, struct envelope *env )
 	return( 1 );
     }
 
+    if (( e_new->eo_hostname = env->e_hostname ) == NULL ) {
+	e_new->eo_hostname = "";
+    }
+
     e_new->eo_from = env->e_mail;
-    e_new->eo_hostname = env->e_hostname;
     e_new->eo_env = env;
     e_new->eo_next = *eo_list;
     *eo_list = e_new;
@@ -298,7 +301,10 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    /* fill in env */
 	    if ( domain != NULL ) {
 		env->e_dir = simta_dir_fast;
-		strncpy( env->e_hostname, domain, MAXHOSTNAMELEN );
+		if ( env_hostname( env, domain ) != 0 ) {
+		    env_free( env );
+		    goto cleanup2;
+		}
 	    } else {
 		env->e_dir = simta_dir_dead;
 		env_dead = env;
@@ -317,7 +323,8 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	}
 
 	syslog( LOG_NOTICE, "expand: recipient %s added to env %s for host %s",
-		p->st_key, env->e_id, env->e_hostname );
+		p->st_key, env->e_id,
+		env->e_hostname ? env->e_hostname : "NULL" );
     }
 
     sprintf( d_original, "%s/D%s", unexpanded_env->e_dir,
@@ -352,7 +359,8 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
 	    syslog( LOG_NOTICE, "expand %s: writing %s %s",
-		    unexpanded_env->e_id, env->e_id, env->e_hostname );
+		    unexpanded_env->e_id, env->e_id,
+		    env->e_hostname ? env->e_hostname : "NULL" );
 	    if ( env_outfile( env ) != 0 ) {
 		/* env_outfile syslogs errors */
 		if ( unlink( d_out ) != 0 ) {
