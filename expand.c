@@ -253,6 +253,7 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 
 	} else {
 	    env_stdout( env_p );
+	    printf( "\n" );
 	}
     }
 
