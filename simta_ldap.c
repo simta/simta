@@ -1120,12 +1120,24 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 
 	for ( idx = 0; dnvals[ idx ] != NULL; idx++ ) {
 	    ndn = dn_normalize_case (dnvals[ idx ]); 
-	    if ( add_address( exp, ndn,
-			e_addr->e_addr_errors, ADDRESS_TYPE_LDAP) != 0 ) {
-		syslog (LOG_ERR,
-			"simta_ldap_expand_group: %s failed adding: %s", dn,
-			mailvals[ idx ]);
-		break;
+	    if ( *(e_addr->e_addr_from) == '\0' ) {
+		if ( add_address( exp, ndn,
+			    e_addr->e_addr_errors, ADDRESS_TYPE_LDAP,
+			    e_addr->e_addr_from ) != 0 ) {
+		    syslog (LOG_ERR,
+			    "simta_ldap_expand_group: %s failed adding: %s", dn,
+			    mailvals[ idx ]);
+		    break;
+		}
+	    } else {
+		if ( add_address( exp, ndn,
+			    e_addr->e_addr_errors, ADDRESS_TYPE_LDAP,
+			    XXX_ERRORS_TO_ADDRESS ) != 0 ) {
+		    syslog (LOG_ERR,
+			    "simta_ldap_expand_group: %s failed adding: %s", dn,
+			    mailvals[ idx ]);
+		    break;
+		}
 	    }
 	}
 	ldap_value_free( dnvals);
