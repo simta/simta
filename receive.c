@@ -64,6 +64,7 @@ char			*receive_hello = NULL;
 #define	RECEIVE_QUIT		0x0001
 #define	RECEIVE_SYSERROR	0x0010
 #define	RECEIVE_BADCONNECTION	0x0100
+#define	RECEIVE_LINE_LENGTH	0x1000
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -407,6 +408,8 @@ f_rcpt( snet, env, ac, av )
 	return( RECEIVE_OK );
     }
 
+    /* XXX check address for validity here */
+
     /* rfc 2821 3.7
      * SMTP servers MAY decline to act as mail relays or to
      * accept addresses that specify source routes.  When route information
@@ -496,8 +499,8 @@ f_rcpt( snet, env, ac, av )
 
 	default:
 	    dnsr_free_result( result );
-	    if ( snet_writef( snet, "%d User not local; please try <%s>\r\n",
-		    551, addr ) < 0 ) {
+	    if ( snet_writef( snet, "551 User not local; please try <%s>\r\n",
+		    addr ) < 0 ) {
 		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		return( RECEIVE_BADCONNECTION );
 	    }
@@ -576,19 +579,19 @@ f_data( snet, env, ac, av )
     char			*av[];
 {
     struct timeval			tv;
-    char		*line;
-    int			err = RECEIVE_OK;
-    int			dfile_fd;
-    time_t		clock;
-    struct tm		*tm;
-    FILE		*dff;
-    char		dfile_fname[ MAXPATHLEN + 1 ];
-    char		daytime[ 30 ];
-    struct line_file	*lf = NULL;
-    struct line		*l;
-    int			header = 1;
-    int			line_no = 0;
-    struct stat		sbuf;
+    char				*line;
+    int					err = RECEIVE_OK;
+    int					dfile_fd;
+    time_t				clock;
+    struct tm				*tm;
+    FILE				*dff;
+    char				dfile_fname[ MAXPATHLEN + 1 ];
+    char				daytime[ 30 ];
+    struct line_file			*lf = NULL;
+    struct line				*l;
+    int					header = 1;
+    int					line_no = 0;
+    struct stat				sbuf;
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -644,7 +647,12 @@ f_data( snet, env, ac, av )
 	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "f_data close: %m" );
 	}
-	goto cleanup;
+
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+
+	return( RECEIVE_SYSERROR );
     }
 
     clock = time( &clock );
@@ -662,17 +670,11 @@ f_data( snet, env, ac, av )
 	    daytime, tz( tm )) < 0 ) {
 	syslog( LOG_ERR, "f_data fprintf: %m" );
 	err = RECEIVE_SYSERROR;
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
-	}
 	goto cleanup;
     }
 
     if (( lf = line_file_create()) == NULL ) {
 	err = RECEIVE_SYSERROR;
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose %s: %m", dfile_fname );
-	}
 	goto cleanup;
     }
 
@@ -680,9 +682,6 @@ f_data( snet, env, ac, av )
 	    354 ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
 	err = RECEIVE_BADCONNECTION;
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
-	}
 	goto cleanup;
     }
 
@@ -713,8 +712,8 @@ f_data( snet, env, ac, av )
 	 *     Service Extensions.
 	 */
 
-	if ( strlen( line > 1000 )) {
-	    /* XXX reject message based on line length? */
+	if ( strlen( line ) > 1000 ) {
+	    err = RECEIVE_LINE_LENGTH;
 	}
 
 	if ( header == 1 ) {
@@ -725,18 +724,10 @@ f_data( snet, env, ac, av )
 		    if ( header_file_out( lf, dff ) != 0 ) {
 			syslog( LOG_ERR, "f_data header_file_out: %m" );
 			err = RECEIVE_SYSERROR;
-
-			if ( fclose( dff ) != 0 ) {
-			    syslog( LOG_ERR, "f_data fclose: %m" );
-			}
 		    } else {
 			if ( fprintf( dff, "%s\n", line ) < 0 ) {
 			    syslog( LOG_ERR, "f_data fprintf: %m" );
 			    err = RECEIVE_SYSERROR;
-
-			    if ( fclose( dff ) != 0 ) {
-				syslog( LOG_ERR, "f_data fclose: %m" );
-			    }
 			}
 		    }
 		}
@@ -749,9 +740,6 @@ f_data( snet, env, ac, av )
 		    if (( l = line_append( lf, line )) == NULL ) {
 			syslog( LOG_ERR, "f_data line_append: %m" );
 			err = RECEIVE_SYSERROR;
-			if ( fclose( dff ) != 0 ) {
-			    syslog( LOG_ERR, "f_data fclose: %m" );
-			}
 		    } else {
 			l->line_no = line_no;
 		    }
@@ -763,9 +751,6 @@ f_data( snet, env, ac, av )
 		if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		    syslog( LOG_ERR, "f_data fprintf: %m" );
 		    err = RECEIVE_SYSERROR;
-		    if ( fclose( dff ) != 0 ) {
-			syslog( LOG_ERR, "f_data fclose: %m" );
-		    }
 		}
 	    }
 	}
@@ -778,9 +763,6 @@ f_data( snet, env, ac, av )
 	    if ( header_file_out( lf, dff ) != 0 ) {
 		syslog( LOG_ERR, "f_data header_file_out: %m" );
 		err = RECEIVE_SYSERROR;
-		if ( fclose( dff ) != 0 ) {
-		    syslog( LOG_ERR, "f_data fclose: %m" );
-		}
 	    }
 	}
     }
@@ -791,9 +773,6 @@ f_data( snet, env, ac, av )
     if ( line == NULL ) {	/* EOF */
 	syslog( LOG_INFO, "f_data %s: connection dropped", env->e_id );
 	err = RECEIVE_BADCONNECTION;
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data f_close: %m" );
-	}
     }
 
     if ( err != 0 ) {
@@ -841,6 +820,10 @@ f_data( snet, env, ac, av )
     return( RECEIVE_OK );
 
 cleanup:
+    if ( fclose( dff ) != 0 ) {
+	syslog( LOG_ERR, "f_data fclose: %m" );
+    }
+
     if ( lf != NULL ) {
 	line_file_free( lf );
     }
@@ -848,7 +831,18 @@ cleanup:
     if ( unlink( dfile_fname ) < 0 ) {
 	syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
     }
-    return( err );
+
+    switch ( err ) {
+    default:
+	return( err );
+
+    case RECEIVE_LINE_LENGTH:
+	if ( snet_writef( snet, "554 line too long\r\n" ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_BADCONNECTION );
+	}
+	return( RECEIVE_OK );
+    }
 }
 
     int
@@ -1138,6 +1132,7 @@ smtp_receive( fd, sin )
 	}
     }
 
+    ctl_domain = hostname;
     *ctl_domain = '\0';
 
     if (( rc = check_reverse( &simta_dnsr, hostname,
