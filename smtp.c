@@ -89,6 +89,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 #ifdef DEBUG
 	printf( "dnsr is broke\n" );
 #endif /* DEBUG */
+	syslog( LOG_ERR, "smtp_connect: get_mx: dnsr returned illegal value" );
 	return( SMTP_ERR_SYSCALL );
     }
 
