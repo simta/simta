@@ -732,8 +732,8 @@ cleanup:
             }
 
 	    /* move message to SLOW if it isn't there already */
-	    if ( strcmp( env.e_dir, simta_dir_slow ) != 0 ) {
-		env_slow( &env );
+	    if ( env_slow( &env ) != 0 ) {
+		return( -1 );
 	    }
         } 
 
