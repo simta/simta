@@ -550,6 +550,14 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
+    /* ignore SIGPIPE */
+    memset( &sa, 0, sizeof( struct sigaction ));
+    sa.sa_handler = SIG_IGN;
+    if ( sigaction( SIGPIPE, &sa, NULL ) < 0 ) {
+	syslog( LOG_ERR, "sigaction: %m" );
+	exit( 1 );
+    }
+
     syslog( LOG_NOTICE, "restart %s", version );
 
     /*
