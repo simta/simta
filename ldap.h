@@ -14,14 +14,16 @@ struct list {
 };
 
 /* return codes for ldap_expand */
-#define LDAP_FINAL		1
-#define LDAP_EXCLUDE		2
-#define LDAP_NOT_FOUND		3
-#define LDAP_SYSERROR		4
+#define LDAP_SYSERROR		1
+#define LDAP_NOT_FOUND		2
+#define LDAP_FINAL		3
+#define LDAP_EXCLUDE		4
 int	ldap_expand ___P(( char *, struct recipient *, struct stab_entry **,
 		struct stab_entry ** ));
 
-/* ldap_address_local should return ADDRESS_LOCAL or ADDRESS_NOT_LOCAL */
+/* return codes for ldap_address_local */
+#define LDAP_LOCAL		2
+#define LDAP_NOT_LOCAL		3
 int	ldap_address_local ___P(( char * ));
 
 /* Public functions */

@@ -144,8 +144,20 @@ address_local( char *addr )
 #ifdef HAVE_LDAP
 	} else if ( strcmp( i->st_key, "ldap" ) == 0 ) {
 	    /* Check LDAP */
-	    if ( ldap_address_local( addr ) == ADDRESS_LOCAL ) {
-		*at = '@';
+	    *at = '@';
+
+	    switch ( ldap_address_local( addr ) == ADDRESS_LOCAL ) {
+	    default:
+		syslog( LOG_ERR,
+			"address_local ldap_address_local: bad return value" );
+	    case LDAP_SYSERROR:
+		return( ADDRESS_SYSERROR );
+
+	    case LDAP_NOT_LOCAL:
+		*at = '\0';
+		continue;
+
+	    case LDAP_LOCAL:
 		return( ADDRESS_LOCAL );
 	    }
 #endif /* HAVE_LDAP */
