@@ -64,7 +64,6 @@ e* LDAP attribute names
 **             It is also the default attribute list if no attribute
 **             config file directive found.
 */
-static char	*noattrs[] =  {LDAP_NO_ATTRS, NULL};
 static char	*allattrs[] = {"*", NULL};
 
 static char     **attrs     = NULL;
@@ -627,7 +626,6 @@ simta_ldap_address_local( char *name, char *domain )
     char	*pname;
     int		nametype;
     int		rc;
-    int		fcnrc = LDAP_LOCAL;
     int		count = 0;		/* Number of ldap entries found */
 
     char			*search_string;
