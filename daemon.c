@@ -159,6 +159,7 @@ main( ac, av )
     int			reuseaddr = 1;
     int			pid;
     int			pidfd;
+    int			q_run = 0;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
     char		*cryptofile = NULL;
@@ -210,6 +211,10 @@ main( ac, av )
 	    port = htons( atoi( optarg ));
 	    break;
 
+	case 'q' :
+	    q_run++;
+	    break;
+
 	case 'r' :
 	    use_randfile = 1;
 	    break;
@@ -229,7 +234,7 @@ main( ac, av )
 
     if ( err || optind != ac ) {
 	fprintf( stderr, "Usage:\t%s", prog );
-	fprintf( stderr, " [ -cdrV ] [ -b backlog ]" );
+	fprintf( stderr, " [ -cdrVq ] [ -b backlog ]" );
 	fprintf( stderr, " [ -C cryptofile ] [ -M maildomain ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
 	fprintf( stderr, " [ -s spooldir]" );
@@ -321,6 +326,10 @@ main( ac, av )
 
     if ( dontrun ) {
 	exit( 0 );
+    }
+
+    if ( q_run != 0 ) {
+	exit( q_runner_dir( SIMTA_DIR_SLOW ));
     }
 
     if ( port == 0 ) {
