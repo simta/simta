@@ -202,42 +202,34 @@ message_outfiles( struct message *m, char *dir )
     int			fd;
     time_t		clock;
     struct tm		*tm;
-    struct recipient	*r;
-    FILE		*dff, *tff;
+    FILE		*dff;
     char		df[ MAXPATHLEN ];
-    char		tf[ MAXPATHLEN ];
-    char		ef[ MAXPATHLEN ];
     char		daytime[ 30 ];
     struct line		*l;
 
     sprintf( df, "%s/D%s", dir, m->m_env->e_id );
-    sprintf( tf, "%s/t%s", dir, m->m_env->e_id );
-    sprintf( ef, "%s/E%s", dir, m->m_env->e_id );
 
     if (( fd = open( df, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
-	fprintf( stderr, "open %s: ", df );
-	perror( NULL );
 	return( 1 );
     }
 
     if (( dff = fdopen( fd, "w" )) == NULL ) {
-	perror( "fdopen" );
 	close( fd );
 	goto cleanup;
     }
 
     if ( time( &clock ) < 0 ) {
-	perror( "time" );
+	fclose( dff );
 	goto cleanup;
     }
 
     if (( tm = localtime( &clock )) == NULL ) {
-	perror( "localtime" );
+	fclose( dff );
 	goto cleanup;
     }
 
     if ( strftime( daytime, sizeof( daytime ), "%e %b %Y %T", tm ) == 0 ) {
-	perror( "strftime" );
+	fclose( dff );
 	goto cleanup;
     }
 
@@ -246,73 +238,30 @@ message_outfiles( struct message *m, char *dir )
 	    "user@localhost",
 	    inet_ntoa( m->m_env->e_sin->sin_addr ), m->m_env->e_hostname,
 	    m->m_env->e_id, daytime, tz( tm )) < 0 ) {
-	perror( "fprintf" );
 	fclose( dff );
 	goto cleanup;
     }
 
     for ( l = m->m_data->md_first; l != NULL; l = l->line_next ) {
 	if ( fprintf( dff, "%s\n", l->line_data ) < 0 ) {
-	    perror( "fprintf" );
+	    fclose( dff );
 	    goto cleanup;
 	}
     }
 
     if ( fclose( dff ) != 0 ) {
-	perror( "fclose" );
 	goto cleanup;
     }
 
-    /* make E (t) file */
-    if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
-	fprintf( stderr, "open %s: ", tf );
-	perror( NULL );
+    if ( env_outfile( m->m_env, dir ) != 0 ) {
 	goto cleanup;
-    }
-
-    if (( tff = fdopen( fd, "w" )) == NULL ) {
-	perror( "fdopen" );
-	close( fd );
-	goto cleanup2;
-    }
-
-    if ( fprintf( tff, "%s\n", m->m_env->e_mail ) < 0 ) {
-	perror( "fprintf" );
-	fclose( tff );
-	goto cleanup2;
-    }
-
-    for ( r = m->m_env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( fprintf( tff, "%s\n", r->r_rcpt ) < 0 ) {
-	    perror( "fprintf" );
-	    fclose( tff );
-	    goto cleanup2;
-	}
-    }
-
-    if ( fclose( tff ) != 0 ) {
-	perror( "2fclose" );
-	goto cleanup2;
-    }
-
-    if ( rename( tf, ef ) < 0 ) {
-	perror( "rename" );
-	goto cleanup2;
     }
 
     return( 0 );
 
-cleanup2:
-    if ( unlink( tf ) < 0 ) {
-	fprintf( stderr, "unlink %s: ", tf );
-	perror( NULL );
-    }
-
 cleanup:
-    if ( unlink( df ) < 0 ) {
-	fprintf( stderr, "unlink %s: ", df );
-	perror( NULL );
-    }
+    unlink( df );
+
     return( 1 );
 }
 

@@ -10,6 +10,7 @@
 #endif /* TLS */
 
 #include <netdb.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <syslog.h>
 #include <stdlib.h>
@@ -221,4 +222,105 @@ env_infile( char *dir, char *id )
     }
 
     return( e );
+}
+
+
+    /* Efile syntax:
+     *
+     * Vversion
+     * Hdestination-host
+     * Ffrom-addr@sender.com
+     * Rto-addr@recipient.com
+     * Roptional-to-addr@recipient.com
+     */
+
+    int
+env_outfile( struct envelope *e, char *dir )
+{
+    int			fd;
+    struct recipient	*r;
+    FILE		*tff;
+    char		tf[ MAXPATHLEN ];
+    char		ef[ MAXPATHLEN ];
+
+    sprintf( tf, "%s/t%s", dir, e->e_id );
+    sprintf( ef, "%s/E%s", dir, e->e_id );
+
+    /* make E (t) file */
+    if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
+	return( 1 );
+    }
+
+    if (( tff = fdopen( fd, "w" )) == NULL ) {
+	close( fd );
+	goto cleanup;
+    }
+
+    /* Vversion */
+    /* XXX better version info needed */
+    if ( fprintf( tff, "V0\n" ) < 0 ) {
+	fclose( tff );
+	goto cleanup;
+    }
+
+    /* Hdestination-host */
+    if (( e->e_hostname != NULL ) && ( *e->e_hostname != '\0' )) {
+	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
+	    fclose( tff );
+	    goto cleanup;
+	}
+
+    } else {
+	if ( fprintf( tff, "H\n" ) < 0 ) {
+	    fclose( tff );
+	    goto cleanup;
+	}
+    }
+
+    /* Ffrom-addr@sender.com */
+    /* XXX can e->e_mail be NULL? */
+    if (( e->e_mail != NULL ) && ( *e->e_mail != '\0' )) {
+	if ( fprintf( tff, "F%s\n", e->e_mail ) < 0 ) {
+	    fclose( tff );
+	    goto cleanup;
+	}
+
+    } else {
+	if ( fprintf( tff, "F\n" ) < 0 ) {
+	    fclose( tff );
+	    goto cleanup;
+	}
+    }
+
+    /* Rto-addr@recipient.com */
+    /* XXX is it illegal to have no recipients? */
+    if (( e->e_rcpt != NULL ) && ( *e->e_rcpt->r_rcpt != '\0' )) {
+	for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
+	    if ( fprintf( tff, "R%s\n", r->r_rcpt ) < 0 ) {
+		fclose( tff );
+		goto cleanup;
+	    }
+	}
+
+    } else {
+	if ( fprintf( tff, "R\n" ) < 0 ) {
+	    fclose( tff );
+	    goto cleanup;
+	}
+    }
+
+    if ( fclose( tff ) != 0 ) {
+	goto cleanup;
+    }
+
+    if ( rename( tf, ef ) < 0 ) {
+	goto cleanup;
+    }
+
+    return( 0 );
+
+cleanup:
+    unlink( tf );
+
+    return( 1 );
 }

@@ -30,7 +30,7 @@
 #include "message.h"
 #include "envelope.h"
 
-#define	TEST_DIR	"tmp"
+#define	TEST_DIR	"local"
 
 #ifdef __STDC__
 #define ___P(x)         x
