@@ -544,6 +544,7 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	} else {
 	    if (bounce_text( e_addr->e_addr_errors, rdn, NULL, NULL ) != 0) {
 		return;
+	    }
 	}
 	free( rdn );
     }
