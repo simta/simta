@@ -1014,7 +1014,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
                     ldap_value_free( rdns );
                     return (LDAP_SYSERROR);
     }
-    sprintf (senderbuf, "%s-errorsto@%s", rdns[0], vals[0]);
+    sprintf (senderbuf, "%s-errors@%s", rdns[0], vals[0]);
     ldap_value_free( vals);
     ldap_value_free(rdns);
  
