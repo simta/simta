@@ -687,10 +687,12 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 
     hostname = line + 1;
 
-    if (( env->e_hostname == NULL ) && ( *hostname != '\0' )) {
-	syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
-		filename );
-	goto cleanup;
+    if ( env->e_hostname == NULL ) {
+	if ( *hostname != '\0' ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
+		    filename );
+	    goto cleanup;
+	}
     } else {
 	if ( strcmp( hostname, env->e_hostname ) != 0 ) {
 	    syslog( LOG_ERR, "env_read_queue_info %s: bad hostname re-read",
