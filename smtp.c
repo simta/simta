@@ -125,6 +125,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 			syslog( LOG_ERR, "smtp_connect: line_append %m" );
 			return( SMTP_ERR_SYSCALL );
 		    }
+		    return( SMTP_ERR_REMOTE );
 		} else {
 		    hq->hq_status = HOST_DOWN;
 		    return( SMTP_ERR_REMOTE );
