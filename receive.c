@@ -443,7 +443,6 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		return( RECEIVE_OK );
 
 	    case LOCAL_ERROR:
-	    default:
 		syslog( LOG_ERR, "f_rcpt local_address %s: error", addr );
 		if ( snet_writef( snet, "%d Requested action aborted: "
 			"local error in processing.\r\n", 451 ) < 0 ) {
@@ -454,6 +453,9 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	    case LOCAL_ADDRESS:
 		break;
+
+	    default:
+		panic( "f_rctp local_address return out of range" );
 	    }
 	}
     }
@@ -1274,7 +1276,7 @@ local_address( char *addr, char *domain, struct host *host )
 			!= 0 ) {
 		    syslog( LOG_ERR, "local_address: db_open_r: %s",
 			    db_strerror( rc ));
-		    return( LOCAL_ERROR );
+		    break;
 		}
 	    }
 
