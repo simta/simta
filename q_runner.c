@@ -11,6 +11,7 @@
 #include "ll.h"
 #include "envelope.h"
 #include "queue.h"
+#include "message.h"
 
 void	host_stab_stdout( void * );
 void	q_file_stab_stdout( void * );
@@ -178,6 +179,17 @@ main( int argc, char *argv[] )
 	hq = (struct host_q*)hs->st_data;
 	for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
 	    q = (struct q_file*)qs->st_data;
+
+	    /* get message_data */
+	    /* XXX what if no corresponding Dfile for an Efile? */
+	    if (( q->q_data = data_infile( SLOW_DIR, q->q_id )) == NULL ) {
+		perror( "data_infile" );
+		exit( 1 );
+	    }
+
+	    /* send message */
+	    /* if send failure, update efile modification time */
+	    /* if send failure, check remaining dfiles for bounce generation */
 	}
     }
 

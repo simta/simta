@@ -17,6 +17,7 @@ struct q_file {
     struct q_file		*q_inode_next;
     struct q_file		*q_etime_next;
     struct envelope		*q_env;
+    struct message_data		*q_data;
     int				q_unexpanded;
     int				q_efile;
     int				q_dfile;
