@@ -201,7 +201,7 @@ f_mail( snet, env, ac, av )
     struct timeval	tv;
     char		*addr, *domain;
     DNSR		*dnsr;
-    int			dnsr_error;
+    struct dnsr_result	*result;
 
     /*
      * Check if we have a message already ready to send.
@@ -245,30 +245,36 @@ f_mail( snet, env, ac, av )
     if ( *addr != '\0' ) {
 
 	/* XXX - Should this exit? */
-	if (( dnsr = dnsr_open( &dnsr_error )) == NULL ) {
-	    syslog( LOG_ERR, "dnsr_open failed" );
+	if (( dnsr = dnsr_new( )) == NULL ) {
+	    syslog( LOG_ERR, "dnsr_new: %s",
+		dnsr_err2string( dnsr_errno( dnsr )));
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing.\r\n",
 		451 );
 	    return( -1 );
 	}
-	switch ( get_mx( dnsr, domain )) {
-	case -1:
-	    /* System error */
+	if ( dnsr_nameserver( dnsr ) != 0 ) {
+	    syslog( LOG_ERR, "dnsr_nameserver: %s",
+		dnsr_err2string( dnsr_errno( dnsr )));
+	    snet_writef( snet,
+		"%d Requested action aborted: local error in processing.\r\n",
+		451 );
+	    return( -1 );
+	}
+
+	if (( result = get_mx( dnsr, domain )) == NULL ) {
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing\r\n",
 		451 );
 	    return( -1 );
+	}
 
-	case 1:
+	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
+		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 	    /* No valid DNS */
 	    snet_writef( snet, "%d Can't verify address\r\n", 451 );
 	    return( 1 );
-
-	default:
-	    break;
 	}
-
     }
 
     if ( env->e_mail != NULL ) {
@@ -306,7 +312,7 @@ f_rcpt( snet, env, ac, av )
     char		*addr, *domain;
     struct recipient	*r;
     DNSR		*dnsr;
-    int			dnsr_error;
+    struct dnsr_result	*result;
 
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
@@ -362,28 +368,35 @@ f_rcpt( snet, env, ac, av )
     if ( strncasecmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
 	/* DNS check for invalid domain */
 	/* XXX - this should be an optional check */
-	if (( dnsr = dnsr_open( &dnsr_error )) == NULL ) {
-	    syslog( LOG_ERR, "dnsr_open failed" );
+	if (( dnsr = dnsr_new( )) == NULL ) {
+	    syslog( LOG_ERR, "dnsr_new: %s",
+		dnsr_err2string( dnsr_errno( dnsr )));
 	    snet_writef( snet,
-		"%d-1 Requested action aborted: local error in processing.\r\n",
+		"%d Requested action aborted: local error in processing.\r\n",
 		451 );
 	    return( -1 );
 	}
-	switch ( get_mx( dnsr, domain )) {
-	case -1:
-	    /* System error */
+	if ( dnsr_nameserver( dnsr ) != 0 ) {
+	    syslog( LOG_ERR, "dnsr_nameserver: %s",
+		dnsr_err2string( dnsr_errno( dnsr )));
+	    snet_writef( snet,
+		"%d Requested action aborted: local error in processing.\r\n",
+		451 );
+	    return( -1 );
+	}
+
+	if (( result = get_mx( dnsr, domain )) == NULL ) {
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing\r\n",
 		451 );
 	    return( -1 );
+	}
 
-	case 1:
+	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
+		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 	    /* No valid DNS */
 	    snet_writef( snet, "%d Can't verify address\r\n", 451 );
 	    return( 1 );
-
-	default:
-	    break;
 	}
     }
 
@@ -395,7 +408,7 @@ f_rcpt( snet, env, ac, av )
      */
     /* XXX check config file, check MXes */
 
-    switch ( mx_local( env, dnsr, domain )) {
+    switch ( mx_local( env, result, domain )) {
     case 1:
 	high_mx_pref = 1;
 	break;
@@ -881,7 +894,7 @@ receive( fd, sin )
     char				**av, *line;
     struct timeval			tv;
     DNSR				*dnsr;
-    int					dnsr_error;
+    struct dnsr_result			*result;
     extern int				connections;
     extern int				maxconnections;
 
@@ -900,25 +913,33 @@ receive( fd, sin )
 	}
     }
 
-    if (( dnsr = dnsr_open( &dnsr_error )) == NULL ) {
-	syslog( LOG_ERR, "dnsr_open failed" );
+    if (( dnsr = dnsr_new( )) == NULL ) {
+	syslog( LOG_ERR, "dnsr_new: %s",
+	    dnsr_err2string( dnsr_errno( dnsr )));
 	snet_writef( snet,
-		"%d Service not available, closing transmission channel\r\n",
-		421 );
-	exit( 1 );
+	    "%d Requested action aborted: local error in processing.\r\n",
+	    451 );
+	return( -1 );
+    }
+    if ( dnsr_nameserver( dnsr ) != 0 ) {
+	syslog( LOG_ERR, "dnsr_nameserver: %s",
+	    dnsr_err2string( dnsr_errno( dnsr )));
+	snet_writef( snet,
+	    "%d Requested action aborted: local error in processing.\r\n",
+	    451 );
+	return( -1 );
     }
 
-
     /* Get PTR for connection */
-    if (( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
-	    inet_ntoa( sin->sin_addr ), &dnsr_error )) < 0 ) {
+    if ( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
+	    inet_ntoa( sin->sin_addr )) < 0 ) {
 	syslog( LOG_ERR, "dnsr_query failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
 	exit( 1 );
     }
-    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
+    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "dnsr_result failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
@@ -928,14 +949,14 @@ receive( fd, sin )
 
     /* Get A record on PTR result */
     if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
-	    dnsr->d_result->answer[ 0 ].r_dn.dn, &dnsr_error )) < 0 ) {
+	    result->r_answer[ 0 ].rr_dn.dn )) < 0 ) {
 	syslog( LOG_ERR, "dnsr_query failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
 	exit( 1 );
     }
-    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
+    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
 	syslog( LOG_ERR, "dnsr_result failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
@@ -949,7 +970,7 @@ receive( fd, sin )
 
 	struct in_addr      addr;
 
-	memcpy( &addr.s_addr, &dnsr->d_result->answer[ 0 ].r_a, sizeof( int ));
+	memcpy( &addr.s_addr, &(result->r_answer[ 0 ].rr_a), sizeof( int ));
 
 	if ( strcmp( inet_ntoa( addr ), inet_ntoa( sin->sin_addr )) != 0 ) {
 	    syslog( LOG_INFO, "%s: connection rejected: invalid A record",

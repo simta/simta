@@ -26,56 +26,41 @@ extern SSL_CTX  *ctx;
 #include "mx.h"
 #include "simta.h"
 
-/* -1	non-recoverable error
- *  0	success
- *  1	no record
- */
-
-extern int	simta_debug;
-
-    int
+    struct dnsr_result *
 get_mx( DNSR *dnsr, char *host )
 {
     int                 i;
-    int			dnsr_error;
-
-    if ( simta_debug ) fprintf( stderr, "get_mx: %s\n", host );
+    struct dnsr_result	*result = NULL;
 
     /* Check for MX of address */
-    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host, &dnsr_error ))
+    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host ))
 	    != 0 ) {
 	syslog( LOG_ERR, "dnsr_query %s failed", host );
-	return( -1 );
+	goto error;
     }
 
     /* Check for vaild result */
-    if ( simta_debug ) fprintf( stderr, "dnsr_result ( mx ): " );
-    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
-	if (( dnsr_error == DNSR_ERROR_NAME )
-		|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
-	    if ( simta_debug ) fprintf( stderr, "no MX\n" );
+    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+	if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
+		|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
 
 	    /* No MX - Check for A of address */
-	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host,
-		    &dnsr_error )) < 0 ) {
+	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
 		syslog( LOG_ERR, "dnsr_query %s failed", host );
-		return( -1 );
+		goto error;
 	    }
-	    if ( simta_debug ) fprintf( stderr, "dnsr_result ( a ): " );
-	    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
-		if (( dnsr_error == DNSR_ERROR_NAME )
-			|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
-		    if ( simta_debug ) fprintf( stderr, "no a\n" );
-		    return( 1 );
+	    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+		if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
+			|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
+		    goto error;
 		} else {
 		    syslog( LOG_ERR, "dnsr_query %s failed", host );
-		    return( -1 );
+		    goto error;
 		}
 	    }
 	} else {
-	    if ( simta_debug ) fprintf( stderr, "failed\n" );
 	    syslog( LOG_ERR, "dnsr_query %s failed", host );
-	    return( -1 );
+	    goto error;
 	}
 
     } else {
@@ -83,32 +68,35 @@ get_mx( DNSR *dnsr, char *host )
 
         /* Check for valid A record in MX */
         /* XXX - Should we search for A if no A returned in MX? */
-        for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
-            if ( dnsr->d_result->answer[ i ].r_ip != NULL ) {
+        for ( i = 0; i < result->r_ancount; i++ ) {
+            if ( result->r_answer[ i ].rr_ip != NULL ) {
                 break;
             }
         }
-        if ( i > dnsr->d_result->ancount ) {
+        if ( i > result->r_ancount ) {
 
 	    /* No valid MX - Check for A of address */
-	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host,
-		    &dnsr_error )) < 0 ) {
+	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
 		syslog( LOG_ERR, "dnsr_query %s failed", host );
-		return( -1 );
+		goto error;
 	    }
-	    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
-		if (( dnsr_error == DNSR_ERROR_NAME )
-			|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
-		    return( 1 );
+	    if (( result = dnsr_result( dnsr, NULL )) == NULL ) {
+		if (( dnsr_errno( dnsr ) == DNSR_ERROR_NAME )
+			|| ( dnsr_errno( dnsr ) == DNSR_ERROR_NO_ANSWER )) {
+		    goto error;
 		} else {
 		    syslog( LOG_ERR, "dnsr_query %s failed", host );
-		    return( -1 );
+		    goto error;
 		}
 	    }
         }
     }
 
     return( 0 );
+
+error:
+    free( result );
+    return( NULL );
 }
 
 /*
@@ -118,10 +106,10 @@ get_mx( DNSR *dnsr, char *host )
  *   2  lower level preference MX
  */
     int
-mx_local( struct envelope *env, DNSR *dnsr, char *domain )
+mx_local( struct envelope *env, struct dnsr_result *result, char *domain )
 {
-    int         i;
-    struct host *host;
+    int         	i;
+    struct host 	*host;
 
     /* Look for domain in host table */
     if (( host = ll_lookup( simta_hosts, domain )) != NULL ) {
@@ -135,16 +123,16 @@ mx_local( struct envelope *env, DNSR *dnsr, char *domain )
         }
     }
     /* Look for local host in MX's */
-    for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
+    for ( i = 0; i < result->r_ancount; i++ ) {
         if ( strcasecmp( env->e_hostname,
-                dnsr->d_result->answer[ i ].r_mx.exchange ) == 0 ) {
+                result->r_answer[ i ].rr_mx.exchange ) == 0 ) {
             if (( host = malloc( sizeof( struct host ))) == NULL ) {
                 syslog( LOG_ERR, "mx_local: malloc: %m" );
                 return( -1 );
             }
             /* Check preference */
-            if ( dnsr->d_result->answer[ i ].r_mx.preference ==
-                    dnsr->d_result->answer[ 0 ].r_mx.preference ) {
+            if ( result->r_answer[ i ].rr_mx.preference ==
+                    result->r_answer[ 0 ].rr_mx.preference ) {
                 host->h_type = HOST_LOCAL;
             } else {
                 host->h_type = HOST_MX;
@@ -167,7 +155,7 @@ mx_local( struct envelope *env, DNSR *dnsr, char *domain )
 
             /* Add host to host list */
             if ( ll_insert( &simta_hosts,
-		    dnsr->d_result->answer[ i ].r_mx.exchange,
+		    result->r_answer[ i ].rr_mx.exchange,
                     host, NULL ) != 0 ) {
                 syslog( LOG_ERR, "mx_local: ll_insert failed" );
                 free( host );
