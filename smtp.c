@@ -67,6 +67,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 #ifdef DNSR_WORKS
     int				i;
     DNSR			*dnsr;
+    int				dnsr_error;
 #else /* DNSR_WORKS */
     struct hostent		*hp;
 #endif /* DNSR_WORKS */
@@ -77,40 +78,67 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     printf( "smtp_connect dsnr: %s\n", hq->hq_hostname );
 #endif /* DEBUG */
 
-    if (( dnsr = dnsr_open( )) == NULL ) {
+    if (( dnsr = dnsr_open( &dnsr_error )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect: dnsr_open failed" );
 	return( SMTP_ERR_SYSCALL );
     }
 
     /* Try to get MX */
     if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN,
-	    hq->hq_hostname )) < 0 ) {
+	    hq->hq_hostname, &dnsr_error )) < 0 ) {
         syslog( LOG_ERR, "smtp_connect: dnsr_query %s failed",
 		hq->hq_hostname );
 	hq->hq_status = HOST_DOWN;
 	return( SMTP_ERR_REMOTE );
     }
 
-    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+    /* On no host name - set hq_status and add line file */
+    /* hq->hq_status = HOST_DOWN; */
 
-        /* No MX - Try to get A */
-        if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
-		hq->hq_hostname )) < 0 ) {    
-            syslog( LOG_ERR, "smtp_connect: dnsr_query %s failed",
-		    hq->hq_hostname );
-	    hq->hq_status = HOST_DOWN;
-            return( SMTP_ERR_REMOTE );
-        }       
-        if ( dnsr_result( dnsr, NULL ) != 0 ) {
-            syslog( LOG_ERR, "smtp_connect: dnsr_query %s failed",
-		    hq->hq_hostname );
-	    hq->hq_status = HOST_DOWN;
-            return( SMTP_ERR_REMOTE );
-        }
+    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
+	if (( dnsr_error == DNSR_ERROR_NAME )
+		|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
 
-	/* Got an A record */
-	memcpy( &(sin.sin_addr.s_addr),
-		&(dnsr->d_result->answer[ 0 ].r_a.address), sizeof( int ));
+	    /* No MX - Try to get A */
+	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
+		    hq->hq_hostname, &dnsr_error )) < 0 ) {    
+		syslog( LOG_ERR, "smtp_connect: dnsr_query %s failed",
+			hq->hq_hostname );
+		hq->hq_status = HOST_DOWN;
+		return( SMTP_ERR_REMOTE );
+	    }       
+	    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
+		if(( dnsr_error == DNSR_ERROR_NAME )
+			|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
+		    /* No valid address - bounce */
+		    hq->hq_status = HOST_BOUNCE;
+
+		    /* capture error message */
+		    if (( hq->hq_err_text = line_file_create()) == NULL ) {
+			syslog( LOG_ERR,
+			    "smtp_connect: line_file_create %m" );
+			return( SMTP_ERR_SYSCALL );
+		    }
+
+		    if ( line_append( hq->hq_err_text,
+			    "unknown host" ) == NULL ) {
+			syslog( LOG_ERR, "smtp_connect: line_append %m" );
+			return( SMTP_ERR_SYSCALL );
+		    }
+		} else {
+		    hq->hq_status = HOST_DOWN;
+		    return( SMTP_ERR_REMOTE );
+		}
+	    }
+
+	    /* Got an A record */
+	    memcpy( &(sin.sin_addr.s_addr),
+		    &(dnsr->d_result->answer[ 0 ].r_a.address), sizeof( int ));
+	} else {
+	    syslog( LOG_ERR, "smtp_connect: dnsr_query %s failed",
+		    hq->hq_hostname );
+	    return( SMTP_ERR_REMOTE );
+	}
     } else {
 
 	/* Got an MX record */

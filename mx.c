@@ -26,30 +26,48 @@ extern SSL_CTX  *ctx;
 #include "mx.h"
 #include "simta.h"
 
+/* -1	non-recoverable error
+ *  0	success
+ *  1	no MX record
+ */
 
     int
 get_mx( DNSR *dnsr, char *host )
 {
     int                 i;
+    int			dnsr_error;
 
     /* Check for MX of address */
-    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host )) < 0 ) {
-        syslog( LOG_ERR, "dnsr_query %s failed", host );
-        return( -1 );
+    if (( dnsr_query( dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN, host, &dnsr_error ))
+	    != 0 ) {
+	syslog( LOG_ERR, "dnsr_query %s failed", host );
+	return( -1 );
     }
 
     /* Check for vaild result */
-    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
+	if (( dnsr_error == DNSR_ERROR_NAME )
+		|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
 
-        /* No - Check for A of address */
-        if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host )) < 0 ) {
-            syslog( LOG_ERR, "dnsr_query %s failed", host );
-            return( -1 );
-        }
-        if ( dnsr_result( dnsr, NULL ) != 0 ) {
-            syslog( LOG_ERR, "dnsr_query %s failed", host );
-            return( -1 );
-        }
+	    /* No MX - Check for A of address */
+	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host,
+		    &dnsr_error )) < 0 ) {
+		syslog( LOG_ERR, "dnsr_query %s failed", host );
+		return( -1 );
+	    }
+	    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
+		if (( dnsr_error == DNSR_ERROR_NAME )
+			|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
+		    return( 1 );
+		} else {
+		    syslog( LOG_ERR, "dnsr_query %s failed", host );
+		    return( -1 );
+		}
+	    }
+	} else {
+	    syslog( LOG_ERR, "dnsr_query %s failed", host );
+	    return( -1 );
+	}
 
     } else {
 
@@ -61,8 +79,22 @@ get_mx( DNSR *dnsr, char *host )
             }
         }
         if ( i > dnsr->d_result->ancount ) {
-            syslog( LOG_ERR, "%s: no valid A record for MX", host );
-            return( -1 );
+
+	    /* No valid MX - Check for A of address */
+	    if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN, host,
+		    &dnsr_error )) < 0 ) {
+		syslog( LOG_ERR, "dnsr_query %s failed", host );
+		return( -1 );
+	    }
+	    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
+		if (( dnsr_error == DNSR_ERROR_NAME )
+			|| ( dnsr_error == DNSR_ERROR_NO_ANSWER )) {
+		    return( 1 );
+		} else {
+		    syslog( LOG_ERR, "dnsr_query %s failed", host );
+		    return( -1 );
+		}
+	    }
         }
     }
 

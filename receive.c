@@ -201,6 +201,7 @@ f_mail( snet, env, ac, av )
     struct timeval	tv;
     char		*addr, *domain;
     DNSR		*dnsr;
+    int			dnsr_error;
 
     /*
      * Check if we have a message already ready to send.
@@ -241,7 +242,7 @@ f_mail( snet, env, ac, av )
     if ( *addr != '\0' ) {
 
 	/* XXX - Should this exit? */
-	if (( dnsr = dnsr_open( )) == NULL ) {
+	if (( dnsr = dnsr_open( &dnsr_error )) == NULL ) {
 	    syslog( LOG_ERR, "dnsr_open failed" );
 	    snet_writef( snet,
 		"%d Requested action aborted: local error in processing.\r\n",
@@ -291,6 +292,7 @@ f_rcpt( snet, env, ac, av )
     char		*addr, *domain;
     struct recipient	*r;
     DNSR		*dnsr;
+    int			dnsr_error;
 
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
@@ -346,7 +348,7 @@ f_rcpt( snet, env, ac, av )
     if ( strncasecmp( addr, "postmaster", strlen( "postmaster" )) != 0 ) {
 	/* DNS check for invalid domain */
 	/* XXX - this should be an optional check */
-	if (( dnsr = dnsr_open( )) == NULL ) {
+	if (( dnsr = dnsr_open( &dnsr_error )) == NULL ) {
 	    syslog( LOG_ERR, "dnsr_open failed" );
 	    snet_writef( snet,
 		"%d-1 Requested action aborted: local error in processing.\r\n",
@@ -842,11 +844,9 @@ receive( fd, sin )
     char				**av, *line;
     struct timeval			tv;
     DNSR				*dnsr;
-    extern int				denser_debug;
+    int					dnsr_error;
     extern int				connections;
     extern int				maxconnections;
-
-    denser_debug = 0;
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "snet_attach: %m" );
@@ -863,7 +863,7 @@ receive( fd, sin )
 	}
     }
 
-    if (( dnsr = dnsr_open( )) == NULL ) {
+    if (( dnsr = dnsr_open( &dnsr_error )) == NULL ) {
 	syslog( LOG_ERR, "dnsr_open failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
@@ -874,14 +874,14 @@ receive( fd, sin )
 
     /* Get PTR for connection */
     if (( dnsr_query( dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
-	    inet_ntoa( sin->sin_addr ))) < 0 ) {
+	    inet_ntoa( sin->sin_addr ), &dnsr_error )) < 0 ) {
 	syslog( LOG_ERR, "dnsr_query failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
 	exit( 1 );
     }
-    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
 	syslog( LOG_ERR, "dnsr_result failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
@@ -891,14 +891,14 @@ receive( fd, sin )
 
     /* Get A record on PTR result */
     if (( dnsr_query( dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
-	    dnsr->d_result->answer[ 0 ].r_dn.dn )) < 0 ) {
+	    dnsr->d_result->answer[ 0 ].r_dn.dn, &dnsr_error )) < 0 ) {
 	syslog( LOG_ERR, "dnsr_query failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
 		421 );
 	exit( 1 );
     }
-    if ( dnsr_result( dnsr, NULL ) != 0 ) {
+    if ( dnsr_result( dnsr, NULL, &dnsr_error ) != 0 ) {
 	syslog( LOG_ERR, "dnsr_result failed" );
 	snet_writef( snet,
 		"%d Service not available, closing transmission channel\r\n",
