@@ -2090,12 +2090,9 @@ fi
 
 
 
-    echo "$as_me:$LINENO: checking for tm_gmtoff in struct tm" >&5
-echo $ECHO_N "checking for tm_gmtoff in struct tm... $ECHO_C" >&6
-    if test "${ac_cv_struct_gmtoff+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-   cat >conftest.$ac_ext <<_ACEOF
+    echo "$as_me:$LINENO: checking for struct tm.tm_gmtoff in $ac_cv_struct_tm" >&5
+echo $ECHO_N "checking for struct tm.tm_gmtoff in $ac_cv_struct_tm... $ECHO_C" >&6
+    cat >conftest.$ac_ext <<_ACEOF
 #line $LINENO "configure"
 #include "confdefs.h"
 #include <$ac_cv_struct_tm>
@@ -2132,8 +2129,6 @@ cat conftest.$ac_ext >&5
 ac_cv_struct_gmtoff=no
 fi
 rm -f conftest.$ac_objext conftest.$ac_ext
-fi
-
     echo "$as_me:$LINENO: result: $ac_cv_struct_gmtoff" >&5
 echo "${ECHO_T}$ac_cv_struct_gmtoff" >&6
     HAVE_TM_GMTOFF=""
