@@ -72,8 +72,6 @@ cp Dterminator ../slow/Dterm1
 # deliver some rsug mail
 cp Ersug ../slow/Ersug
 cp Drsug ../slow/Drsug
-cp Ersug ../slow/Ersug1
-cp Drsug ../slow/Drsug1
 
 # terminator Efile with no Dfile
 cp Eterminator ../slow/Elocalalone

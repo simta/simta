@@ -175,6 +175,8 @@ main( int argc, char *argv[] )
 	    q->q_env = env;
 	    q->q_expanded = q->q_env->e_expanded;
 
+	    /* XXX DNS lookup if q->q_expanded == NULL? */
+
 	    /* get efile modification time */
 	    if ( stat( fname, &sb ) != 0 ) {
 		syslog( LOG_ERR, "stat %s: %m", fname );
@@ -186,8 +188,6 @@ main( int argc, char *argv[] )
 #else	/* sun */
 	    q->q_etime = sb.st_mtimespec;
 #endif	/* sun */
-
-	    /* XXX Hostname lookup if unexpanded? */
 
 	    if (( hq = (struct host_q*)ll_lookup( host_stab, q->q_expanded ))
 		    == NULL ) {
@@ -228,14 +228,13 @@ main( int argc, char *argv[] )
 
     for ( hs = host_stab; hs != NULL; hs = hs->st_next ) {
 	if (( hs->st_key == NULL ) || ( *hs->st_key == '\0' )) {
-	    /* XXX NULL queue */
+	    /* XXX NULL host queue.  Add DNS code */
 
 	} else if ( strcasecmp( localhostname, hs->st_key ) == 0 ) {
 	    hq = (struct host_q*)hs->st_data;
 	    deliver_local( hq );
 
 	} else {
-	    /* XXX deliver hs->st_data off machine */
 	    hq = (struct host_q*)hs->st_data;
 	    deliver_remote( hq );
 	}
@@ -250,6 +249,8 @@ deliver_local( struct host_q *hq )
 {
     struct q_file		*q;
     struct stab_entry		*qs;
+    struct recipient		*r;
+    int				sent;
     int				mailed;
     int				fd;
     char			fname[ MAXPATHLEN ];
@@ -281,9 +282,20 @@ deliver_local( struct host_q *hq )
 	    }
 	}
 
-	if (( mailed = (*local_mailer)( fd, "test@mail.local", "epcjr" ))
-		< 0 ) {
-	    exit( 1 );
+	sent = 0;
+
+	for ( r = q->q_env->e_rcpt; r != NULL; r = r->r_next ) {
+	    if ( sent != 0 ) {
+		if ( lseek( fd, (off_t)0, SEEK_SET ) != 0 ) {
+		    syslog( LOG_ERR, "lseek: %m" );
+		    exit( 1 );
+		}
+	    }
+
+	    if (( mailed = (*local_mailer)( fd, q->q_env->e_mail, r->r_rcpt ))
+		    < 0 ) {
+		exit( 1 );
+	    }
 	}
 
 	if ( close( fd ) != 0 ) {
@@ -336,7 +348,7 @@ deliver_remote( struct host_q *hq )
     logger = stdout_logger;
 #endif /* DEBUG */
 
-    /* XXX send only to terminator for now */
+    /* XXX send only to terminator (or alias rsug), for now */
     if (( strcasecmp( hq->hq_name, "terminator.rsug.itd.umich.edu" ) != 0 ) &&
 	    ( strcasecmp( hq->hq_name, "rsug.itd.umich.edu" ) != 0 )) {
 	return( 0 );
