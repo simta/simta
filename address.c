@@ -10,6 +10,7 @@
 
 #include <db.h>
 
+#include "queue.h"
 #include "ll.h"
 #include "address.h"
 #include "bdb.h"
@@ -43,14 +44,15 @@ address_local( char *address )
     char		*user= NULL, *domain = NULL, *p = NULL;	
     struct passwd	*passwd = NULL;
     DBT			value;
-    struct stab_entry	*lookup = NULL, *i = NULL;
+    struct stab_entry	*i = NULL;
+    struct host		*host;
 
     /* Check for domain in domain table */
     if (( domain = strchr( address, '@' )) == NULL ) {
 	return( -1 );
     }
     domain++;
-    if (( lookup = ll_lookup( hosts, domain )) == NULL ) {
+    if (( host = (struct host*)ll_lookup( hosts, domain )) == NULL ) {
 	return( 1 );
     }
 
@@ -65,7 +67,7 @@ address_local( char *address )
     *p = '\0';
 
     /* Search for user using lookup ll */
-    for ( i = lookup; i != NULL; i = i->st_next ) {
+    for ( i = host->h_expansion; i != NULL; i = i->st_next ) {
 	if ( strcmp( i->st_key, "alias" ) == 0 ) {
 	    /* check alias file */
 	    if ( dbp == NULL ) {

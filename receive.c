@@ -28,6 +28,7 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
+#include "queue.h"
 #include "ll.h"
 #include "address.h"
 #include "receive.h"
@@ -122,28 +123,71 @@ get_mx( DNSR *dnsr, char *host )
     int
 mx_local( struct envelope *env, DNSR *dnsr, char *domain )
 {
-	int 	i;
+    int 	i;
+    struct host	*host;
 
-	/* Look for domain in host table */
-	if ( ll_lookup( hosts, domain ) != NULL ) {
+    /* Look for domain in host table */
+    if (( host = ll_lookup( hosts, domain )) != NULL ) {
+	if ( host->h_type == HOST_LOCAL ) {
 	    return( 1 );
+	} else if ( host->h_type == HOST_MX ) {
+	    return( 2 );
+	} else {
+	    syslog( LOG_ERR, "mx_local: unknown host type" );
+	    return( -1 );
 	}
+    }
 
-	/* Look for local host in MX's */
-	for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
-	    if ( strcasecmp( env->e_hostname,
-		    dnsr->d_result->answer[ i ].r_mx.exchange ) == 0 ) {
-		/* Check preference */
-		if ( dnsr->d_result->answer[ i ].r_mx.preference ==
-			dnsr->d_result->answer[ 0 ].r_mx.preference ) {
-		    return( 1 );
-		} else {
-		    return( 2 );
-		}
+    /* Look for local host in MX's */
+    for ( i = 0; i < dnsr->d_result->ancount; i++ ) {
+	if ( strcasecmp( env->e_hostname,
+		dnsr->d_result->answer[ i ].r_mx.exchange ) == 0 ) {
+	    if (( host = malloc( sizeof( struct host ))) == NULL ) {
+		syslog( LOG_ERR, "mx_local: malloc: %m" );
+		return( -1 );
+	    }
+	    /* Check preference */
+	    if ( dnsr->d_result->answer[ i ].r_mx.preference ==
+		    dnsr->d_result->answer[ 0 ].r_mx.preference ) {
+		host->h_type = HOST_LOCAL;
+	    } else {
+		host->h_type = HOST_MX;
+	    }
+	    host->h_expansion = NULL;
+
+	    /* Add list of expansions */
+	    if ( ll_insert_tail( &(host->h_expansion), "alias",
+		    "alias" ) != 0 ) {
+		syslog( LOG_ERR, "mx_local: ll_insert_tail failed" );
+		free( host );
+		return( -1 );
+	    }
+	    if ( ll_insert_tail( &(host->h_expansion), "password",
+		    "password" ) != 0 ) {
+		syslog( LOG_ERR, "mx_local: ll_insert_tail failed" );
+		free( host );
+		return( -1 );
+	    }
+
+	    /* Add host to host list */
+	    if ( ll_insert( &hosts, dnsr->d_result->answer[ i ].r_mx.exchange,
+		    host, NULL ) != 0 ) {
+		syslog( LOG_ERR, "mx_local: ll_insert failed" );
+		free( host );
+		return( -1 );
+	    }
+	    if ( host->h_type == HOST_LOCAL ) {
+		return( 1 );
+	    } else if ( host->h_type == HOST_MX ) {
+		return( 2 );
+	    } else {
+		syslog( LOG_ERR, "mx_local: unknown host type" );
+		return( -1 );
 	    }
 	}
+    }
 
-	return( 0 );
+    return( 0 );
 }
 
     static int
@@ -365,7 +409,6 @@ f_rcpt( snet, env, ac, av )
     char		*addr, *domain;
     struct recipient	*r;
     DNSR		*dnsr;
-    struct stab_entry	*cur = NULL;
 
     if ( ac != 2 ) {
 	snet_writef( snet, "%d Syntax error\r\n", 501 );
@@ -510,7 +553,7 @@ f_rcpt( snet, env, ac, av )
 	syslog( LOG_ERR, "f_rcpt: malloc: %m" );
 	return( -1 );
     }
-    if (( r->r_rcpt = strdup( (char*)cur->st_data )) == NULL ) {
+    if (( r->r_rcpt = strdup( addr )) == NULL ) {
 	syslog( LOG_ERR, "f_rcpt: strdup: %m" );
 	return( -1 );
     }

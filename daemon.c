@@ -29,8 +29,8 @@
 
 #include <snet.h>
 
-#include "receive.h"
 #include "ll.h"
+#include "receive.h"
 #include "simta.h"
 #include "queue.h"
 
@@ -132,6 +132,7 @@ main( ac, av )
     FILE		*pf;
     int			use_randfile = 0;
     unsigned short	port = 0;
+    struct host		*host;
     extern int		optind;
     extern char		*optarg;
 
@@ -212,18 +213,25 @@ main( ac, av )
     }
 
     /* Add localhost to hosts list */
-    if ( ll_insert( &hosts, localhost, NULL, NULL ) != 0 ) {
+    if (( host = malloc( sizeof( struct host ))) == NULL ) {
+	perror( "malloc" );
+	exit( 1 );
+    }
+    host->h_type = HOST_LOCAL;
+    host->h_expansion = NULL;
+
+    /* Add list of expansions */
+    if ( ll_insert_tail( &(host->h_expansion), "alias", "alias" ) != 0 ) {
+	perror( "ll_insert_tail" );
+	exit( 1 );
+    }
+    if ( ll_insert_tail( &(host->h_expansion), "password", "password" ) != 0 ) {
+	perror( "ll_insert_tail" );
+	exit( 1 );
+    }
+
+    if ( ll_insert( &hosts, localhost, host, NULL ) != 0 ) {
 	perror( "ll_insert" );
-	exit( 1 );
-    }
-    if ( ll_insert_tail( (struct stab_entry**)&(hosts->st_data),
-	    "alias", "alias" ) != 0 ) {
-	perror( "ll_insert_tail" );
-	exit( 1 );
-    }
-    if ( ll_insert_tail( (struct stab_entry**)&(hosts->st_data),
-	    "password", "password" ) != 0 ) {
-	perror( "ll_insert_tail" );
 	exit( 1 );
     }
 

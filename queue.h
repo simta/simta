@@ -21,6 +21,12 @@
 #define HOST_LOCAL	1
 #define HOST_REMOTE	2
 #define HOST_MAIL_LOOP	3
+#define HOST_MX		4
+
+struct host {
+    int         		h_type;		/* Type of host */
+    struct stab_entry		*h_expansion;	/* Ordered list of expansion */
+};
 
 struct q_file {
     char			*q_id;
