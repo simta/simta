@@ -80,7 +80,6 @@ int	expand_and_deliver( struct host_q **, struct envelope * );
 int	expand( struct host_q **, struct envelope * );
 struct envelope *eo_lookup( struct expand_output *, char *, char * );
 int eo_insert( struct expand_output **, struct envelope * );
-int expand_string_recipients( struct expand *, struct exp_addr *, char * );
 
 /* address.c */
 int address_error( struct envelope *, char *, char *, char * );
@@ -91,6 +90,8 @@ int address_expand( struct expand *, struct exp_addr * );
 int alias_expand( struct expand *, struct exp_addr * );
 int password_expand( struct expand *, struct exp_addr * );
 void expand_tree_stdout( struct exp_addr *, int );
+int address_string_recipients( struct expand *, char *, struct exp_addr *,
+	char * );
 
 #ifdef HAVE_LDAP
 int ldap_check_ok( struct expand *, struct exp_addr * );

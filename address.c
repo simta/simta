@@ -85,6 +85,109 @@ address_bounce_create( struct expand *exp )
 }
 
 
+    int
+address_string_recipients( struct expand *exp, char *line,
+	struct exp_addr *e_addr, char *from )
+{
+    char				*start;
+    char				*end;
+    char				*email_start;
+    char				swap;
+
+    for ( ; ; ) {
+	if (( start = skip_cws( line )) == NULL ) {
+	    return( 0 );
+	}
+
+	if (( *start != '"' ) && ( *start != '<' )) {
+	    if (( end = token_dot_atom( start )) == NULL ) {
+		return( 0 );
+	    }
+
+	    if ( *(end+1) == '@' ) {
+		/* Consume sender@domain */
+		email_start = start;
+		start = end + 2;
+
+		if ( *start == '[' ) {
+		    if (( end = token_domain_literal( start )) == NULL ) {
+			return( 0 );
+		    }
+		} else {
+		    if (( end = token_domain( start )) == NULL ) {
+			return( 0 );
+		    }
+		}
+
+		end++;
+		swap = *end;
+		*end = '\0';
+
+		if ( add_address( exp, email_start, e_addr->e_addr_errors,
+			ADDRESS_TYPE_EMAIL, from ) != 0 ) {
+		    *end = swap;
+		    return( 1 );
+		}
+
+		*end = swap;
+	    }
+
+	    if (( start = skip_cws( end + 1 )) == NULL ) {
+		return( 0 );
+	    }
+
+	    continue;
+	}
+
+	while ( *start != '<' ) {
+	    if ( *start == '"' ) {
+		if (( end = token_quoted_string( start )) == NULL ) {
+		    return( 0 );
+		}
+
+	    } else {
+		if (( end = token_dot_atom( start )) == NULL ) {
+		    return( 0 );
+		}
+	    }
+
+	    if (( start = skip_cws( end + 1 )) == NULL ) {
+		return( 0 );
+	    }
+	}
+
+	email_start = start;
+	for ( end = start + 1; *end != '>'; end++ ) {
+	    if ( *end == '\0' ) {
+		return( 0 );
+	    }
+	}
+
+	*end = '\0';
+
+	if ( add_address( exp, email_start, e_addr->e_addr_errors,
+		ADDRESS_TYPE_EMAIL, from ) != 0 ) {
+	    *end = '>';
+	    return( 1 );
+	}
+
+	*end = '>';
+
+	if (( start = skip_cws( end + 1 )) == NULL ) {
+	    return( 0 );
+	}
+
+	if ( *start != ',' ) {
+	    return( 0 );
+	}
+
+	start++;
+    }
+
+    return( 0 );
+}
+
+
     /*
      * return non-zero if there is a syserror  
      */
