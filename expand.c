@@ -123,41 +123,20 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
     sprintf( e_original, "%s/E%s", unexpanded_env->e_dir,
 	unexpanded_env->e_id );
 
-    /* expand unexpanded_env->e_rcpt addresses */
+    /* convert rcpt list into an expansion list */
     for ( r = unexpanded_env->e_rcpt; r != NULL; r = r->r_next ) {
-	/* expand r->rcpt */
-	rc = address_expand( r->r_rcpt, r, &expansion, &seen, &ae_error );
-	if ( rc < 0 ) {
-	    /* System failure */
-	    failed_expansions++;
-	    r->r_delivered = SIMTA_EXPANSION_FAILED;
-	    if ( simta_debug ) printf( "expanding %s failed\n", r->r_rcpt );
-        } else if ( rc == 0 ) {
-	    switch( ae_error ) {
-
-	    case SIMTA_EXPAND_ERROR_BAD_FORMAT:
-	    case SIMTA_EXPAND_ERROR_NOT_LOCAL:
-		failed_expansions++;
-		break;
-
-	    default:
-		break;
-	    }
-	} else {
-	    /* expansion */
-	    expansions += rc;
-	    if ( simta_debug != 0 ) {
-		if ( expansion == NULL ) {
-		    printf( "expanding %s succeded ERROR!\n", r->r_rcpt );
-		} else {
-		    printf( "expanding %s succeded\n", r->r_rcpt );
-		}
-	    }
+	if ( add_address( &expansion, r->r_rcpt, r ) != 0 ) {
+	    return( -1 );
 	}
     }
 
+    if ( simta_debug ) printf( "\nTurn the crank\n" );
     /* Turn the crank on expansion list */
     for ( i = expansion; i != NULL; i = i->st_next ) {
+	if ( i->st_data == NULL ) {
+	    printf( "die die die\n" );
+	}
+	if ( simta_debug ) printf( "\n%s:", i->st_key );
 	expn = (struct expn*)i->st_data;
 	rc = address_expand( i->st_key, expn->e_rcpt_parent, &expansion,
 	    &seen, &ae_error );
@@ -171,13 +150,14 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    switch( ae_error ) {
 
 	    case SIMTA_EXPAND_ERROR_BAD_FORMAT:
-	    case SIMTA_EXPAND_ERROR_NOT_LOCAL:
+		if ( simta_debug ) printf( " bad format - removing\n" );
 		failed_expansions++;
 		free( i->st_data );
 		i->st_data = NULL;
 		break;
 
 	    case SIMTA_EXPAND_ERROR_SEEN:
+		if ( simta_debug ) printf( " seen - removing\n" );
 		/* indicate address already expanded */
 		free( i->st_data );
 		i->st_data = NULL;
@@ -193,9 +173,13 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
+    if ( simta_debug ) printf( "\ncreating per host queue\n" );
+
     /* Create per host expanded envelopes */
     for ( i = expansion; i != NULL; i = i->st_next ) {
 	if ( i->st_data == NULL ) {
+	    if ( simta_debug ) printf( "not adding %s to host queue: NULL\n",
+		    (char *)i->st_key );
 	    continue;
 	}
 	if (( domain = strchr( i->st_key, '@' )) == NULL ) {
@@ -203,6 +187,8 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	    return( -1 );
 	}
 	domain++;
+	if ( simta_debug ) printf( "adding %s to host queue\n",
+	    (char *)i->st_key );
 
 	/* If envelope is marked for punt, create one host entry
 	 * for punt machine.  Otherwise, create host queue entry.
@@ -244,8 +230,12 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 	}
     }
 
+    if ( simta_debug ) printf( "\nplace envelopes into host_q\n" );
+
     /* Place all expanded envelopes into host_q */
     for ( i = host_stab; i != NULL; i = i->st_next ) {
+
+	if ( simta_debug ) printf( "creating env for %s\n", i->st_key );
 
 	env_p = i->st_data;
 

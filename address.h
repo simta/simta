@@ -6,6 +6,10 @@
 #define SIMTA_EXPAND_ERROR_SEEN		5
 
 int address_local( char *address );
-int address_expand( char *address, struct recipient *rcpt, struct stab_entry **expansion, struct stab_entry **expanded, int *ae_error );
+int address_expand( char *address, struct recipient *rcpt,
+    struct stab_entry **expansion, struct stab_entry **expanded,
+    int *ae_error );
+int add_address( struct stab_entry **stab, char *address,
+    struct recipient *rcpt );
 
 void expansion_stab_stdout( void * );

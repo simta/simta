@@ -33,8 +33,6 @@
 DB		*dbp = NULL;
 
 int verify_and_correct_address( char **address, struct recipient *rcpt );
-int add_address( struct stab_entry **stab, char *address,
-    struct recipient *rcpt );
 
     void
 expansion_stab_stdout( void *string )
@@ -482,20 +480,9 @@ address_expand( char *address, struct recipient *rcpt,
 		    }
 		}
 	    } else {
-		/* No .forward, so just add address to expansion */
-		if (( temp = strdup( address )) == NULL ) {
-		    syslog( LOG_ERR, "address_expand: strdup: %m\n" );
-		    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
-		    return( -1 );
-		}
-		/* Add address to expansion list */
-		if ( add_address( expansion, address, rcpt ) != 0 ) {
-		    *ae_error = SIMTA_EXPAND_ERROR_SYSTEM;
-		    return( -1 );
-		}
-		if ( simta_debug ) printf( "%s new: added to expansion"
-		    " ( in password file )\n", temp);
-		count++;
+		/* No .forward, so don't do anything */
+		if ( simta_debug ) printf( "%s: local\n", address );
+		return( 0 );
 	    }
         }
     }
