@@ -14,15 +14,12 @@ r_alloc( rcpt )
     struct rcptlist	*t;
 
     if (( t = (struct rcptlist *)malloc(sizeof( struct rcptlist ))) == NULL ) {
-        perror( "malloc" );
 	return( NULL );
     }
 
-    if (( t->r_rcpt = (char *)malloc( strlen ( rcpt ) + 1 )) == NULL ) {
-        perror( "malloc" );
+    if (( t->r_rcpt = strdup( rcpt )) == NULL ) {
 	return( NULL );
     }
-    strcpy( t->r_rcpt, rcpt );
 
     return( t );
 }
