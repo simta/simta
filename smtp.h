@@ -13,7 +13,6 @@
 #define SMTP_EOF         	"."
 
 #define	SMTP_ERR_SYSCALL	-1
-#define	SMTP_NO_ERROR		0
 #define	SMTP_ERR_SYNTAX		1
 #define	SMTP_ERR_MAIL_LOOP	2
 

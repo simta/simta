@@ -241,21 +241,36 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	i++;
     }
 
+    /* check to see if remote smtp server is actually the local machine */
+    if ( strncasecmp( local_host, remote_host, (int)(i - remote_host) ) == 0 ) {
+	/* XXX gracefully close the connection? */
+	while ( *(line + 3) == '-' ) {
+	    if (( line = snet_getline( snet, NULL )) == NULL ) {
+		syslog( LOG_ERR, "snet_getline: %m" );
+		return( SMTP_ERR_SYNTAX );
+	    }
+
+	    if ( logger != NULL ) {
+		(*logger)( line );
+	    }
+	}
+
+	if ( smtp_quit( snet, logger ) < 0 ) {
+	    exit( 1 );
+	}
+
+	return( SMTP_ERR_MAIL_LOOP );
+    }
+
     while ( *(line + 3) == '-' ) {
 	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "gethostname: %m" );
+	    syslog( LOG_ERR, "snet_getline: %m" );
 	    return( SMTP_ERR_SYNTAX );
 	}
 
 	if ( logger != NULL ) {
 	    (*logger)( line );
 	}
-    }
-
-    /* check to see if remote smtp server is actually the local machine */
-    if ( strncasecmp( local_host, remote_host, (int)(i - remote_host) ) == 0 ) {
-	/* XXX gracefully close the connection? */
-	return( SMTP_ERR_MAIL_LOOP );
     }
 
     /* say HELO */
@@ -276,7 +291,7 @@ smtp_helo( SNET *snet, void (*logger)(char *))
 	return( SMTP_ERR_SYNTAX );
     }
 
-    return( SMTP_NO_ERROR );
+    return( 0 );
 }
 
 
@@ -307,6 +322,13 @@ smtp_rset( SNET *snet, void (*logger)(char *))
 }
 
 
+    /* return 0 on success
+     * return 1 on syntax error
+     * return -1 on syscall error
+     *
+     * syslog errors
+     */
+
     int
 smtp_quit( SNET *snet, void (*logger)(char *))
 {
@@ -314,7 +336,7 @@ smtp_quit( SNET *snet, void (*logger)(char *))
 
     /* say QUIT */
     if ( snet_writef( snet, "QUIT\r\n" ) < 0 ) {
-	return( 1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
 #ifdef DEBUG
@@ -323,15 +345,15 @@ smtp_quit( SNET *snet, void (*logger)(char *))
 
     /* read reply banner */
     if (( line = snet_getline_multi( snet, logger, NULL )) == NULL ) {
-	return( 1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
     if ( strncmp( line, SMTP_DISCONNECT, 3 ) != 0 ) {
-	return( 1 );
+	return( SMTP_ERR_SYNTAX );
     }
 
     if ( snet_close( snet ) != 0 ) {
-	return( 1 );
+	return( SMTP_ERR_SYSCALL );
     }
 
     return( 0 );
@@ -349,7 +371,7 @@ smtp_send_single_message( char *hostname, int port, struct message *m,
 	return( 1 );
     }
 
-    if (( r = smtp_helo( snet, logger )) != SMTP_NO_ERROR ) {
+    if (( r = smtp_helo( snet, logger )) != 0 ) {
 	return( 1 );
     }
 

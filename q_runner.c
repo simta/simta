@@ -36,8 +36,8 @@
 void	host_stab_stdout ___P(( void * ));
 void	q_file_stab_stdout ___P(( void * ));
 int	efile_time_compare ___P(( void *, void * ));
-int	deliver_local ___P(( struct stab_entry * ));
 int	deliver_remote ___P(( struct host_q * ));
+int	deliver_local ___P(( struct host_q * ));
 
 
     int
@@ -232,7 +232,7 @@ main( int argc, char *argv[] )
 
 	} else if ( strcasecmp( localhostname, hs->st_key ) == 0 ) {
 	    hq = (struct host_q*)hs->st_data;
-	    deliver_local( hq->hq_qfiles );
+	    deliver_local( hq );
 
 	} else {
 	    /* XXX deliver hs->st_data off machine */
@@ -246,7 +246,7 @@ main( int argc, char *argv[] )
 
 
     int
-deliver_local( struct stab_entry *qfiles )
+deliver_local( struct host_q *hq )
 {
     struct q_file		*q;
     struct stab_entry		*qs;
@@ -254,7 +254,7 @@ deliver_local( struct stab_entry *qfiles )
     int				fd;
     char			fname[ MAXPATHLEN ];
 
-    for ( qs = qfiles; qs != NULL; qs = qs->st_next ) {
+    for ( qs = hq->hq_qfiles; qs != NULL; qs = qs->st_next ) {
 	q = (struct q_file*)qs->st_data;
 
 	/* get message_data */
@@ -398,14 +398,12 @@ deliver_remote( struct host_q *hq )
 		return( 1 );
 
 	    } else if ( r == SMTP_ERR_MAIL_LOOP ) {
-		/* XXX deliver locally? */
-		printf( "Mail server %s is actually localhost\n", hq->hq_name );
-
+		/* XXX deliver locally */
 		if ( snet_close( message ) != 0 ) {
 		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );
 		}
-		return( 1 );
+		return( deliver_local( hq ));
 	    }
 	}
 
