@@ -164,6 +164,11 @@ main( int argc, char *argv[] )
 	exit( EX_USAGE );
     }
 
+    /* init simta config / defaults */
+    if ( simta_config() != 0 ) {
+	exit( EX_TEMPFAIL );
+    }
+
     /* create envelope */
     if (( env = env_create( NULL )) == NULL ) {
 	perror( "env_create" );
@@ -381,7 +386,7 @@ main( int argc, char *argv[] )
 
     /* if possible, signal server */
     /* XXX add error message & logging */
-    if (( pidfd = open( SIMTA_PATH_PIDFILE, O_RDONLY, 0 )) < 0 ) {
+    if (( pidfd = open( SIMTA_FILE_PID, O_RDONLY, 0 )) < 0 ) {
 	return( 0 );
     }
 

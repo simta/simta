@@ -243,8 +243,8 @@ main( ac, av )
      * Read config file before chdir(), in case config file is relative path.
      */
 
-    /* init hosts list */
-    if ( simta_init_hosts() != 0 ) {
+    /* init simta config / defaults */
+    if ( simta_config() != 0 ) {
 	exit( 1 );
     }
 
@@ -352,8 +352,8 @@ main( ac, av )
     }
 
     /* open and truncate the pid file */
-    if (( pidfd = open( SIMTA_PATH_PIDFILE, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
-	fprintf( stderr, "open %s: ", SIMTA_PATH_PIDFILE );
+    if (( pidfd = open( SIMTA_FILE_PID, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
+	fprintf( stderr, "open %s: ", SIMTA_FILE_PID );
         perror( NULL );
         exit( 1 );
     }
@@ -363,11 +363,11 @@ main( ac, av )
 	if ( errno == EAGAIN ) {
 	    /* file locked by a diferent process */
 	    syslog( LOG_WARNING, "lockf %s: daemon already running",
-		    SIMTA_PATH_PIDFILE );
+		    SIMTA_FILE_PID );
 	    exit( 1 );
 
 	} else {
-	    syslog( LOG_ERR, "lockf %s: %m", SIMTA_PATH_PIDFILE );
+	    syslog( LOG_ERR, "lockf %s: %m", SIMTA_FILE_PID );
 	    exit( 1 );
 	}
     }

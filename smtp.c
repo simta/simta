@@ -57,7 +57,6 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 {
     SNET			*snet;
     char			*line;
-    char			*local_host;
     char			*remote_host;
     char			*c;
     struct sockaddr_in		sin;
@@ -164,10 +163,6 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
     if (( snet = snet_attach( s, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "smtp_connect: snet_attach: %m" );
-	return( SMTP_ERR_SYSCALL );
-    }
-
-    if (( local_host = simta_gethostname()) == NULL ) {
 	return( SMTP_ERR_SYSCALL );
     }
 
@@ -351,7 +346,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
     /* mail loop detection: check if remote hostname matches local hostname */
 
-    if ( strncasecmp( local_host, remote_host,
+    if ( strncasecmp( simta_hostname, remote_host,
 	    (size_t)(c - remote_host) ) == 0 ) {
 	hq->hq_status = HOST_BOUNCE;
 
@@ -413,7 +408,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     /* CONNECT END */
 
     /* say HELO */
-    if ( snet_writef( snet, "HELO %s\r\n", local_host ) < 0 ) {
+    if ( snet_writef( snet, "HELO %s\r\n", simta_hostname ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_connect %s: failed writef", hq->hq_hostname );
 
 	if ( snet_close( snet ) < 0 ) {
@@ -426,7 +421,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
     }
 
 #ifdef DEBUG
-    printf( "--> HELO %s\n", local_host );
+    printf( "--> HELO %s\n", simta_hostname );
 #endif /* DEBUG */
 
     tv.tv_sec = SMTP_TIME_HELO;

@@ -45,7 +45,7 @@ main( int argc, char *argv[] )
 	exit( 1 );
     }
 
-    sprintf( path, "%s/%ld.%ld", SIMTA_LOG_DIR, tv.tv_sec, tv.tv_usec );
+    sprintf( path, "%s/%ld.%ld", SIMTA_DIR_LOG, tv.tv_sec, tv.tv_usec );
 
     if (( in = snet_attach( 0, 1024 * 1024 )) == NULL ) {
 	perror( "snet_attach" );

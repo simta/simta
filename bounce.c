@@ -64,7 +64,6 @@ bounce( struct envelope *env, SNET *message )
     struct tm                   *tm;
     struct timeval		tv;
     char                        daytime[ 35 ];
-    char			*localhost;
 
     memset( &bounce_env, 0, sizeof( struct envelope ));
 
@@ -125,13 +124,8 @@ bounce( struct envelope *env, SNET *message )
         goto cleanup;
     }
 
-    if (( localhost = simta_gethostname()) == NULL ) {
-        close( dfile_fd );
-        goto cleanup;
-    }
-
     /* XXX From: address */
-    fprintf( dfile, "From: mailer-daemon@%s\n", localhost );
+    fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
     fprintf( dfile, "To: %s\n", env->e_mail );
     fprintf( dfile, "Date: %s\n", daytime );
     fprintf( dfile, "Message-ID: %s\n", env->e_id );

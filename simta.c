@@ -19,6 +19,7 @@
 
 #include "ll.h"
 #include "queue.h"
+#include "nlist.h"
 #include "simta.h"
 
 /* global variables */
@@ -27,63 +28,36 @@ struct stab_entry	*simta_hosts = NULL;
 char			*dnsr_resolvconf_path = SIMTA_RESOLV_CONF;
 int			simta_debug = 0;
 int			simta_verbose = 0;
-
-    char*
-simta_gethostname( void )
-{
-    static char			localhostname[ MAXHOSTNAMELEN + 1 ] = "\0";
-
-    if ( *localhostname == '\0' ) {
-	if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
-	    perror( "gethostname" );
-	    return( NULL );
-	}
-    }
-
-    return( localhostname );
-}
+char			*simta_domain = NULL;
+char			simta_hostname[ MAXHOSTNAMELEN + 1 ] = "\0";
 
 
-    char*
-simta_local_domain( void )
-{
-    static char			domain[ MAXHOSTNAMELEN + 1 ] = "\0";
-
-    if ( *domain == '\0' ) {
-	if ( gethostname( domain, MAXHOSTNAMELEN ) != 0 ) {
-	    perror( "gethostname" );
-	    return( NULL );
-	}
-    }
-
-    return( domain );
-}
+struct nlist		simta_nlist[] = {
+#define	NLIST_MASQUERADE		0
+    { "masquerade",	NULL,	0 },
+    { NULL,		NULL,	0 },
+};
 
 
     char*
 simta_sender( void )
 {
     static char			*sender = NULL;
-    char			*domain;
     struct passwd		*pw;
 
     if ( sender == NULL ) {
-	if (( domain = simta_local_domain()) == NULL ) {
-	    return( NULL );
-	}
-
 	if (( pw = getpwuid( getuid())) == NULL ) {
 	    perror( "getpwuid" );
 	    return( NULL );
 	}
 
 	if (( sender = (char*)malloc( strlen( pw->pw_name ) +
-		strlen( domain ) + 2 )) == NULL ) {
+		strlen( simta_domain ) + 2 )) == NULL ) {
 	    perror( "malloc" );
 	    return( NULL );
 	}
 
-	sprintf( sender, "%s@%s", pw->pw_name, domain );
+	sprintf( sender, "%s@%s", pw->pw_name, simta_domain );
     }
 
     return( sender );
@@ -91,43 +65,84 @@ simta_sender( void )
 
 
     int
-simta_init_hosts( void )
+simta_config( void )
 {
+    int			result;
     struct host		*host = NULL;
 
+    /* Set up simta_hostname */
+    if ( gethostname( simta_hostname, MAXHOSTNAMELEN ) != 0 ) {
+	perror( "gethostname" );
+	return( -1 );
+    }
+
+    /* read config file */
+    if (( result = nlist( simta_nlist, SIMTA_FILE_CONFIG )) < 0 ) {
+	return( -1 );
+
+    } else if ( result == 0 ) {
+	/* currently checking for the following fields:
+	 *	    masquerade
+	 */
+
+	if ( simta_nlist[ NLIST_MASQUERADE ].n_data != NULL ) {
+	    simta_domain = simta_nlist[ NLIST_MASQUERADE ].n_data;
+
+	} else {
+	    simta_domain = simta_hostname;
+	}
+
+    } else {
+	/* no config file found */
+	if ( simta_verbose != 0 ) {
+	    printf( "simta_config file not found: %s\n", SIMTA_FILE_CONFIG );
+	    syslog( LOG_INFO, "simta_config file not found: %s",
+		    SIMTA_FILE_CONFIG );
+	}
+
+	simta_domain = simta_hostname;
+    }
+
+    /* set up simta_hosts stab */
     simta_hosts = NULL;
 
     /* Add localhost to hosts list */
     if (( host = malloc( sizeof( struct host ))) == NULL ) {
-	syslog( LOG_ERR, "simta_config_host: malloc: %m" );
+	perror( "simta_config malloc" );
 	return( -1 );
     }
+
     host->h_type = HOST_LOCAL;
     host->h_expansion = NULL;
-
-    if (( host->h_name = simta_gethostname()) == NULL ) {
-	return( -1 );
-    }
+    host->h_name = simta_hostname;
 
     /* Add list of expansions */
     if ( access( SIMTA_ALIAS_DB, R_OK ) == 0 ) {
 	if ( ll_insert_tail( &(host->h_expansion), "alias",
 		"alias" ) != 0 ) {
-	    syslog( LOG_ERR, "simta_config_host: ll_insert_tail: %m" );
+	    perror( "simta_config ll_insert_tail" );
 	    return( -1 );
 	}
+
     } else {
-	syslog( LOG_INFO, "simta_config_host: %s: %m", SIMTA_ALIAS_DB );
+	if ( simta_verbose != 0 ) {
+	    fprintf( stderr, "simta_config access %s: ", SIMTA_ALIAS_DB );
+	    perror( NULL );
+	}
+
+	syslog( LOG_INFO, "simta_config access %s: %m", SIMTA_ALIAS_DB );
     }
 
     if ( ll_insert_tail( &(host->h_expansion), "password",
 	    "password" ) != 0 ) {
-	syslog( LOG_ERR, "simta_config_host: ll_insert_tail: %m" );
+	fprintf( stderr, "simta_config ll_insert_tail: " );
+	perror( NULL );
 	return( -1 );
     }
 
     if ( ll_insert( &simta_hosts, host->h_name, host, NULL ) != 0 ) {
-	syslog( LOG_ERR, "simta_config_host: ll_insert: %m" );
+	fprintf( stderr, "simta_config ll_insert: " );
+	perror( NULL );
 	return( -1 );
     }
 

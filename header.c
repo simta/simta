@@ -307,7 +307,6 @@ header_timestamp( struct envelope *env, FILE *file )
     time_t			clock;
     struct tm			*tm;
     char			daytime[ 30 ];
-    char			*localhostname;
 
     if ( env->e_sin != NULL ) {
 	memcpy( &sin, env->e_sin, sizeof( struct sockaddr_in )); 
@@ -331,13 +330,9 @@ header_timestamp( struct envelope *env, FILE *file )
 	return( -1 );
     }
 
-    if (( localhostname = simta_gethostname()) == NULL ) {
-	return( -1 );
-    }
-
     /* Received header */
     if ( fprintf( file, "Received: FROM %s ([%s])\n\tBY %s ID %s ;\n\t%s %s\n",
-	    env->e_mail, inet_ntoa( sin.sin_addr ), localhostname,
+	    env->e_mail, inet_ntoa( sin.sin_addr ), simta_hostname,
 	    env->e_id, daytime, tz( tm )) < 0 ) {
 	return( -1 );
     }
@@ -722,7 +717,6 @@ is_emailaddr( char **addr )
     char				*end;
     char				*at;
     char				*eol;
-    char				*domain;
     char				*new;
     char				*r;
     char				*w;
@@ -744,7 +738,7 @@ is_emailaddr( char **addr )
     }
 
     /* next token can be '@' followed by a domain, or '\0' and we'll
-     * append simta_localdomain. anything else return 0.
+     * append simta_domain. anything else return 0.
      */
 
     at = skip_ws( end + 1 );
@@ -770,13 +764,9 @@ is_emailaddr( char **addr )
 	}
 
     } else if ( *at == '\0' ) {
-	if (( domain = simta_local_domain()) == NULL ) {
-	    return( -1 );
-	}
-
 	len = end - start;
 	len += 3;
-	len += strlen( domain );
+	len += strlen( simta_domain );
 
 	if (( new = (char*)malloc( len )) == NULL ) {
 	    return( -1 );
@@ -792,7 +782,7 @@ is_emailaddr( char **addr )
 	*w = '@';
 	w++;
 
-	for ( r = domain; *r != '\0'; r++ ) {
+	for ( r = simta_domain; *r != '\0'; r++ ) {
 	    *w = *r;
 	    w++;
 	}
@@ -893,9 +883,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	    (( *next_c == '>' ) && ( **start == '<' )) ||
 	    (( mode == MAILBOX_GROUP_CORRECT ) && ( *next_c == ';' ))) {
 	/* single addr completion */
-	if (( local_domain = simta_local_domain()) == NULL ) {
-	    return( -1 );
-	}
+	local_domain = simta_domain;
 
 	buf_len = strlen( local_domain );
 	buf_len += 2; /* @ & \0 */

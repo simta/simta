@@ -148,7 +148,6 @@ message_queue( struct host_q *hq, struct message *m )
 host_q_lookup( struct host_q **host_q, char *hostname ) 
 {
     struct host_q		*hq;
-    char			*localhostname;
 
     for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
 	if ( strcasecmp( hq->hq_hostname, hostname ) == 0 ) {
@@ -172,11 +171,7 @@ host_q_lookup( struct host_q **host_q, char *hostname )
 	hq->hq_next = *host_q;
 	*host_q = hq;
 
-	if (( localhostname = simta_gethostname()) == NULL ) {
-	    return( NULL );
-	}
-
-	if ( strcasecmp( localhostname, hq->hq_hostname ) == 0 ) {
+	if ( strcasecmp( simta_hostname, hq->hq_hostname ) == 0 ) {
 	    hq->hq_status = HOST_LOCAL;
 
 	} else if (( hostname == NULL ) || ( *hostname == '\0' )) {

@@ -69,11 +69,7 @@ env_create( char *id )
 	*env->e_id = '\0';
     }
 
-    /* XXX divine local host name with simta_gethostname */
-    if (( env->e_hostname = simta_gethostname()) == NULL ) {
-	return( NULL );
-    }
-
+    env->e_hostname = simta_hostname;
     env->e_sin = NULL;
     env->e_helo = NULL;
     env->e_mail = NULL;
@@ -140,12 +136,11 @@ env_reset( struct envelope *env )
 	env->e_helo = NULL;
     }
 
-    /* XXX reset env->e_hostname? */
-
     line_file_free( env->e_err_text );
 
     env_rcpt_free( env );
 
+    env->e_hostname = simta_hostname;
     env->e_err_text = NULL;
     env->e_rcpt = NULL;
     *env->e_id = '\0';

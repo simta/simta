@@ -63,8 +63,8 @@ main( int argc, char *argv[] )
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
-    /* Add localhost to hosts list */
-    if ( simta_init_hosts() != 0 ) {
+    /* init simta config / defaults */
+    if ( simta_config() != 0 ) {
 	exit( 1 );
     }
 
