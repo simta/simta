@@ -133,7 +133,7 @@ main( int argc, char *argv[] )
 		perror( "env_infile" );
 		exit( 1 );
 	    }
-	    q->q_hostname = q->q_env->e_hostname;
+	    q->q_expanded = q->q_env->e_expanded;
 
 	    /* get efile modification time */
 	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
@@ -151,9 +151,9 @@ main( int argc, char *argv[] )
 
 	    /* XXX Hostname lookup if unexpanded? */
 
-	    if (( hq = (struct host_q*)ll_lookup( host_stab, q->q_hostname ))
+	    if (( hq = (struct host_q*)ll_lookup( host_stab, q->q_expanded ))
 		    == NULL ) {
-		if (( hq = host_q_create( q->q_hostname )) == NULL ) {
+		if (( hq = host_q_create( q->q_expanded )) == NULL ) {
 		    perror( "host_q_create" );
 		    exit( 1 );
 		}
@@ -205,6 +205,8 @@ main( int argc, char *argv[] )
 	    }
 
 	    /* send message */
+	    /* check to see if we deliver locally */
+
 	    /* if send failure, update efile modification time */
 	    /* if send failure, check remaining dfiles for bounce generation */
 	}

@@ -19,7 +19,7 @@
 
 struct q_file {
     char			*q_id;
-    char			*q_hostname;
+    char			*q_expanded;
     struct q_file		*q_inode_next;
     struct q_file		*q_etime_next;
     struct envelope		*q_env;

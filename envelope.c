@@ -92,6 +92,12 @@ env_stdout( struct envelope *e )
 	printf( "hostname %s\n", e->e_hostname );
     }
 
+    if ( *e->e_expanded == '\0' ) {
+	printf( "expanded NULL\n" );
+    } else {
+	printf( "expanded %s\n", e->e_expanded );
+    }
+
     if ( e->e_mail != NULL ) {
 	printf( "mail:\t%s\n", e->e_mail );
     } else {
@@ -181,7 +187,7 @@ env_infile( char *dir, char *id )
     }
 
     if ( *(line + 1) != '\0' ) {
-	strcpy( e->e_hostname, line + 1 );
+	strcpy( e->e_expanded, line + 1 );
     }
 
     /*** Ffrom-address ***/
@@ -264,8 +270,8 @@ env_outfile( struct envelope *e, char *dir )
     }
 
     /* Hdestination-host */
-    if (( e->e_hostname != NULL ) && ( *e->e_hostname != '\0' )) {
-	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
+    if (( e->e_expanded != NULL ) && ( *e->e_expanded != '\0' )) {
+	if ( fprintf( tff, "H%s\n", e->e_expanded ) < 0 ) {
 	    fclose( tff );
 	    goto cleanup;
 	}

@@ -18,6 +18,7 @@ struct envelope {
     struct envelope	*e_next;
     struct sockaddr_in	*e_sin;
     char		e_hostname[ MAXHOSTNAMELEN ];
+    char		e_expanded[ MAXHOSTNAMELEN ];
     char		*e_helo;
     char		*e_mail;
     struct recipient	*e_rcpt;
