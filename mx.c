@@ -309,25 +309,6 @@ check_hostname( char *hostname )
     return( 1 );
 }
 
-    struct dnsr_result *
-get_dnsr_result( char *hostname )
-{
-    struct dnsr_result		*result;
-
-    if (( result = get_mx( hostname )) != NULL ) {
-	if ( result->r_ancount > 0 ) {
-	    return( result );
-	} else {
-	    dnsr_free_result( result );
-	}
-    }
-
-    if (( result = get_a( hostname )) != NULL ) {
-	return( result );
-    }
-    return( NULL );
-}
-
     struct host *
 add_host( char *hostname, int type )
 {

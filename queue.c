@@ -1065,54 +1065,57 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 
     if ( d->d_dnsr_result == NULL ) {
 	switch ( hq->hq_status ) {
-	case HOST_DOWN:
-	    if (( d->d_dnsr_result = get_dnsr_result( hq->hq_hostname ))
-		    == NULL ) {
-		return( 1 );
-	    }
 
-	    if ( d->d_dnsr_result->r_ancount == 0 ) {
-		if ( hq->hq_err_text == NULL ) {
-		    if (( hq->hq_err_text = line_file_create()) == NULL ) {
-			syslog( LOG_ERR,
-				"next_dnsr_host line_file_create: %m" );
-			dnsr_free_result( d->d_dnsr_result );
-			d->d_dnsr_result = NULL;
-			return( 1 );
+	case HOST_DOWN:
+	    if ((( d->d_dnsr_result = get_mx( hq->hq_hostname )) != NULL ) &&
+		    ( d->d_dnsr_result->r_ancount != 0 )) {
+		/* check remote host's mx entry for our local hostname.
+		 * If we find it, we never punt mail destined for this host,
+		 * and we only try remote delivery to mx entries that have a
+		 * lower mx_preference than we do.
+		 */
+		hq->hq_no_punt = 0;
+		d->d_mx_preference_cutoff = 0;
+		for ( d->d_cur_dnsr_result = 0;
+			d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
+			d->d_cur_dnsr_result++ ) {
+		    if ( strcasecmp( simta_hostname,
+			    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
+			    ].rr_mx.mx_exchange ) == 0 ) {
+			hq->hq_no_punt = 1;
+			d->d_mx_preference_cutoff =
+				d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
+				].rr_mx.mx_preference;
+			break;
 		    }
 		}
-		if ( line_append( hq->hq_err_text, "Host does not exist",
-			COPY ) == NULL ) {
-		    syslog( LOG_ERR, "next_dnsr_host line_append: %m" );
+
+	    } else {
+		if ( d->d_dnsr_result != NULL ) {
 		    dnsr_free_result( d->d_dnsr_result );
-		    d->d_dnsr_result = NULL;
+		}
+		if (( d->d_dnsr_result = get_a( hq->hq_hostname )) == NULL ) {
 		    return( 1 );
 		}
-		hq->hq_status = HOST_BOUNCE;
-		d->d_env->e_flags |= ENV_FLAG_BOUNCE;
-		dnsr_free_result( d->d_dnsr_result );
-		d->d_dnsr_result = NULL;
-		return( 1 );
-	    }
 
-	    /* check remote host's mx entry for our local hostname.
-	     * If we find it, we never punt mail destined for this host,
-	     * and we only try remote delivery to mx entries that have a
-	     * lower mx_preference than we do.
-	     */
-	    hq->hq_no_punt = 0;
-	    d->d_mx_preference_cutoff = 0;
-	    for ( d->d_cur_dnsr_result = 0;
-		    d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
-		    d->d_cur_dnsr_result++ ) {
-		if ( strcasecmp( simta_hostname,
-			d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
-			].rr_mx.mx_exchange ) == 0 ) {
-		    hq->hq_no_punt = 1;
-		    d->d_mx_preference_cutoff =
-			    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
-			    ].rr_mx.mx_preference;
-		    break;
+		if ( d->d_dnsr_result->r_ancount == 0 ) {
+		    dnsr_free_result( d->d_dnsr_result );
+		    d->d_dnsr_result = NULL;
+		    if ( hq->hq_err_text == NULL ) {
+			if (( hq->hq_err_text = line_file_create()) == NULL ) {
+			    syslog( LOG_ERR,
+				    "next_dnsr_host line_file_create: %m" );
+			    return( 1 );
+			}
+		    }
+		    if ( line_append( hq->hq_err_text, "Host does not exist",
+			    COPY ) == NULL ) {
+			syslog( LOG_ERR, "next_dnsr_host line_append: %m" );
+			return( 1 );
+		    }
+		    hq->hq_status = HOST_BOUNCE;
+		    d->d_env->e_flags |= ENV_FLAG_BOUNCE;
+		    return( 1 );
 		}
 	    }
 
