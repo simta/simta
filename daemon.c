@@ -185,7 +185,7 @@ main( int ac, char **av )
     opterr = 1;
     optind = 1;
 
-    while (( c = getopt( ac, av, "ab:cD:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
+    while (( c = getopt( ac, av, "ab:cdD:f:Im:M:p:rRs:Vw:x:y:z:" )) != -1 ) {
 	switch ( c ) {
 	case 'a' :		/* Automatically config with DNS */
 	    simta_dns_config = 0;
