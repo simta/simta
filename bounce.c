@@ -78,21 +78,31 @@ bounce( struct envelope *env, SNET *message )
     sprintf( bounce_env.e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 	    (unsigned long)tv.tv_usec );
 
-    if (( env->e_mail != NULL ) && ( *env->e_mail != '\0' )) {
-        if ( env_recipient( &bounce_env, env->e_mail ) != 0 ) {
+    bounce_env.e_dir = SIMTA_DIR_FAST;
+    bounce_env.e_mail = simta_postmaster;
+
+    if (( env->e_mail == NULL ) || ( *env->e_mail == '\0' ) ||
+	    ( strcasecmp( env->e_mail, simta_postmaster ) == 0 )) {
+        if ( env_recipient( &bounce_env, simta_postmaster ) != 0 ) {
             return( -1 );
         }
 
+	for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+	    if (( r->r_delivered == R_FAILED ) &&
+		    ( strcasecmp( simta_postmaster, r->r_rcpt ) == 0 )) {
+
+		bounce_env.e_dir = SIMTA_DIR_DEAD;
+		break;
+	    }
+	}
+
     } else {
-        if ( env_recipient( &bounce_env, simta_postmaster ) != 0 ) {
+        if ( env_recipient( &bounce_env, env->e_mail ) != 0 ) {
             return( -1 );
         }
     }
 
-    /* all bounces get created in FAST */
-    bounce_env.e_dir = SIMTA_DIR_FAST;
-
-    sprintf( dfile_fname, "%s/D%s", SIMTA_DIR_FAST, bounce_env.e_id );
+    sprintf( dfile_fname, "%s/D%s", bounce_env.e_dir, bounce_env.e_id );
 
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
@@ -127,13 +137,9 @@ bounce( struct envelope *env, SNET *message )
 
     /* XXX From: address */
     fprintf( dfile, "From: mailer-daemon@%s\n", simta_hostname );
-    if ( env->e_mail != NULL ) {
-	fprintf( dfile, "To: %s\n", simta_postmaster );
-    } else {
-	fprintf( dfile, "To: %s\n", simta_postmaster );
-    }
+    fprintf( dfile, "To: %s\n", bounce_env.e_mail );
     fprintf( dfile, "Date: %s\n", daytime );
-    fprintf( dfile, "Message-ID: %s\n", env->e_id );
+    fprintf( dfile, "Message-ID: %s\n", bounce_env.e_id );
     fprintf( dfile, "\n" );
 
     /* XXX bounce message */
@@ -188,21 +194,25 @@ bounce( struct envelope *env, SNET *message )
         goto cleanup;
     }
 
-    if ( env_outfile( &bounce_env, SIMTA_DIR_FAST ) != 0 ) {
+    if ( env_outfile( &bounce_env, bounce_env.e_dir ) != 0 ) {
         goto cleanup;
     }
 
-    if (( m = message_create( bounce_env.e_id )) == NULL ) {
-	return( -1 );
+    /* if it's not going to the DEAD queue, add it to our work list */
+    if ( bounce_env.e_dir != SIMTA_DIR_DEAD ) {
+	if (( m = message_create( bounce_env.e_id )) == NULL ) {
+	    return( -1 );
+	}
+
+	m->m_dir = bounce_env.e_dir;
+	m->m_etime.tv_sec = tv.tv_sec;
+
+	if ( message_queue( simta_null_q, m ) != 0 ) {
+	    return( -1 );
+	}
     }
 
-    m->m_dir = SIMTA_DIR_FAST;
-    m->m_etime.tv_sec = tv.tv_sec;
-
-    if ( message_queue( simta_null_q, m ) != 0 ) {
-	return( -1 );
-    }
-
+    /* make sure to reset to clean up any memory */
     env_reset( &bounce_env );
 
     return( 0 );

@@ -19,6 +19,7 @@
 #define	SIMTA_DIR_LOCAL		"/var/spool/simta/local"
 #define	SIMTA_DIR_FAST		"/var/spool/simta/fast"
 #define	SIMTA_DIR_SLOW		"/var/spool/simta/slow"
+#define	SIMTA_DIR_DEAD		"/var/spool/simta/dead"
 #define SIMTA_DIR_LOG		"/var/simta/log"
 #define	SIMTA_BOUNCE_LINES	100
 #define	SIMTA_VERSION_STRING	"V0"

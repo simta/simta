@@ -225,6 +225,8 @@ q_cleanup( void )
     	message_free( m );
     }
 
+    /* XXX check for existance of a DEAD queue */
+
     return( 0 );
 }
 
@@ -294,7 +296,7 @@ move_to_slow( struct message **slow_q, struct message **other_q )
 		}
 
 		if ( unlink( d_original ) != 0 ) {
-		    fprintf( stderr, "move_to_slow unlink %s: ", e_original );
+		    fprintf( stderr, "move_to_slow unlink %s: ", d_original );
 		    perror( NULL );
 		    return( -1 );
 		}

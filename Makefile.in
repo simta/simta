@@ -12,6 +12,7 @@ SPOOLDIR=/var/spool/simta/
 LOCAL_Q=/var/spool/simta/local
 SLOW_Q=/var/spool/simta/slow
 FAST_Q=/var/spool/simta/fast
+DEAD_Q=/var/spool/simta/dead
 
 SRC=    daemon.c receive.c argcargv.c envelope.c auth.c base64.c \
 	simsend.c rfc822.c rcptlist.c tz.c tlsconnect.c address.c
@@ -64,6 +65,7 @@ install : all FRC
 	-mkdir -p ${LOCAL_Q}
 	-mkdir -p ${SLOW_Q}
 	-mkdir -p ${FAST_Q}
+	-mkdir -p ${DEAD_Q}
 	-chown -R simta ${SPOOLDIR}
 	-chgrp -R simta ${SPOOLDIR}
 	-chmod -R 700 ${SPOOLDIR}
