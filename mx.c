@@ -219,7 +219,10 @@ check_hostname( DNSR **dnsr, char *hostname )
 	return( -1 );
     }
     if ( result->r_ancount > 0 ) {
-	/* Check to see if hostname is mx'ed to us */
+	/* Check to see if hostname is mx'ed to us
+	 * Only do dynamic configuration when exchange matches our
+	 * actual host name.  Others must be configured by hand.
+	 */
 	for ( i = 0; i < result->r_ancount; i++ ) {
 	    if ( strcasecmp( simta_hostname,
 		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) {
