@@ -333,7 +333,6 @@ main( int argc, char *argv[] )
 	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
 
 	    if (( result = env_unexpanded( fname, &q->q_unexpanded )) < 0 ) {
-		syslog( LOG_ERR, "env_unexpanded %s: %m", fname );
 		exit( 1 );
 
 	    } else if ( result > 0 ) {

@@ -91,12 +91,10 @@ bounce( struct envelope *env, SNET *message )
     struct q_file		*q;
 
     if (( bounce_env = env_create( NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_create: %m" );
 	return( -1 );
     }
 
     if ( env_gettimeofday_id( bounce_env ) != 0 ) {
-	syslog( LOG_ERR, "env_gettimeofday_id: %m" );
 	return( -1 );
     }
 
@@ -116,14 +114,12 @@ bounce( struct envelope *env, SNET *message )
 
     if (( env->e_mail != NULL ) && ( *env->e_mail != '\0' )) {
 	if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
-	    syslog( LOG_ERR, "env_recipient: %m" );
 	    fclose( dfile );
 	    goto cleanup;
 	}
 
     } else {
 	if ( env_recipient( bounce_env, SIMTA_POSTMASTER ) != 0 ) {
-	    syslog( LOG_ERR, "env_recipient: %m" );
 	    fclose( dfile );
 	    goto cleanup;
 	}
@@ -275,7 +271,6 @@ main( int argc, char *argv[] )
 	/* organize Efiles by host and modification time */
 	if ( *entry->d_name == 'E' ) {
 	    if (( env = env_create( entry->d_name + 1 )) == NULL ) {
-		syslog( LOG_ERR, "env_create: %m" );
 		exit( 1 );
 	    }
 

@@ -45,16 +45,16 @@ void		env_reset ___P(( struct envelope * ));
 void		env_stdout ___P(( struct envelope * ));
 void		env_cleanup ___P(( struct envelope *e ));
 
-/* return pointer on success, NULL on syserror, no syslog */
+/* return pointer on success, NULL on syserror, syslog */
 struct envelope	*env_create ___P(( char * ));
 void		env_free ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
 
-/* return 0 on success, -1 on syserror, no syslog */
+/* return 0 on success, -1 on syserror, syslog */
 int		env_recipient ___P(( struct envelope *, char * ));
 int		env_outfile ___P(( struct envelope *, char * ));
 
-/* return 0 on success, -1 on syserror, 1 on syntax error, no syslog */
+/* return 0 on success, -1 on syserror, 1 on syntax error, syslog */
 int		env_unexpanded ___P(( char *, int * ));
 int		env_infile ___P(( struct envelope *, char * ));
 int		env_gettimeofday_id ___P(( struct envelope * ));
