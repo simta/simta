@@ -262,7 +262,7 @@ ldap_value( LDAPMessage *e, char *attr, struct list *master )
 
     int
 ldap_expand( char *addr, struct recipient *rcpt, struct stab_entry **expansion,
-	struct stab_entry **seen )
+	struct stab_entry **seen, int *ae_error )
 {
     int			x;
     int			whiteout;

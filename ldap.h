@@ -16,4 +16,4 @@ struct list {
 int	ldap_config ___P(( char * ));
 int	ldap_value ___P(( LDAPMessage *, char *, struct list * ));
 int	ldap_expand ___P(( char *, struct recipient *, struct stab_entry **,
-		struct stab_entry ** ));
+		struct stab_entry **, int * ));

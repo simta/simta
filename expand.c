@@ -173,6 +173,14 @@ expand( struct host_q **hq_stab, struct envelope *unexpanded_env )
 		i->st_data = NULL;
 		break;
 
+#ifdef NOT_DEF
+#ifdef HAVE_LDAP
+	    case SIMTA_LDAP_DOWN:
+		/* XXX unwind expansion here */
+		break;
+#endif /* HAVE_LDAP */
+#endif /* NOT_DEF */
+
 	    default:
 		/* XXX do you want to report an error here? */
 		break;
