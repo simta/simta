@@ -30,6 +30,7 @@
 #define	MAILBOX_FROM_CORRECT	2
 #define	MAILBOX_SENDER		3
 
+
 struct line_token {
     int			t_type;
     char		*t_start;
@@ -47,6 +48,33 @@ int	line_token_dl ___P(( struct line_token *, struct line *, char * ));
 int	parse_addr ___P(( struct line **, char **, int ));
 int	parse_mailbox_list ___P(( struct line *, char *, int ));
 int	match_addr ___P(( struct line_token *, struct line_token *, char * ));
+
+
+struct header simta_headers[] = {
+    { "Date",			NULL,		NULL },
+#define HEAD_DATE		0
+    { "From",			NULL,		NULL },
+#define HEAD_FROM		1
+    { "Sender",			NULL,		NULL },
+#define HEAD_SENDER		2
+    { "To",			NULL,		NULL },
+#define HEAD_TO			3
+    { "Message-ID",		NULL,		NULL },
+#define HEAD_MESSAGE_ID		4
+    { "Cc",			NULL,		NULL },
+#define HEAD_CC			5
+    { "Bcc",			NULL,		NULL },
+#define HEAD_BCC		6
+    { "Reply-To",		NULL,		NULL },
+#define HEAD_REPLY_TO		7
+    { "References",		NULL,		NULL },
+#define HEAD_REFRENCES		8
+    { "Subject",		NULL,		NULL },
+#define HEAD_SUBJECT		9
+    { NULL,			NULL,		NULL }
+};
+
+int				simta_generate_sender;
 
 
     int
@@ -96,32 +124,6 @@ match_addr( struct line_token *local, struct line_token *domain, char *addr )
     return( 1 );
 }
 
-
-struct header simta_headers[] = {
-    { "Date",			NULL,		NULL },
-#define HEAD_DATE		0
-    { "From",			NULL,		NULL },
-#define HEAD_FROM		1
-    { "Sender",			NULL,		NULL },
-#define HEAD_SENDER		2
-    { "To",			NULL,		NULL },
-#define HEAD_TO			3
-    { "Message-ID",		NULL,		NULL },
-#define HEAD_MESSAGE_ID		4
-    { "Cc",			NULL,		NULL },
-#define HEAD_CC			5
-    { "Bcc",			NULL,		NULL },
-#define HEAD_BCC		6
-    { "Reply-To",		NULL,		NULL },
-#define HEAD_REPLY_TO		7
-    { "References",		NULL,		NULL },
-#define HEAD_REFRENCES		8
-    { "Subject",		NULL,		NULL },
-#define HEAD_SUBJECT		9
-    { NULL,			NULL,		NULL }
-};
-
-int				simta_generate_sender;
 
     /* 
      * return non-zero if the headers can't be uncommented
