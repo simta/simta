@@ -647,7 +647,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
                     continue;
                 }
                 for ( j = 0; j < result_ip->r_ancount; j++ ) {
-		    switch( result_ip->r_answer[ i ].rr_type ) {
+		    switch( result_ip->r_answer[ j ].rr_type ) {
 		    case DNSR_TYPE_A:
 			memcpy( &(hq->hq_sin.sin_addr.s_addr),
 				&(result_ip->r_answer[ j ].rr_a ),
@@ -656,7 +656,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 			if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
 				( strcmp( ip, "0.0.0.0" ) == 0 )) {
 			    syslog( LOG_DEBUG,
-				"dnsr_connect %s: skipping invalid MX IP: %s",
+				"smtp_connect %s: skipping invalid MX IP: %s",
 				hq->hq_hostname, ip );
 			    continue;
 			}
@@ -669,8 +669,8 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 
 		    default:
 			syslog( LOG_DEBUG,
-			    "dnsr_connect %s: unknown dnsr a rr: %d",
-			    hq->hq_hostname, result_ip->r_answer[ i ].rr_type );
+			    "smtp_connect %s: unknown dnsr a rr: %d",
+			    hq->hq_hostname, result_ip->r_answer[ j ].rr_type );
 			continue;
 		    }
                 }       
@@ -685,7 +685,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
 		    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
 		syslog( LOG_DEBUG,
-		    "dnsr_connect %s: skipping invalid A record: %s",
+		    "smtp_connect %s: skipping invalid A record: %s",
 		    hq->hq_hostname, ip );
 		continue;
 	    }
@@ -695,7 +695,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 	    break;
 
         default:
-            syslog( LOG_WARNING, "dnsr_connect %s: unknown dnsr result: %d",
+            syslog( LOG_WARNING, "smtp_connect %s: unknown dnsr result: %d",
 		    hq->hq_hostname, result->r_answer[ i ].rr_type );
             continue;
         }
@@ -725,7 +725,7 @@ smtp_connect( SNET **snetp, struct host_q *hq )
 		break;
 
 	    default:
-		syslog( LOG_WARNING, "dnsr_connect %s: unknown dnsr result: %d",
+		syslog( LOG_WARNING, "smtp_connect %s: unknown dnsr result: %d",
 			simta_punt_host, result->r_answer[ i ].rr_type );
 		continue;
 	    }
