@@ -22,6 +22,7 @@
 
 #include <db.h>
 
+#include "mx.h"
 #include "denser.h"
 #include "line_file.h"
 #include "queue.h"
@@ -223,6 +224,8 @@ address_expand( struct expand *exp, struct exp_addr *e_addr )
 			"address_expand <%s>: ERROR bad address format",
 			e_addr->e_addr );
 		return( ADDRESS_SYSERROR );
+	    } else {
+		host = simta_default_host;
 	    }
 	} else {
 	    if ( strlen( e_addr->e_addr_at + 1 ) > MAXHOSTNAMELEN ) {

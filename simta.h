@@ -57,6 +57,7 @@ extern char				simta_ename_slow[];
 extern char				*simta_punt_host;
 extern struct host_q			*simta_null_q;
 extern struct stab_entry		*simta_hosts;
+extern struct stab_entry		*simta_default_host;
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern int				(*simta_local_mailer)(int, char *,

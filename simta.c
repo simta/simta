@@ -47,6 +47,7 @@
 int			(*simta_local_mailer)(int, char *, struct recipient *);
 struct host_q		*simta_null_q = NULL;
 struct stab_entry	*simta_hosts = NULL;
+struct stab_entry	*simta_default_host = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 int			simta_no_sync = 0;
 int			simta_receive_wait = 600;
@@ -166,6 +167,7 @@ simta_config( char *conf_fname, char *base_dir )
     }
     memset( host, 0, sizeof( struct host ));
 
+    simta_default_host = host;
     host->h_type = HOST_LOCAL;
     host->h_expansion = NULL;
     host->h_name = simta_hostname;
