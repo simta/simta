@@ -72,27 +72,27 @@ char			*receive_hello = NULL;
 
 struct command {
     char	*c_name;
-    int		(*c_func) ___P(( SNET *, struct envelope *, int, char *[] ));
+    int		(*c_func)( SNET *, struct envelope *, int, char *[] );
 };
 
-static int	local_address ___P(( char * ));
-static int	f_helo ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_ehlo ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_mail ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_rcpt ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_data ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_rset ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_noop ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_quit ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_help ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_vrfy ___P(( SNET *, struct envelope *, int, char *[] ));
-static int	f_expn ___P(( SNET *, struct envelope *, int, char *[] ));
+static int	local_address( char * );
+static int	f_helo( SNET *, struct envelope *, int, char *[] );
+static int	f_ehlo( SNET *, struct envelope *, int, char *[] );
+static int	f_mail( SNET *, struct envelope *, int, char *[] );
+static int	f_rcpt( SNET *, struct envelope *, int, char *[] );
+static int	f_data( SNET *, struct envelope *, int, char *[] );
+static int	f_rset( SNET *, struct envelope *, int, char *[] );
+static int	f_noop( SNET *, struct envelope *, int, char *[] );
+static int	f_quit( SNET *, struct envelope *, int, char *[] );
+static int	f_help( SNET *, struct envelope *, int, char *[] );
+static int	f_vrfy( SNET *, struct envelope *, int, char *[] );
+static int	f_expn( SNET *, struct envelope *, int, char *[] );
 #ifdef HAVE_LIBSSL
-static int	f_starttls ___P(( SNET *, struct envelope *, int, char *[] ));
+static int	f_starttls( SNET *, struct envelope *, int, char *[] );
 #endif /* HAVE_LIBSSL */
 
-static int	hello ___P(( struct envelope *, char * ));
-static char	*smtp_trimaddr ___P(( char *, char * ));
+static int	hello( struct envelope *, char * );
+static char	*smtp_trimaddr( char *, char * );
 
 
     static int
