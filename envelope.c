@@ -128,18 +128,14 @@ env_free( struct envelope *env )
     void
 env_reset( struct envelope *env )
 {
-    struct recipient	*r, *rnext;
-
     if ( env->e_mail != NULL ) {
 	free( env->e_mail );
 	env->e_mail = NULL;
     }
 
-    for ( r = env->e_rcpt; r != NULL; r = rnext ) {
-	rnext = r->r_next;
-	free( r->r_rcpt );
-	free( r );
-    }
+    /* XXX reset env->e_hostname? */
+
+    env_rcpt_free( env );
 
     env->e_rcpt = NULL;
     *env->e_id = '\0';
@@ -204,191 +200,6 @@ env_recipient( struct envelope *e, char *addr )
 }
 
 
-    int
-env_fstat( struct envelope *e, int fd )
-{
-    struct stat			sb;
-
-    if ( fstat( fd, &sb ) != 0 ) {
-	syslog( LOG_ERR, "fstat: %m" );
-	return( -1 );
-    }
-
-    e->e_etime.tv_sec = sb.st_mtime;
-
-    return( 0 );
-}
-
-
-    /* Efile syntax:
-     *
-     * SIMTA_VERSION_STRING
-     * Hdestination-host
-     * Ffrom-addr@sender.com
-     * Rto-addr@recipient.com
-     * Roptional-to-addr@recipient.com
-     */
-
-     /* call env_create( id ) before this function */
-
-     /* return 0 on success
-      * return 1 on syntax error
-      * return -1 on sys error
-      * syslog errors
-      */
-
-    int
-env_infile( struct envelope *e, char *dir )
-{
-    char			*line;
-    SNET			*snet;
-    char			filename[ MAXPATHLEN ];
-
-    sprintf( filename, "%s/E%s", dir, e->e_id );
-
-    e->e_dir = dir;
-
-    if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "snet_open %s: %m", filename );
-	return( 1 );
-    }
-
-    /* get efile modification time */
-    if ( env_fstat( e, snet_fd( snet )) != 0 ) {
-	return( -1 );
-    }
-
-    /* SIMTA_VERSION_STRING */
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "%s: unexpected EOF", filename );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
-    }
-
-    if ( strcmp( line, SIMTA_VERSION_STRING ) != 0 ) {
-	syslog( LOG_ERR, "%s bad version syntax", filename );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
-    }
-
-    /*** Hdestination-host ***/
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "%s: unexpected EOF", filename, line );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
-    }
-
-    if ( *line != 'H' ) {
-	syslog( LOG_ERR, "%s: bad host syntax", filename, line );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
-    }
-
-    if ( *(line + 1) != '\0' ) {
-	strcpy( e->e_expanded, line + 1 );
-    }
-
-    /*** Ffrom-address ***/
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "%s: unexpected EOF", filename, line );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
-    }
-
-    if ( *line != 'F' ) {
-	syslog( LOG_ERR, "%s: bad from syntax", filename, line );
-
-	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "snet_close: %m" );
-	    return( -1 );
-	}
-
-	return( 1 );
-    }
-
-    if ( *(line + 1) != '\0' ) {
-	if (( e->e_mail = strdup( line + 1 )) == NULL ) {
-	    syslog( LOG_ERR, "strdup: %m" );
-	    return( -1 );
-	}
-    }
-
-    /* XXX require 1 to-address? */
-    /*** Rto-addresses ***/
-    while (( line = snet_getline( snet, NULL )) != NULL ) {
-	if ( *line != 'R' ) {
-	    syslog( LOG_ERR, "%s: bad recipient syntax", filename, line );
-
-	    if ( snet_close( snet ) < 0 ) {
-		syslog( LOG_ERR, "snet_close: %m" );
-		return( -1 );
-	    }
-
-	    return( 1 );
-	}
-
-	if ( env_recipient( e, line + 1 ) != 0 ) {
-	    return( -1 );
-	}
-    }
-
-    if ( snet_close( snet ) < 0 ) {
-	syslog( LOG_ERR, "snet_close: %m" );
-	return( -1 );
-    }
-
-    return( 0 );
-}
-
-
-    /* remove any recipients that don't need to be tried later */
-
-    void
-env_cleanup( struct envelope *e )
-{
-    struct recipient	**r;
-    struct recipient	*remove;
-
-    r = &(e->e_rcpt);
-
-    while ( *r != NULL ) {
-	if ((*r)->r_delivered != R_TEMPFAIL ) {
-	    remove = *r;
-	    *r = (*r)->r_next;
-	    free( remove->r_rcpt );
-	    free( remove );
-	} else {
-	    r = &((*r)->r_next);
-	}
-    }
-}
-
-
     /* Efile syntax:
      *
      * SIMTA_VERSION_STRING
@@ -401,6 +212,7 @@ env_cleanup( struct envelope *e )
     int
 env_outfile( struct envelope *e, char *dir )
 {
+    struct stat			sb;
     int			fd;
     struct recipient	*r;
     FILE		*tff;
@@ -483,9 +295,12 @@ env_outfile( struct envelope *e, char *dir )
     }
 
     /* get efile modification time */
-    if ( env_fstat( e, fd ) != 0 ) {
+    if ( fstat( fd, &sb ) != 0 ) {
+	syslog( LOG_ERR, "fstat: %m" );
 	goto cleanup;
     }
+
+    e->e_etime.tv_sec = sb.st_mtime;
 
     if ( fclose( tff ) != 0 ) {
 	syslog( LOG_ERR, "fclose: %m" );
@@ -571,24 +386,6 @@ env_unexpanded( char *fname, int *unexpanded )
     if ( snet_close( snet ) != 0 ) {
 	*unexpanded = -1;
 	syslog( LOG_ERR, "snet_close: %m" );
-	return( -1 );
-    }
-
-    return( 0 );
-}
-
-
-    int
-env_unlink( struct envelope *env )
-{
-    char			fname[ MAXPATHLEN ];
-
-    sprintf( fname, "%s/E%s", env->e_dir, env->e_id );
-
-    /* XXX truncate */
-
-    if ( unlink( fname ) != 0 ) {
-	syslog( LOG_ERR, "unlink %s: %m", fname );
 	return( -1 );
     }
 
@@ -720,6 +517,25 @@ env_info( struct message *m, char *hostname )
 
 
 
+    /* Efile syntax:
+     *
+     * SIMTA_VERSION_STRING
+     * Hdestination-host
+     * Ffrom-addr@sender.com
+     * Rto-addr@recipient.com
+     * Roptional-to-addr@recipient.com
+     */
+
+    /* XXX BAD COMMENTS */
+
+     /* call env_create( id ) before this function */
+
+     /* return 0 on success
+      * return 1 on syntax error
+      * return -1 on sys error
+      * syslog errors
+      */
+
     int
 env_lock( struct message *m, struct envelope *env, SNET **s )
 {
@@ -739,17 +555,19 @@ env_lock( struct message *m, struct envelope *env, SNET **s )
 	return( 1 );
     }
 
-    *s = snet;
+    if ( s != NULL ) {
+	*s = snet;
 
-    /* lock envelope fd for delivery attempt */
-    if ( lockf( snet_fd( snet ), F_TLOCK, 0 ) != 0 ) {
-	if ( errno == EAGAIN ) {
-	    /* file locked by a diferent process */
-	    return( 1 );
+	/* lock envelope fd for delivery attempt */
+	if ( lockf( snet_fd( snet ), F_TLOCK, 0 ) != 0 ) {
+	    if ( errno == EAGAIN ) {
+		/* file locked by a diferent process */
+		return( 1 );
 
-	} else {
-	    syslog( LOG_ERR, "lockf %s: %m", filename );
-	    return( -1 );
+	    } else {
+		syslog( LOG_ERR, "lockf %s: %m", filename );
+		return( -1 );
+	    }
 	}
     }
 

@@ -77,6 +77,7 @@ q_stdout( struct host_q *hq )
     }
 }
 
+
     void
 q_stab_stdout( struct host_q *hq )
 {
@@ -542,6 +543,7 @@ q_runner_dir( char *dir )
 q_deliver( struct host_q *hq )
 {
     char                        dfile_fname[ MAXPATHLEN ];
+    char                        efile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
     SNET                        *dfile_snet = NULL;
     int                         result;
@@ -553,6 +555,8 @@ q_deliver( struct host_q *hq )
     struct message		*m;
     struct message		*m_remove;
     struct message		**m_clean;
+    struct recipient		**r_sort;
+    struct recipient		*remove;
     struct envelope		env;
     struct recipient            *r;
     struct stat                 sb;
@@ -769,13 +773,13 @@ q_deliver( struct host_q *hq )
 
             } else if ( result == SMTP_ERR_SYNTAX ) {
                 /* message not sent */
-                if ( env_touch( &env ) != 0 ) {
-                    return( -1 );
-                }
-
 		/* XXX message rejection or down server? */
 
 		if ( env.e_old_dfile == 0 ) {
+		    if ( env_touch( &env ) != 0 ) {
+			return( -1 );
+		    }
+
 		    env.e_tempfail = 1;
 		    env.e_success = 0;
 		    env.e_failed = 0;
@@ -823,13 +827,17 @@ q_deliver( struct host_q *hq )
         }
 
         if ( env.e_tempfail == 0  ) {
-            /* no retries, only successes and bounces */
-            /* delete Efile then Dfile */
+            /* no retries, delete Efile then Dfile */
             m->m_action = M_REMOVE;
 
-            if ( env_unlink( &env ) != 0 ) {
-                return( -1 );
-            }
+	    sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
+
+	    /* XXX truncate efile */
+
+	    if ( unlink( efile_fname ) != 0 ) {
+		syslog( LOG_ERR, "unlink %s: %m", efile_fname );
+		return( -1 );
+	    }
 
 	    env_reset( &env );
 
@@ -838,23 +846,25 @@ q_deliver( struct host_q *hq )
                 return( -1 );
             }
 
-
         } else {
             /* some retries; place in retry list */
-            m->m_action = M_REORDER;
-
-	    if ( gettimeofday( &tv, NULL ) != 0 ) {
-		syslog( LOG_ERR, "gettimeofday" );
-		return( -1 );
-	    }
-
-	    m->m_etime.tv_sec = tv.tv_sec;
 
             if (( env.e_success != 0 ) || ( env.e_failed != 0 )) {
+		/* remove any recipients that don't need to be tried later */
+		r_sort = &(env.e_rcpt);
 
-                /* some retries, and some sent.  re-write envelope */
-                env_cleanup( &env );
+		while ( *r_sort != NULL ) {
+		    if ((*r_sort)->r_delivered != R_TEMPFAIL ) {
+			remove = *r_sort;
+			*r_sort = (*r_sort)->r_next;
+			rcpt_free( remove );
 
+		    } else {
+			r_sort = &((*r_sort)->r_next);
+		    }
+		}
+
+		/* write out modified envelope */
                 if ( env_outfile( &env, env.e_dir ) != 0 ) {
                     return( -1 );
                 }
@@ -865,6 +875,9 @@ q_deliver( struct host_q *hq )
                     return( -1 );
                 }
             }
+
+            m->m_action = M_REORDER;
+	    m->m_etime.tv_sec = env.e_etime.tv_sec;
         } 
 
 	if ( snet_close( snet_lock ) != 0 ) {

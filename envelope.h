@@ -40,28 +40,26 @@ struct envelope {
 
 #define E_TLS		(1<<0)
 
-void		env_reset ___P(( struct envelope * ));
+/* NOT USED */
 void		env_stdout ___P(( struct envelope * ));
-void		env_cleanup ___P(( struct envelope *e ));
-
-/* return pointer on success, NULL on syserror, syslog */
-struct envelope	*env_create ___P(( char * ));
 void		env_free ___P(( struct envelope * ));
-void		rcpt_free ___P(( struct recipient * ));
+
+/* LOCAL */
 void		env_rcpt_free ___P(( struct envelope * ));
 
-/* return 0 on success, -1 on syserror, syslog */
+/* GLOBAL */
+struct envelope	*env_create ___P(( char * ));
+void		env_reset ___P(( struct envelope * ));
+void		rcpt_free ___P(( struct recipient * ));
 int		env_recipient ___P(( struct envelope *, char * ));
 int		env_outfile ___P(( struct envelope *, char * ));
-
-/* return 0 on success, -1 on syserror, 1 on syntax error, syslog */
-int		env_hostname ___P(( char * ));
-int		env_unexpanded ___P(( char *, int * ));
-int		env_infile ___P(( struct envelope *, char * ));
-int		env_gettimeofday_id ___P(( struct envelope * ));
-int		env_fstat ___P(( struct envelope *, int ));
 int		env_touch ___P(( struct envelope * ));
-int		env_unlink ___P(( struct envelope * ));
 int		env_info ___P(( struct message *, char * ));
 int		env_lock ___P(( struct message *, struct envelope *,
 			SNET ** ));
+
+/* SIMSENDMAIL */
+int		env_gettimeofday_id ___P(( struct envelope * ));
+
+/* Q_CLEANUP */
+int		env_unexpanded ___P(( char *, int * ));
