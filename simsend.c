@@ -193,13 +193,15 @@ main( int argc, char *argv[] )
 	}
     }
 
+    /* optind = first to-address */
+
     /* XXX error handling for command line options? */
     if ( errs != 0 ) {
 	fprintf( stderr, "Usage: %s ", argv[ 0 ] );
 	fprintf( stderr, "[ -b option ] " );
 	fprintf( stderr, "[ -i ] " );
 	fprintf( stderr, "[ -o option ] " );
-	fprintf( stderr, "[ to-address ...]\n" );
+	fprintf( stderr, "[[ -- ] to-address ...]\n" );
 	exit( 1 );
     }
 

@@ -12,8 +12,10 @@
 .B \-i
 ] [
 .BI \-o\  option
-] [
-.I to-address
+] [[
+.I --
+] 
+.I to-address ...
 ]
 .sp
 .SH DESCRIPTION
@@ -48,6 +50,10 @@ ignore a single dot on a line as an end of message marker.
 .TP 19
 .B \-oi
 ignore a single dot on a line as an end of message marker.
+.TP 19
+.B \--
+Stop processing command flags and use the rest of the arguments as
+to-addresses.
 .sp
 .SH SEE ALSO
 .BR sendmail (1)
