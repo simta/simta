@@ -9,6 +9,8 @@
 #include <openssl/err.h>
 #endif /* TLS */
 
+#include <sys/time.h>
+
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -21,6 +23,23 @@
 #include <snet.h>
 
 #include "envelope.h"
+
+
+    int
+env_time( struct envelope *e )
+{
+    struct timeval		tv;
+
+    if ( gettimeofday( &tv, NULL ) != 0 ) {
+	return( -1 );
+    }
+
+    sprintf( e->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
+	    (unsigned long)tv.tv_usec );
+
+    return( 0 );
+}
+
 
     struct envelope *
 env_create( char *id )

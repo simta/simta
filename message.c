@@ -6,7 +6,6 @@
 /**********	message.c	**********/
 
 #include <sys/param.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -368,7 +367,6 @@ cleanup:
 message_create( char *id )
 {
     struct message		*m;
-    struct timeval		tv;
 
     if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
 	return( NULL );
@@ -390,12 +388,9 @@ message_create( char *id )
     }
 
     if ( id == NULL ) {
-	if ( gettimeofday( &tv, NULL ) != 0 ) {
+	if ( env_time( m->m_env ) != 0 ) {
 	    return( NULL );
 	}
-
-	sprintf( m->m_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
-		(unsigned long)tv.tv_usec );
     } 
 
     if (( m->m_env->e_sin = (struct sockaddr_in*)malloc(

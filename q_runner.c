@@ -35,11 +35,123 @@
 #include "ml.h"
 #include "smtp.h"
 
+#define	BOUNCE_LINES		100
+
+struct host_q		*null_queue;
+
+
 void	host_stab_stdout ___P(( void * ));
 void	q_file_stab_stdout ___P(( void * ));
 int	efile_time_compare ___P(( void *, void * ));
 void	deliver_remote ___P(( struct host_q * ));
 int	deliver_local ___P(( struct host_q * ));
+int	bounce ___P(( struct envelope *, SNET * ));
+
+
+    int
+bounce( struct envelope *env, SNET *message )
+{
+    struct envelope		*bounce_env;
+    char			dfile_fname[ MAXPATHLEN ];
+    int				dfile_fd;
+    FILE			*dfile;
+    struct recipient		*r;
+    struct line			*l;
+    int				line_no = 0;
+    char			*line;
+    struct q_file		*q;
+
+    if (( bounce_env = env_create( NULL )) == NULL ) {
+	syslog( LOG_ERR, "env_create: %m" );
+	return( -1 );
+    }
+
+    if ( env_time( bounce_env ) != 0 ) {
+	syslog( LOG_ERR, "env_time: %m" );
+	return( -1 );
+    }
+
+    sprintf( dfile_fname, "%s/D%s", FAST_DIR, bounce_env->e_id );
+
+    if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
+	    < 0 ) {
+	syslog( LOG_ERR, "open %s: %m", dfile_fname );
+	return( -1 );
+    }
+
+    if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
+	syslog( LOG_ERR, "fdopen %s: %m", dfile_fname );
+	close( dfile_fd );
+	goto cleanup;
+    }
+
+    /* XXX what if env->e_mailed == NULL? */
+    if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
+	syslog( LOG_ERR, "env_recipient: %m" );
+	fclose( dfile );
+	goto cleanup;
+    }
+
+    fprintf( dfile, "Headers\n" );
+    fprintf( dfile, "\n" );
+
+    fprintf( dfile, "Your mail was bounced.\n" );
+    fprintf( dfile, "\n" );
+
+    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
+	if ( r->r_delivered == R_FAILED ) {
+	    fprintf( dfile, "address %s:\n", r->r_rcpt );
+
+	    for ( l = r->r_text->l_first; l != NULL; l = l->line_next ) {
+		fprintf( dfile, "%s:\n", l->line_data );
+	    }
+
+	    fprintf( dfile, "\n" );
+	}
+    }
+
+    fprintf( dfile, "Bounced message:\n" );
+    fprintf( dfile, "\n" );
+
+    while (( line = snet_getline( message, NULL )) != NULL ) {
+	line_no++;
+
+	if ( line_no > BOUNCE_LINES ) {
+	    break;
+	}
+
+	fprintf( dfile, "%s\n", line );
+    }
+
+    if ( fclose( dfile ) != 0 ) {
+	goto cleanup;
+    }
+
+    if ( env_outfile( bounce_env, FAST_DIR ) != 0 ) {
+	goto cleanup;
+    }
+
+    /* XXX add to NULL queue, stat efile time */
+    if (( q = q_file_create( bounce_env->e_id )) == NULL ) {
+	syslog( LOG_ERR, "q_file_create: %m" );
+	exit( 1 );
+    }
+
+    q->q_env = bounce_env;
+    q->q_expanded = q->q_env->e_expanded;
+
+    if ( ll__insert( &(null_queue->hq_qfiles), q, efile_time_compare ) != 0 ) {
+	syslog( LOG_ERR, "ll__insert: %m" );
+	exit( 1 );
+    }
+
+    return( 0 );
+
+cleanup:
+    unlink( dfile_fname );
+
+    return( -1 );
+}
 
 
     int
@@ -124,6 +236,17 @@ main( int argc, char *argv[] )
 	syslog( LOG_ERR, "gethostname: %m" );
 	exit( 1 );
     }
+
+    /* create and preserve NULL queue for bunced messages later on */
+    if (( null_queue = host_q_create( "\0" )) == NULL ) {
+	syslog( LOG_ERR, "host_q_create: %m" );
+	exit( 1 );
+    }
+
+    if ( ll_insert( &host_stab, null_queue->hq_name, null_queue, NULL ) != 0 ) {
+	syslog( LOG_ERR, "ll_insert: %m" );
+	exit( 1 );
+    }	
 
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
 	syslog( LOG_ERR, "opendir %s: %m", SLOW_DIR );
@@ -411,11 +534,11 @@ deliver_remote( struct host_q *hq )
     struct stab_entry		*qs;
     struct stat			sb;
     int				result;
-    int				fd;
+    int				dfile_fd;
+    SNET			*dfile_snet;
     int				sent = 0;
     char			fname[ MAXPATHLEN ];
     SNET			*snet = NULL;
-    SNET			*message;
     void                        (*logger)(char *) = NULL;
 
 #ifdef DEBUG
@@ -435,7 +558,7 @@ deliver_remote( struct host_q *hq )
 	errno = 0;
 	sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
-	if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
+	if (( dfile_fd = open( fname, O_RDONLY, 0 )) < 0 ) {
 	    if ( errno == ENOENT ) {
 		errno = 0;
 		syslog( LOG_WARNING, "Missing Dfile: %s", fname );
@@ -448,14 +571,14 @@ deliver_remote( struct host_q *hq )
 	    }
 	}
 
-	if ( fstat( fd, &sb ) != 0 ) {
+	if ( fstat( dfile_fd, &sb ) != 0 ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
 	    exit( 1 );
 	}
 
 	/* XXX old dfile check */
 
-	if (( message = snet_attach( fd, 1024 * 1024 )) == NULL ) {
+	if (( dfile_snet = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
 	    syslog( LOG_ERR, "snet_attach: %m" );
 	    exit( 1 );
 	}
@@ -479,7 +602,7 @@ deliver_remote( struct host_q *hq )
 		exit( 1 );
 
 	    } else if ( result == SMTP_ERR_SYNTAX ) {
-		if ( snet_close( message ) != 0 ) {
+		if ( snet_close( dfile_snet ) != 0 ) {
 		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );
 		}
@@ -488,7 +611,7 @@ deliver_remote( struct host_q *hq )
 
 	    } else if ( result == SMTP_ERR_MAIL_LOOP ) {
 		/* mail loop */
-		if ( snet_close( message ) != 0 ) {
+		if ( snet_close( dfile_snet ) != 0 ) {
 		    syslog( LOG_ERR, "close: %m" );
 		    exit( 1 );
 		}
@@ -499,7 +622,7 @@ deliver_remote( struct host_q *hq )
 	    }
 	}
 
-	if (( result = smtp_send( snet, q->q_env, message, logger ))
+	if (( result = smtp_send( snet, q->q_env, dfile_snet, logger ))
 		== SMTP_ERR_SYSCALL ) {
 	    exit( 1 );
 
@@ -512,13 +635,17 @@ deliver_remote( struct host_q *hq )
 	if ( q->q_env->e_failed > 0 ) {
 	    /* XXX generate bounce */
 
-	    if ( lseek( fd, (off_t)0, SEEK_SET ) != 0 ) {
+	    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
 		syslog( LOG_ERR, "lseek: %m" );
+		exit( 1 );
+	    }
+
+	    if (( result = bounce( q->q_env, dfile_snet )) < 0 ) {
 		exit( 1 );
 	    }
 	}
 
-	if ( snet_close( message ) != 0 ) {
+	if ( snet_close( dfile_snet ) != 0 ) {
 	    syslog( LOG_ERR, "close: %m" );
 	    exit( 1 );
 	}
