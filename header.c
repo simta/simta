@@ -21,7 +21,10 @@
 #include "receive.h"
 #include "simta.h"
 
-int header_from ___P(( struct header * ));
+
+int	skip_cfws ___P(( struct line **, char ** ));
+int	header_from_correct ___P(( struct line_file * ));
+int	header_from ___P(( struct header * ));
 
 
 struct header simta_headers[] = {
@@ -47,6 +50,72 @@ struct header simta_headers[] = {
 #define HEAD_SUBJECT		9
     { NULL,			NULL,		NULL }
 };
+
+
+    /* 
+     * return non-zero if the headers can't be uncommented
+     * return 0 on success
+     *	-c will be on next word, or NULL
+     *	-l will be on c's line, or NULL
+     */
+
+    int
+skip_cfws( struct line **l, char **c )
+{
+    int				comment = 0;
+
+    for ( ; ; ) {
+	switch ( **c ) {
+	case ' ':
+	case '\t':
+	    break;
+
+	case '(':
+	    comment++;
+	    break;
+
+	case ')':
+	    comment --;
+
+	    if ( comment < 0 ) {
+		return( -1 );
+	    }
+	    break;
+
+	case '\\':
+	    (*c)++;
+
+	    if ( *c != '\0' ) {
+		/* XXX should a trailing '\' be illegal? */
+	    	break;
+	    }
+
+	case '\0':
+	    /* end of line.  if next line starts with WSP, continue */
+	    *l = (*l)->line_next;
+
+	    if (( *l != NULL ) &&
+		    (( *((*l)->line_data) == ' ' ) ||
+		    ( *((*l)->line_data) == '\t' ))) {
+		*c = (*l)->line_data;
+		break;
+
+	    } else {
+		/* End of header */
+		*c = NULL;
+		*l = NULL;
+		return( comment );
+	    }
+
+	default:
+	    if ( comment == 0 ) {
+		return( 0 );
+	    }
+	}
+
+	(*c)++;
+    }
+}
 
 
     void
@@ -257,11 +326,8 @@ header_correct( struct line_file *lf, struct envelope *env )
     struct line			**lp;
     struct header		*h;
     char			*colon;
-    char			*c;
     size_t			header_len;
     int				result;
-    int				quotes = 0;
-    int				comment = 0;
     char			*sender;
     char			*prepend_line = NULL;
     size_t			prepend_len = 0;
@@ -288,7 +354,7 @@ header_correct( struct line_file *lf, struct envelope *env )
 	 */
 
 	/* line is FWS if first character of the line is whitespace */
-	if ( isspace( (int)*l->line_data ) != 0 ) {
+	if (( *l->line_data == ' ' ) || ( *l->line_data == '\t' )) {
 	    continue;
 	}
 
@@ -321,101 +387,8 @@ header_correct( struct line_file *lf, struct envelope *env )
     /* examine & correct header data */
 
     /* From: */
-    if (( l = simta_headers[ HEAD_FROM ].h_line ) == NULL ) {
-	if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
-		strlen( sender ) + 3 )) > prepend_len ) {
-	    if (( prepend_line = (char*)realloc( prepend_line, len ))
-		    == NULL ) {
-		perror( "realloc" );
-		return( -1 );
-	    }
-
-	    prepend_len = len;
-	}
-
-	sprintf( prepend_line, "%s: %s",
-		simta_headers[ HEAD_FROM ].h_key, sender );
-
-	if (( simta_headers[ HEAD_FROM ].h_line =
-		line_prepend( lf, prepend_line )) == NULL ) {
-	    perror( "malloc" );
-	    return( -1 );
-	}
-
-    } else {
-
-	c = l->line_data + 5;
-
-	for ( ; ; ) {
-	    for ( ; *c != '\0' ; c++ ) {
-		switch ( *c ) {
-
-		case '\\':
-		    c++;
-		    break;
-
-		case '"':
-		    if ( comment == 0 ) {
-			if ( quotes == 1 ) {
-			    quotes = 0;
-
-			} else {
-			    quotes = 1;
-			}
-		    }
-
-		    break;
-
-		case '(':
-		    if ( quotes != 1 ) {
-			comment++;
-		    }
-		    break;
-
-		case ')':
-		    if ( quotes != 1 ) {
-			comment--;
-
-			if ( comment < 0 ) {
-			    fprintf( stderr, "From: unbalanced )\n" );
-			    return( 1 );
-			}
-		    }
-		    break;
-
-		default:
-		    break;
-		}
-
-		if ( *c == '\0' ) {
-		    break;
-		}
-	    }
-
-	    /* end of line */
-
-	    l = l->line_next;
-
-	    if (( l == NULL ) ||
-		    (( *l->line_data != ' ' ) && ( *l->line_data != '\0' ))) {
-		/* End of header */
-
-		if ( quotes != 0 ) {
-		    fprintf( stderr, "From: unbalanced \"'s\n" );
-		    return( 1 );
-		}
-
-		if ( comment > 0 ) {
-		    fprintf( stderr, "From: unbalanced (\n" );
-		    return( 1 );
-		}
-
-		break;
-
-	    } else {
-		c = l->line_data;
-	    }
-	}
+    if (( result = header_from_correct( lf )) != 0 ) {
+	return( result );
     }
 
     /* XXX Sender */
@@ -646,59 +619,6 @@ header_uncomment( char **line )
 }
 
 
-    /* mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
-     * mailbox         =   name-addr / addr-spec
-     * name-addr       =   [display-name] angle-addr
-     * display-name    =   phrase
-     * phrase          =   1*word / obs-phrase
-     * word            =   atom / quoted-string
-     * atom            =   [CFWS] 1*atext [CFWS]
-     * atext           =   ALPHA / DIGIT / ; Any character except controls,
-     *			     "!" / "#" /     ;  SP, and specials.
-     *			     "$" / "%" /     ;  Used for atoms
-     *			     "&" / "'" /
-     *			     "*" / "+" /
-     *			     "-" / "/" /
-     *			     "=" / "?" /
-     *			     "^" / "_" /
-     *			     "`" / "{" /
-     *			     "|" / "}" /
-     *			     "~"
-     * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
-     * addr-spec       =   local-part "@" domain
-     * local-part      =   dot-atom / quoted-string / obs-local-part
-     * domain          =   dot-atom / domain-literal / obs-domain
-     * domain-literal  =   [CFWS] "[" *([FWS] dcontent) [FWS] "]" [CFWS]
-     * dcontent        =   dtext / quoted-pair
-     * dtext           =   NO-WS-CTL /     ; Non white space controls
-     *			%d33-90 /       ; The rest of the US-ASCII
-     *			%d94-126        ;  characters not including "[",
-     *					;  "]", or "\"
-     * dot-atom        =   [CFWS] dot-atom-text [CFWS]
-     * dot-atom-text   =   1*atext *("." 1*atext)
-     * qtext           =       NO-WS-CTL /     ; Non white space controls
-     *			    %d33 /          ; The rest of the US-ASCII
-     *			    %d35-91 /       ;  characters not including "\"
-     *			    %d93-126        ;  or the quote character
-     * qcontent        =       qtext / quoted-pair
-     * quoted-string   =       [CFWS]
-     *			    DQUOTE *([FWS] qcontent) [FWS] DQUOTE
-     *			    [CFWS]
-     */
-
-    /*
-     * XXX only handle the following mailbox cases, not RFC complient:
-     *
-     * From: user
-     * From: user@domain
-     * From: <>
-     * From: <user@domain>
-     * From: Firstname Lastname <user@domain>
-     * From: Firstname Lastname <>
-     * From: "Firstname Lastname" <user@domian>
-     * From: "Firstname Lastname" <>
-     */
-
     int
 header_first_mailbox( char **line, char *localhostname )
 {
@@ -824,6 +744,128 @@ header_first_mailbox( char **line, char *localhostname )
     if ( at == 0 ) {
 	sprintf( *line, "%s@%s", *line, localhostname );
     }
+
+    return( 0 );
+}
+
+
+    /* return 0 if all went well.
+     * return 1 if we reject the message.
+     * return -1 if there was a serious error.
+     */
+
+    /* all errors out to stderr, as you should only be correcting headers
+     * from simsendmail, for now.
+     */
+
+    /* RFC 2822:
+     *
+     * mailbox-list    =   (mailbox *("," mailbox))
+     * mailbox         =   name-addr / addr-spec
+     * name-addr       =   [display-name] angle-addr
+     * display-name    =   phrase
+     * phrase          =   1*word
+     * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS]
+     * addr-spec       =   local-part "@" domain
+     * local-part      =   dot-atom / quoted-string
+     * domain          =   dot-atom / domain-literal
+     * domain-literal  =   [CFWS] "[" *([FWS] dcontent) [FWS] "]" [CFWS]
+     * word            =   atom / quoted-string
+     * atom            =   [CFWS] 1*atext [CFWS]
+     * atext           =   ALPHA / DIGIT / ; Any character except controls,
+     *			     "!" / "#" /     ;  SP, and specials.
+     *			     "$" / "%" /     ;  Used for atoms
+     *			     "&" / "'" /
+     *			     "*" / "+" /
+     *			     "-" / "/" /
+     *			     "=" / "?" /
+     *			     "^" / "_" /
+     *			     "`" / "{" /
+     *			     "|" / "}" /
+     *			     "~"
+     * dcontent        =   dtext / quoted-pair
+     * dtext           =   NO-WS-CTL /     ; Non white space controls
+     *			%d33-90 /       ; The rest of the US-ASCII
+     *			%d94-126        ;  characters not including "[",
+     *					;  "]", or "\"
+     * dot-atom        =   [CFWS] dot-atom-text [CFWS]
+     * dot-atom-text   =   1*atext *("." 1*atext)
+     * qtext           =       NO-WS-CTL /   ; Non white space controls
+     *			    %d33 /       ; The rest of the US-ASCII
+     *			    %d35-91 /    ;  characters not including "\"
+     *			    %d93-126     ;  or the quote character
+     * qcontent        =       qtext / quoted-pair
+     * quoted-string   =       [CFWS]
+     *			    DQUOTE *([FWS] qcontent) [FWS] DQUOTE
+     *			    [CFWS]
+     */
+
+    int
+header_from_correct( struct line_file *lf )
+{
+    struct line			*l;
+    char			*c;
+    struct line			*next_l;
+    char			*next_c;
+    int				result;
+    char			*sender;
+    char			*prepend_line = NULL;
+    size_t			prepend_len = 0;
+    size_t			len;
+
+    if (( sender = simta_sender()) == NULL ) {
+	return( -1 );
+    }
+
+    /* From: */
+    if (( l = simta_headers[ HEAD_FROM ].h_line ) != NULL ) {
+	c = l->line_data + 5;
+
+	/* find first word */
+	next_l = l;
+	next_c = c;
+
+	if (( result = skip_cfws( &next_l, &next_c )) != 0 ) {
+	    if ( result > 0 ) {
+		fprintf( stderr, "From: unbalanced \(\n" );
+	    } else {
+		fprintf( stderr, "From: unbalanced \)\n" );
+	    }
+	    return( 1 );
+	}
+
+	if ( next_c != NULL ) {
+	    printf( "word: \"%s\"\n", next_c );
+
+	    return( 0 );
+
+	} else {
+	    /* XXX blank line.  correct */
+	    return( 0 );
+	}
+    }
+
+    if (( len = ( strlen( simta_headers[ HEAD_FROM ].h_key ) +
+	    strlen( sender ) + 3 )) > prepend_len ) {
+	if (( prepend_line = (char*)realloc( prepend_line, len ))
+		== NULL ) {
+	    perror( "realloc" );
+	    return( -1 );
+	}
+
+	prepend_len = len;
+    }
+
+    sprintf( prepend_line, "%s: %s",
+	    simta_headers[ HEAD_FROM ].h_key, sender );
+
+    if (( simta_headers[ HEAD_FROM ].h_line =
+	    line_prepend( lf, prepend_line )) == NULL ) {
+	perror( "malloc" );
+	return( -1 );
+    }
+
+    /* XXX Sender */
 
     return( 0 );
 }
