@@ -213,6 +213,32 @@ quit
 
 	-> should go through
 -------------------------------------
+Private Members Only Group: not a member, direct
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.private@umich.edu>
+data
+Subject:  Private Members Only Group: not a member, direct
+From: editor@umich.edu
+mcneal should get this
+.
+quit
+
+	-> should not go through, bounce to sender
+-------------------------------------
+Private Members Only Group: not a member, not permitted group
+
+mail from:<editor@umich.edu>
+rcpt to:<simta.test.private.parent@umich.edu>
+data
+Subject:  Private Members Only Group: not a member, not permitted group
+From: editor@umich.edu
+mcneal should get this
+.
+quit
+
+	-> should not go through, no bounce
+-------------------------------------
 Members Only Group: not a member, permitted group
 
 mail from:<editor@umich.edu>

@@ -33,11 +33,10 @@
 #define	ADDRESS_TYPE_LDAP		3
 #endif /* HAVE_LDAP */
 
-/* address status */
-#define STATUS_TERMINAL			(1<<1)
-
 #ifdef HAVE_LDAP
-#define	STATUS_LDAP_MEMONLY		(1<<2)
+#define	STATUS_LDAP_MEMONLY		(1<<0)
+#define	STATUS_LDAP_PRIVATE		(1<<1)
+#define	STATUS_LDAP_SUPRESSOR		(1<<2)
 #define	STATUS_LDAP_SUPRESSED		(1<<3)
 #define	STATUS_EMAIL_SENDER		(1<<4)
 #define	STATUS_NO_EMAIL_SENDER		(1<<5)
@@ -71,12 +70,13 @@ struct exp_link {
 
 struct exp_addr {
     int				e_addr_type;	/* address data type */
-    int				e_addr_status;
+    int				e_addr_terminal;
     char			*e_addr;	/* address string */
     char			*e_addr_at;	/* char the email addresses @ */
     char			*e_addr_from;
     struct envelope		*e_addr_errors;	/* address error handle */
 #ifdef HAVE_LDAP
+    int				e_addr_ldap_flags;
     int				e_addr_anti_loop;
     char			*e_addr_dn;
     struct stab_entry		*e_addr_ok;

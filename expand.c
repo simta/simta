@@ -146,6 +146,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 #ifdef HAVE_LDAP
     int				loop_color = 1;
     struct exp_link		*memonly;
+    struct exp_link		*parent;
 #endif /* HAVE_LDAP */
 
     memset( &exp, 0, sizeof( struct expand ));
@@ -215,20 +216,15 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 
 	    switch ( address_expand( &exp, e_addr )) {
 	    case ADDRESS_EXCLUDE:
-		e_addr->e_addr_status =
-			( e_addr->e_addr_status & ( ~STATUS_TERMINAL ));
-syslog( LOG_DEBUG, "expand %s: non-terminal", e_addr->e_addr );
+		e_addr->e_addr_terminal = 0;
 		/* the address is not a terminal local address */
 		break;
 
 	    case ADDRESS_FINAL:
-		e_addr->e_addr_status |= STATUS_TERMINAL;
-syslog( LOG_DEBUG, "expand %s: terminal", e_addr->e_addr );
-		/* the address is a terminal local address */
+		e_addr->e_addr_terminal = 1;
 		break;
 
 	    case ADDRESS_SYSERROR:
-syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		goto cleanup1;
 
 	    default:
@@ -242,8 +238,8 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    memonly = memonly->el_next ) {
 	if (( is_permitted( memonly->el_exp_addr )) ||
 		( sender_is_child( memonly->el_exp_addr, loop_color++ ))) {
-	    memonly->el_exp_addr->e_addr_status =
-		    ( memonly->el_exp_addr->e_addr_status &
+	    memonly->el_exp_addr->e_addr_ldap_flags =
+		    ( memonly->el_exp_addr->e_addr_ldap_flags &
 		    ( ~STATUS_LDAP_MEMONLY ));
 	    if ( memonly->el_exp_addr->e_addr_env_moderated != NULL ) {
 		env_free( memonly->el_exp_addr->e_addr_env_moderated );
@@ -251,6 +247,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    }
 
 	} else {
+	    memonly->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPRESSOR;
 	    supress_addrs( memonly->el_exp_addr->e_addr_children,
 		    loop_color++ );
 	}
@@ -265,7 +262,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	e_addr = (struct exp_addr*)p->st_data;
 
 #ifdef HAVE_LDAP
-	if ((( e_addr->e_addr_status & STATUS_LDAP_SUPRESSED ) != 0 ) &&
+	if ((( e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPRESSED ) != 0 ) &&
 		( !unblocked_path_to_root( e_addr, loop_color++ ))) {
 	    if ( simta_expand_debug != 0 ) {
 		printf( "Supressed: %s\n", e_addr->e_addr );
@@ -320,10 +317,32 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 	    env_out++;
 	    queue_envelope( hq, e_addr->e_addr_env_moderated );
 	    continue;
+
+	} else if ( e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPRESSOR ) {
+	    for ( parent = e_addr->e_addr_parents; parent != NULL;
+		    parent = parent->el_next ) {
+		if ( parent->el_exp_addr == NULL ) {
+		    if ( bounce_text( base_error_env, 
+			    "Members only group conditions not met: ",
+			    e_addr->e_addr, NULL ) != 0 ) {
+			goto cleanup3;
+		    }
+
+		} else if (( e_addr->e_addr_ldap_flags & 
+			STATUS_LDAP_PRIVATE ) == 0 ) {
+		    if ( bounce_text( parent->el_exp_addr->e_addr_errors, 
+			    "Members only group conditions not met: ",
+			    e_addr->e_addr, NULL ) != 0 ) {
+			goto cleanup3;
+		    }
+		}
+	    }
+
+	    continue;
 	}
 #endif /* HAVE_LDAP */
 
-	if (( e_addr->e_addr_status & STATUS_TERMINAL ) == 0 ) {
+	if ( e_addr->e_addr_terminal == 0 ) {
 	    if ( simta_expand_debug != 0 ) {
 		printf( "Non-terminal: %s\n", e_addr->e_addr );
 	    }
@@ -670,18 +689,20 @@ supress_addrs( struct exp_link *list, int color )
     struct exp_link		*el;
 
     for ( el = list; el != NULL; el = el->el_next ) {
-	assert(( el->el_exp_addr->e_addr_status & STATUS_EMAIL_SENDER ) == 0 );
+	assert(( el->el_exp_addr->e_addr_ldap_flags &
+		STATUS_EMAIL_SENDER ) == 0 );
 
 	if ( el->el_exp_addr->e_addr_anti_loop == color ) {
 	    return;
 	}
 	el->el_exp_addr->e_addr_anti_loop = color;
 
-	if (( el->el_exp_addr->e_addr_status & STATUS_LDAP_SUPRESSED ) != 0 ) {
+	if (( el->el_exp_addr->e_addr_ldap_flags &
+		STATUS_LDAP_SUPRESSED ) != 0 ) {
 	    return;
 	}
 
-	el->el_exp_addr->e_addr_status |= STATUS_LDAP_SUPRESSED;
+	el->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPRESSED;
 	supress_addrs( el->el_exp_addr->e_addr_children, color );
     }
 
@@ -699,22 +720,22 @@ sender_is_child( struct exp_addr *e, int color )
     }
     e->e_addr_anti_loop = color;
 
-    if (( e->e_addr_status & STATUS_EMAIL_SENDER ) != 0 ) {
+    if (( e->e_addr_ldap_flags & STATUS_EMAIL_SENDER ) != 0 ) {
 	return( 1 );
     }
 
-    if (( e->e_addr_status & STATUS_NO_EMAIL_SENDER ) != 0 ) {
+    if (( e->e_addr_ldap_flags & STATUS_NO_EMAIL_SENDER ) != 0 ) {
 	return( 0 );
     }
 
     for ( el = e->e_addr_children; el != NULL; el = el->el_next ) {
 	if ( sender_is_child( el->el_exp_addr, color )) {
-	    e->e_addr_status |= STATUS_EMAIL_SENDER;
+	    e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
 	    return( 1 );
 	}
     }
 
-    e->e_addr_status |= STATUS_NO_EMAIL_SENDER;
+    e->e_addr_ldap_flags |= STATUS_NO_EMAIL_SENDER;
     return( 0 );
 }
 
@@ -729,27 +750,27 @@ unblocked_path_to_root( struct exp_addr *e, int color )
     }
     e->e_addr_anti_loop = color;
 
-    if (( e->e_addr_status & STATUS_LDAP_MEMONLY ) != 0 ) {
+    if (( e->e_addr_ldap_flags & STATUS_LDAP_MEMONLY ) != 0 ) {
 	return( 0 );
     }
 
-    if (( e->e_addr_status & STATUS_NO_ROOT_PATH ) != 0 ) {
+    if (( e->e_addr_ldap_flags & STATUS_NO_ROOT_PATH ) != 0 ) {
 	return( 0 );
     }
 
-    if (( e->e_addr_status & STATUS_ROOT_PATH ) != 0 ) {
+    if (( e->e_addr_ldap_flags & STATUS_ROOT_PATH ) != 0 ) {
 	return( 1 );
     }
 
     for ( el = e->e_addr_parents; el != NULL; el = el->el_next ) {
 	if (( el->el_exp_addr == NULL ) ||
 		( unblocked_path_to_root( el->el_exp_addr, color ))) {
-	    e->e_addr_status |= STATUS_ROOT_PATH;
+	    e->e_addr_ldap_flags |= STATUS_ROOT_PATH;
 	    return( 1 );
 	}
     }
 
-    e->e_addr_status |= STATUS_NO_ROOT_PATH;
+    e->e_addr_ldap_flags |= STATUS_NO_ROOT_PATH;
     return( 0 );
 }
 

@@ -725,6 +725,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     int		idx;		/* universal iterator */
 
     char	**memonly;	/* Members Only attribute values */
+    char	**private;	/* Private Members Only attribute value */
     char	**moderator;	/* Moderator attribute values */
     char	**permitted;	/* permittedgroup attribute values */
     char	*sender_name = NULL;	/* Name of sender -- upto '@' */
@@ -845,8 +846,15 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	if (( memonly = ldap_get_values( ld, entry, "membersonly" )) != NULL ) {
 	    if ( strcasecmp( memonly[0], "TRUE" ) == 0 ) {
 		ldap_value_free( memonly );
+		e_addr->e_addr_ldap_flags |= STATUS_LDAP_MEMONLY;
 
-		e_addr->e_addr_status |= STATUS_LDAP_MEMONLY;
+		if (( private = ldap_get_values( ld, entry, "rfc822private" ))
+			!= NULL ) {
+		    if ( strcasecmp( private[0], "TRUE" ) == 0 ) {
+			e_addr->e_addr_ldap_flags |= STATUS_LDAP_PRIVATE;
+		    }
+		    ldap_value_free( private );
+		}
 
 		if ( exp_addr_link( &(exp->exp_memonly), e_addr ) != 0 ) {
 		    if ( dnvals ) {
