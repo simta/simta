@@ -291,7 +291,7 @@ syslog( LOG_DEBUG, "expand %s: syserror", e_addr->e_addr );
 		goto cleanup2;
 	    }
 
-	    if ( env_gettimeofday_id( env ) != 0 ) {
+	    if ( env_id( env ) != 0 ) {
 		env_free( env );
 		goto cleanup2;
 	    }

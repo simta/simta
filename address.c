@@ -67,7 +67,7 @@ address_bounce_create( struct expand *exp )
 	return( NULL );
     }
 
-    if ( env_gettimeofday_id( bounce_env ) != 0 ) {
+    if ( env_id( bounce_env ) != 0 ) {
 	env_free( bounce_env );
 	return( NULL );
     }

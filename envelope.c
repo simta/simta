@@ -39,17 +39,32 @@
 
 
     int
-env_gettimeofday_id( struct envelope *e )
+env_id( struct envelope *e )
 {
     struct timeval		tv;
+    int				pid;
+    /* way bigger than we should ever need */
+    char			buf[ 1024 ];
+
+    assert( e->e_id == NULL );
 
     if ( gettimeofday( &tv, NULL ) != 0 ) {
-	syslog( LOG_ERR, "env_gettimeofday gettimeofday: %m" );
+	syslog( LOG_ERR, "env_id gettimeofday: %m" );
 	return( -1 );
     }
 
-    sprintf( e->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
-	    (unsigned long)tv.tv_usec );
+    if (( pid = getpid()) < 0 ) {
+	syslog( LOG_ERR, "env_id getpid: %m" );
+	return( -1 );
+    }
+
+    snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv.tv_sec,
+	    (unsigned long)tv.tv_usec, pid );
+
+    if (( e->e_id = strdup( buf )) == NULL ) {
+	syslog( LOG_ERR, "env_id strdup: %m" );
+	return( -1 );
+    }
 
     return( 0 );
 }
@@ -88,12 +103,10 @@ env_set_id( struct envelope *e, char *id )
 	return( 1 );
     }
 
-    if ( strlen( id ) > ENV_ID_LENGTH ) {
-	syslog( LOG_ERR, "env_set_id: ID too long" );
+    if (( e->e_id = strdup( id )) == NULL ) {
+	syslog( LOG_ERR, "env_set_id malloc: %m" );
 	return( 1 );
     }
-
-    sprintf( e->e_id, "%s", id );
 
     return( 0 );
 }
@@ -109,7 +122,7 @@ env_dup( struct envelope *env )
 	return( NULL );
     }
 
-    if ( env_gettimeofday_id( dup ) != 0 ) {
+    if ( env_id( dup ) != 0 ) {
 	env_free( dup );
 	return( NULL );
     }
@@ -244,9 +257,13 @@ env_reset( struct envelope *env )
 	    env->e_hostname = NULL;
 	}
 
+	if ( env->e_id != NULL ) {
+	    free( env->e_id );
+	    env->e_id = NULL;
+	}
+
 	env_rcpt_free( env );
 
-	*env->e_id = '\0';
 	env->e_flags = 0;
 	return;
     }
@@ -282,7 +299,7 @@ env_stdout( struct envelope *e )
 {
     struct recipient		*r;
 
-    if ( *e->e_id == '\0' ) {
+    if ( e->e_id == NULL ) {
 	printf( "Message-Id NULL\n" );
     } else {
 	printf( "Message-Id:\t%s\n", e->e_id );

@@ -186,7 +186,7 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
-    if ( env_gettimeofday_id( env ) != 0 ) {
+    if ( env_id( env ) != 0 ) {
 	perror( "gettimeofday" );
 	exit( EX_TEMPFAIL );
     }

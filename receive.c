@@ -181,7 +181,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      * of executing unnecessary commands.
      */
     if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
-	if ( *(env->e_id) != '\0' ) {
+	if ( env->e_id != NULL ) {
 	    syslog( LOG_INFO, "Receive %s: Message Abandoned", env->e_id );
 	}
 	env_reset( env );
@@ -298,14 +298,13 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	    case EXPAND_OK:
 		break;
 	}
-    } else if ( *(env->e_id) != '\0' ) {
+    } else if ( env->e_id != NULL ) {
 	syslog( LOG_INFO, "Receive %s: Message Abandoned", env->e_id );
     }
 
     env_reset( env );
 
-    if ( env_gettimeofday_id( env ) != 0 ) {
-	syslog( LOG_ERR, "f_mail env_gettimeofday_id: %m" );
+    if ( env_id( env ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -885,7 +884,7 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if (( env->e_flags & ENV_ON_DISK ) == 0 ) {
-	if ( *(env->e_id) != '\0' ) {
+	if ( env->e_id != NULL ) {
 	    syslog( LOG_INFO, "Receive %s: Message Abandoned", env->e_id );
 	}
 	env_reset( env );
@@ -1035,7 +1034,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	    case EXPAND_OK:
 		break;
 	}
-    } else if ( *(env->e_id) != '\0' ) {
+    } else if ( env->e_id != NULL ) {
 	syslog( LOG_INFO, "Receive %s: Message Abandoned", env->e_id );
     }
 
@@ -1250,7 +1249,7 @@ closeconnection:
     if ( env != NULL ) {
 	if (( env->e_flags & ENV_ON_DISK ) != 0 ) {
 	    expand_and_deliver( &hq_receive, env );
-	} else if ( *(env->e_id ) != '\0' ) {
+	} else if ( env->e_id != NULL ) {
 	    syslog( LOG_INFO, "Receive %s: Message Abandoned", env->e_id );
 	}
 

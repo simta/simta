@@ -3,8 +3,6 @@
  * All Rights Reserved.  See COPYRIGHT.
  */
 
-#define ENV_ID_LENGTH		30
-
 #define	R_TEMPFAIL	0
 #define	R_ACCEPTED	1
 #define	R_FAILED	2
@@ -28,7 +26,7 @@ struct envelope {
     int			e_flags;
     struct timespec	e_last_attempt;
     char		*e_hostname;
-    char		e_id[ ENV_ID_LENGTH + 1 ];
+    char		*e_id;
 };
 
 #define ENV_ON_DISK		(1<<1)
@@ -45,7 +43,7 @@ void		env_free( struct envelope * );
 void		env_reset( struct envelope * );
 void		rcpt_free( struct recipient * );
 int		env_is_old( struct envelope *, int );
-int		env_gettimeofday_id( struct envelope * );
+int		env_id( struct envelope * );
 int		env_set_id( struct envelope *, char * );
 int		env_recipient( struct envelope *, char * );
 int		env_sender( struct envelope *, char * );

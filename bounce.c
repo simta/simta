@@ -251,7 +251,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	return( NULL );
     }
 
-    if ( env_gettimeofday_id( bounce_env ) != 0 ) {
+    if ( env_id( bounce_env ) != 0 ) {
 	goto cleanup1;
     }
 
