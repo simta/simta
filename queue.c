@@ -832,8 +832,8 @@ q_deliver( struct host_q *hq )
 
 	    sprintf( efile_fname, "%s/E%s", env.e_dir, env.e_id );
 
-	    if ( truncate( efile_fname, (off_t)0 ) != 0 ) {
-		syslog( LOG_ERR, "truncate %s: %m", efile_fname );
+	    if ( ftruncate( snet_fd( snet_lock ), (off_t)0 ) != 0 ) {
+		syslog( LOG_ERR, "ftruncate %s: %m", efile_fname );
 		return( -1 );
 	    }
 
