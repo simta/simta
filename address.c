@@ -612,6 +612,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	/* not in alias db, try next expansion */
 	syslog( LOG_DEBUG, "alias_expand <%s>: not in alias db",
 		e_addr->e_addr );
+	ret = ALIAS_NOT_FOUND;
 	goto done;
     }
 
