@@ -60,6 +60,7 @@ void		env_reset ___P(( struct envelope * ));
 void		rcpt_free ___P(( struct recipient * ));
 int		env_gettimeofday_id ___P(( struct envelope * ));
 int		env_recipient ___P(( struct envelope *, char * ));
+int		env_sender ___P(( struct envelope *, char * ));
 int		env_outfile ___P(( struct envelope * ));
 int		env_touch ___P(( struct envelope * ));
 int		env_info ___P(( struct message *, char *, size_t ));

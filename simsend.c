@@ -193,7 +193,10 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
-    env->e_mail = simta_sender();
+    if ( env_sender( env, simta_sender()) != 0 ) {
+	perror( "malloc" );
+	exit( EX_TEMPFAIL );
+    }
 
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {

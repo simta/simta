@@ -96,8 +96,7 @@ env_create( char *e_mail )
     memset( env, 0, sizeof( struct envelope ));
 
     if ( e_mail != NULL ) {
-	if (( env->e_mail = strdup( e_mail )) == NULL ) {
-	    syslog( LOG_ERR, "env_create strdup: %m" );
+	if ( env_sender( env, e_mail ) != 0 ) {
 	    env_free( env );
 	    return( NULL );
 	}
@@ -156,6 +155,21 @@ env_free( struct envelope *env )
 	}
 
 	free( env );
+    }
+}
+
+
+    int
+env_sender( struct envelope *env, char *e_mail )
+{
+    if (( env->e_mail != NULL ) || ( e_mail == NULL )) {
+	syslog( LOG_ERR, "env_sender: invalid arguments" );
+	return( 1 );
+    }
+
+    if (( env->e_mail = strdup( e_mail )) == NULL ) {
+	syslog( LOG_ERR, "env_sender strdup: %m" );
+	return( 1 );
     }
 }
 
@@ -641,8 +655,7 @@ env_read( struct message *m, struct envelope *env, SNET **s_lock )
     }
 
     if ( *(line + 1) != '\0' ) {
-	if (( env->e_mail = strdup( line + 1 )) == NULL ) {
-	    syslog( LOG_ERR, "env_read strdup: %m" );
+	if ( env_sender( env, line + 1 ) != 0 ) {
 	    goto cleanup;
 	}
 

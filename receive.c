@@ -299,8 +299,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    if (( env->e_mail = strdup( addr )) == NULL ) {
-	syslog( LOG_ERR, "f_mail: strdup: %m" );
+    if ( env_sender( env, addr ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
