@@ -293,24 +293,23 @@ check_hostname( char *hostname )
 {
     struct dnsr_result		*result;
 
-    if (( result = get_mx( hostname )) != NULL ) {
-	if ( result->r_ancount > 0 ) {
-	    dnsr_free_result( result );
-	    return( 0 );
-	} else {
-	    dnsr_free_result( result );
-	}
+    if (( result = get_mx( hostname )) == NULL ) {
+	return( -1 );
     }
+    if ( result->r_ancount > 0 ) {
+	dnsr_free_result( result );
+	return( 0 );
+    }
+    dnsr_free_result( result );
 
-    if (( result = get_a( hostname )) != NULL ) {
-	    if ( result->r_ancount > 0 ) {
-		dnsr_free_result( result );
-		return( 0 );
-	    } else {
-		dnsr_free_result( result );
-		return( 1 );
-	    }
+    if (( result = get_a( hostname )) == NULL ) {
+	return( -1 );
     }
+    if ( result->r_ancount > 0 ) {
+	dnsr_free_result( result );
+	return( 0 );
+    }
+    dnsr_free_result( result );
 
     return( 1 );
 }
