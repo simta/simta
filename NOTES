@@ -19,7 +19,7 @@ Maximum processes:
 
 Queuing:
 
-    We attempt to deliever newly received mail immediately.  If we
+    We attempt to deliver newly received mail immediately.  If we
     successfully deliver mail for a host, we check for a queue for
     the host, and become a queue runner for that host.  This reduces
     admin intervention required to recover from a large queue.  To
@@ -42,7 +42,7 @@ Queuing:
     is moved to queues.  SMTP is started and a queue runner is
     started.
 
-    System must handle case where queued message has no coresponding
+    System must handle case where queued message has no corresponding
     file.
 
     q_insert -> q_reserve ->	q_delete
