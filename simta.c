@@ -82,6 +82,7 @@ int			simta_global_relay = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
 int			simta_tls = 0;
+int			simta_inbound_smtp = 1;
 long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
 char			*simta_reverse_url = NULL;
@@ -557,6 +558,16 @@ simta_read_config( char *fname )
 	    simta_dns_config = 0;
 
 	    if ( simta_debug ) printf( "DNS_CONFIG_OFF\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "NO_INBOUND_SMTP" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_inbound_smtp = 0;
+
+	    if ( simta_debug ) printf( "NO_INBOUND_SMTP\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_MESSAGE_SIZE" ) == 0 ) {
 	    if ( ac != 2 ) {

@@ -53,6 +53,7 @@ extern int				simta_expand_debug;
 extern int				simta_verbose;
 extern int				simta_fast_files;
 extern int				simta_tls;
+extern int				simta_inbound_smtp;
 extern int				simta_smtp_extension;
 extern long int				simta_max_message_size;
 extern unsigned int			simta_max_message_size_value;

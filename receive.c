@@ -115,7 +115,6 @@ static int	f_starttls( SNET *, struct envelope *, int, char *[] );
 #endif /* HAVE_LIBSSL */
 
 
-
     static int
 hello( struct envelope *env, char *hostname )
 {
@@ -1419,110 +1418,135 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	return( 0 );
     }
 
-    if ( maxconnections != 0 ) {
-	if ( connections >= maxconnections ) {
-	    syslog( LOG_NOTICE,
-		    "receive connection refused: max connections exceeded" );
-	    if ( snet_writef( snet, "421 Maximum connections exceeded, "
-		    "closing transmission channel\r\n" ) < 0 ) {
-		syslog( LOG_ERR, "receive snet_writef: %m" );
+    /* rfc 2821 3.1 Session Initiation
+     * The SMTP protocol allows a server to formally reject a transaction   
+     * while still allowing the initial connection as follows: a 554
+     * response MAY be given in the initial connection opening message
+     * instead of the 220.  A server taking this approach MUST still wait
+     * for the client to send a QUIT (see section 4.1.1.10) before closing
+     * the connection and SHOULD respond to any intervening commands with
+     * "503 bad sequence of commands".  Since an attempt to make an SMTP
+     * connection to such a system is probably in error, a server returning
+     * a 554 response on connection opening SHOULD provide enough  
+     * information in the reply text to facilitate debugging of the sending
+     * system.
+     */
+
+    if ( !simta_inbound_smtp ) {
+	syslog( LOG_NOTICE,
+		"receive connection refused: inbound smtp disabled" );
+	if ( snet_writef( snet, "554 No SMTP service here\r\n" ) < 0 ) {
+	    syslog( LOG_ERR, "receive snet_writef: %m" );
+	    goto closeconnection;
+	}
+    } else {
+	if ( maxconnections != 0 ) {
+	    if ( connections >= maxconnections ) {
+		syslog( LOG_NOTICE,
+			"receive connection refused: "
+			"max connections exceeded" );
+		if ( snet_writef( snet, "421 Maximum connections exceeded, "
+			"closing transmission channel\r\n" ) < 0 ) {
+		    syslog( LOG_ERR, "receive snet_writef: %m" );
+		}
+		goto closeconnection;
 	    }
-	    goto closeconnection;
 	}
-    }
 
-    if ( simta_dnsr == NULL ) {
-	if (( simta_dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "receive dnsr_new: returned NULL" );
-	    goto syserror;
+	if ( simta_dnsr == NULL ) {
+	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
+		syslog( LOG_ERR, "receive dnsr_new: returned NULL" );
+		goto syserror;
+	    }
 	}
-    }
 
-    receive_remote_hostname = hostname;
-    *hostname = '\0';
+	receive_remote_hostname = hostname;
+	*hostname = '\0';
 
-    if (( rc = check_reverse( hostname, &(sin->sin_addr))) != 0 ) {
-	if ( rc < 0 ) {
-	    syslog( LOG_NOTICE, "receive %s: connection rejected: %s",
-		dnsr_err2string( dnsr_errno( simta_dnsr )),
-		inet_ntoa( sin->sin_addr ));
-	    snet_writef( snet, "421 Error checking reverse address: %s\r\n",
-		    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	    goto closeconnection;
-
-	} else {
-	    if ( simta_ignore_reverse == 0 ) {
-		syslog( LOG_NOTICE, "Receive: Rejected: Relay [%s] "
-		    "invalid reverse", inet_ntoa( sin->sin_addr ));
-		snet_writef( snet,
-		    "421 No access from IP %s.  See %s\r\n",
-		    inet_ntoa( sin->sin_addr ),
-		    simta_reverse_url );
+	if (( rc = check_reverse( hostname, &(sin->sin_addr))) != 0 ) {
+	    if ( rc < 0 ) {
+		syslog( LOG_NOTICE, "receive %s: connection rejected: %s",
+		    dnsr_err2string( dnsr_errno( simta_dnsr )),
+		    inet_ntoa( sin->sin_addr ));
+		snet_writef( snet, "421 Error checking reverse address: %s\r\n",
+			dnsr_err2string( dnsr_errno( simta_dnsr )));
 		goto closeconnection;
 
 	    } else {
-		syslog( LOG_NOTICE, "receive %s: invalid reverse",
-			inet_ntoa( sin->sin_addr ));
+		if ( simta_ignore_reverse == 0 ) {
+		    syslog( LOG_NOTICE, "Receive: Rejected: Relay [%s] "
+			"invalid reverse", inet_ntoa( sin->sin_addr ));
+		    snet_writef( snet,
+			"421 No access from IP %s.  See %s\r\n",
+			inet_ntoa( sin->sin_addr ),
+			simta_reverse_url );
+		    goto closeconnection;
+
+		} else {
+		    syslog( LOG_NOTICE, "receive %s: invalid reverse",
+			    inet_ntoa( sin->sin_addr ));
+		}
 	    }
 	}
-    }
 
-    if ( simta_rbl_domain != NULL ) {
-	switch( check_rbl( &(sin->sin_addr), simta_rbl_domain )) {
-	case 0:
-	    syslog( LOG_NOTICE,
-		"Receive: Rejected: RBL %s Relay [%s] %s",
-		simta_rbl_domain, inet_ntoa( sin->sin_addr ),
-		receive_remote_hostname ?
-		receive_remote_hostname : "");
-	    snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
-		inet_ntoa( sin->sin_addr ), simta_rbl_url );
-	    goto closeconnection;
+	if ( simta_rbl_domain != NULL ) {
+	    switch( check_rbl( &(sin->sin_addr), simta_rbl_domain )) {
+	    case 0:
+		syslog( LOG_NOTICE,
+		    "Receive: Rejected: RBL %s Relay [%s] %s",
+		    simta_rbl_domain, inet_ntoa( sin->sin_addr ),
+		    receive_remote_hostname ?
+		    receive_remote_hostname : "");
+		snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
+		    inet_ntoa( sin->sin_addr ), simta_rbl_url );
+		goto closeconnection;
 
-	case 1:
-	    break;
+	    case 1:
+		break;
 
-	default:
-	    goto syserror;
+	    default:
+		goto syserror;
+	    }
 	}
-    }
 
 #ifdef HAVE_LIBWRAP
-    if ( *receive_remote_hostname == '\0' ) {
-	receive_remote_hostname = STRING_UNKNOWN;
-    }
+	if ( *receive_remote_hostname == '\0' ) {
+	    receive_remote_hostname = STRING_UNKNOWN;
+	}
 
-    /* first STRING_UNKNOWN should be domain name of incoming host */
-    if ( hosts_ctl( "simta", receive_remote_hostname,
-	    inet_ntoa( sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
-	syslog( LOG_NOTICE, "receive connection refused %s: access denied",
-		inet_ntoa( sin->sin_addr ));
-	snet_writef( snet, "421 Access Denied - remote access restricted\r\n" );
-	goto closeconnection;
-    }
+	/* first STRING_UNKNOWN should be domain name of incoming host */
+	if ( hosts_ctl( "simta", receive_remote_hostname,
+		inet_ntoa( sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
+	    syslog( LOG_NOTICE, "receive connection refused %s: access denied",
+		    inet_ntoa( sin->sin_addr ));
+	    snet_writef( snet, "421 Access Denied - "
+		"remote access restricted\r\n" );
+	    goto closeconnection;
+	}
 
-    if ( receive_remote_hostname == STRING_UNKNOWN ) {
-	receive_remote_hostname = NULL;
-    }
+	if ( receive_remote_hostname == STRING_UNKNOWN ) {
+	    receive_remote_hostname = NULL;
+	}
 #else /* HAVE_LIBWRAP */
-    if ( *receive_remote_hostname == '\0' ) {
-	receive_remote_hostname = NULL;
-    }
+	if ( *receive_remote_hostname == '\0' ) {
+	    receive_remote_hostname = NULL;
+	}
 #endif /* HAVE_LIBWRAP */
 
-    if (( env = env_create( NULL )) == NULL ) {
-	goto syserror;
-    }
-    receive_sin = sin;
+	if (( env = env_create( NULL )) == NULL ) {
+	    goto syserror;
+	}
+	receive_sin = sin;
 
-    if (( acav = acav_alloc( )) == NULL ) {
-	syslog( LOG_ERR, "receive argcargv_alloc: %m" );
-	goto syserror;
-    }
+	if (( acav = acav_alloc( )) == NULL ) {
+	    syslog( LOG_ERR, "receive argcargv_alloc: %m" );
+	    goto syserror;
+	}
 
-    if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
-	    "ready\r\n", 220, simta_hostname ) < 0 ) {
-	goto closeconnection;
+	if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
+		"ready\r\n", 220, simta_hostname ) < 0 ) {
+	    goto closeconnection;
+	}
     }
 
     tv.tv_sec = simta_receive_wait;
@@ -1570,6 +1594,13 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    }
 	}
 
+	if ( !simta_inbound_smtp && ( strcasecmp( av[ 0 ], "QUIT" ) != 0 )) {
+	    if ( snet_writef( snet, "503 bad sequence of commands\r\n" ) < 0 ) {
+		goto closeconnection;
+	    }
+	    continue;
+	}
+
 	if ( i >= ncommands ) {
 	    if ( snet_writef( snet, "500 Command unregcognized\r\n" ) < 0 ) {
 		goto closeconnection;
@@ -1578,6 +1609,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
 
 	switch ((*(commands[ i ].c_func))( snet, env, ac, av )) {
+
 	case RECEIVE_OK:
 	    break;
 
