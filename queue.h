@@ -39,6 +39,7 @@ struct host_q {
 };
 
 
+/* return NULL on syserror, doesn't syslog() */
 struct q_file	*q_file_create ___P(( char * ));
 struct host_q	*host_q_create ___P(( char * ));
 void		q_file_stdout ___P(( struct q_file * ));

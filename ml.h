@@ -9,4 +9,5 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
+/* return 0 on success, syslog errors */
 int mail_local ___P(( char *, SNET * ));

@@ -221,6 +221,7 @@ main( int argc, char *argv[] )
 		    ll_lookup( file_stab, entry->d_name + 1 )) == NULL ) {
 
 		if (( q = q_file_create( entry->d_name + 1 )) == NULL ) {
+		    syslog( LOG_ERR, "q_file_create: %m" );
 		    exit( 1 );
 		}
 
@@ -286,7 +287,7 @@ main( int argc, char *argv[] )
 
 	} else if ( q->q_dfile == 0 ) {
 	    /* Efile missing its Dfile */
-	    syslog( LOG_WARNING, "Missing Dfile: %s/E%s\n", SLOW_DIR, q->q_id );
+	    syslog( LOG_WARNING, "Missing Dfile: %s/D%s\n", SLOW_DIR, q->q_id );
 
 #ifdef DEBUG
 	    printf( "Warning orphan Efile:\t%s/E%s\n", SLOW_DIR, q->q_id );

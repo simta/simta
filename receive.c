@@ -723,7 +723,7 @@ receive( fd, sin )
 
     /* Check bad guy list */
 
-    if ((( env = env_create()) == NULL ) ||
+    if ((( env = env_create( NULL )) == NULL ) ||
 	    ( gethostname( env->e_hostname, MAXHOSTNAMELEN ) < 0 )) {
 	syslog( LOG_ERR, "env_create/gethostname: %m" );
 	snet_writef( snet,

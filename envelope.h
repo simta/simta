@@ -15,7 +15,6 @@ struct recipient {
 };
 
 struct envelope {
-    struct envelope	*e_next;
     struct sockaddr_in	*e_sin;
     char		e_hostname[ MAXHOSTNAMELEN ];
     char		e_expanded[ MAXHOSTNAMELEN ];
@@ -28,10 +27,16 @@ struct envelope {
 
 #define E_TLS		(1<<0)
 
-struct envelope	*env_create ___P(( void ));
-struct envelope	*env_infile ___P(( char *, char * ));
-int		env_unexpanded ___P(( char *, int * ));
-int		env_outfile ___P(( struct envelope *, char * ));
-int		env_recipient ___P(( struct envelope *, char * ));
 void		env_reset ___P(( struct envelope * ));
 void		env_stdout ___P(( struct envelope * ));
+
+/* return pointer on success, NULL on syserror, no syslog */
+struct envelope	*env_create ___P(( char * ));
+
+/* return 0 on success, -1 on syserror, no syslog */
+int		env_recipient ___P(( struct envelope *, char * ));
+int		env_outfile ___P(( struct envelope *, char * ));
+
+/* return 0 on success, -1 on syserror, 1 on syntax error, no syslog */
+int		env_unexpanded ___P(( char *, int * ));
+int		env_infile ___P(( struct envelope *, char * ));

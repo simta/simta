@@ -22,6 +22,7 @@
 #include <dirent.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <syslog.h>
 
 #include <snet.h>
 
@@ -109,13 +110,17 @@ main( int argc, char *argv[] )
     struct stab_entry		*hs;
     struct stab_entry		*qs;
     struct stat			sb;
+    int				result;
     char			fname[ MAXPATHLEN ];
     char			localhostname[ MAXHOSTNAMELEN ];
 
+    openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
+
+printf( "HERE\n" );
+
     if (( dirp = opendir( SLOW_DIR )) == NULL ) {
-	fprintf( stderr, "opendir: %s: ", SLOW_DIR );
-	perror( NULL );
-	return( 1 );
+	syslog( LOG_ERR, "opendir %s: %m", SLOW_DIR );
+	exit( 1 );
     }
 
     /* clear errno before trying to read */
@@ -138,21 +143,33 @@ main( int argc, char *argv[] )
 	/* organize Efiles by host and modification time */
 	if ( *entry->d_name == 'E' ) {
 	    if (( q = q_file_create( entry->d_name + 1 )) == NULL ) {
-		perror( "q_file_create" );
+		syslog( LOG_ERR, "q_file_create: %m" );
 		exit( 1 );
 	    }
 
-	    if (( q->q_env = env_infile( SLOW_DIR, q->q_id )) == NULL ) {
-		perror( "env_infile" );
+	    if (( q->q_env = env_create( q->q_id )) == NULL ) {
+		syslog( LOG_ERR, "env_create: %m" );
 		exit( 1 );
 	    }
+
+	    sprintf( fname, "%s/%s", SLOW_DIR, entry->d_name );
+
+	    if (( result = env_infile( q->q_env, fname )) < 0 ) {
+		/* syserror */
+		syslog( LOG_ERR, "env_infile %s: %m", fname );
+		exit( 1 );
+
+	    } else if ( result > 1 ) {
+		/* syntax error */
+		syslog( LOG_WARNING, "env_infile %s: syntax error", fname );
+		continue;
+	    }
+
 	    q->q_expanded = q->q_env->e_expanded;
 
 	    /* get efile modification time */
-	    sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
-
 	    if ( stat( fname, &sb ) != 0 ) {
-		perror( "stat" );
+		syslog( LOG_ERR, "stat %s: %m", fname );
 		exit( 1 );
 	    }
 
@@ -167,18 +184,18 @@ main( int argc, char *argv[] )
 	    if (( hq = (struct host_q*)ll_lookup( host_stab, q->q_expanded ))
 		    == NULL ) {
 		if (( hq = host_q_create( q->q_expanded )) == NULL ) {
-		    perror( "host_q_create" );
+		    syslog( LOG_ERR, "host_q_create: %m" );
 		    exit( 1 );
 		}
 
 		if ( ll_insert( &host_stab, hq->hq_name, hq, NULL ) != 0 ) {
-		    perror( "ll_insert" );
+		    syslog( LOG_ERR, "ll_insert: %m" );
 		    exit( 1 );
 		}
 	    }
 
 	    if ( ll__insert( &(hq->hq_qfiles), q, efile_time_compare ) != 0 ) {
-		perror( "ll__insert" );
+		syslog( LOG_ERR, "ll__insert: %m" );
 		exit( 1 );
 	    }
 	}
@@ -186,11 +203,13 @@ main( int argc, char *argv[] )
 
     /* did readdir finish, or encounter an error? */
     if ( errno != 0 ) {
-	perror( "readdir" );
-	return( 1 );
+	syslog( LOG_ERR, "readdir: %m" );
+	exit( 1 );
     }
 
+#ifdef DEBUG
     ll_walk( host_stab, host_stab_stdout );
+#endif /* DEBUG */
 
     /*
      * 2. For each host:
@@ -200,7 +219,7 @@ main( int argc, char *argv[] )
      */
 
     if ( gethostname( localhostname, MAXHOSTNAMELEN ) != 0 ) {
-	perror( "gethostname" );
+	syslog( LOG_ERR, "gethostname: %m" );
 	exit( 1 );
     }
 
@@ -211,37 +230,63 @@ main( int argc, char *argv[] )
 
 	    /* send message */
 
-	    /* check to see if we deliver locally */
 	    if ( strcasecmp( localhostname, q->q_expanded ) == 0 ) {
+		/* deliver locally */
 		/* get message_data */
-		printf( "Deliver locally:\t%s\n", q->q_id );
 		errno = 0;
-
 		sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
 
 		if (( snet = snet_open( fname, O_RDONLY, 0, 1024 * 1024 ))
 			== NULL ) {
 		    if ( errno == ENOENT ) {
+
+#ifdef DEBUG
 			printf( "Dfile missing: %s/D%s\n", SLOW_DIR, q->q_id );
+#endif /* DEBUG */
+
 			errno = 0;
+			syslog( LOG_WARNING, "Missing Dfile: %s", fname );
+			continue;
 
 		    } else {
-			perror( "snet_open" );
+			syslog( LOG_ERR, "snet_open %s: %m", fname );
 			exit( 1 );
 		    }
 		}
 
+		/* XXX */
 		if ( mail_local( "epcjr", snet ) != 0 ) {
-		    perror( "mail_local" );
 		    exit( 1 );
 		}
 
 		if ( snet_close( snet ) != 0 ) {
-		    perror( "snet_close" );
+		    syslog( LOG_ERR, "snet_close: %m" );
 		    exit( 1 );
 		}
-		printf( "Clip %s/E%s\n", SLOW_DIR, q->q_id );
-		printf( "Clip %s\n", fname );
+
+		/* delete Efile then Dfile */
+		sprintf( fname, "%s/E%s", SLOW_DIR, q->q_id );
+
+		if ( unlink( fname ) != 0 ) {
+		    syslog( LOG_ERR, "unlink %s: %m", fname );
+		    return( 1 );
+		}
+
+#ifdef DEBUG
+		printf( "unlink\t%s\n", fname );
+#endif /* DEBUG */
+
+		sprintf( fname, "%s/D%s", SLOW_DIR, q->q_id );
+
+		if ( unlink( fname ) != 0 ) {
+		    syslog( LOG_ERR, "unlink %s: %m", fname );
+		    return( 1 );
+		}
+
+#ifdef DEBUG
+		printf( "unlink\t%s\n", fname );
+#endif /* DEBUG */
+
 	    }
 
 	    /* if send failure, update efile modification time */

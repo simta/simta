@@ -154,17 +154,30 @@ data_stdout( struct message_data *d )
      * "id".
      */
 
+    /* XXX rewrite API */
     struct message *
 message_infiles( char *dir, char *id )
 {
     struct message		*m;
+    int				result;
+    char			fname[ MAXPATHLEN ];
 
     if (( m = (struct message*)malloc( sizeof( struct message ))) == NULL ) {
 	return( NULL );
     }
     memset( m, 0, sizeof( struct message ));
 
-    if (( m->m_env = env_infile( dir, id )) == NULL ) {
+    if (( m->m_env = env_create( id )) == NULL ) {
+	return( NULL );
+    }
+
+    sprintf( fname, "%s/E%s", dir, id );
+
+    if (( result = env_infile( m->m_env, fname )) < 0 ) {
+	/* syserror */
+	return( NULL );
+    } else if ( result > 0 ) {
+	/* syntax error */
 	return( NULL );
     }
 
@@ -285,7 +298,7 @@ message_create( char *id )
     }
     memset( m->m_data, 0, sizeof( struct message_data ));
 	
-    if (( m->m_env = env_create()) == NULL ) {
+    if (( m->m_env = env_create( id )) == NULL ) {
 	return( NULL );
     }
 
@@ -300,10 +313,7 @@ message_create( char *id )
 
 	sprintf( m->m_env->e_id, "%lX.%lX", (unsigned long)tv.tv_sec,
 		(unsigned long)tv.tv_usec );
-    } else {
-	/* XXX OVERFLOW */
-	strcpy( m->m_env->e_id, id );
-    }
+    } 
 
     if (( m->m_env->e_sin = (struct sockaddr_in*)malloc(
 	    sizeof( struct sockaddr_in ))) == NULL ) {

@@ -12,7 +12,6 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <syslog.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -23,7 +22,7 @@
 #include "envelope.h"
 
     struct envelope *
-env_create()
+env_create( char *id )
 {
     struct envelope	*env;
 
@@ -33,13 +32,18 @@ env_create()
     }
     memset( env, 0, sizeof( struct envelope ));
 
-    env->e_next = NULL;
+    /* XXX overflow */
+    if ( id != NULL ) {
+	strcpy( env->e_id, id );
+    } else {
+	*env->e_id = '\0';
+    }
+
     env->e_sin = NULL;
     *env->e_hostname = '\0';
     env->e_helo = NULL;
     env->e_mail = NULL;
     env->e_rcpt = NULL;
-    *env->e_id = '\0';
     env->e_flags = 0;
 
     return( env );
@@ -49,11 +53,6 @@ env_create()
 env_reset( struct envelope *env )
 {
     struct recipient	*r, *rnext;
-
-    if ( env->e_next != NULL ) {
-	syslog( LOG_CRIT, "env_reset: e_next not NULL" );
-	abort();
-    }
 
     if ( env->e_mail != NULL ) {
 	free( env->e_mail );
@@ -141,49 +140,36 @@ env_recipient( struct envelope *e, char *addr )
      * Roptional-to-addr@recipient.com
      */
 
-    struct envelope *
-env_infile( char *dir, char *id )
+    int
+env_infile( struct envelope *e, char *dir )
 {
     char			filename[ MAXPATHLEN ];
     char			*line;
     SNET			*snet;
-    struct envelope		*e;
 
-    if (( e = env_create()) == NULL ) {
-	return( NULL );
-    }
-
-    sprintf( filename, "%s/E%s", dir, id );
+    sprintf( filename, "%s/E%s", dir, e->e_id );
 
     if (( snet = snet_open( filename, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
-	return( NULL );
+	return( -1 );
     }
-
-    /* Message-ID */
-    /* XXX buffer overflow */
-    strcpy( e->e_id, id );
 
     /*** Vversion ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	return( NULL );
+	return( 1 );
     }
 
     /* XXX better version checking */
     if ( *line != 'V' ) {
-	/* XXX EIO? */
-	errno = EIO;
-	return( NULL );
+	return( 1 );
     }
 
     /*** Hdestination-host ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	return( NULL );
+	return( 1 );
     }
 
     if ( *line != 'H' ) {
-	/* XXX EIO? */
-	errno = EIO;
-	return( NULL );
+	return( 1 );
     }
 
     if ( *(line + 1) != '\0' ) {
@@ -192,20 +178,16 @@ env_infile( char *dir, char *id )
 
     /*** Ffrom-address ***/
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	/* XXX set errno? */
-	return( NULL );
+	return( 1 );
     }
 
     if ( *line != 'F' ) {
-	/* XXX EIO? */
-	errno = EIO;
-	return( NULL );
+	return( 1 );
     }
 
     if ( *(line + 1) != '\0' ) {
 	if (( e->e_mail = strdup( line + 1 )) == NULL ) {
-	    /* XXX set errno? */
-	    return( NULL );
+	    return( -1 );
 	}
     }
 
@@ -213,21 +195,19 @@ env_infile( char *dir, char *id )
     /*** Rto-addresses ***/
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	if ( *line != 'R' ) {
-	    /* XXX EIO? */
-	    errno = EIO;
-	    return( NULL );
+	    return( 1 );
 	}
 
 	if ( env_recipient( e, line + 1 ) != 0 ) {
-	    return( NULL );
+	    return( -1 );
 	}
     }
 
     if ( snet_close( snet ) < 0 ) {
-	return( NULL );
+	return( -1 );
     }
 
-    return( e );
+    return( 0 );
 }
 
 
