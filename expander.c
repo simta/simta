@@ -44,31 +44,52 @@
     int
 main( int argc, char *argv[])
 {
-    struct host_q		*hq = NULL;
-    struct envelope		*env;
+    struct host_q	*hq = NULL;
+    struct envelope	*env;
 
-    simta_debug = 1;
-    simta_expand_debug = 1;
+    char   *sender	= "sender@expansion.test";
+    int    c;
+    int	   nextargc	= 1;
 
-    if ( argc != 3 ) {
-	fprintf( stderr, "Usage: %s conf_file address\n", argv[ 0 ]);
+    extern int          optind;
+    extern char         *optarg;
+
+    simta_debug 	= 1;
+    simta_expand_debug	= 1;
+
+    while ((c = getopt(argc, argv, "f:")) != EOF)
+    {
+	switch (c)
+	{
+	case 'f':
+	    sender = strdup (optarg);
+	    nextargc = nextargc + 2;
+	    break;
+	otherwise:
+	    fprintf( stderr, "Usage: %s conf_file address\n", argv[ 0 ]);
+	    exit( EX_USAGE );
+	}
+    }
+    if ( argc < 3 ) {
+	fprintf( stderr, "Usage: %s [-f sendermail] conf_file address\n", 
+		argv[ 0 ]);
 	exit( EX_USAGE );
     }
 
     openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
 
     /* init simta config / defaults */
-    if ( simta_config( argv[ 1 ], NULL ) != 0 ) {
+    if ( simta_config( argv[ nextargc ], NULL ) != 0 ) {
 	fprintf( stderr, "simta_config error\n" );
 	exit( EX_DATAERR );
     }
 
-    if (( env = env_create( "sender@expansion.test" )) == NULL ) {
+    if (( env = env_create( sender )) == NULL ) {
 	perror( "malloc" );
 	return( 1 );
     }
 
-    if ( env_recipient( env, argv[ 2 ]) != 0 ) {
+    if ( env_recipient( env, argv[ nextargc + 1 ]) != 0 ) {
 	perror( "malloc" );
 	return( 1 );
     }
