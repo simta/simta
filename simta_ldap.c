@@ -1682,7 +1682,6 @@ simta_ldap_config( char *fname )
 		if (attrs[attridx] == NULL) {
 		    syslog ( LOG_ERR, "ac calloc error: %m" ); 
 		    goto errexit;
-		    return( -1 );
 		}
 	    }
 	} else if ( strcasecmp( av[ 0 ], "host" ) == 0 ) { 
@@ -1694,7 +1693,6 @@ simta_ldap_config( char *fname )
 	    if ((ldap_host = strdup ( av[ 1 ] )) == NULL) {
 		syslog ( LOG_ERR, "host strdup error: %m" ); 
 		goto errexit;
-		return( -1 );
 	    } 
 
 	} else if ( strcasecmp( av[ 0 ], "port" ) == 0 ) {
@@ -1744,7 +1742,6 @@ simta_ldap_config( char *fname )
 	    if ((tls_cacert = strdup (av[ 1 ])) == NULL) {
 		syslog ( LOG_ERR, "tls_cacert strdup error: %m" ); 
 		goto errexit;
-		return( -1 );
 	    } 
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_CERT" ) == 0 ) {
@@ -1756,7 +1753,6 @@ simta_ldap_config( char *fname )
 	    if ((tls_cert = strdup (av[ 1 ])) == NULL) {
 		syslog ( LOG_ERR, "tls_cert strdup error: %m" ); 
 		goto errexit;
-		return( -1 );
 	    } 
 	} else if ( strcasecmp( av[ 0 ], "TLS_KEY" ) == 0 ) {
 	    if (ac != 2) {
@@ -1767,7 +1763,6 @@ simta_ldap_config( char *fname )
 	    if ((tls_key = strdup (av[ 1 ])) == NULL) {
 		syslog ( LOG_ERR, "tls_key strdup error: %m" ); 
 		goto errexit;
-		return( -1 );
 	    } 
 
 	} else if ( strcasecmp( av[ 0 ], "domaincomponentcount" ) == 0 ) {
@@ -1788,7 +1783,6 @@ simta_ldap_config( char *fname )
 	    if ((bindpw = strdup ( av[ 1 ] )) == NULL) {
 		syslog ( LOG_ERR, "bindpw strdup error: %m" ); 
 		goto errexit;
-		return( -1 );
 	    } 
 
 	} else if ( strcasecmp( av[ 0 ], "binddn" ) == 0 ) {
@@ -1801,7 +1795,6 @@ simta_ldap_config( char *fname )
 	    if ((binddn = strdup ( av[ 1 ] )) == NULL) {
 		syslog ( LOG_ERR, "binddn strdup error: %m" ); 
 		goto errexit;
-		return( -1 );
 	    } 
 	    
 	} else if (( strcasecmp( av[ 0 ], "oc" ) == 0 ) ||
