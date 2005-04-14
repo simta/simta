@@ -347,14 +347,6 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    if ( simta_read_config( config_fname ) < 0 ) {
-        exit( 1 );
-    }
-
-    if ( maxconnections < 0 ) {
-	fprintf( stderr, "%d: invalid max-connections\n", maxconnections );
-    }
-
     /* get our user info from /etc/passwd */
     if (( simta_pw = getpwnam( simta_uname )) == NULL ) {
 	fprintf( stderr, "getpwnam %s: user not found\n", simta_uname );
@@ -370,6 +362,14 @@ main( int ac, char **av )
 #else /* ultrix */
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
+
+    if ( simta_read_config( config_fname ) < 0 ) {
+        exit( 1 );
+    }
+
+    if ( maxconnections < 0 ) {
+	fprintf( stderr, "%d: invalid max-connections\n", maxconnections );
+    }
 
     /* ignore SIGPIPE */
     memset( &sa, 0, sizeof( struct sigaction ));
