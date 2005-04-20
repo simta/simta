@@ -208,6 +208,7 @@ env_rcpt_free( struct envelope *env )
     }
 
     env->e_rcpt = NULL;
+    env->e_n_rcpt = 0;
 }
 
 
@@ -322,14 +323,9 @@ env_free( struct envelope *env )
 env_syslog( struct envelope *e )
 {
     struct recipient		*r;
-    int				count = 0;
-
-    for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
-	count++;
-    }
 
     syslog( LOG_DEBUG, "message %s rcpt %d host %s",
-	    e->e_id, count, e->e_hostname ? e->e_hostname : "NULL" );
+	    e->e_id, e->e_n_rcpt, e->e_hostname ? e->e_hostname : "NULL" );
 }
 
     void
@@ -390,6 +386,7 @@ env_recipient( struct envelope *e, char *addr )
 
     r->r_next = e->e_rcpt;
     e->e_rcpt = r;
+    e->e_n_rcpt++;
 
     return( 0 );
 }

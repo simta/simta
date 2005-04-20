@@ -576,6 +576,7 @@ q_runner_dir( char *dir )
     void
 q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 {
+    int                         n_rcpt_remove;
     int                         dfile_fd;
     int                         n_rcpts;
     SNET                        *snet_dfile = NULL;
@@ -654,7 +655,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	d.d_n_rcpt_accepted = 0;
 	d.d_n_rcpt_failed = 0;
 	d.d_n_rcpt_tempfail = 0;
-	d.d_attempt = 0;
 	d.d_delivered = 0;
 	d.d_unlinked = 0;
 
@@ -698,6 +698,12 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    panic( "q_deliver host_status out of range" );
 	}
 
+	n_rcpt_remove = d.d_n_rcpt_failed;
+
+	if ( d.d_delivered ) {
+	    n_rcpt_remove += d.d_n_rcpt_accepted;
+	}
+
 	/* check the age of the original message unless we've created
 	 * a bounce for the entire message, or if we've successfully
 	 * delivered the message and no recipients tempfailed.
@@ -705,9 +711,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 * a message: it is not nessecary to check a message's age
 	 * for bounce purposes when it is already slated for deletion.
 	 */
-	if ((( env_deliver->e_flags & ENV_FLAG_BOUNCE ) == 0 ) &&
-		(( d.d_delivered == 0 ) ||
-		( d.d_n_rcpt_tempfail != 0 ))) {
+	if (( n_rcpt_remove != env_deliver->e_n_rcpt ) &&
+		(( env_deliver->e_flags & ENV_FLAG_BOUNCE ) == 0 )) {
 	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
 		    syslog( LOG_NOTICE, "q_deliver %s: old message, bouncing",
 			    env_deliver->e_id );
@@ -721,8 +726,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	/* bounce the message if the host is bad, the message is bad, or
 	 * if some recipients are bad.
 	 */
-	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) ||
-		(( d.d_delivered ) && ( d.d_n_rcpt_failed > 0 ))) {
+	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) || d.d_n_rcpt_failed ) {
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
 		panic( "q_deliver lseek fail" );
@@ -732,6 +736,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 ))
 			== NULL ) {
 		    syslog( LOG_ERR, "q_deliver snet_attach: %m" );
+		    /* fall through, just won't get to append dfile */
 		}
 	    } else {
 		if ( lseek( snet_fd( snet_dfile ), (off_t)0, SEEK_SET ) != 0 ) {
@@ -751,9 +756,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 * a bounce for the entire message, or if we've successfully
 	 * delivered the message and no recipients tempfailed.
 	 */
-        if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) ||
-		(( d.d_delivered != 0 ) &&
-		( d.d_n_rcpt_tempfail == 0 ))) {
+	if (( n_rcpt_remove == env_deliver->e_n_rcpt ) ||
+		( env_deliver->e_flags & ENV_FLAG_BOUNCE )) {
 	    if ( env_truncate_and_unlink( env_deliver, snet_lock ) != 0 ) {
 		goto message_cleanup;
 	    }
@@ -768,12 +772,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 			env_deliver->e_id );
 	    }
 
-	/* else we rewrite the message if its been successfully
-	 * delivered, and some but not all recipients tempfail.
-	 */
-        } else if (( d.d_delivered != 0 ) &&
-		(( d.d_n_rcpt_accepted != 0 ) ||
-		( d.d_n_rcpt_failed != 0 ))) {
+	/* else we remove rcpts that were delivered or hard failed */
+        } else if ( n_rcpt_remove ) {
 	    syslog( LOG_INFO, "Deliver %s: Rewriting Envelope",
 		    env_deliver->e_id );
 	    syslog( LOG_INFO, "Deliver %s: From <%s>", env_deliver->e_id,
@@ -782,12 +782,25 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    r_sort = &(env_deliver->e_rcpt);
 	    n_rcpts = 0;
 	    while ( *r_sort != NULL ) {
-		if ((*r_sort)->r_status != R_TEMPFAIL ) {
+		/* remove rcpts that were delivered or hard failed */
+		if (( d.d_delivered && ((*r_sort)->r_status == R_ACCEPTED )) ||
+			((*r_sort)->r_status == R_FAILED )) {
 		    remove = *r_sort;
 		    *r_sort = (*r_sort)->r_next;
-		    syslog( LOG_INFO, "Deliver %s: Removing To <%s> From <%s>",
-			    env_deliver->e_id, remove->r_rcpt,
-			    env_deliver->e_mail );
+
+		    if ( remove->r_status == R_FAILED ) {
+			syslog( LOG_INFO, "Deliver %s: Removing To <%s> From "
+				"<%s>: Failed",
+				env_deliver->e_id, remove->r_rcpt,
+				env_deliver->e_mail );
+
+		    } else {
+			syslog( LOG_INFO, "Deliver %s: Removing To <%s> From "
+				"<%s>: Delivered",
+				env_deliver->e_id, remove->r_rcpt,
+				env_deliver->e_mail );
+		    }
+
 		    rcpt_free( remove );
 		    free( remove );
 
@@ -815,10 +828,13 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    assert( simta_fast_files >= 0 );
 
 	/* else we need to touch the envelope if we started an attempt
-	 * deliver the message, but it was unsuccessful.
+	 * deliver the message, but it was unsuccessful.  Note that we
+	 * need to have a positive or negitive rcpt reply to prevent the
+	 * queue from preserving order in the case of a perm tempfail
+	 * situation.
 	 */
-	} else if (( d.d_attempt != 0 ) &&
-		( env_deliver->e_dir == simta_dir_slow )) {
+	} else if (( env_deliver->e_dir == simta_dir_slow ) &&
+		( d.d_n_rcpt_accepted )) {
 	    syslog( LOG_NOTICE, "q_deliver %s touching", env_deliver->e_id );
 	    env_touch( env_deliver );
 	}
@@ -902,8 +918,6 @@ deliver_local( struct deliver *d )
 
     syslog( LOG_NOTICE, "deliver_local %s: attempting local delivery",
 	    d->d_env->e_id );
-
-    d->d_attempt = 1;
 
     for ( r = d->d_env->e_rcpt; r != NULL; r = r->r_next ) {
 	ml_error = EX_TEMPFAIL;
@@ -1027,7 +1041,10 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    }
 	}
 
-	d->d_attempt = 1;
+	env_clear_errors( d->d_env );
+	d->d_n_rcpt_accepted = 0;
+	d->d_n_rcpt_failed = 0;
+	d->d_n_rcpt_tempfail = 0;
 
 	if (( r_smtp = smtp_send( hq, d )) == SMTP_OK ) {
 	    switch ( hq->hq_status ) {
@@ -1047,8 +1064,6 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    simta_smtp_outbound_delivered++;
 	    return;
 	}
-
-	env_clear_errors( d->d_env );
 
 smtp_cleanup:
 	if ( r_smtp == SMTP_ERROR ) {

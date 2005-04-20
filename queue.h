@@ -22,7 +22,6 @@ struct deliver {
     int				d_n_rcpt_accepted;
     int				d_n_rcpt_failed;
     int				d_n_rcpt_tempfail;
-    int				d_attempt;
     int				d_delivered;
     int				d_unlinked;
 

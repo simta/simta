@@ -18,6 +18,7 @@ struct envelope {
     struct envelope	*e_next;
     struct envelope	*e_hq_next;
     struct recipient	*e_rcpt;
+    int			e_n_rcpt;
     struct host_q	*e_hq;
     struct line_file	*e_err_text;
     char		*e_dir;
