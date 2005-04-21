@@ -723,7 +723,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    }
 	}
 
-	/* bounce the message if the host is bad, the message is bad, or
+	/* bounce the message if the message is bad, or
 	 * if some recipients are bad.
 	 */
 	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) || d.d_n_rcpt_failed ) {
@@ -787,6 +787,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 			((*r_sort)->r_status == R_FAILED )) {
 		    remove = *r_sort;
 		    *r_sort = (*r_sort)->r_next;
+		    env_deliver->e_n_rcpt--;
 
 		    if ( remove->r_status == R_FAILED ) {
 			syslog( LOG_INFO, "Deliver %s: Removing To <%s> From "
