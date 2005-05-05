@@ -576,6 +576,8 @@ q_runner_dir( char *dir )
     void
 q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 {
+    int                         touch = 0;
+    int                         n_processed = 0;
     int                         n_rcpt_remove;
     int                         dfile_fd;
     int                         n_rcpts;
@@ -836,8 +838,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 */
 	} else if (( env_deliver->e_dir == simta_dir_slow ) &&
 		( d.d_n_rcpt_accepted )) {
-	    syslog( LOG_NOTICE, "q_deliver %s touching", env_deliver->e_id );
-	    env_touch( env_deliver );
+	    touch++;
 	}
 
 	if ( env_bounce != NULL ) {
@@ -846,6 +847,14 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	}
 
 message_cleanup:
+	if ( touch  || ( n_processed == 0 ))  {
+	    touch = 0;
+	    syslog( LOG_NOTICE, "q_deliver %s touching", env_deliver->e_id );
+	    env_touch( env_deliver );
+	}
+
+	n_processed++;
+
 	if ( env_bounce != NULL ) {
 	    if ( env_unlink( env_bounce ) != 0 ) {
 		syslog( LOG_INFO,
