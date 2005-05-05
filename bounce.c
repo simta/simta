@@ -287,28 +287,28 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
             < 0 ) {
         syslog( LOG_ERR, "bounce %s open %s: %m", env->e_id, dfile_fname );
-        goto cleanup2;
+        goto cleanup1;
     }
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
         syslog( LOG_ERR, "bounce %s fdopen %s: %m", env->e_id, dfile_fname );
         if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
 	}
-        goto cleanup3;
+        goto cleanup2;
     }
     if ( time( &clock ) < 0 ) {
         syslog( LOG_ERR, "bounce %s time: %m", env->e_id );
         if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
 	}
-        goto cleanup3;
+        goto cleanup2;
     }
     if (( tm = localtime( &clock )) == NULL ) {
         syslog( LOG_ERR, "bounce %s localtime: %m", env->e_id );
         if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
 	}
-        goto cleanup3;
+        goto cleanup2;
     }
     if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
             == 0 ) {
@@ -316,7 +316,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
         if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
 	}
-        goto cleanup3;
+        goto cleanup2;
     }
 
     fprintf( dfile, "From: <mailer-daemon@%s>\n", simta_hostname );
@@ -397,17 +397,17 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
 	syslog( LOG_ERR, "bounce %s fstat %s: %m", env->e_id, dfile_fname );
-        goto cleanup4;
+        goto cleanup3;
     }
     bounce_env->e_dinode = sbuf.st_ino;
 
     if ( fclose( dfile ) != 0 ) {
 	syslog( LOG_ERR, "bounce %s fclose %s: %m", env->e_id, dfile_fname );
-        goto cleanup4;
+        goto cleanup3;
     }
 
     if ( env_outfile( bounce_env ) != 0 ) {
-	goto cleanup4;
+	goto cleanup3;
     }
 
     syslog( LOG_INFO, "Bounce %s: %s: Bounced %d addresses", env->e_id,
@@ -415,16 +415,16 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     return( bounce_env );
 
-cleanup4:
+cleanup3:
     syslog( LOG_INFO, "Bounce %s: Message Deleted: System Error",
 	    bounce_env->e_id );
-cleanup3:
+
+cleanup2:
     if ( unlink( dfile_fname ) != 0 ) {
 	syslog( LOG_ERR, "bounce %s unlink %s: %m", env->e_id, dfile_fname );
     }
-cleanup2:
-    env_reset( bounce_env );
+
 cleanup1:
-    free( bounce_env );
+    env_free( bounce_env );
     return( NULL );
 }
