@@ -131,7 +131,7 @@ env_dup( struct envelope *env )
     struct envelope	*dup;
     struct recipient	*r;
 
-    if (( dup = env_create( env->e_mail )) == NULL ) {
+    if (( dup = env_create( env->e_mail, NULL )) == NULL ) {
 	return( NULL );
     }
 
@@ -142,6 +142,7 @@ env_dup( struct envelope *env )
 
     dup->e_dir = env->e_dir;
     dup->e_flags = env->e_flags;
+    dup->e_n_exp_level = env->e_n_exp_level;
 
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	if ( env_recipient( dup, r->r_rcpt ) != 0 ) {
@@ -155,7 +156,7 @@ env_dup( struct envelope *env )
 
 
     struct envelope *
-env_create( char *e_mail )
+env_create( char *e_mail, struct envelope *parent )
 {
     struct envelope	*env;
 
@@ -171,6 +172,10 @@ env_create( char *e_mail )
 	    env_free( env );
 	    return( NULL );
 	}
+    }
+
+    if ( parent ) {
+	env->e_n_exp_level = parent->e_n_exp_level + 1;
     }
 
     return( env );
@@ -322,8 +327,6 @@ env_free( struct envelope *env )
     void
 env_syslog( struct envelope *e )
 {
-    struct recipient		*r;
-
     syslog( LOG_DEBUG, "message %s rcpt %d host %s",
 	    e->e_id, e->e_n_rcpt, e->e_hostname ? e->e_hostname : "NULL" );
 }
@@ -397,6 +400,7 @@ env_recipient( struct envelope *e, char *addr )
      * VSIMTA_EFILE_VERSION
      * Emessage-id
      * Idinode
+     * Xpansion Level
      * Hdestination-host
      * Ffrom-addr@sender.com
      * Rto-addr@recipient.com
@@ -449,6 +453,12 @@ env_outfile( struct envelope *e )
 	panic( "env_outfile: bad dinode" );
     }
     if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {
+	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	goto cleanup;
+    }
+
+    /* Xpansion Level */
+    if ( fprintf( tff, "X%d\n", e->e_n_exp_level ) < 0 ) {
 	syslog( LOG_ERR, "env_outfile fprintf: %m" );
 	goto cleanup;
     }
@@ -662,6 +672,25 @@ env_read_queue_info( struct envelope *e )
     }
 
     /* expansion info */
+    if ( version >= 3 ) {
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
+	    goto cleanup;
+	}
+
+	if ( *line != 'X' ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: bad Xpansion syntax",
+		    fname );
+	    goto cleanup;
+	}
+
+	if ( sscanf( line + 1, "%d", &(e->e_n_exp_level)) != 1 ) {
+	    syslog( LOG_ERR, "env_read_queue_info: %s: bad Xpansion syntax",
+		fname );
+	    goto cleanup;
+	}
+    }
+
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
 	goto cleanup;
@@ -715,6 +744,7 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     int				ret = 1;
     ino_t			dinode;
     int				version;
+    int				exp_level;
 
     sprintf( filename, "%s/E%s", env->e_dir, env->e_id );
 
@@ -739,7 +769,8 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 
     /* Vsimta-version */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF", filename );
+	syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF",
+		filename );
 	goto cleanup;
     }
     if ( *line != 'V' ) {
@@ -813,6 +844,32 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     }
 
     /* expansion info */
+    if ( version >= 3 ) {
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF",
+		    filename );
+	    goto cleanup;
+	}
+
+	if ( *line != 'X' ) {
+	    syslog( LOG_ERR, "env_read_delivery_info %s: bad Xpansion syntax",
+		    filename );
+	    goto cleanup;
+	}
+
+	if ( sscanf( line + 1, "%d", &exp_level) != 1 ) {
+	    syslog( LOG_ERR, "env_read_delivery_info: %s: bad Xpansion syntax",
+		filename );
+	    goto cleanup;
+	}
+
+	if ( exp_level != env->e_n_exp_level ) {
+	    syslog( LOG_ERR, "env_read_delivery_info %s: Xpansion mismatch",
+		filename );
+	    goto cleanup;
+	}
+    }
+
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF",
 	    filename );
@@ -887,10 +944,6 @@ cleanup:
 		    filename );
 	    ret = 1;
 	}
-    }
-
-    if ( ret != 0 ) {
-	env_reset( env );
     }
 
     return( ret);

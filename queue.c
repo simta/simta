@@ -532,7 +532,7 @@ q_runner_dir( char *dir )
     /* organize a directory's messages by host and timestamp */
     while (( entry = readdir( dirp )) != NULL ) {
 	if ( *entry->d_name == 'E' ) {
-	    if (( env = env_create( NULL )) == NULL ) {
+	    if (( env = env_create( NULL, NULL )) == NULL ) {
 		continue;
 	    }
 

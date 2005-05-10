@@ -410,7 +410,8 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 
 	if ( env == NULL ) {
 	    /* Create envelope and add it to list */
-	    if (( env = env_create( e_addr->e_addr_from )) == NULL ) {
+	    if (( env = env_create( e_addr->e_addr_from,
+		    unexpanded_env )) == NULL ) {
 		syslog( LOG_ERR, "expand.env_create: %m" );
 		goto cleanup3;
 	    }
@@ -586,6 +587,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	} else {
 	    env_p = &(env->e_next);
 	    bounce_stdout( env );
+	    env_free( env );
 	}
     }
 

@@ -17,7 +17,7 @@
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
 #define	SIMTA_BOUNCE_LINES		100
-#define	SIMTA_EFILE_VERSION		2
+#define	SIMTA_EFILE_VERSION		3
 #define SIMTA_MAX_RUNNERS_SLOW		200
 #define SIMTA_MAX_RUNNERS_LOCAL		25
 #define	SIMTA_EXPANSION_FAILED		0
@@ -36,6 +36,7 @@
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
+extern int				simta_exp_level_max;
 extern int				simta_process_type;
 extern int				simta_authlevel;
 extern int				simta_use_alias_db;

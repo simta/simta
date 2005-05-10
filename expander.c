@@ -48,6 +48,8 @@ main( int argc, char *argv[])
     char   *sender	= "sender@expansion.test";
     int    c;
     int	   nextargc	= 1;
+    int	   exp_level    = 0;
+    int	   error	= 0;
 
     extern int          optind;
     extern char         *optarg;
@@ -55,22 +57,31 @@ main( int argc, char *argv[])
     simta_debug 	= 1;
     simta_expand_debug	= 1;
 
-    while ((c = getopt(argc, argv, "f:")) != EOF)
+    while ((c = getopt(argc, argv, "f:x:")) != EOF)
     {
 	switch (c)
 	{
+	case 'x':
+	    if (( exp_level = atoi( optarg )) < 0 ) {
+		error++;
+	    }
+	    nextargc = nextargc + 2;
+	    break;
+
 	case 'f':
 	    sender = strdup (optarg);
 	    nextargc = nextargc + 2;
 	    break;
+
 	default:
-	    fprintf( stderr, "Usage: %s conf_file address\n", argv[ 0 ]);
-	    exit( EX_USAGE );
+	    error++;
+	    nextargc = nextargc++;
+	    break;
 	}
     }
-    if ( argc < 3 ) {
-	fprintf( stderr, "Usage: %s [-f sendermail] conf_file address\n", 
-		argv[ 0 ]);
+    if (( argc < 3 ) | ( error )) {
+	fprintf( stderr, "Usage: %s [ -x level ] [-f sendermail] conf_file "
+		"address\n", argv[ 0 ]);
 	exit( EX_USAGE );
     }
 
@@ -90,10 +101,12 @@ main( int argc, char *argv[])
     do {
 	nextargc++;
 
-	if (( env = env_create( sender )) == NULL ) {
+	if (( env = env_create( sender, NULL )) == NULL ) {
 	    perror( "malloc" );
 	    return( 1 );
 	}
+
+	env->e_n_exp_level = exp_level;
 
 	if ( env_recipient( env, argv[ nextargc ]) != 0 ) {
 	    perror( "malloc" );
@@ -103,6 +116,7 @@ main( int argc, char *argv[])
 	if ( expand( &hq, env ) != 0 ) {
 	    return( 1 );
 	}
+	env_free( env );
     } while ( nextargc < argc - 1 );
 
     return( 0 );

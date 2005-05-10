@@ -49,7 +49,7 @@ address_bounce_create( struct expand *exp )
 {
     struct envelope		*bounce_env;
 
-    if (( bounce_env = env_create( NULL )) == NULL ) {
+    if (( bounce_env = env_create( NULL, exp->exp_env )) == NULL ) {
 	return( NULL );
     }
 

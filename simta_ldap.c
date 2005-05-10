@@ -931,44 +931,51 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    ldap_value_free( memonly );
 	}
 
-	if (( moderator = ldap_get_values( ld, entry, "moderator")) != NULL ) {
-	    if (( e_addr->e_addr_env_moderated =
-		    env_create( exp->exp_env->e_mail )) == NULL ) {
-		ldap_value_free( moderator );
-		ldap_memfree( dn );
-		free( senderbuf );
-		return( LDAP_SYSERROR );
-	    }
-
-	    for ( idx = 0; moderator[ idx ] != NULL; idx++ ) {
-		if ( env_string_recipients( e_addr->e_addr_env_moderated,
-			moderator[ idx ]) != 0 ) {
-		    env_free( e_addr->e_addr_env_moderated );
-		    e_addr->e_addr_env_moderated = NULL;
+	if (( moderator = ldap_get_values( ld, entry, "moderator" )) != NULL ) {
+	    if ( exp->exp_env->e_n_exp_level < simta_exp_level_max ) {
+		if (( e_addr->e_addr_env_moderated =
+			env_create( exp->exp_env->e_mail,
+			exp->exp_env )) == NULL ) {
 		    ldap_value_free( moderator );
 		    ldap_memfree( dn );
 		    free( senderbuf );
 		    return( LDAP_SYSERROR );
 		}
-	    }
 
-	    ldap_value_free( moderator );
-
-	    if (( r = e_addr->e_addr_env_moderated->e_rcpt ) == NULL ) {
-		/* no valid email addresses */
-		env_free( e_addr->e_addr_env_moderated );
-		e_addr->e_addr_env_moderated = NULL;
-		moderator_error = 1;
-		bounce_text( e_addr->e_addr_errors, "bad moderator: ", dn,
-			NULL );
-	    }
-
-	    for ( ; r != NULL; r = r->r_next ) {
-		if ( simta_mbx_compare( r->r_rcpt,
-			exp->exp_env->e_mail ) == 0 ) {
-		    /* sender matches moderator in moderator env */
-		    break;
+		for ( idx = 0; moderator[ idx ] != NULL; idx++ ) {
+		    if ( env_string_recipients( e_addr->e_addr_env_moderated,
+			    moderator[ idx ]) != 0 ) {
+			env_free( e_addr->e_addr_env_moderated );
+			e_addr->e_addr_env_moderated = NULL;
+			ldap_value_free( moderator );
+			ldap_memfree( dn );
+			free( senderbuf );
+			return( LDAP_SYSERROR );
+		    }
 		}
+
+		ldap_value_free( moderator );
+
+		if (( r = e_addr->e_addr_env_moderated->e_rcpt ) == NULL ) {
+		    /* no valid email addresses */
+		    env_free( e_addr->e_addr_env_moderated );
+		    e_addr->e_addr_env_moderated = NULL;
+		    moderator_error = 1;
+		    bounce_text( e_addr->e_addr_errors, "bad moderator: ", dn,
+			    NULL );
+		}
+
+		for ( ; r != NULL; r = r->r_next ) {
+		    if ( simta_mbx_compare( r->r_rcpt,
+			    exp->exp_env->e_mail ) == 0 ) {
+			/* sender matches moderator in moderator env */
+			break;
+		    }
+		}
+
+	    } else {
+		bounce_text( e_addr->e_addr_errors, "moderator mail loop: ", dn,
+			NULL );
 	    }
 	}
 

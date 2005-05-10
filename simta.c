@@ -66,6 +66,7 @@ struct simta_red	*simta_default_host = NULL;
 struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_exp_level_max = 5;
 int			simta_process_type = 0;
 int			simta_authlevel = 0;
 int			simta_use_alias_db = 0;

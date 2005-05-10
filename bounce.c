@@ -115,7 +115,9 @@ bounce_stdout( struct envelope *bounce_env )
 	return;
     }
 
-    printf( "***   Bounce Message %s  ***\n", bounce_env->e_id );
+    printf( "\n***   Bounce Message %s  ***\n", bounce_env->e_id );
+    env_stdout( bounce_env );
+    printf( "Message Text:\n" );
 
     /* dfile message headers */
     printf(  "From: <mailer-daemon@%s>\n", simta_hostname );
@@ -252,7 +254,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     struct stat			sbuf;
     char                        daytime[ 35 ];
 
-    if (( bounce_env = env_create( NULL )) == NULL ) {
+    if (( bounce_env = env_create( NULL, env )) == NULL ) {
 	return( NULL );
     }
 

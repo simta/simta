@@ -1924,7 +1924,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
 #endif /* HAVE_LIBWRAP */
 
-	if (( env = env_create( NULL )) == NULL ) {
+	if (( env = env_create( NULL, NULL )) == NULL ) {
 	    goto syserror;
 	}
 	receive_sin = sin;

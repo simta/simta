@@ -19,6 +19,7 @@ struct envelope {
     struct envelope	*e_hq_next;
     struct recipient	*e_rcpt;
     int			e_n_rcpt;
+    int			e_n_exp_level;
     struct host_q	*e_hq;
     struct line_file	*e_err_text;
     char		*e_dir;
@@ -44,7 +45,7 @@ struct envelope {
 #define ENV_FLAG_DELETE			(1<<6)
 #define ENV_FLAG_SUPRESS_NO_EMAIL	(1<<7)
 
-struct envelope	*env_create( char * );
+struct envelope	*env_create( char *, struct envelope * );
 struct envelope	*env_dup( struct envelope * );
 void		env_rcpt_free( struct envelope * );
 void		env_free( struct envelope * );
