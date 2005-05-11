@@ -764,7 +764,18 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			    break;
 
 			default:
-			    return( RECEIVE_CLOSECONNECTION );
+			    if ( dnsr_errno( simta_dnsr ) !=
+				    DNSR_ERROR_TIMEOUT ) {
+				return( RECEIVE_CLOSECONNECTION );
+			    }
+
+			    syslog( LOG_ERR, "f_rcpt check_rbl: timeout" );
+			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
+				    "RBL lookup timed out: %s",
+				    env->e_id, addr, env->e_mail,
+				    simta_user_rbl_domain );
+			    dnsr_errclear( simta_dnsr );
+			    break;
 			}
 		    }
 
@@ -1898,7 +1909,18 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		break;
 
 	    default:
-		goto syserror;
+		if ( dnsr_errno( simta_dnsr ) !=
+			DNSR_ERROR_TIMEOUT ) {
+		    goto syserror;
+		}
+
+		syslog( LOG_ERR, "receive check_rbl: timeout" );
+		syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL lookup timed "
+			"out %s",
+			inet_ntoa( sin->sin_addr ), receive_remote_hostname,
+			simta_rbl_domain );
+		dnsr_errclear( simta_dnsr );
+		break;
 	    }
 	}
 
