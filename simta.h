@@ -36,6 +36,7 @@
 /* global variables */
 
 extern unsigned int			simta_bounce_seconds;
+extern int				simta_simsend_strict_from;
 extern int				simta_exp_level_max;
 extern int				simta_process_type;
 extern int				simta_authlevel;

@@ -976,6 +976,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    } else {
 		bounce_text( e_addr->e_addr_errors, "moderator mail loop: ", dn,
 			NULL );
+		break;
 	    }
 	}
 
@@ -1052,6 +1053,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	}
 	ldap_value_free( dnvals);
     }
+
     if (mailvals ) {
 	valfound++;
 

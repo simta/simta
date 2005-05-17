@@ -69,6 +69,7 @@ catch_sigint( int sigint )
 main( int argc, char *argv[] )
 {
     SNET		*snet_stdin;
+    char		*sender = NULL;
     char		*addr;
     char		*line;
     char		*wsp;
@@ -98,7 +99,7 @@ main( int argc, char *argv[] )
 
     openlog( argv[ 0 ], 0, LOG_SIMTA );
 
-    while (( c = getopt( argc, argv, "b:io:st" )) != -1 ) {
+    while (( c = getopt( argc, argv, "b:f:io:st" )) != -1 ) {
 	switch ( c ) {
 	case 'b':
 	    if ( strlen( optarg ) == 1 ) {
@@ -136,6 +137,14 @@ main( int argc, char *argv[] )
 	    }
 	    break;
 
+	case 'f':
+	    /* Specify a different from address, for testing purposes */
+    	    sender = optarg;
+	    if ( !is_emailaddr( sender )) {
+		usage = 1;
+	    }
+	    break;
+
 	case 'i':
 	    /* Ignore a single dot on a line as an end of message marker */
     	    ignore_dot = 1;
@@ -166,6 +175,7 @@ main( int argc, char *argv[] )
     if ( usage != 0 ) {
 	fprintf( stderr, "Usage: %s "
 		"[ -b option ] "
+		"[ -f address ] "
 		"[ -i ] "
 		"[ -o option ] "
 		"[ -s ] "
@@ -199,9 +209,21 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
-    if ( env_sender( env, simta_sender()) != 0 ) {
-	perror( "malloc" );
-	exit( EX_TEMPFAIL );
+    if ( sender ) {
+	if ( simta_simsend_strict_from ) {
+	    fprintf( stderr, "-f option not enabled\n" );
+	    exit( EX_TEMPFAIL );
+	} else {
+	    if ( env_sender( env, sender ) != 0 ) {
+		perror( "malloc" );
+		exit( EX_TEMPFAIL );
+	    }
+	}
+    } else {
+	if ( env_sender( env, simta_sender()) != 0 ) {
+	    perror( "malloc" );
+	    exit( EX_TEMPFAIL );
+	}
     }
 
     /* optind = first to-address */

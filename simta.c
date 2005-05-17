@@ -67,6 +67,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 int			simta_exp_level_max = 5;
+int			simta_simsend_strict_from = 1;
 int			simta_process_type = 0;
 int			simta_authlevel = 0;
 int			simta_use_alias_db = 0;
@@ -531,6 +532,15 @@ simta_read_config( char *fname )
 		printf( "USER_RBL_DOMAIN: %s\tUSER_RBL_URL: %s\n",
 		    simta_user_rbl_domain, simta_user_rbl_url );
 	    }
+
+        } else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM_OFF" ) == 0 ) {
+            if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+	    simta_simsend_strict_from = 0;
+            if ( simta_debug ) printf( "SIMSEND_STRICT_FROM_OFF\n" );
 
         } else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
 	    if ( simta_tls ) {
