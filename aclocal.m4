@@ -264,25 +264,29 @@ AC_DEFUN([CHECK_SASL],
     AC_ARG_WITH(sasl,
             AC_HELP_STRING([--with-sasl=DIR], [path to sasl]),
             sasldirs="$withval")
-    for dir in $sasldirs; do
-        sasldir="$dir"
-        if test -f "$dir/include/sasl/sasl.h"; then
-            found_sasl="yes";
-            CPPFLAGS="$CPPFLAGS -I$sasldir/include";
-            break;
+    if test x_$withval != x_no; then
+        for dir in $sasldirs; do
+            sasldir="$dir"
+            if test -f "$dir/include/sasl/sasl.h"; then
+                found_sasl="yes";
+                CPPFLAGS="$CPPFLAGS -I$sasldir/include";
+                break;
+            fi
+            if test -f "$dir/include/sasl.h"; then
+                found_sasl="yes";
+                CPPFLAGS="$CPPFLAGS -I$sasldir/include";
+                break
+            fi
+        done
+        if test x_$found_sasl != x_yes; then
+            AC_MSG_ERROR(cannot find sasl libraries) 
+        else
+            AC_DEFINE(HAVE_LIBSASL)
+            LIBS="$LIBS -lsasl2";
+            LDFLAGS="$LDFLAGS -L$sasldir/lib";
         fi
-        if test -f "$dir/include/sasl.h"; then
-            found_sasl="yes";
-            CPPFLAGS="$CPPFLAGS -I$sasldir/include";
-            break
-        fi
-    done
-    if test x_$found_sasl != x_yes; then
-        AC_MSG_ERROR(cannot find sasl libraries)
+        AC_MSG_RESULT(yes)  
     else
-        AC_DEFINE(HAVE_LIBSASL)
-        LIBS="$LIBS -lsasl2";
-        LDFLAGS="$LDFLAGS -L$sasldir/lib";
+        AC_MSG_RESULT(no)
     fi
-    AC_MSG_RESULT(yes)
-])
+])    
