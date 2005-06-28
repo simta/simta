@@ -510,6 +510,7 @@ main( int ac, char **av )
     } else if ( simta_filesystem_cleanup ) {
 	exit( simta_wait_for_child( CHILD_CLEANUP ));
     } else if ( simta_wait_for_child( CHILD_CLEANUP ) != 0 ) {
+	fprintf( stderr, "simta cleanup error, please check the log\n" );
 	exit( 1 );
     }
 
