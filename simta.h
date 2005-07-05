@@ -29,6 +29,12 @@
 #define SIMTA_ERROR_DNSR		1
 #define SIMTA_ERROR_SYSTEM		-1
 
+
+#define SIMTA_CONNECT_SMTP		0
+#define SIMTA_CONNECT_SMTPS		1
+#define SIMTA_CONNECT_SUBMISSION	2
+#define SIMTA_CONNECT_NONE		3	
+
 #define SIMTA_PROCESS_TYPE_DAEMON	0
 #define SIMTA_PROCESS_TYPE_Q_RUNNER	1
 #define SIMTA_PROCESS_TYPE_RECEIVE	2
@@ -91,7 +97,7 @@ extern int				(*simta_local_mailer)(int, char *,
 						struct recipient *);
 
 int	q_cleanup( void );
-int	smtp_receive ( int, struct sockaddr_in * );
+int	smtp_receive ( int, struct sockaddr_in *, int );
 void	panic ( char * );
 char	*simta_sender ( void );
 char	*simta_resolvconf ( void );

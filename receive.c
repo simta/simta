@@ -82,6 +82,9 @@ char			*receive_smtp_command = NULL;
 char			*receive_remote_hostname = "Unknown";
 struct command 		*receive_commands  = NULL;
 int			receive_ncommands;
+#ifdef HAVE_LIBSSL
+int			 _start_tls( SNET *snet );
+#endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
 #define BASE64_BUF_SIZE 21848 /* per RFC 2222bis: ((16k / 3 ) +1 ) * 4 */
@@ -1341,8 +1344,6 @@ f_noauth( SNET *snet, struct envelope *env, int ac, char *av[])
 f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int				rc;
-    X509			*peer;
-    char			buf[ 1024 ];
 
     if ( !simta_tls ) {
 	if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
@@ -1378,31 +1379,8 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    /* XXX Begin TLS - hope this works */
-    if (( rc = snet_starttls( snet, ctx, 1 )) != 1 ) {
-	syslog( LOG_ERR, "f_starttls: snet_starttls: %s",
-		ERR_error_string( ERR_get_error(), NULL ));
-	if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
-	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_SYSERROR );
-    }
-
-    if ( simta_authlevel == 2 ) {
-	if (( peer = SSL_get_peer_certificate( snet->sn_ssl )) == NULL ) {
-	    syslog( LOG_ERR,
-		    "starttls SSL_get_peer_certificate: no peer certificate" );
-	    if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
-		syslog( LOG_ERR, "f_starttls snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    return( RECEIVE_SYSERROR );
-	}
-	syslog( LOG_NOTICE, "CERT Subject: %s\n",
-		X509_NAME_oneline( X509_get_subject_name( peer ),
-		buf, sizeof( buf )));
-	X509_free( peer );
+    if ( _start_tls( snet ) != RECEIVE_OK ) {
+	return ( RECEIVE_OK );
     }
 
     if (( env->e_flags & ENV_FLAG_ON_DISK ) != 0 ) {
@@ -1442,9 +1420,6 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	receive_hello = NULL;
     }
 
-    receive_tls = 1;
-    simta_smtp_extension--;
-
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
 	sasl_ssf_t			ssf;
@@ -1476,6 +1451,47 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 
     return( RECEIVE_OK );
 }
+
+    int
+_start_tls( SNET *snet )
+{
+    int				rc;
+    X509			*peer;
+    char			buf[ 1024 ];
+
+    /* XXX Begin TLS - hope this works */
+    if (( rc = snet_starttls( snet, ctx, 1 )) != 1 ) {
+	syslog( LOG_ERR, "f_starttls: snet_starttls: %s",
+		ERR_error_string( ERR_get_error(), NULL ));
+	if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
+	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_SYSERROR );
+    }
+
+    if ( simta_authlevel == 2 ) {
+	if (( peer = SSL_get_peer_certificate( snet->sn_ssl )) == NULL ) {
+	    syslog( LOG_ERR,
+		    "starttls SSL_get_peer_certificate: no peer certificate" );
+	    if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
+		syslog( LOG_ERR, "f_starttls snet_writef: %m" );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	    return( RECEIVE_SYSERROR );
+	}
+	syslog( LOG_NOTICE, "CERT Subject: %s\n",
+		X509_NAME_oneline( X509_get_subject_name( peer ),
+		buf, sizeof( buf )));
+	X509_free( peer );
+    }
+
+    receive_tls = 1;
+    simta_smtp_extension--;
+
+    return( RECEIVE_OK );
+}
+
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
@@ -1728,7 +1744,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 #endif /* HAVE_LIBSASL */
 
     int
-smtp_receive( int fd, struct sockaddr_in *sin )
+smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
 {
     SNET				*snet;
     struct envelope			*env = NULL;
@@ -1820,6 +1836,14 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
     }
 #endif /* HAVE_LIBSASL */
+
+#ifdef HAVE_LIBSSL
+    if ( simta_authlevel > 0 && connect_type == SIMTA_CONNECT_SMTPS ) {
+	if ( _start_tls( snet ) != RECEIVE_OK ) {
+	    return ( RECEIVE_OK );
+	}
+    }
+#endif /* HAVE_LIBSSL */
 
     /* rfc 2821 3.1 Session Initiation
      * The SMTP protocol allows a server to formally reject a transaction   

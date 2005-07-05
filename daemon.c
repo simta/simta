@@ -64,6 +64,7 @@ struct proc_type	*proc_stab = NULL;
 int		q_runner_local = 0;
 int		q_runner_slow = 0;
 
+int		submission_port = 0;
 int		simsendmail_signal = 0;
 int		child_signal = 0;
 int		backlog = 5;
@@ -78,7 +79,7 @@ void		usr1( int );
 void		hup ( int );
 void		chld( int );
 int		main( int, char *av[] );
-void		simta_daemon_child( int, int );
+void		simta_daemon_child( int, int, int );
 int		simta_wait_for_child( int );
 
 SSL_CTX		*ctx = NULL;
@@ -158,7 +159,7 @@ main( int ac, char **av )
     int			launch_seconds;
     int			q_runner_local_max;
     int			q_runner_slow_max;
-    int			c, s, err = 0;
+    int			c, s_smtp, s_smtps, s_submission, err = 0;
     int			dontrun = 0;
     int			reuseaddr = 1;
     int			pidfd;
@@ -198,7 +199,7 @@ main( int ac, char **av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
-    while (( c = getopt( ac, av, " ab:cCdD:f:I:m:M:p:qQ:rRs:Vw:x:y:z:" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:I:m:M:p:qQ:rRs:SVw:x:y:z:" ))
 	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
@@ -300,6 +301,10 @@ main( int ac, char **av )
 
 	case 's' :		/* spool dir */
 	    spooldir = optarg;
+	    break;
+
+	case 'S' :
+	    submission_port = 1;
 	    break;
 
 	case 'V' :		/* virgin */
@@ -414,6 +419,10 @@ main( int ac, char **av )
 
     /* if we're not a q_runner or filesystem cleaner, open smtp service */
     if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 )) {
+
+	/*
+	 * Set up SMTP listener.
+	 */
 	if ( port == 0 ) {
 	    if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
 		fprintf( stderr, "%s: can't find smtp service: "
@@ -423,34 +432,104 @@ main( int ac, char **av )
 		port = se->s_port;
 	    }
 	}
-
-	/*
-	 * Set up listener.
-	 */
-	if (( s = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
+	if (( s_smtp = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
 	    perror( "socket" );
 	    exit( 1 );
 	}
 	if ( reuseaddr ) {
-	    if ( setsockopt( s, SOL_SOCKET, SO_REUSEADDR, (void*)&reuseaddr,
-		    sizeof( int )) < 0 ) {
+	    if ( setsockopt( s_smtp, SOL_SOCKET, SO_REUSEADDR,
+		    (void*)&reuseaddr, sizeof( int )) < 0 ) {
 		perror("setsockopt");
 	    }
 	}
-
 	memset( &sin, 0, sizeof( struct sockaddr_in ));
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = INADDR_ANY;
 	sin.sin_port = port;
-	if ( bind( s, (struct sockaddr *)&sin,
+	if ( bind( s_smtp, (struct sockaddr *)&sin,
 		sizeof( struct sockaddr_in )) < 0 ) {
 	    perror( "bind" );
 	    exit( 1 );
 	}
-	if ( listen( s, backlog ) < 0 ) {
+	if ( listen( s_smtp, backlog ) < 0 ) {
 	    perror( "listen" );
 	    exit( 1 );
 	}
+
+#ifdef HAVE_LIBSSL
+	if ( simta_authlevel > 0 ) {
+	    /*
+	     * Set up SMTPS listener.
+	     */
+	    if (( se = getservbyname( "smtps", "tcp" )) == NULL ) {
+		fprintf( stderr, "%s: can't find smtps service: "
+			"defaulting to port 465\n", prog );
+		port = htons( 465 );
+	    } else {
+		port = se->s_port;
+	    }
+	    if (( s_smtps = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
+		perror( "socket" );
+		exit( 1 );
+	    }
+	    if ( reuseaddr ) {
+		if ( setsockopt( s_smtps, SOL_SOCKET, SO_REUSEADDR,
+			(void*)&reuseaddr, sizeof( int )) < 0 ) {
+		    perror("setsockopt");
+		}
+	    }
+	    memset( &sin, 0, sizeof( struct sockaddr_in ));
+	    sin.sin_family = AF_INET;
+	    sin.sin_addr.s_addr = INADDR_ANY;
+	    sin.sin_port = port;
+	    if ( bind( s_smtps, (struct sockaddr *)&sin,
+		    sizeof( struct sockaddr_in )) < 0 ) {
+		perror( "bind" );
+		exit( 1 );
+	    }
+	    if ( listen( s_smtps, backlog ) < 0 ) {
+		perror( "listen" );
+		exit( 1 );
+	    }
+	}
+#endif /* HAVE_LIBSSL */
+
+	if ( submission_port ) {
+	    /*
+	     * Set up mail submission listener.
+	     */
+	    if (( se = getservbyname( "submission", "tcp" )) == NULL ) {
+		fprintf( stderr, "%s: can't find mail submission service: "
+			"defaulting to port 587\n", prog );
+		port = htons( 587 );
+	    } else {
+		port = se->s_port;
+	    }
+	    if (( s_submission = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
+		perror( "socket" );
+		exit( 1 );
+	    }
+	    if ( reuseaddr ) {
+		if ( setsockopt( s_submission, SOL_SOCKET, SO_REUSEADDR,
+			(void*)&reuseaddr, sizeof( int )) < 0 ) {
+		    perror("setsockopt");
+		}
+	    }
+	    memset( &sin, 0, sizeof( struct sockaddr_in ));
+	    sin.sin_family = AF_INET;
+	    sin.sin_addr.s_addr = INADDR_ANY;
+	    sin.sin_port = port;
+	    if ( bind( s_submission, (struct sockaddr *)&sin,
+		    sizeof( struct sockaddr_in )) < 0 ) {
+		perror( "sub bind" );
+		exit( 1 );
+	    }
+	    if ( listen( s_submission, backlog ) < 0 ) {
+		perror( "listen" );
+		exit( 1 );
+	    }
+	}
+
     }
 
     if ( q_run == 0 ) {
@@ -531,7 +610,12 @@ main( int ac, char **av )
 	    dt = getdtablesize();
 	    for ( i = 0; i < dt; i++ ) {
 		/* keep socket & pidfd open */
-		if (( i != s ) && ( i != pidfd )) {
+		if (( i != s_smtp )
+#ifdef HAVE_LIBSSL
+			&& ( simta_authlevel > 0  && i != s_smtps )
+#endif /* HAVE_LIBSSL */
+			&& ( submission_port && i != s_submission )
+			&& ( i != pidfd )) {
 		    (void)close( i );
 		}
 	    }
@@ -604,10 +688,20 @@ main( int ac, char **av )
     /* main daemon loop */
     for (;;) {
 	FD_ZERO( &fdset );
-	FD_SET( s, &fdset );
+	FD_SET( s_smtp, &fdset );
+#ifdef HAVE_LIBSSL
+	if ( simta_authlevel > 0 ) {
+	    FD_SET( s_smtps, &fdset );
+	}
+#endif /* HAVE_LIBSSL */
+	if ( submission_port ) {
+	    FD_SET( s_submission, &fdset );
+	}
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 )) {
-	    if ( select( s + 1, &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
+	    /* XXX Have to set s-smtps to default for non-ssl */
+	    if ( select( MAX( s_smtps, MAX( s_smtps, s_submission )) + 1,
+		    &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
 		if ( errno != EINTR ) {
 		    syslog( LOG_ERR, "select: %m" );
 		    abort();
@@ -705,7 +799,7 @@ main( int ac, char **av )
 	    tv_sleep.tv_sec = launch_seconds;
 
 	    if ( q_runner_slow < q_runner_slow_max ) {
-		simta_daemon_child( CHILD_Q_SLOW, s );
+		simta_daemon_child( CHILD_Q_SLOW, s_smtp, SIMTA_CONNECT_NONE );
 	    }
 
 	    continue;
@@ -714,18 +808,28 @@ main( int ac, char **av )
 	if ( simsendmail_signal != 0 ) {
 	    simsendmail_signal = 0;
 	    if ( q_runner_local < q_runner_local_max ) {
-		simta_daemon_child( CHILD_Q_LOCAL, s );
+		simta_daemon_child( CHILD_Q_LOCAL, s_smtp, SIMTA_CONNECT_NONE );
 	    }
 	    continue;
 	}
 
 	/* check to see if we have any incoming connections */
-	if ( FD_ISSET( s, &fdset )) {
-	    simta_daemon_child( CHILD_RECEIVE, s );
+	if ( FD_ISSET( s_smtp, &fdset )) {
+	    simta_daemon_child( CHILD_RECEIVE, s_smtp, SIMTA_CONNECT_SMTP );
+	}
+#ifdef HAVE_LIBSSL
+	if ( simta_authlevel > 0 && FD_ISSET( s_smtps, &fdset )) {
+	    simta_daemon_child( CHILD_RECEIVE, s_smtps,
+		SIMTA_CONNECT_SMTPS );
+	}
+
+#endif /* HAVE_LIBSSL */
+	if ( submission_port && FD_ISSET( s_submission, &fdset )) {
+	    simta_daemon_child( CHILD_RECEIVE, s_submission,
+		SIMTA_CONNECT_SUBMISSION );
 	}
     }
 }
-
 
     int
 simta_wait_for_child( int child_type )
@@ -804,7 +908,7 @@ simta_wait_for_child( int child_type )
 
 
     void
-simta_daemon_child( int type, int s )
+simta_daemon_child( int type, int s, int connect_type )
 {
     struct sockaddr_in	sin;
     struct proc_type	*p;
@@ -874,7 +978,7 @@ simta_daemon_child( int type, int s )
 
 	case CHILD_RECEIVE:
 	    simta_process_type = SIMTA_PROCESS_TYPE_RECEIVE;
-	    exit( smtp_receive( fd, &sin ));
+	    exit( smtp_receive( fd, &sin, connect_type ));
 	    break;
 
 	default:
