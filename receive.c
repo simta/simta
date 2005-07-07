@@ -83,7 +83,8 @@ char			*receive_remote_hostname = "Unknown";
 struct command 		*receive_commands  = NULL;
 int			receive_ncommands;
 #ifdef HAVE_LIBSSL
-int			 _start_tls( SNET *snet );
+int			_start_tls( SNET *snet );
+int 			_post_tls( SNET *snet );
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
@@ -1332,6 +1333,7 @@ f_expn( SNET *snet, struct envelope *env, int ac, char *av[])
     static int
 f_noauth( SNET *snet, struct envelope *env, int ac, char *av[])
 {
+    syslog( LOG_NOTICE, "f_noauth: %s", av[ 0 ] );
     if ( snet_writef( snet, "530 Authentication required\r\n" ) < 0 ) {
 	syslog( LOG_ERR, "f_expn snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
@@ -1420,7 +1422,21 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	receive_hello = NULL;
     }
 
+    if (( rc = _post_tls( snet )) != RECEIVE_OK ) {
+	return( rc );
+    }
+
+    syslog( LOG_NOTICE, "f_starttls OK" );
+
+    return( RECEIVE_OK );
+}
+
+    int
+_post_tls( SNET *snet )
+{
 #ifdef HAVE_LIBSASL
+    int		rc; 
+
     if ( simta_sasl ) {
 	sasl_ssf_t			ssf;
 	sasl_security_properties_t	secprops;
@@ -1446,9 +1462,6 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
     }
 #endif /* HAVE_LIBSASL */
-
-    syslog( LOG_NOTICE, "f_starttls OK" );
-
     return( RECEIVE_OK );
 }
 
@@ -1840,8 +1853,15 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
 #ifdef HAVE_LIBSSL
     if ( simta_authlevel > 0 && connect_type == SIMTA_CONNECT_SMTPS ) {
 	if ( _start_tls( snet ) != RECEIVE_OK ) {
-	    return ( RECEIVE_OK );
+	    goto syserror;
 	}
+	if (( rc = _post_tls( snet )) != RECEIVE_OK ) {
+	    goto syserror;
+	}
+
+	syslog( LOG_NOTICE, "Connect.in [%s] %s: SMTS",
+		inet_ntoa( sin->sin_addr ), receive_remote_hostname );
+
     }
 #endif /* HAVE_LIBSSL */
 
