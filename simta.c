@@ -92,6 +92,7 @@ int			simta_verbose = 0;
 int			simta_tls = 0;
 int			simta_sasl = 0;
 int			simta_inbound_smtp = 1;
+int             	simta_submission_port = 0;
 long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
 char			*simta_reverse_url = NULL;
@@ -541,6 +542,15 @@ simta_read_config( char *fname )
             }
 	    simta_simsend_strict_from = 0;
             if ( simta_debug ) printf( "SIMSEND_STRICT_FROM_OFF\n" );
+
+        } else if ( strcasecmp( av[ 0 ], "SUBMISSION_PORT" ) == 0 ) {
+            if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+            simta_submission_port = 1;
+            if ( simta_debug ) printf( "SUBMISSION_PORT\n" );
 
         } else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
 	    if ( simta_tls ) {

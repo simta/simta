@@ -64,7 +64,6 @@ struct proc_type	*proc_stab = NULL;
 int		q_runner_local = 0;
 int		q_runner_slow = 0;
 
-int		submission_port = 0;
 int		simsendmail_signal = 0;
 int		child_signal = 0;
 int		backlog = 5;
@@ -304,7 +303,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'S' :
-	    submission_port = 1;
+	    simta_submission_port = 1;
 	    break;
 
 	case 'V' :		/* virgin */
@@ -494,7 +493,7 @@ main( int ac, char **av )
 	}
 #endif /* HAVE_LIBSSL */
 
-	if ( submission_port ) {
+	if ( simta_submission_port ) {
 	    /*
 	     * Set up mail submission listener.
 	     */
@@ -614,7 +613,7 @@ main( int ac, char **av )
 #ifdef HAVE_LIBSSL
 			&& ( simta_authlevel > 0  && i != s_smtps )
 #endif /* HAVE_LIBSSL */
-			&& ( submission_port && i != s_submission )
+			&& ( simta_submission_port && i != s_submission )
 			&& ( i != pidfd )) {
 		    (void)close( i );
 		}
@@ -694,7 +693,7 @@ main( int ac, char **av )
 	    FD_SET( s_smtps, &fdset );
 	}
 #endif /* HAVE_LIBSSL */
-	if ( submission_port ) {
+	if ( simta_submission_port ) {
 	    FD_SET( s_submission, &fdset );
 	}
 
@@ -824,7 +823,7 @@ main( int ac, char **av )
 	}
 
 #endif /* HAVE_LIBSSL */
-	if ( submission_port && FD_ISSET( s_submission, &fdset )) {
+	if ( simta_submission_port && FD_ISSET( s_submission, &fdset )) {
 	    simta_daemon_child( CHILD_RECEIVE, s_submission,
 		SIMTA_CONNECT_SUBMISSION );
 	}
