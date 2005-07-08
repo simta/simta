@@ -72,7 +72,6 @@ extern SSL_CTX	*ctx;
 extern char		*version;
 struct host_q		*hq_receive = NULL;
 struct sockaddr_in  	*receive_sin;
-int			receive_global_relay = 0;
 int			receive_failed_rcpts = 0;
 int			receive_tls = 0;
 int			receive_auth = 0;

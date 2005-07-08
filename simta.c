@@ -673,6 +673,15 @@ simta_read_config( char *fname )
 	   if ( simta_debug ) printf( "LOW_PREF_MX: %s\n",
 		   simta_secondary_mx->red_host_name );
 
+	} else if ( strcasecmp( av[ 0 ], "GLOBAL_RELAY" ) == 0 ) {
+	   if ( ac != 1 ) {
+	       fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		   fname, lineno );
+	       goto error;
+	   }
+	   simta_global_relay = 1;
+	   if ( simta_debug ) printf( "GLOBAL_RELAY\n" );
+
 	} else if ( strcasecmp( av[ 0 ], "SASL_ON" ) == 0 ) {
 	   if ( ac != 1 ) {
 	       fprintf( stderr, "%s: line %d: expected 0 argument\n",
