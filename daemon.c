@@ -198,7 +198,7 @@ main( int ac, char **av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
-    while (( c = getopt( ac, av, " ab:cCdD:f:iI:m:M:p:qQ:rRs:SVw:x:y:z:" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:i:Im:M:p:qQ:rRs:SVw:x:y:z:" ))
 	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
