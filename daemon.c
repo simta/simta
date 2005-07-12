@@ -198,7 +198,7 @@ main( int ac, char **av )
     q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
-    while (( c = getopt( ac, av, " ab:cCdD:f:I:m:M:p:qQ:rRs:SVw:x:y:z:" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:iI:m:M:p:qQ:rRs:SVw:x:y:z:" ))
 	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
@@ -237,9 +237,12 @@ main( int ac, char **av )
 	    config_fname = optarg;
 	    break;
 
+	case 'i':
+	    simta_reverse_url = optarg;
+	    break;
+
 	case 'I' :
 	    simta_ignore_reverse = 1;
-	    simta_reverse_url = optarg;
 	    break;
 
 	case 'M' :
@@ -341,6 +344,7 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -' 'aCcdIrVq ] [ -b backlog ]" );
 	fprintf( stderr, " [ -D base-dir ]" );
 	fprintf( stderr, " [ -f config-file ]" );
+	fprintf( stderr, " [ -i reference-URL ]" );
 	fprintf( stderr, " [ -M maildomain ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
 	fprintf( stderr, " [ -Q queue]" );
