@@ -102,7 +102,7 @@ simalias_dump( void )
     DB		*dbp;
     DBC		*dbcp;
     DBT		 key, data;
-    int		 ret, close_db, close_dbc;
+    int		 ret, close_db = 0, close_dbc = 0;
 
     if (( ret = db_open_r( &dbp, input, NULL )) != 0 ) {
 	fprintf( stderr, "db_open_r: %s: %s\n", input, db_strerror( ret ));
