@@ -590,6 +590,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
 {
     int			smtp_result;
     char		*line;
+    struct timeval	tv;
 
     syslog( LOG_INFO, "Deliver.SMTP %s: Attempting remote delivery: %s",
 	    d->d_env->e_id, hq->hq_smtp_hostname );
@@ -690,10 +691,18 @@ smtp_send( struct host_q *hq, struct deliver *d )
 	}
     }
 
+    memset( &tv, 0, sizeof( struct timeval ));
+    tv.tv_sec = 10 * 60;
+    snet_timeout( d->d_snet_smtp, SNET_WRITE_TIMEOUT, &tv );
+
     if ( snet_writef( d->d_snet_smtp, ".\r\n" ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hq->hq_hostname );
 	return( SMTP_BAD_CONNECTION );
     }
+
+    memset( &tv, 0, sizeof( struct timeval ));
+    tv.tv_sec = 5 * 60;
+    snet_timeout( d->d_snet_smtp, SNET_WRITE_TIMEOUT, &tv );
 
     if (( smtp_result = smtp_reply( SMTP_DATA_EOF, hq, d )) != SMTP_OK ) {
 	return( smtp_result );

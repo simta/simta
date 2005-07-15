@@ -984,6 +984,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 {
     int				r_smtp;
     int				s;
+    struct timeval		tv;
 
     switch ( hq->hq_status ) {
     case HOST_MX:
@@ -1035,6 +1036,10 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 		close( s );
 		goto connect_cleanup;
 	    }
+
+	    memset( &tv, 0, sizeof( struct timeval ));
+	    tv.tv_sec = 5 * 60;
+	    snet_timeout( d->d_snet_smtp, SNET_WRITE_TIMEOUT, &tv );
 
 	    simta_smtp_outbound_attempts++;
 

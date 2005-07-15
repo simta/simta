@@ -1768,6 +1768,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
     char				*line;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
+    struct timeval			tv_write;
     extern int				connections;
     extern int				maxconnections;
 #ifdef HAVE_LIBSASL
@@ -1784,6 +1785,10 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
 	syslog( LOG_ERR, "receive snet_attach: %m" );
 	return( 0 );
     }
+
+    memset( &tv_write, 0, sizeof( struct timeval ));
+    tv_write.tv_sec = 5 * 60;
+    snet_timeout( snet, SNET_WRITE_TIMEOUT, &tv_write );
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
