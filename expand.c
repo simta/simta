@@ -55,13 +55,10 @@ int				simta_expand_debug = 0;
     int
 expand_and_deliver( struct host_q **hq, struct envelope *unexpanded_env )
 {
-    syslog( LOG_DEBUG, "expand_and_deliver %s", unexpanded_env->e_id );
-
     switch ( expand( hq, unexpanded_env )) {
     case 0:
 	if ( q_runner( hq ) != 0 ) {
-	    syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
-	    return( EXPAND_FATAL );
+	    return( EXPAND_SYSERROR );
 	}
 	return( EXPAND_OK );
 
@@ -71,11 +68,6 @@ expand_and_deliver( struct host_q **hq, struct envelope *unexpanded_env )
     case 1:
     case -1:
 	env_move( unexpanded_env, simta_dir_slow );
-	if ( simta_fast_files > 0 ) {
-	    syslog( LOG_ERR, "expand_and_deliver fast file fatal error" );
-	    return( EXPAND_FATAL );
-	}
-	syslog( LOG_DEBUG, "expand_and_deliver returning syserror" );
 	return( EXPAND_SYSERROR );
     }
 }
