@@ -188,11 +188,15 @@ rcpt_free( struct recipient *r )
     if ( r != NULL ) {
 	if ( r->r_rcpt != NULL ) {
 	    free( r->r_rcpt );
+	    r->r_rcpt = NULL;
 	}
 
 	if ( r->r_err_text != NULL ) {
 	    line_file_free( r->r_err_text );
+	    r->r_err_text = NULL;
 	}
+
+	free( r );
     }
 }
 
@@ -203,13 +207,10 @@ env_rcpt_free( struct envelope *env )
     struct recipient		*r;
     struct recipient		*r_next;
 
-    r = env->e_rcpt;
 
-    while ( r != NULL ) {
-	rcpt_free( r );
+    for ( r = env->e_rcpt; r != NULL; r = r_next ) {
 	r_next = r->r_next;
-	free( r );
-	r = r_next;
+	rcpt_free( r );
     }
 
     env->e_rcpt = NULL;

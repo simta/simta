@@ -580,7 +580,6 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     int                         n_processed = 0;
     int                         n_rcpt_remove;
     int                         dfile_fd;
-    int                         n_rcpts;
     SNET                        *snet_dfile = NULL;
     SNET			*snet_lock;
     char                        dfile_fname[ MAXPATHLEN ];
@@ -778,11 +777,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
         } else if ( n_rcpt_remove ) {
 	    syslog( LOG_INFO, "Deliver %s: Rewriting Envelope",
 		    env_deliver->e_id );
-	    syslog( LOG_INFO, "Deliver %s: From <%s>", env_deliver->e_id,
-		    env_deliver->e_mail );
 
 	    r_sort = &(env_deliver->e_rcpt);
-	    n_rcpts = 0;
 	    while ( *r_sort != NULL ) {
 		/* remove rcpts that were delivered or hard failed */
 		if (( d.d_delivered && ((*r_sort)->r_status == R_ACCEPTED )) ||
@@ -805,23 +801,25 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		    }
 
 		    rcpt_free( remove );
-		    free( remove );
 
 		} else {
-		    n_rcpts++;
-		    syslog( LOG_INFO, "Deliver %s: Rewriting To <%s> From <%s>",
+		    syslog( LOG_INFO, "Deliver %s: Keeping To <%s> From <%s>",
 			    env_deliver->e_id, (*r_sort)->r_rcpt,
 			    env_deliver->e_mail );
 		    r_sort = &((*r_sort)->r_next);
 		}
 	    }
 
-	    if ( env_outfile( env_deliver ) != 0 ) {
+            assert( env_deliver->e_n_rcpt > 0 );
+ 
+            if ( env_outfile( env_deliver ) == 0 ) {
+                syslog( LOG_INFO, "Deliver %s: Rewrote %d recipients",
+                        env_deliver->e_id, env_deliver->e_n_rcpt );
+            } else {
+                syslog( LOG_INFO, "Deliver %s: Failed Rewrite, "
+                        "Double Deliver will occur", env_deliver->e_id );
 		goto message_cleanup;
 	    }
-
-	    syslog( LOG_INFO, "Deliver %s: Rewrote %d recipients",
-		    env_deliver->e_id, n_rcpts );
 
 	    if ( env_deliver->e_dir == simta_dir_fast ) {
 		/* overwrote fast file, not created a new one */
@@ -836,8 +834,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	 * queue from preserving order in the case of a perm tempfail
 	 * situation.
 	 */
-	} else if (( env_deliver->e_dir == simta_dir_slow ) &&
-		( d.d_n_rcpt_accepted )) {
+	} else if ( d.d_n_rcpt_accepted ) {
 	    touch++;
 	}
 
@@ -847,9 +844,9 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	}
 
 message_cleanup:
-	if ( touch  || ( n_processed == 0 ))  {
+        if ((( touch ) || ( n_processed == 0 )) &&
+                ( env_deliver->e_dir == simta_dir_slow ))  {
 	    touch = 0;
-	    syslog( LOG_NOTICE, "q_deliver %s touching", env_deliver->e_id );
 	    env_touch( env_deliver );
 	}
 

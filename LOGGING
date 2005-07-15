@@ -57,7 +57,7 @@ Bounce Old-MID: Bounce-MID: Bounced # addresses
 
 Deliver MID: Message Deleted: Delivered
 Deliver MID: Message Deleted: Bounced
-Deliver MID: Rewriting To <sender@domain> From <rcpt@domain>
+Deliver MID: Keeping To <sender@domain> From <rcpt@domain>
 Deliver MID: Removing To <sender@domain> From <rcpt@domain>
 Deliver MID: Rewrote # recipients
 
