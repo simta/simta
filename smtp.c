@@ -365,7 +365,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	switch ( smtp_command ) {
 	case SMTP_CONNECT:
 	    syslog( LOG_NOTICE,
-		    "Connect.out [%s] %s: Tempfail: SMTP banner: %s",
+		    "Connect.out [%s] %s: Tempfailed: SMTP banner: %s",
 		    inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    &tv, line, "Bad SMTP CONNECT reply" )) == SMTP_OK ) {

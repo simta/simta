@@ -1162,7 +1162,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "Receive %s: Message Tempfail: [%s] %s: %s",
+	syslog( LOG_INFO, "Receive %s: Message Tempfailed: [%s] %s: %s",
 		env->e_id, inet_ntoa( receive_sin->sin_addr ),
 		receive_remote_hostname,
 		smtp_message ? smtp_message : "no message" );
