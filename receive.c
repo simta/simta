@@ -115,7 +115,7 @@ static int	mail_filter( int, char ** );
 static int	rfc_2821_trimaddr( int, char *, char **, char ** );
 static int	local_address( char *, char *, struct simta_red *);
 static int	hello( struct envelope *, char * );
-void 		reset( struct envelope *env );
+static int	reset( struct envelope *env );
 static int	f_helo( SNET *, struct envelope *, int, char *[] );
 static int	f_ehlo( SNET *, struct envelope *, int, char *[] );
 static int	f_mail( SNET *, struct envelope *, int, char *[] );
@@ -175,16 +175,26 @@ struct command	noauth_commands[] = {
 #endif /* HAVE_LIBSASL */
 };
 
-    void
-reset( struct envelope *env ) {
-    if (( env->e_flags & ENV_FLAG_ON_DISK ) == 0 ) {
-	if ( env->e_id != NULL ) {
-	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: Abandoned",
-		    env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname );
+
+    int
+reset( struct envelope *env )
+{
+    int			r = 0;
+
+    if ( env->e_flags & ENV_FLAG_ON_DISK ) {
+	if ( expand_and_deliver( &hq_receive, env ) != EXPAND_OK ) {
+	    r = RECEIVE_SYSERROR;
 	}
-	env_reset( env );
+
+    } else if ( env->e_id != NULL ) {
+	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: Abandoned",
+		env->e_id, inet_ntoa( receive_sin->sin_addr ),
+		receive_remote_hostname );
     }
+
+    env_reset( env );
+
+    return( r );
 }
 
     static int
@@ -277,8 +287,8 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      * EHLO is redundant, but not harmful other than in the performance cost
      * of executing unnecessary commands.
      */
-    if (( env->e_flags & ENV_FLAG_ON_DISK ) == 0 ) {
-	reset( env );
+    if ( reset( env ) != 0 ) {
+	return( RECEIVE_SYSERROR );
     }
 
     /* rfc 2821 3.6
@@ -506,23 +516,9 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
-    if (( env->e_flags & ENV_FLAG_ON_DISK ) != 0 ) {
-	switch ( expand_and_deliver( &hq_receive, env )) {
-	    default:
-	    case EXPAND_SYSERROR:
-	    case EXPAND_FATAL:
-		return( RECEIVE_SYSERROR );
-
-	    case EXPAND_OK:
-		break;
-	}
-    } else if ( env->e_id != NULL ) {
-	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: Abandoned",
-		env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname );
+    if ( reset( env ) != 0 ) {
+	return( RECEIVE_SYSERROR );
     }
-
-    reset( env );
 
     if ( env_id( env ) != 0 ) {
 	return( RECEIVE_SYSERROR );
@@ -1250,8 +1246,8 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    if (( env->e_flags & ENV_FLAG_ON_DISK ) == 0 ) {
-	reset( env );
+    if ( reset( env ) != 0 ) {
+	return( RECEIVE_SYSERROR );
     }
 
     if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
@@ -1384,22 +1380,6 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	return ( RECEIVE_OK );
     }
 
-    if (( env->e_flags & ENV_FLAG_ON_DISK ) != 0 ) {
-	switch ( expand_and_deliver( &hq_receive, env )) {
-	    default:
-	    case EXPAND_SYSERROR:
-	    case EXPAND_FATAL:
-		return( RECEIVE_SYSERROR );
-
-	    case EXPAND_OK:
-		break;
-	}
-    } else if ( env->e_id != NULL ) {
-	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: Abandoned",
-		env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname );
-    }
-
     /* RFC 3207 4.2 Result of the STARTTLS Command
      * Upon completion of the TLS handshake, the SMTP protocol is reset to
      * the initial state (the state in SMTP after a server issues a 220
@@ -1415,7 +1395,10 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
      * the TLS handshake.
      */
 
-    reset( env );
+    if ( reset( env ) != 0 ) {
+	return( RECEIVE_SYSERROR );
+    }
+
     if ( receive_hello != NULL ) {
 	free( receive_hello );
 	receive_hello = NULL;
@@ -2126,16 +2109,7 @@ closeconnection:
 	free( receive_hello );
     }
 
-    if ( env != NULL ) {
-	if (( env->e_flags & ENV_FLAG_ON_DISK ) != 0 ) {
-	    expand_and_deliver( &hq_receive, env );
-	} else if ( env->e_id != NULL ) {
-	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: Abandoned",
-		    env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname ? receive_remote_hostname : "" );
-	}
-	env_free( env );
-    }
+    reset( env );
 
     return( simta_fast_files );
 }
