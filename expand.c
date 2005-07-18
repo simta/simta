@@ -173,12 +173,12 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 
     if (( base_error_env = address_bounce_create( &exp )) == NULL ) {
 	syslog( LOG_ERR, "expand.env_create: %m" );
-	return( 1 );
+	goto done;
     }
 
     if ( env_recipient( base_error_env, unexpanded_env->e_mail ) != 0 ) {
 	syslog( LOG_ERR, "expand.env_recipient: %m" );
-	return( 1 );
+	goto done;
     }
 
     for ( rcpt = unexpanded_env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
@@ -239,9 +239,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 #ifdef HAVE_LDAP
     for ( memonly = exp.exp_memonly; memonly != NULL;
 	    memonly = memonly->el_next ) {
-	if (( is_permitted( memonly->el_exp_addr )) ||
-		( sender_is_moderator( unexpanded_env->e_mail,
-		memonly->el_exp_addr )) ||
+	if (( parent_permitted( memonly->el_exp_addr )) ||
 		( sender_is_child( memonly->el_exp_addr, loop_color++ ))) {
 	    memonly->el_exp_addr->e_addr_ldap_flags =
 		    ( memonly->el_exp_addr->e_addr_ldap_flags &
@@ -684,7 +682,7 @@ cleanup3:
 
     if ( simta_fast_files != fast_file_start ) {
 	syslog( LOG_WARNING, "expand: could not unwind expansion" );
-	return( -1 );
+	return_value = 1;
     }
 
 cleanup2:
@@ -729,6 +727,12 @@ cleanup1:
 	    free( e_addr );
 	}
 	free( q );
+    }
+
+done:
+    if ( return_value != 0 ) {
+	syslog( LOG_NOTICE, "Expand %s: Expansion failed",
+		unexpanded_env->e_id );
     }
 
     return( return_value );
@@ -875,25 +879,7 @@ permitted_destroy ( struct exp_addr *e_addr)
 
 
     int
-sender_is_moderator( char *sender, struct exp_addr *e_addr )
-{
-    struct recipient		*mod;
-
-    if ( e_addr->e_addr_env_moderated ) {
-	for ( mod = e_addr->e_addr_env_moderated->e_rcpt; mod != NULL;
-		mod = mod->r_next ) {
-	    if ( simta_mbx_compare( sender, mod->r_rcpt ) == 0 ) {
-		return( 1 );
-	    }
-	}
-    }
-
-    return( 0 );
-}
-
-
-    int
-is_permitted( struct exp_addr *memonly )
+parent_permitted( struct exp_addr *memonly )
 {
     struct exp_link		*parent;
     struct stab_entry		*ok;

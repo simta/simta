@@ -43,6 +43,7 @@
 #include "argcargv.h"
 #include "simta_ldap.h"
 #include "dn.h"
+#include "header.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
@@ -807,7 +808,11 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
     char	*psender;
     int		suppressnoemail = 0;
     int		mo_group = 0;
+    char	**senderlist;
+    char	*permitted_addr;
+    int		permitted_sender = 0;
     struct recipient	*r = NULL;
+    struct string_address	*sa;
 
     dn = ldap_get_dn( ld, entry );
    
@@ -926,12 +931,47 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 
 	if (( memonly = ldap_get_values( ld, entry, "membersonly" )) != NULL ) {
 	    if ( strcasecmp( memonly[0], "TRUE" ) == 0 ) {
-		mo_group = 1;
+
+		if ((( exp->exp_env->e_mail != NULL ) &&
+			( *(exp->exp_env->e_mail) != '\0' )) &&
+			(( senderlist = ldap_get_values( ld, entry,
+			"permitted_sender" )) != NULL )) {
+		    for ( idx = 0; senderlist[ idx ] != NULL; idx++ ) {
+			if (( sa = string_address_init( senderlist[ idx ]))
+				== NULL ) {
+			    syslog( LOG_ERR,
+				    "simta_ldap_expand_group: malloc: %m" );
+			    return( LDAP_SYSERROR );
+			}
+
+			while (( permitted_addr =
+				string_address_parse( sa )) != NULL ) {
+			    if ( simta_mbx_compare( permitted_addr,
+				    exp->exp_env->e_mail ) == 0 ) {
+				permitted_sender = 1;
+				break;
+			    }
+			}
+
+			string_address_free( sa );
+
+			if ( permitted_sender != 0 ) {
+			    break;
+			}
+		    }
+		}
+
+		ldap_value_free( senderlist );
+
+		if ( permitted_sender == 0 ) {
+		    mo_group = 1;
+		}
 	    }
 	    ldap_value_free( memonly );
 	}
 
-	if (( moderator = ldap_get_values( ld, entry, "moderator" )) != NULL ) {
+	if (( permitted_sender == 0 ) && (( moderator =
+		ldap_get_values( ld, entry, "moderator" )) != NULL )) {
 	    if ( exp->exp_env->e_n_exp_level < simta_exp_level_max ) {
 		if (( e_addr->e_addr_env_moderated =
 			env_create( exp->exp_env->e_mail,
@@ -985,7 +1025,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    env_free( e_addr->e_addr_env_moderated );
 	    e_addr->e_addr_env_moderated = NULL;
 
-	} else if ( mo_group ) {
+	} else if (( mo_group ) && ( permitted_sender == 0 )) {
 	    e_addr->e_addr_ldap_flags |= STATUS_LDAP_MEMONLY;
 
 	    if (( private = ldap_get_values( ld, entry, "rfc822private" ))

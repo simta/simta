@@ -114,5 +114,5 @@ int sender_is_moderator( char *, struct exp_addr * );
 void supress_addrs( struct exp_link *, int );
 int permitted_create( struct exp_addr *, char ** );
 void permitted_destroy( struct exp_addr * );
-int is_permitted( struct exp_addr * );
+int parent_permitted( struct exp_addr * );
 #endif /* HAVE_LDAP */
