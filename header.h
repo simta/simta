@@ -5,6 +5,13 @@ struct header {
     char		*h_data;
 };
 
+struct string_address {
+    char		*sa_string;
+    char		*sa_start;
+    int			sa_swap;
+    char		sa_swap_char;
+};
+
 
 /* public */
 char	*skip_cws( char * );
@@ -21,3 +28,6 @@ int	header_file_out( struct line_file *, FILE * );
 int	is_emailaddr( char * );
 int	correct_emailaddr( char ** );
 char	*tz( struct tm * );
+struct string_address *string_address_init( char * );
+void	string_address_free( struct string_address * );
+char	*string_address_parse( struct string_address * );

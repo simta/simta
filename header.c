@@ -1890,3 +1890,139 @@ tz( struct tm *tm )
 
     return( zone );
 }
+
+
+    struct string_address *
+string_address_init( char *string )
+{
+    struct string_address		*sa;
+
+    if (( sa = (struct string_address*)malloc(
+	    sizeof( struct string_address ))) == NULL ) {
+	return( NULL );
+    }
+    memset( sa, 0, sizeof( struct string_address ));
+
+    if (( sa->sa_string = strdup( string )) == NULL ) {
+	return( NULL );
+    }
+
+    return( sa );
+}
+
+
+    void
+string_address_free( struct string_address *sa )
+{
+    free( sa->sa_string );
+    free( sa );
+    return;
+}
+
+
+    char *
+string_address_parse( struct string_address *sa )
+{
+    char				*comma;
+    char				*end;
+    char				*email_start;
+
+    if ( sa->sa_start == NULL ) {
+	sa->sa_start = sa->sa_string;
+
+    } else {
+	if ( sa->sa_swap != 0 ) {
+	    *(sa->sa_start) = sa->sa_swap_char;
+	    sa->sa_swap = 0;
+	}
+
+	if (( comma = skip_cws( sa->sa_start )) == NULL ) {
+	    return( NULL );
+	}
+
+	if ( *comma != ',' ) {
+	    return( NULL );
+	}
+
+	sa->sa_start = comma + 1;
+    }
+
+    if (( sa->sa_start = skip_cws( sa->sa_start )) == NULL ) {
+	return( NULL );
+    }
+
+    for ( ; ; ) {
+	if (( *(sa->sa_start) != '"' ) && ( *(sa->sa_start) != '<' )) {
+	    if (( end = token_dot_atom( sa->sa_start )) == NULL ) {
+		return( NULL );
+	    }
+
+	    if ( *(end+1) == '@' ) {
+		/* Consume sender@domain [,]*/
+		email_start = sa->sa_start;
+		sa->sa_start = end + 2;
+
+		if ( *sa->sa_start == '[' ) {
+		    if (( end =
+			    token_domain_literal( sa->sa_start )) == NULL ) {
+			return( NULL );
+		    }
+		} else {
+		    if (( end = token_domain( sa->sa_start )) == NULL ) {
+			return( NULL );
+		    }
+		}
+
+		end++;
+		sa->sa_start = end;
+		sa->sa_swap_char = *end;
+		sa->sa_swap = 1;
+		*end = '\0';
+
+		if ( is_emailaddr( email_start ) != 0 ) {
+		    return( NULL );
+		}
+
+		return( email_start );
+
+	    } else if (( sa->sa_start = skip_cws( end + 1 )) == NULL ) {
+		return( NULL );
+	    }
+	}
+
+	while ( *sa->sa_start != '<' ) {
+	    if ( *sa->sa_start == '"' ) {
+		if (( end = token_quoted_string( sa->sa_start )) == NULL ) {
+		    return( NULL );
+		}
+
+	    } else {
+		if (( end = token_dot_atom( sa->sa_start )) == NULL ) {
+		    return( NULL );
+		}
+	    }
+
+	    if (( sa->sa_start = skip_cws( end + 1 )) == NULL ) {
+		return( NULL );
+	    }
+	}
+
+	email_start = sa->sa_start + 1;
+	for ( end = email_start; *end != '>'; end++ ) {
+	    if ( *end == '\0' ) {
+		return( NULL );
+	    }
+	}
+
+	*end = '\0';
+	sa->sa_start = end + 1;
+
+	if ( is_emailaddr( email_start ) != 0 ) {
+	    return( NULL );
+	}
+
+	return( email_start );
+    }
+
+    return( 0 );
+}

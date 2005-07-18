@@ -1079,117 +1079,23 @@ env_move( struct envelope *env, char *target_dir )
     int
 env_string_recipients( struct envelope *env, char *line )
 {
-    char				*start;
-    char				*comma;
-    char				*end;
-    char				*email_start;
-    char				swap;
+    struct string_address		*sa;
+    char				*addr;
 
-    if (( start = skip_cws( line )) == NULL ) {
-	return( 0 );
+    if (( sa = string_address_init( line )) == NULL ) {
+	syslog( LOG_ERR,
+		"env_string_recipients: string_address_init: malloc: %m" );
+	return( 1 );
     }
 
-    for ( ; ; ) {
-	if (( *start != '"' ) && ( *start != '<' )) {
-	    if (( end = token_dot_atom( start )) == NULL ) {
-		return( 0 );
-	    }
-
-	    if ( *(end+1) == '@' ) {
-		/* Consume sender@domain [,]*/
-		email_start = start;
-		start = end + 2;
-
-		if ( *start == '[' ) {
-		    if (( end = token_domain_literal( start )) == NULL ) {
-			return( 0 );
-		    }
-		} else {
-		    if (( end = token_domain( start )) == NULL ) {
-			return( 0 );
-		    }
-		}
-
-		end++;
-		swap = *end;
-		*end = '\0';
-
-		if ( is_emailaddr( email_start ) != 0 ) {
-		    if ( env_recipient( env, email_start ) != 0 ) {
-			*end = swap;
-			return( 1 );
-		    }
-		}
-
-		*end = swap;
-
-		if (( comma = skip_cws( end )) == NULL ) {
-		    return( 0 );
-		}
-
-		if ( *comma != ',' ) {
-		    return( 0 );
-		}
-
-		if (( start = skip_cws( comma + 1 )) == NULL ) {
-		    return( 0 );
-		}
-
-		continue;
-	    }
-
-	    if (( start = skip_cws( end + 1 )) == NULL ) {
-		return( 0 );
-	    }
-	}
-
-	while ( *start != '<' ) {
-	    if ( *start == '"' ) {
-		if (( end = token_quoted_string( start )) == NULL ) {
-		    return( 0 );
-		}
-
-	    } else {
-		if (( end = token_dot_atom( start )) == NULL ) {
-		    return( 0 );
-		}
-	    }
-
-	    if (( start = skip_cws( end + 1 )) == NULL ) {
-		return( 0 );
-	    }
-	}
-
-	email_start = start + 1;
-	for ( end = start + 1; *end != '>'; end++ ) {
-	    if ( *end == '\0' ) {
-		return( 0 );
-	    }
-	}
-
-	*end = '\0';
-
-	if ( is_emailaddr( email_start ) != 0 ) {
-	    if ( env_recipient( env, email_start ) != 0 ) {
-		*end = '>';
-		return( 1 );
-	    }
-	}
-
-	*end = '>';
-
-	if (( comma = skip_cws( end + 1 )) == NULL ) {
-	    return( 0 );
-	}
-
-	if ( *comma != ',' ) {
-	    return( 0 );
-	}
-
-	if (( start = skip_cws( comma + 1 )) == NULL ) {
-	    return( 0 );
+    while (( addr = string_address_parse( sa )) != NULL ) {
+	if ( env_recipient( env, addr ) != 0 ) {
+	    string_address_free( sa );
+	    return( 1 );
 	}
     }
+
+    string_address_free( sa );
 
     return( 0 );
 }
