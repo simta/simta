@@ -62,7 +62,7 @@
 #define ERRORFMTBUFLEN		2048
 
 /* 
-e* LDAP attribute names
+** LDAP attribute names
 ** noattrs -- is a attribute list when no attributes are needed.
 ** allattrs -- is a attribute list when all attributes are wanted.  It
 **             It is also the default attribute list if no attribute
@@ -106,6 +106,7 @@ static char			*mailfwdattr;
 static char			*mailattr;
 
 static int			ndomaincomponent = 2;
+#ifdef SIMTA_LDAP_DEBUG
 /*
 ** simta_ldap_message_stdout -- Dumps an entry to stdout
 */
@@ -160,7 +161,7 @@ simta_ldap_message_stdout( LDAPMessage *m )
 
     return( 0 );
 }
-
+#endif
     static void 
 simta_ldapdomain (char * buf, char ** domain)
 {
@@ -202,16 +203,6 @@ simta_ldapuser (char * buf, char ** user, char ** domain)
     return;
 }
 
-/*
-** Unbind from the directory.
-*/
-    static void
-simta_ldap_unbind ()
-{
-    ldap_unbind( ld );
-    ld = NULL;
-    return;
-}
 /*
 ** SASL Call Back
 ** This SASL callback only works for "EXTERNAL" 
@@ -679,6 +670,16 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     }
     return;
 }
+/*
+** Unbind from the directory.
+*/
+    void
+simta_ldap_unbind ()
+{
+    ldap_unbind( ld );
+    ld = NULL;
+    return;
+}
 
     /* this function should return:
      *     LDAP_SYSERROR if there is an error
@@ -766,11 +767,20 @@ simta_ldap_address_local( char *name, char *domain )
     } else {
 	rc = LDAP_LOCAL;
 	entry = ldap_first_entry( ld, res );
+
 	if ((vals = ldap_get_values( ld, entry, "realtimeblocklist")) != NULL) {
 	    if (strcasecmp ( vals[0], "TRUE") == 0) {
 		rc = LDAP_LOCAL_RBL;
 	    }
 	    ldap_value_free (vals);
+	}
+	if ( ldap_people
+	&&  (simta_ldap_value( entry, "objectClass", ldap_people ) == 1 ) ) {
+	    if ((vals = ldap_get_values( ld, entry, "mailforwardingaddress")) == NULL) {
+		rc = LDAP_NOT_LOCAL;
+	    } else {  
+		ldap_value_free (vals);
+	    }
 	}
     }
     if (res) {
