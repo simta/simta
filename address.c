@@ -202,6 +202,12 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	int addr_type, char *from )
 {
     struct exp_addr		*e;
+    int				tail = 1;
+#ifdef HAVE_LDAP
+    struct simta_red		*red;
+    struct action		*a;
+#endif /* HAVE_LDAP */
+
 
     /* make sure we understand what type of address this is, and error check
      * it's syntax if applicable.
@@ -239,6 +245,17 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	    return( 1 );
 	}
 
+	if (( e->e_addr_at = strchr( e->e_addr, '@' )) == NULL ) {
+	    if (( *(e->e_addr) != '\0' ) &&
+		    ( strcasecmp( "postmaster", e->e_addr ) != 0 )) {
+		syslog( LOG_ERR, "add_address <%s>: ERROR bad address format",
+			e->e_addr );
+		free( e->e_addr );
+		free( e );
+		return( 1 );
+	    }
+	}
+
 	e->e_addr_errors = error_env;
 	e->e_addr_type = addr_type;
 
@@ -249,12 +266,38 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	    return( 1 );
 	}
 
+#ifdef HAVE_LDAP
+	if ( e->e_addr_type == ADDRESS_TYPE_LDAP ) {
+	    tail = 0;
+	    e->e_addr_try_ldap = 1;
+
+	} else if ( e->e_addr_at != NULL ) {
+	    if (( red =
+		    simta_red_lookup_host( e->e_addr_at + 1 )) != NULL ) {
+		for ( a = red->red_expand; a != NULL; a = a->a_next ) {
+		    if ( a->a_action == EXPANSION_TYPE_LDAP ) {
+			tail = 0;
+			e->e_addr_try_ldap = 1;
+printf( "TRY_LDAP %s\n", e->e_addr );
+			break;
+		    }
+		}
+	    }
+	}
+#endif /* HAVE LDAP */
+
 	if ( exp->exp_addr_tail == NULL ) {
 	    exp->exp_addr_head = e;
 	    exp->exp_addr_tail = e;
-	} else {
+	} else if ( tail == 1 ) {
 	    exp->exp_addr_tail->e_addr_next = e;
 	    exp->exp_addr_tail = e;
+	} else if ( exp->exp_addr_cursor != NULL ) {
+	    e->e_addr_next = exp->exp_addr_cursor->e_addr_next;
+	    exp->exp_addr_cursor->e_addr_next = e;
+	} else {
+	    e->e_addr_next = exp->exp_addr_head;
+	    exp->exp_addr_head = e;
 	}
 
 #ifdef HAVE_LDAP
@@ -272,12 +315,13 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 
 #ifdef HAVE_LDAP
     /* add links */
-    if ( exp_addr_link( &(e->e_addr_parents), exp->exp_cursor ) != 0 ) {
+    if ( exp_addr_link( &(e->e_addr_parents), exp->exp_addr_cursor ) != 0 ) {
 	return( 1 );
     }
 
-    if ( exp->exp_cursor != NULL ) {
-	if ( exp_addr_link( &(exp->exp_cursor->e_addr_children), e ) != 0 ) {
+    if ( exp->exp_addr_cursor != NULL ) {
+	if ( exp_addr_link( &(exp->exp_addr_cursor->e_addr_children), e )
+		!= 0 ) {
 	    return( 1 );
 	}
     }
@@ -294,21 +338,14 @@ address_expand( struct expand *exp )
     struct simta_red		*red = NULL;
     struct action		*action;
 
-    e_addr = exp->exp_cursor;
+    e_addr = exp->exp_addr_cursor;
 
     switch ( e_addr->e_addr_type ) {
     case ADDRESS_TYPE_EMAIL:
 	/* Get user and domain, address should now be valid */
-	if (( e_addr->e_addr_at = strchr( e_addr->e_addr, '@' )) == NULL ) {
-	    if (( *(e_addr->e_addr) != '\0' ) && ( strcasecmp( "postmaster",
-		    e_addr->e_addr ) != 0 )) {
-		syslog( LOG_ERR,
-			"address_expand <%s>: ERROR bad address format",
-			e_addr->e_addr );
-		return( ADDRESS_SYSERROR );
-	    } else {
-		red = simta_default_host;
-	    }
+
+	if ( e_addr->e_addr_at == NULL ) {
+	    red = simta_default_host;
 	} else {
 	    if ( strlen( e_addr->e_addr_at + 1 ) > MAXHOSTNAMELEN ) {
 		syslog( LOG_ERR, "address_expand <%s>: ERROR domain too long",

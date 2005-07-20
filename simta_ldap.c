@@ -234,6 +234,10 @@ simta_ldap_init ()
     int protocol = LDAP_VERSION3;
 
     if ( ld == NULL ) {
+	if ( simta_expand_debug != 0 ) {
+	    printf( "OPENING LDAP CONNECTION\n" );
+	}
+
 	if (( ld = ldap_init( ldap_host, ldap_port )) == NULL ) {
 	    syslog( LOG_ERR, "ldap_init: %m" );
 	    return( LDAP_SYSERROR );

@@ -55,7 +55,7 @@ struct expand {
     struct envelope		*exp_env;	/* original envelope */
     struct exp_addr		*exp_addr_head;	/* list of expanded addresses */
     struct exp_addr		*exp_addr_tail;
-    struct exp_addr		*exp_cursor;	/* cursor */
+    struct exp_addr		*exp_addr_cursor;	/* cursor */
     struct envelope		*exp_errors;	/* error envelope list */
 #ifdef HAVE_LDAP
     struct exp_link		*exp_memonly;
@@ -78,6 +78,7 @@ struct exp_addr {
     char			*e_addr_from;
     struct envelope		*e_addr_errors;	/* address error handle */
 #ifdef HAVE_LDAP
+    int				e_addr_try_ldap;
     int				e_addr_ldap_flags;
     int				e_addr_anti_loop;
     char			*e_addr_dn;
