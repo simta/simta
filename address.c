@@ -278,7 +278,6 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 		    if ( a->a_action == EXPANSION_TYPE_LDAP ) {
 			tail = 0;
 			e->e_addr_try_ldap = 1;
-printf( "TRY_LDAP %s\n", e->e_addr );
 			break;
 		    }
 		}
