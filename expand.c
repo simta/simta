@@ -130,12 +130,11 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     struct envelope		*env;
     struct envelope		**env_p;
     struct recipient		*rcpt;
-    struct stab_entry		*p;
-    struct stab_entry		*q;
     struct expand_output	*host_stab = NULL;
     struct expand_output	*eo;
     struct expand_output	*eo_free;
     struct exp_addr		*e_addr;
+    struct exp_addr		*next_e_addr;
     char			*domain;
     SNET			*snet = NULL;
     int				n_rcpts;
@@ -168,9 +167,6 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
      * of the addresses in expanded envelope(s).
      */ 
 
-    /* set our iterator to NULL to signify we're at the start of the loop */
-    p = NULL;
-
     if (( base_error_env = address_bounce_create( &exp )) == NULL ) {
 	syslog( LOG_ERR, "expand.env_create: %m" );
 	goto done;
@@ -181,62 +177,41 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	goto done;
     }
 
+    /* add all of the original recipients to the expansion list */
     for ( rcpt = unexpanded_env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
-	/* Add ONE address from the original envelope's rcpt list */
-	/* this address has no parent, it is a "root" address because
-	 * it's a rcpt.
-	 */
-
-#ifdef HAVE_LDAP
-	exp.exp_parent = NULL;
-#endif /* HAVE_LDAP */
-
 	if ( add_address( &exp, rcpt->r_rcpt, base_error_env,
-		ADDRESS_TYPE_EMAIL, unexpanded_env->e_mail ) != 0 ) {
+		ADDRESS_TYPE_EMAIL, exp.exp_env->e_mail ) != 0 ) {
 	    /* add_address syslogs errors */
 	    goto cleanup1;
 	}
+    }
 
-	for ( ; ; ) {
-	    if ( p == NULL ) {
-		/* we need to start by processing the first addr in the
-		 * expansion structure.
-		 */
-		p = exp.exp_addr_list;
-	    } else if ( p->st_next == NULL ) {
-		/* there are no more address for processing at this time */
-		break;
-	    } else {
-		/* process the next address */
-		p = p->st_next;
-	    }
+    /* process the expansion list */
+    for ( exp.exp_cursor = exp.exp_addr_head;
+	    exp.exp_cursor != NULL;
+	    exp.exp_cursor = exp.exp_cursor->e_addr_next ) {
+	switch ( address_expand( &exp )) {
+	case ADDRESS_EXCLUDE:
+	    exp.exp_cursor->e_addr_terminal = 0;
+	    /* the address is not a terminal local address */
+	    break;
 
-	    e_addr = (struct exp_addr*)p->st_data;
+	case ADDRESS_FINAL:
+	    exp.exp_cursor->e_addr_terminal = 1;
+	    break;
 
-#ifdef HAVE_LDAP
-	    exp.exp_parent = e_addr;
-#endif /* HAVE_LDAP */
+	case ADDRESS_SYSERROR:
+	    goto cleanup1;
 
-	    switch ( address_expand( &exp, e_addr )) {
-	    case ADDRESS_EXCLUDE:
-		e_addr->e_addr_terminal = 0;
-		/* the address is not a terminal local address */
-		break;
-
-	    case ADDRESS_FINAL:
-		e_addr->e_addr_terminal = 1;
-		break;
-
-	    case ADDRESS_SYSERROR:
-		goto cleanup1;
-
-	    default:
-		panic( "expand: address_expand out of range" );
-	    }
+	default:
+	    panic( "expand: address_expand out of range" );
 	}
+
+	/* XXX Check to see if we can tear down the LDAP connection */
     }
 
 #ifdef HAVE_LDAP
+    /* Members-only processing */
     for ( memonly = exp.exp_memonly; memonly != NULL;
 	    memonly = memonly->el_next ) {
 	if (( parent_permitted( memonly->el_exp_addr )) ||
@@ -261,8 +236,8 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	    unexpanded_env->e_id );
 
     /* Create one expanded envelope for every host we expanded address for */
-    for ( p = exp.exp_addr_list; p != NULL; p = p->st_next ) {
-	e_addr = (struct exp_addr*)p->st_data;
+    for ( e_addr = exp.exp_addr_head; e_addr != NULL;
+	    e_addr = e_addr->e_addr_next ) {
 
 #ifdef HAVE_LDAP
 	if ((( e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPRESSED ) != 0 ) &&
@@ -381,7 +356,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 
 	switch ( e_addr->e_addr_type ) {
 	case ADDRESS_TYPE_EMAIL:
-	    if (( domain = strchr( p->st_key, '@' )) == NULL ) {
+	    if (( domain = strchr( e_addr->e_addr, '@' )) == NULL ) {
 		syslog( LOG_ERR, "expand.strchr: unreachable code" );
 		goto cleanup3;
 	    }
@@ -433,12 +408,12 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	    }
 	}
 
-	if ( env_recipient( env, p->st_key ) != 0 ) {
+	if ( env_recipient( env, e_addr->e_addr ) != 0 ) {
 	    goto cleanup3;
 	}
 
 	syslog( LOG_NOTICE, "expand: recipient %s added to env %s for host %s",
-		p->st_key, env->e_id,
+		e_addr->e_addr, env->e_id,
 		env->e_hostname ? env->e_hostname : "NULL" );
     }
 
@@ -699,34 +674,32 @@ cleanup1:
     exp_addr_link_free( exp.exp_memonly );
 #endif /* HAVE_LDAP */
 
-    for ( p = exp.exp_addr_list; p != NULL; ) {
-	q = p;
-	p = p->st_next;
-	if ( q->st_data != NULL ) {
-	    e_addr = (struct exp_addr*)q->st_data;
+    /* free the expansion list */
+    for ( e_addr = exp.exp_addr_head; e_addr != NULL; e_addr = next_e_addr ) {
+	next_e_addr = e_addr->e_addr_next;
+
 #ifdef HAVE_LDAP  
-	    exp_addr_link_free( e_addr->e_addr_parents );
-	    exp_addr_link_free( e_addr->e_addr_children );
-	    permitted_destroy( e_addr );
-	    if (( e_addr->e_addr_env_moderated != NULL ) &&
-		    (( e_addr->e_addr_env_moderated->e_flags &
-		    ENV_FLAG_ON_DISK ) == 0 )) {
-		env_free( e_addr->e_addr_env_moderated );
-	    }
-
-	    if ( e_addr->e_addr_owner ) {
-		free( e_addr->e_addr_owner );
-	    }
-
-	    if ( e_addr->e_addr_dn ) {
-		free( e_addr->e_addr_dn );
-	    }
-#endif
-	    free( e_addr->e_addr );
-	    free( e_addr->e_addr_from );
-	    free( e_addr );
+	exp_addr_link_free( e_addr->e_addr_parents );
+	exp_addr_link_free( e_addr->e_addr_children );
+	permitted_destroy( e_addr );
+	if (( e_addr->e_addr_env_moderated != NULL ) &&
+		(( e_addr->e_addr_env_moderated->e_flags &
+		ENV_FLAG_ON_DISK ) == 0 )) {
+	    env_free( e_addr->e_addr_env_moderated );
 	}
-	free( q );
+
+	if ( e_addr->e_addr_owner ) {
+	    free( e_addr->e_addr_owner );
+	}
+
+	if ( e_addr->e_addr_dn ) {
+	    free( e_addr->e_addr_dn );
+	}
+#endif
+
+	free( e_addr->e_addr );
+	free( e_addr->e_addr_from );
+	free( e_addr );
     }
 
 done:

@@ -53,10 +53,11 @@ struct expand_output {
 
 struct expand {
     struct envelope		*exp_env;	/* original envelope */
-    struct stab_entry		*exp_addr_list;	/* expanded addresses */
+    struct exp_addr		*exp_addr_head;	/* list of expanded addresses */
+    struct exp_addr		*exp_addr_tail;
+    struct exp_addr		*exp_cursor;	/* cursor */
     struct envelope		*exp_errors;	/* error envelope list */
 #ifdef HAVE_LDAP
-    struct exp_addr		*exp_parent;
     struct exp_link		*exp_memonly;
 #endif /* HAVE_LDAP */
 };
@@ -69,6 +70,7 @@ struct exp_link {
 #endif /* HAVE_LDAP */
 
 struct exp_addr {
+    struct exp_addr		*e_addr_next;
     int				e_addr_type;	/* address data type */
     int				e_addr_terminal;
     char			*e_addr;	/* address string */
@@ -98,7 +100,7 @@ int address_error( struct envelope *, char *, char *, char * );
 void expansion_stab_stdout( void * );
 int add_address( struct expand *, char *, struct envelope *, int, char * );
 struct envelope *address_bounce_create( struct expand* );
-int address_expand( struct expand *, struct exp_addr * );
+int address_expand( struct expand * );
 int alias_expand( struct expand *, struct exp_addr * );
 int password_expand( struct expand *, struct exp_addr * );
 void expand_tree_stdout( struct exp_addr *, int );

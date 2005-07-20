@@ -201,18 +201,11 @@ address_string_recipients( struct expand *exp, char *line,
 add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	int addr_type, char *from )
 {
-    char			*address;
     struct exp_addr		*e;
-
-    if (( address = strdup( addr )) == NULL ) {
-	syslog( LOG_ERR, "add_address: strdup: %m" );
-	return( 1 );
-    }
 
     /* make sure we understand what type of address this is, and error check
      * it's syntax if applicable.
      */
-
     switch ( addr_type ) {
     case ADDRESS_TYPE_EMAIL:
 	break;
@@ -226,59 +219,65 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	panic( "add_address type out of range" );
     }
 
-    if (( e = (struct exp_addr*)ll_lookup( exp->exp_addr_list, address ))
-	    == NULL ) {
+    for ( e = exp->exp_addr_head; e != NULL; e = e->e_addr_next ) {
+	if ( strcasecmp( addr, e->e_addr ) == 0 ) {
+	    break;
+	}
+    }
+
+    if ( e == NULL ) {
 	if (( e = (struct exp_addr*)malloc( sizeof( struct exp_addr )))
 		== NULL ) {
 	    syslog( LOG_ERR, "add_address: malloc: %m" );
-	    free( address );
 	    return( 1 );
 	}
 	memset( e, 0, sizeof( struct exp_addr ));
 
-	e->e_addr = address;
+	if (( e->e_addr = strdup( addr )) == NULL ) {
+	    syslog( LOG_ERR, "strdup: %m" );
+	    free( e );
+	    return( 1 );
+	}
+
 	e->e_addr_errors = error_env;
 	e->e_addr_type = addr_type;
 
 	if (( e->e_addr_from = strdup( from )) == NULL ) {
 	    syslog( LOG_ERR, "strdup: %m" );
-	    free( address );
+	    free( e->e_addr );
 	    free( e );
 	    return( 1 );
 	}
 
-	if ( ll_insert_tail( &(exp->exp_addr_list), address, e ) != 0 ) {
-	    syslog( LOG_ERR, "add_address: ll_insert_tail: %m" );
-	    free( address );
-	    free( e->e_addr_from );
-	    free( e );
-	    return( 1 );
+	if ( exp->exp_addr_tail == NULL ) {
+	    exp->exp_addr_head = e;
+	    exp->exp_addr_tail = e;
+	} else {
+	    exp->exp_addr_tail->e_addr_next = e;
+	    exp->exp_addr_tail = e;
 	}
 
 #ifdef HAVE_LDAP
 	if (( addr_type == ADDRESS_TYPE_EMAIL ) &&
 		( exp->exp_env->e_mail != NULL )) {
 	    /* compare the address in hand with the sender */
-	    if ( simta_mbx_compare( address, exp->exp_env->e_mail ) == 0 ) {
+	    if ( simta_mbx_compare( e->e_addr, exp->exp_env->e_mail ) == 0 ) {
 		/* here we have a match */
 		e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
 	    }
 	}
 #endif /* HAVE_LDAP */
 
-    } else {
-	/* free local address and use the previously allocated one */
-	free( address );
     }
 
 #ifdef HAVE_LDAP
     /* add links */
-    if ( exp_addr_link( &(e->e_addr_parents), exp->exp_parent ) != 0 ) {
+    if ( exp_addr_link( &(e->e_addr_parents), exp->exp_cursor ) != 0 ) {
 	return( 1 );
     }
 
-    if ( exp->exp_parent != NULL ) {
-	if ( exp_addr_link( &(exp->exp_parent->e_addr_children), e ) != 0 ) {
+    if ( exp->exp_cursor != NULL ) {
+	if ( exp_addr_link( &(exp->exp_cursor->e_addr_children), e ) != 0 ) {
 	    return( 1 );
 	}
     }
@@ -289,10 +288,13 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 
 
     int
-address_expand( struct expand *exp, struct exp_addr *e_addr )
+address_expand( struct expand *exp )
 {
+    struct exp_addr		*e_addr;
     struct simta_red		*red = NULL;
     struct action		*action;
+
+    e_addr = exp->exp_cursor;
 
     switch ( e_addr->e_addr_type ) {
     case ADDRESS_TYPE_EMAIL:
