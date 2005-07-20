@@ -190,6 +190,11 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     for ( exp.exp_addr_cursor = exp.exp_addr_head;
 	    exp.exp_addr_cursor != NULL;
 	    exp.exp_addr_cursor = exp.exp_addr_cursor->e_addr_next ) {
+	/* see if we can tear down the LDAP connection */
+	if ( exp.exp_addr_cursor->e_addr_try_ldap == 0 ) {
+	    simta_ldap_unbind();
+	}
+
 	switch ( address_expand( &exp )) {
 	case ADDRESS_EXCLUDE:
 	    exp.exp_addr_cursor->e_addr_terminal = 0;
@@ -205,16 +210,6 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 
 	default:
 	    panic( "expand: address_expand out of range" );
-	}
-
-	/* see if we can tear down the LDAP connection */
-	if (( exp.exp_addr_cursor->e_addr_try_ldap ) &&
-		(( exp.exp_addr_cursor->e_addr_next == NULL ) ||
-		( exp.exp_addr_cursor->e_addr_next->e_addr_try_ldap == 0 ))) {
-	    simta_ldap_unbind();
-	    if ( simta_expand_debug != 0 ) {
-		printf( "CLOSING LDAP CONNECTION\n" );
-	    }
 	}
     }
 

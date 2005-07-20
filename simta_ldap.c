@@ -680,8 +680,14 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     void
 simta_ldap_unbind ()
 {
-    ldap_unbind( ld );
-    ld = NULL;
+    if ( ld ) {
+	ldap_unbind( ld );
+	ld = NULL;
+
+	if ( simta_expand_debug != 0 ) {
+	    printf( "CLOSING LDAP CONNECTION\n" );
+	}
+    }
     return;
 }
 
