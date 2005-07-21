@@ -1989,6 +1989,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
 
 	if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
 		"ready\r\n", 220, simta_hostname ) < 0 ) {
+	    syslog( LOG_ERR, "receive snet_writef: %m" );
 	    goto closeconnection;
 	}
 
