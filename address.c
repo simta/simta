@@ -202,28 +202,11 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	int addr_type, char *from )
 {
     struct exp_addr		*e;
-    int				tail = 1;
+    int				insert_head = 0;
 #ifdef HAVE_LDAP
     struct simta_red		*red;
     struct action		*a;
 #endif /* HAVE_LDAP */
-
-
-    /* make sure we understand what type of address this is, and error check
-     * it's syntax if applicable.
-     */
-    switch ( addr_type ) {
-    case ADDRESS_TYPE_EMAIL:
-	break;
-
-#ifdef HAVE_LDAP
-    case ADDRESS_TYPE_LDAP:
-	break;
-#endif /* HAVE_LDAP */
-
-    default:
-	panic( "add_address type out of range" );
-    }
 
     for ( e = exp->exp_addr_head; e != NULL; e = e->e_addr_next ) {
 	if ( strcasecmp( addr, e->e_addr ) == 0 ) {
@@ -239,77 +222,85 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	}
 	memset( e, 0, sizeof( struct exp_addr ));
 
-	if (( e->e_addr = strdup( addr )) == NULL ) {
-	    syslog( LOG_ERR, "strdup: %m" );
-	    free( e );
-	    return( 1 );
-	}
-
-	if (( e->e_addr_at = strchr( e->e_addr, '@' )) == NULL ) {
-	    if (( *(e->e_addr) != '\0' ) &&
-		    ( strcasecmp( "postmaster", e->e_addr ) != 0 )) {
-		syslog( LOG_ERR, "add_address <%s>: ERROR bad address format",
-			e->e_addr );
-		free( e->e_addr );
-		free( e );
-		return( 1 );
-	    }
-	}
-
 	e->e_addr_errors = error_env;
 	e->e_addr_type = addr_type;
 
+	if (( e->e_addr = strdup( addr )) == NULL ) {
+	    syslog( LOG_ERR, "strdup: %m" );
+	    goto error;
+	}
+
 	if (( e->e_addr_from = strdup( from )) == NULL ) {
 	    syslog( LOG_ERR, "strdup: %m" );
-	    free( e->e_addr );
-	    free( e );
-	    return( 1 );
+	    goto error;
 	}
+
+	/* do syntax checking and special processing */
+	switch ( addr_type ) {
+	case ADDRESS_TYPE_EMAIL:
+	    if (( e->e_addr_at = strchr( e->e_addr, '@' )) == NULL ) {
+		if (( *(e->e_addr) != '\0' ) &&
+			( strcasecmp( "postmaster", e->e_addr ) != 0 )) {
+		    syslog( LOG_ERR, "add_address <%s>: ERROR bad address",
+			    e->e_addr );
+		    goto error;
+		}
 
 #ifdef HAVE_LDAP
-	if ( e->e_addr_type == ADDRESS_TYPE_LDAP ) {
-	    tail = 0;
-	    e->e_addr_try_ldap = 1;
-
-	} else if ( e->e_addr_at != NULL ) {
-	    if (( red =
-		    simta_red_lookup_host( e->e_addr_at + 1 )) != NULL ) {
-		for ( a = red->red_expand; a != NULL; a = a->a_next ) {
-		    if ( a->a_action == EXPANSION_TYPE_LDAP ) {
-			tail = 0;
-			e->e_addr_try_ldap = 1;
-			break;
+	    } else {
+		/* check to see if we might need LDAP for this domain */
+		if (( red =
+			simta_red_lookup_host( e->e_addr_at + 1 )) != NULL ) {
+		    for ( a = red->red_expand; a != NULL; a = a->a_next ) {
+			if ( a->a_action == EXPANSION_TYPE_LDAP ) {
+			    insert_head = 1;
+			    e->e_addr_try_ldap = 1;
+			    break;
+			}
 		    }
 		}
+
+
+		/* check to see if the address is the sender */
+		if ( exp->exp_env->e_mail != NULL ) {
+		    /* compare the address in hand with the sender */
+		    if ( simta_mbx_compare( e->e_addr,
+			    exp->exp_env->e_mail ) == 0 ) {
+			/* here we have a match */
+			e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
+		    }
+		}
+#endif /* HAVE_LDAP */
 	    }
-	}
+	    break;
+
+#ifdef HAVE_LDAP
+	case ADDRESS_TYPE_LDAP:
+	    insert_head = 1;
+	    e->e_addr_try_ldap = 1;
+	    break;
 #endif /* HAVE LDAP */
+
+	default:
+	    panic( "add_address type out of range" );
+	}
 
 	if ( exp->exp_addr_tail == NULL ) {
 	    exp->exp_addr_head = e;
 	    exp->exp_addr_tail = e;
-	} else if ( tail == 1 ) {
+	} else if ( insert_head == 0 ) {
 	    exp->exp_addr_tail->e_addr_next = e;
 	    exp->exp_addr_tail = e;
 	} else if ( exp->exp_addr_cursor != NULL ) {
-	    e->e_addr_next = exp->exp_addr_cursor->e_addr_next;
+	    if (( e->e_addr_next = exp->exp_addr_cursor->e_addr_next )
+		    == NULL ) {
+		exp->exp_addr_tail = e;
+	    }
 	    exp->exp_addr_cursor->e_addr_next = e;
 	} else {
 	    e->e_addr_next = exp->exp_addr_head;
 	    exp->exp_addr_head = e;
 	}
-
-#ifdef HAVE_LDAP
-	if (( addr_type == ADDRESS_TYPE_EMAIL ) &&
-		( exp->exp_env->e_mail != NULL )) {
-	    /* compare the address in hand with the sender */
-	    if ( simta_mbx_compare( e->e_addr, exp->exp_env->e_mail ) == 0 ) {
-		/* here we have a match */
-		e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
-	    }
-	}
-#endif /* HAVE_LDAP */
-
     }
 
 #ifdef HAVE_LDAP
@@ -327,6 +318,12 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 #endif /* HAVE_LDAP */
 
     return( 0 );
+
+error:
+    free( e->e_addr );
+    free( e->e_addr_from );
+    free( e );
+    return( 1 );
 }
 
 
@@ -341,10 +338,9 @@ address_expand( struct expand *exp )
 
     switch ( e_addr->e_addr_type ) {
     case ADDRESS_TYPE_EMAIL:
-	/* Get user and domain, address should now be valid */
-
 	if ( e_addr->e_addr_at == NULL ) {
 	    red = simta_default_host;
+
 	} else {
 	    if ( strlen( e_addr->e_addr_at + 1 ) > MAXHOSTNAMELEN ) {
 		syslog( LOG_ERR, "address_expand <%s>: ERROR domain too long",

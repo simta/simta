@@ -1979,7 +1979,7 @@ string_address_parse( struct string_address *sa )
 		sa->sa_swap = 1;
 		*end = '\0';
 
-		if ( is_emailaddr( email_start ) != 0 ) {
+		if ( is_emailaddr( email_start ) == 0 ) {
 		    return( NULL );
 		}
 
@@ -2017,12 +2017,12 @@ string_address_parse( struct string_address *sa )
 	*end = '\0';
 	sa->sa_start = end + 1;
 
-	if ( is_emailaddr( email_start ) != 0 ) {
+	if ( is_emailaddr( email_start ) == 0 ) {
 	    return( NULL );
 	}
 
 	return( email_start );
     }
 
-    return( 0 );
+    return( NULL );
 }

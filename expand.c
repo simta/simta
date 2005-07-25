@@ -214,6 +214,8 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     }
 
 #ifdef HAVE_LDAP
+    simta_ldap_unbind();
+
     /* Members-only processing */
     for ( memonly = exp.exp_memonly; memonly != NULL;
 	    memonly = memonly->el_next ) {
