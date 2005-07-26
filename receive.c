@@ -181,18 +181,20 @@ reset( struct envelope *env )
 {
     int			r = 0;
 
-    if ( env->e_flags & ENV_FLAG_ON_DISK ) {
-	if ( expand_and_deliver( &hq_receive, env ) != EXPAND_OK ) {
-	    r = RECEIVE_SYSERROR;
+    if ( env ) {
+	if ( env->e_flags & ENV_FLAG_ON_DISK ) {
+	    if ( expand_and_deliver( &hq_receive, env ) != EXPAND_OK ) {
+		r = RECEIVE_SYSERROR;
+	    }
+
+	} else if ( env->e_id != NULL ) {
+	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: Abandoned",
+		    env->e_id, inet_ntoa( receive_sin->sin_addr ),
+		    receive_remote_hostname );
 	}
 
-    } else if ( env->e_id != NULL ) {
-	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: Abandoned",
-		env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname );
+	env_reset( env );
     }
-
-    env_reset( env );
 
     return( r );
 }
