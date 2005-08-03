@@ -88,7 +88,11 @@ int 			_post_tls( SNET *snet );
 
 #ifdef HAVE_LIBSASL
 #define BASE64_BUF_SIZE 21848 /* per RFC 2222bis: ((16k / 3 ) +1 ) * 4 */
-sasl_conn_t		*receive_conn;
+sasl_conn_t			*receive_conn;
+/* external security strength factor zero = NONE */
+sasl_ssf_t			ext_ssf = 0;
+sasl_security_properties_t	secprops;
+char				*auth_id = NULL;
 #endif /* HAVE_LIBSASL */
 
 #define	RECEIVE_OK		0x0000
@@ -133,6 +137,7 @@ static int	f_starttls( SNET *, struct envelope *, int, char *[] );
 #endif /* HAVE_LIBSSL */
 #ifdef HAVE_LIBSASL
 static int	f_auth( SNET *, struct envelope *, int, char *[] );
+static int 	reset_sasl_conn( sasl_conn_t **conn );
 #endif /* HAVE_LIBSASL */
 
 struct command	smtp_commands[] = {
@@ -1422,12 +1427,11 @@ _post_tls( SNET *snet )
     int		rc; 
 
     if ( simta_sasl ) {
-	sasl_ssf_t			ssf;
-	sasl_security_properties_t	secprops;
 
+	/* XXX - Get cipher_bits and set SSF_EXTERNAL */
 	memset( &secprops, 0, sizeof( secprops ));
 	if (( rc = sasl_setprop( receive_conn, SASL_SSF_EXTERNAL,
-		&ssf)) != SASL_OK ) {
+		&ext_ssf )) != SASL_OK ) {
 	    syslog( LOG_ERR, "f_starttls sasl_setprop: %s",
 		    sasl_errdetail( receive_conn ));
 	    return( RECEIVE_SYSERROR );
@@ -1496,7 +1500,7 @@ _start_tls( SNET *snet )
 f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 {
     int			rc;
-    const char		*username, *mechname;
+    const char		*mechname;
     char		base64[ BASE64_BUF_SIZE + 1 ];
     char		*clientin = NULL;
     unsigned int	clientinlen = 0;
@@ -1587,13 +1591,16 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	} 
 
 	/* Check if client canceled authentication exchange */
-	if ( clientin[ 0 ] == '*' ) {
+	if ( clientin[ 0 ] == '*' && clientin[ 1 ] == '\0' ) {
 	    if ( snet_writef( snet,
 		    "501 client canceled authentication\r\n" ) < 0 ) {
 		syslog( LOG_ERR, "f_auth snet_writef: %m" );
 		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    syslog( LOG_INFO, "f_auth: client canceled authentication" );
+	    if ( reset_sasl_conn( &receive_conn ) != SASL_OK ) {
+		return( RECEIVE_CLOSECONNECTION );
+	    }
 	    return( RECEIVE_OK );
 	}
 
@@ -1617,7 +1624,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
     switch( rc ) {
     case SASL_OK:
 	if ( sasl_getprop( receive_conn, SASL_USERNAME,
-		(const void **) &username ) != SASL_OK ) {
+		(const void **) &auth_id ) != SASL_OK ) {
 	    syslog( LOG_ERR, "f_auth sasl_getprop: %s",
 		    sasl_errdetail( receive_conn ));
 	    return( RECEIVE_CLOSECONNECTION );
@@ -1630,7 +1637,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	syslog( LOG_NOTICE | LOG_INFO, "f_auth %s authenticated via %s%s",
-		username, mechname, receive_tls ? "+TLS" : "" );
+		auth_id, mechname, receive_tls ? "+TLS" : "" );
 
 	if ( snet_writef( snet, "235 Authentication successful\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
@@ -1756,9 +1763,6 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
     struct timeval			tv_write;
     extern int				connections;
     extern int				maxconnections;
-#ifdef HAVE_LIBSASL
-    sasl_security_properties_t		secprops;
-#endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBWRAP
     char				*ctl_hostname;
 #endif /* HAVE_LIBWRAP */
@@ -1823,18 +1827,34 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
 	 *                     authentication
 	 */ 
 
+	memset( &secprops, 0, sizeof( secprops ));
+	secprops.maxbufsize = 4096;
+	/* min_ssf set to zero with memset */
+	secprops.max_ssf = 256;
 	secprops.security_flags |= SASL_SEC_NOPLAINTEXT;
 	secprops.security_flags |= SASL_SEC_NOANONYMOUS;
-	secprops.maxbufsize = 4096;
-	secprops.min_ssf = 0;
-	secprops.max_ssf = 256;
-
 	if (( rc = sasl_setprop( receive_conn, SASL_SEC_PROPS, &secprops))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_setprop: %s",
 		    sasl_errdetail( receive_conn ));
 	    goto syserror;
 	}
+
+	ext_ssf = 0;
+	auth_id = NULL;
+	if (( rc = sasl_setprop( receive_conn, SASL_SSF_EXTERNAL, &ext_ssf ))
+		!= SASL_OK ) {
+	    syslog( LOG_ERR, "receive sasl_setprop: %s",
+		    sasl_errdetail( receive_conn ));
+	    goto syserror;
+	}
+	if (( rc = sasl_setprop( receive_conn, SASL_AUTH_EXTERNAL, auth_id ))
+		!= SASL_OK ) {
+	    syslog( LOG_ERR, "receive sasl_setprop: %s",
+		    sasl_errdetail( receive_conn ));
+	    goto syserror;
+	}
+
 
     }
 #endif /* HAVE_LIBSASL */
@@ -2526,3 +2546,44 @@ mail_filter( int f, char **smtp_message )
 	}
     }
 }
+
+#ifdef HAVE_LIBSASL
+    int
+reset_sasl_conn( sasl_conn_t **conn )
+{
+
+    int         rc;
+
+    sasl_dispose( conn );
+
+    if (( rc = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
+            0, conn )) != SASL_OK ) {
+	syslog( LOG_ERR, "reset_sasl_conn sasl_server_new: %s",
+		sasl_errdetail( *conn ));
+        return( rc );
+    }
+
+    if (( rc = sasl_setprop( *conn, SASL_SSF_EXTERNAL, &ext_ssf )) != SASL_OK) {
+	syslog( LOG_ERR, "reset_sasl_conn sasl_setprop: %s",
+		sasl_errdetail( *conn ));
+        return( rc );
+    }
+
+    if (( rc = sasl_setprop( *conn, SASL_AUTH_EXTERNAL,
+	    &ext_ssf )) != SASL_OK) {
+	syslog( LOG_ERR, "reset_sasl_conn sasl_setprop: %s",
+		sasl_errdetail( *conn ));
+        return( rc );
+    }
+
+    return( SASL_OK );
+}
+
+#else /* HAVE_LIBSASL */
+    int
+reset_sasl_conn( sasl_conn_t **conn )
+{
+    return( -1 );
+}
+
+#endif /* HAVE_LIBSASL */
