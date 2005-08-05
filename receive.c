@@ -1748,7 +1748,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 #endif /* HAVE_LIBSASL */
 
     int
-smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
+smtp_receive( int fd, struct sockaddr_in *sin )
 {
     SNET				*snet;
     struct envelope			*env = NULL;
@@ -1761,8 +1761,9 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
     struct timeval			tv_write;
-    extern int				connections;
-    extern int				maxconnections;
+#ifdef HAVE_LIBSASL
+    sasl_security_properties_t		secprops;
+#endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBWRAP
     char				*ctl_hostname;
 #endif /* HAVE_LIBWRAP */
@@ -1860,7 +1861,8 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
 #endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
-    if ( simta_authlevel > 0 && connect_type == SIMTA_CONNECT_SMTPS ) {
+    if (( simta_authlevel > 0 ) &&
+	    ( simta_process_type == PROCESS_RECEIVE_SMTPS )) {
 	if ( _start_tls( snet ) != RECEIVE_OK ) {
 	    goto syserror;
 	}
@@ -1896,8 +1898,8 @@ smtp_receive( int fd, struct sockaddr_in *sin, int connect_type )
 	    goto closeconnection;
 	}
     } else {
-	if ( maxconnections != 0 ) {
-	    if ( connections >= maxconnections ) {
+	if ( simta_receive_connections_max != 0 ) {
+	    if ( simta_receive_connections >= simta_receive_connections_max ) {
 		syslog( LOG_NOTICE, "receive connection refused: "
 			"max connections exceeded" );
 		if ( snet_writef( snet, "421 Maximum connections exceeded, "

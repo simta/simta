@@ -55,20 +55,11 @@ struct proc_type {
     int			p_type;
 };
 
-#define CHILD_Q_LOCAL		1
-#define CHILD_Q_SLOW		2
-#define CHILD_RECEIVE		3
-#define CHILD_CLEANUP		4
-
 struct proc_type	*proc_stab = NULL;
-int		q_runner_local = 0;
-int		q_runner_slow = 0;
 
 int		simsendmail_signal = 0;
 int		child_signal = 0;
 int		backlog = 5;
-int		connections = 0;
-int		maxconnections = SIMTA_MAXCONNECTIONS;	/* 0 = no limit */
 struct sigaction	sa, osahup, osachld, osausr1;
 
 char		*maildomain = NULL;
@@ -78,8 +69,9 @@ void		usr1( int );
 void		hup ( int );
 void		chld( int );
 int		main( int, char *av[] );
-void		simta_daemon_child( int, int, int );
+int		simta_daemon_child( int, int );
 int		simta_wait_for_child( int );
+int		simta_waitpid( void );
 
 SSL_CTX		*ctx = NULL;
 
@@ -146,6 +138,7 @@ static sasl_callback_t callbacks[] = {
 };
 #endif /* HAVE_LIBSASL */
 
+
     int
 main( int ac, char **av )
 {
@@ -154,16 +147,12 @@ main( int ac, char **av )
     struct timeval	tv_now;
     struct timeval	tv_launch;
     struct servent	*se;
-    int			pid;
     int			launch_seconds;
-    int			q_runner_local_max;
-    int			q_runner_slow_max;
     int			c, s_smtp, s_smtps, s_submission, err = 0;
     int			dontrun = 0;
     int			reuseaddr = 1;
     int			pidfd;
     int			q_run = 0;
-    char		*p_name;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
     fd_set		fdset;
@@ -179,13 +168,9 @@ main( int ac, char **av )
     char                *ca = "cert/ca.pem";
     char                *cert = "cert/cert.pem";
     char                *privatekey = "cert/cert.pem";
-    int			status;
-    int			exitstatus;
 #ifdef HAVE_LIBSASL
     int			rc;
 #endif /* HAVE_LIBSASL */
-    struct proc_type	**p_search;
-    struct proc_type	*p_remove;
 
     if (( prog = strrchr( av[ 0 ], '/' )) == NULL ) {
 	prog = av[ 0 ];
@@ -193,9 +178,6 @@ main( int ac, char **av )
 	prog++;
     }
 
-    /* XXX make these options, etc */
-    q_runner_local_max = SIMTA_MAX_RUNNERS_LOCAL;
-    q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
     launch_seconds = 60 * 10;
 
     while (( c = getopt( ac, av, " ab:cCdD:f:i:Im:M:p:qQ:rRs:SVw:x:y:z:" ))
@@ -250,7 +232,11 @@ main( int ac, char **av )
 	    break;
 
 	case 'm' :		/* Max connections */
-	    maxconnections = atoi( optarg );
+	    if (( simta_receive_connections_max = atoi( optarg )) < 0 ) {
+		err++;
+		fprintf( stderr, "%d: invalid max receive connections\n",
+			simta_receive_connections_max );
+	    }
 	    break;
 
 	case 'p' :		/* TCP port */
@@ -373,10 +359,6 @@ main( int ac, char **av )
 
     if ( simta_read_config( config_fname ) < 0 ) {
         exit( 1 );
-    }
-
-    if ( maxconnections < 0 ) {
-	fprintf( stderr, "%d: invalid max-connections\n", maxconnections );
     }
 
     /* ignore SIGPIPE */
@@ -588,10 +570,10 @@ main( int ac, char **av )
     }
 
     if ( q_run ) {
-	exit( simta_wait_for_child( CHILD_Q_SLOW ));
+	exit( simta_wait_for_child( PROCESS_Q_SLOW ));
     } else if ( simta_filesystem_cleanup ) {
-	exit( simta_wait_for_child( CHILD_CLEANUP ));
-    } else if ( simta_wait_for_child( CHILD_CLEANUP ) != 0 ) {
+	exit( simta_wait_for_child( PROCESS_CLEANUP ));
+    } else if ( simta_wait_for_child( PROCESS_CLEANUP ) != 0 ) {
 	fprintf( stderr, "simta cleanup error, please check the log\n" );
 	exit( 1 );
     }
@@ -723,72 +705,8 @@ main( int ac, char **av )
 	}
 
 	/* check to see if any children need to be accounted for */
-	while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-	    p_search = &proc_stab;
-
-	    for ( p_search = &proc_stab; *p_search != NULL;
-		    p_search = &((*p_search)->p_next)) {
-		if ((*p_search)->p_id == pid ) {
-		    break;
-		}
-	    }
-
-	    if ( *p_search == NULL ) {
-		syslog( LOG_ERR, "chld %d: unkown child process", pid );
-		panic( "unknown process" );
-	    }
-
-	    p_remove = *p_search;
-	    *p_search = p_remove->p_next;
-
-	    switch ( p_remove->p_type ) {
-	    case CHILD_Q_LOCAL:
-		p_name = "local q_runner";
-		q_runner_local--;
-		break;
-
-	    case CHILD_Q_SLOW:
-		p_name = "slow q_runner";
-		q_runner_slow--;
-		break;
-
-	    case CHILD_RECEIVE:
-		p_name = "connect receive";
-		connections--;
-		break;
-
-	    default:
-		syslog( LOG_ERR, "Child %d: done: unknown process type %d",
-			p_remove->p_id, p_remove->p_type );
-		panic( "bad process type" );
-	    }
-
-	    free( p_remove );
-
-	    if ( WIFEXITED( status )) {
-		exitstatus = WEXITSTATUS( status );
-
-		switch ( exitstatus ) {
-		case EXIT_OK:
-		    syslog( LOG_NOTICE, "Child %d: %s exited: %d", pid,
-			    p_name, exitstatus );
-		    break;
-
-		default:
-		    syslog( LOG_ERR, "Child %d: %s exited: %d", pid,
-			    p_name, exitstatus );
-		    exit( 1 );
-		}
-
-	    } else if ( WIFSIGNALED( status )) {
-		syslog( LOG_ERR, "Child %d: %s died: signal %d", pid,
-			p_name, WTERMSIG( status ));
-		exit( 1 );
-
-	    } else {
-		syslog( LOG_ERR, "Child %d: %s died", pid, p_name );
-		exit( 1 );
-	    }
+	if ( simta_waitpid() != 0 ) {
+	    abort();
 	}
 
 	if ( child_signal > 0 ) {
@@ -801,8 +719,8 @@ main( int ac, char **av )
 	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
 	    tv_sleep.tv_sec = launch_seconds;
 
-	    if ( q_runner_slow < q_runner_slow_max ) {
-		simta_daemon_child( CHILD_Q_SLOW, s_smtp, SIMTA_CONNECT_NONE );
+	    if ( simta_q_runner_slow < simta_q_runner_slow_max ) {
+		simta_daemon_child( PROCESS_Q_SLOW, s_smtp );
 	    }
 
 	    continue;
@@ -810,29 +728,120 @@ main( int ac, char **av )
 
 	if ( simsendmail_signal != 0 ) {
 	    simsendmail_signal = 0;
-	    if ( q_runner_local < q_runner_local_max ) {
-		simta_daemon_child( CHILD_Q_LOCAL, s_smtp, SIMTA_CONNECT_NONE );
+	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
+		simta_daemon_child( PROCESS_Q_LOCAL, s_smtp );
 	    }
 	    continue;
 	}
 
 	/* check to see if we have any incoming connections */
 	if ( FD_ISSET( s_smtp, &fdset )) {
-	    simta_daemon_child( CHILD_RECEIVE, s_smtp, SIMTA_CONNECT_SMTP );
+	    simta_daemon_child( PROCESS_RECEIVE_SMTP, s_smtp );
 	}
 #ifdef HAVE_LIBSSL
 	if ( simta_authlevel > 0 && FD_ISSET( s_smtps, &fdset )) {
-	    simta_daemon_child( CHILD_RECEIVE, s_smtps,
-		SIMTA_CONNECT_SMTPS );
+	    simta_daemon_child( PROCESS_RECEIVE_SMTPS, s_smtps );
 	}
 
 #endif /* HAVE_LIBSSL */
 	if ( simta_submission_port && FD_ISSET( s_submission, &fdset )) {
-	    simta_daemon_child( CHILD_RECEIVE, s_submission,
-		SIMTA_CONNECT_SUBMISSION );
+	    simta_daemon_child( PROCESS_RECEIVE_SUBMISSION, s_submission );
 	}
     }
 }
+
+
+    int
+simta_waitpid( void )
+{
+    int			pid;
+    char		*p_name;
+    int			status;
+    int			exitstatus;
+    struct proc_type	**p_search;
+    struct proc_type	*p_remove;
+
+    while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
+	p_search = &proc_stab;
+
+	for ( p_search = &proc_stab; *p_search != NULL;
+		p_search = &((*p_search)->p_next)) {
+	    if ((*p_search)->p_id == pid ) {
+		break;
+	    }
+	}
+
+	if ( *p_search == NULL ) {
+	    syslog( LOG_ERR, "chld %d: unkown child process", pid );
+	    return( 1 );
+	}
+
+	p_remove = *p_search;
+	*p_search = p_remove->p_next;
+
+	switch ( p_remove->p_type ) {
+	case PROCESS_Q_LOCAL:
+	    p_name = "q_runner local";
+	    simta_q_runner_local--;
+	    break;
+
+	case PROCESS_Q_SLOW:
+	    p_name = "q_runner slow";
+	    simta_q_runner_slow--;
+	    break;
+
+	case PROCESS_RECEIVE_SMTP:
+	    p_name = "receive smtp";
+	    simta_receive_connections--;
+	    break;
+
+	case PROCESS_RECEIVE_SMTPS:
+	    p_name = "receive smtps";
+	    simta_receive_connections--;
+	    break;
+
+	case PROCESS_RECEIVE_SUBMISSION:
+	    p_name = "receive submission";
+	    simta_receive_connections--;
+	    break;
+
+	default:
+	    syslog( LOG_ERR, "Child %d: done: unknown process type %d",
+		    p_remove->p_id, p_remove->p_type );
+	    return( 1 );
+	}
+
+	free( p_remove );
+
+	if ( WIFEXITED( status )) {
+	    exitstatus = WEXITSTATUS( status );
+
+	    switch ( exitstatus ) {
+	    case EXIT_OK:
+		syslog( LOG_NOTICE, "Child %d: %s exited: %d", pid,
+			p_name, exitstatus );
+		break;
+
+	    default:
+		syslog( LOG_ERR, "Child %d: %s exited: %d", pid,
+			p_name, exitstatus );
+		return( 1 );
+	    }
+
+	} else if ( WIFSIGNALED( status )) {
+	    syslog( LOG_ERR, "Child %d: %s died: signal %d", pid,
+		    p_name, WTERMSIG( status ));
+	    return( 1 );
+
+	} else {
+	    syslog( LOG_ERR, "Child %d: %s died", pid, p_name );
+	    return( 1 );
+	}
+    }
+
+    return( 0 );
+}
+
 
     int
 simta_wait_for_child( int child_type )
@@ -843,35 +852,36 @@ simta_wait_for_child( int child_type )
 
     switch ( pid = fork()) {
     case -1 :
-	syslog( LOG_ERR, "q_cleanup fork: %m" );
+	syslog( LOG_ERR, "Syserror: q_cleanup fork: %m" );
 	return( 1 );
 
     case 0 :
 	switch ( child_type ) {
-	case CHILD_CLEANUP:
+	case PROCESS_CLEANUP:
 	    exit( q_cleanup());
 
-	case CHILD_Q_SLOW:
+	case PROCESS_Q_SLOW:
 	    exit( q_runner_dir( simta_dir_slow ));
 
 	default:
-	    syslog( LOG_ERR, "wait_for_child: child_type out of range" );
+	    syslog( LOG_ERR,
+		    "Syserror: wait_for_child: child_type out of range" );
 	    exit( 1 );
 	}
 
     default :
 	switch ( child_type ) {
-	case CHILD_CLEANUP:
+	case PROCESS_CLEANUP:
 	    if ( simta_filesystem_cleanup ) {
-		p_name = "clean filesystem";
+		p_name = "filesystem clean";
 		syslog( LOG_NOTICE, "Child %d: %s start", pid, p_name );
 	    } else {
-		p_name = "check filesystem";
+		p_name = "filesystem check";
 		syslog( LOG_NOTICE, "Child %d: %s start", pid, p_name );
 	    }
 	    break;
 
-	case CHILD_Q_SLOW:
+	case PROCESS_Q_SLOW:
 	    p_name = "single q_runner";
 	    if ( simta_queue_filter ) {
 		syslog( LOG_NOTICE, "Child %d: %s start: %s", pid, p_name,
@@ -882,13 +892,13 @@ simta_wait_for_child( int child_type )
 	    break;
 
 	default:
-	    syslog( LOG_ERR, "Child %d: start: p_name %d out of range",
-		    pid, p_name );
+	    syslog( LOG_ERR, "Syserror: Child %d: start: type %d out of range",
+		    pid, child_type );
 	    break;
 	}
 
 	if ( waitpid( pid, &status, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "q_cleanup waitpid: %m" );
+	    syslog( LOG_ERR, "Syserror: q_cleanup waitpid: %m" );
 	    return( 1  );
 	}
 
@@ -910,8 +920,8 @@ simta_wait_for_child( int child_type )
 }
 
 
-    void
-simta_daemon_child( int type, int s, int connect_type )
+    int
+simta_daemon_child( int process_type, int s )
 {
     struct sockaddr_in	sin;
     struct proc_type	*p;
@@ -919,106 +929,127 @@ simta_daemon_child( int type, int s, int connect_type )
     int			fd;
     int			sinlen;
 
-    if (( p = (struct proc_type*)malloc(
-	    sizeof( struct proc_type ))) == NULL ) {
-	syslog( LOG_ERR, "malloc: %m" );
-	abort();
-    }
-
-    memset( p, 0, sizeof( struct proc_type ));
-
-    switch ( type ) {
-    case CHILD_Q_LOCAL:
-	p->p_type = CHILD_Q_LOCAL;
+    switch ( process_type ) {
+    case PROCESS_Q_LOCAL:
+    case PROCESS_Q_SLOW:
 	break;
 
-    case CHILD_Q_SLOW:
-	p->p_type = CHILD_Q_SLOW;
-	break;
-
-    case CHILD_RECEIVE:
-	p->p_type = CHILD_RECEIVE;
+    case PROCESS_RECEIVE_SMTP:
+    case PROCESS_RECEIVE_SMTPS:
+    case PROCESS_RECEIVE_SUBMISSION:
 	if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
-	    free( p );
-	    return;
+	    syslog( LOG_ERR, "Syserror: simta_daemon_child accept: %m" );
+	    return( 1 );
 	}
 	break;
 
     default:
-	panic( "simta_daemon_child type out of range" );
+	syslog( LOG_ERR, "Syserror: simta_daemon_child process_type 3 "
+		"out of range: %d", process_type );
+	return( 1 );
     }
-
-    p->p_next = proc_stab;
-    proc_stab = p;
 
     switch ( pid = fork()) {
     case 0 :
 	close( s );
 	/* reset USR1, CHLD and HUP */
 	if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "sigaction: %m" );
+	    syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction 1: %m" );
 	    exit( EXIT_OK );
 	}
 	if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "sigaction: %m" );
+	    syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction 2: %m" );
 	    exit( EXIT_OK );
 	}
 	if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "sigaction: %m" );
+	    syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction 3: %m" );
 	    exit( EXIT_OK );
 	}
 
-	switch ( type ) {
-	case CHILD_Q_LOCAL:
-	    simta_process_type = SIMTA_PROCESS_TYPE_Q_RUNNER;
+	simta_process_type = process_type;
+
+	switch ( process_type ) {
+	case PROCESS_Q_LOCAL:
 	    exit( q_runner_dir( simta_dir_local ));
 	    break;
 
-	case CHILD_Q_SLOW:
-	    simta_process_type = SIMTA_PROCESS_TYPE_Q_RUNNER;
+	case PROCESS_Q_SLOW:
 	    exit( q_runner_dir( simta_dir_slow ));
 	    break;
 
-	case CHILD_RECEIVE:
-	    simta_process_type = SIMTA_PROCESS_TYPE_RECEIVE;
-	    exit( smtp_receive( fd, &sin, connect_type ));
+	case PROCESS_RECEIVE_SMTP:
+	case PROCESS_RECEIVE_SMTPS:
+	case PROCESS_RECEIVE_SUBMISSION:
+	    exit( smtp_receive( fd, &sin ));
 	    break;
 
 	default:
-	    panic( "simta_daemon_child type out of range" );
+	    syslog( LOG_ERR, "Syserror: simta_daemon_child process_type 2 "
+		    "out of range: %d", process_type );
+	    return( 1 );
 	}
 
+	syslog( LOG_ERR, "Syserror: simta_daemon_child unreachable code" );
+	exit( EXIT_OK );
+
     case -1 :
-	syslog( LOG_ERR, "fork: %m" );
+	syslog( LOG_ERR, "Syserror: simta_daemon_child fork: %m" );
 	abort();
 
     default :
-	switch ( type ) {
-	case CHILD_Q_LOCAL:
-	    q_runner_local++;
-	    syslog( LOG_NOTICE, "Child %d: start: local q_runner", pid );
-	    break;
-
-	case CHILD_Q_SLOW:
-	    q_runner_slow++;
-	    syslog( LOG_NOTICE, "Child %d: start: slow q_runner", pid );
-	    break;
-
-	case CHILD_RECEIVE:
-	    close( fd );
-	    connections++;
-	    syslog( LOG_NOTICE, "Child %d: start: receive: %s", pid,
-		    inet_ntoa( sin.sin_addr ));
-	    break;
-
-	default:
-	    syslog( LOG_NOTICE, "Child %d: start: unknown type %d", pid, type );
-	    panic( "simta_daemon_child type out of range" );
-	}
-
-	p->p_id = pid;
+	/* here we are the server.  this is ok */
 	break;
     }
 
-    return;
+    switch ( process_type ) {
+    case PROCESS_Q_LOCAL:
+	simta_q_runner_local++;
+	syslog( LOG_NOTICE, "Child %d: start: q_runner local", pid );
+	break;
+
+    case PROCESS_Q_SLOW:
+	simta_q_runner_slow++;
+	syslog( LOG_NOTICE, "Child %d: start: q_runner slow", pid );
+	break;
+
+    case PROCESS_RECEIVE_SMTP:
+	close( fd );
+	simta_receive_connections++;
+	syslog( LOG_NOTICE, "Child %d: start: receive smtp: %s", pid,
+		inet_ntoa( sin.sin_addr ));
+	break;
+
+    case PROCESS_RECEIVE_SMTPS:
+	close( fd );
+	simta_receive_connections++;
+	syslog( LOG_NOTICE, "Child %d: start: receive smtps: %s", pid,
+		inet_ntoa( sin.sin_addr ));
+	break;
+
+    case PROCESS_RECEIVE_SUBMISSION:
+	close( fd );
+	simta_receive_connections++;
+	syslog( LOG_NOTICE, "Child %d: start: receive submission: %s", pid,
+		inet_ntoa( sin.sin_addr ));
+	break;
+
+    default:
+	syslog( LOG_ERR, "Syserror: simta_daemon_child process_type 3 "
+		"out of range: %d", process_type );
+	return( 1 );
+    }
+
+    if (( p = (struct proc_type*)malloc(
+	    sizeof( struct proc_type ))) == NULL ) {
+	syslog( LOG_ERR, "Syserror: simta_daemon_child malloc: %m" );
+	return( 1 );
+    }
+    memset( p, 0, sizeof( struct proc_type ));
+
+    p->p_id = pid;
+    p->p_type = process_type;
+    p->p_next = proc_stab;
+    proc_stab = p;
+
+    return( 0 );
 }

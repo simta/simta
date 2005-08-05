@@ -125,7 +125,6 @@ simalias.o : simalias.c
 daemon.o : daemon.c
 	${CC} ${SIMTACFLAGS} \
 	    -DVERSION=\"`cat VERSION`\" \
-	    -DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
 	    -c daemon.c -o daemon.o
 
 header.o : header.c
@@ -141,6 +140,7 @@ receive.o : receive.c
 simta.o : simta.c
 	${CC} ${SIMTACFLAGS} \
 		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
+		-DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
 		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
 		-c simta.c -o simta.o
 

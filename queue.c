@@ -399,7 +399,7 @@ q_runner( struct host_q **host_q )
 	    }
 
 	    /* message not expandable */
-	    if ( simta_process_type != SIMTA_PROCESS_TYPE_RECEIVE ) {
+	    if ( simta_process_type == PROCESS_Q_SLOW ) {
 		/* check message's age */
 		sprintf( dfile_fname, "%s/D%s", unexpanded->e_dir,
 			unexpanded->e_id );
