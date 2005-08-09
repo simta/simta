@@ -979,9 +979,9 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 			    break;
 			}
 		    }
-		}
 
-		ldap_value_free( senderlist );
+		    ldap_value_free( senderlist );
+		}
 
 		if ( permitted_sender == 0 ) {
 		    mo_group = 1;
