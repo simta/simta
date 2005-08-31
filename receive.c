@@ -648,23 +648,6 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if ( domain != NULL ) {
 	if ( simta_global_relay == 0 ) {
-	    if ( simta_umich_imap_letters != 0 ) {
-		if ( strcasecmp( domain + 1, ".imap.itd.umich.edu" ) == 0 ) {
-		    if ( *addr != *domain ) {
-			receive_failed_rcpts++;
-			syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
-				"Failed: bad IMAP name", env->e_id, addr,
-				env->e_mail );
-			if ( snet_writef( snet, "%d %s: Bad IMAP name\r\n",
-				550, domain ) < 0 ) {
-			    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-			    return( RECEIVE_CLOSECONNECTION );
-			}
-			return( RECEIVE_OK );
-		    }
-		}
-	    }
-
 	    /*
 	     * Here we do an initial lookup in our domain table.  This is
 	     * our best opportunity to decline recipients that are not

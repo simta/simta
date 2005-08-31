@@ -77,7 +77,6 @@ int			simta_simsend_strict_from = 1;
 int			simta_process_type = 0;
 int			simta_authlevel = 0;
 int			simta_use_alias_db = 0;
-int			simta_umich_imap_letters = 0;
 int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
 int			simta_strict_smtp_syntax = 0;
@@ -571,16 +570,6 @@ simta_read_config( char *fname )
             }
             simta_tls = 1;
             if ( simta_debug ) printf( "TLS_ON\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "UMICH_IMAP_LETTERS" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-		    fname, lineno );
-		goto error;
-	    }
-	    simta_umich_imap_letters = 1;
-
-	    if ( simta_debug ) printf( "UMICH_IMAP_LETTERS enabled\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "DNS_CONFIG_OFF" ) == 0 ) {
 	    if ( ac != 1 ) {
