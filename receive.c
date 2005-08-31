@@ -664,7 +664,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			"Receive %s: To <%s> From <%s> Failed: "
 			"Unknown domain", env->e_id, addr, env->e_mail );
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
-			domain ) < 0 ) {
+			addr ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
