@@ -190,10 +190,12 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
     for ( exp.exp_addr_cursor = exp.exp_addr_head;
 	    exp.exp_addr_cursor != NULL;
 	    exp.exp_addr_cursor = exp.exp_addr_cursor->e_addr_next ) {
+#ifdef HAVE_LDAP
 	/* see if we can tear down the LDAP connection */
 	if ( exp.exp_addr_cursor->e_addr_try_ldap == 0 ) {
 	    simta_ldap_unbind();
 	}
+#endif /* HAVE_LDAP */
 
 	switch ( address_expand( &exp )) {
 	case ADDRESS_EXCLUDE:
