@@ -647,31 +647,29 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if ( domain != NULL ) {
-	if ( simta_global_relay == 0 ) {
-	    /*
-	     * Here we do an initial lookup in our domain table.  This is
-	     * our best opportunity to decline recipients that are not
-	     * local or unknown, since if we give an error the connecting
-	     * client generates the bounce.
-	     */
-	    if (( rc = check_hostname( domain )) != 0 ) {
-		if ( rc < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed",
-			    domain );
-		    return( RECEIVE_SYSERROR );
-		} else {
+	/*
+	 * Here we do an initial lookup in our domain table.  This is
+	 * our best opportunity to decline recipients that are not
+	 * local or unknown, since if we give an error the connecting
+	 * client generates the bounce.
+	 */
+	if (( rc = check_hostname( domain )) != 0 ) {
+	    if ( rc < 0 ) {
+		syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed",
+			domain );
+		return( RECEIVE_SYSERROR );
+	    } else {
 
-		    syslog( LOG_INFO,
-			    "Receive %s: To <%s> From <%s> Failed: "
-			    "Unknown domain", env->e_id, addr, env->e_mail );
-		    if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
-			    domain ) < 0 ) {
-			syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-			return( RECEIVE_CLOSECONNECTION );
-		    }
-		    return( RECEIVE_OK );
-
+		syslog( LOG_INFO,
+			"Receive %s: To <%s> From <%s> Failed: "
+			"Unknown domain", env->e_id, addr, env->e_mail );
+		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
+			domain ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
 		}
+		return( RECEIVE_OK );
+
 	    }
 	}
 
