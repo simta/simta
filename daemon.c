@@ -148,7 +148,10 @@ main( int ac, char **av )
     struct timeval	tv_launch;
     struct servent	*se;
     int			launch_seconds;
-    int			c, s_smtp, s_smtps, s_submission, err = 0;
+    int			c, s_smtp, s_submission, err = 0;
+#ifdef HAVE_LIBSSL
+    int			s_smtps = 0;
+#endif /* HAVE_LIBSSL */
     int			dontrun = 0;
     int			reuseaddr = 1;
     int			pidfd;
@@ -684,8 +687,11 @@ main( int ac, char **av )
 	}
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 )) {
-	    /* XXX Have to set s-smtps to default for non-ssl */
-	    if ( select( MAX( s_smtps, MAX( s_smtps, s_submission )) + 1,
+#ifdef HAVE_LIBSSL
+	    if ( select( MAX( s_smtps, MAX( s_smtp, s_submission )) + 1,
+#else /* HAVE_LIBSSL */
+	    if ( select( MAX( s_smtp, s_submission ) + 1,
+#endif /* HAVE_LIBSSL */
 		    &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
 		if ( errno != EINTR ) {
 		    syslog( LOG_ERR, "select: %m" );
