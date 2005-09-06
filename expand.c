@@ -730,13 +730,13 @@ supress_addrs( struct exp_link *list, int color )
 		STATUS_EMAIL_SENDER ) == 0 );
 
 	if ( el->el_exp_addr->e_addr_anti_loop == color ) {
-	    return;
+	    continue;
 	}
 	el->el_exp_addr->e_addr_anti_loop = color;
 
 	if (( el->el_exp_addr->e_addr_ldap_flags &
 		STATUS_LDAP_SUPRESSED ) != 0 ) {
-	    return;
+	    continue;
 	}
 
 	el->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPRESSED;
