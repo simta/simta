@@ -18,6 +18,12 @@ Connect.in [IP] (hostname): Accepted
 Connect.in [IP] (hostname): Warning: text
 Connect.in [IP] (hostname): Failed: text
 
+Child PID: start TYPE
+Child PID: exited TYPE: EXITSTATUS
+Child PID: died TYPE: SIGNAL
+Child PID: died TYPE
+Child PID: Syserror: ERROR
+
 Receive MID: From <sender@domain> Accepted
 Receive MID: To <rcpt@domain> From <sender@domain> Accepted
 Receive MID: To <rcpt@domain> From <sender@domain> Failed: error
@@ -61,3 +67,5 @@ Deliver MID: Keeping To <sender@domain> From <rcpt@domain>
 Deliver MID: Removing To <sender@domain> From <rcpt@domain>
 Deliver MID: Rewrote # recipients
 
+Restart: VERSION
+Syserror: SYSERROR

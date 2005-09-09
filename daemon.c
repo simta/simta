@@ -368,7 +368,7 @@ main( int ac, char **av )
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = SIG_IGN;
     if ( sigaction( SIGPIPE, &sa, NULL ) < 0 ) {
-	syslog( LOG_ERR, "sigaction: %m" );
+	syslog( LOG_ERR, "Syserror: sigaction: %m" );
 	exit( 1 );
     }
 
@@ -628,12 +628,12 @@ main( int ac, char **av )
 #endif /*ultrix */
 
     if (( pf = fdopen( pidfd, "w" )) == NULL ) {
-        syslog( LOG_ERR, "can't fdopen pidfd" );
+        syslog( LOG_ERR, "Syserror: can't fdopen pidfd" );
         exit( 1 );
     }
     fprintf( pf, "%d\n", (int)getpid());
     if ( fflush( pf ) != 0 ) {
-	syslog( LOG_ERR, "fflush: %m" );
+	syslog( LOG_ERR, "Syserror: fflush: %m" );
 	exit( 1 );
     }
 
@@ -641,7 +641,7 @@ main( int ac, char **av )
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = hup;
     if ( sigaction( SIGHUP, &sa, &osahup ) < 0 ) {
-	syslog( LOG_ERR, "sigaction: %m" );
+	syslog( LOG_ERR, "Syserror: sigaction: %m" );
 	exit( 1 );
     }
 
@@ -649,7 +649,7 @@ main( int ac, char **av )
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = chld;
     if ( sigaction( SIGCHLD, &sa, &osachld ) < 0 ) {
-	syslog( LOG_ERR, "sigaction: %m" );
+	syslog( LOG_ERR, "Syserror: sigaction: %m" );
 	exit( 1 );
     }
 
@@ -657,11 +657,11 @@ main( int ac, char **av )
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = usr1;
     if ( sigaction( SIGUSR1, &sa, &osausr1 ) < 0 ) {
-	syslog( LOG_ERR, "sigaction: %m" );
+	syslog( LOG_ERR, "Syserror: sigaction: %m" );
 	exit( 1 );
     }
 
-    syslog( LOG_NOTICE, "restart %s", version );
+    syslog( LOG_NOTICE, "Restart: %s", version );
 
     /*
      * Begin accepting connections.
@@ -694,14 +694,14 @@ main( int ac, char **av )
 #endif /* HAVE_LIBSSL */
 		    &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
 		if ( errno != EINTR ) {
-		    syslog( LOG_ERR, "select: %m" );
+		    syslog( LOG_ERR, "Syserror: select: %m" );
 		    abort();
 		}
 	    }
 	}
 
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "gettimeofday: %m" );
+	    syslog( LOG_ERR, "Syserror: gettimeofday: %m" );
 	    abort();
 	}
 
@@ -778,7 +778,7 @@ simta_waitpid( void )
 	}
 
 	if ( *p_search == NULL ) {
-	    syslog( LOG_ERR, "chld %d: unkown child process", pid );
+	    syslog( LOG_ERR, "Child %d: Syserror: unkown child process", pid );
 	    return( 1 );
 	}
 
@@ -812,7 +812,7 @@ simta_waitpid( void )
 	    break;
 
 	default:
-	    syslog( LOG_ERR, "Child %d: done: unknown process type %d",
+	    syslog( LOG_ERR, "Child %d: Syserror: unknown type: %d",
 		    p_remove->p_id, p_remove->p_type );
 	    return( 1 );
 	}
@@ -824,23 +824,23 @@ simta_waitpid( void )
 
 	    switch ( exitstatus ) {
 	    case EXIT_OK:
-		syslog( LOG_NOTICE, "Child %d: %s exited: %d", pid,
+		syslog( LOG_NOTICE, "Child %d: exited %s: %d", pid,
 			p_name, exitstatus );
 		break;
 
 	    default:
-		syslog( LOG_ERR, "Child %d: %s exited: %d", pid,
-			p_name, exitstatus );
+		syslog( LOG_ERR, "Child %d: exited %s: %d", pid, p_name,
+			exitstatus );
 		return( 1 );
 	    }
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Child %d: %s died: signal %d", pid,
-		    p_name, WTERMSIG( status ));
+	    syslog( LOG_ERR, "Child %d: died %s: %d", pid, p_name,
+		    WTERMSIG( status ));
 	    return( 1 );
 
 	} else {
-	    syslog( LOG_ERR, "Child %d: %s died", pid, p_name );
+	    syslog( LOG_ERR, "Child %d: died %s", pid, p_name );
 	    return( 1 );
 	}
     }
@@ -858,7 +858,7 @@ simta_wait_for_child( int child_type )
 
     switch ( pid = fork()) {
     case -1 :
-	syslog( LOG_ERR, "Syserror: q_cleanup fork: %m" );
+	syslog( LOG_ERR, "Syserror: fork: %m" );
 	return( 1 );
 
     case 0 :
@@ -871,7 +871,8 @@ simta_wait_for_child( int child_type )
 
 	default:
 	    syslog( LOG_ERR,
-		    "Syserror: wait_for_child: child_type out of range" );
+		    "Syserror: wait_for_child: child_type out of range: %d",
+		    child_type );
 	    exit( 1 );
 	}
 
@@ -880,46 +881,46 @@ simta_wait_for_child( int child_type )
 	case PROCESS_CLEANUP:
 	    if ( simta_filesystem_cleanup ) {
 		p_name = "filesystem clean";
-		syslog( LOG_NOTICE, "Child %d: %s start", pid, p_name );
+		syslog( LOG_NOTICE, "Child %d: start %s", pid, p_name );
 	    } else {
 		p_name = "filesystem check";
-		syslog( LOG_NOTICE, "Child %d: %s start", pid, p_name );
+		syslog( LOG_NOTICE, "Child %d: start %s", pid, p_name );
 	    }
 	    break;
 
 	case PROCESS_Q_SLOW:
 	    p_name = "single q_runner";
 	    if ( simta_queue_filter ) {
-		syslog( LOG_NOTICE, "Child %d: %s start: %s", pid, p_name,
+		syslog( LOG_NOTICE, "Child %d: start %s: %s", pid, p_name,
 			simta_queue_filter );
 	    } else {
-		syslog( LOG_NOTICE, "Child %d: %s start", pid, p_name );
+		syslog( LOG_NOTICE, "Child %d: start %s", pid, p_name );
 	    }
 	    break;
 
 	default:
-	    syslog( LOG_ERR, "Syserror: Child %d: start: type %d out of range",
+	    syslog( LOG_ERR, "Child %d: Syserror start: type %d out of range",
 		    pid, child_type );
-	    break;
+	    return( 1 );
 	}
 
 	if ( waitpid( pid, &status, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror: q_cleanup waitpid: %m" );
+	    syslog( LOG_ERR, "Child %d: Syserror: q_cleanup waitpid: %m", pid );
 	    return( 1  );
 	}
 
 	if ( WIFEXITED( status )) {
-	    syslog( LOG_NOTICE, "Child %d: %s exited: %d", pid, p_name,
+	    syslog( LOG_NOTICE, "Child %d: exited %s: %d", pid, p_name,
 		    WEXITSTATUS( status ));
 	    return( WEXITSTATUS( status ));
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Child %d: %s died: signal %d", pid, p_name,
+	    syslog( LOG_ERR, "Child %d: died %s: signal %d", pid, p_name,
 		    WTERMSIG( status ));
 	    return( 1 );
 
 	} else {
-	    syslog( LOG_ERR, "Child %d: %s died", pid, p_name );
+	    syslog( LOG_ERR, "Child %d: died %s", pid, p_name );
 	    return( 1 );
 	}
     }
