@@ -75,7 +75,6 @@ int			simta_q_runner_slow = 0;
 int			simta_exp_level_max = 5;
 int			simta_simsend_strict_from = 1;
 int			simta_process_type = 0;
-int			simta_authlevel = 0;
 int			simta_use_alias_db = 0;
 int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
@@ -96,8 +95,11 @@ int			simta_debug = 0;
 int			simta_verbose = 0;
 int			simta_tls = 0;
 int			simta_sasl = 0;
-int			simta_inbound_smtp = 1;
-int             	simta_submission_port = 0;
+int			simta_service_smtp = 1;
+int			simta_service_submission = 0;
+#ifdef HAVE_LIBSSL
+int			simta_service_smtps = 0;
+#endif /* HAVE_LIBSSL */
 long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
 char			*simta_reverse_url = NULL;
@@ -554,7 +556,7 @@ simta_read_config( char *fname )
                     fname, lineno );
                 goto error;
             }
-            simta_submission_port = 1;
+            simta_service_submission = SERVICE_SUBMISSION_ON;
             if ( simta_debug ) printf( "SUBMISSION_PORT\n" );
 
         } else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
@@ -581,13 +583,23 @@ simta_read_config( char *fname )
 
 	    if ( simta_debug ) printf( "DNS_CONFIG_OFF\n" );
 
-	} else if ( strcasecmp( av[ 0 ], "NO_INBOUND_SMTP" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "SERVICE_SMTP_REFUSE" ) == 0 ) {
 	    if ( ac != 1 ) {
 		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 		    fname, lineno );
 		goto error;
 	    }
-	    simta_inbound_smtp = 0;
+	    simta_service_smtp = SERVICE_SMTP_REFUSE;
+
+	    if ( simta_debug ) printf( "SERVICE_SMTP_REFUSE\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "SERVICE_SMTP_OFF" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_service_smtp = SERVICE_SMTP_OFF;
 
 	    if ( simta_debug ) printf( "NO_INBOUND_SMTP\n" );
 

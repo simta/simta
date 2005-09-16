@@ -57,6 +57,14 @@ struct proc_type {
 
 struct proc_type	*proc_stab = NULL;
 
+int		simta_socket_smtp = 0;
+int		simta_socket_submission = 0;
+int		simta_pidfd;
+
+#ifdef HAVE_LIBSSL
+int		simta_socket_smtps = 0;
+#endif /* HAVE_LIBSSL */
+
 int		simsendmail_signal = 0;
 int		child_signal = 0;
 int		backlog = 5;
@@ -69,7 +77,7 @@ void		usr1( int );
 void		hup ( int );
 void		chld( int );
 int		main( int, char *av[] );
-int		simta_daemon_child( int, int );
+int		simta_daemon_child( int );
 int		simta_wait_for_child( int );
 int		simta_waitpid( void );
 
@@ -143,22 +151,14 @@ static sasl_callback_t callbacks[] = {
 main( int ac, char **av )
 {
     struct sockaddr_in	sin;
-    struct timeval	tv_sleep;
-    struct timeval	tv_now;
-    struct timeval	tv_launch;
     struct servent	*se;
     int			launch_seconds;
-    int			c, s_smtp, s_submission, err = 0;
-#ifdef HAVE_LIBSSL
-    int			s_smtps = 0;
-#endif /* HAVE_LIBSSL */
+    int			c, err = 0;
     int			dontrun = 0;
     int			reuseaddr = 1;
-    int			pidfd;
     int			q_run = 0;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
-    fd_set		fdset;
     FILE		*pf;
     int			use_randfile = 0;
     unsigned short	port = 0;
@@ -295,7 +295,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'S' :
-	    simta_submission_port = 1;
+	    simta_service_submission = SERVICE_SUBMISSION_ON;
 	    break;
 
 	case 'V' :		/* virgin */
@@ -303,8 +303,8 @@ main( int ac, char **av )
 	    exit( 0 );
 
         case 'w' :              /* authlevel 0:none, 1:serv, 2:client & serv */
-            simta_authlevel = atoi( optarg );
-            if (( simta_authlevel < 0 ) || ( simta_authlevel > 2 )) {
+            simta_service_smtps = atoi( optarg );
+            if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
                 fprintf( stderr, "%s: %s: invalid authorization level\n",
                         prog, optarg );
                 exit( 1 );
@@ -382,8 +382,8 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    if ( simta_authlevel > 0 ) {
-	if ( tls_server_setup( use_randfile, simta_authlevel, ca, cert,
+    if ( simta_service_smtps ) {
+	if ( tls_server_setup( use_randfile, simta_service_smtps, ca, cert,
 		privatekey ) != 0 ) {
 	    exit( 1 );
 	}
@@ -407,45 +407,46 @@ main( int ac, char **av )
 
     /* if we're not a q_runner or filesystem cleaner, open smtp service */
     if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 )) {
-
-	/*
-	 * Set up SMTP listener.
-	 */
-	if ( port == 0 ) {
-	    if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
-		fprintf( stderr, "%s: can't find smtp service: "
-			"defaulting to port 25\n", prog );
-		port = htons( 25 );
-	    } else {
-		port = se->s_port;
+	if ( simta_service_smtp ) {
+	    /*
+	     * Set up SMTP listener.
+	     */
+	    if ( port == 0 ) {
+		if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
+		    fprintf( stderr, "%s: can't find smtp service: "
+			    "defaulting to port 25\n", prog );
+		    port = htons( 25 );
+		} else {
+		    port = se->s_port;
+		}
 	    }
-	}
-	if (( s_smtp = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
-	    perror( "socket" );
-	    exit( 1 );
-	}
-	if ( reuseaddr ) {
-	    if ( setsockopt( s_smtp, SOL_SOCKET, SO_REUSEADDR,
-		    (void*)&reuseaddr, sizeof( int )) < 0 ) {
-		perror("setsockopt");
+	    if (( simta_socket_smtp = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
+		perror( "socket" );
+		exit( 1 );
 	    }
-	}
-	memset( &sin, 0, sizeof( struct sockaddr_in ));
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = INADDR_ANY;
-	sin.sin_port = port;
-	if ( bind( s_smtp, (struct sockaddr *)&sin,
-		sizeof( struct sockaddr_in )) < 0 ) {
-	    perror( "bind" );
-	    exit( 1 );
-	}
-	if ( listen( s_smtp, backlog ) < 0 ) {
-	    perror( "listen" );
-	    exit( 1 );
+	    if ( reuseaddr ) {
+		if ( setsockopt( simta_socket_smtp, SOL_SOCKET, SO_REUSEADDR,
+			(void*)&reuseaddr, sizeof( int )) < 0 ) {
+		    perror("setsockopt");
+		}
+	    }
+	    memset( &sin, 0, sizeof( struct sockaddr_in ));
+	    sin.sin_family = AF_INET;
+	    sin.sin_addr.s_addr = INADDR_ANY;
+	    sin.sin_port = port;
+	    if ( bind( simta_socket_smtp, (struct sockaddr *)&sin,
+		    sizeof( struct sockaddr_in )) < 0 ) {
+		perror( "bind" );
+		exit( 1 );
+	    }
+	    if ( listen( simta_socket_smtp, backlog ) < 0 ) {
+		perror( "listen" );
+		exit( 1 );
+	    }
 	}
 
 #ifdef HAVE_LIBSSL
-	if ( simta_authlevel > 0 ) {
+	if ( simta_service_smtps ) {
 	    /*
 	     * Set up SMTPS listener.
 	     */
@@ -456,12 +457,13 @@ main( int ac, char **av )
 	    } else {
 		port = se->s_port;
 	    }
-	    if (( s_smtps = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
+	    if (( simta_socket_smtps =
+		    socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
 		perror( "socket" );
 		exit( 1 );
 	    }
 	    if ( reuseaddr ) {
-		if ( setsockopt( s_smtps, SOL_SOCKET, SO_REUSEADDR,
+		if ( setsockopt( simta_socket_smtps, SOL_SOCKET, SO_REUSEADDR,
 			(void*)&reuseaddr, sizeof( int )) < 0 ) {
 		    perror("setsockopt");
 		}
@@ -470,19 +472,19 @@ main( int ac, char **av )
 	    sin.sin_family = AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
 	    sin.sin_port = port;
-	    if ( bind( s_smtps, (struct sockaddr *)&sin,
+	    if ( bind( simta_socket_smtps, (struct sockaddr *)&sin,
 		    sizeof( struct sockaddr_in )) < 0 ) {
 		perror( "bind" );
 		exit( 1 );
 	    }
-	    if ( listen( s_smtps, backlog ) < 0 ) {
+	    if ( listen( simta_socket_smtps, backlog ) < 0 ) {
 		perror( "listen" );
 		exit( 1 );
 	    }
 	}
 #endif /* HAVE_LIBSSL */
 
-	if ( simta_submission_port ) {
+	if ( simta_service_submission ) {
 	    /*
 	     * Set up mail submission listener.
 	     */
@@ -493,13 +495,14 @@ main( int ac, char **av )
 	    } else {
 		port = se->s_port;
 	    }
-	    if (( s_submission = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
+	    if (( simta_socket_submission =
+		    socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
 		perror( "socket" );
 		exit( 1 );
 	    }
 	    if ( reuseaddr ) {
-		if ( setsockopt( s_submission, SOL_SOCKET, SO_REUSEADDR,
-			(void*)&reuseaddr, sizeof( int )) < 0 ) {
+		if ( setsockopt( simta_socket_submission, SOL_SOCKET,
+			SO_REUSEADDR, (void*)&reuseaddr, sizeof( int )) < 0 ) {
 		    perror("setsockopt");
 		}
 	    }
@@ -507,12 +510,12 @@ main( int ac, char **av )
 	    sin.sin_family = AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
 	    sin.sin_port = port;
-	    if ( bind( s_submission, (struct sockaddr *)&sin,
+	    if ( bind( simta_socket_submission, (struct sockaddr *)&sin,
 		    sizeof( struct sockaddr_in )) < 0 ) {
 		perror( "sub bind" );
 		exit( 1 );
 	    }
-	    if ( listen( s_submission, backlog ) < 0 ) {
+	    if ( listen( simta_socket_submission, backlog ) < 0 ) {
 		perror( "listen" );
 		exit( 1 );
 	    }
@@ -522,14 +525,15 @@ main( int ac, char **av )
 
     if ( q_run == 0 ) {
 	/* open and truncate the pid file */
-	if (( pidfd = open( SIMTA_FILE_PID, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
+	if (( simta_pidfd =
+		open( SIMTA_FILE_PID, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
 	    fprintf( stderr, "open %s: ", SIMTA_FILE_PID );
 	    perror( NULL );
 	    exit( 1 );
 	}
 
 	/* lock simta pid fd */
-	if ( lockf( pidfd, F_TLOCK, 0 ) != 0 ) {
+	if ( lockf( simta_pidfd, F_TLOCK, 0 ) != 0 ) {
 	    if ( errno == EAGAIN ) {
 		/* file locked by a diferent process */
 		fprintf( stderr, "lockf %s: daemon already running",
@@ -542,7 +546,7 @@ main( int ac, char **av )
 	    }
 	}
 
-	if ( ftruncate( pidfd, (off_t)0 ) < 0 ) {
+	if ( ftruncate( simta_pidfd, (off_t)0 ) < 0 ) {
 	    perror( "ftruncate" );
 	    exit( 1 );
 	}
@@ -597,13 +601,15 @@ main( int ac, char **av )
 	    }
 	    dt = getdtablesize();
 	    for ( i = 0; i < dt; i++ ) {
-		/* keep socket & pidfd open */
-		if (( i != s_smtp )
+		/* keep socket & simta_pidfd open */
+		if (( i != simta_socket_smtp )
 #ifdef HAVE_LIBSSL
-			&& ( simta_authlevel > 0  && i != s_smtps )
+			&& (( simta_service_smtps ) &&
+				( i != simta_socket_smtps ))
 #endif /* HAVE_LIBSSL */
-			&& ( simta_submission_port && i != s_submission )
-			&& ( i != pidfd )) {
+			&& (( simta_service_submission ) &&
+				( i != simta_socket_submission ))
+			&& ( i != simta_pidfd )) {
 		    (void)close( i );
 		}
 	    }
@@ -627,8 +633,8 @@ main( int ac, char **av )
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
 
-    if (( pf = fdopen( pidfd, "w" )) == NULL ) {
-        syslog( LOG_ERR, "Syserror: can't fdopen pidfd" );
+    if (( pf = fdopen( simta_pidfd, "w" )) == NULL ) {
+        syslog( LOG_ERR, "Syserror: can't fdopen simta_pidfd" );
         exit( 1 );
     }
     fprintf( pf, "%d\n", (int)getpid());
@@ -663,36 +669,31 @@ main( int ac, char **av )
 
     syslog( LOG_NOTICE, "Restart: %s", version );
 
-    /*
-     * Begin accepting connections.
-     */
+    if (( simta_service_smtp )
+#ifdef HAVE_LIBSSL
+	    || ( simta_service_smtps )
+#endif /* HAVE_LIBSSL */
+	    || ( simta_service_submission )) {
+	if ( simta_daemon_child( PROCESS_SMTP_SERVER )) {
+	    return( 1 );
+	}
+    }
 
-    tv_sleep.tv_sec = 0;
-    tv_sleep.tv_usec = 0;
+    exit( simta_q_scheduler());
+}
 
-    tv_launch.tv_sec = 0;
-    tv_launch.tv_usec = 0;
+
+    int
+simta_q_scheduler( void )
+{
+    fd_set			fdset;
+
+    FD_ZERO( &fdset );
 
     /* main daemon loop */
     for (;;) {
-	FD_ZERO( &fdset );
-	FD_SET( s_smtp, &fdset );
-#ifdef HAVE_LIBSSL
-	if ( simta_authlevel > 0 ) {
-	    FD_SET( s_smtps, &fdset );
-	}
-#endif /* HAVE_LIBSSL */
-	if ( simta_submission_port ) {
-	    FD_SET( s_submission, &fdset );
-	}
-
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 )) {
-#ifdef HAVE_LIBSSL
-	    if ( select( MAX( s_smtps, MAX( s_smtp, s_submission )) + 1,
-#else /* HAVE_LIBSSL */
-	    if ( select( MAX( s_smtp, s_submission ) + 1,
-#endif /* HAVE_LIBSSL */
-		    &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
+	    if ( select( 0, &fdset, NULL, NULL, NULL ) < 0 ) {
 		if ( errno != EINTR ) {
 		    syslog( LOG_ERR, "Syserror: select: %m" );
 		    abort();
@@ -700,14 +701,59 @@ main( int ac, char **av )
 	    }
 	}
 
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror: gettimeofday: %m" );
-	    abort();
+	if ( child_signal != 0 ) {
+	    child_signal = 0;
+	    if ( simta_waitpid()) {
+		break;
+	    }
 	}
 
-	/* compute sleep time */
-	if (( tv_sleep.tv_sec = tv_launch.tv_sec - tv_now.tv_sec ) < 0 ) {
-	    tv_sleep.tv_sec = 0;
+	if ( simsendmail_signal != 0 ) {
+	    simsendmail_signal = 0;
+	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
+		if ( simta_daemon_child( PROCESS_Q_LOCAL )) {
+		    break;
+		}
+	    }
+	}
+    }
+
+    return( 1 );
+}
+
+
+    int
+simta_daemon_smtp( void )
+{
+    fd_set			fdset;
+    int				fd_max = 0;
+
+    /* main daemon loop */
+    for (;;) {
+	FD_ZERO( &fdset );
+
+	FD_SET( simta_socket_smtp, &fdset );
+	fd_max = simta_socket_smtp;
+
+	if ( simta_service_submission ) {
+	    FD_SET( simta_socket_submission, &fdset );
+	    fd_max = MAX( fd_max, simta_socket_submission );
+	}
+
+#ifdef HAVE_LIBSSL
+	if ( simta_service_smtps ) {
+	    FD_SET( simta_socket_smtps, &fdset );
+	    fd_max = MAX( fd_max, simta_socket_smtps );
+	}
+#endif /* HAVE_LIBSSL */
+
+	if ( child_signal == 0 ) {
+	    if ( select( fd_max + 1, &fdset, NULL, NULL, NULL ) < 0 ) {
+		if ( errno != EINTR ) {
+		    syslog( LOG_ERR, "Syserror: select: %m" );
+		    abort();
+		}
+	    }
 	}
 
 	/* check to see if any children need to be accounted for */
@@ -715,44 +761,22 @@ main( int ac, char **av )
 	    abort();
 	}
 
-	if ( child_signal > 0 ) {
-	    child_signal = 0;
-	    continue;
-	}
-
-	if (( tv_now.tv_sec > tv_launch.tv_sec ) ||
-		( tv_now.tv_sec == tv_launch.tv_sec )) {
-	    tv_launch.tv_sec = tv_now.tv_sec += launch_seconds;
-	    tv_sleep.tv_sec = launch_seconds;
-
-	    if ( simta_q_runner_slow < simta_q_runner_slow_max ) {
-		simta_daemon_child( PROCESS_Q_SLOW, s_smtp );
-	    }
-
-	    continue;
-	}
-
-	if ( simsendmail_signal != 0 ) {
-	    simsendmail_signal = 0;
-	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
-		simta_daemon_child( PROCESS_Q_LOCAL, s_smtp );
-	    }
-	    continue;
-	}
-
 	/* check to see if we have any incoming connections */
-	if ( FD_ISSET( s_smtp, &fdset )) {
-	    simta_daemon_child( PROCESS_RECEIVE_SMTP, s_smtp );
-	}
-#ifdef HAVE_LIBSSL
-	if ( simta_authlevel > 0 && FD_ISSET( s_smtps, &fdset )) {
-	    simta_daemon_child( PROCESS_RECEIVE_SMTPS, s_smtps );
+	if ( FD_ISSET( simta_socket_smtp, &fdset )) {
+	    simta_daemon_child( PROCESS_RECEIVE_SMTP );
 	}
 
-#endif /* HAVE_LIBSSL */
-	if ( simta_submission_port && FD_ISSET( s_submission, &fdset )) {
-	    simta_daemon_child( PROCESS_RECEIVE_SUBMISSION, s_submission );
+	if (( simta_service_submission ) &&
+		( FD_ISSET( simta_socket_submission, &fdset ))) {
+	    simta_daemon_child( PROCESS_RECEIVE_SUBMISSION );
 	}
+
+#ifdef HAVE_LIBSSL
+	if (( simta_service_smtps ) &&
+		( FD_ISSET( simta_socket_smtps, &fdset ))) {
+	    simta_daemon_child( PROCESS_RECEIVE_SMTPS );
+	}
+#endif /* HAVE_LIBSSL */
     }
 }
 
@@ -760,6 +784,7 @@ main( int ac, char **av )
     int
 simta_waitpid( void )
 {
+    int			errors = 0;
     int			pid;
     char		*p_name;
     int			status;
@@ -811,28 +836,30 @@ simta_waitpid( void )
 	    simta_receive_connections--;
 	    break;
 
+	case PROCESS_SMTP_SERVER:
+	    p_name = "smtp server";
+	    errors++;
+	    break;
+
 	default:
-	    syslog( LOG_ERR, "Child %d: Syserror: unknown type: %d",
+	    p_name = "unknown process";
+	    syslog( LOG_ERR, "Child %d: Syserror: unknown process: %d",
 		    p_remove->p_id, p_remove->p_type );
-	    return( 1 );
+	    errors++;
+	    break;
 	}
 
 	free( p_remove );
 
 	if ( WIFEXITED( status )) {
-	    exitstatus = WEXITSTATUS( status );
-
-	    switch ( exitstatus ) {
-	    case EXIT_OK:
-		syslog( LOG_NOTICE, "Child %d: exited %s: %d", pid,
-			p_name, exitstatus );
-		break;
-
-	    default:
+	    if (( exitstatus = WEXITSTATUS( status )) != EXIT_OK ) {
 		syslog( LOG_ERR, "Child %d: exited %s: %d", pid, p_name,
 			exitstatus );
 		return( 1 );
 	    }
+
+	    syslog( LOG_NOTICE, "Child %d: exited %s: %d", pid,
+		    p_name, exitstatus );
 
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "Child %d: died %s: %d", pid, p_name,
@@ -845,7 +872,7 @@ simta_waitpid( void )
 	}
     }
 
-    return( 0 );
+    return( errors );
 }
 
 
@@ -928,7 +955,28 @@ simta_wait_for_child( int child_type )
 
 
     int
-simta_daemon_child( int process_type, int s )
+simta_sigaction_reset( void )
+{
+    /* reset USR1, CHLD and HUP */
+    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
+	syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction: %m" );
+	return( 1 );
+    }
+    if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
+	syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction: %m" );
+	return( 1 );
+    }
+    if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
+	syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction: %m" );
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
+
+    int
+simta_daemon_child( int process_type )
 {
     struct sockaddr_in	sin;
     struct proc_type	*p;
@@ -936,15 +984,33 @@ simta_daemon_child( int process_type, int s )
     int			fd;
     int			sinlen;
 
+    sinlen = sizeof( struct sockaddr_in );
+
     switch ( process_type ) {
+    case PROCESS_SMTP_SERVER:
     case PROCESS_Q_LOCAL:
     case PROCESS_Q_SLOW:
 	break;
 
     case PROCESS_RECEIVE_SMTP:
+	if (( fd = accept( simta_socket_smtp,
+		(struct sockaddr*)&sin, &sinlen )) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_daemon_child accept: %m" );
+	    return( 1 );
+	}
+	break;
+
     case PROCESS_RECEIVE_SMTPS:
+	if (( fd = accept( simta_socket_smtps,
+		(struct sockaddr*)&sin, &sinlen )) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_daemon_child accept: %m" );
+	    return( 1 );
+	}
+	break;
+
     case PROCESS_RECEIVE_SUBMISSION:
-	if (( fd = accept( s, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
+	if (( fd = accept( simta_socket_submission,
+		(struct sockaddr*)&sin, &sinlen )) < 0 ) {
 	    syslog( LOG_ERR, "Syserror: simta_daemon_child accept: %m" );
 	    return( 1 );
 	}
@@ -958,37 +1024,37 @@ simta_daemon_child( int process_type, int s )
 
     switch ( pid = fork()) {
     case 0 :
-	close( s );
-	/* reset USR1, CHLD and HUP */
-	if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction 1: %m" );
-	    exit( EXIT_OK );
-	}
-	if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction 2: %m" );
-	    exit( EXIT_OK );
-	}
-	if ( sigaction( SIGUSR1, &osausr1, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror: simta_daemon_child sigaction 3: %m" );
-	    exit( EXIT_OK );
-	}
-
 	simta_process_type = process_type;
 
 	switch ( process_type ) {
+	case PROCESS_SMTP_SERVER:
+	    close( simta_pidfd );
+	    exit( simta_daemon_smtp());
+
 	case PROCESS_Q_LOCAL:
+	    close( simta_pidfd );
+	    simta_sigaction_reset();
 	    exit( q_runner_dir( simta_dir_local ));
-	    break;
 
 	case PROCESS_Q_SLOW:
+	    close( simta_pidfd );
+	    simta_sigaction_reset();
 	    exit( q_runner_dir( simta_dir_slow ));
-	    break;
 
 	case PROCESS_RECEIVE_SMTP:
 	case PROCESS_RECEIVE_SMTPS:
 	case PROCESS_RECEIVE_SUBMISSION:
+	    close( simta_socket_smtp );
+	    if ( simta_service_submission ) {
+		close( simta_socket_submission );
+	    }
+#ifdef HAVE_LIBSSL
+	    if ( simta_service_smtps ) {
+		close( simta_socket_smtps );
+	    }
+#endif /* HAVE_LIBSSL */
+	    simta_sigaction_reset();
 	    exit( smtp_receive( fd, &sin ));
-	    break;
 
 	default:
 	    syslog( LOG_ERR, "Syserror: simta_daemon_child process_type 2 "
@@ -1008,6 +1074,7 @@ simta_daemon_child( int process_type, int s )
 	break;
     }
 
+    /* Here we are the server */
     switch ( process_type ) {
     case PROCESS_Q_LOCAL:
 	simta_q_runner_local++;
@@ -1017,6 +1084,19 @@ simta_daemon_child( int process_type, int s )
     case PROCESS_Q_SLOW:
 	simta_q_runner_slow++;
 	syslog( LOG_NOTICE, "Child %d: start: q_runner slow", pid );
+	break;
+
+    case PROCESS_SMTP_SERVER:
+	syslog( LOG_NOTICE, "Child %d: start: smtp server", pid );
+	close( simta_socket_smtp );
+	if ( simta_service_submission ) {
+	    close( simta_socket_submission );
+	}
+#ifdef HAVE_LIBSSL
+	if ( simta_service_smtps ) {
+	    close( simta_socket_smtps );
+	}
+#endif /* HAVE_LIBSSL */
 	break;
 
     case PROCESS_RECEIVE_SMTP:

@@ -1452,7 +1452,7 @@ _start_tls( SNET *snet )
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( simta_authlevel == 2 ) {
+    if ( simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER ) {
 	if (( peer = SSL_get_peer_certificate( snet->sn_ssl )) == NULL ) {
 	    syslog( LOG_ERR,
 		    "starttls SSL_get_peer_certificate: no peer certificate" );
@@ -1842,7 +1842,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 #endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
-    if (( simta_authlevel > 0 ) &&
+    if (( simta_service_smtps > 0 ) &&
 	    ( simta_process_type == PROCESS_RECEIVE_SMTPS )) {
 	if ( _start_tls( snet ) != RECEIVE_OK ) {
 	    goto syserror;
@@ -1871,7 +1871,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
      * system.
      */
 
-    if ( !simta_inbound_smtp ) {
+    if ( simta_service_smtp == SERVICE_SMTP_REFUSE ) {
 	syslog( LOG_NOTICE,
 		"receive connection refused: inbound smtp disabled" );
 	if ( snet_writef( snet, "554 No SMTP service here\r\n" ) < 0 ) {
@@ -2047,7 +2047,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    }
 	}
 
-	if ( !simta_inbound_smtp && ( strcasecmp( av[ 0 ], "QUIT" ) != 0 )) {
+	if (( simta_service_smtp == SERVICE_SMTP_REFUSE ) &&
+		( strcasecmp( av[ 0 ], "QUIT" ) != 0 )) {
 	    if ( snet_writef( snet, "503 bad sequence of commands\r\n" ) < 0 ) {
 		goto closeconnection;
 	    }

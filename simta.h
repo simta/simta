@@ -36,6 +36,20 @@
 #define	PROCESS_RECEIVE_SMTPS		4
 #define	PROCESS_RECEIVE_SUBMISSION	5
 #define	PROCESS_CLEANUP			6
+#define	PROCESS_SMTP_SERVER		7
+
+#define SERVICE_SMTP_OFF		0
+#define SERVICE_SMTP_ON			1
+#define SERVICE_SMTP_REFUSE		2
+
+#define SERVICE_SUBMISSION_OFF		0
+#define SERVICE_SUBMISSION_ON		1
+
+#ifdef HAVE_LIBSSL
+#define SERVICE_SMTPS_OFF		0
+#define SERVICE_SMTPS_SERVER		1
+#define SERVICE_SMTPS_CLIENT_SERVER	2
+#endif /* HAVE_LIBSSL */
 
 /* global variables */
 
@@ -49,7 +63,6 @@ extern unsigned int			simta_bounce_seconds;
 extern int				simta_simsend_strict_from;
 extern int				simta_exp_level_max;
 extern int				simta_process_type;
-extern int				simta_authlevel;
 extern int				simta_use_alias_db;
 extern int				simta_umich_imap_letters;
 extern int				simta_filesystem_cleanup;
@@ -66,7 +79,6 @@ extern int				simta_smtp_outbound_delivered;
 extern int				simta_max_failed_rcpts;
 extern int				simta_dns_config;
 extern int				simta_global_relay;
-extern int  			        simta_submission_port;
 extern int				simta_debug;
 extern int				simta_expand_debug;
 extern int				simta_verbose;
@@ -75,7 +87,11 @@ extern int				simta_tls;
 #ifdef HAVE_LIBSASL
 extern int				simta_sasl;
 #endif /* HAVE_LIBSASL */
-extern int				simta_inbound_smtp;
+#ifdef HAVE_LIBSSL
+extern int				simta_service_smtps;
+#endif /* HAVE_LIBSSL */
+extern int				simta_service_smtp;
+extern int				simta_service_submission;
 extern int				simta_smtp_extension;
 extern long int				simta_max_message_size;
 extern unsigned int			simta_max_message_size_value;
