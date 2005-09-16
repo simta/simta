@@ -80,6 +80,9 @@ int		main( int, char *av[] );
 int		simta_daemon_child( int );
 int		simta_wait_for_child( int );
 int		simta_waitpid( void );
+int		simta_sigaction_reset( void );
+int		simta_q_scheduler( void );
+int		simta_daemon_smtp( void );
 
 SSL_CTX		*ctx = NULL;
 
