@@ -557,7 +557,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	    }
 
 	} else {
-	    env_p = &(env->e_next);
+	    *env_p = env->e_next;
 	    bounce_stdout( env );
 	    env_free( env );
 	}
