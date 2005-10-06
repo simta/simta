@@ -36,14 +36,6 @@ struct deliver {
     int				d_cur_dnsr_result_ip;
 };
 
-struct host_list {
-    struct envelope		*simta_env_queue;
-    struct host_q		*h_master_q;
-    struct host_q		*h_deliver_q;
-    struct host_q		*h_punt_q;
-    struct host_q		*h_null_q;
-};
-
 struct host_q {
     int				hq_entries;
     struct host_q		*hq_deliver;

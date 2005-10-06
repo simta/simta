@@ -55,19 +55,14 @@ int				simta_expand_debug = 0;
     int
 expand_and_deliver( struct envelope *unexpanded_env )
 {
-syslog( LOG_DEBUG, "HERE expand_and_deliver XXXXXX" );
     switch ( expand( unexpanded_env )) {
     case 0:
-syslog( LOG_DEBUG, "HERE case 0 XXXXXX" );
 	if ( q_runner() != 0 ) {
-syslog( LOG_DEBUG, "HERE qrunner error XXXXXX" );
 	    return( EXPAND_SYSERROR );
 	}
-syslog( LOG_DEBUG, "HERE q_runner OK XXXXXX" );
 	return( EXPAND_OK );
 
     default:
-syslog( LOG_DEBUG, "HERE case default XXXXXX" );
 	env_move( unexpanded_env, simta_dir_slow );
 	return( EXPAND_SYSERROR );
     }

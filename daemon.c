@@ -697,8 +697,6 @@ simta_q_scheduler( void )
     struct timeval		tv_sleep;
     struct host_q		*hq;
 
-syslog( LOG_DEBUG, "simta_q_scheduler: starting" );
-
     memset( &tv_disk, 0, sizeof( struct timeval ));
 
     FD_ZERO( &fdset );
@@ -708,7 +706,6 @@ syslog( LOG_DEBUG, "simta_q_scheduler: starting" );
 	if ( simsendmail_signal != 0 ) {
 	    simsendmail_signal = 0;
 	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
-syslog( LOG_DEBUG, "simta_q_scheduler: forking local queue runner" );
 		if ( simta_daemon_child( PROCESS_Q_LOCAL )) {
 		    break;
 		}
@@ -730,15 +727,12 @@ syslog( LOG_DEBUG, "simta_q_scheduler: forking local queue runner" );
 	/* check to see if we need to read the disk */
 	if ( tv_now.tv_sec >= tv_disk.tv_sec ) {
 	    /* read disk */
-syslog( LOG_DEBUG, "simta_q_scheduler: reading disk" );
 	    if ( q_read_dir( simta_dir_slow ) != 0 ) {
 		break;
 	    }
-syslog( LOG_DEBUG, "simta_q_scheduler: DONE reading disk" );
 
 	    if (( simta_single_q = simta_null_q ) != NULL ) {
 		if ( simta_single_q->hq_env_head != NULL ) {
-syslog( LOG_DEBUG, "simta_q_scheduler: forking NULL queue handler" );
 		    if ( simta_daemon_child( PROCESS_Q_SLOW ) != 0 ) {
 			return( 1 );
 		    }

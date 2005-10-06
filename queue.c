@@ -475,7 +475,6 @@ q_runner_dir( char *dir )
     struct envelope		*env;
     DIR				*dirp;
 
-syslog( LOG_DEBUG, "HERE q_runner_dir XXX YYY" );
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
 	return( EXIT_OK );
@@ -657,13 +656,10 @@ q_read_dir( char *dir )
 
     simta_cycle++;
 
-syslog( LOG_DEBUG, "q_read_dir: cycle %d opened %s", simta_cycle, dir );
-
     errno = 0;
 
     /* organize a directory's messages by host and timestamp */
     while (( entry = readdir( dirp )) != NULL ) {
-syslog( LOG_DEBUG, "q_read_dir: readdir: %s", entry->d_name );
 	if (( *entry->d_name != 'E' ) && ( *entry->d_name != 'D' )) {
 	    continue;
 	}
@@ -754,8 +750,6 @@ syslog( LOG_DEBUG, "q_read_dir: readdir: %s", entry->d_name );
 	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
     }
 
-syslog( LOG_DEBUG, "q_read_dir: readdir done" );
-
     /* make sure new list is empty */
     while (( env = new_envs ) != NULL ) {
 	new_envs = new_envs->e_next;
@@ -774,8 +768,6 @@ syslog( LOG_DEBUG, "q_read_dir: readdir done" );
     if ( errs ) {
 	return( errs );
     }
-
-syslog( LOG_DEBUG, "q_read_dir: all new envs integrated" );
 
     /* post disk-read queue management */
     hq = &simta_host_q;
@@ -813,8 +805,6 @@ syslog( LOG_DEBUG, "q_read_dir: all new envs integrated" );
 	}
     }
 
-syslog( LOG_DEBUG, "q_read_dir: all queues checked" );
-
     return( 0 );
 }
 
@@ -830,6 +820,7 @@ q_single( struct host_q *hq )
 	if (( hq->hq_next = simta_null_q ) != NULL ) {
 	    simta_null_q->hq_env_head = NULL;
 	    simta_null_q->hq_next = NULL;
+	    simta_null_q->hq_entries = 0;
 	}
     }
 
