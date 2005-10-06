@@ -53,20 +53,21 @@ int				simta_expand_debug = 0;
      */
 
     int
-expand_and_deliver( struct host_q **hq, struct envelope *unexpanded_env )
+expand_and_deliver( struct envelope *unexpanded_env )
 {
-    switch ( expand( hq, unexpanded_env )) {
+syslog( LOG_DEBUG, "HERE expand_and_deliver XXXXXX" );
+    switch ( expand( unexpanded_env )) {
     case 0:
-	if ( q_runner( hq ) != 0 ) {
+syslog( LOG_DEBUG, "HERE case 0 XXXXXX" );
+	if ( q_runner() != 0 ) {
+syslog( LOG_DEBUG, "HERE qrunner error XXXXXX" );
 	    return( EXPAND_SYSERROR );
 	}
+syslog( LOG_DEBUG, "HERE q_runner OK XXXXXX" );
 	return( EXPAND_OK );
 
     default:
-	assert( 1 );
-
-    case 1:
-    case -1:
+syslog( LOG_DEBUG, "HERE case default XXXXXX" );
 	env_move( unexpanded_env, simta_dir_slow );
 	return( EXPAND_SYSERROR );
     }
@@ -122,7 +123,7 @@ eo_insert( struct expand_output **eo_list, struct envelope *env )
      */
 
     int
-expand( struct host_q **hq, struct envelope *unexpanded_env )
+expand( struct envelope *unexpanded_env )
 {
     struct expand		exp;
     struct envelope		*base_error_env;
@@ -310,7 +311,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 		goto cleanup3;
 	    }
 	    env_out++;
-	    queue_envelope( hq, e_addr->e_addr_env_moderated );
+	    queue_envelope( e_addr->e_addr_env_moderated );
 	    continue;
 
 	} else if ( e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPRESSOR ) {
@@ -470,7 +471,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 	    }
 
 	    env_out++;
-	    queue_envelope( hq, env );
+	    queue_envelope( env );
 
 	} else {
 	    printf( "\n" );
@@ -549,7 +550,7 @@ expand( struct host_q **hq, struct envelope *unexpanded_env )
 		syslog( LOG_INFO, "Expand %s: %s: Expanded %d bounces",
 			unexpanded_env->e_id, env->e_id, n_rcpts );
 
-		queue_envelope( hq, env );
+		queue_envelope( env );
 
 	    } else {
 		*env_p = env->e_next;

@@ -59,13 +59,18 @@
 
 /* global variables */
 
+struct envelope		*simta_env_queue = NULL;
 int			(*simta_local_mailer)(int, char *, struct recipient *);
+struct host_q		*simta_host_q = NULL;
+struct host_q		*simta_deliver_q = NULL;
 struct host_q		*simta_null_q = NULL;
 struct host_q		*simta_punt_q = NULL;
 struct simta_red	*simta_default_host = NULL;
 struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
+int			simta_cycle = 0;
+int			simta_disk_period = 300;
 int			simta_receive_connections_max = SIMTA_MAXCONNECTIONS;
 int			simta_receive_connections = 0;
 int			simta_q_runner_local_max = SIMTA_MAX_RUNNERS_LOCAL;

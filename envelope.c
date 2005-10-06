@@ -287,6 +287,20 @@ env_sender( struct envelope *env, char *e_mail )
 env_reset( struct envelope *env )
 {
     if ( env != NULL ) {
+	if ( env->e_list_prev == NULL ) {
+	    if ( simta_env_queue == env ) {
+		simta_env_queue = env->e_list_next;
+	    }
+	} else {
+	    env->e_list_prev->e_list_next = env->e_list_next;
+	}
+	env->e_list_prev = NULL;
+
+	if ( env->e_list_next != NULL ) {
+	    env->e_list_next->e_list_prev = env->e_list_prev;
+	}
+	env->e_list_next = NULL;
+
 	if ( env->e_mail != NULL ) {
 	    free( env->e_mail );
 	    env->e_mail = NULL;

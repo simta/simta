@@ -46,81 +46,20 @@
 #include "simta.h"
 #include "mx.h"
 
-void	q_deliver( struct host_q **, struct host_q * );
+int	q_runner( void );
+void	q_deliver( struct host_q * );
 void	deliver_local( struct deliver *d );
 void	deliver_remote( struct deliver *d, struct host_q * );
 void	hq_clear_errors( struct host_q * );
 int	next_dnsr_host( struct deliver *, struct host_q * );
-
-
-    void
-q_syslog( struct host_q *hq )
-{
-    struct envelope		*env;
-
-    if ( hq == simta_null_q ) {
-	syslog( LOG_DEBUG, "queue_syslog NULL queue" );
-    } else {
-	syslog( LOG_DEBUG, "queue_syslog %s", hq->hq_hostname );
-    }
-
-    for ( env = hq->hq_env_head; env != NULL; env = env->e_hq_next ) {
-	env_syslog(  env );
-    }
-
-    return;
-}
-
-
-    void
-q_stab_syslog( struct host_q *hq )
-{
-    struct host_q		*h;
-
-    for ( h = hq; h != NULL; h = h->hq_next ) {
-	q_syslog( h );
-    }
-
-    return;
-}
-
-
-    void
-q_stdout( struct host_q *hq )
-{
-    struct envelope		*env;
-
-    if (( hq->hq_hostname == NULL ) || ( *hq->hq_hostname == '\0' )) {
-	printf( "%d\tNULL:\n", hq->hq_entries );
-    } else {
-	printf( "%d\t%s:\n", hq->hq_entries, hq->hq_hostname );
-    }
-
-    for ( env = hq->hq_env_head; env != NULL; env = env->e_hq_next ) {
-	env_syslog( env );
-    }
-
-    return;
-}
-
-
-    void
-q_stab_stdout( struct host_q *hq )
-{
-    for ( ; hq != NULL; hq = hq->hq_next ) {
-	q_stdout( hq );
-    }
-
-    printf( "\n" );
-
-    return;
-}
+void	hq_free( struct host_q * );
+struct envelope* queue_env_lookup( char * );
 
 
     /* look up a given host in the host_q.  if not found, create */
 
     struct host_q *
-host_q_create_or_lookup( struct host_q **host_q_head, char *hostname ) 
+host_q_create_or_lookup( char *hostname ) 
 {
     struct host_q		*hq;
 
@@ -137,9 +76,9 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 
 	/* add this host to the host_q */
 	simta_null_q->hq_hostname = "";
-	simta_null_q->hq_next = *host_q_head;
-	*host_q_head = simta_null_q;
 	simta_null_q->hq_status = HOST_NULL;
+	simta_null_q->hq_next = simta_host_q;
+	simta_host_q = simta_null_q;
 
 	if ( simta_punt_host != NULL ) {
 	    if (( simta_punt_q = (struct host_q*)malloc(
@@ -149,17 +88,17 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 	    }
 	    memset( simta_punt_q, 0, sizeof( struct host_q ));
 
-	    /* don't add this host to the host_q or a conflict could occur */
 	    simta_punt_q->hq_hostname = simta_punt_host;
 	    simta_punt_q->hq_status = HOST_PUNT;
 	}
     }
 
-    if ( hostname == NULL ) {
+    if (( hostname == NULL ) || ( *hostname == '\0' )) {
 	return( simta_null_q );
     }
 
-    for ( hq = *host_q_head; hq != NULL; hq = hq->hq_next ) {
+    /* XXX sort this list */
+    for ( hq = simta_host_q; hq != NULL; hq = hq->hq_next ) {
 	if ( strcasecmp( hq->hq_hostname, hostname ) == 0 ) {
 	    break;
 	}
@@ -179,8 +118,8 @@ host_q_create_or_lookup( struct host_q **host_q_head, char *hostname )
 	}
 
 	/* add this host to the host_q_head */
-	hq->hq_next = *host_q_head;
-	*host_q_head = hq;
+	hq->hq_next = simta_host_q;
+	simta_host_q = hq;
 	/* determine if it's LOCAL or MX later */
 	hq->hq_status = HOST_UNKNOWN;
     }
@@ -200,7 +139,7 @@ hq_clear_errors( struct host_q *hq )
 
 
     int
-queue_envelope( struct host_q **host_q_head, struct envelope *env )
+queue_envelope( struct envelope *env )
 {
     struct envelope		**ep;
     struct host_q		*hq;
@@ -210,30 +149,59 @@ queue_envelope( struct host_q **host_q_head, struct envelope *env )
 	return( 0 );
     }
 
+    /* find the appropriate hq */
     if ( env->e_flags & ENV_FLAG_PUNT ) {
 	hq = simta_punt_q;
 
-    } else {
-	if (( hq = host_q_create_or_lookup( host_q_head, env->e_hostname ))
-		== NULL ) {
+    } else if (( hq = env->e_hq ) == NULL ) {
+	if (( hq = host_q_create_or_lookup( env->e_hostname )) == NULL ) {
 	    return( 1 );
 	}
     }
 
-    /* sort queued envelopes by access time */
-    for ( ep = &(hq->hq_env_head); *ep != NULL; ep = &((*ep)->e_hq_next)) {
-	if ( env->e_last_attempt.tv_sec < (*ep)->e_last_attempt.tv_sec ) {
-	    break;
+    /* not already queued */
+    if ( env->e_hq == NULL ) {
+	/* sort queued envelopes by access time */
+	for ( ep = &(hq->hq_env_head); *ep != NULL; ep = &((*ep)->e_hq_next)) {
+	    if ( env->e_last_attempt.tv_sec < (*ep)->e_last_attempt.tv_sec ) {
+		break;
+	    }
 	}
+
+	env->e_hq_next = *ep;
+	*ep = env;
+	env->e_hq = hq;
+
+	/* XXX sort this list */
+	env->e_list_next = simta_env_queue;
+	env->e_list_prev = NULL;
+	if ( simta_env_queue ) {
+	    simta_env_queue->e_list_prev = env;
+	}
+	env->e_list_next = simta_env_queue;
+	simta_env_queue = env;
     }
-    env->e_hq_next = *ep;
-    *ep = env;
 
-    hq->hq_entries++;
-    env->e_hq = hq;
+    /* touch the env */
+    env->e_cycle = simta_cycle;
 
-    if ( *(env->e_mail) != '\0' ) {
-	hq->hq_from++;
+    /* manage queue's deliver times and cycle */
+    if ( hq->hq_cycle != simta_cycle ) {
+	hq->hq_cycle = simta_cycle;
+	hq->hq_entries = 1;
+	hq->hq_max_etime.tv_sec = env->e_etime.tv_sec;
+	hq->hq_min_dtime.tv_sec = env->e_dtime.tv_sec;
+
+    } else {
+	hq->hq_entries++;
+
+	if ( hq->hq_max_etime.tv_sec < env->e_etime.tv_sec ) {
+	    hq->hq_max_etime.tv_sec = env->e_etime.tv_sec;
+	}
+
+	if ( hq->hq_min_dtime.tv_sec > env->e_dtime.tv_sec ) {
+	    hq->hq_min_dtime.tv_sec = env->e_dtime.tv_sec;
+	}
     }
 
     return( 0 );
@@ -251,14 +219,19 @@ queue_remove_envelope( struct envelope *env )
 	    ;
 
 	*ep = env->e_hq_next;
-	env->e_hq->hq_entries--;
-
-	if ( *(env->e_mail) != '\0' ) {
-	    env->e_hq->hq_from--;
-	}
 
 	env->e_hq = NULL;
 	env->e_hq_next = NULL;
+
+	if ( env->e_list_prev ) {
+	    env->e_list_prev->e_list_next = env->e_list_next;
+	} else {
+	    simta_env_queue = env->e_list_next;
+	}
+
+	if ( env->e_list_next ) {
+	    env->e_list_next->e_list_prev = env->e_list_prev;
+	}
     }
 
     return;
@@ -266,7 +239,7 @@ queue_remove_envelope( struct envelope *env )
 
 
     int
-q_runner( struct host_q **host_q )
+q_runner( void )
 {
     SNET			*snet_dfile;
     struct host_q		*hq;
@@ -284,16 +257,10 @@ q_runner( struct host_q **host_q )
     int				min;
     int				sec;
 
-    if ( simta_queue_filter ) {
-	syslog( LOG_DEBUG, "q_runner starting: %s", simta_queue_filter );
-    } else {
-	syslog( LOG_DEBUG, "q_runner starting" );
-    }
-
     assert( simta_fast_files >= 0 );
 
-    if ( *host_q == NULL ) {
-	syslog( LOG_ERR, "q_runner: NULL host_q" );
+    if (( simta_host_q == NULL ) && ( simta_null_q == NULL )) {
+	syslog( LOG_ERR, "q_runner: no host_q" );
 	return( simta_fast_files );
     }
 
@@ -307,7 +274,7 @@ q_runner( struct host_q **host_q )
 	/* build the deliver_q by number of messages */
 	deliver_q = NULL;
 
-	for ( hq = *host_q; hq != NULL; hq = hq->hq_next ) {
+	for ( hq = simta_host_q; hq != NULL; hq = hq->hq_next ) {
 	    hq->hq_deliver = NULL;
 
 	    if (( hq->hq_entries == 0 ) || ( hq == simta_null_q )) {
@@ -327,14 +294,8 @@ q_runner( struct host_q **host_q )
 		 * the queue.
 		 */
 		for ( dq = &deliver_q; *dq != NULL; dq = &((*dq)->hq_deliver)) {
-		    if ( hq->hq_from > ((*dq)->hq_from)) {
+		    if ( hq->hq_entries >= ((*dq)->hq_entries)) {
 			break;
-		    }
-
-		    if ( hq->hq_from == ((*dq)->hq_from)) {
-			if ( hq->hq_entries >= ((*dq)->hq_entries)) {
-			    break;
-			}
 		    }
 		}
 
@@ -344,25 +305,25 @@ q_runner( struct host_q **host_q )
 
 	    case HOST_DOWN:
 	    case HOST_BOUNCE:
-		q_deliver( host_q, hq );
+		q_deliver( hq );
 		break;
 
 	    default:
-		syslog( LOG_ERR, "q_runner: bad host type" );
+		syslog( LOG_ERR, "q_runner: bad host type %d", hq->hq_status );
 		return( 1 );
 	    }
 	}
 
 	/* deliver all mail in every expanded queue */
 	for ( ; deliver_q != NULL; deliver_q = deliver_q->hq_deliver ) {
-	    q_deliver( host_q, deliver_q );
+	    q_deliver( deliver_q );
 	}
 
 	/* punt any undelivered mail, if possible */
 	if (( simta_punt_q != NULL ) && ( simta_punt_q->hq_entries > 0 )) {
 	    syslog( LOG_DEBUG, "q_runner: punting undelivered mail to %s",
 		    simta_punt_host );
-	    q_deliver( host_q, simta_punt_q );
+	    q_deliver( simta_punt_q );
 	}
 
 	/* EXPAND ONE MESSAGE */
@@ -376,10 +337,6 @@ q_runner( struct host_q **host_q )
 	    simta_null_q->hq_env_head = unexpanded->e_hq_next;
 	    simta_null_q->hq_entries--;
 
-	    if ( *(unexpanded->e_mail) != '\0' ) {
-		simta_null_q->hq_from--;
-	    }
-
 	    if ( unexpanded->e_rcpt == NULL ) {
 		if ( env_move( unexpanded, simta_dir_fast )) {
 		    goto unexpanded_clean_up;
@@ -392,7 +349,7 @@ q_runner( struct host_q **host_q )
 		assert( unexpanded->e_dir == simta_dir_fast );
 	    }
 	    /* expand message */
-	    if ( expand( host_q, unexpanded ) == 0 ) {
+	    if ( expand( unexpanded ) == 0 ) {
 		/* at least one address was expanded.  try to deliver it */
 		env_free( unexpanded );
 		break;
@@ -429,7 +386,7 @@ q_runner( struct host_q **host_q )
 		    }
 
 		    if ( env_unlink( unexpanded ) == 0 ) {
-			queue_envelope( host_q, env_bounce );
+			queue_envelope( env_bounce );
 			syslog( LOG_INFO,
 				"Deliver %s: Message Deleted: Bounced",
 				unexpanded->e_id );
@@ -497,9 +454,6 @@ q_runner_done:
 	while (( env_punt = simta_punt_q->hq_env_head ) != NULL ) {
 	    simta_punt_q->hq_env_head = env_punt->e_hq_next;
 	    simta_punt_q->hq_entries--;
-	    if ( *(env_punt->e_mail) != '\0' ) {
-		simta_punt_q->hq_from--;
-	    }
 	    env_move( env_punt, simta_dir_slow );
 	    env_free( env_punt );
 	}
@@ -517,11 +471,11 @@ q_runner_done:
     int
 q_runner_dir( char *dir )
 {
-    struct host_q		*host_q = NULL;
     struct dirent		*entry;
     struct envelope		*env;
     DIR				*dirp;
 
+syslog( LOG_DEBUG, "HERE q_runner_dir XXX YYY" );
     if (( dirp = opendir( dir )) == NULL ) {
 	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
 	return( EXIT_OK );
@@ -556,7 +510,7 @@ q_runner_dir( char *dir )
 		}
 	    }
 
-	    if ( queue_envelope( &host_q, env ) != 0 ) {
+	    if ( queue_envelope( env ) != 0 ) {
 		env_free( env );
 		continue;
 	    }
@@ -569,12 +523,322 @@ q_runner_dir( char *dir )
 	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
     }
 
-    exit ( q_runner( &host_q ) != 0 );
+    exit ( q_runner() != 0 );
+}
+
+
+    struct envelope *
+queue_env_lookup( char *id )
+{
+    struct envelope		*e;
+
+    for ( e = simta_env_queue; e != NULL; e = e->e_list_next ) {
+	if ( strcasecmp( id, e->e_id ) == 0 ) {
+	    break;
+	}
+    }
+
+    return( e );
 }
 
 
     void
-q_deliver( struct host_q **host_q, struct host_q *deliver_q )
+queue_for_delivery( struct host_q *hq )
+{
+    long			diff;
+    int				max_wait = 60 * 60;
+    int				min_wait = 5 * 60;
+    int				wait;
+    int				half;
+    struct host_q		*insert;
+
+    /* compute launch time */
+    diff = hq->hq_max_etime.tv_sec - hq->hq_min_dtime.tv_sec;
+
+    if ( diff <= min_wait ) {
+	wait = min_wait;
+
+    } else {
+	for ( wait = max_wait;
+		((( half = wait / 2 ) > diff ) && ( half > min_wait ));
+		wait = half )
+	    ;
+    }
+
+    /* first last attempt can be derived from last env touch */
+    if ( hq->hq_launch.tv_sec == 0 ) {
+	hq->hq_launch.tv_sec = hq->hq_max_etime.tv_sec;
+    }
+
+    hq->hq_launch.tv_sec = hq->hq_launch.tv_sec + wait;
+
+    /* add to launch queue sorted on launch time */
+    if (( simta_deliver_q == NULL ) ||
+	    ( simta_deliver_q->hq_launch.tv_sec >= hq->hq_launch.tv_sec )) {
+	if (( hq->hq_deliver_next = simta_deliver_q ) != NULL ) {
+	    simta_deliver_q->hq_deliver_prev = hq;
+	}
+	simta_deliver_q = hq;
+
+    } else {
+	for ( insert = simta_deliver_q;
+		(( insert->hq_deliver_next != NULL ) &&
+		( insert->hq_deliver_next->hq_launch.tv_sec <=
+			hq->hq_launch.tv_sec ));
+		insert = insert->hq_deliver_next )
+	    ;
+
+	if (( hq->hq_deliver_next = insert->hq_deliver_next ) != NULL ) {
+	    hq->hq_deliver_next->hq_deliver_prev = hq;
+	}
+	insert->hq_deliver_next = hq;
+	hq->hq_deliver_prev = insert;
+    }
+
+    return;
+}
+
+
+    void
+hq_deliver_pop( struct host_q *hq_pop )
+{
+    if ( hq_pop ) {
+	if ( hq_pop->hq_deliver_prev == NULL ) {
+	    if ( simta_host_q == hq_pop ) {
+		simta_host_q = hq_pop->hq_next;
+	    }
+	} else {
+	    hq_pop->hq_deliver_prev->hq_deliver_next =
+		    hq_pop->hq_deliver_next;
+	}
+
+	if ( hq_pop->hq_deliver_next != NULL ) {
+	    hq_pop->hq_deliver_next->hq_deliver_prev =
+		    hq_pop->hq_deliver_prev;
+	}
+    }
+
+    return;
+}
+
+
+    void
+hq_free( struct host_q *hq_free )
+{
+    if ( hq_free ) {
+	hq_deliver_pop( hq_free );
+	free( hq_free->hq_hostname );
+	free( hq_free );
+    }
+
+    return;
+}
+
+
+    int
+q_read_dir( char *dir )
+{
+    struct dirent		*entry;
+    struct envelope		*env;
+    struct envelope		*new_envs = NULL;
+    struct envelope		**e;
+    DIR				*dirp;
+    char			path[ MAXPATHLEN + 1 ];
+    struct stat			sb;
+    int				ret;
+    int				errs = 0;
+    struct host_q		**hq;
+    struct host_q		*h_free;
+
+    if (( dirp = opendir( dir )) == NULL ) {
+	syslog( LOG_ERR, "Syserror: q_read_dir opendir %s: %m", dir );
+	return( 1 );
+    }
+
+    simta_cycle++;
+
+syslog( LOG_DEBUG, "q_read_dir: cycle %d opened %s", simta_cycle, dir );
+
+    errno = 0;
+
+    /* organize a directory's messages by host and timestamp */
+    while (( entry = readdir( dirp )) != NULL ) {
+syslog( LOG_DEBUG, "q_read_dir: readdir: %s", entry->d_name );
+	if (( *entry->d_name != 'E' ) && ( *entry->d_name != 'D' )) {
+	    continue;
+	}
+
+	/* check to see if we've already seen this env in a previous read */
+	if (( env = queue_env_lookup( entry->d_name + 1 )) != NULL ) {
+	    if ( *entry->d_name == 'E' ) {
+		/* check to see if this env's timestamps have changed */
+		snprintf( path, MAXPATHLEN, "%s/%s", dir, entry->d_name );
+		if ( stat( path, &sb ) != 0 ) {
+		    syslog( LOG_ERR, "Syserror: q_read_dir stat %s: %m",
+			    path );
+		    return( 1 );
+		}
+
+		/* re-queue env if it's timestamp has changed */
+		if ( env->e_etime.tv_sec != sb.st_mtime ) {
+		    env->e_etime.tv_sec = sb.st_mtime;
+		    queue_remove_envelope( env );
+		}
+
+		if ( queue_envelope( env ) != 0 ) {
+		    return( 1 );
+		}
+	    }
+
+	} else {
+	    /* look for the file in the new_envs list */
+	    for ( e = &new_envs; *e != NULL; e = &((*e)->e_next)) {
+		if (( ret = strcasecmp( entry->d_name + 1, (*e)->e_id ))
+			== 0 ) {
+		    env = *e;
+		    break;
+		} else if ( ret > 0 ) {
+		    break;
+		}
+	    }
+
+	    if ( !env ) {
+		if (( env = env_create( NULL, NULL )) == NULL ) {
+		    continue;
+		}
+
+		if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
+		    env_free( env );
+		    return( 1 );
+		}
+		env->e_dir = dir;
+
+		env->e_next = *e;
+		*e = env;
+	    }
+
+	    if ( *entry->d_name == 'E' ) {
+		assert( !( env->e_flags & ENV_FLAG_EFILE ));
+		env->e_flags |= ENV_FLAG_EFILE;
+
+		if ( env_read_queue_info( env ) != 0 ) {
+		    continue;
+		}
+
+	    } else {
+		assert( !( env->e_flags & ENV_FLAG_DFILE ));
+		env->e_flags |= ENV_FLAG_DFILE;
+
+		snprintf( path, MAXPATHLEN, "%s/%s", dir, entry->d_name );
+		if ( stat( path, &sb ) != 0 ) {
+		    syslog( LOG_ERR, "Syserror: q_read_dir stat %s: %m",
+			    path );
+		    return( 1 );
+		}
+		env->e_dtime.tv_sec = sb.st_mtime;
+	    }
+
+	    if (( env->e_flags & ENV_FLAG_EFILE ) &&
+		    ( env->e_flags & ENV_FLAG_DFILE )) {
+		*e = env->e_next;
+		env->e_next = NULL;
+
+		if ( queue_envelope( env ) != 0 ) {
+		    return( 1 );
+		}
+	    }
+	}
+    }
+
+    if ( errno != 0 ) {
+	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
+    }
+
+syslog( LOG_DEBUG, "q_read_dir: readdir done" );
+
+    /* make sure new list is empty */
+    while (( env = new_envs ) != NULL ) {
+	new_envs = new_envs->e_next;
+	if (( env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
+	    syslog( LOG_ERR, "q_read_dir: %s: Missing Efile", env->e_id );
+	}
+
+	if (( env->e_flags & ENV_FLAG_DFILE ) == 0 ) {
+	    syslog( LOG_ERR, "q_read_dir: %s: Missing Dfile", env->e_id );
+	    errs++;
+	}
+
+	env_free( env );
+    }
+
+    if ( errs ) {
+	return( errs );
+    }
+
+syslog( LOG_DEBUG, "q_read_dir: all new envs integrated" );
+
+    /* post disk-read queue management */
+    hq = &simta_host_q;
+    while ( *hq != NULL ) {
+	e = &(*hq)->hq_env_head;
+	/* make sure that all envs in all host queues are up to date */
+	while ( *e != NULL ) {
+	    if ((*e)->e_cycle != simta_cycle ) {
+		env = *e;
+		*e = (*e)->e_hq_next;
+		env_free( env );
+
+	    } else {
+		e = &((*e)->e_hq_next);
+	    }
+	}
+
+	if ( *hq != simta_null_q ) {
+	    /* remove any empty host queues */
+	    if ( (*hq)->hq_env_head == NULL ) {
+		/* delete this host */
+		h_free = *hq;
+		*hq = (*hq)->hq_next;
+		hq_free( h_free );
+
+	    } else {
+		/* add new host queues to the deliver queue */
+		if ( (*hq)->hq_launch.tv_sec == 0 ) {
+		    queue_for_delivery( *hq );
+		}
+		hq = &((*hq)->hq_next);
+	    }
+	} else {
+	    hq = &((*hq)->hq_next);
+	}
+    }
+
+syslog( LOG_DEBUG, "q_read_dir: all queues checked" );
+
+    return( 0 );
+}
+
+
+    int
+q_single( struct host_q *hq )
+{
+    if ( hq == simta_null_q ) {
+	simta_host_q = NULL;
+
+    } else {
+	simta_host_q = hq;
+	if (( hq->hq_next = simta_null_q ) != NULL ) {
+	    simta_null_q->hq_env_head = NULL;
+	    simta_null_q->hq_next = NULL;
+	}
+    }
+
+    return( q_runner());
+}
+
+
+    void
+q_deliver( struct host_q *deliver_q )
 {
     int                         touch = 0;
     int                         n_processed = 0;
@@ -590,8 +854,8 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     struct envelope		*env_bounce = NULL;
     struct deliver		d;
 
-    syslog( LOG_DEBUG, "q_deliver: delivering %s from %d total %d",
-	    deliver_q->hq_hostname, deliver_q->hq_from, deliver_q->hq_entries );
+    syslog( LOG_DEBUG, "q_deliver: delivering %s total %d",
+	    deliver_q->hq_hostname, deliver_q->hq_entries );
 
     /* determine if the host we are delivering to is a local host or a
      * remote host if we have not done so already.
@@ -619,15 +883,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
     while ( deliver_q->hq_env_head != NULL ) {
 	env_deliver = deliver_q->hq_env_head;
 	deliver_q->hq_env_head = deliver_q->hq_env_head->e_hq_next;
-
-	if ( *(env_deliver->e_mail) != '\0' ) {
-	    deliver_q->hq_from--;
-	}
-
-	assert( deliver_q->hq_from >= 0 );
-
 	deliver_q->hq_entries--;
-
 	assert( deliver_q->hq_entries >= 0 );
 
 	if ( env_deliver->e_rcpt == NULL ) {
@@ -642,22 +898,23 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	    snet_lock = NULL;
 	}
 
-	/* open Dfile to deliver */
-        sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
-
-        if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
-	    syslog( LOG_WARNING, "q_deliver bad Dfile: %s", dfile_fname );
-	    goto message_cleanup;
-        }
-
 	/* don't memset entire structure because we reuse connection data */
 	d.d_env = env_deliver;
-	d.d_dfile_fd = dfile_fd;
+	d.d_dfile_fd = 0;
 	d.d_n_rcpt_accepted = 0;
 	d.d_n_rcpt_failed = 0;
 	d.d_n_rcpt_tempfail = 0;
 	d.d_delivered = 0;
 	d.d_unlinked = 0;
+
+	/* open Dfile to deliver */
+        sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
+        if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+	    syslog( LOG_WARNING, "q_deliver bad Dfile: %s", dfile_fname );
+	    goto message_cleanup;
+        }
+
+	d.d_dfile_fd = dfile_fd;
 
 	switch ( deliver_q->hq_status ) {
         case HOST_LOCAL:
@@ -683,7 +940,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 		/* requeue env_deliver */
 		env_clear_errors( env_deliver );
 		env_deliver->e_flags |= ENV_FLAG_PUNT;
-		queue_envelope( host_q, env_deliver );
+		queue_envelope( env_deliver );
 		return;
 	    }
 	    break;
@@ -839,7 +1096,7 @@ q_deliver( struct host_q **host_q, struct host_q *deliver_q )
 	}
 
 	if ( env_bounce != NULL ) {
-	    queue_envelope( host_q, env_bounce );
+	    queue_envelope( env_bounce );
 	    env_bounce = NULL;
 	}
 
@@ -871,7 +1128,7 @@ message_cleanup:
 		    ( deliver_q->hq_no_punt == 0 )) {
 		env_clear_errors( env_deliver );
 		env_deliver->e_flags |= ENV_FLAG_PUNT;
-		queue_envelope( host_q, env_deliver );
+		queue_envelope( env_deliver );
 	    } else {
 		env_move( env_deliver, simta_dir_slow );
 		env_free( env_deliver );

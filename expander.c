@@ -42,7 +42,6 @@
     int
 main( int argc, char *argv[])
 {
-    struct host_q	*hq = NULL;
     struct envelope	*env;
 
     char   *sender	= "sender@expansion.test";
@@ -75,7 +74,7 @@ main( int argc, char *argv[])
 
 	default:
 	    error++;
-	    nextargc = nextargc++;
+	    nextargc++;
 	    break;
 	}
     }
@@ -113,7 +112,7 @@ main( int argc, char *argv[])
 	    return( 1 );
 	}
 
-	if ( expand( &hq, env ) != 0 ) {
+	if ( expand( env ) != 0 ) {
 	    return( 1 );
 	}
 	env_free( env );

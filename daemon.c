@@ -72,6 +72,7 @@ struct sigaction	sa, osahup, osachld, osausr1;
 
 char		*maildomain = NULL;
 char		*version = VERSION;
+struct host_q	*simta_single_q = NULL;
 
 void		usr1( int );
 void		hup ( int );
@@ -690,16 +691,26 @@ main( int ac, char **av )
 simta_q_scheduler( void )
 {
     fd_set			fdset;
+    struct timeval		tv_now;
+    struct timeval		tv_disk;
+    struct timeval		tv_done;
+    struct timeval		tv_sleep;
+    struct host_q		*hq;
+
+syslog( LOG_DEBUG, "simta_q_scheduler: starting" );
+
+    memset( &tv_disk, 0, sizeof( struct timeval ));
 
     FD_ZERO( &fdset );
 
     /* main daemon loop */
     for (;;) {
-	if (( simsendmail_signal == 0 ) && ( child_signal == 0 )) {
-	    if ( select( 0, &fdset, NULL, NULL, NULL ) < 0 ) {
-		if ( errno != EINTR ) {
-		    syslog( LOG_ERR, "Syserror: select: %m" );
-		    abort();
+	if ( simsendmail_signal != 0 ) {
+	    simsendmail_signal = 0;
+	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
+syslog( LOG_DEBUG, "simta_q_scheduler: forking local queue runner" );
+		if ( simta_daemon_child( PROCESS_Q_LOCAL )) {
+		    break;
 		}
 	    }
 	}
@@ -711,10 +722,85 @@ simta_q_scheduler( void )
 	    }
 	}
 
-	if ( simsendmail_signal != 0 ) {
-	    simsendmail_signal = 0;
-	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
-		if ( simta_daemon_child( PROCESS_Q_LOCAL )) {
+	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+	    break;
+	}
+
+	/* check to see if we need to read the disk */
+	if ( tv_now.tv_sec >= tv_disk.tv_sec ) {
+	    /* read disk */
+syslog( LOG_DEBUG, "simta_q_scheduler: reading disk" );
+	    if ( q_read_dir( simta_dir_slow ) != 0 ) {
+		break;
+	    }
+syslog( LOG_DEBUG, "simta_q_scheduler: DONE reading disk" );
+
+	    if (( simta_single_q = simta_null_q ) != NULL ) {
+		if ( simta_single_q->hq_env_head != NULL ) {
+syslog( LOG_DEBUG, "simta_q_scheduler: forking NULL queue handler" );
+		    if ( simta_daemon_child( PROCESS_Q_SLOW ) != 0 ) {
+			return( 1 );
+		    }
+		} else {
+		    simta_single_q = NULL;
+		}
+	    }
+
+	    if ( gettimeofday( &tv_done, NULL ) != 0 ) {
+		syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+		break;
+	    }
+
+	    syslog( LOG_INFO, "Queue Metrics: disk read seconds: %d",
+		    tv_done.tv_sec - tv_now.tv_sec );
+
+	    tv_now = tv_done;
+
+	    if ( tv_disk.tv_sec == 0 ) {
+		tv_disk.tv_sec = tv_now.tv_sec + simta_disk_period;
+	    } else if
+		    (( tv_disk.tv_sec += simta_disk_period ) < tv_now.tv_sec ) {
+		/* XXX waited too long */
+		tv_disk = tv_now;
+	    }
+	}
+
+	/* check to see if we need to launch queue runners */
+	while (( simta_deliver_q != NULL ) &&
+		( tv_now.tv_sec >= simta_deliver_q->hq_launch.tv_sec )) {
+	    hq = simta_deliver_q;
+	    hq_deliver_pop( hq );
+	    hq->hq_launch.tv_sec = tv_now.tv_sec;
+	    simta_single_q = hq;
+
+	    if ( simta_daemon_child( PROCESS_Q_SLOW ) != 0 ) {
+		return( 1 );
+	    }
+
+	    /* re-queue  */
+	    queue_for_delivery( hq );
+	}
+
+	/* compute sleep time */
+	if (( simta_deliver_q != NULL ) &&
+		( simta_deliver_q->hq_launch.tv_sec < tv_disk.tv_sec )) {
+	    tv_sleep.tv_sec =
+		    simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec;
+	} else {
+	    tv_sleep.tv_sec = tv_disk.tv_sec - tv_now.tv_sec;
+	}
+
+	if ( tv_sleep.tv_sec < 0 ) {
+	    tv_sleep.tv_sec = 0;
+	}
+	tv_sleep.tv_usec = 0;
+
+	if (( simsendmail_signal == 0 ) && ( child_signal == 0 ) &&
+		( tv_sleep.tv_sec > 0 )) {
+	    if ( select( 0, &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
+		if ( errno != EINTR ) {
+		    syslog( LOG_ERR, "Syserror: simta_q_scheduler select: %m" );
 		    break;
 		}
 	    }
@@ -753,7 +839,7 @@ simta_daemon_smtp( void )
 	if ( child_signal == 0 ) {
 	    if ( select( fd_max + 1, &fdset, NULL, NULL, NULL ) < 0 ) {
 		if ( errno != EINTR ) {
-		    syslog( LOG_ERR, "Syserror: select: %m" );
+		    syslog( LOG_ERR, "Syserror: simta_daemon_smtp select: %m" );
 		    abort();
 		}
 	    }
@@ -919,7 +1005,7 @@ simta_wait_for_child( int child_type )
 	    break;
 
 	case PROCESS_Q_SLOW:
-	    p_name = "single q_runner";
+	    p_name = "stand_alone q_runner";
 	    if ( simta_queue_filter ) {
 		syslog( LOG_NOTICE, "Child %d: start %s: %s", pid, p_name,
 			simta_queue_filter );
@@ -990,9 +1076,15 @@ simta_daemon_child( int process_type )
     sinlen = sizeof( struct sockaddr_in );
 
     switch ( process_type ) {
+    case PROCESS_Q_SLOW:
+	if ( simta_single_q == NULL ) {
+	    syslog( LOG_ERR, "Syserror: simta_daemon_child bad queue" );
+	    return( 1 );
+	}
+	break;
+
     case PROCESS_SMTP_SERVER:
     case PROCESS_Q_LOCAL:
-    case PROCESS_Q_SLOW:
 	break;
 
     case PROCESS_RECEIVE_SMTP:
@@ -1042,7 +1134,7 @@ simta_daemon_child( int process_type )
 	case PROCESS_Q_SLOW:
 	    close( simta_pidfd );
 	    simta_sigaction_reset();
-	    exit( q_runner_dir( simta_dir_slow ));
+	    exit( q_single( simta_single_q ));
 
 	case PROCESS_RECEIVE_SMTP:
 	case PROCESS_RECEIVE_SMTPS:
@@ -1086,7 +1178,14 @@ simta_daemon_child( int process_type )
 
     case PROCESS_Q_SLOW:
 	simta_q_runner_slow++;
-	syslog( LOG_NOTICE, "Child %d: start: q_runner slow", pid );
+	if (( simta_single_q->hq_hostname ) &&
+		(*(simta_single_q->hq_hostname ))) {
+	    syslog( LOG_NOTICE, "Child %d: start: q_runner slow %s", pid,
+		    simta_single_q->hq_hostname );
+	} else {
+	    syslog( LOG_NOTICE, "Child %d: start: q_runner slow NULL", pid );
+	}
+	simta_single_q = NULL;
 	break;
 
     case PROCESS_SMTP_SERVER:

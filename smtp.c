@@ -592,8 +592,8 @@ smtp_send( struct host_q *hq, struct deliver *d )
     char		*line;
     struct timeval	tv;
 
-    syslog( LOG_INFO, "Deliver.SMTP %s: Attempting remote delivery: %s",
-	    d->d_env->e_id, hq->hq_smtp_hostname );
+    syslog( LOG_INFO, "Deliver.SMTP %s: Attempting remote delivery: %s (%s)",
+	    d->d_env->e_id, hq->hq_hostname, hq->hq_smtp_hostname );
 
     /* MAIL FROM: */
     if ( snet_writef( d->d_snet_smtp, "MAIL FROM:<%s>\r\n",

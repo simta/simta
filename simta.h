@@ -53,6 +53,13 @@
 
 /* global variables */
 
+extern struct host_q			*simta_deliver_q;
+extern struct host_q			*simta_null_q;
+extern struct host_q			*simta_punt_q;
+extern struct host_q			*simta_host_q;
+extern struct envelope			*simta_env_queue;
+extern int				simta_cycle;
+extern int				simta_disk_period;
 extern int				simta_receive_connections_max;
 extern int				simta_receive_connections;
 extern int				simta_q_runner_local;
@@ -110,8 +117,6 @@ extern char				*simta_rbl_url;
 extern char				*simta_user_rbl_domain;
 extern char				*simta_user_rbl_url;
 extern char				*simta_queue_filter;
-extern struct host_q			*simta_null_q;
-extern struct host_q			*simta_punt_q;
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern int				(*simta_local_mailer)(int, char *,

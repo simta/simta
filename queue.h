@@ -36,29 +36,39 @@ struct deliver {
     int				d_cur_dnsr_result_ip;
 };
 
+struct host_list {
+    struct envelope		*simta_env_queue;
+    struct host_q		*h_master_q;
+    struct host_q		*h_deliver_q;
+    struct host_q		*h_punt_q;
+    struct host_q		*h_null_q;
+};
+
 struct host_q {
-    struct host_q		*hq_next;
+    int				hq_entries;
     struct host_q		*hq_deliver;
+    struct host_q		*hq_next;
+    struct host_q		*hq_deliver_prev;
+    struct host_q		*hq_deliver_next;
     char			*hq_hostname;
     char			*hq_smtp_hostname;
     int				hq_status;
-    int				hq_entries;
-    int				hq_from;
     int				hq_no_punt;
+    int				hq_cycle;
     struct envelope		*hq_env_head;
     struct line_file		*hq_err_text;
-    struct dnsr_result		*hq_dnsr_result;
+    struct timeval		hq_max_etime;
+    struct timeval		hq_min_dtime;
+    struct timeval		hq_launch;
 };
 
-int	q_runner( struct host_q ** );
 int	q_runner_dir( char * );
 
-struct	host_q	*host_q_create_or_lookup( struct host_q **, char * ); 
+struct	host_q	*host_q_create_or_lookup( char * ); 
 void	queue_remove_envelope( struct envelope * );
-int	queue_envelope( struct host_q **, struct envelope *);
+int	queue_envelope( struct envelope *);
+int	q_single( struct host_q * );
+void	hq_deliver_pop( struct host_q * );
 
-/* debugging functions */
-void	q_stab_syslog( struct host_q * );
-void	q_stab_stdout( struct host_q * );
-void	q_syslog( struct host_q * );
-void	q_stdout( struct host_q * );
+int	q_read_dir( char * );
+void	queue_for_delivery( struct host_q * );

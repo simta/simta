@@ -70,7 +70,6 @@ extern SSL_CTX	*ctx;
 #define SIMTA_EXTENSION_SIZE    (1<<0)
 
 extern char		*version;
-struct host_q		*hq_receive = NULL;
 struct sockaddr_in  	*receive_sin;
 int			receive_failed_rcpts = 0;
 int			receive_tls = 0;
@@ -188,7 +187,7 @@ reset( struct envelope *env )
 
     if ( env ) {
 	if ( env->e_flags & ENV_FLAG_ON_DISK ) {
-	    if ( expand_and_deliver( &hq_receive, env ) != EXPAND_OK ) {
+	    if ( expand_and_deliver( env ) != EXPAND_OK ) {
 		r = RECEIVE_SYSERROR;
 	    }
 

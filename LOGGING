@@ -13,6 +13,7 @@ Queue FNAME: Failed: Stranded t_file
 Queue FNAME: Failed: Unknown file
 Queue FNAME: Failed: Collision
 Queue Syserror: system-call: err-text
+Queue Metrics: METRICS
 
 Connect.in [IP] (hostname): Accepted
 Connect.in [IP] (hostname): Warning: text

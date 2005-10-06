@@ -16,10 +16,15 @@ struct recipient {
 
 struct envelope {
     struct envelope	*e_next;
+    struct envelope	*e_list_next;
+    struct envelope	*e_list_prev;
     struct envelope	*e_hq_next;
+    struct envelope	*e_hq_prev;
     struct recipient	*e_rcpt;
+    int			e_queued;
     int			e_n_rcpt;
     int			e_n_exp_level;
+    int			e_cycle;
     struct host_q	*e_hq;
     struct line_file	*e_err_text;
     char		*e_dir;
@@ -28,6 +33,8 @@ struct envelope {
     int			e_age;
     int			e_flags;
     struct timespec	e_last_attempt;
+    struct timeval	e_etime;
+    struct timeval	e_dtime;
     char		*e_hostname;
     char		*e_id;
 };
