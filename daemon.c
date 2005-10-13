@@ -84,6 +84,7 @@ int		simta_waitpid( void );
 int		simta_sigaction_reset( void );
 int		simta_q_scheduler( void );
 int		simta_daemon_smtp( void );
+int		simta_receive_child( int, int );
 
 SSL_CTX		*ctx = NULL;
 
@@ -650,6 +651,7 @@ main( int ac, char **av )
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = hup;
+    sa.sa_flags = SA_RESTART;
     if ( sigaction( SIGHUP, &sa, &osahup ) < 0 ) {
 	syslog( LOG_ERR, "Syserror: sigaction: %m" );
 	exit( 1 );
@@ -658,6 +660,7 @@ main( int ac, char **av )
     /* catch SIGCHLD */
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = chld;
+    sa.sa_flags = SA_RESTART;
     if ( sigaction( SIGCHLD, &sa, &osachld ) < 0 ) {
 	syslog( LOG_ERR, "Syserror: sigaction: %m" );
 	exit( 1 );
@@ -666,6 +669,7 @@ main( int ac, char **av )
     /* catch SIGUSR1 */
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = usr1;
+    sa.sa_flags = SA_RESTART;
     if ( sigaction( SIGUSR1, &sa, &osausr1 ) < 0 ) {
 	syslog( LOG_ERR, "Syserror: sigaction: %m" );
 	exit( 1 );
@@ -690,16 +694,17 @@ main( int ac, char **av )
     int
 simta_q_scheduler( void )
 {
-    fd_set			fdset;
     struct timeval		tv_now;
     struct timeval		tv_disk;
-    struct timeval		tv_done;
     struct timeval		tv_sleep;
     struct host_q		*hq;
+    int				launched;
 
-    memset( &tv_disk, 0, sizeof( struct timeval ));
-
-    FD_ZERO( &fdset );
+    /* read the disk ASAP */
+    if ( gettimeofday( &tv_disk, NULL ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+	return( 1 );
+    }
 
     /* main daemon loop */
     for (;;) {
@@ -713,7 +718,6 @@ simta_q_scheduler( void )
 	}
 
 	if ( child_signal != 0 ) {
-	    child_signal = 0;
 	    if ( simta_waitpid()) {
 		break;
 	    }
@@ -731,53 +735,71 @@ simta_q_scheduler( void )
 		break;
 	    }
 
-	    if (( simta_single_q = simta_null_q ) != NULL ) {
-		if ( simta_single_q->hq_env_head != NULL ) {
-		    if ( simta_daemon_child( PROCESS_Q_SLOW ) != 0 ) {
-			return( 1 );
-		    }
-		} else {
-		    simta_single_q = NULL;
-		}
-	    }
+	    tv_disk.tv_sec += simta_disk_period;
 
-	    if ( gettimeofday( &tv_done, NULL ) != 0 ) {
+	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
 		break;
 	    }
 
-	    syslog( LOG_INFO, "Queue Metrics: disk read seconds: %d",
-		    tv_done.tv_sec - tv_now.tv_sec );
-
-	    tv_now = tv_done;
-
-	    if ( tv_disk.tv_sec == 0 ) {
-		tv_disk.tv_sec = tv_now.tv_sec + simta_disk_period;
-	    } else if
-		    (( tv_disk.tv_sec += simta_disk_period ) < tv_now.tv_sec ) {
-		/* XXX waited too long */
+	    if ( tv_disk.tv_sec < tv_now.tv_sec ) {
+		/* waited too long */
+		syslog( LOG_ERR, "Queue Lag: disk read %d seconds",
+			tv_now.tv_sec - tv_disk.tv_sec );
 		tv_disk = tv_now;
+	    }
+
+	    /* run unexpanded queue if we have entries */
+	    if (( simta_unexpanded_q != NULL ) &&
+		    ( simta_unexpanded_q->hq_env_head != NULL )) {
+		simta_single_q = simta_unexpanded_q;
+		if ( simta_daemon_child( PROCESS_Q_SLOW ) != 0 ) {
+		    return( 1 );
+		}
 	    }
 	}
 
 	/* check to see if we need to launch queue runners */
-	while (( simta_deliver_q != NULL ) &&
-		( tv_now.tv_sec >= simta_deliver_q->hq_launch.tv_sec )) {
+	for ( launched = 0; simta_deliver_q != NULL; launched++ ) {
+	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+		syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+		break;
+	    }
+
+	    /* don't launch queue runners if it's not the right time, or
+	     * if the process limit has been met
+	     */
+	    if (( tv_now.tv_sec < simta_deliver_q->hq_launch.tv_sec ) ||
+		    (( simta_q_runner_slow_max > 0 ) &&
+		    ( simta_q_runner_slow == simta_q_runner_slow_max ))) {
+		break;
+	    }
+
 	    hq = simta_deliver_q;
 	    hq_deliver_pop( hq );
 	    hq->hq_launch.tv_sec = tv_now.tv_sec;
 	    simta_single_q = hq;
+
+	    if (( simta_launch_limit ) && (!(launched % simta_launch_limit ))) {
+		sleep( 1 );
+	    }
 
 	    if ( simta_daemon_child( PROCESS_Q_SLOW ) != 0 ) {
 		return( 1 );
 	    }
 
 	    /* re-queue  */
-	    queue_for_delivery( hq );
+	    hq_deliver_push( hq );
 	}
 
 	/* compute sleep time */
-	if (( simta_deliver_q != NULL ) &&
+	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+	    break;
+	}
+
+	if (( simta_q_runner_slow_max > simta_q_runner_slow ) &&
+		( simta_deliver_q != NULL ) &&
 		( simta_deliver_q->hq_launch.tv_sec < tv_disk.tv_sec )) {
 	    tv_sleep.tv_sec =
 		    simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec;
@@ -785,19 +807,9 @@ simta_q_scheduler( void )
 	    tv_sleep.tv_sec = tv_disk.tv_sec - tv_now.tv_sec;
 	}
 
-	if ( tv_sleep.tv_sec < 0 ) {
-	    tv_sleep.tv_sec = 0;
-	}
-	tv_sleep.tv_usec = 0;
-
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 ) &&
 		( tv_sleep.tv_sec > 0 )) {
-	    if ( select( 0, &fdset, NULL, NULL, &tv_sleep ) < 0 ) {
-		if ( errno != EINTR ) {
-		    syslog( LOG_ERR, "Syserror: simta_q_scheduler select: %m" );
-		    break;
-		}
-	    }
+	    sleep( tv_sleep.tv_sec );
 	}
     }
 
@@ -830,37 +842,48 @@ simta_daemon_smtp( void )
 	}
 #endif /* HAVE_LIBSSL */
 
-	if ( child_signal == 0 ) {
-	    if ( select( fd_max + 1, &fdset, NULL, NULL, NULL ) < 0 ) {
-		if ( errno != EINTR ) {
-		    syslog( LOG_ERR, "Syserror: simta_daemon_smtp select: %m" );
-		    abort();
-		}
+	/* check to see if any children need to be accounted for */
+	if ( child_signal != 0 ) {
+	    if ( simta_waitpid() != 0 ) {
+		break;
 	    }
 	}
 
-	/* check to see if any children need to be accounted for */
-	if ( simta_waitpid() != 0 ) {
-	    abort();
+	if ( select( fd_max + 1, &fdset, NULL, NULL, NULL ) < 0 ) {
+	    if ( errno != EINTR ) {
+		syslog( LOG_ERR, "Syserror: simta_daemon_smtp select: %m" );
+		break;
+	    }
 	}
 
 	/* check to see if we have any incoming connections */
 	if ( FD_ISSET( simta_socket_smtp, &fdset )) {
-	    simta_daemon_child( PROCESS_RECEIVE_SMTP );
+	    if ( simta_receive_child( PROCESS_RECEIVE_SMTP,
+		    simta_socket_smtp ) != 0 ) {
+		break;
+	    }
 	}
 
 	if (( simta_service_submission ) &&
 		( FD_ISSET( simta_socket_submission, &fdset ))) {
-	    simta_daemon_child( PROCESS_RECEIVE_SUBMISSION );
+	    if ( simta_receive_child( PROCESS_RECEIVE_SUBMISSION,
+		    simta_socket_submission ) != 0 ) {
+		break;
+	    }
 	}
 
 #ifdef HAVE_LIBSSL
 	if (( simta_service_smtps ) &&
 		( FD_ISSET( simta_socket_smtps, &fdset ))) {
-	    simta_daemon_child( PROCESS_RECEIVE_SMTPS );
+	    if ( simta_receive_child( PROCESS_RECEIVE_SMTPS,
+		    simta_socket_smtps ) != 0 ) {
+		break;
+	    }
 	}
 #endif /* HAVE_LIBSSL */
     }
+
+    return( 1 );
 }
 
 
@@ -954,6 +977,8 @@ simta_waitpid( void )
 	    return( 1 );
 	}
     }
+
+    child_signal = 0;
 
     return( errors );
 }
@@ -1085,7 +1110,8 @@ simta_daemon_child( int process_type )
 	if (( fd = accept( simta_socket_smtp,
 		(struct sockaddr*)&sin, &sinlen )) < 0 ) {
 	    syslog( LOG_ERR, "Syserror: simta_daemon_child accept: %m" );
-	    return( 1 );
+	    /* accept() errors aren't fatal */
+	    return( 0 );
 	}
 	break;
 
@@ -1093,7 +1119,8 @@ simta_daemon_child( int process_type )
 	if (( fd = accept( simta_socket_smtps,
 		(struct sockaddr*)&sin, &sinlen )) < 0 ) {
 	    syslog( LOG_ERR, "Syserror: simta_daemon_child accept: %m" );
-	    return( 1 );
+	    /* accept() errors aren't fatal */
+	    return( 0 );
 	}
 	break;
 
@@ -1101,7 +1128,8 @@ simta_daemon_child( int process_type )
 	if (( fd = accept( simta_socket_submission,
 		(struct sockaddr*)&sin, &sinlen )) < 0 ) {
 	    syslog( LOG_ERR, "Syserror: simta_daemon_child accept: %m" );
-	    return( 1 );
+	    /* accept() errors aren't fatal */
+	    return( 0 );
 	}
 	break;
 
@@ -1225,6 +1253,91 @@ simta_daemon_child( int process_type )
     if (( p = (struct proc_type*)malloc(
 	    sizeof( struct proc_type ))) == NULL ) {
 	syslog( LOG_ERR, "Syserror: simta_daemon_child malloc: %m" );
+	return( 1 );
+    }
+    memset( p, 0, sizeof( struct proc_type ));
+
+    p->p_id = pid;
+    p->p_type = process_type;
+    p->p_next = proc_stab;
+    proc_stab = p;
+
+    return( 0 );
+}
+
+
+    int
+simta_receive_child( int process_type, int s )
+{
+    struct sockaddr_in	sin;
+    struct proc_type	*p;
+    int			pid;
+    int			fd;
+    int			sinlen;
+    char		*type;
+
+    sinlen = sizeof( struct sockaddr_in );
+
+    if (( fd = accept( s,
+	    (struct sockaddr*)&sin, &sinlen )) < 0 ) {
+	syslog( LOG_ERR, "Syserror: simta_receive_child accept: %m" );
+	/* accept() errors aren't fatal */
+	return( 0 );
+    }
+
+    switch ( pid = fork()) {
+    case 0 :
+	simta_process_type = process_type;
+
+	close( simta_socket_smtp );
+	if ( simta_service_submission ) {
+	    close( simta_socket_submission );
+	}
+#ifdef HAVE_LIBSSL
+	if ( simta_service_smtps ) {
+	    close( simta_socket_smtps );
+	}
+#endif /* HAVE_LIBSSL */
+	simta_sigaction_reset();
+	exit( smtp_receive( fd, &sin ));
+
+    case -1 :
+	syslog( LOG_ERR, "Syserror: simta_receive_child fork: %m" );
+	abort();
+
+    default :
+	/* here we are the server.  this is ok */
+	close( fd );
+	break;
+    }
+
+    /* Here we are the server */
+    switch ( process_type ) {
+    case PROCESS_RECEIVE_SMTP:
+	type = "smtp";
+	break;
+
+    case PROCESS_RECEIVE_SMTPS:
+	type = "smtps";
+	break;
+
+    case PROCESS_RECEIVE_SUBMISSION:
+	type = "submission";
+	break;
+
+    default:
+	syslog( LOG_ERR, "Syserror: simta_receive_child process_type 3 "
+		"out of range: %d", process_type );
+	return( 1 );
+    }
+
+    simta_receive_connections++;
+    syslog( LOG_NOTICE, "Child %d: start: receive %s: %s", pid, type,
+	    inet_ntoa( sin.sin_addr ));
+
+    if (( p = (struct proc_type*)malloc(
+	    sizeof( struct proc_type ))) == NULL ) {
+	syslog( LOG_ERR, "Syserror: simta_receive_child malloc: %m" );
 	return( 1 );
     }
     memset( p, 0, sizeof( struct proc_type ));

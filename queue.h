@@ -63,4 +63,4 @@ int	q_single( struct host_q * );
 void	hq_deliver_pop( struct host_q * );
 
 int	q_read_dir( char * );
-void	queue_for_delivery( struct host_q * );
+void	hq_deliver_push( struct host_q * );

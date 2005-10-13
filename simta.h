@@ -22,6 +22,7 @@
 #define SIMTA_MAX_RUNNERS_LOCAL		25
 #define	SIMTA_EXPANSION_FAILED		0
 #define	SIMTA_EXPANSION_SUCCESS		1
+#define	SIMTA_LAUNCH_LIMIT		10
 
 #define	EXIT_OK				0
 
@@ -54,12 +55,13 @@
 /* global variables */
 
 extern struct host_q			*simta_deliver_q;
-extern struct host_q			*simta_null_q;
+extern struct host_q			*simta_unexpanded_q;
 extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern int				simta_cycle;
 extern int				simta_disk_period;
+extern int				simta_launch_limit;
 extern int				simta_receive_connections_max;
 extern int				simta_receive_connections;
 extern int				simta_q_runner_local;
