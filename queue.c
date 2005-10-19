@@ -46,7 +46,6 @@
 #include "simta.h"
 #include "mx.h"
 
-int	q_runner( void );
 void	q_deliver( struct host_q * );
 void	deliver_local( struct deliver *d );
 void	deliver_remote( struct deliver *d, struct host_q * );
@@ -835,25 +834,6 @@ q_read_dir( char *dir )
 	    new, removed, old + new, remain_hq );
 
     return( 0 );
-}
-
-
-    int
-q_single( struct host_q *hq )
-{
-    if ( hq == simta_unexpanded_q ) {
-	simta_host_q = NULL;
-
-    } else {
-	simta_host_q = hq;
-	if (( hq->hq_next = simta_unexpanded_q ) != NULL ) {
-	    simta_unexpanded_q->hq_env_head = NULL;
-	    simta_unexpanded_q->hq_next = NULL;
-	    simta_unexpanded_q->hq_entries = 0;
-	}
-    }
-
-    return( q_runner());
 }
 
 

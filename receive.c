@@ -545,6 +545,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     return( RECEIVE_OK );
 }
 
+
     static int
 f_rcpt_usage( SNET *snet )
 {
@@ -1905,7 +1906,9 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 			"Connect.in [%s]: Failed: reverse address error: %s",
 			inet_ntoa( sin->sin_addr ),
 			dnsr_err2string( dnsr_errno( simta_dnsr )));
-		snet_writef( snet, "421 Error checking reverse address: %s\r\n",
+		snet_writef( snet,
+			"421 Error checking reverse address: %s %s\r\n",
+			inet_ntoa( sin->sin_addr ),
 			dnsr_err2string( dnsr_errno( simta_dnsr )));
 		goto closeconnection;
 
@@ -1971,8 +1974,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		inet_ntoa( sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
 	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Failed: access denied",
 		    inet_ntoa( sin->sin_addr ), receive_remote_hostname );
-	    snet_writef( snet, "421 Access Denied - "
-		    "remote access restricted\r\n" );
+	    snet_writef( snet, "421 Access Denied %s - "
+		    "remote access restricted\r\n", inet_ntoa( sin->sin_addr ));
 	    goto closeconnection;
 	}
 
