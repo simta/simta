@@ -526,7 +526,6 @@ main( int ac, char **av )
 		exit( 1 );
 	    }
 	}
-
     }
 
     if ( q_run == 0 ) {
@@ -695,6 +694,7 @@ main( int ac, char **av )
     int
 simta_q_scheduler( void )
 {
+    struct proc_type		*p;
     struct timeval		tv_now;
     struct timeval		tv_disk;
     struct timeval		tv_sleep;
@@ -823,7 +823,16 @@ simta_q_scheduler( void )
 	}
     }
 
-    /* XXX KILL CHILDREN */
+    /* Kill SMTP server */
+    for ( p = proc_stab; p != NULL; p = p->p_next ) {
+	if ( p->p_type == PROCESS_SMTP_SERVER ) {
+	    if ( kill( p->p_id, SIGKILL ) != 0 ) {
+		syslog( LOG_ERR, "Syserror: simta_q_scheduler kill %d: %m",
+			p->p_id );
+	    }
+	    break;
+	}
+    }
 
     return( 1 );
 }
