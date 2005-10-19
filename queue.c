@@ -182,11 +182,11 @@ queue_envelope( struct envelope *env )
     }
 
     /* touch the env */
-    env->e_cycle = simta_cycle;
+    env->e_cycle = simta_disk_cycle;
 
     /* manage queue's deliver times and cycle */
-    if ( hq->hq_cycle != simta_cycle ) {
-	hq->hq_cycle = simta_cycle;
+    if ( hq->hq_cycle != simta_disk_cycle ) {
+	hq->hq_cycle = simta_disk_cycle;
 	hq->hq_entries = 1;
 	hq->hq_max_etime.tv_sec = env->e_etime.tv_sec;
 	hq->hq_min_dtime.tv_sec = env->e_dtime.tv_sec;
@@ -485,12 +485,12 @@ q_runner_dir( char *dir )
     while (( entry = readdir( dirp )) != NULL ) {
 	if ( *entry->d_name == 'E' ) {
 	    if (( env = env_create( NULL, NULL )) == NULL ) {
-		continue;
+		return( -1 );
 	    }
 
 	    if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
 		env_free( env );
-		continue;
+		return( -1 );
 	    }
 	    env->e_dir = dir;
 
@@ -510,7 +510,7 @@ q_runner_dir( char *dir )
 
 	    if ( queue_envelope( env ) != 0 ) {
 		env_free( env );
-		continue;
+		return( -1 );
 	    }
 
 	    simta_message_count++;
@@ -519,6 +519,7 @@ q_runner_dir( char *dir )
 
     if ( errno != 0 ) {
 	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
+	return( -1 );
     }
 
     exit ( q_runner() != 0 );
@@ -531,7 +532,7 @@ queue_env_lookup( char *id )
     struct envelope		*e;
 
     for ( e = simta_env_queue; e != NULL; e = e->e_list_next ) {
-	if ( strcasecmp( id, e->e_id ) == 0 ) {
+	if ( strcmp( id, e->e_id ) == 0 ) {
 	    break;
 	}
     }
@@ -644,17 +645,16 @@ q_read_dir( char *dir )
     char			path[ MAXPATHLEN + 1 ];
     struct stat			sb;
     int				ret;
-    int				errs = 0;
     struct host_q		**hq;
     struct host_q		*h_free;
 
     /* metrics */
     struct timeval		tv_start;
     struct timeval		tv_stop;
-    int				remain_hq;
-    int				old;
-    int				new;
-    int				removed;
+    int				remain_hq = 0;
+    int				old = 0;
+    int				new = 0;
+    int				removed = 0;
 
     if ( gettimeofday( &tv_start, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror: q_read_dir gettimeofday: %m" );
@@ -666,7 +666,7 @@ q_read_dir( char *dir )
 	return( -1 );
     }
 
-    simta_cycle++;
+    simta_disk_cycle++;
 
     errno = 0;
 
@@ -684,11 +684,11 @@ q_read_dir( char *dir )
 		if ( stat( path, &sb ) != 0 ) {
 		    syslog( LOG_ERR, "Syserror: q_read_dir stat %s: %m",
 			    path );
-		    return( -1 );
+		    continue;
 		}
 
 		/* re-queue env if it's timestamp has changed */
-		if ( env->e_etime.tv_sec != sb.st_mtime ) {
+		if ( env->e_etime.tv_sec > sb.st_mtime ) {
 		    env->e_etime.tv_sec = sb.st_mtime;
 		    queue_remove_envelope( env );
 		}
@@ -703,7 +703,7 @@ q_read_dir( char *dir )
 	} else {
 	    /* look for the file in the new_envs list */
 	    for ( e = &new_envs; *e != NULL; e = &((*e)->e_next)) {
-		if (( ret = strcasecmp( entry->d_name + 1, (*e)->e_id ))
+		if (( ret = strcmp( entry->d_name + 1, (*e)->e_id ))
 			== 0 ) {
 		    env = *e;
 		    break;
@@ -712,8 +712,8 @@ q_read_dir( char *dir )
 		}
 	    }
 
-	    if ( !env ) {
-		if (( env = env_create( NULL, NULL )) == NULL ) {
+	    if ( !env ) { if (( env = env_create( NULL, NULL )) ==
+		NULL ) {
 		    continue;
 		}
 
@@ -737,15 +737,15 @@ q_read_dir( char *dir )
 
 	    } else {
 		assert( !( env->e_flags & ENV_FLAG_DFILE ));
-		env->e_flags |= ENV_FLAG_DFILE;
 
 		snprintf( path, MAXPATHLEN, "%s/%s", dir, entry->d_name );
 		if ( stat( path, &sb ) != 0 ) {
 		    syslog( LOG_ERR, "Syserror: q_read_dir stat %s: %m",
 			    path );
-		    return( -1 );
+		    continue;
 		}
 		env->e_dtime.tv_sec = sb.st_mtime;
+		env->e_flags |= ENV_FLAG_DFILE;
 	    }
 
 	    if (( env->e_flags & ENV_FLAG_EFILE ) &&
@@ -768,20 +768,7 @@ q_read_dir( char *dir )
     /* make sure new list is empty */
     while (( env = new_envs ) != NULL ) {
 	new_envs = new_envs->e_next;
-	if (( env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
-	    syslog( LOG_ERR, "q_read_dir: %s: Missing Efile", env->e_id );
-	}
-
-	if (( env->e_flags & ENV_FLAG_DFILE ) == 0 ) {
-	    syslog( LOG_ERR, "q_read_dir: %s: Missing Dfile", env->e_id );
-	    errs++;
-	}
-
 	env_free( env );
-    }
-
-    if ( errs ) {
-	return( -1 );
     }
 
     /* post disk-read queue management */
@@ -790,7 +777,7 @@ q_read_dir( char *dir )
 	e = &(*hq)->hq_env_head;
 	/* make sure that all envs in all host queues are up to date */
 	while ( *e != NULL ) {
-	    if ((*e)->e_cycle != simta_cycle ) {
+	    if ((*e)->e_cycle != simta_disk_cycle ) {
 		env = *e;
 		*e = (*e)->e_hq_next;
 		removed++;
@@ -801,7 +788,10 @@ q_read_dir( char *dir )
 	    }
 	}
 
-	if ( *hq != simta_unexpanded_q ) {
+	if ( *hq == simta_unexpanded_q ) {
+	    hq = &((*hq)->hq_next);
+
+	} else {
 	    /* remove any empty host queues */
 	    if ( (*hq)->hq_env_head == NULL ) {
 		/* delete this host */
@@ -817,8 +807,6 @@ q_read_dir( char *dir )
 		}
 		hq = &((*hq)->hq_next);
 	    }
-	} else {
-	    hq = &((*hq)->hq_next);
 	}
     }
 
@@ -827,11 +815,10 @@ q_read_dir( char *dir )
 	return( -1 );
     }
 
-    syslog( LOG_INFO, "Queue Metrics: Disk cycle %d, time %d, old messages %d, "
-	    "new messages %d, removed messages %d, "
-	    "total messages %d for %d hosts",
-	    simta_cycle, tv_stop.tv_sec - tv_start.tv_sec, old,
-	    new, removed, old + new, remain_hq );
+    syslog( LOG_INFO, "Queue Metrics: Disk Read %d: %d messages in %d seconds: "
+	    "%d new messages %d removed messages %d hosts", simta_disk_cycle,
+	    old + new, tv_stop.tv_sec - tv_start.tv_sec, new, removed,
+	    remain_hq );
 
     return( 0 );
 }

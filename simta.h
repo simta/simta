@@ -59,7 +59,7 @@ extern struct host_q			*simta_unexpanded_q;
 extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
-extern int				simta_cycle;
+extern int				simta_disk_cycle;
 extern int				simta_disk_period;
 extern int				simta_launch_limit;
 extern int				simta_receive_connections_max;

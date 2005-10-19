@@ -700,6 +700,7 @@ simta_q_scheduler( void )
     struct timeval		tv_sleep;
     struct host_q		*hq;
     int				launched;
+    int				late;
 
     /* read the disk ASAP */
     if ( gettimeofday( &tv_disk, NULL ) != 0 ) {
@@ -745,7 +746,7 @@ simta_q_scheduler( void )
 
 	    if ( tv_disk.tv_sec < tv_now.tv_sec ) {
 		/* waited too long */
-		syslog( LOG_ERR, "Queue Lag: disk read %d seconds",
+		syslog( LOG_WARNING, "Queue Lag: disk read %d seconds",
 			tv_now.tv_sec - tv_disk.tv_sec );
 		tv_disk = tv_now;
 	    }
@@ -766,25 +767,35 @@ simta_q_scheduler( void )
 		break;
 	    }
 
-	    /* don't launch queue runners if it's not the right time, or
-	     * if the process limit has been met
-	     */
-	    if (( tv_now.tv_sec < simta_deliver_q->hq_launch.tv_sec ) ||
-		    (( simta_q_runner_slow_max > 0 ) &&
-		    ( simta_q_runner_slow == simta_q_runner_slow_max ))) {
+	    /* don't launch queue runners if it's not the right time */
+	    if ( tv_now.tv_sec < simta_deliver_q->hq_launch.tv_sec ) {
 		break;
+	    }
+
+	    /* don't launch queue runners if the process limit has been met */
+	    if (( simta_q_runner_slow_max > 0 ) &&
+		    ( simta_q_runner_slow == simta_q_runner_slow_max )) {
+		syslog( LOG_WARNING, "Queue Lag: Q runner process limit met" );
+		break;
+	    }
+
+	    if (( late = tv_now.tv_sec - hq->hq_launch.tv_sec ) > 0 ) {
+		syslog( LOG_WARNING, "Queue Lag: launching runner %d seconds "
+			"late for queue %s", late, hq->hq_hostname );
 	    }
 
 	    hq = simta_deliver_q;
 	    hq_deliver_pop( hq );
 	    hq->hq_launch.tv_sec = tv_now.tv_sec;
 
-	    if (( simta_launch_limit ) && (!(launched % simta_launch_limit ))) {
-		sleep( 1 );
-	    }
-
 	    if ( simta_child_q_runner( hq ) != 0 ) {
 		return( 1 );
+	    }
+
+	    if (( simta_launch_limit > 0 ) &&
+		    (( launched % simta_launch_limit ) == 0 )) {
+		sleep( 1 );
+		break;
 	    }
 
 	    /* re-queue  */
@@ -812,6 +823,8 @@ simta_q_scheduler( void )
 	}
     }
 
+    /* XXX KILL CHILDREN */
+
     return( 1 );
 }
 
@@ -826,6 +839,8 @@ simta_waitpid( void )
     int			exitstatus;
     struct proc_type	**p_search;
     struct proc_type	*p_remove;
+
+    child_signal = 0;
 
     while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
 	p_search = &proc_stab;
@@ -906,8 +921,6 @@ simta_waitpid( void )
 	    return( 1 );
 	}
     }
-
-    child_signal = 0;
 
     return( errors );
 }
@@ -1174,7 +1187,7 @@ simta_child_receive( int process_type, int s )
 	break;
 
     default:
-	syslog( LOG_ERR, "Syserror: simta_child_receive process_type 3 "
+	syslog( LOG_ERR, "Syserror: simta_child_receive process_type "
 		"out of range: %d", process_type );
 	return( 1 );
     }
