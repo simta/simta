@@ -92,7 +92,9 @@ SSL_CTX		*ctx = NULL;
     void
 usr1( int sig )
 {
+#ifndef Q_SIMULATION
     simsendmail_signal = 1;
+#endif /* Q_SIMULATION */
 
     return;
 }
@@ -110,7 +112,9 @@ hup( int sig )
     void
 chld( int sig )
 {
-    child_signal++;
+#ifndef Q_SIMULATION
+    child_signal = 1;
+#endif /* Q_SIMULATION */
 
     return;
 }
@@ -170,8 +174,12 @@ main( int ac, char **av )
     unsigned short	port = 0;
     extern int		optind;
     extern char		*optarg;
-    struct passwd	*simta_pw;
+#ifdef Q_SIMULATION
+    char		*simta_uname = "simsimta";
+#else /* Q_SIMULATION */
     char		*simta_uname = "simta";
+#endif /* Q_SIMULATION */
+    struct passwd	*simta_pw;
     char		*config_fname = SIMTA_FILE_CONFIG;
     char		*config_base_dir = SIMTA_BASE_DIR;
     char                *ca = "cert/ca.pem";
@@ -388,6 +396,7 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
+#ifndef Q_SIMULATION
     if ( simta_service_smtps ) {
 	if ( tls_server_setup( use_randfile, simta_service_smtps, ca, cert,
 		privatekey ) != 0 ) {
@@ -556,6 +565,7 @@ main( int ac, char **av )
 	    exit( 1 );
 	}
     }
+#endif /* Q_SIMULATION */
 
     /* set our initgroups */
     if ( initgroups( simta_pw->pw_name, 0 ) != 0 ) {
@@ -581,6 +591,7 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
+#ifndef Q_SIMULATION
     if ( q_run ) {
 	exit( simta_wait_for_child( PROCESS_Q_SLOW ));
     } else if ( simta_filesystem_cleanup ) {
@@ -589,6 +600,7 @@ main( int ac, char **av )
 	fprintf( stderr, "simta cleanup error, please check the log\n" );
 	exit( 1 );
     }
+#endif /* Q_SIMULATION */
 
     /* close the log fd gracefully before we daemonize */
     closelog();
@@ -604,6 +616,7 @@ main( int ac, char **av )
 		perror( "setsid" );
 		exit( 1 );
 	    }
+#ifndef Q_SIMULATION
 	    dt = getdtablesize();
 	    for ( i = 0; i < dt; i++ ) {
 		/* keep socket & simta_pidfd open */
@@ -618,6 +631,7 @@ main( int ac, char **av )
 		    (void)close( i );
 		}
 	    }
+#endif /* Q_SIMULATION */
 	    if (( i = open( "/", O_RDONLY, 0 )) == 0 ) {
 		dup2( i, 1 );
 		dup2( i, 2 );
@@ -638,6 +652,8 @@ main( int ac, char **av )
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 #endif /*ultrix */
 
+
+#ifndef Q_SIMULATION
     if (( pf = fdopen( simta_pidfd, "w" )) == NULL ) {
         syslog( LOG_ERR, "Syserror: can't fdopen simta_pidfd" );
         exit( 1 );
@@ -647,6 +663,7 @@ main( int ac, char **av )
 	syslog( LOG_ERR, "Syserror: fflush: %m" );
 	exit( 1 );
     }
+#endif /* Q_SIMULATION */
 
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
@@ -677,6 +694,7 @@ main( int ac, char **av )
 
     syslog( LOG_NOTICE, "Restart: %s", version );
 
+#ifndef Q_SIMULATION
     if (( simta_service_smtp )
 #ifdef HAVE_LIBSSL
 	    || ( simta_service_smtps )
@@ -686,6 +704,7 @@ main( int ac, char **av )
 	    return( 1 );
 	}
     }
+#endif /* Q_SIMULATION */
 
     exit( simta_q_scheduler());
 }
@@ -1217,6 +1236,15 @@ simta_child_receive( int process_type, int s )
 simta_child_q_runner( struct host_q *hq )
 {
     int			pid;
+
+#ifdef Q_SIMULATION
+    if (( hq->hq_hostname != NULL ) && ( *(hq->hq_hostname) != '\0' )) {
+	syslog( LOG_NOTICE, "Simulation: q_runner slow %s", hq->hq_hostname );
+    } else {
+	syslog( LOG_NOTICE, "Simulation: q_runner slow NULL" );
+    }
+    return( 0 );
+#endif /* Q_SIMULATION */
 
     switch ( pid = fork()) {
     case 0 :
