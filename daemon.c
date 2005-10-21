@@ -371,7 +371,11 @@ main( int ac, char **av )
 #ifdef ultrix
     openlog( prog, LOG_NOWAIT|LOG_PID );
 #else /* ultrix */
+#ifndef Q_SIMULATION
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+#else /* Q_SIMULATION */
+    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_USER );
+#endif /* Q_SIMULATION */
 #endif /*ultrix */
 
     if ( simta_read_config( config_fname ) < 0 ) {
@@ -649,7 +653,11 @@ main( int ac, char **av )
 #ifdef ultrix
     openlog( prog, LOG_NOWAIT|LOG_PID );
 #else /* ultrix */
+#ifndef Q_SIMULATION
     openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+#else /* Q_SIMULATION */
+    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_USER );
+#endif /* Q_SIMULATION */
 #endif /*ultrix */
 
 

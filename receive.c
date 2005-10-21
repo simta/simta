@@ -1057,7 +1057,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_DEBUG, "calling mail filter %s", simta_mail_filter );
+	syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
 	message_result = mail_filter( dfile_fd, &smtp_message );
 
 	if ( close( dfile_fd ) != 0 ) {
@@ -1113,7 +1113,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		receive_remote_hostname,
 		smtp_message ? smtp_message : "no message" );
 
-	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
+	if ( snet_writef( snet, "250 content filter %s: %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "accepted and deleted" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -1132,7 +1132,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		receive_remote_hostname, env->e_id,
 		smtp_message ? smtp_message : "no message" );
 
-	if ( snet_writef( snet, "554 (%s): %s\r\n", env->e_id,
+	if ( snet_writef( snet, "554 content filter %s: %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "rejected" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -1151,7 +1151,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		receive_remote_hostname,
 		smtp_message ? smtp_message : "no message" );
 
-	if ( snet_writef( snet, "452 (%s): %s\r\n", env->e_id,
+	if ( snet_writef( snet, "452 content filter %s: %s\r\n", env->e_id,
 		smtp_message ? smtp_message :
 		"Temporary system failure" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
