@@ -196,6 +196,7 @@ rcpt_free( struct recipient *r )
 	    r->r_err_text = NULL;
 	}
 
+	memset( r, 0, sizeof( struct recipient ));
 	free( r );
     }
 }
@@ -294,12 +295,13 @@ env_reset( struct envelope *env )
 	} else {
 	    env->e_list_prev->e_list_next = env->e_list_next;
 	}
-	env->e_list_prev = NULL;
 
 	if ( env->e_list_next != NULL ) {
 	    env->e_list_next->e_list_prev = env->e_list_prev;
 	}
+
 	env->e_list_next = NULL;
+	env->e_list_prev = NULL;
 
 	if ( env->e_mail != NULL ) {
 	    free( env->e_mail );
@@ -334,6 +336,7 @@ env_free( struct envelope *env )
 {
     if ( env != NULL ) {
 	env_reset( env );
+	memset( env, 0, sizeof( struct envelope ));
 	free( env );
     }
 }

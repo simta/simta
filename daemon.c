@@ -174,11 +174,7 @@ main( int ac, char **av )
     unsigned short	port = 0;
     extern int		optind;
     extern char		*optarg;
-#ifdef Q_SIMULATION
-    char		*simta_uname = "simsimta";
-#else /* Q_SIMULATION */
     char		*simta_uname = "simta";
-#endif /* Q_SIMULATION */
     struct passwd	*simta_pw;
     char		*config_fname = SIMTA_FILE_CONFIG;
     char		*config_base_dir = SIMTA_BASE_DIR;
