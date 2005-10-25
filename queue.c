@@ -545,7 +545,7 @@ queue_env_lookup( char *id )
 hq_deliver_push( struct host_q *hq )
 {
     long			diff;
-    int				max_wait = 60 * 60;
+    int				max_wait = 80 * 60;
     int				min_wait = 5 * 60;
     int				wait;
     int				half;

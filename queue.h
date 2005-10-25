@@ -48,6 +48,7 @@ struct host_q {
     int				hq_no_punt;
     int				hq_cycle;
     int				hq_launches;
+    int				hq_delay;
     struct envelope		*hq_env_head;
     struct line_file		*hq_err_text;
     struct timeval		hq_max_etime;
