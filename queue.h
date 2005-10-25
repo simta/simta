@@ -47,11 +47,16 @@ struct host_q {
     int				hq_status;
     int				hq_no_punt;
     int				hq_cycle;
+    int				hq_launches;
     struct envelope		*hq_env_head;
     struct line_file		*hq_err_text;
     struct timeval		hq_max_etime;
     struct timeval		hq_min_dtime;
     struct timeval		hq_launch;
+    struct timeval		hq_launch_last;
+    struct timeval		hq_wait_last;
+    struct timeval		hq_wait_longest;
+    struct timeval		hq_wait_shortest;
 };
 
 int	q_runner_dir( char * );

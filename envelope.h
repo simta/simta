@@ -32,7 +32,6 @@ struct envelope {
     ino_t		e_dinode;
     int			e_age;
     int			e_flags;
-    struct timespec	e_last_attempt;
     struct timeval	e_etime;
     struct timeval	e_dtime;
     char		*e_hostname;

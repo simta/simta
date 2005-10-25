@@ -15,6 +15,7 @@
 #include <sys/param.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <assert.h>
 #include <grp.h>
 #include <syslog.h>
 #include <string.h>
@@ -174,7 +175,11 @@ main( int ac, char **av )
     unsigned short	port = 0;
     extern int		optind;
     extern char		*optarg;
+#ifdef Q_SIMULATION
     char		*simta_uname = "simta";
+#else /* Q_SIMULATION */
+    char		*simta_uname = "simta";
+#endif /* Q_SIMULATION */
     struct passwd	*simta_pw;
     char		*config_fname = SIMTA_FILE_CONFIG;
     char		*config_base_dir = SIMTA_BASE_DIR;
@@ -193,7 +198,7 @@ main( int ac, char **av )
 
     launch_seconds = 60 * 10;
 
-    while (( c = getopt( ac, av, " ab:cCdD:f:i:Im:M:p:qQ:rRs:SVw:x:y:z:" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:qQ:rRs:SVw:x:y:z:" ))
 	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
@@ -238,6 +243,10 @@ main( int ac, char **av )
 
 	case 'I' :
 	    simta_ignore_reverse = 1;
+	    break;
+
+	case 'l' :		/*X listen backlog */
+	    simta_launch_limit = atoi( optarg );
 	    break;
 
 	case 'M' :
@@ -344,6 +353,7 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -D base-dir ]" );
 	fprintf( stderr, " [ -f config-file ]" );
 	fprintf( stderr, " [ -i reference-URL ]" );
+	fprintf( stderr, " [ -l process_launch_limit ]" );
 	fprintf( stderr, " [ -M maildomain ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
 	fprintf( stderr, " [ -Q queue]" );
@@ -723,7 +733,8 @@ simta_q_scheduler( void )
     struct timeval		tv_sleep;
     struct host_q		*hq;
     int				launched;
-    int				late;
+    int				lag;
+    ulong			waited;
 
     /* read the disk ASAP */
     if ( gettimeofday( &tv_disk, NULL ) != 0 ) {
@@ -784,7 +795,7 @@ simta_q_scheduler( void )
 	}
 
 	/* check to see if we need to launch queue runners */
-	for ( launched = 0; simta_deliver_q != NULL; launched++ ) {
+	for ( launched = 1; simta_deliver_q != NULL; launched++ ) {
 	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
 		break;
@@ -802,27 +813,52 @@ simta_q_scheduler( void )
 		break;
 	    }
 
-	    if (( late = tv_now.tv_sec - hq->hq_launch.tv_sec ) > 0 ) {
-		syslog( LOG_WARNING, "Queue Lag: launching runner %d seconds "
-			"late for queue %s", late, hq->hq_hostname );
-	    }
-
 	    hq = simta_deliver_q;
 	    hq_deliver_pop( hq );
-	    hq->hq_launch.tv_sec = tv_now.tv_sec;
+	    hq->hq_launches++;
+	    lag = tv_now.tv_sec - hq->hq_launch.tv_sec;
+
+	    if ( hq->hq_launch_last.tv_sec != 0 ) {
+		waited = tv_now.tv_sec - hq->hq_launch_last.tv_sec;
+	    } else {
+		waited = 0;
+	    }
+
+	    hq->hq_launch_last.tv_sec = tv_now.tv_sec;
+
+	    if (( hq->hq_wait_longest.tv_sec == 0 ) ||
+		    ( hq->hq_wait_longest.tv_sec < waited )) {
+		hq->hq_wait_longest.tv_sec = waited;
+	    }
+
+	    if (( hq->hq_wait_shortest.tv_sec == 0 ) ||
+		    ( hq->hq_wait_shortest.tv_sec > waited )) {
+		hq->hq_wait_shortest.tv_sec = waited;
+	    }
+
+	    syslog( LOG_INFO, "Queue %s: launch %d: "
+		    "wait %d lag %d last %d shortest %d longest %d",
+		    hq->hq_hostname, hq->hq_launches, waited, lag,
+		    hq->hq_wait_last.tv_sec, hq->hq_wait_shortest.tv_sec,
+		    hq->hq_wait_longest.tv_sec );
 
 	    if ( simta_child_q_runner( hq ) != 0 ) {
 		return( 1 );
 	    }
 
-	    if (( simta_launch_limit > 0 ) &&
-		    (( launched % simta_launch_limit ) == 0 )) {
-		sleep( 1 );
-		break;
-	    }
+	    hq->hq_wait_last.tv_sec = waited;
+	    hq->hq_launch_last.tv_sec = tv_now.tv_sec;
+	    hq->hq_launch.tv_sec = tv_now.tv_sec;
 
 	    /* re-queue  */
 	    hq_deliver_push( hq );
+
+	    if (( simta_launch_limit > 0 ) &&
+		    (( launched % simta_launch_limit ) == 0 )) {
+		syslog( LOG_INFO, "Queue Delay: Sleeping for 1 second" );
+		sleep( 1 );
+		break;
+	    }
 	}
 
 	/* compute sleep time */
@@ -838,6 +874,16 @@ simta_q_scheduler( void )
 		    simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec;
 	} else {
 	    tv_sleep.tv_sec = tv_disk.tv_sec - tv_now.tv_sec;
+	}
+
+
+	if ( simta_deliver_q == NULL ) {
+	    syslog( LOG_DEBUG, "Queue Metric: simta_deliver_q NULL" );
+	} else {
+	    syslog( LOG_DEBUG,
+		    "Queue Metric: Next runner host %s in %d seconds",
+		    simta_deliver_q->hq_hostname,
+		    (simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec ));
 	}
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 ) &&
@@ -1242,11 +1288,14 @@ simta_child_q_runner( struct host_q *hq )
     int			pid;
 
 #ifdef Q_SIMULATION
+    assert( hq != NULL );
+    /*
     if (( hq->hq_hostname != NULL ) && ( *(hq->hq_hostname) != '\0' )) {
 	syslog( LOG_NOTICE, "Simulation: q_runner slow %s", hq->hq_hostname );
     } else {
 	syslog( LOG_NOTICE, "Simulation: q_runner slow NULL" );
     }
+    */
     return( 0 );
 #endif /* Q_SIMULATION */
 

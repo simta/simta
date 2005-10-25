@@ -529,7 +529,7 @@ env_outfile( struct envelope *e )
 	goto cleanup;
     }
 
-    e->e_last_attempt.tv_sec = sb.st_mtime;
+    e->e_etime.tv_sec = sb.st_mtime;
 
     /* sync? */
     if ( fclose( tff ) != 0 ) {
@@ -585,7 +585,7 @@ env_touch( struct envelope *env )
 	return( -1 );
     }
 
-    env->e_last_attempt.tv_sec = sb.st_mtime;
+    env->e_etime.tv_sec = sb.st_mtime;
 
     return( 0 );
 }
@@ -621,7 +621,7 @@ env_read_queue_info( struct envelope *e )
 	goto cleanup;
     }
 
-    e->e_last_attempt.tv_sec = sb.st_mtime;
+    e->e_etime.tv_sec = sb.st_mtime;
 
     /* Vsimta-version */
     if (( line = snet_getline( snet, NULL )) == NULL ) {

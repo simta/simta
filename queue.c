@@ -162,7 +162,7 @@ queue_envelope( struct envelope *env )
     if ( env->e_hq == NULL ) {
 	/* sort queued envelopes by access time */
 	for ( ep = &(hq->hq_env_head); *ep != NULL; ep = &((*ep)->e_hq_next)) {
-	    if ( env->e_last_attempt.tv_sec < (*ep)->e_last_attempt.tv_sec ) {
+	    if ( env->e_etime.tv_sec < (*ep)->e_etime.tv_sec ) {
 		break;
 	    }
 	}
@@ -542,7 +542,7 @@ queue_env_lookup( char *id )
 
 
     void
-hq_deliver_pop( struct host_q *hq )
+hq_deliver_push( struct host_q *hq )
 {
     long			diff;
     int				max_wait = 60 * 60;
@@ -599,13 +599,14 @@ hq_deliver_pop( struct host_q *hq )
 
 
     void
-hq_deliver_push( struct host_q *hq_pop )
+hq_deliver_pop( struct host_q *hq_pop )
 {
     if ( hq_pop ) {
 	if ( hq_pop->hq_deliver_prev == NULL ) {
-	    if ( simta_host_q == hq_pop ) {
-		simta_host_q = hq_pop->hq_next;
+	    if ( simta_deliver_q == hq_pop ) {
+		simta_deliver_q = hq_pop->hq_deliver_next;
 	    }
+
 	} else {
 	    hq_pop->hq_deliver_prev->hq_deliver_next =
 		    hq_pop->hq_deliver_next;
@@ -615,6 +616,9 @@ hq_deliver_push( struct host_q *hq_pop )
 	    hq_pop->hq_deliver_next->hq_deliver_prev =
 		    hq_pop->hq_deliver_prev;
 	}
+
+	hq_pop->hq_deliver_next = NULL;
+	hq_pop->hq_deliver_prev = NULL;
     }
 
     return;
@@ -797,14 +801,18 @@ q_read_dir( char *dir )
 		/* delete this host */
 		h_free = *hq;
 		*hq = (*hq)->hq_next;
+		syslog( LOG_INFO, "Queue Removing: %s", h_free->hq_hostname );
 		hq_free( h_free );
 
 	    } else {
 		/* add new host queues to the deliver queue */
-		remain_hq++;
 		if ( (*hq)->hq_launch.tv_sec == 0 ) {
+		    syslog( LOG_INFO, "Queue Adding: %s %d messages",
+			    (*hq)->hq_hostname, (*hq)->hq_entries );
 		    hq_deliver_push( *hq );
 		}
+
+		remain_hq++;
 		hq = &((*hq)->hq_next);
 	    }
 	}
