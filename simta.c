@@ -589,6 +589,16 @@ simta_read_config( char *fname )
 
 	    if ( simta_debug ) printf( "DNS_CONFIG_OFF\n" );
 
+	} else if ( strcasecmp( av[ 0 ], "STRICT_SMTP_SYNTAX_OFF" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_strict_smtp_syntax = 0;
+
+	    if ( simta_debug ) printf( "STRICT_SMTP_SYNTAX_OFF\n" );
+
 	} else if ( strcasecmp( av[ 0 ], "SERVICE_SMTP_REFUSE" ) == 0 ) {
 	    if ( ac != 1 ) {
 		fprintf( stderr, "%s: line %d: expected 0 argument\n",
