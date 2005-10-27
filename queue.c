@@ -551,8 +551,12 @@ hq_deliver_push( struct host_q *hq )
     int				half;
     struct host_q		*insert;
 
-    /* compute launch time */
-    diff = hq->hq_max_etime.tv_sec - hq->hq_min_dtime.tv_sec;
+    /* first launch can be derived from last env touch */
+    if ( hq->hq_launch.tv_sec == 0 ) {
+	hq->hq_launch.tv_sec = hq->hq_max_etime.tv_sec;
+    }
+
+    diff = hq->hq_launch.tv_sec - hq->hq_min_dtime.tv_sec;
 
     if ( diff <= min_wait ) {
 	wait = min_wait;
@@ -562,11 +566,6 @@ hq_deliver_push( struct host_q *hq )
 		((( half = wait / 2 ) > diff ) && ( half > min_wait ));
 		wait = half )
 	    ;
-    }
-
-    /* first last attempt can be derived from last env touch */
-    if ( hq->hq_launch.tv_sec == 0 ) {
-	hq->hq_launch.tv_sec = hq->hq_max_etime.tv_sec;
     }
 
     hq->hq_launch.tv_sec = hq->hq_launch.tv_sec + wait;
