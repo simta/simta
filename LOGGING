@@ -28,7 +28,7 @@ Child PID: Syserror: ERROR
 Receive MID: From <sender@domain> Accepted
 Receive MID: To <rcpt@domain> From <sender@domain> Accepted
 Receive MID: To <rcpt@domain> From <sender@domain> Failed: error
-Receive MID: Message Accepted: [IP] hostname
+Receive MID: Message Accepted: [IP] hostname SIZE
 Receive MID: Message Tempfailed: [IP] hostname: text
 Receive MID: Message Failed: [IP] hostname: text
 Receive MID: Message Deleted after acceptance: [IP] hostname: text
