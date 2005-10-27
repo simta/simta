@@ -346,11 +346,11 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     }
 
     if ( hq == NULL ) {
-	fprintf( dfile, "An error occured during "
+	fprintf( dfile, "An error occurred during "
 		"the expansion of the message recipients.\n\n" );
 
     } else if ( hq->hq_err_text != NULL ) {
-	fprintf( dfile, "The following error occured during delivery to "
+	fprintf( dfile, "The following error occurred during delivery to "
 		"host %s:\n", hq->hq_hostname );
 	for ( l = hq->hq_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
@@ -358,12 +358,12 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 	fprintf( dfile, "\n" );
 
     } else {
-	fprintf( dfile, "An error occured during delivery to host %s.\n\n",
+	fprintf( dfile, "An error occurred during delivery to host %s.\n\n",
 		hq->hq_hostname );
     }
 
     if ( env->e_err_text != NULL ) {
-	fprintf( dfile, "The following error occured during delivery of "
+	fprintf( dfile, "The following error occurred during delivery of "
 		"message %s:\n", env->e_id );
 	for ( l = env->e_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
