@@ -1090,9 +1090,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * the message again.
 	 */
 
-	syslog( LOG_INFO, "Receive %s: Message Accepted: [%s] %s",
+	syslog( LOG_INFO, "Receive %s: Message Accepted: [%s] %s %d",
 		env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname );
+		receive_remote_hostname, (int)sbuf.st_size );
 
 	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "accepted" ) < 0 ) {
