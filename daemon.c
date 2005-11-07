@@ -732,9 +732,11 @@ simta_q_scheduler( void )
     struct timeval		tv_disk;
     struct timeval		tv_sleep;
     struct host_q		*hq;
-    int				launched;
     int				lag;
     ulong			waited;
+    int				launched;
+    ulong			launch_total = 0;
+    ulong			launch_this_cycle;
 
     /* read the disk ASAP */
     if ( gettimeofday( &tv_disk, NULL ) != 0 ) {
@@ -767,6 +769,8 @@ simta_q_scheduler( void )
 	/* check to see if we need to read the disk */
 	if ( tv_now.tv_sec >= tv_disk.tv_sec ) {
 	    /* read disk */
+	    launch_this_cycle = 0;
+
 	    if ( q_read_dir( simta_dir_slow ) != 0 ) {
 		break;
 	    }
@@ -816,6 +820,8 @@ simta_q_scheduler( void )
 	    hq = simta_deliver_q;
 	    hq_deliver_pop( hq );
 	    hq->hq_launches++;
+	    launch_total++;
+	    launch_this_cycle++;
 	    lag = tv_now.tv_sec - hq->hq_launch.tv_sec;
 
 	    if ( hq->hq_launch_last.tv_sec != 0 ) {
@@ -837,10 +843,11 @@ simta_q_scheduler( void )
 	    }
 
 	    syslog( LOG_INFO, "Queue %s: launch %d: "
-		    "wait %d lag %d last %d shortest %d longest %d",
+		    "wait %d lag %d last %d shortest %d longest %d "
+		    "total messages %d",
 		    hq->hq_hostname, hq->hq_launches, waited, lag,
 		    hq->hq_wait_last.tv_sec, hq->hq_wait_shortest.tv_sec,
-		    hq->hq_wait_longest.tv_sec );
+		    hq->hq_wait_longest.tv_sec, hq->hq_entries );
 
 	    if ( simta_child_q_runner( hq ) != 0 ) {
 		return( 1 );
@@ -881,9 +888,11 @@ simta_q_scheduler( void )
 	    syslog( LOG_DEBUG, "Queue Metric: simta_deliver_q NULL" );
 	} else {
 	    syslog( LOG_DEBUG,
-		    "Queue Metric: Next runner host %s in %d seconds",
+		    "Queue Metric: Next runner host %s in %d seconds "
+		    "%ld launches this cycle %ld launches total",
 		    simta_deliver_q->hq_hostname,
-		    (simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec ));
+		    (simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec ),
+		    launch_this_cycle, launch_total );
 	}
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 ) &&
