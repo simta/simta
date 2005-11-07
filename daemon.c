@@ -735,7 +735,6 @@ simta_q_scheduler( void )
     int				lag;
     ulong			waited;
     int				launched;
-    ulong			launch_total = 0;
     ulong			launch_this_cycle;
 
     /* read the disk ASAP */
@@ -820,7 +819,6 @@ simta_q_scheduler( void )
 	    hq = simta_deliver_q;
 	    hq_deliver_pop( hq );
 	    hq->hq_launches++;
-	    launch_total++;
 	    launch_this_cycle++;
 	    lag = tv_now.tv_sec - hq->hq_launch.tv_sec;
 
@@ -889,10 +887,10 @@ simta_q_scheduler( void )
 	} else {
 	    syslog( LOG_DEBUG,
 		    "Queue Metric: Next runner host %s in %d seconds "
-		    "%ld launches this cycle %ld launches total",
+		    "%ld launches this cycle",
 		    simta_deliver_q->hq_hostname,
 		    (simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec ),
-		    launch_this_cycle, launch_total );
+		    launch_this_cycle );
 	}
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 ) &&
