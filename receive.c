@@ -1902,7 +1902,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
 	*hostname = '\0';
 
-	if (( rc = check_reverse( hostname, &(sin->sin_addr))) != 0 ) {
+	if (( !simta_no_reverse_connect_in ) &&
+		(( rc = check_reverse( hostname, &(sin->sin_addr))) != 0 )) {
 	    if ( rc < 0 ) {
 		syslog( LOG_NOTICE,
 			"Connect.in [%s]: Failed: reverse address error: %s",

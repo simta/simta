@@ -92,6 +92,7 @@ int			simta_max_bounce_lines;
 int			simta_max_failed_rcpts = 0;
 int			simta_receive_wait = 600;
 int			simta_ignore_reverse = 0;
+int			simta_no_reverse_connect_in = 0;
 int			simta_message_count = 0;
 int			simta_smtp_outbound_attempts = 0;
 int			simta_smtp_outbound_delivered = 0;
@@ -510,6 +511,15 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "IGNORE_REVERSE\tREVERSE_URL: %s\n",
 		simta_reverse_url );
+
+	} else if ( strcasecmp( av[ 0 ], "NO_REVERSE_CONNECT_IN" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_no_reverse_connect_in = 1;
+	    if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_DOMAIN" ) == 0 ) {
 	    if ( ac != 3 ) {

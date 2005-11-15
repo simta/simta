@@ -79,6 +79,7 @@ extern int				sitma_smtp_extension;
 extern int				simta_strict_smtp_syntax;
 extern int				simta_no_sync;
 extern int				simta_ignore_reverse;
+extern int				simta_no_reverse_connect_in;
 extern int				simta_receive_wait;
 extern int				simta_message_count;
 extern int				simta_max_received_headers;
