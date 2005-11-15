@@ -1617,8 +1617,10 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
-	syslog( LOG_NOTICE | LOG_INFO, "f_auth %s authenticated via %s%s",
-		auth_id, mechname, receive_tls ? "+TLS" : "" );
+	syslog( LOG_NOTICE | LOG_INFO,
+		"f_auth %s authenticated via %s%s [%s] %s:",
+		auth_id, mechname, receive_tls ? "+TLS" : "",
+		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname );
 
 	if ( snet_writef( snet, "235 Authentication successful\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
