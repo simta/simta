@@ -75,6 +75,7 @@ int			receive_failed_rcpts = 0;
 int			receive_tls = 0;
 int			receive_auth = 0;
 int			receive_remote_rbl_status = RECEIVE_RBL_UNKNOWN;
+int			receive_dns_match = 0;
 char			*receive_hello = NULL;
 char			*receive_smtp_command = NULL;
 char			*receive_remote_hostname = "Unknown";
@@ -114,7 +115,7 @@ struct command {
     int		(*c_func)( SNET *, struct envelope *, int, char *[] );
 };
 
-static int	mail_filter( int, char ** );
+static int	mail_filter( struct envelope *, int, char ** );
 static int	rfc_2821_trimaddr( int, char *, char **, char ** );
 static int	local_address( char *, char *, struct simta_red *);
 static int	hello( struct envelope *, char * );
@@ -1058,7 +1059,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
-	message_result = mail_filter( dfile_fd, &smtp_message );
+	message_result = mail_filter( env, dfile_fd, &smtp_message );
 
 	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "f_data close: %m" );
@@ -1902,17 +1903,18 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
 	*hostname = '\0';
 
-	if (( !simta_no_reverse_connect_in ) &&
-		(( rc = check_reverse( hostname, &(sin->sin_addr))) != 0 )) {
-	    if ( rc < 0 ) {
+	if ( !simta_no_reverse_connect_in ) {
+	    if (( rc = check_reverse( hostname, &(sin->sin_addr))) == 0 ) {
+		receive_dns_match = 1;
+	    } else if ( rc < 0 ) {
 		syslog( LOG_NOTICE,
-			"Connect.in [%s]: Failed: reverse address error: %s",
-			inet_ntoa( sin->sin_addr ),
-			dnsr_err2string( dnsr_errno( simta_dnsr )));
+		    "Connect.in [%s]: Failed: reverse address error: %s",
+		    inet_ntoa( sin->sin_addr ),
+		    dnsr_err2string( dnsr_errno( simta_dnsr )));
 		snet_writef( snet,
-			"421 Error checking reverse address: %s %s\r\n",
-			inet_ntoa( sin->sin_addr ),
-			dnsr_err2string( dnsr_errno( simta_dnsr )));
+		    "421 Error checking reverse address: %s %s\r\n",
+		    inet_ntoa( sin->sin_addr ),
+		    dnsr_err2string( dnsr_errno( simta_dnsr )));
 		goto closeconnection;
 
 	    } else {
@@ -2410,7 +2412,7 @@ rfc_2821_trimaddr( int mode, char *left_angle, char **address,
 
 
     int
-mail_filter( int f, char **smtp_message )
+mail_filter( struct envelope *env, int f, char **smtp_message )
 {
     int			fd[ 2 ];
     int			pid;
@@ -2418,6 +2420,7 @@ mail_filter( int f, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
+    char		buf[ 1024 + 1 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
 	filter_argv[ 0 ]++;
@@ -2464,6 +2467,55 @@ mail_filter( int f, char **smtp_message )
 	/* f -> stdin */
 	if ( dup2( f, 0 ) < 0 ) {
 	    syslog( LOG_ERR, "mail_filter dup2: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* environment vars: path to the Dfile */
+	snprintf( buf, 1024, "SIMTA_DFILE=%s/D%s", simta_dir_fast, env->e_id );
+	if ( putenv( buf ) != 0 ) {
+	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* foreign IP */
+	snprintf( buf, 1024, "SIMTA_REMOTE_IP=%s",
+		inet_ntoa( receive_sin->sin_addr ));
+	if ( putenv( buf ) != 0 ) {
+	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* foreign hostname from DNS */
+	snprintf( buf, 1024, "SIMTA_REMOTE_HOSTNAME=%s",
+		receive_remote_hostname );
+	if ( putenv( buf ) != 0 ) {
+	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* foreign hostname from DNS matched IP */
+	snprintf( buf, 1024, "SIMTA_REVERSE_LOOKUP=%d",
+		receive_dns_match );
+	if ( putenv( buf ) != 0 ) {
+	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* SMTP MAIL FROM */
+	snprintf( buf, 1024, "SIMTA_SMTP_MAIL_FROM=%s", env->e_mail );
+	if ( putenv( buf ) != 0 ) {
+	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	/* SMTP HELO */
+	if ( receive_hello ) {
+	    snprintf( buf, 1024, "SIMTA_SMTP_HELO=%s", receive_hello );
+	} else {
+	    snprintf( buf, 1024, "SIMTA_SMTP_HELO=" );
+	}
+	if ( putenv( buf ) != 0 ) {
+	    syslog( LOG_ERR, "mail_filter putenv: %m" );
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
