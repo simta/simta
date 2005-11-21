@@ -1045,6 +1045,13 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
+    if ( env_tfile( env ) != 0 ) {
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+	return( RECEIVE_SYSERROR );
+    }
+
     if ( simta_mail_filter == NULL ) {
 	message_result = MESSAGE_ACCEPT;
 
@@ -1073,10 +1080,12 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     switch ( message_result ) {
     case MESSAGE_ACCEPT:
 	env->e_dir = simta_dir_fast;
-	if ( env_outfile( env ) != 0 ) {
+	if ( env_efile( env ) != 0 ) {
 	    if ( unlink( dfile_fname ) < 0 ) {
 		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	    }
+
+	    env_tfile_unlink( env );
 
 	    return( RECEIVE_SYSERROR );
 	}
@@ -1106,6 +1115,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     case MESSAGE_ACCEPT_AND_DELETE:
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    env_tfile_unlink( env );
+	    return( RECEIVE_SYSERROR );
+	}
+
+	if ( env_tfile_unlink( env ) != 0 ) {
 	    return( RECEIVE_SYSERROR );
 	}
 
@@ -1125,6 +1139,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     case MESSAGE_REJECT:
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    env_tfile_unlink( env );
+	    return( RECEIVE_SYSERROR );
+	}
+
+	if ( env_tfile_unlink( env ) != 0 ) {
 	    return( RECEIVE_SYSERROR );
 	}
 
@@ -1144,6 +1163,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     case MESSAGE_TEMPFAIL:
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    env_tfile_unlink( env );
+	    return( RECEIVE_SYSERROR );
+	}
+
+	if ( env_tfile_unlink( env ) != 0 ) {
 	    return( RECEIVE_SYSERROR );
 	}
 

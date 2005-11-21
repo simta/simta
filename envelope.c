@@ -428,69 +428,98 @@ env_recipient( struct envelope *e, char *addr )
     int
 env_outfile( struct envelope *e )
 {
+    if ( env_tfile( e ) != 0 ) {
+	return( 1 );
+    }
+
+    if ( env_efile( e ) != 0 ) {
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
+
+    int
+env_tfile_unlink( struct envelope *e )
+{
+    char		tf[ MAXPATHLEN + 1 ];
+
+    sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
+
+    if ( unlink( tf ) != 0 ) {
+	syslog( LOG_ERR, "env_tfile_unlink unlink %s: %m", tf );
+	return( -1 );
+    }
+
+    return( 0 );
+}
+
+
+    int
+env_tfile( struct envelope *e )
+{
     struct stat			sb;
     int			fd;
     struct recipient	*r;
     FILE		*tff;
     char		tf[ MAXPATHLEN + 1 ];
-    char		ef[ MAXPATHLEN + 1 ];
 
     assert( e->e_dir != NULL );
     assert( e->e_id != NULL );
 
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
-    sprintf( ef, "%s/E%s", e->e_dir, e->e_id );
 
-    /* make E (t) file */
+    /* make tfile */
     if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
-	syslog( LOG_ERR, "env_outfile open %s: %m", tf );
+	syslog( LOG_ERR, "env_tfile open %s: %m", tf );
 	return( -1 );
     }
 
     if (( tff = fdopen( fd, "w" )) == NULL ) {
 	close( fd );
-	syslog( LOG_ERR, "env_outfile fdopen: %m" );
+	syslog( LOG_ERR, "env_tfile fdopen: %m" );
 	unlink( tf );
 	return( -1 );
     }
 
     /* VSIMTA_EFILE_VERSION */
     if ( fprintf( tff, "V%d\n", SIMTA_EFILE_VERSION ) < 0 ) {
-	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	goto cleanup;
     }
 
     /* Emessage-id */
     if ( fprintf( tff, "E%s\n", e->e_id ) < 0 ) {
-	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	goto cleanup;
     }
 
     /* Idinode */
     if ( e->e_dinode <= 0 ) {
-	panic( "env_outfile: bad dinode" );
+	panic( "env_tfile: bad dinode" );
     }
     if ( fprintf( tff, "I%lu\n", e->e_dinode ) < 0 ) {
-	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	goto cleanup;
     }
 
     /* Xpansion Level */
     if ( fprintf( tff, "X%d\n", e->e_n_exp_level ) < 0 ) {
-	syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	goto cleanup;
     }
 
     /* Hdestination-host */
     if (( e->e_hostname != NULL ) && ( e->e_dir != simta_dir_dead )) {
 	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
-	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	    syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	    goto cleanup;
 	}
 
     } else {
 	if ( fprintf( tff, "H\n" ) < 0 ) {
-	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	    syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	    goto cleanup;
 	}
     }
@@ -498,13 +527,13 @@ env_outfile( struct envelope *e )
     /* Ffrom-addr@sender.com */
     if ( e->e_mail != NULL ) {
 	if ( fprintf( tff, "F%s\n", e->e_mail ) < 0 ) {
-	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	    syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	    goto cleanup;
 	}
 
     } else {
 	if ( fprintf( tff, "F\n" ) < 0 ) {
-	    syslog( LOG_ERR, "env_outfile fprintf: %m" );
+	    syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	    goto cleanup;
 	}
     }
@@ -513,48 +542,28 @@ env_outfile( struct envelope *e )
     if ( e->e_rcpt != NULL ) {
 	for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
 	    if ( fprintf( tff, "R%s\n", r->r_rcpt ) < 0 ) {
-		syslog( LOG_ERR, "env_outfile fprintf: %m" );
+		syslog( LOG_ERR, "env_tfile fprintf: %m" );
 		goto cleanup;
 	    }
 	}
 
     } else {
-	syslog( LOG_ERR, "env_outfile %s: no recipients", e->e_id );
+	syslog( LOG_ERR, "env_tfile %s: no recipients", e->e_id );
 	goto cleanup;
     }
 
-    /* get efile modification time */
+    /* get tfile modification time */
     if ( fstat( fd, &sb ) != 0 ) {
-	syslog( LOG_ERR, "env_outfile fstat: %m" );
+	syslog( LOG_ERR, "env_tfile fstat: %m" );
 	goto cleanup;
     }
 
     e->e_etime.tv_sec = sb.st_mtime;
 
-    /* sync? */
     if ( fclose( tff ) != 0 ) {
-	syslog( LOG_ERR, "env_outfile fclose: %m" );
+	syslog( LOG_ERR, "env_tfile fclose: %m" );
 	unlink( tf );
 	return( -1 );
-    }
-
-    if ( rename( tf, ef ) < 0 ) {
-	syslog( LOG_ERR, "env_outfile rename %s %s: %m", tf, ef );
-	unlink( tf );
-	return( -1 );
-    }
-
-    if ( e->e_dir == simta_dir_fast ) {
-	simta_fast_files++;
-    }
-
-    syslog( LOG_DEBUG, "env_outfile %s %s %s", e->e_dir, e->e_id,
-	    e->e_hostname ? e->e_hostname : "" );
-
-    e->e_flags |= ENV_FLAG_ON_DISK;
-
-    if ( simta_no_sync == 0 ) {
-	sync();
     }
 
     return( 0 );
@@ -564,6 +573,36 @@ cleanup:
     unlink( tf );
     return( -1 );
 }
+
+
+    int
+env_efile( struct envelope *e )
+{
+    char		tf[ MAXPATHLEN + 1 ];
+    char		ef[ MAXPATHLEN + 1 ];
+
+    if ( rename( tf, ef ) < 0 ) {
+	syslog( LOG_ERR, "env_efile rename %s %s: %m", tf, ef );
+	unlink( tf );
+	return( -1 );
+    }
+
+    if ( e->e_dir == simta_dir_fast ) {
+	simta_fast_files++;
+    }
+
+    syslog( LOG_DEBUG, "env_efile %s %s %s", e->e_dir, e->e_id,
+	    e->e_hostname ? e->e_hostname : "" );
+
+    e->e_flags |= ENV_FLAG_ON_DISK;
+
+    if ( simta_no_sync == 0 ) {
+	sync();
+    }
+
+    return( 0 );
+}
+
 
     /* calling this function updates the attempt time */
 
