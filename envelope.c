@@ -581,6 +581,9 @@ env_efile( struct envelope *e )
     char		tf[ MAXPATHLEN + 1 ];
     char		ef[ MAXPATHLEN + 1 ];
 
+    sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
+    sprintf( ef, "%s/E%s", e->e_dir, e->e_id );
+
     if ( rename( tf, ef ) < 0 ) {
 	syslog( LOG_ERR, "env_efile rename %s %s: %m", tf, ef );
 	unlink( tf );

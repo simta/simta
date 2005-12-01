@@ -75,7 +75,7 @@ int			receive_failed_rcpts = 0;
 int			receive_tls = 0;
 int			receive_auth = 0;
 int			receive_remote_rbl_status = RECEIVE_RBL_UNKNOWN;
-int			receive_dns_match = 0;
+char			*receive_dns_match = "Unknown";
 char			*receive_hello = NULL;
 char			*receive_smtp_command = NULL;
 char			*receive_remote_hostname = "Unknown";
@@ -115,6 +115,7 @@ struct command {
     int		(*c_func)( SNET *, struct envelope *, int, char *[] );
 };
 
+static char 	*env_string( char *, char * );
 static int	mail_filter( struct envelope *, int, char ** );
 static int	rfc_2821_trimaddr( int, char *, char **, char ** );
 static int	local_address( char *, char *, struct simta_red *);
@@ -770,9 +771,11 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    if ( receive_remote_rbl_status == RECEIVE_RBL_BLOCKED ) {
 			receive_failed_rcpts++;
 			syslog( LOG_INFO,
-				"Receive %s: To <%s> From <%s> Failed: RBL %s",
-				env->e_id, addr, env->e_mail,
-				simta_user_rbl_domain );
+				"Receive %s: To <%s> From <%s> Failed: RBL %s "
+				"([%s] %s)", env->e_id, addr, env->e_mail,
+				simta_user_rbl_domain,
+				inet_ntoa( receive_sin->sin_addr ),
+				receive_remote_hostname );
 			snet_writef( snet,
 				"550 No access from IP %s. See %s\r\n",
 				inet_ntoa( receive_sin->sin_addr ),
@@ -1045,6 +1048,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
+    env->e_dir = simta_dir_fast;
+
     if ( env_tfile( env ) != 0 ) {
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
@@ -1079,7 +1084,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
     switch ( message_result ) {
     case MESSAGE_ACCEPT:
-	env->e_dir = simta_dir_fast;
 	if ( env_efile( env ) != 0 ) {
 	    if ( unlink( dfile_fname ) < 0 ) {
 		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
@@ -1929,7 +1933,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
 	if ( !simta_no_reverse_connect_in ) {
 	    if (( rc = check_reverse( hostname, &(sin->sin_addr))) == 0 ) {
-		receive_dns_match = 1;
+		receive_dns_match = "PASSED";
 	    } else if ( rc < 0 ) {
 		syslog( LOG_NOTICE,
 		    "Connect.in [%s]: Failed: reverse address error: %s",
@@ -1942,6 +1946,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		goto closeconnection;
 
 	    } else {
+		receive_dns_match = "FAILED";
 		if ( simta_ignore_reverse == 0 ) {
 		    syslog( LOG_NOTICE, "Connect.in [%s]: Failed: "
 			    "invalid reverse", inet_ntoa( sin->sin_addr ));
@@ -2435,6 +2440,31 @@ rfc_2821_trimaddr( int mode, char *left_angle, char **address,
 }
 
 
+    char *
+env_string( char *left, char *right )
+{
+    char			*buf;
+
+    if (( right == NULL ) || ( *right == '\0' )) {
+	if (( buf = (char*)malloc( strlen( left ) + 2 )) == NULL ) {
+	    syslog( LOG_ERR, "env_string malloc: %m" );
+	    return( NULL );
+	}
+	sprintf( buf, "%s=", left );
+
+    } else {
+	if (( buf = (char*)malloc( strlen( left ) +
+		strlen( right ) + 2 )) == NULL ) {
+	    syslog( LOG_ERR, "env_string malloc: %m" );
+	    return( NULL );
+	}
+	sprintf( buf, "%s=%s", left, right );
+    }
+
+    return( buf );
+}
+
+
     int
 mail_filter( struct envelope *env, int f, char **smtp_message )
 {
@@ -2445,6 +2475,7 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
     char		*line;
     char		*filter_argv[] = { 0, 0 };
     char		buf[ 1024 + 1 ];
+    char		*filter_envp[ 8 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
 	filter_argv[ 0 ]++;
@@ -2494,56 +2525,44 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	/* environment vars: path to the Dfile */
-	snprintf( buf, 1024, "SIMTA_DFILE=%s/D%s", simta_dir_fast, env->e_id );
-	if ( putenv( buf ) != 0 ) {
-	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	if (( filter_envp[ 0 ] = env_string( "SIMTA_DIR",
+		simta_dir_fast )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	/* foreign IP */
-	snprintf( buf, 1024, "SIMTA_REMOTE_IP=%s",
-		inet_ntoa( receive_sin->sin_addr ));
-	if ( putenv( buf ) != 0 ) {
-	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	if (( filter_envp[ 1 ] = env_string( "SIMTA_REMOTE_IP",
+		inet_ntoa( receive_sin->sin_addr ))) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	/* foreign hostname from DNS */
-	snprintf( buf, 1024, "SIMTA_REMOTE_HOSTNAME=%s",
-		receive_remote_hostname );
-	if ( putenv( buf ) != 0 ) {
-	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	if (( filter_envp[ 2 ] = env_string( "SIMTA_REMOTE_HOSTNAME",
+		receive_remote_hostname )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	/* foreign hostname from DNS matched IP */
-	snprintf( buf, 1024, "SIMTA_REVERSE_LOOKUP=%d",
-		receive_dns_match );
-	if ( putenv( buf ) != 0 ) {
-	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	if (( filter_envp[ 3 ] = env_string( "SIMTA_REVERSE_LOOKUP",
+		receive_dns_match )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	/* SMTP MAIL FROM */
-	snprintf( buf, 1024, "SIMTA_SMTP_MAIL_FROM=%s", env->e_mail );
-	if ( putenv( buf ) != 0 ) {
-	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	if (( filter_envp[ 4 ] = env_string( "SIMTA_ID",
+		env->e_id )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	/* SMTP HELO */
-	if ( receive_hello ) {
-	    snprintf( buf, 1024, "SIMTA_SMTP_HELO=%s", receive_hello );
-	} else {
-	    snprintf( buf, 1024, "SIMTA_SMTP_HELO=" );
-	}
-	if ( putenv( buf ) != 0 ) {
-	    syslog( LOG_ERR, "mail_filter putenv: %m" );
+	if (( filter_envp[ 5 ] = env_string( "SIMTA_SMTP_MAIL_FROM",
+		env->e_mail )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	execv( simta_mail_filter, filter_argv );
+	if (( filter_envp[ 6 ] = env_string( "SIMTA_SMTP_HELO",
+		receive_hello )) == NULL ) {
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	filter_envp[ 7 ] = NULL;
+
+	execve( simta_mail_filter, filter_argv, filter_envp );
 	/* if we are here, there is an error */
 	syslog( LOG_ERR, "mail_filter execv: %m" );
 	exit( MESSAGE_TEMPFAIL );
