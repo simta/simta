@@ -2474,8 +2474,8 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		buf[ 1024 + 1 ];
     char		*filter_envp[ 8 ];
+    char		fname[ MAXPATHLEN + 1 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
 	filter_argv[ 0 ]++;
@@ -2525,28 +2525,30 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	if (( filter_envp[ 0 ] = env_string( "SIMTA_DIR",
-		simta_dir_fast )) == NULL ) {
+	snprintf( fname, MAXPATHLEN, "%s/D%s", simta_dir_fast, env->e_id );
+	if (( filter_envp[ 0 ] = env_string( "SIMTA_DFILE",
+		fname )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	if (( filter_envp[ 1 ] = env_string( "SIMTA_REMOTE_IP",
+	snprintf( fname, MAXPATHLEN, "%s/t%s", simta_dir_fast, env->e_id );
+	if (( filter_envp[ 1 ] = env_string( "SIMTA_TFILE",
+		fname )) == NULL ) {
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+	if (( filter_envp[ 2 ] = env_string( "SIMTA_REMOTE_IP",
 		inet_ntoa( receive_sin->sin_addr ))) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	if (( filter_envp[ 2 ] = env_string( "SIMTA_REMOTE_HOSTNAME",
+	if (( filter_envp[ 3 ] = env_string( "SIMTA_REMOTE_HOSTNAME",
 		receive_remote_hostname )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	if (( filter_envp[ 3 ] = env_string( "SIMTA_REVERSE_LOOKUP",
+	if (( filter_envp[ 4 ] = env_string( "SIMTA_REVERSE_LOOKUP",
 		receive_dns_match )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
-
-	if (( filter_envp[ 4 ] = env_string( "SIMTA_ID",
-		env->e_id )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
