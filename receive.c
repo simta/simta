@@ -419,7 +419,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 
     for ( i = parameters; i < ac; i++ ) {
 	if ( strncasecmp( av[ i ], "SIZE", strlen( "SIZE" )) == 0 ) {
-	    /* RFC 1870 Messaeg Size Declaration */
+	    /* RFC 1870 Message Size Declaration */
 	    if ( seen_extensions & SIMTA_EXTENSION_SIZE ) {
 		syslog( LOG_ERR,
 			"Receive: duplicate size specified: %s",
@@ -1084,13 +1084,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
     switch ( message_result ) {
     case MESSAGE_ACCEPT:
+	/* env_efile() unlinks the tfile if a move is unsuccessful */
 	if ( env_efile( env ) != 0 ) {
 	    if ( unlink( dfile_fname ) < 0 ) {
 		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	    }
-
-	    env_tfile_unlink( env );
-
 	    return( RECEIVE_SYSERROR );
 	}
 
@@ -2418,6 +2416,10 @@ rfc_2821_trimaddr( int mode, char *left_angle, char **address,
     *domain = q + 1;
 
     /* check domain syntax */
+    if ( strlen( *domain ) > MAXHOSTNAMELEN ) {
+	return( 1 );
+    }
+
     if ( **domain == '[' ) {
 	if (( q = token_domain_literal( *domain )) == NULL ) {
 	    return( 1 );
@@ -2566,7 +2568,7 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 
 	execve( simta_mail_filter, filter_argv, filter_envp );
 	/* if we are here, there is an error */
-	syslog( LOG_ERR, "mail_filter execv: %m" );
+	syslog( LOG_ERR, "mail_filter execve: %m" );
 	exit( MESSAGE_TEMPFAIL );
 
     default :

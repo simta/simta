@@ -203,6 +203,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 {
     struct exp_addr		*e;
     int				insert_head = 0;
+    char			*at;
 #ifdef HAVE_LDAP
     struct simta_red		*red;
     struct action		*a;
@@ -238,16 +239,36 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	/* do syntax checking and special processing */
 	switch ( addr_type ) {
 	case ADDRESS_TYPE_EMAIL:
-	    if (( e->e_addr_at = strchr( e->e_addr, '@' )) == NULL ) {
-		if (( *(e->e_addr) != '\0' ) &&
-			( strcasecmp( "postmaster", e->e_addr ) != 0 )) {
-		    syslog( LOG_ERR, "add_address <%s>: ERROR bad address",
-			    e->e_addr );
+	    if (( *(e->e_addr) != '\0' ) &&
+		    ( strcasecmp( "postmaster", e->e_addr ) != 0 )) {
+		if ( *(e->e_addr) == '"' ) {
+		    if (( at = token_quoted_string( e->e_addr )) == NULL ) {
+			syslog( LOG_ERR, "add_address <%s>: ERROR bad address: "
+				"bad quoted string", e->e_addr );
+			goto error;
+		    }
+
+		} else {
+		    if (( at = token_dot_atom( e->e_addr )) == NULL ) {
+			syslog( LOG_ERR, "add_address <%s>: ERROR bad address: "
+				"address expected", e->e_addr );
+			goto error;
+		    }
+		}
+
+		at++;
+
+		if ( *at != '@' ) {
+		    syslog( LOG_ERR, "add_address <%s>: ERROR bad address: "
+			    "'@' expected", e->e_addr );
 		    goto error;
 		}
 
+		e->e_addr_at = at;
+	    }
+
 #ifdef HAVE_LDAP
-	    } else {
+	    if ( e->e_addr_at != NULL ) {
 		/* check to see if we might need LDAP for this domain */
 		if (( red =
 			simta_red_lookup_host( e->e_addr_at + 1 )) != NULL ) {
@@ -260,7 +281,6 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 		    }
 		}
 
-
 		/* check to see if the address is the sender */
 		if ( exp->exp_env->e_mail != NULL ) {
 		    /* compare the address in hand with the sender */
@@ -270,8 +290,8 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 			e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
 		    }
 		}
-#endif /* HAVE_LDAP */
 	    }
+#endif /* HAVE_LDAP */
 	    break;
 
 #ifdef HAVE_LDAP
