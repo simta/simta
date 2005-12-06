@@ -1929,37 +1929,42 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
 	*hostname = '\0';
 
-	if ( !simta_no_reverse_connect_in ) {
-	    if (( rc = check_reverse( hostname, &(sin->sin_addr))) == 0 ) {
-		receive_dns_match = "PASSED";
-	    } else if ( rc < 0 ) {
-		syslog( LOG_NOTICE,
-		    "Connect.in [%s]: Failed: reverse address error: %s",
-		    inet_ntoa( sin->sin_addr ),
-		    dnsr_err2string( dnsr_errno( simta_dnsr )));
-		snet_writef( snet,
-		    "421 Error checking reverse address: %s %s\r\n",
-		    inet_ntoa( sin->sin_addr ),
-		    dnsr_err2string( dnsr_errno( simta_dnsr )));
-		goto closeconnection;
-
-	    } else {
-		receive_dns_match = "FAILED";
-		if ( simta_ignore_reverse == 0 ) {
-		    syslog( LOG_NOTICE, "Connect.in [%s]: Failed: "
-			    "invalid reverse", inet_ntoa( sin->sin_addr ));
-		    snet_writef( snet,
-			    "421 No access from IP %s.  See %s\r\n",
-			    inet_ntoa( sin->sin_addr ),
-			    simta_reverse_url );
-		    goto closeconnection;
-
-		} else {
-		    syslog( LOG_NOTICE, "Connect.in [%s]: Warning: "
-			    "invalid reverse", inet_ntoa( sin->sin_addr ));
-		}
-	    }
-	}
+        if (( rc = check_reverse( hostname, &(sin->sin_addr))) == 0 ) {  
+            receive_dns_match = "PASSED";
+        } else {
+            receive_dns_match = "FAILED";
+            if ( rc < 0 ) {                     /* DNS error */
+                if ( simta_ignore_connect_in_reverse_errors ) {
+                    syslog( LOG_NOTICE,
+                        "Connect.in [%s]: Warning: reverse address error: %s",
+                        inet_ntoa( sin->sin_addr ),
+                        dnsr_err2string( dnsr_errno( simta_dnsr )));
+                } else {
+                    syslog( LOG_NOTICE,
+                        "Connect.in [%s]: Failed: reverse address error: %s",
+                        inet_ntoa( sin->sin_addr ),
+                        dnsr_err2string( dnsr_errno( simta_dnsr )));
+                    snet_writef( snet,
+                        "421 Error checking reverse address: %s %s\r\n",
+                        inet_ntoa( sin->sin_addr ),
+                        dnsr_err2string( dnsr_errno( simta_dnsr )));
+                    goto closeconnection;
+                }
+            } else {                            /* invalid reverse */
+                if ( simta_ignore_reverse == 0 ) {
+                    syslog( LOG_NOTICE, "Connect.in [%s]: Failed: "
+                            "invalid reverse", inet_ntoa( sin->sin_addr ));
+                    snet_writef( snet,
+                            "421 No access from IP %s.  See %s\r\n",
+                            inet_ntoa( sin->sin_addr ),
+                            simta_reverse_url );
+                    goto closeconnection;
+                } else {
+                    syslog( LOG_NOTICE, "Connect.in [%s]: Warning: "
+                            "invalid reverse", inet_ntoa( sin->sin_addr ));
+                }
+            }
+        }
 
 	if ( *hostname != '\0' ) {
 	    receive_remote_hostname = hostname;
