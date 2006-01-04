@@ -353,6 +353,7 @@ address_expand( struct expand *exp )
     struct exp_addr		*e_addr;
     struct simta_red		*red = NULL;
     struct action		*action;
+    int				local_postmaster = 0;
 
     e_addr = exp->exp_addr_cursor;
 
@@ -488,8 +489,17 @@ not_found:
     /* If we can't resolve the local postmaster's address, expand it to
      * the dead queue.
      */
-    if (( e_addr->e_addr_at == NULL ) || ( strncasecmp( e_addr->e_addr,
-	    "postmaster", e_addr->e_addr_at - e_addr->e_addr ) == 0 )) {
+    if ( e_addr->e_addr_at == NULL ) {
+	local_postmaster = 1;
+    } else {
+	e_addr->e_addr_at = '\0';
+	if ( strcasecmp( e_addr->e_addr, "postmaster" ) == 0 ) {
+	    local_postmaster = 1;
+	}
+	e_addr->e_addr_at = '@';
+    }
+
+    if ( local_postmaster ) {
 	e_addr->e_addr_type = ADDRESS_TYPE_DEAD;
 	syslog( LOG_ERR, "address_expand <%s> FINAL: can't resolve local "
 		"postmaster, expanding to dead queue", e_addr->e_addr );
