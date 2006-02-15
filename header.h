@@ -23,7 +23,6 @@ int	header_timestamp( struct envelope *, FILE * );
 int	header_end( int, char * );
 int	header_punt( struct line_file * );
 int	header_correct( int, struct line_file *, struct envelope * );
-int	header_correct( int, struct line_file *, struct envelope * );
 int	header_file_out( struct line_file *, FILE * );
 int	is_emailaddr( char * );
 int	correct_emailaddr( char ** );
