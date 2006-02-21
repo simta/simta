@@ -19,6 +19,7 @@
 #define	ALIAS_NOT_FOUND			1
 #define	ALIAS_EXCLUDE			2
 #define	ALIAS_SYSERROR			3
+#define	ALIAS_MAX_DOMAIN_LEN		1024
 
 /* return codes for password_expand */
 #define	PASSWORD_NOT_FOUND			1

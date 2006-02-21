@@ -174,10 +174,10 @@ queue_envelope( struct envelope *env )
 	/* XXX sort this list */
 	env->e_list_next = simta_env_queue;
 	env->e_list_prev = NULL;
-	if ( simta_env_queue ) {
+
+	if ( simta_env_queue != NULL ) {
 	    simta_env_queue->e_list_prev = env;
 	}
-	env->e_list_next = simta_env_queue;
 	simta_env_queue = env;
     }
 
@@ -223,14 +223,19 @@ queue_remove_envelope( struct envelope *env )
 	env->e_hq_next = NULL;
 
 	if ( env->e_list_prev ) {
+	    assert( env != simta_env_queue );
 	    env->e_list_prev->e_list_next = env->e_list_next;
 	} else {
+	    assert( env == simta_env_queue );
 	    simta_env_queue = env->e_list_next;
 	}
 
 	if ( env->e_list_next ) {
 	    env->e_list_next->e_list_prev = env->e_list_prev;
 	}
+
+	env->e_list_prev = NULL;
+	env->e_list_next = NULL;
     }
 
     return;
@@ -1567,4 +1572,51 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     }
 
     return( 1 );
+}
+
+
+    void
+queue_log_metrics( struct host_q *hq_schedule )
+{
+    char		filename[ MAXPATHLEN ];
+    int			fd;
+    FILE		*f;
+    struct timeval	tv;
+    struct host_q	*hq;
+
+    if ( gettimeofday( &tv, NULL ) != 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: gettimeofday: %m" );
+	return;
+    }
+
+    sprintf( filename, "/%s/etc/%lX", simta_base_dir,
+	    (unsigned long)tv.tv_sec );
+
+    if (( fd = creat( filename, 0666 )) < 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
+	return;
+    }
+
+    if (( f = fdopen( fd, "w" )) == NULL ) {
+	syslog( LOG_DEBUG, "metric log file failed: fdopen %s: %m", filename );
+	return;
+    }
+
+    fprintf( f, "Disk Read:\t%d\n\n", simta_disk_cycle );
+
+    if ( simta_unexpanded_q != NULL ) {
+	fprintf( f, "Unexpanded Messages:\t%d\n\n",
+		simta_unexpanded_q->hq_entries );
+    }
+
+    fprintf( f, "Next\tMessages\tQueue\n" );
+
+    for ( hq = hq_schedule; hq != NULL; hq = hq->hq_deliver_next ) {
+	fprintf( f, "%d\t%d\t%s\n", hq->hq_launch.tv_sec - tv.tv_sec,
+		hq->hq_entries, hq->hq_hostname );
+    }
+
+    fclose( f );
+
+    return;
 }

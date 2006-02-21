@@ -614,8 +614,10 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     if ( simta_dbp == NULL ) {
 	if (( ret = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
 		!= 0 ) {
-	    syslog( LOG_ERR, "alias_expand: db_open_r: %s",
+	    syslog( LOG_ERR, "alias_expand: db_open_r %s: %s", SIMTA_ALIAS_DB,
 		    db_strerror( ret ));
+	    simta_dbp = NULL;
+	    ret = ALIAS_NOT_FOUND;
 	    goto done;
 	}
     }
@@ -625,7 +627,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     memset( &value, 0, sizeof( DBT ));
 
     if ( e_addr->e_addr_at != NULL ) {
-	if (( e_addr->e_addr_at - e_addr->e_addr ) > 1024 ) {
+	if (( e_addr->e_addr_at - e_addr->e_addr ) > ALIAS_MAX_DOMAIN_LEN ) {
 	    syslog( LOG_WARNING, "alias_expand: address too long: %s",
 		    e_addr->e_addr );
 	    goto done;
@@ -647,6 +649,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	if ( ret != DB_NOTFOUND ) {
 	    syslog( LOG_ERR, "alias_expand: db_cursor_set: %s",
 		    db_strerror( ret ));
+	    ret = ALIAS_SYSERROR;
 	    goto done;
 	}
 
@@ -699,6 +702,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	    if ( ret != DB_NOTFOUND ) {
 		syslog( LOG_ERR, "alias_expand: db_cursor_next: %s",
 		    db_strerror( ret ));
+		ret = ALIAS_SYSERROR;
 		goto done;
 	    } else {
 		/* one or more addresses found in alias db */

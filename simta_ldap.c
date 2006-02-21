@@ -1627,7 +1627,7 @@ simta_ldap_config( char *fname )
     /* open fname */
     if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
 	syslog ( LOG_ERR, "simta_ldap_config open %s: %m", fname );
-	goto errexit;
+	return( ret );
     }
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {

@@ -724,6 +724,8 @@ main( int ac, char **av )
 }
 
 
+    /* this is the main queue scheduling routine */
+
     int
 simta_q_scheduler( void )
 {
@@ -773,6 +775,8 @@ simta_q_scheduler( void )
 	    if ( q_read_dir( simta_dir_slow ) != 0 ) {
 		break;
 	    }
+
+	    queue_log_metrics( simta_deliver_q );
 
 	    tv_disk.tv_sec += simta_disk_period;
 
@@ -1116,6 +1120,7 @@ simta_child_smtp_daemon( void )
     fd_set			fdset;
     int				fd_max = 0;
     int				pid;
+    int				ret;
 
     switch ( pid = fork()) {
     case 0 :
@@ -1167,19 +1172,20 @@ simta_child_smtp_daemon( void )
 	}
 #endif /* HAVE_LIBSSL */
 
-	/* check to see if any children need to be accounted for */
-	if ( child_signal != 0 ) {
-	    if ( simta_waitpid() != 0 ) {
-		break;
-	    }
-	}
-
-	if ( select( fd_max + 1, &fdset, NULL, NULL, NULL ) < 0 ) {
+	if (( ret = select( fd_max + 1, &fdset, NULL, NULL, NULL )) < 0 ) {
 	    if ( errno != EINTR ) {
 		syslog( LOG_ERR,
 			"Syserror: simta_child_smtp_daemon select: %m" );
 		break;
 	    }
+	}
+
+	/* check to see if any children need to be accounted for */
+	if ( child_signal != 0 ) {
+	    if ( simta_waitpid() != 0 ) {
+		break;
+	    }
+	    continue;
 	}
 
 	/* check to see if we have any incoming connections */
