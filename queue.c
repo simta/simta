@@ -527,6 +527,11 @@ q_runner_dir( char *dir )
 	return( -1 );
     }
 
+    if ( closedir( dirp ) != 0 ) {
+	syslog( LOG_ERR, "q_runner_dir closedir %s: %m", dir );
+	return( -1 );
+    }
+
     exit ( q_runner() != 0 );
 }
 
@@ -652,7 +657,8 @@ q_read_dir( char *dir )
     DIR				*dirp;
     char			path[ MAXPATHLEN + 1 ];
     struct stat			sb;
-    int				ret;
+    int				r;
+    int				ret = -1;
     struct host_q		**hq;
     struct host_q		*h_free;
 
@@ -704,18 +710,17 @@ q_read_dir( char *dir )
 		old++;
 
 		if ( queue_envelope( env ) != 0 ) {
-		    return( -1 );
+		    goto error;
 		}
 	    }
 
 	} else {
 	    /* look for the file in the new_envs list */
 	    for ( e = &new_envs; *e != NULL; e = &((*e)->e_next)) {
-		if (( ret = strcmp( entry->d_name + 1, (*e)->e_id ))
-			== 0 ) {
+		if (( r = strcmp( entry->d_name + 1, (*e)->e_id )) == 0 ) {
 		    env = *e;
 		    break;
-		} else if ( ret > 0 ) {
+		} else if ( r > 0 ) {
 		    break;
 		}
 	    }
@@ -727,7 +732,7 @@ q_read_dir( char *dir )
 
 		if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
 		    env_free( env );
-		    return( -1 );
+		    goto error;
 		}
 		env->e_dir = dir;
 
@@ -763,7 +768,7 @@ q_read_dir( char *dir )
 		new++;
 
 		if ( queue_envelope( env ) != 0 ) {
-		    return( -1 );
+		    goto error;
 		}
 	    }
 	}
@@ -771,6 +776,18 @@ q_read_dir( char *dir )
 
     if ( errno != 0 ) {
 	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
+    } else {
+	ret = 0;
+    }
+
+error:
+    if ( closedir( dirp ) != 0 ) {
+	syslog( LOG_ERR, "q_runner_dir closedir %s: %m", dir );
+	return( -1 );
+    }
+
+    if ( ret != 0 ) {
+	return( ret );
     }
 
     /* make sure new list is empty */
