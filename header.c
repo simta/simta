@@ -568,7 +568,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
     } else {
-        if ( simta_generate_sender != 0 ) {
+        if (( simta_simsend_strict_from != 0 ) &&
+		( simta_generate_sender != 0 )) {
 	    if (( len = ( strlen( headers_simsendmail[ HEAD_SENDER ].h_key ) +
 		    strlen( sender ) + 3 )) > prepend_len ) {
 		if (( prepend_line = (char*)realloc( prepend_line, len ))
