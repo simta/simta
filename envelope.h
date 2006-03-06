@@ -20,6 +20,7 @@ struct envelope {
     struct envelope	*e_list_prev;
     struct envelope	*e_hq_next;
     struct envelope	*e_hq_prev;
+    struct envelope	*e_expanded_next;
     struct recipient	*e_rcpt;
     int			e_queued;
     int			e_n_rcpt;

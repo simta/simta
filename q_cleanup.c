@@ -47,15 +47,10 @@ struct file_list {
     char			*f_name;
 };
 
-struct i_expanded {
-    struct i_expanded		*i_next;
-    struct envelope		*i_env;
-};
-
 struct i_list {
     ino_t			i_dinode;
     struct i_list		*i_next;
-    struct i_expanded		*i_expanded;
+    struct envelope		*i_expanded_list;
     struct envelope		*i_unexpanded;
 };
 
@@ -357,10 +352,10 @@ q_expansion_cleanup( struct envelope **fast )
 {
     struct envelope		**e;
     struct envelope		*env;
+    struct envelope		*delete;
     struct i_list		**i;
     struct i_list		*inode_list = NULL;
     struct i_list		*i_add;
-    struct i_expanded		*i_exp;
     struct stat			sb;
     char			fname[ MAXPATHLEN + 1 ];
 
@@ -391,7 +386,8 @@ q_expansion_cleanup( struct envelope **fast )
 	    if (( *i != NULL ) && ( env->e_dinode == (*i)->i_dinode )) {
 		if ((*i)->i_unexpanded != NULL ) {
 		    /* unexpanded exists, mark env for deletion */
-		    assert( env->e_hostname != NULL );
+		    assert(( env->e_n_exp_level - 1 ) ==
+			    ((*i)->i_unexpanded->e_n_exp_level ));
 		    env->e_flags |= ENV_FLAG_DELETE;
 		    syslog( LOG_NOTICE, "Queue %s/%s: "
 			    "Cleaning: %s/%s expansion interrupted",
@@ -399,20 +395,34 @@ q_expansion_cleanup( struct envelope **fast )
 			    simta_dir_fast, (*i)->i_unexpanded->e_id );
 		    continue;
 
-		} else if ( env->e_hostname == NULL ) {
-		    /* env is unexpanded, mark queued messages for deletion */
-		    assert((*i)->i_unexpanded == NULL );
-		    (*i)->i_unexpanded = env;
-		    while (( i_exp = ((*i)->i_expanded)) != NULL ) {
-			(*i)->i_expanded = i_exp->i_next;
-			syslog( LOG_NOTICE, "Queue %s/%s: "
-				"Cleaning: %s/%s expansion interrupted",
-				simta_dir_fast, i_exp->i_env->e_id, 
-				simta_dir_fast, env->e_id );
-			i_exp->i_env->e_flags |= ENV_FLAG_DELETE;
-			free( i_exp );
-		    }
+		} else if ((*i)->i_expanded_list->e_n_exp_level ==
+			env->e_n_exp_level ) {
+		    /* env same as expanded list, add to list */
+		    env->e_expanded_next = (*i)->i_expanded_list;
+		    (*i)->i_expanded_list = env;
 		    continue;
+
+		} else if ((*i)->i_expanded_list->e_n_exp_level ==
+			env->e_n_exp_level + 1 ) {
+		    /* env is unexpanded */
+		    (*i)->i_unexpanded = env;
+
+		} else {
+		    /* expanded should be single unexpanded message */
+		    assert((*i)->i_expanded_list->e_expanded_next == NULL );
+		    assert((*i)->i_expanded_list->e_n_exp_level ==
+			    env->e_n_exp_level - 1 );
+		    (*i)->i_unexpanded = (*i)->i_expanded_list;
+		    (*i)->i_expanded_list = env;
+		}
+
+		for ( delete = (*i)->i_expanded_list; delete != NULL;
+			delete = delete->e_expanded_next ) {
+		    delete->e_flags |= ENV_FLAG_DELETE;
+		    syslog( LOG_NOTICE, "Queue %s/%s: "
+			    "Cleaning: %s/%s expansion interrupted",
+			    simta_dir_fast, delete->e_id, 
+			    simta_dir_fast, env->e_id );
 		}
 
 	    } else {
@@ -424,26 +434,11 @@ q_expansion_cleanup( struct envelope **fast )
 		}
 		memset( i_add, 0, sizeof( struct i_list ));
 
+		i_add->i_expanded_list = env;
 		i_add->i_dinode = env->e_dinode;
 		i_add->i_next = *i;
 		*i = i_add;
-
-		if ( env->e_hostname == NULL ) {
-		    i_add->i_unexpanded = env;
-		    continue;
-		}
 	    }
-
-	    if (( i_exp = (struct i_expanded*)malloc(
-		    sizeof( struct i_expanded ))) == NULL ) {
-		syslog( LOG_ERR, "Queue Syserror: malloc: %m" );
-		return( 1 );
-	    }
-	    memset( i_exp, 0, sizeof( struct i_expanded ));
-
-            i_exp->i_env = env;
-	    i_exp->i_next = (*i)->i_expanded;
-	    (*i)->i_expanded = i_exp;
 	}
     }
 
