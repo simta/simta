@@ -552,13 +552,14 @@ queue_env_lookup( char *id )
 
 
     void
-hq_deliver_push( struct host_q *hq )
+hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
 {
     long			diff;
     int				max_wait = 80 * 60;
     int				min_wait = 5 * 60;
     int				wait;
     int				half;
+    int				delay;
     struct host_q		*insert;
 
     /* first launch can be derived from last env touch */
@@ -579,6 +580,15 @@ hq_deliver_push( struct host_q *hq )
     }
 
     hq->hq_launch.tv_sec = hq->hq_launch.tv_sec + wait;
+
+    if ( hq->hq_launch.tv_sec < tv_now->tv_sec ) {
+	delay = random() % wait;
+	syslog( LOG_WARNING, "Queue: %s: Missed delivery by %d seconds,"
+		"Rescheduled %d seconds",
+		hq->hq_hostname, tv_now->tv_sec - hq->hq_launch.tv_sec,
+		delay );
+	hq->hq_launch.tv_sec = tv_now->tv_sec + delay;
+    }
 
     /* add to launch queue sorted on launch time */
     if (( simta_deliver_q == NULL ) ||
@@ -661,6 +671,7 @@ q_read_dir( char *dir )
     int				ret = -1;
     struct host_q		**hq;
     struct host_q		*h_free;
+    struct timeval		tv_schedule;
 
     /* metrics */
     struct timeval		tv_start;
@@ -796,6 +807,11 @@ error:
 	env_free( env );
     }
 
+    if ( gettimeofday( &tv_schedule, NULL ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: q_read_dir gettimeofday: %m" );
+	return( -1 );
+    }
+
     /* post disk-read queue management */
     hq = &simta_host_q;
     while ( *hq != NULL ) {
@@ -830,7 +846,7 @@ error:
 		if ( (*hq)->hq_launch.tv_sec == 0 ) {
 		    syslog( LOG_INFO, "Queue Adding: %s %d messages",
 			    (*hq)->hq_hostname, (*hq)->hq_entries );
-		    hq_deliver_push( *hq );
+		    hq_deliver_push( *hq, &tv_schedule );
 		}
 
 		remain_hq++;

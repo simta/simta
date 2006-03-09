@@ -745,6 +745,8 @@ simta_q_scheduler( void )
 	return( 1 );
     }
 
+    srandom( tv_disk.tv_usec );
+
     /* main daemon loop */
     for (;;) {
 	if ( simsendmail_signal != 0 ) {
@@ -860,7 +862,7 @@ simta_q_scheduler( void )
 	    hq->hq_launch.tv_sec = tv_now.tv_sec;
 
 	    /* re-queue  */
-	    hq_deliver_push( hq );
+	    hq_deliver_push( hq, &tv_now );
 
 	    if (( simta_launch_limit > 0 ) &&
 		    (( launched % simta_launch_limit ) == 0 )) {

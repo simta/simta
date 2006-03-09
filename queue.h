@@ -71,4 +71,4 @@ void	hq_deliver_pop( struct host_q * );
 void	queue_log_metrics( struct host_q * );
 
 int	q_read_dir( char * );
-void	hq_deliver_push( struct host_q * );
+void	hq_deliver_push( struct host_q *, struct timeval * );
