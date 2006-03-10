@@ -195,7 +195,7 @@ libsnet/libsnet.a : FRC
 denser/denser.o	: FRC
 	cd denser; ${MAKE} ${MFLAGS} CC=${CC} INCPATH="${INCPATH}"
 
-VERSION=`date +%Y%m%d`
+VERSION=`date +%Y_%m_%d`
 DISTDIR=simta-${VERSION}
 
 dist : clean
