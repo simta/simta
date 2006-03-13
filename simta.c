@@ -485,6 +485,70 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "MAX_RECEIVED_HEADERS: %d\n",
 		simta_max_received_headers );
 
+	} else if ( strcasecmp( av[ 0 ], "MAX_Q_RUNNERS_LOCAL" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_q_runner_local_max = atoi( av [ 1 ] );
+	    if ( simta_q_runner_local_max < 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: MAX_Q_RUNNERS_LOCAL can't be less than 0",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_LOCAL: %d\n",
+		simta_q_runner_local_max );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_Q_RUNNERS_SLOW" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_q_runner_slow_max = atoi( av [ 1 ] );
+	    if ( simta_q_runner_slow_max < 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: MAX_Q_RUNNERS_SLOW can't be less than 0",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_SLOW: %d\n",
+		simta_q_runner_slow_max );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_Q_RUNNERS_LAUNCH" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_launch_limit = atoi( av [ 1 ] );
+	    if ( simta_launch_limit < 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: MAX_Q_RUNNERS_LAUNCH can't be less than 0",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_LAUNCH: %d\n",
+		simta_launch_limit );
+
+	} else if ( strcasecmp( av[ 0 ], "DISK_READ_PERIOD" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_disk_period = atoi( av [ 1 ] );
+	    if ( simta_disk_period <= 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: DISK_READ_PERIOD must be greater than 0",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DISK_READ_PERIOD: %d\n",
+		simta_disk_period );
+
 	} else if ( strcasecmp( av[ 0 ], "CONTENT_FILTER" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
