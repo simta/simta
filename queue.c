@@ -693,10 +693,8 @@ q_read_dir( char *dir )
 
     simta_disk_cycle++;
 
-    errno = 0;
-
     /* organize a directory's messages by host and timestamp */
-    while (( entry = readdir( dirp )) != NULL ) {
+    for  ( errno = 0; entry = readdir( dirp ) != NULL; errno = 0 ) {
 	if (( *entry->d_name != 'E' ) && ( *entry->d_name != 'D' )) {
 	    continue;
 	}
@@ -786,14 +784,14 @@ q_read_dir( char *dir )
     }
 
     if ( errno != 0 ) {
-	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
+	syslog( LOG_ERR, "q_read_dir readdir %s: %m", dir );
     } else {
 	ret = 0;
     }
 
 error:
     if ( closedir( dirp ) != 0 ) {
-	syslog( LOG_ERR, "q_runner_dir closedir %s: %m", dir );
+	syslog( LOG_ERR, "q_read_dir closedir %s: %m", dir );
 	return( -1 );
     }
 
