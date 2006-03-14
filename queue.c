@@ -694,7 +694,7 @@ q_read_dir( char *dir )
     simta_disk_cycle++;
 
     /* organize a directory's messages by host and timestamp */
-    for  ( errno = 0; entry = readdir( dirp ) != NULL; errno = 0 ) {
+    for  ( errno = 0; ( entry = readdir( dirp )) != NULL; errno = 0 ) {
 	if (( *entry->d_name != 'E' ) && ( *entry->d_name != 'D' )) {
 	    continue;
 	}
