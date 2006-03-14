@@ -7,11 +7,11 @@
 
 #include "config.h"
 
-#ifdef TLS
+#ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#endif /* TLS */
+#endif /* HAVE_LIBSSL */
 
 
 #include <sys/types.h>
@@ -28,7 +28,7 @@
 #include <ldap.h>
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
-#endif
+#endif /* HAVE_LIBSASL */
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
@@ -202,7 +202,7 @@ simta_ldapuser (char * buf, char ** user, char ** domain)
 	*domain = strdup("");  
     return;
 }
-
+#ifdef HAVE_LIBSASL
 /*
 ** SASL Call Back
 ** This SASL callback only works for "EXTERNAL" 
@@ -226,6 +226,7 @@ simta_ldap_sasl_interact(
     } 
     return LDAP_SUCCESS;
 }
+#endif
     static int
 simta_ldap_init ()
 {
@@ -274,6 +275,7 @@ simta_ldap_init ()
 		protocol );
 	    return( LDAP_SYSERROR );
 	}
+#ifdef HAVE_LIBSSL
         if (tls_cacert) {
 	    ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, tls_cacert);
 	    if( ldaprc != LDAP_OPT_SUCCESS ) {
@@ -310,6 +312,10 @@ simta_ldap_init ()
 	    }
 	}
     }
+#endif /* HAVE_LIBSSL */
+
+#ifdef HAVE_LIBSASL
+
     /* If a client-side cert specified,  then do a SASL EXTERNAL bind */
     if (tls_cert) {
 	ldaprc = ldap_sasl_interactive_bind_s( ld, binddn,
@@ -321,12 +327,18 @@ simta_ldap_init ()
 	    return ( LDAP_SYSERROR );
 	}
     }
-    else if (binddn) {
-	if ((ldaprc = ldap_bind_s( ld, binddn, bindpw, LDAP_AUTH_SIMPLE)) != LDAP_SUCCESS){
-	    syslog( LOG_ERR, "ldap_bind: %s", ldap_err2string(ldaprc));
-	    return( LDAP_SYSERROR );
+    else {
+	
+#endif /* HAVE_LIBSASL */
+	if (binddn) {
+	    if ((ldaprc = ldap_bind_s( ld, binddn, bindpw, LDAP_AUTH_SIMPLE)) != LDAP_SUCCESS){
+		syslog( LOG_ERR, "ldap_bind: %s", ldap_err2string(ldaprc));
+		return( LDAP_SYSERROR );
+	    }
 	}
+#ifdef HAVE_LIBSASL
     }
+#endif /* HAVE_LIBSASL */
     return (0);
 }
 /*
@@ -1615,7 +1627,6 @@ simta_ldap_config( char *fname )
     int			ac;
     int			acidx;
     int			attridx;
-
     int			intval;
 
     LDAPURLDesc		*plud;		/* a parsed ldapurl */
@@ -1627,7 +1638,7 @@ simta_ldap_config( char *fname )
     /* open fname */
     if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
 	syslog ( LOG_ERR, "simta_ldap_config open %s: %m", fname );
-	return( ret );
+	goto errexit;
     }
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
@@ -1787,7 +1798,7 @@ simta_ldap_config( char *fname )
 		goto errexit;
 	    }
 	    ldapdebug = atoi (av[ 1 ]);
-	    
+#ifdef HAVE_LIBSSL	    
 	} else if ( strcasecmp( av[ 0 ], "starttls" ) == 0 ) {
 	    if (ac != 2) {
 		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
@@ -1801,7 +1812,6 @@ simta_ldap_config( char *fname )
 		goto errexit;
 	    }
 	    starttls = intval;
-	    
 	} else if ( strcasecmp( av[ 0 ], "TLS_CACERT" ) == 0 ) {
 	    if (ac != 2) {
 		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
@@ -1812,7 +1822,6 @@ simta_ldap_config( char *fname )
 		syslog ( LOG_ERR, "tls_cacert strdup error: %m" ); 
 		goto errexit;
 	    } 
-
 	} else if ( strcasecmp( av[ 0 ], "TLS_CERT" ) == 0 ) {
 	    if (ac != 2) {
 		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
@@ -1833,7 +1842,7 @@ simta_ldap_config( char *fname )
 		syslog ( LOG_ERR, "tls_key strdup error: %m" ); 
 		goto errexit;
 	    } 
-
+#endif /* HAVE_LIBSSL */
 	} else if ( strcasecmp( av[ 0 ], "domaincomponentcount" ) == 0 ) {
 	    if (ac != 2) {
 		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
