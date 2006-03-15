@@ -171,7 +171,6 @@ main( int ac, char **av )
     int			q_run = 0;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
-    FILE		*pf;
     int			use_randfile = 0;
     unsigned short	port = 0;
     extern int		optind;
@@ -667,19 +666,6 @@ main( int ac, char **av )
 #endif /* Q_SIMULATION */
 #endif /*ultrix */
 
-
-#ifndef Q_SIMULATION
-    if (( pf = fdopen( simta_pidfd, "w" )) == NULL ) {
-        syslog( LOG_ERR, "Syserror: can't fdopen simta_pidfd" );
-        exit( 1 );
-    }
-    fprintf( pf, "%d\n", (int)getpid());
-    if ( fflush( pf ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: fflush: %m" );
-	exit( 1 );
-    }
-#endif /* Q_SIMULATION */
-
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
     sa.sa_handler = hup;
@@ -751,8 +737,6 @@ simta_child_queue_scheduler( void )
 	return( 0 );
     }
 
-    close( simta_pidfd );
-
     if ( simta_socket_smtp ) {
 	close( simta_socket_smtp );
     }
@@ -782,6 +766,19 @@ simta_q_scheduler( void )
     ulong			waited;
     int				launched;
     ulong			launch_this_cycle;
+    FILE			*pf;
+
+#ifndef Q_SIMULATION
+    if (( pf = fdopen( simta_pidfd, "w" )) == NULL ) {
+        syslog( LOG_ERR, "Syserror: can't fdopen simta_pidfd" );
+        exit( 1 );
+    }
+    fprintf( pf, "%d\n", (int)getpid());
+    if ( fflush( pf ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: fflush: %m" );
+	exit( 1 );
+    }
+#endif /* Q_SIMULATION */
 
     simta_process_type = PROCESS_Q_SCHEDULER;
 
@@ -1160,6 +1157,8 @@ simta_smtp_server( void )
     int				ret;
 
     simta_process_type = PROCESS_SMTP_SERVER;
+
+    close( simta_pidfd );
 
     /* main smtp server loop */
     for (;;) {
