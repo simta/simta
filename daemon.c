@@ -86,7 +86,8 @@ int		simta_q_scheduler( void );
 int		simta_proc_add( int, int );
 int		simta_child_q_runner( struct host_q * );
 int		simta_child_receive( int, int );
-int		simta_child_smtp_daemon( void );
+int		simta_child_queue_scheduler( void );
+int		simta_smtp_server( void );
 
 SSL_CTX		*ctx = NULL;
 
@@ -714,13 +715,57 @@ main( int ac, char **av )
 	    || ( simta_service_smtps )
 #endif /* HAVE_LIBSSL */
 	    || ( simta_service_submission )) {
-	if ( simta_child_smtp_daemon() != 0 ) {
+	if ( simta_child_queue_scheduler() != 0 ) {
 	    return( 1 );
 	}
+
+	exit( simta_smtp_server());
     }
 #endif /* Q_SIMULATION */
 
     exit( simta_q_scheduler());
+}
+
+
+    int
+simta_child_queue_scheduler( void )
+{
+    int				pid;
+
+    switch ( pid = fork()) {
+    case 0 :
+	/* Fall through */
+	break;
+
+    case -1 :
+	syslog( LOG_ERR, "Syserror: simta_child_queue_scheduler fork: %m" );
+	abort();
+
+    default :
+	syslog( LOG_NOTICE, "Child %d: start: master queue server", pid );
+
+	if ( simta_proc_add( PROCESS_Q_SCHEDULER, pid ) != 0 ) {
+	    return( 1 );
+	}
+
+	return( 0 );
+    }
+
+    close( simta_pidfd );
+
+    if ( simta_socket_smtp ) {
+	close( simta_socket_smtp );
+    }
+
+    if ( simta_socket_smtps ) {
+	close( simta_socket_smtps );
+    }
+
+    if ( simta_socket_submission ) {
+	close( simta_socket_submission );
+    }
+
+    return( simta_q_scheduler());
 }
 
 
@@ -729,7 +774,6 @@ main( int ac, char **av )
     int
 simta_q_scheduler( void )
 {
-    struct proc_type		*p;
     struct timeval		tv_now;
     struct timeval		tv_disk;
     struct timeval		tv_sleep;
@@ -738,6 +782,8 @@ simta_q_scheduler( void )
     ulong			waited;
     int				launched;
     ulong			launch_this_cycle;
+
+    simta_process_type = PROCESS_Q_SCHEDULER;
 
     /* read the disk ASAP */
     if ( gettimeofday( &tv_disk, NULL ) != 0 ) {
@@ -905,17 +951,6 @@ simta_q_scheduler( void )
 	}
     }
 
-    /* Kill SMTP server */
-    for ( p = proc_stab; p != NULL; p = p->p_next ) {
-	if ( p->p_type == PROCESS_SMTP_SERVER ) {
-	    if ( kill( p->p_id, SIGKILL ) != 0 ) {
-		syslog( LOG_ERR, "Syserror: simta_q_scheduler kill %d: %m",
-			p->p_id );
-	    }
-	    break;
-	}
-    }
-
     return( 1 );
 }
 
@@ -977,8 +1012,8 @@ simta_waitpid( void )
 	    simta_receive_connections--;
 	    break;
 
-	case PROCESS_SMTP_SERVER:
-	    p_name = "smtp server";
+	case PROCESS_Q_SCHEDULER:
+	    p_name = "queue scheduler";
 	    errors++;
 	    break;
 
@@ -1117,43 +1152,14 @@ simta_sigaction_reset( void )
 
 
     int
-simta_child_smtp_daemon( void )
+simta_smtp_server( void )
 {
     fd_set			fdset;
+    struct proc_type		*p;
     int				fd_max = 0;
-    int				pid;
     int				ret;
 
-    switch ( pid = fork()) {
-    case 0 :
-	/* Fall through to smtp server loop below */
-	break;
-
-    case -1 :
-	syslog( LOG_ERR, "Syserror: simta_child_smtp_daemon fork: %m" );
-	abort();
-
-    default :
-	syslog( LOG_NOTICE, "Child %d: start: smtp server", pid );
-	close( simta_socket_smtp );
-	if ( simta_service_submission ) {
-	    close( simta_socket_submission );
-	}
-#ifdef HAVE_LIBSSL
-	if ( simta_service_smtps ) {
-	    close( simta_socket_smtps );
-	}
-#endif /* HAVE_LIBSSL */
-
-	if ( simta_proc_add( PROCESS_SMTP_SERVER, pid ) != 0 ) {
-	    return( 1 );
-	}
-
-	return( 0 );
-    }
-
     simta_process_type = PROCESS_SMTP_SERVER;
-    close( simta_pidfd );
 
     /* main smtp server loop */
     for (;;) {
@@ -1215,6 +1221,17 @@ simta_child_smtp_daemon( void )
 	    }
 	}
 #endif /* HAVE_LIBSSL */
+    }
+
+    /* Kill queue scheduler */
+    for ( p = proc_stab; p != NULL; p = p->p_next ) {
+	if ( p->p_type == PROCESS_Q_SCHEDULER ) {
+	    if ( kill( p->p_id, SIGKILL ) != 0 ) {
+		syslog( LOG_ERR, "Syserror: simta_smtp_server kill %d: %m",
+			p->p_id );
+	    }
+	    break;
+	}
     }
 
     return( 1 );
@@ -1304,13 +1321,6 @@ simta_child_q_runner( struct host_q *hq )
 
 #ifdef Q_SIMULATION
     assert( hq != NULL );
-    /*
-    if (( hq->hq_hostname != NULL ) && ( *(hq->hq_hostname) != '\0' )) {
-	syslog( LOG_NOTICE, "Simulation: q_runner slow %s", hq->hq_hostname );
-    } else {
-	syslog( LOG_NOTICE, "Simulation: q_runner slow NULL" );
-    }
-    */
     return( 0 );
 #endif /* Q_SIMULATION */
 
