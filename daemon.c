@@ -1327,28 +1327,32 @@ simta_child_q_runner( struct host_q *hq )
     case 0 :
 	simta_sigaction_reset();
 	close( simta_pidfd );
+	simta_host_q = NULL;
+
+	if (( hq != NULL ) && ( hq == simta_unexpanded_q )) {
+	    simta_process_type = PROCESS_Q_SLOW;
+	    exit( q_runner());
+	}
+
+	if ( simta_unexpanded_q != NULL ) {
+	    simta_unexpanded_q->hq_env_head = NULL;
+	    simta_unexpanded_q->hq_next = NULL;
+	    simta_unexpanded_q->hq_entries = 0;
+	}
 
 	if ( hq == NULL ) {
 	    simta_process_type = PROCESS_Q_LOCAL;
 	    exit( q_runner_dir( simta_dir_local ));
 
-	} else if ( hq == simta_unexpanded_q ) {
-	    simta_process_type = PROCESS_Q_SLOW;
-	    simta_host_q = NULL;
-	    exit( q_runner());
-
 	} else {
 	    simta_host_q = hq;
 	    hq->hq_next = NULL;
-
-	    if ( simta_unexpanded_q != NULL ) {
-		simta_unexpanded_q->hq_env_head = NULL;
-		simta_unexpanded_q->hq_next = NULL;
-		simta_unexpanded_q->hq_entries = 0;
-	    }
-
+	    simta_process_type = PROCESS_Q_SLOW;
 	    exit( q_runner());
 	}
+
+	/* if you get here there is an error */
+	panic( "unreachable code" );
 
     case -1 :
 	syslog( LOG_ERR, "Syserror: simta_child_q_runner fork: %m" );
