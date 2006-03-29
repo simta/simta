@@ -219,6 +219,7 @@ queue_remove_envelope( struct envelope *env )
 
 	*ep = env->e_hq_next;
 
+	env->e_hq->hq_entries--;
 	env->e_hq = NULL;
 	env->e_hq_next = NULL;
 
@@ -734,8 +735,8 @@ q_read_dir( char *dir )
 		}
 	    }
 
-	    if ( !env ) { if (( env = env_create( NULL, NULL )) ==
-		NULL ) {
+	    if ( !env ) {
+		if (( env = env_create( NULL, NULL )) == NULL ) {
 		    continue;
 		}
 
@@ -820,6 +821,7 @@ error:
 		env = *e;
 		*e = (*e)->e_hq_next;
 		removed++;
+		*hq->hq_entries--;
 		env_free( env );
 
 	    } else {
@@ -828,6 +830,10 @@ error:
 	}
 
 	if ( *hq == simta_unexpanded_q ) {
+	    if ( simta_unexpanded_queue->hq_env_head == 0 ) {
+		simta_unexpanded_queue->hq_entries = 0;
+	    }
+
 	    hq = &((*hq)->hq_next);
 
 	} else {
