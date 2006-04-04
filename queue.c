@@ -183,17 +183,15 @@ queue_envelope( struct envelope *env )
 
     /* touch the env */
     env->e_cycle = simta_disk_cycle;
+    hq->hq_entries++;
 
     /* manage queue's deliver times and cycle */
     if ( hq->hq_cycle != simta_disk_cycle ) {
 	hq->hq_cycle = simta_disk_cycle;
-	hq->hq_entries = 1;
 	hq->hq_max_etime.tv_sec = env->e_etime.tv_sec;
 	hq->hq_min_dtime.tv_sec = env->e_dtime.tv_sec;
 
     } else {
-	hq->hq_entries++;
-
 	if ( hq->hq_max_etime.tv_sec < env->e_etime.tv_sec ) {
 	    hq->hq_max_etime.tv_sec = env->e_etime.tv_sec;
 	}
