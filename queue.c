@@ -282,7 +282,7 @@ q_runner( void )
 	for ( hq = simta_host_q; hq != NULL; hq = hq->hq_next ) {
 	    hq->hq_deliver = NULL;
 
-	    if (( hq->hq_entries == 0 ) || ( hq == simta_unexpanded_q )) {
+	    if (( hq->hq_env_head == NULL ) || ( hq == simta_unexpanded_q )) {
 		continue;
 	    }
 
@@ -325,7 +325,7 @@ q_runner( void )
 	}
 
 	/* punt any undelivered mail, if possible */
-	if (( simta_punt_q != NULL ) && ( simta_punt_q->hq_entries > 0 )) {
+	if (( simta_punt_q != NULL ) && ( simta_punt_q->hq_env_head != NULL )) {
 	    syslog( LOG_DEBUG, "q_runner: punting undelivered mail to %s",
 		    simta_punt_host );
 	    q_deliver( simta_punt_q );
@@ -670,6 +670,7 @@ q_read_dir( char *dir )
     struct stat			sb;
     int				r;
     int				ret = -1;
+    int				messages;
     struct host_q		**hq;
     struct host_q		*h_free;
     struct timeval		tv_schedule;
@@ -815,25 +816,24 @@ error:
     hq = &simta_host_q;
     while ( *hq != NULL ) {
 	e = &(*hq)->hq_env_head;
+	messages = 0;
 	/* make sure that all envs in all host queues are up to date */
 	while ( *e != NULL ) {
 	    if ((*e)->e_cycle != simta_disk_cycle ) {
 		env = *e;
 		*e = (*e)->e_hq_next;
 		removed++;
-		(*hq)->hq_entries--;
 		env_free( env );
 
 	    } else {
+		messages++;
 		e = &((*e)->e_hq_next);
 	    }
 	}
 
-	if ( *hq == simta_unexpanded_q ) {
-	    if ( simta_unexpanded_q->hq_env_head == 0 ) {
-		simta_unexpanded_q->hq_entries = 0;
-	    }
+	(*hq)->hq_entries = messages;
 
+	if ( *hq == simta_unexpanded_q ) {
 	    hq = &((*hq)->hq_next);
 
 	} else {
