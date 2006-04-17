@@ -809,7 +809,10 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     sprintf( filename, "%s/E%s", env->e_dir, env->e_id );
 
     if (( snet = snet_open( filename, O_RDWR, 0, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "env_read_delivery_info snet_open %s: %m", filename );
+	if ( errno != ENOENT ) {
+	    syslog( LOG_ERR,
+		    "env_read_delivery_info snet_open %s: %m", filename );
+	}
 	return( 1 );
     }
 
