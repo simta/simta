@@ -5,8 +5,8 @@
 
 #include "config.h"
 
-#include <sys/prctl.h>
 #include <sys/types.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/time.h>
@@ -758,14 +758,16 @@ simta_child_queue_scheduler( void )
     int
 simta_q_scheduler( void )
 {
+    struct timespec		req;
+    struct timespec		rem;
     struct timeval		tv_now;
     struct timeval		tv_disk;
     struct timeval		tv_sleep;
     struct host_q		*hq;
     int				lag;
-    ulong			waited;
+    u_long			waited;
     int				launched;
-    ulong			launch_this_cycle;
+    u_long			launch_this_cycle;
     FILE			*pf;
 
 #ifndef Q_SIMULATION
@@ -909,8 +911,21 @@ simta_q_scheduler( void )
 
 	    if (( simta_launch_limit > 0 ) &&
 		    (( launched % simta_launch_limit ) == 0 )) {
-		syslog( LOG_INFO, "Queue Delay: Sleeping for 1 second" );
-		sleep( 1 );
+		syslog( LOG_WARNING, "Queue Delay: Sleeping for 1 second" );
+		req.tv_sec = 1;
+		req.tv_nsec = 0;
+
+		while ( nanosleep( &req, &rem ) != 0 ) {
+		    if ( errno == EINTR ) {
+			req = rem;
+
+		    } else {
+			syslog( LOG_ERR,
+				"Syserror: q_scheduler nanosleep: %m" );
+			return( 1 );
+		    }
+		}
+
 		break;
 	    }
 	}
