@@ -74,6 +74,7 @@ int			simta_disk_period = 300;
 int			simta_receive_connections_max = SIMTA_MAXCONNECTIONS;
 int			simta_receive_connections = 0;
 int			simta_launch_limit = SIMTA_LAUNCH_LIMIT;
+int			simta_min_work_time = SIMTA_MIN_WORK_TIME;
 int			simta_q_runner_local_max = SIMTA_MAX_RUNNERS_LOCAL;
 int			simta_q_runner_local = 0;
 int			simta_q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
@@ -548,6 +549,22 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "DISK_READ_PERIOD: %d\n",
 		simta_disk_period );
+
+	} else if ( strcasecmp( av[ 0 ], "MIN_WORK_TIME" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    simta_min_work_time = atoi( av [ 1 ] );
+	    if ( simta_min_work_time < 0 ) {
+		fprintf( stderr,
+		    "%s: line %d: MIN_WORK_TIME can't be less than 0",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MIN_WORK_TIME: %d\n",
+		simta_min_work_time );
 
 	} else if ( strcasecmp( av[ 0 ], "CONTENT_FILTER" ) == 0 ) {
 	    if ( ac != 2 ) {

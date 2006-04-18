@@ -23,6 +23,7 @@
 #define	SIMTA_EXPANSION_FAILED		0
 #define	SIMTA_EXPANSION_SUCCESS		1
 #define	SIMTA_LAUNCH_LIMIT		10
+#define	SIMTA_MIN_WORK_TIME		60
 
 #define	EXIT_OK				0
 
@@ -63,6 +64,7 @@ extern struct envelope			*simta_env_queue;
 extern int				simta_disk_cycle;
 extern int				simta_disk_period;
 extern int				simta_launch_limit;
+extern int				simta_min_work_time;
 extern int				simta_receive_connections_max;
 extern int				simta_receive_connections;
 extern int				simta_q_runner_local;

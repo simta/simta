@@ -825,18 +825,18 @@ simta_q_scheduler( void )
 
 	    queue_log_metrics( simta_deliver_q );
 
-	    tv_disk.tv_sec += simta_disk_period;
-
 	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
 		break;
 	    }
 
-	    if ( tv_disk.tv_sec < tv_now.tv_sec ) {
-		/* waited too long */
+	    tv_disk.tv_sec += simta_disk_period;
+
+	    if (( lag = (( tv_now.tv_sec + simta_min_work_time )
+		    - tv_disk.tv_sec )) > 0 ) {
+		tv_disk.tv_sec += lag;
 		syslog( LOG_WARNING, "Queue Lag: disk read %d seconds",
-			tv_now.tv_sec - tv_disk.tv_sec );
-		tv_disk = tv_now;
+			lag );
 	    }
 
 	    /* run unexpanded queue if we have entries */
