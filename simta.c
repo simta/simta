@@ -580,18 +580,25 @@ simta_read_config( char *fname )
 		simta_mail_filter );
 
 	} else if ( strcasecmp( av[ 0 ], "IGNORE_REVERSE" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	    if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 arguments\n",
 		    fname, lineno );
 		goto error;
 	    }
 	    simta_ignore_reverse = 1;
+	    if ( simta_debug ) printf( "IGNORE_REVERSE\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "REVERSE_URL" ) == 0 ) {
+	    if ( ac != 2 ) {
+                fprintf( stderr, "%s: line %d: expected 1 arguments\n",
+		    fname, lineno );
+		goto error;
+	    }
 	    if (( simta_reverse_url = strdup( av[ 1 ] )) == NULL ) {
 		perror( "strdup" );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "IGNORE_REVERSE\tREVERSE_URL: %s\n",
-		simta_reverse_url );
+	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
 
         } else if ( strcasecmp( av[ 0 ],
                 "IGNORE_CONNECT_IN_DNS_ERRORS" ) == 0 ) {

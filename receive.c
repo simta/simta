@@ -1954,10 +1954,16 @@ smtp_receive( int fd, struct sockaddr_in *sin )
                 if ( simta_ignore_reverse == 0 ) {
                     syslog( LOG_NOTICE, "Connect.in [%s]: Failed: "
                             "invalid reverse", inet_ntoa( sin->sin_addr ));
-                    snet_writef( snet,
-                            "421 No access from IP %s.  See %s\r\n",
-                            inet_ntoa( sin->sin_addr ),
-                            simta_reverse_url );
+		    if ( simta_reverse_url ) {
+			snet_writef( snet,
+				"421 No access from IP %s.  See %s\r\n",
+				inet_ntoa( sin->sin_addr ),
+				simta_reverse_url );
+		    } else {
+			snet_writef( snet,
+				"421 No access from IP %s.\r\n",
+				inet_ntoa( sin->sin_addr ));
+		    }
                     goto closeconnection;
                 } else {
                     syslog( LOG_NOTICE, "Connect.in [%s]: Warning: "
