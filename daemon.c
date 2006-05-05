@@ -915,9 +915,14 @@ simta_q_scheduler( void )
 		req.tv_sec = 1;
 		req.tv_nsec = 0;
 
+		syslog( LOG_DEBUG, "start nanosleep %d %ld", req.tv_sec,
+			req.tv_nsec );
 		while ( nanosleep( &req, &rem ) != 0 ) {
 		    if ( errno == EINTR ) {
-			req = rem;
+			req.tv_sec = rem.tv_sec;
+			req.tv_nsec = rem.tv_nsec;
+			syslog( LOG_DEBUG, "resume nanosleep %d %ld",
+				req.tv_sec, req.tv_nsec );
 
 		    } else {
 			syslog( LOG_ERR,
