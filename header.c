@@ -794,7 +794,7 @@ is_emailaddr( char *addr )
 
     at = end + 1;
 
-    if (( *at == '\0' ) && ( strcasecmp( addr, "postmaster" ) == 0 )) {
+    if (( *at == '\0' ) && ( strcasecmp( addr, STRING_POSTMASTER ) == 0 )) {
 	return( 1 );
     }
 

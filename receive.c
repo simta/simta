@@ -2413,11 +2413,12 @@ rfc_2821_trimaddr( int mode, char *left_angle, char **address,
 
     if (( *q == '>' ) && ( mode == RFC_2821_RCPT_TO )) {
 	/* <postmaster> is always a valid recipient */
-	if ( strncasecmp( "postmaster", p, q - p ) == 0 ) {
-	    *q = '\0';
+	*q = '\0';
+	if ( strcasecmp( STRING_POSTMASTER, p ) == 0 ) {
 	    *domain = NULL;
 	    return( 0 );
 	}
+	*q = '>';
 	return( 1 );
 
     } else if ( *q != '@' ) {

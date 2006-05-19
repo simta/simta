@@ -36,6 +36,7 @@
 #include "envelope.h"
 #include "ml.h"
 #include "line_file.h"
+#include "simta.h"
 
 
 char		*maillocal_argv[] = { "mail.local", "-f", 0, "--", 0, 0 };
@@ -128,7 +129,7 @@ procmail( int f, char *sender, struct recipient *recipient )
 	    *at = '\0';
 	    procmail_argv[ 4 ] = recipient->r_rcpt;
 	} else {
-	    procmail_argv[ 4 ] = "postmaster";
+	    procmail_argv[ 4 ] = STRING_POSTMASTER;
 	}
 
 	execv( procmail_bin, procmail_argv );
@@ -274,7 +275,7 @@ mail_local( int f, char *sender, struct recipient *recipient )
 	    *at = '\0';
 	    maillocal_argv[ 4 ] = recipient->r_rcpt;
 	} else {
-	    maillocal_argv[ 4 ] = "postmaster";
+	    maillocal_argv[ 4 ] = STRING_POSTMASTER;
 	}
 
 	execv( maillocal_bin, maillocal_argv );

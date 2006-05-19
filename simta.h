@@ -13,6 +13,8 @@
 #define	MESSAGE_REJECT			2
 #define	MESSAGE_TEMPFAIL		3
 
+#define	STRING_POSTMASTER		"postmaster"
+
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"

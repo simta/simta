@@ -240,7 +240,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	switch ( addr_type ) {
 	case ADDRESS_TYPE_EMAIL:
 	    if (( *(e->e_addr) != '\0' ) &&
-		    ( strcasecmp( "postmaster", e->e_addr ) != 0 )) {
+		    ( strcasecmp( STRING_POSTMASTER, e->e_addr ) != 0 )) {
 		if ( *(e->e_addr) == '"' ) {
 		    if (( at = token_quoted_string( e->e_addr )) == NULL ) {
 			syslog( LOG_ERR, "add_address <%s>: ERROR bad address: "
@@ -493,7 +493,7 @@ not_found:
 	local_postmaster = 1;
     } else {
 	e_addr->e_addr_at = '\0';
-	if ( strcasecmp( e_addr->e_addr, "postmaster" ) == 0 ) {
+	if ( strcasecmp( e_addr->e_addr, STRING_POSTMASTER ) == 0 ) {
 	    local_postmaster = 1;
 	}
 	e_addr->e_addr_at = '@';
@@ -534,7 +534,7 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
 	passwd = getpwnam( e_addr->e_addr );
 	*e_addr->e_addr_at = '@';
     } else {
-	passwd = getpwnam( "postmaster" );
+	passwd = getpwnam( STRING_POSTMASTER );
     }
 
     if ( passwd == NULL ) {
@@ -638,7 +638,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	*e_addr->e_addr_at = '@';
 
     } else {
-	strcpy( address, "postmaster" );
+	strcpy( address, STRING_POSTMASTER );
     }
 
     key.data = &address;
