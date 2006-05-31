@@ -100,9 +100,6 @@ char				*auth_id = NULL;
 #define	RECEIVE_CLOSECONNECTION	0x0010
 #define	RECEIVE_BADSEQUENCE	0x0100
 
-#define	RFC_2821_MAIL_FROM	0x0001
-#define	RFC_2821_RCPT_TO	0x0010
-
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
 #define	NOT_LOCAL			2
@@ -117,7 +114,6 @@ struct command {
 
 static char 	*env_string( char *, char * );
 static int	mail_filter( struct envelope *, int, char ** );
-static int	rfc_2821_trimaddr( int, char *, char **, char ** );
 static int	local_address( char *, char *, struct simta_red *);
 static int	hello( struct envelope *, char * );
 static int	reset( struct envelope *env );
@@ -398,7 +394,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     if (( !simta_strict_smtp_syntax ) && ( ac >= 3 ) &&
 	    ( strcasecmp( av[ 1 ], "FROM:" ) == 0 )) {
 	/* av[ 1 ] = "FROM:", av[ 2 ] = "<ADDRESS>" */
-	if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 2 ], &addr,
+	if ( parse_emailaddr( RFC_2821_MAIL_FROM, av[ 2 ], &addr,
 		&domain ) != 0 ) {
 	    return( f_mail_usage( snet ));
 	}
@@ -410,7 +406,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	/* av[ 1 ] = "FROM:<ADDRESS>" */
-	if ( rfc_2821_trimaddr( RFC_2821_MAIL_FROM, av[ 1 ] + strlen( "FROM:" ),
+	if ( parse_emailaddr( RFC_2821_MAIL_FROM, av[ 1 ] + strlen( "FROM:" ),
 		&addr, &domain ) != 0 ) {
 	    return( f_mail_usage( snet ));
 	}
@@ -586,7 +582,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( f_rcpt_usage( snet ));
 	}
 
-	if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 1 ] + 3, &addr,
+	if ( parse_emailaddr( RFC_2821_RCPT_TO, av[ 1 ] + 3, &addr,
 		&domain ) != 0 ) {
 	    return( f_rcpt_usage( snet ));
 	}
@@ -596,7 +592,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( f_rcpt_usage( snet ));
 	}
 
-	if ( rfc_2821_trimaddr( RFC_2821_RCPT_TO, av[ 2 ], &addr,
+	if ( parse_emailaddr( RFC_2821_RCPT_TO, av[ 2 ], &addr,
 		&domain ) != 0 ) {
 	    return( f_rcpt_usage( snet ));
 	}
@@ -2281,179 +2277,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
     return( NOT_LOCAL );
 }
 
-
-    /*
-     * Path = "<" [ A-d-l ":" ] Mailbox ">"
-     * A-d-l = At-domain *( "," A-d-l )
-     *     ; Note that this form, the so-called "source route",
-     *     ; MUST BE accepted, SHOULD NOT be generated, and SHOULD be
-     *     ; ignored.
-     * At-domain = "@" domain
-     * Mailbox = Local-part "@" Domain
-     * Local-part = Dot-string / Quoted-string
-     *     ; MAY be case-sensitive
-     * Dot-string = Atom *("." Atom)
-     * Atom = 1*atext
-     * Quoted-string = DQUOTE *qcontent DQUOTE
-     * String = Atom / Quoted-string
  
- 
- 
-     * address-literal = "[" IPv4-address-literal /
-     * IPv6-address-literal /
-     * General-address-literal "]"
-     *     ; See section 4.1.3
-     * 
- 
-     * Mail-parameters = esmtp-param *(SP esmtp-param)
-     * Rcpt-parameters = esmtp-param *(SP esmtp-param)
-     * 
-     * esmtp-param     = esmtp-keyword ["=" esmtp-value]
-     * esmtp-keyword   = (ALPHA / DIGIT) *(ALPHA / DIGIT / "-")
-     * esmtp-value     = 1*(%d33-60 / %d62-127)
-     *     ; any CHAR excluding "=", SP, and control characters
-     * Keyword  = Ldh-str
-     * Argument = Atom
- 
-     * Domain = (sub-domain 1*("." sub-domain)) / address-literal
-     * sub-domain = Let-dig [Ldh-str]
-     */
-
-    static int
-rfc_2821_trimaddr( int mode, char *left_angle, char **address,
-		char **domain )
-{
-    char			*p;
-    char			*q;
-
-    if (( mode != RFC_2821_MAIL_FROM ) && ( mode != RFC_2821_RCPT_TO )) {
-	return( 1 );
-    }
-
-    if (( left_angle == NULL ) || ( *left_angle != '<' )) {
-	return( 1 );
-    }
-
-    p = left_angle + 1;
-
-    /* do at-domain-literal */
-    if ( *p == '@' ) {
-	/* consume domain */
-	p++;
-	if ( *p == '[' ) {
-	    if (( q = token_domain_literal( p )) == NULL ) {
-		return( 1 );
-	    }
-	} else {
-	    if (( q = token_domain( p )) == NULL ) {
-		return( 1 );
-	    }
-	}
-	q++;
-
-	while ( *q == ',' ) {
-	    p = q + 1;
-
-	    if ( *p != '@' ) {
-		return( 1 );
-	    }
-
-	    /* consume domain */
-	    p++;
-	    if ( *p == '[' ) {
-		if (( q = token_domain_literal( p )) == NULL ) {
-		    return( 1 );
-		}
-	    } else {
-		if (( q = token_domain( p )) == NULL ) {
-		    return( 1 );
-		}
-	    }
-	    q++;
-	}
-
-	if ( *q != ':' ) {
-	    return( 1 );
-	}
-
-	p = q + 1;
-    }
-
-    *address = p;
-
-    /* <> is a valid address for MAIL FROM commands */
-    if ( **address == '>' ) {
-	if ( mode == RFC_2821_MAIL_FROM ) {
-	    **address = '\0';
-	    *domain = NULL;
-	    return( 0 );
-
-	} else {
-	    return( 1 );
-	}
-
-    } else if ( **address == '"' ) {
-	if (( q = token_quoted_string( *address )) == NULL ) {
-	    return( 1 );
-	}
-
-    } else {
-	if (( q = token_dot_atom( *address )) == NULL ) {
-	    return( 1 );
-	}
-    }
-
-    q++;
-
-    /* rfc 2821 3.6
-     * The reserved mailbox name "postmaster" may be used in a RCPT
-     * command without domain qualification (see section 4.1.1.3) and
-     * MUST be accepted if so used.
-     */
-
-    if (( *q == '>' ) && ( mode == RFC_2821_RCPT_TO )) {
-	/* <postmaster> is always a valid recipient */
-	*q = '\0';
-	if ( strcasecmp( STRING_POSTMASTER, p ) == 0 ) {
-	    *domain = NULL;
-	    return( 0 );
-	}
-	*q = '>';
-	return( 1 );
-
-    } else if ( *q != '@' ) {
-	return( 1 );
-    }
-
-    *domain = q + 1;
-
-    /* check domain syntax */
-    if ( strlen( *domain ) > MAXHOSTNAMELEN ) {
-	return( 1 );
-    }
-
-    if ( **domain == '[' ) {
-	if (( q = token_domain_literal( *domain )) == NULL ) {
-	    return( 1 );
-	}
-    } else {
-	if (( q = token_domain( *domain )) == NULL ) {
-	    return( 1 );
-	}
-    }
-
-    q++;
-
-    if (( *q != '>' ) || ( *( q + 1 ) != '\0' ))  {
-	return( 1 );
-    }
-
-    *q = '\0';
-
-    return( 0 );
-}
-
-
     char *
 env_string( char *left, char *right )
 {

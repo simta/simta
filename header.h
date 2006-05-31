@@ -14,6 +14,7 @@ struct string_address {
 
 
 /* public */
+int	parse_emailaddr( int, char *, char **, char ** );
 char	*skip_cws( char * );
 char	*token_domain_literal( char * );
 char	*token_domain( char * );

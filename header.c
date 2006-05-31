@@ -769,59 +769,192 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     int
 is_emailaddr( char *addr )
 {
-    char				*start;
+    if ( parse_emailaddr( EMAIL_ADDRESS_NORMAL, addr, NULL, NULL ) == 0 ) {
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
+
+    int
+parse_emailaddr( int mode, char *addr, char **user, char **domain )
+{
+    char				*u;
+    char				*d;
     char				*end;
     char				*at;
     char				*eol;
+    char				swap;
 
-    /* find start and end of local part */
+    /* make sure mode is in range */
+    switch ( mode ) {
+    case RFC_2821_MAIL_FROM:
+    case RFC_2821_RCPT_TO:
+    case EMAIL_ADDRESS_NORMAL:
+	break;
 
-    start = addr;
+    default:
+	return( 1 );
+    }
 
-    if ( *start == '\0' ) {
-	return( 0 );
+    u = addr;
 
-    } else if ( *start == '"' ) {
-	if (( end = token_quoted_string( start )) == NULL ) {
+    if ( u == NULL ) {
+	return( 1 );
+    }
+
+    if ( mode != EMAIL_ADDRESS_NORMAL ) {
+	if ( *u != '<' ) {
+	    return( 1 );
+	}
+	u++;
+    }
+
+    if ( *u == '\0' ) {
+	if ( mode == EMAIL_ADDRESS_NORMAL ) {
+	    return( 0 );
+	}
+	return( 1 );
+
+    } else if ( *u == '@' ) {
+	if ( mode == EMAIL_ADDRESS_NORMAL ) {
+	    return( 1 );
+	}
+
+	/* do at-domain-literal - consume domain */
+	u++;
+	if ( *u == '[' ) {
+	    if (( end = token_domain_literal( u )) == NULL ) {
+		return( 1 );
+	    }
+	} else {
+	    if (( end = token_domain( u )) == NULL ) {
+		return( 1 );
+	    }
+	}
+	end++;
+
+	while ( *end == ',' ) {
+	    u = end + 1;
+
+	    if ( *u != '@' ) {
+		return( 1 );
+	    }
+
+	    /* consume domain */
+	    u++;
+	    if ( *u == '[' ) {
+		if (( end = token_domain_literal( u )) == NULL ) {
+		    return( 1 );
+		}
+	    } else {
+		if (( end = token_domain( u )) == NULL ) {
+		    return( 1 );
+		}
+	    }
+	    end++;
+	}
+
+	if ( *end != ':' ) {
+	    return( 1 );
+	}
+
+	u = end + 1;
+    }
+
+    if ( mode != EMAIL_ADDRESS_NORMAL ) {
+	*user = u;
+    }
+
+    /* consume the user portion of the address */
+
+    /* <> is a valid address for MAIL FROM commands */
+    if ( *u == '>' ) {
+	if (( mode == RFC_2821_MAIL_FROM ) && ( *( u + 1 ) == '\0' )) {
+	    *u = '\0';
+	    *domain = NULL;
 	    return( 0 );
 	}
 
+	return( 1 );
+
+    } else if ( *u == '"' ) {
+	if (( end = token_quoted_string( u )) == NULL ) {
+	    return( 1 );
+	}
+
     } else {
-	if (( end = token_dot_atom( start )) == NULL ) {
-	    return( 0 );
+	if (( end = token_dot_atom( u )) == NULL ) {
+	    return( 1 );
 	}
     }
 
     at = end + 1;
 
-    if (( *at == '\0' ) && ( strcasecmp( addr, STRING_POSTMASTER ) == 0 )) {
-	return( 1 );
-    }
+    /* rfc 2821 3.6
+     * The reserved mailbox name "postmaster" may be used in a RCPT
+     * command without domain qualification (see section 4.1.1.3) and
+     * MUST be accepted if so used.
+     */
 
-    if ( *at != '@' ) {
+    if ((( *at == '\0' ) && ( mode == EMAIL_ADDRESS_NORMAL )) ||
+	    (( *at == '>' ) && ( mode == RFC_2821_RCPT_TO ))) {
+	swap = *at;
+	*at = '\0';
+	if ( strcasecmp( addr, STRING_POSTMASTER ) != 0 ) {
+	    *at = swap;
+	    return( 1 );
+	}
+
+	if ( mode == RFC_2821_RCPT_TO ) {
+	    *domain = NULL;
+	}
+
 	return( 0 );
     }
 
-    start = at + 1;
+    if ( *at != '@' ) {
+	return( 1 );
+    }
 
-    if ( *start == '[' ) {
-	if (( end = token_domain_literal( start )) == NULL ) {
-	    return( 0 );
+    /* consume the domain portion of the address */
+
+    d = at + 1;
+
+    if ( mode != EMAIL_ADDRESS_NORMAL ) {
+	*domain = d;
+    }
+
+    if ( strlen( *domain ) > MAXHOSTNAMELEN ) {
+	return( 1 );
+    }
+
+    if ( *d == '[' ) {
+	if (( end = token_domain_literal( d )) == NULL ) {
+	    return( 1 );
 	}
 
     } else {
-	if (( end = token_dot_atom( start )) == NULL ) {
-	    return( 0 );
+	if (( end = token_dot_atom( d )) == NULL ) {
+	    return( 1 );
 	}
     }
 
     eol = end + 1;
 
-    if ( *eol != '\0' ) {
-	return( 0 );
+    if ( mode != EMAIL_ADDRESS_NORMAL ) {
+	if (( *eol != '>' ) || ( *( eol + 1 ) != '\0' ))  {
+	    return( 1 );
+	}
+
+	*eol = '\0';
+
+    } else if ( *eol != '\0' ) {
+	return( 1 );
     }
 
-    return( 1 );
+    return( 0 );
 }
 
 
