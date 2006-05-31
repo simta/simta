@@ -814,6 +814,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     int					header = 1;
     int					line_no = 0;
     int					data_errors = 0;
+    int					data_message_size_error = 0;
     int					received_count = 0;
     int					message_result;
     char				*line;
@@ -825,6 +826,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     struct stat				sbuf;
     char				daytime[ 30 ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
+    off_t				data_size = 0;
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -971,8 +973,38 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	}
 
-	if (( received_count <= simta_max_received_headers ) &&
-		( data_errors == 0 )) {
+	if ( simta_max_message_size > 0 ) {
+	    /* If we've already reached max size, continue reading lines
+	     * until the '.' otherwise, check message size.
+	     */
+	    if ( data_message_size_error ) {
+		continue;
+	    } else {
+		/* Add strlen plus "\r\n" */
+		data_size += strlen( line ) + 2;
+		if ( data_size > simta_max_message_size ) { 
+		    data_message_size_error++;
+
+		    /* Cleanup local file */
+		    if ( fclose( dff ) != 0 ) {
+			syslog( LOG_ERR, "f_data fclose: %m" );
+			data_errors++;
+		    }
+		    if ( unlink( dfile_fname ) < 0 ) {
+			syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+			data_errors++;
+		    }
+		    if ( data_errors )
+			return( RECEIVE_SYSERROR );
+		    }
+
+		    continue;
+		}
+	    }
+	}
+
+	if (( received_count <= simta_max_received_headers ) && 
+	    ( data_errors == 0 )) {
 	    if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		syslog( LOG_ERR, "f_data fprintf: %m" );
 		data_errors++;
@@ -999,6 +1031,19 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
 	return( RECEIVE_SYSERROR );
+    }
+
+    /* Check size */
+    if ( data_message_size_error ) {
+	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
+		"Message too large", env->e_id, 
+		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname );
+	if ( snet_writef( snet, "552 (%s): Message too large\r\n",
+		env->e_id ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     if ( received_count > simta_max_received_headers ) { /* message rejection */
