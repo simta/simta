@@ -1137,7 +1137,7 @@ q_deliver( struct host_q *deliver_q )
 message_cleanup:
         if ((( touch ) || ( n_processed == 0 )) &&
                 ( env_deliver->e_dir == simta_dir_slow ) &&
-		( d.d_unlinked != 0 ))  {
+		( d.d_unlinked == 0 ))  {
 	    touch = 0;
 	    env_touch( env_deliver );
 	}
