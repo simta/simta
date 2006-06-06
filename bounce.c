@@ -51,10 +51,15 @@
 
 
     int
-bounce_text( struct envelope *bounce_env, char *t1, char *t2, char *t3 )
+bounce_text( struct envelope *bounce_env, int mode, char *t1, char *t2,
+	char *t3 )
 {
     char			*text;
     size_t			len;
+
+    if ( mode != 0 ) {
+	bounce_env->e_error = mode;
+    }
 
     if ( bounce_env->e_err_text == NULL ) {
 	if (( bounce_env->e_err_text = line_file_create()) == NULL ) {
@@ -72,10 +77,20 @@ bounce_text( struct envelope *bounce_env, char *t1, char *t2, char *t3 )
 	}
 	sprintf( text, "%s%s%s", t1, t2, t3 );
 
-	if ( line_append( bounce_env->e_err_text, text, NO_COPY ) == NULL ) {
-	    syslog( LOG_ERR, "bounce_text line_append: %m" );
-	    free( text );
-	    return( -1 );
+	if ( mode != 0 ) {
+	    if ( line_append( bounce_env->e_err_text, text, NO_COPY )
+		    == NULL ) {
+		syslog( LOG_ERR, "bounce_text line_append: %m" );
+		free( text );
+		return( -1 );
+	    }
+	} else {
+	    if ( line_prepend( bounce_env->e_err_text, text, NO_COPY )
+		    == NULL ) {
+		syslog( LOG_ERR, "bounce_text line_append: %m" );
+		free( text );
+		return( -1 );
+	    }
 	}
 
     } else if ( t2 != NULL ) {
@@ -87,16 +102,37 @@ bounce_text( struct envelope *bounce_env, char *t1, char *t2, char *t3 )
 	}
 	sprintf( text, "%s%s", t1, t2 );
 
-	if ( line_append( bounce_env->e_err_text, text, NO_COPY ) == NULL ) {
-	    syslog( LOG_ERR, "bounce_text line_append: %m" );
-	    free( text );
-	    return( -1 );
+	if ( mode != 0 ) {
+	    if ( line_append( bounce_env->e_err_text, text, NO_COPY )
+		    == NULL ) {
+		syslog( LOG_ERR, "bounce_text line_append: %m" );
+		free( text );
+		return( -1 );
+	    }
+	} else {
+	    if ( line_prepend( bounce_env->e_err_text, text, NO_COPY )
+		    == NULL ) {
+		syslog( LOG_ERR, "bounce_text line_append: %m" );
+		free( text );
+		return( -1 );
+	    }
 	}
 
     } else {
-	if ( line_append( bounce_env->e_err_text, t1, COPY ) == NULL ) {
-	    syslog( LOG_ERR, "bounce_text line_append: %m" );
-	    return( -1 );
+	if ( mode != 0 ) {
+	    if ( line_append( bounce_env->e_err_text, t1, COPY )
+		    == NULL ) {
+		syslog( LOG_ERR, "bounce_text line_append: %m" );
+		free( text );
+		return( -1 );
+	    }
+	} else {
+	    if ( line_prepend( bounce_env->e_err_text, t1, COPY )
+		    == NULL ) {
+		syslog( LOG_ERR, "bounce_text line_append: %m" );
+		free( text );
+		return( -1 );
+	    }
 	}
     }
 

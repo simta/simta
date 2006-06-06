@@ -313,13 +313,13 @@ expand( struct envelope *unexpanded_env )
 	    for ( parent = e_addr->e_addr_parents; parent != NULL;
 		    parent = parent->el_next ) {
 		if ( parent->el_exp_addr == NULL ) {
-		    if ( bounce_text( base_error_env, 
+		    if ( bounce_text( base_error_env, TEXT_ERROR,
 			    "Members only group conditions not met: ",
 			    e_addr->e_addr, NULL ) != 0 ) {
 			goto cleanup3;
 		    }
 
-		    if ( bounce_text( base_error_env, 
+		    if ( bounce_text( base_error_env, TEXT_ERROR,
 	    "If you have any questions, please contact the group owner: ",
 			    e_addr->e_addr_owner, NULL ) != 0 ) {
 			goto cleanup3;
@@ -327,13 +327,15 @@ expand( struct envelope *unexpanded_env )
 
 		} else if (( e_addr->e_addr_ldap_flags & 
 			STATUS_LDAP_PRIVATE ) == 0 ) {
-		    if ( bounce_text( parent->el_exp_addr->e_addr_errors, 
+		    if ( bounce_text( parent->el_exp_addr->e_addr_errors,
+			    TEXT_ERROR,
 			    "Members only group conditions not met: ",
 			    e_addr->e_addr, NULL ) != 0 ) {
 			goto cleanup3;
 		    }
 
 		    if ( bounce_text( parent->el_exp_addr->e_addr_errors, 
+			    TEXT_ERROR,
 	    "If you have any questions, please contact the group owner: ",
 			    e_addr->e_addr_owner, NULL ) != 0 ) {
 			goto cleanup3;
@@ -483,7 +485,7 @@ expand( struct envelope *unexpanded_env )
     env_p = &(exp.exp_errors);
     while (( env = *env_p ) != NULL ) {
 	if ( simta_expand_debug == 0 ) {
-	    if ( env->e_err_text != NULL ) {
+	    if ( env->e_error != 0 ) {
 		env_p = &(env->e_next);
 
 		if ( snet == NULL ) {
@@ -514,6 +516,7 @@ expand( struct envelope *unexpanded_env )
 
 		line_file_free( env->e_err_text );
 		env->e_err_text = NULL;
+		env->e_error = 0;
 
 		if ( env_outfile( env ) != 0 ) {
 		    /* env_outfile syslogs errors */

@@ -508,7 +508,7 @@ not_found:
 
     syslog( LOG_DEBUG, "address_expand <%s> FINAL: not found", e_addr->e_addr );
 
-    if ( bounce_text( e_addr->e_addr_errors, "address not found: ",
+    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, "address not found: ",
 	    e_addr->e_addr, NULL ) != 0 ) {
 	/* bounce_text syslogs errors */
 	return( ADDRESS_SYSERROR );

@@ -224,6 +224,8 @@ env_clear_errors( struct envelope *env )
 {
     struct recipient		*r;
 
+    env->e_error = 0;
+
     if ( env->e_err_text != NULL ) {
 	line_file_free( env->e_err_text );
 	env->e_err_text = NULL;
@@ -308,11 +310,6 @@ env_reset( struct envelope *env )
 	    env->e_mail = NULL;
 	}
 
-	if ( env->e_err_text != NULL ) {
-	    line_file_free( env->e_err_text );
-	    env->e_err_text = NULL;
-	}
-
 	if ( env->e_hostname != NULL ) {
 	    free( env->e_hostname );
 	    env->e_hostname = NULL;
@@ -324,6 +321,8 @@ env_reset( struct envelope *env )
 	}
 
 	env_rcpt_free( env );
+
+	env_clear_errors( env );
 
 	env->e_flags = 0;
 	return;

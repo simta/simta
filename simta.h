@@ -54,6 +54,9 @@
 #define SERVICE_SUBMISSION_OFF		0
 #define SERVICE_SUBMISSION_ON		1
 
+#define	TEXT_WARNING	0
+#define	TEXT_ERROR	1
+
 #ifdef HAVE_LIBSSL
 #define SERVICE_SMTPS_OFF		0
 #define SERVICE_SMTPS_SERVER		1
@@ -145,7 +148,7 @@ int     simta_read_config( char * );
 
 /*****     bounce.c     *****/
 
-int bounce_text( struct envelope *, char *, char *, char * );
+int bounce_text( struct envelope *, int, char *, char *, char * );
 void bounce_stdout( struct envelope * );
 ino_t bounce_dfile_out( struct envelope *, SNET * );
 struct envelope *bounce( struct host_q *, struct envelope *, SNET * );

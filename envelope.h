@@ -27,6 +27,7 @@ struct envelope {
     int			e_n_exp_level;
     int			e_cycle;
     struct host_q	*e_hq;
+    int			e_error;
     struct line_file	*e_err_text;
     char		*e_dir;
     char		*e_mail;

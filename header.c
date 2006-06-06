@@ -922,12 +922,12 @@ parse_emailaddr( int mode, char *addr, char **user, char **domain )
 
     d = at + 1;
 
-    if ( mode != EMAIL_ADDRESS_NORMAL ) {
-	*domain = d;
+    if ( strlen( d ) > MAXHOSTNAMELEN ) {
+	return( 1 );
     }
 
-    if ( strlen( *domain ) > MAXHOSTNAMELEN ) {
-	return( 1 );
+    if ( mode != EMAIL_ADDRESS_NORMAL ) {
+	*domain = d;
     }
 
     if ( *d == '[' ) {

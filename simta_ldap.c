@@ -535,7 +535,7 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     char	**vals;
     LDAPMessage	*e;
 
-    if ( bounce_text( e_addr->e_addr_errors, addr, 
+    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr, 
 				": Ambiguous user", NULL ) != 0 ) {
 	return;
     }
@@ -561,19 +561,21 @@ do_ambiguous (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	    vals = ldap_get_values( ld, e, "title" );
 	}
 	if (vals && vals[0]) {
-	    if (bounce_text( e_addr->e_addr_errors, rdn, "\t", vals[0] ) != 0) {
+	    if (bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
+		    rdn, "\t", vals[0] ) != 0) {
 		return;
 	    }
 
 	    for ( idx = 1; vals && vals[idx] != NULL; idx++ ) {
-		if (bounce_text( e_addr->e_addr_errors, "\t\t", vals[idx], NULL)
-			!= 0) {
+		if (bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
+			"\t\t", vals[idx], NULL) != 0) {
 		    return;
 		}
 	    }
 	    ldap_value_free( vals );
 	} else {
-	    if (bounce_text( e_addr->e_addr_errors, rdn, NULL, NULL ) != 0) {
+	    if (bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
+		    rdn, NULL, NULL ) != 0) {
 		return;
 	    }
 	}
@@ -594,12 +596,12 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     char	*pnl;
     char	*pstart;
 
-    if ( bounce_text( e_addr->e_addr_errors, addr,
+    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr,
 		": User has no email address registered.\n" , NULL ) != 0 ) {
 	return;
     }
   
-    if ( bounce_text( e_addr->e_addr_errors, 
+    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, 
 "\tName, title, postal address and phone for: ",  addr, NULL ) != 0 ) {
 	return;
     }
@@ -616,7 +618,8 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 	}
     }
 
-    if ( bounce_text( e_addr->e_addr_errors, "\t", rdn, NULL ) != 0 ) {
+    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
+	    "\t", rdn, NULL ) != 0 ) {
 	return;
     }
 
@@ -628,14 +631,14 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     if ( (vals = ldap_get_values( ld, res, "title" )) == NULL &&
          (vals = ldap_get_values( ld, res, "description" )) == NULL ) {
 
-	if ( bounce_text( e_addr->e_addr_errors, "\t", 
+	if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, "\t", 
 			"No title or description registered" , NULL ) != 0 ){
 	    ldap_value_free( vals );
 	    return;
 	}
     } else {
 	for ( idx = 0; vals[idx] != NULL; idx++ ) {
-	    if ( bounce_text( e_addr->e_addr_errors, 
+	    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
 				"\t", vals[idx], NULL ) != 0 ) {
 		ldap_value_free( vals );
 		return;
@@ -645,7 +648,7 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     }
     /* postal address*/
     if ( (vals = ldap_get_values( ld, res, "postaladdress" )) == NULL ) {
-	if ( bounce_text( e_addr->e_addr_errors, "\t", 
+	if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, "\t", 
 			"No postaladdress registered", NULL ) != 0 ){
 	    ldap_value_free( vals );
 	    return;
@@ -658,7 +661,7 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 		pnl++;
 	    }
 	    if (strlen (pstart)) {	
-		if ( bounce_text( e_addr->e_addr_errors, 
+		if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
 				"\t", pstart, NULL ) != 0 ) {
 		    ldap_value_free( vals );
 		    return;
@@ -669,14 +672,14 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
     }
     /* telephone number */
     if ( (vals = ldap_get_values( ld, res, "telephoneNumber" )) == NULL ) {
-	if ( bounce_text( e_addr->e_addr_errors, "\t", 
+	if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, "\t", 
 				"No phone number registered", NULL ) != 0 ){
 	    ldap_value_free( vals );
 	    return;
 	}
     } else {
 	for ( idx = 0; vals[idx] != NULL; idx++ ) {
-	    if ( bounce_text( e_addr->e_addr_errors, 
+	    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
 				"\t", vals[idx], NULL ) != 0 ) {
 		ldap_value_free( vals );
 		return;
@@ -911,6 +914,18 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	    return LDAP_SYSERROR;
 	} 
 
+	if ( is_emailaddr( senderbuf ) == 0 ) {
+	    free( senderbuf );
+	    if (( senderbuf = strdup ("")) == NULL ) {
+		ldap_memfree (dn);
+		ldap_value_free( vals );
+		ldap_value_free( rdns );
+		return LDAP_SYSERROR;
+	    }
+	    bounce_text( e_addr->e_addr_errors, TEXT_WARNING,
+		    "Illegal email group name: ", rdns[0], NULL );
+	}
+
 	if (env_recipient( e_addr->e_addr_errors, senderbuf) != 0) {
        	    syslog (LOG_ERR,
                "simta_ldap_expand_group: failed setting error recip: %s", dn);
@@ -1033,8 +1048,8 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		    env_free( e_addr->e_addr_env_moderated );
 		    e_addr->e_addr_env_moderated = NULL;
 		    moderator_error = 1;
-		    bounce_text( e_addr->e_addr_errors, "bad moderator: ", dn,
-			    NULL );
+		    bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
+			    "bad moderator: ", dn, NULL );
 		}
 
 		for ( ; r != NULL; r = r->r_next ) {
@@ -1046,8 +1061,8 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 		}
 
 	    } else {
-		bounce_text( e_addr->e_addr_errors, "moderator mail loop: ", dn,
-			NULL );
+		bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
+			"moderator mail loop: ", dn, NULL );
 		break;
 	    }
 	}
@@ -1152,7 +1167,7 @@ simta_ldap_expand_group ( struct expand *exp, struct exp_addr *e_addr,
 	ldap_value_free( mailvals);
     }
     if ((valfound == 0) && (errmsg != NULL)) {
-	bounce_text( e_addr->e_addr_errors, dn, errmsg, NULL);
+	bounce_text( e_addr->e_addr_errors, TEXT_ERROR, dn, errmsg, NULL);
     }	
     free( senderbuf );
     ldap_memfree (dn);
@@ -1194,7 +1209,7 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	    } else {
 		if (( e_addr->e_addr_errors->e_flags &
 			ENV_FLAG_SUPRESS_NO_EMAIL ) == 0 ) {
-		    if ( bounce_text( e_addr->e_addr_errors, addr,
+		    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr,
 		" : Group member exists but does not have an email address" , 
 			"\n" ) != 0 ) {
 			syslog( LOG_ERR, 
@@ -1262,7 +1277,7 @@ simta_ldap_process_entry (struct expand *exp, struct exp_addr *e_addr,
 	/* Neither a group, or a person */
 	syslog( LOG_ERR, "Entry: %s is neither person or group ",
                 e_addr->e_addr);
-        bounce_text( e_addr->e_addr_errors, addr,
+        bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr,
 	" : Entry exists but is neither a group or person", NULL );
 	return( LDAP_EXCLUDE );
     }
@@ -1488,7 +1503,7 @@ simta_ldap_dn_expand (struct expand *exp, struct exp_addr *e_addr )
     if ( match == 0 ) {
 	ldap_msgfree( res );
 
-    	if (bounce_text( e_addr->e_addr_errors, search_dn,
+    	if (bounce_text( e_addr->e_addr_errors, TEXT_ERROR, search_dn,
 		" : Group member does not exist" , NULL ) != 0 ) {
 	    syslog( LOG_ERR, 
 	"simta_ldap_dn_expand: Failed building bounce message -- no member: %s",
