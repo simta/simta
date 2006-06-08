@@ -902,7 +902,7 @@ parse_emailaddr( int mode, char *addr, char **user, char **domain )
 	    (( *at == '>' ) && ( mode == RFC_2821_RCPT_TO ))) {
 	swap = *at;
 	*at = '\0';
-	if ( strcasecmp( addr, STRING_POSTMASTER ) != 0 ) {
+	if ( strcasecmp( u, STRING_POSTMASTER ) != 0 ) {
 	    *at = swap;
 	    return( 1 );
 	}
