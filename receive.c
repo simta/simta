@@ -994,7 +994,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 			syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 			data_errors++;
 		    }
-		    if ( data_errors )
+		    if ( data_errors ) {
 			return( RECEIVE_SYSERROR );
 		    }
 

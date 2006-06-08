@@ -147,7 +147,8 @@ bounce_stdout( struct envelope *bounce_env )
     struct recipient		*r;
 
     if (( bounce_env->e_err_text == NULL ) ||
-	    (( l = bounce_env->e_err_text->l_first ) == NULL )) {
+	    (( l = bounce_env->e_err_text->l_first ) == NULL ) ||
+	    ( bounce_env->e_error == 0 )) {
 	return;
     }
 
