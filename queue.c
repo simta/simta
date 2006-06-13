@@ -337,8 +337,7 @@ q_runner( void )
 	    }
 
 	    /* pop message off unexpanded message queue */
-	    simta_unexpanded_q->hq_env_head = unexpanded->e_hq_next;
-	    simta_unexpanded_q->hq_entries--;
+	    queue_remove_envelope( unexpanded );
 
 	    if ( unexpanded->e_rcpt == NULL ) {
 		if ( env_move( unexpanded, simta_dir_fast )) {
@@ -455,8 +454,7 @@ q_runner_done:
     /* move any unpuntable message to the slow queue */
     if ( simta_punt_q != NULL ) {
 	while (( env_punt = simta_punt_q->hq_env_head ) != NULL ) {
-	    simta_punt_q->hq_env_head = env_punt->e_hq_next;
-	    simta_punt_q->hq_entries--;
+	    queue_remove_envelope( env_punt );
 	    env_move( env_punt, simta_dir_slow );
 	    env_free( env_punt );
 	}
@@ -916,9 +914,7 @@ q_deliver( struct host_q *deliver_q )
     /* process each envelope in the queue */
     while ( deliver_q->hq_env_head != NULL ) {
 	env_deliver = deliver_q->hq_env_head;
-	deliver_q->hq_env_head = deliver_q->hq_env_head->e_hq_next;
-	deliver_q->hq_entries--;
-	assert( deliver_q->hq_entries >= 0 );
+	queue_remove_envelope( env_deliver );
 
 	if ( env_deliver->e_rcpt == NULL ) {
 	    /* lock & read envelope to deliver */
