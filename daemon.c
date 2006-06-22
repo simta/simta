@@ -68,10 +68,8 @@ int		simta_socket_smtps = 0;
 
 int		simsendmail_signal = 0;
 int		child_signal = 0;
-int		backlog = 5;
 struct sigaction	sa, osahup, osachld, osausr1;
 
-char		*maildomain = NULL;
 char		*version = VERSION;
 
 void		usr1( int );
@@ -164,6 +162,8 @@ main( int ac, char **av )
 {
     struct sockaddr_in	sin;
     struct servent	*se;
+    int			simta_smtps_port;
+    int			simta_submission_port;
     int			launch_seconds;
     int			c, err = 0;
     int			dontrun = 0;
@@ -171,8 +171,6 @@ main( int ac, char **av )
     int			q_run = 0;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
-    int			use_randfile = 0;
-    unsigned short	port = 0;
     extern int		optind;
     extern char		*optarg;
 #ifdef Q_SIMULATION
@@ -183,9 +181,6 @@ main( int ac, char **av )
     struct passwd	*simta_pw;
     char		*config_fname = SIMTA_FILE_CONFIG;
     char		*config_base_dir = SIMTA_BASE_DIR;
-    char                *ca = "cert/ca.pem";
-    char                *cert = "cert/cert.pem";
-    char                *privatekey = "cert/cert.pem";
 #ifdef HAVE_LIBSASL
     int			rc;
 #endif /* HAVE_LIBSASL */
@@ -210,7 +205,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'b' :		/*X listen backlog */
-	    backlog = atoi( optarg );
+	    simta_listen_backlog = atoi( optarg );
 	    break;
 
 	case 'c' :		/* check config files */
@@ -245,12 +240,8 @@ main( int ac, char **av )
 	    simta_ignore_reverse = 1;
 	    break;
 
-	case 'l' :		/*X listen backlog */
+	case 'l' :
 	    simta_launch_limit = atoi( optarg );
-	    break;
-
-	case 'M' :
-	    maildomain = optarg;
 	    break;
 
 	case 'm' :		/* Max connections */
@@ -262,7 +253,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'p' :		/* TCP port */
-	    port = htons( atoi( optarg ));
+	    simta_smtp_port = htons( atoi( optarg ));
 	    break;
 
 	case 'q' :
@@ -302,7 +293,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'r' :
-	    use_randfile = 1;
+	    simta_use_randfile = 1;
 	    break;
 
 	case 'R' :
@@ -331,15 +322,15 @@ main( int ac, char **av )
             break;
 
         case 'x' :              /* ca file */
-            ca = optarg;
+            simta_file_ca = optarg;
             break;
 
         case 'y' :              /* cert file */
-            cert = optarg;
+            simta_file_cert = optarg;
             break;
 
         case 'z' :              /* private key */
-            privatekey = optarg;
+            simta_file_private_key = optarg;
             break;
 
 	default:
@@ -354,7 +345,6 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -f config-file ]" );
 	fprintf( stderr, " [ -i reference-URL ]" );
 	fprintf( stderr, " [ -l process_launch_limit ]" );
-	fprintf( stderr, " [ -M maildomain ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
 	fprintf( stderr, " [ -Q queue]" );
 	fprintf( stderr, " [ -s spooldir ]" );
@@ -408,8 +398,9 @@ main( int ac, char **av )
 
 #ifndef Q_SIMULATION
     if ( simta_service_smtps ) {
-	if ( tls_server_setup( use_randfile, simta_service_smtps, ca, cert,
-		privatekey ) != 0 ) {
+	if ( tls_server_setup( simta_use_randfile, simta_service_smtps,
+		simta_file_ca, simta_file_cert,
+		simta_file_private_key ) != 0 ) {
 	    exit( 1 );
 	}
 	simta_tls = 1;
@@ -436,13 +427,13 @@ main( int ac, char **av )
 	    /*
 	     * Set up SMTP listener.
 	     */
-	    if ( port == 0 ) {
+	    if ( simta_smtp_port == 0 ) {
 		if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
 		    fprintf( stderr, "%s: can't find smtp service: "
 			    "defaulting to port 25\n", prog );
-		    port = htons( 25 );
+		    simta_smtp_port = htons( 25 );
 		} else {
-		    port = se->s_port;
+		    simta_smtp_port = se->s_port;
 		}
 	    }
 	    if (( simta_socket_smtp = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
@@ -458,13 +449,13 @@ main( int ac, char **av )
 	    memset( &sin, 0, sizeof( struct sockaddr_in ));
 	    sin.sin_family = AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
-	    sin.sin_port = port;
+	    sin.sin_port = simta_smtp_port;
 	    if ( bind( simta_socket_smtp, (struct sockaddr *)&sin,
 		    sizeof( struct sockaddr_in )) < 0 ) {
 		perror( "bind" );
 		exit( 1 );
 	    }
-	    if ( listen( simta_socket_smtp, backlog ) < 0 ) {
+	    if ( listen( simta_socket_smtp, simta_listen_backlog ) < 0 ) {
 		perror( "listen" );
 		exit( 1 );
 	    }
@@ -478,9 +469,9 @@ main( int ac, char **av )
 	    if (( se = getservbyname( "smtps", "tcp" )) == NULL ) {
 		fprintf( stderr, "%s: can't find smtps service: "
 			"defaulting to port 465\n", prog );
-		port = htons( 465 );
+		simta_smtps_port = htons( 465 );
 	    } else {
-		port = se->s_port;
+		simta_smtps_port = se->s_port;
 	    }
 	    if (( simta_socket_smtps =
 		    socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
@@ -496,13 +487,13 @@ main( int ac, char **av )
 	    memset( &sin, 0, sizeof( struct sockaddr_in ));
 	    sin.sin_family = AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
-	    sin.sin_port = port;
+	    sin.sin_port = simta_smtps_port;
 	    if ( bind( simta_socket_smtps, (struct sockaddr *)&sin,
 		    sizeof( struct sockaddr_in )) < 0 ) {
 		perror( "bind" );
 		exit( 1 );
 	    }
-	    if ( listen( simta_socket_smtps, backlog ) < 0 ) {
+	    if ( listen( simta_socket_smtps, simta_listen_backlog ) < 0 ) {
 		perror( "listen" );
 		exit( 1 );
 	    }
@@ -516,9 +507,9 @@ main( int ac, char **av )
 	    if (( se = getservbyname( "submission", "tcp" )) == NULL ) {
 		fprintf( stderr, "%s: can't find mail submission service: "
 			"defaulting to port 587\n", prog );
-		port = htons( 587 );
+		simta_submission_port = htons( 587 );
 	    } else {
-		port = se->s_port;
+		simta_submission_port = se->s_port;
 	    }
 	    if (( simta_socket_submission =
 		    socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
@@ -534,13 +525,13 @@ main( int ac, char **av )
 	    memset( &sin, 0, sizeof( struct sockaddr_in ));
 	    sin.sin_family = AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
-	    sin.sin_port = port;
+	    sin.sin_port = simta_submission_port;
 	    if ( bind( simta_socket_submission, (struct sockaddr *)&sin,
 		    sizeof( struct sockaddr_in )) < 0 ) {
 		perror( "sub bind" );
 		exit( 1 );
 	    }
-	    if ( listen( simta_socket_submission, backlog ) < 0 ) {
+	    if ( listen( simta_socket_submission, simta_listen_backlog ) < 0 ) {
 		perror( "listen" );
 		exit( 1 );
 	    }
