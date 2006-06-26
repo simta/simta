@@ -373,30 +373,40 @@ check_hostname( char *hostname )
  * your configuration.
  */
     int 
-check_rbl( struct in_addr *in, char *domain )
+check_rbls( struct in_addr *in, struct stab_entry *domains, char **domain, char **url )
 {
+    char		*rbl;
     char		*reverse_ip;
     struct dnsr_result	*result;
+    struct stab_entry	*st;
 
-    if (( reverse_ip = dnsr_ntoptr( simta_dnsr, in, domain )) == NULL ) {
-	syslog( LOG_ERR, "check_rbl: dnsr_ntoptr failed" );
-	return( -1 );
-    }
-    if ( simta_debug ) fprintf( stderr, "check_rbl for %s...", reverse_ip );
+    for ( st = domains; st != NULL; st = st->st_next ) {
+	rbl = st->st_key;
 
-    if (( result = get_a( reverse_ip )) == NULL ) {
-	free( reverse_ip );
-	return( -1 );
-    }
+	if (( reverse_ip = dnsr_ntoptr( simta_dnsr, in, rbl )) == NULL ) {
+	    syslog( LOG_ERR, "check_rbl: dnsr_ntoptr failed" );
+	    *domain = st->st_key;
+	    return( -1 );
+	}
+	if ( simta_debug ) fprintf( stderr, "check_rbl for %s\n", reverse_ip );
 
-    if ( result->r_ancount <= 0 ) {
+	if (( result = get_a( reverse_ip )) == NULL ) {
+	    free( reverse_ip );
+	    *domain = st->st_key;
+	    return( -1 );
+	}
+
+	if ( result->r_ancount > 0 ) {
+	    dnsr_free_result( result );
+	    free( reverse_ip );
+	    *domain = st->st_key;
+	    *url = st->st_data;
+	    return( 0 );
+	}
+
 	dnsr_free_result( result );
-	if ( simta_debug ) printf( "okay\n" );
 	free( reverse_ip );
-	return( 1 );
     }
-    dnsr_free_result( result );
 
-    free( reverse_ip );
-    return( 0 );
+    return( 1 );
 }

@@ -33,8 +33,8 @@
 
 #include "denser.h"
 #include "envelope.h"
-#include "mx.h"
 #include "ll.h"
+#include "mx.h"
 #include "simta.h"
 
 #define SIMRBL_EXIT_NOT_BLOCKED	0
@@ -49,6 +49,7 @@ main( int argc, char *argv[])
     extern char         *optarg;
     char		c;
     char		*server = NULL;
+    char		*block_domain = "rbl.mail.umich.edu", *block_text ="";
     int			rc;
     int			err = 0;
     int			quiet = 0;
@@ -63,7 +64,7 @@ main( int argc, char *argv[])
 	    break;
 
 	case 'l':
-	    simta_rbl_domain = optarg;
+	    block_domain = optarg;
 	    break;
 
 	case 'q':
@@ -103,13 +104,11 @@ main( int argc, char *argv[])
 	if ( simta_debug ) fprintf( stderr, "using nameserver: %s\n", server );
     }
 
-    if ( simta_rbl_domain == NULL ) {
-	simta_rbl_domain = "rbl.mail.umich.edu";
-    }
-
-    if ( simta_user_rbl_domain == NULL ) {
-	simta_user_rbl_domain = "rbl-plus.mail-abuse.org";
-    }
+    if ( ll_insert_tail( &simta_rbls, block_domain,
+	    "none" ) != 0 ) {
+        perror( "ll_insert_tail" );
+        exit( SIMRBL_EXIT_ERROR );
+    }     
 
     rc = inet_pton( AF_INET, argv[ optind ], &addr );
     if ( rc < 0 ) {
@@ -120,16 +119,17 @@ main( int argc, char *argv[])
 	exit( SIMRBL_EXIT_ERROR );
     }
 
-    if (( rc = check_rbl( &addr, simta_rbl_domain )) < 0 ) {
+    if (( rc = check_rbls( &addr, simta_rbls, &block_domain,
+		&block_text )) < 0 ) {
 	if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
 	exit( SIMRBL_EXIT_ERROR );
     }
 
     if ( rc == 0 ) {
-	if ( !quiet ) printf( "blocked\n" );
+	if ( !quiet ) printf( "blocked by %s\n", block_domain );
 	exit( SIMRBL_EXIT_BLOCKED );
     } else {
-	if ( !quiet ) printf( "not blocked\n" );
+	if ( !quiet ) printf( "not blocked %s\n", block_domain );
 	exit( SIMRBL_EXIT_NOT_BLOCKED );
     }
 }
