@@ -86,7 +86,7 @@ main( int argc, char *argv[])
     }
 
     if ( err ) {
-	fprintf( stderr, "Usage: %s [ -dq ] [ -l rbl-doman ] ", argv[ 0 ] );
+	fprintf( stderr, "Usage: %s [ -dq ] [ -l rbl-domain ] ", argv[ 0 ] );
 	fprintf( stderr, "[ -s server ] " );
 	fprintf( stderr, "address\n" );
 	exit( EX_USAGE );
