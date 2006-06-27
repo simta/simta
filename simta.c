@@ -636,40 +636,52 @@ simta_read_config( char *fname )
             if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_DOMAIN" ) == 0 ) {
-	    if ( ac != 3 ) {
-		fprintf( stderr, "%s: line %d: expected 2 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_rbl_domain = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if (( simta_rbl_url = strdup( av[ 2 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "RBL_DOMAIN: %s\tRBL_URL: %s\n",
-		simta_rbl_domain, simta_rbl_url );
+            char        *domain, *url;
+
+            if ( ac != 3 ) {
+                fprintf( stderr, "%s: line %d: expected 2 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+            if (( domain = strdup( av[ 1 ] )) == NULL ) {
+                perror( "strdup" );
+                goto error;
+            }
+            if (( url = strdup( av[ 2 ] )) == NULL ) {
+                perror( "strdup" );
+                goto error;
+            }   
+            if ( ll_insert_tail( &simta_rbls, domain, url ) != 0 ) {
+                perror( "ll_insert_tail" );
+                goto error;
+            }
+            if ( simta_debug ) printf( "RBL_DOMAIN: %s\tRBL_URL: %s\n",
+                domain, url );
 
 	} else if ( strcasecmp( av[ 0 ], "USER_RBL_DOMAIN" ) == 0 ) {
-	    if ( ac != 3 ) {
-		fprintf( stderr, "%s: line %d: expected 2 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_user_rbl_domain = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if (( simta_user_rbl_url = strdup( av[ 2 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) {
-		printf( "USER_RBL_DOMAIN: %s\tUSER_RBL_URL: %s\n",
-		    simta_user_rbl_domain, simta_user_rbl_url );
-	    }
+            char        *domain, *url;
+
+            if ( ac != 3 ) {
+                fprintf( stderr, "%s: line %d: expected 2 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+            if (( domain = strdup( av[ 1 ] )) == NULL ) {
+                perror( "strdup" );
+                goto error;
+            }
+            if (( url = strdup( av[ 2 ] )) == NULL ) {
+                perror( "strdup" );
+                goto error;
+            }
+            if ( ll_insert_tail( &simta_user_rbls, domain, url ) != 0 ) {
+                perror( "ll_insert_tail" );
+                goto error;
+            }
+            if ( simta_debug ) {
+                printf( "USER_RBL_DOMAIN: %s\tUSER_RBL_URL: %s\n",
+                    domain, url );
+            }
 
 	} else if ( strcasecmp( av[ 0 ], "PRIVATE_KEY_FILE" ) == 0 ) {
 	    if ( ac != 2 ) {
