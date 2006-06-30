@@ -750,7 +750,7 @@ simta_read_config( char *fname )
 			fname, lineno );
                 goto error;
             }
-            simta_service_smtps = atoi( optarg );
+            simta_service_smtps = atoi( av[ 1 ]);
             if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
                 fprintf( stderr, "%s: line %d: invalid authorization level\n",
 			fname, lineno );
