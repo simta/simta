@@ -1027,15 +1027,15 @@ simta_config( char *base_dir )
     simta_default_host = red;
 
     /* Add list of default expansions to default host */
-    if ( access( SIMTA_ALIAS_DB, R_OK ) == 0 ) {
+    if ( access( simta_file_alias_db, R_OK ) == 0 ) {
 	simta_use_alias_db = 1;
     } else {
 	if ( simta_verbose != 0 ) {
-	    fprintf( stderr, "simta_config access %s: ", SIMTA_ALIAS_DB );
+	    fprintf( stderr, "simta_config access %s: ", simta_file_alias_db );
 	    perror( NULL );
 	}
 	syslog( LOG_NOTICE, "simta_config access %s: %m, not using alias db",
-		SIMTA_ALIAS_DB );
+		simta_file_alias_db );
     }
 
     if ( simta_red_action_default( red ) != 0 ) {
