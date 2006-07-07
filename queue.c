@@ -1621,7 +1621,7 @@ queue_log_metrics( struct host_q *hq_schedule )
 	return;
     }
 
-    sprintf( filename, "/%s/etc/%lX", simta_base_dir,
+    sprintf( filename, "%setc/%lX", simta_base_dir,
 	    (unsigned long)tv.tv_sec );
 
     if (( fd = creat( filename, 0666 )) < 0 ) {
