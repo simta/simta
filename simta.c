@@ -633,6 +633,7 @@ simta_read_config( char *fname )
                 goto error;
             }
             simta_ignore_connect_in_reverse_errors = 1;
+	    simta_ignore_reverse = 1;
             if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_DOMAIN" ) == 0 ) {
