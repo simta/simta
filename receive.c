@@ -993,6 +993,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 			syslog( LOG_ERR, "f_data fclose: %m" );
 			data_errors++;
 		    }
+
+		    dff = NULL;
+
 		    if ( unlink( dfile_fname ) < 0 ) {
 			syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 			data_errors++;
@@ -1017,21 +1020,25 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if ( line == NULL ) {	/* EOF */
 	syslog( LOG_NOTICE, "f_data %s: connection dropped", env->e_id );
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
-	}
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	if ( dff != NULL ) {
+	    if ( fclose( dff ) != 0 ) {
+		syslog( LOG_ERR, "f_data fclose: %m" );
+	    }
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    }
 	}
 	return( RECEIVE_CLOSECONNECTION );
     }
 
     if ( data_errors != 0 ) { /* syserror */
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
-	}
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	if ( dff != NULL ) {
+	    if ( fclose( dff ) != 0 ) {
+		syslog( LOG_ERR, "f_data fclose: %m" );
+	    }
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    }
 	}
 	return( RECEIVE_SYSERROR );
     }
