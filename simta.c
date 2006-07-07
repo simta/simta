@@ -901,8 +901,6 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    /* Add 1 to include max in failed rcpt count */
-	    simta_max_failed_rcpts++;
 
 	} else if ( strcasecmp( av[ 0 ], "LOW_PREF_MX" ) == 0 ) {
 	   if ( simta_secondary_mx != NULL ) {
