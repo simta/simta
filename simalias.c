@@ -1,16 +1,55 @@
 #include "config.h"
 
+#ifdef HAVE_LIBSSL
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#endif /* HAVE_LIBSSL */
 
 #include <sys/param.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
+#include <snet.h>
+
 #include <stdio.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <assert.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <pwd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
+#include <strings.h>
+#include <syslog.h>
+#include <stdio.h>
 #include <db.h>
 
+#include "red.h"
+#include "denser.h"
+#include "ll.h"
+#include "queue.h"
+#include "expand.h"
+#include "envelope.h"
+#include "ml.h"
+#include "simta.h"
 #include "argcargv.h"
+#include "mx.h"
+#include "simta_ldap.h"
 #include "bdb.h"
+
+#ifdef HAVE_LDAP
+#include <ldap.h>
+#include "ldap.h"
+#endif /* HAVE_LDAP */
+
+
 
 int simalias_dump( void );
 int simalias_create( void );
@@ -65,9 +104,14 @@ main( int argc, char **argv )
 	exit( 1 );
     }
 
+    if ( simta_read_config( SIMTA_FILE_CONFIG ) < 0 ) {
+	fprintf( stderr, "simta_read_config error: %s\n", SIMTA_FILE_CONFIG );
+	exit( 1 );
+    }
+
     if ( dump ) {
 	if ( input == NULL ) {
-	    input = _SIMTA_ALIAS_DB;
+	    input = simta_file_alias_db;
 	}
 	if ( output == NULL ) {
 	    foutput = stdout;
@@ -90,7 +134,7 @@ main( int argc, char **argv )
 	    }
 	}
 	if ( output == NULL ) {
-	    output = _SIMTA_ALIAS_DB;
+	    output = simta_file_alias_db;
 	}
 	exit( simalias_create( ));
     }

@@ -612,10 +612,10 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     DBT			value;
 
     if ( simta_dbp == NULL ) {
-	if (( ret = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
+	if (( ret = db_open_r( &simta_dbp, simta_file_alias_db, NULL ))
 		!= 0 ) {
-	    syslog( LOG_ERR, "alias_expand: db_open_r %s: %s", SIMTA_ALIAS_DB,
-		    db_strerror( ret ));
+	    syslog( LOG_ERR, "alias_expand: db_open_r %s: %s",
+		    simta_file_alias_db, db_strerror( ret ));
 	    simta_dbp = NULL;
 	    ret = ALIAS_NOT_FOUND;
 	    goto done;

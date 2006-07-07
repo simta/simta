@@ -131,6 +131,7 @@ char			*simta_dir_fast = NULL;
 char			*simta_base_dir = NULL;
 char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
 DNSR			*simta_dnsr = NULL;
+char			*simta_file_alias_db = SIMTA_ALIAS_DB;
 char			*simta_file_ca = "cert/ca.pem";
 char			*simta_file_cert = "cert/cert.pem";
 char			*simta_file_private_key = "cert/cert.pem";
@@ -724,6 +725,20 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) {
 		printf( "CA_FILE: %s\n", simta_file_ca );
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_file_alias_db = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) {
+		printf( "ALIAS_DB: %s\n", simta_file_alias_db );
 	    }
 
         } else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM_OFF" ) == 0 ) {

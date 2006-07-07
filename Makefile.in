@@ -43,7 +43,9 @@ QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
 		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
 QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o ml.o \
 		smtp.o simta.o mx.o wildcard.o red.o
-SIMALIASOBJ=	simalias.o argcargv.o bdb.o
+SIMALIASOBJ=	@EXPANDER_OBJ@ simalias.o queue.o ll.o line_file.o \
+		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
 SLAOBJ=		sla.o
 
 SIMTALOG=LOG_MAIL
@@ -119,7 +121,6 @@ simalias : ${SIMALIASOBJ} Makefile
 
 simalias.o : simalias.c
 	${CC} ${SIMTACFLAGS} \
-		-D_SIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
 		-c simalias.c -o simalias.o
 
 daemon.o : daemon.c
@@ -134,7 +135,6 @@ header.o : header.c
 receive.o : receive.c
 	${CC} ${SIMTACFLAGS} \
 		-DVERSION=\"`cat VERSION`\" \
-		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
 		-c receive.c -o receive.o
 
 simta.o : simta.c
@@ -150,7 +150,6 @@ bdb.o : bdb.c
 
 address.o : address.c
 	${CC} ${SIMTACFLAGS} \
-		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
 		-c address.c -o address.o
 
 tlsconnect : libsnet/libsnet.a denser/denser.o ${TLSCONOBJ} Makefile

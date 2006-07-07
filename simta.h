@@ -137,6 +137,7 @@ extern char				*simta_rbl_url;
 extern char				*simta_user_rbl_domain;
 extern char				*simta_user_rbl_url;
 extern char				*simta_queue_filter;
+extern char				*simta_file_alias_db;
 extern char				*simta_file_ca;
 extern char				*simta_file_cert;
 extern char				*simta_file_private_key;

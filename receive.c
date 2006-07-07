@@ -2247,7 +2247,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	case EXPANSION_TYPE_ALIAS:
 	    /* check alias file */
 	    if ( simta_dbp == NULL ) {
-		if (( rc = db_open_r( &simta_dbp, SIMTA_ALIAS_DB, NULL ))
+		if (( rc = db_open_r( &simta_dbp, simta_file_alias_db, NULL ))
 			!= 0 ) {
 		    syslog( LOG_ERR, "local_address: db_open_r: %s",
 			    db_strerror( rc ));
