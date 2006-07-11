@@ -549,7 +549,7 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
     /* Check .forward */
     if ( snprintf( fname, MAXPATHLEN, "%s/.forward",
 	    passwd->pw_dir ) >= MAXPATHLEN ) {
-	syslog( LOG_ERR, "password_expand <%s>: .forward path to long",
+	syslog( LOG_ERR, "password_expand <%s>: .forward path too long",
 		e_addr->e_addr );
 	return( PASSWORD_FINAL );
     }
