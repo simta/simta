@@ -498,6 +498,7 @@ q_runner_dir( char *dir )
 
 	    if ( env_read_queue_info( env ) != 0 ) {
 		env_free( env );
+		errno = 0;
 		continue;
 	    }
 
@@ -506,6 +507,7 @@ q_runner_dir( char *dir )
 		if (( env->e_hostname == NULL ) || ( wildcard(
 			simta_queue_filter, env->e_hostname, 0 ) == 0 )) {
 		    env_free( env );
+		    errno = 0;
 		    continue;
 		}
 	    }
