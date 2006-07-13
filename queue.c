@@ -481,10 +481,8 @@ q_runner_dir( char *dir )
 	return( EXIT_OK );
     }
 
-    errno = 0;
-
     /* organize a directory's messages by host and timestamp */
-    while (( entry = readdir( dirp )) != NULL ) {
+    for  ( errno = 0; ( entry = readdir( dirp )) != NULL; errno = 0 ) {
 	if ( *entry->d_name == 'E' ) {
 	    if (( env = env_create( NULL, NULL )) == NULL ) {
 		return( -1 );
@@ -498,7 +496,6 @@ q_runner_dir( char *dir )
 
 	    if ( env_read_queue_info( env ) != 0 ) {
 		env_free( env );
-		errno = 0;
 		continue;
 	    }
 
@@ -507,7 +504,6 @@ q_runner_dir( char *dir )
 		if (( env->e_hostname == NULL ) || ( wildcard(
 			simta_queue_filter, env->e_hostname, 0 ) == 0 )) {
 		    env_free( env );
-		    errno = 0;
 		    continue;
 		}
 	    }
