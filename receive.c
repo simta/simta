@@ -504,16 +504,20 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	if (( rc = check_hostname( domain )) != 0 ) {
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_mail check_hostname: %s: failed", domain );
-		return( RECEIVE_SYSERROR );
+		if ( snet_writef( snet, "%d %s: temporary DNS error\r\n", 451,
+			domain ) < 0 ) {
+		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
 	    } else {
+		syslog( LOG_ERR, "f_mail %s: unknown host", domain );
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
 			domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
-		syslog( LOG_ERR, "f_mail %s: unknown host", domain );
-		return( RECEIVE_OK );
 	    }
+	    return( RECEIVE_OK );
 	}
     }
 
@@ -657,9 +661,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed",
 			domain );
-		return( RECEIVE_SYSERROR );
+		if ( snet_writef( snet, "%d %s: temporary DNS error\r\n", 451,
+			domain ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
 	    } else {
-
 		syslog( LOG_INFO,
 			"Receive %s: To <%s> From <%s> Failed: "
 			"Unknown domain", env->e_id, addr, env->e_mail );
@@ -668,9 +675,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
-		return( RECEIVE_OK );
-
 	    }
+	    return( RECEIVE_OK );
 	}
 
 	if (( red = host_local( domain )) == NULL ) {

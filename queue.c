@@ -482,7 +482,7 @@ q_runner_dir( char *dir )
     }
 
     /* organize a directory's messages by host and timestamp */
-    for  ( errno = 0; ( entry = readdir( dirp )) != NULL; errno = 0 ) {
+    while (( entry = readdir( dirp )) != NULL ) {
 	if ( *entry->d_name == 'E' ) {
 	    if (( env = env_create( NULL, NULL )) == NULL ) {
 		return( -1 );
@@ -515,11 +515,6 @@ q_runner_dir( char *dir )
 
 	    simta_message_count++;
 	}
-    }
-
-    if ( errno != 0 ) {
-	syslog( LOG_ERR, "q_runner_dir readdir %s: %m", dir );
-	return( -1 );
     }
 
     if ( closedir( dirp ) != 0 ) {
@@ -690,7 +685,7 @@ q_read_dir( char *dir )
     simta_disk_cycle++;
 
     /* organize a directory's messages by host and timestamp */
-    for  ( errno = 0; ( entry = readdir( dirp )) != NULL; errno = 0 ) {
+    for ( errno = 0; ( entry = readdir( dirp )) != NULL; errno = 0 ) {
 	if (( *entry->d_name != 'E' ) && ( *entry->d_name != 'D' )) {
 	    continue;
 	}
