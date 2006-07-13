@@ -659,8 +659,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	 */
 	if (( rc = check_hostname( domain )) != 0 ) {
 	    if ( rc < 0 ) {
-		syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed",
-			domain );
+		syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed", domain );
 		if ( snet_writef( snet, "%d %s: temporary DNS error\r\n", 451,
 			domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -671,7 +670,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			"Receive %s: To <%s> From <%s> Failed: "
 			"Unknown domain", env->e_id, addr, env->e_mail );
 		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
-			addr ) < 0 ) {
+			domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
