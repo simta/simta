@@ -126,10 +126,10 @@ AC_DEFUN([SET_LOCALDELIVERY],
 ])
 
 
-AC_DEFUN([CHECK_LOCALDELIVERY],
+AC_DEFUN([WARN_LOCALDELIVERY],
 [
     if test x_$have_local_delivery != x_yes; then
-	AC_MSG_ERROR([simta requires a local mailer: see INSTALL])
+	AC_MSG_WARN([simta requires a local mailer: see INSTALL])
     fi
 ])
 

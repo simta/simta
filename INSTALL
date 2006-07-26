@@ -23,8 +23,9 @@ simta Installation
     `configure'.  You only autoconf if you want to change `configure.ac' or
     regenerate `configure' using a newer version of `autoconf'.
 
-    simta requires a local mail delivery agent.  mail.local and procmail
-    are currently supported.
+    simta requires a local mail delivery agent.  mail.local and procmail are
+    currently supported.  Also see simta.conf for the DEFAULT_LOCAL_MAILER
+    option.
 
     configure options:
 	--with-mail_local=/path/to/mail_local/

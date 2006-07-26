@@ -116,11 +116,17 @@ host_q_create_or_lookup( char *hostname )
 	    return( NULL );
 	}
 
+	if ((( hq->hq_red = simta_red_lookup_host( hostname )) != NULL ) &&
+		( hq->hq_red->red_deliver_argc != 0 )) {
+	    hq->hq_status = HOST_LOCAL;
+	} else {
+	    /* determine if it's LOCAL or MX later */
+	    hq->hq_status = HOST_UNKNOWN;
+	}
+
 	/* add this host to the host_q_head */
 	hq->hq_next = simta_host_q;
 	simta_host_q = hq;
-	/* determine if it's LOCAL or MX later */
-	hq->hq_status = HOST_UNKNOWN;
     }
 
     return( hq );
@@ -879,6 +885,8 @@ q_deliver( struct host_q *deliver_q )
     struct envelope		*env_bounce = NULL;
     struct deliver		d;
 
+    memset( &d, 0, sizeof( struct deliver ));
+
     syslog( LOG_DEBUG, "q_deliver: delivering %s total %d",
 	    deliver_q->hq_hostname, deliver_q->hq_entries );
 
@@ -894,6 +902,8 @@ q_deliver( struct host_q *deliver_q )
 	    deliver_q->hq_status = HOST_DOWN;
 	} else {
 	    deliver_q->hq_status = HOST_LOCAL;
+	    d.d_deliver_argc = red->red_deliver_argc;
+	    d.d_deliver_argv = red->red_deliver_argv;
 	}
     }
 
@@ -901,8 +911,6 @@ q_deliver( struct host_q *deliver_q )
     if ( deliver_q->hq_status == HOST_PUNT_DOWN ) {
 	deliver_q->hq_status = HOST_PUNT;
     }
-
-    memset( &d, 0, sizeof( struct deliver ));
 
     /* process each envelope in the queue */
     while ( deliver_q->hq_env_head != NULL ) {
@@ -1201,13 +1209,13 @@ message_cleanup:
     void
 deliver_local( struct deliver *d )
 {
-    struct recipient		*r;
     int                         ml_error;
 
     syslog( LOG_NOTICE, "deliver_local %s: attempting local delivery",
 	    d->d_env->e_id );
 
-    for ( r = d->d_env->e_rcpt; r != NULL; r = r->r_next ) {
+    for ( d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
+	    d->d_rcpt = d->d_rcpt->r_next ) {
 	ml_error = EX_TEMPFAIL;
 
 	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
@@ -1215,34 +1223,40 @@ deliver_local( struct deliver *d )
 	    goto lseek_fail;
 	}
 
-	ml_error = (*simta_local_mailer)( d->d_dfile_fd, d->d_env->e_mail, r );
+	if ( d->d_deliver_argc == 0 ) {
+	    d->d_deliver_argc = simta_deliver_default_argc;
+	    d->d_deliver_argv = simta_deliver_default_argv;
+	}
+
+	ml_error = deliver_binary( d );
 
 lseek_fail:
 	switch ( ml_error ) {
 	case EXIT_SUCCESS:
 	    /* success */
-	    r->r_status = R_ACCEPTED;
+	    d->d_rcpt->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
 	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> Accepted",
-		    d->d_env->e_id, r->r_rcpt, d->d_env->e_mail );
+		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail );
 	    break;
 
 	default:
 	case EX_TEMPFAIL:
-	    r->r_status = R_TEMPFAIL;
+	    d->d_rcpt->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfail++;
 	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> "
-		    "Tempfailed: %d", d->d_env->e_id, r->r_rcpt,
+		    "Tempfailed: %d", d->d_env->e_id, d->d_rcpt->r_rcpt,
 		    d->d_env->e_mail, ml_error );
 	    break;
 
 	case EX_DATAERR:
 	case EX_NOUSER:
 	    /* hard failure caused by bad user data, or no local user */
-	    r->r_status = R_FAILED;
+	    d->d_rcpt->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
 	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> Failed: %d",
-		    d->d_env->e_id, r->r_rcpt, d->d_env->e_mail, ml_error );
+		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
+		    ml_error );
 	    break;
 	}
 

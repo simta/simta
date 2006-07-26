@@ -60,7 +60,6 @@
 /* global variables */
 
 struct envelope		*simta_env_queue = NULL;
-int			(*simta_local_mailer)(int, char *, struct recipient *);
 struct host_q		*simta_host_q = NULL;
 struct host_q		*simta_deliver_q = NULL;
 struct host_q		*simta_unexpanded_q = NULL;
@@ -135,6 +134,9 @@ char			*simta_file_alias_db = SIMTA_ALIAS_DB;
 char			*simta_file_ca = "cert/ca.pem";
 char			*simta_file_cert = "cert/cert.pem";
 char			*simta_file_private_key = "cert/cert.pem";
+char			**simta_deliver_default_argv;
+int			simta_deliver_default_argc;
+
 
     void
 panic( char *message )
@@ -270,6 +272,10 @@ simta_read_config( char *fname )
 		    red_code |= RED_CODE_E;
 		    break;
 
+		case 'D':
+		    red_code |= RED_CODE_D;
+		    break;
+
 		default:
 		    fprintf( stderr, "%s: line %d: bad RED arg: %s\n",
 			    fname, lineno, av[ 1 ]);
@@ -340,6 +346,78 @@ simta_read_config( char *fname )
 			goto error;
 		    }
 		}
+
+	    } else if ( *(av[ 2 ]) == '/' ) {
+		if ( ac <= 2 ) {
+		    fprintf( stderr,
+			    "%s: line %d: expected 1 or more arguments\n",
+			    fname, lineno );
+		    goto error;
+		}
+
+		if ( red_code != RED_CODE_D ) {
+		    fprintf( stderr,
+			    "%s: line %d: only D support for BINARY\n",
+			    fname, lineno );
+		    goto error;
+		}
+
+		if ( red->red_deliver_argc != 0 ) {
+		    fprintf( stderr,
+			    "%s: line %d: D already defined for %s\n",
+			    fname, lineno, av[ 0 ]);
+		    goto error;
+		}
+
+		/* store array */
+		red->red_deliver_argc = ac - 2;
+		if (( red->red_deliver_argv =
+			(char**)malloc( sizeof(char*) * ( ac - 1 ))) == NULL ) {
+		    perror( "malloc" );
+		    goto error;
+		}
+
+		for ( x = 0; x < red->red_deliver_argc; x++ ) {
+		    if (( red->red_deliver_argv[ x ] =
+			    strdup( av[ x + 2 ])) == NULL ) {
+			perror( "strdup" );
+			goto error;
+		    }
+		}
+
+		red->red_deliver_argv[ x ] = NULL;
+
+} else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
+    if ( ac < 2 ) {
+	fprintf( stderr, "%s: line %d: expected at least 1 argument\n",
+		fname, lineno );
+	goto error;
+    }
+
+    /* store array */
+    simta_deliver_default_argc = ac - 1;
+    if (( simta_deliver_default_argv =
+	    (char**)malloc( sizeof(char*) * ( ac ))) == NULL ) {
+	perror( "malloc" );
+	goto error;
+    }
+
+    for ( x = 0; x < simta_deliver_default_argc; x++ ) {
+	if (( simta_deliver_default_argv[ x ] =
+		strdup( av[ x + 1 ])) == NULL ) {
+	    perror( "strdup" );
+	    goto error;
+	}
+    }
+
+    red->red_deliver_argv[ x ] = NULL;
+
+    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
+	perror( "strdup" );
+	goto error;
+    }
+    if ( simta_debug ) printf( "DEFAULT_LOCAL_MAILER: %s\n",
+	simta_mail_filter );
 
 #ifdef HAVE_LDAP
 	    } else if ( strcasecmp( av[ 2 ], "LDAP" ) == 0 ) {
@@ -983,6 +1061,7 @@ error:
     return( -1 );
 }
 
+
     int
 simta_config( char *base_dir )
 {
@@ -1012,9 +1091,9 @@ simta_config( char *base_dir )
     }
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
 
-    /* get our local mailer */
-    if (( simta_local_mailer = get_local_mailer()) == NULL ) {
-	fprintf( stderr, "simta_config: get_local_mailer failed!\n" );
+    /* set our local mailer */
+    if ( set_local_mailer() != 0 ) {
+	fprintf( stderr, "simta_config: set_local_mailer failed!\n" );
 	return( -1 );
     }
 

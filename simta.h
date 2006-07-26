@@ -143,8 +143,8 @@ extern char				*simta_file_cert;
 extern char				*simta_file_private_key;
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
-extern int				(*simta_local_mailer)(int, char *,
-						struct recipient *);
+extern char				**simta_deliver_default_argv;
+extern int				simta_deliver_default_argc;
 
 int	q_cleanup( void );
 int	smtp_receive ( int, struct sockaddr_in * );

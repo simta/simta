@@ -4,6 +4,5 @@
  */
 
 /* return 0 on success, syslog errors */
-int mail_local( int, char *, struct recipient * );
-int procmail( int, char *, struct recipient * );
-int(*get_local_mailer( void ))( int, char *, struct recipient * );
+int set_local_mailer( void );
+int deliver_binary( struct deliver * );

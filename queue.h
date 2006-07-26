@@ -16,6 +16,8 @@
 #define HOST_PUNT_DOWN	7
 
 struct deliver {
+    int				d_deliver_argc;
+    char			**d_deliver_argv;
     struct envelope		*d_env;
     struct recipient		*d_rcpt;
     int				d_dfile_fd;
@@ -38,6 +40,7 @@ struct deliver {
 
 struct host_q {
     int				hq_entries;
+    struct simta_red		*hq_red;
     struct host_q		*hq_deliver;
     struct host_q		*hq_next;
     struct host_q		*hq_deliver_prev;

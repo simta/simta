@@ -6,6 +6,8 @@ struct simta_red {
     struct simta_red		*red_next;
     struct action		*red_receive;
     struct action		*red_expand;
+    int				red_deliver_argc;
+    char			**red_deliver_argv;
 };
 
 struct action {
@@ -22,6 +24,7 @@ struct action {
 #define RED_CODE_R			1<<0
 #define RED_CODE_r			1<<1
 #define RED_CODE_E			1<<2
+#define RED_CODE_D			1<<4
 
 /* struct simta_red->red_host_type */
 #define RED_HOST_TYPE_LOCAL		1
