@@ -2159,7 +2159,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
 
 	if ( i >= receive_ncommands ) {
-	    if ( snet_writef( snet, "500 Command unregcognized\r\n" ) < 0 ) {
+	    if ( snet_writef( snet, "500 Command unrecognized\r\n" ) < 0 ) {
 		goto closeconnection;
 	    }
 	    continue;
