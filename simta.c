@@ -387,37 +387,38 @@ simta_read_config( char *fname )
 
 		red->red_deliver_argv[ x ] = NULL;
 
-} else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
-    if ( ac < 2 ) {
-	fprintf( stderr, "%s: line %d: expected at least 1 argument\n",
-		fname, lineno );
-	goto error;
-    }
+	    } else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
+		if ( ac < 2 ) {
+		    fprintf( stderr,
+			    "%s: line %d: expected at least 1 argument\n",
+			    fname, lineno );
+		    goto error;
+		}
 
-    /* store array */
-    simta_deliver_default_argc = ac - 1;
-    if (( simta_deliver_default_argv =
-	    (char**)malloc( sizeof(char*) * ( ac ))) == NULL ) {
-	perror( "malloc" );
-	goto error;
-    }
+		/* store array */
+		simta_deliver_default_argc = ac - 1;
+		if (( simta_deliver_default_argv =
+			(char**)malloc( sizeof(char*) * ( ac ))) == NULL ) {
+		    perror( "malloc" );
+		    goto error;
+		}
 
-    for ( x = 0; x < simta_deliver_default_argc; x++ ) {
-	if (( simta_deliver_default_argv[ x ] =
-		strdup( av[ x + 1 ])) == NULL ) {
-	    perror( "strdup" );
-	    goto error;
-	}
-    }
+		for ( x = 0; x < simta_deliver_default_argc; x++ ) {
+		    if (( simta_deliver_default_argv[ x ] =
+			    strdup( av[ x + 1 ])) == NULL ) {
+			perror( "strdup" );
+			goto error;
+		    }
+		}
 
-    red->red_deliver_argv[ x ] = NULL;
+		red->red_deliver_argv[ x ] = NULL;
 
-    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
-	perror( "strdup" );
-	goto error;
-    }
-    if ( simta_debug ) printf( "DEFAULT_LOCAL_MAILER: %s\n",
-	simta_mail_filter );
+		if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "DEFAULT_LOCAL_MAILER: %s\n",
+		    simta_mail_filter );
 
 #ifdef HAVE_LDAP
 	    } else if ( strcasecmp( av[ 2 ], "LDAP" ) == 0 ) {
