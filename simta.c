@@ -10,6 +10,7 @@
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#include <openssl/evp.h>
 #endif /* HAVE_LIBSSL */
 
 #include <sys/param.h>
@@ -109,6 +110,8 @@ int			simta_service_smtp = 1;
 int			simta_service_submission = 0;
 #ifdef HAVE_LIBSSL
 int			simta_service_smtps = 0;
+EVP_MD			*simta_checksum_md = NULL;
+char			*simta_checksum_algorithm;
 #endif /* HAVE_LIBSSL */
 long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
@@ -459,6 +462,38 @@ simta_read_config( char *fname )
 			fname, lineno, av[ 2 ] );
 		goto error;
 	    }
+
+#ifdef HAVE_LIBSSL
+	} else if ( strcasecmp( av[ 0 ], "CHECKSUM_ALGORITHM" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	    if ( simta_checksum_md != NULL ) {
+		fprintf( stderr,
+			"%s: line %d: CHECKSUM_ALGORITHM already defined\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	    OpenSSL_add_all_digests();
+	    if (( simta_checksum_md =
+		    EVP_get_digestbyname( av[ 1 ] )) == NULL ) {
+		fprintf( stderr, "%s: line %d: Unknown message digest: %s\n",
+			fname, lineno, av[ 1 ]);
+		goto error;
+	    }
+
+	    if (( simta_checksum_algorithm = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+
+	    if ( simta_debug ) printf( "CHECKSUM_ALGORITHM %s\n",
+		    simta_checksum_algorithm );
+#endif /* HAVE_LIBSSL */
 
 	} else if ( strcasecmp( av[ 0 ], "MASQUERADE" ) == 0 ) {
 	    if ( ac != 2 ) {

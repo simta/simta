@@ -40,6 +40,7 @@ extern SSL_CTX	*ctx;
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
 #include <sasl/saslutil.h>	/* For sasl_decode64 and sasl_encode64 */
+#include "base64.h"
 #endif /* HAVE_LIBSASL */
 
 #include <snet.h>
@@ -86,6 +87,8 @@ int			receive_ncommands;
 #ifdef HAVE_LIBSSL
 int			_start_tls( SNET *snet );
 int 			_post_tls( SNET *snet );
+unsigned char		md_value[ EVP_MAX_MD_SIZE ];
+char			md_b64[ SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 ];
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
@@ -453,7 +456,6 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 			|| ( message_size == LONG_MIN )
 			|| ( message_size == LONG_MAX ) 
 			|| ( message_size < 0 )) {
-		    /* XXX - need max size check */
 		    syslog( LOG_ERR,
 			    "Receive: invalid SIZE parameter: %s",
 			    receive_smtp_command );
@@ -630,7 +632,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
      */
 
     /*
-     * XXX If this connection has too many not-local recipients, just answer
+     * If this connection has too many not-local recipients, just answer
      * that we don't know.
      */
     if (( simta_max_failed_rcpts != 0 ) &&
@@ -719,7 +721,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			"Receive %s: To <%s> From <%s> Failed: User not local",
 			env->e_id, addr, env->e_mail );
 
-		/* XXX Count number of not-local recipients */
+		/* Count number of not-local recipients */
 		receive_failed_rcpts++;
 		if ( snet_writef( snet,
 			"%d Requested action not taken: User not found.\r\n",
@@ -736,7 +738,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
-		/* XXX - since we gave banner, must return RECEIVE_OK
+		/* since we gave banner, must return RECEIVE_OK
 		 * to prevent dup 421 message.  OK?
 		 */
 		return( RECEIVE_OK );
@@ -825,6 +827,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     int					data_message_size_error = 0;
     int					received_count = 0;
     int					message_result;
+    int					line_len;
     char				*line;
     char				*smtp_message = NULL;
     struct tm				*tm;
@@ -835,6 +838,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     char				daytime[ 30 ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
     off_t				data_size = 0;
+#ifdef HAVE_LIBSSL
+    EVP_MD_CTX				mdctx;
+    u_int				md_len;
+#endif /* HAVE_LIBSSL */
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -856,7 +863,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     /*
-     * XXX If sending server has exceeded our bad recipient max, don't
+     * If sending server has exceeded our bad recipient max, don't
      * take the mail.
      */
     if (( simta_max_failed_rcpts != 0 ) &&
@@ -958,7 +965,12 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     /* start in header mode */
     header = 1;
 
-    /* XXX should implement a byte count to limit DofS attacks */
+#ifdef HAVE_LIBSSL 
+    if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+	EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
+    }
+#endif /* HAVE_LIBSSL */
+
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
@@ -972,6 +984,14 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	    line++;
 	}
+
+	line_len = strlen( line );
+
+#ifdef HAVE_LIBSSL 
+	if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+	    EVP_DigestUpdate( &mdctx, line, line_len );
+	}
+#endif /* HAVE_LIBSSL */
 
 	if ( header == 1 ) {
 	    if ( header_end( line_no, line ) != 0 ) {
@@ -989,7 +1009,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		continue;
 	    } else {
 		/* Add strlen plus "\r\n" */
-		data_size += strlen( line ) + 2;
+		data_size += line_len + 2;
 		if ( data_size > simta_max_message_size ) { 
 		    data_message_size_error++;
 
@@ -1125,6 +1145,15 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	    return( RECEIVE_SYSERROR );
 	}
+
+#ifdef HAVE_LIBSSL 
+	if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+	    EVP_DigestFinal_ex( &mdctx, md_value, &md_len );
+	    EVP_MD_CTX_cleanup( &mdctx );
+	    memset( md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
+	    base64_e( md_value, md_len, md_b64 );
+	}
+#endif /* HAVE_LIBSSL */
 
 	syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
 	message_result = mail_filter( env, dfile_fd, &smtp_message );
@@ -1492,7 +1521,7 @@ _post_tls( SNET *snet )
 
     if ( simta_sasl ) {
 
-	/* XXX - Get cipher_bits and set SSF_EXTERNAL */
+	/* Get cipher_bits and set SSF_EXTERNAL */
 	memset( &secprops, 0, sizeof( secprops ));
 	if (( rc = sasl_setprop( receive_conn, SASL_SSF_EXTERNAL,
 		&ext_ssf )) != SASL_OK ) {
@@ -1524,7 +1553,6 @@ _start_tls( SNET *snet )
     X509			*peer;
     char			buf[ 1024 ];
 
-    /* XXX Begin TLS - hope this works */
     if (( rc = snet_starttls( snet, ctx, 1 )) != 1 ) {
 	syslog( LOG_ERR, "f_starttls: snet_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
@@ -1572,7 +1600,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
     unsigned int	serveroutlen;
     struct timeval	tv;
 
-    /* XXX RFC 2554:
+    /* RFC 2554:
      * The BASE64 string may in general be arbitrarily long.  Clients
      * and servers MUST be able to support challenges and responses
      * that are as long as are generated by the authentication   
@@ -1725,7 +1753,6 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * itself.
 	 */
 	 if ( snet_saslssf( snet )) {
-	    /* XXX - is this everything? */
 	    if ( receive_hello ) {
 		free( receive_hello );
 		receive_hello = NULL;
@@ -1766,7 +1793,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 		av[ 1 ] );
 	return( RECEIVE_OK );
 
-    /* XXX - Not sure what RC this is: RFC 2554 If the server rejects the
+    /* Not sure what RC this is: RFC 2554 If the server rejects the
      * authentication data, it SHOULD reject the AUTH command with a
      * 535 reply unless a more specific error code, such as one listed
      * in section 6, is appropriate.
@@ -2374,7 +2401,7 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 8 ];
+    char		*filter_envp[ 9 ];
     char		fname[ MAXPATHLEN + 1 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
@@ -2462,7 +2489,17 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	filter_envp[ 7 ] = NULL;
+	if ( simta_checksum_md != NULL ) {
+	    if (( filter_envp[ 7 ] = env_string( "SIMTA_CHECKSUM",
+		    md_b64 )) == NULL ) {
+		exit( MESSAGE_TEMPFAIL );
+	    }
+
+	    filter_envp[ 8 ] = NULL;
+	} else {
+	    filter_envp[ 7 ] = NULL;
+	}
+
 
 	execve( simta_mail_filter, filter_argv, filter_envp );
 	/* if we are here, there is an error */
