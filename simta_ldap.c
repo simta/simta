@@ -83,6 +83,11 @@ struct ldap_search_list {
     struct ldap_search_list     *lds_next;	/* next uri */
 };
 
+/* Values for ldapbind */
+#define BINDSASL   2
+#define BINDSIMPLE  1
+#define BINDANON   0
+
 struct ldap_search_list		*ldap_searches = NULL;
 struct list			*ldap_people = NULL;
 struct list			*ldap_groups = NULL;
@@ -92,6 +97,7 @@ static char			*ldap_host;
 static int			ldap_port;
 static time_t			ldap_timeout = LDAP_TIMEOUT_VAL;
 static int			starttls;
+static int			ldapbind;
 static char			*tls_cert;
 static char			*tls_key;
 static char			*tls_cacert;
@@ -276,36 +282,41 @@ simta_ldap_init ()
 	    return( LDAP_SYSERROR );
 	}
 #ifdef HAVE_LIBSSL
-        if (tls_cacert) {
-	    ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, tls_cacert);
-	    if( ldaprc != LDAP_OPT_SUCCESS ) {
-		syslog( LOG_ERR, 
+	if (starttls) {
+	    if (tls_cacert) {
+		ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, tls_cacert);
+		if( ldaprc != LDAP_OPT_SUCCESS ) {
+		    syslog( LOG_ERR, 
 	"simta_ldap_init: Failed setting LDAP_OPT_X_TLS_CACERTFILE = %s\n",
-		ldap_err2string( ldaprc ) );
-		return( LDAP_SYSERROR );
+		    ldap_err2string( ldaprc ) );
+		    return( LDAP_SYSERROR );
+		}
 	    }
-	}
-        if (tls_cert) {
-	    ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CERTFILE, tls_cert);
-	    if( ldaprc != LDAP_OPT_SUCCESS ) {
-		syslog( LOG_ERR, 
+	    if (tls_cert) {
+		ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CERTFILE, tls_cert);
+		if( ldaprc != LDAP_OPT_SUCCESS ) {
+		    syslog( LOG_ERR, 
 	"simta_ldap_init: Failed setting LDAP_OPT_X_TLS_CERTFILE = %s\n",
-		ldap_err2string( ldaprc ));
-		return( LDAP_SYSERROR );
+		    ldap_err2string( ldaprc ));
+		    return( LDAP_SYSERROR );
+		}
 	    }
-	}
-        if (tls_key) {
-	    ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_KEYFILE, tls_key);
-	    if( ldaprc != LDAP_OPT_SUCCESS ) {
-		syslog( LOG_ERR, 
+            if (tls_key) {
+		ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_KEYFILE, tls_key);
+		if( ldaprc != LDAP_OPT_SUCCESS ) {
+		    syslog( LOG_ERR, 
 	"simta_ldap_init: Failed setting LDAP_OPT_X_TLS_KEYFILE = %s\n",
-		 ldap_err2string( ldaprc ));
-		return( LDAP_SYSERROR );
+		    ldap_err2string( ldaprc ));
+		    return( LDAP_SYSERROR );
+		}
 	    }
 	}
+#endif
+    }
 
-	if ( starttls &&
-	   ((ldaprc = ldap_start_tls_s( ld, NULL, NULL )) != LDAP_SUCCESS )) {
+#ifdef HAVE_LIBSSL	
+    if (starttls) {
+	if ((ldaprc = ldap_start_tls_s( ld, NULL, NULL )) != LDAP_SUCCESS ){
 	    syslog( LOG_ERR, "ldap_start_tls: %s", ldap_err2string(ldaprc));
 	    if ( starttls > 1 ) {
 		return( LDAP_SYSERROR );
@@ -315,9 +326,18 @@ simta_ldap_init ()
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
+    if (ldapbind == BINDSASL) {
+	ldaprc = ldap_sasl_interactive_bind_s( ld, binddn, NULL, NULL, NULL,
+			LDAP_SASL_QUIET, simta_ldap_sasl_interact, NULL );
+    
+	if( ldaprc != LDAP_SUCCESS ) {
+	    syslog( LOG_ERR, "ldap_sasl_interactive_bind_s: %s",
+				ldap_err2string(ldaprc));
+	    return ( LDAP_SYSERROR );
+	}
 
     /* If a client-side cert specified,  then do a SASL EXTERNAL bind */
-    if (tls_cert) {
+    } else if ( tls_cert) {
 	ldaprc = ldap_sasl_interactive_bind_s( ld, binddn,
 			"EXTERNAL", NULL, NULL,
 			LDAP_SASL_QUIET, simta_ldap_sasl_interact, NULL );
@@ -328,9 +348,9 @@ simta_ldap_init ()
 	}
     }
     else {
-	
 #endif /* HAVE_LIBSASL */
-	if (binddn) {
+	
+	if (binddn &&  ((ldapbind == BINDSIMPLE) || (ldapbind == BINDANON))) {
 	    if ((ldaprc = ldap_bind_s( ld, binddn, bindpw, LDAP_AUTH_SIMPLE)) != LDAP_SUCCESS){
 		syslog( LOG_ERR, "ldap_bind: %s", ldap_err2string(ldaprc));
 		return( LDAP_SYSERROR );
@@ -1813,6 +1833,27 @@ simta_ldap_config( char *fname )
 		goto errexit;
 	    }
 	    ldapdebug = atoi (av[ 1 ]);
+
+	} else if ( strcasecmp( av[ 0 ], "ldapbind" ) == 0 ) {
+		if (ac != 2) {
+		    syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		    syslog ( LOG_ERR, "Missing ldapbind  value\n");  
+		    goto errexit;
+		}
+
+	    if (strcasecmp (av[ 1 ], "SIMPLE") == 0) {
+		ldapbind = BINDSIMPLE;
+#ifdef HAVE_LIBSASL
+	    } else if (strcasecmp (av[ 1 ], "SASL") == 0) {
+		ldapbind = BINDSASL;
+#endif
+	    } else if (strcasecmp (av[ 1 ], "ANONYMOUS") == 0) {
+		ldapbind = BINDANON;
+	    } else {
+		syslog ( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
+		syslog ( LOG_ERR, "Invalid ldapbind value\n");
+		goto errexit;
+	    }
 #ifdef HAVE_LIBSSL	    
 	} else if ( strcasecmp( av[ 0 ], "starttls" ) == 0 ) {
 	    if (ac != 2) {
@@ -2041,6 +2082,10 @@ simta_ldap_config( char *fname )
 	    syslog ( LOG_ERR, "missing TLS_KEY parameter");
 	    goto errexit;
 	}
+    }
+    if (starttls && ((ldapbind == BINDSASL) || (ldapbind == BINDSIMPLE)) ) {
+	syslog ( LOG_ERR, "Cannot have both starttls and ldapbind configured");
+	goto errexit;
     }
     if (attrs == NULL)
 	attrs = allattrs;
