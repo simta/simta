@@ -211,7 +211,7 @@ simta_ldapuser (char * buf, char ** user, char ** domain)
 #ifdef HAVE_LIBSASL
 /*
 ** SASL Call Back
-** This SASL callback only works for "EXTERNAL" 
+** This SASL callback works for "EXTERNAL" and "GSSAPI" SASL methods
 */
     static int
 simta_ldap_sasl_interact(
@@ -233,54 +233,66 @@ simta_ldap_sasl_interact(
     return LDAP_SUCCESS;
 }
 #endif
+    static LDAP *
+simta_ld_init ()
+{
+    int  ldaprc;
+    int	maxambiguous = MAXAMBIGUOUS;
+    int protocol = LDAP_VERSION3;
+
+    if (( ld = ldap_init( ldap_host, ldap_port )) == NULL ) {
+	syslog( LOG_ERR, "ldap_init: %m" );
+	return( NULL );
+    }
+    if ( ldapdebug ) {
+	ldaprc = ber_set_option( NULL, LBER_OPT_DEBUG_LEVEL, &ldapdebug );
+	if( ldaprc != LBER_OPT_SUCCESS ) {
+	    syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LBER_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
+	}
+	ldaprc = ldap_set_option( NULL, LDAP_OPT_DEBUG_LEVEL, &ldapdebug );
+	if( ldaprc != LDAP_OPT_SUCCESS ) {
+	    syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
+	}
+    }
+    ldaprc = ldap_set_option( ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
+    if (ldaprc != LDAP_OPT_SUCCESS ) {
+	syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_REFERRALS to LDAP_OPT_OFF");
+	return( NULL );
+    }
+    ldaprc = ldap_set_option(ld, LDAP_OPT_SIZELIMIT, (void *)&maxambiguous);
+    if (ldaprc != LDAP_OPT_SUCCESS ) {
+	syslog( LOG_ERR, 
+		"simta_ldap_init: Failed setting LDAP_OPT_SIZELIMIT = %d\n",
+		maxambiguous);
+	return( NULL );
+    }
+    ldaprc = ldap_set_option( ld, LDAP_OPT_PROTOCOL_VERSION, &protocol );
+    if( ldaprc != LDAP_OPT_SUCCESS ) {
+	syslog( LOG_ERR, 
+	"simta_ldap_init: Failed setting LDAP_OPT_PROTOCOL_VERSION = %d\n",
+		protocol );
+	return( NULL );
+    }
+    return (ld);
+}
     static int
 simta_ldap_init ()
 {
     int ldaprc;
-    int	maxambiguous = MAXAMBIGUOUS;
-    int protocol = LDAP_VERSION3;
 
     if ( ld == NULL ) {
 	if ( simta_expand_debug != 0 ) {
 	    printf( "OPENING LDAP CONNECTION\n" );
 	}
 
-	if (( ld = ldap_init( ldap_host, ldap_port )) == NULL ) {
-	    syslog( LOG_ERR, "ldap_init: %m" );
+	ld = simta_ld_init ();
+	if (ld  == NULL ) {
 	    return( LDAP_SYSERROR );
 	}
-	if ( ldapdebug ) {
-	    ldaprc = ber_set_option( NULL, LBER_OPT_DEBUG_LEVEL, &ldapdebug );
-	    if( ldaprc != LBER_OPT_SUCCESS ) {
-		syslog( LOG_ERR, 
-	"simta_ldap_init: Failed setting LBER_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
-	    }
-	    ldaprc = ldap_set_option( NULL, LDAP_OPT_DEBUG_LEVEL, &ldapdebug );
-	    if( ldaprc != LDAP_OPT_SUCCESS ) {
-		syslog( LOG_ERR, 
-	"simta_ldap_init: Failed setting LDAP_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
-	    }
-	}
-	ldaprc = ldap_set_option( ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
-	if (ldaprc != LDAP_OPT_SUCCESS ) {
-	    syslog( LOG_ERR, 
-	"simta_ldap_init: Failed setting LDAP_OPT_REFERRALS to LDAP_OPT_OFF");
-	    return( LDAP_SYSERROR );
-	}
-	ldaprc = ldap_set_option(ld, LDAP_OPT_SIZELIMIT, (void *)&maxambiguous);
-	if (ldaprc != LDAP_OPT_SUCCESS ) {
-	    syslog( LOG_ERR, 
-		"simta_ldap_init: Failed setting LDAP_OPT_SIZELIMIT = %d\n",
-		maxambiguous);
-	    return( LDAP_SYSERROR );
-	}
-	ldaprc = ldap_set_option( ld, LDAP_OPT_PROTOCOL_VERSION, &protocol );
-	if( ldaprc != LDAP_OPT_SUCCESS ) {
-	    syslog( LOG_ERR, 
-	"simta_ldap_init: Failed setting LDAP_OPT_PROTOCOL_VERSION = %d\n",
-		protocol );
-	    return( LDAP_SYSERROR );
-	}
+	
 #ifdef HAVE_LIBSSL
 	if (starttls) {
 	    if (tls_cacert) {
@@ -318,7 +330,22 @@ simta_ldap_init ()
     if (starttls) {
 	if ((ldaprc = ldap_start_tls_s( ld, NULL, NULL )) != LDAP_SUCCESS ){
 	    syslog( LOG_ERR, "ldap_start_tls: %s", ldap_err2string(ldaprc));
-	    if ( starttls > 1 ) {
+	    if ( starttls == 2 ) {
+		return( LDAP_SYSERROR );
+	    }
+	    /*
+	    ** Start-TLS Failed -- default to anonymous binding.
+	    */
+	    ldapbind = BINDANON;
+	    if (tls_cert) {
+		free (tls_cert);
+		tls_cert = NULL;
+	    }
+
+	    ldap_unbind (ld);
+	    ld = NULL;
+	    ld = simta_ld_init ();
+	    if ( ld == NULL ) {
 		return( LDAP_SYSERROR );
 	    }
 	}
