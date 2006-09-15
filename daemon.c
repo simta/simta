@@ -52,6 +52,7 @@
 
 struct proc_type {
     struct proc_type	*p_next;
+    char		*p_host;
     int			p_id;
     int			p_type;
 };
@@ -81,7 +82,7 @@ int		simta_waitpid( void );
 int		simta_sigaction_reset( void );
 int		simta_q_scheduler( void );
 
-int		simta_proc_add( int, int );
+int		simta_proc_add( int, int, struct host_q * );
 int		simta_child_q_runner( struct host_q * );
 int		simta_child_receive( int, int );
 int		simta_child_queue_scheduler( void );
@@ -721,7 +722,7 @@ simta_child_queue_scheduler( void )
     default :
 	syslog( LOG_NOTICE, "Child %d: start: master queue server", pid );
 
-	if ( simta_proc_add( PROCESS_Q_SCHEDULER, pid ) != 0 ) {
+	if ( simta_proc_add( PROCESS_Q_SCHEDULER, pid, NULL ) != 0 ) {
 	    return( 1 );
 	}
 
@@ -847,7 +848,7 @@ simta_q_scheduler( void )
 	    }
 
 	    /* don't launch queue runners if it's not the right time */
-	    if ( tv_now.tv_sec < simta_deliver_q->hq_launch.tv_sec ) {
+	    if ( tv_now.tv_sec < simta_deliver_q->hq_next_launch.tv_sec ) {
 		break;
 	    }
 
@@ -862,15 +863,13 @@ simta_q_scheduler( void )
 	    hq_deliver_pop( hq );
 	    hq->hq_launches++;
 	    launch_this_cycle++;
-	    lag = tv_now.tv_sec - hq->hq_launch.tv_sec;
+	    lag = tv_now.tv_sec - hq->hq_next_launch.tv_sec;
 
-	    if ( hq->hq_launch_last.tv_sec != 0 ) {
-		waited = tv_now.tv_sec - hq->hq_launch_last.tv_sec;
+	    if ( hq->hq_last_launch.tv_sec != 0 ) {
+		waited = tv_now.tv_sec - hq->hq_last_launch.tv_sec;
 	    } else {
 		waited = 0;
 	    }
-
-	    hq->hq_launch_last.tv_sec = tv_now.tv_sec;
 
 	    if (( hq->hq_wait_longest.tv_sec == 0 ) ||
 		    ( hq->hq_wait_longest.tv_sec < waited )) {
@@ -894,8 +893,7 @@ simta_q_scheduler( void )
 	    }
 
 	    hq->hq_wait_last.tv_sec = waited;
-	    hq->hq_launch_last.tv_sec = tv_now.tv_sec;
-	    hq->hq_launch.tv_sec = tv_now.tv_sec;
+	    hq->hq_last_launch.tv_sec = tv_now.tv_sec;
 
 	    /* re-queue  */
 	    hq_deliver_push( hq, &tv_now );
@@ -934,9 +932,9 @@ simta_q_scheduler( void )
 
 	if (( simta_q_runner_slow_max > simta_q_runner_slow ) &&
 		( simta_deliver_q != NULL ) &&
-		( simta_deliver_q->hq_launch.tv_sec < tv_disk.tv_sec )) {
+		( simta_deliver_q->hq_next_launch.tv_sec < tv_disk.tv_sec )) {
 	    tv_sleep.tv_sec =
-		    simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec;
+		    simta_deliver_q->hq_next_launch.tv_sec - tv_now.tv_sec;
 	} else {
 	    tv_sleep.tv_sec = tv_disk.tv_sec - tv_now.tv_sec;
 	}
@@ -949,7 +947,7 @@ simta_q_scheduler( void )
 		    "Queue Metric: Next runner host %s in %d seconds "
 		    "%ld launches this cycle",
 		    simta_deliver_q->hq_hostname,
-		    (simta_deliver_q->hq_launch.tv_sec - tv_now.tv_sec ),
+		    (simta_deliver_q->hq_next_launch.tv_sec - tv_now.tv_sec ),
 		    launch_this_cycle );
 	}
 
@@ -966,13 +964,17 @@ simta_q_scheduler( void )
     int
 simta_waitpid( void )
 {
+    int			type;
     int			errors = 0;
     int			pid;
     char		*p_name;
+    char		*host;
     int			status;
     int			exitstatus;
     struct proc_type	**p_search;
     struct proc_type	*p_remove;
+    struct timeval	tv = { 0, 0 };
+    struct host_q		*hq;
 
     child_signal = 0;
 
@@ -993,8 +995,10 @@ simta_waitpid( void )
 
 	p_remove = *p_search;
 	*p_search = p_remove->p_next;
+	type = p_remove->p_type;
+	host = p_remove->p_host;
 
-	switch ( p_remove->p_type ) {
+	switch ( type ) {
 	case PROCESS_Q_LOCAL:
 	    p_name = "q_runner local";
 	    simta_q_runner_local--;
@@ -1037,9 +1041,29 @@ simta_waitpid( void )
 
 	if ( WIFEXITED( status )) {
 	    if (( exitstatus = WEXITSTATUS( status )) != EXIT_OK ) {
-		syslog( LOG_ERR, "Child %d: exited %s: %d", pid, p_name,
-			exitstatus );
-		return( 1 );
+		if (( type = PROCESS_Q_SLOW ) &&
+			( exitstatus == SIMTA_EXIT_OK_LEAKY )) {
+		    if (( hq = host_q_lookup( host )) != NULL ) {
+			hq_deliver_pop( hq );
+
+			if ( tv.tv_sec == 0 ) {
+			    if ( gettimeofday( &tv, NULL ) != 0 ) {
+				syslog( LOG_ERR, "Syserror: hq_deliver_push "
+					"gettimeofday: %m" );
+				return( 1 );
+			    }
+			}
+
+			hq->hq_last_up.tv_sec = tv.tv_sec;
+
+			hq_deliver_push( hq, &tv );
+		    }
+
+		} else {
+		    syslog( LOG_ERR, "Child %d: exited %s: %d", pid, p_name,
+			    exitstatus );
+		    return( 1 );
+		}
 	    }
 
 	    syslog( LOG_NOTICE, "Child %d: exited %s: %d", pid,
@@ -1053,6 +1077,10 @@ simta_waitpid( void )
 	} else {
 	    syslog( LOG_ERR, "Child %d: died %s", pid, p_name );
 	    return( 1 );
+	}
+
+	if ( host ) {
+	    free( host );
 	}
     }
 
@@ -1316,7 +1344,7 @@ simta_child_receive( int process_type, int s )
     syslog( LOG_NOTICE, "Child %d: start: receive %s: %s", pid, type,
 	    inet_ntoa( sin.sin_addr ));
 
-    if ( simta_proc_add( process_type, pid ) != 0 ) {
+    if ( simta_proc_add( process_type, pid, NULL ) != 0 ) {
 	return( 1 );
     }
 
@@ -1358,6 +1386,7 @@ simta_child_q_runner( struct host_q *hq )
 	} else {
 	    simta_host_q = hq;
 	    hq->hq_next = NULL;
+	    hq->hq_primary = 1;
 	    simta_process_type = PROCESS_Q_SLOW;
 	    exit( q_runner());
 	}
@@ -1378,7 +1407,7 @@ simta_child_q_runner( struct host_q *hq )
 	simta_q_runner_local++;
 	syslog( LOG_NOTICE, "Child %d: start: q_runner local", pid );
 
-	if ( simta_proc_add( PROCESS_Q_LOCAL, pid ) != 0 ) {
+	if ( simta_proc_add( PROCESS_Q_LOCAL, pid, NULL ) != 0 ) {
 	    return( 1 );
 	}
 
@@ -1392,7 +1421,7 @@ simta_child_q_runner( struct host_q *hq )
 	    syslog( LOG_NOTICE, "Child %d: start: q_runner slow NULL", pid );
 	}
 
-	if ( simta_proc_add( PROCESS_Q_SLOW, pid ) != 0 ) {
+	if ( simta_proc_add( PROCESS_Q_SLOW, pid, hq ) != 0 ) {
 	    return( 1 );
 	}
     }
@@ -1402,7 +1431,7 @@ simta_child_q_runner( struct host_q *hq )
 
 
     int
-simta_proc_add( int process_type, int pid )
+simta_proc_add( int process_type, int pid, struct host_q *hq )
 {
     struct proc_type	*p;
 
@@ -1412,6 +1441,13 @@ simta_proc_add( int process_type, int pid )
 	return( 1 );
     }
     memset( p, 0, sizeof( struct proc_type ));
+
+    if ( hq ) {
+	if (( p->p_host = strdup( hq->hq_hostname )) == NULL ) {
+	    syslog( LOG_ERR, "Syserror: simta_proc_add strup: %m" );
+	    return( 1 );
+	}
+    }
 
     p->p_id = pid;
     p->p_type = process_type;

@@ -639,7 +639,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    ( receive_failed_rcpts >= simta_max_failed_rcpts )) {
 	if ( receive_failed_rcpts == simta_max_failed_rcpts ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
-		    "Too many failed recipients", env->e_id,
+		    "451 Too many failed recipients", env->e_id,
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname );
 	    receive_failed_rcpts++;
@@ -870,7 +870,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    ( receive_failed_rcpts >= simta_max_failed_rcpts )) {
 	if ( receive_failed_rcpts == simta_max_failed_rcpts ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
-		    "Too many failed recipients", env->e_id,
+		    "451 Too many failed recipients", env->e_id,
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname );
 	    receive_failed_rcpts++;

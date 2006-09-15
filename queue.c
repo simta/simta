@@ -55,6 +55,22 @@ void	hq_free( struct host_q * );
 struct envelope* queue_env_lookup( char * );
 
 
+    struct host_q *
+host_q_lookup( char *hostname ) 
+{
+    struct host_q		*hq;
+
+    /* XXX sort this list */
+    for ( hq = simta_host_q; hq != NULL; hq = hq->hq_next ) {
+	if ( strcasecmp( hq->hq_hostname, hostname ) == 0 ) {
+	    break;
+	}
+    }
+
+    return( hq );
+}
+
+
     /* look up a given host in the host_q.  if not found, create */
 
     struct host_q *
@@ -96,14 +112,7 @@ host_q_create_or_lookup( char *hostname )
 	return( simta_unexpanded_q );
     }
 
-    /* XXX sort this list */
-    for ( hq = simta_host_q; hq != NULL; hq = hq->hq_next ) {
-	if ( strcasecmp( hq->hq_hostname, hostname ) == 0 ) {
-	    break;
-	}
-    }
-
-    if ( hq == NULL ) {
+    if (( hq = host_q_lookup( hostname )) == NULL ) {
 	if (( hq = (struct host_q*)malloc( sizeof( struct host_q ))) == NULL ) {
 	    syslog( LOG_ERR, "host_q_create_or_lookup malloc: %m" );
 	    return( NULL );
@@ -469,9 +478,12 @@ q_runner_done:
     if ( simta_fast_files != 0 ) {
 	syslog( LOG_WARNING, "q_runner exiting with %d fast_files",
 		simta_fast_files );
+	return( SIMTA_EXIT_ERROR );
+    } else if ( simta_leaky_queue ) {
+	return( SIMTA_EXIT_OK_LEAKY );
     }
 
-    return( simta_fast_files );
+    return( SIMTA_EXIT_OK );
 }
 
 
@@ -556,15 +568,23 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
     int				wait;
     int				half;
     int				delay;
+    int				next_launch;
     struct host_q		*insert;
 
     /* first launch can be derived from last env touch */
-    if ( hq->hq_launch.tv_sec == 0 ) {
-	hq->hq_launch.tv_sec = hq->hq_max_etime.tv_sec;
+    if ( hq->hq_last_launch.tv_sec == 0 ) {
+	hq->hq_last_launch.tv_sec = hq->hq_max_etime.tv_sec;
     }
 
-    diff = hq->hq_launch.tv_sec - hq->hq_min_dtime.tv_sec;
+    /* first down can be derived from oldest overall message */
+    if ( hq->hq_last_up.tv_sec == 0 ) {
+	hq->hq_last_up.tv_sec = hq->hq_min_dtime.tv_sec;
+    }
 
+    /* how many seconds the queue has been down */
+    diff = hq->hq_last_launch.tv_sec - hq->hq_last_up.tv_sec;
+
+    /* next wait time falls between min and max wait values */
     if ( diff <= min_wait ) {
 	wait = min_wait;
 
@@ -575,20 +595,24 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
 	    ;
     }
 
-    hq->hq_launch.tv_sec = hq->hq_launch.tv_sec + wait;
+    /* compute possible next launch time */
+    next_launch = hq->hq_last_launch.tv_sec + wait;
 
-    if ( hq->hq_launch.tv_sec < tv_now->tv_sec ) {
+    if ( next_launch < tv_now->tv_sec ) {
 	delay = random() % wait;
-	syslog( LOG_WARNING, "Queue: %s: Missed delivery by %d seconds,"
-		"Rescheduled %d seconds",
-		hq->hq_hostname, tv_now->tv_sec - hq->hq_launch.tv_sec,
-		delay );
-	hq->hq_launch.tv_sec = tv_now->tv_sec + delay;
+	next_launch = tv_now->tv_sec + delay;
+    }
+
+    /* pick the lowest computed launch time */
+    if (( hq->hq_next_launch.tv_sec == 0 ) ||
+	    ( hq->hq_next_launch.tv_sec > next_launch )) {
+	hq->hq_next_launch.tv_sec = next_launch;
     }
 
     /* add to launch queue sorted on launch time */
     if (( simta_deliver_q == NULL ) ||
-	    ( simta_deliver_q->hq_launch.tv_sec >= hq->hq_launch.tv_sec )) {
+	    ( simta_deliver_q->hq_next_launch.tv_sec >=
+		    hq->hq_next_launch.tv_sec )) {
 	if (( hq->hq_deliver_next = simta_deliver_q ) != NULL ) {
 	    simta_deliver_q->hq_deliver_prev = hq;
 	}
@@ -597,8 +621,8 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
     } else {
 	for ( insert = simta_deliver_q;
 		(( insert->hq_deliver_next != NULL ) &&
-		( insert->hq_deliver_next->hq_launch.tv_sec <=
-			hq->hq_launch.tv_sec ));
+		( insert->hq_deliver_next->hq_next_launch.tv_sec <=
+			hq->hq_next_launch.tv_sec ));
 		insert = insert->hq_deliver_next )
 	    ;
 
@@ -842,7 +866,7 @@ error:
 
 	    } else {
 		/* add new host queues to the deliver queue */
-		if ( (*hq)->hq_launch.tv_sec == 0 ) {
+		if ( (*hq)->hq_last_launch.tv_sec == 0 ) {
 		    syslog( LOG_INFO, "Queue Adding: %s %d messages",
 			    (*hq)->hq_hostname, (*hq)->hq_entries );
 		    hq_deliver_push( *hq, &tv_schedule );
@@ -985,6 +1009,12 @@ q_deliver( struct host_q *deliver_q )
 
 	default:
 	    panic( "q_deliver host_status out of range" );
+	}
+
+	/* check to see if this is the primary queue, and if it has leaked */
+	if (( deliver_q->hq_primary ) &&
+		( d.d_n_rcpt_accepted || d.d_n_rcpt_failed )) {
+	    simta_leaky_queue = 1;
 	}
 
 	n_rcpt_remove = d.d_n_rcpt_failed;
@@ -1651,7 +1681,7 @@ queue_log_metrics( struct host_q *hq_schedule )
     fprintf( f, "Next\tMessages\tQueue\n" );
 
     for ( hq = hq_schedule; hq != NULL; hq = hq->hq_deliver_next ) {
-	fprintf( f, "%d\t%d\t%s\n", hq->hq_launch.tv_sec - tv.tv_sec,
+	fprintf( f, "%d\t%d\t%s\n", hq->hq_next_launch.tv_sec - tv.tv_sec,
 		hq->hq_entries, hq->hq_hostname );
     }
 

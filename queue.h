@@ -47,6 +47,7 @@ struct host_q {
     struct host_q		*hq_deliver_next;
     char			*hq_hostname;
     char			*hq_smtp_hostname;
+    int				hq_primary;
     int				hq_status;
     int				hq_no_punt;
     int				hq_cycle;
@@ -56,8 +57,9 @@ struct host_q {
     struct line_file		*hq_err_text;
     struct timeval		hq_max_etime;
     struct timeval		hq_min_dtime;
-    struct timeval		hq_launch;
-    struct timeval		hq_launch_last;
+    struct timeval		hq_last_up;
+    struct timeval		hq_last_launch;
+    struct timeval		hq_next_launch;
     struct timeval		hq_wait_last;
     struct timeval		hq_wait_longest;
     struct timeval		hq_wait_shortest;
@@ -65,7 +67,8 @@ struct host_q {
 
 int	q_runner_dir( char * );
 
-struct	host_q	*host_q_create_or_lookup( char * ); 
+struct host_q *host_q_lookup( char * ); 
+struct host_q *host_q_create_or_lookup( char * ); 
 int	q_runner( void );
 void	queue_remove_envelope( struct envelope * );
 int	queue_envelope( struct envelope *);

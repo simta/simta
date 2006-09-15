@@ -32,6 +32,9 @@
 #define	SIMTA_MIN_WORK_TIME		60
 
 #define	EXIT_OK				0
+#define	SIMTA_EXIT_OK			0
+#define	SIMTA_EXIT_OK_LEAKY		1
+#define	SIMTA_EXIT_ERROR		2
 
 #define SIMTA_ERROR_NONE		0
 #define SIMTA_ERROR_DNSR		1
@@ -71,6 +74,7 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
+extern int				simta_leaky_queue;
 extern int				simta_use_randfile;
 extern int				simta_listen_backlog;
 extern int				simta_disk_cycle;

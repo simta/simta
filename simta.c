@@ -70,6 +70,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_leaky_queue = 0;
 int			simta_use_randfile = 0;
 int			simta_listen_backlog = 5;
 int			simta_disk_cycle = 0;
