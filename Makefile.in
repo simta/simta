@@ -90,7 +90,7 @@ install : all FRC
 	-mkdir -p ${DEAD_Q}
 	-chown -R simta ${SPOOLDIR}
 	-chgrp -R simta ${SPOOLDIR}
-	-chmod -R 700 ${SPOOLDIR}
+	-chmod -R 750 ${SPOOLDIR}
 	${INSTALL} -m 755 -o simta -g simta -c simta ${SBINDIR}/
 	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${SBINDIR}/
 	for i in ${BINTARGETS}; do \
