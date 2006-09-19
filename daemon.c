@@ -1057,6 +1057,12 @@ simta_waitpid( void )
 			hq->hq_last_up.tv_sec = tv.tv_sec;
 
 			hq_deliver_push( hq, &tv );
+
+			syslog( LOG_NOTICE, "Child %d: host %s exited %s: %d "
+				"Requeued", pid, host, p_name, exitstatus );
+		    } else {
+			syslog( LOG_NOTICE, "Child %d: host %s exited %s: %d",
+				pid, host, p_name, exitstatus );
 		    }
 
 		} else {
@@ -1064,10 +1070,11 @@ simta_waitpid( void )
 			    exitstatus );
 		    return( 1 );
 		}
-	    }
 
-	    syslog( LOG_NOTICE, "Child %d: exited %s: %d", pid,
-		    p_name, exitstatus );
+	    } else {
+		syslog( LOG_ERR, "Child %d: exited %s: %d", pid, p_name,
+			exitstatus );
+	    }
 
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "Child %d: died %s: %d", pid, p_name,
