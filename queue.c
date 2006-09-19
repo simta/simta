@@ -568,7 +568,6 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
     int				wait;
     int				half;
     int				delay;
-    int				next_launch;
     struct host_q		*insert;
 
     /* first launch can be derived from last env touch */
@@ -596,17 +595,11 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
     }
 
     /* compute possible next launch time */
-    next_launch = hq->hq_last_launch.tv_sec + wait;
+    hq->hq_next_launch.tv_sec = hq->hq_last_launch.tv_sec + wait;
 
-    if ( next_launch < tv_now->tv_sec ) {
+    if ( hq->hq_next_launch.tv_sec < tv_now->tv_sec ) {
 	delay = random() % wait;
-	next_launch = tv_now->tv_sec + delay;
-    }
-
-    /* pick the lowest computed launch time */
-    if (( hq->hq_next_launch.tv_sec == 0 ) ||
-	    ( hq->hq_next_launch.tv_sec > next_launch )) {
-	hq->hq_next_launch.tv_sec = next_launch;
+	hq->hq_next_launch.tv_sec = tv_now->tv_sec + delay;
     }
 
     /* add to launch queue sorted on launch time */
@@ -1012,8 +1005,8 @@ q_deliver( struct host_q *deliver_q )
 	}
 
 	/* check to see if this is the primary queue, and if it has leaked */
-	if (( deliver_q->hq_primary ) &&
-		( d.d_n_rcpt_accepted || d.d_n_rcpt_failed )) {
+	if (( deliver_q->hq_primary ) && (( d.d_n_rcpt_failed ) ||
+		( d.d_delivered && d.d_n_rcpt_accepted ))) {
 	    simta_leaky_queue = 1;
 	}
 

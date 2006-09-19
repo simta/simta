@@ -370,7 +370,8 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     fprintf( dfile, "Message-ID: <%s@%s>\n", bounce_env->e_id, simta_hostname );
     fprintf( dfile, "Subject: undeliverable mail\n" );
     fprintf( dfile, "\n" );
-    fprintf( dfile, "Your mail was bounced.\n" );
+    fprintf( dfile, "Message delivery failed for one or more recipients, " );
+    fprintf( dfile, "check specific errors below\n" );
     fprintf( dfile, "\n" );
 
     if ( env->e_hostname == NULL ) {
