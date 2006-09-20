@@ -895,7 +895,8 @@ simta_q_scheduler( void )
 	    hq->hq_wait_last.tv_sec = waited;
 	    hq->hq_last_launch.tv_sec = tv_now.tv_sec;
 
-	    /* re-queue  */
+	    /* zero out the next_launch and reschedule */
+	    hq->hq_next_launch.tv_sec = 0;
 	    hq_deliver_push( hq, &tv_now );
 
 	    if (( simta_launch_limit > 0 ) &&
@@ -1043,6 +1044,7 @@ simta_waitpid( void )
 	    if (( exitstatus = WEXITSTATUS( status )) != EXIT_OK ) {
 		if (( type = PROCESS_Q_SLOW ) &&
 			( exitstatus == SIMTA_EXIT_OK_LEAKY )) {
+		    /* remote host activity, requeue to encourage it */
 		    if (( hq = host_q_lookup( host )) != NULL ) {
 			hq_deliver_pop( hq );
 
@@ -1057,12 +1059,6 @@ simta_waitpid( void )
 			hq->hq_last_up.tv_sec = tv.tv_sec;
 
 			hq_deliver_push( hq, &tv );
-
-			syslog( LOG_NOTICE, "Child %d: host %s exited %s: %d "
-				"Requeued", pid, host, p_name, exitstatus );
-		    } else {
-			syslog( LOG_NOTICE, "Child %d: host %s exited %s: %d",
-				pid, host, p_name, exitstatus );
 		    }
 
 		} else {
@@ -1071,10 +1067,10 @@ simta_waitpid( void )
 		    return( 1 );
 		}
 
-	    } else {
-		syslog( LOG_ERR, "Child %d: exited %s: %d", pid, p_name,
-			exitstatus );
 	    }
+
+	    syslog( LOG_ERR, "Child %d: exited OK %s: %d", pid, p_name,
+		    exitstatus );
 
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "Child %d: died %s: %d", pid, p_name,

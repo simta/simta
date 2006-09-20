@@ -568,6 +568,7 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
     int				wait;
     int				half;
     int				delay;
+    struct timeval		next_launch;
     struct host_q		*insert;
 
     /* first launch can be derived from last env touch */
@@ -595,11 +596,25 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
     }
 
     /* compute possible next launch time */
-    hq->hq_next_launch.tv_sec = hq->hq_last_launch.tv_sec + wait;
+    next_launch.tv_sec = hq->hq_last_launch.tv_sec + wait;
 
-    if ( hq->hq_next_launch.tv_sec < tv_now->tv_sec ) {
+    if ( next_launch.tv_sec < tv_now->tv_sec ) {
 	delay = random() % wait;
-	hq->hq_next_launch.tv_sec = tv_now->tv_sec + delay;
+	next_launch.tv_sec = tv_now->tv_sec + delay;
+    }
+
+    /* if the next launch is zero, or if it is greater than the computed
+     * value, use the computed value.
+     */
+    if (( hq->hq_next_launch.tv_sec == 0 ) ||
+	    ( hq->hq_next_launch.tv_sec > next_launch.tv_sec )) {
+	if ( hq->hq_next_launch.tv_sec != 0 ) {
+	    syslog( LOG_DEBUG, "Queue %s: Requeued %d, Old %d",
+		    hq->hq_hostname,
+		    next_launch.tv_sec - tv_now->tv_sec,
+		    hq->hq_next_launch.tv_sec - tv_now->tv_sec );
+	}
+	hq->hq_next_launch.tv_sec = next_launch.tv_sec;
     }
 
     /* add to launch queue sorted on launch time */
