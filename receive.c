@@ -2104,9 +2104,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		inet_ntoa( sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
 	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Failed: access denied",
 		    inet_ntoa( sin->sin_addr ), receive_remote_hostname );
-	    snet_writef( snet, "421 Access Denied %s - "
-		    "remote access restricted\r\n", inet_ntoa( sin->sin_addr ));
-	    goto closeconnection;
+	    goto syserror;
 	}
 
 	if ( receive_remote_hostname == STRING_UNKNOWN ) {
@@ -2225,7 +2223,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     }
 
 syserror:
-    if ( snet_writef( snet, "421 %s Service not available, local error, "
+    if ( snet_writef( snet, "421 <%s> Service not available, "
 	    "closing transmission channel\r\n", simta_hostname ) < 0 ) {
 	syslog( LOG_ERR, "receive snet_writef: %m" );
     }
