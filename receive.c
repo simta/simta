@@ -2223,7 +2223,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     }
 
 syserror:
-    if ( snet_writef( snet, "421 <%s> Service not available, "
+    if ( snet_writef( snet, "421 %s Service not available, "
 	    "closing transmission channel\r\n", simta_hostname ) < 0 ) {
 	syslog( LOG_ERR, "receive snet_writef: %m" );
     }
