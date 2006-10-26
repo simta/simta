@@ -1538,16 +1538,16 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
 
 			    if ( match == 0 ) {
-				syslog( LOG_ERR, "DNS %s: MX Record "
+				syslog( LOG_ERR, "DNS %s: Entry %d: MX Record "
 					"lists localhost at precedence %d, "
 					"Punting disabled",
-					hq->hq_hostname, 
+					hq->hq_hostname, i,
 					d->d_mx_preference_cutoff );
 			    } else {
-				syslog( LOG_ERR, "DNS %s: MX Record "
+				syslog( LOG_ERR, "DNS %s: Entry %d: MX Record "
 					"lists secondary MX at precedence %d, "
 					"Punting disabled",
-					hq->hq_hostname,
+					hq->hq_hostname, i,
 					d->d_mx_preference_cutoff );
 			    }
 			    break;
@@ -1624,8 +1624,6 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     if ( d->d_dnsr_result_ip == NULL ) {
 	for ( ; d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
 		d->d_cur_dnsr_result++ ) {
-	    syslog( LOG_DEBUG, "DNS %s: Processing entry %d",
-		    hq->hq_hostname, d->d_cur_dnsr_result );
 	    /* if the entry is an A record, use the associated IP info */
 	    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type ==
 		    DNSR_TYPE_A ) {
@@ -1638,24 +1636,33 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		    ip = inet_ntoa( d->d_sin.sin_addr );
 		    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
 			    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
-			syslog( LOG_INFO,
-				"DNS %s: skipping invalid A record: %s",
-				hq->hq_hostname, ip );
+			syslog( LOG_DEBUG,
+				"DNS %s: Entry %d: A record invalid: %s",
+				hq->hq_hostname, d->d_cur_dnsr_result, ip );
 			continue;
 		    }
 		}
+		syslog( LOG_DEBUG,
+			"DNS %s: Entry %d: A record: %s",
+			hq->hq_hostname, d->d_cur_dnsr_result, ip );
 		return( 0 );
 
 	    } else if (( d->d_dnsr_result->r_answer[
 		    d->d_cur_dnsr_result ].rr_type == DNSR_TYPE_MX )
 		    && ( hq->hq_status == HOST_DOWN )) {
+		syslog( LOG_DEBUG, "DNS %s: Entry %d: MX Record preference %d",
+			hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference ); 
+
 		/* Stop checking hosts if we know the local hostname is in
 		 * the mx record, and if we've reached it's preference level.
 		 */
 		if (( hq->hq_no_punt != 0 ) && ( d->d_mx_preference_cutoff == 
     d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference )) {
-		    syslog( LOG_INFO, "DNS %s: MX preference cutoff reached",
-			    hq->hq_hostname );
+		    syslog( LOG_INFO,
+			    "DNS %s: Entry %d: MX preference %d: cutoff",
+			    hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference ); 
 		    return( 1 );
 		}
 
@@ -1664,6 +1671,10 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 			    &(d->d_dnsr_result->r_answer[
 			    d->d_cur_dnsr_result ].rr_ip->ip_ip ),
 			    sizeof( struct in_addr ));
+		    syslog( LOG_INFO,
+			    "DNS %s: Entry %d: MX preference %d",
+			    hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference ); 
 		    return( 0 );
 
 		} else {
@@ -1671,8 +1682,8 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange ))
 			    == NULL ) {
 			syslog( LOG_INFO,
-				"DNS %s: A record lookup failure: %s",
-				hq->hq_hostname,
+				"DNS %s: Entry %d: A record lookup failure: %s",
+				hq->hq_hostname, d->d_cur_dnsr_result,
 	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
 			continue;
 		    }
@@ -1681,22 +1692,24 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 			dnsr_free_result( d->d_dnsr_result_ip );
 			d->d_dnsr_result_ip = NULL;
 			syslog( LOG_INFO,
-				"DNS %s: A record missing: %s", hq->hq_hostname,
+				"DNS %s: Entry %d: A record missing: %s",
+				hq->hq_hostname, d->d_cur_dnsr_result,
 	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
 			continue;
 		    }
 
 		    d->d_cur_dnsr_result_ip = 0;
 		    syslog( LOG_INFO,
-			    "DNS %s: A record found: %s", hq->hq_hostname,
+			    "DNS %s: Entry %d: A record found: %s",
+			    hq->hq_hostname, d->d_cur_dnsr_result,
     d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
 		    break;
 		}
 
 	    } else {
 		syslog( LOG_DEBUG,
-			"DNS %s: %s uninteresting dnsr rr type:"
-			" %d", hq->hq_hostname,
+			"DNS %s: Entry %d: uninteresting dnsr rr type %s: %d",
+			hq->hq_hostname, d->d_cur_dnsr_result,
 		d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_name,
 		d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type );
 		continue;
@@ -1707,25 +1720,31 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     if ( d->d_dnsr_result_ip != NULL ) {
 	for ( ; d->d_cur_dnsr_result_ip < d->d_dnsr_result_ip->r_ancount;
 		d->d_cur_dnsr_result_ip++ ) {
-	    syslog( LOG_DEBUG, "DNS %s: Processing entry %d.%d",
-		    hq->hq_hostname, d->d_cur_dnsr_result,
-		    d->d_cur_dnsr_result_ip );
-    if ( d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type
-		    == DNSR_TYPE_A ) {
+	    if ( DNSR_TYPE_A ==
+    d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type ) {
 		memcpy( &(d->d_sin.sin_addr.s_addr),
 	&(d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_a ),
 			sizeof( struct in_addr ));
 		ip = inet_ntoa( d->d_sin.sin_addr );
 		if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
 			( strcmp( ip, "0.0.0.0" ) == 0 )) {
-		    syslog( LOG_DEBUG, "DNS %s: skipping invalid MX IP: %s",
-			hq->hq_hostname, ip );
+		    syslog( LOG_DEBUG,
+			    "DNS %s: Entry %d.%d: invalid A record: %s",
+			    hq->hq_hostname, d->d_cur_dnsr_result,
+			    d->d_cur_dnsr_result_ip, ip );
+		    continue;
 		} else {
+		    syslog( LOG_DEBUG,
+			    "DNS %s: Entry %d.%d: A record: %s",
+			    hq->hq_hostname, d->d_cur_dnsr_result,
+			    d->d_cur_dnsr_result_ip, ip );
 		    return( 0 );
 		}
 	    } else {
-		syslog( LOG_DEBUG, "DNS %s: %s uninteresting dnsr rr type: %d",
-		    hq->hq_hostname,
+		syslog( LOG_DEBUG,
+			"DNS %s: Entry %d.%d uninteresting dnsr rr type %s: %d",
+			hq->hq_hostname, d->d_cur_dnsr_result,
+			d->d_cur_dnsr_result_ip,
 	d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_name,
 	d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type );
 	    }
