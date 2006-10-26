@@ -1624,6 +1624,8 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     if ( d->d_dnsr_result_ip == NULL ) {
 	for ( ; d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
 		d->d_cur_dnsr_result++ ) {
+	    syslog( LOG_DEBUG, "DNS %s: Processing entry %d",
+		    hq->hq_hostname, d->d_cur_dnsr_result );
 	    /* if the entry is an A record, use the associated IP info */
 	    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type ==
 		    DNSR_TYPE_A ) {
@@ -1705,6 +1707,9 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     if ( d->d_dnsr_result_ip != NULL ) {
 	for ( ; d->d_cur_dnsr_result_ip < d->d_dnsr_result_ip->r_ancount;
 		d->d_cur_dnsr_result_ip++ ) {
+	    syslog( LOG_DEBUG, "DNS %s: Processing entry %d.%d",
+		    hq->hq_hostname, d->d_cur_dnsr_result,
+		    d->d_cur_dnsr_result_ip );
     if ( d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type
 		    == DNSR_TYPE_A ) {
 		memcpy( &(d->d_sin.sin_addr.s_addr),
