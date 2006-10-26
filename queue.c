@@ -51,6 +51,7 @@ void	deliver_local( struct deliver *d );
 void	deliver_remote( struct deliver *d, struct host_q * );
 void	hq_clear_errors( struct host_q * );
 int	next_dnsr_host( struct deliver *, struct host_q * );
+int	next_dnsr_host_lookup( struct deliver *, struct host_q * );
 void	hq_free( struct host_q * );
 struct envelope* queue_env_lookup( char * );
 
@@ -339,7 +340,7 @@ q_runner( void )
 
 	/* punt any undelivered mail, if possible */
 	if (( simta_punt_q != NULL ) && ( simta_punt_q->hq_env_head != NULL )) {
-	    syslog( LOG_DEBUG, "q_runner: punting undelivered mail to %s",
+	    syslog( LOG_INFO, "Queue: Punting undelivered mail to %s",
 		    simta_punt_host );
 	    q_deliver( simta_punt_q );
 	}
@@ -919,7 +920,7 @@ q_deliver( struct host_q *deliver_q )
 
     memset( &d, 0, sizeof( struct deliver ));
 
-    syslog( LOG_DEBUG, "q_deliver: delivering %s total %d",
+    syslog( LOG_INFO, "Queue %s: delivering %d messages",
 	    deliver_q->hq_hostname, deliver_q->hq_entries );
 
     /* determine if the host we are delivering to is a local host or a
@@ -948,6 +949,8 @@ q_deliver( struct host_q *deliver_q )
     while ( deliver_q->hq_env_head != NULL ) {
 	env_deliver = deliver_q->hq_env_head;
 	queue_remove_envelope( env_deliver );
+	syslog( LOG_DEBUG, "Deliver %s: Attempting delivery",
+		env_deliver->e_id );
 
 	if ( env_deliver->e_rcpt == NULL ) {
 	    /* lock & read envelope to deliver */
@@ -1009,9 +1012,13 @@ q_deliver( struct host_q *deliver_q )
 	    break;
 
         case HOST_DOWN:
+	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s down",
+		    d.d_env->e_id, deliver_q->hq_hostname );
 	    break;
 
         case HOST_BOUNCE:
+	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s bouncing mail",
+		    d.d_env->e_id, deliver_q->hq_hostname );
 	    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    break;
 
@@ -1041,19 +1048,24 @@ q_deliver( struct host_q *deliver_q )
 	if (( n_rcpt_remove != env_deliver->e_n_rcpt ) &&
 		(( env_deliver->e_flags & ENV_FLAG_BOUNCE ) == 0 )) {
 	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
-		    syslog( LOG_NOTICE, "q_deliver %s: old message, bouncing",
+		    syslog( LOG_NOTICE, "Deliver %s: old message, bouncing",
 			    env_deliver->e_id );
 		    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    } else {
-		syslog( LOG_DEBUG, "q_deliver %s: not old",
+		syslog( LOG_DEBUG, "Deliver %s: not old",
 			env_deliver->e_id );
 	    }
+	} else {
+	    syslog( LOG_DEBUG, "Deliver %s: not checking age of message",
+		    env_deliver->e_id );
 	}
 
 	/* bounce the message if the message is bad, or
 	 * if some recipients are bad.
 	 */
 	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) || d.d_n_rcpt_failed ) {
+	    syslog( LOG_DEBUG, "Deliver %s: creating bounce",
+		    env_deliver->e_id );
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
                 syslog( LOG_ERR, "q_deliver lseek: %m" );
 		panic( "q_deliver lseek fail" );
@@ -1077,7 +1089,10 @@ q_deliver( struct host_q *deliver_q )
 		syslog( LOG_ERR, "q_deliver bounce failed" );
 		goto message_cleanup;
             }
-        }
+        } else {
+	    syslog( LOG_DEBUG, "Deliver %s: no bounces created",
+		    env_deliver->e_id );
+	}
 
 	/* delete the original message if we've created
 	 * a bounce for the entire message, or if we've successfully
@@ -1170,11 +1185,13 @@ q_deliver( struct host_q *deliver_q )
 	}
 
 message_cleanup:
-        if ((( touch ) || ( n_processed == 0 )) &&
+        if ((( touch != 0 ) || ( n_processed == 0 )) &&
                 ( env_deliver->e_dir == simta_dir_slow ) &&
 		( d.d_unlinked == 0 ))  {
 	    touch = 0;
 	    env_touch( env_deliver );
+	    syslog( LOG_INFO, "Deliver %s: Envelope Touched",
+		    env_bounce->e_id );
 	}
 
 	n_processed++;
@@ -1196,10 +1213,16 @@ message_cleanup:
 	if ( d.d_unlinked == 0 ) {
 	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q ) &&
 		    ( deliver_q->hq_no_punt == 0 )) {
+		syslog( LOG_INFO, "Deliver %s: queueing for Punt",
+			env_deliver->e_id );
 		env_clear_errors( env_deliver );
 		env_deliver->e_flags |= ENV_FLAG_PUNT;
 		queue_envelope( env_deliver );
 	    } else {
+		if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q )) {
+		    syslog( LOG_INFO, "Deliver %s: not Puntable",
+			    env_deliver->e_id );
+		}
 		env_move( env_deliver, simta_dir_slow );
 		env_free( env_deliver );
 	    }
@@ -1249,7 +1272,7 @@ deliver_local( struct deliver *d )
 {
     int                         ml_error;
 
-    syslog( LOG_NOTICE, "deliver_local %s: attempting local delivery",
+    syslog( LOG_NOTICE, "Deliver.local %s: local delivery attempt",
 	    d->d_env->e_id );
 
     for ( d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
@@ -1318,10 +1341,14 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
     switch ( hq->hq_status ) {
     case HOST_MX:
+	syslog( LOG_NOTICE, "Deliver.remote %s: host %s", d->d_env->e_id,
+		hq->hq_hostname );
 	hq->hq_status = HOST_DOWN;
 	break;
 
     case HOST_PUNT:
+	syslog( LOG_NOTICE, "Deliver.remote %s: punt %s", d->d_env->e_id,
+		hq->hq_hostname );
 	hq->hq_status = HOST_PUNT_DOWN;
     	break;
 
@@ -1332,16 +1359,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
     for ( ; ; ) {
 	if ( d->d_snet_smtp == NULL ) {
 	    /* need to build SMTP connection */
-	    if ( next_dnsr_host( d, hq ) != 0 ) {
-		if ( d->d_dnsr_result_ip != NULL ) {
-		    dnsr_free_result( d->d_dnsr_result_ip );
-		    d->d_dnsr_result_ip = NULL;
-		    d->d_cur_dnsr_result++;
-		    continue;
-		}
-
-		dnsr_free_result( d->d_dnsr_result );
-		d->d_dnsr_result = NULL;
+	    if ( next_dnsr_host_lookup( d, hq ) != 0 ) {
 		return;
 	    }
 
@@ -1349,7 +1367,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
 		syslog( LOG_ERR, "deliver_remote %s: socket: %m",
 			hq->hq_hostname );
-		goto connect_cleanup;
+		continue;
 	    }
 
 	    if ( connect( s, (struct sockaddr*)&(d->d_sin),
@@ -1357,14 +1375,17 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 		syslog( LOG_ERR, "Connect.out [%s] %s: Failed: connect: %m",
 			inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname );
 		close( s );
-		goto connect_cleanup;
+		continue;
 	    }
+
+	    syslog( LOG_DEBUG, "Connect.out [%s] %s: Success",
+		    inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname );
 
 	    if (( d->d_snet_smtp = snet_attach( s, 1024 * 1024 )) == NULL ) {
 		syslog( LOG_ERR, "deliver_remote %s snet_attach: %m",
 			hq->hq_hostname );
 		close( s );
-		goto connect_cleanup;
+		continue;
 	    }
 
 	    memset( &tv, 0, sizeof( struct timeval ));
@@ -1431,14 +1452,37 @@ smtp_cleanup:
 	    }
 	    return;
 	}
-
-connect_cleanup:
-	if ( d->d_dnsr_result_ip != NULL ) {
-	    d->d_cur_dnsr_result_ip++;
-	} else {
-	    d->d_cur_dnsr_result++;
-	}
     }
+}
+
+
+    int
+next_dnsr_host_lookup( struct deliver *d, struct host_q *hq )
+{
+    for ( ; ; ) {
+	if ( next_dnsr_host( d, hq ) == 0 ) {
+	    syslog( LOG_DEBUG, "DNS %s: Trying %s", hq->hq_hostname,
+		    inet_ntoa( d->d_sin.sin_addr ));
+	    return( 0 );
+	}
+
+	if ( d->d_dnsr_result_ip != NULL ) {
+	    dnsr_free_result( d->d_dnsr_result_ip );
+	    d->d_dnsr_result_ip = NULL;
+	    continue;
+	}
+
+	break;
+    }
+
+    if ( d->d_dnsr_result ) {
+	dnsr_free_result( d->d_dnsr_result );
+	d->d_dnsr_result = NULL;
+    }
+
+    syslog( LOG_DEBUG, "DNS %s: DNS exhausted", hq->hq_hostname );
+
+    return( 1 );
 }
 
 
@@ -1447,17 +1491,24 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 {
     char			*ip;
     int 			i;
+    int				match;
 
     if ( d->d_dnsr_result == NULL ) {
 	hq->hq_no_punt = 0;
 	d->d_mx_preference_cutoff = 0;
 	d->d_cur_dnsr_result = 0;
 
+	/* if the host is a regular MX host, try to get a valid MX record.
+	 * failing that, try to get an A record.
+	 *
+	 * if the host is a punt host, just try to get the A record
+	 */
+
 	switch ( hq->hq_status ) {
 	case HOST_DOWN:
 	    if (( d->d_dnsr_result = get_mx( hq->hq_hostname )) == NULL ) {
 		hq->hq_no_punt = 1;
-		syslog( LOG_ERR, "next_dnsr_host: get_mx %s failed",
+		syslog( LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
 			hq->hq_hostname );
 		return( 1 );
 	    }
@@ -1469,7 +1520,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		    ( d->d_dnsr_result->r_answer[ 0 ].rr_type !=
 		    DNSR_TYPE_CNAME ))) {
 		/* check remote host's mx entry for our local hostname and
-		 * loew_pref_mx_domain if configured.
+		 * low_pref_mx_domain if configured.
 		 * If we find one, we never punt mail destined for this host,
 		 * and we only try remote delivery to mx entries that have a
 		 * lower mx_preference than for what was matched.
@@ -1477,32 +1528,52 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		for ( i = 0; i < d->d_dnsr_result->r_ancount; i++ ) {
 		    if ( d->d_dnsr_result->r_answer[ i ].rr_type ==
 			    DNSR_TYPE_MX ) {
-			if (( strcasecmp( simta_hostname,
-		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 )
+			if ((( match = strcasecmp( simta_hostname,
+		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange )) == 0 )
 				|| (( simta_secondary_mx != NULL ) &&
-				( strcasecmp(
-				simta_secondary_mx->red_host_name,
+				( strcasecmp( simta_secondary_mx->red_host_name,
 		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ))) {
 			    hq->hq_no_punt = 1;
 			    d->d_mx_preference_cutoff =
-				    d->d_dnsr_result->r_answer[ i 
-				    ].rr_mx.mx_preference;
+		    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
+
+			    if ( match == 0 ) {
+				syslog( LOG_ERR, "DNS %s: MX Record "
+					"lists localhost at precedence %d, "
+					"Punting disabled",
+					hq->hq_hostname, 
+					d->d_mx_preference_cutoff );
+			    } else {
+				syslog( LOG_ERR, "DNS %s: MX Record "
+					"lists secondary MX at precedence %d, "
+					"Punting disabled",
+					hq->hq_hostname,
+					d->d_mx_preference_cutoff );
+			    }
 			    break;
 			}
 		    }
 		}
 
 	    } else {
-		if ( d->d_dnsr_result != NULL ) {
-		    dnsr_free_result( d->d_dnsr_result );
+		if ( d->d_dnsr_result->r_ancount == 0 ) {
+		    syslog( LOG_INFO, "DNS %s: MX record has 0 entries, "
+			    "getting A record", hq->hq_hostname );
+		} else {
+		    syslog( LOG_INFO, "DNS %s: MX record is a single CNAME, "
+			    "getting A record", hq->hq_hostname );
 		}
+		dnsr_free_result( d->d_dnsr_result );
+
 		if (( d->d_dnsr_result = get_a( hq->hq_hostname )) == NULL ) {
+		    syslog( LOG_INFO, "DNS %s: A record lookup failure",
+			    hq->hq_hostname );
 		    return( 1 );
 		}
 
 		if ( d->d_dnsr_result->r_ancount == 0 ) {
-		    dnsr_free_result( d->d_dnsr_result );
-		    d->d_dnsr_result = NULL;
+		    syslog( LOG_INFO, "DNS %s: A record missing, bouncing mail",
+			    hq->hq_hostname );
 		    if ( hq->hq_err_text == NULL ) {
 			if (( hq->hq_err_text = line_file_create()) == NULL ) {
 			    syslog( LOG_ERR,
@@ -1520,25 +1591,29 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		    return( 1 );
 		}
 	    }
-
-	    break;
+	    break; /* case HOST_DOWN */
 
 	case HOST_PUNT_DOWN:
 	    if (( d->d_dnsr_result = get_a( simta_punt_host )) == NULL ) {
+		syslog( LOG_WARNING, "DNS %s: A record Punt lookup failure",
+			simta_punt_host );
 		return( 1 );
 	    }
 	    if ( d->d_dnsr_result->r_ancount == 0 ) {
-		syslog( LOG_WARNING,
-			"next_dnsr_host: punt host has 0 DNS entries" );
-		dnsr_free_result( d->d_dnsr_result );
-		d->d_dnsr_result = NULL;
+		syslog( LOG_WARNING, "DNS %s: A record missing for Punt host",
+			simta_punt_host );
 		return( 1 );
 	    }
-	    break;
+	    break; /* case HOST_PUNT_DOWN */
 
 	default:
 	    panic( "next_dnsr_host: varaible out of range" );
 	}
+
+    } else if ( d->d_dnsr_result_ip != NULL ) {
+	d->d_cur_dnsr_result_ip++;
+    } else {
+	d->d_cur_dnsr_result++;
     }
 
     /* here you have dnsr information */
@@ -1549,6 +1624,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     if ( d->d_dnsr_result_ip == NULL ) {
 	for ( ; d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
 		d->d_cur_dnsr_result++ ) {
+	    /* if the entry is an A record, use the associated IP info */
 	    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type ==
 		    DNSR_TYPE_A ) {
 		memcpy( &(d->d_sin.sin_addr.s_addr),
@@ -1560,9 +1636,9 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		    ip = inet_ntoa( d->d_sin.sin_addr );
 		    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
 			    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
-			syslog( LOG_DEBUG,
-				"next_dnsr_host %s: skipping invalid "
-				"A record: %s", hq->hq_hostname, ip );
+			syslog( LOG_INFO,
+				"DNS %s: skipping invalid A record: %s",
+				hq->hq_hostname, ip );
 			continue;
 		    }
 		}
@@ -1571,18 +1647,17 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	    } else if (( d->d_dnsr_result->r_answer[
 		    d->d_cur_dnsr_result ].rr_type == DNSR_TYPE_MX )
 		    && ( hq->hq_status == HOST_DOWN )) {
-
 		/* Stop checking hosts if we know the local hostname is in
 		 * the mx record, and if we've reached it's preference level.
 		 */
 		if (( hq->hq_no_punt != 0 ) && ( d->d_mx_preference_cutoff == 
-			d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
-			].rr_mx.mx_preference )) {
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference )) {
+		    syslog( LOG_INFO, "DNS %s: MX preference cutoff reached",
+			    hq->hq_hostname );
 		    return( 1 );
 		}
 
-		if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result
-			].rr_ip != NULL ) {
+    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_ip != NULL ) {
 		    memcpy( &(d->d_sin.sin_addr.s_addr),
 			    &(d->d_dnsr_result->r_answer[
 			    d->d_cur_dnsr_result ].rr_ip->ip_ip ),
@@ -1590,30 +1665,38 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		    return( 0 );
 
 		} else {
-		    if (( d->d_dnsr_result_ip =
-			    get_a( d->d_dnsr_result->r_answer[
-			    d->d_cur_dnsr_result ].rr_mx.mx_exchange ))
+		    if (( d->d_dnsr_result_ip = get_a(
+	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange ))
 			    == NULL ) {
+			syslog( LOG_INFO,
+				"DNS %s: A record lookup failure: %s",
+				hq->hq_hostname,
+	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
 			continue;
 		    }
 
 		    if ( d->d_dnsr_result_ip->r_ancount == 0 ) {
 			dnsr_free_result( d->d_dnsr_result_ip );
 			d->d_dnsr_result_ip = NULL;
+			syslog( LOG_INFO,
+				"DNS %s: A record missing: %s", hq->hq_hostname,
+	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
 			continue;
 		    }
 
 		    d->d_cur_dnsr_result_ip = 0;
+		    syslog( LOG_INFO,
+			    "DNS %s: A record found: %s", hq->hq_hostname,
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
 		    break;
 		}
 
 	    } else {
 		syslog( LOG_DEBUG,
-			"next_dnsr_host %s: uninteresting dnsr rr type:"
-			" %d", d->d_dnsr_result->r_answer[
-			d->d_cur_dnsr_result ].rr_name,
-			d->d_dnsr_result->r_answer[
-			d->d_cur_dnsr_result ].rr_type );
+			"DNS %s: %s uninteresting dnsr rr type:"
+			" %d", hq->hq_hostname,
+		d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_name,
+		d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type );
 		continue;
 	    }
 	}
@@ -1622,28 +1705,24 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     if ( d->d_dnsr_result_ip != NULL ) {
 	for ( ; d->d_cur_dnsr_result_ip < d->d_dnsr_result_ip->r_ancount;
 		d->d_cur_dnsr_result_ip++ ) {
-	    if ( d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip
-		    ].rr_type == DNSR_TYPE_A ) {
+    if ( d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type
+		    == DNSR_TYPE_A ) {
 		memcpy( &(d->d_sin.sin_addr.s_addr),
-			&(d->d_dnsr_result_ip->r_answer[
-			d->d_cur_dnsr_result_ip ].rr_a ),
+	&(d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_a ),
 			sizeof( struct in_addr ));
 		ip = inet_ntoa( d->d_sin.sin_addr );
 		if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
 			( strcmp( ip, "0.0.0.0" ) == 0 )) {
-		    syslog( LOG_DEBUG,
-			"next_dnsr_host %s: skipping invalid MX IP: %s",
+		    syslog( LOG_DEBUG, "DNS %s: skipping invalid MX IP: %s",
 			hq->hq_hostname, ip );
 		} else {
 		    return( 0 );
 		}
 	    } else {
-		syslog( LOG_DEBUG,
-		    "next_dnsr_host %s: uninteresting dnsr rr type: %d",
-		    d->d_dnsr_result_ip->r_answer[
-			    d->d_cur_dnsr_result_ip ].rr_name,
-		    d->d_dnsr_result_ip->r_answer[
-			    d->d_cur_dnsr_result_ip ].rr_type );
+		syslog( LOG_DEBUG, "DNS %s: %s uninteresting dnsr rr type: %d",
+		    hq->hq_hostname,
+	d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_name,
+	d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type );
 	    }
 	}
     }
