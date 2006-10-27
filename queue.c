@@ -1191,7 +1191,7 @@ message_cleanup:
 	    touch = 0;
 	    env_touch( env_deliver );
 	    syslog( LOG_INFO, "Deliver %s: Envelope Touched",
-		    env_bounce->e_id );
+		    env_deliver->e_id );
 	}
 
 	n_processed++;
