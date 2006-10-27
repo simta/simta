@@ -1461,8 +1461,6 @@ next_dnsr_host_lookup( struct deliver *d, struct host_q *hq )
 {
     for ( ; ; ) {
 	if ( next_dnsr_host( d, hq ) == 0 ) {
-	    syslog( LOG_DEBUG, "DNS %s: Trying %s", hq->hq_hostname,
-		    inet_ntoa( d->d_sin.sin_addr ));
 	    return( 0 );
 	}
 
@@ -1643,7 +1641,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		    }
 		}
 		syslog( LOG_DEBUG,
-			"DNS %s: Entry %d: A record: %s",
+			"DNS %s: Entry %d: Trying A record: %s",
 			hq->hq_hostname, d->d_cur_dnsr_result, ip );
 		return( 0 );
 
@@ -1668,7 +1666,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 			    d->d_cur_dnsr_result ].rr_ip->ip_ip ),
 			    sizeof( struct in_addr ));
 		    syslog( LOG_INFO,
-			    "DNS %s: Entry %d: MX preference %d: %s",
+			    "DNS %s: Entry %d: Trying MX preference %d: %s",
 			    hq->hq_hostname, d->d_cur_dnsr_result,
     d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference,
 			    inet_ntoa( d->d_sin.sin_addr ));
@@ -1732,7 +1730,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		    continue;
 		} else {
 		    syslog( LOG_DEBUG,
-			    "DNS %s: Entry %d.%d: A record: %s",
+			    "DNS %s: Entry %d.%d: Trying A record: %s",
 			    hq->hq_hostname, d->d_cur_dnsr_result,
 			    d->d_cur_dnsr_result_ip, ip );
 		    return( 0 );
