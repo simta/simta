@@ -1668,9 +1668,10 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 			    d->d_cur_dnsr_result ].rr_ip->ip_ip ),
 			    sizeof( struct in_addr ));
 		    syslog( LOG_INFO,
-			    "DNS %s: Entry %d: MX preference %d",
+			    "DNS %s: Entry %d: MX preference %d: %s",
 			    hq->hq_hostname, d->d_cur_dnsr_result,
-    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference ); 
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference,
+			    inet_ntoa( d->d_sin.sin_addr ));
 		    return( 0 );
 
 		} else {
