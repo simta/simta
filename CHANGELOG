@@ -1,6 +1,7 @@
-
-2006-10-31
+internal
  - CHANGELOG added
+
+2006-10-27
  - SMTP error messages changed for postmaster
  - Leaky queue bugfix: only requeue if there's a schedule advantage
  - Added DNS, Punt, Delivery, and Dfile inode logging
@@ -24,17 +25,14 @@
  - command line args synched with config file
  - multiple RBL added back in
 
-
 0.6.3
  - expand and receive share same address verification code
  - reject incoming messages if oversized
  - punting fixed with new queue runner
  - bugfixes
 
-
 0.6.2
  - partial postmaster receive bug fix
-
 
 0.6.1
  - MIN_WORK_TIME feature
@@ -42,16 +40,13 @@
  - simta.conf template
  - bugfixes
 
-
 0.6.0
  - new master queue runner
  - fixed simta -C bug
 
-
 0.5.7
  - fix crash if DNS is down on RBL lookup
  - fix off-by-one error for failed rcpts
-
 
 0.5.4
  - always do a reverse lookup of SMTP clients for information
@@ -63,27 +58,21 @@
  - BUGFIX: SNET write hangs
  - Better SMTP error messages to client
 
-
 0.5.3
  - BUGFIX: merged bugfixes
-
 
 0.5.2g3
  - BUGFIX: Members-only mail leak
 
-
 0.5.2g2
  - BUGFIX: bad memfree
-
 
 0.5.2g
  - BUGFIX: Resetting SASL after user canceled AUTH
 
-
 0.5.2f
  - Bugfixes
  - better test scripts
-
 
 0.5.2e
  - Ordered LDAP expansion, better DB connection management
@@ -94,7 +83,6 @@
  - LOGGING doc updated
  - Permitted Person added
 
-
 0.5.2d
  - bugfix: SASL made optional for build
  - libsnet timeouts for write
@@ -102,17 +90,14 @@
  - Logging command given on no_auth
  - Added GLOBAL_RELAY and SUBMISSION_PORT to conf file
 
-
 0.5.2
  - bugfix: smtp partial fail
  - bugfix: "bad touch"
  - bugfix: RBL down should accept mail
  - bugfix: moderation loops broken
 
-
 0.5.1
  - Bug fix: Denser cname/mx sorting patch from 0.4.x
-
 
 0.5.0
  - Added -owner info to bounces
@@ -130,21 +115,17 @@
  - Bug fix: simreverse core dump 
  - Bug fix: logging for PM RBL
 
-
 0.4.8
  - Simta file checking and cleaning (-C) functions made more robust
  - Messages get another TTL after expansion
  - All simta children are waited for, and exit status logged
 
-
 0.4.7
  - Bugfix for bad punt communication stranding fast files
-
 
 0.4.0rc4
  - Fixed a bug in argcargv parser.
  - SMTP server does not repeat bad commands back to a smtp client.
-
 
 0.4.0rc3
  - Added UMICH_IMAP_LETTERS
@@ -153,12 +134,10 @@
  - return if smtp transaction to the punt host failed
  - Cleaned up NOTES
 
-
 0.4.0rc2
  - Fixed NULL dnsr access for local mail delivery
  - Fixed make dist to exclude correct files
  - make dist creates tar ball
-
 
 0.4.0rc1
  - Added support for low_pref_mx
@@ -178,10 +157,8 @@
  - Moved config files into /etc/simta/
  - Added test DNS records to NOTES
 
-
 0.3.2.1
  - Fixed argargc bug
-
 
 0.3.2
  - get_mx returns NULL only on error
@@ -189,6 +166,5 @@
  - Improved simsendmail logging to include sender and recipients
  - Correct type-o in f_mail logging
 
-
 0.3.1
- - changes
+ - version in CVS
