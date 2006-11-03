@@ -103,6 +103,7 @@ int			simta_smtp_outbound_attempts = 0;
 int			simta_smtp_outbound_delivered = 0;
 int			simta_fast_files = 0;
 int			simta_global_relay = 0;
+int			simta_smtp_tarpit = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
 int			simta_tls = 0;
@@ -1057,6 +1058,22 @@ simta_read_config( char *fname )
 	   }
 	   if ( simta_debug ) printf( "LOW_PREF_MX: %s\n",
 		   simta_secondary_mx->red_host_name );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_global_relay = 1;
+	    if (( simta_smtp_tarpit = atoi( av[ 1 ])) < 1 ) {
+		fprintf( stderr,
+			"%s: line %d: argument must be a positive integer\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "GLOBAL_RELAY\n" );
+	    if ( simta_debug ) printf( "SMTP_TARPIT %d\n", simta_smtp_tarpit );
 
 	} else if ( strcasecmp( av[ 0 ], "GLOBAL_RELAY" ) == 0 ) {
 	   if ( ac != 1 ) {

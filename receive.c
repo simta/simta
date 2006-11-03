@@ -846,8 +846,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     char				*line;
     char				*smtp_message = NULL;
     struct tm				*tm;
-    FILE				*dff;
+    FILE				*dff = NULL;
     struct timeval			tv;
+    struct timespec			req;
     time_t				clock;
     struct stat				sbuf;
     char				daytime[ 30 ];
@@ -920,60 +921,66 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    sprintf( dfile_fname, "%s/D%s", simta_dir_fast, env->e_id );
+    if ( simta_smtp_tarpit == 0 ) {
+	sprintf( dfile_fname, "%s/D%s", simta_dir_fast, env->e_id );
 
-    if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
-	    < 0 ) {
-	syslog( LOG_ERR, "f_data open %s: %m", dfile_fname );
-	return( RECEIVE_SYSERROR );
-    }
-
-    if (( dff = fdopen( dfile_fd, "w" )) == NULL ) {
-	syslog( LOG_ERR, "f_data fdopen: %m" );
-	if ( close( dfile_fd ) != 0 ) {
-	    syslog( LOG_ERR, "f_data close: %m" );
+	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
+		< 0 ) {
+	    syslog( LOG_ERR, "f_data open %s: %m", dfile_fname );
+	    return( RECEIVE_SYSERROR );
 	}
 
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	if (( dff = fdopen( dfile_fd, "w" )) == NULL ) {
+	    syslog( LOG_ERR, "f_data fdopen: %m" );
+	    if ( close( dfile_fd ) != 0 ) {
+		syslog( LOG_ERR, "f_data close: %m" );
+	    }
+
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    }
+
+	    return( RECEIVE_SYSERROR );
 	}
 
-	return( RECEIVE_SYSERROR );
-    }
+	clock = time( &clock );
+	tm = localtime( &clock );
+	strftime( daytime, sizeof( daytime ), "%e %b %Y %T", tm );
 
-    clock = time( &clock );
-    tm = localtime( &clock );
-    strftime( daytime, sizeof( daytime ), "%e %b %Y %T", tm );
-
-    /*
-     * At this point, we must have decided what we'll put in the Received:
-     * header, since that is the first line in the file.  This is where
-     * we might want to put the sender's domain name, if we obtained one.
-     */
-    if ( fprintf( dff, "Received: FROM %s (%s [%s])\n\t"
-	    "BY %s ID %s ; \n\t%s %s\n",
-	    ( receive_hello == NULL ) ? "NULL" : receive_hello,
-	    receive_remote_hostname , inet_ntoa( receive_sin->sin_addr ),
-	    simta_hostname, env->e_id, daytime, tz( tm )) < 0 ) {
-	syslog( LOG_ERR, "f_data fprintf: %m" );
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
+	/*
+	 * At this point, we must have decided what we'll put in the Received:
+	 * header, since that is the first line in the file.  This is where
+	 * we might want to put the sender's domain name, if we obtained one.
+	 */
+	if ( fprintf( dff, "Received: FROM %s (%s [%s])\n\t"
+		"BY %s ID %s ; \n\t%s %s\n",
+		( receive_hello == NULL ) ? "NULL" : receive_hello,
+		receive_remote_hostname , inet_ntoa( receive_sin->sin_addr ),
+		simta_hostname, env->e_id, daytime, tz( tm )) < 0 ) {
+	    syslog( LOG_ERR, "f_data fprintf: %m" );
+	    if ( fclose( dff ) != 0 ) {
+		syslog( LOG_ERR, "f_data fclose: %m" );
+	    }
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    }
+	    return( RECEIVE_SYSERROR );
 	}
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	}
-	return( RECEIVE_SYSERROR );
     }
 
     if ( snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n",
 	    354 ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
+
+	if ( dff != NULL ) {
+	    if ( fclose( dff ) != 0 ) {
+		syslog( LOG_ERR, "f_data fclose: %m" );
+	    }
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    }
 	}
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	}
+
 	return( RECEIVE_CLOSECONNECTION );
     }
 
@@ -981,7 +988,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     header = 1;
 
 #ifdef HAVE_LIBSSL 
-    if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+    if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL ) &&
+	    ( simta_smtp_tarpit == 0 )) {
 	EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
     }
 #endif /* HAVE_LIBSSL */
@@ -998,6 +1006,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		break;
 	    }
 	    line++;
+	}
+
+	if ( simta_smtp_tarpit != 0 ) {
+	    continue;
 	}
 
 	line_len = strlen( line );
@@ -1050,7 +1062,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	if (( received_count <= simta_max_received_headers ) && 
-	    ( data_errors == 0 )) {
+		( data_errors == 0 )) {
 	    if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		syslog( LOG_ERR, "f_data fprintf: %m" );
 		data_errors++;
@@ -1069,6 +1081,23 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	}
 	return( RECEIVE_CLOSECONNECTION );
+    }
+
+    if ( simta_smtp_tarpit  != 0 ) {
+	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
+		"Tarpit enabled", env->e_id, 
+		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname );
+	req.tv_sec = simta_smtp_tarpit;
+	req.tv_nsec = 0;
+	if ( nanosleep( &req, NULL ) != 0 ) {
+	    syslog( LOG_DEBUG, "Tarpit: Error nanosleep %m" );
+	}
+	if ( snet_writef( snet, "%d Requested action aborted: "
+		"local error in processing.\r\n", 451 ) < 0 ) {
+	    syslog( LOG_ERR, "f_data snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     if ( data_errors != 0 ) { /* syserror */
@@ -1871,6 +1900,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
     struct timeval			tv_write;
+    struct timespec			req;
 #ifdef HAVE_LIBSASL
     sasl_security_properties_t		secprops;
 #endif /* HAVE_LIBSASL */
@@ -2189,6 +2219,15 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	for ( i = 0; i < receive_ncommands; i++ ) {
 	    if ( strcasecmp( av[ 0 ], receive_commands[ i ].c_name ) == 0 ) {
 		break;
+	    }
+	}
+
+	/* tarpitting */
+	if ( simta_smtp_tarpit != 0 ) {
+	    req.tv_sec = simta_smtp_tarpit;
+	    req.tv_nsec = 0;
+	    if ( nanosleep( &req, NULL ) != 0 ) {
+		syslog( LOG_DEBUG, "Tarpit: Error nanosleep %m" );
 	    }
 	}
 

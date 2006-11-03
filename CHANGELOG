@@ -1,5 +1,9 @@
 internal
+    - TARPIT directive added
+
+2006-11-03
  - CHANGELOG added
+ - libwrap #define fix, thanks Gab!
 
 2006-10-27
  - SMTP error messages changed for postmaster
