@@ -86,6 +86,12 @@ extern SSL_CTX	*ctx;
 
 extern char		*version;
 struct sockaddr_in  	*receive_sin;
+int			data_success = 0;
+int			data_attempt = 0;
+int			mail_success = 0;
+int			mail_attempt = 0;
+int			rcpt_success = 0;
+int			rcpt_attempt = 0;
 int			receive_failed_rcpts = 0;
 int			receive_tls = 0;
 int			receive_auth = 0;
@@ -406,6 +412,8 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
     char		*domain;
     char		*endptr;
 
+    mail_attempt++;
+
     if ( ac < 2 ) {
 	return( f_mail_usage( snet ));
     }
@@ -554,6 +562,8 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
+    mail_success++;
+
     syslog( LOG_INFO, "Receive %s: From <%s> Accepted", env->e_id,
 	    env->e_mail );
 
@@ -592,6 +602,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     int				rc;
     char			*addr, *domain;
     struct simta_red		*red;
+
+    rcpt_attempt++;
 
     /* Must already have "MAIL FROM:", and no valid message */
     if (( env->e_mail == NULL ) ||
@@ -820,6 +832,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
+    rcpt_success++;
+
     syslog( LOG_INFO, "Receive %s: To <%s> From <%s> Accepted", env->e_id,
 	    env->e_rcpt->r_rcpt, env->e_mail );
 
@@ -858,6 +872,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     EVP_MD_CTX				mdctx;
     u_int				md_len;
 #endif /* HAVE_LIBSSL */
+
+    data_attempt++;
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -1232,6 +1248,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * snet_writef(), perhaps causing the sending-SMTP agent to transmit
 	 * the message again.
 	 */
+
+	data_success++;
 
 	syslog( LOG_INFO, "Receive %s: Message Accepted: [%s] %s %d",
 		env->e_id, inet_ntoa( receive_sin->sin_addr ),
@@ -1894,12 +1912,15 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     ACAV				*acav = NULL;
     int					ac;
     int					i;
+    int					r = 0;
     int					rc;
     char				**av = NULL;
     char				*line;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
     struct timeval			tv_write;
+    struct timeval			tv_start;
+    struct timeval			tv_stop;
     struct timespec			req;
 #ifdef HAVE_LIBSASL
     sasl_security_properties_t		secprops;
@@ -1910,6 +1931,11 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
     receive_commands = smtp_commands;
     receive_ncommands = sizeof( smtp_commands ) / sizeof( smtp_commands[ 0 ] );
+
+    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: smtp_receive gettimeofday: %m" );
+	tv_start.tv_sec = 0;
+    }
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "receive snet_attach: %m" );
@@ -2301,6 +2327,22 @@ closeconnection:
     }
 
     reset( env );
+
+    if (( tv_start.tv_sec != 0 ) &&
+	    (( r = gettimeofday( &tv_stop, NULL )) != 0 )) {
+	if ( r != 0 ) {
+	    syslog( LOG_ERR, "Syserror: q_read_dir gettimeofday: %m" );
+	}
+	tv_start.tv_sec = 1;
+	tv_stop.tv_sec = 0;
+    }
+
+    syslog( LOG_NOTICE,
+	    "Connect.in [%s] %s: Metrics: "
+	    "seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
+	    inet_ntoa( sin->sin_addr ), receive_remote_hostname,
+	    tv_stop.tv_sec - tv_start.tv_sec, mail_success, mail_attempt,
+	    rcpt_success, rcpt_attempt, data_success, data_attempt );
 
     return( simta_fast_files );
 }
