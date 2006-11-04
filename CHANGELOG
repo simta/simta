@@ -1,5 +1,6 @@
-internal
+2006-11-04
     - TARPIT directive added
+    - Incoming SMTP connection metrics
 
 2006-11-03
  - CHANGELOG added
