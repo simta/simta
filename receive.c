@@ -707,7 +707,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	if ((( red = host_local( domain )) == NULL ) ||
-		( red->red_receive == NULL )) {
+		(( red->red_receive == NULL ) &&
+		( red->red_host_type == RED_HOST_TYPE_LOCAL ))) {
 	    if ( simta_global_relay == 0 ) {
 		syslog( LOG_INFO,
 			"Receive %s: To <%s> From <%s> Failed: "

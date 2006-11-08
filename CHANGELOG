@@ -1,3 +1,6 @@
+2006-11-08
+    - Bugfix for MX host RE Isolation
+
 2006-11-04
     - TARPIT directive added
     - Incoming SMTP connection metrics
