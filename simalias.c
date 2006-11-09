@@ -111,7 +111,7 @@ main( int argc, char **argv )
 
     if ( dump ) {
 	if ( input == NULL ) {
-	    input = simta_file_alias_db;
+	    input = simta_default_alias_db;
 	}
 	if ( output == NULL ) {
 	    foutput = stdout;
@@ -134,7 +134,7 @@ main( int argc, char **argv )
 	    }
 	}
 	if ( output == NULL ) {
-	    output = simta_file_alias_db;
+	    output = simta_default_alias_db;
 	}
 	exit( simalias_create( ));
     }

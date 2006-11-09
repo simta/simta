@@ -14,6 +14,7 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
+#include <db.h>
 #include <assert.h>
 #include <sysexits.h>
 #include <stdio.h>

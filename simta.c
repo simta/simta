@@ -23,6 +23,7 @@
 #endif /* HAVE_LIBSASL */
 
 #include <snet.h>
+#include <db.h>
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -86,7 +87,6 @@ int			simta_q_runner_slow = 0;
 int			simta_exp_level_max = 5;
 int			simta_simsend_strict_from = 1;
 int			simta_process_type = 0;
-int			simta_use_alias_db = 0;
 int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
 int			simta_strict_smtp_syntax = 0;
@@ -135,7 +135,8 @@ char			*simta_dir_fast = NULL;
 char			*simta_base_dir = NULL;
 char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
 DNSR			*simta_dnsr = NULL;
-char			*simta_file_alias_db = SIMTA_ALIAS_DB;
+char			*simta_default_alias_db = SIMTA_ALIAS_DB;
+char			*simta_default_passwd_file = "/etc/passwd";
 char			*simta_file_ca = "cert/ca.pem";
 char			*simta_file_cert = "cert/cert.pem";
 char			*simta_file_private_key = "cert/cert.pem";
@@ -191,6 +192,7 @@ simta_read_config( char *fname )
     int			ac;
     int			x;
     extern int		simta_debug;
+    char		*f_arg;
     char		*endptr;
     char		*line;
     char		*c;
@@ -295,21 +297,32 @@ simta_read_config( char *fname )
 	    }
 
 	    if ( strcasecmp( av[ 2 ], "ALIAS" ) == 0 ) {
-		if ( ac != 3 ) {
-		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		if ( ac == 3 ) {
+		    if ( simta_default_alias_db == NULL ) {
+			fprintf( stderr,
+				"%s: line %d: default alias DB disabled\n",
+				fname, lineno );
+			goto error;
+		    }
+
+		    f_arg = simta_default_alias_db;
+		} else if ( ac == 4 ) {
+		    f_arg = av[ 3 ];
+		} else {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
 			    fname, lineno );
 		    goto error;
 		}
 
 		if ( red_code & RED_CODE_r ) {
 		    if ( simta_red_add_action( red, RED_CODE_r,
-			    EXPANSION_TYPE_ALIAS ) == NULL ) {
+			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
 		} else if ( red_code & RED_CODE_R ) {
 		    if ( simta_red_add_action( red, RED_CODE_R,
-			    EXPANSION_TYPE_ALIAS ) == NULL ) {
+			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
@@ -317,28 +330,32 @@ simta_read_config( char *fname )
 
 		if ( red_code & RED_CODE_E ) {
 		    if ( simta_red_add_action( red, RED_CODE_E,
-			    EXPANSION_TYPE_ALIAS ) == NULL ) {
+			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
 		}
 
 	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
-		if ( ac != 3 ) {
-		    fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		if ( ac == 3 ) {
+		    f_arg = simta_default_passwd_file;
+		} else if ( ac == 4 ) {
+		    f_arg = av[ 3 ];
+		} else {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
 			    fname, lineno );
 		    goto error;
 		}
 
 		if ( red_code & RED_CODE_r ) {
 		    if ( simta_red_add_action( red, RED_CODE_r,
-			    EXPANSION_TYPE_PASSWORD ) == NULL ) {
+			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
 		} else if ( red_code & RED_CODE_R ) {
 		    if ( simta_red_add_action( red, RED_CODE_R,
-			    EXPANSION_TYPE_PASSWORD ) == NULL ) {
+			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
@@ -346,7 +363,7 @@ simta_read_config( char *fname )
 
 		if ( red_code & RED_CODE_E ) {
 		    if ( simta_red_add_action( red, RED_CODE_E,
-			    EXPANSION_TYPE_PASSWORD ) == NULL ) {
+			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
@@ -438,13 +455,13 @@ simta_read_config( char *fname )
 
 		if ( red_code & RED_CODE_r ) {
 		    if ( simta_red_add_action( red, RED_CODE_r,
-			    EXPANSION_TYPE_LDAP ) == NULL ) {
+			    EXPANSION_TYPE_LDAP, NULL ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
 		} else if ( red_code & RED_CODE_R ) {
 		    if ( simta_red_add_action( red, RED_CODE_R,
-			    EXPANSION_TYPE_LDAP ) == NULL ) {
+			    EXPANSION_TYPE_LDAP, NULL ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
@@ -452,7 +469,7 @@ simta_read_config( char *fname )
 
 		if ( red_code & RED_CODE_E ) {
 		    if ( simta_red_add_action( red, RED_CODE_E,
-			    EXPANSION_TYPE_LDAP ) == NULL ) {
+			    EXPANSION_TYPE_LDAP, NULL ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
@@ -844,17 +861,23 @@ simta_read_config( char *fname )
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
-	    if ( ac != 2 ) {
+	    if ( ac == 2 ) {
+		if (( simta_default_alias_db = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+	    } else if ( ac == 1 ) {
+		simta_default_alias_db = NULL;
+
+	    } else {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_file_alias_db = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+
 	    if ( simta_debug ) {
-		printf( "ALIAS_DB: %s\n", simta_file_alias_db );
+		printf( "ALIAS_DB: %s\n", simta_default_alias_db ?
+			simta_default_alias_db : "Disabled" );
 	    }
 
         } else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM_OFF" ) == 0 ) {
@@ -1158,18 +1181,6 @@ simta_config( char *base_dir )
 	return( -1 );
     }
     simta_default_host = red;
-
-    /* Add list of default expansions to default host */
-    if ( access( simta_file_alias_db, R_OK ) == 0 ) {
-	simta_use_alias_db = 1;
-    } else {
-	if ( simta_verbose != 0 ) {
-	    fprintf( stderr, "simta_config access %s: ", simta_file_alias_db );
-	    perror( NULL );
-	}
-	syslog( LOG_NOTICE, "simta_config access %s: %m, not using alias db",
-		simta_file_alias_db );
-    }
 
     if ( simta_red_action_default( red ) != 0 ) {
 	perror( "malloc" );

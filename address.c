@@ -364,8 +364,8 @@ address_expand( struct expand *exp )
 
 	} else {
 	    if ( strlen( e_addr->e_addr_at + 1 ) > MAXHOSTNAMELEN ) {
-		syslog( LOG_ERR, "address_expand <%s>: ERROR domain too long",
-			e_addr->e_addr );
+		syslog( LOG_ERR, "Expand %s: <%s>: ERROR domain too long",
+			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_SYSERROR );
 	    }
 
@@ -374,8 +374,8 @@ address_expand( struct expand *exp )
 		    || ( red->red_host_type == RED_HOST_TYPE_SECONDARY_MX ) ||
 		    ( red->red_expand == NULL )) {
 		syslog( LOG_DEBUG,
-			"address_expand <%s> FINAL: expansion complete",
-			e_addr->e_addr );
+			"Expand %s: <%s> FINAL: expansion complete",
+			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_FINAL );
 	    }
 	}
@@ -395,20 +395,21 @@ address_expand( struct expand *exp )
      * a local domain.  Now we use the expansion table to resolve it.
      */
 
+    /* XXXYYYZZZ multi domain code here */
     /* Expand user using expansion table for domain */
     for ( action = red->red_expand; action != NULL; action = action->a_next ) {
 	switch ( action->a_action ) {
 	/* Other types might include files, pipes, etc */
 	case EXPANSION_TYPE_ALIAS:
-	    switch ( alias_expand( exp, e_addr )) {
+	    switch ( alias_expand( exp, e_addr, action )) {
 	    case ALIAS_EXCLUDE:
-		syslog( LOG_DEBUG, "address_expand <%s> EXPANDED: alias",
-			e_addr->e_addr );
+		syslog( LOG_DEBUG, "Expand %s: <%s> EXPANDED: alias db %s",
+			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
 		return( ADDRESS_EXCLUDE );
 
 	    case ALIAS_NOT_FOUND:
-		syslog( LOG_DEBUG, "address_expand <%s>: not in alias file",
-			e_addr->e_addr );
+		syslog( LOG_DEBUG, "Expand %s: <%s>: not in alias db %s",
+			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
 		continue;
 
 	    case ALIAS_SYSERROR:
@@ -419,20 +420,20 @@ address_expand( struct expand *exp )
 	    }
 
 	case EXPANSION_TYPE_PASSWORD:
-	    switch ( password_expand( exp, e_addr )) {
+	    switch ( password_expand( exp, e_addr, action )) {
 	    case PASSWORD_EXCLUDE:
-		syslog( LOG_DEBUG, "address_expand <%s> EXPANDED: password",
-			e_addr->e_addr );
+		syslog( LOG_DEBUG, "Expand %s: <%s> EXPANDED: password file %s",
+			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
 		return( ADDRESS_EXCLUDE );
 
 	    case PASSWORD_FINAL:
-		syslog( LOG_DEBUG, "address_expand <%s> FINAL: password",
-			e_addr->e_addr );
+		syslog( LOG_DEBUG, "Expand %s: <%s> FINAL: password file %s",
+			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
 		return( ADDRESS_FINAL );
 
 	    case PASSWORD_NOT_FOUND:
-		syslog( LOG_DEBUG, "address_expand <%s>: not in password file",
-			e_addr->e_addr );
+		syslog( LOG_DEBUG, "Expand %s: <%s>: not in password file %s",
+			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
 		continue;
 
 	    case PASSWORD_SYSERROR:
@@ -451,18 +452,18 @@ address_expand( struct expand *exp )
 ldap_exclusive:
 	    switch ( simta_ldap_expand( exp, e_addr )) {
 	    case LDAP_EXCLUDE:
-		syslog( LOG_DEBUG, "address_expand <%s> EXPANDED: ldap",
-			e_addr->e_addr );
+		syslog( LOG_DEBUG, "Expand %s: <%s> EXPANDED: ldap",
+			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_EXCLUDE );
 
 	    case LDAP_FINAL:
-		syslog( LOG_DEBUG, "address_expand <%s> FINAL: ldap",
-			e_addr->e_addr );
+		syslog( LOG_DEBUG, "Expand %s: <%s> FINAL: ldap",
+			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_FINAL );
 
 	    case LDAP_NOT_FOUND:
-		syslog( LOG_DEBUG, "address_expand <%s>: not in ldap db",
-			e_addr->e_addr );
+		syslog( LOG_DEBUG, "Expand %s: <%s>: not in ldap db",
+			exp->exp_env->e_id, e_addr->e_addr );
 		if ( red == NULL ) {
 		    /* data is exclusively for ldap, and it didn't find it */
 		    goto not_found;
@@ -518,8 +519,33 @@ not_found:
 }
 
 
+    struct passwd *
+simta_getpwnam( struct action *a, char *user )
+{
+    struct passwd		*p;
+    FILE			*f;
+
+    if (( f = fopen( a->a_fname, "r" )) == NULL ) {
+	return( NULL );
+    }
+
+    while (( p = fgetpwent( f )) != NULL ) {
+	if ( strcasecmp( user, p->pw_name ) == 0 ) {
+	    break;
+	}
+    }
+
+    if ( fclose( f ) != 0 ) {
+	syslog( LOG_ERR, "simta_getpwnam fclose %s: %m", a->a_fname );
+	return( PASSWORD_SYSERROR );
+    }
+
+    return( p );
+}
+
+
     int
-password_expand( struct expand *exp, struct exp_addr *e_addr )
+password_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 {
     int			ret;
     int			len;
@@ -531,16 +557,14 @@ password_expand( struct expand *exp, struct exp_addr *e_addr )
     /* Check password file */
     if ( e_addr->e_addr_at != NULL ) {
 	*e_addr->e_addr_at = '\0';
-	passwd = getpwnam( e_addr->e_addr );
+	passwd = simta_getpwnam( a, e_addr->e_addr );
 	*e_addr->e_addr_at = '@';
     } else {
-	passwd = getpwnam( STRING_POSTMASTER );
+	passwd = simta_getpwnam( a, STRING_POSTMASTER );
     }
 
     if ( passwd == NULL ) {
 	/* not in passwd file, try next expansion */
-	syslog( LOG_DEBUG, "password_expand <%s>: not in passwd file",
-		e_addr->e_addr );
 	return( PASSWORD_NOT_FOUND );
     }
 
@@ -602,7 +626,7 @@ cleanup_forward:
 
 
     int
-alias_expand( struct expand *exp, struct exp_addr *e_addr )
+alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 {
     int			ret = ALIAS_NOT_FOUND;
     char		address[ 1024 + 1 ];
@@ -611,12 +635,11 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     DBT			key;
     DBT			value;
 
-    if ( simta_dbp == NULL ) {
-	if (( ret = db_open_r( &simta_dbp, simta_file_alias_db, NULL ))
-		!= 0 ) {
+    if ( a->a_dbp == NULL ) {
+	if (( ret = db_open_r( &(a->a_dbp), a->a_fname, NULL )) != 0 ) {
 	    syslog( LOG_ERR, "alias_expand: db_open_r %s: %s",
-		    simta_file_alias_db, db_strerror( ret ));
-	    simta_dbp = NULL;
+		    a->a_fname, db_strerror( ret ));
+	    a->a_dbp = NULL;
 	    ret = ALIAS_NOT_FOUND;
 	    goto done;
 	}
@@ -644,7 +667,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
     key.data = &address;
     key.size = strlen( key.data ) + 1;
 
-    if (( ret = db_cursor_set( simta_dbp, &dbcp, &key, &value ))
+    if (( ret = db_cursor_set( a->a_dbp, &dbcp, &key, &value ))
 	    != 0 ) {
 	if ( ret != DB_NOTFOUND ) {
 	    syslog( LOG_ERR, "alias_expand: db_cursor_set: %s",
@@ -654,8 +677,6 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 	}
 
 	/* not in alias db, try next expansion */
-	syslog( LOG_DEBUG, "alias_expand <%s>: not in alias db",
-		e_addr->e_addr );
 	ret = ALIAS_NOT_FOUND;
 	goto done;
     }
@@ -686,8 +707,9 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 		ret = ALIAS_SYSERROR;
 		goto done;
 	    }
-	    syslog( LOG_DEBUG, "alias_expand <%s> EXPANDED <%s>: alias db",
-		    e_addr->e_addr, alias_addr );
+	    syslog( LOG_DEBUG, "Expand %s <%s> EXPANDED <%s>: alias db %s",
+		    exp->exp_env->e_id, e_addr->e_addr, alias_addr,
+		    a->a_fname );
 	    free( alias_addr );
 	    break;
 
@@ -697,7 +719,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr )
 
 	/* Get next db result, if any */
 	memset( &value, 0, sizeof( DBT ));
-	if (( ret = db_cursor_next( simta_dbp, &dbcp, &key, &value ))
+	if (( ret = db_cursor_next( a->a_dbp, &dbcp, &key, &value ))
 		!= 0 ) {
 	    if ( ret != DB_NOTFOUND ) {
 		syslog( LOG_ERR, "alias_expand: db_cursor_next: %s",

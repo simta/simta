@@ -9,8 +9,6 @@
 
 #include "bdb.h"
 
-DB			*simta_dbp = NULL;
-
 int db_open( DB *bdp, char *file, char *database, DBTYPE type,
     u_int32_t flags, int mode );
 

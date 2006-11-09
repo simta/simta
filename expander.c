@@ -97,26 +97,32 @@ main( int argc, char *argv[])
 	exit( EX_DATAERR );
     }
 
+    if (( env = env_create( sender, NULL )) == NULL ) {
+	perror( "malloc" );
+	return( 1 );
+    }
+
+    if (( env->e_id = strdup( "Test" )) == NULL ) {
+	perror( "malloc" );
+	return( 1 );
+    }
+
+    env->e_n_exp_level = exp_level;
+
     do {
 	nextargc++;
-
-	if (( env = env_create( sender, NULL )) == NULL ) {
-	    perror( "malloc" );
-	    return( 1 );
-	}
-
-	env->e_n_exp_level = exp_level;
 
 	if ( env_recipient( env, argv[ nextargc ]) != 0 ) {
 	    perror( "malloc" );
 	    return( 1 );
 	}
 
-	if ( expand( env ) != 0 ) {
-	    return( 1 );
-	}
-	env_free( env );
     } while ( nextargc < argc - 1 );
+
+    if ( expand( env ) != 0 ) {
+	return( 1 );
+    }
+    env_free( env );
 
     return( 0 );
 }

@@ -1,4 +1,7 @@
 2006-11-08
+    - Multi-alias RE for PASSWORD and ALIAS
+
+2006-11-08
     - Bugfix for MX host RE Isolation
 
 2006-11-04

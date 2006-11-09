@@ -29,6 +29,7 @@ extern SSL_CTX  *ctx;
 
 #include <snet.h>
 
+#include <db.h>
 #include "red.h"
 #include "ll.h"
 #include "denser.h"

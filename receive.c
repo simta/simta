@@ -2370,22 +2370,23 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	return( MX_ADDRESS );
     }
 
+    /* XXXYYYZZZ multi domain code here */
     /* Search for user using expansion table */
     for ( action = red->red_receive; action != NULL; action = action->a_next ) {
 	switch ( action->a_action ) {
 	case EXPANSION_TYPE_ALIAS:
-	    /* check alias file */
-	    if ( simta_dbp == NULL ) {
-		if (( rc = db_open_r( &simta_dbp, simta_file_alias_db, NULL ))
-			!= 0 ) {
-		    syslog( LOG_ERR, "local_address: db_open_r: %s",
-			    db_strerror( rc ));
+	    if ( action->a_dbp == NULL ) {
+		if (( rc = db_open_r( &(action->a_dbp), action->a_fname,
+			NULL )) != 0 ) {
+		    action->a_dbp = NULL;
+		    syslog( LOG_ERR, "local_address: db_open_r %s: %s",
+			    action->a_fname, db_strerror( rc ));
 		    break;
 		}
 	    }
 
 	    *at = '\0';
-	    rc = db_get( simta_dbp, addr, &value );
+	    rc = db_get( action->a_dbp, addr, &value );
 	    *at = '@';
 
 	    if ( rc == 0 ) {
@@ -2402,7 +2403,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	case EXPANSION_TYPE_PASSWORD:
 	    /* Check password file */
 	    *at = '\0';
-	    passwd = getpwnam( addr );
+	    passwd = simta_getpwnam( action, addr );
 	    *at = '@';
 
 	    if ( passwd != NULL ) {

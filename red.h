@@ -13,6 +13,8 @@ struct simta_red {
 struct action {
     int				a_action;
     int				a_flags;
+    char			*a_fname;
+    DB				*a_dbp;
     struct action		*a_next;
 };
 
@@ -32,7 +34,7 @@ struct action {
 
 struct simta_red *simta_red_lookup_host( char * );
 struct simta_red *simta_red_add_host( char *, int );
-struct action *simta_red_add_action( struct simta_red *, int, int );
+struct action *simta_red_add_action( struct simta_red *, int, int, char * );
 int simta_red_action_default( struct simta_red * );
 void simta_red_stdout( void );
 

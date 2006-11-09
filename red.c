@@ -23,6 +23,7 @@
 
 #include <snet.h>
 
+#include <db.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -114,7 +115,8 @@ simta_red_lookup_host( char *host_name )
      */
 
     struct action *
-simta_red_add_action( struct simta_red *red, int red_type, int action )
+simta_red_add_action( struct simta_red *red, int red_type, int action,
+	char *fname )
 {
     struct action		*a;
     struct action		**insert;
@@ -161,6 +163,11 @@ simta_red_add_action( struct simta_red *red, int red_type, int action )
     *insert = a;
     a->a_action = action;
     a->a_flags = flags;
+    if ( fname != NULL ) {
+	if (( a->a_fname = strdup( fname )) == NULL ) {
+	    return( NULL );
+	}
+    }
 
     return( a );
 }
@@ -235,31 +242,37 @@ simta_red_add_host( char *host_name, int host_type )
     return( red );
 }
 
+    /* Default RED actions are:
+     *     R ALIAS simta_default_alias_db
+     *     E ALIAS simta_default_alias_db
+     *     R PASSWORD simta_default_password_file
+     *     E PASSWORD simta_default_password_file
+     */
 
     int
 simta_red_action_default( struct simta_red *red )
 {
-    assert(( red->red_receive == NULL ) && ( red->red_expand == NULL ));
-
-    if ( simta_use_alias_db ) {
-	if ( simta_red_add_action( red, RED_CODE_R,
-		EXPANSION_TYPE_ALIAS ) == NULL ) {
-	    return( -1 );
-	}
-
-	if ( simta_red_add_action( red, RED_CODE_E,
-		EXPANSION_TYPE_ALIAS ) == NULL ) {
-	    return( -1 );
-	}
+    if (( red->red_receive != NULL ) || ( red->red_expand != NULL )) {
+	return( 0 );
     }
 
     if ( simta_red_add_action( red, RED_CODE_R,
-	    EXPANSION_TYPE_PASSWORD ) == NULL ) {
+	    EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
 	return( -1 );
     }
 
     if ( simta_red_add_action( red, RED_CODE_E,
-	    EXPANSION_TYPE_PASSWORD ) == NULL ) {
+	    EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
+	return( -1 );
+    }
+
+    if ( simta_red_add_action( red, RED_CODE_R,
+	    EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
+	return( -1 );
+    }
+
+    if ( simta_red_add_action( red, RED_CODE_E,
+	    EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
 	return( -1 );
     }
 

@@ -144,6 +144,18 @@ simta.o : simta.c
 		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
 		-c simta.c -o simta.o
 
+mx.o : mx.c
+	${CC} ${SIMTACFLAGS} \
+		-c mx.c -o mx.o
+
+red.o : red.c
+	${CC} ${SIMTACFLAGS} \
+		-c red.c -o red.o
+
+queue.o : queue.c
+	${CC} ${SIMTACFLAGS} \
+		-c queue.c -o queue.o
+
 bdb.o : bdb.c
 	${CC} ${SIMTACFLAGS} \
 		-c bdb.c -o bdb.o
