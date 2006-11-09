@@ -395,7 +395,6 @@ address_expand( struct expand *exp )
      * a local domain.  Now we use the expansion table to resolve it.
      */
 
-    /* XXXYYYZZZ multi domain code here */
     /* Expand user using expansion table for domain */
     for ( action = red->red_expand; action != NULL; action = action->a_next ) {
 	switch ( action->a_action ) {

@@ -2370,7 +2370,6 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	return( MX_ADDRESS );
     }
 
-    /* XXXYYYZZZ multi domain code here */
     /* Search for user using expansion table */
     for ( action = red->red_receive; action != NULL; action = action->a_next ) {
 	switch ( action->a_action ) {
