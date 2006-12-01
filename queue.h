@@ -6,14 +6,15 @@
 /*****     queue.h     *****/
 
 /* states for host_q->hq_status */
-#define HOST_NULL	0
-#define HOST_UNKNOWN	1
+#define HOST_UNKNOWN	0
+#define HOST_NULL	1
 #define HOST_LOCAL	2
 #define HOST_MX		3
 #define HOST_BOUNCE	4
 #define HOST_DOWN	5
 #define HOST_PUNT	6
 #define HOST_PUNT_DOWN	7
+#define HOST_SUPRESSED	8
 
 struct deliver {
     int				d_deliver_argc;

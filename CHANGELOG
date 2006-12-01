@@ -1,4 +1,7 @@
-2006-11-08
+2006-11-30
+    - QUEUE_INCOMING_SMTP_MAIL option added
+
+2006-11-09
     - Multi-alias RE for PASSWORD and ALIAS
 
 2006-11-08

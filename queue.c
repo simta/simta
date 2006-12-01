@@ -127,12 +127,18 @@ host_q_create_or_lookup( char *hostname )
 	    return( NULL );
 	}
 
-	if ((( hq->hq_red = simta_red_lookup_host( hostname )) != NULL ) &&
-		( hq->hq_red->red_deliver_argc != 0 )) {
-	    hq->hq_status = HOST_LOCAL;
-	} else {
-	    /* determine if it's LOCAL or MX later */
-	    hq->hq_status = HOST_UNKNOWN;
+	if (( hq->hq_red = simta_red_lookup_host( hostname )) != NULL ) {
+	    if ( hq->hq_red->red_deliver_argc != 0 ) {
+		hq->hq_status = HOST_LOCAL;
+	    }
+	}
+
+	if (( hq->hq_status == HOST_UNKNOWN ) &&
+		( simta_queue_incoming_smtp_mail != 0 ) &&
+		(( simta_process_type == PROCESS_RECEIVE_SMTP ) ||
+		( simta_process_type == PROCESS_RECEIVE_SMTPS ) ||
+		( simta_process_type == PROCESS_RECEIVE_SUBMISSION ))) {
+	    hq->hq_status = HOST_SUPRESSED;
 	}
 
 	/* add this host to the host_q_head */
@@ -323,6 +329,7 @@ q_runner( void )
 		*dq = hq;
 		break;
 
+	    case HOST_SUPRESSED:
 	    case HOST_DOWN:
 	    case HOST_BOUNCE:
 		q_deliver( hq );
@@ -1010,6 +1017,11 @@ q_deliver( struct host_q *deliver_q )
 		queue_envelope( env_deliver );
 		return;
 	    }
+	    break;
+
+        case HOST_SUPRESSED:
+	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s supressed",
+		    d.d_env->e_id, deliver_q->hq_hostname );
 	    break;
 
         case HOST_DOWN:
