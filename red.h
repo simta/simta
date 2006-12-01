@@ -6,6 +6,7 @@ struct simta_red {
     struct simta_red		*red_next;
     struct action		*red_receive;
     struct action		*red_expand;
+    int				red_deliver_type;
     int				red_deliver_argc;
     char			**red_deliver_argv;
 };
@@ -17,6 +18,10 @@ struct action {
     DB				*a_dbp;
     struct action		*a_next;
 };
+
+/* red_deliver_types */
+#define RED_DELIVER_SMTP		0
+#define RED_DELIVER_BINARY		1
 
 /* struct red_action->a_flags */
 #define ACTION_REQUIRED			1

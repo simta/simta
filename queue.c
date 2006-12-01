@@ -128,7 +128,7 @@ host_q_create_or_lookup( char *hostname )
 	}
 
 	if (( hq->hq_red = simta_red_lookup_host( hostname )) != NULL ) {
-	    if ( hq->hq_red->red_deliver_argc != 0 ) {
+	    if ( hq->hq_red->red_deliver_type == RED_DELIVER_BINARY ) {
 		hq->hq_status = HOST_LOCAL;
 	    }
 	}
@@ -936,15 +936,14 @@ q_deliver( struct host_q *deliver_q )
      */
     if ( deliver_q->hq_status == HOST_UNKNOWN ) {
 	if ((( red = host_local( deliver_q->hq_hostname )) == NULL ) ||
-		( red->red_host_type == RED_HOST_TYPE_SECONDARY_MX )) {
+		( red->red_deliver_type == RED_DELIVER_SMTP )) {
 	    deliver_q->hq_status = HOST_MX;
-	} else if (( simta_dnsr != NULL ) &&
-		( simta_dnsr->d_errno == DNSR_ERROR_TIMEOUT )) {
-	    deliver_q->hq_status = HOST_DOWN;
-	} else {
+	} else if ( red->red_deliver_type == RED_DELIVER_BINARY ) {
 	    deliver_q->hq_status = HOST_LOCAL;
 	    d.d_deliver_argc = red->red_deliver_argc;
 	    d.d_deliver_argv = red->red_deliver_argv;
+	} else {
+	    deliver_q->hq_status = HOST_DOWN;
 	}
     }
 

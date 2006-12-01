@@ -252,28 +252,32 @@ simta_red_add_host( char *host_name, int host_type )
     int
 simta_red_action_default( struct simta_red *red )
 {
-    if (( red->red_receive != NULL ) || ( red->red_expand != NULL )) {
-	return( 0 );
+    if ( red->red_receive == NULL ) {
+	if ( simta_red_add_action( red, RED_CODE_R,
+		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
+	    return( -1 );
+	}
+
+	if ( simta_red_add_action( red, RED_CODE_R,
+		EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
+	    return( -1 );
+	}
     }
 
-    if ( simta_red_add_action( red, RED_CODE_R,
-	    EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
-	return( -1 );
+    if ( red->red_expand != NULL ) {
+	if ( simta_red_add_action( red, RED_CODE_E,
+		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
+	    return( -1 );
+	}
+
+	if ( simta_red_add_action( red, RED_CODE_E,
+		EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
+	    return( -1 );
+	}
     }
 
-    if ( simta_red_add_action( red, RED_CODE_E,
-	    EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
-	return( -1 );
-    }
-
-    if ( simta_red_add_action( red, RED_CODE_R,
-	    EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
-	return( -1 );
-    }
-
-    if ( simta_red_add_action( red, RED_CODE_E,
-	    EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
-	return( -1 );
+    if ( red->red_deliver_type == 0 ) {
+	red->red_deliver_type = RED_DELIVER_BINARY;
     }
 
     return( 0 );
