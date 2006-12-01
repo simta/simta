@@ -70,8 +70,8 @@ SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
-BINTARGETS=	simrbl simreverse simalias
-TARGETS=	simta tlsconnect simsendmail q_runner expander sla \
+BINTARGETS=	simrbl simreverse simalias simexpander
+TARGETS=	simta tlsconnect simsendmail q_runner simexpander sla \
 		${BINTARGETS}
 
 all : ${TARGETS}
@@ -182,7 +182,7 @@ tls.o : tls.c
 		-D_SIMTA_TLS_CERT=\"${TLS_CERT}\" \
 		-c tls.c -o tls.o
 
-expander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
+simexpander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o expander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 simrbl : libsnet/libsnet.a denser/denser.o ${SIMRBLOBJ} Makefile
