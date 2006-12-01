@@ -1,4 +1,4 @@
-2006-12-01
+0.7.0rc1
     - Isolate D from RE in RED
     - QUEUE_INCOMING_SMTP_MAIL option added
 
