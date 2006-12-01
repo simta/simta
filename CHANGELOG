@@ -1,4 +1,5 @@
 0.7.0rc1
+    - install simexpander by default
     - Isolate D from RE in RED
     - QUEUE_INCOMING_SMTP_MAIL option added
 

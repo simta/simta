@@ -183,7 +183,7 @@ tls.o : tls.c
 		-c tls.c -o tls.o
 
 simexpander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o expander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simexpander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 simrbl : libsnet/libsnet.a denser/denser.o ${SIMRBLOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simrbl ${SIMRBLOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
