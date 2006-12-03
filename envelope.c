@@ -873,9 +873,10 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 	    filename );
 	goto cleanup;
     } else if ( dinode != env->e_dinode ) {
-	syslog( LOG_ERR, "env_read_delivery_info %s: bad Dinode info re-read: "
+	syslog( LOG_WARNING,
+		"env_read_delivery_info %s: bad Dinode info re-read: "
 		"old %d new %d", filename, env->e_dinode, dinode );
-	goto cleanup;
+	env->e_dinode = dinode;
     }
 
     syslog( LOG_DEBUG, "env_read_queue_info %s: Dinode %d", env->e_id,
