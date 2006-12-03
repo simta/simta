@@ -936,6 +936,7 @@ q_deliver( struct host_q *deliver_q )
      */
     if ( deliver_q->hq_status == HOST_UNKNOWN ) {
 	if ((( red = host_local( deliver_q->hq_hostname )) == NULL ) ||
+		( red->red_deliver_type == RED_DELIVER_SMTP_DEFAULT ) ||
 		( red->red_deliver_type == RED_DELIVER_SMTP )) {
 	    deliver_q->hq_status = HOST_MX;
 	} else if ( red->red_deliver_type == RED_DELIVER_BINARY ) {

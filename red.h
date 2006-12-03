@@ -20,8 +20,9 @@ struct action {
 };
 
 /* red_deliver_types */
-#define RED_DELIVER_SMTP		0
-#define RED_DELIVER_BINARY		1
+#define RED_DELIVER_SMTP_DEFAULT	0
+#define RED_DELIVER_SMTP		1
+#define RED_DELIVER_BINARY		2
 
 /* struct red_action->a_flags */
 #define ACTION_REQUIRED			1

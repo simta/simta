@@ -126,36 +126,6 @@ env_set_id( struct envelope *e, char *id )
 
 
     struct envelope *
-env_dup( struct envelope *env )
-{
-    struct envelope	*dup;
-    struct recipient	*r;
-
-    if (( dup = env_create( env->e_mail, NULL )) == NULL ) {
-	return( NULL );
-    }
-
-    if ( env_id( dup ) != 0 ) {
-	env_free( dup );
-	return( NULL );
-    }
-
-    dup->e_dir = env->e_dir;
-    dup->e_flags = env->e_flags;
-    dup->e_n_exp_level = env->e_n_exp_level;
-
-    for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-	if ( env_recipient( dup, r->r_rcpt ) != 0 ) {
-	    env_free( dup );
-	    return( NULL );
-	}
-    }
-
-    return( dup );
-}
-
-
-    struct envelope *
 env_create( char *e_mail, struct envelope *parent )
 {
     struct envelope	*env;

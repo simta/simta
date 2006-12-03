@@ -1,3 +1,8 @@
+2006-12-03
+    - differentiate between implied or defined SMTP in the red structure
+    - add LOCALHOST token to RED rules
+    - removed env_dup() from envelope.c, unused function
+
 0.7.0rc1
     - install simexpander by default
     - Isolate D from RE in RED

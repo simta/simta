@@ -205,6 +205,12 @@ simta_read_config( char *fname )
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
+    /* Set up simta_hostname */
+    if ( gethostname( simta_hostname, DNSR_MAX_HOSTNAME ) != 0 ) {
+	perror( "gethostname" );
+	return( -1 );
+    }
+
     /* open fname */
     if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
 	if ( errno == ENOENT )  {
@@ -289,6 +295,10 @@ simta_read_config( char *fname )
 			    fname, lineno, av[ 1 ]);
 		    goto error;
 		}
+	    }
+
+	    if ( strcasecmp( domain, "LOCALHOST" ) == 0 ) {
+		domain = simta_hostname;
 	    }
 
 	    if (( red = simta_red_add_host( domain,
@@ -1160,12 +1170,6 @@ simta_config( char *base_dir )
 	    fprintf( stderr, "punt host can't be localhost\n" );
 	    return( -1 );
 	}
-    }
-
-    /* Set up simta_hostname */
-    if ( gethostname( simta_hostname, DNSR_MAX_HOSTNAME ) != 0 ) {
-	perror( "gethostname" );
-	return( -1 );
     }
 
     /* simta_domain defaults to simta_hostname */

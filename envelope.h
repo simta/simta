@@ -54,7 +54,6 @@ struct envelope {
 #define ENV_FLAG_SUPRESS_NO_EMAIL	(1<<7)
 
 struct envelope	*env_create( char *, struct envelope * );
-struct envelope	*env_dup( struct envelope * );
 void		env_rcpt_free( struct envelope * );
 void		env_free( struct envelope * );
 void		env_reset( struct envelope * );
