@@ -424,7 +424,8 @@ expand( struct envelope *unexpanded_env )
 	    goto cleanup3;
 	}
 
-	syslog( LOG_NOTICE, "expand: recipient %s added to env %s for host %s",
+	syslog( LOG_NOTICE,
+		"expand: recipient <%s> added to env %s for host %s",
 		e_addr->e_addr, env->e_id,
 		env->e_hostname ? env->e_hostname : "NULL" );
     }

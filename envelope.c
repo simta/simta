@@ -341,6 +341,12 @@ env_stdout( struct envelope *e )
 	printf( "mail NULL\n" );
     }
 
+    if ( e->e_dir != NULL ) {
+	printf( "dir:\t%s\n", e->e_dir );
+    } else {
+	printf( "dir NULL\n" );
+    }
+
     for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
 	printf( "rcpt:\t%s\n", r->r_rcpt );
     }

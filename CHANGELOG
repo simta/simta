@@ -1,4 +1,7 @@
-2006-12-03
+0.7.0rc2
+    - better description of QUEUE_INCOMING_MAIL in simta.conf
+    - bugfix for default RED actions
+    - better logging for Expand
     - make a bad Dinode re-read not a terminal error in envelope.c
     - differentiate between implied or defined SMTP in the red structure
     - add LOCALHOST token to RED rules

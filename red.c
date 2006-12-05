@@ -264,7 +264,7 @@ simta_red_action_default( struct simta_red *red )
 	}
     }
 
-    if ( red->red_expand != NULL ) {
+    if ( red->red_expand == NULL ) {
 	if ( simta_red_add_action( red, RED_CODE_E,
 		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
 	    return( -1 );

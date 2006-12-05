@@ -383,7 +383,8 @@ address_expand( struct expand *exp )
 
 #ifdef HAVE_LDAP
     case ADDRESS_TYPE_LDAP:
-	syslog( LOG_DEBUG, "address_expand <%s>: ldap data", e_addr->e_addr );
+	syslog( LOG_DEBUG, "Expand %s: <%s> is ldap data", exp->exp_env->e_id,
+		e_addr->e_addr );
 	goto ldap_exclusive;
 #endif /*  HAVE_LDAP */
 
@@ -501,12 +502,14 @@ not_found:
 
     if ( local_postmaster ) {
 	e_addr->e_addr_type = ADDRESS_TYPE_DEAD;
-	syslog( LOG_ERR, "address_expand <%s> FINAL: can't resolve local "
-		"postmaster, expanding to dead queue", e_addr->e_addr );
+	syslog( LOG_ERR, "Expand %s: <%s> FINAL: can't resolve local "
+		"postmaster, expanding to dead queue", exp->exp_env->e_id,
+		e_addr->e_addr );
 	return( ADDRESS_FINAL );
     }
 
-    syslog( LOG_DEBUG, "address_expand <%s> FINAL: not found", e_addr->e_addr );
+    syslog( LOG_DEBUG, "Expand %s: <%s> FINAL: not found", exp->exp_env->e_id,
+	    e_addr->e_addr );
 
     if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, "address not found: ",
 	    e_addr->e_addr, NULL ) != 0 ) {
