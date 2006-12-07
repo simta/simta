@@ -225,6 +225,11 @@ simta_ldap_dequote( char *s )
 
 	case '\\':
 	    r++;
+	    if ( *r == '\0' ) {
+		syslog( LOG_ERR, "dequote can not escape EOL" );
+		free( buf );
+		return( NULL );
+	    }
 	    break;
 
 	case '\0':
@@ -1418,7 +1423,6 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
 	    continue; 
 
 	/* Fill in the filter string w/ these address and domain strings */
-printf( "LDAP Filters: %s %s\n", addr, domain );
 	if (( search_string = simta_ldap_string(  lds->lds_plud->lud_filter, 
 		addr, domain )) == NULL ) {
 	    return( LDAP_SYSERROR );
