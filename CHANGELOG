@@ -1,3 +1,6 @@
+0.7.0rc3
+    - minimal dequoting of quoted strings for LDAP searches
+
 0.7.0rc2
     - better description of QUEUE_INCOMING_MAIL in simta.conf
     - bugfix for default RED actions

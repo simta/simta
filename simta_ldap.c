@@ -112,10 +112,17 @@ static char			*mailfwdattr;
 static char			*mailattr;
 
 static int			ndomaincomponent = 2;
+
+char 	*simta_ldap_dequote( char * );
+
 #ifdef SIMTA_LDAP_DEBUG
+
+
+
 /*
 ** simta_ldap_message_stdout -- Dumps an entry to stdout
 */
+
     static int
 simta_ldap_message_stdout( LDAPMessage *m )
 {
@@ -189,6 +196,52 @@ simta_ldapdomain (char * buf, char ** domain)
     *domain = strdup(pbuf);
     return;
 }
+
+
+    char *
+simta_ldap_dequote( char *s )
+{
+    char		*buf;
+    char		*r;
+    char		*w;
+
+    if ( *s != '"' ) {
+	return( NULL );
+    }
+
+    if (( buf = (char*)malloc( strlen( s ) + 1 )) == NULL ) {
+	syslog( LOG_ERR, "dequote strdup: %m" );
+	return( NULL );
+    }
+    memset( buf, 0, strlen( s ) + 1 );
+
+    r = s + 1;
+    w = buf;
+
+    for ( ; ; ) {
+	switch ( *r ) {
+	case '"':
+	    return( buf );
+
+	case '\\':
+	    r++;
+	    break;
+
+	case '\0':
+	    syslog( LOG_ERR, "dequote unexpected end of quoted string" );
+	    free( buf );
+	    return( NULL );
+
+	default:
+	    break;
+	}
+
+	*w = *r;
+	w++;
+	r++;
+    }
+}
+
 
     static void 
 simta_ldapuser (char * buf, char ** user, char ** domain)
@@ -764,6 +817,7 @@ simta_ldap_address_local( char *name, char *domain )
 {
     char	*dup_name;
     char	*pname;
+    char	*dq;
     int		nametype;
     int		rc;
     int		count = 0;		/* Number of ldap entries found */
@@ -782,6 +836,12 @@ simta_ldap_address_local( char *name, char *domain )
     }
 
     dup_name = strdup (name);
+
+    if (( dq = simta_ldap_dequote( dup_name )) != NULL ) {
+	free( dup_name );
+	dup_name = dq;
+    }
+
     /*
     ** Strip . and _                 
     */
@@ -1358,6 +1418,7 @@ simta_ldap_name_search ( struct expand *exp, struct exp_addr *e_addr,
 	    continue; 
 
 	/* Fill in the filter string w/ these address and domain strings */
+printf( "LDAP Filters: %s %s\n", addr, domain );
 	if (( search_string = simta_ldap_string(  lds->lds_plud->lud_filter, 
 		addr, domain )) == NULL ) {
 	    return( LDAP_SYSERROR );
@@ -1593,6 +1654,7 @@ simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     char	*domain;	/* points to domain in address */
     char	*name;		/* clone of incoming name */
     char	*pname;		/* pointer for traversing name */
+    char	*dq;		/* dequoted name */
     int		nametype;	/* Type of Groupname -- owner, member... */
     int		rc;		/* Universal return code */
 
@@ -1616,6 +1678,11 @@ simta_ldap_expand( struct expand *exp, struct exp_addr *e_addr )
     if (!name) {
 	syslog( LOG_ERR, "simta_ldap_expand: strdup failed" );
 	return( LDAP_SYSERROR );
+    }
+
+    if (( dq = simta_ldap_dequote( name )) != NULL ) {
+	free( name );
+	name = dq;
     }
 
     domain = e_addr->e_addr_at + 1;
