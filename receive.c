@@ -96,9 +96,9 @@ int			receive_failed_rcpts = 0;
 int			receive_tls = 0;
 int			receive_auth = 0;
 int			receive_remote_rbl_status = RECEIVE_RBL_UNKNOWN;
+struct rbl		*rbl_found;
 char			*receive_dns_match = "Unknown";
-char 		 	*receive_user_block_domain = "";
-char			*receive_user_block_url = "";
+char 		 	*receive_user_rbl = NULL;
 char			*receive_hello = NULL;
 char			*receive_smtp_command = NULL;
 char			*receive_remote_hostname = "Unknown";
@@ -775,14 +775,14 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
                 if ( simta_user_rbls != NULL ) {
                     if ( receive_remote_rbl_status == RECEIVE_RBL_UNKNOWN ) {
                         /* Check and save RBL status */
-                        switch ( check_rbls( &(receive_sin->sin_addr),
-                                simta_user_rbls, &receive_user_block_domain,
-                                &receive_user_block_url )) {
-                        case 0:
+                        switch ( rbl_check( simta_user_rbls,
+				&(receive_sin->sin_addr),
+                                &rbl_found )) {
+                        case RBL_BLOCK:
                             receive_remote_rbl_status = RECEIVE_RBL_BLOCKED;
                             break;
 
-			case 1:
+			case RBL_ACCEPT:
 			    receive_remote_rbl_status = RECEIVE_RBL_NOT_BLOCKED;
 			    break;
 
@@ -792,11 +792,10 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 				return( RECEIVE_CLOSECONNECTION );
 			    }
 
-                            syslog( LOG_ERR, "f_rcpt check_rbls: timeout" );
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 				    "RBL lookup timed out: %s",
 				    env->e_id, addr, env->e_mail,
-                                    receive_user_block_domain );
+                                    rbl_found->rbl_domain );
 			    dnsr_errclear( simta_dnsr );
 			    break;
 			}
@@ -805,15 +804,15 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    if ( receive_remote_rbl_status == RECEIVE_RBL_BLOCKED ) {
 			receive_failed_rcpts++;
 			syslog( LOG_INFO,
-				"Receive %s: To <%s> From <%s> Failed: RBL %s "
-				"([%s] %s)", env->e_id, addr, env->e_mail,
-				receive_user_block_domain,
+				"Receive %s: To <%s> From <%s> Failed: "
+				"RBL %s ([%s] %s)", env->e_id, addr,
+				env->e_mail, rbl_found->rbl_domain,
 				inet_ntoa( receive_sin->sin_addr ),
 				receive_remote_hostname );
 			snet_writef( snet,
 				"550 No access from IP %s. See %s\r\n",
 				inet_ntoa( receive_sin->sin_addr ),
-				receive_user_block_url );
+				rbl_found->rbl_url );
 			return( RECEIVE_OK );
 		    }
 		}
@@ -2135,18 +2134,16 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
 
         if ( simta_rbls != NULL ) {
-            char        *domain = "", *url ="";
-
-            switch( check_rbls( &(sin->sin_addr), simta_rbls, &domain, &url )) {
-            case 0:
+            switch( rbl_check( simta_rbls, &(sin->sin_addr), &rbl_found )) {
+            case RBL_BLOCK:
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: Failed: RBL %s",
                         inet_ntoa( sin->sin_addr ), receive_remote_hostname,
-                        domain );
+                        rbl_found->rbl_domain );
                 snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
-                        inet_ntoa( sin->sin_addr ), url );
+                        inet_ntoa( sin->sin_addr ), rbl_found->rbl_url );
                 goto closeconnection;
 
-            case 1:
+            case RBL_ACCEPT:
                 break;
 
             default:
@@ -2155,11 +2152,10 @@ smtp_receive( int fd, struct sockaddr_in *sin )
                     goto syserror;
                 }
 
-                syslog( LOG_ERR, "receive check_rbls: timeout" );
-                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL lookup timed "
-                        "out %s",
+                syslog( LOG_NOTICE,
+			"Connect.in [%s] %s: RBL lookup timed out %s",
                         inet_ntoa( sin->sin_addr ), receive_remote_hostname,
-                        domain );
+                        rbl_found->rbl_domain );
                 dnsr_errclear( simta_dnsr );
                 break;
             }

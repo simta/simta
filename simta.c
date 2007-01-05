@@ -122,12 +122,8 @@ char			*simta_reverse_url = NULL;
 char			*simta_punt_host = NULL;
 char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
-struct stab_entry     	*simta_rbls = NULL;
-struct stab_entry     	*simta_user_rbls = NULL;
-char			*simta_rbl_domain = NULL;
-char			*simta_rbl_url = NULL;
-char			*simta_user_rbl_domain = NULL;
-char			*simta_user_rbl_url = NULL;
+struct rbl	     	*simta_rbls = NULL;
+struct rbl     		*simta_user_rbls = NULL;
 char			*simta_queue_filter = NULL;
 char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
@@ -790,53 +786,71 @@ simta_read_config( char *fname )
 	    simta_ignore_reverse = 1;
             if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
 
-	} else if ( strcasecmp( av[ 0 ], "RBL_DOMAIN" ) == 0 ) {
-            char        *domain, *url;
-
+	} else if ( strcasecmp( av[ 0 ], "RBL_BLOCK" ) == 0 ) {
             if ( ac != 3 ) {
                 fprintf( stderr, "%s: line %d: expected 2 argument\n",
                     fname, lineno );
                 goto error;
             }
-            if (( domain = strdup( av[ 1 ] )) == NULL ) {
-                perror( "strdup" );
-                goto error;
-            }
-            if (( url = strdup( av[ 2 ] )) == NULL ) {
-                perror( "strdup" );
-                goto error;
-            }   
-            if ( ll_insert_tail( &simta_rbls, domain, url ) != 0 ) {
-                perror( "ll_insert_tail" );
-                goto error;
-            }
-            if ( simta_debug ) printf( "RBL_DOMAIN: %s\tRBL_URL: %s\n",
-                domain, url );
 
-	} else if ( strcasecmp( av[ 0 ], "USER_RBL_DOMAIN" ) == 0 ) {
-            char        *domain, *url;
+	    if ( rbl_add( &simta_rbls, RBL_BLOCK, av[ 1 ], av[ 2 ]) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
 
-            if ( ac != 3 ) {
-                fprintf( stderr, "%s: line %d: expected 2 argument\n",
-                    fname, lineno );
-                goto error;
-            }
-            if (( domain = strdup( av[ 1 ] )) == NULL ) {
-                perror( "strdup" );
-                goto error;
-            }
-            if (( url = strdup( av[ 2 ] )) == NULL ) {
-                perror( "strdup" );
-                goto error;
-            }
-            if ( ll_insert_tail( &simta_user_rbls, domain, url ) != 0 ) {
-                perror( "ll_insert_tail" );
-                goto error;
-            }
             if ( simta_debug ) {
-                printf( "USER_RBL_DOMAIN: %s\tUSER_RBL_URL: %s\n",
-                    domain, url );
+		printf( "RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "RBL_ACCEPT" ) == 0 ) {
+            if ( ac != 3 ) {
+                fprintf( stderr, "%s: line %d: expected 2 argument\n",
+                    fname, lineno );
+                goto error;
             }
+
+	    if ( rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], av[ 2 ]) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+            if ( simta_debug ) {
+		printf( "RBL_ACCEPT: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "USER_RBL_BLOCK" ) == 0 ) {
+            if ( ac != 3 ) {
+                fprintf( stderr, "%s: line %d: expected 2 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+
+	    if ( rbl_add( &simta_user_rbls, RBL_BLOCK, av[ 1 ],
+		    av[ 2 ]) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+            if ( simta_debug ) {
+		printf( "USER_RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "USER_RBL_ACCEPT" ) == 0 ) {
+            if ( ac != 3 ) {
+                fprintf( stderr, "%s: line %d: expected 2 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+
+	    if ( rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ],
+		    av[ 2 ]) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+            if ( simta_debug ) {
+		printf( "USER_RBL_ACCEPT: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
+	    }
 
 	} else if ( strcasecmp( av[ 0 ], "PRIVATE_KEY_FILE" ) == 0 ) {
 	    if ( ac != 2 ) {

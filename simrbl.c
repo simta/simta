@@ -49,12 +49,16 @@ main( int argc, char *argv[])
     extern char         *optarg;
     char		c;
     char		*server = NULL;
-    char		*block_domain = "rbl.mail.umich.edu", *block_text ="";
+    char		*block_domain = "rbl.mail.umich.edu";
+    char		*block_text ="";
     int			rc;
     int			err = 0;
     int			quiet = 0;
 
     struct in_addr	addr;
+    struct rbl		*rbl_found;
+
+    simta_debug = 1;
 
 
     while(( c = getopt( argc, argv, "dl:s:q" )) != -1 ) {
@@ -104,9 +108,8 @@ main( int argc, char *argv[])
 	if ( simta_debug ) fprintf( stderr, "using nameserver: %s\n", server );
     }
 
-    if ( ll_insert_tail( &simta_rbls, block_domain,
-	    "none" ) != 0 ) {
-        perror( "ll_insert_tail" );
+    if ( rbl_add( &simta_rbls, RBL_BLOCK, block_domain, "none" ) != 0 ) {
+        perror( "malloc" );
         exit( SIMRBL_EXIT_ERROR );
     }     
 
@@ -119,17 +122,16 @@ main( int argc, char *argv[])
 	exit( SIMRBL_EXIT_ERROR );
     }
 
-    if (( rc = check_rbls( &addr, simta_rbls, &block_domain,
-		&block_text )) < 0 ) {
+    if (( rc = rbl_check( simta_rbls, &addr, &rbl_found )) < 0 ) {
 	if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
 	exit( SIMRBL_EXIT_ERROR );
     }
 
-    if ( rc == 0 ) {
-	if ( !quiet ) printf( "blocked by %s\n", block_domain );
+    if ( rc == RBL_BLOCK ) {
+	if ( !quiet ) printf( "found in %s\n", rbl_found->rbl_domain );
 	exit( SIMRBL_EXIT_BLOCKED );
     } else {
-	if ( !quiet ) printf( "not blocked %s\n", block_domain );
+	if ( !quiet ) printf( "not found\n" );
 	exit( SIMRBL_EXIT_NOT_BLOCKED );
     }
 }

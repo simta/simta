@@ -373,41 +373,83 @@ check_hostname( char *hostname )
  * If you are experiencing a problem like the one described, please check
  * your configuration.
  */
-    int 
-check_rbls( struct in_addr *in, struct stab_entry *domains, char **domain, char **url )
+    int
+rbl_check( struct rbl *domains, struct in_addr *in, struct rbl **found )
 {
-    char		*rbl;
+    struct rbl		*rbl;
     char		*reverse_ip;
     struct dnsr_result	*result;
-    struct stab_entry	*st;
 
-    for ( st = domains; st != NULL; st = st->st_next ) {
-	rbl = st->st_key;
-
-	if (( reverse_ip = dnsr_ntoptr( simta_dnsr, in, rbl )) == NULL ) {
+    for ( rbl = domains; rbl != NULL; rbl = rbl->rbl_next ) {
+	if (( reverse_ip =
+		dnsr_ntoptr( simta_dnsr, in, rbl->rbl_domain )) == NULL ) {
 	    syslog( LOG_ERR, "check_rbl: dnsr_ntoptr failed" );
-	    *domain = st->st_key;
-	    return( -1 );
+	    *found = rbl;
+	    return( RBL_ERROR );
 	}
-	if ( simta_debug ) fprintf( stderr, "check_rbl for %s\n", reverse_ip );
+
+	if ( simta_debug ) {
+	    fprintf( stderr, "rbl_check for %s\n", reverse_ip );
+	}
 
 	if (( result = get_a( reverse_ip )) == NULL ) {
 	    free( reverse_ip );
-	    *domain = st->st_key;
-	    return( -1 );
+	    *found = rbl;
+	    return( RBL_ERROR );
 	}
 
 	if ( result->r_ancount > 0 ) {
 	    dnsr_free_result( result );
 	    free( reverse_ip );
-	    *domain = st->st_key;
-	    *url = st->st_data;
-	    return( 0 );
+	    *found = rbl;
+	    if ( rbl->rbl_type = RBL_BLOCK ) {
+		return( RBL_BLOCK );
+	    } else {
+		return( RBL_ACCEPT );
+	    }
 	}
 
 	dnsr_free_result( result );
 	free( reverse_ip );
     }
 
-    return( 1 );
+    return( RBL_ACCEPT );
+}
+
+
+    int
+rbl_add( struct rbl **list, int type, char *domain, char *url )
+{
+    struct rbl			**i;
+    struct rbl			*rbl;
+
+    if (( type != RBL_ACCEPT ) && ( type != RBL_BLOCK )) {
+	syslog( LOG_ERR, "rbl_add type out of range: %d", type );
+	return( 1 );
+    }
+
+    if (( rbl = (struct rbl*)malloc( sizeof( struct rbl ))) == NULL ) {
+	syslog( LOG_ERR, "rbl_add malloc: %m" );
+	return( 1 );
+    }
+    memset( rbl, 0, sizeof( struct rbl ));
+
+    rbl->rbl_type = type;
+
+    if (( rbl->rbl_domain = strdup( domain )) == NULL ) {
+	syslog( LOG_ERR, "rbl_add strdup: %m" );
+	return( 1 );
+    }
+
+    if (( rbl->rbl_url = strdup( url )) == NULL ) {
+	syslog( LOG_ERR, "rbl_add strdup: %m" );
+	return( 1 );
+    }
+
+    for ( i = list; *i != NULL; i = &((*i)->rbl_next) )
+	    ;
+
+    *i = rbl;
+
+    return( 0 );
 }
