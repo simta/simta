@@ -803,19 +803,19 @@ simta_read_config( char *fname )
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_ACCEPT" ) == 0 ) {
-            if ( ac != 3 ) {
-                fprintf( stderr, "%s: line %d: expected 2 argument\n",
+            if ( ac != 2 ) {
+                fprintf( stderr, "%s: line %d: expected 1 argument\n",
                     fname, lineno );
                 goto error;
             }
 
-	    if ( rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], av[ 2 ]) != 0 ) {
+	    if ( rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], "") != 0 ) {
 		perror( "malloc" );
 		goto error;
 	    }
 
             if ( simta_debug ) {
-		printf( "RBL_ACCEPT: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
+		printf( "RBL_ACCEPT: %s\n", av[ 1 ]);
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "USER_RBL_BLOCK" ) == 0 ) {
@@ -836,8 +836,8 @@ simta_read_config( char *fname )
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "USER_RBL_ACCEPT" ) == 0 ) {
-            if ( ac != 3 ) {
-                fprintf( stderr, "%s: line %d: expected 2 argument\n",
+            if ( ac != 2 ) {
+                fprintf( stderr, "%s: line %d: expected 1 argument\n",
                     fname, lineno );
                 goto error;
             }
@@ -849,7 +849,7 @@ simta_read_config( char *fname )
 	    }
 
             if ( simta_debug ) {
-		printf( "USER_RBL_ACCEPT: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
+		printf( "USER_RBL_ACCEPT: %s\n", av[ 1 ]);
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "PRIVATE_KEY_FILE" ) == 0 ) {
