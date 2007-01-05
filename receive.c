@@ -1006,6 +1006,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 #ifdef HAVE_LIBSSL 
     if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+	EVP_MD_CTX_init( &mdctx );
 	EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
     }
 #endif /* HAVE_LIBSSL */
