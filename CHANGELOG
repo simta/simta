@@ -1,5 +1,5 @@
 internal
-    - Added BOCK and ACCEPT to RBL syntax for whitelisting
+    - Added BLOCK and ACCEPT to RBL syntax for whitelisting
     - Added better penalty box logging
     - bugfix: CTX init function added
 

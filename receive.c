@@ -786,6 +786,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			    receive_remote_rbl_status = RECEIVE_RBL_NOT_BLOCKED;
 			    break;
 
+			case RBL_ERROR:
 			default:
 			    if ( dnsr_errno( simta_dnsr ) !=
 				    DNSR_ERROR_TIMEOUT ) {
@@ -2147,6 +2148,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
             case RBL_ACCEPT:
                 break;
 
+	    case RBL_ERROR:
             default:
                 if ( dnsr_errno( simta_dnsr ) !=
                         DNSR_ERROR_TIMEOUT ) {
