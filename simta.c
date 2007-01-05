@@ -842,8 +842,7 @@ simta_read_config( char *fname )
                 goto error;
             }
 
-	    if ( rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ],
-		    av[ 2 ]) != 0 ) {
+	    if ( rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ], "" ) != 0 ) {
 		perror( "malloc" );
 		goto error;
 	    }
