@@ -96,7 +96,6 @@ int			receive_failed_rcpts = 0;
 int			receive_tls = 0;
 int			receive_auth = 0;
 int			receive_remote_rbl_status = RECEIVE_RBL_UNKNOWN;
-struct rbl		*rbl_found;
 char			*receive_dns_match = "Unknown";
 char 		 	*receive_user_rbl = NULL;
 char			*receive_hello = NULL;
@@ -602,6 +601,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     int				rc;
     char			*addr, *domain;
     struct simta_red		*red;
+    struct rbl			*rbl_found;
 
     rcpt_attempt++;
 
@@ -793,7 +793,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			    }
 
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
-				    "RBL lookup timed out: %s",
+				    "RBL lookup error: %s",
 				    env->e_id, addr, env->e_mail,
                                     rbl_found->rbl_domain );
 			    dnsr_errclear( simta_dnsr );
@@ -1923,6 +1923,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     struct timeval			tv_start;
     struct timeval			tv_stop;
     struct timespec			req;
+    struct rbl				*rbl_found;
 #ifdef HAVE_LIBSASL
     sasl_security_properties_t		secprops;
 #endif /* HAVE_LIBSASL */
@@ -2153,7 +2154,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
                 }
 
                 syslog( LOG_NOTICE,
-			"Connect.in [%s] %s: RBL lookup timed out %s",
+			"Connect.in [%s] %s: RBL lookup error: %s",
                         inet_ntoa( sin->sin_addr ), receive_remote_hostname,
                         rbl_found->rbl_domain );
                 dnsr_errclear( simta_dnsr );

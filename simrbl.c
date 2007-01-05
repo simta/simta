@@ -50,16 +50,12 @@ main( int argc, char *argv[])
     char		c;
     char		*server = NULL;
     char		*block_domain = "rbl.mail.umich.edu";
-    char		*block_text ="";
     int			rc;
     int			err = 0;
     int			quiet = 0;
 
     struct in_addr	addr;
     struct rbl		*rbl_found;
-
-    simta_debug = 1;
-
 
     while(( c = getopt( argc, argv, "dl:s:q" )) != -1 ) {
 	switch( c ) {
@@ -122,7 +118,7 @@ main( int argc, char *argv[])
 	exit( SIMRBL_EXIT_ERROR );
     }
 
-    if (( rc = rbl_check( simta_rbls, &addr, &rbl_found )) < 0 ) {
+    if (( rc = rbl_check( simta_rbls, &addr, &rbl_found )) == RBL_ERROR ) {
 	if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
 	exit( SIMRBL_EXIT_ERROR );
     }

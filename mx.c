@@ -373,17 +373,19 @@ check_hostname( char *hostname )
  * If you are experiencing a problem like the one described, please check
  * your configuration.
  */
+
     int
-rbl_check( struct rbl *domains, struct in_addr *in, struct rbl **found )
+rbl_check( struct rbl *rbls, struct in_addr *in, struct rbl **found )
 {
     struct rbl		*rbl;
     char		*reverse_ip;
     struct dnsr_result	*result;
 
-    for ( rbl = domains; rbl != NULL; rbl = rbl->rbl_next ) {
+    for ( rbl = rbls; rbl != NULL; rbl = rbl->rbl_next ) {
 	if (( reverse_ip =
 		dnsr_ntoptr( simta_dnsr, in, rbl->rbl_domain )) == NULL ) {
-	    syslog( LOG_ERR, "check_rbl: dnsr_ntoptr failed" );
+	    syslog( LOG_ERR, "RBL %s: dnsr_ntoptr failed: %s",
+		    inet_ntoa( *in ), rbl->rbl_domain );
 	    *found = rbl;
 	    return( RBL_ERROR );
 	}
@@ -393,6 +395,8 @@ rbl_check( struct rbl *domains, struct in_addr *in, struct rbl **found )
 	}
 
 	if (( result = get_a( reverse_ip )) == NULL ) {
+	    syslog( LOG_INFO, "RBL %s: Timeout: %s", reverse_ip,
+		    rbl->rbl_domain );
 	    free( reverse_ip );
 	    *found = rbl;
 	    return( RBL_ERROR );
@@ -402,11 +406,22 @@ rbl_check( struct rbl *domains, struct in_addr *in, struct rbl **found )
 	    dnsr_free_result( result );
 	    free( reverse_ip );
 	    *found = rbl;
-	    if ( rbl->rbl_type = RBL_BLOCK ) {
+	    if ( rbl->rbl_type == RBL_BLOCK ) {
+		syslog( LOG_INFO, "RBL %s: Blocked %s", reverse_ip,
+			rbl->rbl_domain );
 		return( RBL_BLOCK );
-	    } else {
+	    } else if ( rbl->rbl_type == RBL_ACCEPT ) {
+		syslog( LOG_INFO, "RBL %s: Accepted %s", reverse_ip,
+			rbl->rbl_domain );
 		return( RBL_ACCEPT );
+	    } else {
+		syslog( LOG_INFO, "RBL %s: Error %s: unknown RBL type %d",
+			reverse_ip, rbl->rbl_domain, rbl->rbl_type );
+		return( RBL_ERROR );
 	    }
+	} else {
+	    syslog( LOG_INFO, "RBL %s: Checked %s", reverse_ip,
+		    rbl->rbl_domain );
 	}
 
 	dnsr_free_result( result );
@@ -446,6 +461,7 @@ rbl_add( struct rbl **list, int type, char *domain, char *url )
 	return( 1 );
     }
 
+    /* add new struct to end of list */
     for ( i = list; *i != NULL; i = &((*i)->rbl_next) )
 	    ;
 
