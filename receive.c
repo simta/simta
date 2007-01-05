@@ -1252,9 +1252,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	data_success++;
 
-	syslog( LOG_INFO, "Receive %s: Message Accepted: [%s] %s %d",
+	syslog( LOG_INFO, "Receive %s: Message Accepted: [%s] %s %d: %s",
 		env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname, (int)sbuf.st_size );
+		receive_remote_hostname, (int)sbuf.st_size,
+		smtp_message ? smtp_message : "accepted" );
 
 	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
 		smtp_message ? smtp_message : "accepted" ) < 0 ) {
@@ -2617,8 +2618,11 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
+	    syslog( LOG_INFO, "Filter %s: %s", env->e_id, line );
+
 	    if ( *smtp_message == NULL ) {
 		if (( *smtp_message = strdup( line )) == NULL ) {
+		    syslog( LOG_ERR, "strdup: %m" );
 		    snet_close( snet );
 		    return( MESSAGE_TEMPFAIL );
 		}

@@ -1,3 +1,7 @@
+internal
+    - Added better penalty box logging
+    - bugfix: CTX init function added
+
 0.7.0rc3
     - minimal dequoting of quoted strings for LDAP searches
 
