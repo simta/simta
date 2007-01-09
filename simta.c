@@ -71,6 +71,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_rbl_verbose_logging = 0;
 int			simta_queue_incoming_smtp_mail = 0;
 int			simta_leaky_queue = 0;
 int			simta_use_randfile = 0;
@@ -785,6 +786,15 @@ simta_read_config( char *fname )
             simta_ignore_connect_in_reverse_errors = 1;
 	    simta_ignore_reverse = 1;
             if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "RBL_VERBOSE_LOGGING" ) == 0 ) {
+            if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 arguments\n",
+			fname, lineno );
+                goto error;
+            }
+	    simta_rbl_verbose_logging = 1;
+            if ( simta_debug ) printf( "RBL_VERBOSE_LOGGING\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_BLOCK" ) == 0 ) {
             if ( ac != 3 ) {

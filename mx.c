@@ -39,6 +39,7 @@ extern SSL_CTX  *ctx;
 #include "mx.h"
 #include "simta.h"
 
+
     struct dnsr_result *
 get_a( char *hostname )
 {
@@ -407,12 +408,16 @@ rbl_check( struct rbl *rbls, struct in_addr *in, struct rbl **found )
 	    free( reverse_ip );
 	    *found = rbl;
 	    if ( rbl->rbl_type == RBL_BLOCK ) {
-		syslog( LOG_INFO, "RBL %s: Blocked %s", reverse_ip,
-			rbl->rbl_domain );
+		if ( simta_rbl_verbose_logging ) {
+		    syslog( LOG_INFO, "RBL %s: Blocked %s", reverse_ip,
+			    rbl->rbl_domain );
+		}
 		return( RBL_BLOCK );
 	    } else if ( rbl->rbl_type == RBL_ACCEPT ) {
-		syslog( LOG_INFO, "RBL %s: Accepted %s", reverse_ip,
-			rbl->rbl_domain );
+		if ( simta_rbl_verbose_logging ) {
+		    syslog( LOG_INFO, "RBL %s: Accepted %s", reverse_ip,
+			    rbl->rbl_domain );
+		}
 		return( RBL_ACCEPT );
 	    } else {
 		syslog( LOG_INFO, "RBL %s: Error %s: unknown RBL type %d",
@@ -420,15 +425,17 @@ rbl_check( struct rbl *rbls, struct in_addr *in, struct rbl **found )
 		return( RBL_ERROR );
 	    }
 	} else {
-	    syslog( LOG_INFO, "RBL %s: Checked %s", reverse_ip,
-		    rbl->rbl_domain );
+	    if ( simta_rbl_verbose_logging ) {
+		syslog( LOG_INFO, "RBL %s: Not Found %s", reverse_ip,
+			rbl->rbl_domain );
+	    }
 	}
 
 	dnsr_free_result( result );
 	free( reverse_ip );
     }
 
-    return( RBL_ACCEPT );
+    return( RBL_NOT_FOUND );
 }
 
 

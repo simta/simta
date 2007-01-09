@@ -78,10 +78,6 @@ extern SSL_CTX	*ctx;
 #include "simta_ldap.h"
 #endif
 
-#define RECEIVE_RBL_UNKNOWN	0
-#define RECEIVE_RBL_BLOCKED	1
-#define RECEIVE_RBL_NOT_BLOCKED	2
-
 #define SIMTA_EXTENSION_SIZE    (1<<0)
 
 extern char		*version;
@@ -95,9 +91,8 @@ int			rcpt_attempt = 0;
 int			receive_failed_rcpts = 0;
 int			receive_tls = 0;
 int			receive_auth = 0;
-int			receive_remote_rbl_status = RECEIVE_RBL_UNKNOWN;
+int			remote_rbl_status = RBL_UNKNOWN;
 char			*receive_dns_match = "Unknown";
-char 		 	*receive_user_rbl = NULL;
 char			*receive_hello = NULL;
 char			*receive_smtp_command = NULL;
 char			*receive_remote_hostname = "Unknown";
@@ -773,36 +768,52 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	    case LOCAL_ADDRESS_RBL:
                 if ( simta_user_rbls != NULL ) {
-                    if ( receive_remote_rbl_status == RECEIVE_RBL_UNKNOWN ) {
+                    if ( remote_rbl_status == RBL_UNKNOWN ) {
                         /* Check and save RBL status */
                         switch ( rbl_check( simta_user_rbls,
 				&(receive_sin->sin_addr),
                                 &rbl_found )) {
                         case RBL_BLOCK:
-                            receive_remote_rbl_status = RECEIVE_RBL_BLOCKED;
+                            remote_rbl_status = RBL_BLOCK;
+			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
+				    "RBL blocked: %s",
+				    env->e_id, addr, env->e_mail,
+                                    rbl_found->rbl_domain );
                             break;
 
 			case RBL_ACCEPT:
-			    receive_remote_rbl_status = RECEIVE_RBL_NOT_BLOCKED;
+			    remote_rbl_status = RBL_ACCEPT;
+			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
+				    "RBL accepted: %s",
+				    env->e_id, addr, env->e_mail,
+                                    rbl_found->rbl_domain );
+			    break;
+
+			case RBL_NOT_FOUND:
+			    remote_rbl_status = RBL_NOT_FOUND;
+			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
+				    "RBL not found: %s",
+				    env->e_id, addr, env->e_mail,
+                                    rbl_found->rbl_domain );
 			    break;
 
 			case RBL_ERROR:
 			default:
+			    remote_rbl_status = RBL_UNKNOWN;
+			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
+				    "RBL error: %s",
+				    env->e_id, addr, env->e_mail,
+                                    rbl_found->rbl_domain );
 			    if ( dnsr_errno( simta_dnsr ) !=
 				    DNSR_ERROR_TIMEOUT ) {
 				return( RECEIVE_CLOSECONNECTION );
 			    }
-
-			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
-				    "RBL lookup error: %s",
-				    env->e_id, addr, env->e_mail,
-                                    rbl_found->rbl_domain );
 			    dnsr_errclear( simta_dnsr );
 			    break;
 			}
 		    }
 
-		    if ( receive_remote_rbl_status == RECEIVE_RBL_BLOCKED ) {
+		    if ( remote_rbl_status == RBL_BLOCK ) {
 			receive_failed_rcpts++;
 			syslog( LOG_INFO,
 				"Receive %s: To <%s> From <%s> Failed: "
@@ -2138,7 +2149,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
         if ( simta_rbls != NULL ) {
             switch( rbl_check( simta_rbls, &(sin->sin_addr), &rbl_found )) {
             case RBL_BLOCK:
-                syslog( LOG_NOTICE, "Connect.in [%s] %s: Failed: RBL %s",
+		remote_rbl_status = RBL_BLOCK;
+                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Blocked: %s",
                         inet_ntoa( sin->sin_addr ), receive_remote_hostname,
                         rbl_found->rbl_domain );
                 snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
@@ -2146,19 +2158,31 @@ smtp_receive( int fd, struct sockaddr_in *sin )
                 goto closeconnection;
 
             case RBL_ACCEPT:
+		remote_rbl_status = RBL_ACCEPT;
+                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Accepted: %s",
+                        inet_ntoa( sin->sin_addr ), receive_remote_hostname,
+                        rbl_found->rbl_domain );
+                break;
+
+            case RBL_NOT_FOUND:
+		/* leave as RBL_UNKNOWN so user tests happen */
+		remote_rbl_status = RBL_UNKNOWN;
+                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not Found: %s",
+                        inet_ntoa( sin->sin_addr ), receive_remote_hostname,
+                        rbl_found->rbl_domain );
                 break;
 
 	    case RBL_ERROR:
             default:
+		remote_rbl_status = RBL_UNKNOWN;
+                syslog( LOG_NOTICE,
+			"Connect.in [%s] %s: RBL Error: %s",
+                        inet_ntoa( sin->sin_addr ), receive_remote_hostname,
+                        rbl_found->rbl_domain );
                 if ( dnsr_errno( simta_dnsr ) !=
                         DNSR_ERROR_TIMEOUT ) {
                     goto syserror;
                 }
-
-                syslog( LOG_NOTICE,
-			"Connect.in [%s] %s: RBL lookup error: %s",
-                        inet_ntoa( sin->sin_addr ), receive_remote_hostname,
-                        rbl_found->rbl_domain );
                 dnsr_errclear( simta_dnsr );
                 break;
             }

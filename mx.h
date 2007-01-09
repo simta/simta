@@ -1,6 +1,8 @@
-#define	RBL_ERROR		0
-#define	RBL_BLOCK		1
-#define	RBL_ACCEPT		2
+#define	RBL_UNKNOWN		0
+#define	RBL_ERROR		1
+#define	RBL_NOT_FOUND		2
+#define	RBL_BLOCK		3
+#define	RBL_ACCEPT		4
 
 struct rbl {
     struct rbl			*rbl_next;
