@@ -792,9 +792,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			case RBL_NOT_FOUND:
 			    remote_rbl_status = RBL_NOT_FOUND;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
-				    "RBL not found: %s",
-				    env->e_id, addr, env->e_mail,
-                                    rbl_found->rbl_domain );
+				    "RBL Not Found", env->e_id, addr,
+				    env->e_mail );
 			    break;
 
 			case RBL_ERROR:
@@ -2167,9 +2166,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
             case RBL_NOT_FOUND:
 		/* leave as RBL_UNKNOWN so user tests happen */
 		remote_rbl_status = RBL_UNKNOWN;
-                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not Found: %s",
-                        inet_ntoa( sin->sin_addr ), receive_remote_hostname,
-                        rbl_found->rbl_domain );
+                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not Found",
+                        inet_ntoa( sin->sin_addr ), receive_remote_hostname );
                 break;
 
 	    case RBL_ERROR:
