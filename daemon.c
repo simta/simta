@@ -757,6 +757,8 @@ simta_q_scheduler( void )
     struct timeval		tv_sleep;
     struct host_q		*hq;
     int				lag;
+    u_long			disk_wait;
+    u_long			q_wait;
     u_long			waited;
     int				launched;
     u_long			launch_this_cycle;
@@ -782,7 +784,7 @@ simta_q_scheduler( void )
 	return( 1 );
     }
 
-    srandom( tv_disk.tv_usec );
+    srandom((unsigned int)tv_disk.tv_usec );
 
     /* main daemon loop */
     for (;;) {
@@ -790,52 +792,50 @@ simta_q_scheduler( void )
 	    simsendmail_signal = 0;
 	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
 		if ( simta_child_q_runner( NULL ) != 0 ) {
-		    break;
+		    return( 1 );
 		}
 	    }
 	}
 
 	if ( child_signal != 0 ) {
 	    if ( simta_waitpid()) {
-		break;
+		return( 1 );
 	    }
 	}
 
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
-	    break;
+	    return( 1 );
 	}
 
-	/* check to see if we need to read the disk */
+	/* attempt to read the disk if it is scheduled */
 	if ( tv_now.tv_sec >= tv_disk.tv_sec ) {
-	    /* read disk */
-	    launch_this_cycle = 0;
+	    if (( simta_deliver_q != NULL ) && ( tv_now.tv_sec >=
+		    simta_deliver_q->hq_next_launch.tv_sec )) {
+		/* don't read the disk untill the queue is caught up */
+		syslog( LOG_DEBUG, "Queue Delay: Disk read already delayed %d",
+			(int)(tv_now.tv_sec - tv_disk.tv_sec));
 
-	    if ( q_read_dir( simta_dir_slow ) != 0 ) {
-		break;
-	    }
+	    } else {
+		/* read disk */
+		q_read_dir( simta_dir_slow );
 
-	    queue_log_metrics( simta_deliver_q );
+		queue_log_metrics( simta_deliver_q );
 
-	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-		syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
-		break;
-	    }
-
-	    tv_disk.tv_sec += simta_disk_period;
-
-	    if (( lag = (( tv_now.tv_sec + simta_min_work_time )
-		    - tv_disk.tv_sec )) > 0 ) {
-		tv_disk.tv_sec += lag;
-		syslog( LOG_WARNING, "Queue Lag: disk read %d seconds",
-			lag );
-	    }
-
-	    /* run unexpanded queue if we have entries */
-	    if (( simta_unexpanded_q != NULL ) &&
-		    ( simta_unexpanded_q->hq_env_head != NULL )) {
-		if ( simta_child_q_runner( simta_unexpanded_q ) != 0 ) {
+		if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+		    syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
 		    return( 1 );
+		}
+
+		tv_disk.tv_sec = tv_now.tv_sec + simta_min_work_time;
+		launch_this_cycle = 0;
+
+		/* run unexpanded queue if we have entries */
+		if (( simta_unexpanded_q != NULL ) &&
+			( simta_unexpanded_q->hq_env_head != NULL )) {
+		    if ( simta_child_q_runner( simta_unexpanded_q ) != 0 ) {
+			return( 1 );
+		    }
 		}
 	    }
 	}
@@ -844,7 +844,7 @@ simta_q_scheduler( void )
 	for ( launched = 1; simta_deliver_q != NULL; launched++ ) {
 	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
-		break;
+		return( 1 );
 	    }
 
 	    /* don't launch queue runners if it's not the right time */
@@ -882,7 +882,7 @@ simta_q_scheduler( void )
 	    }
 
 	    syslog( LOG_INFO, "Queue %s: launch %d: "
-		    "wait %d lag %d last %d shortest %d longest %d "
+		    "wait %lu lag %d last %lu shortest %lu longest %lu "
 		    "total messages %d",
 		    hq->hq_hostname, hq->hq_launches, waited, lag,
 		    hq->hq_wait_last.tv_sec, hq->hq_wait_shortest.tv_sec,
@@ -905,15 +905,10 @@ simta_q_scheduler( void )
 		req.tv_sec = 1;
 		req.tv_nsec = 0;
 
-		syslog( LOG_DEBUG, "start nanosleep %d %ld", req.tv_sec,
-			req.tv_nsec );
 		while ( nanosleep( &req, &rem ) != 0 ) {
 		    if ( errno == EINTR ) {
 			req.tv_sec = rem.tv_sec;
 			req.tv_nsec = rem.tv_nsec;
-			syslog( LOG_DEBUG, "resume nanosleep %d %ld",
-				req.tv_sec, req.tv_nsec );
-
 		    } else {
 			syslog( LOG_ERR,
 				"Syserror: q_scheduler nanosleep: %m" );
@@ -928,33 +923,48 @@ simta_q_scheduler( void )
 	/* compute sleep time */
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
-	    break;
+	    return( 1 );
 	}
 
-	if (( simta_q_runner_slow_max > simta_q_runner_slow ) &&
-		( simta_deliver_q != NULL ) &&
-		( simta_deliver_q->hq_next_launch.tv_sec < tv_disk.tv_sec )) {
-	    tv_sleep.tv_sec =
-		    simta_deliver_q->hq_next_launch.tv_sec - tv_now.tv_sec;
+	if ( tv_now.tv_sec < tv_disk.tv_sec ) {
+	    /* disk read is in the future */
+	    disk_wait = tv_disk.tv_sec - tv_now.tv_sec;
 	} else {
-	    tv_sleep.tv_sec = tv_disk.tv_sec - tv_now.tv_sec;
+	    disk_wait = 0;
 	}
-
 
 	if ( simta_deliver_q == NULL ) {
-	    syslog( LOG_DEBUG, "Queue Metric: simta_deliver_q NULL" );
+	    /* no queue to deliver, schedule the disk read */
+	    tv_sleep.tv_sec = disk_wait;
+
+	} else if ( tv_now.tv_sec < simta_deliver_q->hq_next_launch.tv_sec ) {
+	    /* next queue delivery is in the future */
+	    q_wait = simta_deliver_q->hq_next_launch.tv_sec - tv_disk.tv_sec;
+
+	    /* schedule whatever is sooner, disk read or the queue launch */
+	    if ( disk_wait < q_wait ) {
+		tv_sleep.tv_sec = disk_wait;
+	    } else {
+		tv_sleep.tv_sec = q_wait;
+	    }
+
+	} else if (( simta_q_runner_slow_max == 0 ) ||
+		( simta_q_runner_slow < simta_q_runner_slow_max )) {
+	    /* queues are underwater and either there is no process limit,
+	     * or it has not yet been met.
+	     */
+	    tv_sleep.tv_sec = 0;
+
 	} else {
-	    syslog( LOG_DEBUG,
-		    "Queue Metric: Next runner host %s in %d seconds "
-		    "%ld launches this cycle",
-		    simta_deliver_q->hq_hostname,
-		    (simta_deliver_q->hq_next_launch.tv_sec - tv_now.tv_sec ),
-		    launch_this_cycle );
+	    /* queues are underwater and the process limit has been met */
+	    tv_sleep.tv_sec = tv_now.tv_sec + 60;
+	    syslog( LOG_NOTICE, "Queue Delay: Queues are not caught up and "
+		    "process limit has been met: Delaying 60 seconds" );
 	}
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 ) &&
 		( tv_sleep.tv_sec > 0 )) {
-	    sleep( tv_sleep.tv_sec );
+	    sleep((unsigned int)tv_sleep.tv_sec );
 	}
     }
 

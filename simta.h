@@ -80,7 +80,6 @@ extern int				simta_leaky_queue;
 extern int				simta_use_randfile;
 extern int				simta_listen_backlog;
 extern int				simta_disk_cycle;
-extern int				simta_disk_period;
 extern int				simta_launch_limit;
 extern int				simta_min_work_time;
 extern int				simta_receive_connections_max;

@@ -77,7 +77,6 @@ int			simta_leaky_queue = 0;
 int			simta_use_randfile = 0;
 int			simta_listen_backlog = 5;
 int			simta_disk_cycle = 0;
-int			simta_disk_period = 300;
 int			simta_receive_connections_max = SIMTA_MAXCONNECTIONS;
 int			simta_receive_connections = 0;
 int			simta_launch_limit = SIMTA_LAUNCH_LIMIT;
@@ -700,22 +699,6 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_LAUNCH: %d\n",
 		simta_launch_limit );
-
-	} else if ( strcasecmp( av[ 0 ], "DISK_READ_PERIOD" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_disk_period = atoi( av [ 1 ] );
-	    if ( simta_disk_period <= 0 ) {
-		fprintf( stderr,
-			"%s: line %d: DISK_READ_PERIOD must be greater than 0",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "DISK_READ_PERIOD: %d\n",
-		simta_disk_period );
 
 	} else if ( strcasecmp( av[ 0 ], "MIN_WORK_TIME" ) == 0 ) {
 	    if ( ac != 2 ) {
