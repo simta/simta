@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <ctype.h>
+#include "dn.h"
 
 #define B4TYPE		0
 #define INTYPE		1

@@ -88,9 +88,9 @@ struct ldap_search_list {
 #define BINDSIMPLE  1
 #define BINDANON   0
 
-struct ldap_search_list		*ldap_searches = NULL;
-struct list			*ldap_people = NULL;
-struct list			*ldap_groups = NULL;
+static struct ldap_search_list		*ldap_searches = NULL;
+static struct list			*ldap_people = NULL;
+static struct list			*ldap_groups = NULL;
 LDAP				*ld = NULL;
 
 static char			*ldap_host;
@@ -116,6 +116,9 @@ static int			ndomaincomponent = 2;
 char 	*simta_ldap_dequote( char * );
 
 #ifdef SIMTA_LDAP_DEBUG
+
+static int	simta_ldap_init( void );
+static char	*simta_ldap_dequote( char * );
 
 
 
@@ -306,38 +309,39 @@ simta_ld_init ()
 	ldaprc = ber_set_option( NULL, LBER_OPT_DEBUG_LEVEL, &ldapdebug );
 	if( ldaprc != LBER_OPT_SUCCESS ) {
 	    syslog( LOG_ERR, 
-	"simta_ldap_init: Failed setting LBER_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
+	"simta_ld_init: Failed setting LBER_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
 	}
 	ldaprc = ldap_set_option( NULL, LDAP_OPT_DEBUG_LEVEL, &ldapdebug );
 	if( ldaprc != LDAP_OPT_SUCCESS ) {
 	    syslog( LOG_ERR, 
-	"simta_ldap_init: Failed setting LDAP_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
+	"simta_ld_init: Failed setting LDAP_OPT_DEBUG_LEVEL=%d\n", ldapdebug);
 	}
     }
     ldaprc = ldap_set_option( ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
     if (ldaprc != LDAP_OPT_SUCCESS ) {
 	syslog( LOG_ERR, 
-	"simta_ldap_init: Failed setting LDAP_OPT_REFERRALS to LDAP_OPT_OFF");
+	"simta_ld_init: Failed setting LDAP_OPT_REFERRALS to LDAP_OPT_OFF");
 	return( NULL );
     }
     ldaprc = ldap_set_option(ld, LDAP_OPT_SIZELIMIT, (void *)&maxambiguous);
     if (ldaprc != LDAP_OPT_SUCCESS ) {
 	syslog( LOG_ERR, 
-		"simta_ldap_init: Failed setting LDAP_OPT_SIZELIMIT = %d\n",
+		"simta_ld_init: Failed setting LDAP_OPT_SIZELIMIT = %d\n",
 		maxambiguous);
 	return( NULL );
     }
     ldaprc = ldap_set_option( ld, LDAP_OPT_PROTOCOL_VERSION, &protocol );
     if( ldaprc != LDAP_OPT_SUCCESS ) {
 	syslog( LOG_ERR, 
-	"simta_ldap_init: Failed setting LDAP_OPT_PROTOCOL_VERSION = %d\n",
+	"simta_ld_init: Failed setting LDAP_OPT_PROTOCOL_VERSION = %d\n",
 		protocol );
 	return( NULL );
     }
     return (ld);
 }
+
     static int
-simta_ldap_init ()
+simta_ldap_init( void )
 {
     int ldaprc;
 
@@ -798,7 +802,7 @@ do_noemail (struct exp_addr *e_addr, char *addr, LDAPMessage *res)
 ** Unbind from the directory.
 */
     void
-simta_ldap_unbind ()
+simta_ldap_unbind( void )
 {
     if ( ld ) {
 	ldap_unbind( ld );
@@ -885,7 +889,7 @@ simta_ldap_address_local( char *name, char *domain )
 		
 	    ldap_msgfree( res );
 
-	    simta_ldap_unbind (ld);
+	    simta_ldap_unbind();
 	    free (dup_name);
 	    return (LDAP_SYSERROR);
 	}
@@ -1443,7 +1447,7 @@ startsearch:
         */
 	if (rc == LDAP_SERVER_DOWN) {
 	    ldap_msgfree( res );
-	    simta_ldap_unbind (ld);
+	    simta_ldap_unbind();
 
 	    retrycnt++;
 	    if (retrycnt > MAXRETRIES) {
@@ -1463,7 +1467,7 @@ startsearch:
 	    syslog( LOG_ERR, "simta_ldap_name_search: ldap_search_st error: %s",
 		    ldap_err2string(rc ));
 	    ldap_msgfree( res ); 
-	    simta_ldap_unbind (ld);
+	    simta_ldap_unbind();
 	    return( LDAP_SYSERROR );
 	}
 
@@ -1488,7 +1492,7 @@ startsearch:
  "simta_ldap_name_search:Error parsing result from LDAP server for address: %s",
 			e_addr->e_addr);
 	ldap_msgfree( res );
-	simta_ldap_unbind (ld);
+	simta_ldap_unbind();
 	return( LDAP_SYSERROR );
     
     default:
@@ -1545,7 +1549,7 @@ startsearch:
 			e_addr->e_addr);
             ldap_msgfree( res );
             ldap_msgfree( tmpres );
-	    simta_ldap_unbind (ld);
+	    simta_ldap_unbind();
 	    return( LDAP_SYSERROR );
 	}
 
@@ -1599,7 +1603,7 @@ simta_ldap_dn_expand (struct expand *exp, struct exp_addr *e_addr )
 	syslog( LOG_ERR, "simta_ldap_dn_expand: ldap_search_st Failed: %s",
 		    ldap_err2string(rc ));
 	ldap_msgfree( res ); 
-	simta_ldap_unbind (ld);
+	simta_ldap_unbind();
 	return( LDAP_SYSERROR );
     }
     match = ldap_count_entries (ld, res );
@@ -1608,7 +1612,7 @@ simta_ldap_dn_expand (struct expand *exp, struct exp_addr *e_addr )
     "simta_ldap_dn_expand: Error parsing result from LDAP server for dn: %s",
 			search_dn);
 	ldap_msgfree( res );
-	simta_ldap_unbind (ld);
+	simta_ldap_unbind();
 	return( LDAP_SYSERROR );
     }
 

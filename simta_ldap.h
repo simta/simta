@@ -46,5 +46,5 @@ int	simta_ldap_expand( struct expand *, struct exp_addr * );
 int	simta_ldap_address_local( char *, char * );
 int	simta_ldap_config( char * );
 int	simta_mbx_compare( char *, char * );
-void	simta_ldap_unbind();
+void	simta_ldap_unbind( void );
 

@@ -1,5 +1,13 @@
 /*****     red.h     *****/
 
+struct action {
+    int				a_action;
+    int				a_flags;
+    char			*a_fname;
+    DB				*a_dbp;
+    struct action		*a_next;
+};
+
 struct simta_red {
     char			*red_host_name;
     int				red_host_type;
@@ -9,14 +17,6 @@ struct simta_red {
     int				red_deliver_type;
     int				red_deliver_argc;
     char			**red_deliver_argv;
-};
-
-struct action {
-    int				a_action;
-    int				a_flags;
-    char			*a_fname;
-    DB				*a_dbp;
-    struct action		*a_next;
 };
 
 /* red_deliver_types */
