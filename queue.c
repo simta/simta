@@ -620,8 +620,8 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
 	if ( hq->hq_next_launch.tv_sec != 0 ) {
 	    syslog( LOG_DEBUG, "Queue %s: Requeued %d, Old %d",
 		    hq->hq_hostname,
-		    next_launch.tv_sec - tv_now->tv_sec,
-		    hq->hq_next_launch.tv_sec - tv_now->tv_sec );
+		    (int)(next_launch.tv_sec - tv_now->tv_sec),
+		    (int)(hq->hq_next_launch.tv_sec - tv_now->tv_sec));
 	}
 	hq->hq_next_launch.tv_sec = next_launch.tv_sec;
     }
@@ -902,7 +902,7 @@ error:
 
     syslog( LOG_INFO, "Queue Metrics: Disk Read %d: %d messages in %d seconds: "
 	    "%d new messages %d removed messages %d hosts", simta_disk_cycle,
-	    old + new, tv_stop.tv_sec - tv_start.tv_sec, new, removed,
+	    old + new, (int)(tv_stop.tv_sec - tv_start.tv_sec), new, removed,
 	    remain_hq );
 
     return( 0 );
@@ -1801,8 +1801,9 @@ queue_log_metrics( struct host_q *hq_schedule )
     fprintf( f, "Next\tMessages\tQueue\n" );
 
     for ( hq = hq_schedule; hq != NULL; hq = hq->hq_deliver_next ) {
-	fprintf( f, "%d\t%d\t%s\n", hq->hq_next_launch.tv_sec - tv.tv_sec,
-		hq->hq_entries, hq->hq_hostname );
+	fprintf( f, "%d\t%d\t%s\n",
+		(int)(hq->hq_next_launch.tv_sec - tv.tv_sec), hq->hq_entries,
+		hq->hq_hostname );
     }
 
     fclose( f );

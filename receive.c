@@ -66,6 +66,7 @@ extern SSL_CTX	*ctx;
 #include "ll.h"
 #include "envelope.h"
 #include "expand.h"
+#include "address.h"
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
@@ -867,7 +868,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     int					data_message_size_error = 0;
     int					received_count = 0;
     int					message_result;
-    int					line_len;
+    u_int				line_len;
     char				*line;
     char				*smtp_message = NULL;
     struct tm				*tm;
@@ -881,7 +882,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     off_t				data_size = 0;
 #ifdef HAVE_LIBSSL
     EVP_MD_CTX				mdctx;
-    u_int				md_len;
+    int					md_len;
 #endif /* HAVE_LIBSSL */
 
     data_attempt++;
@@ -1186,7 +1187,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
     env->e_dinode = sbuf.st_ino;
 
-    syslog( LOG_DEBUG, "f_data env %s dinode %d", env->e_id, env->e_dinode );
+    syslog( LOG_DEBUG, "f_data env %s dinode %d", env->e_id,
+	    (int)env->e_dinode );
 
     if ( fclose( dff ) != 0 ) {
 	syslog( LOG_ERR, "f_data fclose: %m" );
@@ -2364,7 +2366,7 @@ closeconnection:
 	    "Connect.in [%s] %s: Metrics: "
 	    "seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
 	    inet_ntoa( sin->sin_addr ), receive_remote_hostname,
-	    tv_stop.tv_sec - tv_start.tv_sec, mail_success, mail_attempt,
+	    (int)(tv_stop.tv_sec - tv_start.tv_sec), mail_success, mail_attempt,
 	    rcpt_success, rcpt_attempt, data_success, data_attempt );
 
     return( simta_fast_files );

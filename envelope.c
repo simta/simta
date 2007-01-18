@@ -480,7 +480,7 @@ env_tfile( struct envelope *e )
     }
 
     syslog( LOG_DEBUG, "env_read_queue_info %s: Dinode %d",
-	    e->e_id, e->e_dinode );
+	    e->e_id, (int)e->e_dinode );
 
     /* Xpansion Level */
     if ( fprintf( tff, "X%d\n", e->e_n_exp_level ) < 0 ) {
@@ -881,12 +881,12 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
     } else if ( dinode != env->e_dinode ) {
 	syslog( LOG_WARNING,
 		"env_read_delivery_info %s: bad Dinode info re-read: "
-		"old %d new %d", filename, env->e_dinode, dinode );
+		"old %d new %d", filename, (int)env->e_dinode, (int)dinode );
 	env->e_dinode = dinode;
     }
 
     syslog( LOG_DEBUG, "env_read_queue_info %s: Dinode %d", env->e_id,
-	    env->e_dinode );
+	    (int)env->e_dinode );
 
     /* expansion info */
     if ( version >= 3 ) {

@@ -103,8 +103,6 @@ void expansion_stab_stdout( void * );
 int add_address( struct expand *, char *, struct envelope *, int, char * );
 struct envelope *address_bounce_create( struct expand* );
 int address_expand( struct expand * );
-int alias_expand( struct expand *, struct exp_addr *, struct action * );
-int password_expand( struct expand *, struct exp_addr *, struct action * );
 void expand_tree_stdout( struct exp_addr *, int );
 int address_string_recipients( struct expand *, char *, struct exp_addr *,
 	char * );

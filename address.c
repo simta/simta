@@ -34,6 +34,7 @@
 #include "ll.h"
 #include "envelope.h"
 #include "expand.h"
+#include "address.h"
 #include "header.h"
 #include "simta.h"
 #include "bdb.h"
@@ -493,11 +494,11 @@ not_found:
     if ( e_addr->e_addr_at == NULL ) {
 	local_postmaster = 1;
     } else {
-	e_addr->e_addr_at = '\0';
+	*(e_addr->e_addr_at) = '\0';
 	if ( strcasecmp( e_addr->e_addr, STRING_POSTMASTER ) == 0 ) {
 	    local_postmaster = 1;
 	}
-	e_addr->e_addr_at = '@';
+	*(e_addr->e_addr_at) = '@';
     }
 
     if ( local_postmaster ) {
@@ -539,7 +540,7 @@ simta_getpwnam( struct action *a, char *user )
 
     if ( fclose( f ) != 0 ) {
 	syslog( LOG_ERR, "simta_getpwnam fclose %s: %m", a->a_fname );
-	return( PASSWORD_SYSERROR );
+	return( NULL );
     }
 
     return( p );
