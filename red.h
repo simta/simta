@@ -44,6 +44,10 @@ struct action *simta_red_add_action( struct simta_red *, int, int, char * );
 int simta_red_action_default( struct simta_red * );
 void simta_red_stdout( void );
 
+int alias_expand( struct expand *, struct exp_addr *, struct action * );
+struct passwd *simta_getpwnam( struct action *, char * );
+int password_expand( struct expand *, struct exp_addr *, struct action * );
+
 /* global variables */
 extern struct simta_red			*simta_red_hosts;
 extern struct simta_red			*simta_default_host;

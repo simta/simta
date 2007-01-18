@@ -30,12 +30,12 @@ extern SSL_CTX  *ctx;
 #include <snet.h>
 
 #include <db.h>
-#include "red.h"
 #include "ll.h"
 #include "denser.h"
 #include "queue.h"
 #include "envelope.h"
 #include "expand.h"
+#include "red.h"
 #include "mx.h"
 #include "simta.h"
 

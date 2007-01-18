@@ -261,7 +261,7 @@ expand( struct envelope *unexpanded_env )
 
 	    syslog( LOG_DEBUG, "expand moderation env %s dinode %d",
 		    e_addr->e_addr_env_moderated->e_id,
-		    e_addr->e_addr_env_moderated->e_dinode );
+		    (int)e_addr->e_addr_env_moderated->e_dinode );
 
 	    if ( simta_expand_debug != 0 ) {
 		printf( "Moderated: %s\n", e_addr->e_addr );
@@ -398,7 +398,7 @@ expand( struct envelope *unexpanded_env )
 	    env->e_dinode = unexpanded_env->e_dinode;
 
 	    syslog( LOG_DEBUG, "expand expansion env %s dinode %d", env->e_id,
-		    env->e_dinode );
+		    (int)env->e_dinode );
 
 	    /* fill in env */
 	    if ( domain != NULL ) {
@@ -523,7 +523,7 @@ expand( struct envelope *unexpanded_env )
 		}
 
 		syslog( LOG_DEBUG, "expand errors env %s dinode %d", env->e_id,
-			env->e_dinode );
+			(int)env->e_dinode );
 
 		line_file_free( env->e_err_text );
 		env->e_err_text = NULL;

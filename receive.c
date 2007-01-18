@@ -59,14 +59,13 @@ extern SSL_CTX	*ctx;
 
 #include <snet.h>
 
-#include "red.h"
 #include "bdb.h"
 #include "denser.h"
 #include "queue.h"
 #include "ll.h"
 #include "envelope.h"
 #include "expand.h"
-#include "address.h"
+#include "red.h"
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"

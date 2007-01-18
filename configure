@@ -2725,7 +2725,7 @@ echo "$as_me: WARNING: simta requires a local mailer: see INSTALL" >&2;}
 
 
 if test x_$GCC = x_yes; then
-    OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes -Wconversion"}
+    OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes"}
 fi
 
 

@@ -34,7 +34,6 @@
 
 #include <snet.h>
 
-#include "red.h"
 #include "wildcard.h"
 #include "denser.h"
 #include "ll.h"
@@ -44,6 +43,7 @@
 #include "line_file.h"
 #include "smtp.h"
 #include "expand.h"
+#include "red.h"
 #include "simta.h"
 #include "mx.h"
 

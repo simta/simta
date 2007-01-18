@@ -26,7 +26,6 @@
 
 #include <db.h>
 
-#include "red.h"
 #include "mx.h"
 #include "denser.h"
 #include "line_file.h"
@@ -34,7 +33,7 @@
 #include "ll.h"
 #include "envelope.h"
 #include "expand.h"
-#include "address.h"
+#include "red.h"
 #include "header.h"
 #include "simta.h"
 #include "bdb.h"

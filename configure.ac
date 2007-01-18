@@ -34,7 +34,7 @@ PROG_PROCMAIL
 WARN_LOCALDELIVERY
 
 if test x_$GCC = x_yes; then
-    OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes -Wconversion"}
+    OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes"}
 fi
 AC_SUBST(OPTOPTS)
 

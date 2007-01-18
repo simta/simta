@@ -31,11 +31,11 @@
 #include <stdio.h>
 #include <db.h>
 
-#include "red.h"
 #include "denser.h"
 #include "ll.h"
 #include "queue.h"
 #include "expand.h"
+#include "red.h"
 #include "envelope.h"
 #include "ml.h"
 #include "simta.h"
