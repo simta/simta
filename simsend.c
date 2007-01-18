@@ -434,7 +434,7 @@ main( int argc, char *argv[] )
     env->e_dinode = sbuf.st_ino;
 
     syslog( LOG_DEBUG, "%s env %s dinode %d", argv[ 0 ], env->e_id,
-	    env->e_dinode );
+	    (int)(env->e_dinode));
 
     /* close Dfile */
     if ( fclose( dfile ) != 0 ) {
