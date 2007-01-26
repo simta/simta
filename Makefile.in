@@ -47,6 +47,7 @@ SIMALIASOBJ=	@EXPANDER_OBJ@ simalias.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
 SLAOBJ=		sla.o
+SIMCKOBJ=	simck.o base64.o
 
 SIMTALOG=LOG_MAIL
 SIMTA_ALIAS_DB=	@aliasdb@
@@ -106,6 +107,10 @@ install : all FRC
 
 simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+simck : libsnet/libsnet.a ${SIMCKOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simck ${SIMCKOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
 
 sla : libsnet/libsnet.a ${SLAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
