@@ -1055,8 +1055,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
 	line_no++;
-	tv.tv_sec = simta_receive_wait;
-	tv.tv_usec = 0;
 
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
