@@ -103,6 +103,10 @@ int			_start_tls( SNET *snet );
 int 			_post_tls( SNET *snet );
 unsigned char		md_value[ EVP_MAX_MD_SIZE ];
 char			md_b64[ SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 ];
+EVP_MD_CTX		mdctx;
+unsigned int		mdctx_bytes;
+int			md_len;
+char			md_bytes[ 11 ];
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
@@ -556,6 +560,14 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
+#ifdef HAVE_LIBSSL 
+    if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+	EVP_MD_CTX_init( &mdctx );
+	EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
+	mdctx_bytes = 0;
+    }
+#endif /* HAVE_LIBSSL */
+
     mail_success++;
 
     syslog( LOG_INFO, "Receive %s: From <%s> Accepted", env->e_id,
@@ -593,6 +605,7 @@ f_rcpt_usage( SNET *snet )
     static int
 f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 {
+    int				addr_len;
     int				rc;
     char			*addr, *domain;
     struct simta_red		*red;
@@ -682,6 +695,16 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	 */
 	if (( rc = check_hostname( domain )) != 0 ) {
 	    if ( rc < 0 ) {
+
+#ifdef HAVE_LIBSSL 
+		if (( simta_mail_filter != NULL ) &&
+			( simta_checksum_md != NULL )) {
+		    addr_len = strlen( addr );
+		    EVP_DigestUpdate( &mdctx, addr, addr_len );
+		    mdctx_bytes += addr_len;
+		}
+#endif /* HAVE_LIBSSL */
+
 		syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed", domain );
 		if ( snet_writef( snet, "%d %s: temporary DNS error\r\n", 451,
 			domain ) < 0 ) {
@@ -764,6 +787,16 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		/* since we gave banner, must return RECEIVE_OK
 		 * to prevent dup 421 message.  OK?
 		 */
+
+#ifdef HAVE_LIBSSL 
+		if (( simta_mail_filter != NULL ) &&
+			( simta_checksum_md != NULL )) {
+		    addr_len = strlen( addr );
+		    EVP_DigestUpdate( &mdctx, addr, addr_len );
+		    mdctx_bytes += addr_len;
+		}
+#endif /* HAVE_LIBSSL */
+
 		return( RECEIVE_OK );
 
 	    case LOCAL_ADDRESS_RBL:
@@ -853,6 +886,14 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_CLOSECONNECTION );
     }
 
+#ifdef HAVE_LIBSSL 
+    if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+	addr_len = strlen( addr );
+	EVP_DigestUpdate( &mdctx, addr, addr_len );
+	mdctx_bytes += addr_len;
+    }
+#endif /* HAVE_LIBSSL */
+
     return( RECEIVE_OK );
 }
 
@@ -879,10 +920,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     char				daytime[ 30 ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
     off_t				data_size = 0;
-#ifdef HAVE_LIBSSL
-    EVP_MD_CTX				mdctx;
-    int					md_len;
-#endif /* HAVE_LIBSSL */
 
     data_attempt++;
 
@@ -1014,13 +1051,6 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     /* start in header mode */
     header = 1;
 
-#ifdef HAVE_LIBSSL 
-    if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
-	EVP_MD_CTX_init( &mdctx );
-	EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
-    }
-#endif /* HAVE_LIBSSL */
-
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
@@ -1044,6 +1074,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 #ifdef HAVE_LIBSSL 
 	if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
 	    EVP_DigestUpdate( &mdctx, line, line_len );
+	    mdctx_bytes += line_len;
 	}
 #endif /* HAVE_LIBSSL */
 
@@ -1226,6 +1257,8 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    EVP_MD_CTX_cleanup( &mdctx );
 	    memset( md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
 	    base64_e( md_value, md_len, md_b64 );
+	    memset( md_bytes, 0, 11 );
+	    sprintf( md_bytes, "%d", mdctx_bytes );
 	}
 #endif /* HAVE_LIBSSL */
 
@@ -2521,7 +2554,7 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 9 ];
+    char		*filter_envp[ 10 ];
     char		fname[ MAXPATHLEN + 1 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
@@ -2610,12 +2643,17 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	}
 
 	if ( simta_checksum_md != NULL ) {
-	    if (( filter_envp[ 7 ] = env_string( "SIMTA_CHECKSUM",
+	    if (( filter_envp[ 7 ] = env_string( "SIMTA_CHECKSUM_SIZE",
+		    md_bytes )) == NULL ) {
+		exit( MESSAGE_TEMPFAIL );
+	    }
+
+	    if (( filter_envp[ 8 ] = env_string( "SIMTA_CHECKSUM",
 		    md_b64 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    filter_envp[ 8 ] = NULL;
+	    filter_envp[ 9 ] = NULL;
 	} else {
 	    filter_envp[ 7 ] = NULL;
 	}

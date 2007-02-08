@@ -1,4 +1,6 @@
 internal
+    - New Content Fileter environment variable, SIMTA_CHECKSUM_SIZE
+    - Content filter checksum now includes all non-failed rcpt to addresses
     - Added simck test program
     - Supressed compiler warnings
     - New queue scheduler timing prefers working to reading
