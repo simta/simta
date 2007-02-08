@@ -1,4 +1,5 @@
 internal
+    - SMTP User not local error message change includes local hostname
     - Change MIN_WORK_TIME default to 300 seconds
     - New Content Fileter environment variable, SIMTA_CHECKSUM_SIZE
     - Content filter checksum now includes all non-failed rcpt to addresses

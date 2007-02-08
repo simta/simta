@@ -732,8 +732,8 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			"Receive %s: To <%s> From <%s> Failed: "
 			"Domain not local", env->e_id, addr, env->e_mail );
 		if ( snet_writef( snet,
-			"551 User not local; please try <%s>\r\n",
-			domain ) < 0 ) {
+			"551 User not local to %s; please try <%s>\r\n",
+			simta_hostname, domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
