@@ -784,9 +784,6 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
-		/* since we gave banner, must return RECEIVE_OK
-		 * to prevent dup 421 message.  OK?
-		 */
 
 #ifdef HAVE_LIBSSL 
 		if (( simta_mail_filter != NULL ) &&
