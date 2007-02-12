@@ -914,6 +914,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     struct tm				*tm;
     FILE				*dff = NULL;
     struct timeval			tv;
+    struct timeval			tv_data;
+    struct timeval			tv_filter = { 0, 0 };
+    struct timeval			tv_now;
     struct timespec			req;
     time_t				clock;
     struct stat				sbuf;
@@ -1048,6 +1051,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_CLOSECONNECTION );
     }
 
+    if ( gettimeofday( &tv_data, NULL ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
+	return( RECEIVE_SYSERROR );
+    }
+
     /* start in header mode */
     header = 1;
 
@@ -1084,36 +1092,35 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	}
 
+	/* Add strlen plus "\r\n" */
+	data_size += line_len + 2;
+
 	if ( simta_max_message_size > 0 ) {
 	    /* If we've already reached max size, continue reading lines
 	     * until the '.' otherwise, check message size.
 	     */
 	    if ( data_message_size_error ) {
 		continue;
-	    } else {
-		/* Add strlen plus "\r\n" */
-		data_size += line_len + 2;
-		if ( data_size > simta_max_message_size ) { 
-		    data_message_size_error++;
+	    } else if ( data_size > simta_max_message_size ) { 
+		data_message_size_error++;
 
-		    /* Cleanup local file */
-		    if ( fclose( dff ) != 0 ) {
-			syslog( LOG_ERR, "f_data fclose: %m" );
-			data_errors++;
-		    }
-
-		    dff = NULL;
-
-		    if ( unlink( dfile_fname ) < 0 ) {
-			syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-			data_errors++;
-		    }
-		    if ( data_errors ) {
-			return( RECEIVE_SYSERROR );
-		    }
-
-		    continue;
+		/* Cleanup local file */
+		if ( fclose( dff ) != 0 ) {
+		    syslog( LOG_ERR, "f_data fclose: %m" );
+		    data_errors++;
 		}
+
+		dff = NULL;
+
+		if ( unlink( dfile_fname ) < 0 ) {
+		    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+		    data_errors++;
+		}
+		if ( data_errors ) {
+		    return( RECEIVE_SYSERROR );
+		}
+
+		continue;
 	    }
 	}
 
@@ -1171,8 +1178,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     /* Check size */
     if ( data_message_size_error ) {
 	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
-		"Message too large", env->e_id, 
-		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname );
+		"Message too large (%d bytes)", env->e_id, 
+		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname,
+		data_size );
 	if ( snet_writef( snet, "552 (%s): Message too large\r\n",
 		env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
@@ -1260,7 +1268,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 #endif /* HAVE_LIBSSL */
 
-	syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
+	if ( gettimeofday( &tv_filter, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
+	    return( RECEIVE_SYSERROR );
+	}
+
 	message_result = mail_filter( env, dfile_fd, &smtp_message );
 
 	if ( close( dfile_fd ) != 0 ) {
@@ -1270,6 +1282,21 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	    return( RECEIVE_SYSERROR );
 	}
+    }
+
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
+	return( RECEIVE_SYSERROR );
+    }
+
+    if ( tv_filter.tv_sec == 0 ) {
+	syslog( LOG_INFO, "Receive Data Metric: %d bytes in %d seconds",
+		(int)data_size, (int)(tv_now.tv_sec - tv_data.tv_sec));
+    } else {
+	syslog( LOG_INFO, "Receive Data Metric: %d bytes in %d seconds, "
+		" filter %d seconds", (int)data_size,
+		(int)(tv_filter.tv_sec - tv_data.tv_sec),
+		(int)(tv_now.tv_sec - tv_filter.tv_sec));
     }
 
     switch ( message_result ) {
