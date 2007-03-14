@@ -78,6 +78,17 @@ extern SSL_CTX	*ctx;
 #include "simta_ldap.h"
 #endif
 
+#define RECEIVE_RBL_UNKNOWN	0
+#define RECEIVE_RBL_BLOCKED	1
+#define RECEIVE_RBL_NOT_BLOCKED	2
+
+#define BYTE_LEN		10
+
+#define	MDCTX_UNINITILIZED	0
+#define	MDCTX_READY		1
+#define	MDCTX_IN_USE		2
+#define	MDCTX_FINAL		3
+
 #define SIMTA_EXTENSION_SIZE    (1<<0)
 
 extern char		*version;
@@ -104,9 +115,10 @@ int 			_post_tls( SNET *snet );
 unsigned char		md_value[ EVP_MAX_MD_SIZE ];
 char			md_b64[ SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 ];
 EVP_MD_CTX		mdctx;
+int			mdctx_status = MDCTX_UNINITILIZED;
 unsigned int		mdctx_bytes;
 int			md_len;
-char			md_bytes[ 11 ];
+char			md_bytes[ BYTE_LEN + 1 ];
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
@@ -562,9 +574,17 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 
 #ifdef HAVE_LIBSSL 
     if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
-	EVP_MD_CTX_init( &mdctx );
-	EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
-	mdctx_bytes = 0;
+	if ( mdctx_status != MDCTX_READY ) {
+	    if ( mdctx_status == MDCTX_UNINITILIZED ) {
+		EVP_MD_CTX_init( &mdctx );
+	    } else if ( mdctx_status == MDCTX_IN_USE ) {
+		EVP_DigestFinal_ex( &mdctx, md_value, &md_len );
+	    }
+
+	    EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
+	    mdctx_status = MDCTX_READY;
+	    mdctx_bytes = 0;
+	}
     }
 #endif /* HAVE_LIBSSL */
 
@@ -702,6 +722,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    addr_len = strlen( addr );
 		    EVP_DigestUpdate( &mdctx, addr, addr_len );
 		    mdctx_bytes += addr_len;
+		    mdctx_status = MDCTX_IN_USE;
 		}
 #endif /* HAVE_LIBSSL */
 
@@ -791,6 +812,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 		    addr_len = strlen( addr );
 		    EVP_DigestUpdate( &mdctx, addr, addr_len );
 		    mdctx_bytes += addr_len;
+		    mdctx_status = MDCTX_IN_USE;
 		}
 #endif /* HAVE_LIBSSL */
 
@@ -888,6 +910,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	addr_len = strlen( addr );
 	EVP_DigestUpdate( &mdctx, addr, addr_len );
 	mdctx_bytes += addr_len;
+	mdctx_status = MDCTX_IN_USE;
     }
 #endif /* HAVE_LIBSSL */
 
@@ -903,9 +926,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     int					line_no = 0;
     int					data_errors = 0;
     int					data_message_size_error = 0;
-    int					received_count = 0;
     int					message_result;
-    u_int				line_len;
+    int					result;
+    unsigned int			line_len;
     char				*line;
     char				*smtp_message = NULL;
     struct tm				*tm;
@@ -920,6 +943,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     char				daytime[ 30 ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
     off_t				data_size = 0;
+    struct receive_headers		r;
 
     data_attempt++;
 
@@ -1056,6 +1080,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     /* start in header mode */
     header = 1;
 
+    memset( &r, 0, sizeof( struct receive_headers ));
+    r.r_env = env;
+
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( snet, &tv )) != NULL ) {
@@ -1082,10 +1109,12 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 #endif /* HAVE_LIBSSL */
 
 	if ( header == 1 ) {
-	    if ( header_end( line_no, line ) != 0 ) {
+	    if (( result = header_text( line_no, line, &r )) != 0 ) {
+		if ( result < 0 ) {
+		    return( RECEIVE_SYSERROR );
+		}
+
 		header = 0;
-	    } else if ( strncasecmp( line, "Received:", 9 ) == 0 ) {
-		received_count++;
 	    }
 	}
 
@@ -1121,7 +1150,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	}
 
-	if (( received_count <= simta_max_received_headers ) && 
+	if (( r.r_received_count <= simta_max_received_headers ) && 
 		( data_errors == 0 )) {
 	    if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		syslog( LOG_ERR, "f_data fprintf: %m" );
@@ -1186,11 +1215,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    if ( received_count > simta_max_received_headers ) { /* message rejection */
+    if ( r.r_received_count > simta_max_received_headers ) {
 	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s:"
 		"Too many received headers (%d)", env->e_id, 
 		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname,
-		received_count );
+		r.r_received_count );
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data fclose: %m" );
 	}
@@ -1257,11 +1286,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 #ifdef HAVE_LIBSSL 
 	if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
 	    EVP_DigestFinal_ex( &mdctx, md_value, &md_len );
-	    EVP_MD_CTX_cleanup( &mdctx );
+	    mdctx_status = MDCTX_FINAL;
 	    memset( md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
 	    base64_e( md_value, md_len, md_b64 );
-	    memset( md_bytes, 0, 11 );
-	    sprintf( md_bytes, "%d", mdctx_bytes );
+	    snprintf( md_bytes, BYTE_LEN, "%d", mdctx_bytes );
 	}
 #endif /* HAVE_LIBSSL */
 
@@ -1270,6 +1298,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
+	env->e_mid = r.r_mid;
+
+	syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
 	message_result = mail_filter( env, dfile_fd, &smtp_message );
 
 	if ( close( dfile_fd ) != 0 ) {
@@ -1318,13 +1349,24 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	data_success++;
 
-	syslog( LOG_INFO, "Receive %s: Message Accepted: [%s] %s %d: %s",
-		env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname, (int)sbuf.st_size,
-		smtp_message ? smtp_message : "accepted" );
+	if ( smtp_message != NULL ) {
+	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
+		    "MID <%s> [%s] %s size %d: %s",
+		    env->e_id, env->e_mid ? env->e_mid : "NULL",
+		    inet_ntoa( receive_sin->sin_addr ),
+		    receive_remote_hostname,
+		    (int)sbuf.st_size,
+		    smtp_message );
+	} else {
+	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
+		    "MID <%s> [%s] %s size %d",
+		    env->e_id, env->e_mid ? env->e_mid : "NULL",
+		    inet_ntoa( receive_sin->sin_addr ),
+		    receive_remote_hostname,
+		    (int)sbuf.st_size );
+	}
 
-	if ( snet_writef( snet, "250 (%s): %s\r\n", env->e_id,
-		smtp_message ? smtp_message : "accepted" ) < 0 ) {
+	if ( snet_writef( snet, "250 (%s): Accepted\r\n", env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -1343,12 +1385,14 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	syslog( LOG_INFO, "Receive %s: Message Deleted after acceptance: "
-		"[%s] %s: %s", env->e_id, inet_ntoa( receive_sin->sin_addr ),
+		"MID <%s> [%s] %s size %d: %s",
+		env->e_id, env->e_mid ? env->e_mid : "NULL",
+		inet_ntoa( receive_sin->sin_addr ),
 		receive_remote_hostname,
+		(int)sbuf.st_size,
 		smtp_message ? smtp_message : "no message" );
 
-	if ( snet_writef( snet, "250 content filter %s: %s\r\n", env->e_id,
-		smtp_message ? smtp_message : "accepted and deleted" ) < 0 ) {
+	if ( snet_writef( snet, "250 (%s): Accepted\r\n", env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -1366,20 +1410,41 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: %s",
+	syslog( LOG_INFO, "Receive %s: Message Failed: "
+		"MID <%s> [%s] %s size %d: %s",
+		env->e_id, env->e_mid ? env->e_mid : "NULL",
 		inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname, env->e_id,
+		receive_remote_hostname,
+		(int)sbuf.st_size,
 		smtp_message ? smtp_message : "no message" );
 
-	if ( snet_writef( snet, "554 content filter %s: %s\r\n", env->e_id,
-		smtp_message ? smtp_message : "rejected" ) < 0 ) {
-	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
+	if ( simta_data_url != NULL ) {
+	    if ( snet_writef( snet, "554 Transaction failed: %s\r\n",
+		    simta_data_url ) < 0 ) {
+		syslog( LOG_ERR, "f_data snet_writef: %m" );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	} else {
+	    if ( snet_writef( snet, "554 Transaction failed\r\n" ) < 0 ) {
+		syslog( LOG_ERR, "f_data snet_writef: %m" );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
 	}
 
 	break;
 
+    default:
+	smtp_message = "Bad CONTENT_FILTER return code";
+
     case MESSAGE_TEMPFAIL:
+	syslog( LOG_INFO, "Receive %s: Message Tempfailed: "
+		"MID <%s> [%s] %s size %d: %s",
+		env->e_id, env->e_mid ? env->e_mid : "NULL",
+		inet_ntoa( receive_sin->sin_addr ),
+		receive_remote_hostname,
+		(int)sbuf.st_size,
+		smtp_message ? smtp_message : "no message" );
+
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	    env_tfile_unlink( env );
@@ -1390,22 +1455,14 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    return( RECEIVE_SYSERROR );
 	}
 
-	syslog( LOG_INFO, "Receive %s: Message Tempfailed: [%s] %s: %s",
-		env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname,
-		smtp_message ? smtp_message : "no message" );
-
-	if ( snet_writef( snet, "452 content filter %s: %s\r\n", env->e_id,
-		smtp_message ? smtp_message :
-		"Temporary system failure" ) < 0 ) {
+	if ( snet_writef( snet, "451 Requested action aborted: %s\r\n",
+		simta_data_url ? simta_data_url :
+		"local error in processing" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
 	break;
-
-    default:
-	panic( "f_data mail_filter return out of range" );
     }
 
     if ( smtp_message != NULL ) {
@@ -2407,6 +2464,12 @@ closeconnection:
 
     reset( env );
 
+#ifdef HAVE_LIBSSL 
+    if ( mdctx_status != MDCTX_UNINITILIZED ) {
+	EVP_MD_CTX_cleanup( &mdctx );
+    }
+#endif /* HAVE_LIBSSL */
+
     if (( tv_start.tv_sec != 0 ) &&
 	    (( r = gettimeofday( &tv_stop, NULL )) != 0 )) {
 	if ( r != 0 ) {
@@ -2576,7 +2639,7 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 10 ];
+    char		*filter_envp[ 11 ];
     char		fname[ MAXPATHLEN + 1 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
@@ -2664,20 +2727,25 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
+	if (( filter_envp[ 7 ] = env_string( "SIMTA_MID",
+		env->e_mid )) == NULL ) {
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
 	if ( simta_checksum_md != NULL ) {
-	    if (( filter_envp[ 7 ] = env_string( "SIMTA_CHECKSUM_SIZE",
+	    if (( filter_envp[ 8 ] = env_string( "SIMTA_CHECKSUM_SIZE",
 		    md_bytes )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    if (( filter_envp[ 8 ] = env_string( "SIMTA_CHECKSUM",
+	    if (( filter_envp[ 9 ] = env_string( "SIMTA_CHECKSUM",
 		    md_b64 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    filter_envp[ 9 ] = NULL;
+	    filter_envp[ 10 ] = NULL;
 	} else {
-	    filter_envp[ 7 ] = NULL;
+	    filter_envp[ 8 ] = NULL;
 	}
 
 

@@ -131,6 +131,7 @@ extern char				*simta_dir_fast;
 extern char				*simta_dir_slow;
 extern char				*simta_dir_dead;
 extern char				*simta_dir_local;
+extern char				*simta_data_url;
 extern char				*simta_reverse_url;
 extern char				*simta_domain;
 extern char				*simta_mail_filter;

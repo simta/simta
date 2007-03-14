@@ -275,6 +275,11 @@ env_reset( struct envelope *env )
 	env->e_list_next = NULL;
 	env->e_list_prev = NULL;
 
+	if ( env->e_mid != NULL ) {
+	    free( env->e_mid );
+	    env->e_mid = NULL;
+	}
+
 	if ( env->e_mail != NULL ) {
 	    free( env->e_mail );
 	    env->e_mail = NULL;

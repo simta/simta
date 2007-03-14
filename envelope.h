@@ -38,6 +38,7 @@ struct envelope {
     struct timeval	e_dtime;
     char		*e_hostname;
     char		*e_id;
+    char		*e_mid;
 };
 
 #define ENV_AGE_UNKNOWN		0

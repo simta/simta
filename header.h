@@ -1,4 +1,15 @@
 /**********          header.h          **********/
+
+#define STRING_MID		"Message-ID"
+#define STRING_MID_LEN		10
+#define STRING_RECEIVED		"Received"
+#define STRING_RECEIVED_LEN	8
+
+/* for struct receive_headers->r_state */
+#define R_HEADER_READ		0
+#define R_HEADER_END		1
+#define R_HEADER_MID		2
+
 struct header {
     char                *h_key;
     struct line         *h_line;
@@ -12,6 +23,14 @@ struct string_address {
     char		sa_swap_char;
 };
 
+struct receive_headers {
+    int				r_state;
+    char			*r_mid;
+    int				r_mid_set;
+    int				r_received_count;
+    struct envelope		*r_env;
+};
+
 
 /* public */
 int	parse_emailaddr( int, char *, char **, char ** );
@@ -21,7 +40,7 @@ char	*token_domain( char * );
 char	*token_quoted_string( char * );
 char	*token_dot_atom( char * );
 int	header_timestamp( struct envelope *, FILE * );
-int	header_end( int, char * );
+int	header_text( int, char *, struct receive_headers * );
 int	header_punt( struct line_file * );
 int	header_correct( int, struct line_file *, struct envelope * );
 int	header_file_out( struct line_file *, FILE * );

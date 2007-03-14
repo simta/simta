@@ -299,7 +299,7 @@ main( int argc, char *argv[] )
 	}
 
 	if ( header == 1 ) {
-	    if ( header_end( line_no, line ) != 0 ) {
+	    if ( header_text( line_no, line, NULL ) != 0 ) {
 		if (( result = header_correct( read_headers, lf, env ))
 			!= 0 ) {
 		    if ( result > 0 ) {

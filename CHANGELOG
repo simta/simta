@@ -12,6 +12,16 @@ internal
     - Added better penalty box logging
     - bugfix: CTX init function added
 
+0.7.3
+    - SMTP_DATA_URL config file option added
+    - refined content filter logging
+    - don't publish content filter results via SMTP
+
+0.7.2
+    - Added SIMTA_MID for the SMTP Receive content filter
+    - New Content Fileter environment variable, SIMTA_CHECKSUM_SIZE
+    - Content filter checksum now includes all non-failed rcpt to addresses
+
 0.7.1
     - checksum bugfix
 

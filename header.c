@@ -29,6 +29,7 @@
 #include <pwd.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <syslog.h>
 
 #include "denser.h"
 #include "queue.h"
@@ -79,6 +80,7 @@ int	parse_recipients( struct envelope *, struct line *, char * );
 int	match_sender( struct line_token *, struct line_token *, char * );
 int	line_token_unfold( struct line_token * );
 int	header_lines( struct line_file *, struct header *, int );
+int	mid_text( struct receive_headers *, char * );
 
 
 struct header headers_punt[] = {
@@ -345,6 +347,107 @@ header_timestamp( struct envelope *env, FILE *file )
 }
 
 
+    int
+mid_text( struct receive_headers *r, char *line )
+{
+    char			*start;
+    char			*end;
+
+    if (( start = skip_cws( line )) != NULL ) {
+	if ( r->r_mid != NULL ) {
+	    free( r->r_mid );
+	    r->r_mid = NULL;
+	    r->r_state = R_HEADER_READ;
+	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+		    " illegal extra content", r->r_env->e_id );
+	    return( 0 );
+	}
+
+	if ( *start != '<' ) {
+	    r->r_state = R_HEADER_READ;
+	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+		    " expected '<' character", r->r_env->e_id );
+	    return( 0 );
+	}
+
+	start++;
+
+	if ( *start == '"' ) {
+	    if (( end = token_quoted_string( start )) == NULL ) {
+		r->r_state = R_HEADER_READ;
+		syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+			" bad LHS quoted string", r->r_env->e_id );
+		return( 0 );
+	    }
+
+	} else {
+	    if (( end = token_dot_atom( start )) == NULL ) {
+		r->r_state = R_HEADER_READ;
+		syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+			" bad LHS dot atom text", r->r_env->e_id );
+		return( 0 );
+	    }
+	}
+
+	end++;
+
+	if ( *end != '@' ) {
+	    r->r_state = R_HEADER_READ;
+	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+		    " expected '@'", r->r_env->e_id );
+	    return( 0 );
+	}
+
+	end++;
+
+	if ( *end == '[' ) {
+	    if (( end = token_domain_literal( end )) == NULL ) {
+		r->r_state = R_HEADER_READ;
+		syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+			" bad RHS domain literal", r->r_env->e_id );
+		return( 0 );
+	    }
+
+	} else {
+	    if (( end = token_dot_atom( end )) == NULL ) {
+		r->r_state = R_HEADER_READ;
+		syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+			" bad RHS dot atom text", r->r_env->e_id );
+		return( 0 );
+	    }
+	}
+
+	end++;
+
+	if ( *end != '>' ) {
+	    r->r_state = R_HEADER_READ;
+	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+		    " expected '>'", r->r_env->e_id );
+	    return( 0 );
+	}
+
+	*end = '\0';
+	if (( r->r_mid = strdup( start )) == NULL ) {
+	    *end = '>';
+	    syslog( LOG_ERR, "mid_text strdup: %m" );
+	    return( 1 );
+	}
+	*end = '>';
+
+	if ( skip_cws( end + 1 ) != NULL ) {
+	    free( r->r_mid );
+	    r->r_mid = NULL;
+	    r->r_state = R_HEADER_READ;
+	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
+		    " illegal extra content", r->r_env->e_id );
+	    return( 0 );
+	}
+    }
+
+    return( 0 );
+}
+
+
     /* return 0 if line is the next line in header block lf */
     /* rfc2822, 2.1 General Description:
      * A message consists of header fields (collectively called "the header
@@ -359,26 +462,48 @@ header_timestamp( struct envelope *env, FILE *file )
      * SP, ASCII value 32) and horizontal tab (HTAB, ASCII value 9)
      * characters (together known as the white space characters, WSP
      */
+    /* this only takes two header types in to account, so it is currently
+     * a state machine.  If additional headers need to be added, a better
+     * strategy might be to cache header lines in core and do analysis on
+     * complete header fields one at a time.
+     */
+
 
     int
-header_end( int line_no, char *line )
+header_text( int line_no, char *line, struct receive_headers *r )
 {
     char		*c;
+    int			header_len;
 
     /* null line means that message data begins */
-    if (( *line ) == '\0' ) {
+    if ((( *line ) == '\0' ) ||
+	    (( r != NULL ) && ( r->r_state == R_HEADER_END ))) {
+	/* blank line, or headers already over */
+	if ( r != NULL ) {
+	    r->r_state = R_HEADER_END;
+	}
 	return( 1 );
-    }
 
-    if (( *line == ' ' ) || ( *line == '\t' )) {
-	/* line could be FWS if it's not the first line */
-	if ( line_no > 1 ) {
-	    return( 0 );
+    } else if (( *line == ' ' ) || ( *line == '\t' )) {
+	/* if line is not the first line it could be header FWS */
+	if ( line_no == 1 ) {
+	    if ( r != NULL ) {
+		r->r_state = R_HEADER_END;
+	    }
+	    return( 1 );
+
+	} else if (( r != NULL ) && ( r->r_state == R_HEADER_MID )) {
+	    if ( mid_text( r, line ) != 0 ) {
+		return( -1 );
+	    }
 	}
 
     } else {
+	/* line could be started with a new header */
+	if ( r != NULL ) {
+	    r->r_state = R_HEADER_READ;
+	}
 
-	/* if line syntax is a header, return 0 */
 	for ( c = line; *c != ':'; c++ ) {
 	    /* colon ascii value is 58 */
 	    if (( *c < 33 ) || ( *c > 126 )) {
@@ -386,13 +511,47 @@ header_end( int line_no, char *line )
 	    }
 	}
 
-	if (( *c == ':' ) && (( c - line ) > 0 )) {
-	    /* proper field name followed by a colon */
-	    return( 0 );
+	/* check to e if it's a proper field name followed by a colon */
+	if (( *c == ':' ) && (( header_len = ( c - line )) > 0 )) {
+	    if ( r == NULL ) {
+		return( 0 );
+	    }
+
+	    if (( header_len == STRING_MID_LEN ) &&
+		    ( strncasecmp( line, STRING_MID, STRING_MID_LEN ) == 0 )) {
+		if ( r->r_mid_set != 0 ) {
+		    syslog( LOG_ERR,
+			    "Receive %s: Illegal Duplicate Message-ID Headers",
+			    r->r_env->e_id );
+		    if ( r->r_mid != NULL ) {
+			free( r->r_mid );
+			r->r_mid = NULL;
+		    }
+		    return( 0 );
+		}
+		r->r_mid_set = 1;
+		r->r_state = R_HEADER_MID;
+
+		if ( mid_text( r, c + 1 ) != 0 ) {
+		    return( -1 );
+		}
+
+	    } else if (( header_len == STRING_RECEIVED_LEN ) &&
+		    ( strncasecmp( line, STRING_RECEIVED,
+		    STRING_RECEIVED_LEN ) == 0 )) {
+		r->r_received_count++;
+	    }
+
+	} else {
+	    /* not a proper header */
+	    if ( r != NULL ) {
+		r->r_state = R_HEADER_END;
+	    }
+	    return( 1 );
 	}
     }
 
-    return( 1 );
+    return( 0 );
 }
 
 
