@@ -872,10 +872,13 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 				env->e_mail, rbl_found->rbl_domain,
 				inet_ntoa( receive_sin->sin_addr ),
 				receive_remote_hostname );
-			snet_writef( snet,
+			if ( snet_writef( snet,
 				"550 No access from IP %s. See %s\r\n",
 				inet_ntoa( receive_sin->sin_addr ),
-				rbl_found->rbl_url );
+				rbl_found->rbl_url ) != 0 ) {
+			    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+			    return( RECEIVE_CLOSECONNECTION );
+			}
 			return( RECEIVE_OK );
 		    }
 		}
