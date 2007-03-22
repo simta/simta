@@ -924,18 +924,20 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     static int
 f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 {
-    int					dfile_fd;
+    FILE				*dff = NULL;
+    int					dfile_fd = -1;
+    int					dfile_on_disk = 0;
+    int					tfile_on_disk = 0;
+    int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
     int					line_no = 0;
     int					data_errors = 0;
-    int					data_message_size_error = 0;
     int					message_result;
     int					result;
     unsigned int			line_len;
     char				*line;
-    char				*smtp_message = NULL;
+    char				*message = NULL;
     struct tm				*tm;
-    FILE				*dff = NULL;
     struct timeval			tv;
     struct timeval			tv_data;
     struct timeval			tv_filter = { 0, 0 };
@@ -947,6 +949,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     char				dfile_fname[ MAXPATHLEN + 1 ];
     off_t				data_size = 0;
     struct receive_headers		r;
+
+    memset( &r, 0, sizeof( struct receive_headers ));
+    r.r_env = env;
 
     data_attempt++;
 
@@ -1020,18 +1025,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    syslog( LOG_ERR, "f_data open %s: %m", dfile_fname );
 	    return( RECEIVE_SYSERROR );
 	}
+	dfile_on_disk++;
 
 	if (( dff = fdopen( dfile_fd, "w" )) == NULL ) {
 	    syslog( LOG_ERR, "f_data fdopen: %m" );
-	    if ( close( dfile_fd ) != 0 ) {
-		syslog( LOG_ERR, "f_data close: %m" );
-	    }
-
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    }
-
-	    return( RECEIVE_SYSERROR );
+	    goto error;
 	}
 
 	clock = time( &clock );
@@ -1049,42 +1047,24 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		receive_remote_hostname , inet_ntoa( receive_sin->sin_addr ),
 		simta_hostname, env->e_id, daytime, tz( tm )) < 0 ) {
 	    syslog( LOG_ERR, "f_data fprintf: %m" );
-	    if ( fclose( dff ) != 0 ) {
-		syslog( LOG_ERR, "f_data fclose: %m" );
-	    }
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    }
-	    return( RECEIVE_SYSERROR );
+	    goto error;
 	}
     }
 
     if ( snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n",
 	    354 ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
-
-	if ( dff != NULL ) {
-	    if ( fclose( dff ) != 0 ) {
-		syslog( LOG_ERR, "f_data fclose: %m" );
-	    }
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    }
-	}
-
-	return( RECEIVE_CLOSECONNECTION );
+	ret_code = RECEIVE_CLOSECONNECTION;
+	goto error;
     }
 
     if ( gettimeofday( &tv_data, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
-	return( RECEIVE_SYSERROR );
+	goto error;
     }
 
     /* start in header mode */
     header = 1;
-
-    memset( &r, 0, sizeof( struct receive_headers ));
-    r.r_env = env;
 
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
@@ -1098,11 +1078,29 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    line++;
 	}
 
-	if ( simta_smtp_tarpit != 0 ) {
+	line_len = strlen( line );
+	/* Add strlen plus "\r\n" */
+	data_size += line_len + 2;
+
+	if (( simta_smtp_tarpit != 0 ) || ( data_errors != 0 )) {
+	    if ( dfile_on_disk != 0 ) {
+		if ( unlink( dfile_fname ) < 0 ) {
+		    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+		    goto error;
+		}
+		dfile_on_disk = 0;
+	    }
+
+	    if ( dff != NULL ) {
+		if ( fclose( dff ) != 0 ) {
+		    syslog( LOG_ERR, "f_data fclose: %m" );
+		    dff = NULL;
+		    goto error;
+		}
+		dff = NULL;
+	    }
 	    continue;
 	}
-
-	line_len = strlen( line );
 
 #ifdef HAVE_LIBSSL 
 	if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
@@ -1114,215 +1112,136 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	if ( header == 1 ) {
 	    if (( result = header_text( line_no, line, &r )) != 0 ) {
 		if ( result < 0 ) {
-		    return( RECEIVE_SYSERROR );
+		    goto error;
 		}
-
 		header = 0;
 	    }
 	}
 
-	/* Add strlen plus "\r\n" */
-	data_size += line_len + 2;
-
-	if ( simta_max_message_size > 0 ) {
+	if (( simta_max_message_size != 0 ) &&
+		( data_size > simta_max_message_size )) {
 	    /* If we've already reached max size, continue reading lines
 	     * until the '.' otherwise, check message size.
 	     */
-	    if ( data_message_size_error ) {
-		continue;
-	    } else if ( data_size > simta_max_message_size ) { 
-		data_message_size_error++;
-
-		/* Cleanup local file */
-		if ( fclose( dff ) != 0 ) {
-		    syslog( LOG_ERR, "f_data fclose: %m" );
-		    data_errors++;
-		}
-
-		dff = NULL;
-
-		if ( unlink( dfile_fname ) < 0 ) {
-		    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-		    data_errors++;
-		}
-		if ( data_errors ) {
-		    return( RECEIVE_SYSERROR );
-		}
-
-		continue;
+	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
+		    "Message too large", env->e_id, 
+		    inet_ntoa( receive_sin->sin_addr ),
+		    receive_remote_hostname );
+	    data_errors++;
+	    if (( message = strdup( "Message too large" )) == NULL ) {
+		syslog( LOG_ERR, "f_data strdup: %m" );
+		goto error;
 	    }
+	    continue;
 	}
 
-	if (( r.r_received_count <= simta_max_received_headers ) && 
-		( data_errors == 0 )) {
-	    if ( fprintf( dff, "%s\n", line ) < 0 ) {
-		syslog( LOG_ERR, "f_data fprintf: %m" );
-		data_errors++;
+	if ( r.r_received_count > simta_max_received_headers ) {
+	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s:"
+		    "Too many received headers", env->e_id, 
+		    inet_ntoa( receive_sin->sin_addr ),
+		    receive_remote_hostname );
+	    data_errors++;
+	    if (( message = strdup( "Too many received headers" )) == NULL ) {
+		syslog( LOG_ERR, "f_data strdup: %m" );
+		goto error;
 	    }
+	    continue;
+	}
+
+	if ( fprintf( dff, "%s\n", line ) < 0 ) {
+	    syslog( LOG_ERR, "f_data fprintf: %m" );
+	    goto error;
 	}
     }
 
     if ( line == NULL ) {	/* EOF */
 	syslog( LOG_NOTICE, "f_data %s: connection dropped", env->e_id );
-	if ( dff != NULL ) {
-	    if ( fclose( dff ) != 0 ) {
-		syslog( LOG_ERR, "f_data fclose: %m" );
-	    }
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    }
-	}
-	return( RECEIVE_CLOSECONNECTION );
+	ret_code = RECEIVE_CLOSECONNECTION;
+	goto error;
     }
 
-    if ( simta_smtp_tarpit  != 0 ) {
-	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
-		"Tarpit enabled", env->e_id, 
-		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname );
-	req.tv_sec = simta_smtp_tarpit;
-	req.tv_nsec = 0;
-	if ( nanosleep( &req, NULL ) != 0 ) {
-	    syslog( LOG_DEBUG, "Tarpit: Error nanosleep %m" );
-	}
-	if ( snet_writef( snet, "%d Requested action aborted: "
-		"local error in processing.\r\n", 451 ) < 0 ) {
-	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
-
-    if ( data_errors != 0 ) { /* syserror */
-	if ( dff != NULL ) {
-	    if ( fclose( dff ) != 0 ) {
-		syslog( LOG_ERR, "f_data fclose: %m" );
-	    }
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+    if (( data_errors ) || ( simta_smtp_tarpit )) {
+	message_result = MESSAGE_TEMPFAIL;
+	if ( simta_smtp_tarpit ) {
+	    if (( message = strdup( "Tarpit enabled" )) == NULL ) {
+		syslog( LOG_ERR, "f_data strdup: %m" );
+		goto error;
 	    }
 	}
-	return( RECEIVE_SYSERROR );
-    }
-
-    /* Check size */
-    if ( data_message_size_error ) {
-	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
-		"Message too large (%d bytes)", env->e_id, 
-		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname,
-		data_size );
-	if ( snet_writef( snet, "552 (%s): Message too large\r\n",
-		env->e_id ) < 0 ) {
-	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
-    }
-
-    if ( r.r_received_count > simta_max_received_headers ) {
-	syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s:"
-		"Too many received headers (%d)", env->e_id, 
-		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname,
-		r.r_received_count );
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
-	}
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	}
-
-	if ( snet_writef( snet, "554 (%s): Too many received headers\r\n",
-		env->e_id ) < 0 ) {
-	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-
-	return( RECEIVE_OK );
-    }
-
-    if ( fstat( dfile_fd, &sbuf ) != 0 ) {
-	syslog( LOG_ERR, "f_data %s fstat %s: %m", env->e_id, dfile_fname );
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "f_data fclose: %m" );
-	}
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	}
-
-	return( RECEIVE_SYSERROR );
-    }
-    env->e_dinode = sbuf.st_ino;
-
-    syslog( LOG_DEBUG, "f_data env %s dinode %d", env->e_id,
-	    (int)env->e_dinode );
-
-    if ( fclose( dff ) != 0 ) {
-	syslog( LOG_ERR, "f_data fclose: %m" );
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	}
-
-	return( RECEIVE_SYSERROR );
-    }
-
-    env->e_dir = simta_dir_fast;
-
-    if ( env_tfile( env ) != 0 ) {
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	}
-	return( RECEIVE_SYSERROR );
-    }
-
-    if ( simta_mail_filter == NULL ) {
-	message_result = MESSAGE_ACCEPT;
 
     } else {
-	/* open Dfile to deliver */
-        if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
-	    syslog( LOG_ERR, "f_data open dfile %s: %m", dfile_fname );
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    }
-	    return( RECEIVE_SYSERROR );
+	/* get the Dfile's inode for the envelope structure */
+	if ( fstat( dfile_fd, &sbuf ) != 0 ) {
+	    syslog( LOG_ERR, "f_data %s fstat %s: %m", env->e_id, dfile_fname );
+	    goto error;
 	}
+	env->e_dinode = sbuf.st_ino;
+	syslog( LOG_DEBUG, "f_data env %s dinode %d", env->e_id,
+		(int)env->e_dinode );
+
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	    dff = NULL;
+	    goto error;
+	}
+	dff = NULL;
+	dfile_fd = -1;
+
+	env->e_dir = simta_dir_fast;
+
+	if ( env_tfile( env ) != 0 ) {
+	    goto error;
+	}
+	tfile_on_disk++;
+
+	if ( simta_mail_filter == NULL ) {
+	    message_result = MESSAGE_ACCEPT;
+
+	} else {
+	    /* open Dfile to deliver */
+	    if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+		syslog( LOG_ERR, "f_data open dfile %s: %m", dfile_fname );
+		goto error;
+	    }
 
 #ifdef HAVE_LIBSSL 
-	if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
-	    EVP_DigestFinal_ex( &mdctx, md_value, &md_len );
-	    mdctx_status = MDCTX_FINAL;
-	    memset( md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
-	    base64_e( md_value, md_len, md_b64 );
-	    snprintf( md_bytes, BYTE_LEN, "%d", mdctx_bytes );
-	}
+	    if (( simta_mail_filter != NULL ) &&
+		    ( simta_checksum_md != NULL )) {
+		EVP_DigestFinal_ex( &mdctx, md_value, &md_len );
+		mdctx_status = MDCTX_FINAL;
+		memset( md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
+		base64_e( md_value, md_len, md_b64 );
+		snprintf( md_bytes, BYTE_LEN, "%d", mdctx_bytes );
+	    }
 #endif /* HAVE_LIBSSL */
 
-	if ( gettimeofday( &tv_filter, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
-	    return( RECEIVE_SYSERROR );
-	}
-
-	env->e_mid = r.r_mid;
-
-	syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
-	message_result = mail_filter( env, dfile_fd, &smtp_message );
-
-	if ( close( dfile_fd ) != 0 ) {
-	    syslog( LOG_ERR, "f_data close: %m" );
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	    if ( gettimeofday( &tv_filter, NULL ) != 0 ) {
+		syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
+		goto error;
 	    }
-	    return( RECEIVE_SYSERROR );
+
+	    env->e_mid = r.r_mid;
+
+	    syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
+	    message_result = mail_filter( env, dfile_fd, &message );
+
+	    if ( close( dfile_fd ) != 0 ) {
+		syslog( LOG_ERR, "f_data close: %m" );
+		dfile_fd = -1;
+		goto error;
+	    }
+	    dfile_fd = -1;
 	}
     }
 
     if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
-	return( RECEIVE_SYSERROR );
+	syslog( LOG_ERR, "f_data gettimeofday: %m" );
+	goto error;
     }
 
     if ( tv_filter.tv_sec == 0 ) {
 	syslog( LOG_INFO, "Receive Data Metric: %d bytes in %d seconds",
-		(int)data_size, (int)(tv_now.tv_sec - tv_data.tv_sec));
+		data_size, (int)(tv_now.tv_sec - tv_data.tv_sec));
     } else {
 	syslog( LOG_INFO, "Receive Data Metric: %d bytes in %d seconds, "
 		" filter %d seconds", (int)data_size,
@@ -1333,11 +1252,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     switch ( message_result ) {
     case MESSAGE_ACCEPT:
 	/* env_efile() unlinks the tfile if a move is unsuccessful */
+	tfile_on_disk = 0;
 	if ( env_efile( env ) != 0 ) {
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    }
-	    return( RECEIVE_SYSERROR );
+	    goto error;
 	}
 
 	/*
@@ -1352,14 +1269,14 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	data_success++;
 
-	if ( smtp_message != NULL ) {
+	if ( message != NULL ) {
 	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
 		    "MID <%s> [%s] %s size %d: %s",
 		    env->e_id, env->e_mid ? env->e_mid : "NULL",
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname,
 		    (int)sbuf.st_size,
-		    smtp_message );
+		    message );
 	} else {
 	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
 		    "MID <%s> [%s] %s size %d",
@@ -1371,20 +1288,22 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	if ( snet_writef( snet, "250 (%s): Accepted\r\n", env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
+	    ret_code = RECEIVE_CLOSECONNECTION;
+	    goto error;
 	}
 
 	break;
 
     case MESSAGE_ACCEPT_AND_DELETE:
+	dfile_on_disk = 0;
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    env_tfile_unlink( env );
-	    return( RECEIVE_SYSERROR );
+	    goto error;
 	}
 
+	tfile_on_disk = 0;
 	if ( env_tfile_unlink( env ) != 0 ) {
-	    return( RECEIVE_SYSERROR );
+	    goto error;
 	}
 
 	syslog( LOG_INFO, "Receive %s: Message Deleted after acceptance: "
@@ -1393,24 +1312,26 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		inet_ntoa( receive_sin->sin_addr ),
 		receive_remote_hostname,
 		(int)sbuf.st_size,
-		smtp_message ? smtp_message : "no message" );
+		message ? message : "no message" );
 
 	if ( snet_writef( snet, "250 (%s): Accepted\r\n", env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
+	    ret_code = RECEIVE_CLOSECONNECTION;
+	    goto error;
 	}
 
 	break;
 
     case MESSAGE_REJECT:
+	dfile_on_disk = 0;
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    env_tfile_unlink( env );
-	    return( RECEIVE_SYSERROR );
+	    goto error;
 	}
 
+	tfile_on_disk = 0;
 	if ( env_tfile_unlink( env ) != 0 ) {
-	    return( RECEIVE_SYSERROR );
+	    goto error;
 	}
 
 	syslog( LOG_INFO, "Receive %s: Message Failed: "
@@ -1419,25 +1340,30 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		inet_ntoa( receive_sin->sin_addr ),
 		receive_remote_hostname,
 		(int)sbuf.st_size,
-		smtp_message ? smtp_message : "no message" );
+		message ? message : "no message" );
 
 	if ( simta_data_url != NULL ) {
 	    if ( snet_writef( snet, "554 Transaction failed: %s\r\n",
 		    simta_data_url ) < 0 ) {
 		syslog( LOG_ERR, "f_data snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
+		ret_code = RECEIVE_CLOSECONNECTION;
+		goto error;
 	    }
 	} else {
 	    if ( snet_writef( snet, "554 Transaction failed\r\n" ) < 0 ) {
 		syslog( LOG_ERR, "f_data snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
+		ret_code = RECEIVE_CLOSECONNECTION;
+		goto error;
 	    }
 	}
 
 	break;
 
     default:
-	smtp_message = "Bad CONTENT_FILTER return code";
+	if (( message = strdup( "Bad CONTENT_FILTER return code" )) == NULL ) {
+	    syslog( LOG_ERR, "f_data strdup: %m" );
+	    goto error;
+	}
 
     case MESSAGE_TEMPFAIL:
 	syslog( LOG_INFO, "Receive %s: Message Tempfailed: "
@@ -1446,33 +1372,70 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		inet_ntoa( receive_sin->sin_addr ),
 		receive_remote_hostname,
 		(int)sbuf.st_size,
-		smtp_message ? smtp_message : "no message" );
+		message ? message : "no message" );
 
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
-	    env_tfile_unlink( env );
-	    return( RECEIVE_SYSERROR );
+	if ( dfile_on_disk ) {
+	    dfile_on_disk = 0;
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+		goto error;
+	    }
 	}
 
-	if ( env_tfile_unlink( env ) != 0 ) {
-	    return( RECEIVE_SYSERROR );
+	if ( tfile_on_disk ) {
+	    tfile_on_disk = 0;
+	    if ( env_tfile_unlink( env ) != 0 ) {
+		goto error;
+	    }
+	}
+
+	if ( simta_smtp_tarpit ) {
+	    req.tv_sec = simta_smtp_tarpit;
+	    req.tv_nsec = 0;
+	    if ( nanosleep( &req, NULL ) != 0 ) {
+		syslog( LOG_DEBUG, "Tarpit: Error nanosleep %m" );
+	    }
 	}
 
 	if ( snet_writef( snet, "451 Requested action aborted: %s\r\n",
 		simta_data_url ? simta_data_url :
 		"local error in processing" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
+	    ret_code = RECEIVE_CLOSECONNECTION;
+	    goto error;
 	}
 
 	break;
     }
 
-    if ( smtp_message != NULL ) {
-	free( smtp_message );
+    if ( message != NULL ) {
+	free( message );
     }
 
     return( RECEIVE_OK );
+
+error:
+    if ( dff != NULL ) {
+	if ( fclose( dff ) != 0 ) {
+	    syslog( LOG_ERR, "f_data fclose: %m" );
+	}
+    } else if ( dfile_fd >= 0 ) {
+	if ( close( dfile_fd ) != 0 ) {
+	    syslog( LOG_ERR, "f_data close: %m" );
+	}
+    }
+    if ( dfile_on_disk != 0 ) {
+	if ( unlink( dfile_fname ) < 0 ) {
+	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
+	}
+    }
+    if ( tfile_on_disk != 0 ) {
+	env_tfile_unlink( env );
+    }
+    if ( message != NULL ) {
+	free( message );
+    }
+    return( ret_code );
 }
 
 

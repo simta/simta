@@ -1,4 +1,5 @@
 internal
+    - f_data() cleaned up
     - SMTP DATA Time Metric
     - SMTP Data timer is for global transaction, not for a line
     - SMTP User not local error message change includes local hostname
