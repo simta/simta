@@ -97,6 +97,8 @@ int			simta_max_received_headers = 100;
 int			simta_max_bounce_lines;
 int			simta_max_failed_rcpts = 0;
 int			simta_receive_wait = 600;
+int			simta_data_transaction_wait = 3600;
+int			simta_data_line_wait = 300;
 int			simta_ignore_reverse = 0;
 int			simta_ignore_connect_in_reverse_errors = 0;
 int			simta_message_count = 0;
@@ -589,7 +591,39 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "RECEIVE_WAIT %d\n",
-		simta_receive_wait );
+		    simta_receive_wait );
+
+	} else if ( strcasecmp( av[ 0 ], "DATA_LINE_WAIT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_data_line_wait = atoi( av[ 1 ] );
+	    if ( simta_data_line_wait <= 0 ) {
+		fprintf( stderr,
+			"%s: line %d: DATA_LINE_WAIT must be greater than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DATA_LINE_WAIT %d\n",
+		    simta_data_line_wait );
+
+	} else if ( strcasecmp( av[ 0 ], "DATA_SESSION_WAIT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_data_transaction_wait = atoi( av[ 1 ] );
+	    if ( simta_data_transaction_wait <= 0 ) {
+		fprintf( stderr,
+			"%s: line %d: DATA_SESSION_WAIT must be greater than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DATA_SESSION_WAIT %d\n",
+		    simta_data_transaction_wait );
 
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
 	    if ( ac != 2 ) {

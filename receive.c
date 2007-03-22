@@ -938,8 +938,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     char				*line;
     char				*message = NULL;
     struct tm				*tm;
-    struct timeval			tv;
-    struct timeval			tv_data;
+    struct timeval			tv_data_start;
+    struct timeval			tv_line;
+    struct timeval			tv_session;
     struct timeval			tv_filter = { 0, 0 };
     struct timeval			tv_now;
     struct timespec			req;
@@ -1058,7 +1059,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	goto error;
     }
 
-    if ( gettimeofday( &tv_data, NULL ) != 0 ) {
+    if ( gettimeofday( &tv_data_start, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
 	goto error;
     }
@@ -1066,10 +1067,30 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     /* start in header mode */
     header = 1;
 
-    tv.tv_sec = simta_receive_wait;
-    tv.tv_usec = 0;
-    while (( line = snet_getline( snet, &tv )) != NULL ) {
+    tv_line.tv_sec = simta_data_line_wait;
+    tv_line.tv_usec = 0;
+
+    tv_session.tv_sec = tv_data_start.tv_sec + simta_data_transaction_wait;
+    tv_session.tv_usec = 0;
+
+    while (( line = snet_getline( snet, &tv_line )) != NULL ) {
 	line_no++;
+
+	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
+	    goto error;
+	}
+
+	if ( tv_now.tv_sec >= tv_session.tv_sec ) {
+	    syslog( LOG_NOTICE, "Receive %s: DATA time limit exceeded",
+		    env->e_id );
+	    goto error;
+	} else if ( simta_data_line_wait >
+		( tv_session.tv_sec - tv_now.tv_sec )) {
+	    tv_line.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
+	} else {
+	    tv_line.tv_sec = simta_data_line_wait;
+	}
 
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
@@ -1241,11 +1262,11 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
     if ( tv_filter.tv_sec == 0 ) {
 	syslog( LOG_INFO, "Receive Data Metric: %d bytes in %d seconds",
-		data_size, (int)(tv_now.tv_sec - tv_data.tv_sec));
+		(int)data_size, (int)(tv_now.tv_sec - tv_data_start.tv_sec));
     } else {
 	syslog( LOG_INFO, "Receive Data Metric: %d bytes in %d seconds, "
 		" filter %d seconds", (int)data_size,
-		(int)(tv_filter.tv_sec - tv_data.tv_sec),
+		(int)(tv_filter.tv_sec - tv_data_start.tv_sec),
 		(int)(tv_now.tv_sec - tv_filter.tv_sec));
     }
 
