@@ -1386,6 +1386,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    goto error;
 	}
 
+    case MESSAGE_TEMPFAIL_TARPIT:
     case MESSAGE_TEMPFAIL:
 	syslog( LOG_INFO, "Receive %s: Message Tempfailed: "
 		"MID <%s> [%s] %s size %d: %s",
@@ -1408,6 +1409,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    if ( env_tfile_unlink( env ) != 0 ) {
 		goto error;
 	    }
+	}
+
+	if ( message_result == MESSAGE_TEMPFAIL_TARPIT ) {
+	    simta_smtp_tarpit++;
 	}
 
 	if ( simta_smtp_tarpit ) {
