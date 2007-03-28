@@ -2166,7 +2166,10 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( snet ), &fdset );
 
-	if (( r = select( snet_fd( snet ) + 1, &fdset, NULL, NULL, NULL ))
+	tv.tv_sec = simta_read_before_banner;
+	tv.tv_usec = 0;
+
+	if (( r = select( snet_fd( snet ) + 1, &fdset, NULL, NULL, &tv ))
 		< 0 ) {
 	    syslog( LOG_ERR, "receive select: %m" );
 	    goto syserror;
