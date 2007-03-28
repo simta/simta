@@ -2027,6 +2027,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     SNET				*snet;
     struct envelope			*env = NULL;
     ACAV				*acav = NULL;
+    fd_set				fdset;
     int					ac;
     int					i;
     int					r = 0;
@@ -2159,6 +2160,20 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
     }
 #endif /* HAVE_LIBSSL */
+
+    /* Read before Banner punishment */
+    if ( simta_read_before_banner > 0 ) {
+	FD_ZERO( &fdset );
+	FD_SET( snet_fd( snet ), &fdset );
+
+	if (( r = select( snet_fd( snet ) + 1, &fdset, NULL, NULL, NULL ))
+		< 0 ) {
+	    syslog( LOG_ERR, "receive select: %m" );
+	    goto syserror;
+	} else if ( r > 0 ) {
+	    receive_failed_rcpts = simta_max_failed_rcpts + 1;
+	}
+    }
 
     /* rfc 2821 3.1 Session Initiation
      * The SMTP protocol allows a server to formally reject a transaction   

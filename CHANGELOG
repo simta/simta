@@ -1,4 +1,5 @@
 internal
+    - SMTP READ_BEFORE_BANNER option added
     - ignore optional Efile entry M
     - content filter can trigger tarpitting
     - f_data() cleaned up
