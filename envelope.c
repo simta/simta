@@ -397,6 +397,7 @@ env_recipient( struct envelope *e, char *addr )
      *
      * VSIMTA_EFILE_VERSION
      * Emessage-id
+     * MMID-origin
      * Idinode
      * Xpansion Level
      * Hdestination-host
@@ -697,10 +698,36 @@ env_read_queue_info( struct envelope *e )
 	}
     }
 
+    if ( version >= 2 ) {
+	/* Emessage-id */
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
+	    goto cleanup;
+	}
+	if ( *line != 'E' ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: bad Emessage-id syntax",
+		fname );
+	    goto cleanup;
+	}
+	if ( strcmp( line + 1, e->e_id ) != 0 ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: message-id mismatch",
+		fname );
+	    goto cleanup;
+	}
+    }
+
     /* Dinode info */
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
 	goto cleanup;
+    }
+
+    /* ignore optional M for now */
+    if ( *line == 'M' ) {
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF", fname );
+	    goto cleanup;
+	}
     }
 
     if ( *line != 'I' ) {
@@ -870,6 +897,15 @@ env_read_delivery_info( struct envelope *env, SNET **s_lock )
 	syslog( LOG_ERR, "env_read_delivery_info %s: unexpected EOF",
 		filename );
 	goto cleanup;
+    }
+
+    /* ignore optional M for now */
+    if ( *line == 'M' ) {
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "env_read_queue_info %s: unexpected EOF",
+		    filename );
+	    goto cleanup;
+	}
     }
 
     if ( *line != 'I' ) {

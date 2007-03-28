@@ -1,4 +1,5 @@
 internal
+    - ignore optional Efile entry M
     - content filter can trigger tarpitting
     - f_data() cleaned up
     - SMTP DATA Time Metric
