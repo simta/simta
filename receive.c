@@ -93,6 +93,7 @@ extern SSL_CTX	*ctx;
 
 extern char		*version;
 struct sockaddr_in  	*receive_sin;
+int			write_before_banner = 0;
 int			data_success = 0;
 int			data_attempt = 0;
 int			mail_success = 0;
@@ -2030,7 +2031,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     fd_set				fdset;
     int					ac;
     int					i;
-    int					r = 0;
+    int					r;
     int					rc;
     char				**av = NULL;
     char				*line;
@@ -2162,11 +2163,11 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 #endif /* HAVE_LIBSSL */
 
     /* Read before Banner punishment */
-    if ( simta_read_before_banner > 0 ) {
+    if ( simta_banner_delay > 0 ) {
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( snet ), &fdset );
 
-	tv.tv_sec = simta_read_before_banner;
+	tv.tv_sec = simta_banner_delay;
 	tv.tv_usec = 0;
 
 	if (( r = select( snet_fd( snet ) + 1, &fdset, NULL, NULL, &tv ))
@@ -2174,7 +2175,10 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    syslog( LOG_ERR, "receive select: %m" );
 	    goto syserror;
 	} else if ( r > 0 ) {
-	    receive_failed_rcpts = simta_max_failed_rcpts + 1;
+	    write_before_banner = 1;
+	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Write before banner",
+		    inet_ntoa( sin->sin_addr ), receive_remote_hostname );
+	    sleep( simta_banner_punishment );
 	}
     }
 
@@ -2649,7 +2653,7 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 11 ];
+    char		*filter_envp[ 12 ];
     char		fname[ MAXPATHLEN + 1 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
@@ -2742,20 +2746,33 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
+	if ( write_before_banner != 0 ) {
+	    if (( filter_envp[ 8 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
+		    "1" )) == NULL ) {
+		exit( MESSAGE_TEMPFAIL );
+	    }
+
+	} else {
+	    if (( filter_envp[ 8 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
+		    "0" )) == NULL ) {
+		exit( MESSAGE_TEMPFAIL );
+	    }
+	}
+
 	if ( simta_checksum_md != NULL ) {
-	    if (( filter_envp[ 8 ] = env_string( "SIMTA_CHECKSUM_SIZE",
+	    if (( filter_envp[ 9 ] = env_string( "SIMTA_CHECKSUM_SIZE",
 		    md_bytes )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    if (( filter_envp[ 9 ] = env_string( "SIMTA_CHECKSUM",
+	    if (( filter_envp[ 10 ] = env_string( "SIMTA_CHECKSUM",
 		    md_b64 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    filter_envp[ 10 ] = NULL;
+	    filter_envp[ 11 ] = NULL;
 	} else {
-	    filter_envp[ 8 ] = NULL;
+	    filter_envp[ 9 ] = NULL;
 	}
 
 

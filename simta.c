@@ -95,7 +95,8 @@ int			simta_dns_config = 1;
 int			simta_no_sync = 0;
 int			simta_max_received_headers = 100;
 int			simta_max_bounce_lines;
-int			simta_read_before_banner = 0;
+int			simta_banner_delay = 0;
+int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
 int			simta_receive_wait = 600;
 int			simta_data_transaction_wait = 3600;
@@ -1131,19 +1132,24 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	} else if ( strcasecmp( av[ 0 ], "READ_BEFORE_BANNER" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "WRITE_BEFORE_BANNER" ) == 0 ) {
+	    if ( ac != 3 ) {
+		fprintf( stderr, "%s: line %d: expected 2 arguments\n",
 		    fname, lineno );
 		goto error;
 	    }
-	    if (( simta_read_before_banner = atoi( av[ 1 ])) < 1 ) {
+	    if (( simta_banner_delay = atoi( av[ 1 ])) < 1 ) {
 		fprintf( stderr, "%s: line %d: invalid argument\n",
 		    fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "READ_BEFORE_BANNER: %d\n",
-		    simta_read_before_banner );
+	    if (( simta_banner_punishment = atoi( av[ 2 ])) < 1 ) {
+		fprintf( stderr, "%s: line %d: invalid argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "WRITE_BEFORE_BANNER: %d %d\n",
+		    simta_banner_delay, simta_banner_punishment );
 
 	} else if ( strcasecmp( av[ 0 ], "LOW_PREF_MX" ) == 0 ) {
 	   if ( simta_secondary_mx != NULL ) {
