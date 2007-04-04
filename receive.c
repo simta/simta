@@ -143,9 +143,16 @@ char				*auth_id = NULL;
 #define	MX_ADDRESS			4
 #define	LOCAL_ADDRESS_RBL		5
 
+struct receive_data {
+    SNET			*r_snet;
+    struct envelope		*r_env;
+    int				r_ac;
+    char			**r_av;
+};
+
 struct command {
     char	*c_name;
-    int		(*c_func)( SNET *, struct envelope *, int, char *[] );
+    int		(*c_func)( struct receive_data * );
 };
 
 static char 	*env_string( char *, char * );
@@ -153,23 +160,23 @@ static int	mail_filter( struct envelope *, int, char ** );
 static int	local_address( char *, char *, struct simta_red *);
 static int	hello( struct envelope *, char * );
 static int	reset( struct envelope *env );
-static int	f_helo( SNET *, struct envelope *, int, char *[] );
-static int	f_ehlo( SNET *, struct envelope *, int, char *[] );
-static int	f_mail( SNET *, struct envelope *, int, char *[] );
-static int	f_rcpt( SNET *, struct envelope *, int, char *[] );
-static int	f_data( SNET *, struct envelope *, int, char *[] );
-static int	f_rset( SNET *, struct envelope *, int, char *[] );
-static int	f_noop( SNET *, struct envelope *, int, char *[] );
-static int	f_quit( SNET *, struct envelope *, int, char *[] );
-static int	f_help( SNET *, struct envelope *, int, char *[] );
-static int	f_vrfy( SNET *, struct envelope *, int, char *[] );
-static int	f_expn( SNET *, struct envelope *, int, char *[] );
-static int	f_noauth( SNET *, struct envelope *, int, char *[] );
+static int	f_helo( struct receive_data * );
+static int	f_ehlo( struct receive_data * );
+static int	f_mail( struct receive_data * );
+static int	f_rcpt( struct receive_data * );
+static int	f_data( struct receive_data * );
+static int	f_rset( struct receive_data * );
+static int	f_noop( struct receive_data * );
+static int	f_quit( struct receive_data * );
+static int	f_help( struct receive_data * );
+static int	f_vrfy( struct receive_data * );
+static int	f_expn( struct receive_data * );
+static int	f_noauth( struct receive_data * );
 #ifdef HAVE_LIBSSL
-static int	f_starttls( SNET *, struct envelope *, int, char *[] );
+static int	f_starttls( struct receive_data * );
 #endif /* HAVE_LIBSSL */
 #ifdef HAVE_LIBSASL
-static int	f_auth( SNET *, struct envelope *, int, char *[] );
+static int	f_auth( struct receive_data * );
 static int 	reset_sasl_conn( sasl_conn_t **conn );
 #endif /* HAVE_LIBSASL */
 
@@ -217,12 +224,12 @@ struct command	noauth_commands[] = {
     int
 reset( struct envelope *env )
 {
-    int			r = 0;
+    int			ret = 0;
 
     if ( env ) {
 	if ( env->e_flags & ENV_FLAG_ON_DISK ) {
 	    if ( expand_and_deliver( env ) != EXPAND_OK ) {
-		r = RECEIVE_SYSERROR;
+		ret = RECEIVE_SYSERROR;
 	    }
 
 	} else if ( env->e_id != NULL ) {
@@ -234,8 +241,9 @@ reset( struct envelope *env )
 	env_reset( env );
     }
 
-    return( r );
+    return( ret );
 }
+
 
     static int
 hello( struct envelope *env, char *hostname )
@@ -260,12 +268,12 @@ hello( struct envelope *env, char *hostname )
 
 
     static int
-f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
+f_helo( struct receive_data *r )
 {
-    if ( ac != 2 ) {
+    if ( r->r_ac != 2 ) {
 	syslog( LOG_ERR, "Receive: Bad HELO syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.1: "
 		"\"HELO\" SP Domain CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_helo snet_writef: %m" );
@@ -274,17 +282,17 @@ f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    if ( hello( env, av[ 1 ] ) != RECEIVE_OK ) {
+    if ( hello( r->r_env, r->r_av[ 1 ] ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( snet_writef( snet, "%d %s Hello %s\r\n", 250, simta_hostname,
-	    av[ 1 ]) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d %s Hello %s\r\n", 250, simta_hostname,
+	    r->r_av[ 1 ]) < 0 ) {
 	syslog( LOG_ERR, "f_helo snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    syslog( LOG_NOTICE, "f_helo %s", av[ 1 ]);
+    syslog( LOG_NOTICE, "f_helo %s", r->r_av[ 1 ]);
     return( RECEIVE_OK );
 }
 
@@ -292,8 +300,9 @@ f_helo( SNET *snet, struct envelope *env, int ac, char *av[])
 /*
  * SMTP Extensions RFC.
  */
+
     static int
-f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
+f_ehlo( struct receive_data *r )
 {
     extern int		simta_smtp_extension;
     int			extension_count;
@@ -307,10 +316,10 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      * accept commands for non-mail transactions (e.g., VRFY or EXPN)
      * without this initialization.
      */
-    if ( ac != 2 ) {
+    if ( r->r_ac != 2 ) {
 	syslog( LOG_ERR, "Receive: Bad EHLO syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.1: "
 		"\"EHLO\" SP Domain CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
@@ -327,7 +336,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      * EHLO is redundant, but not harmful other than in the performance cost
      * of executing unnecessary commands.
      */
-    if ( reset( env ) != 0 ) {
+    if ( reset( r->r_env ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -337,18 +346,18 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      * has no name, an address literal as described in section 4.1.1.1.
      */
 
-    if ( hello( env, av[ 1 ] ) != RECEIVE_OK ) {
+    if ( hello( r->r_env, r->r_av[ 1 ] ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( snet_writef( snet, "%d%s%s Hello %s\r\n", 250,
+    if ( snet_writef( r->r_snet, "%d%s%s Hello %s\r\n", 250,
 	    extension_count-- ? "-" : " ",
-	    simta_hostname, av[ 1 ]) < 0 ) {
+	    simta_hostname, r->r_av[ 1 ]) < 0 ) {
 	syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
     if ( simta_max_message_size >= 0 ) {
-	if ( snet_writef( snet, "%d%sSIZE=%d\r\n", 250,
+	if ( snet_writef( r->r_snet, "%d%sSIZE=%d\r\n", 250,
 		extension_count-- ? "-" : " ",
 		simta_max_message_size ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
@@ -364,7 +373,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
 		    sasl_errdetail( receive_conn ));
 	    return( RECEIVE_SYSERROR );
 	}
-	if ( snet_writef( snet, "250%sAUTH %s\r\n", 
+	if ( snet_writef( r->r_snet, "250%sAUTH %s\r\n", 
 		    extension_count-- ? "-" : " ", mechlist ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -378,7 +387,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
      * EHLO command received after a TLS handshake has completed.
      */
     if ( simta_tls && !receive_tls ) {
-	if ( snet_writef( snet, "%d%sSTARTTLS\r\n", 250,
+	if ( snet_writef( r->r_snet, "%d%sSTARTTLS\r\n", 250,
 		    extension_count-- ? "-" : " " ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -386,7 +395,7 @@ f_ehlo( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 #endif /* HAVE_LIBSSL */
 
-    syslog( LOG_NOTICE, "f_ehlo %s", av[ 1 ]);
+    syslog( LOG_NOTICE, "f_ehlo %s", r->r_av[ 1 ]);
 
     return( RECEIVE_OK );
 }
@@ -413,9 +422,10 @@ f_mail_usage( SNET *snet )
 
 
     static int
-f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
+f_mail( struct receive_data *r )
 {
-    int			rc, i;
+    int			rc;
+    int			i;
     int			parameters;
     int			seen_extensions = 0;
     long int		message_size;
@@ -425,40 +435,40 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 
     mail_attempt++;
 
-    if ( ac < 2 ) {
-	return( f_mail_usage( snet ));
+    if ( r->r_ac < 2 ) {
+	return( f_mail_usage( r->r_snet ));
     }
 
-    if (( !simta_strict_smtp_syntax ) && ( ac >= 3 ) &&
-	    ( strcasecmp( av[ 1 ], "FROM:" ) == 0 )) {
-	/* av[ 1 ] = "FROM:", av[ 2 ] = "<ADDRESS>" */
-	if ( parse_emailaddr( RFC_2821_MAIL_FROM, av[ 2 ], &addr,
+    if (( !simta_strict_smtp_syntax ) && ( r->r_ac >= 3 ) &&
+	    ( strcasecmp( r->r_av[ 1 ], "FROM:" ) == 0 )) {
+	/* r->r_av[ 1 ] = "FROM:", r->r_av[ 2 ] = "<ADDRESS>" */
+	if ( parse_emailaddr( RFC_2821_MAIL_FROM, r->r_av[ 2 ], &addr,
 		&domain ) != 0 ) {
-	    return( f_mail_usage( snet ));
+	    return( f_mail_usage( r->r_snet ));
 	}
 	parameters = 3;
 
     } else {
-	if ( strncasecmp( av[ 1 ], "FROM:", strlen( "FROM:" )) != 0 ) {
-	    return( f_mail_usage( snet ));
+	if ( strncasecmp( r->r_av[ 1 ], "FROM:", strlen( "FROM:" )) != 0 ) {
+	    return( f_mail_usage( r->r_snet ));
 	}
 
-	/* av[ 1 ] = "FROM:<ADDRESS>" */
-	if ( parse_emailaddr( RFC_2821_MAIL_FROM, av[ 1 ] + strlen( "FROM:" ),
-		&addr, &domain ) != 0 ) {
-	    return( f_mail_usage( snet ));
+	/* r->r_av[ 1 ] = "FROM:<ADDRESS>" */
+	if ( parse_emailaddr( RFC_2821_MAIL_FROM,
+		r->r_av[ 1 ] + strlen( "FROM:" ), &addr, &domain ) != 0 ) {
+	    return( f_mail_usage( r->r_snet ));
 	}
     	parameters = 2;
     }
 
-    for ( i = parameters; i < ac; i++ ) {
-	if ( strncasecmp( av[ i ], "SIZE", strlen( "SIZE" )) == 0 ) {
+    for ( i = parameters; i < r->r_ac; i++ ) {
+	if ( strncasecmp( r->r_av[ i ], "SIZE", strlen( "SIZE" )) == 0 ) {
 	    /* RFC 1870 Message Size Declaration */
 	    if ( seen_extensions & SIMTA_EXTENSION_SIZE ) {
 		syslog( LOG_ERR,
 			"Receive: duplicate size specified: %s",
 			receive_smtp_command );
-		if ( snet_writef( snet,
+		if ( snet_writef( r->r_snet,
 			"501 duplicate size specified\r\n" ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
@@ -468,11 +478,11 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 		seen_extensions = seen_extensions | SIMTA_EXTENSION_SIZE;
 	    }
 
-	    if ( strncasecmp( av[ i ], "SIZE=", strlen( "SIZE=" )) != 0 ) {
+	    if ( strncasecmp( r->r_av[ i ], "SIZE=", strlen( "SIZE=" )) != 0 ) {
 		syslog( LOG_ERR,
 			"Receive: invalid SIZE parameter: %s",
 			receive_smtp_command );
-		if ( snet_writef( snet,
+		if ( snet_writef( r->r_snet,
 			"501 invalid SIZE command\r\n" ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
@@ -481,10 +491,10 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 
 	    if ( simta_max_message_size > 0 ) {
-		message_size = strtol( av[ i ] + strlen( "SIZE=" ),
+		message_size = strtol( r->r_av[ i ] + strlen( "SIZE=" ),
 			&endptr, 10 );
 
-		if (( *(av[ i ] + strlen( "SIZE=" )) == '\0' )
+		if (( *(r->r_av[ i ] + strlen( "SIZE=" )) == '\0' )
 			|| ( *endptr != '\0' )
 			|| ( message_size == LONG_MIN )
 			|| ( message_size == LONG_MAX ) 
@@ -492,9 +502,9 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR,
 			    "Receive: invalid SIZE parameter: %s",
 			    receive_smtp_command );
-		    if ( snet_writef( snet,
+		    if ( snet_writef( r->r_snet,
 			    "501 invalid SIZE parameter: %s\r\n",
-			    av[ i ] + strlen( "SIZE=" )) < 0 ) {
+			    r->r_av[ i ] + strlen( "SIZE=" )) < 0 ) {
 			syslog( LOG_ERR, "f_mail snet_writef: %m" );
 			return( RECEIVE_CLOSECONNECTION );
 		    }
@@ -505,7 +515,7 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 		    syslog( LOG_ERR,
 			    "Receive: message exceeds max message size: %s",
 			    receive_smtp_command );
-		    if ( snet_writef( snet,
+		    if ( snet_writef( r->r_snet,
 	    "552 message exceeds fixed maximum message size\r\n" ) < 0 ) {
 			syslog( LOG_ERR, "f_mail snet_writef: %m" );
 			return( RECEIVE_CLOSECONNECTION );
@@ -518,9 +528,9 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	    syslog( LOG_ERR, "Receive: unsupported SMTP service extension: %s",
 		receive_smtp_command );
 
-	    if ( snet_writef( snet,
+	    if ( snet_writef( r->r_snet,
 		    "501 unsupported SMPT service extension: %s\r\n",
-		    av[ i ] ) < 0 ) {
+		    r->r_av[ i ] ) < 0 ) {
 		syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		return( RECEIVE_CLOSECONNECTION );
 	    }
@@ -539,14 +549,14 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 	if (( rc = check_hostname( domain )) != 0 ) {
 	    if ( rc < 0 ) {
 		syslog( LOG_ERR, "f_mail check_hostname: %s: failed", domain );
-		if ( snet_writef( snet, "%d %s: temporary DNS error\r\n", 451,
-			domain ) < 0 ) {
+		if ( snet_writef( r->r_snet, "%d %s: temporary DNS error\r\n",
+			451, domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
 	    } else {
 		syslog( LOG_ERR, "f_mail %s: unknown host", domain );
-		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
+		if ( snet_writef( r->r_snet, "%d %s: unknown host\r\n", 550,
 			domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
@@ -561,15 +571,15 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
-    if ( reset( env ) != 0 ) {
+    if ( reset( r->r_env ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( env_id( env ) != 0 ) {
+    if ( env_id( r->r_env ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( env_sender( env, addr ) != 0 ) {
+    if ( env_sender( r->r_env, addr ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -591,10 +601,10 @@ f_mail( SNET *snet, struct envelope *env, int ac, char *av[])
 
     mail_success++;
 
-    syslog( LOG_INFO, "Receive %s: From <%s> Accepted", env->e_id,
-	    env->e_mail );
+    syslog( LOG_INFO, "Receive %s: From <%s> Accepted", r->r_env->e_id,
+	    r->r_env->e_mail );
 
-    if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_mail snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -624,7 +634,7 @@ f_rcpt_usage( SNET *snet )
 
 
     static int
-f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
+f_rcpt( struct receive_data *r )
 {
     int				addr_len;
     int				rc;
@@ -635,33 +645,33 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
     rcpt_attempt++;
 
     /* Must already have "MAIL FROM:", and no valid message */
-    if (( env->e_mail == NULL ) ||
-	    (( env->e_flags & ENV_FLAG_ON_DISK ) != 0 )) {
+    if (( r->r_env->e_mail == NULL ) ||
+	    (( r->r_env->e_flags & ENV_FLAG_ON_DISK ) != 0 )) {
 	return( RECEIVE_BADSEQUENCE );
     }
 
-    if ( ac == 2 ) {
-	if ( strncasecmp( av[ 1 ], "TO:", 3 ) != 0 ) {
-	    return( f_rcpt_usage( snet ));
+    if ( r->r_ac == 2 ) {
+	if ( strncasecmp( r->r_av[ 1 ], "TO:", 3 ) != 0 ) {
+	    return( f_rcpt_usage( r->r_snet ));
 	}
 
-	if ( parse_emailaddr( RFC_2821_RCPT_TO, av[ 1 ] + 3, &addr,
+	if ( parse_emailaddr( RFC_2821_RCPT_TO, r->r_av[ 1 ] + 3, &addr,
 		&domain ) != 0 ) {
-	    return( f_rcpt_usage( snet ));
+	    return( f_rcpt_usage( r->r_snet ));
 	}
 
-    } else if (( simta_strict_smtp_syntax == 0 ) && ( ac == 3 )) {
-	if ( strcasecmp( av[ 1 ], "TO:" ) != 0 ) {
-	    return( f_rcpt_usage( snet ));
+    } else if (( simta_strict_smtp_syntax == 0 ) && ( r->r_ac == 3 )) {
+	if ( strcasecmp( r->r_av[ 1 ], "TO:" ) != 0 ) {
+	    return( f_rcpt_usage( r->r_snet ));
 	}
 
-	if ( parse_emailaddr( RFC_2821_RCPT_TO, av[ 2 ], &addr,
+	if ( parse_emailaddr( RFC_2821_RCPT_TO, r->r_av[ 2 ], &addr,
 		&domain ) != 0 ) {
-	    return( f_rcpt_usage( snet ));
+	    return( f_rcpt_usage( r->r_snet ));
 	}
 
     } else {
-	return( f_rcpt_usage( snet ));
+	return( f_rcpt_usage( r->r_snet ));
     }
 
     /* rfc 2821 3.7
@@ -694,12 +704,12 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    ( receive_failed_rcpts >= simta_max_failed_rcpts )) {
 	if ( receive_failed_rcpts == simta_max_failed_rcpts ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
-		    "451 Too many failed recipients", env->e_id,
+		    "451 Too many failed recipients", r->r_env->e_id,
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname );
 	    receive_failed_rcpts++;
 	}
-	if ( snet_writef( snet, "%d Requested action aborted: "
+	if ( snet_writef( r->r_snet, "%d Requested action aborted: "
 		"Too many failed recipients.\r\n", 451 ) < 0 ) {
 	    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -728,16 +738,17 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 #endif /* HAVE_LIBSSL */
 
 		syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed", domain );
-		if ( snet_writef( snet, "%d %s: temporary DNS error\r\n", 451,
-			domain ) < 0 ) {
+		if ( snet_writef( r->r_snet, "%d %s: temporary DNS error\r\n",
+			451, domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
 	    } else {
 		syslog( LOG_INFO,
 			"Receive %s: To <%s> From <%s> Failed: "
-			"Unknown domain", env->e_id, addr, env->e_mail );
-		if ( snet_writef( snet, "%d %s: unknown host\r\n", 550,
+			"Unknown domain", r->r_env->e_id, addr,
+			r->r_env->e_mail );
+		if ( snet_writef( r->r_snet, "%d %s: unknown host\r\n", 550,
 			domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
@@ -752,8 +763,9 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    if ( simta_global_relay == 0 ) {
 		syslog( LOG_INFO,
 			"Receive %s: To <%s> From <%s> Failed: "
-			"Domain not local", env->e_id, addr, env->e_mail );
-		if ( snet_writef( snet,
+			"Domain not local", r->r_env->e_id, addr,
+			r->r_env->e_mail );
+		if ( snet_writef( r->r_snet,
 			"551 User not local to %s; please try <%s>\r\n",
 			simta_hostname, domain ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -787,11 +799,11 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	    case NOT_LOCAL:
 		syslog( LOG_INFO,
 			"Receive %s: To <%s> From <%s> Failed: User not local",
-			env->e_id, addr, env->e_mail );
+			r->r_env->e_id, addr, r->r_env->e_mail );
 
 		/* Count number of not-local recipients */
 		receive_failed_rcpts++;
-		if ( snet_writef( snet,
+		if ( snet_writef( r->r_snet,
 			"%d Requested action not taken: User not found.\r\n",
 			550 ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
@@ -801,7 +813,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	    case LOCAL_ERROR:
 		syslog( LOG_ERR, "f_rcpt local_address %s: error", addr );
-		if ( snet_writef( snet, "%d Requested action aborted: "
+		if ( snet_writef( r->r_snet, "%d Requested action aborted: "
 			"local error in processing.\r\n", 451 ) < 0 ) {
 		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
@@ -830,7 +842,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
                             remote_rbl_status = RBL_BLOCK;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 				    "RBL blocked: %s",
-				    env->e_id, addr, env->e_mail,
+				    r->r_env->e_id, addr, r->r_env->e_mail,
                                     rbl_found->rbl_domain );
                             break;
 
@@ -838,15 +850,15 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			    remote_rbl_status = RBL_ACCEPT;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 				    "RBL accepted: %s",
-				    env->e_id, addr, env->e_mail,
+				    r->r_env->e_id, addr, r->r_env->e_mail,
                                     rbl_found->rbl_domain );
 			    break;
 
 			case RBL_NOT_FOUND:
 			    remote_rbl_status = RBL_NOT_FOUND;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
-				    "RBL Not Found", env->e_id, addr,
-				    env->e_mail );
+				    "RBL Not Found", r->r_env->e_id, addr,
+				    r->r_env->e_mail );
 			    break;
 
 			case RBL_ERROR:
@@ -854,7 +866,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			    remote_rbl_status = RBL_UNKNOWN;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 				    "RBL error: %s",
-				    env->e_id, addr, env->e_mail,
+				    r->r_env->e_id, addr, r->r_env->e_mail,
                                     rbl_found->rbl_domain );
 			    if ( dnsr_errno( simta_dnsr ) !=
 				    DNSR_ERROR_TIMEOUT ) {
@@ -869,11 +881,11 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 			receive_failed_rcpts++;
 			syslog( LOG_INFO,
 				"Receive %s: To <%s> From <%s> Failed: "
-				"RBL %s ([%s] %s)", env->e_id, addr,
-				env->e_mail, rbl_found->rbl_domain,
+				"RBL %s ([%s] %s)", r->r_env->e_id, addr,
+				r->r_env->e_mail, rbl_found->rbl_domain,
 				inet_ntoa( receive_sin->sin_addr ),
 				receive_remote_hostname );
-			if ( snet_writef( snet,
+			if ( snet_writef( r->r_snet,
 				"550 No access from IP %s. See %s\r\n",
 				inet_ntoa( receive_sin->sin_addr ),
 				rbl_found->rbl_url ) != 0 ) {
@@ -895,16 +907,16 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
     }
 
-    if ( env_recipient( env, addr ) != 0 ) {
+    if ( env_recipient( r->r_env, addr ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
     rcpt_success++;
 
-    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> Accepted", env->e_id,
-	    env->e_rcpt->r_rcpt, env->e_mail );
+    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> Accepted", r->r_env->e_id,
+	    r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail );
 
-    if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -923,7 +935,7 @@ f_rcpt( SNET *snet, struct envelope *env, int ac, char *av[])
 
 
     static int
-f_data( SNET *snet, struct envelope *env, int ac, char *av[])
+f_data( struct receive_data *r )
 {
     FILE				*dff = NULL;
     int					dfile_fd = -1;
@@ -950,10 +962,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     char				daytime[ 30 ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
     off_t				data_size = 0;
-    struct receive_headers		r;
+    struct receive_headers		rh;
 
-    memset( &r, 0, sizeof( struct receive_headers ));
-    r.r_env = env;
+    memset( &rh, 0, sizeof( struct receive_headers ));
+    rh.r_env = r->r_env;
 
     data_attempt++;
 
@@ -964,10 +976,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
      * parameters and servers SHOULD reject commands containing them as
      * having invalid syntax.
      */
-    if ( ac != 1 ) {
+    if ( r->r_ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad DATA syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.4: "
 		"\"DATA\" CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
@@ -984,12 +996,12 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    ( receive_failed_rcpts >= simta_max_failed_rcpts )) {
 	if ( receive_failed_rcpts == simta_max_failed_rcpts ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
-		    "451 Too many failed recipients", env->e_id,
+		    "451 Too many failed recipients", r->r_env->e_id,
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname );
 	    receive_failed_rcpts++;
 	}
-	if ( snet_writef( snet, "451 Requested action aborted:"
+	if ( snet_writef( r->r_snet, "451 Requested action aborted:"
 		" Too many failed recipients\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -1006,13 +1018,13 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
      * Also note that having already accepted a message is bad.
      * A previous reset is also not a good thing.
      */
-    if (( env->e_mail == NULL ) ||
-	    (( env->e_flags & ENV_FLAG_ON_DISK ) != 0 )) {
+    if (( r->r_env->e_mail == NULL ) ||
+	    (( r->r_env->e_flags & ENV_FLAG_ON_DISK ) != 0 )) {
 	return( RECEIVE_BADSEQUENCE );
     }
 
-    if ( env->e_rcpt == NULL ) {
-	if ( snet_writef( snet, "%d no valid recipients\r\n", 554 ) < 0 ) {
+    if ( r->r_env->e_rcpt == NULL ) {
+	if ( snet_writef( r->r_snet, "%d no valid recipients\r\n", 554 ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -1020,7 +1032,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if ( simta_smtp_tarpit == 0 ) {
-	sprintf( dfile_fname, "%s/D%s", simta_dir_fast, env->e_id );
+	sprintf( dfile_fname, "%s/D%s", simta_dir_fast, r->r_env->e_id );
 
 	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
 		< 0 ) {
@@ -1047,14 +1059,14 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		"BY %s ID %s ; \n\t%s %s\n",
 		( receive_hello == NULL ) ? "NULL" : receive_hello,
 		receive_remote_hostname , inet_ntoa( receive_sin->sin_addr ),
-		simta_hostname, env->e_id, daytime, tz( tm )) < 0 ) {
+		simta_hostname, r->r_env->e_id, daytime, tz( tm )) < 0 ) {
 	    syslog( LOG_ERR, "f_data fprintf: %m" );
 	    goto error;
 	}
     }
 
-    if ( snet_writef( snet, "%d Start mail input; end with <CRLF>.<CRLF>\r\n",
-	    354 ) < 0 ) {
+    if ( snet_writef( r->r_snet,
+	    "%d Start mail input; end with <CRLF>.<CRLF>\r\n", 354 ) < 0 ) {
 	syslog( LOG_ERR, "f_data snet_writef: %m" );
 	ret_code = RECEIVE_CLOSECONNECTION;
 	goto error;
@@ -1074,7 +1086,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     tv_session.tv_sec = tv_data_start.tv_sec + simta_data_transaction_wait;
     tv_session.tv_usec = 0;
 
-    while (( line = snet_getline( snet, &tv_line )) != NULL ) {
+    while (( line = snet_getline( r->r_snet, &tv_line )) != NULL ) {
 	line_no++;
 
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
@@ -1084,7 +1096,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	if ( tv_now.tv_sec >= tv_session.tv_sec ) {
 	    syslog( LOG_NOTICE, "Receive %s: DATA time limit exceeded",
-		    env->e_id );
+		    r->r_env->e_id );
 	    goto error;
 	} else if ( simta_data_line_wait >
 		( tv_session.tv_sec - tv_now.tv_sec )) {
@@ -1132,7 +1144,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 #endif /* HAVE_LIBSSL */
 
 	if ( header == 1 ) {
-	    if (( result = header_text( line_no, line, &r )) != 0 ) {
+	    if (( result = header_text( line_no, line, &rh )) != 0 ) {
 		if ( result < 0 ) {
 		    goto error;
 		}
@@ -1146,7 +1158,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	     * until the '.' otherwise, check message size.
 	     */
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
-		    "Message too large", env->e_id, 
+		    "Message too large", r->r_env->e_id, 
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname );
 	    data_errors++;
@@ -1157,9 +1169,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    continue;
 	}
 
-	if ( r.r_received_count > simta_max_received_headers ) {
+	if ( rh.r_received_count > simta_max_received_headers ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s:"
-		    "Too many received headers", env->e_id, 
+		    "Too many received headers", r->r_env->e_id, 
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname );
 	    data_errors++;
@@ -1177,7 +1189,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     if ( line == NULL ) {	/* EOF */
-	syslog( LOG_NOTICE, "f_data %s: connection dropped", env->e_id );
+	syslog( LOG_NOTICE, "f_data %s: connection dropped", r->r_env->e_id );
 	ret_code = RECEIVE_CLOSECONNECTION;
 	goto error;
     }
@@ -1194,12 +1206,12 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     } else {
 	/* get the Dfile's inode for the envelope structure */
 	if ( fstat( dfile_fd, &sbuf ) != 0 ) {
-	    syslog( LOG_ERR, "f_data %s fstat %s: %m", env->e_id, dfile_fname );
+	    syslog( LOG_ERR, "f_data %s fstat %s: %m", r->r_env->e_id, dfile_fname );
 	    goto error;
 	}
-	env->e_dinode = sbuf.st_ino;
-	syslog( LOG_DEBUG, "f_data env %s dinode %d", env->e_id,
-		(int)env->e_dinode );
+	r->r_env->e_dinode = sbuf.st_ino;
+	syslog( LOG_DEBUG, "f_data r->r_env %s dinode %d", r->r_env->e_id,
+		(int)r->r_env->e_dinode );
 
 	if ( fclose( dff ) != 0 ) {
 	    syslog( LOG_ERR, "f_data fclose: %m" );
@@ -1209,9 +1221,9 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	dff = NULL;
 	dfile_fd = -1;
 
-	env->e_dir = simta_dir_fast;
+	r->r_env->e_dir = simta_dir_fast;
 
-	if ( env_tfile( env ) != 0 ) {
+	if ( env_tfile( r->r_env ) != 0 ) {
 	    goto error;
 	}
 	tfile_on_disk++;
@@ -1242,10 +1254,10 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 		goto error;
 	    }
 
-	    env->e_mid = r.r_mid;
+	    r->r_env->e_mid = rh.r_mid;
 
 	    syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
-	    message_result = mail_filter( env, dfile_fd, &message );
+	    message_result = mail_filter( r->r_env, dfile_fd, &message );
 
 	    if ( close( dfile_fd ) != 0 ) {
 		syslog( LOG_ERR, "f_data close: %m" );
@@ -1275,7 +1287,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     case MESSAGE_ACCEPT:
 	/* env_efile() unlinks the tfile if a move is unsuccessful */
 	tfile_on_disk = 0;
-	if ( env_efile( env ) != 0 ) {
+	if ( env_efile( r->r_env ) != 0 ) {
 	    goto error;
 	}
 
@@ -1294,7 +1306,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	if ( message != NULL ) {
 	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
 		    "MID <%s> [%s] %s size %d: %s",
-		    env->e_id, env->e_mid ? env->e_mid : "NULL",
+		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname,
 		    (int)sbuf.st_size,
@@ -1302,13 +1314,14 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	} else {
 	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
 		    "MID <%s> [%s] %s size %d",
-		    env->e_id, env->e_mid ? env->e_mid : "NULL",
+		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( receive_sin->sin_addr ),
 		    receive_remote_hostname,
 		    (int)sbuf.st_size );
 	}
 
-	if ( snet_writef( snet, "250 (%s): Accepted\r\n", env->e_id ) < 0 ) {
+	if ( snet_writef( r->r_snet,
+		"250 (%s): Accepted\r\n", r->r_env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    ret_code = RECEIVE_CLOSECONNECTION;
 	    goto error;
@@ -1324,19 +1337,20 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	tfile_on_disk = 0;
-	if ( env_tfile_unlink( env ) != 0 ) {
+	if ( env_tfile_unlink( r->r_env ) != 0 ) {
 	    goto error;
 	}
 
 	syslog( LOG_INFO, "Receive %s: Message Deleted after acceptance: "
 		"MID <%s> [%s] %s size %d: %s",
-		env->e_id, env->e_mid ? env->e_mid : "NULL",
+		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( receive_sin->sin_addr ),
 		receive_remote_hostname,
 		(int)sbuf.st_size,
 		message ? message : "no message" );
 
-	if ( snet_writef( snet, "250 (%s): Accepted\r\n", env->e_id ) < 0 ) {
+	if ( snet_writef( r->r_snet,
+		"250 (%s): Accepted\r\n", r->r_env->e_id ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
 	    ret_code = RECEIVE_CLOSECONNECTION;
 	    goto error;
@@ -1352,27 +1366,27 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 
 	tfile_on_disk = 0;
-	if ( env_tfile_unlink( env ) != 0 ) {
+	if ( env_tfile_unlink( r->r_env ) != 0 ) {
 	    goto error;
 	}
 
 	syslog( LOG_INFO, "Receive %s: Message Failed: "
 		"MID <%s> [%s] %s size %d: %s",
-		env->e_id, env->e_mid ? env->e_mid : "NULL",
+		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( receive_sin->sin_addr ),
 		receive_remote_hostname,
 		(int)sbuf.st_size,
 		message ? message : "no message" );
 
 	if ( simta_data_url != NULL ) {
-	    if ( snet_writef( snet, "554 Transaction failed: %s\r\n",
+	    if ( snet_writef( r->r_snet, "554 Transaction failed: %s\r\n",
 		    simta_data_url ) < 0 ) {
 		syslog( LOG_ERR, "f_data snet_writef: %m" );
 		ret_code = RECEIVE_CLOSECONNECTION;
 		goto error;
 	    }
 	} else {
-	    if ( snet_writef( snet, "554 Transaction failed\r\n" ) < 0 ) {
+	    if ( snet_writef( r->r_snet, "554 Transaction failed\r\n" ) < 0 ) {
 		syslog( LOG_ERR, "f_data snet_writef: %m" );
 		ret_code = RECEIVE_CLOSECONNECTION;
 		goto error;
@@ -1391,7 +1405,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
     case MESSAGE_TEMPFAIL:
 	syslog( LOG_INFO, "Receive %s: Message Tempfailed: "
 		"MID <%s> [%s] %s size %d: %s",
-		env->e_id, env->e_mid ? env->e_mid : "NULL",
+		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( receive_sin->sin_addr ),
 		receive_remote_hostname,
 		(int)sbuf.st_size,
@@ -1407,7 +1421,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 
 	if ( tfile_on_disk ) {
 	    tfile_on_disk = 0;
-	    if ( env_tfile_unlink( env ) != 0 ) {
+	    if ( env_tfile_unlink( r->r_env ) != 0 ) {
 		goto error;
 	    }
 	}
@@ -1424,7 +1438,7 @@ f_data( SNET *snet, struct envelope *env, int ac, char *av[])
 	    }
 	}
 
-	if ( snet_writef( snet, "451 Requested action aborted: %s\r\n",
+	if ( snet_writef( r->r_snet, "451 Requested action aborted: %s\r\n",
 		simta_data_url ? simta_data_url :
 		"local error in processing" ) < 0 ) {
 	    syslog( LOG_ERR, "f_data snet_writef: %m" );
@@ -1457,7 +1471,7 @@ error:
 	}
     }
     if ( tfile_on_disk != 0 ) {
-	env_tfile_unlink( env );
+	env_tfile_unlink( r->r_env );
     }
     if ( message != NULL ) {
 	free( message );
@@ -1467,7 +1481,7 @@ error:
 
 
     static int
-f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
+f_quit( struct receive_data *r )
 {
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -1477,10 +1491,10 @@ f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
      * having invalid syntax.
      */
 
-    if ( ac != 1 ) {
+    if ( r->r_ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad QUIT syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.10: "
 		"\"QUIT\" CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_quit snet_writef: %m" );
@@ -1489,7 +1503,8 @@ f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    if ( snet_writef( snet, "221 %s Service closing transmission channel\r\n",
+    if ( snet_writef( r->r_snet,
+	    "221 %s Service closing transmission channel\r\n",
 	    simta_hostname ) < 0 ) {
 	syslog( LOG_ERR, "f_quit snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
@@ -1501,7 +1516,7 @@ f_quit( SNET *snet, struct envelope *env, int ac, char *av[])
 
 
     static int
-f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
+f_rset( struct receive_data *r )
 {
     /*
      * We could presume that this indicates another message.  However,
@@ -1516,10 +1531,10 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
      * parameters and servers SHOULD reject commands containing them as
      * having invalid syntax.
      */
-    if ( ac != 1 ) {
+    if ( r->r_ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad RSET syntax: %s", receive_smtp_command );
 
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.5: "
 		"\"RSET\" CRLF\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_rset snet_writef: %m" );
@@ -1528,11 +1543,11 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
     }
 
-    if ( reset( env ) != 0 ) {
+    if ( reset( r->r_env ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( snet_writef( snet, "%d OK\r\n", 250 ) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_ERR, "f_rset snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -1542,9 +1557,9 @@ f_rset( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
     static int
-f_noop( SNET *snet, struct envelope *env, int ac, char *av[])
+f_noop( struct receive_data *r )
 {
-    if ( snet_writef( snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
 	syslog( LOG_ERR, "f_noop snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -1554,9 +1569,9 @@ f_noop( SNET *snet, struct envelope *env, int ac, char *av[])
 
 
     static int
-f_help( SNET *snet, struct envelope *env, int ac, char *av[])
+f_help( struct receive_data *r )
 {
-    if ( snet_writef( snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
 	syslog( LOG_ERR, "f_help snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -1587,9 +1602,9 @@ f_help( SNET *snet, struct envelope *env, int ac, char *av[])
      */
 
     static int
-f_vrfy( SNET *snet, struct envelope *env, int ac, char *av[])
+f_vrfy( struct receive_data *r )
 {
-    if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_vrfy snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -1598,9 +1613,9 @@ f_vrfy( SNET *snet, struct envelope *env, int ac, char *av[])
 
 
     static int
-f_expn( SNET *snet, struct envelope *env, int ac, char *av[])
+f_expn( struct receive_data *r )
 {
-    if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_expn snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -1608,10 +1623,10 @@ f_expn( SNET *snet, struct envelope *env, int ac, char *av[])
 }
 
     static int
-f_noauth( SNET *snet, struct envelope *env, int ac, char *av[])
+f_noauth( struct receive_data *r )
 {
-    syslog( LOG_NOTICE, "f_noauth: %s", av[ 0 ] );
-    if ( snet_writef( snet, "530 Authentication required\r\n" ) < 0 ) {
+    syslog( LOG_NOTICE, "f_noauth: %s", r->r_av[ 0 ] );
+    if ( snet_writef( r->r_snet, "530 Authentication required\r\n" ) < 0 ) {
 	syslog( LOG_ERR, "f_expn snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -1620,12 +1635,13 @@ f_noauth( SNET *snet, struct envelope *env, int ac, char *av[])
 
 #ifdef HAVE_LIBSSL
     static int
-f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
+f_starttls( struct receive_data *r )
 {
     int				rc;
 
     if ( !simta_tls ) {
-	if ( snet_writef( snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
+	if ( snet_writef( r->r_snet,
+		"%d Command not implemented\r\n", 502 ) < 0 ) {
 	    syslog( LOG_ERR, "f_expn snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -1641,24 +1657,24 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( ac != 1 ) {
+    if ( r->r_ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad STARTTLS syntax: %s",
 		receive_smtp_command );
 
-	if ( snet_writef( snet, "%d Syntax error (no parameters allowed)\r\n",
-		501 ) < 0 ) {
+	if ( snet_writef( r->r_snet,
+		"%d Syntax error (no parameters allowed)\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
     }
 
-    if ( snet_writef( snet, "%d Ready to start TLS\r\n", 220 ) < 0 ) {
+    if ( snet_writef( r->r_snet, "%d Ready to start TLS\r\n", 220 ) < 0 ) {
 	syslog( LOG_ERR, "f_starttls snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( _start_tls( snet ) != RECEIVE_OK ) {
+    if ( _start_tls( r->r_snet ) != RECEIVE_OK ) {
 	return ( RECEIVE_OK );
     }
 
@@ -1677,7 +1693,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
      * the TLS handshake.
      */
 
-    if ( reset( env ) != 0 ) {
+    if ( reset( r->r_env ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1686,7 +1702,7 @@ f_starttls( SNET *snet, struct envelope *env, int ac, char *av[])
 	receive_hello = NULL;
     }
 
-    if (( rc = _post_tls( snet )) != RECEIVE_OK ) {
+    if (( rc = _post_tls( r->r_snet )) != RECEIVE_OK ) {
 	return( rc );
     }
 
@@ -1771,7 +1787,7 @@ _start_tls( SNET *snet )
 
 #ifdef HAVE_LIBSASL
     int
-f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
+f_auth( struct receive_data *r )
 {
     int			rc;
     const char		*mechname;
@@ -1791,8 +1807,8 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
      * protocol implementation.
      */
 
-    if (( ac != 2 ) && ( ac != 3 )) {
-	if ( snet_writef( snet,
+    if (( r->r_ac != 2 ) && ( r->r_ac != 3 )) {
+	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2554 section 4: "
 		"AUTH mechanism [initial-response]\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
@@ -1811,20 +1827,20 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
     }
 
     /* RFC 2554 The AUTH command is not permitted during a mail transaction. */
-    if ( env->e_mail != NULL ) {
+    if ( r->r_env->e_mail != NULL ) {
 	return( RECEIVE_BADSEQUENCE );
     }
 
     /* Initial response */
-    if ( ac == 3 ) {
+    if ( r->r_ac == 3 ) {
 	clientin = base64;
-	if ( strcmp( av[ 2 ], "=" ) == 0 ) {
+	if ( strcmp( r->r_av[ 2 ], "=" ) == 0 ) {
 	    /* Zero-length initial response */
 	    base64[ 0 ] = '\0';
 	} else {
-	    if ( sasl_decode64( av[ 2 ], strlen( av[ 2 ]), clientin,
+	    if ( sasl_decode64( r->r_av[ 2 ], strlen( r->r_av[ 2 ]), clientin,
 		    BASE64_BUF_SIZE, & clientinlen ) != SASL_OK ) {
-		if ( snet_writef( snet,
+		if ( snet_writef( r->r_snet,
 			"501 unable to BASE64 decode argument\r\n" ) < 0 ) {
 		    syslog( LOG_ERR, "f_auth snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
@@ -1835,7 +1851,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
     }
 
-    rc = sasl_server_start( receive_conn, av[ 1 ], clientin, clientinlen,
+    rc = sasl_server_start( receive_conn, r->r_av[ 1 ], clientin, clientinlen,
 	&serverout, &serveroutlen );
 
     while ( rc == SASL_CONTINUE ) {
@@ -1851,7 +1867,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	    serverout = "";
 	}
 
-	if ( snet_writef( snet, "334 %s\r\n", serverout ) < 0 ) {
+	if ( snet_writef( r->r_snet, "334 %s\r\n", serverout ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -1859,14 +1875,14 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	/* Get response from the client */
 	tv.tv_sec = simta_receive_wait;
 	tv.tv_usec = 0;
-	if (( clientin = snet_getline( snet, &tv )) == NULL ) {
+	if (( clientin = snet_getline( r->r_snet, &tv )) == NULL ) {
 	    syslog( LOG_ERR, "f_auth snet_getline: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	} 
 
 	/* Check if client canceled authentication exchange */
 	if ( clientin[ 0 ] == '*' && clientin[ 1 ] == '\0' ) {
-	    if ( snet_writef( snet,
+	    if ( snet_writef( r->r_snet,
 		    "501 client canceled authentication\r\n" ) < 0 ) {
 		syslog( LOG_ERR, "f_auth snet_writef: %m" );
 		return( RECEIVE_CLOSECONNECTION );
@@ -1881,7 +1897,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	/* decode response */
 	if ( sasl_decode64( clientin, strlen( clientin ), clientin,
 		BASE64_BUF_SIZE, &clientinlen ) != SASL_OK ) {
-	    if ( snet_writef( snet,
+	    if ( snet_writef( r->r_snet,
 		    "501 unable to BASE64 decode argument\r\n" ) < 0 ) {
 		syslog( LOG_ERR, "f_auth snet_writef: %m" );
 		return( RECEIVE_CLOSECONNECTION );
@@ -1915,13 +1931,14 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 		auth_id, mechname, receive_tls ? "+TLS" : "",
 		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname );
 
-	if ( snet_writef( snet, "235 Authentication successful\r\n" ) < 0 ) {
+	if ( snet_writef( r->r_snet,
+		"235 Authentication successful\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
 	receive_auth = 1;
-	snet_setsasl( snet, receive_conn );
+	snet_setsasl( r->r_snet, receive_conn );
 
 	/* RFC 2554 If a security layer is negotiated through the SASL
 	 * authentication exchange, it takes effect immediately following
@@ -1934,7 +1951,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * EHLO command, which was not obtained from the SASL negotiation
 	 * itself.
 	 */
-	 if ( snet_saslssf( snet )) {
+	 if ( snet_saslssf( r->r_snet )) {
 	    if ( receive_hello ) {
 		free( receive_hello );
 		receive_hello = NULL;
@@ -1948,13 +1965,13 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	return( RECEIVE_OK );
 
     case SASL_NOMECH:
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"504 Unrecognized authentication type.\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 	syslog( LOG_INFO, "Receive: Unrecognized authentication type: %s",
-		av[ 1 ] );
+		r->r_av[ 1 ] );
 	return( RECEIVE_OK );
 
     case SASL_BADPROT:
@@ -1964,7 +1981,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * challenge, the server rejects the AUTH command with a 535
 	 * reply.
 	 */
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"535 invalid initial-response arugment "
 		"for mechanism\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
@@ -1972,7 +1989,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	}
 	syslog( LOG_INFO,
 		"Receive: Invaid initial-response argument for mechanism %s",
-		av[ 1 ] );
+		r->r_av[ 1 ] );
 	return( RECEIVE_OK );
 
     /* Not sure what RC this is: RFC 2554 If the server rejects the
@@ -1988,7 +2005,7 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * authentication mechanism is weaker than server policy permits for
 	 * that user.
 	 */
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"534 Authentication mechanism is too weak\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -2003,14 +2020,14 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
 	 * authentication mechanism may only be used when the underlying SMTP
 	 * connection is encrypted.
 	 */
-	if ( snet_writef( snet,
+	if ( snet_writef( r->r_snet,
 		"538 Encryption required for requested authentication "
 		"mechanism\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 	syslog( LOG_INFO,
-		"Receive: Encryption required for mechanism %s", av[ 1 ] );
+		"Receive: Encryption required for mechanism %s", r->r_av[ 1 ] );
 	return( RECEIVE_OK );
 
 
@@ -2025,15 +2042,11 @@ f_auth( SNET *snet, struct envelope *env, int ac, char *av[])
     int
 smtp_receive( int fd, struct sockaddr_in *sin )
 {
-    SNET				*snet;
-    struct envelope			*env = NULL;
+    struct receive_data			r;
     ACAV				*acav = NULL;
     fd_set				fdset;
-    int					ac;
     int					i;
-    int					r;
-    int					rc;
-    char				**av = NULL;
+    int					ret;
     char				*line;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
@@ -2049,6 +2062,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     char				*ctl_hostname;
 #endif /* HAVE_LIBWRAP */
 
+    memset( &r, 0, sizeof( struct receive_data ));
+
     receive_commands = smtp_commands;
     receive_ncommands = sizeof( smtp_commands ) / sizeof( smtp_commands[ 0 ] );
 
@@ -2057,24 +2072,24 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	tv_start.tv_sec = 0;
     }
 
-    if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
+    if (( r.r_snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "receive snet_attach: %m" );
 	return( 0 );
     }
 
     memset( &tv_write, 0, sizeof( struct timeval ));
     tv_write.tv_sec = 5 * 60;
-    snet_timeout( snet, SNET_WRITE_TIMEOUT, &tv_write );
+    snet_timeout( r.r_snet, SNET_WRITE_TIMEOUT, &tv_write );
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
 	receive_commands = noauth_commands;
 	receive_ncommands = sizeof( noauth_commands ) /
 		sizeof( noauth_commands[ 0 ] );
-	if (( rc = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
+	if (( ret = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
 		0, &receive_conn )) != SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_server_new: %s",
-		    sasl_errstring( rc, NULL, NULL ));
+		    sasl_errstring( ret, NULL, NULL ));
 	    goto syserror;
 	}
 
@@ -2120,7 +2135,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	secprops.max_ssf = 256;
 	secprops.security_flags |= SASL_SEC_NOPLAINTEXT;
 	secprops.security_flags |= SASL_SEC_NOANONYMOUS;
-	if (( rc = sasl_setprop( receive_conn, SASL_SEC_PROPS, &secprops))
+	if (( ret = sasl_setprop( receive_conn, SASL_SEC_PROPS, &secprops))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_setprop: %s",
 		    sasl_errdetail( receive_conn ));
@@ -2129,13 +2144,13 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
 	ext_ssf = 0;
 	auth_id = NULL;
-	if (( rc = sasl_setprop( receive_conn, SASL_SSF_EXTERNAL, &ext_ssf ))
+	if (( ret = sasl_setprop( receive_conn, SASL_SSF_EXTERNAL, &ext_ssf ))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_setprop: %s",
 		    sasl_errdetail( receive_conn ));
 	    goto syserror;
 	}
-	if (( rc = sasl_setprop( receive_conn, SASL_AUTH_EXTERNAL, auth_id ))
+	if (( ret = sasl_setprop( receive_conn, SASL_AUTH_EXTERNAL, auth_id ))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_setprop: %s",
 		    sasl_errdetail( receive_conn ));
@@ -2149,10 +2164,10 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 #ifdef HAVE_LIBSSL
     if (( simta_service_smtps > 0 ) &&
 	    ( simta_process_type == PROCESS_RECEIVE_SMTPS )) {
-	if ( _start_tls( snet ) != RECEIVE_OK ) {
+	if ( _start_tls( r.r_snet ) != RECEIVE_OK ) {
 	    goto syserror;
 	}
-	if (( rc = _post_tls( snet )) != RECEIVE_OK ) {
+	if (( ret = _post_tls( r.r_snet )) != RECEIVE_OK ) {
 	    goto syserror;
 	}
 
@@ -2165,16 +2180,16 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     /* Read before Banner punishment */
     if ( simta_banner_delay > 0 ) {
 	FD_ZERO( &fdset );
-	FD_SET( snet_fd( snet ), &fdset );
+	FD_SET( snet_fd( r.r_snet ), &fdset );
 
 	tv.tv_sec = simta_banner_delay;
 	tv.tv_usec = 0;
 
-	if (( r = select( snet_fd( snet ) + 1, &fdset, NULL, NULL, &tv ))
+	if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL, NULL, &tv ))
 		< 0 ) {
 	    syslog( LOG_ERR, "receive select: %m" );
 	    goto syserror;
-	} else if ( r > 0 ) {
+	} else if ( ret > 0 ) {
 	    write_before_banner = 1;
 	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Write before banner",
 		    inet_ntoa( sin->sin_addr ), receive_remote_hostname );
@@ -2182,40 +2197,38 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
     }
 
-    /* rfc 2821 3.1 Session Initiation
-     * The SMTP protocol allows a server to formally reject a transaction   
-     * while still allowing the initial connection as follows: a 554
-     * response MAY be given in the initial connection opening message
-     * instead of the 220.  A server taking this approach MUST still wait
-     * for the client to send a QUIT (see section 4.1.1.10) before closing
-     * the connection and SHOULD respond to any intervening commands with
-     * "503 bad sequence of commands".  Since an attempt to make an SMTP
-     * connection to such a system is probably in error, a server returning
-     * a 554 response on connection opening SHOULD provide enough  
-     * information in the reply text to facilitate debugging of the sending
-     * system.
-     */
+    if (( simta_receive_connections_max != 0 ) &&
+	    ( simta_receive_connections >= simta_receive_connections_max )) {
+	syslog( LOG_NOTICE, "receive connection refused: "
+		"max connections exceeded" );
+	if ( snet_writef( r.r_snet, "421 Maximum connections exceeded, "
+		"closing transmission channel\r\n" ) < 0 ) {
+	    syslog( LOG_ERR, "receive snet_writef: %m" );
+	}
+	goto closeconnection;
 
-    if ( simta_service_smtp == SERVICE_SMTP_REFUSE ) {
+    } else if ( simta_service_smtp == SERVICE_SMTP_REFUSE ) {
+	/* rfc 2821 3.1 Session Initiation
+	 * The SMTP protocol allows a server to formally reject a transaction   
+	 * while still allowing the initial connection as follows: a 554
+	 * response MAY be given in the initial connection opening message
+	 * instead of the 220.  A server taking this approach MUST still wait
+	 * for the client to send a QUIT (see section 4.1.1.10) before closing
+	 * the connection and SHOULD respond to any intervening commands with
+	 * "503 bad sequence of commands".  Since an attempt to make an SMTP
+	 * connection to such a system is probably in error, a server returning
+	 * a 554 response on connection opening SHOULD provide enough  
+	 * information in the reply text to facilitate debugging of the sending
+	 * system.
+	 */
 	syslog( LOG_NOTICE,
 		"receive connection refused: inbound smtp disabled" );
-	if ( snet_writef( snet, "554 No SMTP service here\r\n" ) < 0 ) {
+	if ( snet_writef( r.r_snet, "554 No SMTP service here\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "receive snet_writef: %m" );
 	    goto closeconnection;
 	}
-    } else {
-	if ( simta_receive_connections_max != 0 ) {
-	    if ( simta_receive_connections >= simta_receive_connections_max ) {
-		syslog( LOG_NOTICE, "receive connection refused: "
-			"max connections exceeded" );
-		if ( snet_writef( snet, "421 Maximum connections exceeded, "
-			"closing transmission channel\r\n" ) < 0 ) {
-		    syslog( LOG_ERR, "receive snet_writef: %m" );
-		}
-		goto closeconnection;
-	    }
-	}
 
+    } else {
 	if ( simta_dnsr == NULL ) {
 	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
 		syslog( LOG_ERR, "receive dnsr_new: returned NULL" );
@@ -2225,11 +2238,11 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
 	*hostname = '\0';
 
-        if (( rc = check_reverse( hostname, &(sin->sin_addr))) == 0 ) {  
+        if (( ret = check_reverse( hostname, &(sin->sin_addr))) == 0 ) {
             receive_dns_match = "PASSED";
         } else {
             receive_dns_match = "FAILED";
-            if ( rc < 0 ) {                     /* DNS error */
+            if ( ret < 0 ) {                     /* DNS error */
                 if ( simta_ignore_connect_in_reverse_errors ) {
                     syslog( LOG_NOTICE,
                         "Connect.in [%s]: Warning: reverse address error: %s",
@@ -2240,7 +2253,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
                         "Connect.in [%s]: Failed: reverse address error: %s",
                         inet_ntoa( sin->sin_addr ),
                         dnsr_err2string( dnsr_errno( simta_dnsr )));
-                    snet_writef( snet,
+                    snet_writef( r.r_snet,
                         "421 Error checking reverse address: %s %s\r\n",
                         inet_ntoa( sin->sin_addr ),
                         dnsr_err2string( dnsr_errno( simta_dnsr )));
@@ -2251,12 +2264,12 @@ smtp_receive( int fd, struct sockaddr_in *sin )
                     syslog( LOG_NOTICE, "Connect.in [%s]: Failed: "
                             "invalid reverse", inet_ntoa( sin->sin_addr ));
 		    if ( simta_reverse_url ) {
-			snet_writef( snet,
+			snet_writef( r.r_snet,
 				"421 No access from IP %s.  See %s\r\n",
 				inet_ntoa( sin->sin_addr ),
 				simta_reverse_url );
 		    } else {
-			snet_writef( snet,
+			snet_writef( r.r_snet,
 				"421 No access from IP %s.\r\n",
 				inet_ntoa( sin->sin_addr ));
 		    }
@@ -2279,7 +2292,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Blocked: %s",
                         inet_ntoa( sin->sin_addr ), receive_remote_hostname,
                         rbl_found->rbl_domain );
-                snet_writef( snet, "550 No access from IP %s.  See %s\r\n",
+                snet_writef( r.r_snet, "550 No access from IP %s.  See %s\r\n",
                         inet_ntoa( sin->sin_addr ), rbl_found->rbl_url );
                 goto closeconnection;
 
@@ -2333,18 +2346,14 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
 #endif /* HAVE_LIBWRAP */
 
-	if (( env = env_create( NULL, NULL )) == NULL ) {
+	if (( r.r_env = env_create( NULL, NULL )) == NULL ) {
 	    goto syserror;
 	}
 	receive_sin = sin;
 
-	if (( acav = acav_alloc( )) == NULL ) {
-	    syslog( LOG_ERR, "receive argcargv_alloc: %m" );
-	    goto syserror;
-	}
-
-	if ( snet_writef( snet, "%d %s Simple Internet Message Transfer Agent "
-		"ready\r\n", 220, simta_hostname ) < 0 ) {
+	if ( snet_writef( r.r_snet,
+		"%d %s Simple Internet Message Transfer Agent ready\r\n",
+		220, simta_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "receive snet_writef: %m" );
 	    goto closeconnection;
 	}
@@ -2353,11 +2362,25 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 		inet_ntoa( sin->sin_addr ), receive_remote_hostname );
     }
 
+    if (( acav = acav_alloc( )) == NULL ) {
+	syslog( LOG_ERR, "receive argcargv_alloc: %m" );
+	goto syserror;
+    }
+
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
-    while (( line = snet_getline( snet, &tv )) != NULL ) {
+    while (( line = snet_getline( r.r_snet, &tv )) != NULL ) {
 	tv.tv_sec = simta_receive_wait;
 	tv.tv_usec = 0;
+
+	/* tarpitting */
+	if ( simta_smtp_tarpit != 0 ) {
+	    req.tv_sec = simta_smtp_tarpit;
+	    req.tv_nsec = 0;
+	    if ( nanosleep( &req, NULL ) != 0 ) {
+		syslog( LOG_DEBUG, "Tarpit: Error nanosleep %m" );
+	    }
+	}
 
 	if ( receive_smtp_command != NULL ) {
 	    free( receive_smtp_command );
@@ -2373,13 +2396,21 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	 * This routine needs to be revised to take rfc822 quoting into
 	 * account.  E.g.  MAIL FROM:<"foo \: bar"@umich.edu>
 	 */
-	if (( ac = acav_parse2821( acav, line, &av )) < 0 ) {
+	if (( r.r_ac = acav_parse2821( acav, line, &(r.r_av))) < 0 ) {
 	    syslog( LOG_ERR, "receive argcargv: %m" );
 	    goto syserror;
 	}
 
-	if ( ac == 0 ) {
-	    if ( snet_writef( snet, "500 Command unrecognized\r\n" ) < 0 ) {
+	if ( r.r_ac == 0 ) {
+	    if ( snet_writef( r.r_snet, "500 Command unrecognized\r\n" ) < 0 ) {
+		goto closeconnection;
+	    }
+	    continue;
+
+	} else if (( simta_service_smtp == SERVICE_SMTP_REFUSE ) &&
+		( strcasecmp( r.r_av[ 0 ], "QUIT" ) != 0 )) {
+	    if ( snet_writef( r.r_snet,
+		    "503 bad sequence of commands\r\n" ) < 0 ) {
 		goto closeconnection;
 	    }
 	    continue;
@@ -2391,38 +2422,21 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	 * SHOULD reject such commands, normally using "500 syntax error
 	 * - invalid character" replies.
 	 */
-
 	for ( i = 0; i < receive_ncommands; i++ ) {
-	    if ( strcasecmp( av[ 0 ], receive_commands[ i ].c_name ) == 0 ) {
+	    if ( strcasecmp( r.r_av[ 0 ],
+		    receive_commands[ i ].c_name ) == 0 ) {
 		break;
 	    }
 	}
 
-	/* tarpitting */
-	if ( simta_smtp_tarpit != 0 ) {
-	    req.tv_sec = simta_smtp_tarpit;
-	    req.tv_nsec = 0;
-	    if ( nanosleep( &req, NULL ) != 0 ) {
-		syslog( LOG_DEBUG, "Tarpit: Error nanosleep %m" );
-	    }
-	}
-
-	if (( simta_service_smtp == SERVICE_SMTP_REFUSE ) &&
-		( strcasecmp( av[ 0 ], "QUIT" ) != 0 )) {
-	    if ( snet_writef( snet, "503 bad sequence of commands\r\n" ) < 0 ) {
-		goto closeconnection;
-	    }
-	    continue;
-	}
-
 	if ( i >= receive_ncommands ) {
-	    if ( snet_writef( snet, "500 Command unrecognized\r\n" ) < 0 ) {
+	    if ( snet_writef( r.r_snet, "500 Command unrecognized\r\n" ) < 0 ) {
 		goto closeconnection;
 	    }
 	    continue;
 	}
 
-	switch ((*(receive_commands[ i ].c_func))( snet, env, ac, av )) {
+	switch ((*(receive_commands[ i ].c_func))( &r )) {
 
 	case RECEIVE_OK:
 	    break;
@@ -2431,7 +2445,8 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    goto closeconnection;
 
 	case RECEIVE_BADSEQUENCE:
-	    if ( snet_writef( snet, "503 Bad sequence of commands\r\n" ) < 0 ) {
+	    if ( snet_writef( r.r_snet,
+		    "503 Bad sequence of commands\r\n" ) < 0 ) {
 		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 		goto syserror;
 	    }
@@ -2445,7 +2460,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     }
 
     if ( errno == ETIMEDOUT ) {
-	if ( snet_writef( snet, "421 closing transmission channel: "
+	if ( snet_writef( r.r_snet, "421 closing transmission channel: "
 		"command timeout\r\n", simta_hostname ) < 0 ) {
 	    syslog( LOG_ERR, "receive snet_writef: %m" );
 	}
@@ -2453,13 +2468,13 @@ smtp_receive( int fd, struct sockaddr_in *sin )
     }
 
 syserror:
-    if ( snet_writef( snet, "421 %s Service not available, "
+    if ( snet_writef( r.r_snet, "421 %s Service not available, "
 	    "closing transmission channel\r\n", simta_hostname ) < 0 ) {
 	syslog( LOG_ERR, "receive snet_writef: %m" );
     }
 
 closeconnection:
-    if ( snet_close( snet ) != 0 ) {
+    if ( snet_close( r.r_snet ) != 0 ) {
 	syslog( LOG_ERR, "receive snet_close: %m" );
     }
 
@@ -2476,7 +2491,7 @@ closeconnection:
 	free( receive_hello );
     }
 
-    reset( env );
+    reset( r.r_env );
 
 #ifdef HAVE_LIBSSL 
     if ( mdctx_status != MDCTX_UNINITILIZED ) {
@@ -2485,8 +2500,8 @@ closeconnection:
 #endif /* HAVE_LIBSSL */
 
     if (( tv_start.tv_sec != 0 ) &&
-	    (( r = gettimeofday( &tv_stop, NULL )) != 0 )) {
-	if ( r != 0 ) {
+	    (( ret = gettimeofday( &tv_stop, NULL )) != 0 )) {
+	if ( ret != 0 ) {
 	    syslog( LOG_ERR, "Syserror: q_read_dir gettimeofday: %m" );
 	}
 	tv_start.tv_sec = 1;
