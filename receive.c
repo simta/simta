@@ -92,43 +92,52 @@ extern SSL_CTX	*ctx;
 #define SIMTA_EXTENSION_SIZE    (1<<0)
 
 extern char		*version;
-struct sockaddr_in  	*receive_sin;
-int			write_before_banner = 0;
-int			data_success = 0;
-int			data_attempt = 0;
-int			mail_success = 0;
-int			mail_attempt = 0;
-int			rcpt_success = 0;
-int			rcpt_attempt = 0;
-int			receive_failed_rcpts = 0;
-int			receive_tls = 0;
-int			receive_auth = 0;
-int			remote_rbl_status = RBL_UNKNOWN;
-char			*receive_dns_match = "Unknown";
-char			*receive_hello = NULL;
-char			*receive_smtp_command = NULL;
-char			*receive_remote_hostname = "Unknown";
-struct command 		*receive_commands  = NULL;
-int			receive_ncommands;
+
+struct receive_data {
+    SNET			*r_snet;
+    struct envelope		*r_env;
+    int				r_ac;
+    char			**r_av;
+    struct sockaddr_in  	*r_sin;
+    int				r_write_before_banner;
+    int				r_data_success;
+    int				r_data_attempt;
+    int				r_mail_success;
+    int				r_mail_attempt;
+    int				r_rcpt_success;
+    int				r_rcpt_attempt;
+    int				r_failed_rcpts;
+    int				r_tls;
+    int				r_auth;
+    char			*r_dns_match;
+    int				r_rbl_status;
+    char			*r_hello;
+    char			*r_smtp_command;
+    char			*r_remote_hostname;
+    struct command 		*r_commands;
+    int				r_ncommands;
+
 #ifdef HAVE_LIBSSL
-int			_start_tls( SNET *snet );
-int 			_post_tls( SNET *snet );
-unsigned char		md_value[ EVP_MAX_MD_SIZE ];
-char			md_b64[ SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 ];
-EVP_MD_CTX		mdctx;
-int			mdctx_status = MDCTX_UNINITILIZED;
-unsigned int		mdctx_bytes;
-int			md_len;
-char			md_bytes[ BYTE_LEN + 1 ];
+    unsigned char		r_md_value[ EVP_MAX_MD_SIZE ];
+    char			r_md_b64[ SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 ];
+    EVP_MD_CTX			r_mdctx;
+    int				r_mdctx_status;
+    unsigned int		r_mdctx_bytes;
+    int				r_md_len;
+    char			r_md_bytes[ BYTE_LEN + 1 ];
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
+    sasl_conn_t			*r_conn;
+    /* external security strength factor zero = NONE */
+    sasl_ssf_t			r_ext_ssf;
+    sasl_security_properties_t	r_secprops;
+    char			*r_auth_id;
+#endif /* HAVE_LIBSASL */
+};
+
+#ifdef HAVE_LIBSASL
 #define BASE64_BUF_SIZE 21848 /* per RFC 2222bis: ((16k / 3 ) +1 ) * 4 */
-sasl_conn_t			*receive_conn;
-/* external security strength factor zero = NONE */
-sasl_ssf_t			ext_ssf = 0;
-sasl_security_properties_t	secprops;
-char				*auth_id = NULL;
 #endif /* HAVE_LIBSASL */
 
 #define	RECEIVE_OK		0x0000
@@ -143,23 +152,16 @@ char				*auth_id = NULL;
 #define	MX_ADDRESS			4
 #define	LOCAL_ADDRESS_RBL		5
 
-struct receive_data {
-    SNET			*r_snet;
-    struct envelope		*r_env;
-    int				r_ac;
-    char			**r_av;
-};
-
 struct command {
     char	*c_name;
     int		(*c_func)( struct receive_data * );
 };
 
 static char 	*env_string( char *, char * );
-static int	mail_filter( struct envelope *, int, char ** );
+static int	mail_filter( struct receive_data *, int, char ** );
 static int	local_address( char *, char *, struct simta_red *);
-static int	hello( struct envelope *, char * );
-static int	reset( struct envelope *env );
+static int	hello( struct receive_data *, char * );
+static int	reset( struct receive_data * );
 static int	f_helo( struct receive_data * );
 static int	f_ehlo( struct receive_data * );
 static int	f_mail( struct receive_data * );
@@ -172,13 +174,17 @@ static int	f_help( struct receive_data * );
 static int	f_vrfy( struct receive_data * );
 static int	f_expn( struct receive_data * );
 static int	f_noauth( struct receive_data * );
-#ifdef HAVE_LIBSSL
-static int	f_starttls( struct receive_data * );
-#endif /* HAVE_LIBSSL */
+
 #ifdef HAVE_LIBSASL
 static int	f_auth( struct receive_data * );
-static int 	reset_sasl_conn( sasl_conn_t **conn );
+static int 	reset_sasl_conn( struct receive_data *r );
 #endif /* HAVE_LIBSASL */
+
+#ifdef HAVE_LIBSSL
+static int	f_starttls( struct receive_data * );
+static int	_start_tls( struct receive_data * );
+static int 	_post_tls( struct receive_data * );
+#endif /* HAVE_LIBSSL */
 
 struct command	smtp_commands[] = {
     { "HELO",		f_helo },
@@ -222,23 +228,23 @@ struct command	noauth_commands[] = {
 
 
     int
-reset( struct envelope *env )
+reset( struct receive_data *r )
 {
     int			ret = 0;
 
-    if ( env ) {
-	if ( env->e_flags & ENV_FLAG_ON_DISK ) {
-	    if ( expand_and_deliver( env ) != EXPAND_OK ) {
+    if ( r->r_env ) {
+	if ( r->r_env->e_flags & ENV_FLAG_ON_DISK ) {
+	    if ( expand_and_deliver( r->r_env ) != EXPAND_OK ) {
 		ret = RECEIVE_SYSERROR;
 	    }
 
-	} else if ( env->e_id != NULL ) {
+	} else if ( r->r_env->e_id != NULL ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: Abandoned",
-		    env->e_id, inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname );
+		    r->r_env->e_id, inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname );
 	}
 
-	env_reset( env );
+	env_reset( r->r_env );
     }
 
     return( ret );
@@ -246,10 +252,10 @@ reset( struct envelope *env )
 
 
     static int
-hello( struct envelope *env, char *hostname )
+hello( struct receive_data *r, char *hostname )
 {
     /* If we get "HELO" twice, just toss the new one */
-    if ( receive_hello == NULL ) {
+    if ( r->r_hello == NULL ) {
 	/*
 	 * rfc1123 5.2.5: We don't check that the "HELO" domain matches
 	 * anything like the hostname.  When we create the data file, we'll
@@ -257,7 +263,7 @@ hello( struct envelope *env, char *hostname )
 	 * "Received:" header should say.  Since mail clients don't send well
 	 * formed "HELO", we won't even do syntax checks on av[ 1 ].
 	 */
-	if (( receive_hello = strdup( hostname )) == NULL ) {
+	if (( r->r_hello = strdup( hostname )) == NULL ) {
 	    syslog( LOG_ERR, "helo: strdup: %m" );
 	    return( RECEIVE_SYSERROR );
 	}
@@ -271,7 +277,7 @@ hello( struct envelope *env, char *hostname )
 f_helo( struct receive_data *r )
 {
     if ( r->r_ac != 2 ) {
-	syslog( LOG_ERR, "Receive: Bad HELO syntax: %s", receive_smtp_command );
+	syslog( LOG_ERR, "Receive: Bad HELO syntax: %s", r->r_smtp_command );
 
 	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.1: "
@@ -282,7 +288,7 @@ f_helo( struct receive_data *r )
 	return( RECEIVE_OK );
     }
 
-    if ( hello( r->r_env, r->r_av[ 1 ] ) != RECEIVE_OK ) {
+    if ( hello( r, r->r_av[ 1 ] ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -317,7 +323,7 @@ f_ehlo( struct receive_data *r )
      * without this initialization.
      */
     if ( r->r_ac != 2 ) {
-	syslog( LOG_ERR, "Receive: Bad EHLO syntax: %s", receive_smtp_command );
+	syslog( LOG_ERR, "Receive: Bad EHLO syntax: %s", r->r_smtp_command );
 
 	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.1: "
@@ -336,7 +342,7 @@ f_ehlo( struct receive_data *r )
      * EHLO is redundant, but not harmful other than in the performance cost
      * of executing unnecessary commands.
      */
-    if ( reset( r->r_env ) != 0 ) {
+    if ( reset( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -346,7 +352,7 @@ f_ehlo( struct receive_data *r )
      * has no name, an address literal as described in section 4.1.1.1.
      */
 
-    if ( hello( r->r_env, r->r_av[ 1 ] ) != RECEIVE_OK ) {
+    if ( hello( r, r->r_av[ 1 ] ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -367,10 +373,10 @@ f_ehlo( struct receive_data *r )
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
-	if ( sasl_listmech( receive_conn, NULL, "", " ", "", &mechlist, NULL,
+	if ( sasl_listmech( r->r_conn, NULL, "", " ", "", &mechlist, NULL,
 		NULL ) != SASL_OK ) {
 	    syslog( LOG_ERR, "f_ehlo sasl_listmech: %s",
-		    sasl_errdetail( receive_conn ));
+		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_SYSERROR );
 	}
 	if ( snet_writef( r->r_snet, "250%sAUTH %s\r\n", 
@@ -386,7 +392,7 @@ f_ehlo( struct receive_data *r )
      * A server MUST NOT return the STARTTLS extension in response to an
      * EHLO command received after a TLS handshake has completed.
      */
-    if ( simta_tls && !receive_tls ) {
+    if ( simta_tls && !r->r_tls ) {
 	if ( snet_writef( r->r_snet, "%d%sSTARTTLS\r\n", 250,
 		    extension_count-- ? "-" : " " ) < 0 ) {
 	    syslog( LOG_ERR, "f_ehlo snet_writef: %m" );
@@ -402,12 +408,12 @@ f_ehlo( struct receive_data *r )
 
 
     static int
-f_mail_usage( SNET *snet )
+f_mail_usage( struct receive_data *r )
 {
     syslog( LOG_ERR, "Receive: Bad MAIL FROM syntax: %s",
-	    receive_smtp_command );
+	    r->r_smtp_command );
 
-    if ( snet_writef( snet,
+    if ( snet_writef( r->r_snet,
 	    "501-Syntax violates RFC 2821 section 4.1.1.2:\r\n"
 	    "501-     \"MAIL FROM:\" (\"<>\" / Reverse-Path ) "
 	    "[ SP Mail-parameters ] CRLF\r\n"
@@ -433,10 +439,10 @@ f_mail( struct receive_data *r )
     char		*domain;
     char		*endptr;
 
-    mail_attempt++;
+    r->r_mail_attempt++;
 
     if ( r->r_ac < 2 ) {
-	return( f_mail_usage( r->r_snet ));
+	return( f_mail_usage( r ));
     }
 
     if (( !simta_strict_smtp_syntax ) && ( r->r_ac >= 3 ) &&
@@ -444,19 +450,19 @@ f_mail( struct receive_data *r )
 	/* r->r_av[ 1 ] = "FROM:", r->r_av[ 2 ] = "<ADDRESS>" */
 	if ( parse_emailaddr( RFC_2821_MAIL_FROM, r->r_av[ 2 ], &addr,
 		&domain ) != 0 ) {
-	    return( f_mail_usage( r->r_snet ));
+	    return( f_mail_usage( r ));
 	}
 	parameters = 3;
 
     } else {
 	if ( strncasecmp( r->r_av[ 1 ], "FROM:", strlen( "FROM:" )) != 0 ) {
-	    return( f_mail_usage( r->r_snet ));
+	    return( f_mail_usage( r ));
 	}
 
 	/* r->r_av[ 1 ] = "FROM:<ADDRESS>" */
 	if ( parse_emailaddr( RFC_2821_MAIL_FROM,
 		r->r_av[ 1 ] + strlen( "FROM:" ), &addr, &domain ) != 0 ) {
-	    return( f_mail_usage( r->r_snet ));
+	    return( f_mail_usage( r ));
 	}
     	parameters = 2;
     }
@@ -467,7 +473,7 @@ f_mail( struct receive_data *r )
 	    if ( seen_extensions & SIMTA_EXTENSION_SIZE ) {
 		syslog( LOG_ERR,
 			"Receive: duplicate size specified: %s",
-			receive_smtp_command );
+			r->r_smtp_command );
 		if ( snet_writef( r->r_snet,
 			"501 duplicate size specified\r\n" ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -481,7 +487,7 @@ f_mail( struct receive_data *r )
 	    if ( strncasecmp( r->r_av[ i ], "SIZE=", strlen( "SIZE=" )) != 0 ) {
 		syslog( LOG_ERR,
 			"Receive: invalid SIZE parameter: %s",
-			receive_smtp_command );
+			r->r_smtp_command );
 		if ( snet_writef( r->r_snet,
 			"501 invalid SIZE command\r\n" ) < 0 ) {
 		    syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -501,7 +507,7 @@ f_mail( struct receive_data *r )
 			|| ( message_size < 0 )) {
 		    syslog( LOG_ERR,
 			    "Receive: invalid SIZE parameter: %s",
-			    receive_smtp_command );
+			    r->r_smtp_command );
 		    if ( snet_writef( r->r_snet,
 			    "501 invalid SIZE parameter: %s\r\n",
 			    r->r_av[ i ] + strlen( "SIZE=" )) < 0 ) {
@@ -514,7 +520,7 @@ f_mail( struct receive_data *r )
 		if ( message_size > simta_max_message_size ) {
 		    syslog( LOG_ERR,
 			    "Receive: message exceeds max message size: %s",
-			    receive_smtp_command );
+			    r->r_smtp_command );
 		    if ( snet_writef( r->r_snet,
 	    "552 message exceeds fixed maximum message size\r\n" ) < 0 ) {
 			syslog( LOG_ERR, "f_mail snet_writef: %m" );
@@ -526,7 +532,7 @@ f_mail( struct receive_data *r )
 
 	} else {
 	    syslog( LOG_ERR, "Receive: unsupported SMTP service extension: %s",
-		receive_smtp_command );
+		r->r_smtp_command );
 
 	    if ( snet_writef( r->r_snet,
 		    "501 unsupported SMPT service extension: %s\r\n",
@@ -571,7 +577,7 @@ f_mail( struct receive_data *r )
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
-    if ( reset( r->r_env ) != 0 ) {
+    if ( reset( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -585,21 +591,21 @@ f_mail( struct receive_data *r )
 
 #ifdef HAVE_LIBSSL 
     if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
-	if ( mdctx_status != MDCTX_READY ) {
-	    if ( mdctx_status == MDCTX_UNINITILIZED ) {
-		EVP_MD_CTX_init( &mdctx );
-	    } else if ( mdctx_status == MDCTX_IN_USE ) {
-		EVP_DigestFinal_ex( &mdctx, md_value, &md_len );
+	if ( r->r_mdctx_status != MDCTX_READY ) {
+	    if ( r->r_mdctx_status == MDCTX_UNINITILIZED ) {
+		EVP_MD_CTX_init( &r->r_mdctx );
+	    } else if ( r->r_mdctx_status == MDCTX_IN_USE ) {
+		EVP_DigestFinal_ex( &r->r_mdctx, r->r_md_value, &r->r_md_len );
 	    }
 
-	    EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
-	    mdctx_status = MDCTX_READY;
-	    mdctx_bytes = 0;
+	    EVP_DigestInit_ex( &r->r_mdctx, simta_checksum_md, NULL);
+	    r->r_mdctx_status = MDCTX_READY;
+	    r->r_mdctx_bytes = 0;
 	}
     }
 #endif /* HAVE_LIBSSL */
 
-    mail_success++;
+    r->r_mail_success++;
 
     syslog( LOG_INFO, "Receive %s: From <%s> Accepted", r->r_env->e_id,
 	    r->r_env->e_mail );
@@ -614,11 +620,11 @@ f_mail( struct receive_data *r )
 
 
     static int
-f_rcpt_usage( SNET *snet )
+f_rcpt_usage( struct receive_data *r )
 {
-    syslog( LOG_ERR, "Receive: Bad RCPT TO syntax: %s", receive_smtp_command );
+    syslog( LOG_ERR, "Receive: Bad RCPT TO syntax: %s", r->r_smtp_command );
 
-    if ( snet_writef( snet,
+    if ( snet_writef( r->r_snet,
 	    "501-Syntax violates RFC 2821 section 4.1.1.3:\r\n"
 	    "501-     \"RCPT TO:\" (\"<Postmaster@\" domain \">\" / "
 	    "\"<Postmaster>\" / Forward-Path ) "
@@ -642,7 +648,7 @@ f_rcpt( struct receive_data *r )
     struct simta_red		*red;
     struct rbl			*rbl_found;
 
-    rcpt_attempt++;
+    r->r_rcpt_attempt++;
 
     /* Must already have "MAIL FROM:", and no valid message */
     if (( r->r_env->e_mail == NULL ) ||
@@ -652,26 +658,26 @@ f_rcpt( struct receive_data *r )
 
     if ( r->r_ac == 2 ) {
 	if ( strncasecmp( r->r_av[ 1 ], "TO:", 3 ) != 0 ) {
-	    return( f_rcpt_usage( r->r_snet ));
+	    return( f_rcpt_usage( r ));
 	}
 
 	if ( parse_emailaddr( RFC_2821_RCPT_TO, r->r_av[ 1 ] + 3, &addr,
 		&domain ) != 0 ) {
-	    return( f_rcpt_usage( r->r_snet ));
+	    return( f_rcpt_usage( r ));
 	}
 
     } else if (( simta_strict_smtp_syntax == 0 ) && ( r->r_ac == 3 )) {
 	if ( strcasecmp( r->r_av[ 1 ], "TO:" ) != 0 ) {
-	    return( f_rcpt_usage( r->r_snet ));
+	    return( f_rcpt_usage( r ));
 	}
 
 	if ( parse_emailaddr( RFC_2821_RCPT_TO, r->r_av[ 2 ], &addr,
 		&domain ) != 0 ) {
-	    return( f_rcpt_usage( r->r_snet ));
+	    return( f_rcpt_usage( r ));
 	}
 
     } else {
-	return( f_rcpt_usage( r->r_snet ));
+	return( f_rcpt_usage( r ));
     }
 
     /* rfc 2821 3.7
@@ -701,13 +707,13 @@ f_rcpt( struct receive_data *r )
      * that we don't know.
      */
     if (( simta_max_failed_rcpts != 0 ) &&
-	    ( receive_failed_rcpts >= simta_max_failed_rcpts )) {
-	if ( receive_failed_rcpts == simta_max_failed_rcpts ) {
+	    ( r->r_failed_rcpts >= simta_max_failed_rcpts )) {
+	if ( r->r_failed_rcpts == simta_max_failed_rcpts ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
 		    "451 Too many failed recipients", r->r_env->e_id,
-		    inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname );
-	    receive_failed_rcpts++;
+		    inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname );
+	    r->r_failed_rcpts++;
 	}
 	if ( snet_writef( r->r_snet, "%d Requested action aborted: "
 		"Too many failed recipients.\r\n", 451 ) < 0 ) {
@@ -731,9 +737,9 @@ f_rcpt( struct receive_data *r )
 		if (( simta_mail_filter != NULL ) &&
 			( simta_checksum_md != NULL )) {
 		    addr_len = strlen( addr );
-		    EVP_DigestUpdate( &mdctx, addr, addr_len );
-		    mdctx_bytes += addr_len;
-		    mdctx_status = MDCTX_IN_USE;
+		    EVP_DigestUpdate( &r->r_mdctx, addr, addr_len );
+		    r->r_mdctx_bytes += addr_len;
+		    r->r_mdctx_status = MDCTX_IN_USE;
 		}
 #endif /* HAVE_LIBSSL */
 
@@ -802,7 +808,7 @@ f_rcpt( struct receive_data *r )
 			r->r_env->e_id, addr, r->r_env->e_mail );
 
 		/* Count number of not-local recipients */
-		receive_failed_rcpts++;
+		r->r_failed_rcpts++;
 		if ( snet_writef( r->r_snet,
 			"%d Requested action not taken: User not found.\r\n",
 			550 ) < 0 ) {
@@ -823,9 +829,9 @@ f_rcpt( struct receive_data *r )
 		if (( simta_mail_filter != NULL ) &&
 			( simta_checksum_md != NULL )) {
 		    addr_len = strlen( addr );
-		    EVP_DigestUpdate( &mdctx, addr, addr_len );
-		    mdctx_bytes += addr_len;
-		    mdctx_status = MDCTX_IN_USE;
+		    EVP_DigestUpdate( &r->r_mdctx, addr, addr_len );
+		    r->r_mdctx_bytes += addr_len;
+		    r->r_mdctx_status = MDCTX_IN_USE;
 		}
 #endif /* HAVE_LIBSSL */
 
@@ -833,13 +839,13 @@ f_rcpt( struct receive_data *r )
 
 	    case LOCAL_ADDRESS_RBL:
                 if ( simta_user_rbls != NULL ) {
-                    if ( remote_rbl_status == RBL_UNKNOWN ) {
+                    if ( r->r_rbl_status == RBL_UNKNOWN ) {
                         /* Check and save RBL status */
                         switch ( rbl_check( simta_user_rbls,
-				&(receive_sin->sin_addr),
+				&(r->r_sin->sin_addr),
                                 &rbl_found )) {
                         case RBL_BLOCK:
-                            remote_rbl_status = RBL_BLOCK;
+                            r->r_rbl_status = RBL_BLOCK;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 				    "RBL blocked: %s",
 				    r->r_env->e_id, addr, r->r_env->e_mail,
@@ -847,7 +853,7 @@ f_rcpt( struct receive_data *r )
                             break;
 
 			case RBL_ACCEPT:
-			    remote_rbl_status = RBL_ACCEPT;
+			    r->r_rbl_status = RBL_ACCEPT;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 				    "RBL accepted: %s",
 				    r->r_env->e_id, addr, r->r_env->e_mail,
@@ -855,7 +861,7 @@ f_rcpt( struct receive_data *r )
 			    break;
 
 			case RBL_NOT_FOUND:
-			    remote_rbl_status = RBL_NOT_FOUND;
+			    r->r_rbl_status = RBL_NOT_FOUND;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 				    "RBL Not Found", r->r_env->e_id, addr,
 				    r->r_env->e_mail );
@@ -863,7 +869,7 @@ f_rcpt( struct receive_data *r )
 
 			case RBL_ERROR:
 			default:
-			    remote_rbl_status = RBL_UNKNOWN;
+			    r->r_rbl_status = RBL_UNKNOWN;
 			    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 				    "RBL error: %s",
 				    r->r_env->e_id, addr, r->r_env->e_mail,
@@ -877,17 +883,17 @@ f_rcpt( struct receive_data *r )
 			}
 		    }
 
-		    if ( remote_rbl_status == RBL_BLOCK ) {
-			receive_failed_rcpts++;
+		    if ( r->r_rbl_status == RBL_BLOCK ) {
+			r->r_failed_rcpts++;
 			syslog( LOG_INFO,
 				"Receive %s: To <%s> From <%s> Failed: "
 				"RBL %s ([%s] %s)", r->r_env->e_id, addr,
 				r->r_env->e_mail, rbl_found->rbl_domain,
-				inet_ntoa( receive_sin->sin_addr ),
-				receive_remote_hostname );
+				inet_ntoa( r->r_sin->sin_addr ),
+				r->r_remote_hostname );
 			if ( snet_writef( r->r_snet,
 				"550 No access from IP %s. See %s\r\n",
-				inet_ntoa( receive_sin->sin_addr ),
+				inet_ntoa( r->r_sin->sin_addr ),
 				rbl_found->rbl_url ) != 0 ) {
 			    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
 			    return( RECEIVE_CLOSECONNECTION );
@@ -911,7 +917,7 @@ f_rcpt( struct receive_data *r )
 	return( RECEIVE_SYSERROR );
     }
 
-    rcpt_success++;
+    r->r_rcpt_success++;
 
     syslog( LOG_INFO, "Receive %s: To <%s> From <%s> Accepted", r->r_env->e_id,
 	    r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail );
@@ -924,9 +930,9 @@ f_rcpt( struct receive_data *r )
 #ifdef HAVE_LIBSSL 
     if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
 	addr_len = strlen( addr );
-	EVP_DigestUpdate( &mdctx, addr, addr_len );
-	mdctx_bytes += addr_len;
-	mdctx_status = MDCTX_IN_USE;
+	EVP_DigestUpdate( &r->r_mdctx, addr, addr_len );
+	r->r_mdctx_bytes += addr_len;
+	r->r_mdctx_status = MDCTX_IN_USE;
     }
 #endif /* HAVE_LIBSSL */
 
@@ -967,7 +973,7 @@ f_data( struct receive_data *r )
     memset( &rh, 0, sizeof( struct receive_headers ));
     rh.r_env = r->r_env;
 
-    data_attempt++;
+    r->r_data_attempt++;
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -977,7 +983,7 @@ f_data( struct receive_data *r )
      * having invalid syntax.
      */
     if ( r->r_ac != 1 ) {
-	syslog( LOG_ERR, "Receive: Bad DATA syntax: %s", receive_smtp_command );
+	syslog( LOG_ERR, "Receive: Bad DATA syntax: %s", r->r_smtp_command );
 
 	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.4: "
@@ -993,13 +999,13 @@ f_data( struct receive_data *r )
      * take the mail.
      */
     if (( simta_max_failed_rcpts != 0 ) &&
-	    ( receive_failed_rcpts >= simta_max_failed_rcpts )) {
-	if ( receive_failed_rcpts == simta_max_failed_rcpts ) {
+	    ( r->r_failed_rcpts >= simta_max_failed_rcpts )) {
+	if ( r->r_failed_rcpts == simta_max_failed_rcpts ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
 		    "451 Too many failed recipients", r->r_env->e_id,
-		    inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname );
-	    receive_failed_rcpts++;
+		    inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname );
+	    r->r_failed_rcpts++;
 	}
 	if ( snet_writef( r->r_snet, "451 Requested action aborted:"
 		" Too many failed recipients\r\n" ) < 0 ) {
@@ -1057,8 +1063,8 @@ f_data( struct receive_data *r )
 	 */
 	if ( fprintf( dff, "Received: FROM %s (%s [%s])\n\t"
 		"BY %s ID %s ; \n\t%s %s\n",
-		( receive_hello == NULL ) ? "NULL" : receive_hello,
-		receive_remote_hostname , inet_ntoa( receive_sin->sin_addr ),
+		( r->r_hello == NULL ) ? "NULL" : r->r_hello,
+		r->r_remote_hostname , inet_ntoa( r->r_sin->sin_addr ),
 		simta_hostname, r->r_env->e_id, daytime, tz( tm )) < 0 ) {
 	    syslog( LOG_ERR, "f_data fprintf: %m" );
 	    goto error;
@@ -1138,8 +1144,8 @@ f_data( struct receive_data *r )
 
 #ifdef HAVE_LIBSSL 
 	if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
-	    EVP_DigestUpdate( &mdctx, line, line_len );
-	    mdctx_bytes += line_len;
+	    EVP_DigestUpdate( &r->r_mdctx, line, line_len );
+	    r->r_mdctx_bytes += line_len;
 	}
 #endif /* HAVE_LIBSSL */
 
@@ -1159,8 +1165,8 @@ f_data( struct receive_data *r )
 	     */
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
 		    "Message too large", r->r_env->e_id, 
-		    inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname );
+		    inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname );
 	    data_errors++;
 	    if (( message = strdup( "Message too large" )) == NULL ) {
 		syslog( LOG_ERR, "f_data strdup: %m" );
@@ -1172,8 +1178,8 @@ f_data( struct receive_data *r )
 	if ( rh.r_received_count > simta_max_received_headers ) {
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s:"
 		    "Too many received headers", r->r_env->e_id, 
-		    inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname );
+		    inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname );
 	    data_errors++;
 	    if (( message = strdup( "Too many received headers" )) == NULL ) {
 		syslog( LOG_ERR, "f_data strdup: %m" );
@@ -1241,11 +1247,11 @@ f_data( struct receive_data *r )
 #ifdef HAVE_LIBSSL 
 	    if (( simta_mail_filter != NULL ) &&
 		    ( simta_checksum_md != NULL )) {
-		EVP_DigestFinal_ex( &mdctx, md_value, &md_len );
-		mdctx_status = MDCTX_FINAL;
-		memset( md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
-		base64_e( md_value, md_len, md_b64 );
-		snprintf( md_bytes, BYTE_LEN, "%d", mdctx_bytes );
+		EVP_DigestFinal_ex( &r->r_mdctx, r->r_md_value, &r->r_md_len );
+		r->r_mdctx_status = MDCTX_FINAL;
+		memset( r->r_md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
+		base64_e( r->r_md_value, r->r_md_len, r->r_md_b64 );
+		snprintf( r->r_md_bytes, BYTE_LEN, "%d", r->r_mdctx_bytes );
 	    }
 #endif /* HAVE_LIBSSL */
 
@@ -1257,7 +1263,7 @@ f_data( struct receive_data *r )
 	    r->r_env->e_mid = rh.r_mid;
 
 	    syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
-	    message_result = mail_filter( r->r_env, dfile_fd, &message );
+	    message_result = mail_filter( r, dfile_fd, &message );
 
 	    if ( close( dfile_fd ) != 0 ) {
 		syslog( LOG_ERR, "f_data close: %m" );
@@ -1301,22 +1307,22 @@ f_data( struct receive_data *r )
 	 * the message again.
 	 */
 
-	data_success++;
+	r->r_data_success++;
 
 	if ( message != NULL ) {
 	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
 		    "MID <%s> [%s] %s size %d: %s",
 		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-		    inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname,
+		    inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname,
 		    (int)sbuf.st_size,
 		    message );
 	} else {
 	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
 		    "MID <%s> [%s] %s size %d",
 		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-		    inet_ntoa( receive_sin->sin_addr ),
-		    receive_remote_hostname,
+		    inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname,
 		    (int)sbuf.st_size );
 	}
 
@@ -1344,8 +1350,8 @@ f_data( struct receive_data *r )
 	syslog( LOG_INFO, "Receive %s: Message Deleted after acceptance: "
 		"MID <%s> [%s] %s size %d: %s",
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-		inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname,
+		inet_ntoa( r->r_sin->sin_addr ),
+		r->r_remote_hostname,
 		(int)sbuf.st_size,
 		message ? message : "no message" );
 
@@ -1373,8 +1379,8 @@ f_data( struct receive_data *r )
 	syslog( LOG_INFO, "Receive %s: Message Failed: "
 		"MID <%s> [%s] %s size %d: %s",
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-		inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname,
+		inet_ntoa( r->r_sin->sin_addr ),
+		r->r_remote_hostname,
 		(int)sbuf.st_size,
 		message ? message : "no message" );
 
@@ -1406,8 +1412,8 @@ f_data( struct receive_data *r )
 	syslog( LOG_INFO, "Receive %s: Message Tempfailed: "
 		"MID <%s> [%s] %s size %d: %s",
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-		inet_ntoa( receive_sin->sin_addr ),
-		receive_remote_hostname,
+		inet_ntoa( r->r_sin->sin_addr ),
+		r->r_remote_hostname,
 		(int)sbuf.st_size,
 		message ? message : "no message" );
 
@@ -1492,7 +1498,7 @@ f_quit( struct receive_data *r )
      */
 
     if ( r->r_ac != 1 ) {
-	syslog( LOG_ERR, "Receive: Bad QUIT syntax: %s", receive_smtp_command );
+	syslog( LOG_ERR, "Receive: Bad QUIT syntax: %s", r->r_smtp_command );
 
 	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.10: "
@@ -1532,7 +1538,7 @@ f_rset( struct receive_data *r )
      * having invalid syntax.
      */
     if ( r->r_ac != 1 ) {
-	syslog( LOG_ERR, "Receive: Bad RSET syntax: %s", receive_smtp_command );
+	syslog( LOG_ERR, "Receive: Bad RSET syntax: %s", r->r_smtp_command );
 
 	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2821 section 4.1.1.5: "
@@ -1543,7 +1549,7 @@ f_rset( struct receive_data *r )
 	return( RECEIVE_OK );
     }
 
-    if ( reset( r->r_env ) != 0 ) {
+    if ( reset( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1652,14 +1658,14 @@ f_starttls( struct receive_data *r )
      * Client MUST NOT attempt to start a TLS session if a TLS
      * session is already active.  No mention of what to do if it does...
      */
-    if ( receive_tls ) {
+    if ( r->r_tls ) {
 	syslog( LOG_ERR, "f_starttls: called twice" );
 	return( RECEIVE_SYSERROR );
     }
 
     if ( r->r_ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad STARTTLS syntax: %s",
-		receive_smtp_command );
+		r->r_smtp_command );
 
 	if ( snet_writef( r->r_snet,
 		"%d Syntax error (no parameters allowed)\r\n", 501 ) < 0 ) {
@@ -1674,7 +1680,7 @@ f_starttls( struct receive_data *r )
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( _start_tls( r->r_snet ) != RECEIVE_OK ) {
+    if ( _start_tls( r ) != RECEIVE_OK ) {
 	return ( RECEIVE_OK );
     }
 
@@ -1693,16 +1699,16 @@ f_starttls( struct receive_data *r )
      * the TLS handshake.
      */
 
-    if ( reset( r->r_env ) != 0 ) {
+    if ( reset( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( receive_hello != NULL ) {
-	free( receive_hello );
-	receive_hello = NULL;
+    if ( r->r_hello != NULL ) {
+	free( r->r_hello );
+	r->r_hello = NULL;
     }
 
-    if (( rc = _post_tls( r->r_snet )) != RECEIVE_OK ) {
+    if (( rc = _post_tls( r )) != RECEIVE_OK ) {
 	return( rc );
     }
 
@@ -1712,31 +1718,30 @@ f_starttls( struct receive_data *r )
 }
 
     int
-_post_tls( SNET *snet )
+_post_tls( struct receive_data *r )
 {
 #ifdef HAVE_LIBSASL
     int		rc; 
 
     if ( simta_sasl ) {
-
 	/* Get cipher_bits and set SSF_EXTERNAL */
-	memset( &secprops, 0, sizeof( secprops ));
-	if (( rc = sasl_setprop( receive_conn, SASL_SSF_EXTERNAL,
-		&ext_ssf )) != SASL_OK ) {
+	memset( &r->r_secprops, 0, sizeof( sasl_security_properties_t ));
+	if (( rc = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
+		&r->r_ext_ssf )) != SASL_OK ) {
 	    syslog( LOG_ERR, "f_starttls sasl_setprop: %s",
-		    sasl_errdetail( receive_conn ));
+		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_SYSERROR );
 	}
 
-	secprops.security_flags |= SASL_SEC_NOANONYMOUS;
-	secprops.maxbufsize = 4096;
-	secprops.min_ssf = 0;
-	secprops.max_ssf = 256;
+	r->r_secprops.security_flags |= SASL_SEC_NOANONYMOUS;
+	r->r_secprops.maxbufsize = 4096;
+	r->r_secprops.min_ssf = 0;
+	r->r_secprops.max_ssf = 256;
 
-	if (( rc = sasl_setprop( receive_conn, SASL_SEC_PROPS, &secprops))
+	if (( rc = sasl_setprop( r->r_conn, SASL_SEC_PROPS, &r->r_secprops))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "f_starttls sasl_setprop: %s",
-		    sasl_errdetail( receive_conn ));
+		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_SYSERROR );
 	}
     }
@@ -1745,16 +1750,16 @@ _post_tls( SNET *snet )
 }
 
     int
-_start_tls( SNET *snet )
+_start_tls( struct receive_data *r )
 {
     int				rc;
     X509			*peer;
     char			buf[ 1024 ];
 
-    if (( rc = snet_starttls( snet, ctx, 1 )) != 1 ) {
+    if (( rc = snet_starttls( r->r_snet, ctx, 1 )) != 1 ) {
 	syslog( LOG_ERR, "f_starttls: snet_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
-	if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
+	if ( snet_writef( r->r_snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
 	    syslog( LOG_ERR, "f_starttls snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -1762,10 +1767,11 @@ _start_tls( SNET *snet )
     }
 
     if ( simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER ) {
-	if (( peer = SSL_get_peer_certificate( snet->sn_ssl )) == NULL ) {
+	if (( peer = SSL_get_peer_certificate( r->r_snet->sn_ssl )) == NULL ) {
 	    syslog( LOG_ERR,
 		    "starttls SSL_get_peer_certificate: no peer certificate" );
-	    if ( snet_writef( snet, "%d SSL didn't work!\r\n", 501 ) < 0 ) {
+	    if ( snet_writef( r->r_snet,
+		    "%d SSL didn't work!\r\n", 501 ) < 0 ) {
 		syslog( LOG_ERR, "f_starttls snet_writef: %m" );
 		return( RECEIVE_CLOSECONNECTION );
 	    }
@@ -1777,7 +1783,7 @@ _start_tls( SNET *snet )
 	X509_free( peer );
     }
 
-    receive_tls = 1;
+    r->r_tls = 1;
     simta_smtp_extension--;
 
     return( RECEIVE_OK );
@@ -1822,7 +1828,7 @@ f_auth( struct receive_data *r )
      * AUTH command completes, a server MUST reject any further AUTH
      * commands with a 503 reply.
      */
-    if ( receive_auth ) {
+    if ( r->r_auth ) {
 	return( RECEIVE_BADSEQUENCE );
     }
 
@@ -1851,7 +1857,7 @@ f_auth( struct receive_data *r )
 	}
     }
 
-    rc = sasl_server_start( receive_conn, r->r_av[ 1 ], clientin, clientinlen,
+    rc = sasl_server_start( r->r_conn, r->r_av[ 1 ], clientin, clientinlen,
 	&serverout, &serveroutlen );
 
     while ( rc == SASL_CONTINUE ) {
@@ -1888,7 +1894,7 @@ f_auth( struct receive_data *r )
 		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    syslog( LOG_INFO, "f_auth: client canceled authentication" );
-	    if ( reset_sasl_conn( &receive_conn ) != SASL_OK ) {
+	    if ( reset_sasl_conn( r ) != SASL_OK ) {
 		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    return( RECEIVE_OK );
@@ -1907,29 +1913,29 @@ f_auth( struct receive_data *r )
 	}
 
 	/* do next step */
-	rc = sasl_server_step( receive_conn, clientin, clientinlen, &serverout,
+	rc = sasl_server_step( r->r_conn, clientin, clientinlen, &serverout,
 		&serveroutlen );
     }
 
     switch( rc ) {
     case SASL_OK:
-	if ( sasl_getprop( receive_conn, SASL_USERNAME,
-		(const void **) &auth_id ) != SASL_OK ) {
+	if ( sasl_getprop( r->r_conn, SASL_USERNAME,
+		(const void **) &r->r_auth_id ) != SASL_OK ) {
 	    syslog( LOG_ERR, "f_auth sasl_getprop: %s",
-		    sasl_errdetail( receive_conn ));
+		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_CLOSECONNECTION );
 	}
-	if ( sasl_getprop( receive_conn, SASL_MECHNAME,
+	if ( sasl_getprop( r->r_conn, SASL_MECHNAME,
 		(const void **) &mechname ) != SASL_OK ) {
 	    syslog( LOG_ERR, "f_auth sasl_getprop: %s",
-		    sasl_errdetail( receive_conn ));
+		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
 	syslog( LOG_NOTICE | LOG_INFO,
 		"f_auth %s authenticated via %s%s [%s] %s:",
-		auth_id, mechname, receive_tls ? "+TLS" : "",
-		inet_ntoa( receive_sin->sin_addr ), receive_remote_hostname );
+		r->r_auth_id, mechname, r->r_tls ? "+TLS" : "",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
 
 	if ( snet_writef( r->r_snet,
 		"235 Authentication successful\r\n" ) < 0 ) {
@@ -1937,8 +1943,8 @@ f_auth( struct receive_data *r )
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
-	receive_auth = 1;
-	snet_setsasl( r->r_snet, receive_conn );
+	r->r_auth = 1;
+	snet_setsasl( r->r_snet, r->r_conn );
 
 	/* RFC 2554 If a security layer is negotiated through the SASL
 	 * authentication exchange, it takes effect immediately following
@@ -1952,14 +1958,14 @@ f_auth( struct receive_data *r )
 	 * itself.
 	 */
 	 if ( snet_saslssf( r->r_snet )) {
-	    if ( receive_hello ) {
-		free( receive_hello );
-		receive_hello = NULL;
+	    if ( r->r_hello ) {
+		free( r->r_hello );
+		r->r_hello = NULL;
 	    }
 	}
 
-	receive_commands = smtp_commands;
-	receive_ncommands = sizeof( smtp_commands ) /
+	r->r_commands = smtp_commands;
+	r->r_ncommands = sizeof( smtp_commands ) /
 	    sizeof( smtp_commands[ 0 ] );
 
 	return( RECEIVE_OK );
@@ -2033,7 +2039,7 @@ f_auth( struct receive_data *r )
 
     default:
 	syslog( LOG_ERR, "f_auth sasl_start_server: %s",
-		sasl_errdetail( receive_conn ));
+		sasl_errdetail( r->r_conn ));
 	return( RECEIVE_SYSERROR );
     }
 }
@@ -2063,9 +2069,13 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 #endif /* HAVE_LIBWRAP */
 
     memset( &r, 0, sizeof( struct receive_data ));
+    r.r_dns_match = "Unknown";
+    r.r_remote_hostname = "Unknown";
+    r.r_rbl_status = RBL_UNKNOWN;
+    r.r_mdctx_status = MDCTX_UNINITILIZED;
 
-    receive_commands = smtp_commands;
-    receive_ncommands = sizeof( smtp_commands ) / sizeof( smtp_commands[ 0 ] );
+    r.r_commands = smtp_commands;
+    r.r_ncommands = sizeof( smtp_commands ) / sizeof( smtp_commands[ 0 ] );
 
     if ( gettimeofday( &tv_start, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror: smtp_receive gettimeofday: %m" );
@@ -2083,11 +2093,11 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
-	receive_commands = noauth_commands;
-	receive_ncommands = sizeof( noauth_commands ) /
+	r.r_commands = noauth_commands;
+	r.r_ncommands = sizeof( noauth_commands ) /
 		sizeof( noauth_commands[ 0 ] );
 	if (( ret = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
-		0, &receive_conn )) != SASL_OK ) {
+		0, &r.r_conn )) != SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_server_new: %s",
 		    sasl_errstring( ret, NULL, NULL ));
 	    goto syserror;
@@ -2135,25 +2145,25 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	secprops.max_ssf = 256;
 	secprops.security_flags |= SASL_SEC_NOPLAINTEXT;
 	secprops.security_flags |= SASL_SEC_NOANONYMOUS;
-	if (( ret = sasl_setprop( receive_conn, SASL_SEC_PROPS, &secprops))
+	if (( ret = sasl_setprop( r.r_conn, SASL_SEC_PROPS, &secprops))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_setprop: %s",
-		    sasl_errdetail( receive_conn ));
+		    sasl_errdetail( r.r_conn ));
 	    goto syserror;
 	}
 
-	ext_ssf = 0;
-	auth_id = NULL;
-	if (( ret = sasl_setprop( receive_conn, SASL_SSF_EXTERNAL, &ext_ssf ))
+	r.r_ext_ssf = 0;
+	r.r_auth_id = NULL;
+	if (( ret = sasl_setprop( r.r_conn, SASL_SSF_EXTERNAL, &r.r_ext_ssf ))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_setprop: %s",
-		    sasl_errdetail( receive_conn ));
+		    sasl_errdetail( r.r_conn ));
 	    goto syserror;
 	}
-	if (( ret = sasl_setprop( receive_conn, SASL_AUTH_EXTERNAL, auth_id ))
+	if (( ret = sasl_setprop( r.r_conn, SASL_AUTH_EXTERNAL, r.r_auth_id ))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_setprop: %s",
-		    sasl_errdetail( receive_conn ));
+		    sasl_errdetail( r.r_conn ));
 	    goto syserror;
 	}
 
@@ -2164,15 +2174,15 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 #ifdef HAVE_LIBSSL
     if (( simta_service_smtps > 0 ) &&
 	    ( simta_process_type == PROCESS_RECEIVE_SMTPS )) {
-	if ( _start_tls( r.r_snet ) != RECEIVE_OK ) {
+	if ( _start_tls( &r ) != RECEIVE_OK ) {
 	    goto syserror;
 	}
-	if (( ret = _post_tls( r.r_snet )) != RECEIVE_OK ) {
+	if (( ret = _post_tls( &r )) != RECEIVE_OK ) {
 	    goto syserror;
 	}
 
 	syslog( LOG_NOTICE, "Connect.in [%s] %s: SMTS",
-		inet_ntoa( sin->sin_addr ), receive_remote_hostname );
+		inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
 
     }
 #endif /* HAVE_LIBSSL */
@@ -2190,9 +2200,9 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    syslog( LOG_ERR, "receive select: %m" );
 	    goto syserror;
 	} else if ( ret > 0 ) {
-	    write_before_banner = 1;
+	    r.r_write_before_banner = 1;
 	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Write before banner",
-		    inet_ntoa( sin->sin_addr ), receive_remote_hostname );
+		    inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
 	    sleep( simta_banner_punishment );
 	}
     }
@@ -2239,9 +2249,9 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	*hostname = '\0';
 
         if (( ret = check_reverse( hostname, &(sin->sin_addr))) == 0 ) {
-            receive_dns_match = "PASSED";
+            r.r_dns_match = "PASSED";
         } else {
-            receive_dns_match = "FAILED";
+            r.r_dns_match = "FAILED";
             if ( ret < 0 ) {                     /* DNS error */
                 if ( simta_ignore_connect_in_reverse_errors ) {
                     syslog( LOG_NOTICE,
@@ -2282,40 +2292,40 @@ smtp_receive( int fd, struct sockaddr_in *sin )
         }
 
 	if ( *hostname != '\0' ) {
-	    receive_remote_hostname = hostname;
+	    r.r_remote_hostname = hostname;
 	}
 
         if ( simta_rbls != NULL ) {
             switch( rbl_check( simta_rbls, &(sin->sin_addr), &rbl_found )) {
             case RBL_BLOCK:
-		remote_rbl_status = RBL_BLOCK;
+		r.r_rbl_status = RBL_BLOCK;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Blocked: %s",
-                        inet_ntoa( sin->sin_addr ), receive_remote_hostname,
+                        inet_ntoa( sin->sin_addr ), r.r_remote_hostname,
                         rbl_found->rbl_domain );
                 snet_writef( r.r_snet, "550 No access from IP %s.  See %s\r\n",
                         inet_ntoa( sin->sin_addr ), rbl_found->rbl_url );
                 goto closeconnection;
 
             case RBL_ACCEPT:
-		remote_rbl_status = RBL_ACCEPT;
+		r.r_rbl_status = RBL_ACCEPT;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Accepted: %s",
-                        inet_ntoa( sin->sin_addr ), receive_remote_hostname,
+                        inet_ntoa( sin->sin_addr ), r.r_remote_hostname,
                         rbl_found->rbl_domain );
                 break;
 
             case RBL_NOT_FOUND:
 		/* leave as RBL_UNKNOWN so user tests happen */
-		remote_rbl_status = RBL_UNKNOWN;
+		r.r_rbl_status = RBL_UNKNOWN;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not Found",
-                        inet_ntoa( sin->sin_addr ), receive_remote_hostname );
+                        inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
                 break;
 
 	    case RBL_ERROR:
             default:
-		remote_rbl_status = RBL_UNKNOWN;
+		r.r_rbl_status = RBL_UNKNOWN;
                 syslog( LOG_NOTICE,
 			"Connect.in [%s] %s: RBL Error: %s",
-                        inet_ntoa( sin->sin_addr ), receive_remote_hostname,
+                        inet_ntoa( sin->sin_addr ), r.r_remote_hostname,
                         rbl_found->rbl_domain );
                 if ( dnsr_errno( simta_dnsr ) !=
                         DNSR_ERROR_TIMEOUT ) {
@@ -2337,19 +2347,19 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	if ( hosts_ctl( "simta", ctl_hostname,
 		inet_ntoa( sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
 	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Failed: access denied",
-		    inet_ntoa( sin->sin_addr ), receive_remote_hostname );
+		    inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
 	    goto syserror;
 	}
 
-	if ( receive_remote_hostname == STRING_UNKNOWN ) {
-	    receive_remote_hostname = NULL;
+	if ( r.r_remote_hostname == STRING_UNKNOWN ) {
+	    r.r_remote_hostname = NULL;
 	}
 #endif /* HAVE_LIBWRAP */
 
 	if (( r.r_env = env_create( NULL, NULL )) == NULL ) {
 	    goto syserror;
 	}
-	receive_sin = sin;
+	r.r_sin = sin;
 
 	if ( snet_writef( r.r_snet,
 		"%d %s Simple Internet Message Transfer Agent ready\r\n",
@@ -2359,7 +2369,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	}
 
 	syslog( LOG_NOTICE, "Connect.in [%s] %s: Accepted",
-		inet_ntoa( sin->sin_addr ), receive_remote_hostname );
+		inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
     }
 
     if (( acav = acav_alloc( )) == NULL ) {
@@ -2382,12 +2392,12 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	    }
 	}
 
-	if ( receive_smtp_command != NULL ) {
-	    free( receive_smtp_command );
-	    receive_smtp_command = NULL;
+	if ( r.r_smtp_command != NULL ) {
+	    free( r.r_smtp_command );
+	    r.r_smtp_command = NULL;
 	}
 
-	if (( receive_smtp_command = strdup( line )) == NULL ) {
+	if (( r.r_smtp_command = strdup( line )) == NULL ) {
 	    syslog( LOG_ERR, "receive strdup: %m" );
 	    goto syserror;
 	}
@@ -2422,21 +2432,21 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 	 * SHOULD reject such commands, normally using "500 syntax error
 	 * - invalid character" replies.
 	 */
-	for ( i = 0; i < receive_ncommands; i++ ) {
+	for ( i = 0; i < r.r_ncommands; i++ ) {
 	    if ( strcasecmp( r.r_av[ 0 ],
-		    receive_commands[ i ].c_name ) == 0 ) {
+		    r.r_commands[ i ].c_name ) == 0 ) {
 		break;
 	    }
 	}
 
-	if ( i >= receive_ncommands ) {
+	if ( i >= r.r_ncommands ) {
 	    if ( snet_writef( r.r_snet, "500 Command unrecognized\r\n" ) < 0 ) {
 		goto closeconnection;
 	    }
 	    continue;
 	}
 
-	switch ((*(receive_commands[ i ].c_func))( &r )) {
+	switch ((*(r.r_commands[ i ].c_func))( &r )) {
 
 	case RECEIVE_OK:
 	    break;
@@ -2482,20 +2492,20 @@ closeconnection:
 	acav_free( acav );
     }
 
-    if ( receive_smtp_command != NULL ) {
-	free( receive_smtp_command );
-	receive_smtp_command = NULL;
+    if ( r.r_smtp_command != NULL ) {
+	free( r.r_smtp_command );
+	r.r_smtp_command = NULL;
     }
 
-    if ( receive_hello != NULL ) {
-	free( receive_hello );
+    if ( r.r_hello != NULL ) {
+	free( r.r_hello );
     }
 
-    reset( r.r_env );
+    reset( &r );
 
 #ifdef HAVE_LIBSSL 
-    if ( mdctx_status != MDCTX_UNINITILIZED ) {
-	EVP_MD_CTX_cleanup( &mdctx );
+    if ( r.r_mdctx_status != MDCTX_UNINITILIZED ) {
+	EVP_MD_CTX_cleanup( &r.r_mdctx );
     }
 #endif /* HAVE_LIBSSL */
 
@@ -2511,9 +2521,11 @@ closeconnection:
     syslog( LOG_NOTICE,
 	    "Connect.in [%s] %s: Metrics: "
 	    "seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
-	    inet_ntoa( sin->sin_addr ), receive_remote_hostname,
-	    (int)(tv_stop.tv_sec - tv_start.tv_sec), mail_success, mail_attempt,
-	    rcpt_success, rcpt_attempt, data_success, data_attempt );
+	    inet_ntoa( sin->sin_addr ), r.r_remote_hostname,
+	    (int)(tv_stop.tv_sec - tv_start.tv_sec), r.r_mail_success,
+	    r.r_mail_attempt,
+	    r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
+	    r.r_data_attempt );
 
     return( simta_fast_files );
 }
@@ -2660,7 +2672,7 @@ env_string( char *left, char *right )
 
 
     int
-mail_filter( struct envelope *env, int f, char **smtp_message )
+mail_filter( struct receive_data *r, int f, char **smtp_message )
 {
     int			fd[ 2 ];
     int			pid;
@@ -2719,49 +2731,49 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	snprintf( fname, MAXPATHLEN, "%s/D%s", simta_dir_fast, env->e_id );
+	snprintf( fname, MAXPATHLEN, "%s/D%s", simta_dir_fast, r->r_env->e_id );
 	if (( filter_envp[ 0 ] = env_string( "SIMTA_DFILE",
 		fname )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	snprintf( fname, MAXPATHLEN, "%s/t%s", simta_dir_fast, env->e_id );
+	snprintf( fname, MAXPATHLEN, "%s/t%s", simta_dir_fast, r->r_env->e_id );
 	if (( filter_envp[ 1 ] = env_string( "SIMTA_TFILE",
 		fname )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
 	if (( filter_envp[ 2 ] = env_string( "SIMTA_REMOTE_IP",
-		inet_ntoa( receive_sin->sin_addr ))) == NULL ) {
+		inet_ntoa( r->r_sin->sin_addr ))) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
 	if (( filter_envp[ 3 ] = env_string( "SIMTA_REMOTE_HOSTNAME",
-		receive_remote_hostname )) == NULL ) {
+		r->r_remote_hostname )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
 	if (( filter_envp[ 4 ] = env_string( "SIMTA_REVERSE_LOOKUP",
-		receive_dns_match )) == NULL ) {
+		r->r_dns_match )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
 	if (( filter_envp[ 5 ] = env_string( "SIMTA_SMTP_MAIL_FROM",
-		env->e_mail )) == NULL ) {
+		r->r_env->e_mail )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
 	if (( filter_envp[ 6 ] = env_string( "SIMTA_SMTP_HELO",
-		receive_hello )) == NULL ) {
+		r->r_hello )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
 	if (( filter_envp[ 7 ] = env_string( "SIMTA_MID",
-		env->e_mid )) == NULL ) {
+		r->r_env->e_mid )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	if ( write_before_banner != 0 ) {
+	if ( r->r_write_before_banner != 0 ) {
 	    if (( filter_envp[ 8 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
 		    "1" )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
@@ -2776,12 +2788,12 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 
 	if ( simta_checksum_md != NULL ) {
 	    if (( filter_envp[ 9 ] = env_string( "SIMTA_CHECKSUM_SIZE",
-		    md_bytes )) == NULL ) {
+		    r->r_md_bytes )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
 	    if (( filter_envp[ 10 ] = env_string( "SIMTA_CHECKSUM",
-		    md_b64 )) == NULL ) {
+		    r->r_md_b64 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
@@ -2810,7 +2822,7 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
-	    syslog( LOG_INFO, "Filter %s: %s", env->e_id, line );
+	    syslog( LOG_INFO, "Filter %s: %s", r->r_env->e_id, line );
 
 	    if ( *smtp_message == NULL ) {
 		if (( *smtp_message = strdup( line )) == NULL ) {
@@ -2865,30 +2877,31 @@ mail_filter( struct envelope *env, int f, char **smtp_message )
 
 #ifdef HAVE_LIBSASL
     int
-reset_sasl_conn( sasl_conn_t **conn )
+reset_sasl_conn( struct receive_data *r )
 {
 
     int         rc;
 
-    sasl_dispose( conn );
+    sasl_dispose( &r->r_conn );
 
     if (( rc = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
-            0, conn )) != SASL_OK ) {
+            0, &r->r_conn )) != SASL_OK ) {
 	syslog( LOG_ERR, "reset_sasl_conn sasl_server_new: %s",
-		sasl_errdetail( *conn ));
+		sasl_errdetail( r->r_conn ));
         return( rc );
     }
 
-    if (( rc = sasl_setprop( *conn, SASL_SSF_EXTERNAL, &ext_ssf )) != SASL_OK) {
+    if (( rc = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
+	    &r->r_ext_ssf )) != SASL_OK) {
 	syslog( LOG_ERR, "reset_sasl_conn sasl_setprop: %s",
-		sasl_errdetail( *conn ));
+		sasl_errdetail( r->r_conn ));
         return( rc );
     }
 
-    if (( rc = sasl_setprop( *conn, SASL_AUTH_EXTERNAL,
-	    &ext_ssf )) != SASL_OK) {
+    if (( rc = sasl_setprop( r->r_conn, SASL_AUTH_EXTERNAL,
+	    &r->r_ext_ssf )) != SASL_OK) {
 	syslog( LOG_ERR, "reset_sasl_conn sasl_setprop: %s",
-		sasl_errdetail( *conn ));
+		sasl_errdetail( r->r_conn ));
         return( rc );
     }
 
@@ -2897,7 +2910,7 @@ reset_sasl_conn( sasl_conn_t **conn )
 
 #else /* HAVE_LIBSASL */
     int
-reset_sasl_conn( sasl_conn_t **conn )
+reset_sasl_conn( struct receive_data *r )
 {
     return( -1 );
 }
