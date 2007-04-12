@@ -98,6 +98,7 @@ int			simta_max_bounce_lines;
 int			simta_banner_delay = 0;
 int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
+int			simta_smtp_punishment = 0;
 int			simta_receive_wait = 600;
 int			simta_data_transaction_wait = 3600;
 int			simta_data_line_wait = 300;
@@ -1128,6 +1129,21 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_max_failed_rcpts < 0 ) {
 		fprintf( stderr, "%s: line %d: invalid negative argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "FAILED_RCPT_PUNISHMENT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    } else if ( strcasecmp( av[ 1 ], "TEMPFAIL" ) == 0 ) {
+		simta_smtp_punishment = RECEIVE_TEMPFAIL;
+	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
+		simta_smtp_punishment = RECEIVE_TARPIT;
+	    } else {
+		fprintf( stderr, "%s: line %d: illegal argument\n",
 			fname, lineno );
 		goto error;
 	    }

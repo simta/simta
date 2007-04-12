@@ -61,6 +61,9 @@
 #define	TEXT_WARNING	0
 #define	TEXT_ERROR	1
 
+#define RECEIVE_TARPIT			1
+#define RECEIVE_TEMPFAIL		2
+
 #ifdef HAVE_LIBSSL
 #define SERVICE_SMTPS_OFF		0
 #define SERVICE_SMTPS_SERVER		1
@@ -112,6 +115,7 @@ extern int				simta_read_before_banner;
 extern int				simta_banner_delay;
 extern int				simta_banner_punishment;
 extern int				simta_max_failed_rcpts;
+extern int				simta_smtp_punishment;
 extern int				simta_dns_config;
 extern int				simta_global_relay;
 extern int				simta_smtp_tarpit;
