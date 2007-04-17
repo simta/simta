@@ -112,6 +112,7 @@ main( int argc, char *argv[])
     do {
 	nextargc++;
 
+	printf( "Original Recipient: %s\n", argv[ nextargc ]);
 	if ( env_recipient( env, argv[ nextargc ]) != 0 ) {
 	    perror( "malloc" );
 	    return( 1 );

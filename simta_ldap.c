@@ -1439,6 +1439,11 @@ startsearch:
 			lds->lds_plud->lud_scope, search_string, 
 			attrs, 0, &timeout, &res );
 
+	/* If the addres is illegal in LDAP, we can't find it */
+	if ( rc == LDAP_FILTER_ERROR ) {
+	    return( LDAP_NOT_FOUND );
+	}
+
 	/*
 	** After a long idle time,  the connection can be closed 
 	** by the ldap server.  A long idle time can result if we

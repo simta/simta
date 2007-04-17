@@ -463,6 +463,8 @@ simta_read_config( char *fname )
 		    goto error;
 		}
 		if ( simta_ldap_config( av[ 3 ] ) != 0 ) {
+		    fprintf( stderr, "%s: line %d: LDAP config %s failed, "
+			    "please check the logs\n", fname, lineno, av[ 3 ]);
 		    goto error;
 		}
 

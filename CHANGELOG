@@ -1,4 +1,5 @@
 internal
+    - LDAP "bad filter" error doesn't stop expansion
     - added FAILED_RCPT_PUNISHMENT to give the TARPIT option
     - SMTP READ_BEFORE_BANNER option added
     - ignore optional Efile entry M
