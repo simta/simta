@@ -1441,6 +1441,8 @@ startsearch:
 
 	/* If the addres is illegal in LDAP, we can't find it */
 	if ( rc == LDAP_FILTER_ERROR ) {
+	    syslog( LOG_ERR, "simta_ldap_name_search: ldap_search_st: "
+		    "address not found: %s", ldap_err2string(rc ));
 	    return( LDAP_NOT_FOUND );
 	}
 
