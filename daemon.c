@@ -689,11 +689,12 @@ main( int ac, char **av )
     syslog( LOG_NOTICE, "Restart: %s", version );
 
 #ifndef Q_SIMULATION
-    if (( simta_smtp_default_mode != SMTP_MODE_OFF )
+    if (( simta_smtp_default_mode != SMTP_MODE_OFF ) &&
+	    (( simta_smtp_port_defined == 0 ) || ( simta_smtp_port != 0 )
 #ifdef HAVE_LIBSSL
-	    || ( simta_service_smtps )
+	    || ( simta_service_smtps != 0 )
 #endif /* HAVE_LIBSSL */
-	    || ( simta_service_submission )) {
+	    || ( simta_service_submission != 0 ))) {
 	if ( simta_child_queue_scheduler() != 0 ) {
 	    return( 1 );
 	}
