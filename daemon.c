@@ -165,7 +165,6 @@ main( int ac, char **av )
     struct servent	*se;
     int			simta_smtps_port;
     int			simta_submission_port;
-    int			launch_seconds;
     int			c, err = 0;
     int			dontrun = 0;
     int			reuseaddr = 1;
@@ -191,8 +190,6 @@ main( int ac, char **av )
     } else {
 	prog++;
     }
-
-    launch_seconds = 60 * 10;
 
     while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:qQ:rRs:SVw:x:y:z:" ))
 	    != -1 ) {
@@ -254,6 +251,11 @@ main( int ac, char **av )
 	    break;
 
 	case 'p' :		/* TCP port */
+	    simta_smtp_port_defined = 1;
+	    if ( htons( atoi( optarg )) < 0 ) {
+                fprintf( stderr, "simta -p [ port ] must be 0 or greater\n" );
+		exit( 1 );
+	    }
 	    simta_smtp_port = htons( atoi( optarg ));
 	    break;
 
@@ -298,7 +300,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'R' :
-	    simta_global_relay = 1;
+	    simta_smtp_default_mode = SMTP_MODE_GLOBAL_RELAY;
 	    break;
 
 	case 's' :		/* spool dir */
@@ -423,20 +425,19 @@ main( int ac, char **av )
     }
 
     /* if we're not a q_runner or filesystem cleaner, open smtp service */
-    if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 )) {
-	if ( simta_service_smtp ) {
-	    /*
-	     * Set up SMTP listener.
-	     */
-	    if ( simta_smtp_port == 0 ) {
-		if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
-		    fprintf( stderr, "%s: can't find smtp service: "
-			    "defaulting to port 25\n", prog );
-		    simta_smtp_port = htons( 25 );
-		} else {
-		    simta_smtp_port = se->s_port;
-		}
+    if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 ) &&
+	    ( simta_smtp_default_mode != SMTP_MODE_OFF )) {
+	if ( simta_smtp_port_defined == 0 ) {
+	    if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
+		fprintf( stderr, "%s: can't find smtp service: "
+			"defaulting to port 25\n", prog );
+		simta_smtp_port = htons( 25 );
+	    } else {
+		simta_smtp_port = se->s_port;
 	    }
+	}
+
+	if ( simta_smtp_port != 0 ) {
 	    if (( simta_socket_smtp = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
 		perror( "socket" );
 		exit( 1 );
@@ -688,7 +689,7 @@ main( int ac, char **av )
     syslog( LOG_NOTICE, "Restart: %s", version );
 
 #ifndef Q_SIMULATION
-    if (( simta_service_smtp )
+    if (( simta_smtp_default_mode != SMTP_MODE_OFF )
 #ifdef HAVE_LIBSSL
 	    || ( simta_service_smtps )
 #endif /* HAVE_LIBSSL */

@@ -71,6 +71,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_smtp_port_defined = 0;
 int			simta_rbl_verbose_logging = 0;
 int			simta_queue_incoming_smtp_mail = 0;
 int			simta_leaky_queue = 0;
@@ -98,7 +99,6 @@ int			simta_max_bounce_lines;
 int			simta_banner_delay = 0;
 int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
-int			simta_smtp_punishment = 0;
 int			simta_receive_wait = 600;
 int			simta_data_transaction_wait = 3600;
 int			simta_data_line_wait = 300;
@@ -108,13 +108,18 @@ int			simta_message_count = 0;
 int			simta_smtp_outbound_attempts = 0;
 int			simta_smtp_outbound_delivered = 0;
 int			simta_fast_files = 0;
-int			simta_global_relay = 0;
-int			simta_smtp_tarpit = 0;
+int			simta_smtp_punishment_mode = SMTP_MODE_TEMPFAIL;
+int			simta_smtp_default_mode = SMTP_MODE_NORMAL;
+int			simta_smtp_tarpit_default = 120;
+int			simta_smtp_tarpit_connect = 0;
+int			simta_smtp_tarpit_mail = 0;
+int			simta_smtp_tarpit_rcpt = 0;
+int			simta_smtp_tarpit_data = 0;
+int			simta_smtp_tarpit_data_eof = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
 int			simta_tls = 0;
 int			simta_sasl = 0;
-int			simta_service_smtp = 1;
 int			simta_service_submission = 0;
 #ifdef HAVE_LIBSSL
 int			simta_service_smtps = 0;
@@ -1037,13 +1042,14 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_max_bounce_lines = atoi( av[ 1 ] );
-	    if ( simta_smtp_port <= 0 ) {
-		fprintf( stderr, "%s: line %d: SMTP_PORT less than 1",
+	    if ( atoi( av[ 1 ]) < 0 ) {
+		fprintf( stderr, "%s: line %d: port must be 0 or greater\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "SMTP_PORT: %d\n", simta_smtp_port );
+	    simta_smtp_port = htons( atoi( av[ 1 ]));
+	    simta_smtp_port_defined = 1;
+	    if ( simta_debug ) printf( "SMTP_PORT: %s\n", av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_LISTEN_BACKLOG" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1066,7 +1072,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_service_smtp = SERVICE_SMTP_REFUSE;
+	    simta_smtp_default_mode = SMTP_MODE_REFUSE;
 	    if ( simta_debug ) printf( "SERVICE_SMTP_REFUSE\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "SERVICE_SMTP_OFF" ) == 0 ) {
@@ -1075,7 +1081,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_service_smtp = SERVICE_SMTP_OFF;
+	    simta_smtp_default_mode = SMTP_MODE_OFF;
 	    if ( simta_debug ) printf( "NO_INBOUND_SMTP\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_MESSAGE_SIZE" ) == 0 ) {
@@ -1135,20 +1141,133 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
+	} else if ( strcasecmp( av[ 0 ], "SMTP_MODE" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    } else if ( strcasecmp( av[ 1 ], "NORMAL" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_NORMAL;
+	    } else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_OFF;
+	    } else if ( strcasecmp( av[ 1 ], "REFUSE" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_REFUSE;
+	    } else if ( strcasecmp( av[ 1 ], "GLOBAL_RELAY" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_GLOBAL_RELAY;
+	    } else if ( strcasecmp( av[ 1 ], "TEMPFAIL" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_TEMPFAIL;
+	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_TARPIT;
+	    } else {
+		fprintf( stderr, "%s: line %d: illegal argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
 	} else if ( strcasecmp( av[ 0 ], "FAILED_RCPT_PUNISHMENT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    } else if ( strcasecmp( av[ 1 ], "TEMPFAIL" ) == 0 ) {
-		simta_smtp_punishment = RECEIVE_TEMPFAIL;
+		simta_smtp_punishment_mode = SMTP_MODE_TEMPFAIL;
 	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
-		simta_smtp_punishment = RECEIVE_TARPIT;
+		simta_smtp_punishment_mode = SMTP_MODE_TARPIT;
 	    } else {
 		fprintf( stderr, "%s: line %d: illegal argument\n",
 			fname, lineno );
 		goto error;
 	    }
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_DEFAULT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_default = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: SMTP_TARPIT_DEFAULT can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_DEFAULT: %d\n",
+		simta_smtp_tarpit_default );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_CONNECT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_connect = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: SMTP_TARPIT_CONNECT can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_CONNECT: %d\n",
+		simta_smtp_tarpit_connect );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_MAIL" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_mail = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: SMTP_TARPIT_MAIL can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_MAIL: %d\n",
+		simta_smtp_tarpit_mail );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_RCPT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_rcpt = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: SMTP_TARPIT_RCPT can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_RCPT: %d\n",
+		simta_smtp_tarpit_rcpt );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_DATA" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_data = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: SMTP_TARPIT_DATA can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_DATA: %d\n",
+		simta_smtp_tarpit_data );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_DATA_EOF" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_data_eof = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: SMTP_TARPIT_DATA_EOF "
+			"can't be less than 0", fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_DATA_EOF: %d\n",
+		simta_smtp_tarpit_data_eof );
 
 	} else if ( strcasecmp( av[ 0 ], "WRITE_BEFORE_BANNER" ) == 0 ) {
 	    if ( ac != 3 ) {
@@ -1193,31 +1312,6 @@ simta_read_config( char *fname )
 	   }
 	   if ( simta_debug ) printf( "LOW_PREF_MX: %s\n",
 		   simta_secondary_mx->red_host_name );
-
-	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_global_relay = 1;
-	    if (( simta_smtp_tarpit = atoi( av[ 1 ])) < 1 ) {
-		fprintf( stderr,
-			"%s: line %d: argument must be a positive integer\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "GLOBAL_RELAY\n" );
-	    if ( simta_debug ) printf( "SMTP_TARPIT %d\n", simta_smtp_tarpit );
-
-	} else if ( strcasecmp( av[ 0 ], "GLOBAL_RELAY" ) == 0 ) {
-	   if ( ac != 1 ) {
-	       fprintf( stderr, "%s: line %d: expected 0 argument\n",
-		       fname, lineno );
-	       goto error;
-	   }
-	   simta_global_relay = 1;
-	   if ( simta_debug ) printf( "GLOBAL_RELAY\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "SASL_ON" ) == 0 ) {
 	   if ( ac != 1 ) {

@@ -51,18 +51,19 @@
 #define	PROCESS_SMTP_SERVER		7
 #define	PROCESS_Q_SCHEDULER		8
 
-#define SERVICE_SMTP_OFF		0
-#define SERVICE_SMTP_ON			1
-#define SERVICE_SMTP_REFUSE		2
-
 #define SERVICE_SUBMISSION_OFF		0
 #define SERVICE_SUBMISSION_ON		1
 
 #define	TEXT_WARNING	0
 #define	TEXT_ERROR	1
 
-#define RECEIVE_TARPIT			1
-#define RECEIVE_TEMPFAIL		2
+#define SMTP_MODE_NORMAL		0
+#define SMTP_MODE_OFF			1
+#define SMTP_MODE_REFUSE		2
+#define SMTP_MODE_GLOBAL_RELAY		3
+#define SMTP_MODE_TEMPFAIL		4
+#define SMTP_MODE_TARPIT		5
+#define SMTP_MODE_NOAUTH		6
 
 #ifdef HAVE_LIBSSL
 #define SERVICE_SMTPS_OFF		0
@@ -78,6 +79,7 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
+extern int				simta_smtp_port_defined;
 extern int				simta_rbl_verbose_logging;
 extern int				simta_queue_incoming_smtp_mail;
 extern int				simta_leaky_queue;
@@ -115,10 +117,15 @@ extern int				simta_read_before_banner;
 extern int				simta_banner_delay;
 extern int				simta_banner_punishment;
 extern int				simta_max_failed_rcpts;
-extern int				simta_smtp_punishment;
 extern int				simta_dns_config;
-extern int				simta_global_relay;
-extern int				simta_smtp_tarpit;
+extern int				simta_smtp_default_mode;
+extern int				simta_smtp_punishment_mode;
+extern int				simta_smtp_tarpit_default;
+extern int				simta_smtp_tarpit_connect;
+extern int				simta_smtp_tarpit_mail;
+extern int				simta_smtp_tarpit_rcpt;
+extern int				simta_smtp_tarpit_data;
+extern int				simta_smtp_tarpit_data_eof;
 extern int				simta_debug;
 extern int				simta_expand_debug;
 extern int				simta_verbose;
@@ -132,7 +139,6 @@ extern int				simta_service_smtps;
 extern const EVP_MD				*simta_checksum_md;
 extern char				*simta_checksum_algorithm;
 #endif /* HAVE_LIBSSL */
-extern int				simta_service_smtp;
 extern int				simta_service_submission;
 extern int				simta_smtp_extension;
 extern long int				simta_max_message_size;
