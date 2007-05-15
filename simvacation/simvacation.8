@@ -1,9 +1,9 @@
-.TH VACATION "8" "23 February 2005" "U-M LDAP Project" "MAINTENANCE COMMANDS"
+.TH SIMVACATION "8" "23 February 2005" "U-M LDAP Project" "MAINTENANCE COMMANDS"
 .SH NAME
-.B vacation
+.B simvacation
 \- LDAP-aware vacation mailer.
 .SH SYNOPSIS
-.B vacaction
+.B simvacation
 [
 .B \-r
 .I interval
@@ -27,7 +27,7 @@
 .I user
 .SH DESCRIPTION
 .B
-vacation
+simvacation
 automatically replies to incoming mail.  It is similar in function to
 the vacation(1) program, but is designed to (1) run as a mailer, and (2)
 obtain its reply from a user's LDAP entry.  Users arrange to forward a
@@ -37,7 +37,7 @@ a .forward file on a UNIX host, or via the
 program.
 .LP
 When an incoming piece of mail is processed by
-.B vacation,
+.B simvacation,
 the umich-specific
 .I onVacation
 Boolean attribute and 
@@ -53,10 +53,10 @@ attribute are used to generate an automated reply.  If the
 .I vacationMessage
 attribute is empty, a default reply is generated.
 .LP
-.B vacation
+.B simvacation
 does not require that a user have a password file entry or home directory
 on the machine running
-.B vacation.
+.B simvacation.
 .LP
 As with
 .B vaction(1),
@@ -75,19 +75,20 @@ or
 appear in the message.
 .LP
 .B
-vacation
-logs its activity via syslog(3), with facility LOG_LOCAL6.
+simvacation
+logs its activity via syslog(3), with facility LOG_MAIL. The facility can be
+overridden at build time.
 .SH OPTIONS
 .TP
 .B \-r
-Specify the interval, in days, between repeat replies to the same sender
-(as in the vaction(1) -t option).  The default is one week.
+Specify the interval, in days, between repeat replies to the same sender. 
+The default is one week.
 .TP
 .B \-s
 Specify the LDAP searchbase.  When searching the LDAP directory for
 the command-line argument
 .I user,
-.B vacation
+.B simvacation
 does a subtree search beginning at the location in the LDAP directory
 tree specified by the
 .B -s
@@ -105,44 +106,40 @@ Specify the location of the database file directory.  Default is
 /var/vacationdb.
 
 .SH USAGE
-.B vacation
-is designed to be invoked by sendmail(8) or another mailer.
-The following line defines a "vacation" mailer in sendmail(8):
+.B simvacation
+is designed to be invoked by simta(8) or another mailer.
+The following line defines a "simvacation" mailer in simta(8):
 .IP
-Mvacation, P=/usr/local/etc/vacation, F=DFMSuh, S=16, R=16, A=vacation $u
+
+@hostname	D	/usr/bin/simvacation -f $S -d 
 .LP
 Generally, one should configure the MTA to recognize an alternative
 hostname as "local", e.g.
 .I vacation.rs.itd.umich.edu,
 and arrange for the
-.B vacation
+.B simvacation
 mailer to be invoked when mail for the alternate host is received.
 .LP
 Periodically, the
-.B unvacate(8)
+.B simunvacate(8)
 program should be run on the vacation host to clean up any unneeded
 database files left when users return from vacation.  It is recommended
 that
-.B unvacate
+.B simunvacate
 be run at least nightly out of cron.
 .SH FILES
-.B vacation
+.B simvacation
 maintains database files named
 .B $USER.ddb
 in
 .B /var/vacationdb/[a-z]/.
 .SH SEE ALSO
-.BR unvacate(8),
-.BR vacreport(8),
+.BR simunvacate(8),
+.BR simvacreport(8),
 .BR sendmail(8),
+.BR simta(8),
 .BR ldap(3)
 .LP
-.B RFC 1487
-\- X.500 Lightweight Directory Access Protocol (Yeong, Howes, Kille)
+.B RFC 2251
+\- Lightweight Directory Access Protocol (v3)
 .LP
-.B
-RFC 1488
-\- The X.500 String Representation of Standard Attribute
-Syntaxes (Howes, Yeong, Kille, Robbins).
-.SH AUTHOR
-Gordon Good, University of Michigan
