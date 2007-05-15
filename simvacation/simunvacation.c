@@ -62,7 +62,7 @@ main( int argc, char **argv)
     struct uniq_list **unp = &uniqnames;
     char *perr;
 
-    openlog( "unvacate", LOG_PID, LOG_LOCAL6 );
+    openlog( "unvacate", LOG_PID, LOG_VACATION );
     /*
      * Timeout values for LDAP searches
      */
