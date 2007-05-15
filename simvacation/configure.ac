@@ -7,8 +7,11 @@ AC_CONFIG_SRCDIR([simunvacation.c])
 ## AC_CONFIG_HEADER([config.h])
 
 # Set up variables
-AC_ARG_WITH(vacationdb, AC_HELP_STRING([--with-vacationdb=vacationdb], [default /var/vacationdb]), vacationdb="$withval", vacationdb="/var/vacationdb")
+AC_ARG_WITH(vacationdb, AC_HELP_STRING([--with-vacationdb=vacationdb], [default: /var/vacationdb]), vacationdb="$withval", vacationdb="/var/vacationdb")
 AC_SUBST(vacationdb)
+
+AC_ARG_WITH(syslog, AC_HELP_STRING([--with-syslog=LOG_MAIL], [default syslog facility: LOG_MAIL]), vacsyslog="$withval", vacsyslog="LOG_MAIL")
+AC_SUBST(vacsyslog)
 
 # Checks for programs.
 AC_PROG_CC
