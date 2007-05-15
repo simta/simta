@@ -20,9 +20,12 @@ BINDIR=@bindir@
 LIBDIR=@libdir@
 ETCDIR=@sysconfdir@
 VDBDIR=@vacationdb@
+VACATIONLOG=@vacsyslog@
+
+DEFS	=-DLOG_VACATION=${VACATIONLOG} -g
 
 CC	= @CC@
-CFLAGS	= ${CWARN} @CFLAGS@ 
+CFLAGS	= ${DEFS} ${CWARN} @CFLAGS@ 
 
 LIBS	= @LDFLAGS@ @LIBS@ 
 
