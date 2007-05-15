@@ -43,7 +43,7 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)vacation.c	5.19 (Berkeley) 3/23/91";*/
-static char rcsid[] = "$Id: simvacation.c,v 1.1 2005/03/15 20:14:43 pturgyan Exp $";
+static char rcsid[] = "$Id: simvacation.c,v 1.2 2007/05/15 20:56:26 pturgyan Exp $";
 #endif /* not lint */
 
 /*
@@ -95,10 +95,7 @@ char *makevdbpath();
 /* #define	VDBDIR	"/usr/private/vdbfiles"	/* dir for vacation databases */
 
 #ifndef _PATH_SENDMAIL
-#if 0
 #define _PATH_SENDMAIL	"/usr/sbin/sendmail"
-#endif
-#define _PATH_SENDMAIL	"/usr/sbinn/sendmail"
 #endif
 
 /* From tzfile.h */
@@ -180,13 +177,17 @@ main( argc, argv )
     else
 	progname = strdup( progname + 1 );
 
-    openlog( progname, LOG_PID, LOG_LOCAL6 );
+    openlog( progname, LOG_PID, LOG_VACATION );
     opterr = 0;
     interval = -1;
     subject[0] = '\0';
 
-    while (( ch = getopt( argc, argv, "r:s:h:p:v:" )) != EOF ) {
+    while (( ch = getopt( argc, argv, "f:r:s:h:p:v:" )) != EOF ) {
 	switch( (char) ch ) {
+	case 'f':
+	    strncpy(from, optarg, MAXLINE - 1);
+	    from[MAXLINE] = '\0';
+	    break;
 	case 'r':
 	    if ( isdigit( *optarg )) {
 		interval = atol( optarg ) * SECSPERDAY;
@@ -663,11 +664,12 @@ sendmessage( char *myname, char **vmsg)
     char	*nargv[5];
     int		i;
     char	*p;
-
+    
     nargv[0] = "sendmail";
-    nargv[1] = "-f<>";
-    nargv[2] = from;
-    nargv[3] = NULL;
+    nargv[1] = "-f";
+    nargv[2] = "";
+    nargv[3] = from;
+    nargv[4] = NULL;
 
     if (( pexecv( _PATH_SENDMAIL, nargv )) == -1 ) {
 	syslog( LOG_ERR, "pexecv of %s failed", _PATH_SENDMAIL );
@@ -707,6 +709,9 @@ sendmessage( char *myname, char **vmsg)
 	}
 	putchar( '\n' );
     }
+#if 0
+    free (frombuf);
+#endif
 }
 
 usage( char * progname)
