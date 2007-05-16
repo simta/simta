@@ -43,7 +43,7 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)vacation.c	5.19 (Berkeley) 3/23/91";*/
-static char rcsid[] = "$Id: simvacation.c,v 1.2 2007/05/15 20:56:26 pturgyan Exp $";
+static char rcsid[] = "$Id: simvacation.c,v 1.3 2007/05/16 19:17:46 pturgyan Exp $";
 #endif /* not lint */
 
 /*
@@ -92,7 +92,6 @@ char *makevdbpath();
 
 #define	MAXLINE	1024			/* max line from mail header */
 #define	VDBDIR	"/var/vacationdb"	/* dir for vacation databases */
-/* #define	VDBDIR	"/usr/private/vdbfiles"	/* dir for vacation databases */
 
 #ifndef _PATH_SENDMAIL
 #define _PATH_SENDMAIL	"/usr/sbin/sendmail"
@@ -312,7 +311,7 @@ main( argc, argv )
     ** Create the database handle and Open the db
     */
     if ((rc = db_create( &dbp, NULL, 0)) != 0) {
-        syslog( LOG_ALERT,  "vacation: db_create: %s\n", db_strerror(rc));
+        syslog( LOG_ALERT,  "db_create: %s\n", db_strerror(rc));
 	myexit( NULL, 0);
     }   
       
@@ -561,7 +560,6 @@ junkmail()
 /*
  * recent --
  *	find out if user has gotten a vacation message recently.
- *	use bcopy for machines with alignment restrictions
  */
 recent(DB * dbp)
 {
@@ -570,7 +568,6 @@ recent(DB * dbp)
     time_t	then;
     time_t	next;
     int		rc;
-    char	*perrtext;
 
     /* get interval time */
     memset (&key, 0, sizeof( key ));
@@ -578,34 +575,29 @@ recent(DB * dbp)
     key.size = strlen(VIT) - 1;
 
     memset (&data, 0, sizeof( data ));
+
     data.data = &next;
     data.size = sizeof( next );
 
+    next = 0;   /* for debugging */
     dbp->set_errpfx(dbp, "Getting VIT");
     if ((rc = dbp->get(dbp, NULL, &key, &data, 0)) == 0) {
-#if 0
-	bcopy( data.data, (char *) &next, sizeof( next ));
-#endif
-#if 0
-	memcopy( (char *) &next, data.data, sizeof( next ));
-#endif
+	memcpy (&next, data.data, sizeof( next ));
     } else {
 	next = SECSPERDAY * DAYSPERWEEK;
     }
 
-    /* get record for this address */
+    /* get record for this email address */
     memset (&key, 0, sizeof( key ));
     key.data = from;
     key.size = strlen( from );
 
     memset (&data, 0, sizeof( data ));
-
+    then = 0;   /* for debugging */
     dbp->set_errpfx(dbp, "Getting recent time");
     if ((rc = dbp->get(dbp, NULL, &key, &data, 0)) == 0) {
-#if 0
-	bcopy( data.data, (char *) &then, sizeof( then ));
-#endif
-	memcpy ( &then, data.data, sizeof( then ));
+	memcpy (&then, data.data, sizeof( then ));
+
 	if ( next == LONG_MAX || then + next > time(( time_t *) NULL ))
 	    return( 1 );
     }
@@ -623,12 +615,17 @@ setinterval( DB *dbp, time_t interval )
     DBT  data;
     int  rc;
 
+    memset (&key, 0, sizeof ( key ));
     key.data = VIT;
     key.size = strlen( VIT ) - 1;
+    memset (&data, 0, sizeof ( data ));
     data.data = (char *) &interval;
     data.size = sizeof( interval );
-    rc = dbp->put(dbp, NULL, &key, &data, 0);  /* allow overwrites */
-
+    rc = dbp->put(dbp, NULL, &key, &data, (u_int32_t) 0); /* allow overwrites */
+    if (rc != 0) {
+	syslog( LOG_ALERT, "DB Error while putting interval: %d, %s", 
+		rc, db_strerror(rc) );
+    }
     return (rc);
 }
 
@@ -645,12 +642,18 @@ setreply(DB * dbp)
 
     time_t now;
 
+    memset (&key, 0, sizeof ( key ));
     key.data = from;
     key.size = strlen( from );
     (void) time( &now );
+    memset (&data, 0, sizeof ( data ));
     data.data = (char *) &now;
     data.size = sizeof( now );
     rc = dbp->put(dbp, NULL, &key, &data, 0);  /* allow overwrites */
+    if (rc != 0) {
+	syslog( LOG_ALERT, "DB Error while putting reply time: %d, %s", 
+		rc, db_strerror(rc) );
+    }
 
     return (rc);
 }
@@ -664,12 +667,19 @@ sendmessage( char *myname, char **vmsg)
     char	*nargv[5];
     int		i;
     char	*p;
-    
+
+#ifdef HAVE_SENDMAIL
     nargv[0] = "sendmail";
+    nargv[1] = "-f<>";
+    nargv[2] = from;
+    nargv[3] = NULL;
+#else
+    nargv[0] = "simsendmail";   /* really simsendmail */
     nargv[1] = "-f";
     nargv[2] = "";
     nargv[3] = from;
     nargv[4] = NULL;
+#endif    
 
     if (( pexecv( _PATH_SENDMAIL, nargv )) == -1 ) {
 	syslog( LOG_ERR, "pexecv of %s failed", _PATH_SENDMAIL );
