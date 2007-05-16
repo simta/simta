@@ -24,6 +24,10 @@
 .B \-v
 .I database-directory
 ]
+[
+.B \-f
+.I sender/from
+]
 .I user
 .SH DESCRIPTION
 .B
@@ -77,7 +81,7 @@ appear in the message.
 .B
 simvacation
 logs its activity via syslog(3), with facility LOG_MAIL. The facility can be
-overridden at build time.
+overridden during the build time.
 .SH OPTIONS
 .TP
 .B \-r
