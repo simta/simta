@@ -119,10 +119,9 @@ main( int argc,  char **argv)
 		    while ((rc = dbcp->c_get(dbcp, &key, &data, DB_NEXT)) == 0){
 
 			keybuf = (char *) key.data;
-			keybuf[key.size] = '\0';
 
 			if ( keybuf  ) {
-			    printf( "\t%s\n", keybuf );
+			    printf ("\t%.*s\n", key.size, keybuf );
 			}
 		    }
 		    if (rc != DB_NOTFOUND) {
