@@ -19,9 +19,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#ifndef VDBDIR
-#define VDBDIR	"/var/vacationdb"   /* dir for vacation databases */
-#endif
+#include "simvacation.h"
+
 
 main( int argc,  char **argv)
 {
@@ -118,10 +117,17 @@ main( int argc,  char **argv)
 
 		    while ((rc = dbcp->c_get(dbcp, &key, &data, DB_NEXT)) == 0){
 
+			/*
+			** DO NOT NULL TERMINATE key.data.
+			** This Berkeley allocated buffer might not
+			** be big enough.
+			*/
 			keybuf = (char *) key.data;
 
-			if ( keybuf  ) {
-			    printf ("\t%.*s\n", key.size, keybuf );
+			if (strncmp(keybuf, VIT, strlen( VIT ) - 1) != 0) {
+			    if ( keybuf  ) {
+				printf ("\t%.*s\n", key.size, keybuf );
+			    }
 			}
 		    }
 		    if (rc != DB_NOTFOUND) {
