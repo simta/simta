@@ -43,7 +43,7 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)vacation.c	5.19 (Berkeley) 3/23/91";*/
-static char rcsid[] = "$Id: simvacation.c,v 1.3 2007/05/16 19:17:46 pturgyan Exp $";
+static char rcsid[] = "$Id: simvacation.c,v 1.4 2007/05/17 16:11:36 pturgyan Exp $";
 #endif /* not lint */
 
 /*
@@ -75,6 +75,7 @@ static char rcsid[] = "$Id: simvacation.c,v 1.3 2007/05/16 19:17:46 pturgyan Exp
 #include <lber.h>
 #include <ldap.h>
 
+#include "simvacation.h"
 /*
  *  VACATION -- return a message to the sender when on vacation.
  *
@@ -91,7 +92,6 @@ char *makevdbpath();
 
 
 #define	MAXLINE	1024			/* max line from mail header */
-#define	VDBDIR	"/var/vacationdb"	/* dir for vacation databases */
 
 #ifndef _PATH_SENDMAIL
 #define _PATH_SENDMAIL	"/usr/sbin/sendmail"
@@ -128,7 +128,6 @@ ALIAS		*names;
 
 
 
-static char	*VIT = "__VACATION__INTERVAL__TIMER__";
 static char	from[MAXLINE];
 static char	subject[MAXLINE];
 static char	rdn[MAXLINE];
