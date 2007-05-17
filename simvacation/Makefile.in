@@ -46,7 +46,7 @@ clean:
 db:
 	@echo "Making db directories in ${VDBDIR}"
 	mkdir ${VDBDIR}
-	@for i in a b c d e f g h i j k l m n o p r s t u v w x y z; do \
+	@for i in a b c d e f g h i j k l m n o p q r s t u v w x y z; do \
 		echo "  Creating subdirectory $$i";             \
 		( mkdir ${VDBDIR}/$$i );    \
 		if test $$? != 0 ; then exit 1; fi ;    \
