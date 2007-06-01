@@ -57,6 +57,7 @@ struct expand {
     struct exp_addr		*exp_addr_head;	/* list of expanded addresses */
     struct exp_addr		*exp_addr_tail;
     struct exp_addr		*exp_addr_cursor;	/* cursor */
+    struct action		*exp_current_action;
     struct envelope		*exp_errors;	/* error envelope list */
 #ifdef HAVE_LDAP
     struct exp_link		*exp_memonly;
@@ -78,6 +79,7 @@ struct exp_addr {
     char			*e_addr_at;	/* char the email addresses @ */
     char			*e_addr_from;
     struct envelope		*e_addr_errors;	/* address error handle */
+    struct action		*e_addr_parent_action;
 #ifdef HAVE_LDAP
     int				e_addr_try_ldap;
     int				e_addr_ldap_flags;
@@ -98,6 +100,7 @@ struct envelope *eo_lookup( struct expand_output *, char *, char * );
 int eo_insert( struct expand_output **, struct envelope * );
 
 /* address.c */
+struct passwd *simta_getpwnam( struct action *, char * );
 int address_error( struct envelope *, char *, char *, char * );
 void expansion_stab_stdout( void * );
 int add_address( struct expand *, char *, struct envelope *, int, char * );

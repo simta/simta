@@ -6,6 +6,9 @@ struct action {
     char			*a_fname;
     DB				*a_dbp;
     struct action		*a_next;
+#ifdef HAVE_LDAP
+    struct simta_ldap		*a_ldap;
+#endif /* HAVE_LDAP */
 };
 
 struct simta_red {
@@ -47,6 +50,9 @@ void simta_red_stdout( void );
 int alias_expand( struct expand *, struct exp_addr *, struct action * );
 struct passwd *simta_getpwnam( struct action *, char * );
 int password_expand( struct expand *, struct exp_addr *, struct action * );
+#ifdef HAVE_LDAP
+void simta_red_close_ldap_dbs( void );
+#endif /* HAVE_LDAP */
 
 /* global variables */
 extern struct simta_red			*simta_red_hosts;

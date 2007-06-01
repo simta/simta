@@ -1,4 +1,7 @@
 internal
+    - Multiple LDAP DBs
+    - updated simvacation code
+    - Better Data metrics, and max message size checking
     - TARPIT individual stage timings
     - SMTP_MODE config directive
     - LDAP "bad filter" error doesn't stop expansion
@@ -19,6 +22,15 @@ internal
     - Added BLOCK and ACCEPT to RBL syntax for whitelisting
     - Added better penalty box logging
     - bugfix: CTX init function added
+
+0.7.6
+    - multiple LDAP databases
+
+0.7.5
+    - RED "D" Bugfix
+
+0.7.4
+    - LDAP "bad filter" error doesn't stop expansion
 
 0.7.3
     - SMTP_DATA_URL config file option added

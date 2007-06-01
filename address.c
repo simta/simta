@@ -225,6 +225,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 
 	e->e_addr_errors = error_env;
 	e->e_addr_type = addr_type;
+	e->e_addr_parent_action = exp->exp_current_action;
 
 	if (( e->e_addr = strdup( addr )) == NULL ) {
 	    syslog( LOG_ERR, "strdup: %m" );
@@ -284,7 +285,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 		/* check to see if the address is the sender */
 		if ( exp->exp_env->e_mail != NULL ) {
 		    /* compare the address in hand with the sender */
-		    if ( simta_mbx_compare( e->e_addr,
+		    if ( simta_mbx_compare( 2, e->e_addr,
 			    exp->exp_env->e_mail ) == 0 ) {
 			/* here we have a match */
 			e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
@@ -383,6 +384,7 @@ address_expand( struct expand *exp )
 
 #ifdef HAVE_LDAP
     case ADDRESS_TYPE_LDAP:
+	exp->exp_current_action = e_addr->e_addr_parent_action;
 	syslog( LOG_DEBUG, "Expand %s: <%s> is ldap data", exp->exp_env->e_id,
 		e_addr->e_addr );
 	goto ldap_exclusive;
@@ -398,6 +400,7 @@ address_expand( struct expand *exp )
 
     /* Expand user using expansion table for domain */
     for ( action = red->red_expand; action != NULL; action = action->a_next ) {
+	exp->exp_current_action = action;
 	switch ( action->a_action ) {
 	/* Other types might include files, pipes, etc */
 	case EXPANSION_TYPE_ALIAS:
@@ -448,9 +451,10 @@ address_expand( struct expand *exp )
 	    if ( e_addr->e_addr_at == NULL ) {
 		continue;
 	    }
+	    exp->exp_current_action = action;
 
 ldap_exclusive:
-	    switch ( simta_ldap_expand( exp, e_addr )) {
+	    switch ( simta_ldap_expand( action->a_ldap, exp, e_addr )) {
 	    case LDAP_EXCLUDE:
 		syslog( LOG_DEBUG, "Expand %s: <%s> EXPANDED: ldap",
 			exp->exp_env->e_id, e_addr->e_addr );

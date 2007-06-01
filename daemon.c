@@ -252,7 +252,7 @@ main( int ac, char **av )
 
 	case 'p' :		/* TCP port */
 	    simta_smtp_port_defined = 1;
-	    if ( htons( atoi( optarg )) < 0 ) {
+	    if ( atoi( optarg ) < 0 ) {
                 fprintf( stderr, "simta -p [ port ] must be 0 or greater\n" );
 		exit( 1 );
 	    }

@@ -92,6 +92,32 @@ simta_red_stdout( void )
 }
 
 
+#ifdef HAVE_LDAP
+    void
+simta_red_close_ldap_dbs( void )
+{
+    struct simta_red		*red;
+    struct action		*a;
+
+    for ( red = simta_red_hosts; red != NULL; red = red->red_next ) {
+	for ( a = red->red_receive; a != NULL; a = a->a_next ) {
+	    if ( a->a_ldap != NULL ) {
+		simta_ldap_unbind( a->a_ldap );
+	    }
+	}
+
+	for ( a = red->red_expand; a != NULL; a = a->a_next ) {
+	    if ( a->a_ldap != NULL ) {
+		simta_ldap_unbind( a->a_ldap );
+	    }
+	}
+    }
+
+    return;
+}
+#endif /* HAVE_LDAP */
+
+
     struct simta_red *
 simta_red_lookup_host( char *host_name )
 {

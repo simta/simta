@@ -76,7 +76,7 @@ extern SSL_CTX	*ctx;
 
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
-#endif
+#endif /* HAVE_LDAP */
 
 #define RECEIVE_RBL_UNKNOWN	0
 #define RECEIVE_RBL_BLOCKED	1
@@ -2741,7 +2741,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	case EXPANSION_TYPE_LDAP:
 	    /* Check LDAP */
 	    *at = '\0';
-	    rc = simta_ldap_address_local( addr, domain );
+	    rc = simta_ldap_address_local( action->a_ldap, addr, domain );
 	    *at = '@';
 
 	    switch ( rc ) {

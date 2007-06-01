@@ -42,9 +42,10 @@ struct list {
 #define SUPPRESSNOEMAILERROR    (1<<0)
 
 /* Public functions */
-int	simta_ldap_expand( struct expand *, struct exp_addr * );
-int	simta_ldap_address_local( char *, char * );
-int	simta_ldap_config( char * );
-int	simta_mbx_compare( char *, char * );
-void	simta_ldap_unbind( void );
+struct	simta_ldap	*simta_ldap_config( char * );
+int	simta_ldap_expand( struct simta_ldap *, struct expand *,
+	struct exp_addr * );
+int	simta_ldap_address_local( struct simta_ldap *, char *, char * );
+int	simta_mbx_compare( int, char *, char * );
+void	simta_ldap_unbind( struct simta_ldap * );
 

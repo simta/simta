@@ -484,6 +484,10 @@ q_runner_done:
 	}
     }
 
+#ifdef HAVE_LDAP
+    simta_red_close_ldap_dbs();
+#endif /* HAVE_LDAP */
+
     if ( simta_fast_files != 0 ) {
 	syslog( LOG_WARNING, "q_runner exiting with %d fast_files",
 		simta_fast_files );
@@ -941,8 +945,6 @@ q_deliver( struct host_q *deliver_q )
 	    deliver_q->hq_status = HOST_MX;
 	} else if ( red->red_deliver_type == RED_DELIVER_BINARY ) {
 	    deliver_q->hq_status = HOST_LOCAL;
-	    d.d_deliver_argc = red->red_deliver_argc;
-	    d.d_deliver_argv = red->red_deliver_argv;
 	} else {
 	    deliver_q->hq_status = HOST_DOWN;
 	}
@@ -992,6 +994,11 @@ q_deliver( struct host_q *deliver_q )
 
 	switch ( deliver_q->hq_status ) {
         case HOST_LOCAL:
+	    if (( deliver_q->hq_red != NULL ) &&
+		    ( deliver_q->hq_red->red_deliver_argv != NULL )) {
+		d.d_deliver_argc = deliver_q->hq_red->red_deliver_argc;
+		d.d_deliver_argv = deliver_q->hq_red->red_deliver_argv;
+	    }
 	    deliver_local( &d );
 	    break;
 

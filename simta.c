@@ -209,6 +209,8 @@ simta_read_config( char *fname )
     SNET		*snet;
     char		*domain;
     struct simta_red	*red;
+    struct action	*a;
+    struct simta_ldap	*ld;
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
@@ -426,6 +428,7 @@ simta_read_config( char *fname )
 		}
 
 		red->red_deliver_argv[ x ] = NULL;
+		red->red_deliver_type = RED_DELIVER_BINARY;
 
 	    } else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
 		if ( ac < 2 ) {
@@ -452,6 +455,7 @@ simta_read_config( char *fname )
 		}
 
 		red->red_deliver_argv[ x ] = NULL;
+		red->red_deliver_type = RED_DELIVER_BINARY;
 
 		if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
 		    perror( "strdup" );
@@ -467,32 +471,35 @@ simta_read_config( char *fname )
 			    fname, lineno );
 		    goto error;
 		}
-		if ( simta_ldap_config( av[ 3 ] ) != 0 ) {
+		if (( ld = simta_ldap_config( av[ 3 ] )) == NULL ) {
 		    fprintf( stderr, "%s: line %d: LDAP config %s failed, "
 			    "please check the logs\n", fname, lineno, av[ 3 ]);
 		    goto error;
 		}
 
 		if ( red_code & RED_CODE_r ) {
-		    if ( simta_red_add_action( red, RED_CODE_r,
-			    EXPANSION_TYPE_LDAP, NULL ) == NULL ) {
+		    if (( a = simta_red_add_action( red, RED_CODE_r,
+			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
+		    a->a_ldap = ld;
 		} else if ( red_code & RED_CODE_R ) {
-		    if ( simta_red_add_action( red, RED_CODE_R,
-			    EXPANSION_TYPE_LDAP, NULL ) == NULL ) {
+		    if (( a = simta_red_add_action( red, RED_CODE_R,
+			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
+		    a->a_ldap = ld;
 		}
 
 		if ( red_code & RED_CODE_E ) {
-		    if ( simta_red_add_action( red, RED_CODE_E,
-			    EXPANSION_TYPE_LDAP, NULL ) == NULL ) {
+		    if (( a = simta_red_add_action( red, RED_CODE_E,
+			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
+		    a->a_ldap = ld;
 		}
 #endif /* HAVE_LDAP */
 
