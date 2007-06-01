@@ -1074,8 +1074,9 @@ f_data( struct receive_data *r )
     struct stat				sbuf;
     char				daytime[ 30 ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
-    off_t				data_size = 0;
     struct receive_headers		rh;
+    unsigned int			data_wrote = 0;
+    unsigned int			data_read = 0;
 
     memset( &rh, 0, sizeof( struct receive_headers ));
     rh.r_env = r->r_env;
@@ -1184,6 +1185,9 @@ f_data( struct receive_data *r )
     while (( line = snet_getline( r->r_snet, &tv_line )) != NULL ) {
 	line_no++;
 
+	line_len = strlen( line );
+	data_read += line_len + 2;
+
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror: f_data gettimeofday: %m" );
 	    goto error;
@@ -1206,10 +1210,6 @@ f_data( struct receive_data *r )
 	    }
 	    line++;
 	}
-
-	line_len = strlen( line );
-	/* Add strlen plus "\r\n" */
-	data_size += line_len + 2;
 
 	if (( r->r_smtp_mode == SMTP_MODE_TARPIT ) || ( data_errors != 0 )) {
 	    if ( dfile_on_disk != 0 ) {
@@ -1248,8 +1248,8 @@ f_data( struct receive_data *r )
 	}
 
 	if (( simta_max_message_size != 0 ) &&
-		( data_size > simta_max_message_size )) {
-	    /* If we've already reached max size, continue reading lines
+		(( data_wrote + line_len + 1 ) > simta_max_message_size )) {
+	    /* If we're going to reach max size, continue reading lines
 	     * until the '.' otherwise, check message size.
 	     */
 	    syslog( LOG_INFO, "Receive %s: Message Failed: [%s] %s: "
@@ -1282,6 +1282,7 @@ f_data( struct receive_data *r )
 	    syslog( LOG_ERR, "f_data fprintf: %m" );
 	    goto error;
 	}
+	data_wrote += line_len + 1;
     }
 
     if ( line == NULL ) {	/* EOF */
@@ -1372,12 +1373,13 @@ f_data( struct receive_data *r )
     }
 
     if ( tv_filter.tv_sec == 0 ) {
-	syslog( LOG_INFO, "Receive Data Metric: %d bytes in %d seconds",
-		(int)data_size, (int)(tv_now.tv_sec - tv_data_start.tv_sec));
+	syslog( LOG_INFO, "Receive Data Metric: Read %d write %d bytes in "
+		"%d seconds", (int)data_read, (int)data_wrote,
+		(int)(tv_now.tv_sec - tv_data_start.tv_sec));
     } else {
-	syslog( LOG_INFO, "Receive Data Metric: %d bytes in %d seconds, "
-		" filter %d seconds", (int)data_size,
-		(int)(tv_filter.tv_sec - tv_data_start.tv_sec),
+	syslog( LOG_INFO, "Receive Data Metric: Read %d write %d bytes in "
+		"%d seconds, filter %d seconds", (int)data_read,
+		(int)data_wrote, (int)(tv_now.tv_sec - tv_data_start.tv_sec),
 		(int)(tv_now.tv_sec - tv_filter.tv_sec));
     }
 
