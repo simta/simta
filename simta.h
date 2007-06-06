@@ -79,6 +79,8 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
+extern int				simta_smtp_rcvbuf_min;
+extern int				simta_smtp_rcvbuf_max;
 extern int				simta_smtp_port_defined;
 extern int				simta_rbl_verbose_logging;
 extern int				simta_queue_incoming_smtp_mail;

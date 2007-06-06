@@ -1,4 +1,5 @@
 internal
+    - SMTP_RCVBUF directive limits TCP Window size until valid DATA segment
     - Multiple LDAP DBs
     - updated simvacation code
     - Better Data metrics, and max message size checking

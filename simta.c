@@ -91,6 +91,8 @@ int			simta_simsend_strict_from = 1;
 int			simta_process_type = 0;
 int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
+int			simta_smtp_rcvbuf_min = 0;
+int			simta_smtp_rcvbuf_max;
 int			simta_strict_smtp_syntax = 0;
 int			simta_dns_config = 1;
 int			simta_no_sync = 0;
@@ -1057,6 +1059,36 @@ simta_read_config( char *fname )
 	    simta_smtp_port = htons( atoi( av[ 1 ]));
 	    simta_smtp_port_defined = 1;
 	    if ( simta_debug ) printf( "SMTP_PORT: %s\n", av[ 1 ] );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_RCVBUF" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_smtp_rcvbuf_max = 0;
+
+	    } else if ( ac == 3 ) {
+		if (( simta_smtp_rcvbuf_max = atoi( av[ 2 ] )) < 0 ) {
+		    fprintf( stderr, "%s: line %d: illegal argument: %s\n",
+			    fname, lineno, av[ 2 ]);
+		    goto error;
+		}
+
+	    } else {
+		fprintf( stderr, "%s: line %d: expected 1 or 2 arguments\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	    if (( simta_smtp_rcvbuf_min = atoi( av[ 1 ] )) <= 0 ) {
+		fprintf( stderr, "%s: line %d: illegal argument: %s\n",
+			fname, lineno, av[ 1 ]);
+		goto error;
+	    }
+
+	    if (( simta_smtp_rcvbuf_max > 0 ) && ( simta_smtp_rcvbuf_max <
+		    simta_smtp_rcvbuf_min )) {
+		fprintf( stderr, "%s: line %d: max can't be smaller than min\n",
+			fname, lineno );
+		goto error;
+	    }
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_LISTEN_BACKLOG" ) == 0 ) {
 	    if ( ac != 2 ) {

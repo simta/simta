@@ -87,6 +87,7 @@ int		simta_child_q_runner( struct host_q * );
 int		simta_child_receive( int, int );
 int		simta_child_queue_scheduler( void );
 int		simta_smtp_server( void );
+int		set_rcvbuf( int );
 
 SSL_CTX		*ctx = NULL;
 
@@ -156,6 +157,30 @@ static sasl_callback_t callbacks[] = {
   }
 };
 #endif /* HAVE_LIBSASL */
+
+
+    int
+set_rcvbuf( int s )
+{
+    int				len;
+
+    if ( simta_smtp_rcvbuf_max == 0 ) {
+	len = sizeof( simta_smtp_rcvbuf_max );
+	if ( getsockopt( s, SOL_SOCKET, SO_RCVBUF, &simta_smtp_rcvbuf_max,
+		&len ) < 0 ) {
+	    syslog( LOG_ERR, "set_rcvbuf getsockopt: %m" );
+	    return( 1 );
+	}
+    }
+
+    if ( setsockopt( s, SOL_SOCKET, SO_RCVBUF,
+	    (void*)&simta_smtp_rcvbuf_min, sizeof( int )) < 0 ) {
+	syslog( LOG_ERR, "set_rcvbuf setsockopt: %m" );
+	return( 1 );
+    }
+
+    return( 0 );
+}
 
 
     int
@@ -448,6 +473,11 @@ main( int ac, char **av )
 		    perror("setsockopt");
 		}
 	    }
+	    if ( simta_smtp_rcvbuf_min != 0 ) {
+		if ( set_rcvbuf( simta_socket_smtp ) != 0 ) {
+		    exit( 1 );
+		}
+	    }
 	    memset( &sin, 0, sizeof( struct sockaddr_in ));
 	    sin.sin_family = AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
@@ -486,6 +516,11 @@ main( int ac, char **av )
 		    perror("setsockopt");
 		}
 	    }
+	    if ( simta_smtp_rcvbuf_min != 0 ) {
+		if ( set_rcvbuf( simta_socket_smtps ) != 0 ) {
+		    exit( 1 );
+		}
+	    }
 	    memset( &sin, 0, sizeof( struct sockaddr_in ));
 	    sin.sin_family = AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
@@ -522,6 +557,11 @@ main( int ac, char **av )
 		if ( setsockopt( simta_socket_submission, SOL_SOCKET,
 			SO_REUSEADDR, (void*)&reuseaddr, sizeof( int )) < 0 ) {
 		    perror("setsockopt");
+		}
+	    }
+	    if ( simta_smtp_rcvbuf_min != 0 ) {
+		if ( set_rcvbuf( simta_socket_submission ) != 0 ) {
+		    exit( 1 );
 		}
 	    }
 	    memset( &sin, 0, sizeof( struct sockaddr_in ));
