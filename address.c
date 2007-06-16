@@ -353,7 +353,6 @@ address_expand( struct expand *exp )
 {
     struct exp_addr		*e_addr;
     struct simta_red		*red = NULL;
-    struct action		*action;
     int				local_postmaster = 0;
 
     e_addr = exp->exp_addr_cursor;
@@ -399,20 +398,23 @@ address_expand( struct expand *exp )
      */
 
     /* Expand user using expansion table for domain */
-    for ( action = red->red_expand; action != NULL; action = action->a_next ) {
-	exp->exp_current_action = action;
-	switch ( action->a_action ) {
+    for ( exp->exp_current_action = red->red_expand;
+	    exp->exp_current_action != NULL;
+	    exp->exp_current_action = exp->exp_current_action->a_next ) {
+	switch ( exp->exp_current_action->a_action ) {
 	/* Other types might include files, pipes, etc */
 	case EXPANSION_TYPE_ALIAS:
-	    switch ( alias_expand( exp, e_addr, action )) {
+	    switch ( alias_expand( exp, e_addr, exp->exp_current_action )) {
 	    case ALIAS_EXCLUDE:
 		syslog( LOG_DEBUG, "Expand %s: <%s> EXPANDED: alias db %s",
-			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
+			exp->exp_env->e_id, e_addr->e_addr,
+				exp->exp_current_action->a_fname );
 		return( ADDRESS_EXCLUDE );
 
 	    case ALIAS_NOT_FOUND:
 		syslog( LOG_DEBUG, "Expand %s: <%s>: not in alias db %s",
-			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
+			exp->exp_env->e_id, e_addr->e_addr,
+			exp->exp_current_action->a_fname );
 		continue;
 
 	    case ALIAS_SYSERROR:
@@ -423,20 +425,23 @@ address_expand( struct expand *exp )
 	    }
 
 	case EXPANSION_TYPE_PASSWORD:
-	    switch ( password_expand( exp, e_addr, action )) {
+	    switch ( password_expand( exp, e_addr, exp->exp_current_action )) {
 	    case PASSWORD_EXCLUDE:
 		syslog( LOG_DEBUG, "Expand %s: <%s> EXPANDED: password file %s",
-			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
+			exp->exp_env->e_id, e_addr->e_addr,
+			exp->exp_current_action->a_fname );
 		return( ADDRESS_EXCLUDE );
 
 	    case PASSWORD_FINAL:
 		syslog( LOG_DEBUG, "Expand %s: <%s> FINAL: password file %s",
-			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
+			exp->exp_env->e_id, e_addr->e_addr,
+			exp->exp_current_action->a_fname );
 		return( ADDRESS_FINAL );
 
 	    case PASSWORD_NOT_FOUND:
 		syslog( LOG_DEBUG, "Expand %s: <%s>: not in password file %s",
-			exp->exp_env->e_id, e_addr->e_addr, action->a_fname );
+			exp->exp_env->e_id, e_addr->e_addr,
+			exp->exp_current_action->a_fname );
 		continue;
 
 	    case PASSWORD_SYSERROR:
@@ -451,10 +456,11 @@ address_expand( struct expand *exp )
 	    if ( e_addr->e_addr_at == NULL ) {
 		continue;
 	    }
-	    exp->exp_current_action = action;
+	    exp->exp_current_action = exp->exp_current_action;
 
 ldap_exclusive:
-	    switch ( simta_ldap_expand( action->a_ldap, exp, e_addr )) {
+	    switch ( simta_ldap_expand( exp->exp_current_action->a_ldap,
+		    exp, e_addr )) {
 	    case LDAP_EXCLUDE:
 		syslog( LOG_DEBUG, "Expand %s: <%s> EXPANDED: ldap",
 			exp->exp_env->e_id, e_addr->e_addr );
