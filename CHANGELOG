@@ -1,4 +1,5 @@
 internal
+    - AGGRESSIVE_DELIVERY option and behavior added
     - SMTP_RCVBUF directive limits TCP Window size until valid DATA segment
     - Multiple LDAP DBs
     - updated simvacation code

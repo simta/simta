@@ -1,5 +1,3 @@
-/**********          expand.h          **********/
-
 /* expansion types */
 #define	EXPANSION_TYPE_PASSWORD		1
 #define	EXPANSION_TYPE_ALIAS		2

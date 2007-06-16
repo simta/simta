@@ -1047,8 +1047,7 @@ q_deliver( struct host_q *deliver_q )
 	}
 
 	/* check to see if this is the primary queue, and if it has leaked */
-	if (( deliver_q->hq_primary ) && (( d.d_n_rcpt_failed ) ||
-		( d.d_delivered && d.d_n_rcpt_accepted ))) {
+	if (( deliver_q->hq_primary ) && ( d.d_queue_movement != 0 )) {
 	    simta_leaky_queue = 1;
 	}
 
@@ -1435,6 +1434,10 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	if (( r_smtp = smtp_send( hq, d )) == SMTP_OK ) {
 	    switch ( hq->hq_status ) {
 	    case HOST_DOWN:
+		if (( d->d_n_rcpt_failed ) ||
+			( d->d_delivered && d->d_n_rcpt_accepted )) {
+		    d->d_queue_movement = 1;
+		}
 		hq->hq_status = HOST_MX;
 		break;
 
@@ -1510,6 +1513,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     char			*ip;
     int 			i;
     int				match;
+    struct connection_data	*cd;
 
     if ( d->d_dnsr_result == NULL ) {
 	hq->hq_no_punt = 0;
@@ -1627,20 +1631,86 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	default:
 	    panic( "next_dnsr_host: varaible out of range" );
 	}
+    }
 
-    } else if ( d->d_dnsr_result_ip != NULL ) {
-	d->d_cur_dnsr_result_ip++;
-    } else {
-	d->d_cur_dnsr_result++;
+    /* check to see if we're in the "retry" phaze yet */
+    if ( d->d_retry_cur != NULL ) {
+	/* if there was no queue movement on this host, we remove it */
+	if ( d->d_queue_movement == 0 ) {
+	    cd = d->d_retry_cur;
+
+	    if ( cd->c_prev != NULL ) {
+		cd->c_prev->c_next = cd->c_next;
+	    } else {
+		d->d_retry_list = cd->c_next;
+	    }
+
+	    if ( cd->c_next != NULL ) {
+		cd->c_next->c_prev = cd->c_prev;
+		d->d_retry_cur = cd->c_next;
+	    } else {
+		d->d_retry_list_end = cd->c_prev;
+		d->d_retry_cur = d->d_retry_list;
+	    }
+
+	    ip = inet_ntoa( cd->c_sin.sin_addr );
+	    syslog( LOG_DEBUG, "DNS %s: Removed from Retry %s",
+		    hq->hq_hostname, ip );
+
+	    free( cd );
+
+	    if ( d->d_retry_cur == NULL ) {
+		/* we've removed our last item from the retry list */
+		return( 1 );
+	    }
+
+	} else {
+	    /* iterate, and start the list over if we're at the end */
+	    if (( d->d_retry_cur = d->d_retry_cur->c_next ) == NULL ) {
+		d->d_retry_cur = d->d_retry_list;
+	    }
+	}
+
+retry:
+	memcpy( &(d->d_sin),
+		&(d->d_retry_cur->c_sin),
+		sizeof( struct sockaddr_in ));
+	ip = inet_ntoa( d->d_sin.sin_addr );
+	syslog( LOG_DEBUG, "DNS %s: Retry %s", hq->hq_hostname, ip );
+	return( 0 );
+    } 
+
+    /* see if we need to preserve the connection data for retry later */
+    if (( simta_aggressive_delivery != 0 ) && ( d->d_queue_movement != 0 )) {
+	if (( cd = (struct connection_data*)malloc(
+		sizeof( struct connection_data ))) == NULL ) {
+	    syslog( LOG_ERR, "next_dnsr_host malloc: %m" );
+	}
+	memset( cd, 0, sizeof( struct connection_data ));
+	memcpy( &(cd->c_sin),
+		&(d->d_sin),
+		sizeof( struct sockaddr_in ));
+	if ( d->d_retry_list_end == NULL ) {
+	    d->d_retry_list = cd;
+	    d->d_retry_list_end = cd;
+	} else {
+	    d->d_retry_list_end->c_next = cd;
+	    cd->c_prev = d->d_retry_list_end;
+	    d->d_retry_list_end = cd;
+	}
+	ip = inet_ntoa( cd->c_sin.sin_addr );
+	syslog( LOG_DEBUG, "DNS %s: Added to Retry %s", hq->hq_hostname, ip );
     }
 
     /* here you have dnsr information */
     memset( &(d->d_sin), 0, sizeof( struct sockaddr_in ));
     d->d_sin.sin_family = AF_INET;
     d->d_sin.sin_port = htons( SIMTA_SMTP_PORT );
+    d->d_queue_movement = 0;
 
     if ( d->d_dnsr_result_ip == NULL ) {
-	for ( ; d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
+	for ( d->d_cur_dnsr_result++; 
+		d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
 		d->d_cur_dnsr_result++ ) {
 	    /* if the entry is an A record, use the associated IP info */
 	    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type ==
@@ -1677,6 +1747,11 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 			    "DNS %s: Entry %d: MX preference %d: cutoff",
 			    hq->hq_hostname, d->d_cur_dnsr_result,
     d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference ); 
+
+		    if ( d->d_retry_list != NULL ) {
+			d->d_retry_cur = d->d_retry_list;
+			goto retry;
+		    }
 		    return( 1 );
 		}
 
@@ -1733,7 +1808,8 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     }
 
     if ( d->d_dnsr_result_ip != NULL ) {
-	for ( ; d->d_cur_dnsr_result_ip < d->d_dnsr_result_ip->r_ancount;
+	for ( d->d_cur_dnsr_result_ip++;
+		d->d_cur_dnsr_result_ip < d->d_dnsr_result_ip->r_ancount;
 		d->d_cur_dnsr_result_ip++ ) {
 	    if ( DNSR_TYPE_A ==
     d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type ) {
@@ -1765,6 +1841,11 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 		continue;
 	    }
 	}
+    }
+
+    if ( d->d_retry_list != NULL ) {
+	d->d_retry_cur = d->d_retry_list;
+	goto retry;
     }
 
     return( 1 );

@@ -16,6 +16,12 @@
 #define HOST_PUNT_DOWN	7
 #define HOST_SUPRESSED	8
 
+struct connection_data {
+    struct connection_data	*c_prev;
+    struct connection_data	*c_next;
+    struct sockaddr_in		c_sin;
+};
+
 struct deliver {
     int				d_deliver_argc;
     char			**d_deliver_argv;
@@ -29,6 +35,10 @@ struct deliver {
     int				d_unlinked;
 
     /* SMTP connection variables */
+    int				d_queue_movement;
+    struct connection_data	*d_retry_list;
+    struct connection_data	*d_retry_list_end;
+    struct connection_data	*d_retry_cur;
     struct dnsr_result		*d_dnsr_result;
     struct dnsr_result		*d_dnsr_result_ip;
     struct sockaddr_in		d_sin;

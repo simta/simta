@@ -71,6 +71,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_aggressive_delivery = 1;
 int			simta_smtp_port_defined = 0;
 int			simta_rbl_verbose_logging = 0;
 int			simta_queue_incoming_smtp_mail = 0;
@@ -1176,6 +1177,21 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_max_failed_rcpts < 0 ) {
 		fprintf( stderr, "%s: line %d: invalid negative argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "AGGRESSIVE_DELIVERY" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    } else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		simta_aggressive_delivery = 0;
+	    } else if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		simta_aggressive_delivery = 1;
+	    } else {
+		fprintf( stderr, "%s: line %d: illegal argument\n",
 			fname, lineno );
 		goto error;
 	    }
