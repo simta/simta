@@ -18,6 +18,8 @@
 #include <sys/wait.h>
 #include <sys/param.h>
 
+#define LDAP_DEPRECATED		1
+
 #include <sys/time.h>		/* struct timeval */
 #include <stdio.h>
 #include <syslog.h>
@@ -107,9 +109,9 @@ struct simta_ldap {
     char				*ldap_vacationattr;
     char				*ldap_mailfwdattr;
     char				*ldap_mailattr;
+    char				*ldap_associated_domain;
     int					ldap_ndomain;
 };
-
 
 static int				ldapdebug;
 
@@ -694,7 +696,7 @@ do_ambiguous( struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
 	free( dn );
 
 	if ( strcasecmp( rdn, addr ) == 0 ) {
-	    if ( (vals = ldap_get_values( ld->ldap_ld, e, "cn" )) != NULL ) {
+	    if (( vals = ldap_get_values( ld->ldap_ld, e, "cn" )) != NULL ) {
 		rdn = strdup( vals[0] );
 		ldap_value_free( vals );
 	    }
@@ -873,7 +875,7 @@ simta_ldap_unbind( struct simta_ldap *ld )
 simta_ldap_retry( struct simta_ldap *ld )
 {
     simta_ldap_unbind( ld );
-    if ( simta_ld_init( ld ) != 0 ) {
+    if ( simta_ldap_init( ld ) != 0 ) {
 	return( 1 );
     }
     return( 0 );
@@ -995,7 +997,7 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
     if ( res ) {
 	ldap_msgfree( res );
     }
-	
+
     return ( rc );
 }
 
@@ -1049,24 +1051,19 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	if ( strcasecmp( vals[0], "TRUE" ) == 0 ) {
 	    suppressnoemail = 1;
         }
-	ldap_value_free (vals);
-    }
-
-    if (( vals = ldap_get_values( ld->ldap_ld, entry,
-	    "associateddomain" )) == NULL ) {
-	return( LDAP_EXCLUDE );
+	ldap_value_free( vals );
     }
 
     rdns = ldap_explode_dn( dn, 1 );
 
     if (( e_addr->e_addr_owner = (char*)malloc( strlen( rdns[0] ) +
-	    strlen( vals[0] ) + 8 )) == NULL ) {
+	    strlen( ld->ldap_associated_domain ) + 8 )) == NULL ) {
 	ldap_memfree( dn );
-	ldap_value_free( vals );
 	ldap_value_free( rdns );
 	return( LDAP_SYSERROR );
     }
-    sprintf( e_addr->e_addr_owner, "%s-owner@%s", rdns[0], vals[0]);
+    sprintf( e_addr->e_addr_owner, "%s-owner@%s", rdns[0],
+	    ld->ldap_associated_domain );
 
     for ( psender = e_addr->e_addr_owner; *psender; psender++ ) {
 	if ( *psender == ' ' ) {
@@ -1081,17 +1078,18 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	/*
 	* You can't send mail to groups that have no associatedDomain.
 	*/
-	senderbuf = (char*)malloc( strlen( rdns[0]) + strlen( vals[0]) + 12 );
+	senderbuf = (char*)malloc( strlen( rdns[0]) +
+		strlen( ld->ldap_associated_domain ) + 12 );
 	if ( !senderbuf ) {
 	    syslog( LOG_ERR, "simta_ldap_expand_group: "
 		    "Failed allocating senderbuf: %s", dn );
 	    ldap_memfree( dn );
-	    ldap_value_free( vals );
 	    ldap_value_free( rdns );
 	    return( LDAP_SYSERROR );
 	}
 
-	sprintf( senderbuf, "%s-errors@%s", rdns[0], vals[0]);
+	sprintf( senderbuf, "%s-errors@%s", rdns[0],
+		ld->ldap_associated_domain );
 	for ( psender = senderbuf; *psender; psender++ ) {
 	    if ( *psender == ' ' ) {
 		*psender = '.';
@@ -1103,7 +1101,6 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		    "failed creating error env: %s", dn);
 	    free( senderbuf );
 	    ldap_memfree( dn );
-	    ldap_value_free( vals );
 	    ldap_value_free( rdns );
 	    return LDAP_SYSERROR;
 	} 
@@ -1112,7 +1109,6 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	    free( senderbuf );
 	    if (( senderbuf = strdup( "" )) == NULL ) {
 		ldap_memfree( dn );
-		ldap_value_free( vals );
 		ldap_value_free( rdns );
 		return LDAP_SYSERROR;
 	    }
@@ -1125,13 +1121,11 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		    "recip: %s", dn );
 	    free( senderbuf );
 	    ldap_memfree( dn );
-	    ldap_value_free( vals );
 	    ldap_value_free( rdns );
 	    return LDAP_SYSERROR;
 	}
     } 
 
-    ldap_value_free( vals );
     ldap_value_free( rdns );
 
     switch ( type ) {
@@ -1451,7 +1445,7 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 		    ld->ldap_vacationattr)) != NULL ) &&
 		    ( strcasecmp( onvacation[0], "TRUE" ) == 0 )) {
 
-		if ((uid = ldap_get_values( ld->ldap_ld, entry,
+		if (( uid = ldap_get_values( ld->ldap_ld, entry,
 			"uid" )) != NULL ) {
 		    snprintf( buf, sizeof (buf), "%s@%s", uid[0],
 			    ld->ldap_vacationhost );
@@ -1529,7 +1523,7 @@ startsearch:
 			attrs, 0, &timeout, &res );
 
 	/* if the address is illegal in LDAP, we can't find it */
-	if ( rc == LDAP_FILTER_ERROR ) {
+	if (( rc == LDAP_FILTER_ERROR ) || ( rc == LDAP_NO_SUCH_OBJECT )) {
 	    return( LDAP_NOT_FOUND );
 	}
 
@@ -1555,8 +1549,9 @@ startsearch:
 
 	if (( rc != LDAP_SUCCESS ) && ( rc != LDAP_SIZELIMIT_EXCEEDED ) &&
 		( rc != LDAP_TIMELIMIT_EXCEEDED )) {
-	    syslog( LOG_ERR, "simta_ldap_name_search: ldap_search_st error: %s",
-		    ldap_err2string( rc ));
+	    syslog( LOG_ERR,
+		    "simta_ldap_name_search: ldap_search_st %s error: %s",
+		    search_string, ldap_err2string( rc ));
 	    ldap_msgfree( res ); 
 	    return( LDAP_SYSERROR );
 	}
@@ -1834,7 +1829,7 @@ simta_mbx_compare( int ndomain, char *firstemail, char *secondemail )
      */
 
     struct simta_ldap *
-simta_ldap_config( char *fname )
+simta_ldap_config( char *fname, char *domain )
 {
     int				fd = 0;
     SNET			*snet = NULL;
@@ -1884,6 +1879,11 @@ simta_ldap_config( char *fname )
     lds = &(ld->ldap_searches);
     ld->ldap_timeout = LDAP_TIMEOUT_VAL;
     ld->ldap_ndomain = 2;
+
+    if (( ld->ldap_associated_domain = strdup( domain )) == NULL ) {
+	syslog( LOG_ERR, "simta_ldap_config malloc error: %m" ); 
+	goto errexit;
+    }
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	lineno++;

@@ -216,7 +216,7 @@ main( int ac, char **av )
 	prog++;
     }
 
-    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:qQ:rRs:SVw:x:y:z:" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRs:SVw:x:y:z:" ))
 	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
@@ -282,6 +282,10 @@ main( int ac, char **av )
 		exit( 1 );
 	    }
 	    simta_smtp_port = htons( atoi( optarg ));
+	    break;
+
+	case 'P' :		/* ca dir */
+	    simta_dir_ca = optarg;
 	    break;
 
 	case 'q' :
@@ -374,7 +378,7 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -i reference-URL ]" );
 	fprintf( stderr, " [ -l process_launch_limit ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
-	fprintf( stderr, " [ -Q queue]" );
+	fprintf( stderr, " [ -P ca-directory ] [ -Q queue]" );
 	fprintf( stderr, " [ -s spooldir ]" );
 	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
         fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
@@ -427,7 +431,7 @@ main( int ac, char **av )
 #ifndef Q_SIMULATION
     if ( simta_service_smtps ) {
 	if ( tls_server_setup( simta_use_randfile, simta_service_smtps,
-		simta_file_ca, simta_file_cert,
+		simta_file_ca, simta_dir_ca, simta_file_cert,
 		simta_file_private_key ) != 0 ) {
 	    exit( 1 );
 	}

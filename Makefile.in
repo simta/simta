@@ -14,7 +14,7 @@ SLOW_Q=/var/spool/simta/slow
 FAST_Q=/var/spool/simta/fast
 DEAD_Q=/var/spool/simta/dead
 CERTDIR=${SIMTACONFDIR}/cert
-TLS_CA=${CERTDIR}/ca.pem
+TLS_CAFILE=${CERTDIR}/ca.pem
 TLS_CERT=${CERTDIR}/cert.pem
 
 SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
@@ -183,7 +183,7 @@ ml.o : ml.c
 
 tls.o : tls.c
 	${CC} ${CFLAGS} \
-		-D_SIMTA_TLS_CA=\"${TLS_CA}\" \
+		-D_SIMTA_TLS_CAFILE=\"${TLS_CAFILE}\" \
 		-D_SIMTA_TLS_CERT=\"${TLS_CERT}\" \
 		-c tls.c -o tls.o
 

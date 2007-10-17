@@ -28,9 +28,6 @@ extern int		verbose;
 extern SSL_CTX		*ctx;
 extern struct timeval	timeout;
 
-char 			*ca = _SIMTA_TLS_CA;
-char 			*cert = _SIMTA_TLS_CERT;
-char 			*privatekey = _SIMTA_TLS_CERT;
 
     int
 _randfile( void )
@@ -61,7 +58,8 @@ _randfile( void )
 }
 
     int
-tls_server_setup( int use_randfile, int authlevel, char *ca, char *cert, char *privatekey )
+tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
+	char *cert, char *privatekey )
 {
     extern SSL_CTX	*ctx;
     int                 ssl_mode = 0;
@@ -101,13 +99,23 @@ tls_server_setup( int use_randfile, int authlevel, char *ca, char *cert, char *p
     }
 
     if ( authlevel == 2 ) {
-    /* Load CA */
-	if ( SSL_CTX_load_verify_locations( ctx, ca, NULL ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
-		    ca, ERR_error_string( ERR_get_error(), NULL ));
-	    return( -1 );
+	/* Load CA */
+	if ( caFile != NULL ) {
+	    if ( SSL_CTX_load_verify_locations( ctx, caFile, NULL ) != 1 ) {
+		fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+			caFile, ERR_error_string( ERR_get_error(), NULL ));
+		return( -1 );
+	    }
+	}
+	if ( caDir != NULL ) {
+	    if ( SSL_CTX_load_verify_locations( ctx, NULL, caDir ) != 1 ) {
+		fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+			caDir, ERR_error_string( ERR_get_error(), NULL ));
+		return( -1 );
+	    }
 	}
     }
+
     /* Set level of security expecations */
     if ( authlevel == 1 ) {
 	ssl_mode = SSL_VERIFY_NONE; 
@@ -120,8 +128,10 @@ tls_server_setup( int use_randfile, int authlevel, char *ca, char *cert, char *p
     return( 0 );
 }   
 
+
     int
-tls_client_setup( int use_randfile, int authlevel, char *ca, char *cert, char *privatekey )
+tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
+	char *cert, char *privatekey )
 {
     extern SSL_CTX	*ctx;
     int                 ssl_mode = 0;
@@ -164,10 +174,22 @@ tls_client_setup( int use_randfile, int authlevel, char *ca, char *cert, char *p
     }
 
     /* Load CA */
-    if ( SSL_CTX_load_verify_locations( ctx, ca, NULL ) != 1 ) {
-	fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
-		ca, ERR_error_string( ERR_get_error(), NULL ));
-	return( -1 );
+    if ( authlevel == 2 ) {
+	/* Load CA */
+	if ( caFile != NULL ) {
+	    if ( SSL_CTX_load_verify_locations( ctx, caFile, NULL ) != 1 ) {
+		fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+			caFile, ERR_error_string( ERR_get_error(), NULL ));
+		return( -1 );
+	    }
+	}
+	if ( caDir != NULL ) {
+	    if ( SSL_CTX_load_verify_locations( ctx, NULL, caDir ) != 1 ) {
+		fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+			caDir, ERR_error_string( ERR_get_error(), NULL ));
+		return( -1 );
+	    }
+	}
     }
 
     /* Set level of security expecations */
@@ -176,6 +198,7 @@ tls_client_setup( int use_randfile, int authlevel, char *ca, char *cert, char *p
 
     return( 0 );
 }
+
 
     int
 tls_client_start( SNET *sn, char *host, int authlevel )

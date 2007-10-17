@@ -43,7 +43,7 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)vacation.c	5.19 (Berkeley) 3/23/91";*/
-static char rcsid[] = "$Id: simvacation.c,v 1.4 2007/05/17 16:11:36 pturgyan Exp $";
+static char rcsid[] = "$Id: simvacation.c,v 1.5 2007/10/17 08:13:07 epcjr Exp $";
 #endif /* not lint */
 
 /*
@@ -71,6 +71,8 @@ static char rcsid[] = "$Id: simvacation.c,v 1.4 2007/05/17 16:11:36 pturgyan Exp
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+
+#define LDAP_DEPRECATED		1
 
 #include <lber.h>
 #include <ldap.h>

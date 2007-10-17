@@ -827,8 +827,8 @@ f_rcpt( struct receive_data *r )
 	 * client generates the bounce.
 	 */
 	if (( rc = check_hostname( domain )) != 0 ) {
+	    r->r_failed_rcpts++;
 	    if ( rc < 0 ) {
-
 #ifdef HAVE_LIBSSL 
 		if (( simta_mail_filter != NULL ) &&
 			( simta_checksum_md != NULL )) {
@@ -838,19 +838,19 @@ f_rcpt( struct receive_data *r )
 		    r->r_mdctx_status = MDCTX_IN_USE;
 		}
 #endif /* HAVE_LIBSSL */
-
 		syslog( LOG_ERR, "f_rcpt check_hostname: %s: failed", domain );
 		return( smtp_tempfail( r, NULL ));
-	    } else {
-		syslog( LOG_INFO,
-			"Receive %s: To <%s> From <%s> Failed: "
-			"Unknown domain", r->r_env->e_id, addr,
-			r->r_env->e_mail );
-		if ( snet_writef( r->r_snet, "%d %s: unknown host\r\n", 550,
-			domain ) < 0 ) {
-		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
+	    }
+
+	    syslog( LOG_INFO,
+		    "Receive %s: To <%s> From <%s> Failed: "
+		    "Unknown domain", r->r_env->e_id, addr,
+		    r->r_env->e_mail );
+
+	    if ( snet_writef( r->r_snet, "%d %s: unknown host\r\n", 550,
+		    domain ) < 0 ) {
+		syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    return( RECEIVE_OK );
 	}
@@ -859,6 +859,7 @@ f_rcpt( struct receive_data *r )
 		(( red->red_receive == NULL ) &&
 		( red->red_host_type == RED_HOST_TYPE_LOCAL ))) {
 	    if ( r->r_smtp_mode == SMTP_MODE_NORMAL ) {
+		r->r_failed_rcpts++;
 		syslog( LOG_INFO,
 			"Receive %s: To <%s> From <%s> Failed: "
 			"Domain not local", r->r_env->e_id, addr,
@@ -895,10 +896,10 @@ f_rcpt( struct receive_data *r )
 
 	    switch( local_address( addr, domain, red )) {
 	    case NOT_LOCAL:
+		r->r_failed_rcpts++;
 		syslog( LOG_INFO,
 			"Receive %s: To <%s> From <%s> Failed: User not local",
 			r->r_env->e_id, addr, r->r_env->e_mail );
-		r->r_failed_rcpts++;
 
 		if (( r->r_smtp_mode == SMTP_MODE_NORMAL ) &&
 			( simta_max_failed_rcpts != 0 ) &&
@@ -1417,16 +1418,14 @@ f_data( struct receive_data *r )
 		    "MID <%s> [%s] %s size %d: %s",
 		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( r->r_sin->sin_addr ),
-		    r->r_remote_hostname,
-		    (int)sbuf.st_size,
+		    r->r_remote_hostname, data_read,
 		    syslog_message );
 	} else {
 	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
 		    "MID <%s> [%s] %s size %d",
 		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( r->r_sin->sin_addr ),
-		    r->r_remote_hostname,
-		    (int)sbuf.st_size );
+		    r->r_remote_hostname, data_read );
 	}
 
 	if ( snet_writef( r->r_snet,
@@ -1454,8 +1453,7 @@ f_data( struct receive_data *r )
 		"MID <%s> [%s] %s size %d: %s",
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( r->r_sin->sin_addr ),
-		r->r_remote_hostname,
-		(int)sbuf.st_size,
+		r->r_remote_hostname, data_read,
 		syslog_message ? syslog_message : "no message" );
 
 	if ( snet_writef( r->r_snet,
@@ -1483,8 +1481,7 @@ f_data( struct receive_data *r )
 		"MID <%s> [%s] %s size %d: %s",
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( r->r_sin->sin_addr ),
-		r->r_remote_hostname,
-		(int)sbuf.st_size,
+		r->r_remote_hostname, data_read,
 		syslog_message ? syslog_message : "no message" );
 
 	if ( simta_data_url != NULL ) {
@@ -1520,8 +1517,7 @@ f_data( struct receive_data *r )
 		"MID <%s> [%s] %s size %d: %s",
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( r->r_sin->sin_addr ),
-		r->r_remote_hostname,
-		(int)sbuf.st_size,
+		r->r_remote_hostname, data_read,
 		syslog_message ? syslog_message : "no message" );
 
 	if ( dfile_on_disk ) {

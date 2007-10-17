@@ -26,6 +26,33 @@ internal
     - Added better penalty box logging
     - bugfix: CTX init function added
 
+0.7.8
+    - use file_size variable for correct Receive reporting
+    - Non-local fdailed domains count in the receive phase
+    - Simta MID unique timestams ensured
+
+0.7.7
+    - CA_DIRECTORY directive
+
+0.7.6.5.1
+    - simvacation ldap changes
+
+0.7.6.5
+    - ldap changes & upgrades
+
+0.7.6.4
+    - simta_ld_init()->simta_ldap_init() bugfix
+
+0.7.6.3
+    - removed reliance on associatedDomain
+
+0.7.6.2
+    - Bugfix for uninitilized variable
+
+0.7.6.1
+    - make sure we print the file size
+    - simvacation upgrades
+
 0.7.6
     - multiple LDAP databases
 

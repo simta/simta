@@ -58,6 +58,22 @@ env_id( struct envelope *e )
 	return( -1 );
     }
 
+    /* did gettimeofday() return a unique timestamp not in the past? */
+    if (( tv.tv_sec < simta_tv_mid.tv_sec ) ||
+	    (( tv.tv_sec == simta_tv_mid.tv_sec ) &&
+	    ( tv.tv_usec <= simta_tv_mid.tv_usec ))) {
+	tv.tv_usec = simta_tv_mid.tv_usec + 1;
+	if ( tv.tv_usec <= simta_tv_mid.tv_usec ) {
+	    tv.tv_usec = 0;
+	    tv.tv_sec = simta_tv_mid.tv_sec + 1;
+	} else {
+	    tv.tv_sec = simta_tv_mid.tv_sec;
+	}
+    }
+
+    simta_tv_mid.tv_usec = tv.tv_usec;
+    simta_tv_mid.tv_sec = tv.tv_sec;
+
     if (( pid = getpid()) < 0 ) {
 	syslog( LOG_ERR, "env_id getpid: %m" );
 	return( -1 );

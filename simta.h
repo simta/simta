@@ -73,6 +73,7 @@
 
 /* global variables */
 
+extern struct timeval			simta_tv_mid;
 extern struct host_q			*simta_deliver_q;
 extern struct host_q			*simta_unexpanded_q;
 extern struct host_q			*simta_punt_q;
@@ -163,6 +164,7 @@ extern char				*simta_queue_filter;
 extern char				*simta_default_alias_db;
 extern char				*simta_default_passwd_file;
 extern char				*simta_file_ca;
+extern char				*simta_dir_ca;
 extern char				*simta_file_cert;
 extern char				*simta_file_private_key;
 char					*simta_postmaster;

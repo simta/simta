@@ -61,6 +61,7 @@
 
 /* global variables */
 
+struct timeval		simta_tv_mid = { 0, 0 };
 struct envelope		*simta_env_queue = NULL;
 struct host_q		*simta_host_q = NULL;
 struct host_q		*simta_deliver_q = NULL;
@@ -149,6 +150,7 @@ DNSR			*simta_dnsr = NULL;
 char			*simta_default_alias_db = SIMTA_ALIAS_DB;
 char			*simta_default_passwd_file = "/etc/passwd";
 char			*simta_file_ca = "cert/ca.pem";
+char			*simta_dir_ca = NULL;
 char			*simta_file_cert = "cert/cert.pem";
 char			*simta_file_private_key = "cert/cert.pem";
 char			**simta_deliver_default_argv;
@@ -474,7 +476,7 @@ simta_read_config( char *fname )
 			    fname, lineno );
 		    goto error;
 		}
-		if (( ld = simta_ldap_config( av[ 3 ] )) == NULL ) {
+		if (( ld = simta_ldap_config( av[ 3 ], domain )) == NULL ) {
 		    fprintf( stderr, "%s: line %d: LDAP config %s failed, "
 			    "please check the logs\n", fname, lineno, av[ 3 ]);
 		    goto error;
@@ -951,6 +953,20 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) {
 		printf( "CA_FILE: %s\n", simta_file_ca );
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "CA_DIRECTORY" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_dir_ca = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) {
+		printf( "CA_DIRECTORY: %s\n", simta_file_ca );
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
