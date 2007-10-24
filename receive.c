@@ -1387,7 +1387,7 @@ f_data( struct receive_data *r )
 		"in %d seconds", r->r_env->e_id, (int)data_read,
 		(int)data_wrote, (int)(tv_now.tv_sec - tv_data_start.tv_sec));
     } else {
-	syslog( LOG_INFO, "Receive Data Metric: Read %d write %d bytes in "
+	syslog( LOG_INFO, "Receive %s Data Metric: Read %d write %d bytes in "
 		"%d seconds, filter %d seconds", r->r_env->e_id, 
 		(int)data_read, (int)data_wrote,
 		(int)(tv_now.tv_sec - tv_data_start.tv_sec),
