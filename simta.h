@@ -5,8 +5,6 @@
 
 /*****     simta.h     *****/
 
-#define SIMTA_OLD_EFILE_VERSION_1	0
-
 #define	EMAIL_ADDRESS_NORMAL		0x0000
 #define	RFC_2821_MAIL_FROM		0x0001
 #define	RFC_2821_RCPT_TO		0x0010

@@ -1122,24 +1122,6 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "SMTP_LISTEN_BACKLOG: %d\n",
 		    simta_listen_backlog );
 
-	} else if ( strcasecmp( av[ 0 ], "SERVICE_SMTP_REFUSE" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_smtp_default_mode = SMTP_MODE_REFUSE;
-	    if ( simta_debug ) printf( "SERVICE_SMTP_REFUSE\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "SERVICE_SMTP_OFF" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_smtp_default_mode = SMTP_MODE_OFF;
-	    if ( simta_debug ) printf( "NO_INBOUND_SMTP\n" );
-
 	} else if ( strcasecmp( av[ 0 ], "MAX_MESSAGE_SIZE" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",

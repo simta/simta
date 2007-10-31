@@ -368,7 +368,7 @@ q_runner( void )
 		    goto unexpanded_clean_up;
 		}
 
-		if ( env_read_delivery_info( unexpanded, NULL ) != 0 ) {
+		if ( env_read( READ_DELIVER_INFO, unexpanded, NULL ) != 0 ) {
 		    goto unexpanded_clean_up;
 		}
 	    } else {
@@ -525,7 +525,7 @@ q_runner_dir( char *dir )
 	    }
 	    env->e_dir = dir;
 
-	    if ( env_read_queue_info( env ) != 0 ) {
+	    if ( env_read( READ_QUEUE_INFO, env, NULL ) != 0 ) {
 		env_free( env );
 		continue;
 	    }
@@ -795,7 +795,7 @@ q_read_dir( char *dir )
 		assert( !( env->e_flags & ENV_FLAG_EFILE ));
 		env->e_flags |= ENV_FLAG_EFILE;
 
-		if ( env_read_queue_info( env ) != 0 ) {
+		if ( env_read( READ_QUEUE_INFO, env, NULL ) != 0 ) {
 		    continue;
 		}
 
@@ -964,7 +964,7 @@ q_deliver( struct host_q *deliver_q )
 
 	if ( env_deliver->e_rcpt == NULL ) {
 	    /* lock & read envelope to deliver */
-	    if ( env_read_delivery_info( env_deliver, &snet_lock ) != 0 ) {
+	    if ( env_read( READ_DELIVER_INFO, env_deliver, &snet_lock ) != 0 ) {
 		/* envelope not valid.  disregard */
 		env_free( env_deliver );
 		continue;

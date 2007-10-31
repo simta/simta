@@ -1,4 +1,5 @@
 internal
+    - consolidate envelope reading functions, and make mismatches non-fatal
     - uninitilized variable bugfix
     - AGGRESSIVE_DELIVERY option and behavior added
     - SMTP_RCVBUF directive limits TCP Window size until valid DATA segment

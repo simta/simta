@@ -7,6 +7,9 @@
 #define	R_ACCEPTED	1
 #define	R_FAILED	2
 
+#define	READ_QUEUE_INFO		1
+#define	READ_DELIVER_INFO	2
+
 struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
@@ -54,6 +57,18 @@ struct envelope {
 #define ENV_FLAG_DELETE			(1<<6)
 #define ENV_FLAG_SUPRESS_NO_EMAIL	(1<<7)
 
+/* Efile syntax, by minimum version number:
+ *
+ * 1 int	Vsimta_version
+ * 2 char*	Equeue_id
+ * 4 char*	Mmid - ignored for now
+ * 1 ino_t	Idinode
+ * 3 int	Xexpansion_level
+ * 1 char*	Hhostname
+ * 1 char*	Ffrom_address
+ * 1 char*	Rto_address
+ */
+
 struct envelope	*env_create( char *, struct envelope * );
 void		env_rcpt_free( struct envelope * );
 void		env_free( struct envelope * );
@@ -72,10 +87,8 @@ int		env_tfile( struct envelope * );
 int		env_tfile_unlink( struct envelope * );
 int		env_touch( struct envelope * );
 int		env_move( struct envelope *, char * );
-int		env_from( struct envelope * );
 int		env_unlink( struct envelope * );
-int		env_read_queue_info( struct envelope * );
-int		env_read_delivery_info( struct envelope *, SNET ** );
+int		env_read( int, struct envelope *, SNET ** );
 int		env_truncate_and_unlink( struct envelope *, SNET * );
 int		env_string_recipients( struct envelope *, char * );
 
