@@ -740,8 +740,6 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
 	syslog( LOG_WARNING, "env_read %s: Dinode is 0", filename );
     } else if ( mode == READ_QUEUE_INFO ) {
 	env->e_dinode = dinode;
-	syslog( LOG_DEBUG, "env_read %s: Dinode %d", env->e_id,
-		(int)env->e_dinode );
     } else if ( dinode != env->e_dinode ) {
 	syslog( LOG_WARNING, "env_read %s: Dinode reread mismatch "
 		"old %d new %d", filename, (int)env->e_dinode, (int)dinode );
@@ -789,8 +787,15 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
 	if ( env_hostname( env, hostname ) != 0 ) {
 	    goto cleanup;
 	}
-    } else if ((( env->e_hostname == NULL ) && ( *hostname != '\0' )) ||
-	    ( strcmp( hostname, env->e_hostname ) != 0 )) {
+    }
+
+    if ( env->e_hostname == NULL ) {
+	if ( *hostname != '\0' ) {
+	    syslog( LOG_WARNING, "env_read %s: hostname reread mismatch, "
+		    "old \"\" new \"%s\"", filename, env->e_hostname,
+		    hostname );
+	}
+    } else if ( strcasecmp( hostname, env->e_hostname ) != 0 ) {
 	syslog( LOG_WARNING, "env_read %s: hostname reread mismatch, "
 		"old \"%s\" new \"%s\"", filename, env->e_hostname, hostname );
     }

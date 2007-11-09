@@ -1826,7 +1826,7 @@ retry:
 		    continue;
 		} else {
 		    syslog( LOG_DEBUG,
-			    "DNS %s: Entry %d.%d: Trying A record: %s",
+			    "DNS %s: Entry %d.%d: Trying A Record: %s",
 			    hq->hq_hostname, d->d_cur_dnsr_result,
 			    d->d_cur_dnsr_result_ip, ip );
 		    return( 0 );
