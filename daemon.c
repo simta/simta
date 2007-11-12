@@ -442,8 +442,10 @@ main( int ac, char **av )
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
 	if (( rc = sasl_server_init( callbacks, "simta" )) != SASL_OK ) {
+	    syslog( LOG_ERR, "sasl_server_init: %s",
+		    sasl_errstring( rc, NULL, NULL ));
 	    fprintf( stderr, "sasl_server_init: %s\n",
-		sasl_errstring( rc, NULL, NULL ));
+		    sasl_errstring( rc, NULL, NULL ));
 	    exit( 1 );
 	}
     }
@@ -458,14 +460,18 @@ main( int ac, char **av )
 	    ( simta_smtp_default_mode != SMTP_MODE_OFF )) {
 	if ( simta_smtp_port_defined == 0 ) {
 	    if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
-		fprintf( stderr, "%s: can't find smtp service: "
-			"defaulting to port 25\n", prog );
 		simta_smtp_port = htons( 25 );
+		syslog( LOG_NOTICE, "getservbyname can't find smtp: "
+			"defaulting to port %d", ntohs( simta_smtp_port ));
+		fprintf( stderr, "%s getservbyname can't find smtp: "
+			"defaulting to port %d\n", prog,
+			ntohs( simta_smtp_port ));
 	    } else {
 		simta_smtp_port = se->s_port;
+		syslog( LOG_DEBUG, "%s: getservbyname: smtp service port %d",
+			prog, ntohs( simta_smtp_port ));
 	    }
 	}
-
 	if ( simta_smtp_port != 0 ) {
 	    if (( simta_socket_smtp = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
 		perror( "socket" );
@@ -473,8 +479,10 @@ main( int ac, char **av )
 	    }
 	    if ( reuseaddr ) {
 		if ( setsockopt( simta_socket_smtp, SOL_SOCKET, SO_REUSEADDR,
-			(void*)&reuseaddr, sizeof( int )) < 0 ) {
-		    perror("setsockopt");
+			    (void*)&reuseaddr, sizeof( int )) < 0 ) {
+		    perror( "setsockopt" );
+		    syslog( LOG_ERR, "setsockopt %d: %m",
+			    ntohs( simta_smtp_port ));
 		}
 	    }
 	    if ( simta_smtp_rcvbuf_min != 0 ) {
@@ -499,15 +507,17 @@ main( int ac, char **av )
 
 #ifdef HAVE_LIBSSL
 	if ( simta_service_smtps ) {
-	    /*
-	     * Set up SMTPS listener.
-	     */
 	    if (( se = getservbyname( "smtps", "tcp" )) == NULL ) {
-		fprintf( stderr, "%s: can't find smtps service: "
-			"defaulting to port 465\n", prog );
 		simta_smtps_port = htons( 465 );
+		syslog( LOG_NOTICE, "getservbyname can't find smtps: "
+			"defaulting to port %d", ntohs( simta_smtps_port ));
+		fprintf( stderr, "%s getservbyname can't find smtps: "
+			"defaulting to port %d\n", prog,
+			ntohs( simta_smtps_port ));
 	    } else {
 		simta_smtps_port = se->s_port;
+		syslog( LOG_DEBUG, "getservbyname: smtps port %d",
+			ntohs( simta_smtps_port ));
 	    }
 	    if (( simta_socket_smtps =
 		    socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
@@ -517,7 +527,9 @@ main( int ac, char **av )
 	    if ( reuseaddr ) {
 		if ( setsockopt( simta_socket_smtps, SOL_SOCKET, SO_REUSEADDR,
 			(void*)&reuseaddr, sizeof( int )) < 0 ) {
-		    perror("setsockopt");
+		    perror( "setsockopt" );
+		    syslog( LOG_ERR, "setsockopt %d: %m",
+			    ntohs( simta_smtps_port ));
 		}
 	    }
 	    if ( simta_smtp_rcvbuf_min != 0 ) {
@@ -542,15 +554,18 @@ main( int ac, char **av )
 #endif /* HAVE_LIBSSL */
 
 	if ( simta_service_submission ) {
-	    /*
-	     * Set up mail submission listener.
-	     */
 	    if (( se = getservbyname( "submission", "tcp" )) == NULL ) {
-		fprintf( stderr, "%s: can't find mail submission service: "
-			"defaulting to port 587\n", prog );
 		simta_submission_port = htons( 587 );
+		syslog( LOG_NOTICE, "getservbyname can't find submission: "
+			"defaulting to port %d",
+			ntohs( simta_submission_port ));
+		fprintf( stderr, "%s getservbyname can't find submission: "
+			"defaulting to port %d\n", prog,
+			ntohs( simta_submission_port ));
 	    } else {
 		simta_submission_port = se->s_port;
+		syslog( LOG_DEBUG, "getservbyname: submission port %d",
+			ntohs( simta_submission_port ));
 	    }
 	    if (( simta_socket_submission =
 		    socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
@@ -560,7 +575,9 @@ main( int ac, char **av )
 	    if ( reuseaddr ) {
 		if ( setsockopt( simta_socket_submission, SOL_SOCKET,
 			SO_REUSEADDR, (void*)&reuseaddr, sizeof( int )) < 0 ) {
-		    perror("setsockopt");
+		    perror( "setsockopt" );
+		    syslog( LOG_ERR, "setsockopt %d: %m",
+			    ntohs( simta_submission_port ));
 		}
 	    }
 	    if ( simta_smtp_rcvbuf_min != 0 ) {
@@ -666,15 +683,27 @@ main( int ac, char **av )
 #ifndef Q_SIMULATION
 	    dt = getdtablesize();
 	    for ( i = 0; i < dt; i++ ) {
-		/* keep socket & simta_pidfd open */
-		if (( i != simta_socket_smtp )
+		/* keep sockets & simta_pidfd open */
+		if ( simta_smtp_default_mode != SMTP_MODE_OFF ) {
+		    if (( simta_smtp_port != 0 ) &&
+			    ( i == simta_socket_smtp )) {
+			continue;
+		    }
+
 #ifdef HAVE_LIBSSL
-			&& (( simta_service_smtps ) &&
-				( i != simta_socket_smtps ))
+		    if (( simta_service_smtps ) &&
+			    ( i == simta_socket_smtps )) {
+			continue;
+		    }
 #endif /* HAVE_LIBSSL */
-			&& (( simta_service_submission ) &&
-				( i != simta_socket_submission ))
-			&& ( i != simta_pidfd )) {
+
+		    if (( simta_service_submission ) &&
+				    ( i == simta_socket_submission )) {
+			continue;
+		    }
+		}
+
+		if ( i != simta_pidfd ) {
 		    (void)close( i );
 		}
 	    }
