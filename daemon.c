@@ -82,6 +82,7 @@ int		simta_waitpid( void );
 int		simta_sigaction_reset( void );
 int		simta_q_scheduler( void );
 
+int		simta_listen( int *, char *, int, int );
 int		simta_proc_add( int, int, struct host_q * );
 int		simta_child_q_runner( struct host_q * );
 int		simta_child_receive( int, int );
@@ -184,15 +185,71 @@ set_rcvbuf( int s )
 
 
     int
+simta_listen( int *s, char *service, int port_default, int port_override )
+{
+    int				reuseaddr = 1;
+    struct sockaddr_in		sin;
+    struct servent		*se;
+    int				port;
+
+    if (( se = getservbyname( service, "tcp" )) == NULL ) {
+	port = htons( port_default );
+	syslog( LOG_INFO, "simta_listen getservbyname can't find %s: "
+		"defaulting to port %d", service, ntohs( port ));
+	fprintf( stderr, "simta_listen getservbyname can't find %s: "
+		"defaulting to port %d\n", service, ntohs( port ));
+    } else {
+	port = se->s_port;
+	syslog( LOG_DEBUG, "simta_listen getservbyname: %s port %d",
+		service, ntohs( port ));
+    }
+
+    if (( *s = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
+	syslog( LOG_ERR, "simta_listen socket %s: %m", service );
+	perror( "socket" );
+	return( 1 );
+    }
+
+    if ( setsockopt( *s, SOL_SOCKET, SO_REUSEADDR, (void*)&reuseaddr,
+	    sizeof( int )) < 0 ) {
+	syslog( LOG_ERR, "simta_listen setsockopt %s: %m", service );
+	perror( "setsockopt" );
+	return( 1 );
+    }
+
+    if ( simta_smtp_rcvbuf_min != 0 ) {
+	if ( set_rcvbuf( *s ) != 0 ) {
+	    return( 1 );
+	}
+    }
+
+    memset( &sin, 0, sizeof( struct sockaddr_in ));
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = INADDR_ANY;
+    sin.sin_port = port;
+
+    if ( bind( *s, (struct sockaddr *)&sin,
+	    sizeof( struct sockaddr_in )) < 0 ) {
+	syslog( LOG_ERR, "simta_listen bind %s: %m", service );
+	perror( "bind" );
+	return( 1 );
+    }
+
+    if ( listen( *s, simta_listen_backlog ) < 0 ) {
+	syslog( LOG_ERR, "simta_listen listen %s: %m", service );
+	perror( "listen" );
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
+
+    int
 main( int ac, char **av )
 {
-    struct sockaddr_in	sin;
-    struct servent	*se;
-    int			simta_smtps_port;
-    int			simta_submission_port;
     int			c, err = 0;
     int			dontrun = 0;
-    int			reuseaddr = 1;
     int			q_run = 0;
     char		*prog;
     char		*spooldir = _PATH_SPOOL;
@@ -458,144 +515,24 @@ main( int ac, char **av )
     /* if we're not a q_runner or filesystem cleaner, open smtp service */
     if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 ) &&
 	    ( simta_smtp_default_mode != SMTP_MODE_OFF )) {
-	if ( simta_smtp_port_defined == 0 ) {
-	    if (( se = getservbyname( "smtp", "tcp" )) == NULL ) {
-		simta_smtp_port = htons( 25 );
-		syslog( LOG_NOTICE, "getservbyname can't find smtp: "
-			"defaulting to port %d", ntohs( simta_smtp_port ));
-		fprintf( stderr, "%s getservbyname can't find smtp: "
-			"defaulting to port %d\n", prog,
-			ntohs( simta_smtp_port ));
-	    } else {
-		simta_smtp_port = se->s_port;
-		syslog( LOG_DEBUG, "%s: getservbyname: smtp service port %d",
-			prog, ntohs( simta_smtp_port ));
-	    }
-	}
-	if ( simta_smtp_port != 0 ) {
-	    if (( simta_socket_smtp = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
-		perror( "socket" );
-		exit( 1 );
-	    }
-	    if ( reuseaddr ) {
-		if ( setsockopt( simta_socket_smtp, SOL_SOCKET, SO_REUSEADDR,
-			    (void*)&reuseaddr, sizeof( int )) < 0 ) {
-		    perror( "setsockopt" );
-		    syslog( LOG_ERR, "setsockopt %d: %m",
-			    ntohs( simta_smtp_port ));
-		}
-	    }
-	    if ( simta_smtp_rcvbuf_min != 0 ) {
-		if ( set_rcvbuf( simta_socket_smtp ) != 0 ) {
-		    exit( 1 );
-		}
-	    }
-	    memset( &sin, 0, sizeof( struct sockaddr_in ));
-	    sin.sin_family = AF_INET;
-	    sin.sin_addr.s_addr = INADDR_ANY;
-	    sin.sin_port = simta_smtp_port;
-	    if ( bind( simta_socket_smtp, (struct sockaddr *)&sin,
-		    sizeof( struct sockaddr_in )) < 0 ) {
-		perror( "bind" );
-		exit( 1 );
-	    }
-	    if ( listen( simta_socket_smtp, simta_listen_backlog ) < 0 ) {
-		perror( "listen" );
+	if (( simta_smtp_port_defined == 0 ) || ( simta_smtp_port != 0 )) {
+	    if ( simta_listen( &simta_socket_smtp, "smtp", 25,
+		    simta_smtp_port ) != 0 ) {
 		exit( 1 );
 	    }
 	}
 
 #ifdef HAVE_LIBSSL
 	if ( simta_service_smtps ) {
-	    if (( se = getservbyname( "smtps", "tcp" )) == NULL ) {
-		simta_smtps_port = htons( 465 );
-		syslog( LOG_NOTICE, "getservbyname can't find smtps: "
-			"defaulting to port %d", ntohs( simta_smtps_port ));
-		fprintf( stderr, "%s getservbyname can't find smtps: "
-			"defaulting to port %d\n", prog,
-			ntohs( simta_smtps_port ));
-	    } else {
-		simta_smtps_port = se->s_port;
-		syslog( LOG_DEBUG, "getservbyname: smtps port %d",
-			ntohs( simta_smtps_port ));
-	    }
-	    if (( simta_socket_smtps =
-		    socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
-		perror( "socket" );
-		exit( 1 );
-	    }
-	    if ( reuseaddr ) {
-		if ( setsockopt( simta_socket_smtps, SOL_SOCKET, SO_REUSEADDR,
-			(void*)&reuseaddr, sizeof( int )) < 0 ) {
-		    perror( "setsockopt" );
-		    syslog( LOG_ERR, "setsockopt %d: %m",
-			    ntohs( simta_smtps_port ));
-		}
-	    }
-	    if ( simta_smtp_rcvbuf_min != 0 ) {
-		if ( set_rcvbuf( simta_socket_smtps ) != 0 ) {
-		    exit( 1 );
-		}
-	    }
-	    memset( &sin, 0, sizeof( struct sockaddr_in ));
-	    sin.sin_family = AF_INET;
-	    sin.sin_addr.s_addr = INADDR_ANY;
-	    sin.sin_port = simta_smtps_port;
-	    if ( bind( simta_socket_smtps, (struct sockaddr *)&sin,
-		    sizeof( struct sockaddr_in )) < 0 ) {
-		perror( "bind" );
-		exit( 1 );
-	    }
-	    if ( listen( simta_socket_smtps, simta_listen_backlog ) < 0 ) {
-		perror( "listen" );
+	    if ( simta_listen( &simta_socket_smtps, "smtps", 465, 0 ) != 0 ) {
 		exit( 1 );
 	    }
 	}
 #endif /* HAVE_LIBSSL */
 
 	if ( simta_service_submission ) {
-	    if (( se = getservbyname( "submission", "tcp" )) == NULL ) {
-		simta_submission_port = htons( 587 );
-		syslog( LOG_NOTICE, "getservbyname can't find submission: "
-			"defaulting to port %d",
-			ntohs( simta_submission_port ));
-		fprintf( stderr, "%s getservbyname can't find submission: "
-			"defaulting to port %d\n", prog,
-			ntohs( simta_submission_port ));
-	    } else {
-		simta_submission_port = se->s_port;
-		syslog( LOG_DEBUG, "getservbyname: submission port %d",
-			ntohs( simta_submission_port ));
-	    }
-	    if (( simta_socket_submission =
-		    socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
-		perror( "socket" );
-		exit( 1 );
-	    }
-	    if ( reuseaddr ) {
-		if ( setsockopt( simta_socket_submission, SOL_SOCKET,
-			SO_REUSEADDR, (void*)&reuseaddr, sizeof( int )) < 0 ) {
-		    perror( "setsockopt" );
-		    syslog( LOG_ERR, "setsockopt %d: %m",
-			    ntohs( simta_submission_port ));
-		}
-	    }
-	    if ( simta_smtp_rcvbuf_min != 0 ) {
-		if ( set_rcvbuf( simta_socket_submission ) != 0 ) {
-		    exit( 1 );
-		}
-	    }
-	    memset( &sin, 0, sizeof( struct sockaddr_in ));
-	    sin.sin_family = AF_INET;
-	    sin.sin_addr.s_addr = INADDR_ANY;
-	    sin.sin_port = simta_submission_port;
-	    if ( bind( simta_socket_submission, (struct sockaddr *)&sin,
-		    sizeof( struct sockaddr_in )) < 0 ) {
-		perror( "sub bind" );
-		exit( 1 );
-	    }
-	    if ( listen( simta_socket_submission, simta_listen_backlog ) < 0 ) {
-		perror( "listen" );
+	    if ( simta_listen( &simta_socket_submission, "submission",
+		    587, 0 ) != 0 ) {
 		exit( 1 );
 	    }
 	}
