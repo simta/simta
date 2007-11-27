@@ -32,8 +32,8 @@
 
 #define	EXIT_OK				0
 #define	SIMTA_EXIT_OK			0
-#define	SIMTA_EXIT_OK_LEAKY		1
-#define	SIMTA_EXIT_ERROR		2
+#define	SIMTA_EXIT_ERROR		1
+#define	SIMTA_EXIT_OK_LEAKY		11
 
 #define SIMTA_ERROR_NONE		0
 #define SIMTA_ERROR_DNSR		1
@@ -77,6 +77,7 @@ struct simta_socket {
     int				ss_port;
     char			*ss_service;
     int				ss_flags;
+    int				ss_count;
 };
 
 /* global variables */

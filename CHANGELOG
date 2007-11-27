@@ -1,4 +1,6 @@
 internal
+    - better process accounting, and logging
+    - better listen connection management
     - consolidate envelope reading functions, and make mismatches non-fatal
     - uninitilized variable bugfix
     - AGGRESSIVE_DELIVERY option and behavior added
