@@ -135,9 +135,7 @@ host_q_create_or_lookup( char *hostname )
 
 	if (( hq->hq_status == HOST_UNKNOWN ) &&
 		( simta_queue_incoming_smtp_mail != 0 ) &&
-		(( simta_process_type == PROCESS_RECEIVE_SMTP ) ||
-		( simta_process_type == PROCESS_RECEIVE_SMTPS ) ||
-		( simta_process_type == PROCESS_RECEIVE_SUBMISSION ))) {
+		( simta_process_type == PROCESS_RECEIVE )) {
 	    hq->hq_status = HOST_SUPRESSED;
 	}
 

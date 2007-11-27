@@ -2216,8 +2216,9 @@ f_auth( struct receive_data *r )
 }
 #endif /* HAVE_LIBSASL */
 
+
     int
-smtp_receive( int fd, struct sockaddr_in *sin )
+smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 {
     struct receive_data			r;
     ACAV				*acav = NULL;
@@ -2336,8 +2337,7 @@ smtp_receive( int fd, struct sockaddr_in *sin )
 #endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
-    if (( simta_service_smtps > 0 ) &&
-	    ( simta_process_type == PROCESS_RECEIVE_SMTPS )) {
+    if ( ss->ss_flags & SIMTA_SOCKET_TLS ) {
 	if ( _start_tls( &r ) != RECEIVE_OK ) {
 	    goto syserror;
 	}

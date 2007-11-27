@@ -42,12 +42,10 @@
 #define	PROCESS_DEFAULT			0
 #define	PROCESS_Q_LOCAL			1
 #define	PROCESS_Q_SLOW			2
-#define	PROCESS_RECEIVE_SMTP		3
-#define	PROCESS_RECEIVE_SMTPS		4
-#define	PROCESS_RECEIVE_SUBMISSION	5
-#define	PROCESS_CLEANUP			6
-#define	PROCESS_SMTP_SERVER		7
-#define	PROCESS_Q_SCHEDULER		8
+#define	PROCESS_RECEIVE			3
+#define	PROCESS_CLEANUP			4
+#define	PROCESS_SMTP_SERVER		5
+#define	PROCESS_Q_SCHEDULER		6
 
 #define SERVICE_SUBMISSION_OFF		0
 #define SERVICE_SUBMISSION_ON		1
@@ -68,6 +66,18 @@
 #define SERVICE_SMTPS_SERVER		1
 #define SERVICE_SMTPS_CLIENT_SERVER	2
 #endif /* HAVE_LIBSSL */
+
+#ifdef HAVE_LIBSSL
+#define SIMTA_SOCKET_TLS	(1<<0)
+#endif /* HAVE_LIBSSL */
+
+struct simta_socket {
+    struct simta_socket		*ss_next;
+    int				ss_socket;
+    int				ss_port;
+    char			*ss_service;
+    int				ss_flags;
+};
 
 /* global variables */
 
@@ -171,11 +181,11 @@ extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
 
 int	q_cleanup( void );
-int	smtp_receive ( int, struct sockaddr_in * );
-void	panic ( char * );
-char	*simta_sender ( void );
-char	*simta_resolvconf ( void );
-int	simta_init_hosts ( void );
+int	smtp_receive( int, struct sockaddr_in *, struct simta_socket * );
+void	panic( char * );
+char	*simta_sender( void );
+char	*simta_resolvconf( void );
+int	simta_init_hosts( void );
 int	simta_config( char * );
 int     simta_read_config( char * );
 
