@@ -1,4 +1,5 @@
 internal
+    - outbound SMTP DNS has better logging and is more consice
     - better process accounting, and logging
     - better listen connection management
     - consolidate envelope reading functions, and make mismatches non-fatal

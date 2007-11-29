@@ -55,6 +55,9 @@ int	next_dnsr_host( struct deliver *, struct host_q * );
 int	next_dnsr_host_lookup( struct deliver *, struct host_q * );
 void	hq_free( struct host_q * );
 struct envelope* queue_env_lookup( char * );
+void	connection_data_free( struct deliver *, struct connection_data * );
+int	get_outboud_dns( struct deliver *, struct host_q * );
+struct connection_data *connection_data_create( struct deliver * );
 
 
     struct host_q *
@@ -1506,11 +1509,107 @@ next_dnsr_host_lookup( struct deliver *d, struct host_q *hq )
 
 
     int
+get_outboud_dns( struct deliver *d, struct host_q *hq )
+{
+    int 			i;
+
+    if (( d->d_dnsr_result = get_mx( hq->hq_hostname )) == NULL ) {
+	hq->hq_no_punt = 1;
+	syslog( LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
+		hq->hq_hostname );
+	return( 1 );
+    }
+
+    /* Check to make sure the MX entry doesn't have 0 entries, and
+     * that it doesn't conatin a single CNAME entry only */
+    if (( d->d_dnsr_result->r_ancount != 0 ) &&
+	    (( d->d_dnsr_result->r_ancount != 1 ) ||
+	    ( d->d_dnsr_result->r_answer[ 0 ].rr_type !=
+	    DNSR_TYPE_CNAME ))) {
+	/* check remote host's mx entry for our local hostname and
+	 * low_pref_mx_domain if configured.
+	 * If we find one, we never punt mail destined for this host,
+	 * and we only try remote delivery to mx entries that have a
+	 * lower mx_preference than for what was matched.
+	 */
+	syslog( LOG_DEBUG, "DNS %s: %d MX Record Entries", hq->hq_hostname,
+		d->d_dnsr_result->r_ancount );
+
+	for ( i = 0; i < d->d_dnsr_result->r_ancount; i++ ) {
+	    if ( d->d_dnsr_result->r_answer[ i ].rr_type != DNSR_TYPE_MX ) {
+		continue;
+	    }
+
+	    if (( strcasecmp( simta_hostname,
+		    d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange )) == 0 ) {
+		hq->hq_no_punt = 1;
+		d->d_mx_preference_cutoff =
+			d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
+		syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
+			"localhost at precedence %d, Punting disabled",
+			hq->hq_hostname, i, d->d_mx_preference_cutoff );
+		break;
+	    }
+
+	    if (( simta_secondary_mx != NULL ) &&
+		    ( strcasecmp( simta_secondary_mx->red_host_name,
+		    d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange ) == 0 )) {
+		hq->hq_no_punt = 1;
+		d->d_mx_preference_cutoff =
+			d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
+		syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
+			"secondary MX at precedence %d, Punting disabled",
+			hq->hq_hostname, i, d->d_mx_preference_cutoff );
+		break;
+	    }
+	}
+
+    } else {
+	if ( d->d_dnsr_result->r_ancount == 0 ) {
+	    syslog( LOG_INFO, "DNS %s: MX record has 0 entries, "
+		    "getting A record", hq->hq_hostname );
+	} else {
+	    syslog( LOG_INFO, "DNS %s: MX record is a single CNAME, "
+		    "getting A record", hq->hq_hostname );
+	}
+	dnsr_free_result( d->d_dnsr_result );
+
+	if (( d->d_dnsr_result = get_a( hq->hq_hostname )) == NULL ) {
+	    syslog( LOG_INFO, "DNS %s: A record lookup failure",
+		    hq->hq_hostname );
+	    return( 1 );
+	}
+
+	if ( d->d_dnsr_result->r_ancount == 0 ) {
+	    syslog( LOG_INFO, "DNS %s: A record missing, bouncing mail",
+		    hq->hq_hostname );
+	    if ( hq->hq_err_text == NULL ) {
+		if (( hq->hq_err_text = line_file_create()) == NULL ) {
+		    syslog( LOG_ERR, "get_outbound_dns line_file_create: %m" );
+		    return( 1 );
+		}
+	    }
+	    if ( line_append( hq->hq_err_text, "Host does not exist",
+		    COPY ) == NULL ) {
+		syslog( LOG_ERR, "get_outbound_dns line_append: %m" );
+		return( 1 );
+	    }
+	    hq->hq_status = HOST_BOUNCE;
+	    d->d_env->e_flags |= ENV_FLAG_BOUNCE;
+	    return( 1 );
+	}
+	syslog( LOG_DEBUG, "DNS %s: %d A Record Entries", hq->hq_hostname,
+		d->d_dnsr_result->r_ancount );
+    }
+
+    return( 0 );
+}
+
+
+    int
 next_dnsr_host( struct deliver *d, struct host_q *hq )
 {
     char			*ip;
-    int 			i;
-    int				match;
     struct connection_data	*cd;
 
     if ( d->d_dnsr_result == NULL ) {
@@ -1526,90 +1625,8 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 
 	switch ( hq->hq_status ) {
 	case HOST_DOWN:
-	    if (( d->d_dnsr_result = get_mx( hq->hq_hostname )) == NULL ) {
-		hq->hq_no_punt = 1;
-		syslog( LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
-			hq->hq_hostname );
+	    if ( get_outboud_dns( d, hq ) != 0 ) {
 		return( 1 );
-	    }
-
-	    /* Check to make sure the MX entry doesn't have 0 entries, and
-	     * that it doesn't conatin a single CNAME entry only */
-	    if (( d->d_dnsr_result->r_ancount != 0 ) &&
-		    (( d->d_dnsr_result->r_ancount != 1 ) ||
-		    ( d->d_dnsr_result->r_answer[ 0 ].rr_type !=
-		    DNSR_TYPE_CNAME ))) {
-		/* check remote host's mx entry for our local hostname and
-		 * low_pref_mx_domain if configured.
-		 * If we find one, we never punt mail destined for this host,
-		 * and we only try remote delivery to mx entries that have a
-		 * lower mx_preference than for what was matched.
-		 */
-		for ( i = 0; i < d->d_dnsr_result->r_ancount; i++ ) {
-		    if ( d->d_dnsr_result->r_answer[ i ].rr_type ==
-			    DNSR_TYPE_MX ) {
-			if ((( match = strcasecmp( simta_hostname,
-		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange )) == 0 )
-				|| (( simta_secondary_mx != NULL ) &&
-				( strcasecmp( simta_secondary_mx->red_host_name,
-		d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ))) {
-			    hq->hq_no_punt = 1;
-			    d->d_mx_preference_cutoff =
-		    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
-
-			    if ( match == 0 ) {
-				syslog( LOG_ERR, "DNS %s: Entry %d: MX Record "
-					"lists localhost at precedence %d, "
-					"Punting disabled",
-					hq->hq_hostname, i,
-					d->d_mx_preference_cutoff );
-			    } else {
-				syslog( LOG_ERR, "DNS %s: Entry %d: MX Record "
-					"lists secondary MX at precedence %d, "
-					"Punting disabled",
-					hq->hq_hostname, i,
-					d->d_mx_preference_cutoff );
-			    }
-			    break;
-			}
-		    }
-		}
-
-	    } else {
-		if ( d->d_dnsr_result->r_ancount == 0 ) {
-		    syslog( LOG_INFO, "DNS %s: MX record has 0 entries, "
-			    "getting A record", hq->hq_hostname );
-		} else {
-		    syslog( LOG_INFO, "DNS %s: MX record is a single CNAME, "
-			    "getting A record", hq->hq_hostname );
-		}
-		dnsr_free_result( d->d_dnsr_result );
-
-		if (( d->d_dnsr_result = get_a( hq->hq_hostname )) == NULL ) {
-		    syslog( LOG_INFO, "DNS %s: A record lookup failure",
-			    hq->hq_hostname );
-		    return( 1 );
-		}
-
-		if ( d->d_dnsr_result->r_ancount == 0 ) {
-		    syslog( LOG_INFO, "DNS %s: A record missing, bouncing mail",
-			    hq->hq_hostname );
-		    if ( hq->hq_err_text == NULL ) {
-			if (( hq->hq_err_text = line_file_create()) == NULL ) {
-			    syslog( LOG_ERR,
-				    "next_dnsr_host line_file_create: %m" );
-			    return( 1 );
-			}
-		    }
-		    if ( line_append( hq->hq_err_text, "Host does not exist",
-			    COPY ) == NULL ) {
-			syslog( LOG_ERR, "next_dnsr_host line_append: %m" );
-			return( 1 );
-		    }
-		    hq->hq_status = HOST_BOUNCE;
-		    d->d_env->e_flags |= ENV_FLAG_BOUNCE;
-		    return( 1 );
-		}
 	    }
 	    break; /* case HOST_DOWN */
 
@@ -1629,49 +1646,39 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	default:
 	    panic( "next_dnsr_host: varaible out of range" );
 	}
+	d->d_cur_dnsr_result = -1;
     }
 
-    /* check to see if we're in the "retry" phaze yet */
+    /* the retry list is used for aggressive delivery.  a host gets on the
+     * list when it allows queue movement, and falls off the list when it
+     * fails to do so again.
+     */
     if ( d->d_retry_cur != NULL ) {
-	/* if there was no queue movement on this host, we remove it */
 	if ( d->d_queue_movement == 0 ) {
+	    /* there was no queue movement on this host, we remove it */
 	    cd = d->d_retry_cur;
-
-	    if ( cd->c_prev != NULL ) {
-		cd->c_prev->c_next = cd->c_next;
-	    } else {
-		d->d_retry_list = cd->c_next;
-	    }
-
-	    if ( cd->c_next != NULL ) {
-		cd->c_next->c_prev = cd->c_prev;
-		d->d_retry_cur = cd->c_next;
-	    } else {
-		d->d_retry_list_end = cd->c_prev;
-		d->d_retry_cur = d->d_retry_list;
-	    }
-
 	    ip = inet_ntoa( cd->c_sin.sin_addr );
+	    connection_data_free( d, cd );
 	    syslog( LOG_DEBUG, "DNS %s: Removed from Retry %s",
 		    hq->hq_hostname, ip );
 
-	    free( cd );
-
 	    if ( d->d_retry_cur == NULL ) {
 		/* we've removed our last item from the retry list */
+		syslog( LOG_DEBUG, "DNS %s: Retry list exhausted",
+			hq->hq_hostname );
 		return( 1 );
 	    }
 
 	} else {
-	    /* iterate, and start the list over if we're at the end */
+	    /* there was queue movement on this host, iterate */
 	    if (( d->d_retry_cur = d->d_retry_cur->c_next ) == NULL ) {
+		/* start the list over if we're at the end */
 		d->d_retry_cur = d->d_retry_list;
 	    }
 	}
 
 retry:
-	memcpy( &(d->d_sin),
-		&(d->d_retry_cur->c_sin),
+	memcpy( &(d->d_sin), &(d->d_retry_cur->c_sin),
 		sizeof( struct sockaddr_in ));
 	ip = inet_ntoa( d->d_sin.sin_addr );
 	syslog( LOG_DEBUG, "DNS %s: Retry %s", hq->hq_hostname, ip );
@@ -1680,24 +1687,11 @@ retry:
 
     /* see if we need to preserve the connection data for retry later */
     if (( simta_aggressive_delivery != 0 ) && ( d->d_queue_movement != 0 )) {
-	if (( cd = (struct connection_data*)malloc(
-		sizeof( struct connection_data ))) == NULL ) {
-	    syslog( LOG_ERR, "next_dnsr_host malloc: %m" );
+	if (( cd = connection_data_create( d )) != NULL ) {
+	    ip = inet_ntoa( cd->c_sin.sin_addr );
+	    syslog( LOG_DEBUG, "DNS %s: Added to Retry %s",
+		    hq->hq_hostname, ip );
 	}
-	memset( cd, 0, sizeof( struct connection_data ));
-	memcpy( &(cd->c_sin),
-		&(d->d_sin),
-		sizeof( struct sockaddr_in ));
-	if ( d->d_retry_list_end == NULL ) {
-	    d->d_retry_list = cd;
-	    d->d_retry_list_end = cd;
-	} else {
-	    d->d_retry_list_end->c_next = cd;
-	    cd->c_prev = d->d_retry_list_end;
-	    d->d_retry_list_end = cd;
-	}
-	ip = inet_ntoa( cd->c_sin.sin_addr );
-	syslog( LOG_DEBUG, "DNS %s: Added to Retry %s", hq->hq_hostname, ip );
     }
 
     /* here you have dnsr information */
@@ -1714,8 +1708,7 @@ retry:
 	    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type ==
 		    DNSR_TYPE_A ) {
 		memcpy( &(d->d_sin.sin_addr.s_addr),
-			&(d->d_dnsr_result->r_answer[
-			d->d_cur_dnsr_result ].rr_a ),
+    &(d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_a ),
 			sizeof( struct in_addr ));
 		if ( hq->hq_status == HOST_DOWN ) {
 		    /* prevent spammers from using obviously fake addresses */
@@ -1734,67 +1727,8 @@ retry:
 		return( 0 );
 
 	    } else if (( d->d_dnsr_result->r_answer[
-		    d->d_cur_dnsr_result ].rr_type == DNSR_TYPE_MX )
-		    && ( hq->hq_status == HOST_DOWN )) {
-		/* Stop checking hosts if we know the local hostname is in
-		 * the mx record, and if we've reached it's preference level.
-		 */
-		if (( hq->hq_no_punt != 0 ) && ( d->d_mx_preference_cutoff == 
-    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference )) {
-		    syslog( LOG_INFO,
-			    "DNS %s: Entry %d: MX preference %d: cutoff",
-			    hq->hq_hostname, d->d_cur_dnsr_result,
-    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference ); 
-
-		    if ( d->d_retry_list != NULL ) {
-			d->d_retry_cur = d->d_retry_list;
-			goto retry;
-		    }
-		    return( 1 );
-		}
-
-    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_ip != NULL ) {
-		    memcpy( &(d->d_sin.sin_addr.s_addr),
-			    &(d->d_dnsr_result->r_answer[
-			    d->d_cur_dnsr_result ].rr_ip->ip_ip ),
-			    sizeof( struct in_addr ));
-		    syslog( LOG_INFO,
-			    "DNS %s: Entry %d: Trying MX preference %d: %s",
-			    hq->hq_hostname, d->d_cur_dnsr_result,
-    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference,
-			    inet_ntoa( d->d_sin.sin_addr ));
-		    return( 0 );
-
-		} else {
-		    if (( d->d_dnsr_result_ip = get_a(
-	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange ))
-			    == NULL ) {
-			syslog( LOG_INFO,
-				"DNS %s: Entry %d: A record lookup failure: %s",
-				hq->hq_hostname, d->d_cur_dnsr_result,
-	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
-			continue;
-		    }
-
-		    if ( d->d_dnsr_result_ip->r_ancount == 0 ) {
-			dnsr_free_result( d->d_dnsr_result_ip );
-			d->d_dnsr_result_ip = NULL;
-			syslog( LOG_INFO,
-				"DNS %s: Entry %d: A record missing: %s",
-				hq->hq_hostname, d->d_cur_dnsr_result,
-	d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
-			continue;
-		    }
-
-		    d->d_cur_dnsr_result_ip = 0;
-		    syslog( LOG_INFO,
-			    "DNS %s: Entry %d: A record found: %s",
-			    hq->hq_hostname, d->d_cur_dnsr_result,
-    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
-		    break;
-		}
-
-	    } else {
+		    d->d_cur_dnsr_result ].rr_type != DNSR_TYPE_MX )
+		    || ( hq->hq_status != HOST_DOWN )) {
 		syslog( LOG_DEBUG,
 			"DNS %s: Entry %d: uninteresting dnsr rr type %s: %d",
 			hq->hq_hostname, d->d_cur_dnsr_result,
@@ -1802,6 +1736,60 @@ retry:
 		d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_type );
 		continue;
 	    }
+
+	    /* Stop checking hosts if we know the local hostname is in
+	     * the mx record, and if we've reached it's preference level.
+	     */
+	    if (( hq->hq_no_punt != 0 ) && ( d->d_mx_preference_cutoff == 
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference )) {
+		syslog( LOG_INFO,
+			"DNS %s: Entry %d: MX preference %d: cutoff",
+			hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference ); 
+
+		if ( d->d_retry_list != NULL ) {
+		    d->d_retry_cur = d->d_retry_list;
+		    goto retry;
+		}
+		return( 1 );
+	    }
+
+    if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_ip != NULL ) {
+		memcpy( &(d->d_sin.sin_addr.s_addr),
+    &(d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_ip->ip_ip ),
+			sizeof( struct in_addr ));
+		syslog( LOG_INFO,
+			"DNS %s: Entry %d: Trying MX preference %d: %s",
+			hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_mx.mx_preference,
+			inet_ntoa( d->d_sin.sin_addr ));
+		return( 0 );
+	    }
+
+	    if (( d->d_dnsr_result_ip = get_a(
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange ))
+		    == NULL ) {
+		syslog( LOG_INFO,
+			"DNS %s: Entry %d: A record lookup failure: %s",
+			hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
+		continue;
+	    }
+
+	    if ( d->d_dnsr_result_ip->r_ancount == 0 ) {
+		dnsr_free_result( d->d_dnsr_result_ip );
+		d->d_dnsr_result_ip = NULL;
+		syslog( LOG_INFO, "DNS %s: Entry %d: A record missing: %s",
+			hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
+		continue;
+	    }
+
+	    d->d_cur_dnsr_result_ip = -1;
+	    syslog( LOG_INFO, "DNS %s: Entry %d: A record found: %s",
+		    hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_exchange );
+	    break;
 	}
     }
 
@@ -1809,35 +1797,34 @@ retry:
 	for ( d->d_cur_dnsr_result_ip++;
 		d->d_cur_dnsr_result_ip < d->d_dnsr_result_ip->r_ancount;
 		d->d_cur_dnsr_result_ip++ ) {
-	    if ( DNSR_TYPE_A ==
+	    if ( DNSR_TYPE_A !=
     d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type ) {
-		memcpy( &(d->d_sin.sin_addr.s_addr),
-	&(d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_a ),
-			sizeof( struct in_addr ));
-		ip = inet_ntoa( d->d_sin.sin_addr );
-		if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
-			( strcmp( ip, "0.0.0.0" ) == 0 )) {
-		    syslog( LOG_DEBUG,
-			    "DNS %s: Entry %d.%d: invalid A record: %s",
-			    hq->hq_hostname, d->d_cur_dnsr_result,
-			    d->d_cur_dnsr_result_ip, ip );
-		    continue;
-		} else {
-		    syslog( LOG_DEBUG,
-			    "DNS %s: Entry %d.%d: Trying A Record: %s",
-			    hq->hq_hostname, d->d_cur_dnsr_result,
-			    d->d_cur_dnsr_result_ip, ip );
-		    return( 0 );
-		}
-	    } else {
 		syslog( LOG_DEBUG,
 			"DNS %s: Entry %d.%d uninteresting dnsr rr type %s: %d",
 			hq->hq_hostname, d->d_cur_dnsr_result,
 			d->d_cur_dnsr_result_ip,
-	d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_name,
-	d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type );
+    d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_name,
+    d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_type );
 		continue;
 	    }
+
+	    memcpy( &(d->d_sin.sin_addr.s_addr),
+    &(d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_a ),
+		    sizeof( struct in_addr ));
+	    ip = inet_ntoa( d->d_sin.sin_addr );
+	    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
+		    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
+		syslog( LOG_DEBUG,
+			"DNS %s: Entry %d.%d: invalid A record: %s",
+			hq->hq_hostname, d->d_cur_dnsr_result,
+			d->d_cur_dnsr_result_ip, ip );
+		continue;
+	    }
+	    syslog( LOG_DEBUG,
+		    "DNS %s: Entry %d.%d: Trying A Record: %s",
+		    hq->hq_hostname, d->d_cur_dnsr_result,
+		    d->d_cur_dnsr_result_ip, ip );
+	    return( 0 );
 	}
     }
 
@@ -1847,6 +1834,57 @@ retry:
     }
 
     return( 1 );
+}
+
+
+    struct connection_data *
+connection_data_create( struct deliver *d )
+{
+    struct connection_data		*cd;
+
+    if (( cd = (struct connection_data*)malloc(
+	    sizeof( struct connection_data ))) == NULL ) {
+	syslog( LOG_ERR, "connection_data_create malloc: %m" );
+	return( NULL );
+    }
+
+    memset( cd, 0, sizeof( struct connection_data ));
+    memcpy( &(cd->c_sin),
+	    &(d->d_sin),
+	    sizeof( struct sockaddr_in ));
+
+    if ( d->d_retry_list_end == NULL ) {
+	d->d_retry_list = cd;
+	d->d_retry_list_end = cd;
+
+    } else {
+	d->d_retry_list_end->c_next = cd;
+	cd->c_prev = d->d_retry_list_end;
+	d->d_retry_list_end = cd;
+    }
+
+    return( cd );
+}
+
+
+    void
+connection_data_free( struct deliver *d, struct connection_data *cd )
+{
+    if ( cd->c_prev != NULL ) {
+	cd->c_prev->c_next = cd->c_next;
+    } else {
+	d->d_retry_list = cd->c_next;
+    }
+
+    if ( cd->c_next != NULL ) {
+	cd->c_next->c_prev = cd->c_prev;
+	d->d_retry_cur = cd->c_next;
+    } else {
+	d->d_retry_list_end = cd->c_prev;
+	d->d_retry_cur = d->d_retry_list;
+    }
+
+    free( cd );
 }
 
 
