@@ -1675,6 +1675,10 @@ f_noop( struct receive_data *r )
 	tarpit_sleep( 0 );
     }
 
+    if ( reset( r ) != 0 ) {
+	return( RECEIVE_SYSERROR );
+    }
+
     if ( snet_writef( r->r_snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
 	syslog( LOG_ERR, "f_noop snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
