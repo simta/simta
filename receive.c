@@ -1695,6 +1695,10 @@ f_help( struct receive_data *r )
 	tarpit_sleep( 0 );
     }
 
+    if ( reset( r ) != 0 ) {
+	return( RECEIVE_SYSERROR );
+    }
+
     if ( snet_writef( r->r_snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
 	syslog( LOG_ERR, "f_help snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
@@ -1732,6 +1736,10 @@ f_vrfy( struct receive_data *r )
 	tarpit_sleep( 0 );
     }
 
+    if ( reset( r ) != 0 ) {
+	return( RECEIVE_SYSERROR );
+    }
+
     if ( snet_writef( r->r_snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
 	syslog( LOG_ERR, "f_vrfy snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
@@ -1745,6 +1753,10 @@ f_expn( struct receive_data *r )
 {
     if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
 	tarpit_sleep( 0 );
+    }
+
+    if ( reset( r ) != 0 ) {
+	return( RECEIVE_SYSERROR );
     }
 
     if ( snet_writef( r->r_snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
