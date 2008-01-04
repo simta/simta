@@ -163,6 +163,7 @@ static int	mail_filter( struct receive_data *, int, char ** );
 static int	local_address( char *, char *, struct simta_red *);
 static int	hello( struct receive_data *, char * );
 static int	reset( struct receive_data * );
+static int	deliver_accepted( struct receive_data * );
 static int	f_helo( struct receive_data * );
 static int	f_ehlo( struct receive_data * );
 static int	f_mail( struct receive_data * );
@@ -310,6 +311,23 @@ set_smtp_mode( struct receive_data *r, int mode )
 		sizeof( refuse_commands[ 0 ] );
 	return;
     }
+}
+
+
+    int
+deliver_accepted( struct receive_data *r )
+{
+    int			ret = 0;
+
+    if (( r->r_env ) && ( r->r_env->e_flags & ENV_FLAG_ON_DISK )) {
+	if ( expand_and_deliver( r->r_env ) != EXPAND_OK ) {
+	    ret = RECEIVE_SYSERROR;
+	}
+
+	env_reset( r->r_env );
+    }
+
+    return( ret );
 }
 
 
@@ -1675,7 +1693,7 @@ f_noop( struct receive_data *r )
 	tarpit_sleep( 0 );
     }
 
-    if ( reset( r ) != 0 ) {
+    if ( deliver_accepted( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1695,7 +1713,7 @@ f_help( struct receive_data *r )
 	tarpit_sleep( 0 );
     }
 
-    if ( reset( r ) != 0 ) {
+    if ( deliver_accepted( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1736,7 +1754,7 @@ f_vrfy( struct receive_data *r )
 	tarpit_sleep( 0 );
     }
 
-    if ( reset( r ) != 0 ) {
+    if ( deliver_accepted( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1755,7 +1773,7 @@ f_expn( struct receive_data *r )
 	tarpit_sleep( 0 );
     }
 
-    if ( reset( r ) != 0 ) {
+    if ( deliver_accepted( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 
