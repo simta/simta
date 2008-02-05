@@ -553,6 +553,11 @@ f_mail_usage( struct receive_data *r )
 	syslog( LOG_ERR, "f_mail_usage snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
+
+    if ( deliver_accepted( r ) != 0 ) {
+	return( RECEIVE_SYSERROR );
+    }
+
     return( RECEIVE_OK );
 }
 
@@ -1686,6 +1691,7 @@ f_rset( struct receive_data *r )
     return( RECEIVE_OK );
 }
 
+
     static int
 f_noop( struct receive_data *r )
 {
@@ -2693,7 +2699,7 @@ closeconnection:
     if (( tv_start.tv_sec != 0 ) &&
 	    (( ret = gettimeofday( &tv_stop, NULL )) != 0 )) {
 	if ( ret != 0 ) {
-	    syslog( LOG_ERR, "Syserror: q_read_dir gettimeofday: %m" );
+	    syslog( LOG_ERR, "Syserror: smtp_receive gettimeofday: %m" );
 	}
 	tv_start.tv_sec = 1;
 	tv_stop.tv_sec = 0;
