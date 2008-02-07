@@ -46,41 +46,41 @@
     int
 env_id( struct envelope *e )
 {
-    struct timeval		tv;
+    struct timeval		tv_now;
     int				pid;
     /* way bigger than we should ever need */
     char			buf[ 1024 ];
 
     assert( e->e_id == NULL );
 
-    if ( gettimeofday( &tv, NULL ) != 0 ) {
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	syslog( LOG_ERR, "env_id gettimeofday: %m" );
 	return( -1 );
     }
 
     /* did gettimeofday() return a unique timestamp not in the past? */
-    if (( tv.tv_sec < simta_tv_mid.tv_sec ) ||
-	    (( tv.tv_sec == simta_tv_mid.tv_sec ) &&
-	    ( tv.tv_usec <= simta_tv_mid.tv_usec ))) {
-	tv.tv_usec = simta_tv_mid.tv_usec + 1;
-	if ( tv.tv_usec <= simta_tv_mid.tv_usec ) {
-	    tv.tv_usec = 0;
-	    tv.tv_sec = simta_tv_mid.tv_sec + 1;
+    if (( tv_now.tv_sec < simta_tv_mid.tv_sec ) ||
+	    (( tv_now.tv_sec == simta_tv_mid.tv_sec ) &&
+	    ( tv_now.tv_usec <= simta_tv_mid.tv_usec ))) {
+	tv_now.tv_usec = simta_tv_mid.tv_usec + 1;
+	if ( tv_now.tv_usec <= simta_tv_mid.tv_usec ) {
+	    tv_now.tv_usec = 0;
+	    tv_now.tv_sec = simta_tv_mid.tv_sec + 1;
 	} else {
-	    tv.tv_sec = simta_tv_mid.tv_sec;
+	    tv_now.tv_sec = simta_tv_mid.tv_sec;
 	}
     }
 
-    simta_tv_mid.tv_usec = tv.tv_usec;
-    simta_tv_mid.tv_sec = tv.tv_sec;
+    simta_tv_mid.tv_usec = tv_now.tv_usec;
+    simta_tv_mid.tv_sec = tv_now.tv_sec;
 
     if (( pid = getpid()) < 0 ) {
 	syslog( LOG_ERR, "env_id getpid: %m" );
 	return( -1 );
     }
 
-    snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv.tv_sec,
-	    (unsigned long)tv.tv_usec, pid );
+    snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
+	    (unsigned long)tv_now.tv_usec, pid );
 
     if (( e->e_id = strdup( buf )) == NULL ) {
 	syslog( LOG_ERR, "env_id strdup: %m" );

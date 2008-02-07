@@ -1894,16 +1894,16 @@ queue_log_metrics( struct host_q *hq_schedule )
     char		filename[ MAXPATHLEN ];
     int			fd;
     FILE		*f;
-    struct timeval	tv;
+    struct timeval	tv_now;
     struct host_q	*hq;
 
-    if ( gettimeofday( &tv, NULL ) != 0 ) {
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	syslog( LOG_DEBUG, "metric log file failed: gettimeofday: %m" );
 	return;
     }
 
     sprintf( filename, "%s/etc/%lX", simta_base_dir,
-	    (unsigned long)tv.tv_sec );
+	    (unsigned long)tv_now.tv_sec );
 
     if (( fd = creat( filename, 0666 )) < 0 ) {
 	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
@@ -1926,8 +1926,8 @@ queue_log_metrics( struct host_q *hq_schedule )
 
     for ( hq = hq_schedule; hq != NULL; hq = hq->hq_deliver_next ) {
 	fprintf( f, "%d\t%d\t%s\n",
-		(int)(hq->hq_next_launch.tv_sec - tv.tv_sec), hq->hq_entries,
-		hq->hq_hostname );
+		(int)(hq->hq_next_launch.tv_sec - tv_now.tv_sec),
+		hq->hq_entries, hq->hq_hostname );
     }
 
     fclose( f );

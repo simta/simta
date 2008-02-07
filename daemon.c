@@ -982,12 +982,12 @@ simta_waitpid( void )
     int			seconds;
     struct proc_type	**p_search;
     struct proc_type	*p_remove;
-    struct timeval	tv;
+    struct timeval	tv_now;
     struct host_q	*hq;
 
     child_signal = 0;
 
-    if ( gettimeofday( &tv, NULL ) != 0 ) {
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror: simta_waitpid gettimeofday: %m" );
 	return( 1 );
     }
@@ -1015,7 +1015,7 @@ simta_waitpid( void )
 	    (*p_remove->p_limit)--;
 	}
 
-	seconds = tv.tv_sec - p_remove->p_tv.tv_sec;
+	seconds = tv_now.tv_sec - p_remove->p_tv.tv_sec;
 	activity = 0;
 	ll = LOG_INFO;
 
@@ -1027,8 +1027,8 @@ simta_waitpid( void )
 		    /* remote host activity, requeue to encourage it */
 		    if (( hq = host_q_lookup( p_remove->p_host )) != NULL ) {
 			hq_deliver_pop( hq );
-			hq->hq_last_up.tv_sec = tv.tv_sec;
-			hq_deliver_push( hq, &tv );
+			hq->hq_last_up.tv_sec = tv_now.tv_sec;
+			hq_deliver_push( hq, &tv_now );
 		    }
 
 		} else {
