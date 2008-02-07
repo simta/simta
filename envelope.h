@@ -37,7 +37,6 @@ struct envelope {
     int			e_age;
     int			e_flags;
     struct timeval	e_etime;
-    struct timeval	e_dtime;
     char		*e_hostname;
     char		*e_id;
     char		*e_mid;

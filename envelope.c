@@ -276,21 +276,6 @@ env_sender( struct envelope *env, char *e_mail )
 env_reset( struct envelope *env )
 {
     if ( env != NULL ) {
-	if ( env->e_list_prev == NULL ) {
-	    if ( simta_env_queue == env ) {
-		simta_env_queue = env->e_list_next;
-	    }
-	} else {
-	    env->e_list_prev->e_list_next = env->e_list_next;
-	}
-
-	if ( env->e_list_next != NULL ) {
-	    env->e_list_next->e_list_prev = env->e_list_prev;
-	}
-
-	env->e_list_next = NULL;
-	env->e_list_prev = NULL;
-
 	if ( env->e_mid != NULL ) {
 	    free( env->e_mid );
 	    env->e_mid = NULL;
@@ -443,11 +428,10 @@ env_tfile_unlink( struct envelope *e )
     int
 env_tfile( struct envelope *e )
 {
-    struct stat			sb;
-    int			fd;
-    struct recipient	*r;
-    FILE		*tff;
-    char		tf[ MAXPATHLEN + 1 ];
+    int						fd;
+    struct recipient				*r;
+    FILE					*tff;
+    char					tf[ MAXPATHLEN + 1 ];
 
     assert( e->e_dir != NULL );
     assert( e->e_id != NULL );
@@ -538,14 +522,6 @@ env_tfile( struct envelope *e )
 	goto cleanup;
     }
 
-    /* get tfile modification time */
-    if ( fstat( fd, &sb ) != 0 ) {
-	syslog( LOG_ERR, "env_tfile fstat: %m" );
-	goto cleanup;
-    }
-
-    e->e_etime.tv_sec = sb.st_mtime;
-
     if ( fclose( tff ) != 0 ) {
 	syslog( LOG_ERR, "env_tfile fclose: %m" );
 	unlink( tf );
@@ -566,6 +542,7 @@ env_efile( struct envelope *e )
 {
     char		tf[ MAXPATHLEN + 1 ];
     char		ef[ MAXPATHLEN + 1 ];
+    struct timeval	tv_now;
 
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
     sprintf( ef, "%s/E%s", e->e_dir, e->e_id );
@@ -585,6 +562,13 @@ env_efile( struct envelope *e )
 
     e->e_flags |= ENV_FLAG_ON_DISK;
 
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	syslog( LOG_ERR, "env_touch gettimeofday: %m" );
+	return( -1 );
+    }
+
+    e->e_etime.tv_sec = tv_now.tv_sec;
+
     if ( simta_no_sync == 0 ) {
 	sync();
     }
@@ -599,7 +583,7 @@ env_efile( struct envelope *e )
 env_touch( struct envelope *env )
 {
     char			fname[ MAXPATHLEN ];
-    struct stat			sb;
+    struct timeval		tv_now;
 
     sprintf( fname, "%s/E%s", env->e_dir, env->e_id );
 
@@ -608,12 +592,12 @@ env_touch( struct envelope *env )
 	return( -1 );
     }
 
-    if ( stat( fname, &sb ) != 0 ) {
-	syslog( LOG_ERR, "env_touch stat %s: %m", fname );
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	syslog( LOG_ERR, "env_touch gettimeofday: %m" );
 	return( -1 );
     }
 
-    env->e_etime.tv_sec = sb.st_mtime;
+    env->e_etime.tv_sec = tv_now.tv_sec;
 
     return( 0 );
 }
@@ -630,7 +614,6 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     ino_t			dinode;
     int				version;
     int				exp_level;
-    struct stat		sb;
 
     /* check mode here */
     if ( mode == READ_QUEUE_INFO ) {
@@ -658,13 +641,6 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
 	    syslog( LOG_ERR, "env_read lockf %s: %m", filename );
 	    goto cleanup;
 	}
-
-	if ( fstat( snet_fd( snet ), &sb ) != 0 ) {
-	    syslog( LOG_ERR, "env_read fstat %s: %m", filename );
-	    goto cleanup;
-	}
-
-	env->e_etime.tv_sec = sb.st_mtime;
 
     } else {
 	if ( s_lock != NULL ) {
@@ -792,7 +768,7 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     if ( env->e_hostname == NULL ) {
 	if ( *hostname != '\0' ) {
 	    syslog( LOG_WARNING, "env_read %s: hostname reread mismatch, "
-		    "old \"\" new \"%s\"", filename, env->e_hostname,
+		    "old \"%s\" new \"%s\"", filename, env->e_hostname,
 		    hostname );
 	}
     } else if ( strcasecmp( hostname, env->e_hostname ) != 0 ) {
