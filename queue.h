@@ -68,7 +68,7 @@ struct host_q {
     struct line_file		*hq_err_text;
     struct timeval		hq_max_etime;
     struct timeval		hq_min_dtime;
-    struct timeval		hq_last_up;
+    struct timeval		hq_last_leaky;
     struct timeval		hq_last_launch;
     struct timeval		hq_next_launch;
     struct timeval		hq_wait_last;

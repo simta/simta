@@ -1027,7 +1027,7 @@ simta_waitpid( void )
 		    /* remote host activity, requeue to encourage it */
 		    if (( hq = host_q_lookup( p_remove->p_host )) != NULL ) {
 			hq_deliver_pop( hq );
-			hq->hq_last_up.tv_sec = tv_now.tv_sec;
+			hq->hq_last_leaky.tv_sec = tv_now.tv_sec;
 			hq_deliver_push( hq, &tv_now );
 		    }
 

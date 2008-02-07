@@ -591,12 +591,12 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
     }
 
     /* first down can be derived from oldest overall message */
-    if ( hq->hq_last_up.tv_sec == 0 ) {
-	hq->hq_last_up.tv_sec = hq->hq_min_dtime.tv_sec;
+    if ( hq->hq_last_leaky.tv_sec == 0 ) {
+	hq->hq_last_leaky.tv_sec = hq->hq_min_dtime.tv_sec;
     }
 
     /* how many seconds the queue has been down */
-    diff = hq->hq_last_launch.tv_sec - hq->hq_last_up.tv_sec;
+    diff = hq->hq_last_launch.tv_sec - hq->hq_last_leaky.tv_sec;
 
     /* next wait time falls between min and max wait values */
     if ( diff <= min_wait ) {
