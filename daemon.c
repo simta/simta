@@ -1308,10 +1308,6 @@ simta_child_receive( struct simta_socket *ss )
 simta_child_q_runner( struct host_q *hq )
 {
     int			pid;
-    char		fname[ MAXPATHLEN ];
-    struct envelope	*envs;
-    struct envelope	*sort;
-    struct stat		sb;
 
 #ifdef Q_SIMULATION
     assert( hq != NULL );
@@ -1324,32 +1320,9 @@ simta_child_q_runner( struct host_q *hq )
 	close( simta_pidfd );
 	simta_host_q = NULL;
 
-	if ( hq != NULL ) {
-	    /* sort the envs based on etime */
-	    envs = hq->hq_env_head;
-	    hq->hq_entries = 0;
-	    hq->hq_env_head = NULL;
-	    while ( envs != NULL ) {
-		sort = envs;
-		envs = envs->e_hq_next;
-		/* zero out hq so it gets sorted */
-		sort->e_hq = NULL;
-		sort->e_hq_next = NULL;
-		sprintf( fname, "%s/E%s", sort->e_dir, sort->e_id );
-		if ( stat( fname, &sb ) != 0 ) {
-		    if ( errno != ENOENT ) {
-			syslog( LOG_ERR, "simta_child_q_runner stat %s: %m",
-				fname );
-		    }
-		    env_free( sort );
-		    continue;
-		}
-		queue_envelope( sort );
-	    }
-	    if ( hq == simta_unexpanded_q ) {
-		simta_process_type = PROCESS_Q_SLOW;
-		exit( q_runner());
-	    }
+	if (( hq != NULL ) && ( hq == simta_unexpanded_q )) {
+	    simta_process_type = PROCESS_Q_SLOW;
+	    exit( q_runner());
 	}
 
 	if ( simta_unexpanded_q != NULL ) {

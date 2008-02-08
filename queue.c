@@ -57,6 +57,7 @@ void	hq_free( struct host_q * );
 void	connection_data_free( struct deliver *, struct connection_data * );
 int	get_outboud_dns( struct deliver *, struct host_q * );
 struct connection_data *connection_data_create( struct deliver * );
+void	queue_time_order( struct host_q * );
 
 
     struct host_q *
@@ -220,6 +221,44 @@ queue_remove_envelope( struct envelope *env )
 }
 
 
+    void
+queue_time_order( struct host_q *hq )
+{
+    char		fname[ MAXPATHLEN ];
+    struct envelope	*envs;
+    struct envelope	*sort;
+    struct stat		sb;
+
+    if ( hq != NULL ) {
+	/* sort the envs based on etime */
+	envs = hq->hq_env_head;
+	hq->hq_entries = 0;
+	hq->hq_env_head = NULL;
+	while ( envs != NULL ) {
+	    sort = envs;
+	    envs = envs->e_hq_next;
+	    /* zero out hq so it gets sorted */
+	    sort->e_hq = NULL;
+	    sort->e_hq_next = NULL;
+	    sprintf( fname, "%s/E%s", sort->e_dir, sort->e_id );
+	    if ( stat( fname, &sb ) != 0 ) {
+		if ( errno != ENOENT ) {
+		    syslog( LOG_ERR, "simta_child_q_runner stat %s: %m",
+			    fname );
+		}
+		env_free( sort );
+		continue;
+	    }
+	    queue_envelope( sort );
+	}
+	if ( hq == simta_unexpanded_q ) {
+	    simta_process_type = PROCESS_Q_SLOW;
+	    exit( q_runner());
+	}
+    }
+}
+
+
     int
 q_runner( void )
 {
@@ -244,6 +283,12 @@ q_runner( void )
     if (( simta_host_q == NULL ) && ( simta_unexpanded_q == NULL )) {
 	syslog( LOG_ERR, "q_runner: no host_q" );
 	return( simta_fast_files );
+    }
+
+    queue_time_order( simta_unexpanded_q );
+
+    for ( hq = simta_host_q; hq != NULL; hq = hq->hq_next ) {
+	queue_time_order( hq );
     }
 
     /* get start time for metrics */
