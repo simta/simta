@@ -1,5 +1,6 @@
 
 internal
+    - DISCONNECT is a possible failed rcpt punishment
     - faster disk read times
     - outbound SMTP DNS has better logging and is more consice
     - better process accounting, and logging

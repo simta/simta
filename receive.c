@@ -282,10 +282,11 @@ set_smtp_mode( struct receive_data *r, int mode )
 
     switch ( mode ) {
     default:
-    case SMTP_MODE_OFF:
 	syslog( LOG_WARNING, "set_smtp_mode: mode out of range: %d", mode );
 	r->r_smtp_mode = SMTP_MODE_TEMPFAIL;
+	/* fall through to case SMTP_MODE_TEMPFAIL */
     case SMTP_MODE_TEMPFAIL:
+    case SMTP_MODE_OFF:
 	r->r_commands = tempfail_commands;
 	r->r_ncommands = sizeof( tempfail_commands ) /
 		sizeof( tempfail_commands[ 0 ] );
@@ -2644,6 +2645,9 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 
 	switch ((*(r.r_commands[ i ].c_func))( &r )) {
 	case RECEIVE_OK:
+	    if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
+		goto closeconnection;
+	    }
 	    break;
 
 	case RECEIVE_CLOSECONNECTION:

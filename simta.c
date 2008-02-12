@@ -1226,6 +1226,8 @@ simta_read_config( char *fname )
 		simta_smtp_punishment_mode = SMTP_MODE_TEMPFAIL;
 	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
 		simta_smtp_punishment_mode = SMTP_MODE_TARPIT;
+	    } else if ( strcasecmp( av[ 1 ], "DISCONNECT" ) == 0 ) {
+		simta_smtp_punishment_mode = SMTP_MODE_OFF;
 	    } else {
 		fprintf( stderr, "%s: line %d: illegal argument\n",
 			fname, lineno );
