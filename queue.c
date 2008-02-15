@@ -251,10 +251,6 @@ queue_time_order( struct host_q *hq )
 	    }
 	    queue_envelope( sort );
 	}
-	if ( hq == simta_unexpanded_q ) {
-	    simta_process_type = PROCESS_Q_SLOW;
-	    exit( q_runner());
-	}
     }
 }
 
