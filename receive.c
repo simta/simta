@@ -781,7 +781,6 @@ f_rcpt( struct receive_data *r )
     int				addr_len;
     int				rc;
     char			*addr, *domain;
-    char			*syslog_message = "";
     struct simta_red		*red;
     struct rbl			*rbl_found;
 
@@ -924,25 +923,11 @@ f_rcpt( struct receive_data *r )
 		syslog( LOG_INFO,
 			"Receive %s: To <%s> From <%s> Failed: User not local",
 			r->r_env->e_id, addr, r->r_env->e_mail );
-
-		if (( r->r_smtp_mode == SMTP_MODE_NORMAL ) &&
-			( simta_max_failed_rcpts != 0 ) &&
-			( r->r_failed_rcpts >= simta_max_failed_rcpts )) {
-		    set_smtp_mode( r, simta_smtp_punishment_mode );
-		    syslog( LOG_INFO, "Receive %s: Message Failed: "
-			    "[%s] %s: Too many failed recipients",
-			    r->r_env->e_id, inet_ntoa( r->r_sin->sin_addr ),
-			    r->r_remote_hostname );
-		    return( smtp_tempfail( r, NULL ));
-
-		} else {
-		    if ( snet_writef( r->r_snet, "550 Requested action failed: "
-			    "User not found.\r\n" ) < 0 ) {
-			syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
-			return( RECEIVE_CLOSECONNECTION );
-		    }
+		if ( snet_writef( r->r_snet, "550 Requested action failed: "
+			"User not found.\r\n" ) < 0 ) {
+		    syslog( LOG_ERR, "f_rcpt snet_writef: %m" );
+		    return( RECEIVE_CLOSECONNECTION );
 		}
-
 		return( RECEIVE_OK );
 
 	    case LOCAL_ERROR:
@@ -1008,21 +993,12 @@ f_rcpt( struct receive_data *r )
 
 		    if ( r->r_rbl_status == RBL_BLOCK ) {
 			r->r_failed_rcpts++;
-
-			if (( r->r_smtp_mode == SMTP_MODE_NORMAL ) &&
-				( simta_max_failed_rcpts > 0 ) &&
-				( r->r_failed_rcpts >=
-				simta_max_failed_rcpts )) {
-			    set_smtp_mode( r, simta_smtp_punishment_mode );
-			    syslog_message = ": Too many failed recipients";
-			}
-
 			syslog( LOG_INFO,
 				"Receive %s: To <%s> From <%s> Failed: "
-				"RBL %s ([%s] %s)%s", r->r_env->e_id, addr,
+				"RBL %s ([%s] %s)", r->r_env->e_id, addr,
 				r->r_env->e_mail, rbl_found->rbl_domain,
 				inet_ntoa( r->r_sin->sin_addr ),
-				r->r_remote_hostname, syslog_message );
+				r->r_remote_hostname );
 
 			if ( snet_writef( r->r_snet,
 				"550 No access from IP %s. See %s\r\n",
@@ -2645,9 +2621,6 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 
 	switch ((*(r.r_commands[ i ].c_func))( &r )) {
 	case RECEIVE_OK:
-	    if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
-		goto closeconnection;
-	    }
 	    break;
 
 	case RECEIVE_CLOSECONNECTION:
@@ -2657,6 +2630,20 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	/* fallthrough */
 	case RECEIVE_SYSERROR:
 	    goto syserror;
+	}
+
+	if (( r.r_smtp_mode == SMTP_MODE_NORMAL ) &&
+		( simta_max_failed_rcpts > 0 ) &&
+		( r.r_failed_rcpts >= simta_max_failed_rcpts )) {
+	    set_smtp_mode( &r, simta_smtp_punishment_mode );
+	    syslog( LOG_INFO, "Receive %s: Message Failed: "
+		    "[%s] %s: Too many failed recipients",
+		    r.r_env->e_id, inet_ntoa( r.r_sin->sin_addr ),
+		    r.r_remote_hostname );
+	}
+
+	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
+	    goto closeconnection;
 	}
     }
 

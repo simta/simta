@@ -1,5 +1,6 @@
 
 internal
+    - SMTP failed rcpt punishment bugfix
     - DISCONNECT is a possible failed rcpt punishment
     - faster disk read times
     - outbound SMTP DNS has better logging and is more consice
