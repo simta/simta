@@ -1416,6 +1416,7 @@ next_dnsr_host_lookup( struct deliver *d, struct host_q *hq )
 {
     for ( ; ; ) {
 	if ( next_dnsr_host( d, hq ) == 0 ) {
+	    d->d_queue_movement = 0;
 	    return( 0 );
 	}
 
@@ -1629,7 +1630,6 @@ retry:
     memset( &(d->d_sin), 0, sizeof( struct sockaddr_in ));
     d->d_sin.sin_family = AF_INET;
     d->d_sin.sin_port = htons( SIMTA_SMTP_PORT );
-    d->d_queue_movement = 0;
 
     if ( d->d_dnsr_result_ip == NULL ) {
 	for ( d->d_cur_dnsr_result++; 
