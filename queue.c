@@ -1288,6 +1288,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 {
     int				r_smtp;
     int				s;
+    int				env_movement = 0;
     struct timeval		tv;
 
     switch ( hq->hq_status ) {
@@ -1363,27 +1364,29 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	d->d_n_rcpt_failed = 0;
 	d->d_n_rcpt_tempfail = 0;
 
-	if (( r_smtp = smtp_send( hq, d )) == SMTP_OK ) {
+	r_smtp = smtp_send( hq, d );
+
+	if (( d->d_n_rcpt_failed ) ||
+		( d->d_delivered && d->d_n_rcpt_accepted )) {
+	    d->d_queue_movement = 1;
+	    env_movement = 1;
+	    simta_smtp_outbound_delivered++;
+	}
+
+	if ( r_smtp == SMTP_OK ) {
 	    switch ( hq->hq_status ) {
 	    case HOST_DOWN:
-		if (( d->d_n_rcpt_failed ) ||
-			( d->d_delivered && d->d_n_rcpt_accepted )) {
-		    d->d_queue_movement = 1;
-		}
 		hq->hq_status = HOST_MX;
-		break;
+		return;
 
 	    case HOST_PUNT_DOWN:
 		env_clear_errors( d->d_env );
 		hq->hq_status = HOST_PUNT;
-		break;
+		return;
 
 	    default:
 		panic( "deliver_remote: status out of range" );
 	    }
-
-	    simta_smtp_outbound_delivered++;
-	    return;
 	}
 
 smtp_cleanup:
@@ -1396,9 +1399,8 @@ smtp_cleanup:
 
 	if ( hq->hq_status == HOST_PUNT_DOWN ) {
 	    hq_clear_errors( hq );
-	}
 
-	if ( hq->hq_status == HOST_BOUNCE ) {
+	} else if ( hq->hq_status == HOST_BOUNCE ) {
 	    if ( d->d_dnsr_result_ip != NULL ) {
 		dnsr_free_result( d->d_dnsr_result_ip );
 		dnsr_free_result( d->d_dnsr_result );
@@ -1406,6 +1408,12 @@ smtp_cleanup:
 		dnsr_free_result( d->d_dnsr_result );
 	    }
 	    return;
+
+	} else if ( hq->hq_status == HOST_DOWN ) {
+	    if ( env_movement != 0 ) {
+		hq->hq_status = HOST_MX;
+		return;
+	    }
 	}
     }
 }
