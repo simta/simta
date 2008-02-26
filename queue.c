@@ -1371,6 +1371,10 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    d->d_queue_movement = 1;
 	    env_movement = 1;
 	    simta_smtp_outbound_delivered++;
+	    syslog( LOG_DEBUG, "Queue %s: %s Delivery activity: "
+		    "%d failed %d accepted", hq->hq_hostname, d->d_env->e_id, 
+		    d->d_n_rcpt_failed,
+		    d->d_delivered ? d->d_n_rcpt_accepted : 0 );
 	}
 
 	if ( r_smtp == SMTP_OK ) {
@@ -1597,16 +1601,23 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	if ( d->d_queue_movement == 0 ) {
 	    /* there was no queue movement on this host, we remove it */
 	    cd = d->d_retry_cur;
+	    d->d_retry_cur = d->d_retry_cur->c_next;
 	    ip = inet_ntoa( cd->c_sin.sin_addr );
 	    connection_data_free( d, cd );
 	    syslog( LOG_DEBUG, "DNS %s: Removed from Retry %s",
 		    hq->hq_hostname, ip );
 
 	    if ( d->d_retry_cur == NULL ) {
-		/* we've removed our last item from the retry list */
-		syslog( LOG_DEBUG, "DNS %s: Retry list exhausted",
-			hq->hq_hostname );
-		return( 1 );
+		if (  d->d_retry_list != NULL ) {
+		    d->d_retry_cur = d->d_retry_list;
+		    syslog( LOG_DEBUG, "DNS %s: Retry list restarted",
+			    hq->hq_hostname );
+		} else {
+		    /* we've removed our last item from the retry list */
+		    syslog( LOG_DEBUG, "DNS %s: Retry list exhausted",
+			    hq->hq_hostname );
+		    return( 1 );
+		}
 	    }
 
 	} else {
@@ -1614,6 +1625,8 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	    if (( d->d_retry_cur = d->d_retry_cur->c_next ) == NULL ) {
 		/* start the list over if we're at the end */
 		d->d_retry_cur = d->d_retry_list;
+		syslog( LOG_DEBUG, "DNS %s: Retry list restarted",
+			hq->hq_hostname );
 	    }
 	}
 
@@ -1687,6 +1700,8 @@ retry:
     d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference ); 
 
 		if ( d->d_retry_list != NULL ) {
+		    syslog( LOG_DEBUG, "DNS %s: Retry list start",
+			    hq->hq_hostname );
 		    d->d_retry_cur = d->d_retry_list;
 		    goto retry;
 		}
@@ -1769,6 +1784,8 @@ retry:
 
     if ( d->d_retry_list != NULL ) {
 	d->d_retry_cur = d->d_retry_list;
+	syslog( LOG_DEBUG, "DNS %s: Retry list start",
+		hq->hq_hostname );
 	goto retry;
     }
 
