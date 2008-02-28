@@ -521,39 +521,46 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
     struct timeval		next_launch;
     struct host_q		*insert;
 
-    /* how many seconds the queue has been down */
-    diff = hq->hq_last_launch.tv_sec - hq->hq_last_leaky.tv_sec;
-
-    /* next wait time falls between min and max wait values */
-    if ( diff <= min_wait ) {
-	wait = min_wait;
+    if ( hq->hq_last_launch.tv_sec == 0 ) {
+	hq->hq_last_leaky.tv_sec = tv_now->tv_sec;
+	delay = random() % min_wait;
+	next_launch.tv_sec = tv_now->tv_sec + delay;
 
     } else {
-	for ( wait = max_wait;
-		((( half = wait / 2 ) > diff ) && ( half > min_wait ));
-		wait = half )
-	    ;
-    }
+	/* how many seconds the queue has been down */
+	diff = hq->hq_last_launch.tv_sec - hq->hq_last_leaky.tv_sec;
 
-    /* compute possible next launch time */
-    next_launch.tv_sec = hq->hq_last_launch.tv_sec + wait;
+	/* next wait time falls between min and max wait values */
+	if ( diff <= min_wait ) {
+	    wait = min_wait;
 
-    if ( next_launch.tv_sec < tv_now->tv_sec ) {
-	delay = random() % wait;
-	next_launch.tv_sec = tv_now->tv_sec + delay;
+	} else {
+	    for ( wait = max_wait;
+		    ((( half = wait / 2 ) > diff ) && ( half > min_wait ));
+		    wait = half )
+		;
+	}
+
+	/* compute possible next launch time */
+	next_launch.tv_sec = hq->hq_last_launch.tv_sec + wait;
+
+	if ( next_launch.tv_sec < tv_now->tv_sec ) {
+	    delay = random() % min_wait;
+	    next_launch.tv_sec = tv_now->tv_sec + delay;
+	}
     }
 
     /* if the next launch is zero, or if it is greater than the computed
      * value, use the computed value.
      */
-    if (( hq->hq_next_launch.tv_sec == 0 ) ||
-	    ( hq->hq_next_launch.tv_sec > next_launch.tv_sec )) {
-	if ( hq->hq_next_launch.tv_sec != 0 ) {
-	    syslog( LOG_DEBUG, "Queue %s: Requeued %d, Old %d",
-		    hq->hq_hostname,
-		    (int)(next_launch.tv_sec - tv_now->tv_sec),
-		    (int)(hq->hq_next_launch.tv_sec - tv_now->tv_sec));
-	}
+    if ( hq->hq_next_launch.tv_sec == 0 ) {
+	syslog( LOG_DEBUG, "Queue %s: Queued %d", hq->hq_hostname,
+		(int)(next_launch.tv_sec - tv_now->tv_sec));
+	hq->hq_next_launch.tv_sec = next_launch.tv_sec;
+    } else if ( hq->hq_next_launch.tv_sec > next_launch.tv_sec ) {
+	syslog( LOG_DEBUG, "Queue %s: Requeued %d, Old %d",
+		hq->hq_hostname, (int)(next_launch.tv_sec - tv_now->tv_sec),
+		(int)(hq->hq_next_launch.tv_sec - tv_now->tv_sec));
 	hq->hq_next_launch.tv_sec = next_launch.tv_sec;
     }
 

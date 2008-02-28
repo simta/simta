@@ -33,7 +33,7 @@
 #define	EXIT_OK				0
 #define	SIMTA_EXIT_OK			0
 #define	SIMTA_EXIT_ERROR		1
-#define	SIMTA_EXIT_OK_LEAKY		11
+#define	SIMTA_EXIT_OK_LEAKY		2
 
 #define SIMTA_ERROR_NONE		0
 #define SIMTA_ERROR_DNSR		1
