@@ -789,13 +789,17 @@ simta_q_scheduler( void )
 	if ( simsendmail_signal != 0 ) {
 	    simsendmail_signal = 0;
 	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
+		syslog( LOG_DEBUG, "Daemon: local launch" );
 		if ( simta_child_q_runner( NULL ) != 0 ) {
 		    return( 1 );
 		}
+	    } else {
+		syslog( LOG_DEBUG, "Daemon: local launch limit exceeded" );
 	    }
 	}
 
 	if ( child_signal != 0 ) {
+	    syslog( LOG_DEBUG, "Daemon: child signal" );
 	    if ( simta_waitpid()) {
 		return( 1 );
 	    }
@@ -815,6 +819,7 @@ simta_q_scheduler( void )
 			(int)(tv_now.tv_sec - tv_disk.tv_sec));
 
 	    } else {
+		syslog( LOG_DEBUG, "Daemon: disk read" );
 		/* read disk */
 		q_read_dir( simta_dir_slow );
 
@@ -831,6 +836,7 @@ simta_q_scheduler( void )
 		/* run unexpanded queue if we have entries */
 		if (( simta_unexpanded_q != NULL ) &&
 			( simta_unexpanded_q->hq_env_head != NULL )) {
+		    syslog( LOG_DEBUG, "Daemon: unexpanded launch" );
 		    if ( simta_child_q_runner( simta_unexpanded_q ) != 0 ) {
 			return( 1 );
 		    }
@@ -924,21 +930,32 @@ simta_q_scheduler( void )
 	    return( 1 );
 	}
 
+	if ( simta_deliver_q != NULL ) {
+	    q_wait = simta_deliver_q->hq_next_launch.tv_sec - tv_now.tv_sec;
+	    if ( q_wait < 0 ) {
+		q_wait = 0;
+	    }
+
+	    syslog( LOG_DEBUG, "Daemon: next launch %s %d",
+		    simta_deliver_q->hq_hostname, (int)q_wait );
+	} else {
+	    syslog( LOG_DEBUG, "Daemon: no deliver queues" );
+	}
+
 	if ( tv_now.tv_sec < tv_disk.tv_sec ) {
 	    /* disk read is in the future */
 	    disk_wait = tv_disk.tv_sec - tv_now.tv_sec;
 	} else {
 	    disk_wait = 0;
 	}
+	syslog( LOG_DEBUG, "Daemon: next disk read %d", (int)disk_wait );
 
 	if ( simta_deliver_q == NULL ) {
 	    /* no queue to deliver, schedule the disk read */
 	    tv_sleep.tv_sec = disk_wait;
 
-	} else if ( tv_now.tv_sec < simta_deliver_q->hq_next_launch.tv_sec ) {
+	} else if ( q_wait > 0 ) {
 	    /* next queue delivery is in the future */
-	    q_wait = simta_deliver_q->hq_next_launch.tv_sec - tv_disk.tv_sec;
-
 	    /* schedule whatever is sooner, disk read or the queue launch */
 	    if ( disk_wait < q_wait ) {
 		tv_sleep.tv_sec = disk_wait;
@@ -962,6 +979,8 @@ simta_q_scheduler( void )
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 ) &&
 		( tv_sleep.tv_sec > 0 )) {
+	    syslog( LOG_DEBUG, "Daemon: sleeping for %d",
+		    (int)tv_sleep.tv_sec );
 	    sleep((unsigned int)tv_sleep.tv_sec );
 	}
     }
