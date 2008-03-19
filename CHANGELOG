@@ -1,4 +1,5 @@
 0.8.0.1
+    - simsendmail logs message size
     - bitbucket delivery option for deliver testing
     - better Daemon logging
     - local queue runner accounting bugfix

@@ -78,11 +78,13 @@ main( int argc, char *argv[] )
     struct envelope	*env;
     int			usage = 0;
     int			line_no = 0;
+    int			line_len;
     int			c;
     int			ignore_dot = 0;
     int			x;
     int			header;
     int			result;
+    int			message_size = 0;
     FILE		*dfile = NULL;
     int			read_headers = 0;
     int			pidfd;
@@ -97,7 +99,7 @@ main( int argc, char *argv[] )
     /* ignore a good many options */
     opterr = 0;
 
-    openlog( argv[ 0 ], 0, LOG_SIMTA );
+    openlog( argv[ 0 ], LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 
     while (( c = getopt( argc, argv, "b:f:io:st" )) != -1 ) {
 	switch ( c ) {
@@ -281,7 +283,10 @@ main( int argc, char *argv[] )
     while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
 	line_no++;
 
-	if ( strlen( line ) > 998 ) {
+	line_len = strlen( line );
+	message_size += line_len;
+
+	if ( line_len > 998 ) {
 	    fprintf( stderr, "%s: line %d too long\n", argv[ 0 ], line_no );
 
 	    if ( header == 0 ) {
@@ -465,7 +470,8 @@ main( int argc, char *argv[] )
 	goto cleanup;
     }
 
-    syslog( LOG_INFO, "Local %s: Message Accepted", env->e_id );
+    syslog( LOG_INFO, "Local %s: Message Accepted: lines %d size %d",
+	    env->e_id, line_no, message_size );
 
 signal_server:
     /* if possible, signal server */
