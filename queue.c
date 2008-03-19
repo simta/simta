@@ -311,6 +311,7 @@ q_runner( void )
 	    case HOST_UNKNOWN:
 	    case HOST_LOCAL:
 	    case HOST_MX:
+	    case HOST_BITBUCKET:
 		/*
 		 * we're going to try to deliver this messages in this host 
 		 * queue, so put it in the delivery queue.
@@ -332,7 +333,6 @@ q_runner( void )
 	    case HOST_SUPRESSED:
 	    case HOST_DOWN:
 	    case HOST_BOUNCE:
-	    case HOST_BITBUCKET:
 		q_deliver( hq );
 		break;
 
