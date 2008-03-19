@@ -72,6 +72,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_bitbucket = -1;
 int			simta_aggressive_delivery = 1;
 int			simta_smtp_port_defined = 0;
 int			simta_rbl_verbose_logging = 0;
@@ -631,22 +632,6 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "DATA_LINE_WAIT %d\n",
 		    simta_data_line_wait );
 
-	} else if ( strcasecmp( av[ 0 ], "DATA_SESSION_WAIT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_data_transaction_wait = atoi( av[ 1 ] );
-	    if ( simta_data_transaction_wait <= 0 ) {
-		fprintf( stderr,
-			"%s: line %d: DATA_SESSION_WAIT must be greater than 0",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "DATA_SESSION_WAIT %d\n",
-		    simta_data_transaction_wait );
-
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
@@ -661,6 +646,20 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "BOUNCE_LINES: %d\n",
 		simta_max_bounce_lines );
+
+	} else if ( strcasecmp( av[ 0 ], "BITBUCKET" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_bitbucket = atoi( av[ 1 ] );
+	    if ( simta_bitbucket < 0 ) {
+		fprintf( stderr, "%s: line %d: BITBUCKET less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "BITBUCKET: %d\n", simta_bitbucket );
 
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {

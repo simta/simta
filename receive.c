@@ -2370,8 +2370,8 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 
     if (( simta_receive_connections_max != 0 ) &&
 	    ( simta_receive_connections >= simta_receive_connections_max )) {
-	syslog( LOG_NOTICE, "receive connection refused: "
-		"max connections exceeded" );
+	syslog( LOG_WARNING, "Receive: connection refused: "
+		"MAX_RECEIVE_CONNECTIONS exceeded" );
 	if ( snet_writef( r.r_snet, "421 Maximum connections exceeded, "
 		"closing transmission channel\r\n" ) < 0 ) {
 	    syslog( LOG_ERR, "receive snet_writef: %m" );

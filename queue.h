@@ -15,6 +15,7 @@
 #define HOST_PUNT	6
 #define HOST_PUNT_DOWN	7
 #define HOST_SUPRESSED	8
+#define HOST_BITBUCKET	9
 
 struct connection_data {
     struct connection_data	*c_prev;

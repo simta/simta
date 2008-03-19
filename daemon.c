@@ -787,19 +787,19 @@ simta_q_scheduler( void )
     /* main daemon loop */
     for (;;) {
 	if ( simsendmail_signal != 0 ) {
-	    simsendmail_signal = 0;
 	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
-		syslog( LOG_DEBUG, "Daemon: local launch" );
+		simsendmail_signal = 0;
+
 		if ( simta_child_q_runner( NULL ) != 0 ) {
 		    return( 1 );
 		}
 	    } else {
-		syslog( LOG_DEBUG, "Daemon: local launch limit exceeded" );
+		syslog( LOG_WARNING, "Daemon Delay: MAX_Q_RUNNERS_LOCAL met: "
+			"local queue runner launch delayed" );
 	    }
 	}
 
 	if ( child_signal != 0 ) {
-	    syslog( LOG_DEBUG, "Daemon: child signal" );
 	    if ( simta_waitpid()) {
 		return( 1 );
 	    }
@@ -815,11 +815,12 @@ simta_q_scheduler( void )
 	    if (( simta_deliver_q != NULL ) && ( tv_now.tv_sec >=
 		    simta_deliver_q->hq_next_launch.tv_sec )) {
 		/* don't read the disk untill the queue is caught up */
-		syslog( LOG_DEBUG, "Queue Delay: Disk read already delayed %d",
+		syslog( LOG_DEBUG,
+			"Daemon Delay: Disk read currently delayed %d",
 			(int)(tv_now.tv_sec - tv_disk.tv_sec));
 
 	    } else {
-		syslog( LOG_DEBUG, "Daemon: disk read" );
+		syslog( LOG_DEBUG, "Daemon: disk read start" );
 		/* read disk */
 		q_read_dir( simta_dir_slow );
 
@@ -836,7 +837,6 @@ simta_q_scheduler( void )
 		/* run unexpanded queue if we have entries */
 		if (( simta_unexpanded_q != NULL ) &&
 			( simta_unexpanded_q->hq_env_head != NULL )) {
-		    syslog( LOG_DEBUG, "Daemon: unexpanded launch" );
 		    if ( simta_child_q_runner( simta_unexpanded_q ) != 0 ) {
 			return( 1 );
 		    }
@@ -859,7 +859,8 @@ simta_q_scheduler( void )
 	    /* don't launch queue runners if the process limit has been met */
 	    if (( simta_q_runner_slow_max > 0 ) &&
 		    ( simta_q_runner_slow == simta_q_runner_slow_max )) {
-		syslog( LOG_WARNING, "Queue Lag: Q runner process limit met" );
+		syslog( LOG_WARNING, "Daemon Delay: MAX_Q_RUNNERS_SLOW met: "
+			"slow queue runner launch delayed" );
 		break;
 	    }
 
@@ -905,7 +906,8 @@ simta_q_scheduler( void )
 
 	    if (( simta_launch_limit > 0 ) &&
 		    (( launched % simta_launch_limit ) == 0 )) {
-		syslog( LOG_WARNING, "Queue Delay: Sleeping for 1 second" );
+		syslog( LOG_WARNING, "Daemon Delay: MAX_Q_RUNNERS_LAUNCH met: "
+			"sleeping for 1 second" );
 		req.tv_sec = 1;
 		req.tv_nsec = 0;
 
@@ -936,7 +938,7 @@ simta_q_scheduler( void )
 		q_wait = 0;
 	    }
 
-	    syslog( LOG_DEBUG, "Daemon: next launch %s %d",
+	    syslog( LOG_DEBUG, "Daemon: next queue %s %d",
 		    simta_deliver_q->hq_hostname, (int)q_wait );
 	} else {
 	    syslog( LOG_DEBUG, "Daemon: no deliver queues" );
@@ -973,8 +975,8 @@ simta_q_scheduler( void )
 	} else {
 	    /* queues are underwater and the process limit has been met */
 	    tv_sleep.tv_sec = tv_now.tv_sec + 60;
-	    syslog( LOG_NOTICE, "Queue Delay: Queues are not caught up and "
-		    "process limit has been met: Delaying 60 seconds" );
+	    syslog( LOG_NOTICE, "Daemon Delay: Queues are not caught up and "
+		    "MAX_Q_RUNNERS_SLOW has been met: Delaying 60 seconds" );
 	}
 
 	if (( simsendmail_signal == 0 ) && ( child_signal == 0 ) &&

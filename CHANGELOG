@@ -1,5 +1,9 @@
+0.8.0.1
+    - bitbucket delivery option for deliver testing
+    - better Daemon logging
+    - local queue runner accounting bugfix
 
-internal
+0.8.0
     - SMTP failed rcpt punishment bugfix
     - DISCONNECT is a possible failed rcpt punishment
     - faster disk read times

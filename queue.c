@@ -130,7 +130,10 @@ host_q_create_or_lookup( char *hostname )
 	    return( NULL );
 	}
 
-	if (( hq->hq_red = simta_red_lookup_host( hostname )) != NULL ) {
+	if ( simta_bitbucket > 0 ) {
+	    hq->hq_status = HOST_BITBUCKET;
+
+	} else if (( hq->hq_red = simta_red_lookup_host( hostname )) != NULL ) {
 	    if ( hq->hq_red->red_deliver_type == RED_DELIVER_BINARY ) {
 		hq->hq_status = HOST_LOCAL;
 	    }
@@ -329,6 +332,7 @@ q_runner( void )
 	    case HOST_SUPRESSED:
 	    case HOST_DOWN:
 	    case HOST_BOUNCE:
+	    case HOST_BITBUCKET:
 		q_deliver( hq );
 		break;
 
@@ -981,6 +985,14 @@ q_deliver( struct host_q *deliver_q )
 	    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    break;
 
+        case HOST_BITBUCKET:
+	    syslog( LOG_WARNING, "Deliver.remote %s: bitbucket in %d seconds",
+		    env_deliver->e_id, simta_bitbucket );
+	    sleep( simta_bitbucket );
+	    d.d_delivered = 1;
+	    d.d_n_rcpt_accepted = env_deliver->e_n_rcpt;
+	    break;
+
 	default:
 	    panic( "q_deliver host_status out of range" );
 	}
@@ -1017,6 +1029,7 @@ q_deliver( struct host_q *deliver_q )
 	    syslog( LOG_DEBUG, "Deliver %s: not checking age of message",
 		    env_deliver->e_id );
 	}
+
 
 	/* bounce the message if the message is bad, or
 	 * if some recipients are bad.
