@@ -1,3 +1,6 @@
+0.8.0.2
+    - bitbucket bugfix
+
 0.8.0.1
     - simsendmail logs message size
     - bitbucket delivery option for deliver testing

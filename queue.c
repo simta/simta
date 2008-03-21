@@ -130,7 +130,7 @@ host_q_create_or_lookup( char *hostname )
 	    return( NULL );
 	}
 
-	if ( simta_bitbucket > 0 ) {
+	if ( simta_bitbucket >= 0 ) {
 	    hq->hq_status = HOST_BITBUCKET;
 
 	} else if (( hq->hq_red = simta_red_lookup_host( hostname )) != NULL ) {
