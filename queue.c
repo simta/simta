@@ -832,7 +832,7 @@ q_read_dir( char *dir )
 	if ( *hq != simta_unexpanded_q ) {
 	    remain_hq++;
 
-	    if ( (*hq)->hq_last_launch.tv_sec == 0 ) {
+	    if ( (*hq)->hq_next_launch.tv_sec == 0 ) {
 		syslog( LOG_INFO, "Queue Adding: %s %d messages",
 			(*hq)->hq_hostname, (*hq)->hq_entries );
 		hq_deliver_push( *hq, &tv_schedule );
