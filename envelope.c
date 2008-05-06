@@ -421,6 +421,8 @@ env_tfile_unlink( struct envelope *e )
 	return( -1 );
     }
 
+    e->e_flags = ( e->e_flags & ( ~ENV_FLAG_TFILE ));
+
     return( 0 );
 }
 
@@ -528,6 +530,8 @@ env_tfile( struct envelope *e )
 	return( -1 );
     }
 
+    e->e_flags |= ENV_FLAG_TFILE;
+
     return( 0 );
 
 cleanup:
@@ -560,7 +564,8 @@ env_efile( struct envelope *e )
     syslog( LOG_DEBUG, "env_efile %s %s %s", e->e_dir, e->e_id,
 	    e->e_hostname ? e->e_hostname : "" );
 
-    e->e_flags |= ENV_FLAG_ON_DISK;
+    e->e_flags = ( e->e_flags & ( ~ENV_FLAG_TFILE ));
+    e->e_flags |= ENV_FLAG_EFILE;
 
     if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	syslog( LOG_ERR, "env_touch gettimeofday: %m" );
@@ -866,7 +871,7 @@ env_unlink( struct envelope *env )
 	return( -1 );
     }
 
-    env->e_flags = ( env->e_flags & ( ~ENV_FLAG_ON_DISK ));
+    env->e_flags = ( env->e_flags & ( ~ENV_FLAG_EFILE ));
 
     if ( env->e_dir == simta_dir_fast ) {
 	simta_fast_files--;

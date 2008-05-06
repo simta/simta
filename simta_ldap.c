@@ -272,27 +272,6 @@ simta_ldap_dequote( char *s )
 }
 
 
-    static void 
-simta_ldapuser( int ndomain, char *buf, char **user, char **domain )
-{
-    char  *puser;
-
-    *domain = NULL;
-    *user = strdup( buf );
-
-    puser = strchr( *user , '@' );
-    if ( puser ) {
-	*puser = '\0';
-	puser++;
-	simta_ldapdomain( ndomain, puser, domain );
-    } else {
-	*domain = strdup( "" );  
-    }
-
-    return;
-}
-
-
 #ifdef HAVE_LIBSASL
 /*
 ** SASL Call Back
@@ -1241,6 +1220,9 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		    if ( simta_mbx_compare( ld->ldap_ndomain, r->r_rcpt,
 			    exp->exp_env->e_mail ) == 0 ) {
 			/* sender matches moderator in moderator env */
+			syslog( LOG_DEBUG, "Expand %s: Moderator match %s %s",
+				e_addr->e_addr, r->r_rcpt,
+				exp->exp_env->e_mail );
 			break;
 		    }
 		}
@@ -1790,6 +1772,27 @@ simta_ldap_expand( struct simta_ldap *ld, struct expand *exp,
     rc = simta_ldap_name_search( ld, exp, e_addr, name, domain, nametype );
     free( name );
     return( rc );
+}
+
+
+    static void 
+simta_ldapuser( int ndomain, char *buf, char **user, char **domain )
+{
+    char  *puser;
+
+    *domain = NULL;
+    *user = strdup( buf );
+
+    puser = strchr( *user , '@' );
+    if ( puser ) {
+	*puser = '\0';
+	puser++;
+	simta_ldapdomain( ndomain, puser, domain );
+    } else {
+	*domain = strdup( "" );  
+    }
+
+    return;
 }
 
 

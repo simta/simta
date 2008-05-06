@@ -616,7 +616,7 @@ cleanup5:
 	exp.exp_errors = exp.exp_errors->e_next;
 
 	/* unlink if written to disk */
-	if (( env->e_flags & ENV_FLAG_ON_DISK ) != 0 ) {
+	if (( env->e_flags & ENV_FLAG_EFILE ) != 0 ) {
 	    queue_remove_envelope( env );
 	    if ( env_unlink( env ) == 0 ) {
 		syslog( LOG_INFO, "Expand %s: Message Deleted: "
@@ -635,7 +635,7 @@ cleanup4:
 	env = eo->eo_env;
 	eo->eo_env = NULL;
 
-	if (( env->e_flags & ENV_FLAG_ON_DISK ) != 0 ) {
+	if (( env->e_flags & ENV_FLAG_EFILE ) != 0 ) {
 	    queue_remove_envelope( env );
 	    if ( env_unlink( env ) == 0 ) {
 		syslog( LOG_INFO, "Expand %s: Message Deleted: "
@@ -655,7 +655,7 @@ cleanup3:
 	    memonly = memonly->el_next ) {
 	if (( memonly->el_exp_addr->e_addr_env_moderated != NULL ) &&
 		(( memonly->el_exp_addr->e_addr_env_moderated->e_flags &
-		ENV_FLAG_ON_DISK ) != 0 )) {
+		ENV_FLAG_EFILE ) != 0 )) {
 	    env_unlink( memonly->el_exp_addr->e_addr_env_moderated );
 	    env_free( memonly->el_exp_addr->e_addr_env_moderated );
 	    memonly->el_exp_addr->e_addr_env_moderated = NULL;
@@ -692,7 +692,7 @@ cleanup1:
 	permitted_destroy( e_addr );
 	if (( e_addr->e_addr_env_moderated != NULL ) &&
 		(( e_addr->e_addr_env_moderated->e_flags &
-		ENV_FLAG_ON_DISK ) == 0 )) {
+		ENV_FLAG_EFILE ) == 0 )) {
 	    env_free( e_addr->e_addr_env_moderated );
 	}
 

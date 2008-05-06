@@ -320,7 +320,7 @@ deliver_accepted( struct receive_data *r )
 {
     int			ret = 0;
 
-    if (( r->r_env ) && ( r->r_env->e_flags & ENV_FLAG_ON_DISK )) {
+    if (( r->r_env ) && ( r->r_env->e_flags & ENV_FLAG_EFILE )) {
 	if ( expand_and_deliver( r->r_env ) != EXPAND_OK ) {
 	    ret = RECEIVE_SYSERROR;
 	}
@@ -338,7 +338,7 @@ reset( struct receive_data *r )
     int			ret = 0;
 
     if ( r->r_env ) {
-	if ( r->r_env->e_flags & ENV_FLAG_ON_DISK ) {
+	if ( r->r_env->e_flags & ENV_FLAG_EFILE ) {
 	    if ( expand_and_deliver( r->r_env ) != EXPAND_OK ) {
 		ret = RECEIVE_SYSERROR;
 	    }
@@ -792,7 +792,7 @@ f_rcpt( struct receive_data *r )
 
     /* Must already have "MAIL FROM:", and no valid message */
     if (( r->r_env->e_mail == NULL ) ||
-	    (( r->r_env->e_flags & ENV_FLAG_ON_DISK ) != 0 )) {
+	    (( r->r_env->e_flags & ENV_FLAG_EFILE ) != 0 )) {
 	return( smtp_bad_sequence( r ));
     }
 
@@ -1056,7 +1056,6 @@ f_data( struct receive_data *r )
     FILE				*dff = NULL;
     int					dfile_fd = -1;
     int					dfile_on_disk = 0;
-    int					tfile_on_disk = 0;
     int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
     int					line_no = 0;
@@ -1117,7 +1116,7 @@ f_data( struct receive_data *r )
      * A previous reset is also not a good thing.
      */
     if (( r->r_env->e_mail == NULL ) ||
-	    (( r->r_env->e_flags & ENV_FLAG_ON_DISK ) != 0 )) {
+	    (( r->r_env->e_flags & ENV_FLAG_EFILE ) != 0 )) {
 	return( smtp_bad_sequence( r ));
     }
 
@@ -1337,7 +1336,6 @@ f_data( struct receive_data *r )
 	if ( env_tfile( r->r_env ) != 0 ) {
 	    goto error;
 	}
-	tfile_on_disk++;
 
 	if ( simta_mail_filter == NULL ) {
 	    message_result = MESSAGE_ACCEPT;
@@ -1399,7 +1397,6 @@ f_data( struct receive_data *r )
     switch ( message_result ) {
     case MESSAGE_ACCEPT:
 	/* env_efile() unlinks the tfile if a move is unsuccessful */
-	tfile_on_disk = 0;
 	if ( env_efile( r->r_env ) != 0 ) {
 	    goto error;
 	}
@@ -1447,7 +1444,6 @@ f_data( struct receive_data *r )
 	    goto error;
 	}
 
-	tfile_on_disk = 0;
 	if ( env_tfile_unlink( r->r_env ) != 0 ) {
 	    goto error;
 	}
@@ -1475,7 +1471,6 @@ f_data( struct receive_data *r )
 	    goto error;
 	}
 
-	tfile_on_disk = 0;
 	if ( env_tfile_unlink( r->r_env ) != 0 ) {
 	    goto error;
 	}
@@ -1531,8 +1526,7 @@ f_data( struct receive_data *r )
 	    }
 	}
 
-	if ( tfile_on_disk ) {
-	    tfile_on_disk = 0;
+	if ( r->r_env->e_flags & ENV_FLAG_TFILE ) {
 	    if ( env_tfile_unlink( r->r_env ) != 0 ) {
 		goto error;
 	    }
@@ -1569,17 +1563,23 @@ error:
 	    syslog( LOG_ERR, "f_data close: %m" );
 	}
     }
-    if ( dfile_on_disk != 0 ) {
+
+    /* delete the dfile if we haven't acepted the message */
+    if (( dfile_on_disk != 0 ) &
+	    (( r->r_env->e_flags & ENV_FLAG_EFILE ) == 0 )) {
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
     }
-    if ( tfile_on_disk != 0 ) {
+
+    if ( r->r_env->e_flags & ENV_FLAG_TFILE ) {
 	env_tfile_unlink( r->r_env );
     }
+
     if ( syslog_message != NULL ) {
 	free( syslog_message );
     }
+
     return( ret_code );
 }
 

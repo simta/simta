@@ -46,7 +46,7 @@ struct envelope {
 #define ENV_AGE_OLD		1
 #define ENV_AGE_NOT_OLD		2
 
-#define ENV_FLAG_ON_DISK		(1<<0)
+#define ENV_FLAG_TFILE			(1<<0)
 #define ENV_FLAG_EFILE			(1<<1)
 #define ENV_FLAG_DFILE			(1<<2)
 #define ENV_FLAG_BOUNCE			(1<<3)

@@ -1,4 +1,7 @@
-0.8.0.2
+0.8.0.4
+    - bugfix: f_data connection drop after message acceptance error
+
+0.8.0.3
     - multiple Queue Added bugfix
 
 0.8.0.2
