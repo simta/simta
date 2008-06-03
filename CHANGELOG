@@ -1,3 +1,6 @@
+0.8.0.5
+    - bugfix: return SMTP mode to the user default mode after auth
+
 0.8.0.4
     - bugfix: f_data connection drop after message acceptance error
 

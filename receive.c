@@ -2155,7 +2155,7 @@ f_auth( struct receive_data *r )
 	    }
 	}
 
-	set_smtp_mode( r, SMTP_MODE_NORMAL );
+	set_smtp_mode( r, simta_smtp_default_mode );
 	return( RECEIVE_OK );
 
     case SASL_NOMECH:
