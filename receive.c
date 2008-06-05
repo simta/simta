@@ -181,7 +181,7 @@ static int	smtp_tempfail( struct receive_data *, char * );
 static int	f_bad_sequence( struct receive_data * );
 static int	smtp_bad_sequence( struct receive_data * );
 static void	set_smtp_mode( struct receive_data *, int );
-static void	tarpit_sleep( int );
+static void	tarpit_sleep( struct receive_data *, int );
 
 #ifdef HAVE_LIBSASL
 static int	f_auth( struct receive_data * );
@@ -379,9 +379,13 @@ hello( struct receive_data *r, char *hostname )
 
 
     static void
-tarpit_sleep( int seconds )
+tarpit_sleep( struct receive_data *r, int seconds )
 {
     struct timespec			t;
+
+    if ( r->r_smtp_mode != SMTP_MODE_TARPIT ) {
+	return;
+    }
 
     if ( seconds > 0 ) {
 	t.tv_sec = seconds;
@@ -399,9 +403,7 @@ tarpit_sleep( int seconds )
     static int
 f_helo( struct receive_data *r )
 {
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     if ( r->r_ac != 2 ) {
 	syslog( LOG_ERR, "Receive: Bad HELO syntax: %s", r->r_smtp_command );
@@ -443,9 +445,7 @@ f_ehlo( struct receive_data *r )
 
     extension_count = simta_smtp_extension;
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     /* rfc 2821 4.1.4
      * A session that will contain mail transactions MUST first be
@@ -577,9 +577,7 @@ f_mail( struct receive_data *r )
 
     r->r_mail_attempt++;
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( simta_smtp_tarpit_mail );
-    }
+    tarpit_sleep( r, simta_smtp_tarpit_mail );
 
     if ( r->r_ac < 2 ) {
 	return( f_mail_usage( r ));
@@ -786,9 +784,7 @@ f_rcpt( struct receive_data *r )
 
     r->r_rcpt_attempt++;
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( simta_smtp_tarpit_rcpt );
-    }
+    tarpit_sleep( r, simta_smtp_tarpit_rcpt );
 
     /* Must already have "MAIL FROM:", and no valid message */
     if (( r->r_env->e_mail == NULL ) ||
@@ -1084,9 +1080,7 @@ f_data( struct receive_data *r )
 
     r->r_data_attempt++;
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( simta_smtp_tarpit_data );
-    }
+    tarpit_sleep( r, simta_smtp_tarpit_data );
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -1536,9 +1530,7 @@ f_data( struct receive_data *r )
 	    set_smtp_mode( r, SMTP_MODE_TARPIT );
 	}
 
-	if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	    tarpit_sleep( simta_smtp_tarpit_data_eof );
-	}
+	tarpit_sleep( r, simta_smtp_tarpit_data_eof );
 
 	if ( smtp_tempfail( r, simta_data_url ) != RECEIVE_OK ) {
 	    ret_code = RECEIVE_CLOSECONNECTION;
@@ -1595,9 +1587,7 @@ f_quit( struct receive_data *r )
      * having invalid syntax.
      */
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     if ( r->r_ac != 1 ) {
 	syslog( LOG_ERR, "Receive: Bad QUIT syntax: %s", r->r_smtp_command );
@@ -1632,9 +1622,7 @@ f_rset( struct receive_data *r )
      * checking "MAIL FROM:" as well, there's no need.
      */
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -1672,9 +1660,7 @@ f_rset( struct receive_data *r )
     static int
 f_noop( struct receive_data *r )
 {
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     if ( deliver_accepted( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
@@ -1692,9 +1678,7 @@ f_noop( struct receive_data *r )
     static int
 f_help( struct receive_data *r )
 {
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     if ( deliver_accepted( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
@@ -1733,9 +1717,7 @@ f_help( struct receive_data *r )
     static int
 f_vrfy( struct receive_data *r )
 {
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     if ( deliver_accepted( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
@@ -1752,9 +1734,7 @@ f_vrfy( struct receive_data *r )
     static int
 f_expn( struct receive_data *r )
 {
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     if ( deliver_accepted( r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
@@ -1810,9 +1790,7 @@ f_bad_sequence( struct receive_data *r )
     static int
 f_noauth( struct receive_data *r )
 {
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     syslog( LOG_NOTICE, "f_noauth: %s", r->r_av[ 0 ] );
     if ( snet_writef( r->r_snet, "530 Authentication required\r\n" ) < 0 ) {
@@ -1828,9 +1806,7 @@ f_starttls( struct receive_data *r )
 {
     int				rc;
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     if ( !simta_tls ) {
 	if ( snet_writef( r->r_snet,
@@ -1991,9 +1967,7 @@ f_auth( struct receive_data *r )
     unsigned int	serveroutlen;
     struct timeval	tv;
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( 0 );
-    }
+    tarpit_sleep( r, 0 );
 
     /* RFC 2554:
      * The BASE64 string may in general be arbitrarily long.  Clients
@@ -2543,9 +2517,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	    }
 	}
 
-	if ( r.r_smtp_mode == SMTP_MODE_TARPIT ) {
-	    tarpit_sleep( simta_smtp_tarpit_connect );
-	}
+	tarpit_sleep( &r, simta_smtp_tarpit_connect );
 
 	if ( snet_writef( r.r_snet,
 		"%d %s Simple Internet Message Transfer Agent ready\r\n",
@@ -2609,9 +2581,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	}
 
 	if ( i >= r.r_ncommands ) {
-	    if ( r.r_smtp_mode == SMTP_MODE_TARPIT ) {
-		tarpit_sleep( 0 );
-	    }
+	    tarpit_sleep( &r, 0 );
 
 	    if ( snet_writef( r.r_snet, "500 Command unrecognized\r\n" ) < 0 ) {
 		goto closeconnection;
