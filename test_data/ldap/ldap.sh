@@ -1,342 +1,1147 @@
 #!/bin/sh
 
-PREFIX=simta
+# ldap.sh:	A Bourne shell script to test the LDAP capabilities of
+#		simta(8).  This script will be useful mostly during testing
+#		and deployment of new versions of simta.
+#
+#		adbisaro@umich.edu
+#		June 2008
+
+TAG=simtatest
+SENDMAIL="/usr/sbin/sendmail"
+VERBOSE="on"
+LDAP_URI=ldap://ldap-master.itd.umich.edu
+TMPDIR=/tmp/,ldap-test,$$
+GROUPNAMES=( simple moderated moderator member memonly permitted notpermitted )
+LDAPMODIFY="ldapmodify -H ${LDAP_URI} -Q -v"
+SLEEP=5
+
+# --------------------------------------------------------------------
+# Functions
+
+verb() {
+	if [ "$VERBOSE" ]; then
+		echo $@
+	fi
+	$@
+}
+
+pause() {
+	echo "Press Enter to continue, or ctrl-c to quit."
+	read dummy;
+}
+
+begin_test() {
+	testname=$1
+	verify=$2
+	testnum=$(( $testnum + 1 ))
+
+	printf "\n\n"
+	printf "Test #${testnum}:\t${testname}\n"
+	printf "Verification:\t${verify}\n\n"
+	printf "Begin test #${testnum}:  "
+	pause
+	date '+Test start time:  %b %e %T'
+	printf "\n"
+}
+
+end_test() {
+	echo ""
+	echo "Test #${testnum} complete.  "
+	echo ""
+}
+
+ldapmod() {
+	cat - | $LDAPMODIFY
+	echo "Sleeping for $SLEEP seconds"
+	sleep $SLEEP
+}
+
+creategroups() {
+
+	echo -n "Create test LDAP groups:  "
+	pause
+	echo
+	for gtype in ${GROUPNAMES[@]}; do
+        	cat ./group-add.ldif-template | \
+        	sed -e "s/GTYPE/${gtype}/g;
+                	s/UNIQNAME/${user}/g;
+                	s/TAG/${TAG}/g;
+                	s/DOMAIN/${domain}/g;"
+		echo ""
+	done | $LDAPMODIFY
+	echo "Done creating test LDAP groups."
+	pause
+}
+
+deletegroups() {
+
+	echo "Cleanup:  Deleting test LDAP groups ... "
+	for gtype in ${GROUPNAMES[@]} ; do
+		a="cn=$user $TAG $gtype"
+		b="ou=User Groups,ou=Groups,dc=umich,dc=edu"
+		echo "dn: $a,$b"
+		echo "changetype: delete"
+		echo ""
+	done | $LDAPMODIFY
+	echo "Done deleting test LDAP groups."
+}
+
+cleanup() {
+
+	deletegroups
+	kdestroy
+
+	if [ -d "$TMPDIR" ]; then
+		if [ ! -s "${TMPDIR}/stderr" ]; then
+			echo "Warning, stderr output captured:"
+			echo ""
+			cat ${TMPDIR}/stderr
+		fi
+		rm -fr $TMPDIR
+	fi
+
+}
+
+mail_test() {
+	from="$1"
+	to="$2"
+	name="$3"
+	verify="$4"
+
+	subject="LDAP test #${testnum}: $name"
+	cmd="$SENDMAIL -f $from $to"
+
+	${cmd}<<-_MAILTEST
+		From: $from
+		To: $to
+		Subject: $subject
+
+		Test Number:	$testnum
+		Test Name:	$name
+
+
+		Command:
+		$cmd
+
+		Expected Result:
+		$verify
+
+	_MAILTEST
+}
+
+# --------------------------------------------------------------------
+# Main
 
 if [ $# != "2" ]; then
-    echo usage: $0 user domain
+    echo 'usage: ./ldap.sh <uniqname> <domain>'
     exit 1
 fi
 
-echo Please use the SIMSEND_STRICT_FROM_OFF directive in simta.conf for testing
-echo
+user=$1
+domain=$2
+LDAPMODIFY="${LDAPMODIFY} -U $user"
+testnum=0
+
+
+echo "Caveat Lector"
+echo ""
+echo "Please note that this is merely a set of tests conglomerated for"
+echo "convenience, not a robust application.  You should read through this"
+echo "script and have a fair understanding of what it does before you go any"
+echo "further."
+echo ""
+echo "Make sure the SIMSEND_STRICT_FROM_OFF directive is set in your simta"
+echo "configuration file (/etc/simta.conf).  This is required for all tests."
+pause
+
+wd=`echo $0 | sed -n -r -e 's,^(.*/)[^/][^/]*$,\1,p'`
+
+# Testing the string is unnecessary in some cases, but maybe (?) not all.
+# My version of bash(1), at least, prefixes $0 with ./ when I invoke it
+# with no pathing (i.e., "." in my $PATH.  Hush, I set my $PATH like that
+# only for testing.).
+
+if [ "$wd" ]; then
+	verb cd $wd
+fi
+
+mkdir -m 700 $TMPDIR || exit 1
+exec 2> ${TMPDIR}/stderr
+export KRB5CCNAME="FILE:${TMPDIR}/krb5cc_${user}"
+verb kinit $user 2> /dev/null
+echo ""
+klist
+echo ""
+creategroups
+
+
+# ----------------------------------
+#           Begin Tests
+# ----------------------------------
 
 ### Ambiguous Addresses
-echo Test: Ambiguous mail, hit Return on all tests to continue
-read $r
-/usr/sbin/sendmail "john.smith@umich.edu" < text_ambiguous
-echo Check: ambiguous mail bounces
+### -------------------
 
-## Vacation
-echo Set: your vacation on for $1@$2
-echo Test: Vacation, hit Return
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1@$2 < text_vacation
-echo Check: verify vacation worked by checking the logs.
-echo Set: Turn your vacation off
+Name="Ambiguous address"
+Result="Bounce to sender with LDAP lookup error message"
+To="john.smith@umich.edu"
+From="${user}@${domain}"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### Vacation
+### --------
+
+Name="Vacation"
+Result="Mail logfile shows vacation worked"
+To="${user}@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+
+begin_test	"$Name" "$Result"
+
+# ldap: Set your vacation on for ${user}@${domain}
+ldapmod <<_END
+dn: uid=${user},ou=People,dc=umich,dc=edu
+changetype: modify
+replace: onvacation
+onvacation: TRUE
+-
+replace: vacationmessage
+vacationmessage: \$Testing the 'vacation' function, please reset 'vacation' to
+ False\$after 4 June 2008.
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+# ldap: Turn your vacation off
+ldapmod <<_END
+dn: uid=${user},ou=People,dc=umich,dc=edu
+changetype: modify
+replace: onvacation
+onvacation: FALSE
+-
+delete: vacationmessage
+_END
+
+end_test
+
 
 ### Group mail
-echo Set: \"$1 $PREFIX simple\" create group
-echo Test: Simple group mail, hit Return
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple@$2 < text_group_simple
-echo Check: see that you get the simple group mail verification
+### ----------
+
+To="${user}.${TAG}.simple@${domain}"
+From="${user}@${domain}"
+Name="Simple Group"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
 
 ### Included groups
-echo Set: \"$1 $PREFIX moderated\" create group
-echo Set: \"$1 $PREFIX simple\" replace members \"$1 $PREFIX moderated\"
-echo Test: Nested group mail, hit Return
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple@$2 < text_group_nested
-echo Check: Email goes through $1.$PREFIX.moderated to you
+### ---------------
+
+To="${user}.${TAG}.simple@${domain}"
+From="${user}@${domain}"
+Name="Nested Group"
+Result="Delivered through '$To' to Moderated"
+
+begin_test	"$Name" "$Result"
+
+# Replace "${user}.${TAG}.simple members with ${user}.${TAG}.moderated
+ldapmod <<_END
+dn: cn=$user $TAG simple,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: member
+member: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
 
 ### Group-owners mail
-echo Test: Group-owner mail, hit Return
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple-owners@$2 < text_owners
-echo Check: to see that you get the group owners mail verification
+### -----------------
+
+To="${user}.${TAG}.simple-owners@${domain}"
+From="${user}@${domain}"
+Name="Group Owner"
+Result="Delivered to owner"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
 
 ### Group-errors mail
-echo Test: group-errors mail, hit Return
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple-errors@$2 < text_errors
-echo Check: that errors-to defaults to owner
-echo Set: \"$1 $PREFIX simple\" replace errors-to \"$1 $PREFIX moderated\"
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple-errors@$2 < text_errors
-echo Check to see that the errors-to went through both groups
+### -----------------
+
+To="${user}.${TAG}.simple-errors@${domain}"
+From="${user}@${domain}"
+Name="Group Errors"
+Result="Delivered to owner"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### Group errors plus rfc822Errors
+### ------------------------------
+
+To="${user}.${TAG}.simple-errors@${domain}"
+From="${user}@${domain}"
+Name="Group Errors to rfc822ErrorsTo"
+Result="Delivered through rfc822ErrorsTo"
+
+begin_test	"$Name" "$Result"
+
+# ldap: $user $TAG simple' add rfc822ErrorsTo $user $TAG moderated'
+# ldap: $user $TAG simple' add errorsTo '${user}'
+ldapmod <<_END
+dn: cn=$user $TAG simple,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+add: rfc822ErrorsTo
+rfc822ErrorsTo: ${user}.${TAG}.moderated@${domain}
+-
+changetype: modify
+add: errorsTo
+errorsTo: uid=${user},ou=People,dc=umich,dc=edu
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
 
 ### Group-requests mail
-echo Test: group-requests mail, hit Return
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple-requests@$2 < text_requests
-echo Check: group-requests mail defaults to owner
-echo Set: \"$1 $PREFIX simple\" replace requests-to \"$1 $PREFIX moderated\"
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple-requests@$2 < text_requests
-echo Check: to see that the requests-to went through both groups
+### -------------------
 
-### LOOPS moderated groups
-#loop case
-echo Set: \"$1 $PREFIX moderated\" replace moderator \"$1.$PREFIX.moderated@$2\"
-echo Test: Moderator Loop
-read $r
-/usr/sbin/sendmail $1.$PREFIX.moderated@$2 < text_moderated
-echo Check: see that you get a moderator loop bounce message
-#double loop case 1
-echo Set: \"$1 $PREFIX moderated\" replace errors-to \"$1 $PREFIX moderated\"
-echo Test: Error Loop 1
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple@$2 < text_moderated
-echo Check: to see that the error message went to postmaster
-#double loop case 2
-echo Set: \"$1 $PREFIX moderated\" replace email errors-to \"$1.$PREFIX.moderated@$2\"
-echo Test: Error Loop 2
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple@$2 < text_moderated
-echo Check: to see that the error message went to postmaster
-echo Set: \"$1 $PREFIX moderated\" clear errors-to
-#double loop case 3
-echo Test: Error Loop 3
-read $r
-/usr/sbin/sendmail $1.$PREFIX.simple@$2 < text_moderated
-echo Check: to see that the error message went to postmaster
+To="${user}.${TAG}.simple-requests@${domain}"
+From="${user}@${domain}"
+Name="Group Requests"
+Result="Delivered through group"
 
-### GRID moderated groups
-# GRID - moderated group: moderator
-echo Set: \"$1 $PREFIX moderator\" create group
-echo Set: \"$1 $PREFIX member\" create group
-echo Set: \"$1 $PREFIX moderated\" replace groups memebers: \"$1 $PREFIX member\"
-echo Set: \"$1 $PREFIX moderated\" clear email Errors-to
-echo Set: \"$1 $PREFIX moderated\" replace moderator: \"$1.$PREFIX.moderator@$2\"
-echo Test: Grid - moderated group: moderator
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.moderator@$2 $1.$PREFIX.moderated@$2 < text_moderated
-echo Check: to see that the mail went through the members group.
+begin_test	"$Name" "$Result"
 
-# GRID - moderated group: member, direct
-echo Test: GRID - moderated group: member, direct
-read $r
-/usr/sbin/sendmail -f epcjr.simta.member@$2 $1.$PREFIX.moderated@$2 < text_moderated
-echo Check to see that the mail went through the moderator.
+mail_test	"$From" "$To" "$Name" "$Result"
 
-# GRID - moderated group: not member, direct
-echo Test: GRID - moderated group: not member, direct
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.moderated@$2 < text_moderated
-echo Check to see that the mail went through the moderator.
-
-# GRID - moderated group: member, not permitted
-echo Test: GRID - moderated group: not member, not permitted
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.member@$2 $1.$PREFIX.moderated@$2 < text_moderated
-echo Check to see that the mail went through the moderator.
-# GRID - moderated group: not member, not permitted
-echo Test: GRID - moderated group: not member, not permitted
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.moderated@$2 < text_moderated
-echo Check to see that the mail went through the moderator.
+end_test
 
 
-# GRID - moderated group: member, permitted
-echo Set: \"$1 $PREFIX permitted\" create group
-echo Set: \"$1 $PREFIX permitted\" replace members: \"$1 $PREFIX moderated\"
-echo Set: \"$1 $PREFIX moderated\" add permitted: \"$1 $PREFIX permitted\"
-echo Test: GRID - moderated group: member, permitted
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.member@$2 $1.$PREFIX.permitted@$2 < text_moderated
-echo Check to see that the mail went through the moderator.
-# GRID - moderated group: not member, permitted
-echo Test: GRID - moderated group: not member, permitted
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.permitted@$2 < text_moderated
-echo Check to see that the mail went through the moderator.
+### Group-requests plus rfc822Requests
+### ----------------------------------
+
+To="${user}.${TAG}.simple-requests@${domain}"
+From="${user}@${domain}"
+Name="Group Requests to rfc822RequestsTo"
+Result="Delivered through rfc822RequestsTo"
+
+begin_test	"$Name" "$Result"
+
+# ldap: $user $TAG simple' add requestsTo '$user'
+# ldap: $user $TAG simple' add rfc822RequestsTo '$user $TAG moderated'
+ldapmod <<_END
+dn: cn=$user $TAG simple,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+add: requestsTo
+requestsTo: uid=${user},ou=People,dc=umich,dc=edu
+-
+changetype: modify
+add: rfc822RequestsTo
+rfc822RequestsTo: ${user}.${TAG}.moderated
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+# ldap: $user $TAG simple' replace errorsTo '${user}'
+ldapmod <<_END
+dn: cn=$user $TAG simple,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: errorsTo
+errorsTo: uid=${user},ou=People,dc=umich,dc=edu
+_END
+
+end_test
+
+
+# -----
+# Loops
+# -----
+
+
+### Moderated Groups:  Moderator Loop
+### ---------------------------------
+
+To="${user}.${TAG}.moderated@${domain}"
+From="${user}@${domain}"
+Name="Moderator Loop"
+Result="Bounce to sender with moderator loop error"
+
+begin_test	"$Name" "$Result"
+
+# ldap: '$user $TAG moderated' replace moderator $'{user}.${TAG}.moderated@${domain}'
+# moderator: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+ldapmod <<_END
+dn: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+add: moderator
+moderator: ${user}.${TAG}.moderated@${domain}
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### Moderated Groups:  Double loop case 1
+### -------------------------------------
+
+# The previous case creates a loop, what happens when our loop-notification
+# gets caught in a loop?  :)  Here errorsTo traps loop-notication in a loop.
+
+To="${user}.${TAG}.simple@${domain}"
+From="${user}@${domain}"
+Name="Double Loop 1"
+Result="Double-bounce to postmaster"
+
+begin_test	"$Name" "$Result"
+
+# ldap: '$user $TAG moderated' replace errorsTo '$user $TAG moderated'
+ldapmod <<_END
+dn: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+add: errorsTo
+errorsTo: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### Moderated Groups:  Double loop case 2
+### -------------------------------------
+
+# Here both errorsTo and rfc822ErrorsTo trap loop-notication in a loop.
+
+To="${user}.${TAG}.simple@${domain}"
+From="${user}@${domain}"
+Name="Double Loop 2"
+Result="Double-bounce to postmaster"
+
+begin_test	"$Name" "$Result"
+
+# ldap: '$user $TAG moderated' replace rfc822ErrorsTo '${user}.${TAG}.simple@${domain}'
+ldapmod <<_END
+dn: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+add: rfc822ErrorsTo
+rfc822ErrorsTo: ${user}.${TAG}.simple@${domain}
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### Moderated Groups:  Double loop case 3
+### -------------------------------------
+
+# Here only rfc822ErrorsTo traps loop-notication in a loop.
+
+To="${user}.${TAG}.simple@${domain}"
+From="${user}@${domain}"
+Name="Double Loop 3"
+Result="Double-bounce to postmaster"
+
+begin_test	"$Name" "$Result"
+
+# ldap: '$user $TAG moderated' clear errorsTo
+ldapmod <<_END
+dn: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+delete: errorsTo
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+# ldap: '$user $TAG moderated' clear rfc822ErrorsTo
+ldapmod <<_END
+dn: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+delete: rfc822ErrorsTo
+_END
+
+end_test
+
+
+# *************************************************************************
+# Below "GRID" refers to a matrix of possible rfc822mailgroup behaviours.
+# See http://rsug.itd.umich.edu/software/simta/grid.html.
+# *************************************************************************
+
+
+# ---------------
+# Moderated Group
+# ---------------
+
+### GRID - moderated group: moderator
+### ---------------------------------
+
+To="${user}.${TAG}.moderated@${domain}"
+From="${user}.${TAG}.moderator@${domain}"
+Name="Moderator to Moderated"
+Result="Delivered through '$To' to ${user}.${TAG}.members"
+
+begin_test	"$Name" "$Result"
+
+# ldap: $user $TAG moderated' replace groups members: '$user $TAG member'
+# ldap: $user $TAG moderated' replace moderator: '${user}.${TAG}.moderator@${domain}'
+ldapmod <<_END
+dn: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: member
+member: cn=$user $TAG member,ou=User Groups,ou=Groups,dc=umich,dc=edu
+-
+replace: moderator
+moderator: ${user}.${TAG}.moderator@${domain}
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - moderated group: member, direct
+### --------------------------------------
+
+To="${user}.${TAG}.moderated@${domain}"
+From="${user}.${TAG}.member@${domain}"
+Name="Member, direct to Moderated"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - moderated group: not member, direct
+### ------------------------------------------
+
+To="${user}.${TAG}.moderated@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, direct to Moderated"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - moderated group: member, not permitted
+### ---------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}.${TAG}.member@${domain}"
+Name="Member, through Not Permitted, to Moderated"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+
+# ldap: '$user $TAG notpermitted' membership replace with '$user $TAG moderated'
+ldapmod <<_END
+dn: cn=$user $TAG notpermitted,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: member
+member: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+### GRID - moderated group: not member, not permitted
+### -------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, through Not Permitted, to Moderated"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - moderated group: member, permitted
+### -----------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}.${TAG}.member@${domain}"
+Name="Member, through Permitted, to Moderated"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+
+
+# ldap: '$user $TAG permitted' replace members: '$user $TAG moderated'
+# ldap: '$user $TAG moderated' add permitted: '$user $TAG permitted'
+ldapmod <<_END
+dn: cn=$user $TAG permitted,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: member
+member: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+
+dn: cn=$user $TAG moderated,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: permittedGroup
+permittedGroup: cn=$user $TAG permitted,ou=User Groups,ou=Groups,dc=umich,dc=edu
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+### GRID - moderated group: not member, permitted
+### ---------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, through Permitted, to Moderated"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+
+# ------------------
+# Members-Only Group
+# ------------------
 
 ### GRID - memonly group: member, direct
-echo Set: NOT YET? modify simple group, permitted group 
-echo Set: \"$1 $PREFIX memonly\" create
-echo Set: \"$1 $PREFIX memonly\" replace members: \"$1 $PREFIX member\"
-echo Set: \"$1 $PREFIX memonly\" set memonly TRUE
-echo Test: Grid - memonly group: member, direct
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check to see that the mail went through the members group.
+### ------------------------------------
 
-# GRID - memonly group: not member, direct
-echo Set: \"$1 $PREFIX simple\" group delete
-echo Set: \"$1 $PREFIX simple\" group create
-echo Test: GRID - memonly group: not member, direct
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check to see that you got a bounce
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}@${domain}"
+Name="Member, Direct, to Members Only"
+Result="Delivered through '${user}.${TAG}.memonly-members'"
 
-# GRID - memonly group: member, permitted group
-echo Set: \"$1 $PREFIX permitted\" membership replace \"$1 $PREFIX memonly\"
-echo Set: \"$1 $PREFIX memonly\" permitted replace \"$1 $PREFIX permitted\"
-echo Test: GRID - memonly group: member, permitted group
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: mail through simta memebers
+begin_test	"$Name" "$Result"
 
-# GRID - memonly group: not member, permitted group
-echo Test: GRID - memonly group: not member, permitted group
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: mail through simta memebers
+# ldap: '$user $TAG memonly' replace members: '$user $TAG member'
+# ldap: '$user $TAG memonly' set memonly TRUE
+ldapmod <<_END
+dn: cn=$user $TAG memonly,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: member
+member: cn=$user $TAG member,ou=User Groups,ou=Groups,dc=umich,dc=edu
+-
+add: Membersonly
+Membersonly: TRUE
+_END
 
-# GRID - memonly group: member, not permitted group
-echo Set: \"$1 $PREFIX not permitted\" group create
-echo Set: \"$1 $PREFIX not permitted\" membership replace \"$1 $PREFIX memonly\"
-echo Test: GRID - memonly group: member, not permitted group
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: mail through simta memebers
+mail_test	"$From" "$To" "$Name" "$Result"
 
-# GRID - memonly group: not member, not permitted group
-echo Test: GRID - memonly group: not member, not permitted group
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: BOUNCE
+end_test
+
+
+### GRID - memonly group: not member, direct
+### ----------------------------------------
+
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, directly to Members Only"
+Result="Bounce to sender with not-allowed error message"
+
+begin_test	"$Name" "$Result"
+
+# Reset the 'simple' group to a sane state.
+
+# ldap: '$user $TAG simple' group delete and recreate
+ldapmod <<_END
+dn: cn=$user $TAG simple,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: delete
+_END
+
+cat ./group-add.ldif-template | \
+        sed -e "s/GTYPE/simple/g;
+               	s/UNIQNAME/${user}/g;
+               	s/TAG/${TAG}/g;
+               	s/DOMAIN/${domain}/g;" | \
+	ldapmod
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - memonly group: member, permitted group
+### ---------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}@${domain}"
+Name="Member, through Permitted, to Members Only"
+Result="Delivered through '${user}.${TAG}.memonly-members'"
+
+begin_test	"$Name" "$Result"
+# ldap: '$user $TAG permitted' membership replace '$user $TAG memonly'
+# ldap: '$user $TAG memonly' replace permittedGroup '$user $TAG permitted'
+ldapmod <<_END
+dn: cn=$user $TAG permitted,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: member
+member: cn=$user $TAG memonly,ou=User Groups,ou=Groups,dc=umich,dc=edu
+
+dn: cn=$user $TAG memonly,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: permittedGroup
+permittedGroup: cn=$user $TAG permitted,ou=User Groups,ou=Groups,dc=umich,dc=edu
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - memonly group: not member, permitted group
+### -------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, through Permitted, to Members Only"
+Result="Delivered through '${user}.${TAG}.memonly-members'"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - memonly group: member, not permitted group
+### -------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}@${domain}"
+Name="Member, through Not Permitted, to Members Only"
+Result="Delivered through '${user}.${TAG}.memonly-members'"
+
+begin_test	"$Name" "$Result"
+
+# ldap: '$user $TAG notpermitted' membership replace '$user $TAG memonly'
+ldapmod <<_END
+dn: cn=$user $TAG notpermitted,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: member
+member: cn=$user $TAG memonly,ou=User Groups,ou=Groups,dc=umich,dc=edu
+_END
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - memonly group: not member, not permitted group
+### -----------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, through Not Permitted, to Members Only"
+Result="Bounce with not-allowed error"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+# ------------------------------
+# Private and Members Only group
+# ------------------------------
+
 
 ### GRID - private memonly group: member, direct
-echo Set: \"$1 $PREFIX memonly\" enable private
-echo Test: GRID - private memonly group: member, direct
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check to see that the mail went through the member group.
+### --------------------------------------------
 
-# GRID - private memonly group: not member, direct
-echo Test: GRID - private memonly group: not member, direct
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check to see that you got a bounce
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}@${domain}"
+Name="Member, direct to Private+MembersOnly"
+Result="Delivered through '${user}.${TAG}.memonly-members@${domain}'"
 
-# GRID - private memonly group: member, permitted group
-echo Test: GRID - private memonly group: member, permitted group
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: mail through member
+begin_test	"$Name" "$Result"
 
-# GRID - private memonly group: not member, permitted group
-echo Test: GRID - private memonly group: not member, permitted group
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: mail through member
+# ldap: '$user $TAG memonly' enable private
+ldapmod <<_END
+dn: cn=$user $TAG memonly,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: rfc822Private
+rfc822Private: TRUE
+_END
 
-# GRID - private memonly group: member, not permitted group
-echo Test: GRID - private memonly group: member, not permitted group
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: mail through member
+mail_test	"$From" "$To" "$Name" "$Result"
 
-# GRID - private memonly group: not member, not permitted group
-echo Test: GRID - private memonly group: not member, not permitted group
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: BIT BUCKET
+end_test
+
+### GRID - private memonly group: not member, direct
+### ------------------------------------------------
+
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not member, direct to Private+MembersOnly"
+Result="Bounce to sender with not allowed message"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+### GRID - private memonly group: member, permitted group
+### -----------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}@${domain}"
+Name="Member, through Permitted, to Private+MembersOnly"
+Result="Delivered through '${user}.${TAG}.memonly-members'"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+### GRID - private memonly group: not member, permitted group
+### ---------------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not member, through Permitted group, to Private+MembersOnly"
+Result="Delivered through '${user}.${TAG}.memonly-members'"
+
+begin_test	"$Name" "$Result"
+
+mail_test	"$From" "$To" "$Name" "$Result"
+
+end_test
+
+
+### GRID - private memonly group: member, not permitted group
+### ---------------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}@${domain}"
+Name="Member, through Not Permitted, to Private+MembersOnly"
+Result="Delivered through '${user}.${TAG}.memonly-members'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - private memonly group: not member, not permitted group
+### -------------------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not member, through Not permitted, to Private+MembersOnly"
+Result="Discarded" 
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+# --------------------------------
+# Moderated and Members Only group
+# --------------------------------
 
 ### GRID - moderated memonly group: moderator, direct
-echo Set: \"$1 $PREFIX memonly\" replace moderator \"$1.$PREFIX.moderator@$2\"
-echo Test: GRID - moderated memonly group: moderator, direct
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.moderator@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check: GOOD
+### -------------------------------------------------
 
-# GRID - moderated memonly group: member, direct
-echo Test: GRID - moderated memonly group: member, direct
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check: GOOD
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}.${TAG}.moderator@${domain}"
+Name="Moderator, direct to Moderated+MembersOnly"
+Result="Delivered through '$To'"
 
-# GRID - moderated memonly group: not member, direct
-echo Test: GRID - moderated memonly group: not member, direct
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check: MODERATOR
+begin_test	"$Name" "$Result"
 
-# GRID - moderated memonly group: moderator, permitted
-echo Test: GRID - moderated memonly group: moderator, permitted
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.moderator@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: GOOD
+# ldap: '$user $TAG memonly' replace moderator '${user}.${TAG}.moderator@${domain}'
+ldapmod <<_END
+dn: cn=$user $TAG memonly,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: moderator
+moderator: ${user}.${TAG}.moderator@${domain}
+_END
 
-# GRID - moderated memonly group: member, permitted group
-echo Test: GRID - moderated memonly group: member, permitted group
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: GOOD
+mail_test	"$From" "$To" "$Name" "$Result"
 
-# GRID - moderated memonly group: not member, permitted group
-echo Test: GRID - moderated memonly group: not member, permitted group
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: GOOD
+end_test
 
-# GRID - moderated memonly group: moderator, not permitted
-echo Test: GRID - moderated memonly group: moderator, not permitted
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.moderator@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: GOOD
 
-# GRID - moderated memonly group: member, not permitted group
-echo Test: GRID - moderated memonly group: member, not permitted group
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: GOOD
+### GRID - moderated memonly group: member, direct
+### ----------------------------------------------
 
-# GRID - moderated memonly group: not member, not permitted group
-echo Test: GRID - moderated memonly group: not member, not permitted group
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: MODERATOR
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}@${domain}"
+Name="Member, direct to Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - moderated memonly group: not member, direct
+### --------------------------------------------------
+
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}.${TAG}.simple${TAG}.simple@${domain}"
+Name="Not Member, direct to Moderated+MembersOnly"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+### GRID - moderated memonly group: moderator, permitted
+### ----------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}.${TAG}.moderator@${domain}"
+Name="Moderator, through Permitted, to Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - moderated memonly group: member, permitted group
+### -------------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}@${domain}"
+Name="Member, through Permitted, to Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - moderated memonly group: not member, permitted group
+### -----------------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not member, through Permitted, to Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - moderated memonly group: moderator, not permitted
+### --------------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}.${TAG}.moderator@${domain}"
+Name="Moderator, through Not Permitted, to Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - moderated memonly group: member, not permitted group
+### -----------------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}@${domain}"
+Name="Member, through Not Permitted, to Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - moderated memonly group: not member, not permitted group
+### ---------------------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, through Not Permitted, to Moderated+MembersOnly"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+# --------------------------------------------
+# Private and Moderated and Members Only group
+# --------------------------------------------
 
 ### GRID - private moderated memonly group: moderator, direct
-echo Set: \"$1 $PREFIX memonly\" enable private
-echo Test: GRID - private moderated memonly group: moderator, direct
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.moderator@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check: GOOD
+### ---------------------------------------------------------
 
-# GRID - private moderated memonly group: member, direct
-echo Test: GRID - private moderated memonly group: member, direct
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check: GOOD
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}.${TAG}.moderator@${domain}"
+Name="Moderator, direct to Private+Moderated+MembersOnly"
+Result="Delivered through '$To'"
 
-# GRID - private moderated memonly group: not member, direct
-echo Test: GRID - private moderated memonly group: not member, direct
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.memonly@$2 < text_memonly
-echo Check: MODERATOR
+begin_test	"$Name" "$Result"
 
-# GRID - private moderated memonly group: moderator, permitted
-echo Test: GRID - private moderated memonly group: moderator, permitted
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.moderator@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: GOOD
+## This should already be set, but we'll set it regardless.
+# ldap: '$user $TAG memonly' enable moderator
+ldapmod <<_END
+dn: cn=$user $TAG memonly,ou=User Groups,ou=Groups,dc=umich,dc=edu
+changetype: modify
+replace: moderator
+moderator: ${user}.${TAG}.moderator@${domain}
+_END
 
-# GRID - private moderated memonly group: member, permitted group
-echo Test: GRID - private moderated memonly group: member, permitted group
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: GOOD
+mail_test	"$From" "$To" "$Name" "$Result"
 
-# GRID - private moderated memonly group: not member, permitted group
-echo Test: GRID - private moderated memonly group: not member, permitted group
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.permitted@$2 < text_memonly
-echo Check: GOOD
+end_test
 
-# GRID - private moderated memonly group: moderator, not permitted
-echo Test: GRID - private moderated memonly group: moderator, not permitted
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.moderator@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: GOOD
 
-# GRID - private moderated memonly group: member, not permitted group
-echo Test: GRID - private moderated memonly group: member, not permitted group
-read $r
-/usr/sbin/sendmail -f $1@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: GOOD
+### GRID - private moderated memonly group: member, direct
+### ------------------------------------------------------
 
-# GRID - private moderated memonly group: not member, not permitted group
-echo Test: GRID - private moderated memonly group: not member, not permitted group
-read $r
-/usr/sbin/sendmail -f $1.$PREFIX.simple@$2 $1.$PREFIX.not.permitted@$2 < text_memonly
-echo Check: MODERATOR
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}@${domain}"
+Name="Member, direct to Private+Moderated+MembersOnly"
+Result="Delivered through '$To'"
 
-exit 0
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
 
-#XXX Multiple DN
 
-# supress no email
+### GRID - private moderated memonly group: not member, direct
+### ----------------------------------------------------------
 
+To="${user}.${TAG}.memonly@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, direct to Private+Moderated+MembersOnly"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - private moderated memonly group: moderator,permitted
+### ------------------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}.${TAG}.moderator@${domain}"
+Name="Moderator, through Permitted, to Private+Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+### GRID - private moderated memonly group: member, permitted group
+### ---------------------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}@${domain}"
+Name="Member, through Permitted, to Private+Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - private moderated memonly group: member, permitted group
+### ---------------------------------------------------------------
+
+To="${user}.${TAG}.permitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not member, through Permitted, to Private+Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - private moderated memonly group: moderator, not permitted
+### ----------------------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}.${TAG}.moderator@${domain}"
+Name="Moderator, through Not Permitted, to Private+Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+### GRID - private moderated memonly group: member, not permitted group
+### -------------------------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}@${domain}"
+Name="Member, through Not Permitted, to Private+Moderated+MembersOnly"
+Result="Delivered through '$To'"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+### GRID - private moderated memonly group: not member, not permitted group
+### -----------------------------------------------------------------------
+
+To="${user}.${TAG}.notpermitted@${domain}"
+From="${user}.${TAG}.simple@${domain}"
+Name="Not Member, through Not Permitted, to Private+Moderated+MembersOnly"
+Result="Delivered to moderator"
+
+begin_test	"$Name" "$Result"
+mail_test	"$From" "$To" "$Name" "$Result"
+end_test
+
+
+echo "Testing complete."
+echo -n "Cleanup:  "
+pause
+cleanup
+
+echo "That's all folks!"
+echo ""
+
+# EOF
