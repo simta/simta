@@ -1,3 +1,11 @@
+0.8.1
+    - bugfix for RBL disconnect
+    - content filter supports mail jail
+    - content filter no longer opens Dfile on stdin
+    - content filter envoked in every delivery mode
+    - content filter return value now a bitfield
+    - content filter supports DISCONNECT
+
 0.8.0.6
     - tarpit_sleep() optimized
 

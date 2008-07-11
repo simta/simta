@@ -11,10 +11,12 @@
 
 /* These codes are for mail filter return values */
 #define	MESSAGE_ACCEPT			0
-#define	MESSAGE_ACCEPT_AND_DELETE	1
-#define	MESSAGE_REJECT			2
-#define	MESSAGE_TEMPFAIL		3
-#define	MESSAGE_TEMPFAIL_TARPIT		4
+#define	MESSAGE_TEMPFAIL		(1<<0)
+#define	MESSAGE_REJECT			(1<<1)
+#define	MESSAGE_DELETE			(1<<2)
+#define	MESSAGE_DISCONNECT		(1<<3)
+#define	MESSAGE_TARPIT			(1<<4)
+#define	MESSAGE_JAIL			(1<<5)
 
 #define	STRING_POSTMASTER		"postmaster"
 
@@ -168,6 +170,7 @@ extern char				*simta_mail_filter;
 extern char				*simta_base_dir;
 extern char				simta_hostname[];
 extern char				*simta_punt_host;
+extern char				*simta_jail_host;
 extern struct rbl		        *simta_rbls;
 extern struct rbl	         	*simta_user_rbls;
 extern char				*simta_queue_filter;
