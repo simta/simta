@@ -1,4 +1,5 @@
 0.8.1
+    - content filter for write before banner happens on all connections
     - bugfix for RBL disconnect
     - content filter supports mail jail
     - content filter no longer opens Dfile on stdin

@@ -2470,24 +2470,23 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	}
 	r.r_sin = sin;
 
-	/* Read before Banner punishment */
 	if ( simta_banner_delay > 0 ) {
 	    FD_ZERO( &fdset );
 	    FD_SET( snet_fd( r.r_snet ), &fdset );
-
 	    tv.tv_sec = simta_banner_delay;
 	    tv.tv_usec = 0;
+	}
 
-	    if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
-		    NULL, &tv )) < 0 ) {
-		syslog( LOG_ERR, "receive select: %m" );
-		goto syserror;
-	    } else if ( ret > 0 ) {
-		r.r_write_before_banner = 1;
-		syslog( LOG_NOTICE, "Connect.in [%s] %s: Write before banner",
-			inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
-		sleep( simta_banner_punishment );
-	    }
+	/* Write before Banner check */
+	if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
+		NULL, &tv )) < 0 ) {
+	    syslog( LOG_ERR, "receive select: %m" );
+	    goto syserror;
+	} else if ( ret > 0 ) {
+	    r.r_write_before_banner = 1;
+	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Write before banner",
+		    inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
+	    sleep( simta_banner_punishment );
 	}
 
 	tarpit_sleep( &r, simta_smtp_tarpit_connect );
