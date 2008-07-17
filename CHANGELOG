@@ -1,4 +1,5 @@
 0.8.1
+    - LIBWRAP_URL directive added
     - content filter for write before banner happens on all connections
     - bugfix for RBL disconnect
     - content filter supports mail jail

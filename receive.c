@@ -2457,7 +2457,13 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 		inet_ntoa( sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
 	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Failed: access denied",
 		    inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
-	    goto syserror;
+	    if ( simta_libwrap_url == NULL ) {
+		goto syserror;
+	    }
+
+	    snet_writef( r.r_snet, "421 Service not available: %s\r\n",
+		    simta_libwrap_url );
+	    goto closeconnection;
 	}
 
 	if ( r.r_remote_hostname == STRING_UNKNOWN ) {

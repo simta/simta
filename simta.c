@@ -135,6 +135,7 @@ long int		simta_max_message_size = -1;
 char			*simta_mail_filter = NULL;
 char			*simta_data_url = NULL;
 char			*simta_reverse_url = NULL;
+char			*simta_libwrap_url = NULL;
 char			*simta_punt_host = NULL;
 char			*simta_jail_host = NULL;
 char			*simta_postmaster = NULL;
@@ -824,6 +825,18 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "SMTP_DATA_URL: %s\n", simta_data_url );
+
+	} else if ( strcasecmp( av[ 0 ], "LIBWRAP_URL" ) == 0 ) {
+	    if ( ac != 2 ) {
+                fprintf( stderr, "%s: line %d: expected 1 arguments\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_libwrap_url = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "LIBWRAP_URL: %s\n", simta_libwrap_url );
 
 	} else if ( strcasecmp( av[ 0 ], "REVERSE_URL" ) == 0 ) {
 	    if ( ac != 2 ) {
