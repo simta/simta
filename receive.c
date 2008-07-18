@@ -1060,7 +1060,7 @@ f_data( struct receive_data *r )
     int					result;
     unsigned int			line_len;
     char				*line;
-    char				*syslog_message = NULL;
+    char				*filter_message = NULL;
     struct tm				*tm;
     struct timeval			tv_data_start;
     struct timeval			tv_line;
@@ -1122,15 +1122,8 @@ f_data( struct receive_data *r )
 	return( RECEIVE_OK );
     }
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	if (( syslog_message = strdup( "Tarpit enabled" )) == NULL ) {
-	    syslog( LOG_ERR, "f_data strdup: %m" );
-	    goto error;
-	}
-
-    } else {
+    if ( r->r_smtp_mode != SMTP_MODE_TARPIT ) {
 	sprintf( dfile_fname, "%s/D%s", simta_dir_fast, r->r_env->e_id );
-
 	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
 		< 0 ) {
 	    syslog( LOG_ERR, "f_data open %s: %m", dfile_fname );
@@ -1268,10 +1261,6 @@ f_data( struct receive_data *r )
 		    inet_ntoa( r->r_sin->sin_addr ),
 		    r->r_remote_hostname );
 	    data_errors++;
-	    if (( syslog_message = strdup( "Message too large" )) == NULL ) {
-		syslog( LOG_ERR, "f_data strdup: %m" );
-		goto error;
-	    }
 	    continue;
 	}
 
@@ -1281,11 +1270,6 @@ f_data( struct receive_data *r )
 		    inet_ntoa( r->r_sin->sin_addr ),
 		    r->r_remote_hostname );
 	    data_errors++;
-	    if (( syslog_message =
-		    strdup( "Too many received headers" )) == NULL ) {
-		syslog( LOG_ERR, "f_data strdup: %m" );
-		goto error;
-	    }
 	    continue;
 	}
 
@@ -1348,7 +1332,7 @@ f_data( struct receive_data *r )
 	r->r_env->e_mid = rh.r_mid;
 
 	syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
-	message_result = content_filter( r, &syslog_message );
+	message_result = content_filter( r, &filter_message );
     }
 
     if ( gettimeofday( &tv_now, NULL ) != 0 ) {
@@ -1377,7 +1361,7 @@ f_data( struct receive_data *r )
 		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( r->r_sin->sin_addr ),
 		    r->r_remote_hostname, data_read,
-		    syslog_message ? syslog_message : "no message" );
+		    filter_message ? filter_message : "no message" );
 
 	} else if (( r->r_env->e_flags & ENV_FLAG_TFILE ) == 0 ) {
 	    message_result &= (~MESSAGE_ACCEPT);
@@ -1385,7 +1369,7 @@ f_data( struct receive_data *r )
 		    "MID <%s> [%s] %s size %d: %s", r->r_env->e_id,
 		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    data_read, syslog_message ? syslog_message : "no message" );
+		    data_read, filter_message ? filter_message : "no message" );
 
 	} else {
 	    if ( message_result & MESSAGE_JAIL ) {
@@ -1425,7 +1409,7 @@ f_data( struct receive_data *r )
 		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( r->r_sin->sin_addr ),
 		    r->r_remote_hostname, data_read,
-		    syslog_message ? syslog_message : "" );
+		    filter_message ? filter_message : "" );
 	}
 
     }
@@ -1467,9 +1451,10 @@ f_data( struct receive_data *r )
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( r->r_sin->sin_addr ),
 		r->r_remote_hostname, data_read,
-		syslog_message ? syslog_message : "no message" );
+		filter_message ? filter_message : "no message" );
 
-	if ( smtp_tempfail( r, simta_data_url ) != RECEIVE_OK ) {
+	if ( smtp_tempfail( r, filter_message ? filter_message :
+		simta_data_url ) != RECEIVE_OK ) {
 	    ret_code = RECEIVE_CLOSECONNECTION;
 	    goto error;
 	}
@@ -1480,9 +1465,16 @@ f_data( struct receive_data *r )
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( r->r_sin->sin_addr ),
 		r->r_remote_hostname, data_read,
-		syslog_message ? syslog_message : "no message" );
+		filter_message ? filter_message : "no filter message" );
 
-	if ( simta_data_url != NULL ) {
+	if ( filter_message != NULL ) {
+	    if ( snet_writef( r->r_snet, "554 Transaction failed: %s\r\n",
+		    filter_message ) < 0 ) {
+		syslog( LOG_ERR, "f_data snet_writef: %m" );
+		ret_code = RECEIVE_CLOSECONNECTION;
+		goto error;
+	    }
+	} else if ( simta_data_url != NULL ) {
 	    if ( snet_writef( r->r_snet, "554 Transaction failed: %s\r\n",
 		    simta_data_url ) < 0 ) {
 		syslog( LOG_ERR, "f_data snet_writef: %m" );
@@ -1498,11 +1490,20 @@ f_data( struct receive_data *r )
 	}
 
     } else {	/* ACCEPT */
-	if ( snet_writef( r->r_snet,
-		"250 (%s): Accepted\r\n", r->r_env->e_id ) < 0 ) {
-	    syslog( LOG_ERR, "f_data snet_writef: %m" );
-	    ret_code = RECEIVE_CLOSECONNECTION;
-	    goto error;
+	if ( filter_message != NULL ) {
+	    if ( snet_writef( r->r_snet, "250 (%s): Accepted: %s\r\n",
+		    r->r_env->e_id, filter_message ) < 0 ) {
+		syslog( LOG_ERR, "f_data snet_writef: %m" );
+		ret_code = RECEIVE_CLOSECONNECTION;
+		goto error;
+	    }
+	} else {
+	    if ( snet_writef( r->r_snet, "250 (%s): Accepted\r\n",
+		    r->r_env->e_id ) < 0 ) {
+		syslog( LOG_ERR, "f_data snet_writef: %m" );
+		ret_code = RECEIVE_CLOSECONNECTION;
+		goto error;
+	    }
 	}
     }
 
@@ -1512,8 +1513,8 @@ f_data( struct receive_data *r )
 	ret_code = RECEIVE_OK;
     }
 
-    if ( syslog_message != NULL ) {
-	free( syslog_message );
+    if ( filter_message != NULL ) {
+	free( filter_message );
     }
 
     return( ret_code );
@@ -1541,8 +1542,8 @@ error:
 	env_tfile_unlink( r->r_env );
     }
 
-    if ( syslog_message != NULL ) {
-	free( syslog_message );
+    if ( filter_message != NULL ) {
+	free( filter_message );
     }
 
     return( ret_code );
