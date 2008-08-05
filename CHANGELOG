@@ -1,4 +1,9 @@
-0.8.1
+0.8.1.b
+    - bugfixes for libsnet
+    - log change for base64 encode errors
+    - receive always checks for write before banner
+
+0.8.1.a
     - content filter message propogated to SMTP client
     - LIBWRAP_URL directive added
     - content filter check for write before banner happens on all connections

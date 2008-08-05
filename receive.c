@@ -1986,11 +1986,12 @@ f_auth( struct receive_data *r )
 	    if ( sasl_decode64( r->r_av[ 2 ], strlen( r->r_av[ 2 ]), clientin,
 		    BASE64_BUF_SIZE, & clientinlen ) != SASL_OK ) {
 		if ( snet_writef( r->r_snet,
-			"501 unable to BASE64 decode argument\r\n" ) < 0 ) {
+			"501 unable to BASE64 decode argument:\r\n" ) < 0 ) {
 		    syslog( LOG_ERR, "f_auth snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
-		syslog( LOG_ERR, "f_auth unable to BASE64 decode argument" );
+		syslog( LOG_ERR, "f_auth unable to BASE64 decode argument: %s",
+		    r->r_av[ 2 ]);
 		return( RECEIVE_OK );
 	    }
 	}
@@ -2047,7 +2048,8 @@ f_auth( struct receive_data *r )
 		syslog( LOG_ERR, "f_auth snet_writef: %m" );
 		return( RECEIVE_CLOSECONNECTION );
 	    }
-	    syslog( LOG_ERR, "f_auth unable to BASE64 decode argument" );
+	    syslog( LOG_ERR, "f_auth unable to BASE64 decode argument: %s",
+		    clientin );
 	    return( RECEIVE_OK );
 	}
 
@@ -2477,12 +2479,10 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	}
 	r.r_sin = sin;
 
-	if ( simta_banner_delay > 0 ) {
-	    FD_ZERO( &fdset );
-	    FD_SET( snet_fd( r.r_snet ), &fdset );
-	    tv.tv_sec = simta_banner_delay;
-	    tv.tv_usec = 0;
-	}
+	FD_ZERO( &fdset );
+	FD_SET( snet_fd( r.r_snet ), &fdset );
+	tv.tv_sec = simta_banner_delay;
+	tv.tv_usec = 0;
 
 	/* Write before Banner check */
 	if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
