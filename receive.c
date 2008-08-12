@@ -838,7 +838,7 @@ f_rcpt( struct receive_data *r )
      * probably preserve the results of our DNS check.
      */
 
-    if ( domain != NULL ) {
+    if (( domain != NULL ) && ( r->r_smtp_mode == SMTP_MODE_NORMAL )) {
 	/*
 	 * Here we do an initial lookup in our domain table.  This is
 	 * our best opportunity to decline recipients that are not
