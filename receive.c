@@ -1331,8 +1331,11 @@ f_data( struct receive_data *r )
 
 	r->r_env->e_mid = rh.r_mid;
 
-	syslog( LOG_DEBUG, "calling content filter %s", simta_mail_filter );
 	message_result = content_filter( r, &filter_message );
+
+	syslog( LOG_DEBUG, "Receive %s: content filter %s: %d",
+		r->r_env->e_id, simta_mail_filter, message_result );
+
     }
 
     if ( gettimeofday( &tv_now, NULL ) != 0 ) {
@@ -1364,7 +1367,7 @@ f_data( struct receive_data *r )
 		    filter_message ? filter_message : "no message" );
 
 	} else if (( r->r_env->e_flags & ENV_FLAG_TFILE ) == 0 ) {
-	    message_result &= (~MESSAGE_ACCEPT);
+	    message_result |= MESSAGE_TEMPFAIL;
 	    syslog( LOG_WARNING, "Receive %s: no tfile can't accept message:"
 		    "MID <%s> [%s] %s size %d: %s", r->r_env->e_id,
 		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
@@ -1411,7 +1414,6 @@ f_data( struct receive_data *r )
 		    r->r_remote_hostname, data_read,
 		    filter_message ? filter_message : "" );
 	}
-
     }
 
     /* if the message hasn't been acepted, remove it from the disk */

@@ -1,4 +1,5 @@
 0.8.1.b
+    - bugfix for content filter illegal accept return in tarpit mode
     - bugfixes for libsnet
     - log change for base64 encode errors
     - receive always checks for write before banner
