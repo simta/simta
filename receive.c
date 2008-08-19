@@ -1051,16 +1051,16 @@ f_data( struct receive_data *r )
 {
     FILE				*dff = NULL;
     int					dfile_fd = -1;
-    int					dfile_on_disk = 0;
     int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
     int					line_no = 0;
-    int					data_errors = 0;
     int					message_result;
     int					result;
     unsigned int			line_len;
     char				*line;
+    char				*failure_message;
     char				*filter_message = NULL;
+    char				*system_message = NULL;
     struct tm				*tm;
     struct timeval			tv_data_start;
     struct timeval			tv_line;
@@ -1080,7 +1080,12 @@ f_data( struct receive_data *r )
 
     r->r_data_attempt++;
 
-    tarpit_sleep( r, simta_smtp_tarpit_data );
+    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
+	tarpit_sleep( r, simta_smtp_tarpit_data );
+	message_result = MESSAGE_TEMPFAIL;
+    } else {
+	message_result = MESSAGE_ACCEPT;
+    }
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -1129,7 +1134,7 @@ f_data( struct receive_data *r )
 	    syslog( LOG_ERR, "f_data open %s: %m", dfile_fname );
 	    return( RECEIVE_SYSERROR );
 	}
-	dfile_on_disk++;
+	r->r_env->e_flags |= ENV_FLAG_DFILE;
 
 	if (( dff = fdopen( dfile_fd, "w" )) == NULL ) {
 	    syslog( LOG_ERR, "f_data fdopen: %m" );
@@ -1197,10 +1202,12 @@ f_data( struct receive_data *r )
 	    goto error;
 	}
 
+	/* check to see if we've exceeded or data segment timer */
 	if ( tv_now.tv_sec >= tv_session.tv_sec ) {
 	    syslog( LOG_NOTICE, "Receive %s: DATA time limit exceeded",
 		    r->r_env->e_id );
 	    goto error;
+	/* check to see if our line wait would put us past our segment timer */
 	} else if ( simta_data_line_wait >
 		( tv_session.tv_sec - tv_now.tv_sec )) {
 	    tv_line.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
@@ -1215,13 +1222,14 @@ f_data( struct receive_data *r )
 	    line++;
 	}
 
-	if (( r->r_smtp_mode == SMTP_MODE_TARPIT ) || ( data_errors != 0 )) {
-	    if ( dfile_on_disk != 0 ) {
+	if ( message_result != MESSAGE_ACCEPT ) {
+	    if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
+		r->r_env->e_flags = ( r->r_env->e_flags & ( ~ENV_FLAG_DFILE ));
+
 		if ( unlink( dfile_fname ) < 0 ) {
 		    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 		    goto error;
 		}
-		dfile_on_disk = 0;
 	    }
 
 	    if ( dff != NULL ) {
@@ -1260,7 +1268,8 @@ f_data( struct receive_data *r )
 		    "Message too large", r->r_env->e_id, 
 		    inet_ntoa( r->r_sin->sin_addr ),
 		    r->r_remote_hostname );
-	    data_errors++;
+	    system_message = "Message too large";
+	    message_result = MESSAGE_TEMPFAIL;
 	    continue;
 	}
 
@@ -1269,7 +1278,8 @@ f_data( struct receive_data *r )
 		    "Too many received headers", r->r_env->e_id, 
 		    inet_ntoa( r->r_sin->sin_addr ),
 		    r->r_remote_hostname );
-	    data_errors++;
+	    system_message = "Too many headers";
+	    message_result = MESSAGE_TEMPFAIL;
 	    continue;
 	}
 
@@ -1286,7 +1296,7 @@ f_data( struct receive_data *r )
 	goto error;
     }
 
-    if (( r->r_smtp_mode != SMTP_MODE_TARPIT ) && ( data_errors == 0 )) {
+    if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
 	/* get the Dfile's inode for the envelope structure */
 	if ( fstat( dfile_fd, &sbuf ) != 0 ) {
 	    syslog( LOG_ERR, "f_data %s fstat %s: %m", r->r_env->e_id,
@@ -1331,11 +1341,12 @@ f_data( struct receive_data *r )
 
 	r->r_env->e_mid = rh.r_mid;
 
+	/* note that this will over-write the previous message_result value */
 	message_result = content_filter( r, &filter_message );
 
-	syslog( LOG_DEBUG, "Receive %s: content filter %s: %d",
-		r->r_env->e_id, simta_mail_filter, message_result );
-
+	syslog( LOG_DEBUG, "Receive %s: content filter %s: %d: %s",
+		r->r_env->e_id, simta_mail_filter, message_result,
+		filter_message ? filter_message : "no filter message" );
     }
 
     if ( gettimeofday( &tv_now, NULL ) != 0 ) {
@@ -1360,19 +1371,22 @@ f_data( struct receive_data *r )
 	    (( message_result & MESSAGE_TEMPFAIL ) == 0 )) {
 	if ( message_result & MESSAGE_DELETE ) {
 	    syslog( LOG_INFO, "Receive %s: Message Deleted by content filter: "
-		    "MID <%s> [%s] %s size %d: %s",
+		    "MID <%s> [%s] %s size %d: %s, %s",
 		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( r->r_sin->sin_addr ),
 		    r->r_remote_hostname, data_read,
-		    filter_message ? filter_message : "no message" );
+		    system_message ? system_message : "no system message",
+		    filter_message ? filter_message : "no filter message" );
 
 	} else if (( r->r_env->e_flags & ENV_FLAG_TFILE ) == 0 ) {
 	    message_result |= MESSAGE_TEMPFAIL;
 	    syslog( LOG_WARNING, "Receive %s: no tfile can't accept message:"
-		    "MID <%s> [%s] %s size %d: %s", r->r_env->e_id,
+		    "MID <%s> [%s] %s size %d: %s, %s", r->r_env->e_id,
 		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    data_read, filter_message ? filter_message : "no message" );
+		    data_read,
+		    system_message ? system_message : "no system message",
+		    filter_message ? filter_message : "no filter message" );
 
 	} else {
 	    if ( message_result & MESSAGE_JAIL ) {
@@ -1407,12 +1421,13 @@ f_data( struct receive_data *r )
 	    r->r_data_success++;
 
 	    syslog( LOG_INFO, "Receive %s: Message Accepted: "
-		    "MID <%s> [%s] %s size %d: %s",
+		    "MID <%s> [%s] %s size %d: %s, %s",
 		    r->r_env->e_id,
 		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    inet_ntoa( r->r_sin->sin_addr ),
 		    r->r_remote_hostname, data_read,
-		    filter_message ? filter_message : "" );
+		    system_message ? system_message : "no system message",
+		    filter_message ? filter_message : "no filter message" );
 	}
     }
 
@@ -1424,8 +1439,8 @@ f_data( struct receive_data *r )
 	    }
 	}
 
-	if ( dfile_on_disk > 0 ) {
-	    dfile_on_disk = 0;
+	if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
+	    r->r_env->e_flags = ( r->r_env->e_flags & ( ~ENV_FLAG_DFILE ));
 
 	    if ( unlink( dfile_fname ) < 0 ) {
 		syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
@@ -1442,6 +1457,16 @@ f_data( struct receive_data *r )
 	tarpit_sleep( r, simta_smtp_tarpit_data_eof );
     }
 
+    if ( filter_message ) {
+	failure_message = filter_message;
+    } else if ( system_message ) {
+	failure_message = system_message;
+    } else if ( simta_data_url ) {
+	failure_message = simta_data_url;
+    } else {
+	failure_message = NULL;
+    }
+
     if ( message_result & MESSAGE_TEMPFAIL ) {
 	if ( message_result & MESSAGE_REJECT ) {
 	    syslog( LOG_WARNING, "Receive %s: content filter returned both "
@@ -1449,36 +1474,30 @@ f_data( struct receive_data *r )
 	}
 
 	syslog( LOG_INFO, "Receive %s: Message Tempfailed: "
-		"MID <%s> [%s] %s size %d: %s",
+		"MID <%s> [%s] %s size %d: %s, %s",
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( r->r_sin->sin_addr ),
 		r->r_remote_hostname, data_read,
-		filter_message ? filter_message : "no message" );
+		system_message ? system_message : "no system message",
+		filter_message ? filter_message : "no filter message" );
 
-	if ( smtp_tempfail( r, filter_message ? filter_message :
-		simta_data_url ) != RECEIVE_OK ) {
+	if ( smtp_tempfail( r, failure_message ) != RECEIVE_OK ) {
 	    ret_code = RECEIVE_CLOSECONNECTION;
 	    goto error;
 	}
 
     } else if ( message_result & MESSAGE_REJECT ) {
 	syslog( LOG_INFO, "Receive %s: Message Failed: "
-		"MID <%s> [%s] %s size %d: %s",
+		"MID <%s> [%s] %s size %d: %s, %s",
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		inet_ntoa( r->r_sin->sin_addr ),
 		r->r_remote_hostname, data_read,
+		system_message ? system_message : "no system message",
 		filter_message ? filter_message : "no filter message" );
 
-	if ( filter_message != NULL ) {
+	if ( failure_message != NULL ) {
 	    if ( snet_writef( r->r_snet, "554 Transaction failed: %s\r\n",
-		    filter_message ) < 0 ) {
-		syslog( LOG_ERR, "f_data snet_writef: %m" );
-		ret_code = RECEIVE_CLOSECONNECTION;
-		goto error;
-	    }
-	} else if ( simta_data_url != NULL ) {
-	    if ( snet_writef( r->r_snet, "554 Transaction failed: %s\r\n",
-		    simta_data_url ) < 0 ) {
+		    failure_message ) < 0 ) {
 		syslog( LOG_ERR, "f_data snet_writef: %m" );
 		ret_code = RECEIVE_CLOSECONNECTION;
 		goto error;
@@ -1510,6 +1529,9 @@ f_data( struct receive_data *r )
     }
 
     if ( message_result & MESSAGE_DISCONNECT ) {
+	syslog( LOG_DEBUG, "Receive %s: content filter disconnect ",
+		r->r_env->e_id );
+
 	ret_code = RECEIVE_CLOSECONNECTION;
     } else {
 	ret_code = RECEIVE_OK;
@@ -1533,8 +1555,10 @@ error:
     }
 
     /* delete the dfile if we haven't acepted the message */
-    if (( dfile_on_disk != 0 ) &
+    if (( r->r_env->e_flags & ENV_FLAG_DFILE ) && 
 	    (( r->r_env->e_flags & ENV_FLAG_EFILE ) == 0 )) {
+	r->r_env->e_flags = ( r->r_env->e_flags & ( ~ENV_FLAG_DFILE ));
+
 	if ( unlink( dfile_fname ) < 0 ) {
 	    syslog( LOG_ERR, "f_data unlink %s: %m", dfile_fname );
 	}
@@ -2489,7 +2513,8 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	/* Write before Banner check */
 	if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
 		NULL, &tv )) < 0 ) {
-	    syslog( LOG_ERR, "receive select: %m" );
+	    syslog( LOG_ERR, "receive select: %m (%d %d)",
+		    snet_fd( r.r_snet ) + 1, simta_banner_delay );
 	    goto syserror;
 	} else if ( ret > 0 ) {
 	    r.r_write_before_banner = 1;
@@ -2860,7 +2885,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
-	if ( r->r_env->e_flags & ENV_FLAG_TFILE ) {
+	if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
 	    snprintf( fname, MAXPATHLEN, "%s/D%s", r->r_env->e_dir,
 		    r->r_env->e_id );
 	} else {

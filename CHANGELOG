@@ -1,3 +1,7 @@
+0.8.1.c
+    - f_data better optimized for content filter
+    - better error propagation
+
 0.8.1.b
     - bugfix TARPIT rcpt to always accepts
     - bugfix for content filter illegal accept return in tarpit mode
