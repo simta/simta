@@ -1,3 +1,6 @@
+0.8.1.d
+    - content filter now logs who AUTHed
+
 0.8.1.c
     - f_data better optimized for content filter
     - better error propagation

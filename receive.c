@@ -118,6 +118,7 @@ struct receive_data {
     struct command 		*r_commands;
     int				r_ncommands;
     int				r_smtp_mode;
+    char			*r_auth_id;
 
 #ifdef HAVE_LIBSSL
     unsigned char		r_md_value[ EVP_MAX_MD_SIZE ];
@@ -134,7 +135,6 @@ struct receive_data {
     /* external security strength factor zero = NONE */
     sasl_ssf_t			r_ext_ssf;
     sasl_security_properties_t	r_secprops;
-    char			*r_auth_id;
 #endif /* HAVE_LIBSASL */
 };
 
@@ -2312,8 +2312,6 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	    goto syserror;
 	}
 
-	r.r_ext_ssf = 0;
-	r.r_auth_id = NULL;
 	if (( ret = sasl_setprop( r.r_conn, SASL_SSF_EXTERNAL, &r.r_ext_ssf ))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "receive sasl_setprop: %s",
@@ -2834,7 +2832,7 @@ content_filter( struct receive_data *r, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 12 ];
+    char		*filter_envp[ 13 ];
     char		fname[ MAXPATHLEN + 1 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
@@ -2953,20 +2951,25 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    }
 	}
 
+	if (( filter_envp[ 9 ] = env_string( "SIMTA_AUTH_ID",
+		r->r_env->e_mid )) == NULL ) {
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
 	if ( simta_checksum_md != NULL ) {
-	    if (( filter_envp[ 9 ] = env_string( "SIMTA_CHECKSUM_SIZE",
+	    if (( filter_envp[ 10 ] = env_string( "SIMTA_CHECKSUM_SIZE",
 		    r->r_md_bytes )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    if (( filter_envp[ 10 ] = env_string( "SIMTA_CHECKSUM",
+	    if (( filter_envp[ 11 ] = env_string( "SIMTA_CHECKSUM",
 		    r->r_md_b64 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    filter_envp[ 11 ] = NULL;
+	    filter_envp[ 12 ] = NULL;
 	} else {
-	    filter_envp[ 9 ] = NULL;
+	    filter_envp[ 10 ] = NULL;
 	}
 
 
