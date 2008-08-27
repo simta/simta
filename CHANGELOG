@@ -1,3 +1,9 @@
+0.8.1.f
+    - snet bugfixes
+
+0.8.1.e
+    - bugfix
+
 0.8.1.d
     - content filter now logs who AUTHed
 

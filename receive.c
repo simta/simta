@@ -2934,7 +2934,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	}
 
 	if (( filter_envp[ 7 ] = env_string( "SIMTA_MID",
-		r->r_env->e_mid )) == NULL ) {
+		r->r_auth_id )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
