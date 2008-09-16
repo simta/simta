@@ -1,5 +1,6 @@
 0.8.1.h
     - DATA_SESSION_WAIT added to simta.c
+    - bug: JAIL_HOST bugfixes
 
 0.8.1.g
     - logging bugfixes

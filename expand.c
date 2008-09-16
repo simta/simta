@@ -55,17 +55,17 @@ int				simta_expand_debug = 0;
     int
 expand_and_deliver( struct envelope *unexpanded_env )
 {
-    switch ( expand( unexpanded_env )) {
-    case 0:
-	if ( q_runner() != 0 ) {
+    if ( unexpanded_env->e_hostname == NULL ) {
+	if ( expand( unexpanded_env ) != 0 ) {
+	    env_move( unexpanded_env, simta_dir_slow );
 	    return( EXPAND_SYSERROR );
 	}
-	return( EXPAND_OK );
+    }
 
-    default:
-	env_move( unexpanded_env, simta_dir_slow );
+    if ( q_runner() != 0 ) {
 	return( EXPAND_SYSERROR );
     }
+    return( EXPAND_OK );
 }
 
 
@@ -146,6 +146,13 @@ expand( struct envelope *unexpanded_env )
     struct exp_link		*memonly;
     struct exp_link		*parent;
 #endif /* HAVE_LDAP */
+
+    if ( unexpanded_env->e_hostname != NULL ) {
+	syslog( LOG_DEBUG, "Expand %s: already expanded for host %s",
+		unexpanded_env->e_hostname );
+	return_value = 0;
+	goto done;
+    }
 
     memset( &exp, 0, sizeof( struct expand ));
     exp.exp_env = unexpanded_env;
