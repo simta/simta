@@ -60,6 +60,8 @@ expand_and_deliver( struct envelope *unexpanded_env )
 	    env_move( unexpanded_env, simta_dir_slow );
 	    return( EXPAND_SYSERROR );
 	}
+    } else {
+	queue_envelope( unexpanded_env );
     }
 
     if ( q_runner() != 0 ) {

@@ -1401,7 +1401,6 @@ f_data( struct receive_data *r )
 		    if ( env_hostname( r->r_env, simta_jail_host ) != 0 ) {
 			goto error;
 		    }
-		    queue_envelope( r->r_env );
 		}
 	    }
 
