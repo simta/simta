@@ -652,6 +652,22 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "DATA_LINE_WAIT %d\n",
 		    simta_data_line_wait );
 
+	} else if ( strcasecmp( av[ 0 ], "DATA_SESION_WAIT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_data_transaction_wait = atoi( av[ 1 ] );
+	    if ( simta_data_transaction_wait <= 0 ) {
+		fprintf( stderr,
+			"%s: line %d: DATA_SESSION_WAIT must be greater than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DATA_SESSION_WAIT %d\n",
+		    simta_data_transaction_wait );
+
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
