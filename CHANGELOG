@@ -1,4 +1,5 @@
 0.8.1.h
+    - MAXHOSTNAMELEN bug fixed
     - RBL logging now includes failure/accept codes
     - better receive logging
     - DATA_SESSION_WAIT added to simta.c

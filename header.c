@@ -1081,7 +1081,7 @@ parse_emailaddr( int mode, char *addr, char **user, char **domain )
 
     d = at + 1;
 
-    if ( strlen( d ) > MAXHOSTNAMELEN ) {
+    if ( strlen( d ) > SIMTA_MAX_HOST_NAME_LEN ) {
 	return( 1 );
     }
 

@@ -363,7 +363,7 @@ address_expand( struct expand *exp )
 	    red = simta_default_host;
 
 	} else {
-	    if ( strlen( e_addr->e_addr_at + 1 ) > MAXHOSTNAMELEN ) {
+	    if ( strlen( e_addr->e_addr_at + 1 ) > SIMTA_MAX_HOST_NAME_LEN ) {
 		syslog( LOG_ERR, "Expand %s: <%s>: ERROR domain too long",
 			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_SYSERROR );
