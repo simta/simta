@@ -50,6 +50,7 @@ main( int argc, char *argv[])
     char		c;
     char		*server = NULL;
     char		*block_domain = "rbl.mail.umich.edu";
+    char		*rbl_msg = NULL;
     int			rc;
     int			err = 0;
     int			quiet = 0;
@@ -118,13 +119,16 @@ main( int argc, char *argv[])
 	exit( SIMRBL_EXIT_ERROR );
     }
 
-    if (( rc = rbl_check( simta_rbls, &addr, &rbl_found )) == RBL_ERROR ) {
+    simta_rbl_verbose_logging = 1;
+    if (( rc = rbl_check( simta_rbls, &addr, &rbl_found, &rbl_msg ))
+	    == RBL_ERROR ) {
 	if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
 	exit( SIMRBL_EXIT_ERROR );
     }
 
     if ( rc == RBL_BLOCK ) {
-	if ( !quiet ) printf( "found in %s\n", rbl_found->rbl_domain );
+	if ( !quiet ) printf( "found in %s: %s\n", rbl_found->rbl_domain,
+		rbl_msg );
 	exit( SIMRBL_EXIT_BLOCKED );
     } else {
 	if ( !quiet ) printf( "not found\n" );

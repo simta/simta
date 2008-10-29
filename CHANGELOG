@@ -1,4 +1,6 @@
 0.8.1.h
+    - RBL logging now includes failure/accept codes
+    - better receive logging
     - DATA_SESSION_WAIT added to simta.c
     - bug: JAIL_HOST bugfixes
 

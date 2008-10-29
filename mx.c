@@ -376,63 +376,77 @@ check_hostname( char *hostname )
  */
 
     int
-rbl_check( struct rbl *rbls, struct in_addr *in, struct rbl **found )
+rbl_check( struct rbl *rbls, struct in_addr *in, struct rbl **found,
+	char **msg )
 {
-    struct rbl		*rbl;
-    char		*reverse_ip;
-    struct dnsr_result	*result;
+    struct rbl				*rbl;
+    char				*reverse_ip;
+    char				*ip;
+    struct dnsr_result			*result;
+    struct sockaddr_in			sin;
 
     for ( rbl = rbls; rbl != NULL; rbl = rbl->rbl_next ) {
+	if ( found != NULL ) {
+	    *found = rbl;
+	}
+
 	if (( reverse_ip =
 		dnsr_ntoptr( simta_dnsr, in, rbl->rbl_domain )) == NULL ) {
 	    syslog( LOG_ERR, "RBL %s: dnsr_ntoptr failed: %s",
 		    inet_ntoa( *in ), rbl->rbl_domain );
-	    *found = rbl;
 	    return( RBL_ERROR );
-	}
-
-	if ( simta_debug ) {
-	    fprintf( stderr, "rbl_check for %s\n", reverse_ip );
 	}
 
 	if (( result = get_a( reverse_ip )) == NULL ) {
 	    syslog( LOG_INFO, "RBL %s: Timeout: %s", reverse_ip,
 		    rbl->rbl_domain );
 	    free( reverse_ip );
-	    *found = rbl;
 	    return( RBL_ERROR );
 	}
 
 	if ( result->r_ancount > 0 ) {
-	    dnsr_free_result( result );
-	    free( reverse_ip );
-	    *found = rbl;
-	    if ( rbl->rbl_type == RBL_BLOCK ) {
-		if ( simta_rbl_verbose_logging ) {
-		    syslog( LOG_INFO, "RBL %s: Blocked %s", reverse_ip,
-			    rbl->rbl_domain );
-		}
-		return( RBL_BLOCK );
-	    } else if ( rbl->rbl_type == RBL_ACCEPT ) {
-		if ( simta_rbl_verbose_logging ) {
-		    syslog( LOG_INFO, "RBL %s: Accepted %s", reverse_ip,
-			    rbl->rbl_domain );
-		}
-		return( RBL_ACCEPT );
-	    } else {
-		syslog( LOG_INFO, "RBL %s: Error %s: unknown RBL type %d",
-			reverse_ip, rbl->rbl_domain, rbl->rbl_type );
-		return( RBL_ERROR );
+	    memset( &sin, 0, sizeof( struct sockaddr_in ));
+	    memcpy( &(sin.sin_addr.s_addr),
+		    &(result->r_answer[0].rr_a),
+		    sizeof( struct in_addr ));
+	    ip = inet_ntoa( sin.sin_addr );
+	    if ( simta_rbl_verbose_logging ) {
+		syslog( LOG_INFO, "RBL %s: Found in %s list %s: %s", reverse_ip,
+			rbl->rbl_type == RBL_ACCEPT ? "Accept" : "Block",
+			rbl->rbl_domain, ip );
 	    }
+
+	    free( reverse_ip );
+	    dnsr_free_result( result );
+
+	    if ( msg != NULL ) {
+		if (( *msg = strdup( ip )) == NULL ) {
+		    syslog( LOG_ERR, "Syserror rbl_check: malloc %m" );
+		    return( RBL_ERROR );
+		}
+	    }
+
+	    return( rbl->rbl_type );
+
 	} else {
 	    if ( simta_rbl_verbose_logging ) {
-		syslog( LOG_INFO, "RBL %s: Not Found %s", reverse_ip,
-			rbl->rbl_domain );
+		syslog( LOG_INFO, "RBL %s: Missing in %s list %s: %s",
+			reverse_ip,
+			rbl->rbl_type == RBL_ACCEPT ? "Accept" : "Block",
+			rbl->rbl_domain, ip );
 	    }
 	}
 
 	dnsr_free_result( result );
 	free( reverse_ip );
+    }
+
+    if ( simta_rbl_verbose_logging ) {
+	syslog( LOG_INFO, "RBL %s: RBL list exhausted", reverse_ip );
+    }
+
+    if ( found != NULL ) {
+	*found = NULL;
     }
 
     return( RBL_NOT_FOUND );
