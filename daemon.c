@@ -641,9 +641,13 @@ main( int ac, char **av )
 			break;
 		    }
 		}
-		if (( ss == NULL ) && ( i != simta_pidfd )) {
-		    close( i );
+		if ( ss != NULL ) {
+		    continue;
 		}
+		if ( i == simta_pidfd ) {
+		    continue;
+		}
+		close( i );
 	    }
 #endif /* Q_SIMULATION */
 	    if (( i = open( "/", O_RDONLY, 0 )) == 0 ) {
