@@ -226,6 +226,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 	e->e_addr_errors = error_env;
 	e->e_addr_type = addr_type;
 	e->e_addr_parent_action = exp->exp_current_action;
+	exp->exp_entries++;
 
 	if (( e->e_addr = strdup( addr )) == NULL ) {
 	    syslog( LOG_ERR, "strdup: %m" );
@@ -331,6 +332,11 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
     }
 
     if ( exp->exp_addr_cursor != NULL ) {
+	e->e_addr_max_level = exp->exp_addr_cursor->e_addr_max_level + 1;
+	if ( exp->exp_max_level < e->e_addr_max_level ) {
+	    exp->exp_max_level = e->e_addr_max_level;
+	}
+
 	if ( exp_addr_link( &(exp->exp_addr_cursor->e_addr_children), e )
 		!= 0 ) {
 	    return( 1 );

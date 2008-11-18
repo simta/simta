@@ -57,6 +57,8 @@ struct expand {
     struct exp_addr		*exp_addr_cursor;	/* cursor */
     struct action		*exp_current_action;
     struct envelope		*exp_errors;	/* error envelope list */
+    int				exp_max_level;
+    int				exp_entries;
 #ifdef HAVE_LDAP
     struct exp_link		*exp_memonly;
 #endif /* HAVE_LDAP */
@@ -73,6 +75,7 @@ struct exp_addr {
     struct exp_addr		*e_addr_next;
     int				e_addr_type;	/* address data type */
     int				e_addr_terminal;
+    int				e_addr_max_level;
     char			*e_addr;	/* address string */
     char			*e_addr_at;	/* char the email addresses @ */
     char			*e_addr_from;
@@ -112,10 +115,10 @@ int address_string_recipients( struct expand *, char *, struct exp_addr *,
 int exp_addr_link( struct exp_link **, struct exp_addr * );
 void exp_addr_link_free( struct exp_link * );
 int unblocked_path_to_root( struct exp_addr *, int );
-int sender_is_child( struct exp_addr *, int );
+int sender_is_child( struct exp_link *, int );
 int sender_is_moderator( char *, struct exp_addr * );
 void supress_addrs( struct exp_link *, int );
 int permitted_create( struct exp_addr *, char ** );
 void permitted_destroy( struct exp_addr * );
-int parent_permitted( struct exp_addr * );
+char *parent_permitted( struct exp_addr * );
 #endif /* HAVE_LDAP */

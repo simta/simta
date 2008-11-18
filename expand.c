@@ -144,6 +144,7 @@ expand( struct envelope *unexpanded_env )
     char			d_original[ MAXPATHLEN ];
     char			d_out[ MAXPATHLEN ];
 #ifdef HAVE_LDAP
+    char			*p;
     int				loop_color = 1;
     struct exp_link		*memonly;
     struct exp_link		*parent;
@@ -151,7 +152,7 @@ expand( struct envelope *unexpanded_env )
 
     if ( unexpanded_env->e_hostname != NULL ) {
 	syslog( LOG_DEBUG, "Expand %s: already expanded for host %s",
-		unexpanded_env->e_hostname );
+		unexpanded_env->e_id, unexpanded_env->e_hostname );
 	return_value = 0;
 	goto done;
     }
@@ -217,8 +218,19 @@ expand( struct envelope *unexpanded_env )
     /* Members-only processing */
     for ( memonly = exp.exp_memonly; memonly != NULL;
 	    memonly = memonly->el_next ) {
-	if (( parent_permitted( memonly->el_exp_addr )) ||
-		( sender_is_child( memonly->el_exp_addr, loop_color++ ))) {
+	if ((( p = parent_permitted( memonly->el_exp_addr )) != NULL ) ||
+		( sender_is_child( memonly->el_exp_addr->e_addr_children,
+		loop_color++ ))) {
+	    if ( p != NULL ) {
+		syslog( LOG_DEBUG, "Expand %s: Memonly Group %s OK: "
+			"parent %s permitted",
+			unexpanded_env->e_id, memonly->el_exp_addr->e_addr, p );
+
+	    } else {
+		syslog( LOG_DEBUG, "Expand %s: Memonly Group %s OK: "
+			"sender is child",
+			unexpanded_env->e_id, memonly->el_exp_addr->e_addr );
+	    }
 	    memonly->el_exp_addr->e_addr_ldap_flags =
 		    ( memonly->el_exp_addr->e_addr_ldap_flags &
 		    ( ~STATUS_LDAP_MEMONLY ));
@@ -228,6 +240,8 @@ expand( struct envelope *unexpanded_env )
 	    }
 
 	} else {
+	    syslog( LOG_DEBUG, "Expand %s: Memonly Group %s Suppressed",
+		    unexpanded_env->e_id, memonly->el_exp_addr->e_addr );
 	    memonly->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPRESSOR;
 	    supress_addrs( memonly->el_exp_addr->e_addr_children,
 		    loop_color++ );
@@ -586,6 +600,9 @@ expand( struct envelope *unexpanded_env )
 	snet = NULL;
     }
 
+    syslog( LOG_INFO, "Expand %s: Metric %d entries %d levels",
+	    unexpanded_env->e_id, exp.exp_entries, exp.exp_max_level );
+
     if ( simta_expand_debug != 0 ) {
 	return_value = 0;
 	goto cleanup2;
@@ -613,7 +630,7 @@ expand( struct envelope *unexpanded_env )
 		unexpanded_env->e_id );
     }
 
-    syslog( LOG_INFO, "Expand %s: Message Deleted: Expansion complete", 
+    syslog( LOG_INFO, "Expand %s: Message Deleted: Expansion complete",
 	    unexpanded_env->e_id );
 
     return_value = 0;
@@ -758,31 +775,34 @@ supress_addrs( struct exp_link *list, int color )
 
 
     int
-sender_is_child( struct exp_addr *e, int color )
+sender_is_child( struct exp_link *el, int color )
 {
-    struct exp_link		*el;
+    struct exp_addr		*e;
 
-    if ( e->e_addr_anti_loop == color ) {
-	return( 0 );
-    }
-    e->e_addr_anti_loop = color;
+    for ( ; el != NULL; el = el->el_next ) {
+	e = el->el_exp_addr;
 
-    if (( e->e_addr_ldap_flags & STATUS_EMAIL_SENDER ) != 0 ) {
-	return( 1 );
-    }
+	if ( e->e_addr_anti_loop == color ) {
+	    return( 0 );
+	}
+	e->e_addr_anti_loop = color;
 
-    if (( e->e_addr_ldap_flags & STATUS_NO_EMAIL_SENDER ) != 0 ) {
-	return( 0 );
-    }
+	if (( e->e_addr_ldap_flags & STATUS_EMAIL_SENDER ) != 0 ) {
+	    return( 1 );
+	}
 
-    for ( el = e->e_addr_children; el != NULL; el = el->el_next ) {
-	if ( sender_is_child( el->el_exp_addr, color )) {
+	if (( e->e_addr_ldap_flags & STATUS_NO_EMAIL_SENDER ) != 0 ) {
+	    return( 0 );
+	}
+
+	if ( sender_is_child( e->e_addr_children, color )) {
 	    e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
 	    return( 1 );
 	}
+
+	e->e_addr_ldap_flags |= STATUS_NO_EMAIL_SENDER;
     }
 
-    e->e_addr_ldap_flags |= STATUS_NO_EMAIL_SENDER;
     return( 0 );
 }
 
@@ -868,7 +888,7 @@ permitted_destroy ( struct exp_addr *e_addr)
 }
 
 
-    int
+    char *
 parent_permitted( struct exp_addr *memonly )
 {
     struct exp_link		*parent;
@@ -882,11 +902,11 @@ parent_permitted( struct exp_addr *memonly )
 	    }
 
 	    if (( strcmp( ok->st_key, parent->el_exp_addr->e_addr_dn ) == 0 )) {
-		return( 1 );
+		return( parent->el_exp_addr->e_addr_dn );
 	    }
 	}
     }
 
-    return( 0 );
+    return( NULL );
 }
 #endif /* HAVE_LDAP */
