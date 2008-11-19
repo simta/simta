@@ -783,7 +783,7 @@ sender_is_child( struct exp_link *el, int color )
 	e = el->el_exp_addr;
 
 	if ( e->e_addr_anti_loop == color ) {
-	    return( 0 );
+	    continue;
 	}
 	e->e_addr_anti_loop = color;
 
@@ -792,7 +792,7 @@ sender_is_child( struct exp_link *el, int color )
 	}
 
 	if (( e->e_addr_ldap_flags & STATUS_NO_EMAIL_SENDER ) != 0 ) {
-	    return( 0 );
+	    continue;
 	}
 
 	if ( sender_is_child( e->e_addr_children, color )) {
