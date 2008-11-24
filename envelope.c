@@ -559,6 +559,8 @@ env_efile( struct envelope *e )
 
     if ( e->e_dir == simta_dir_fast ) {
 	simta_fast_files++;
+	syslog( LOG_DEBUG, "env_efile %s fast_files increment %d",
+		e->e_id, simta_fast_files );
     }
 
     syslog( LOG_DEBUG, "env_efile %s %s %s", e->e_dir, e->e_id,
@@ -875,6 +877,8 @@ env_unlink( struct envelope *env )
 
     if ( env->e_dir == simta_dir_fast ) {
 	simta_fast_files--;
+	syslog( LOG_DEBUG, "env_unlink %s fast_files decrement %d",
+		env->e_id, simta_fast_files );
     }
 
     if ( unlink( dfile_fname ) != 0 ) {
@@ -923,6 +927,8 @@ env_move( struct envelope *env, char *target_dir )
 
 	if ( target_dir == simta_dir_fast ) {
 	    simta_fast_files++;
+	    syslog( LOG_DEBUG, "env_move %s fast_files increment %d",
+		    env->e_id, simta_fast_files );
 	}
 
 
@@ -932,6 +938,8 @@ env_move( struct envelope *env, char *target_dir )
 	    } else {
 		if ( target_dir == simta_dir_fast ) {
 		    simta_fast_files--;
+		    syslog( LOG_DEBUG, "env_move %s fast_files decrement %d",
+			    env->e_id, simta_fast_files );
 		}
 
 		if ( unlink( dfile_new ) != 0 ) {

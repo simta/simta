@@ -1136,6 +1136,8 @@ q_deliver( struct host_q *deliver_q )
 	    if ( env_deliver->e_dir == simta_dir_fast ) {
 		/* overwrote fast file, not created a new one */
 		simta_fast_files--;
+		syslog( LOG_DEBUG, "q_deliver %s fast_files decrement %d",
+			env_deliver->e_id, simta_fast_files );
 	    }
 
 	    assert( simta_fast_files >= 0 );
