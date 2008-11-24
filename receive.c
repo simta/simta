@@ -1063,7 +1063,7 @@ f_data( struct receive_data *r )
     struct timeval			tv_now;
     time_t				clock;
     struct stat				sbuf;
-    char				daytime[ 30 ];
+    char				daytime[ 60 ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
     struct receive_headers		rh;
     unsigned int			data_wrote = 0;
@@ -1137,7 +1137,7 @@ f_data( struct receive_data *r )
 
 	clock = time( &clock );
 	tm = localtime( &clock );
-	strftime( daytime, sizeof( daytime ), "%e %b %Y %T", tm );
+	strftime( daytime, sizeof( daytime ), "%e %b %Y %T %Z", tm );
 
 	if ( simta_smtp_rcvbuf_min != 0 ) {
 	    if ( setsockopt( snet_fd( r->r_snet ), SOL_SOCKET, SO_RCVBUF,
@@ -1154,11 +1154,26 @@ f_data( struct receive_data *r )
 	 * header, since that is the first line in the file.  This is where
 	 * we might want to put the sender's domain name, if we obtained one.
 	 */
-	if ( fprintf( dff, "Received: FROM %s (%s [%s])\n\t"
-		"BY %s ID %s ; \n\t%s %s\n",
+	/* RFC 2821 4.4 Trace Information:
+	 *
+	 * Time-stamp-line = "Received:" FWS Stamp <CRLF>
+	 * Stamp = From-domain By-domain Opt-info ";"  FWS date-time
+	 * From-domain = "FROM" FWS Extended-Domain CFWS
+	 * By-domain = "BY" FWS Extended-Domain CFWS
+	 * Extended-Domain = Domain /
+	 *     ( Domain FWS "(" TCP-info ")" ) /
+	 *     ( Address-literal FWS "(" TCP-info ")" )
+	 * TCP-info = Address-literal / ( Domain FWS Address-literal )
+	 *
+	 */
+
+	if ( fprintf( dff,
+		"Received: FROM %s (%s [%s])\n"
+		"\tBy %s ID %s ;\n"
+		"\t%s\n",
 		( r->r_hello == NULL ) ? "NULL" : r->r_hello,
 		r->r_remote_hostname , inet_ntoa( r->r_sin->sin_addr ),
-		simta_hostname, r->r_env->e_id, daytime, tz( tm )) < 0 ) {
+		simta_hostname, r->r_env->e_id, daytime ) < 0 ) {
 	    syslog( LOG_ERR, "Syserror f_data fprintf: %m" );
 	    goto error;
 	}

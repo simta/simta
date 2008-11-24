@@ -1,3 +1,9 @@
+internal
+    - Timezone info added to Received header
+    - logging Members Only accept/deny explained
+    - logging expansion depth metric
+    - bugfix for sender matching memonly group
+
 0.8.1.h
     - MAXHOSTNAMELEN bug fixed
     - RBL logging now includes failure/accept codes
