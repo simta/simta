@@ -562,15 +562,16 @@ main( int ac, char **av )
 	}
 
 	/* lock simta pid fd */
-	if ( lockf( simta_pidfd, F_TLOCK, 0 ) != 0 ) {
+	if ( flock( simta_pidfd, LOCK_EX | LOCK_NB ) != 0 ) {
 	    if ( errno == EAGAIN ) {
 		/* file locked by a diferent process */
-		fprintf( stderr, "lockf %s: daemon already running",
+		fprintf( stderr, "flock %s: daemon already running\n",
 			SIMTA_FILE_PID );
 		exit( 1 );
 
 	    } else {
-		fprintf( stderr, "lockf %s: %m", SIMTA_FILE_PID );
+		fprintf( stderr, "flock %s:" , SIMTA_FILE_PID );
+		perror( NULL );
 		exit( 1 );
 	    }
 	}
