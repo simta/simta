@@ -54,16 +54,27 @@
 
 
 struct proc_type {
-    struct proc_type	*p_next;
-    struct timeval	p_tv;
-    struct simta_socket	*p_ss;
-    int			p_id;
-    int			p_type;
-    char		*p_host;
-    int			*p_limit;
+    struct proc_type		*p_next;
+    struct timeval		p_tv;
+    struct simta_socket		*p_ss;
+    struct connection_info	*p_cinfo;
+    int				p_id;
+    int				p_type;
+    char			*p_host;
+    int				*p_limit;
+};
+
+struct connection_info {
+    struct connection_info	*c_next;
+    struct connection_info	*c_prev;
+    struct sockaddr_in		c_sin;
+    int				c_proc_total;
+    int				c_proc_interval;
+    struct timeval		c_tv;
 };
 
 
+struct connection_info		*cinfo_stab = NULL;
 struct proc_type		*proc_stab = NULL;
 int				simta_pidfd;
 int				simsendmail_signal = 0;
@@ -1063,7 +1074,6 @@ simta_waitpid( void )
 		}
 	    }
 
-
 	    switch ( p_remove->p_type ) {
 	    case PROCESS_Q_LOCAL:
 		syslog( ll, "Child Exited %d: %d (%d Local %d)",
@@ -1283,11 +1293,12 @@ error:
     int
 simta_child_receive( struct simta_socket *ss )
 {
-    struct simta_socket	*s;
-    struct sockaddr_in	sin;
-    int			pid;
-    int			fd;
-    int			sinlen;
+    struct simta_socket		*s;
+    struct connection_info	*c;
+    struct sockaddr_in		sin;
+    int				pid;
+    int				fd;
+    int				sinlen;
 
     sinlen = sizeof( struct sockaddr_in );
 
@@ -1296,6 +1307,8 @@ simta_child_receive( struct simta_socket *ss )
 	/* accept() errors aren't fatal */
 	return( 0 );
     }
+
+    /* Look up / Create IP related connection data entry */
 
     switch ( pid = fork()) {
     case 0:

@@ -1,4 +1,4 @@
-internal
+0.8.1.i
     - pidfd locking hopefully better
     - Timezone info added to Received header
     - logging Members Only accept/deny explained
