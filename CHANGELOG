@@ -1,3 +1,6 @@
+internal
+    - connection throttling on a per IP basis introduced
+
 0.8.1.i
     - pidfd locking hopefully better
     - Timezone info added to Received header

@@ -2222,7 +2222,7 @@ f_auth( struct receive_data *r )
 
 
     int
-smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
+smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 {
     struct receive_data			r;
     ACAV				*acav = NULL;
@@ -2348,10 +2348,32 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	}
 
 	syslog( LOG_NOTICE, "Connect.in [%s] %s: SMTS",
-		inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
+		inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname );
 
     }
 #endif /* HAVE_LIBSSL */
+
+    if (( simta_receive_connections_per_host != 0 ) &&
+	    ( c->c_proc_total > simta_receive_connections_per_host )) {
+	syslog( LOG_WARNING, "Receive: connection refused: "
+		"connection per host exceeded %d", c->c_proc_interval );
+	if ( snet_writef( r.r_snet, "421 Maximum connections exceeded, "
+		"closing transmission channel\r\n" ) < 0 ) {
+	    syslog( LOG_ERR, "Syserror smtp_receive snet_writef: %m" );
+	}
+	goto closeconnection;
+    }
+
+    if (( simta_receive_connections_per_interval != 0 ) &&
+	    ( c->c_proc_interval > simta_receive_connections_per_interval )) {
+	syslog( LOG_WARNING, "Receive: connection refused: "
+		"connection per interval exceeded %d", c->c_proc_interval );
+	if ( snet_writef( r.r_snet, "421 Maximum connections exceeded, "
+		"closing transmission channel\r\n" ) < 0 ) {
+	    syslog( LOG_ERR, "Syserror smtp_receive snet_writef: %m" );
+	}
+	goto closeconnection;
+    }
 
     if (( simta_receive_connections_max != 0 ) &&
 	    ( simta_receive_connections >= simta_receive_connections_max )) {
@@ -2388,14 +2410,14 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
     } else {
 	if ( simta_dnsr == NULL ) {
 	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
-		syslog( LOG_ERR, "Syserror smtp_receive dnsr_new: returned NULL" );
+		syslog( LOG_ERR, "Syserror smtp_receive dnsr_new: NULL" );
 		goto syserror;
 	    }
 	}
 
 	*hostname = '\0';
 
-        if (( ret = check_reverse( hostname, &(sin->sin_addr))) == 0 ) {
+        if (( ret = check_reverse( hostname, &(c->c_sin.sin_addr))) == 0 ) {
             r.r_dns_match = "PASSED";
         } else {
             r.r_dns_match = "FAILED";
@@ -2403,37 +2425,37 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
                 if ( simta_ignore_connect_in_reverse_errors ) {
                     syslog( LOG_NOTICE,
                         "Connect.in [%s]: Warning: reverse address error: %s",
-                        inet_ntoa( sin->sin_addr ),
+                        inet_ntoa( c->c_sin.sin_addr ),
                         dnsr_err2string( dnsr_errno( simta_dnsr )));
                 } else {
                     syslog( LOG_NOTICE,
                         "Connect.in [%s]: Failed: reverse address error: %s",
-                        inet_ntoa( sin->sin_addr ),
+                        inet_ntoa( c->c_sin.sin_addr ),
                         dnsr_err2string( dnsr_errno( simta_dnsr )));
                     snet_writef( r.r_snet,
                         "421 Error checking reverse address: %s %s\r\n",
-                        inet_ntoa( sin->sin_addr ),
+                        inet_ntoa( c->c_sin.sin_addr ),
                         dnsr_err2string( dnsr_errno( simta_dnsr )));
                     goto closeconnection;
                 }
             } else {                            /* invalid reverse */
                 if ( simta_ignore_reverse == 0 ) {
                     syslog( LOG_NOTICE, "Connect.in [%s]: Failed: "
-                            "invalid reverse", inet_ntoa( sin->sin_addr ));
+                            "invalid reverse", inet_ntoa( c->c_sin.sin_addr ));
 		    if ( simta_reverse_url ) {
 			snet_writef( r.r_snet,
 				"421 No access from IP %s.  See %s\r\n",
-				inet_ntoa( sin->sin_addr ),
+				inet_ntoa( c->c_sin.sin_addr ),
 				simta_reverse_url );
 		    } else {
 			snet_writef( r.r_snet,
 				"421 No access from IP %s.\r\n",
-				inet_ntoa( sin->sin_addr ));
+				inet_ntoa( c->c_sin.sin_addr ));
 		    }
                     goto closeconnection;
                 } else {
                     syslog( LOG_NOTICE, "Connect.in [%s]: Warning: "
-                            "invalid reverse", inet_ntoa( sin->sin_addr ));
+                            "invalid reverse", inet_ntoa( c->c_sin.sin_addr ));
                 }
             }
         }
@@ -2443,20 +2465,21 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	}
 
         if ( simta_rbls != NULL ) {
-            switch( rbl_check( simta_rbls, &(sin->sin_addr), &rbl_found, NULL )) {
+            switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr), &rbl_found,
+		    NULL )) {
             case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Blocked: %s",
-                        inet_ntoa( sin->sin_addr ), r.r_remote_hostname,
+                        inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
                         rbl_found->rbl_domain );
                 snet_writef( r.r_snet, "550 No access from IP %s.  See %s\r\n",
-                        inet_ntoa( sin->sin_addr ), rbl_found->rbl_url );
+                        inet_ntoa( c->c_sin.sin_addr ), rbl_found->rbl_url );
                 goto closeconnection;
 
             case RBL_ACCEPT:
 		r.r_rbl_status = RBL_ACCEPT;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Accepted: %s",
-                        inet_ntoa( sin->sin_addr ), r.r_remote_hostname,
+                        inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
                         rbl_found->rbl_domain );
                 break;
 
@@ -2464,7 +2487,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 		/* leave as RBL_UNKNOWN so user tests happen */
 		r.r_rbl_status = RBL_UNKNOWN;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not Found",
-                        inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
+                        inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname );
                 break;
 
 	    case RBL_ERROR:
@@ -2472,7 +2495,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 		r.r_rbl_status = RBL_UNKNOWN;
                 syslog( LOG_NOTICE,
 			"Connect.in [%s] %s: RBL Error: %s",
-                        inet_ntoa( sin->sin_addr ), r.r_remote_hostname,
+                        inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
                         rbl_found->rbl_domain );
                 if ( dnsr_errno( simta_dnsr ) !=
                         DNSR_ERROR_TIMEOUT ) {
@@ -2492,9 +2515,9 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 
 	/* first STRING_UNKNOWN should be domain name of incoming host */
 	if ( hosts_ctl( "simta", ctl_hostname,
-		inet_ntoa( sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
+		inet_ntoa( c->c_sin.sin_addr ), STRING_UNKNOWN ) == 0 ) {
 	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Failed: access denied",
-		    inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
+		    inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname );
 	    if ( simta_libwrap_url == NULL ) {
 		goto syserror;
 	    }
@@ -2512,7 +2535,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	if (( r.r_env = env_create( NULL, NULL )) == NULL ) {
 	    goto syserror;
 	}
-	r.r_sin = sin;
+	r.r_sin = &c->c_sin;
 
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
@@ -2528,7 +2551,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	} else if ( ret > 0 ) {
 	    r.r_write_before_banner = 1;
 	    syslog( LOG_NOTICE, "Connect.in [%s] %s: Write before banner",
-		    inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
+		    inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname );
 	    sleep( simta_banner_punishment );
 	}
 
@@ -2542,7 +2565,7 @@ smtp_receive( int fd, struct sockaddr_in *sin, struct simta_socket *ss )
 	}
 
 	syslog( LOG_NOTICE, "Connect.in [%s] %s: Accepted",
-		inet_ntoa( sin->sin_addr ), r.r_remote_hostname );
+		inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname );
     }
 
     if (( acav = acav_alloc( )) == NULL ) {
@@ -2684,7 +2707,7 @@ closeconnection:
     syslog( LOG_NOTICE,
 	    "Connect.in [%s] %s: Metrics: "
 	    "seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
-	    inet_ntoa( sin->sin_addr ), r.r_remote_hostname,
+	    inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
 	    (int)(tv_stop.tv_sec - tv_start.tv_sec), r.r_mail_success,
 	    r.r_mail_attempt,
 	    r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,

@@ -81,6 +81,9 @@ int			simta_leaky_queue = 0;
 int			simta_use_randfile = 0;
 int			simta_listen_backlog = 5;
 int			simta_disk_cycle = 0;
+int			simta_receive_connection_interval = 1;
+int			simta_receive_connections_per_interval = 0;
+int			simta_receive_connections_per_host = 0;
 int			simta_receive_connections_max = SIMTA_MAXCONNECTIONS;
 int			simta_receive_connections = 0;
 int			simta_launch_limit = SIMTA_LAUNCH_LIMIT;
@@ -711,6 +714,57 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "BOUNCE_SECONDS: %d\n",
 		simta_bounce_seconds );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_CONNECTIONS_PER_HOST" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_receive_connections_per_host = atoi( av [ 1 ] );
+	    if ( simta_receive_connections_per_host < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"RECEIVE_CONNECTIONS_PER_HOST can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RECEIVE_CONNECTIONS_PER_HOST: %d\n",
+		    simta_receive_connections_per_host );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_CONNECTIONS_PER_INTERVAL" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_receive_connections_per_interval = atoi( av [ 1 ] );
+	    if ( simta_receive_connections_per_interval < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"RECEIVE_CONNECTIONS_PER_INTERVAL can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RECEIVE_CONNECTIONS_PER_INTERVAL: %d\n",
+		    simta_receive_connections_per_interval );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_CONNECTION_INTERVAL_TIME" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_receive_connection_interval = atoi( av [ 1 ] );
+	    if ( simta_receive_connection_interval < 1 ) {
+		fprintf( stderr, "%s: line %d: "
+			"RECEIVE_CONNECTION_INTERVAL_TIME can't be less than 1",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RECEIVE_CONNECTION_INTERVAL_TIME: %d\n",
+		    simta_receive_connection_interval );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS" ) == 0 ) {
 	    if ( ac != 2 ) {

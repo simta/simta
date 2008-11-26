@@ -74,6 +74,26 @@
 #define SIMTA_SOCKET_TLS	(1<<0)
 #endif /* HAVE_LIBSSL */
 
+struct proc_type {
+    struct proc_type		*p_next;
+    struct timeval		p_tv;
+    struct simta_socket		*p_ss;
+    struct connection_info	*p_cinfo;
+    int				p_id;
+    int				p_type;
+    char			*p_host;
+    int				*p_limit;
+};
+
+struct connection_info {
+    struct connection_info	*c_next;
+    struct connection_info	*c_prev;
+    struct sockaddr_in		c_sin;
+    int				c_proc_total;
+    int				c_proc_interval;
+    struct timeval		c_tv;
+};
+
 struct simta_socket {
     struct simta_socket		*ss_next;
     int				ss_socket;
@@ -105,6 +125,9 @@ extern int				simta_listen_backlog;
 extern int				simta_disk_cycle;
 extern int				simta_launch_limit;
 extern int				simta_min_work_time;
+extern int				simta_receive_connection_interval;
+extern int				simta_receive_connections_per_interval;
+extern int				simta_receive_connections_per_host;
 extern int				simta_receive_connections_max;
 extern int				simta_receive_connections;
 extern int				simta_q_runner_local;
@@ -188,7 +211,7 @@ extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
 
 int	q_cleanup( void );
-int	smtp_receive( int, struct sockaddr_in *, struct simta_socket * );
+int	smtp_receive( int, struct connection_info *, struct simta_socket * );
 void	panic( char * );
 char	*simta_sender( void );
 char	*simta_resolvconf( void );
