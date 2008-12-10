@@ -949,7 +949,7 @@ f_rcpt( struct receive_data *r )
 
 		/* Check and save RBL status */
 		switch ( rbl_check( simta_user_rbls, &(r->r_sin->sin_addr),
-			&rbl_found, &rbl_msg )) {
+			r->r_remote_hostname, &rbl_found, &rbl_msg )) {
 
 		case RBL_BLOCK:
 		    r->r_failed_rcpts++;
@@ -2465,8 +2465,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
         if ( simta_rbls != NULL ) {
-            switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr), &rbl_found,
-		    NULL )) {
+            switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
+		    r.r_remote_hostname, &rbl_found, NULL )) {
             case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Blocked: %s",
@@ -2486,7 +2486,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
             case RBL_NOT_FOUND:
 		/* leave as RBL_UNKNOWN so user tests happen */
 		r.r_rbl_status = RBL_UNKNOWN;
-                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not Found",
+                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not Listed",
                         inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname );
                 break;
 

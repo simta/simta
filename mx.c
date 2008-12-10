@@ -376,7 +376,7 @@ check_hostname( char *hostname )
  */
 
     int
-rbl_check( struct rbl *rbls, struct in_addr *in, struct rbl **found,
+rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 	char **msg )
 {
     struct rbl				*rbl;
@@ -411,7 +411,8 @@ rbl_check( struct rbl *rbls, struct in_addr *in, struct rbl **found,
 		    sizeof( struct in_addr ));
 	    ip = inet_ntoa( sin.sin_addr );
 	    if ( simta_rbl_verbose_logging ) {
-		syslog( LOG_INFO, "RBL %s: Found in %s list %s: %s", reverse_ip,
+		syslog( LOG_INFO, "RBL %s[%s]: Found in %s list %s: %s",
+			inet_ntoa( *in ), host ? host : "",
 			rbl->rbl_type == RBL_ACCEPT ? "Accept" : "Block",
 			rbl->rbl_domain, ip );
 	    }
@@ -430,20 +431,21 @@ rbl_check( struct rbl *rbls, struct in_addr *in, struct rbl **found,
 
 	} else {
 	    if ( simta_rbl_verbose_logging ) {
-		syslog( LOG_INFO, "RBL %s: Missing in %s list %s: %s",
+		syslog( LOG_INFO, "RBL %s: Unlisted in %s list %s",
 			reverse_ip,
 			rbl->rbl_type == RBL_ACCEPT ? "Accept" : "Block",
-			rbl->rbl_domain, ip );
+			rbl->rbl_domain );
 	    }
 	}
 
 	dnsr_free_result( result );
-	free( reverse_ip );
     }
 
     if ( simta_rbl_verbose_logging ) {
 	syslog( LOG_INFO, "RBL %s: RBL list exhausted", reverse_ip );
     }
+
+    free( reverse_ip );
 
     if ( found != NULL ) {
 	*found = NULL;

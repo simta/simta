@@ -54,11 +54,12 @@ main( int argc, char *argv[])
     int			rc;
     int			err = 0;
     int			quiet = 0;
+    int			nolog = 0;
 
     struct in_addr	addr;
     struct rbl		*rbl_found;
 
-    while(( c = getopt( argc, argv, "dl:s:q" )) != -1 ) {
+    while(( c = getopt( argc, argv, "dl:ns:q" )) != -1 ) {
 	switch( c ) {
 	case 'd':
 	    simta_debug++;
@@ -66,6 +67,10 @@ main( int argc, char *argv[])
 
 	case 'l':
 	    block_domain = optarg;
+	    break;
+
+	case 'n':
+	    nolog = 1;
 	    break;
 
 	case 'q':
@@ -105,6 +110,11 @@ main( int argc, char *argv[])
 	if ( simta_debug ) fprintf( stderr, "using nameserver: %s\n", server );
     }
 
+    if ( nolog == 0 ) {
+	openlog( argv[ 0 ], LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+	simta_rbl_verbose_logging = 1;
+    }
+
     if ( rbl_add( &simta_rbls, RBL_BLOCK, block_domain, "none" ) != 0 ) {
         perror( "malloc" );
         exit( SIMRBL_EXIT_ERROR );
@@ -120,7 +130,7 @@ main( int argc, char *argv[])
     }
 
     simta_rbl_verbose_logging = 1;
-    if (( rc = rbl_check( simta_rbls, &addr, &rbl_found, &rbl_msg ))
+    if (( rc = rbl_check( simta_rbls, &addr, NULL, &rbl_found, &rbl_msg ))
 	    == RBL_ERROR ) {
 	if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
 	exit( SIMRBL_EXIT_ERROR );

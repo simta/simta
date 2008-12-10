@@ -1,4 +1,5 @@
 internal
+    - RBL logging cleaned up
     - connection throttling on a per IP basis introduced
 
 0.8.1.i
