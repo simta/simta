@@ -455,16 +455,8 @@ main( int ac, char **av )
     /* set our umask */
     umask( 022 );
 
-    /* openlog now, as some support functions require it. */
-#ifdef ultrix
-    openlog( prog, LOG_NOWAIT|LOG_PID );
-#else /* ultrix */
-#ifndef Q_SIMULATION
-    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
-#else /* Q_SIMULATION */
-    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_USER );
-#endif /* Q_SIMULATION */
-#endif /*ultrix */
+    simta_gettimenow();
+    simta_openlog( 0 );
 
     if ( simta_read_config( config_fname ) < 0 ) {
         exit( 1 );
@@ -653,15 +645,8 @@ main( int ac, char **av )
     }
 
     /* Start logging in daemon mode */
-#ifdef ultrix
-    openlog( prog, LOG_NOWAIT|LOG_PID );
-#else /* ultrix */
-#ifndef Q_SIMULATION
-    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_SIMTA );
-#else /* Q_SIMULATION */
-    openlog( prog, LOG_NOWAIT|LOG_PID, LOG_USER );
-#endif /* Q_SIMULATION */
-#endif /*ultrix */
+    simta_gettimenow();
+    simta_openlog( 0 );
 
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
@@ -711,9 +696,12 @@ simta_child_queue_scheduler( void )
     int				pid;
     struct simta_socket		*ss;
 
+    simta_gettimenow();
+
     switch ( pid = fork()) {
     case 0 :
 	/* Fall through */
+	simta_openlog( 1 );
 	break;
 
     case -1 :
@@ -724,7 +712,8 @@ simta_child_queue_scheduler( void )
 	if ( simta_proc_add( PROCESS_Q_SCHEDULER, pid ) == NULL ) {
 	    return( 1 );
 	}
-	syslog( LOG_NOTICE, "Child Start %d: master queue server", pid );
+	syslog( LOG_NOTICE, "Child Start %d.%ld: master queue server", pid,
+		simta_tv_now.tv_sec );
 	return( 0 );
     }
 
@@ -1017,7 +1006,8 @@ simta_waitpid( void )
 	}
 
 	if ( *p_search == NULL ) {
-	    syslog( LOG_ERR, "Child Error %d: unkown child process", pid );
+	    syslog( LOG_ERR, "Child Error %d.%ld: unkown child process", pid,
+		    simta_tv_now.tv_sec );
 	    errors++;
 	    continue;
 	}
@@ -1053,13 +1043,15 @@ simta_waitpid( void )
 
 	    switch ( p_remove->p_type ) {
 	    case PROCESS_Q_LOCAL:
-		syslog( ll, "Child Exited %d: %d (%d Local %d)",
-			pid, exitstatus, seconds, *p_remove->p_limit );
+		syslog( ll, "Child Exited %d.%ld: %d (%d Local %d)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, seconds,
+			*p_remove->p_limit );
 		break;
 
 	    case PROCESS_Q_SLOW:
-		syslog( ll, "Child Exited %d: %d (%d Slow %d %s %s)",
-			pid, exitstatus, seconds, *p_remove->p_limit,
+		syslog( ll, "Child Exited %d.%ld: %d (%d Slow %d %s %s)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, seconds,
+			*p_remove->p_limit,
 			p_remove->p_host ? p_remove->p_host : "Unexpanded",
 			activity ? "Activity" : "Unresponsive" );
 		break;
@@ -1067,32 +1059,33 @@ simta_waitpid( void )
 	    case PROCESS_RECEIVE:
 		p_remove->p_ss->ss_count--;
 		p_remove->p_cinfo->c_proc_total--;
-		syslog( ll, "Child Exited %d: %d (%d Receive %d %s %d %s)",
-			pid, exitstatus, seconds, *p_remove->p_limit,
-			p_remove->p_ss->ss_service,
+		syslog( ll, "Child Exited %d.%ld: %d (%d Receive %d %s %d %s)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, seconds,
+			*p_remove->p_limit, p_remove->p_ss->ss_service,
 			p_remove->p_ss->ss_count, p_remove->p_host );
 		break;
 
 	    case PROCESS_Q_SCHEDULER:
 		errors++;
-		syslog( LOG_ERR, "Child Exited %d: %d (%d Scheduler)",
-			pid, exitstatus, seconds );
+		syslog( LOG_ERR, "Child Exited %d.%ld: %d (%d Scheduler)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, seconds );
 		break;
 
 	    default:
 		errors++;
-		syslog( LOG_ERR, "Child Exited %d: %d (%d Unknown)",
-			pid, exitstatus, seconds );
+		syslog( LOG_ERR, "Child Exited %d.%ld: %d (%d Unknown)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, seconds );
 		break;
 	    }
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Child Died %d: %d (%d seconds)", pid,
-		    WTERMSIG( status ), seconds);
+	    syslog( LOG_ERR, "Child Died %d.%ld: %d (%d seconds)", pid,
+		    p_remove->p_tv.tv_sec, WTERMSIG( status ), seconds );
 	    errors++;
 
 	} else {
-	    syslog( LOG_ERR, "Child Died %d: (%d seconds)", pid, seconds );
+	    syslog( LOG_ERR, "Child Died %d.%ld: (%d seconds)", pid,
+		    p_remove->p_tv.tv_sec, seconds );
 	    errors++;
 	}
 
@@ -1113,12 +1106,15 @@ simta_wait_for_child( int child_type )
     int				status;
     char			*p_name;
 
+    simta_gettimenow();
+
     switch ( pid = fork()) {
     case -1 :
 	syslog( LOG_ERR, "Syserror: simta_wait_for_child fork: %m" );
 	return( 1 );
 
     case 0 :
+	simta_openlog( 1 );
 	switch ( child_type ) {
 	case PROCESS_CLEANUP:
 	    exit( q_cleanup());
@@ -1138,47 +1134,51 @@ simta_wait_for_child( int child_type )
 	case PROCESS_CLEANUP:
 	    if ( simta_filesystem_cleanup ) {
 		p_name = "filesystem clean";
-		syslog( LOG_NOTICE, "Child Start %d: %s", pid, p_name );
+		syslog( LOG_NOTICE, "Child Start %d.%ld: %s", pid,
+			simta_tv_now.tv_sec, p_name );
 	    } else {
 		p_name = "filesystem check";
-		syslog( LOG_NOTICE, "Child Start %d: %s", pid, p_name );
+		syslog( LOG_NOTICE, "Child Start %d.%ld: %s", pid,
+			simta_tv_now.tv_sec, p_name );
 	    }
 	    break;
 
 	case PROCESS_Q_SLOW:
 	    p_name = "stand_alone q_runner";
 	    if ( simta_queue_filter ) {
-		syslog( LOG_NOTICE, "Child Start %d: %s: %s", pid, p_name,
-			simta_queue_filter );
+		syslog( LOG_NOTICE, "Child Start %d.%ld: %s: %s", pid,
+			simta_tv_now.tv_sec, p_name, simta_queue_filter );
 	    } else {
-		syslog( LOG_NOTICE, "Child Start %d: %s", pid, p_name );
+		syslog( LOG_NOTICE, "Child Start %d.%ld: %s", pid,
+			simta_tv_now.tv_sec, p_name );
 	    }
 	    break;
 
 	default:
-	    syslog( LOG_ERR, "Child Error %d: start type %d out of range",
-		    pid, child_type );
+	    syslog( LOG_ERR, "Child Error %d.%ld: start type %d out of range",
+		    pid, simta_tv_now.tv_sec, child_type );
 	    return( 1 );
 	}
 
 	if ( waitpid( pid, &status, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "Child Error %d: wait_for_child waitpid: %m",
-		    pid );
+	    syslog( LOG_ERR, "Child Error %d.%ld: wait_for_child waitpid: %m",
+		    pid, simta_tv_now.tv_sec );
 	    return( 1  );
 	}
 
 	if ( WIFEXITED( status )) {
-	    syslog( LOG_NOTICE, "Child Exited %d: %s: %d", pid, p_name,
-		    WEXITSTATUS( status ));
+	    syslog( LOG_NOTICE, "Child Exited %d.%ld: %s: %d", pid,
+		    simta_tv_now.tv_sec, p_name, WEXITSTATUS( status ));
 	    return( WEXITSTATUS( status ));
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Child Died %d: %s: signal %d", pid, p_name,
-		    WTERMSIG( status ));
+	    syslog( LOG_ERR, "Child Died %d.%ld: %s: signal %d", pid,
+		    simta_tv_now.tv_sec, p_name, WTERMSIG( status ));
 	    return( 1 );
 
 	} else {
-	    syslog( LOG_ERR, "Child Died %d: %s", pid, p_name );
+	    syslog( LOG_ERR, "Child Died %d.%ld: %s", pid, simta_tv_now.tv_sec,
+		    p_name );
 	    return( 1 );
 	}
     }
@@ -1286,8 +1286,8 @@ error:
     for ( p = proc_stab; p != NULL; p = p->p_next ) {
 	if ( p->p_type == PROCESS_Q_SCHEDULER ) {
 	    if ( kill( p->p_id, SIGKILL ) != 0 ) {
-		syslog( LOG_ERR, "Syserror: simta_smtp_server kill %d: %m",
-			p->p_id );
+		syslog( LOG_ERR, "Syserror: simta_smtp_server kill %d.%ld: %m",
+			p->p_id, p->p_tv.tv_sec );
 	    }
 	    break;
 	}
@@ -1375,8 +1375,11 @@ simta_child_receive( struct simta_socket *ss )
 	    inet_ntoa( sin.sin_addr ), c->c_proc_total,
 	    simta_receive_connection_interval, c->c_proc_interval );
 
+    simta_gettimenow();
+
     switch ( pid = fork()) {
     case 0:
+	simta_openlog( 1 );
 	simta_process_type = PROCESS_RECEIVE;
 	for ( s = simta_listen_sockets; s != NULL; s = s->ss_next ) {
 	    if ( close( s->ss_socket ) != 0 ) {
@@ -1418,8 +1421,11 @@ simta_child_q_runner( struct host_q *hq )
     return( 0 );
 #endif /* Q_SIMULATION */
 
+    simta_gettimenow();
+
     switch ( pid = fork()) {
     case 0 :
+	simta_openlog( 1 );
 	simta_sigaction_reset();
 	close( simta_pidfd );
 	simta_host_q = NULL;
@@ -1487,15 +1493,16 @@ simta_proc_q_runner( int pid, struct host_q *hq )
 	p->p_limit = &simta_q_runner_local;
 	(*p->p_limit)++;
 
-	syslog( LOG_NOTICE, "Child Start %d: Local %d", pid, *p->p_limit );
+	syslog( LOG_NOTICE, "Child Start %d.%ld: Local %d", pid, p->p_tv.tv_sec,
+		*p->p_limit );
 
     } else {
 	p->p_limit = &simta_q_runner_slow;
 	(*p->p_limit)++;
 
 	if ( hq->hq_hostname == NULL ) {
-	    syslog( LOG_NOTICE, "Child Start %d: Unexpanded %d",
-		    *p->p_limit, pid );
+	    syslog( LOG_NOTICE, "Child Start %d.%ld: Unexpanded %d",
+		    pid, p->p_tv.tv_sec, *p->p_limit );
 
 	} else {
 	    if (( p->p_host = strdup( hq->hq_hostname )) == NULL ) {
@@ -1504,8 +1511,8 @@ simta_proc_q_runner( int pid, struct host_q *hq )
 		return( 1 );
 	    }
 
-	    syslog( LOG_NOTICE, "Child Start %d: Deliver %d %s", pid,
-		    *p->p_limit, p->p_host );
+	    syslog( LOG_NOTICE, "Child Start %d.%ld: Deliver %d %s", pid,
+		    p->p_tv.tv_sec, *p->p_limit, p->p_host );
 	}
     }
 
@@ -1535,8 +1542,9 @@ simta_proc_receive( int pid, struct simta_socket *ss,
 	return( 1 );
     }
 
-    syslog( LOG_NOTICE, "Child Start %d: Receive %d %s %d: %s", p->p_id,
-	    *p->p_limit, p->p_ss->ss_service, p->p_ss->ss_count, p->p_host );
+    syslog( LOG_NOTICE, "Child Start %d.%d: Receive %d %s %d: %s", p->p_id,
+	    p->p_tv.tv_sec, *p->p_limit, p->p_ss->ss_service,
+	    p->p_ss->ss_count, p->p_host );
 
     return( 0 );
 }
@@ -1554,12 +1562,7 @@ simta_proc_add( int process_type, int pid )
     }
     memset( p, 0, sizeof( struct proc_type ));
 
-    if ( gettimeofday( &p->p_tv, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: simta_proc_add gettimeofday: %m" );
-	free( p );
-	return( NULL );
-    }
-
+    p->p_tv.tv_sec = simta_tv_now.tv_sec;
     p->p_id = pid;
     p->p_type = process_type;
     p->p_next = proc_stab;

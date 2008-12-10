@@ -96,12 +96,15 @@ deliver_binary( struct deliver *d )
 	return( EX_TEMPFAIL );
     }
 
+    simta_gettimenow();
+
     switch ( pid = fork()) {
     case -1 :
 	syslog( LOG_ERR, "deliver_binary fork: %m" );
 	return( EX_TEMPFAIL );
 
     case 0 :
+	simta_openlog( 1 );
 	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
 	if ( close( fd[ 1 ] ) < 0 ) {
 	    syslog( LOG_ERR, "deliver_binary close: %m" );

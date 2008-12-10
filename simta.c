@@ -62,6 +62,7 @@
 /* global variables */
 
 struct timeval		simta_tv_mid = { 0, 0 };
+struct timeval		simta_tv_now;
 struct envelope		*simta_env_queue = NULL;
 struct host_q		*simta_host_q = NULL;
 struct host_q		*simta_deliver_q = NULL;
@@ -152,6 +153,7 @@ char			*simta_dir_slow = NULL;
 char			*simta_dir_fast = NULL;
 char			*simta_base_dir = NULL;
 char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
+char			simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
 DNSR			*simta_dnsr = NULL;
 char			*simta_default_alias_db = SIMTA_ALIAS_DB;
 char			*simta_default_passwd_file = "/etc/passwd";
@@ -168,6 +170,50 @@ panic( char *message )
 {
     syslog( LOG_CRIT, "%s", message );
     abort();
+}
+
+
+    int
+simta_gettimenow( void )
+{
+    if ( gettimeofday( &simta_tv_now, NULL ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: simta_gettimenow gettimeofday: %m" );
+	return( 1 );
+    }
+
+    return( 0 );
+}
+
+
+    void
+simta_openlog( int cl )
+{
+    struct timeval		tv;
+
+    if ( gettimeofday( &tv, NULL ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: simta_openlog gettimeofday: %m" );
+	return;
+    }
+
+    if ( cl ) {
+	closelog();
+    }
+
+    snprintf( simta_log_id, SIMTA_LOG_ID_LEN, "simta [%d.%ld]", getpid(),
+	    tv.tv_sec );
+
+    /* openlog now, as some support functions require it. */
+#ifdef ultrix
+    openlog( simta_log_id, LOG_NOWAIT );
+#else /* ultrix */
+#ifndef Q_SIMULATION
+    openlog( simta_log_id, LOG_NOWAIT, LOG_SIMTA );
+#else /* Q_SIMULATION */
+    openlog( simta_log_id, LOG_NOWAIT, LOG_USER );
+#endif /* Q_SIMULATION */
+#endif /*ultrix */
+
+    return;
 }
 
 

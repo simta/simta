@@ -20,6 +20,7 @@
 
 #define	STRING_POSTMASTER		"postmaster"
 
+#define SIMTA_LOG_ID_LEN		80
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
@@ -105,6 +106,7 @@ struct simta_socket {
 
 /* global variables */
 
+extern struct timeval			simta_tv_now;
 extern struct timeval			simta_tv_mid;
 extern struct host_q			*simta_deliver_q;
 extern struct host_q			*simta_unexpanded_q;
@@ -205,6 +207,7 @@ extern char				*simta_file_ca;
 extern char				*simta_dir_ca;
 extern char				*simta_file_cert;
 extern char				*simta_file_private_key;
+extern char				simta_log_id[];
 char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern char				**simta_deliver_default_argv;
@@ -218,6 +221,8 @@ char	*simta_resolvconf( void );
 int	simta_init_hosts( void );
 int	simta_config( char * );
 int     simta_read_config( char * );
+void	simta_openlog( int );
+int	simta_gettimenow( void );
 
 /*****     bounce.c     *****/
 

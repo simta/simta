@@ -2880,6 +2880,8 @@ content_filter( struct receive_data *r, char **smtp_message )
 	return( MESSAGE_TEMPFAIL );
     }
 
+    simta_gettimenow();
+
     switch ( pid = fork()) {
     case -1 :
 	close( fd[ 0 ]);
@@ -2888,6 +2890,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	return( MESSAGE_TEMPFAIL );
 
     case 0 :
+	simta_openlog( 1 );
 	/* use fd[ 1 ] to communicate with parent, parent uses fd[ 0 ] */
 	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "Syserror content_filter close1: %m" );

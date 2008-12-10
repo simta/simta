@@ -1,4 +1,5 @@
 internal
+    - simta unique PIDs
     - RBL logging cleaned up
     - connection throttling on a per IP basis introduced
 
