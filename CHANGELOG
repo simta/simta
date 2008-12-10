@@ -1,4 +1,4 @@
-internal
+0.8.1.j
     - simta unique PIDs
     - RBL logging cleaned up
     - connection throttling on a per IP basis introduced
