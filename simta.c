@@ -188,19 +188,12 @@ simta_gettimenow( void )
     void
 simta_openlog( int cl )
 {
-    struct timeval		tv;
-
-    if ( gettimeofday( &tv, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: simta_openlog gettimeofday: %m" );
-	return;
-    }
-
     if ( cl ) {
 	closelog();
     }
 
     snprintf( simta_log_id, SIMTA_LOG_ID_LEN, "simta [%d.%ld]", getpid(),
-	    tv.tv_sec );
+	    simta_tv_now.tv_sec );
 
     /* openlog now, as some support functions require it. */
 #ifdef ultrix

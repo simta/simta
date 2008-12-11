@@ -1312,6 +1312,8 @@ deliver_remote( struct deliver *d, struct host_q *hq )
     int				s;
     int				env_movement = 0;
     struct timeval		tv;
+    struct timeval		tv_start;
+    struct timeval		tv_stop;
 
     switch ( hq->hq_status ) {
     case HOST_MX:
@@ -1370,6 +1372,10 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
 	    hq_clear_errors( hq );
 
+	    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
+		syslog( LOG_DEBUG, "deliver_remote gettimeofday: %m" );
+	    }
+
 	    if (( r_smtp = smtp_connect( hq, d )) != SMTP_OK ) {
 		goto smtp_cleanup;
 	    }
@@ -1393,10 +1399,16 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    d->d_queue_movement = 1;
 	    env_movement = 1;
 	    simta_smtp_outbound_delivered++;
+
+	    if ( gettimeofday( &tv_stop, NULL ) != 0 ) {
+		syslog( LOG_DEBUG, "deliver_remote gettimeofday: %m" );
+	    }
+
 	    syslog( LOG_DEBUG, "Queue %s: %s Delivery activity: "
-		    "%d failed %d accepted", hq->hq_hostname, d->d_env->e_id, 
-		    d->d_n_rcpt_failed,
-		    d->d_delivered ? d->d_n_rcpt_accepted : 0 );
+		    "%d failed %d accepted %ld seconds", hq->hq_hostname,
+		    d->d_env->e_id, d->d_n_rcpt_failed,
+		    d->d_delivered ? d->d_n_rcpt_accepted : 0,
+		    tv_stop.tv_sec - tv_start.tv_sec );
 	}
 
 	if ( r_smtp == SMTP_OK ) {
