@@ -1301,7 +1301,7 @@ error:
 simta_child_receive( struct simta_socket *ss )
 {
     struct simta_socket		*s;
-    struct connection_info	*c;
+    struct connection_info	*c = NULL;
     struct connection_info	*next;
     struct connection_info	*prev = NULL;
     struct sockaddr_in		sin;
@@ -1336,7 +1336,7 @@ simta_child_receive( struct simta_socket *ss )
 	    return( 1 );
 	}
 	memset( c, 0, sizeof( struct connection_info ));
-	c->c_sin = sin;
+	memcpy( &(c->c_sin), &sin, sizeof( struct sockaddr ));
 
 	if ( prev == NULL ) {
 	    cinfo_stab = c;
@@ -1371,8 +1371,8 @@ simta_child_receive( struct simta_socket *ss )
 
     c->c_proc_total++;
 
-    syslog( LOG_DEBUG, "Connect.In %s: total %d interval (%d) %d",
-	    inet_ntoa( sin.sin_addr ), c->c_proc_total,
+    syslog( LOG_DEBUG, "Connect.in %s: total %d interval (%d) %d",
+	    inet_ntoa( c->c_sin.sin_addr ), c->c_proc_total,
 	    simta_receive_connection_interval, c->c_proc_interval );
 
     simta_gettimenow();
@@ -1542,7 +1542,7 @@ simta_proc_receive( int pid, struct simta_socket *ss,
 	return( 1 );
     }
 
-    syslog( LOG_NOTICE, "Child Start %d.%d: Receive %d %s %d: %s", p->p_id,
+    syslog( LOG_NOTICE, "Child Start %d.%ld: Receive %d %s %d: %s", p->p_id,
 	    p->p_tv.tv_sec, *p->p_limit, p->p_ss->ss_service,
 	    p->p_ss->ss_count, p->p_host );
 
