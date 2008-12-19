@@ -1,4 +1,8 @@
 internal
+    X makefile patch
+    X $SIMTA_UID
+    X adam's bugs for RBL LOGS
+    - RBL accounting bugfig
     - switched from double to single linked list for connection_info tracking
     - syslog openlog() bug fixed
 

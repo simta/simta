@@ -942,14 +942,34 @@ f_rcpt( struct receive_data *r )
 		return( smtp_tempfail( r, NULL ));
 
 	    case LOCAL_ADDRESS_RBL:
-		if (( simta_user_rbls == NULL ) ||
-			( r->r_rbl_status != RBL_UNKNOWN )) {
+		if ( simta_user_rbls == NULL ) {
+		    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
+			    "No user RBLS", r->r_env->e_id, addr,
+			    r->r_env->e_mail );
+			    
 		    break;
 		}
 
-		/* Check and save RBL status */
-		switch ( rbl_check( simta_user_rbls, &(r->r_sin->sin_addr),
-			r->r_remote_hostname, &rbl_found, &rbl_msg )) {
+		if ( r->r_rbl_status == RBL_UNKNOWN ) {
+		    r->r_rbl_status = rbl_check( simta_user_rbls,
+			    &(r->r_sin->sin_addr), r->r_remote_hostname,
+			    &rbl_found, &rbl_msg );
+		}
+
+		switch ( r->r_rbl_status ) {
+		case RBL_ERROR:
+		default:
+		    r->r_rbl_status = RBL_UNKNOWN;
+		    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
+			    "RBL %s error",
+			    r->r_env->e_id, addr, r->r_env->e_mail,
+			    rbl_found->rbl_domain );
+		    if ( dnsr_errno( simta_dnsr ) !=
+			    DNSR_ERROR_TIMEOUT ) {
+			return( RECEIVE_CLOSECONNECTION );
+		    }
+		    dnsr_errclear( simta_dnsr );
+		    break;
 
 		case RBL_BLOCK:
 		    r->r_failed_rcpts++;
@@ -981,24 +1001,9 @@ f_rcpt( struct receive_data *r )
 		case RBL_NOT_FOUND:
 		    r->r_rbl_status = RBL_NOT_FOUND;
 		    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
-			    "Not found in RBL", r->r_env->e_id, addr,
+			    "Not listed in RBL", r->r_env->e_id, addr,
 			    r->r_env->e_mail );
 		    break;
-
-		case RBL_ERROR:
-		default:
-		    r->r_rbl_status = RBL_UNKNOWN;
-		    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
-			    "RBL %s error",
-			    r->r_env->e_id, addr, r->r_env->e_mail,
-			    rbl_found->rbl_domain );
-		    if ( dnsr_errno( simta_dnsr ) !=
-			    DNSR_ERROR_TIMEOUT ) {
-			return( RECEIVE_CLOSECONNECTION );
-		    }
-		    dnsr_errclear( simta_dnsr );
-		    break;
-
 		}
 		break; /* end case LOCAL_ADDRESS_RBL */
 
@@ -2486,7 +2491,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
             case RBL_NOT_FOUND:
 		/* leave as RBL_UNKNOWN so user tests happen */
 		r.r_rbl_status = RBL_UNKNOWN;
-                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not Listed",
+                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Not listed",
                         inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname );
                 break;
 
