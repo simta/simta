@@ -1,6 +1,9 @@
 internal
-    - bugfix for connection search uninitilized variable fixed
+    - switched from double to single linked list for connection_info tracking
+    - syslog openlog() bug fixed
 
+0.8.1.k
+    - bugfix for connection search uninitilized variable fixed
 
 0.8.1.j
     - simta unique PIDs

@@ -192,7 +192,7 @@ simta_openlog( int cl )
 	closelog();
     }
 
-    snprintf( simta_log_id, SIMTA_LOG_ID_LEN, "simta [%d.%ld]", getpid(),
+    snprintf( simta_log_id, SIMTA_LOG_ID_LEN, "simta[%d.%ld]", getpid(),
 	    simta_tv_now.tv_sec );
 
     /* openlog now, as some support functions require it. */

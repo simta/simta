@@ -88,7 +88,6 @@ struct proc_type {
 
 struct connection_info {
     struct connection_info	*c_next;
-    struct connection_info	*c_prev;
     struct sockaddr_in		c_sin;
     int				c_proc_total;
     int				c_proc_interval;

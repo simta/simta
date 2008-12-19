@@ -1213,7 +1213,7 @@ simta_smtp_server( void )
     fd_set			fdset;
     struct proc_type		*p;
     struct simta_socket		*ss;
-    struct connection_info	*c;
+    struct connection_info	**c;
     struct connection_info	*remove;
     struct timeval		tv_now;
 
@@ -1253,22 +1253,15 @@ simta_smtp_server( void )
 	    return( 1 );
 	}
 
-	c = cinfo_stab;
-	while ( c != NULL ) {
-	    if (( c->c_proc_total == 0 ) && ( c->c_tv.tv_sec + 
+	for ( c = &cinfo_stab; *c != NULL; ) {
+	    if (((*c)->c_proc_total == 0 ) && ((*c)->c_tv.tv_sec + 
 		    simta_receive_connection_interval < tv_now.tv_sec )) {
-		remove = c;
-		c = c->c_next;
-		if ( remove->c_prev ) {
-		    c->c_prev = remove->c_prev;
-		    c->c_prev->c_next = c;
-		} else {
-		    cinfo_stab = c;
-		}
+		remove = *c;
+		*c = (*c)->c_next;
 		free( remove );
 
 	    } else {
-		c = c->c_next;
+		c = &((*c)->c_next);
 	    }
 	}
 
@@ -1302,8 +1295,6 @@ simta_child_receive( struct simta_socket *ss )
 {
     struct simta_socket		*s;
     struct connection_info	*c = NULL;
-    struct connection_info	*next;
-    struct connection_info	*prev = NULL;
     struct sockaddr_in		sin;
     struct timeval		tv_now;
     int				pid;
@@ -1319,14 +1310,11 @@ simta_child_receive( struct simta_socket *ss )
     }
 
     /* Look up / Create IP related connection data entry */
-
-    for ( next = cinfo_stab; next != NULL; next = next->c_next ) {
-	if ( memcmp( &(next->c_sin.sin_addr), &sin.sin_addr,
+    for ( c = cinfo_stab; c != NULL; c = c->c_next ) {
+	if ( memcmp( &(c->c_sin.sin_addr), &sin.sin_addr,
 		sizeof( struct in_addr )) == 0 ) {
-	    c = next;
 	    break;
 	}
-	prev = next;
     }
 
     if ( c == NULL ) {
@@ -1338,17 +1326,8 @@ simta_child_receive( struct simta_socket *ss )
 	memset( c, 0, sizeof( struct connection_info ));
 	memcpy( &(c->c_sin), &sin, sizeof( struct sockaddr ));
 
-	if ( prev == NULL ) {
-	    cinfo_stab = c;
-	} else {
-	    c->c_prev = prev;
-	    prev->c_next = c;
-	}
-
-	c->c_next = next;
-	if ( next != NULL ) {
-	    next->c_prev = c;
-	}
+	c->c_next = cinfo_stab;
+	cinfo_stab = c;
     }
 
     if ( simta_receive_connections_per_interval > 0 ) {
