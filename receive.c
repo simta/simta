@@ -2871,7 +2871,7 @@ content_filter( struct receive_data *r, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 13 ];
+    char		*filter_envp[ 14 ];
     char		fname[ MAXPATHLEN + 1 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
@@ -2980,38 +2980,43 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
+	if (( filter_envp[ 8 ] = env_string( "SIMTA_UID",
+		r->r_env->e_id )) == NULL ) {
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
 	if ( r->r_write_before_banner != 0 ) {
-	    if (( filter_envp[ 8 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
+	    if (( filter_envp[ 9 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
 		    "1" )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
 	} else {
-	    if (( filter_envp[ 8 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
+	    if (( filter_envp[ 9 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
 		    "0" )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 	}
 
-	if (( filter_envp[ 9 ] = env_string( "SIMTA_AUTH_ID",
+	if (( filter_envp[ 10 ] = env_string( "SIMTA_AUTH_ID",
 		r->r_auth_id )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
 	if ( simta_checksum_md != NULL ) {
-	    if (( filter_envp[ 10 ] = env_string( "SIMTA_CHECKSUM_SIZE",
+	    if (( filter_envp[ 11 ] = env_string( "SIMTA_CHECKSUM_SIZE",
 		    r->r_md_bytes )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    if (( filter_envp[ 11 ] = env_string( "SIMTA_CHECKSUM",
+	    if (( filter_envp[ 12 ] = env_string( "SIMTA_CHECKSUM",
 		    r->r_md_b64 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    filter_envp[ 12 ] = NULL;
+	    filter_envp[ 13 ] = NULL;
 	} else {
-	    filter_envp[ 10 ] = NULL;
+	    filter_envp[ 11 ] = NULL;
 	}
 
 
