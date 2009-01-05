@@ -694,7 +694,7 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "DATA_LINE_WAIT %d\n",
 		    simta_data_line_wait );
 
-	} else if ( strcasecmp( av[ 0 ], "DATA_SESION_WAIT" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "DATA_SESSION_WAIT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );

@@ -1,10 +1,12 @@
 # @configure_input@
 
+prefix=@prefix@
+exec_prefix=@exec_prefix@
 DESTDIR=@prefix@
 MANDIR=/usr/share/man
 BINDIR=@bindir@
 ETCDIR=@sysconfdir@/simta
-SBINDIR=/usr/sbin
+SBINDIR=@sbindir@
 RUNDIR=/var/run
 RUNFILE=/var/run/simta.pid
 LIBDIR=/usr/lib
@@ -71,7 +73,7 @@ SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
-BINTARGETS=	simrbl simreverse simalias simexpander
+BINTARGETS=	simrbl simreverse simalias simexpander denser/dense
 TARGETS=	simta tlsconnect simsendmail q_runner simexpander sla \
 		${BINTARGETS}
 

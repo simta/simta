@@ -409,7 +409,11 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 	    memcpy( &(sin.sin_addr.s_addr),
 		    &(result->r_answer[0].rr_a),
 		    sizeof( struct in_addr ));
-	    ip = inet_ntoa( sin.sin_addr );
+	    if (( ip = strdup( inet_ntoa( sin.sin_addr ))) == NULL ) {
+		syslog( LOG_ERR, "Syserror rbl_check: strdup %m" );
+		return( RBL_ERROR );
+	    }
+
 	    if ( simta_rbl_verbose_logging ) {
 		syslog( LOG_INFO, "RBL %s[%s]: Found in %s list %s: %s",
 			inet_ntoa( *in ), host ? host : "",
@@ -421,10 +425,9 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 	    dnsr_free_result( result );
 
 	    if ( msg != NULL ) {
-		if (( *msg = strdup( ip )) == NULL ) {
-		    syslog( LOG_ERR, "Syserror rbl_check: malloc %m" );
-		    return( RBL_ERROR );
-		}
+		*msg = ip;
+	    } else {
+		free( ip );
 	    }
 
 	    return( rbl->rbl_type );

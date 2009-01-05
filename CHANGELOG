@@ -1,6 +1,6 @@
 internal
-    X makefile patch
-    X adam's bugs for RBL LOGS
+    - makefile patch
+    - RBL "secret messages" bugfix
     - SIMTA_UID available in the content filter
     - RBL accounting bugfig
     - switched from double to single linked list for connection_info tracking
