@@ -90,6 +90,13 @@ extern SSL_CTX	*ctx;
 
 extern char		*version;
 
+/* command line timer */
+/* data line timer */
+/* inactivity timer */
+/* global session timer */
+/* data session timer */
+/* message send timer */
+
 struct receive_data {
     SNET			*r_snet;
     struct envelope		*r_env;
@@ -108,6 +115,8 @@ struct receive_data {
     int				r_auth;
     char			*r_dns_match;
     int				r_rbl_status;
+    struct rbl			*r_rbl;
+    char			*r_rbl_msg;
     char			*r_hello;
     char			*r_smtp_command;
     char			*r_remote_hostname;
@@ -778,9 +787,7 @@ f_rcpt( struct receive_data *r )
     int				rc;
     char			*addr;
     char			*domain;
-    char			*rbl_msg = NULL;
     struct simta_red		*red;
-    struct rbl			*rbl_found;
 
     r->r_rcpt_attempt++;
 
@@ -953,7 +960,7 @@ f_rcpt( struct receive_data *r )
 		if ( r->r_rbl_status == RBL_UNKNOWN ) {
 		    r->r_rbl_status = rbl_check( simta_user_rbls,
 			    &(r->r_sin->sin_addr), r->r_remote_hostname,
-			    &rbl_found, &rbl_msg );
+			    &(r->r_rbl), &(r->r_rbl_msg));
 		}
 
 		switch ( r->r_rbl_status ) {
@@ -963,7 +970,7 @@ f_rcpt( struct receive_data *r )
 		    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 			    "RBL %s error",
 			    r->r_env->e_id, addr, r->r_env->e_mail,
-			    rbl_found->rbl_domain );
+			    r->r_rbl->rbl_domain );
 		    if ( dnsr_errno( simta_dnsr ) !=
 			    DNSR_ERROR_TIMEOUT ) {
 			return( RECEIVE_CLOSECONNECTION );
@@ -975,18 +982,18 @@ f_rcpt( struct receive_data *r )
 		    r->r_failed_rcpts++;
 		    r->r_rbl_status = RBL_BLOCK;
 		    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
-			    "RBL %s Blocked %s (%s): %s",
+			    "RBL %s Blocked [%s] %s: %s",
 			    r->r_env->e_id, addr, r->r_env->e_mail,
-			    rbl_found->rbl_domain, r->r_remote_hostname,
-			    inet_ntoa( r->r_sin->sin_addr ), rbl_msg );
+			    r->r_rbl->rbl_domain, 
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname, r->r_rbl_msg );
 		    if ( snet_writef( r->r_snet,
 			    "550 No access from IP %s. See %s\r\n",
 			    inet_ntoa( r->r_sin->sin_addr ),
-			    rbl_found->rbl_url ) < 0 ) {
+			    r->r_rbl->rbl_url ) < 0 ) {
 			syslog( LOG_ERR, "Syserror f_rcpt: snet_writef: %m" );
 			return( RECEIVE_CLOSECONNECTION );
 		    }
-		    free( rbl_msg );
 		    return( RECEIVE_OK );
 
 		case RBL_ACCEPT:
@@ -994,8 +1001,7 @@ f_rcpt( struct receive_data *r )
 		    syslog( LOG_INFO, "Receive %s: To <%s> From <%s> "
 			    "RBL %s Accepted: %s",
 			    r->r_env->e_id, addr, r->r_env->e_mail,
-			    rbl_found->rbl_domain, rbl_msg );
-		    free( rbl_msg );
+			    r->r_rbl->rbl_domain, r->r_rbl_msg );
 		    break;
 
 		case RBL_NOT_FOUND:
@@ -1204,6 +1210,11 @@ f_data( struct receive_data *r )
 
     tv_session.tv_sec = tv_data_start.tv_sec + simta_data_transaction_wait;
     tv_session.tv_usec = 0;
+
+/* DATA */
+/* data line timer */
+/* global session timer */
+/* data session timer */
 
     while (( line = snet_getline( r->r_snet, &tv_line )) != NULL ) {
 	line_no++;
@@ -2240,7 +2251,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     struct timeval			tv_write;
     struct timeval			tv_start;
     struct timeval			tv_stop;
-    struct rbl				*rbl_found;
 #ifdef HAVE_LIBSASL
     sasl_security_properties_t		secprops;
 #endif /* HAVE_LIBSASL */
@@ -2471,21 +2481,21 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
         if ( simta_rbls != NULL ) {
             switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
-		    r.r_remote_hostname, &rbl_found, NULL )) {
+		    r.r_remote_hostname, &(r.r_rbl), NULL )) {
             case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Blocked: %s",
                         inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
-                        rbl_found->rbl_domain );
+                        (r.r_rbl)->rbl_domain );
                 snet_writef( r.r_snet, "550 No access from IP %s.  See %s\r\n",
-                        inet_ntoa( c->c_sin.sin_addr ), rbl_found->rbl_url );
+                        inet_ntoa( c->c_sin.sin_addr ), (r.r_rbl)->rbl_url );
                 goto closeconnection;
 
             case RBL_ACCEPT:
 		r.r_rbl_status = RBL_ACCEPT;
                 syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Accepted: %s",
                         inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
-                        rbl_found->rbl_domain );
+                        (r.r_rbl)->rbl_domain );
                 break;
 
             case RBL_NOT_FOUND:
@@ -2501,7 +2511,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
                 syslog( LOG_NOTICE,
 			"Connect.in [%s] %s: RBL Error: %s",
                         inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
-                        rbl_found->rbl_domain );
+                        (r.r_rbl)->rbl_domain );
                 if ( dnsr_errno( simta_dnsr ) !=
                         DNSR_ERROR_TIMEOUT ) {
                     goto syserror;
@@ -2577,6 +2587,12 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	syslog( LOG_ERR, "Syserror smtp_receive argcargv_alloc: %m" );
 	goto syserror;
     }
+
+/* COMMAND */
+/* message send timer */
+/* command line timer */
+/* inactivity timer */
+/* global session timer */
 
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
