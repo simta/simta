@@ -2520,12 +2520,12 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
         if ( simta_rbls != NULL ) {
             switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
-		    r.r_remote_hostname, &(r.r_rbl), NULL )) {
+		    r.r_remote_hostname, &(r.r_rbl), &(r.r_rbl_msg))) {
             case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
-                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Blocked: %s",
+                syslog( LOG_NOTICE, "Connect.in [%s] %s: RBL Blocked: %s: %s",
                         inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
-                        (r.r_rbl)->rbl_domain );
+                        (r.r_rbl)->rbl_domain, r.r_rbl_msg );
                 snet_writef( r.r_snet, "550 No access from IP %s.  See %s\r\n",
                         inet_ntoa( c->c_sin.sin_addr ), (r.r_rbl)->rbl_url );
                 goto closeconnection;
