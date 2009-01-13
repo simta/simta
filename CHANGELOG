@@ -1,6 +1,8 @@
-0.8.1.l
+0.8.1.m
     - Auth logging fixed
     - RBL logging fixed
+
+0.8.1.l
     - makefile patch
     - RBL "secret messages" bugfix
     - SIMTA_UID available in the content filter
