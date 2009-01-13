@@ -616,8 +616,7 @@ f_mail( struct receive_data *r )
 	if ( strncasecmp( r->r_av[ i ], "SIZE", strlen( "SIZE" )) == 0 ) {
 	    /* RFC 1870 Message Size Declaration */
 	    if ( seen_extensions & SIMTA_EXTENSION_SIZE ) {
-		syslog( LOG_ERR,
-			"Receive: duplicate size specified: %s",
+		syslog( LOG_ERR, "Receive: duplicate size specified: %s",
 			r->r_smtp_command );
 		if ( snet_writef( r->r_snet,
 			"501 duplicate size specified\r\n" ) < 0 ) {
@@ -630,8 +629,7 @@ f_mail( struct receive_data *r )
 	    }
 
 	    if ( strncasecmp( r->r_av[ i ], "SIZE=", strlen( "SIZE=" )) != 0 ) {
-		syslog( LOG_ERR,
-			"Receive: invalid SIZE parameter: %s",
+		syslog( LOG_ERR, "Receive: invalid SIZE parameter: %s",
 			r->r_smtp_command );
 		if ( snet_writef( r->r_snet,
 			"501 invalid SIZE command\r\n" ) < 0 ) {
@@ -1178,15 +1176,31 @@ f_data( struct receive_data *r )
 	 *
 	 */
 
-	if ( fprintf( dff,
-		"Received: FROM %s (%s [%s])\n"
-		"\tBy %s ID %s ;\n"
-		"\t%s\n",
-		( r->r_hello == NULL ) ? "NULL" : r->r_hello,
-		r->r_remote_hostname , inet_ntoa( r->r_sin->sin_addr ),
-		simta_hostname, r->r_env->e_id, daytime ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data fprintf: %m" );
-	    goto error;
+	if ( simta_sasl ) {
+	    if ( fprintf( dff,
+		    "Received: FROM %s (%s [%s])\n"
+		    "\tBy %s ID %s ;\n"
+		    "\tAuthuser %s;\n"
+		    "\t%s\n",
+		    ( r->r_hello == NULL ) ? "NULL" : r->r_hello,
+		    r->r_remote_hostname , inet_ntoa( r->r_sin->sin_addr ),
+		    simta_hostname, r->r_env->e_id, r->r_auth_id,
+		    daytime ) < 0 ) {
+		syslog( LOG_ERR, "Syserror f_data fprintf: %m" );
+		goto error;
+	    }
+
+	} else {
+	    if ( fprintf( dff,
+		    "Received: FROM %s (%s [%s])\n"
+		    "\tBy %s ID %s ;\n"
+		    "\t%s\n",
+		    ( r->r_hello == NULL ) ? "NULL" : r->r_hello,
+		    r->r_remote_hostname , inet_ntoa( r->r_sin->sin_addr ),
+		    simta_hostname, r->r_env->e_id, daytime ) < 0 ) {
+		syslog( LOG_ERR, "Syserror f_data fprintf: %m" );
+		goto error;
+	    }
 	}
     }
 
@@ -1778,7 +1792,7 @@ f_expn( struct receive_data *r )
 smtp_tempfail( struct receive_data *r, char *message )
 {
     if ( snet_writef( r->r_snet, "451 Requested action aborted: %s.\r\n",
-	    message ? message : "local error in processing" ) < 0 ) {
+	    message ? message : "service temporarily unavailable" ) < 0 ) {
 	syslog( LOG_ERR, "smtp_tempfail snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -2008,7 +2022,7 @@ f_auth( struct receive_data *r )
 	if ( snet_writef( r->r_snet,
 		"501 Syntax violates RFC 2554 section 4: "
 		"AUTH mechanism [initial-response]\r\n" ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
+	    syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 	return( RECEIVE_OK );
@@ -2037,11 +2051,13 @@ f_auth( struct receive_data *r )
 	} else {
 	    if ( sasl_decode64( r->r_av[ 2 ], strlen( r->r_av[ 2 ]), clientin,
 		    BASE64_BUF_SIZE, & clientinlen ) != SASL_OK ) {
-		syslog( LOG_ERR, "Syserror f_auth: "
-			"unable to BASE64 decode argument: %s", r->r_av[ 2 ]);
+		syslog( LOG_ERR, "Auth [%s] %s: %s: "
+			"unable to BASE64 decode argument: %s",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+			r->r_auth_id, r->r_av[ 2 ]);
 		if ( snet_writef( r->r_snet,
 			"501 unable to BASE64 decode argument:\r\n" ) < 0 ) {
-		    syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
+		    syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
 		}
 		return( RECEIVE_OK );
@@ -2057,8 +2073,10 @@ f_auth( struct receive_data *r )
 	if ( serveroutlen ) {
 	    if ( sasl_encode64( serverout, serveroutlen, base64,
 		    BASE64_BUF_SIZE, NULL ) != SASL_OK ) {
-		syslog( LOG_ERR, "Syserror f_auth: "
-			"unable to BASE64 encode argument" );
+		syslog( LOG_ERR, "Auth [%s] %s: %s: "
+			"unable to BASE64 encode argument",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+			r->r_auth_id );
 		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    serverout = base64;
@@ -2067,7 +2085,7 @@ f_auth( struct receive_data *r )
 	}
 
 	if ( snet_writef( r->r_snet, "334 %s\r\n", serverout ) < 0 ) {
-	    syslog( LOG_ERR, "f_auth snet_writef: %m" );
+	    syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
@@ -2075,16 +2093,19 @@ f_auth( struct receive_data *r )
 	tv.tv_sec = simta_receive_wait;
 	tv.tv_usec = 0;
 	if (( clientin = snet_getline( r->r_snet, &tv )) == NULL ) {
-	    syslog( LOG_ERR, "f_auth snet_getline: %m" );
+	    syslog( LOG_ERR, "Syserror f_auth: snet_getline: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	} 
 
 	/* Check if client canceled authentication exchange */
 	if ( clientin[ 0 ] == '*' && clientin[ 1 ] == '\0' ) {
-	    syslog( LOG_INFO, "f_auth: client canceled authentication" );
+	    syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		    "client canceled authentication",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		    r->r_auth_id );
 	    if ( snet_writef( r->r_snet,
 		    "501 client canceled authentication\r\n" ) < 0 ) {
-		syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
+		syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    if ( reset_sasl_conn( r ) != SASL_OK ) {
@@ -2096,11 +2117,13 @@ f_auth( struct receive_data *r )
 	/* decode response */
 	if ( sasl_decode64( clientin, strlen( clientin ), clientin,
 		BASE64_BUF_SIZE, &clientinlen ) != SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror f_auth sasl_decode64: "
-		    "unable to BASE64 decode argument: %s", clientin );
+	    syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		    "sasl_decode64: unable to BASE64 decode argument: %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		    r->r_auth_id, clientin );
 	    if ( snet_writef( r->r_snet,
 		    "501 unable to BASE64 decode argument\r\n" ) < 0 ) {
-		syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
+		syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    return( RECEIVE_OK );
@@ -2113,62 +2136,18 @@ f_auth( struct receive_data *r )
 
     switch( rc ) {
     case SASL_OK:
-	if ( sasl_getprop( r->r_conn, SASL_USERNAME,
-		(const void **) &r->r_auth_id ) != SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror f_auth sasl_getprop: %s",
-		    sasl_errdetail( r->r_conn ));
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	if ( sasl_getprop( r->r_conn, SASL_MECHNAME,
-		(const void **) &mechname ) != SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror f_auth sasl_getprop: %s",
-		    sasl_errdetail( r->r_conn ));
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-
-	syslog( LOG_NOTICE | LOG_INFO,
-		"f_auth %s authenticated via %s%s [%s] %s:",
-		r->r_auth_id, mechname, r->r_tls ? "+TLS" : "",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
-
-	if ( snet_writef( r->r_snet,
-		"235 Authentication successful\r\n" ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-
-	r->r_auth = 1;
-	snet_setsasl( r->r_snet, r->r_conn );
-
-	/* RFC 2554 If a security layer is negotiated through the SASL
-	 * authentication exchange, it takes effect immediately following
-	 * the CRLF that concludes the authentication exchange for the
-	 * client, and the CRLF of the success reply for the server.  Upon
-	 * a security layer's taking effect, the SMTP protocol is reset to
-	 * the initial state (the state in SMTP after a server issues a
-	 * 220 service ready greeting).  The server MUST discard any
-	 * knowledge obtained from the client, such as the argument to the
-	 * EHLO command, which was not obtained from the SASL negotiation
-	 * itself.
-	 */
-	 if ( snet_saslssf( r->r_snet )) {
-	    if ( r->r_hello ) {
-		free( r->r_hello );
-		r->r_hello = NULL;
-	    }
-	}
-
-	set_smtp_mode( r, simta_smtp_default_mode );
-	return( RECEIVE_OK );
+	break;
 
     case SASL_NOMECH:
 	if ( snet_writef( r->r_snet,
 		"504 Unrecognized authentication type.\r\n" ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
+	    syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
-	syslog( LOG_INFO, "Receive: Unrecognized authentication type: %s",
-		r->r_av[ 1 ] );
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"Unrecognized authentication type: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_auth_id, r->r_av[ 1 ] );
 	return( RECEIVE_OK );
 
     case SASL_BADPROT:
@@ -2181,12 +2160,13 @@ f_auth( struct receive_data *r )
 	if ( snet_writef( r->r_snet,
 		"535 invalid initial-response arugment "
 		"for mechanism\r\n" ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
+	    syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
-	syslog( LOG_INFO,
-		"Receive: Invaid initial-response argument for mechanism %s",
-		r->r_av[ 1 ] );
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"Invaid initial-response argument for mechanism %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_auth_id, r->r_av[ 1 ] );
 	return( RECEIVE_OK );
 
     /* Not sure what RC this is: RFC 2554 If the server rejects the
@@ -2204,10 +2184,13 @@ f_auth( struct receive_data *r )
 	 */
 	if ( snet_writef( r->r_snet,
 		"534 Authentication mechanism is too weak\r\n" ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
+	    syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
-	syslog( LOG_INFO, "Receive: Authentication mechanism is too weak" );
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"Authentication mechanism is too weak",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_auth_id );
 	return( RECEIVE_OK );
 
     case SASL_ENCRYPT:
@@ -2220,19 +2203,75 @@ f_auth( struct receive_data *r )
 	if ( snet_writef( r->r_snet,
 		"538 Encryption required for requested authentication "
 		"mechanism\r\n" ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_auth snet_writef: %m" );
+	    syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
-	syslog( LOG_INFO,
-		"Receive: Encryption required for mechanism %s", r->r_av[ 1 ] );
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"Encryption required for mechanism %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_auth_id, r->r_av[ 1 ] );
 	return( RECEIVE_OK );
 
-
     default:
-	syslog( LOG_ERR, "Syserror f_auth sasl_start_server: %s",
-		sasl_errdetail( r->r_conn ));
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"sasl_start_server: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_auth_id, sasl_errdetail( r->r_conn ));
 	return( RECEIVE_SYSERROR );
     }
+
+    if ( sasl_getprop( r->r_conn, SASL_USERNAME,
+	    (const void **) &r->r_auth_id ) != SASL_OK ) {
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"sasl_getprop: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_auth_id, sasl_errdetail( r->r_conn ));
+	return( RECEIVE_CLOSECONNECTION );
+    }
+
+    if ( sasl_getprop( r->r_conn, SASL_MECHNAME,
+	    (const void **) &mechname ) != SASL_OK ) {
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"sasl_getprop: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_auth_id, sasl_errdetail( r->r_conn ));
+	return( RECEIVE_CLOSECONNECTION );
+    }
+
+    syslog( LOG_INFO, "Auth [%s] %s: %s: "
+	    "authenticated via %s%s",
+	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+	    r->r_auth_id, mechname, r->r_tls ? "+TLS" : "" );
+
+    if ( snet_writef( r->r_snet,
+	    "235 Authentication successful\r\n" ) < 0 ) {
+	syslog( LOG_ERR, "Syserror f_auth: snet_writef: %m" );
+	return( RECEIVE_CLOSECONNECTION );
+    }
+
+    r->r_auth = 1;
+    snet_setsasl( r->r_snet, r->r_conn );
+
+    /* RFC 2554 If a security layer is negotiated through the SASL
+     * authentication exchange, it takes effect immediately following
+     * the CRLF that concludes the authentication exchange for the
+     * client, and the CRLF of the success reply for the server.  Upon
+     * a security layer's taking effect, the SMTP protocol is reset to
+     * the initial state (the state in SMTP after a server issues a
+     * 220 service ready greeting).  The server MUST discard any
+     * knowledge obtained from the client, such as the argument to the
+     * EHLO command, which was not obtained from the SASL negotiation
+     * itself.
+     */
+     if ( snet_saslssf( r->r_snet )) {
+	if ( r->r_hello ) {
+	    free( r->r_hello );
+	    r->r_hello = NULL;
+	}
+    }
+
+    set_smtp_mode( r, simta_smtp_default_mode );
+    return( RECEIVE_OK );
 }
 #endif /* HAVE_LIBSASL */
 
@@ -2725,14 +2764,26 @@ closeconnection:
 	tv_stop.tv_sec = 0;
     }
 
-    syslog( LOG_NOTICE,
-	    "Connect.in [%s] %s: Metrics: "
-	    "seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
-	    inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
-	    (int)(tv_stop.tv_sec - tv_start.tv_sec), r.r_mail_success,
-	    r.r_mail_attempt,
-	    r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
-	    r.r_data_attempt );
+    if ( simta_sasl ) {
+	syslog( LOG_NOTICE,
+		"Connect.in [%s] %s: Metrics: "
+		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d"
+		"Authuser %s",
+		inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
+		(int)(tv_stop.tv_sec - tv_start.tv_sec), r.r_mail_success,
+		r.r_mail_attempt,
+		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
+		r.r_data_attempt, r.r_auth_id );
+    } else {
+	syslog( LOG_NOTICE,
+		"Connect.in [%s] %s: Metrics: "
+		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
+		inet_ntoa( c->c_sin.sin_addr ), r.r_remote_hostname,
+		(int)(tv_stop.tv_sec - tv_start.tv_sec), r.r_mail_success,
+		r.r_mail_attempt,
+		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
+		r.r_data_attempt );
+    }
 
     return( simta_fast_files );
 }

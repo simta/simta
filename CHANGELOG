@@ -1,4 +1,6 @@
 internal
+    - Auth logging fixed
+    - RBL logging fixed
     - makefile patch
     - RBL "secret messages" bugfix
     - SIMTA_UID available in the content filter
