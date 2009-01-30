@@ -1,4 +1,9 @@
 
+Templates:
+Connect.in [IP] Hostname: message
+Receive [IP] Hostname: MID: message
+Syserror function: syscall: error message
+
 Queue FNAME: Check: Missing Efile
 Queue FNAME: Check: Stranded t_file
 Queue FNAME: Cleaning: Missing Efile

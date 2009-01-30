@@ -445,8 +445,8 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
     }
 
     if ( simta_rbl_verbose_logging ) {
-	syslog( LOG_INFO, "RBL %s: RBL list exhausted, no matches",
-		reverse_ip );
+	syslog( LOG_INFO, "RBL [%s] %s: RBL list exhausted, no matches",
+		inet_ntoa( *in ), host ? host : "Unknown" );
     }
 
     free( reverse_ip );

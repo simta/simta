@@ -1,3 +1,6 @@
+internal
+    - Receive logging standard adhered to
+
 0.8.1.m
     - Auth logging fixed
     - RBL logging fixed
