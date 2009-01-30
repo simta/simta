@@ -1,4 +1,6 @@
-internal
+0.8.1.n
+    - consuistent metrics in tempfail mode
+    - SMTP mode changes are logged
     - Receive logging standard adhered to
 
 0.8.1.m
