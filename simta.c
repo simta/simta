@@ -1470,7 +1470,7 @@ simta_read_config( char *fname )
 		    fname, lineno );
 		goto error;
 	    }
-	    if (( simta_banner_delay = atoi( av[ 1 ])) < 1 ) {
+	    if (( simta_banner_delay = atoi( av[ 1 ])) < 0 ) {
 		fprintf( stderr, "%s: line %d: invalid argument\n",
 		    fname, lineno );
 		goto error;

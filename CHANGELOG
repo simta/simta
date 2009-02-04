@@ -1,3 +1,9 @@
+internal
+    - WRITE_BEFORE_BANNER config file bugfix
+
+0.8.1.o
+    - bugfixes
+
 0.8.1.n
     - consuistent metrics in tempfail mode
     - SMTP mode changes are logged
