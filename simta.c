@@ -1465,17 +1465,19 @@ simta_read_config( char *fname )
 		simta_smtp_tarpit_data_eof );
 
 	} else if ( strcasecmp( av[ 0 ], "WRITE_BEFORE_BANNER" ) == 0 ) {
-	    if ( ac != 3 ) {
-		fprintf( stderr, "%s: line %d: expected 2 arguments\n",
+	    if ( ac == 3 ) {
+		if (( simta_banner_punishment = atoi( av[ 2 ])) < 0 ) {
+		    fprintf( stderr, "%s: line %d: invalid argument\n",
+			fname, lineno );
+		    goto error;
+		}
+	    } else if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 or 2 arguments\n",
 		    fname, lineno );
 		goto error;
 	    }
+
 	    if (( simta_banner_delay = atoi( av[ 1 ])) < 0 ) {
-		fprintf( stderr, "%s: line %d: invalid argument\n",
-		    fname, lineno );
-		goto error;
-	    }
-	    if (( simta_banner_punishment = atoi( av[ 2 ])) < 1 ) {
 		fprintf( stderr, "%s: line %d: invalid argument\n",
 		    fname, lineno );
 		goto error;

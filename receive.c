@@ -124,6 +124,7 @@ struct receive_data {
     int				r_ncommands;
     int				r_smtp_mode;
     char			*r_auth_id;
+    struct timeval		r_tv_session;
 
 #ifdef HAVE_LIBSSL
     unsigned char		r_md_value[ EVP_MAX_MD_SIZE ];
@@ -301,23 +302,23 @@ set_smtp_mode( struct receive_data *r, int mode, char *msg )
 {
     if ( r->r_smtp_mode == mode ) {
 	if ( msg != NULL ) {
-	    syslog( LOG_INFO, "Receive [%s] %s: SMTP mode %s: %s",
+	    syslog( LOG_DEBUG, "Receive [%s] %s: SMTP mode %s: %s",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    smtp_mode_str[ mode ], msg );
 	} else {
-	    syslog( LOG_INFO, "Receive [%s] %s: SMTP mode %s",
+	    syslog( LOG_DEBUG, "Receive [%s] %s: SMTP mode %s",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    smtp_mode_str[ mode ]);
 	}
     } else {
 	if ( msg != NULL ) {
-	    syslog( LOG_INFO, "Receive [%s] %s: "
+	    syslog( LOG_DEBUG, "Receive [%s] %s: "
 		    "switching SMTP mode from %s to %s: %s",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    smtp_mode_str[ r->r_smtp_mode ], smtp_mode_str[ mode ],
 		    msg );
 	} else {
-	    syslog( LOG_INFO, "Receive [%s] %s: "
+	    syslog( LOG_DEBUG, "Receive [%s] %s: "
 		    "switching SMTP mode from %s to %s",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    smtp_mode_str[ r->r_smtp_mode ], smtp_mode_str[ mode ]);
@@ -478,7 +479,7 @@ f_helo( struct receive_data *r )
 	return( RECEIVE_OK );
     }
 
-    syslog( LOG_INFO, "Receive [%s] %s: HELO: %s",
+    syslog( LOG_DEBUG, "Receive [%s] %s: HELO: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_av[ 1 ]);
 
@@ -591,7 +592,7 @@ f_ehlo( struct receive_data *r )
     }
 #endif /* HAVE_LIBSSL */
 
-    syslog( LOG_INFO, "Receive [%s] %s: EHLO: %s",
+    syslog( LOG_DEBUG, "Receive [%s] %s: EHLO: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_av[ 1 ]);
 
@@ -762,7 +763,7 @@ f_mail( struct receive_data *r )
 			domain );
 		return( smtp_tempfail( r, S_LOCAL_ERROR ));
 	    } else {
-		syslog( LOG_INFO, "Receive [%s] %s: Unknown host: %s",
+		syslog( LOG_DEBUG, "Receive [%s] %s: Unknown host: %s",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			domain );
 		if ( snet_writef( r->r_snet, "550 %s: unknown host\r\n",
@@ -810,7 +811,7 @@ f_mail( struct receive_data *r )
 
     r->r_mail_success++;
 
-    syslog( LOG_INFO, "Receive [%s] %s: %s: From <%s>: Accepted",
+    syslog( LOG_NOTICE, "Receive [%s] %s: %s: From <%s>: Accepted",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_env->e_id, r->r_env->e_mail );
 
@@ -932,8 +933,8 @@ f_rcpt( struct receive_data *r )
 		return( smtp_tempfail( r, S_LOCAL_ERROR ));
 	    }
 
-	    syslog( LOG_INFO, "Receive [%s] %s: %s: "
-		    "To <%s> From <%s> Failed: Unknown domain",
+	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
+		    "To <%s> From <%s>: Unknown domain",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id, addr, r->r_env->e_mail );
 
@@ -950,7 +951,7 @@ f_rcpt( struct receive_data *r )
 		( red->red_host_type == RED_HOST_TYPE_LOCAL ))) {
 	    if ( r->r_smtp_mode == SMTP_MODE_NORMAL ) {
 		r->r_failed_rcpts++;
-		syslog( LOG_INFO, "Receive [%s] %s: %s: "
+		syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 			"To <%s> From <%s> Failed: Domain not local",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_env->e_id, addr, r->r_env->e_mail );
@@ -987,7 +988,7 @@ f_rcpt( struct receive_data *r )
 	    switch( local_address( addr, domain, red )) {
 	    case NOT_LOCAL:
 		r->r_failed_rcpts++;
-		syslog( LOG_INFO, "Receive [%s] %s: %s: "
+		syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 			"To <%s> From <%s> Failed: User not local",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_env->e_id, addr, r->r_env->e_mail );
@@ -1015,7 +1016,7 @@ f_rcpt( struct receive_data *r )
 
 	    case LOCAL_ADDRESS_RBL:
 		if ( simta_user_rbls == NULL ) {
-		    syslog( LOG_INFO, "Receive [%s] %s: %s: "
+		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 			    "To <%s> From <%s> No user RBLS",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname,
@@ -1033,7 +1034,7 @@ f_rcpt( struct receive_data *r )
 		case RBL_ERROR:
 		default:
 		    r->r_rbl_status = RBL_UNKNOWN;
-		    syslog( LOG_INFO, "Receive [%s] %s: %s: "
+		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 			    "To <%s> From <%s> RBL %s: error",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname,
@@ -1049,14 +1050,12 @@ f_rcpt( struct receive_data *r )
 		case RBL_BLOCK:
 		    r->r_failed_rcpts++;
 		    r->r_rbl_status = RBL_BLOCK;
-		    syslog( LOG_INFO, "Receive [%s] %s: %s: "
-			    "To <%s> From <%s> RBL %s Blocked [%s] %s: %s",
+		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
+			    "To <%s> From <%s> RBL Blocked %s: %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
-			    r->r_remote_hostname,
-			    r->r_env->e_id, addr, r->r_env->e_mail,
-			    r->r_rbl->rbl_domain, 
-			    inet_ntoa( r->r_sin->sin_addr ),
-			    r->r_remote_hostname, r->r_rbl_msg );
+			    r->r_remote_hostname, r->r_env->e_id, addr,
+			    r->r_env->e_mail, r->r_rbl->rbl_domain, 
+			    r->r_rbl_msg );
 		    if ( snet_writef( r->r_snet,
 			    "550 No access from IP %s. See %s\r\n",
 			    inet_ntoa( r->r_sin->sin_addr ),
@@ -1068,7 +1067,7 @@ f_rcpt( struct receive_data *r )
 
 		case RBL_ACCEPT:
 		    r->r_rbl_status = RBL_ACCEPT;
-		    syslog( LOG_INFO, "Receive [%s] %s: %s: "
+		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 			    "To <%s> From <%s> RBL %s: Accepted: %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname,
@@ -1078,7 +1077,7 @@ f_rcpt( struct receive_data *r )
 
 		case RBL_NOT_FOUND:
 		    r->r_rbl_status = RBL_NOT_FOUND;
-		    syslog( LOG_INFO, "Receive [%s] %s: %s: "
+		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 			    "To <%s> From <%s> RBL Unlisted",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_env->e_id, addr,
@@ -1104,7 +1103,7 @@ f_rcpt( struct receive_data *r )
 
     r->r_rcpt_success++;
 
-    syslog( LOG_INFO, "Receive [%s] %s: %s: To <%s> From <%s>: Accepted",
+    syslog( LOG_NOTICE, "Receive [%s] %s: %s: To <%s> From <%s>: Accepted",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_env->e_id, r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail );
 
@@ -1141,9 +1140,11 @@ f_data( struct receive_data *r )
     char				*failure_message;
     char				*filter_message = NULL;
     char				*system_message = NULL;
+    char				*timer_type;
+    char				*session_type = "DATA_SESSION";
     struct tm				*tm;
+    struct timeval			tv_wait;
     struct timeval			tv_data_start;
-    struct timeval			tv_line;
     struct timeval			tv_session;
     struct timeval			tv_filter = { 0, 0 };
     struct timeval			tv_now;
@@ -1291,49 +1292,79 @@ f_data( struct receive_data *r )
 	goto error;
     }
 
-    if ( gettimeofday( &tv_data_start, NULL ) != 0 ) {
+    /* start in header mode */
+    header = 1;
+
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
 	goto error;
     }
 
-    /* start in header mode */
-    header = 1;
+    tv_data_start.tv_sec = tv_now.tv_sec;
+    tv_data_start.tv_usec = tv_now.tv_usec;
 
-    tv_line.tv_sec = simta_data_line_wait;
-    tv_line.tv_usec = 0;
+    if ( r->r_tv_session.tv_sec != 0 ) {
+	if ( simta_data_transaction_wait != 0 ) {
+	    tv_session.tv_sec = tv_data_start.tv_sec +
+		    simta_data_transaction_wait;
+	    if ( tv_session.tv_sec > r->r_tv_session.tv_sec ) {
+		session_type = "SMTP_SESSION";
+		tv_session.tv_sec = r->r_tv_session.tv_sec;
+	    }
+	} else {
+	    session_type = "SMTP_SESSION";
+	    tv_session.tv_sec = r->r_tv_session.tv_sec;
+	}
+    } else if ( simta_data_transaction_wait != 0 ) {
+	tv_session.tv_sec = tv_data_start.tv_sec + simta_data_transaction_wait;
+    } else {
+	tv_session.tv_sec = 0;
+    }
 
-    tv_session.tv_sec = tv_data_start.tv_sec + simta_data_transaction_wait;
-    tv_session.tv_usec = 0;
+    for ( ; ; ) {
+	tv_wait.tv_sec = simta_data_line_wait;
+	tv_wait.tv_usec = 0;
+	timer_type = "DATA_LINE";
 
-/* DATA */
-/* data line timer */
-/* global session timer */
-/* data session timer */
+	if ( tv_session.tv_sec != 0 ) {
+	    if ( tv_session.tv_sec <= tv_now.tv_sec ) {
+		syslog( LOG_DEBUG,
+			"Receive [%s] %s: %s: %s time limit exceeded",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_env->e_id, timer_type );
+		ret_code = RECEIVE_CLOSECONNECTION;
+		goto error;
+	    }
 
-    while (( line = snet_getline( r->r_snet, &tv_line )) != NULL ) {
-	line_no++;
+	    if ( tv_wait.tv_sec > ( tv_session.tv_sec - tv_now.tv_sec )) {
+		tv_wait.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
+		timer_type = session_type;
+	    }
+	}
 
-	line_len = strlen( line );
-	data_read += line_len + 2;
+	if (( line = snet_getline( r->r_snet, &tv_wait )) == NULL ) {
+	    if ( errno == ETIMEDOUT ) {
+		syslog( LOG_DEBUG,
+			"Receive [%s] %s: %s: %s time limit exceeded",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_env->e_id, timer_type );
+	    } else {
+		syslog( LOG_DEBUG, "Receive [%s] %s: %s: connection dropped",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_env->e_id );
+	    }
+	    ret_code = RECEIVE_CLOSECONNECTION;
+	    goto error;
+	}
 
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
 	    goto error;
 	}
 
-	/* check to see if we've exceeded or data segment timer */
-	if ( tv_now.tv_sec >= tv_session.tv_sec ) {
-	    syslog( LOG_INFO, "Receive [%s] %s: %s: DATA time limit exceeded",
-		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id );
-	    goto error;
-	/* check to see if our line wait would put us past our segment timer */
-	} else if ( simta_data_line_wait >
-		( tv_session.tv_sec - tv_now.tv_sec )) {
-	    tv_line.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
-	} else {
-	    tv_line.tv_sec = simta_data_line_wait;
-	}
+	line_no++;
+	line_len = strlen( line );
+	data_read += line_len + 2;
 
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
@@ -1385,7 +1416,7 @@ f_data( struct receive_data *r )
 	    /* If we're going to reach max size, continue reading lines
 	     * until the '.' otherwise, check message size.
 	     */
-	    syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed: "
+	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: Message Failed: "
 		    "Message too large",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id );
@@ -1395,7 +1426,7 @@ f_data( struct receive_data *r )
 	}
 
 	if ( rh.r_received_count > simta_max_received_headers ) {
-	    syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed: "
+	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: Message Failed: "
 		    "Too many Received headers",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id );
@@ -1409,12 +1440,6 @@ f_data( struct receive_data *r )
 	    goto error;
 	}
 	data_wrote += line_len + 1;
-    }
-
-    if ( line == NULL ) {	/* EOF */
-	syslog( LOG_DEBUG, "Syserror f_data: snet_geline: connection dropped" );
-	ret_code = RECEIVE_CLOSECONNECTION;
-	goto error;
     }
 
     if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
@@ -1462,7 +1487,7 @@ f_data( struct receive_data *r )
 	/* note that this will over-write the previous message_result value */
 	message_result = content_filter( r, &filter_message );
 
-	syslog( LOG_INFO, "Receive [%s] %s: %s: "
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 		"content filter %s exited %d: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, simta_mail_filter, message_result,
@@ -1475,13 +1500,13 @@ f_data( struct receive_data *r )
     }
 
     if ( tv_filter.tv_sec == 0 ) {
-	syslog( LOG_INFO, "Receive [%s] %s: %s: "
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 		"Data Metric: Read %d write %d bytes in %d seconds",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, (int)data_read, (int)data_wrote,
 		(int)(tv_now.tv_sec - tv_data_start.tv_sec));
     } else {
-	syslog( LOG_INFO, "Receive [%s] %s: %s: "
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 		"Data Metric: Read %d write %d bytes in %d seconds, "
 		"filter %d seconds",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
@@ -1524,7 +1549,7 @@ f_data( struct receive_data *r )
 			    r->r_remote_hostname,
 			    r->r_env->e_id );
 		} else {
-		    syslog( LOG_INFO, "Receive [%s] %s: %s: "
+		    syslog( LOG_NOTICE, "Receive [%s] %s: %s: "
 			    "sending to JAIL_HOST %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname,
@@ -1608,7 +1633,7 @@ f_data( struct receive_data *r )
 		    r->r_env->e_id );
 	}
 
-	syslog( LOG_INFO, "Receive [%s] %s: %s: Message Tempfailed: "
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Message Tempfailed: "
 		"MID <%s> size %d: %s, %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
@@ -1622,7 +1647,7 @@ f_data( struct receive_data *r )
 	}
 
     } else if ( message_result & MESSAGE_REJECT ) {
-	syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed: "
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Message Failed: "
 		"MID <%s> size %d: %s, %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
@@ -1993,7 +2018,7 @@ f_starttls( struct receive_data *r )
 	return( rc );
     }
 
-    syslog( LOG_INFO, "Receive [%s] %s: Start TLS",
+    syslog( LOG_DEBUG, "Receive [%s] %s: Start TLS",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
 
     return( RECEIVE_OK );
@@ -2058,7 +2083,7 @@ _start_tls( struct receive_data *r )
 	    }
 	    return( RECEIVE_SYSERROR );
 	}
-	syslog( LOG_INFO, "Receive [%s] %s: CERT Subject: %s",
+	syslog( LOG_DEBUG, "Receive [%s] %s: CERT Subject: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		X509_NAME_oneline( X509_get_subject_name( peer ), buf,
 			sizeof( buf )));
@@ -2349,7 +2374,7 @@ f_auth( struct receive_data *r )
 	}
     }
 
-    set_smtp_mode( r, simta_smtp_default_mode, "SMTP_MODE" );
+    set_smtp_mode( r, simta_smtp_default_mode, "Default" );
     return( RECEIVE_OK );
 }
 #endif /* HAVE_LIBSASL */
@@ -2366,6 +2391,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     char				*line;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
+    struct timeval			tv_wait;
     struct timeval			tv_write;
     struct timeval			tv_start;
     struct timeval			tv_stop;
@@ -2382,7 +2408,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     r.r_remote_hostname = "Unknown";
     r.r_rbl_status = RBL_UNKNOWN;
     r.r_mdctx_status = MDCTX_UNINITILIZED;
-    set_smtp_mode( &r, simta_smtp_default_mode, "SMTP_MODE" );
+    set_smtp_mode( &r, simta_smtp_default_mode, "Default" );
 
     if ( gettimeofday( &tv_start, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror smtp_receive: gettimeofday: %m" );
@@ -2400,7 +2426,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
-	set_smtp_mode( &r, SMTP_MODE_NOAUTH, NULL );
+	set_smtp_mode( &r, SMTP_MODE_NOAUTH, "Authentication" );
 	if (( ret = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
 		0, &r.r_conn )) != SASL_OK ) {
 	    syslog( LOG_ERR, "Syserror smtp_receive: sasl_server_new: %s",
@@ -2481,9 +2507,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    goto syserror;
 	}
 
-	syslog( LOG_INFO, "Connect.in [%s] %s: SMTS",
+	syslog( LOG_DEBUG, "Connect.in [%s] %s: SMTS",
 	    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-
     }
 #endif /* HAVE_LIBSSL */
 
@@ -2614,7 +2639,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		    r.r_remote_hostname, &(r.r_rbl), &(r.r_rbl_msg))) {
             case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
-                syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked: %s: %s",
+                syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked %s: %s",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
                         (r.r_rbl)->rbl_domain, r.r_rbl_msg );
                 snet_writef( r.r_snet, "550 No access from IP %s.  See %s\r\n",
@@ -2631,7 +2656,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
             case RBL_NOT_FOUND:
 		/* leave as RBL_UNKNOWN so user tests happen */
 		r.r_rbl_status = RBL_UNKNOWN;
-                syslog( LOG_INFO, "Connect.in [%s] %s: RBL Not listed",
+                syslog( LOG_DEBUG, "Connect.in [%s] %s: RBL Not listed",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
                 break;
 
@@ -2667,8 +2692,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		goto syserror;
 	    }
 
-	    snet_writef( r.r_snet, "421 Service not available: %s\r\n",
-		    simta_libwrap_url );
+	    smtp_tempfail( &r, NULL );
 	    goto closeconnection;
 	}
 
@@ -2722,6 +2746,9 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 /* command line timer */
 /* inactivity timer */
 /* global session timer */
+
+    tv_wait.tv_sec = simta_receive_wait;
+    tv_wait.tv_usec = 0;
 
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
@@ -2803,7 +2830,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
 		    r.r_env->e_id );
 	    set_smtp_mode( &r, simta_smtp_punishment_mode,
-		    "FAILED_RCPT_PUNISHMENT" );
+		    "Failed recipients" );
 	}
 
 	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
@@ -2820,10 +2847,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     }
 
 syserror:
-    if ( snet_writef( r.r_snet, "421 %s Service not available, "
-	    "closing transmission channel\r\n", simta_hostname ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
-    }
+    smtp_tempfail( &r, NULL );
 
 closeconnection:
     if ( snet_close( r.r_snet ) != 0 ) {
@@ -2861,7 +2885,7 @@ closeconnection:
     }
 
     if ( simta_sasl ) {
-	syslog( LOG_INFO,
+	syslog( LOG_DEBUG,
 		"Connect.in [%s] %s: Metrics: "
 		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d: "
 		"Authuser %s",
@@ -2871,7 +2895,7 @@ closeconnection:
 		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
 		r.r_data_attempt, r.r_auth_id );
     } else {
-	syslog( LOG_INFO,
+	syslog( LOG_DEBUG,
 		"Connect.in [%s] %s: Metrics: "
 		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,

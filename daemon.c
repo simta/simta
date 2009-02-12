@@ -1330,6 +1330,8 @@ simta_child_receive( struct simta_socket *ss )
 	cinfo_stab = c;
     }
 
+    c->c_proc_total++;
+
     if ( simta_receive_connections_per_interval > 0 ) {
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror: simta_child_receive gettimeofday: %m" );
@@ -1346,13 +1348,16 @@ simta_child_receive( struct simta_socket *ss )
 	} else {
 	    c->c_proc_interval++;
 	}
+
+	syslog( LOG_DEBUG, "Connect.stat %s: total %d interval %d",
+		inet_ntoa( c->c_sin.sin_addr ), c->c_proc_total,
+		c->c_proc_interval );
+
+    } else {
+	syslog( LOG_DEBUG, "Connect.stat %s: total %d",
+		inet_ntoa( c->c_sin.sin_addr ), c->c_proc_total );
     }
 
-    c->c_proc_total++;
-
-    syslog( LOG_DEBUG, "Connect.in %s: total %d interval (%d) %d",
-	    inet_ntoa( c->c_sin.sin_addr ), c->c_proc_total,
-	    simta_receive_connection_interval, c->c_proc_interval );
 
     simta_gettimenow();
 
