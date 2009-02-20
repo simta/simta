@@ -108,8 +108,11 @@ int			simta_max_bounce_lines;
 int			simta_banner_delay = 0;
 int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
+int			simta_inactivity_timer = 0;
 int			simta_receive_wait = 600;
+int			simta_receive_session = 0;
 int			simta_data_transaction_wait = 3600;
+int			simta_message_send_timer = -1;
 int			simta_data_line_wait = 300;
 int			simta_ignore_reverse = 0;
 int			simta_ignore_connect_in_reverse_errors = 0;
@@ -662,6 +665,21 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "base dir: %s\n", simta_base_dir );
 
+	} else if ( strcasecmp( av[ 0 ], "SMTP_RECEIVE_SESSION" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_receive_session = atoi( av[ 1 ] );
+	    if ( simta_receive_session < 0 ) {
+		fprintf( stderr, "%s: line %d: SMTP_RECEIVE_SESSION must be "
+			"greater than or equal to 0", fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_RECEIVE_SESSION %d\n",
+		    simta_receive_session );
+
 	} else if ( strcasecmp( av[ 0 ], "RECEIVE_WAIT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
@@ -709,6 +727,38 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "DATA_SESSION_WAIT %d\n",
 		    simta_data_transaction_wait );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_INACTIVITY_TIMER" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_inactivity_timer = atoi( av[ 1 ] );
+	    if ( simta_inactivity_timer <= 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"SMTP_INACTIVITY_TIMER must be greater than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SIMTA_INACTIVITY_TIMER %d\n",
+		    simta_inactivity_timer );
+
+	} else if ( strcasecmp( av[ 0 ], "MESSAGE_SEND_TIMER" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_message_send_timer = atoi( av[ 1 ] );
+	    if ( simta_message_send_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"MESSAGE_SEND_TIMER must be greater than or equal to 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MESSAGE_SEND_TIMER %d\n",
+		    simta_message_send_timer );
 
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
 	    if ( ac != 2 ) {
