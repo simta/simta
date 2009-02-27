@@ -117,9 +117,6 @@ struct receive_data {
     int				r_ncommands;
     int				r_smtp_mode;
     char			*r_auth_id;
-    struct timeval		r_tv_session;
-    struct timeval		r_tv_send;
-    struct timeval		r_tv_inactive;
 
 #ifdef HAVE_LIBSSL
     unsigned char		r_md_value[ EVP_MAX_MD_SIZE ];
@@ -803,7 +800,6 @@ f_mail( struct receive_data *r )
 #endif /* HAVE_LIBSSL */
 
     r->r_mail_success++;
-    r->r_tv_inactive.tv_sec = 0;
 
     syslog( LOG_NOTICE, "Receive [%s] %s: %s: From <%s>: Accepted",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
@@ -1096,7 +1092,6 @@ f_rcpt( struct receive_data *r )
     }
 
     r->r_rcpt_success++;
-    r->r_tv_inactive.tv_sec = 0;
 
     syslog( LOG_NOTICE, "Receive [%s] %s: %s: To <%s> From <%s>: Accepted",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
@@ -1135,11 +1130,9 @@ f_data( struct receive_data *r )
     char				*failure_message;
     char				*filter_message = NULL;
     char				*system_message = NULL;
-    char				*timer_type;
-    char				*session_type = "DATA_SESSION";
     struct tm				*tm;
-    struct timeval			tv_wait;
     struct timeval			tv_data_start;
+    struct timeval			tv_line;
     struct timeval			tv_session;
     struct timeval			tv_filter = { 0, 0 };
     struct timeval			tv_now;
@@ -1287,79 +1280,44 @@ f_data( struct receive_data *r )
 	goto error;
     }
 
-    /* start in header mode */
-    header = 1;
-
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+    if ( gettimeofday( &tv_data_start, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
 	goto error;
     }
 
-    tv_data_start.tv_sec = tv_now.tv_sec;
-    tv_data_start.tv_usec = tv_now.tv_usec;
+    /* start in header mode */
+    header = 1;
 
-    if ( r->r_tv_session.tv_sec != 0 ) {
-	if ( simta_data_transaction_wait != 0 ) {
-	    tv_session.tv_sec = tv_data_start.tv_sec +
-		    simta_data_transaction_wait;
-	    if ( tv_session.tv_sec > r->r_tv_session.tv_sec ) {
-		session_type = "SMTP_SESSION";
-		tv_session.tv_sec = r->r_tv_session.tv_sec;
-	    }
-	} else {
-	    session_type = "SMTP_SESSION";
-	    tv_session.tv_sec = r->r_tv_session.tv_sec;
-	}
-    } else if ( simta_data_transaction_wait != 0 ) {
-	tv_session.tv_sec = tv_data_start.tv_sec + simta_data_transaction_wait;
-    } else {
-	tv_session.tv_sec = 0;
-    }
+    tv_line.tv_sec = simta_data_line_wait;
+    tv_line.tv_usec = 0;
 
-    for ( ; ; ) {
-	tv_wait.tv_sec = simta_data_line_wait;
-	tv_wait.tv_usec = 0;
-	timer_type = "DATA_LINE";
+    tv_session.tv_sec = tv_data_start.tv_sec + simta_data_transaction_wait;
+    tv_session.tv_usec = 0;
 
-	if ( tv_session.tv_sec != 0 ) {
-	    if ( tv_session.tv_sec <= tv_now.tv_sec ) {
-		syslog( LOG_DEBUG,
-			"Receive [%s] %s: %s: %s time limit exceeded",
-			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			r->r_env->e_id, timer_type );
-		ret_code = RECEIVE_CLOSECONNECTION;
-		goto error;
-	    }
+    while (( line = snet_getline( r->r_snet, &tv_line )) != NULL ) {
+	line_no++;
 
-	    if ( tv_wait.tv_sec > ( tv_session.tv_sec - tv_now.tv_sec )) {
-		tv_wait.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
-		timer_type = session_type;
-	    }
-	}
-
-	if (( line = snet_getline( r->r_snet, &tv_wait )) == NULL ) {
-	    if ( errno == ETIMEDOUT ) {
-		syslog( LOG_DEBUG,
-			"Receive [%s] %s: %s: %s time limit exceeded",
-			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			r->r_env->e_id, timer_type );
-	    } else {
-		syslog( LOG_DEBUG, "Receive [%s] %s: %s: connection dropped",
-			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			r->r_env->e_id );
-	    }
-	    ret_code = RECEIVE_CLOSECONNECTION;
-	    goto error;
-	}
+	line_len = strlen( line );
+	data_read += line_len + 2;
 
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
 	    goto error;
 	}
 
-	line_no++;
-	line_len = strlen( line );
-	data_read += line_len + 2;
+	/* check to see if we've exceeded or data segment timer */
+	if ( tv_now.tv_sec >= tv_session.tv_sec ) {
+	    syslog( LOG_INFO, "Receive [%s] %s: %s: DATA time limit exceeded",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_env->e_id );
+	    goto error;
+	/* check to see if our line wait would put us past our segment timer */
+	} else if ( simta_data_line_wait >
+		( tv_session.tv_sec - tv_now.tv_sec )) {
+	    tv_line.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
+	} else {
+	    tv_line.tv_sec = simta_data_line_wait;
+	}
 
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
@@ -1435,6 +1393,12 @@ f_data( struct receive_data *r )
 	    goto error;
 	}
 	data_wrote += line_len + 1;
+    }
+
+    if ( line == NULL ) {	/* EOF */
+	syslog( LOG_DEBUG, "Syserror f_data: snet_geline: connection dropped" );
+	ret_code = RECEIVE_CLOSECONNECTION;
+	goto error;
     }
 
     if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
@@ -1560,10 +1524,6 @@ f_data( struct receive_data *r )
 		goto error;
 	    }
 
-	    if ( simta_message_send_timer != -1 ) {
-		r->r_tv_send.tv_sec = simta_message_send_timer + tv_now.tv_sec;
-	    }
-
 	    /*
 	     * We could perhaps 
 	     * However, if we've already fully instanciated the message in the
@@ -1686,8 +1646,6 @@ f_data( struct receive_data *r )
 	    }
 	}
     }
-
-    r->r_tv_inactive.tv_sec = 0;
 
     if ( filter_message != NULL ) {
 	free( filter_message );
@@ -2389,12 +2347,9 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     fd_set				fdset;
     int					i;
     int					ret;
-    int					continue_after_timeout = 0;
     char				*line;
-    char				*timer_type;
     char				hostname[ DNSR_MAX_NAME + 1 ];
-    struct timeval			tv_now;
-    struct timeval			tv_wait;
+    struct timeval			tv;
     struct timeval			tv_write;
     struct timeval			tv_start;
     struct timeval			tv_stop;
@@ -2416,10 +2371,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     if ( gettimeofday( &tv_start, NULL ) != 0 ) {
 	syslog( LOG_ERR, "Syserror smtp_receive: gettimeofday: %m" );
 	tv_start.tv_sec = 0;
-    }
-
-    if ( simta_receive_session != 0 ) {
-	r.r_tv_session.tv_sec = simta_receive_session + tv_start.tv_sec;
     }
 
     if (( r.r_snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
@@ -2714,12 +2665,12 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
-	tv_wait.tv_sec = simta_banner_delay;
-	tv_wait.tv_usec = 0;
+	tv.tv_sec = simta_banner_delay;
+	tv.tv_usec = 0;
 
 	/* Write before Banner check */
 	if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
-		NULL, &tv_wait )) < 0 ) {
+		NULL, &tv )) < 0 ) {
 	    syslog( LOG_ERR, "Syserror smtp_receive select: %m (%d %d)",
 		    snet_fd( r.r_snet ) + 1, simta_banner_delay );
 	    goto syserror;
@@ -2748,78 +2699,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	goto syserror;
     }
 
-    if ( simta_receive_session > 0 ) {
-    }
-
-    for ( ; ; ) {
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive: gettimeofday: %m" );
-	    goto syserror;
-	}
-
-	/* command line timer */
-	tv_wait.tv_sec = simta_receive_wait;
-	tv_wait.tv_usec = 0;
-	timer_type = "command_line";
-
-	/* global session timer */
-	if ( r.r_tv_session.tv_sec != 0 ) {
-	    if ( r.r_tv_session.tv_sec <= tv_now.tv_sec ) {
-		timer_type = "command_line";
-		break;
-	    }
-	    if ( tv_wait.tv_sec > ( r.r_tv_session.tv_sec - tv_now.tv_sec )) {
-		tv_wait.tv_sec = r.r_tv_session.tv_sec - tv_now.tv_sec;
-		timer_type = "command_line";
-	    }
-	}
-
-	/* inactivity timer */
-	if ( simta_inactivity_timer > 0 ) {
-	    if ( r.r_tv_inactive.tv_sec != 0 ) {
-		if ( r.r_tv_inactive.tv_sec <= tv_now.tv_sec ) {
-		    timer_type = "inactivity";
-		    break;
-		}
-	    } else {
-		r.r_tv_inactive.tv_sec = simta_inactivity_timer + tv_now.tv_sec;
-	    }
-	    if ( tv_wait.tv_sec > ( r.r_tv_inactive.tv_sec - tv_now.tv_sec )) {
-		tv_wait.tv_sec = r.r_tv_inactive.tv_sec - tv_now.tv_sec;
-		timer_type = "inactivity";
-	    }
-	}
-
-	/* message send timer */
-	if ( r.r_tv_send.tv_sec != 0 ) {
-	    if ( r.r_tv_send.tv_sec <= tv_now.tv_sec ) {
-		r.r_tv_send.tv_sec = 0;
-		if ( deliver_accepted( &r ) != 0 ) {
-		    return( RECEIVE_SYSERROR );
-		}
-		continue;
-	    }
-	    if ( tv_wait.tv_sec > ( r.r_tv_send.tv_sec - tv_now.tv_sec )) {
-		tv_wait.tv_sec = r.r_tv_send.tv_sec - tv_now.tv_sec;
-		continue_after_timeout = 1;
-		timer_type = "send_wait";
-	    }
-	}
-
-	if (( line = snet_getline( r.r_snet, &tv_wait )) == NULL ) {
-	    if ( errno == ETIMEDOUT ) {
-		if ( continue_after_timeout != 0 ) {
-		    continue_after_timeout = 0;
-		    continue;
-		}
-		break;
-	    }
-
-	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: connection dropped",
-		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		    r.r_env->e_id );
-	    goto syserror;
-	}
+    tv.tv_sec = simta_receive_wait;
+    tv.tv_usec = 0;
+    while (( line = snet_getline( r.r_snet, &tv )) != NULL ) {
+	tv.tv_sec = simta_receive_wait;
+	tv.tv_usec = 0;
 
 	if ( r.r_smtp_command != NULL ) {
 	    free( r.r_smtp_command );
@@ -2903,14 +2787,15 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
     }
 
-    syslog( LOG_DEBUG, "Receive [%s] %s: Timeout: %s",
-	    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-	    timer_type );
-    if ( snet_writef( r.r_snet, "421 closing transmission channel: "
-	    "command timeout\r\n", simta_hostname ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
+    if ( errno == ETIMEDOUT ) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: Timeout",
+		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
+	if ( snet_writef( r.r_snet, "421 closing transmission channel: "
+		"command timeout\r\n", simta_hostname ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
+	}
+	goto closeconnection;
     }
-    goto closeconnection;
 
 syserror:
     smtp_tempfail( &r, NULL );
