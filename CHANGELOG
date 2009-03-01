@@ -1,4 +1,5 @@
-internal
+0.8.1.p
+    - better mail from/rcpt to metric counting
     - WRITE_BEFORE_BANNER config file bugfix
 
 0.8.1.o

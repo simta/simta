@@ -176,6 +176,12 @@ static int	f_help( struct receive_data * );
 static int	f_not_implemented( struct receive_data * );
 static int	f_noauth( struct receive_data * );
 static int	f_tempfail( struct receive_data * );
+static int	f_mail_bad_sequence( struct receive_data * );
+static int	f_rcpt_bad_sequence( struct receive_data * );
+static int	f_data_bad_sequence( struct receive_data * );
+static int	f_mail_noauth( struct receive_data * );
+static int	f_rcpt_noauth( struct receive_data * );
+static int	f_data_noauth( struct receive_data * );
 static int	f_mail_tempfail( struct receive_data * );
 static int	f_rcpt_tempfail( struct receive_data * );
 static int	f_data_tempfail( struct receive_data * );
@@ -219,9 +225,9 @@ struct command	smtp_commands[] = {
 struct command	noauth_commands[] = {
     { "HELO",		f_helo },
     { "EHLO",		f_ehlo },
-    { "MAIL",		f_noauth },
-    { "RCPT",		f_noauth },
-    { "DATA",		f_noauth },
+    { "MAIL",		f_mail_noauth },
+    { "RCPT",		f_rcpt_noauth },
+    { "DATA",		f_data_noauth },
     { "RSET",		f_rset },
     { "NOOP",		f_noop },
     { "QUIT",		f_quit },
@@ -259,9 +265,9 @@ struct command	tempfail_commands[] = {
 struct command	refuse_commands[] = {
     { "HELO",		f_bad_sequence },
     { "EHLO",		f_bad_sequence },
-    { "MAIL",		f_bad_sequence },
-    { "RCPT",		f_bad_sequence },
-    { "DATA",		f_bad_sequence },
+    { "MAIL",		f_mail_bad_sequence },
+    { "RCPT",		f_rcpt_bad_sequence },
+    { "DATA",		f_data_bad_sequence },
     { "RSET",		f_bad_sequence },
     { "NOOP",		f_bad_sequence },
     { "QUIT",		f_quit },
@@ -799,11 +805,16 @@ f_mail( struct receive_data *r )
     }
 #endif /* HAVE_LIBSSL */
 
-    r->r_mail_success++;
-
-    syslog( LOG_NOTICE, "Receive [%s] %s: %s: From <%s>: Accepted",
-	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-	    r->r_env->e_id, r->r_env->e_mail );
+    if ( r->r_smtp_mode != SMTP_MODE_TARPIT ) {
+	r->r_mail_success++;
+	syslog( LOG_NOTICE, "Receive [%s] %s: %s: From <%s>: Accepted",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, r->r_env->e_mail );
+    } else {
+	syslog( LOG_NOTICE, "Receive [%s] %s: %s: From <%s>: Tarpit",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, r->r_env->e_mail );
+    }
 
     if ( snet_writef( r->r_snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
@@ -1068,7 +1079,7 @@ f_rcpt( struct receive_data *r )
 		case RBL_NOT_FOUND:
 		    r->r_rbl_status = RBL_NOT_FOUND;
 		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-			    "To <%s> From <%s> RBL Unlisted",
+			    "To <%s> From <%s>: RBL Unlisted",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_env->e_id, addr,
 			    r->r_env->e_mail );
@@ -1091,11 +1102,16 @@ f_rcpt( struct receive_data *r )
 	return( RECEIVE_SYSERROR );
     }
 
-    r->r_rcpt_success++;
-
-    syslog( LOG_NOTICE, "Receive [%s] %s: %s: To <%s> From <%s>: Accepted",
-	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-	    r->r_env->e_id, r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail );
+    if ( r->r_smtp_mode != SMTP_MODE_TARPIT ) {
+	r->r_rcpt_success++;
+	syslog( LOG_NOTICE, "Receive [%s] %s: %s: To <%s> From <%s>: Accepted",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail );
+    } else {
+	syslog( LOG_NOTICE, "Receive [%s] %s: %s: To <%s> From <%s>: Tarpit",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail );
+    }
 
     if ( snet_writef( r->r_snet, "%d OK\r\n", 250 ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
@@ -1832,6 +1848,54 @@ smtp_tempfail( struct receive_data *r, char *message )
 	return( RECEIVE_CLOSECONNECTION );
     }
     return( RECEIVE_OK );
+}
+
+
+    static int
+f_mail_noauth( struct receive_data *r )
+{
+    r->r_mail_attempt++;
+    return( f_noauth( r ));
+}
+
+
+    static int
+f_rcpt_noauth( struct receive_data *r )
+{
+    r->r_rcpt_attempt++;
+    return( f_noauth( r ));
+}
+
+
+    static int
+f_data_noauth( struct receive_data *r )
+{
+    r->r_data_attempt++;
+    return( f_noauth( r ));
+}
+
+
+    static int
+f_mail_bad_sequence( struct receive_data *r )
+{
+    r->r_mail_attempt++;
+    return( f_bad_sequence( r ));
+}
+
+
+    static int
+f_rcpt_bad_sequence( struct receive_data *r )
+{
+    r->r_rcpt_attempt++;
+    return( f_bad_sequence( r ));
+}
+
+
+    static int
+f_data_bad_sequence( struct receive_data *r )
+{
+    r->r_data_attempt++;
+    return( f_bad_sequence( r ));
 }
 
 
