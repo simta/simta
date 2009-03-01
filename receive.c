@@ -935,7 +935,7 @@ f_rcpt( struct receive_data *r )
 	    }
 
 	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-		    "To <%s> From <%s>: Unknown domain",
+		    "To <%s> From <%s>: Failed: Unknown domain",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id, addr, r->r_env->e_mail );
 
@@ -953,7 +953,7 @@ f_rcpt( struct receive_data *r )
 	    if ( r->r_smtp_mode == SMTP_MODE_NORMAL ) {
 		r->r_failed_rcpts++;
 		syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-			"To <%s> From <%s> Failed: Domain not local",
+			"To <%s> From <%s>: Failed: Domain not local",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_env->e_id, addr, r->r_env->e_mail );
 		if ( snet_writef( r->r_snet,
@@ -990,7 +990,7 @@ f_rcpt( struct receive_data *r )
 	    case NOT_LOCAL:
 		r->r_failed_rcpts++;
 		syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-			"To <%s> From <%s> Failed: User not local",
+			"To <%s> From <%s>: Failed: User not local",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_env->e_id, addr, r->r_env->e_mail );
 		if ( snet_writef( r->r_snet, "550 Requested action failed: "
@@ -1018,7 +1018,7 @@ f_rcpt( struct receive_data *r )
 	    case LOCAL_ADDRESS_RBL:
 		if ( simta_user_rbls == NULL ) {
 		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-			    "To <%s> From <%s> No user RBLS",
+			    "To <%s> From <%s>: No user RBLS",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname,
 			    r->r_env->e_id, addr, r->r_env->e_mail );
@@ -1036,7 +1036,7 @@ f_rcpt( struct receive_data *r )
 		default:
 		    r->r_rbl_status = RBL_UNKNOWN;
 		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-			    "To <%s> From <%s> RBL %s: error",
+			    "To <%s> From <%s>: RBL %s: error",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname,
 			    r->r_env->e_id, addr, r->r_env->e_mail,
@@ -1052,7 +1052,7 @@ f_rcpt( struct receive_data *r )
 		    r->r_failed_rcpts++;
 		    r->r_rbl_status = RBL_BLOCK;
 		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-			    "To <%s> From <%s> RBL Blocked %s: %s",
+			    "To <%s> From <%s>: RBL Blocked %s: %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_env->e_id, addr,
 			    r->r_env->e_mail, r->r_rbl->rbl_domain, 
@@ -1069,7 +1069,7 @@ f_rcpt( struct receive_data *r )
 		case RBL_ACCEPT:
 		    r->r_rbl_status = RBL_ACCEPT;
 		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-			    "To <%s> From <%s> RBL %s: Accepted: %s",
+			    "To <%s> From <%s>: RBL %s: Accepted: %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname,
 			    r->r_env->e_id, addr, r->r_env->e_mail,
