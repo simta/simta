@@ -175,16 +175,6 @@ static int	f_quit( struct receive_data * );
 static int	f_help( struct receive_data * );
 static int	f_not_implemented( struct receive_data * );
 static int	f_noauth( struct receive_data * );
-static int	f_tempfail( struct receive_data * );
-static int	f_mail_bad_sequence( struct receive_data * );
-static int	f_rcpt_bad_sequence( struct receive_data * );
-static int	f_data_bad_sequence( struct receive_data * );
-static int	f_mail_noauth( struct receive_data * );
-static int	f_rcpt_noauth( struct receive_data * );
-static int	f_data_noauth( struct receive_data * );
-static int	f_mail_tempfail( struct receive_data * );
-static int	f_rcpt_tempfail( struct receive_data * );
-static int	f_data_tempfail( struct receive_data * );
 static int	smtp_tempfail( struct receive_data *, char * );
 static int	f_bad_sequence( struct receive_data * );
 static void	set_smtp_mode( struct receive_data *, int, char* );
@@ -222,52 +212,12 @@ struct command	smtp_commands[] = {
 #endif /* HAVE_LIBSASL */
 };
 
-struct command	noauth_commands[] = {
-    { "HELO",		f_helo },
-    { "EHLO",		f_ehlo },
-    { "MAIL",		f_mail_noauth },
-    { "RCPT",		f_rcpt_noauth },
-    { "DATA",		f_data_noauth },
-    { "RSET",		f_rset },
-    { "NOOP",		f_noop },
-    { "QUIT",		f_quit },
-    { "HELP",		f_help },
-    { "VRFY",		f_noauth },
-    { "EXPN",		f_noauth },
-#ifdef HAVE_LIBSSL
-    { "STARTTLS",	f_starttls },
-#endif /* HAVE_LIBSSL */
-#ifdef HAVE_LIBSASL
-    { "AUTH", 		f_auth },
-#endif /* HAVE_LIBSASL */
-};
-
-struct command	tempfail_commands[] = {
-    { "HELO",		f_helo },
-    { "EHLO",		f_ehlo },
-    { "MAIL",		f_mail_tempfail },
-    { "RCPT",		f_rcpt_tempfail },
-    { "DATA",		f_data_tempfail },
-    { "RSET",		f_rset },
-    { "NOOP",		f_noop },
-    { "QUIT",		f_quit },
-    { "HELP",		f_help },
-    { "VRFY",		f_tempfail },
-    { "EXPN",		f_tempfail },
-#ifdef HAVE_LIBSSL
-    { "STARTTLS",	f_starttls },
-#endif /* HAVE_LIBSSL */
-#ifdef HAVE_LIBSASL
-    { "AUTH", 		f_auth },
-#endif /* HAVE_LIBSASL */
-};
-
 struct command	refuse_commands[] = {
     { "HELO",		f_bad_sequence },
     { "EHLO",		f_bad_sequence },
-    { "MAIL",		f_mail_bad_sequence },
-    { "RCPT",		f_rcpt_bad_sequence },
-    { "DATA",		f_data_bad_sequence },
+    { "MAIL",		f_mail },
+    { "RCPT",		f_rcpt },
+    { "DATA",		f_data },
     { "RSET",		f_bad_sequence },
     { "NOOP",		f_bad_sequence },
     { "QUIT",		f_quit },
@@ -329,28 +279,18 @@ set_smtp_mode( struct receive_data *r, int mode, char *msg )
     default:
 	syslog( LOG_WARNING, "Syserror set_smtp_mode: mode out of range: %d",
 		mode );
-	r->r_smtp_mode = SMTP_MODE_TEMPFAIL;
-	/* fall through to case SMTP_MODE_TEMPFAIL */
+	r->r_smtp_mode = SMTP_MODE_OFF;
+	/* fall through to case SMTP_MODE_OFF */
 
     case SMTP_MODE_TEMPFAIL:
     case SMTP_MODE_OFF:
-	r->r_commands = tempfail_commands;
-	r->r_ncommands = sizeof( tempfail_commands ) /
-		sizeof( tempfail_commands[ 0 ] );
-	return;
-
     case SMTP_MODE_GLOBAL_RELAY:
     case SMTP_MODE_TARPIT:
     case SMTP_MODE_NORMAL:
+    case SMTP_MODE_NOAUTH:
 	r->r_commands = smtp_commands;
 	r->r_ncommands = sizeof( smtp_commands ) /
 		sizeof( smtp_commands[ 0 ] );
-	return;
-
-    case SMTP_MODE_NOAUTH:
-	r->r_commands = noauth_commands;
-	r->r_ncommands = sizeof( noauth_commands ) /
-		sizeof( noauth_commands[ 0 ] );
 	return;
 
     case SMTP_MODE_REFUSE:
@@ -752,24 +692,64 @@ f_mail( struct receive_data *r )
      * can either be accepted (trusted) or the soft failures can be passed
      * along.  "451" is probably the correct error.
      */
-    if (( domain != NULL ) && ( r->r_smtp_mode == SMTP_MODE_NORMAL )) {
-	if (( rc = check_hostname( domain )) != 0 ) {
-	    if ( rc < 0 ) {
-		syslog( LOG_ERR, "Syserror f_mail: check_hostname %s: failed",
-			domain );
-		return( smtp_tempfail( r, S_LOCAL_ERROR ));
-	    } else {
-		syslog( LOG_DEBUG, "Receive [%s] %s: Unknown host: %s",
-			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			domain );
-		if ( snet_writef( r->r_snet, "550 %s: unknown host\r\n",
-			domain ) < 0 ) {
-		    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
-	    }
-	    return( RECEIVE_OK );
+
+    switch ( r->r_smtp_mode ) {
+    default:
+	syslog( LOG_ERR, "Syserror: Receive [%s] %s: From <%s>: "
+		"smtp_mode out of range: %d",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_mail, r->r_smtp_mode );
+	return( RECEIVE_SYSERROR );
+
+    case SMTP_MODE_OFF:
+	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: SMTP_Off",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_mail );
+	return( RECEIVE_CLOSECONNECTION );
+
+    case SMTP_MODE_TEMPFAIL:
+	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Tempfail",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_mail );
+	return( smtp_tempfail( r, NULL ));
+
+    case SMTP_MODE_NOAUTH:
+	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: NoAuth",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_mail );
+	return( f_noauth( r ));
+
+    case SMTP_MODE_REFUSE:
+	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Refused",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_mail );
+	return( f_bad_sequence( r ));
+
+    case SMTP_MODE_TARPIT:
+    case SMTP_MODE_GLOBAL_RELAY:
+	break;
+
+    case SMTP_MODE_NORMAL:
+	if ( domain == NULL ) {
+	    break;
 	}
+	if (( rc = check_hostname( domain )) == 0 ) {
+	    break;
+	}
+	if ( rc < 0 ) {
+	    syslog( LOG_ERR, "Syserror f_mail: check_hostname %s: failed",
+		    domain );
+	    return( smtp_tempfail( r, S_LOCAL_ERROR ));
+	}
+	syslog( LOG_DEBUG, "Receive [%s] %s: Unknown host: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		domain );
+	if ( snet_writef( r->r_snet, "550 %s: unknown host\r\n",
+		domain ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
     }
 
     /*
@@ -910,7 +890,47 @@ f_rcpt( struct receive_data *r )
      * probably preserve the results of our DNS check.
      */
 
-    if (( domain != NULL ) && ( r->r_smtp_mode == SMTP_MODE_NORMAL )) {
+    switch ( r->r_smtp_mode ) {
+    default:
+	syslog( LOG_ERR, "Syserror: Receive [%s] %s: %s: To <%s> From <%s>: "
+		"smtp mode out of range: %d",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, addr, r->r_env->e_mail, r->r_smtp_mode );
+	return( RECEIVE_SYSERROR );
+
+    case SMTP_MODE_OFF:
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: SMTP_Off",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, addr, r->r_env->e_mail );
+	return( RECEIVE_CLOSECONNECTION );
+
+    case SMTP_MODE_TEMPFAIL:
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Tempfail",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, addr, r->r_env->e_mail );
+	return( smtp_tempfail( r, NULL ));
+
+    case SMTP_MODE_NOAUTH:
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: NoAuth",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, addr, r->r_env->e_mail );
+	return( f_noauth( r ));
+
+    case SMTP_MODE_REFUSE:
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Refused",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, addr, r->r_env->e_mail );
+	return( f_bad_sequence( r ));
+
+    case SMTP_MODE_TARPIT:
+    case SMTP_MODE_GLOBAL_RELAY:
+	break;
+
+    case SMTP_MODE_NORMAL:
+	if ( domain == NULL ) {
+	    break;
+	}
+
 	/*
 	 * Here we do an initial lookup in our domain table.  This is
 	 * our best opportunity to decline recipients that are not
@@ -1093,7 +1113,6 @@ f_rcpt( struct receive_data *r )
 
 	    default:
 		panic( "f_rctp local_address return out of range" );
-
 	    }
 	}
     }
@@ -1139,7 +1158,7 @@ f_data( struct receive_data *r )
     int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
     int					line_no = 0;
-    int					message_result;
+    int					message_result = MESSAGE_ACCEPT;
     int					result;
     unsigned int			line_len;
     char				*line;
@@ -1165,12 +1184,7 @@ f_data( struct receive_data *r )
 
     r->r_data_attempt++;
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	tarpit_sleep( r, simta_smtp_tarpit_data );
-	message_result = MESSAGE_TEMPFAIL;
-    } else {
-	message_result = MESSAGE_ACCEPT;
-    }
+    tarpit_sleep( r, simta_smtp_tarpit_data );
 
     /* rfc 2821 4.1.1
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -1212,7 +1226,44 @@ f_data( struct receive_data *r )
 	return( RECEIVE_OK );
     }
 
-    if ( r->r_smtp_mode != SMTP_MODE_TARPIT ) {
+    switch ( r->r_smtp_mode ) {
+    default:
+	syslog( LOG_DEBUG, "Syserror: Receive [%s] %s: %s: Data: "
+		"smtp mode out of range: %d",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, r->r_smtp_mode );
+	return( RECEIVE_SYSERROR );
+
+    case SMTP_MODE_OFF:
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Data: SMTP_Off",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id );
+	return( RECEIVE_CLOSECONNECTION );
+
+    case SMTP_MODE_TEMPFAIL:
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Data: Tempfail",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id );
+	return( smtp_tempfail( r, NULL ));
+
+    case SMTP_MODE_NOAUTH:
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Data: NoAuth",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id );
+	return( f_noauth( r ));
+
+    case SMTP_MODE_REFUSE:
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Data: Refused",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id );
+	return( f_bad_sequence( r ));
+
+    case SMTP_MODE_TARPIT:
+	message_result = MESSAGE_TEMPFAIL;
+	break;
+
+    case SMTP_MODE_GLOBAL_RELAY:
+    case SMTP_MODE_NORMAL:
 	sprintf( dfile_fname, "%s/D%s", simta_dir_fast, r->r_env->e_id );
 	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
 		< 0 ) {
@@ -1323,7 +1374,7 @@ f_data( struct receive_data *r )
 
 	/* check to see if we've exceeded or data segment timer */
 	if ( tv_now.tv_sec >= tv_session.tv_sec ) {
-	    syslog( LOG_INFO, "Receive [%s] %s: %s: DATA time limit exceeded",
+	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: DATA time limit exceeded",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id );
 	    goto error;
@@ -1848,89 +1899,6 @@ smtp_tempfail( struct receive_data *r, char *message )
 	return( RECEIVE_CLOSECONNECTION );
     }
     return( RECEIVE_OK );
-}
-
-
-    static int
-f_mail_noauth( struct receive_data *r )
-{
-    r->r_mail_attempt++;
-    return( f_noauth( r ));
-}
-
-
-    static int
-f_rcpt_noauth( struct receive_data *r )
-{
-    r->r_rcpt_attempt++;
-    return( f_noauth( r ));
-}
-
-
-    static int
-f_data_noauth( struct receive_data *r )
-{
-    r->r_data_attempt++;
-    return( f_noauth( r ));
-}
-
-
-    static int
-f_mail_bad_sequence( struct receive_data *r )
-{
-    r->r_mail_attempt++;
-    return( f_bad_sequence( r ));
-}
-
-
-    static int
-f_rcpt_bad_sequence( struct receive_data *r )
-{
-    r->r_rcpt_attempt++;
-    return( f_bad_sequence( r ));
-}
-
-
-    static int
-f_data_bad_sequence( struct receive_data *r )
-{
-    r->r_data_attempt++;
-    return( f_bad_sequence( r ));
-}
-
-
-    static int
-f_mail_tempfail( struct receive_data *r )
-{
-    r->r_mail_attempt++;
-    return( f_tempfail( r ));
-}
-
-
-    static int
-f_rcpt_tempfail( struct receive_data *r )
-{
-    r->r_rcpt_attempt++;
-    return( f_tempfail( r ));
-}
-
-
-    static int
-f_data_tempfail( struct receive_data *r )
-{
-    r->r_data_attempt++;
-    return( f_tempfail( r ));
-}
-
-
-    static int
-f_tempfail( struct receive_data *r )
-{
-    syslog( LOG_DEBUG, "Receive [%s] %s: Tempfail: %s",
-	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
-	    r->r_smtp_command );
-
-    return( smtp_tempfail( r, NULL ));
 }
 
 
@@ -2862,7 +2830,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     }
 
 syserror:
-    smtp_tempfail( &r, NULL );
+    smtp_tempfail( &r, S_LOCAL_ERROR );
 
 closeconnection:
     if ( snet_close( r.r_snet ) != 0 ) {

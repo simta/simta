@@ -1,3 +1,7 @@
+0.8.1.q
+    - better rcpt accounting/logging
+    - smtp functions returning SYSERROR get proper SMTP reply
+
 0.8.1.p
     - better mail from/rcpt to metric counting
     - WRITE_BEFORE_BANNER config file bugfix
