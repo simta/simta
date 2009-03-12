@@ -1,3 +1,6 @@
+0.8.1.r
+    - bugfix
+
 0.8.1.q
     - better rcpt accounting/logging
     - smtp functions returning SYSERROR get proper SMTP reply

@@ -1696,9 +1696,9 @@ retry:
 		memcpy( &(d->d_sin.sin_addr.s_addr),
     &(d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_a ),
 			sizeof( struct in_addr ));
+		ip = inet_ntoa( d->d_sin.sin_addr );
 		if ( hq->hq_status == HOST_DOWN ) {
 		    /* prevent spammers from using obviously fake addresses */
-		    ip = inet_ntoa( d->d_sin.sin_addr );
 		    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
 			    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
 			syslog( LOG_DEBUG,
