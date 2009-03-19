@@ -419,10 +419,11 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_DATA_EOF:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
-	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Tempfailed %s [%s]: %s",
+	    syslog( LOG_INFO, "Deliver.SMTP %s: Tempfailed %s [%s]: "
+		    "transmitted %ld/%ld: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), line );
+		    inet_ntoa( d->d_sin.sin_addr ), d->d_sent, d->d_size,
+		    line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA_EOF reply" ));
 
@@ -510,9 +511,10 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_DATA_EOF:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Failed %s [%s]: %s",
+		    "Deliver.SMTP %s: Failed %s [%s]: "
+		    "transmitted %ld/%ld: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), line );
+		    inet_ntoa( d->d_sin.sin_addr ), d->d_sent, d->d_size );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA_EOF reply" ));
 
@@ -690,7 +692,8 @@ smtp_send( struct host_q *hq, struct deliver *d )
 		return( SMTP_BAD_CONNECTION );
 	    }
 	}
-	d->d_sent += ( strlen( line ) + 1 );
+
+	d->d_sent += strlen( line );
     }
 
     memset( &tv, 0, sizeof( struct timeval ));
@@ -698,7 +701,11 @@ smtp_send( struct host_q *hq, struct deliver *d )
     snet_timeout( d->d_snet_smtp, SNET_WRITE_TIMEOUT, &tv );
 
     if ( snet_writef( d->d_snet_smtp, ".\r\n" ) < 0 ) {
-	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hq->hq_hostname );
+	syslog( LOG_INFO,
+		"Deliver.SMTP %s: Message Failed [%s] %s: "
+		"transmitted %ld/%ld: failed writef",
+		d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
+		hq->hq_smtp_hostname, d->d_sent, d->d_size );
 	return( SMTP_BAD_CONNECTION );
     }
 
