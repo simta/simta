@@ -175,8 +175,11 @@ static int	f_quit( struct receive_data * );
 static int	f_help( struct receive_data * );
 static int	f_not_implemented( struct receive_data * );
 static int	f_noauth( struct receive_data * );
+static int	noauth_banner( struct receive_data * );
 static int	smtp_tempfail( struct receive_data *, char * );
+static int	smtp_tempfail_banner( struct receive_data *, char * );
 static int	f_bad_sequence( struct receive_data * );
+static int	bad_sequence_banner( struct receive_data * );
 static void	set_smtp_mode( struct receive_data *, int, char* );
 static void	tarpit_sleep( struct receive_data *, int );
 static void	log_bad_syntax( struct receive_data* );
@@ -709,31 +712,17 @@ f_mail( struct receive_data *r )
     case SMTP_MODE_TEMPFAIL:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Tempfail",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
-	if ( snet_writef( r->r_snet, "451 Requested action aborted: "
-		"service temporarily unavailable\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_tempfail_banner( r, NULL ));
 
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: NoAuth",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
-	if ( snet_writef( r->r_snet, "530 Authentication required\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( noauth_banner( r ));
 
     case SMTP_MODE_REFUSE:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Refused",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
-	if ( snet_writef( r->r_snet,
-		"503 bad sequence of commands\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( bad_sequence_banner( r ));
 
     case SMTP_MODE_TARPIT:
     case SMTP_MODE_GLOBAL_RELAY:
@@ -918,33 +907,19 @@ f_rcpt( struct receive_data *r )
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Tempfail",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	if ( snet_writef( r->r_snet, "451 Requested action aborted: "
-		"service temporarily unavailable\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_tempfail_banner( r, NULL ));
 
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: NoAuth",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	if ( snet_writef( r->r_snet, "530 Authentication required\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( noauth_banner( r ));
 
     case SMTP_MODE_REFUSE:
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Refused",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	if ( snet_writef( r->r_snet,
-		"503 bad sequence of commands\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( bad_sequence_banner( r ));
 
     case SMTP_MODE_TARPIT:
     case SMTP_MODE_GLOBAL_RELAY:
@@ -1911,7 +1886,13 @@ smtp_tempfail( struct receive_data *r, char *message )
     syslog( LOG_DEBUG, "Receive [%s] %s: Tempfail: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 	    r->r_smtp_command );
+    return( smtp_tempfail_banner( r, message ));
+}
 
+
+    static int
+smtp_tempfail_banner( struct receive_data *r, char *message )
+{
     if ( snet_writef( r->r_snet, "451 Requested action aborted: %s.\r\n",
 	    message ? message : "service temporarily unavailable" ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror smtp_tempfail: snet_writef: %m" );
@@ -1928,11 +1909,17 @@ f_bad_sequence( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 	    r->r_smtp_command );
 
+    return( bad_sequence_banner( r ));
+}
+
+
+    static int
+bad_sequence_banner( struct receive_data *r )
+{
     if ( snet_writef( r->r_snet, "503 bad sequence of commands\r\n" ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror f_bad_sequence: snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
-
     return( RECEIVE_OK );
 }
 
@@ -1945,12 +1932,17 @@ f_noauth( struct receive_data *r )
     syslog( LOG_DEBUG, "Receive [%s] %s: NoAuth: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 	    r->r_smtp_command );
+    return( noauth_banner( r ));
+}
 
+
+    static int
+noauth_banner( struct receive_data *r )
+{
     if ( snet_writef( r->r_snet, "530 Authentication required\r\n" ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror f_noauth: snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
-
     return( RECEIVE_OK );
 }
 
