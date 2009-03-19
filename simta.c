@@ -63,6 +63,7 @@
 
 struct timeval		simta_tv_mid = { 0, 0 };
 struct timeval		simta_tv_now;
+struct timeval		simta_log_tv;
 struct envelope		*simta_env_queue = NULL;
 struct host_q		*simta_host_q = NULL;
 struct host_q		*simta_deliver_q = NULL;
@@ -192,8 +193,10 @@ simta_openlog( int cl )
 	closelog();
     }
 
+    simta_log_tv = simta_tv_now;
+
     snprintf( simta_log_id, SIMTA_LOG_ID_LEN, "simta[%d.%ld]", getpid(),
-	    simta_tv_now.tv_sec );
+	    simta_log_tv.tv_sec );
 
     /* openlog now, as some support functions require it. */
 #ifdef ultrix

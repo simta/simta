@@ -106,6 +106,7 @@ struct simta_socket {
 /* global variables */
 
 extern struct timeval			simta_tv_now;
+extern struct timeval			simta_log_tv;
 extern struct timeval			simta_tv_mid;
 extern struct host_q			*simta_deliver_q;
 extern struct host_q			*simta_unexpanded_q;

@@ -1325,6 +1325,11 @@ deliver_remote( struct deliver *d, struct host_q *hq )
     struct timeval		tv_start;
     struct timeval		tv_stop;
 
+    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
+	syslog( LOG_DEBUG, "deliver_remote gettimeofday: %m" );
+	return;
+    }
+
     switch ( hq->hq_status ) {
     case HOST_MX:
 	syslog( LOG_NOTICE, "Deliver.remote %s: host %s", d->d_env->e_id,
@@ -1381,10 +1386,6 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    simta_smtp_outbound_attempts++;
 
 	    hq_clear_errors( hq );
-
-	    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
-		syslog( LOG_DEBUG, "deliver_remote gettimeofday: %m" );
-	    }
 
 	    if (( r_smtp = smtp_connect( hq, d )) != SMTP_OK ) {
 		goto smtp_cleanup;

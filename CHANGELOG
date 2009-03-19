@@ -1,4 +1,6 @@
 0.8.1.s
+    - queue time bug fixed
+    - SIMTA_PID, SIMTA_CID variables in cf now
     - report data read and wrote to a client relative to Dfile size
     - no double syslog message
     - log more of what the client says

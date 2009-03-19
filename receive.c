@@ -3062,6 +3062,7 @@ content_filter( struct receive_data *r, char **smtp_message )
     char		*filter_argv[] = { 0, 0 };
     char		*filter_envp[ 14 ];
     char		fname[ MAXPATHLEN + 1 ];
+    char		buf[ 256 ];
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
 	filter_argv[ 0 ]++;
@@ -3192,20 +3193,34 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
+
+	sprintf( buf, "%d", getpid() );
+	if (( filter_envp[ 11 ] = env_string( "SIMTA_PID",
+		buf )) == NULL ) {
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
+
+	sprintf( buf, "%ld", simta_log_tv.tv_sec );
+	if (( filter_envp[ 12 ] = env_string( "SIMTA_CID",
+		buf )) == NULL ) {
+	    exit( MESSAGE_TEMPFAIL );
+	}
+
 	if ( simta_checksum_md != NULL ) {
-	    if (( filter_envp[ 11 ] = env_string( "SIMTA_CHECKSUM_SIZE",
+	    if (( filter_envp[ 13 ] = env_string( "SIMTA_CHECKSUM_SIZE",
 		    r->r_md_bytes )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    if (( filter_envp[ 12 ] = env_string( "SIMTA_CHECKSUM",
+	    if (( filter_envp[ 14 ] = env_string( "SIMTA_CHECKSUM",
 		    r->r_md_b64 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    filter_envp[ 13 ] = NULL;
+	    filter_envp[ 15 ] = NULL;
 	} else {
-	    filter_envp[ 11 ] = NULL;
+	    filter_envp[ 13 ] = NULL;
 	}
 
 
