@@ -415,9 +415,9 @@ f_helo( struct receive_data *r )
 	return( RECEIVE_OK );
     }
 
-    syslog( LOG_DEBUG, "Receive [%s] %s: HELO: %s",
+    syslog( LOG_DEBUG, "Receive [%s] %s: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-	    r->r_av[ 1 ]);
+	    r->r_smtp_command );
 
     if ( hello( r, r->r_av[ 1 ] ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
@@ -528,9 +528,9 @@ f_ehlo( struct receive_data *r )
     }
 #endif /* HAVE_LIBSSL */
 
-    syslog( LOG_DEBUG, "Receive [%s] %s: EHLO: %s",
+    syslog( LOG_DEBUG, "Receive [%s] %s: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-	    r->r_av[ 1 ]);
+	    r->r_smtp_command );
 
     return( RECEIVE_OK );
 }
@@ -698,32 +698,42 @@ f_mail( struct receive_data *r )
 	syslog( LOG_ERR, "Syserror: Receive [%s] %s: From <%s>: "
 		"smtp_mode out of range: %d",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_mail, r->r_smtp_mode );
+		addr, r->r_smtp_mode );
 	return( RECEIVE_SYSERROR );
 
     case SMTP_MODE_OFF:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: SMTP_Off",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_mail );
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
 	return( RECEIVE_CLOSECONNECTION );
 
     case SMTP_MODE_TEMPFAIL:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Tempfail",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_mail );
-	return( smtp_tempfail( r, NULL ));
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
+	if ( snet_writef( r->r_snet, "451 Requested action aborted: "
+		"service temporarily unavailable\r\n" ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
 
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: NoAuth",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_mail );
-	return( f_noauth( r ));
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
+	if ( snet_writef( r->r_snet, "530 Authentication required\r\n" ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
 
     case SMTP_MODE_REFUSE:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Refused",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_mail );
-	return( f_bad_sequence( r ));
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
+	if ( snet_writef( r->r_snet,
+		"503 bad sequence of commands\r\n" ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
 
     case SMTP_MODE_TARPIT:
     case SMTP_MODE_GLOBAL_RELAY:
@@ -908,19 +918,33 @@ f_rcpt( struct receive_data *r )
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Tempfail",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	return( smtp_tempfail( r, NULL ));
+	if ( snet_writef( r->r_snet, "451 Requested action aborted: "
+		"service temporarily unavailable\r\n" ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
 
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: NoAuth",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	return( f_noauth( r ));
+	if ( snet_writef( r->r_snet, "530 Authentication required\r\n" ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
 
     case SMTP_MODE_REFUSE:
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Refused",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	return( f_bad_sequence( r ));
+	if ( snet_writef( r->r_snet,
+		"503 bad sequence of commands\r\n" ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	return( RECEIVE_OK );
 
     case SMTP_MODE_TARPIT:
     case SMTP_MODE_GLOBAL_RELAY:
@@ -1228,7 +1252,7 @@ f_data( struct receive_data *r )
 
     switch ( r->r_smtp_mode ) {
     default:
-	syslog( LOG_DEBUG, "Syserror: Receive [%s] %s: %s: Data: "
+	syslog( LOG_ERR, "Syserror: Receive [%s] %s: %s: Data: "
 		"smtp mode out of range: %d",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, r->r_smtp_mode );
@@ -1241,21 +1265,12 @@ f_data( struct receive_data *r )
 	return( RECEIVE_CLOSECONNECTION );
 
     case SMTP_MODE_TEMPFAIL:
-	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Data: Tempfail",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_id );
 	return( smtp_tempfail( r, NULL ));
 
     case SMTP_MODE_NOAUTH:
-	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Data: NoAuth",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_id );
 	return( f_noauth( r ));
 
     case SMTP_MODE_REFUSE:
-	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Data: Refused",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_id );
 	return( f_bad_sequence( r ));
 
     case SMTP_MODE_TARPIT:
@@ -1365,7 +1380,7 @@ f_data( struct receive_data *r )
 	line_no++;
 
 	line_len = strlen( line );
-	data_read += line_len + 2;
+	data_read += line_len + 1;
 
 	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
@@ -1893,6 +1908,10 @@ f_not_implemented( struct receive_data *r )
     static int
 smtp_tempfail( struct receive_data *r, char *message )
 {
+    syslog( LOG_DEBUG, "Receive [%s] %s: Tempfail: %s",
+	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+	    r->r_smtp_command );
+
     if ( snet_writef( r->r_snet, "451 Requested action aborted: %s.\r\n",
 	    message ? message : "service temporarily unavailable" ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror smtp_tempfail: snet_writef: %m" );
@@ -2869,7 +2888,7 @@ closeconnection:
 
     if ( simta_sasl ) {
 	syslog( LOG_DEBUG,
-		"Connect.in [%s] %s: Metrics: "
+		"Connect.stat [%s] %s: Metrics: "
 		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d: "
 		"Authuser %s",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
@@ -2879,7 +2898,7 @@ closeconnection:
 		r.r_data_attempt, r.r_auth_id );
     } else {
 	syslog( LOG_DEBUG,
-		"Connect.in [%s] %s: Metrics: "
+		"Connect.stat [%s] %s: Metrics: "
 		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
 		(int)(tv_stop.tv_sec - tv_start.tv_sec), r.r_mail_success,

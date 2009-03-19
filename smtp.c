@@ -337,9 +337,10 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_DATA_EOF:
 	    d->d_delivered = 1;
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: Message Accepted [%s] %s: %s",
+		    "Deliver.SMTP %s: Message Accepted [%s] %s: "
+		    "transmitted %ld/%ld: %s",
 		    d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
-		    hq->hq_smtp_hostname, line );
+		    hq->hq_smtp_hostname, d->d_sent, d->d_size, line );
 	    break;
 
 	default:
@@ -689,6 +690,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
 		return( SMTP_BAD_CONNECTION );
 	    }
 	}
+	d->d_sent += ( strlen( line ) + 1 );
     }
 
     memset( &tv, 0, sizeof( struct timeval ));

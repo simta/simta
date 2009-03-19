@@ -28,6 +28,8 @@ struct deliver {
     char			**d_deliver_argv;
     struct envelope		*d_env;
     struct recipient		*d_rcpt;
+    off_t			d_size;
+    off_t			d_sent;
     int				d_dfile_fd;
     int				d_n_rcpt_accepted;
     int				d_n_rcpt_failed;

@@ -872,6 +872,7 @@ q_deliver( struct host_q *deliver_q )
     struct envelope		*env_deliver;
     struct envelope		*env_bounce = NULL;
     struct deliver		d;
+    struct stat			sbuf;
 
     memset( &d, 0, sizeof( struct deliver ));
 
@@ -925,6 +926,8 @@ q_deliver( struct host_q *deliver_q )
 	d.d_n_rcpt_tempfail = 0;
 	d.d_delivered = 0;
 	d.d_unlinked = 0;
+	d.d_size = 0;
+	d.d_sent = 0;
 
 	/* open Dfile to deliver */
         sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
@@ -934,6 +937,13 @@ q_deliver( struct host_q *deliver_q )
         }
 
 	d.d_dfile_fd = dfile_fd;
+
+	if ( fstat( dfile_fd, &sbuf ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror q_deliver: fstat %s: %m", dfile_fname );
+	    goto message_cleanup;
+	}
+
+	d.d_size = sbuf.st_size;
 
 	switch ( deliver_q->hq_status ) {
         case HOST_LOCAL:
