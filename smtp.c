@@ -514,7 +514,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		    "Deliver.SMTP %s: Failed %s [%s]: "
 		    "transmitted %ld/%ld: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), d->d_sent, d->d_size );
+		    inet_ntoa( d->d_sin.sin_addr ), d->d_sent, d->d_size,
+		    line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d, &tv,
 		    line, "Bad SMTP DATA_EOF reply" ));
 
@@ -693,7 +694,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
 	    }
 	}
 
-	d->d_sent += strlen( line );
+	d->d_sent += strlen( line ) + 1;
     }
 
     memset( &tv, 0, sizeof( struct timeval ));
@@ -703,7 +704,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
     if ( snet_writef( d->d_snet_smtp, ".\r\n" ) < 0 ) {
 	syslog( LOG_INFO,
 		"Deliver.SMTP %s: Message Failed [%s] %s: "
-		"transmitted %ld/%ld: failed writef",
+		"transmitted %ld/%ld: failed writef: %m",
 		d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
 		hq->hq_smtp_hostname, d->d_sent, d->d_size );
 	return( SMTP_BAD_CONNECTION );

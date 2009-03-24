@@ -158,6 +158,7 @@ struct command {
     int		(*c_func)( struct receive_data * );
 };
 
+static int 	smtp_banner_message( struct receive_data *, int, char * );
 static char 	*env_string( char *, char * );
 static int	content_filter( struct receive_data *, char ** );
 static int	local_address( char *, char *, struct simta_red *);
@@ -403,19 +404,55 @@ log_bad_syntax( struct receive_data *r )
 
 
     static int
+smtp_banner_message( struct receive_data *r, int reply_code, char *msg )
+{
+    char				*default_msg;
+    int					ret = RECEIVE_OK;
+
+    switch ( reply_code ) {
+    default:
+	syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+		"smtp_banner_message: reply_code out of range: %d",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		reply_code );
+	reply_code = 421;
+	/* fall through to 421 */
+    case 421:
+	default_msg = "Service not available, closing transmission channel";
+	ret = RECEIVE_CLOSECONNECTION;
+	break;
+
+    case 501:
+	default_msg = "Syntax error in parameters or arguments";
+	break;
+
+    case 504:
+	default_msg = "Command parameter not implemented";
+	break;
+    }
+
+    if ( snet_writef( r->r_snet, "%d %s\r\n", reply_code,
+	    msg ? msg : default_msg ) < 0 ) {
+	syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+		"smtp_banner_message: snet_writef: %m",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+	return( RECEIVE_CLOSECONNECTION );
+    }
+
+    return( ret );
+}
+
+
+    static int
 f_helo( struct receive_data *r )
 {
     tarpit_sleep( r, 0 );
 
     if ( r->r_ac != 2 ) {
 	log_bad_syntax( r );
-	if ( snet_writef( r->r_snet,
-		"501 Syntax violates RFC 2821 section 4.1.1.1: "
-		"\"HELO\" SP Domain CRLF\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_helo: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 501,
+		"Syntax violates RFC 2821 section 4.1.1.1: "
+		"\"HELO\" SP Domain CRLF" ));
     }
 
     syslog( LOG_DEBUG, "Receive [%s] %s: %s",
@@ -1893,7 +1930,7 @@ smtp_tempfail( struct receive_data *r, char *message )
     static int
 smtp_tempfail_banner( struct receive_data *r, char *message )
 {
-    if ( snet_writef( r->r_snet, "451 Requested action aborted: %s.\r\n",
+    if ( snet_writef( r->r_snet, "421 Requested action aborted: %s.\r\n",
 	    message ? message : "service temporarily unavailable" ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror smtp_tempfail: snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
@@ -2657,7 +2694,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
             case RBL_NOT_FOUND:
 		/* leave as RBL_UNKNOWN so user tests happen */
 		r.r_rbl_status = RBL_UNKNOWN;
-                syslog( LOG_DEBUG, "Connect.in [%s] %s: RBL Not listed",
+                syslog( LOG_DEBUG, "Connect.in [%s] %s: RBL Unlisted",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
                 break;
 
@@ -2690,7 +2727,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    syslog( LOG_INFO, "Connect.in [%s] %s: Failed: access denied",
 		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
 	    if ( simta_libwrap_url == NULL ) {
-		goto syserror;
+		smtp_tempfail( &r, NULL );
+		goto closeconnection;
 	    }
 
 	    smtp_tempfail( &r, NULL );
