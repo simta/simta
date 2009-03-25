@@ -144,11 +144,12 @@ struct receive_data {
 #define	RECEIVE_SYSERROR	0x0001
 #define	RECEIVE_CLOSECONNECTION	0x0010
 
-#define S_DECLINE "Requested action aborted: service temporarily unavailable"
-#define S_UNAVAIL "Service not available: closing transmission channel"
+#define S_421_DECLINE "Service not available: closing transmission channel"
+#define S_451_DECLINE "Requested action aborted: "\
+	"service temporarily unavailable"
 #define S_MAXCONNECT "Maximum connections exceeded"
-#define S_CLOSING "closing transmission channel"
 #define S_TIMEOUT "Connection length exceeded"
+#define S_CLOSING "closing transmission channel"
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -239,6 +240,13 @@ struct command	refuse_commands[] = {
 #endif /* HAVE_LIBSASL */
 };
 
+struct command	off_commands[] = {
+    { "MAIL",		f_mail },
+    { "RCPT",		f_rcpt },
+    { "DATA",		f_data },
+    { "QUIT",		f_quit },
+};
+
 
 char *smtp_mode_str[] = {
     "Normal",
@@ -288,9 +296,13 @@ set_smtp_mode( struct receive_data *r, int mode, char *msg )
 		mode );
 	r->r_smtp_mode = SMTP_MODE_OFF;
 	/* fall through to case SMTP_MODE_OFF */
+    case SMTP_MODE_OFF:
+	r->r_commands = off_commands;
+	r->r_ncommands = sizeof( off_commands ) /
+		sizeof( off_commands[ 0 ] );
+	return;
 
     case SMTP_MODE_TEMPFAIL:
-    case SMTP_MODE_OFF:
     case SMTP_MODE_GLOBAL_RELAY:
     case SMTP_MODE_TARPIT:
     case SMTP_MODE_NORMAL:
@@ -660,6 +672,13 @@ f_mail( struct receive_data *r )
 
     r->r_mail_attempt++;
 
+    if ( r->r_smtp_mode == SMTP_MODE_OFF ) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: SMTP_Off: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_smtp_command );
+	return( smtp_banner_message( r, 421, S_421_DECLINE, NULL ));
+    }
+
     tarpit_sleep( r, simta_smtp_tarpit_mail );
 
     if ( r->r_ac < 2 ) {
@@ -769,15 +788,10 @@ f_mail( struct receive_data *r )
 		addr, r->r_smtp_mode );
 	return( RECEIVE_SYSERROR );
 
-    case SMTP_MODE_OFF:
-	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: SMTP_Off",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
-	return( RECEIVE_CLOSECONNECTION );
-
     case SMTP_MODE_TEMPFAIL:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Tempfail",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
-	return( smtp_banner_message( r, 451, S_DECLINE, NULL ));
+	return( smtp_banner_message( r, 451, S_451_DECLINE, NULL ));
 
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: NoAuth",
@@ -805,8 +819,8 @@ f_mail( struct receive_data *r )
 		    domain );
 	    return( smtp_banner_message( r, 451, NULL, NULL ));
 	}
-	syslog( LOG_DEBUG, "Receive [%s] %s: Unknown host: %s",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Unknown host: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr,
 		domain );
 	if ( snet_writef( r->r_snet, "550 %s: unknown host\r\n",
 		domain ) < 0 ) {
@@ -900,6 +914,13 @@ f_rcpt( struct receive_data *r )
 
     r->r_rcpt_attempt++;
 
+    if ( r->r_smtp_mode == SMTP_MODE_OFF ) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: SMTP_Off: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_smtp_command );
+	return( smtp_banner_message( r, 421, S_421_DECLINE, NULL ));
+    }
+
     tarpit_sleep( r, simta_smtp_tarpit_rcpt );
 
     /* Must already have "MAIL FROM:", and no valid message */
@@ -962,17 +983,11 @@ f_rcpt( struct receive_data *r )
 		r->r_env->e_id, addr, r->r_env->e_mail, r->r_smtp_mode );
 	return( RECEIVE_SYSERROR );
 
-    case SMTP_MODE_OFF:
-	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: SMTP_Off",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_id, addr, r->r_env->e_mail );
-	return( RECEIVE_CLOSECONNECTION );
-
     case SMTP_MODE_TEMPFAIL:
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Tempfail",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	return( smtp_banner_message( r, 451, S_DECLINE, NULL ));
+	return( smtp_banner_message( r, 451, S_451_DECLINE, NULL ));
 
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: NoAuth",
@@ -1248,6 +1263,13 @@ f_data( struct receive_data *r )
 
     r->r_data_attempt++;
 
+    if ( r->r_smtp_mode == SMTP_MODE_OFF ) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: SMTP_Off: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_smtp_command );
+	return( smtp_banner_message( r, 421, S_421_DECLINE, NULL ));
+    }
+
     tarpit_sleep( r, simta_smtp_tarpit_data );
 
     /* rfc 2821 4.1.1
@@ -1289,17 +1311,11 @@ f_data( struct receive_data *r )
 		r->r_env->e_id, r->r_smtp_mode );
 	return( RECEIVE_SYSERROR );
 
-    case SMTP_MODE_OFF:
-	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Data: SMTP_Off",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_id );
-	return( RECEIVE_CLOSECONNECTION );
-
     case SMTP_MODE_TEMPFAIL:
 	syslog( LOG_DEBUG, "Receive [%s] %s: Tempfail: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_smtp_command );
-	return( smtp_banner_message( r, 451, S_DECLINE, NULL ));
+	return( smtp_banner_message( r, 451, S_451_DECLINE, NULL ));
 
     case SMTP_MODE_NOAUTH:
 	return( f_noauth( r ));
@@ -1723,7 +1739,7 @@ f_data( struct receive_data *r )
 		system_message ? system_message : "no system message",
 		filter_message ? filter_message : "no filter message" );
 
-	if ( smtp_banner_message( r, 451, S_DECLINE, failure_message )
+	if ( smtp_banner_message( r, 451, S_451_DECLINE, failure_message )
 		!= RECEIVE_OK ) {
 	    ret_code = RECEIVE_CLOSECONNECTION;
 	    goto error;
@@ -2599,7 +2615,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 			    r.r_remote_hostname,
 			    dnsr_err2string( dnsr_errno( simta_dnsr )));
 
-		    smtp_banner_message( &r, 421, S_DECLINE, NULL );
+		    smtp_banner_message( &r, 421, S_421_DECLINE, NULL );
 		    goto closeconnection;
                 }
             } else {                            /* invalid reverse */
@@ -2607,7 +2623,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
                     syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
                             "invalid reverse", inet_ntoa( r.r_sin->sin_addr ),
 			    r.r_remote_hostname );
-		    smtp_banner_message( &r, 421, S_DECLINE,
+		    smtp_banner_message( &r, 421, S_421_DECLINE,
 			    simta_reverse_url );
                     goto closeconnection;
                 } else {
@@ -2622,6 +2638,27 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    r.r_remote_hostname = hostname;
 	}
 
+#ifdef HAVE_LIBWRAP
+	if ( *hostname == '\0' ) {
+	    ctl_hostname = STRING_UNKNOWN;
+	} else {
+	    ctl_hostname = hostname;
+	}
+
+	/* first STRING_UNKNOWN should be domain name of incoming host */
+	if ( hosts_ctl( "simta", ctl_hostname,
+		inet_ntoa( r.r_sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
+	    syslog( LOG_INFO, "Connect.in [%s] %s: Failed: access denied",
+		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
+	    smtp_banner_message( &r, 421, S_421_DECLINE, simta_libwrap_url );
+	    goto closeconnection;
+	}
+
+	if ( r.r_remote_hostname == STRING_UNKNOWN ) {
+	    r.r_remote_hostname = NULL;
+	}
+#endif /* HAVE_LIBWRAP */
+
         if ( simta_rbls != NULL ) {
             switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
 		    r.r_remote_hostname, &(r.r_rbl), &(r.r_rbl_msg))) {
@@ -2632,6 +2669,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
                         (r.r_rbl)->rbl_domain, r.r_rbl_msg );
 		set_smtp_mode( &r, SMTP_MODE_OFF, "RBL Blocked" );
+		break;
 
             case RBL_ACCEPT:
 		r.r_rbl_status = RBL_ACCEPT;
@@ -2662,27 +2700,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
                 break;
             }
         }
-
-#ifdef HAVE_LIBWRAP
-	if ( *hostname == '\0' ) {
-	    ctl_hostname = STRING_UNKNOWN;
-	} else {
-	    ctl_hostname = hostname;
-	}
-
-	/* first STRING_UNKNOWN should be domain name of incoming host */
-	if ( hosts_ctl( "simta", ctl_hostname,
-		inet_ntoa( r.r_sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
-	    syslog( LOG_INFO, "Connect.in [%s] %s: Failed: access denied",
-		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-	    smtp_banner_message( &r, 421, S_DECLINE, simta_libwrap_url );
-	    goto closeconnection;
-	}
-
-	if ( r.r_remote_hostname == STRING_UNKNOWN ) {
-	    r.r_remote_hostname = NULL;
-	}
-#endif /* HAVE_LIBWRAP */
 
 	if (( r.r_env = env_create( NULL, NULL )) == NULL ) {
 	    goto syserror;
@@ -2731,10 +2748,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( r.r_snet, &tv )) != NULL ) {
-	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
-	    smtp_banner_message( &r, 421, S_DECLINE, NULL );
-	    goto closeconnection;
-	}
 
 	tv.tv_sec = simta_receive_wait;
 	tv.tv_usec = 0;
@@ -2758,35 +2771,41 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    goto syserror;
 	}
 
-	if ( r.r_ac == 0 ) {
-	    syslog( LOG_DEBUG, "Receive [%s] %s: No Command",
-		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-
-	    tarpit_sleep( &r, 0 );
-	    if ( snet_writef( r.r_snet, "500 Command unrecognized\r\n" ) < 0 ) {
-		goto closeconnection;
-	    }
-	    continue;
-	}
-
 	/* rfc 2821 2.4
 	 * No sending SMTP system is permitted to send envelope commands
 	 * in any character set other than US-ASCII; receiving systems
 	 * SHOULD reject such commands, normally using "500 syntax error
 	 * - invalid character" replies.
 	 */
-	for ( i = 0; i < r.r_ncommands; i++ ) {
-	    if ( strcasecmp( r.r_av[ 0 ], r.r_commands[ i ].c_name ) == 0 ) {
-		break;
+	if ( r.r_ac != 0 ) {
+	    for ( i = 0; i < r.r_ncommands; i++ ) {
+		if ( strcasecmp( r.r_av[ 0 ],
+			r.r_commands[ i ].c_name ) == 0 ) {
+		    break;
+		}
 	    }
 	}
 
-	if ( i >= r.r_ncommands ) {
-	    syslog( LOG_DEBUG, "Receive [%s] %s: Command unrecognized: %s",
-		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		    r.r_smtp_command );
+	if (( r.r_ac == 0 ) || ( i >= r.r_ncommands )) {
+	    if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
+		syslog( LOG_DEBUG, "Receive [%s] %s: SMTP_Off: %s",
+			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
+			r.r_smtp_command );
+		smtp_banner_message( &r, 421, S_421_DECLINE, NULL );
+		goto closeconnection;
+	    }
+
+	    if ( r.r_ac == 0 ) {
+		syslog( LOG_DEBUG, "Receive [%s] %s: No Command",
+			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
+	    } else {
+		syslog( LOG_DEBUG, "Receive [%s] %s: Command unrecognized: %s",
+			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
+			r.r_smtp_command );
+	    }
 
 	    tarpit_sleep( &r, 0 );
+
 	    if ( snet_writef( r.r_snet, "500 Command unrecognized\r\n" ) < 0 ) {
 		goto closeconnection;
 	    }

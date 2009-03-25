@@ -1,3 +1,9 @@
+0.8.1.v
+    - SMTP_OFF mode defined
+    - TCP Wrapers before RBLs
+    - RBL bugfix
+    - string mismatch bugfix
+
 0.8.1.u
     - lbwrap_url bugfix
     - banner audit of 421/251
