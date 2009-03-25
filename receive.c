@@ -428,6 +428,11 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
 	hostname = 1;
 	break;
 
+    case 220:
+	hostname = 1;
+	boilerplate = "Simple Internet Message Transfer Agent ready";
+	break;
+
     case 451:
 	boilerplate = "Local error in processing: requested action aborted";
 	break;
@@ -2001,8 +2006,8 @@ f_starttls( struct receive_data *r )
 	return( smtp_banner_message( r, 501, NULL, "no parameters allowed" ));
     }
 
-    if ( snet_writef( r->r_snet, "%d Ready to start TLS\r\n", 220 ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_starttls: snet_writef: %m" );
+    if ( smtp_banner_message( r, 220, "Ready to start TLS", NULL ) !=
+	    RECEIVE_OK ) {
 	return( RECEIVE_CLOSECONNECTION );
     }
 
@@ -2384,6 +2389,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     int					i;
     int					ret;
     char				*line;
+    char				*rbl_text = NULL;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
     struct timeval			tv_write;
@@ -2614,13 +2620,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		    r.r_remote_hostname, &(r.r_rbl), &(r.r_rbl_msg))) {
             case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
+		rbl_text = (r.r_rbl)->rbl_url;
                 syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked %s: %s",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
                         (r.r_rbl)->rbl_domain, r.r_rbl_msg );
-		if ( smtp_banner_message( &r, 554, "Access denied",
-			(r.r_rbl)->rbl_url ) != RECEIVE_OK ) {
-		    goto closeconnection;
-		}
 		set_smtp_mode( &r, SMTP_MODE_OFF, "RBL Blocked" );
 
             case RBL_ACCEPT:
@@ -2698,11 +2701,15 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 	tarpit_sleep( &r, simta_smtp_tarpit_connect );
 
-	if ( snet_writef( r.r_snet,
-		"%d %s Simple Internet Message Transfer Agent ready\r\n",
-		220, simta_hostname ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
-	    goto closeconnection;
+	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
+	    if ( smtp_banner_message( &r, 554, "Access denied", rbl_text )
+		    != RECEIVE_OK ) {
+		goto closeconnection;
+	    }
+	} else {
+	    if ( smtp_banner_message( &r, 220, NULL, NULL ) != RECEIVE_OK ) {
+		goto closeconnection;
+	    }
 	}
 
 	syslog( LOG_INFO, "Connect.in [%s] %s: Accepted",
