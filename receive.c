@@ -144,7 +144,11 @@ struct receive_data {
 #define	RECEIVE_SYSERROR	0x0001
 #define	RECEIVE_CLOSECONNECTION	0x0010
 
-#define S_LOCAL_ERROR		"local error in processing"
+#define S_DECLINE "Requested action aborted: service temporarily unavailable"
+#define S_UNAVAIL "Service not available: closing transmission channel"
+#define S_MAXCONNECT "Maximum connections exceeded"
+#define S_CLOSING "closing transmission channel"
+#define S_TIMEOUT "Connection length exceeded: closing transmission channel"
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -158,7 +162,6 @@ struct command {
     int		(*c_func)( struct receive_data * );
 };
 
-static int 	smtp_banner_message( struct receive_data *, int, char * );
 static char 	*env_string( char *, char * );
 static int	content_filter( struct receive_data *, char ** );
 static int	local_address( char *, char *, struct simta_red *);
@@ -177,13 +180,13 @@ static int	f_help( struct receive_data * );
 static int	f_not_implemented( struct receive_data * );
 static int	f_noauth( struct receive_data * );
 static int	noauth_banner( struct receive_data * );
-static int	smtp_tempfail( struct receive_data *, char * );
-static int	smtp_tempfail_banner( struct receive_data *, char * );
 static int	f_bad_sequence( struct receive_data * );
 static int	bad_sequence_banner( struct receive_data * );
 static void	set_smtp_mode( struct receive_data *, int, char* );
 static void	tarpit_sleep( struct receive_data *, int );
 static void	log_bad_syntax( struct receive_data* );
+static int 	smtp_banner_message( struct receive_data *, int, char *,
+	char * );
 
 #ifdef HAVE_LIBSASL
 static int	f_auth( struct receive_data * );
@@ -404,10 +407,12 @@ log_bad_syntax( struct receive_data *r )
 
 
     static int
-smtp_banner_message( struct receive_data *r, int reply_code, char *msg )
+smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
+	char *arg )
 {
-    char				*default_msg;
+    char				*boilerplate;
     int					ret = RECEIVE_OK;
+    int					hostname = 0;
 
     switch ( reply_code ) {
     default:
@@ -418,25 +423,67 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg )
 	reply_code = 421;
 	/* fall through to 421 */
     case 421:
-	default_msg = "Service not available, closing transmission channel";
+	boilerplate = "Local error in processing: closing transmission channel";
 	ret = RECEIVE_CLOSECONNECTION;
+	hostname = 1;
+	break;
+
+    case 451:
+	boilerplate = "Local error in processing: requested action aborted";
 	break;
 
     case 501:
-	default_msg = "Syntax error in parameters or arguments";
+	boilerplate = "Syntax error in parameters or arguments";
 	break;
 
     case 504:
-	default_msg = "Command parameter not implemented";
+	boilerplate = "Command parameter not implemented";
+	break;
+
+    case 554:
+	boilerplate = "Transaction failed";
 	break;
     }
 
-    if ( snet_writef( r->r_snet, "%d %s\r\n", reply_code,
-	    msg ? msg : default_msg ) < 0 ) {
-	syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
-		"smtp_banner_message: snet_writef: %m",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
-	return( RECEIVE_CLOSECONNECTION );
+    if ( hostname ) {
+	if ( arg != NULL ) {
+	    if ( snet_writef( r->r_snet, "%d <%s> %s: %s\r\n", reply_code,
+		    simta_hostname, msg ? msg : boilerplate, arg ) < 0 ) {
+		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+			"smtp_banner_message: snet_writef: %m",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+
+	} else {
+	    if ( snet_writef( r->r_snet, "%d <%s> %s\r\n", reply_code,
+		    simta_hostname, msg ? msg : boilerplate ) < 0 ) {
+		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+			"smtp_banner_message: snet_writef: %m",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	}
+
+    } else {
+	if ( arg != NULL ) {
+	    if ( snet_writef( r->r_snet, "%d %s: %s\r\n", reply_code,
+		    msg ? msg : boilerplate, arg ) < 0 ) {
+		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+			"smtp_banner_message: snet_writef: %m",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+
+	} else {
+	    if ( snet_writef( r->r_snet, "%d %s\r\n", reply_code,
+		    msg ? msg : boilerplate ) < 0 ) {
+		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+			"smtp_banner_message: snet_writef: %m",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	}
     }
 
     return( ret );
@@ -450,9 +497,8 @@ f_helo( struct receive_data *r )
 
     if ( r->r_ac != 2 ) {
 	log_bad_syntax( r );
-	return( smtp_banner_message( r, 501,
-		"Syntax violates RFC 2821 section 4.1.1.1: "
-		"\"HELO\" SP Domain CRLF" ));
+	return( smtp_banner_message( r, 501, NULL,
+		"RFC 2821 section 4.1.1.1: \"HELO\" SP Domain CRLF" ));
     }
 
     syslog( LOG_DEBUG, "Receive [%s] %s: %s",
@@ -492,13 +538,8 @@ f_ehlo( struct receive_data *r )
      */
     if ( r->r_ac != 2 ) {
 	log_bad_syntax( r );
-	if ( snet_writef( r->r_snet,
-		"501 Syntax violates RFC 2821 section 4.1.1.1: "
-		"\"EHLO\" SP Domain CRLF\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 501, NULL,
+		"RFC 2821 section 4.1.1.1: \"EHLO\" SP Domain CRLF" ));
     }
 
     /* rfc 2821 4.1.4
@@ -650,12 +691,8 @@ f_mail( struct receive_data *r )
 			"duplicate SIZE specified: %s",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_smtp_command );
-		if ( snet_writef( r->r_snet,
-			"501 duplicate SIZE specified\r\n" ) < 0 ) {
-		    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
-		return( RECEIVE_OK );
+		return( smtp_banner_message( r, 501, NULL,
+			"duplicate SIZE specified" ));
 	    } else {
 		seen_extensions = seen_extensions | SIMTA_EXTENSION_SIZE;
 	    }
@@ -665,12 +702,8 @@ f_mail( struct receive_data *r )
 			"invalid SIZE parameter: %s",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_smtp_command );
-		if ( snet_writef( r->r_snet,
-			"501 invalid SIZE command\r\n" ) < 0 ) {
-		    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
-		return( RECEIVE_OK );
+		return( smtp_banner_message( r, 501, NULL,
+			"invalid SIZE command" ));
 	    }
 
 	    if ( simta_max_message_size > 0 ) {
@@ -686,13 +719,9 @@ f_mail( struct receive_data *r )
 			    "invalid SIZE parameter: %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_smtp_command );
-		    if ( snet_writef( r->r_snet,
-			    "501 invalid SIZE parameter: %s\r\n",
-			    r->r_av[ i ] + strlen( "SIZE=" )) < 0 ) {
-			syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-			return( RECEIVE_CLOSECONNECTION );
-		    }
-		    return( RECEIVE_OK );
+		    return( smtp_banner_message( r, 501,
+			    "Syntax Error: invalid SIZE parameter",
+			    r->r_av[ i ] + strlen( "SIZE=" )));
 		}
 
 		if ( message_size > simta_max_message_size ) {
@@ -715,14 +744,8 @@ f_mail( struct receive_data *r )
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_smtp_command );
 
-	    if ( snet_writef( r->r_snet,
-		    "501 unsupported SMPT service extension: %s\r\n",
-		    r->r_av[ i ] ) < 0 ) {
-		syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-
-	    return( RECEIVE_OK );
+	    return( smtp_banner_message( r, 501, "Syntax Error: "
+		    "unsupported SMPT service extension", r->r_av[ i ] ));
 	}
     }
 
@@ -749,7 +772,7 @@ f_mail( struct receive_data *r )
     case SMTP_MODE_TEMPFAIL:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Tempfail",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
-	return( smtp_tempfail_banner( r, NULL ));
+	return( smtp_banner_message( r, 451, S_DECLINE, NULL ));
 
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: NoAuth",
@@ -775,7 +798,7 @@ f_mail( struct receive_data *r )
 	if ( rc < 0 ) {
 	    syslog( LOG_ERR, "Syserror f_mail: check_hostname %s: failed",
 		    domain );
-	    return( smtp_tempfail( r, S_LOCAL_ERROR ));
+	    return( smtp_banner_message( r, 451, NULL, NULL ));
 	}
 	syslog( LOG_DEBUG, "Receive [%s] %s: Unknown host: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
@@ -944,7 +967,7 @@ f_rcpt( struct receive_data *r )
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Tempfail",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	return( smtp_tempfail_banner( r, NULL ));
+	return( smtp_banner_message( r, 451, S_DECLINE, NULL ));
 
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: NoAuth",
@@ -987,7 +1010,7 @@ f_rcpt( struct receive_data *r )
 #endif /* HAVE_LIBSSL */
 		syslog( LOG_ERR, "Syserror f_rcpt: check_hostname: %s: failed",
 			domain );
-		return( smtp_tempfail( r, S_LOCAL_ERROR ));
+		return( smtp_banner_message( r, 451, NULL, NULL ));
 	    }
 
 	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
@@ -1069,7 +1092,7 @@ f_rcpt( struct receive_data *r )
 		}
 #endif /* HAVE_LIBSSL */
 
-		return( smtp_tempfail( r, S_LOCAL_ERROR ));
+		return( smtp_banner_message( r, 451, NULL, NULL ));
 
 	    case LOCAL_ADDRESS_RBL:
 		if ( simta_user_rbls == NULL ) {
@@ -1231,13 +1254,8 @@ f_data( struct receive_data *r )
      */
     if ( r->r_ac != 1 ) {
 	log_bad_syntax( r );
-	if ( snet_writef( r->r_snet,
-		"501 Syntax violates RFC 2821 section 4.1.1.4: "
-		"\"DATA\" CRLF\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_data: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 501, NULL,
+		"RFC 2821 section 4.1.1.1 \"DATA\" CRLF" ));
     }
 
     /* rfc 2821 3.3
@@ -1255,11 +1273,7 @@ f_data( struct receive_data *r )
     }
 
     if ( r->r_env->e_rcpt == NULL ) {
-	if ( snet_writef( r->r_snet, "554 no valid recipients\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_data: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 554, NULL, "No valid recipients" ));
     }
 
     switch ( r->r_smtp_mode ) {
@@ -1277,7 +1291,10 @@ f_data( struct receive_data *r )
 	return( RECEIVE_CLOSECONNECTION );
 
     case SMTP_MODE_TEMPFAIL:
-	return( smtp_tempfail( r, NULL ));
+	syslog( LOG_DEBUG, "Receive [%s] %s: Tempfail: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+		r->r_smtp_command );
+	return( smtp_banner_message( r, 451, S_DECLINE, NULL ));
 
     case SMTP_MODE_NOAUTH:
 	return( f_noauth( r ));
@@ -1694,7 +1711,8 @@ f_data( struct receive_data *r )
 		system_message ? system_message : "no system message",
 		filter_message ? filter_message : "no filter message" );
 
-	if ( smtp_tempfail( r, failure_message ) != RECEIVE_OK ) {
+	if ( smtp_banner_message( r, 451, S_DECLINE, failure_message )
+		!= RECEIVE_OK ) {
 	    ret_code = RECEIVE_CLOSECONNECTION;
 	    goto error;
 	}
@@ -1707,20 +1725,10 @@ f_data( struct receive_data *r )
 		data_read,
 		system_message ? system_message : "no system message",
 		filter_message ? filter_message : "no filter message" );
-
-	if ( failure_message != NULL ) {
-	    if ( snet_writef( r->r_snet, "554 Transaction failed: %s\r\n",
-		    failure_message ) < 0 ) {
-		syslog( LOG_DEBUG, "Syserror f_data: snet_writef: %m" );
-		ret_code = RECEIVE_CLOSECONNECTION;
-		goto error;
-	    }
-	} else {
-	    if ( snet_writef( r->r_snet, "554 Transaction failed\r\n" ) < 0 ) {
-		syslog( LOG_DEBUG, "Syserror f_data: snet_writef: %m" );
-		ret_code = RECEIVE_CLOSECONNECTION;
-		goto error;
-	    }
+	if ( smtp_banner_message( r, 554, NULL, failure_message ) !=
+		RECEIVE_OK ) {
+	    ret_code = RECEIVE_CLOSECONNECTION;
+	    goto error;
 	}
 
     } else {	/* ACCEPT */
@@ -1918,28 +1926,6 @@ f_not_implemented( struct receive_data *r )
 
 
     static int
-smtp_tempfail( struct receive_data *r, char *message )
-{
-    syslog( LOG_DEBUG, "Receive [%s] %s: Tempfail: %s",
-	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
-	    r->r_smtp_command );
-    return( smtp_tempfail_banner( r, message ));
-}
-
-
-    static int
-smtp_tempfail_banner( struct receive_data *r, char *message )
-{
-    if ( snet_writef( r->r_snet, "421 Requested action aborted: %s.\r\n",
-	    message ? message : "service temporarily unavailable" ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror smtp_tempfail: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-    return( RECEIVE_OK );
-}
-
-
-    static int
 f_bad_sequence( struct receive_data *r )
 {
     syslog( LOG_DEBUG, "Receive [%s] %s: Bad Sequence: %s",
@@ -2012,12 +1998,7 @@ f_starttls( struct receive_data *r )
 
     if ( r->r_ac != 1 ) {
 	log_bad_syntax( r );
-	if ( snet_writef( r->r_snet,
-		"501 Syntax error (no parameters allowed)\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_starttls: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 501, NULL, "no parameters allowed" ));
     }
 
     if ( snet_writef( r->r_snet, "%d Ready to start TLS\r\n", 220 ) < 0 ) {
@@ -2105,22 +2086,14 @@ _start_tls( struct receive_data *r )
     if (( rc = snet_starttls( r->r_snet, ctx, 1 )) != 1 ) {
 	syslog( LOG_ERR, "Syserror _start_tls: snet_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
-	if ( snet_writef( r->r_snet, "501 SSL didn't work!\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror _start_tls: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_SYSERROR );
+	return( smtp_banner_message( r, 501, NULL, "SSL didn't work!" ));
     }
 
     if ( simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER ) {
 	if (( peer = SSL_get_peer_certificate( r->r_snet->sn_ssl )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror _start_tls: SSL_get_peer_certificate: "
 		    "no peer certificate" );
-	    if ( snet_writef( r->r_snet, "501 SSL didn't work!\r\n" ) < 0 ) {
-		syslog( LOG_DEBUG, "Syserror _start_tls: snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    return( RECEIVE_SYSERROR );
+	    return( smtp_banner_message( r, 501, NULL,  "SSL didn't work!" ));
 	}
 	syslog( LOG_DEBUG, "Receive [%s] %s: CERT Subject: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
@@ -2163,13 +2136,8 @@ f_auth( struct receive_data *r )
 
     if (( r->r_ac != 2 ) && ( r->r_ac != 3 )) {
 	log_bad_syntax( r );
-	if ( snet_writef( r->r_snet,
-		"501 Syntax violates RFC 2554 section 4: "
-		"AUTH mechanism [initial-response]\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 501, NULL,
+		"RFC 2554 section 4 AUTH mechanism [initial-response]" ));
     }
 
     /* RFC 2554 After an AUTH command has successfully completed, no more AUTH
@@ -2199,12 +2167,8 @@ f_auth( struct receive_data *r )
 			"unable to BASE64 decode argument: %s",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 			r->r_auth_id, r->r_av[ 2 ]);
-		if ( snet_writef( r->r_snet,
-			"501 unable to BASE64 decode argument:\r\n" ) < 0 ) {
-		    syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
-		return( RECEIVE_OK );
+		return( smtp_banner_message( r, 501, NULL,
+			"unable to BASE64 decode argument" ));
 	    }
 	}
     }
@@ -2247,15 +2211,11 @@ f_auth( struct receive_data *r )
 		    "client canceled authentication",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		    r->r_auth_id );
-	    if ( snet_writef( r->r_snet,
-		    "501 client canceled authentication\r\n" ) < 0 ) {
-		syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
 	    if ( reset_sasl_conn( r ) != SASL_OK ) {
 		return( RECEIVE_CLOSECONNECTION );
 	    }
-	    return( RECEIVE_OK );
+	    return( smtp_banner_message( r, 501, NULL,
+		    "client canceled authentication" ));
 	}
 
 	/* decode response */
@@ -2265,12 +2225,8 @@ f_auth( struct receive_data *r )
 		    "sasl_decode64: unable to BASE64 decode argument: %s",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		    r->r_auth_id, clientin );
-	    if ( snet_writef( r->r_snet,
-		    "501 unable to BASE64 decode argument\r\n" ) < 0 ) {
-		syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    return( RECEIVE_OK );
+	    return( smtp_banner_message( r, 501, NULL,
+		    "unable to BASE64 decode argument" ));
 	}
 
 	/* do next step */
@@ -2556,10 +2512,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		"connection per host exceeded %d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
 		c->c_proc_interval );
-	if ( snet_writef( r.r_snet, "421 Maximum connections exceeded, "
-		"closing transmission channel\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
-	}
+	smtp_banner_message( &r, 421, S_MAXCONNECT, S_CLOSING );
 	goto closeconnection;
     }
 
@@ -2569,10 +2522,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		"connection per interval exceeded %d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
 		c->c_proc_interval );
-	if ( snet_writef( r.r_snet, "421 Maximum connections exceeded, "
-		"closing transmission channel\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
-	}
+	smtp_banner_message( &r, 421, S_MAXCONNECT, S_CLOSING );
 	goto closeconnection;
     }
 
@@ -2582,10 +2532,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		"MAX_RECEIVE_CONNECTIONS exceeded: %d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
 		simta_receive_connections_max );
-	if ( snet_writef( r.r_snet, "421 Maximum connections exceeded, "
-		"closing transmission channel\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
-	}
+	smtp_banner_message( &r, 421, S_MAXCONNECT, S_CLOSING );
 	goto closeconnection;
     }
 
@@ -2606,8 +2553,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	syslog( LOG_INFO,
 		"Connect.in [%s] %s: connection refused: inbound smtp disabled",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-	if ( snet_writef( r.r_snet, "554 No SMTP service here\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
+	if ( smtp_banner_message( &r, 554, "No SMTP Service here", NULL ) !=
+		RECEIVE_OK ) {
 	    goto closeconnection;
 	}
 
@@ -2633,32 +2580,22 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 			    r.r_remote_hostname,
 			    dnsr_err2string( dnsr_errno( simta_dnsr )));
                 } else {
-                    syslog( LOG_INFO,
-                        "Connect.in [%s] %s: Failed: reverse address error: %s",
-			inet_ntoa( r.r_sin->sin_addr ),
-			r.r_remote_hostname,
-                        dnsr_err2string( dnsr_errno( simta_dnsr )));
-                    snet_writef( r.r_snet,
-                        "421 Error checking reverse address: %s %s\r\n",
-			inet_ntoa( r.r_sin->sin_addr ),
-                        dnsr_err2string( dnsr_errno( simta_dnsr )));
-                    goto closeconnection;
+                    syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
+			    "reverse address error: %s",
+			    inet_ntoa( r.r_sin->sin_addr ),
+			    r.r_remote_hostname,
+			    dnsr_err2string( dnsr_errno( simta_dnsr )));
+
+		    smtp_banner_message( &r, 421, S_DECLINE, NULL );
+		    goto closeconnection;
                 }
             } else {                            /* invalid reverse */
                 if ( simta_ignore_reverse == 0 ) {
                     syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
                             "invalid reverse", inet_ntoa( r.r_sin->sin_addr ),
 			    r.r_remote_hostname );
-		    if ( simta_reverse_url ) {
-			snet_writef( r.r_snet,
-				"421 No access from IP %s.  See %s\r\n",
-				inet_ntoa( r.r_sin->sin_addr ),
-				simta_reverse_url );
-		    } else {
-			snet_writef( r.r_snet,
-				"421 No access from IP %s.\r\n",
-				inet_ntoa( r.r_sin->sin_addr ));
-		    }
+		    smtp_banner_message( &r, 421, S_DECLINE,
+			    simta_reverse_url );
                     goto closeconnection;
                 } else {
                     syslog( LOG_INFO, "Connect.in [%s] %s: Warning: "
@@ -2680,9 +2617,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
                 syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked %s: %s",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
                         (r.r_rbl)->rbl_domain, r.r_rbl_msg );
-                snet_writef( r.r_snet, "550 No access from IP %s.  See %s\r\n",
-			inet_ntoa( r.r_sin->sin_addr ), (r.r_rbl)->rbl_url );
-                goto closeconnection;
+		if ( smtp_banner_message( &r, 554, "Access denied",
+			(r.r_rbl)->rbl_url ) != RECEIVE_OK ) {
+		    goto closeconnection;
+		}
+		set_smtp_mode( &r, SMTP_MODE_OFF, "RBL Blocked" );
 
             case RBL_ACCEPT:
 		r.r_rbl_status = RBL_ACCEPT;
@@ -2726,12 +2665,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		inet_ntoa( r.r_sin->sin_addr ), STRING_UNKNOWN ) == 0 ) {
 	    syslog( LOG_INFO, "Connect.in [%s] %s: Failed: access denied",
 		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-	    if ( simta_libwrap_url == NULL ) {
-		smtp_tempfail( &r, NULL );
-		goto closeconnection;
-	    }
-
-	    smtp_tempfail( &r, NULL );
+	    smtp_banner_message( &r, 421, S_DECLINE, simta_libwrap_url );
 	    goto closeconnection;
 	}
 
@@ -2783,6 +2717,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     tv.tv_sec = simta_receive_wait;
     tv.tv_usec = 0;
     while (( line = snet_getline( r.r_snet, &tv )) != NULL ) {
+	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
+	    smtp_banner_message( &r, 421, S_DECLINE, NULL );
+	    goto closeconnection;
+	}
+
 	tv.tv_sec = simta_receive_wait;
 	tv.tv_usec = 0;
 
@@ -2862,24 +2801,17 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    set_smtp_mode( &r, simta_smtp_punishment_mode,
 		    "Failed recipients" );
 	}
-
-	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
-	    goto closeconnection;
-	}
     }
 
     if ( errno == ETIMEDOUT ) {
 	syslog( LOG_DEBUG, "Receive [%s] %s: Timeout",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-	if ( snet_writef( r.r_snet, "421 closing transmission channel: "
-		"command timeout\r\n", simta_hostname ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror smtp_receive: snet_writef: %m" );
-	}
+	smtp_banner_message( &r, 421, S_DECLINE, "Timeout" );
 	goto closeconnection;
     }
 
 syserror:
-    smtp_tempfail( &r, S_LOCAL_ERROR );
+    smtp_banner_message( &r, 421, NULL, NULL );
 
 closeconnection:
     if ( snet_close( r.r_snet ) != 0 ) {

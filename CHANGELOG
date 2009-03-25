@@ -1,3 +1,7 @@
+0.8.1.u
+    - lbwrap_url bugfix
+    - banner audit of 421/251
+
 0.8.1.t
     - transmitted size bugfix
 
