@@ -148,7 +148,7 @@ struct receive_data {
 #define S_UNAVAIL "Service not available: closing transmission channel"
 #define S_MAXCONNECT "Maximum connections exceeded"
 #define S_CLOSING "closing transmission channel"
-#define S_TIMEOUT "Connection length exceeded: closing transmission channel"
+#define S_TIMEOUT "Connection length exceeded"
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -1512,8 +1512,15 @@ f_data( struct receive_data *r )
     }
 
     if ( line == NULL ) {	/* EOF */
-	syslog( LOG_DEBUG, "Syserror f_data: snet_geline: connection dropped" );
 	ret_code = RECEIVE_CLOSECONNECTION;
+	if ( errno == ETIMEDOUT ) {
+	    syslog( LOG_DEBUG, "Receive [%s] %s: Timeout DATA",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+	    smtp_banner_message( &r, 421, S_TIMEOUT, S_CLOSING );
+	} else {
+	    syslog( LOG_DEBUG, "Receive [%s] %s: snet_getline: %m",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+	}
 	goto error;
     }
 
@@ -2813,7 +2820,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     if ( errno == ETIMEDOUT ) {
 	syslog( LOG_DEBUG, "Receive [%s] %s: Timeout",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-	smtp_banner_message( &r, 421, S_DECLINE, "Timeout" );
+	smtp_banner_message( &r, 421, S_TIMEOUT, S_CLOSING );
 	goto closeconnection;
     }
 
