@@ -2818,7 +2818,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     }
 
     if ( errno == ETIMEDOUT ) {
-	syslog( LOG_DEBUG, "Receive [%s] %s: Timeout",
+	syslog( LOG_DEBUG, "Receive [%s] %s: Timeout COMMAND",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
 	smtp_banner_message( &r, 421, S_TIMEOUT, S_CLOSING );
 	goto closeconnection;
