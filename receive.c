@@ -182,14 +182,12 @@ static int	f_quit( struct receive_data * );
 static int	f_help( struct receive_data * );
 static int	f_not_implemented( struct receive_data * );
 static int	f_noauth( struct receive_data * );
-static int	noauth_banner( struct receive_data * );
 static int	f_bad_sequence( struct receive_data * );
-static int	bad_sequence_banner( struct receive_data * );
 static void	set_smtp_mode( struct receive_data *, int, char* );
 static void	tarpit_sleep( struct receive_data *, int );
 static void	log_bad_syntax( struct receive_data* );
 static int 	smtp_banner_message( struct receive_data *, int, char *,
-	char * );
+			char * );
 
 #ifdef HAVE_LIBSASL
 static int	f_auth( struct receive_data * );
@@ -442,6 +440,11 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
 	hostname = 1;
 	break;
 
+    case 211:
+	hostname = 1;
+	boilerplate = "simta";
+	break;
+
     case 220:
 	hostname = 1;
 	boilerplate = "Simple Internet Message Transfer Agent ready";
@@ -453,20 +456,61 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
 	boilerplate = "Service closing transmission channel";
 	break;
 
+    case 235:
+	boilerplate = "Authentication successful";
+	break;
+
     case 250:
 	boilerplate = "OK";
+	break;
+
+    case 334:
+	boilerplate = "";
+	break;
+
+    case 354:
+	boilerplate = "Start mail input; end with <CRLF>.<CRLF>";
 	break;
 
     case 451:
 	boilerplate = "Local error in processing: requested action aborted";
 	break;
 
+    case 500:
+	boilerplate = "Command unrecognized";
+	break;
+
     case 501:
 	boilerplate = "Syntax error in parameters or arguments";
 	break;
 
+    case 502:
+	boilerplate = "Command not implemented";
+	break;
+
+    case 503:
+	boilerplate = "Bad sequence of commands";
+	break;
+
     case 504:
-	boilerplate = "Command parameter not implemented";
+	boilerplate = "Unrecognized authentication type";
+	break;
+
+    case 530:
+	boilerplate = "Authentication required";
+	break;
+
+    case 534:
+	boilerplate = "Authentication mechanism is too weak";
+	break;
+
+    case 535:
+	boilerplate = "Invalid initial-response arugment for mechanism";
+	break;
+
+    case 538:
+	boilerplate = "Encryption required for requested authentication "
+		"mechanism";
 	break;
 
     case 550:
@@ -805,12 +849,12 @@ f_mail( struct receive_data *r )
     case SMTP_MODE_NOAUTH:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: NoAuth",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
-	return( noauth_banner( r ));
+	return( smtp_banner_message( r, 530, NULL, NULL ));
 
     case SMTP_MODE_REFUSE:
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Refused",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr );
-	return( bad_sequence_banner( r ));
+	return( smtp_banner_message( r, 503, NULL, NULL ));
 
     case SMTP_MODE_TARPIT:
     case SMTP_MODE_GLOBAL_RELAY:
@@ -992,13 +1036,13 @@ f_rcpt( struct receive_data *r )
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: NoAuth",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	return( noauth_banner( r ));
+	return( smtp_banner_message( r, 530, NULL, NULL ));
 
     case SMTP_MODE_REFUSE:
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: To <%s> From <%s>: Refused",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, addr, r->r_env->e_mail );
-	return( bad_sequence_banner( r ));
+	return( smtp_banner_message( r, 503, NULL, NULL ));
 
     case SMTP_MODE_TARPIT:
     case SMTP_MODE_GLOBAL_RELAY:
@@ -1050,7 +1094,7 @@ f_rcpt( struct receive_data *r )
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_env->e_id, addr, r->r_env->e_mail );
 		if ( snet_writef( r->r_snet,
-			"551 User not local to %s; please try <%s>\r\n",
+			"551 User not local to <%s>: please try <%s>\r\n",
 			simta_hostname, domain ) < 0 ) {
 		    syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
 		    return( RECEIVE_CLOSECONNECTION );
@@ -1146,7 +1190,7 @@ f_rcpt( struct receive_data *r )
 			    r->r_env->e_mail, r->r_rbl->rbl_domain, 
 			    r->r_rbl_msg );
 		    if ( snet_writef( r->r_snet,
-			    "%d <%s> %s %s: See %s\r\n", 550, simta_hostname,
+			    "550 <%s> %s %s: See %s\r\n", simta_hostname,
 			    S_DENIED, inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_rbl->rbl_url ) < 0 ) {
 			syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
@@ -1392,9 +1436,7 @@ f_data( struct receive_data *r )
 	}
     }
 
-    if ( snet_writef( r->r_snet,
-	    "%d Start mail input; end with <CRLF>.<CRLF>\r\n", 354 ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_data: snet_writef: %m" );
+    if ( smtp_banner_message( r, 354, NULL, NULL ) != RECEIVE_OK ) {
 	ret_code = RECEIVE_CLOSECONNECTION;
 	goto error;
     }
@@ -1750,14 +1792,14 @@ f_data( struct receive_data *r )
 
     } else {	/* ACCEPT */
 	if ( filter_message != NULL ) {
-	    if ( snet_writef( r->r_snet, "250 (%s): Accepted: %s\r\n",
+	    if ( snet_writef( r->r_snet, "250 Accepted: (%s): %s\r\n",
 		    r->r_env->e_id, filter_message ) < 0 ) {
 		syslog( LOG_DEBUG, "Syserror f_data: snet_writef: %m" );
 		ret_code = RECEIVE_CLOSECONNECTION;
 		goto error;
 	    }
 	} else {
-	    if ( snet_writef( r->r_snet, "250 (%s): Accepted\r\n",
+	    if ( snet_writef( r->r_snet, "250 Accepted: (%s)\r\n",
 		    r->r_env->e_id ) < 0 ) {
 		syslog( LOG_DEBUG, "Syserror f_data: snet_writef: %m" );
 		ret_code = RECEIVE_CLOSECONNECTION;
@@ -1871,12 +1913,7 @@ f_help( struct receive_data *r )
 
     tarpit_sleep( r, 0 );
 
-    if ( snet_writef( r->r_snet, "%d simta v%s\r\n", 211, version ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_help: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 211, NULL, version ));
 }
 
 
@@ -1916,12 +1953,7 @@ f_not_implemented( struct receive_data *r )
 
     tarpit_sleep( r, 0 );
 
-    if ( snet_writef( r->r_snet, "%d Command not implemented\r\n", 502 ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_not_implemented: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 502, NULL, NULL ));
 }
 
 
@@ -1932,18 +1964,7 @@ f_bad_sequence( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 	    r->r_smtp_command );
 
-    return( bad_sequence_banner( r ));
-}
-
-
-    static int
-bad_sequence_banner( struct receive_data *r )
-{
-    if ( snet_writef( r->r_snet, "503 bad sequence of commands\r\n" ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_bad_sequence: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 503, NULL, NULL ));
 }
 
 
@@ -1955,18 +1976,7 @@ f_noauth( struct receive_data *r )
     syslog( LOG_DEBUG, "Receive [%s] %s: NoAuth: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 	    r->r_smtp_command );
-    return( noauth_banner( r ));
-}
-
-
-    static int
-noauth_banner( struct receive_data *r )
-{
-    if ( snet_writef( r->r_snet, "530 Authentication required\r\n" ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_noauth: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 530, NULL, NULL ));
 }
 
 
@@ -1979,12 +1989,7 @@ f_starttls( struct receive_data *r )
     tarpit_sleep( r, 0 );
 
     if ( !simta_tls ) {
-	if ( snet_writef( r->r_snet,
-		"%d Command not implemented\r\n", 502 ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_starttls: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 502, NULL, NULL ));
     }
 
     /*
@@ -2192,7 +2197,8 @@ f_auth( struct receive_data *r )
 	    serverout = "";
 	}
 
-	if ( snet_writef( r->r_snet, "334 %s\r\n", serverout ) < 0 ) {
+	if ( smtp_banner_message( r, 334, (char*)serverout, NULL )
+		!= RECEIVE_OK ) {
 	    syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
@@ -2239,16 +2245,11 @@ f_auth( struct receive_data *r )
 	break;
 
     case SASL_NOMECH:
-	if ( snet_writef( r->r_snet,
-		"504 Unrecognized authentication type.\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"Unrecognized authentication type: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id, r->r_av[ 1 ] );
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 504, NULL, NULL ));
 
     case SASL_BADPROT:
 	/* RFC 2554:
@@ -2257,17 +2258,11 @@ f_auth( struct receive_data *r )
 	 * challenge, the server rejects the AUTH command with a 535
 	 * reply.
 	 */
-	if ( snet_writef( r->r_snet,
-		"535 invalid initial-response arugment "
-		"for mechanism\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"Invaid initial-response argument for mechanism %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id, r->r_av[ 1 ] );
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 535, NULL, NULL ));
 
     /* Not sure what RC this is: RFC 2554 If the server rejects the
      * authentication data, it SHOULD reject the AUTH command with a
@@ -2282,16 +2277,11 @@ f_auth( struct receive_data *r )
 	 * authentication mechanism is weaker than server policy permits for
 	 * that user.
 	 */
-	if ( snet_writef( r->r_snet,
-		"534 Authentication mechanism is too weak\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"Authentication mechanism is too weak",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id );
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 534, NULL, NULL ));
 
     case SASL_ENCRYPT:
 	/* RFC 2554
@@ -2300,17 +2290,11 @@ f_auth( struct receive_data *r )
 	 * authentication mechanism may only be used when the underlying SMTP
 	 * connection is encrypted.
 	 */
-	if ( snet_writef( r->r_snet,
-		"538 Encryption required for requested authentication "
-		"mechanism\r\n" ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"Encryption required for mechanism %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id, r->r_av[ 1 ] );
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 538, NULL, NULL ));
 
     default:
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
@@ -2342,9 +2326,7 @@ f_auth( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 	    r->r_auth_id, mechname, r->r_tls ? "+TLS" : "" );
 
-    if ( snet_writef( r->r_snet,
-	    "235 Authentication successful\r\n" ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
+    if ( smtp_banner_message( r, 235, NULL, NULL ) != RECEIVE_OK ) {
 	return( RECEIVE_CLOSECONNECTION );
     }
 
@@ -2697,9 +2679,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
 	    if ( snet_writef( r.r_snet,
-		    "%d <%s> %s %s: See %s\r\n", 554,
-		    simta_hostname, S_DENIED, inet_ntoa( r.r_sin->sin_addr ),
-		    (r.r_rbl)->rbl_url ) < 0 ) {
+		    "554 <%s> %s %s: See %s\r\n", simta_hostname, S_DENIED,
+		    inet_ntoa( r.r_sin->sin_addr ), (r.r_rbl)->rbl_url ) < 0 ) {
 		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
 			"f_rcpt: snet_writef: %m",
 			inet_ntoa( r.r_sin->sin_addr ),
@@ -2784,7 +2765,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 	    tarpit_sleep( &r, 0 );
 
-	    if ( snet_writef( r.r_snet, "500 Command unrecognized\r\n" ) < 0 ) {
+	    if ( smtp_banner_message( &r, 500, NULL, NULL ) != RECEIVE_OK ) {
 		goto closeconnection;
 	    }
 	    continue;
