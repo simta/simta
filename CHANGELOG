@@ -1,3 +1,7 @@
+0.8.1.w
+    - bugfix for TIMEOUT call
+    - more standardization for smtp banners
+
 0.8.1.v
     - SMTP_OFF mode defined
     - TCP Wrapers before RBLs

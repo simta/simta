@@ -445,6 +445,16 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
 	boilerplate = "Simple Internet Message Transfer Agent ready";
 	break;
 
+    case 221:
+	hostname = 1;
+	ret = RECEIVE_CLOSECONNECTION;
+	boilerplate = "Service closing transmission channel";
+	break;
+
+    case 250:
+	boilerplate = "OK";
+	break;
+
     case 451:
 	boilerplate = "Local error in processing: requested action aborted";
 	break;
@@ -455,6 +465,10 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
 
     case 504:
 	boilerplate = "Command parameter not implemented";
+	break;
+
+    case 552:
+	boilerplate = "Message exceeds fixed maximum message size";
 	break;
 
     case 554:
@@ -526,13 +540,7 @@ f_helo( struct receive_data *r )
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( snet_writef( r->r_snet, "%d %s Hello %s\r\n", 250, simta_hostname,
-	    r->r_av[ 1 ]) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_helo: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 250, "Hello", r->r_av[ 1 ]));
 }
 
 
@@ -753,12 +761,7 @@ f_mail( struct receive_data *r )
 			    "message SIZE too large: %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_smtp_command );
-		    if ( snet_writef( r->r_snet,
-	    "552 message exceeds fixed maximum message size\r\n" ) < 0 ) {
-			syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-			return( RECEIVE_CLOSECONNECTION );
-		    }
-		    return( RECEIVE_OK );
+		    return( smtp_banner_message( r, 552, NULL, NULL ));
 		}
 	    }
 
@@ -874,12 +877,7 @@ f_mail( struct receive_data *r )
 		r->r_env->e_id, r->r_env->e_mail );
     }
 
-    if ( snet_writef( r->r_snet, "%d OK\r\n", 250 ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 250, NULL, NULL ));
 }
 
 
@@ -1211,11 +1209,6 @@ f_rcpt( struct receive_data *r )
 		r->r_env->e_id, r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail );
     }
 
-    if ( snet_writef( r->r_snet, "%d OK\r\n", 250 ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-
 #ifdef HAVE_LIBSSL 
     if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
 	addr_len = strlen( addr );
@@ -1225,7 +1218,7 @@ f_rcpt( struct receive_data *r )
     }
 #endif /* HAVE_LIBSSL */
 
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 250, NULL, NULL ));
 }
 
 
@@ -1532,7 +1525,7 @@ f_data( struct receive_data *r )
 	if ( errno == ETIMEDOUT ) {
 	    syslog( LOG_DEBUG, "Receive [%s] %s: Timeout DATA",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
-	    smtp_banner_message( &r, 421, S_TIMEOUT, S_CLOSING );
+	    smtp_banner_message( r, 421, S_TIMEOUT, S_CLOSING );
 	} else {
 	    syslog( LOG_DEBUG, "Receive [%s] %s: snet_getline: %m",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
@@ -1713,7 +1706,9 @@ f_data( struct receive_data *r )
 
     tarpit_sleep( r, simta_smtp_tarpit_data_eof );
 
-    if ( filter_message ) {
+    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
+	failure_message = NULL;
+    } else if ( filter_message ) {
 	failure_message = filter_message;
     } else if ( system_message ) {
 	failure_message = system_message;
@@ -1825,14 +1820,7 @@ f_quit( struct receive_data *r )
 
     tarpit_sleep( r, 0 );
 
-    if ( snet_writef( r->r_snet,
-	    "221 %s Service closing transmission channel\r\n",
-	    simta_hostname ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_quit: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-
-    return( RECEIVE_CLOSECONNECTION );
+    return( smtp_banner_message( r, 221, NULL, NULL ));
 }
 
 
@@ -1855,12 +1843,7 @@ f_rset( struct receive_data *r )
 
     tarpit_sleep( r, 0 );
 
-    if ( snet_writef( r->r_snet, "%d OK\r\n", 250 ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_rset: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 250, NULL, NULL ));
 }
 
 
@@ -1877,12 +1860,7 @@ f_noop( struct receive_data *r )
 
     tarpit_sleep( r, 0 );
 
-    if ( snet_writef( r->r_snet, "%d simta v%s\r\n", 250, version ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_noop: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-
-    return( RECEIVE_OK );
+    return( smtp_banner_message( r, 250, "simta", version ));
 }
 
 
