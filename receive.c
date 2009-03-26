@@ -150,6 +150,8 @@ struct receive_data {
 #define S_MAXCONNECT "Maximum connections exceeded"
 #define S_TIMEOUT "Connection length exceeded"
 #define S_CLOSING "closing transmission channel"
+#define S_UNKNOWN_HOST "Unknown host"
+#define S_DENIED "Access denied for IP"
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -465,6 +467,10 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
 
     case 504:
 	boilerplate = "Command parameter not implemented";
+	break;
+
+    case 550:
+	boilerplate = "Requested action failed";
 	break;
 
     case 552:
@@ -825,12 +831,7 @@ f_mail( struct receive_data *r )
 	syslog( LOG_DEBUG, "Receive [%s] %s: From <%s>: Unknown host: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr,
 		domain );
-	if ( snet_writef( r->r_snet, "550 %s: unknown host\r\n",
-		domain ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_mail: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	return( RECEIVE_OK );
+	return( smtp_banner_message( r, 550, S_UNKNOWN_HOST, domain ));
     }
 
     /*
@@ -1036,12 +1037,7 @@ f_rcpt( struct receive_data *r )
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id, addr, r->r_env->e_mail );
 
-	    if ( snet_writef( r->r_snet, "%d %s: unknown host\r\n", 550,
-		    domain ) < 0 ) {
-		syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    return( RECEIVE_OK );
+	    return( smtp_banner_message( r, 550, S_UNKNOWN_HOST, domain ));
 	}
 
 	if ((( red = host_local( domain )) == NULL ) ||
@@ -1090,12 +1086,7 @@ f_rcpt( struct receive_data *r )
 			"To <%s> From <%s>: Failed: User not local",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_env->e_id, addr, r->r_env->e_mail );
-		if ( snet_writef( r->r_snet, "550 Requested action failed: "
-			"User not found.\r\n" ) < 0 ) {
-		    syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
-		    return( RECEIVE_CLOSECONNECTION );
-		}
-		return( RECEIVE_OK );
+		return( smtp_banner_message( r, 550, NULL, "User not found" ));
 
 	    case LOCAL_ERROR:
 		syslog( LOG_ERR, "Syserror f_rcpt: local_address %s", addr );
@@ -1155,10 +1146,13 @@ f_rcpt( struct receive_data *r )
 			    r->r_env->e_mail, r->r_rbl->rbl_domain, 
 			    r->r_rbl_msg );
 		    if ( snet_writef( r->r_snet,
-			    "550 No access from IP %s. See %s\r\n",
-			    inet_ntoa( r->r_sin->sin_addr ),
+			    "%d <%s> %s %s: See %s\r\n", 550, simta_hostname,
+			    S_DENIED, inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_rbl->rbl_url ) < 0 ) {
-			syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
+			syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+				"f_rcpt: snet_writef: %m",
+				inet_ntoa( r->r_sin->sin_addr ),
+				r->r_remote_hostname );
 			return( RECEIVE_CLOSECONNECTION );
 		    }
 		    return( RECEIVE_OK );
@@ -1706,12 +1700,12 @@ f_data( struct receive_data *r )
 
     tarpit_sleep( r, simta_smtp_tarpit_data_eof );
 
-    if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
-	failure_message = NULL;
-    } else if ( filter_message ) {
+    if ( filter_message ) {
 	failure_message = filter_message;
     } else if ( system_message ) {
 	failure_message = system_message;
+    } else if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
+	failure_message = NULL;
     } else if ( simta_data_url ) {
 	failure_message = simta_data_url;
     } else {
@@ -2390,7 +2384,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     int					i;
     int					ret;
     char				*line;
-    char				*rbl_text = NULL;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
     struct timeval			tv_write;
@@ -2642,7 +2635,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		    r.r_remote_hostname, &(r.r_rbl), &(r.r_rbl_msg))) {
             case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
-		rbl_text = (r.r_rbl)->rbl_url;
                 syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked %s: %s",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
                         (r.r_rbl)->rbl_domain, r.r_rbl_msg );
@@ -2704,10 +2696,18 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	tarpit_sleep( &r, simta_smtp_tarpit_connect );
 
 	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
-	    if ( smtp_banner_message( &r, 554, "Access denied", rbl_text )
-		    != RECEIVE_OK ) {
-		goto closeconnection;
+	    if ( snet_writef( r.r_snet,
+		    "%d <%s> %s %s: See %s\r\n", 554,
+		    simta_hostname, S_DENIED, inet_ntoa( r.r_sin->sin_addr ),
+		    (r.r_rbl)->rbl_url ) < 0 ) {
+		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+			"f_rcpt: snet_writef: %m",
+			inet_ntoa( r.r_sin->sin_addr ),
+			r.r_remote_hostname );
+		return( RECEIVE_CLOSECONNECTION );
 	    }
+	    return( RECEIVE_OK );
+
 	} else {
 	    if ( smtp_banner_message( &r, 220, NULL, NULL ) != RECEIVE_OK ) {
 		goto closeconnection;
