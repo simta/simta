@@ -427,19 +427,6 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
     int					hostname = 0;
 
     switch ( reply_code ) {
-    default:
-	syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
-		"smtp_banner_message: reply_code out of range: %d",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		reply_code );
-	reply_code = 421;
-	/* fall through to 421 */
-    case 421:
-	boilerplate = "Local error in processing: closing transmission channel";
-	ret = RECEIVE_CLOSECONNECTION;
-	hostname = 1;
-	break;
-
     case 211:
 	hostname = 1;
 	boilerplate = "simta";
@@ -470,6 +457,19 @@ smtp_banner_message( struct receive_data *r, int reply_code, char *msg,
 
     case 354:
 	boilerplate = "Start mail input; end with <CRLF>.<CRLF>";
+	break;
+
+    default:
+	syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+		"smtp_banner_message: reply_code out of range: %d",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		reply_code );
+	reply_code = 421;
+	/* fall through to 421 */
+    case 421:
+	boilerplate = "Local error in processing: closing transmission channel";
+	ret = RECEIVE_CLOSECONNECTION;
+	hostname = 1;
 	break;
 
     case 451:
