@@ -2493,7 +2493,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
 		"connection per host exceeded %d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		c->c_proc_interval );
+		c->c_proc_total );
 	smtp_banner_message( &r, 421, S_MAXCONNECT, S_CLOSING );
 	goto closeconnection;
     }
@@ -2513,7 +2513,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
 		"MAX_RECEIVE_CONNECTIONS exceeded: %d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		simta_receive_connections_max );
+		simta_receive_connections );
 	smtp_banner_message( &r, 421, S_MAXCONNECT, S_CLOSING );
 	goto closeconnection;
     }

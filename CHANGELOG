@@ -1,3 +1,6 @@
+0.8.1.x
+    - MAX_CONNECT log bug fixed
+
 0.8.1.w
     - make sure that RBL_BLOCK gives back IP Address
     - bugfix for TIMEOUT call
