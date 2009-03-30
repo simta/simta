@@ -939,7 +939,7 @@ f_rcpt_usage( struct receive_data *r )
 	    "501-         Forward-path = Path\r\n"
 	    "501          Path = \"<\" [ A-d-l \":\" ] Mailbox \">\"\r\n"
 	    ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_rcpt: snet_writef: %m" );
+	syslog( LOG_DEBUG, "Syserror f_rcpt_usage: snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
     return( RECEIVE_OK );
@@ -2682,10 +2682,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		    "554 <%s> %s %s: See %s\r\n", simta_hostname, S_DENIED,
 		    inet_ntoa( r.r_sin->sin_addr ), (r.r_rbl)->rbl_url ) < 0 ) {
 		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
-			"f_rcpt: snet_writef: %m",
+			"smtp_receive: snet_writef: %m",
 			inet_ntoa( r.r_sin->sin_addr ),
 			r.r_remote_hostname );
-		return( RECEIVE_CLOSECONNECTION );
+		goto closeconnection;
 	    }
 
 	} else {
