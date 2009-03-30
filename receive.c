@@ -2687,7 +2687,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 			r.r_remote_hostname );
 		return( RECEIVE_CLOSECONNECTION );
 	    }
-	    return( RECEIVE_OK );
 
 	} else {
 	    if ( smtp_banner_message( &r, 220, NULL, NULL ) != RECEIVE_OK ) {
