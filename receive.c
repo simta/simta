@@ -3016,6 +3016,7 @@ content_filter( struct receive_data *r, char **smtp_message )
     char		*filter_envp[ 14 ];
     char		fname[ MAXPATHLEN + 1 ];
     char		buf[ 256 ];
+    struct timeval	log_tv;
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
 	filter_argv[ 0 ]++;
@@ -3038,6 +3039,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	return( MESSAGE_TEMPFAIL );
 
     case 0 :
+	log_tv = simta_log_tv;
 	simta_openlog( 1 );
 	/* use fd[ 1 ] to communicate with parent, parent uses fd[ 0 ] */
 	if ( close( fd[ 0 ] ) < 0 ) {
@@ -3154,7 +3156,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	}
 
 
-	sprintf( buf, "%ld", simta_log_tv.tv_sec );
+	sprintf( buf, "%ld", log_tv.tv_sec );
 	if (( filter_envp[ 12 ] = env_string( "SIMTA_CID",
 		buf )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
