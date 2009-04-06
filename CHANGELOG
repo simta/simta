@@ -1,3 +1,9 @@
+0.8.1.ab
+    - hardfail message too large and too many received headers
+
+0.8.1.aa
+    - dont overwrite CID for cf
+
 0.8.1.z
     - bad return bugfix
 

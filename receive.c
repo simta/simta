@@ -1535,7 +1535,7 @@ f_data( struct receive_data *r )
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id );
 	    system_message = "Message too large";
-	    message_result = MESSAGE_TEMPFAIL;
+	    message_result = MESSAGE_REJECT;
 	    continue;
 	}
 
@@ -1545,7 +1545,7 @@ f_data( struct receive_data *r )
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id );
 	    system_message = "Too many Received headers";
-	    message_result = MESSAGE_TEMPFAIL;
+	    message_result = MESSAGE_REJECT;
 	    continue;
 	}
 
