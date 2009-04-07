@@ -80,7 +80,7 @@ int	parse_recipients( struct envelope *, struct line *, char * );
 int	match_sender( struct line_token *, struct line_token *, char * );
 int	line_token_unfold( struct line_token * );
 int	header_lines( struct line_file *, struct header *, int );
-int	mid_text( struct receive_headers *, char * );
+int	mid_text( struct receive_headers *, char *, char ** );
 
 
 struct header headers_punt[] = {
@@ -348,7 +348,7 @@ header_timestamp( struct envelope *env, FILE *file )
 
 
     int
-mid_text( struct receive_headers *r, char *line )
+mid_text( struct receive_headers *r, char *line, char **msg )
 {
     char			*start;
     char			*end;
@@ -358,15 +358,17 @@ mid_text( struct receive_headers *r, char *line )
 	    free( r->r_mid );
 	    r->r_mid = NULL;
 	    r->r_state = R_HEADER_READ;
-	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-		    " illegal extra content", r->r_env->e_id );
+	    if ( msg != NULL ) {
+		*msg = "Illegal Message-ID Header: illegal extra content";
+	    }
 	    return( 0 );
 	}
 
 	if ( *start != '<' ) {
 	    r->r_state = R_HEADER_READ;
-	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-		    " expected '<' character", r->r_env->e_id );
+	    if ( msg != NULL ) {
+		*msg = "Illegal Message-ID Header: expected '<' character";
+	    }
 	    return( 0 );
 	}
 
@@ -375,16 +377,18 @@ mid_text( struct receive_headers *r, char *line )
 	if ( *start == '"' ) {
 	    if (( end = token_quoted_string( start )) == NULL ) {
 		r->r_state = R_HEADER_READ;
-		syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-			" bad LHS quoted string", r->r_env->e_id );
+		if ( msg != NULL ) {
+		    *msg = "Illegal Message-ID Header: bad LHS quoted string";
+		}
 		return( 0 );
 	    }
 
 	} else {
 	    if (( end = token_dot_atom( start )) == NULL ) {
 		r->r_state = R_HEADER_READ;
-		syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-			" bad LHS dot atom text", r->r_env->e_id );
+		if ( msg != NULL ) {
+		    *msg = "Illegal Message-ID Header: bad LHS dot atom text";
+		}
 		return( 0 );
 	    }
 	}
@@ -393,8 +397,9 @@ mid_text( struct receive_headers *r, char *line )
 
 	if ( *end != '@' ) {
 	    r->r_state = R_HEADER_READ;
-	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-		    " expected '@'", r->r_env->e_id );
+	    if ( msg != NULL ) {
+		*msg = "Illegal Message-ID Header: expected '@'";
+	    }
 	    return( 0 );
 	}
 
@@ -403,16 +408,18 @@ mid_text( struct receive_headers *r, char *line )
 	if ( *end == '[' ) {
 	    if (( end = token_domain_literal( end )) == NULL ) {
 		r->r_state = R_HEADER_READ;
-		syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-			" bad RHS domain literal", r->r_env->e_id );
+		if ( msg != NULL ) {
+		    *msg = "Illegal Message-ID Header: bad RHS domain literal";
+		}
 		return( 0 );
 	    }
 
 	} else {
 	    if (( end = token_dot_atom( end )) == NULL ) {
 		r->r_state = R_HEADER_READ;
-		syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-			" bad RHS dot atom text", r->r_env->e_id );
+		if ( msg != NULL ) {
+		    *msg = "Illegal Message-ID Header: bad RHS dot atom text";
+		}
 		return( 0 );
 	    }
 	}
@@ -421,8 +428,9 @@ mid_text( struct receive_headers *r, char *line )
 
 	if ( *end != '>' ) {
 	    r->r_state = R_HEADER_READ;
-	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-		    " expected '>'", r->r_env->e_id );
+	    if ( msg != NULL ) {
+		*msg = "Illegal Message-ID Header: expected '>'";
+	    }
 	    return( 0 );
 	}
 
@@ -438,8 +446,9 @@ mid_text( struct receive_headers *r, char *line )
 	    free( r->r_mid );
 	    r->r_mid = NULL;
 	    r->r_state = R_HEADER_READ;
-	    syslog( LOG_ERR, "Receive %s: Illegal Message-ID Header: "
-		    " illegal extra content", r->r_env->e_id );
+	    if ( msg != NULL ) {
+		*msg = "Illegal Message-ID Header: illegal extra content";
+	    }
 	    return( 0 );
 	}
     }
@@ -470,7 +479,7 @@ mid_text( struct receive_headers *r, char *line )
 
 
     int
-header_text( int line_no, char *line, struct receive_headers *r )
+header_text( int line_no, char *line, struct receive_headers *r, char **msg )
 {
     char		*c;
     int			header_len;
@@ -493,9 +502,7 @@ header_text( int line_no, char *line, struct receive_headers *r )
 	    return( 1 );
 
 	} else if (( r != NULL ) && ( r->r_state == R_HEADER_MID )) {
-	    if ( mid_text( r, line ) != 0 ) {
-		return( -1 );
-	    }
+	    return( mid_text( r, line, msg ));
 	}
 
     } else {
@@ -520,9 +527,9 @@ header_text( int line_no, char *line, struct receive_headers *r )
 	    if (( header_len == STRING_MID_LEN ) &&
 		    ( strncasecmp( line, STRING_MID, STRING_MID_LEN ) == 0 )) {
 		if ( r->r_mid_set != 0 ) {
-		    syslog( LOG_ERR,
-			    "Receive %s: Illegal Duplicate Message-ID Headers",
-			    r->r_env->e_id );
+		    if ( msg != NULL ) {
+			*msg = "Illegal Duplicate Message-ID Headers";
+		    }
 		    if ( r->r_mid != NULL ) {
 			free( r->r_mid );
 			r->r_mid = NULL;
@@ -531,10 +538,7 @@ header_text( int line_no, char *line, struct receive_headers *r )
 		}
 		r->r_mid_set = 1;
 		r->r_state = R_HEADER_MID;
-
-		if ( mid_text( r, c + 1 ) != 0 ) {
-		    return( -1 );
-		}
+		return( mid_text( r, c + 1, msg ));
 
 	    } else if (( header_len == STRING_RECEIVED_LEN ) &&
 		    ( strncasecmp( line, STRING_RECEIVED,

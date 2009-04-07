@@ -1272,6 +1272,7 @@ f_data( struct receive_data *r )
     int					result;
     unsigned int			line_len;
     char				*line;
+    char				*msg;
     char				*failure_message;
     char				*filter_message = NULL;
     char				*system_message = NULL;
@@ -1517,10 +1518,16 @@ f_data( struct receive_data *r )
 #endif /* HAVE_LIBSSL */
 
 	if ( header == 1 ) {
-	    if (( result = header_text( line_no, line, &rh )) != 0 ) {
-		if ( result < 0 ) {
-		    goto error;
+	    msg = NULL;
+	    if (( result = header_text( line_no, line, &rh, &msg )) == 0 ) {
+		if ( msg != NULL ) {
+		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: %s",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname, r->r_env->e_id, msg );
 		}
+	    } else if ( result < 0 ) {
+		goto error;
+	    } else {
 		header = 0;
 	    }
 	}
