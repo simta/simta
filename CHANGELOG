@@ -1,4 +1,5 @@
 0.8.1.ab
+    - simsendmail -r is the same as -f
     - simsendmail generates FROM header based on envelope from address
     - corrected Receive syslogs in header.c
     - hardfail message too large and too many received headers

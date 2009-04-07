@@ -101,7 +101,7 @@ main( int argc, char *argv[] )
 
     openlog( argv[ 0 ], LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 
-    while (( c = getopt( argc, argv, "b:f:io:st" )) != -1 ) {
+    while (( c = getopt( argc, argv, "b:f:io:r:st" )) != -1 ) {
 	switch ( c ) {
 	case 'b':
 	    if ( strlen( optarg ) == 1 ) {
@@ -140,6 +140,7 @@ main( int argc, char *argv[] )
 	    break;
 
 	case 'f':
+	case 'r':
 	    /* Specify a different from address, for testing purposes */
     	    sender = optarg;
 	    if ( !is_emailaddr( sender )) {
