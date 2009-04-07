@@ -664,7 +664,6 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     struct line			*l;
     struct line			**lp;
     int				result;
-    char			*sender;
     char			*prepend_line = NULL;
     size_t			prepend_len = 0;
     size_t			len;
@@ -686,10 +685,6 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     simta_generate_sender = 0;
 
-    if (( sender = simta_sender()) == NULL ) {
-	return( -1 );
-    }
-
     /* examine & correct header data */
 
     /* From: */
@@ -701,9 +696,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     } else {
 	/* generate From: header */
-
 	if (( len = ( strlen( headers_simsendmail[ HEAD_FROM ].h_key ) +
-		strlen( sender ) + 3 )) > prepend_len ) {
+		strlen( env->e_mail ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
 		perror( "realloc" );
@@ -714,7 +708,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: %s",
-		headers_simsendmail[ HEAD_FROM ].h_key, sender );
+		headers_simsendmail[ HEAD_FROM ].h_key, env->e_mail );
 
 	if (( headers_simsendmail[ HEAD_FROM ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
@@ -734,7 +728,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
         if (( simta_simsend_strict_from != 0 ) &&
 		( simta_generate_sender != 0 )) {
 	    if (( len = ( strlen( headers_simsendmail[ HEAD_SENDER ].h_key ) +
-		    strlen( sender ) + 3 )) > prepend_len ) {
+		    strlen( env->e_mail ) + 3 )) > prepend_len ) {
 		if (( prepend_line = (char*)realloc( prepend_line, len ))
 			== NULL ) {
 		    perror( "realloc" );
@@ -744,7 +738,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		prepend_len = len;
 
                 sprintf( prepend_line, "%s: %s",
-                        headers_simsendmail[ HEAD_SENDER ].h_key, sender );
+                        headers_simsendmail[ HEAD_SENDER ].h_key, env->e_mail );
 
                 if (( headers_simsendmail[ HEAD_SENDER ].h_line =
                         line_prepend( lf, prepend_line, COPY )) == NULL ) {
@@ -1283,7 +1277,6 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     struct line				*next_l;
     char				*local_domain;
     char				*buf;
-    char				*sender;
     size_t				buf_len;
     struct line_token			local;
     struct line_token			domain;
@@ -1453,24 +1446,18 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     *start = next_c;
     *start_line = next_l;
 
-    if (( sender = simta_sender()) == NULL ) {
-	return( -1 );
-    }
-
     if ( mode == MAILBOX_SENDER ) {
-	if ( match_sender( &local, &domain, sender ) == 0 ) {
+	if ( match_sender( &local, &domain, simta_sender()) == 0 ) {
 	    fprintf( stderr, "line %d: sender address should be <%s>\n",
 		    headers_simsendmail[ HEAD_SENDER ].h_line->line_no,
-		    sender );
+		    simta_sender());
 	    return( 1 );
 	}
 
     } else if ( mode == MAILBOX_FROM_CORRECT ) {
-	if ( simta_generate_sender == 0 ) {
-	    /* if addresses don't match, need to generate sender */
-	    if ( match_sender( &local, &domain, simta_sender()) == 0 ) {
-		simta_generate_sender = 1;
-	    }
+	/* if addresses don't match, need to generate sender */
+	if ( match_sender( &local, &domain, simta_sender()) == 0 ) {
+	    simta_generate_sender = 1;
 	}
     }
 
