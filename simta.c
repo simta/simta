@@ -79,6 +79,7 @@ int			simta_aggressive_delivery = 1;
 int			simta_smtp_port_defined = 0;
 int			simta_rbl_verbose_logging = 0;
 int			simta_queue_incoming_smtp_mail = 0;
+int			simta_deliver_after_accept = 0;
 int			simta_leaky_queue = 0;
 int			simta_use_randfile = 0;
 int			simta_listen_backlog = 5;
@@ -1024,6 +1025,15 @@ simta_read_config( char *fname )
             }
             simta_queue_incoming_smtp_mail = 1;
             if ( simta_debug ) printf( "QUEUE_INCOMING_SMTP_MAIL" );
+
+        } else if ( strcasecmp( av[ 0 ], "DELIVER_AFTER_ACCEPT" ) == 0 ) {
+            if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+			fname, lineno );
+                goto error;
+            }
+            simta_deliver_after_accept = 1;
+            if ( simta_debug ) printf( "DELIVER_AFTER_ACCEPT" );
 
         } else if ( strcasecmp( av[ 0 ],
                 "IGNORE_CONNECT_IN_DNS_ERRORS" ) == 0 ) {

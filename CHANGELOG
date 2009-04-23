@@ -1,4 +1,5 @@
 0.8.2.a
+    - DELIVER_AFTER_ACCEPT
     - timers
 
 0.8.1.ab

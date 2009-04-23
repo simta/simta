@@ -1847,6 +1847,12 @@ f_data( struct receive_data *r )
 		goto error;
 	    }
 	}
+
+	if ( simta_deliver_after_accept != 0 ) {
+	    if ( reset( r ) != 0 ) {
+		return( RECEIVE_SYSERROR );
+	    }
+	}
     }
 
     if ( filter_message != NULL ) {

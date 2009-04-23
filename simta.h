@@ -121,6 +121,7 @@ extern int				simta_smtp_rcvbuf_max;
 extern int				simta_smtp_port_defined;
 extern int				simta_rbl_verbose_logging;
 extern int				simta_queue_incoming_smtp_mail;
+extern int				simta_deliver_after_accept;
 extern int				simta_leaky_queue;
 extern int				simta_use_randfile;
 extern int				simta_listen_backlog;
