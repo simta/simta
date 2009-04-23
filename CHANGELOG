@@ -1,3 +1,6 @@
+0.8.2.a
+    - timers
+
 0.8.1.ab
     - simsendmail -r is the same as -f
     - simsendmail generates FROM header based on envelope from address
