@@ -2451,6 +2451,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	return( 0 );
     }
 
+    if (( r.r_env = env_create( NULL, NULL )) == NULL ) {
+	goto syserror;
+    }
+
     memset( &tv_write, 0, sizeof( struct timeval ));
     tv_write.tv_sec = 5 * 60;
     snet_timeout( r.r_snet, SNET_WRITE_TIMEOUT, &tv_write );
@@ -2707,10 +2711,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
                 break;
             }
         }
-
-	if (( r.r_env = env_create( NULL, NULL )) == NULL ) {
-	    goto syserror;
-	}
 
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
