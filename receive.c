@@ -1727,7 +1727,8 @@ f_data( struct receive_data *r )
 
 	} else if ( message_result & MESSAGE_BOUNCE ) {
 	    if (( env_bounce = bounce( r->r_env, NULL,
-		    filter_message ? filter_message : "ZZZ no filter message"
+		    filter_message ? filter_message :
+		    "This message was rejected based on local content policies"
 		    )) == NULL ) {
 		goto error;
 	    }
@@ -1754,7 +1755,6 @@ f_data( struct receive_data *r )
 
 	    env_free( r->r_env );
 	    r->r_env = env_bounce;
-	    r->r_data_success++;
 
 	} else {
 	    if ( message_result & MESSAGE_JAIL ) {

@@ -415,9 +415,7 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
     }
 
     if ( hq == NULL ) {
-	if ( err != NULL ) {
-	    fprintf( dfile, "%s\n\n", err );
-	} else {
+	if ( err == NULL ) {
 	    fprintf( dfile, "An error occurred during "
 		    "the expansion of the message recipients.\n\n" );
 	}
@@ -437,7 +435,12 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
 
     if ( env->e_err_text != NULL ) {
 	fprintf( dfile, "The following error occurred during delivery of "
-		"message %s:\n", env->e_id );
+		"message %s:\n\n", env->e_id );
+
+	if ( err != NULL ) {
+	    fprintf( dfile, "%s\n\n", err );
+	}
+
 	for ( l = env->e_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
 	}
