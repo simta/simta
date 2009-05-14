@@ -276,7 +276,37 @@ cleanup:
 
 
     struct envelope *
-bounce( struct host_q *hq, struct envelope *env, SNET *message )
+bounce( struct envelope *env, struct host_q *hq, char *err )
+{
+    struct envelope             *env_bounce;
+    char                        dfile_fname[ MAXPATHLEN ];
+    int                         dfile_fd;
+    SNET			*s;
+
+    sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
+    if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+	syslog( LOG_WARNING, "bounce bad Dfile: %s", dfile_fname );
+	return( NULL );
+    }
+
+    if (( s = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
+	close( dfile_fd );
+	return( NULL );
+    }
+
+    if (( env_bounce = bounce_snet( env, s, NULL, NULL )) == NULL ) {
+	snet_close( s );
+	return( NULL );
+    }
+
+    snet_close( s );
+
+    return( env_bounce );
+}
+
+
+    struct envelope *
+bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
 {
     struct envelope             *bounce_env;
     char                        dfile_fname[ MAXPATHLEN ];
@@ -328,6 +358,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
         syslog( LOG_ERR, "bounce %s open %s: %m", env->e_id, dfile_fname );
         goto cleanup1;
     }
+
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
         syslog( LOG_ERR, "bounce %s fdopen %s: %m", env->e_id, dfile_fname );
         if ( close( dfile_fd ) != 0 ) {
@@ -384,8 +415,12 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
     }
 
     if ( hq == NULL ) {
-	fprintf( dfile, "An error occurred during "
-		"the expansion of the message recipients.\n\n" );
+	if ( err != NULL ) {
+	    fprintf( dfile, "%s\n\n", err );
+	} else {
+	    fprintf( dfile, "An error occurred during "
+		    "the expansion of the message recipients.\n\n" );
+	}
 
     } else if ( hq->hq_err_text != NULL ) {
 	fprintf( dfile, "The following error occurred during delivery to "
@@ -431,7 +466,7 @@ bounce( struct host_q *hq, struct envelope *env, SNET *message )
 
     fprintf( dfile, "Bounced message:\n" );
     fprintf( dfile, "\n" );
-    while (( line = snet_getline( message, NULL )) != NULL ) {
+    while (( line = snet_getline( s, NULL )) != NULL ) {
 	fprintf( dfile, "%s\n", line );
     }
 

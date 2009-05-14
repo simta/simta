@@ -95,7 +95,6 @@ struct exp_addr {
 };
 
 /* expand.c */
-int	expand_and_deliver( struct envelope * );
 int	expand( struct envelope * );
 struct envelope *eo_lookup( struct expand_output *, char *, char * );
 int eo_insert( struct expand_output **, struct envelope * );

@@ -46,31 +46,6 @@
 int				simta_expand_debug = 0;
 
 
-    /* return EXPAND_OK on success
-     * return EXPAND_SYSERROR on syserror
-     * return EXPAND_FATAL on fata errors (leaving fast files behind in error)
-     * syslog errors
-     */
-
-    int
-expand_and_deliver( struct envelope *unexpanded_env )
-{
-    if ( unexpanded_env->e_hostname == NULL ) {
-	if ( expand( unexpanded_env ) != 0 ) {
-	    env_move( unexpanded_env, simta_dir_slow );
-	    return( EXPAND_SYSERROR );
-	}
-    } else {
-	queue_envelope( unexpanded_env );
-    }
-
-    if ( q_runner() != 0 ) {
-	return( EXPAND_SYSERROR );
-    }
-    return( EXPAND_OK );
-}
-
-
     struct envelope *
 eo_lookup( struct expand_output *eo_list, char *hostname, char *from )
 {

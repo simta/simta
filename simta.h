@@ -17,6 +17,7 @@
 #define	MESSAGE_DISCONNECT		(1<<3)
 #define	MESSAGE_TARPIT			(1<<4)
 #define	MESSAGE_JAIL			(1<<5)
+#define	MESSAGE_BOUNCE			(1<<6)
 
 #define	STRING_POSTMASTER		"postmaster"
 
@@ -232,4 +233,6 @@ int	simta_gettimenow( void );
 int bounce_text( struct envelope *, int, char *, char *, char * );
 void bounce_stdout( struct envelope * );
 ino_t bounce_dfile_out( struct envelope *, SNET * );
-struct envelope *bounce( struct host_q *, struct envelope *, SNET * );
+struct envelope *bounce( struct envelope *, struct host_q *, char * );
+struct envelope *bounce_snet( struct envelope *, SNET *, struct host_q *,
+	char *err );

@@ -332,25 +332,37 @@ set_smtp_mode( struct receive_data *r, int mode, char *msg )
     int
 deliver_accepted( struct receive_data *r )
 {
-    int			ret = 0;
-
     if (( r->r_env ) && ( r->r_env->e_flags & ENV_FLAG_EFILE )) {
-	if ( expand_and_deliver( r->r_env ) != EXPAND_OK ) {
-	    ret = RECEIVE_SYSERROR;
+	if ( r->r_env->e_hostname == NULL ) {
+	    if ( expand( r->r_env ) != 0 ) {
+		env_move( r->r_env, simta_dir_slow );
+		return( RECEIVE_SYSERROR );
+	    }
+	} else {
+	    queue_envelope( r->r_env );
+	    r->r_env = NULL;
 	}
 
-	env_reset( r->r_env );
+	if ( q_runner() != 0 ) {
+	    return( RECEIVE_SYSERROR );
+	}
+
+	if ( r->r_env == NULL ) {
+	    if (( r->r_env = env_create( NULL, NULL )) == NULL ) {
+		return( RECEIVE_SYSERROR );
+	    }
+	} else {
+	    env_reset( r->r_env );
+	}
     }
 
-    return( ret );
+    return( RECEIVE_OK );
 }
 
 
     int
 reset( struct receive_data *r )
 {
-    int			ret = 0;
-
     if ( r->r_env ) {
 	if ( r->r_env->e_flags & ENV_FLAG_EFILE ) {
 	    return( deliver_accepted( r ));
@@ -362,9 +374,14 @@ reset( struct receive_data *r )
 	}
 
 	env_reset( r->r_env );
+
+    } else {
+	if (( r->r_env = env_create( NULL, NULL )) == NULL ) {
+	    return( RECEIVE_SYSERROR );
+	}
     }
 
-    return( ret );
+    return( RECEIVE_OK );
 }
 
 
@@ -633,7 +650,7 @@ f_ehlo( struct receive_data *r )
      * EHLO is redundant, but not harmful other than in the performance cost
      * of executing unnecessary commands.
      */
-    if ( reset( r ) != 0 ) {
+    if ( reset( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -716,7 +733,7 @@ f_mail_usage( struct receive_data *r )
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( deliver_accepted( r ) != 0 ) {
+    if ( deliver_accepted( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -892,7 +909,7 @@ f_mail( struct receive_data *r )
      * one "MAIL FROM:" command.  According to rfc822, this is just like
      * "RSET".
      */
-    if ( reset( r ) != 0 ) {
+    if ( reset( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1301,6 +1318,7 @@ f_data( struct receive_data *r )
     struct receive_headers		rh;
     unsigned int			data_wrote = 0;
     unsigned int			data_read = 0;
+    struct envelope			*env_bounce;
 
     memset( &rh, 0, sizeof( struct receive_headers ));
     rh.r_env = r->r_env;
@@ -1707,6 +1725,37 @@ f_data( struct receive_data *r )
 		    system_message ? system_message : "no system message",
 		    filter_message ? filter_message : "no filter message" );
 
+	} else if ( message_result & MESSAGE_BOUNCE ) {
+	    if (( env_bounce = bounce( r->r_env, NULL,
+		    filter_message ? filter_message : "ZZZ no filter message"
+		    )) == NULL ) {
+		goto error;
+	    }
+
+	    syslog( LOG_NOTICE, "Receive [%s] %s: %s: Message Bounced: "
+		    "MID <%s> From <%s>: size %d: %s, %s: Bounce_ID: %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_env->e_id,
+		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
+		    r->r_env->e_mail, data_read,
+		    system_message ? system_message : "no system message",
+		    filter_message ? filter_message : "no filter message",
+		    env_bounce->e_id );
+
+	    if ( env_tfile_unlink( r->r_env ) != 0 ) {
+		goto error;
+	    }
+
+	    if ( unlink( dfile_fname ) < 0 ) {
+		syslog( LOG_ERR, "Syserror f_data: unlink %s: %m",
+			dfile_fname );
+		goto error;
+	    }
+
+	    env_free( r->r_env );
+	    r->r_env = env_bounce;
+	    r->r_data_success++;
+
 	} else {
 	    if ( message_result & MESSAGE_JAIL ) {
 		if ( simta_jail_host == NULL ) {
@@ -1717,31 +1766,21 @@ f_data( struct receive_data *r )
 			    r->r_remote_hostname,
 			    r->r_env->e_id );
 		} else {
+		    if ( env_hostname( r->r_env, simta_jail_host ) != 0 ) {
+			goto error;
+		    }
+
 		    syslog( LOG_NOTICE, "Receive [%s] %s: %s: "
 			    "sending to JAIL_HOST %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname,
-			    r->r_env->e_id, simta_jail_host );
-
-		    if ( env_hostname( r->r_env, simta_jail_host ) != 0 ) {
-			goto error;
-		    }
+			    r->r_env->e_id, r->r_env->e_hostname );
 		}
 	    }
 
 	    if ( env_efile( r->r_env ) != 0 ) {
 		goto error;
 	    }
-
-	    /*
-	     * We could perhaps 
-	     * However, if we've already fully instanciated the message in the
-	     * queue, a failure indication from snet_writef() may be false, the
-	     * other end may have in reality recieved the "250 OK", and deleted
-	     * the message.  Thus, it's safer to ignore the return value of
-	     * snet_writef(), perhaps causing the sending-SMTP agent to transmit
-	     * the message again.
-	     */
 
 	    r->r_data_success++;
 
@@ -1849,7 +1888,7 @@ f_data( struct receive_data *r )
 	}
 
 	if ( simta_deliver_after_accept != 0 ) {
-	    if ( reset( r ) != 0 ) {
+	    if ( reset( r ) != RECEIVE_OK ) {
 		return( RECEIVE_SYSERROR );
 	    }
 	}
@@ -1920,7 +1959,7 @@ f_rset( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    if ( reset( r ) != 0 ) {
+    if ( reset( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1937,7 +1976,7 @@ f_noop( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    if ( deliver_accepted( r ) != 0 ) {
+    if ( deliver_accepted( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1954,7 +1993,7 @@ f_help( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    if ( deliver_accepted( r ) != 0 ) {
+    if ( deliver_accepted( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -1994,7 +2033,7 @@ f_not_implemented( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    if ( deliver_accepted( r ) != 0 ) {
+    if ( deliver_accepted( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -2077,7 +2116,7 @@ f_starttls( struct receive_data *r )
      * the TLS handshake.
      */
 
-    if ( reset( r ) != 0 ) {
+    if ( reset( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -2451,7 +2490,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	return( 0 );
     }
 
-    if (( r.r_env = env_create( NULL, NULL )) == NULL ) {
+    if ( reset( &r ) != RECEIVE_OK ) {
 	goto syserror;
     }
 
@@ -2802,7 +2841,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	if ( r.r_tv_delivery.tv_sec != 0 ) {
 	    if ( r.r_tv_delivery.tv_sec <= tv_now.tv_sec ) {
 		r.r_tv_delivery.tv_sec = 0;
-		if ( deliver_accepted( &r ) != 0 ) {
+		if ( deliver_accepted( &r ) != RECEIVE_OK ) {
 		    return( RECEIVE_SYSERROR );
 		}
 		continue;

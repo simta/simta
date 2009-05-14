@@ -406,8 +406,8 @@ q_runner( void )
 			goto unexpanded_clean_up;
 		    }
 
-		    if (( env_bounce = bounce( NULL, unexpanded,
-			    snet_dfile )) == NULL ) {
+		    if (( env_bounce = bounce_snet( unexpanded, snet_dfile,
+			    NULL, NULL )) == NULL ) {
 			snet_close( snet_dfile );
 			goto unexpanded_clean_up;
 		    }
@@ -1065,11 +1065,12 @@ q_deliver( struct host_q *deliver_q )
 		}
 	    }
 
-	    if (( env_bounce = bounce( deliver_q, env_deliver, snet_dfile ))
-		    == NULL ) {
+	    if (( env_bounce = bounce_snet( env_deliver, snet_dfile,
+		    deliver_q, NULL )) == NULL ) {
 		syslog( LOG_ERR, "q_deliver bounce failed" );
 		goto message_cleanup;
             }
+
         } else {
 	    syslog( LOG_DEBUG, "Deliver %s: no bounces created",
 		    env_deliver->e_id );
