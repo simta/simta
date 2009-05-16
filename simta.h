@@ -91,7 +91,7 @@ struct connection_info {
     struct connection_info	*c_next;
     struct sockaddr_in		c_sin;
     int				c_proc_total;
-    int				c_proc_interval;
+    int				c_proc_throttle;
     struct timeval		c_tv;
 };
 
@@ -106,6 +106,7 @@ struct simta_socket {
 
 /* global variables */
 
+extern struct timeval			simta_global_throttle_tv;
 extern struct timeval			simta_tv_now;
 extern struct timeval			simta_log_tv;
 extern struct timeval			simta_tv_mid;
@@ -129,11 +130,14 @@ extern int				simta_listen_backlog;
 extern int				simta_disk_cycle;
 extern int				simta_launch_limit;
 extern int				simta_min_work_time;
-extern int				simta_receive_connection_interval;
-extern int				simta_receive_connections_per_interval;
-extern int				simta_receive_connections_per_host;
-extern int				simta_receive_connections_max;
-extern int				simta_receive_connections;
+extern int				simta_global_connections_max;
+extern int				simta_global_connections;
+extern int				simta_global_throttle_max;
+extern int				simta_global_throttle_connections;
+extern int				simta_global_throttle_sec;
+extern int				simta_local_connections_max;
+extern int				simta_local_throttle_max;
+extern int				simta_local_throttle_sec;
 extern int				simta_q_runner_local;
 extern int				simta_q_runner_local_max;
 extern int				simta_q_runner_slow;

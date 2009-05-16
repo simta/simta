@@ -154,6 +154,8 @@ struct receive_data {
 #define S_TIMEOUT "Connection length exceeded"
 #define S_CLOSING "closing transmission channel"
 #define S_UNKNOWN_HOST "Unknown host"
+#define S_UNKNOWN "Unknown"
+#define S_UNRESOLVED "Unresolved"
 #define S_DENIED "Access denied for IP"
 #define S_LINE "Line"
 #define S_INACTIVITY "Inactivity"
@@ -174,6 +176,7 @@ struct command {
 };
 
 static char 	*env_string( char *, char * );
+static int	auth_init( struct receive_data *, struct simta_socket * );
 static int	content_filter( struct receive_data *, char ** );
 static int	local_address( char *, char *, struct simta_red *);
 static int	hello( struct receive_data *, char * );
@@ -2461,17 +2464,31 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     struct timeval			tv_stop;
     struct timeval			tv_now;
     struct timeval			tv_wait;
-#ifdef HAVE_LIBSASL
-    sasl_security_properties_t		secprops;
-#endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBWRAP
     char				*ctl_hostname;
 #endif /* HAVE_LIBWRAP */
 
+    /*
+     * local variable init
+     * build snet connection
+     * dynamic memory init
+     * global connections max 
+     * if SIMTA_MODE_REFUSE, give 554 banner and go to command line loop
+     * auth init
+     * check DNS reverse
+     * TCP wrappers
+     * RBLs
+     * if not RBL_ACCEPT, local connections max
+     * write before banner check
+     * tarpit sleep
+     * opening banner
+     * command line loop
+     */
+
     memset( &r, 0, sizeof( struct receive_data ));
     r.r_sin = &c->c_sin;
-    r.r_dns_match = "Unknown";
-    r.r_remote_hostname = "Unknown";
+    r.r_dns_match = S_UNRESOLVED;
+    r.r_remote_hostname = S_UNRESOLVED;
     r.r_rbl_status = RBL_UNKNOWN;
     r.r_mdctx_status = MDCTX_UNINITILIZED;
     set_smtp_mode( &r, simta_smtp_default_mode, "Default" );
@@ -2490,128 +2507,35 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	return( 0 );
     }
 
-    if ( reset( &r ) != RECEIVE_OK ) {
-	goto syserror;
-    }
-
     memset( &tv_write, 0, sizeof( struct timeval ));
     tv_write.tv_sec = 5 * 60;
     snet_timeout( r.r_snet, SNET_WRITE_TIMEOUT, &tv_write );
 
-#ifdef HAVE_LIBSASL
-    if ( simta_sasl ) {
-	set_smtp_mode( &r, SMTP_MODE_NOAUTH, "Authentication" );
-	if (( ret = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
-		0, &r.r_conn )) != SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive: sasl_server_new: %s",
-		    sasl_errstring( ret, NULL, NULL ));
-	    goto syserror;
-	}
-
-	/* Init defaults... */
-	memset( &secprops, 0, sizeof( secprops ));
-
-	/* maxbufsize = maximum security layer receive buffer size.
-	 * 0=security layer not supported
-	 *
-	 * security strength factor
-	 * min_ssf      = minimum acceptable final level
-	 * max_ssf      = maximum acceptable final level
-	 *
-	 * security_flags = bitfield for attacks to protect against
-	 *
-	 * NULL terminated array of additional property names, values
-	 * const char **property_names;
-	 * const char **property_values;
-         */ 
-
-	/* These are the various security flags apps can specify. */
-	/* NOPLAINTEXT      -- don't permit mechanisms susceptible to simple 
-	 *                     passive attack (e.g., PLAIN, LOGIN)           
-	 * NOACTIVE         -- protection from active (non-dictionary) attacks
-	 *                     during authentication exchange.
-	 *                     Authenticates server.
-	 * NODICTIONARY     -- don't permit mechanisms susceptible to passive
-	 *                     dictionary attack
-	 * FORWARD_SECRECY  -- require forward secrecy between sessions
-	 *                     (breaking one won't help break next)
-	 * NOANONYMOUS      -- don't permit mechanisms that allow anonymous
-	 *		       login
-	 * PASS_CREDENTIALS -- require mechanisms which pass client
-	 *                     credentials, and allow mechanisms which can pass
-	 *                     credentials to do so
-	 * MUTUAL_AUTH      -- require mechanisms which provide mutual
-	 *                     authentication
-	 */ 
-
-	memset( &secprops, 0, sizeof( secprops ));
-	secprops.maxbufsize = 4096;
-	/* min_ssf set to zero with memset */
-	secprops.max_ssf = 256;
-	secprops.security_flags |= SASL_SEC_NOPLAINTEXT;
-	secprops.security_flags |= SASL_SEC_NOANONYMOUS;
-	if (( ret = sasl_setprop( r.r_conn, SASL_SEC_PROPS, &secprops))
-		!= SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive: sasl_setprop1: %s",
-		    sasl_errdetail( r.r_conn ));
-	    goto syserror;
-	}
-
-	if (( ret = sasl_setprop( r.r_conn, SASL_SSF_EXTERNAL, &r.r_ext_ssf ))
-		!= SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive: sasl_setprop2: %s",
-		    sasl_errdetail( r.r_conn ));
-	    goto syserror;
-	}
-	if (( ret = sasl_setprop( r.r_conn, SASL_AUTH_EXTERNAL, r.r_auth_id ))
-		!= SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive: sasl_setprop3: %s",
-		    sasl_errdetail( r.r_conn ));
-	    goto syserror;
-	}
+    if ( reset( &r ) != RECEIVE_OK ) {
+	goto syserror;
     }
-#endif /* HAVE_LIBSASL */
 
-#ifdef HAVE_LIBSSL
-    if ( ss->ss_flags & SIMTA_SOCKET_TLS ) {
-	if ( _start_tls( &r ) != RECEIVE_OK ) {
-	    goto syserror;
-	}
-	if (( ret = _post_tls( &r )) != RECEIVE_OK ) {
-	    goto syserror;
-	}
-
-	syslog( LOG_DEBUG, "Connect.in [%s] %s: SMTS",
-	    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
+    if (( acav = acav_alloc( )) == NULL ) {
+	syslog( LOG_ERR, "Syserror smtp_receive: argcargv_alloc: %m" );
+	goto syserror;
     }
-#endif /* HAVE_LIBSSL */
 
-    if (( simta_receive_connections_per_host != 0 ) &&
-	    ( c->c_proc_total > simta_receive_connections_per_host )) {
+    if (( simta_global_connections_max != 0 ) &&
+	    ( simta_global_connections > simta_global_connections_max )) {
 	syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
-		"connection per host exceeded %d",
+		"global maximum exceeded: %d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		c->c_proc_total );
+		simta_global_connections );
 	smtp_write_banner( &r, 421, S_MAXCONNECT, S_CLOSING );
 	goto closeconnection;
     }
 
-    if (( simta_receive_connections_per_interval != 0 ) &&
-	    ( c->c_proc_interval > simta_receive_connections_per_interval )) {
+    if (( simta_global_throttle_max != 0 ) &&
+	    ( simta_global_throttle_connections > simta_global_throttle_max )) {
 	syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
-		"connection per interval exceeded %d",
+		"global throttle exceeded: %d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		c->c_proc_interval );
-	smtp_write_banner( &r, 421, S_MAXCONNECT, S_CLOSING );
-	goto closeconnection;
-    }
-
-    if (( simta_receive_connections_max != 0 ) &&
-	    ( simta_receive_connections >= simta_receive_connections_max )) {
-	syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
-		"MAX_RECEIVE_CONNECTIONS exceeded: %d",
-		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		simta_receive_connections );
+		simta_global_throttle_connections );
 	smtp_write_banner( &r, 421, S_MAXCONNECT, S_CLOSING );
 	goto closeconnection;
     }
@@ -2639,6 +2563,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
     } else {
+	if ( auth_init( &r, ss ) != 0 ) {
+	    goto syserror;
+	}
+
 	if ( simta_dnsr == NULL ) {
 	    if (( simta_dnsr = dnsr_new( )) == NULL ) {
 		syslog( LOG_ERR, "Syserror smtp_receive: dnsr_new: NULL" );
@@ -2650,8 +2578,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
         if (( ret = check_reverse( hostname, &(c->c_sin.sin_addr))) == 0 ) {
             r.r_dns_match = "PASSED";
+	    r.r_remote_hostname = hostname;
+
         } else {
             r.r_dns_match = "FAILED";
+	    r.r_remote_hostname = S_UNKNOWN;
             if ( ret < 0 ) {                     /* DNS error */
                 if ( simta_ignore_connect_in_reverse_errors ) {
                     syslog( LOG_INFO, "Connect.in [%s] %s: "
@@ -2659,6 +2590,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 			    inet_ntoa( r.r_sin->sin_addr ),
 			    r.r_remote_hostname,
 			    dnsr_err2string( dnsr_errno( simta_dnsr )));
+
                 } else {
                     syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
 			    "reverse address error: %s",
@@ -2669,6 +2601,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		    smtp_write_banner( &r, 421, S_421_DECLINE, NULL );
 		    goto closeconnection;
                 }
+
             } else {                            /* invalid reverse */
                 if ( simta_ignore_reverse == 0 ) {
                     syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
@@ -2677,6 +2610,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		    smtp_write_banner( &r, 421, S_421_DECLINE,
 			    simta_reverse_url );
                     goto closeconnection;
+
                 } else {
                     syslog( LOG_INFO, "Connect.in [%s] %s: Warning: "
                             "invalid reverse", inet_ntoa( r.r_sin->sin_addr ),
@@ -2684,10 +2618,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
                 }
             }
         }
-
-	if ( *hostname != '\0' ) {
-	    r.r_remote_hostname = hostname;
-	}
 
 #ifdef HAVE_LIBWRAP
 	if ( *hostname == '\0' ) {
@@ -2751,12 +2681,34 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
             }
         }
 
+	if ( r.r_rbl_status != RBL_ACCEPT ) {
+	    if (( simta_local_connections_max != 0 ) &&
+		    ( c->c_proc_total > simta_local_connections_max )) {
+		syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
+			"local maximum exceeded: %d",
+			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
+			c->c_proc_total );
+		smtp_write_banner( &r, 421, S_MAXCONNECT, S_CLOSING );
+		goto closeconnection;
+	    }
+
+	    if (( simta_local_throttle_max != 0 ) &&
+		    ( c->c_proc_throttle > simta_local_throttle_max )) {
+		syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
+			"connection per interval exceeded %d",
+			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
+			c->c_proc_throttle );
+		smtp_write_banner( &r, 421, S_MAXCONNECT, S_CLOSING );
+		goto closeconnection;
+	    }
+	}
+
+	/* Write before Banner check */
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
 	tv.tv_sec = simta_banner_delay;
 	tv.tv_usec = 0;
 
-	/* Write before Banner check */
 	if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
 		NULL, &tv )) < 0 ) {
 	    syslog( LOG_ERR, "Syserror smtp_receive select: %m (%d %d)",
@@ -2790,11 +2742,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 	syslog( LOG_INFO, "Connect.in [%s] %s: Accepted",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-    }
-
-    if (( acav = acav_alloc( )) == NULL ) {
-	syslog( LOG_ERR, "Syserror smtp_receive: argcargv_alloc: %m" );
-	goto syserror;
     }
 
     for ( ; ; ) {
@@ -3016,6 +2963,106 @@ closeconnection:
     }
 
     return( simta_fast_files );
+}
+
+
+    int
+auth_init( struct receive_data *r, struct simta_socket *ss )
+{
+    int					ret;
+#ifdef HAVE_LIBSASL
+    sasl_security_properties_t		secprops;
+#endif /* HAVE_LIBSASL */
+
+#ifdef HAVE_LIBSASL
+    if ( simta_sasl ) {
+	set_smtp_mode( r, SMTP_MODE_NOAUTH, "Authentication" );
+	if (( ret = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
+		0, &(r->r_conn) )) != SASL_OK ) {
+	    syslog( LOG_ERR, "Syserror auth_init: sasl_server_new: %s",
+		    sasl_errstring( ret, NULL, NULL ));
+	    return( -1 );
+	}
+
+	/* Init defaults... */
+	memset( &secprops, 0, sizeof( secprops ));
+
+	/* maxbufsize = maximum security layer receive buffer size.
+	 * 0=security layer not supported
+	 *
+	 * security strength factor
+	 * min_ssf      = minimum acceptable final level
+	 * max_ssf      = maximum acceptable final level
+	 *
+	 * security_flags = bitfield for attacks to protect against
+	 *
+	 * NULL terminated array of additional property names, values
+	 * const char **property_names;
+	 * const char **property_values;
+         */ 
+
+	/* These are the various security flags apps can specify. */
+	/* NOPLAINTEXT      -- don't permit mechanisms susceptible to simple 
+	 *                     passive attack (e.g., PLAIN, LOGIN)           
+	 * NOACTIVE         -- protection from active (non-dictionary) attacks
+	 *                     during authentication exchange.
+	 *                     Authenticates server.
+	 * NODICTIONARY     -- don't permit mechanisms susceptible to passive
+	 *                     dictionary attack
+	 * FORWARD_SECRECY  -- require forward secrecy between sessions
+	 *                     (breaking one won't help break next)
+	 * NOANONYMOUS      -- don't permit mechanisms that allow anonymous
+	 *		       login
+	 * PASS_CREDENTIALS -- require mechanisms which pass client
+	 *                     credentials, and allow mechanisms which can pass
+	 *                     credentials to do so
+	 * MUTUAL_AUTH      -- require mechanisms which provide mutual
+	 *                     authentication
+	 */ 
+
+	memset( &secprops, 0, sizeof( secprops ));
+	secprops.maxbufsize = 4096;
+	/* min_ssf set to zero with memset */
+	secprops.max_ssf = 256;
+	secprops.security_flags |= SASL_SEC_NOPLAINTEXT;
+	secprops.security_flags |= SASL_SEC_NOANONYMOUS;
+	if (( ret = sasl_setprop( r->r_conn, SASL_SEC_PROPS, &secprops))
+		!= SASL_OK ) {
+	    syslog( LOG_ERR, "Syserror auth_init: sasl_setprop1: %s",
+		    sasl_errdetail( r->r_conn ));
+	    return( -1 );
+	}
+
+	if (( ret = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
+		&(r->r_ext_ssf))) != SASL_OK ) {
+	    syslog( LOG_ERR, "Syserror auth_init: sasl_setprop2: %s",
+		    sasl_errdetail( r->r_conn ));
+	    return( -1 );
+	}
+	if (( ret = sasl_setprop( r->r_conn, SASL_AUTH_EXTERNAL, r->r_auth_id ))
+		!= SASL_OK ) {
+	    syslog( LOG_ERR, "Syserror auth_init: sasl_setprop3: %s",
+		    sasl_errdetail( r->r_conn ));
+	    return( -1 );
+	}
+    }
+#endif /* HAVE_LIBSASL */
+
+#ifdef HAVE_LIBSSL
+    if ( ss->ss_flags & SIMTA_SOCKET_TLS ) {
+	if ( _start_tls( r ) != RECEIVE_OK ) {
+	    return( -1 );
+	}
+	if (( ret = _post_tls( r )) != RECEIVE_OK ) {
+	    return( -1 );
+	}
+
+	syslog( LOG_DEBUG, "Connect.in [%s] %s: SMTS",
+	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+    }
+#endif /* HAVE_LIBSSL */
+
+    return( 0 );
 }
 
 

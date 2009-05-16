@@ -79,8 +79,6 @@ int		simta_smtp_server( void );
 int		set_rcvbuf( int );
 struct simta_socket	*simta_listen( char*, int, int );
 struct proc_type	*simta_proc_add( int, int );
-int		simta_proc_receive( int, struct simta_socket*,
-	struct connection_info* );
 int		simta_proc_q_runner( int, struct host_q* );
 
 
@@ -328,10 +326,10 @@ main( int ac, char **av )
 	    break;
 
 	case 'm' :		/* Max connections */
-	    if (( simta_receive_connections_max = atoi( optarg )) < 0 ) {
+	    if (( simta_global_connections_max = atoi( optarg )) < 0 ) {
 		err++;
 		fprintf( stderr, "%d: invalid max receive connections\n",
-			simta_receive_connections_max );
+			simta_global_connections_max );
 	    }
 	    break;
 
@@ -1255,7 +1253,7 @@ simta_smtp_server( void )
 
 	for ( c = &cinfo_stab; *c != NULL; ) {
 	    if (((*c)->c_proc_total == 0 ) && ((*c)->c_tv.tv_sec + 
-		    simta_receive_connection_interval < tv_now.tv_sec )) {
+		    simta_local_throttle_sec < tv_now.tv_sec )) {
 		remove = *c;
 		*c = (*c)->c_next;
 		free( remove );
@@ -1293,10 +1291,10 @@ error:
     int
 simta_child_receive( struct simta_socket *ss )
 {
+    struct proc_type	*p;
     struct simta_socket		*s;
-    struct connection_info	*c = NULL;
+    struct connection_info	*cinfo = NULL;
     struct sockaddr_in		sin;
-    struct timeval		tv_now;
     int				pid;
     int				fd;
     int				sinlen;
@@ -1310,56 +1308,62 @@ simta_child_receive( struct simta_socket *ss )
     }
 
     /* Look up / Create IP related connection data entry */
-    for ( c = cinfo_stab; c != NULL; c = c->c_next ) {
-	if ( memcmp( &(c->c_sin.sin_addr), &sin.sin_addr,
+    for ( cinfo = cinfo_stab; cinfo != NULL; cinfo = cinfo->c_next ) {
+	if ( memcmp( &(cinfo->c_sin.sin_addr), &sin.sin_addr,
 		sizeof( struct in_addr )) == 0 ) {
 	    break;
 	}
     }
 
-    if ( c == NULL ) {
-	if (( c = (struct connection_info*)malloc(
+    if ( cinfo == NULL ) {
+	if (( cinfo = (struct connection_info*)malloc(
 		sizeof( struct connection_info ))) == NULL ) {
 	    syslog( LOG_ERR, "Syserror: simta_child_receive malloc: %m" );
 	    return( 1 );
 	}
-	memset( c, 0, sizeof( struct connection_info ));
-	memcpy( &(c->c_sin), &sin, sizeof( struct sockaddr ));
+	memset( cinfo, 0, sizeof( struct connection_info ));
+	memcpy( &(cinfo->c_sin), &sin, sizeof( struct sockaddr ));
 
-	c->c_next = cinfo_stab;
-	cinfo_stab = c;
+	cinfo->c_next = cinfo_stab;
+	cinfo_stab = cinfo;
     }
 
-    c->c_proc_total++;
-
-    if ( simta_receive_connections_per_interval > 0 ) {
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror: simta_child_receive gettimeofday: %m" );
-	    return( 1 );
-	}
-
-	if (( c->c_tv.tv_sec + simta_receive_connection_interval
-		    < tv_now.tv_sec ) ||
-		(( c->c_tv.tv_sec + simta_receive_connection_interval
-		    == tv_now.tv_sec ) &&
-		( c->c_tv.tv_usec <= tv_now.tv_usec ))) {
-	    c->c_tv = tv_now;
-	    c->c_proc_interval = 1;
-	} else {
-	    c->c_proc_interval++;
-	}
-
-	syslog( LOG_DEBUG, "Connect.stat %s: total %d interval %d",
-		inet_ntoa( c->c_sin.sin_addr ), c->c_proc_total,
-		c->c_proc_interval );
-
-    } else {
-	syslog( LOG_DEBUG, "Connect.stat %s: total %d",
-		inet_ntoa( c->c_sin.sin_addr ), c->c_proc_total );
-    }
-
+    cinfo->c_proc_total++;
+    simta_global_connections++;
 
     simta_gettimenow();
+
+    if ( simta_local_throttle_max > 0 ) {
+	if (( cinfo->c_tv.tv_sec + simta_local_throttle_sec
+		    < simta_tv_now.tv_sec ) ||
+		(( cinfo->c_tv.tv_sec + simta_local_throttle_sec
+		    == simta_tv_now.tv_sec ) &&
+		( cinfo->c_tv.tv_usec <= simta_tv_now.tv_usec ))) {
+	    cinfo->c_tv = simta_tv_now;
+	    cinfo->c_proc_throttle = 1;
+	} else {
+	    cinfo->c_proc_throttle++;
+	}
+    }
+
+    if ( simta_global_throttle_max > 0 ) {
+	if (( simta_global_throttle_tv.tv_sec + simta_global_throttle_sec
+		    < simta_tv_now.tv_sec ) ||
+		(( simta_global_throttle_tv.tv_sec +
+		    simta_global_throttle_sec == simta_tv_now.tv_sec ) &&
+		( simta_global_throttle_tv.tv_usec <= simta_tv_now.tv_usec ))) {
+	    simta_global_throttle_tv = simta_tv_now;
+	    simta_global_throttle_connections = 1;
+	} else {
+	    simta_global_throttle_connections++;
+	}
+    }
+
+    syslog( LOG_DEBUG, "Connect.stat %s: global_total %d "
+	    "global_throttle %d local_total %d local_throttle %d",
+	    inet_ntoa( cinfo->c_sin.sin_addr ), simta_global_connections,
+	    simta_global_throttle_connections, cinfo->c_proc_total,
+	    cinfo->c_proc_throttle );
 
     switch ( pid = fork()) {
     case 0:
@@ -1371,7 +1375,7 @@ simta_child_receive( struct simta_socket *ss )
 	    }
 	}
 	simta_sigaction_reset();
-	exit( smtp_receive( fd, c, ss ));
+	exit( smtp_receive( fd, cinfo, ss ));
 
     case -1:
 	syslog( LOG_ERR, "Syserror: simta_child_receive fork: %m" );
@@ -1387,9 +1391,24 @@ simta_child_receive( struct simta_socket *ss )
 	return( 1 );
     }
 
-    if ( simta_proc_receive( pid, ss, c ) != 0 ) {
+    if (( p = simta_proc_add( PROCESS_RECEIVE, pid )) == NULL ) {
 	return( 1 );
     }
+
+    p->p_limit = &simta_global_connections;
+    p->p_ss = ss;
+    p->p_ss->ss_count++;
+    p->p_cinfo = cinfo;
+
+    if (( p->p_host = strdup( inet_ntoa( cinfo->c_sin.sin_addr ))) == NULL ) {
+	syslog( LOG_ERR, "Syserror: simta_child_receive strdup: %m" );
+	free( p );
+	return( 1 );
+    }
+
+    syslog( LOG_NOTICE, "Child Start %d.%ld: Receive %d %s %d: %s", p->p_id,
+	    p->p_tv.tv_sec, *p->p_limit, p->p_ss->ss_service,
+	    p->p_ss->ss_count, p->p_host );
 
     return( 0 );
 }
@@ -1499,36 +1518,6 @@ simta_proc_q_runner( int pid, struct host_q *hq )
 		    p->p_tv.tv_sec, *p->p_limit, p->p_host );
 	}
     }
-
-    return( 0 );
-}
-
-
-    int
-simta_proc_receive( int pid, struct simta_socket *ss,
-	struct connection_info *cinfo )
-{
-    struct proc_type	*p;
-
-    if (( p = simta_proc_add( PROCESS_RECEIVE, pid )) == NULL ) {
-	return( 1 );
-    }
-
-    p->p_limit = &simta_receive_connections;
-    (*p->p_limit)++;
-    p->p_ss = ss;
-    p->p_ss->ss_count++;
-    p->p_cinfo = cinfo;
-
-    if (( p->p_host = strdup( inet_ntoa( cinfo->c_sin.sin_addr ))) == NULL ) {
-	syslog( LOG_ERR, "Syserror: simta_proc_receive strdup: %m" );
-	free( p );
-	return( 1 );
-    }
-
-    syslog( LOG_NOTICE, "Child Start %d.%ld: Receive %d %s %d: %s", p->p_id,
-	    p->p_tv.tv_sec, *p->p_limit, p->p_ss->ss_service,
-	    p->p_ss->ss_count, p->p_host );
 
     return( 0 );
 }

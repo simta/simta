@@ -84,11 +84,15 @@ int			simta_leaky_queue = 0;
 int			simta_use_randfile = 0;
 int			simta_listen_backlog = 5;
 int			simta_disk_cycle = 0;
-int			simta_receive_connection_interval = 1;
-int			simta_receive_connections_per_interval = 0;
-int			simta_receive_connections_per_host = 0;
-int			simta_receive_connections_max = SIMTA_MAXCONNECTIONS;
-int			simta_receive_connections = 0;
+int			simta_global_connections_max = SIMTA_MAXCONNECTIONS;
+int			simta_global_connections = 0;
+int			simta_global_throttle_max = 0;
+int			simta_global_throttle_connections = 0;
+int			simta_global_throttle_sec = 1;
+struct timeval		simta_global_throttle_tv = { 0, 0 };
+int			simta_local_throttle_max = 0;
+int			simta_local_throttle_sec = 1;
+int			simta_local_connections_max = 0;
 int			simta_launch_limit = SIMTA_LAUNCH_LIMIT;
 int			simta_min_work_time = SIMTA_MIN_WORK_TIME;
 int			simta_q_runner_local_max = SIMTA_MAX_RUNNERS_LOCAL;
@@ -812,56 +816,79 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "BOUNCE_SECONDS: %d\n",
 		simta_bounce_seconds );
 
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_CONNECTIONS_PER_HOST" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS_PER_HOST" )
+		== 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_receive_connections_per_host = atoi( av [ 1 ] );
-	    if ( simta_receive_connections_per_host < 0 ) {
+	    simta_local_connections_max = atoi( av [ 1 ] );
+	    if ( simta_local_throttle_max < 0 ) {
 		fprintf( stderr, "%s: line %d: "
-			"RECEIVE_CONNECTIONS_PER_HOST can't be less than 0",
+			"MAX_RECEIVE_CONNECTIONS_PER_HOST can't be less than 0",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RECEIVE_CONNECTIONS_PER_HOST: %d\n",
-		    simta_receive_connections_per_host );
+	    if ( simta_debug ) printf( "MAX_RECEIVE_CONNECTIONS_PER_HOST: %d\n",
+		    simta_local_connections_max );
 
 	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_CONNECTIONS_PER_INTERVAL" ) == 0 ) {
+		"MAX_RECEIVE_THROTTLE_CONNECTIONS" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_receive_connections_per_interval = atoi( av [ 1 ] );
-	    if ( simta_receive_connections_per_interval < 0 ) {
+	    simta_global_throttle_max = atoi( av [ 1 ] );
+	    if ( simta_global_throttle_max < 0 ) {
 		fprintf( stderr, "%s: line %d: "
-			"RECEIVE_CONNECTIONS_PER_INTERVAL can't be less than 0",
+			"MAX_RECEIVE_THROTTLE_CONNECTIONS "
+			"can't be less than 0",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RECEIVE_CONNECTIONS_PER_INTERVAL: %d\n",
-		    simta_receive_connections_per_interval );
+	    if ( simta_debug ) printf(
+		    "MAX_RECEIVE_THROTTLE_CONNECTIONS: %d\n",
+		    simta_global_throttle_max );
 
 	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_CONNECTION_INTERVAL_TIME" ) == 0 ) {
+		"RECEIVE_THROTTLE_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_receive_connection_interval = atoi( av [ 1 ] );
-	    if ( simta_receive_connection_interval < 1 ) {
+	    simta_global_throttle_sec = atoi( av [ 1 ] );
+	    if ( simta_global_throttle_sec < 1 ) {
 		fprintf( stderr, "%s: line %d: "
-			"RECEIVE_CONNECTION_INTERVAL_TIME can't be less than 1",
+			"RECEIVE_THROTTLE_SECONDS "
+			"can't be less than 1",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RECEIVE_CONNECTION_INTERVAL_TIME: %d\n",
-		    simta_receive_connection_interval );
+	    if ( simta_debug ) printf(
+		    "RECEIVE_THROTTLE_SECONDS: %d\n",
+		    simta_global_throttle_sec );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_THROTTLE_SECONDS_PER_HOST" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_local_throttle_sec = atoi( av [ 1 ] );
+	    if ( simta_local_throttle_sec < 1 ) {
+		fprintf( stderr, "%s: line %d: "
+			"RECEIVE_THROTTLE_SECONDS_PER_HOST "
+			"can't be less than 1",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf(
+		    "RECEIVE_THROTTLE_SECONDS_PER_HOST: %d\n",
+		    simta_local_throttle_sec );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -869,15 +896,15 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_receive_connections_max = atoi( av [ 1 ] );
-	    if ( simta_receive_connections_max < 0 ) {
+	    simta_global_connections_max = atoi( av [ 1 ] );
+	    if ( simta_global_connections_max < 0 ) {
 		fprintf( stderr, "%s: line %d: "
 			"MAX_RECEIVE_CONNECTIONS can't be less than 0",
 			fname, lineno );
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "MAX_RECEIVE_CONNECTIONS: %d\n",
-		    simta_receive_connections_max );
+		    simta_global_connections_max );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVED_HEADERS" ) == 0 ) {
 	    if ( ac != 2 ) {

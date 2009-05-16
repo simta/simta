@@ -1,10 +1,10 @@
-0.8.2.1.a
-    X connect startup sequence audit
-    X simple simta exit logging - audit
-    X local throttles overridden by RBL ACCEPT
-    X global throttles
-
 0.8.2.a
+    - global connection throttles
+    - connect startup sequence audit
+    - local throttles overridden by RBL ACCEPT
+    - connect sequence change
+    - client hostname is "Unresolved" before DNS check
+    - RBL check more error tolerant
     - CF Bounce
     - JAIL bugfix
     - REFUSE_MODE bugfix

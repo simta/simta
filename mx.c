@@ -394,14 +394,14 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 		dnsr_ntoptr( simta_dnsr, in, rbl->rbl_domain )) == NULL ) {
 	    syslog( LOG_ERR, "RBL %s: dnsr_ntoptr failed: %s",
 		    inet_ntoa( *in ), rbl->rbl_domain );
-	    return( RBL_ERROR );
+	    continue;
 	}
 
 	if (( result = get_a( reverse_ip )) == NULL ) {
 	    syslog( LOG_DEBUG, "RBL %s: Timeout: %s", reverse_ip,
 		    rbl->rbl_domain );
 	    free( reverse_ip );
-	    return( RBL_ERROR );
+	    continue;
 	}
 
 	if ( result->r_ancount > 0 ) {
@@ -409,6 +409,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 	    memcpy( &(sin.sin_addr.s_addr),
 		    &(result->r_answer[0].rr_a),
 		    sizeof( struct in_addr ));
+
 	    if (( ip = strdup( inet_ntoa( sin.sin_addr ))) == NULL ) {
 		syslog( LOG_ERR, "Syserror rbl_check: strdup %m" );
 		return( RBL_ERROR );
