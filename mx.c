@@ -386,6 +386,11 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
     struct sockaddr_in			sin;
 
     for ( rbl = rbls; rbl != NULL; rbl = rbl->rbl_next ) {
+	if (( simta_rbl_verbose_logging == 0 ) && 
+		( rbl->rbl_type == RBL_LOG_ONLY )) {
+	    continue;
+	}
+
 	if ( found != NULL ) {
 	    *found = rbl;
 	}
