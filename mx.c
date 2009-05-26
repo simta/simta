@@ -418,8 +418,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 	    if ( simta_rbl_verbose_logging ) {
 		syslog( LOG_DEBUG, "RBL [%s] %s: Found in %s list %s: %s",
 			inet_ntoa( *in ), host ? host : "Unknown",
-			rbl->rbl_type == RBL_ACCEPT ? "Accept" : "Block",
-			rbl->rbl_domain, ip );
+			rbl->rbl_type_text, rbl->rbl_domain, ip );
 	    }
 
 	    free( reverse_ip );
@@ -431,14 +430,17 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 		free( ip );
 	    }
 
+	    if ( rbl->rbl_type == RBL_LOG_ONLY ) {
+		continue;
+	    }
+
 	    return( rbl->rbl_type );
 
 	} else {
 	    if ( simta_rbl_verbose_logging ) {
 		syslog( LOG_DEBUG, "RBL [%s] %s: Unlisted in %s list %s",
 			inet_ntoa( *in ), host ? host : "Unknown",
-			rbl->rbl_type == RBL_ACCEPT ? "Accept" : "Block",
-			rbl->rbl_domain );
+			rbl->rbl_type_text, rbl->rbl_domain );
 	    }
 	}
 
@@ -465,10 +467,24 @@ rbl_add( struct rbl **list, int type, char *domain, char *url )
 {
     struct rbl			**i;
     struct rbl			*rbl;
+    char			*text;
 
-    if (( type != RBL_ACCEPT ) && ( type != RBL_BLOCK )) {
+    switch ( type ) {
+    default:
 	syslog( LOG_ERR, "rbl_add type out of range: %d", type );
 	return( 1 );
+
+    case RBL_ACCEPT:
+	text = S_ACCEPT;
+	break;
+
+    case RBL_LOG_ONLY:
+	text = S_LOG_ONLY;
+	break;
+
+    case RBL_BLOCK:
+	text = S_BLOCK;
+	break;
     }
 
     if (( rbl = (struct rbl*)malloc( sizeof( struct rbl ))) == NULL ) {
@@ -478,6 +494,7 @@ rbl_add( struct rbl **list, int type, char *domain, char *url )
     memset( rbl, 0, sizeof( struct rbl ));
 
     rbl->rbl_type = type;
+    rbl->rbl_type_text = text;
 
     if (( rbl->rbl_domain = strdup( domain )) == NULL ) {
 	syslog( LOG_ERR, "rbl_add strdup: %m" );

@@ -1098,6 +1098,22 @@ simta_read_config( char *fname )
 		printf( "RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
 	    }
 
+	} else if ( strcasecmp( av[ 0 ], "RBL_LOG_ONLY" ) == 0 ) {
+            if ( ac != 2 ) {
+                fprintf( stderr, "%s: line %d: expected 1 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+
+	    if ( rbl_add( &simta_rbls, RBL_LOG_ONLY, av[ 1 ], "") != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+            if ( simta_debug ) {
+		printf( "RBL_LOG_ONLY: %s\n", av[ 1 ]);
+	    }
+
 	} else if ( strcasecmp( av[ 0 ], "RBL_ACCEPT" ) == 0 ) {
             if ( ac != 2 ) {
                 fprintf( stderr, "%s: line %d: expected 1 argument\n",
@@ -1129,6 +1145,22 @@ simta_read_config( char *fname )
 
             if ( simta_debug ) {
 		printf( "USER_RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "USER_RBL_LOG_ONLY" ) == 0 ) {
+            if ( ac != 2 ) {
+                fprintf( stderr, "%s: line %d: expected 1 argument\n",
+                    fname, lineno );
+                goto error;
+            }
+
+	    if ( rbl_add( &simta_user_rbls, RBL_LOG_ONLY, av[ 1 ], "" ) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+            if ( simta_debug ) {
+		printf( "USER_RBL_LOG_ONLY: %s\n", av[ 1 ]);
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "USER_RBL_ACCEPT" ) == 0 ) {

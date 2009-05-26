@@ -3,10 +3,17 @@
 #define	RBL_NOT_FOUND		2
 #define	RBL_BLOCK		3
 #define	RBL_ACCEPT		4
+#define	RBL_LOG_ONLY		5
+
+#define	S_ACCEPT	"Accept"
+#define	S_BLOCK		"Block"
+#define	S_LOG_ONLY	"Log_Only"
+
 
 struct rbl {
     struct rbl			*rbl_next;
     int				rbl_type;
+    char			*rbl_type_text;
     char			*rbl_domain;
     char			*rbl_url;
 };

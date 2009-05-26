@@ -1,4 +1,5 @@
 0.8.2.a
+    - added RBL_LOG_ONLY
     - global connection throttles
     - connect startup sequence audit
     - local throttles overridden by RBL ACCEPT
