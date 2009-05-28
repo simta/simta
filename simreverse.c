@@ -63,15 +63,17 @@ main( int argc, char *argv[])
     }
 
     switch ( check_reverse( argv[ 1 ], &addr )) {
-    case 0:
+    case REVERSE_MATCH:
 	printf( "valid reverse\n" );
 	exit( SIMREVERSE_EXIT_VALID );
 
-    case 1:
+    case REVERSE_UNKNOWN:
+    case REVERSE_MISMATCH:
 	printf( "invalid reverse\n" );
 	exit( SIMREVERSE_EXIT_INVALID );
 
     default:
+    case REVERSE_ERROR:
 	if (( simta_dnsr == NULL )
 		|| ( dnsr_errno( simta_dnsr ) == DNSR_ERROR_SYSTEM )) {
 	    perror( "system error" );

@@ -231,20 +231,21 @@ host_local( char *hostname )
 check_reverse( char *dn, struct in_addr *in )
 {
     int				i, j;
+    int				ret = REVERSE_UNKNOWN;
     char			*temp;
     struct dnsr_result		*result_ptr = NULL, *result_a = NULL;
 
     if ( simta_dnsr == NULL ) {
         if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "check_reverse: dnsr_new: %m" );
-	    return( -1 );
+            syslog( LOG_ERR, "Syserror check_reverse: dnsr_new: %m" );
+	    return( REVERSE_ERROR );
 	}
     }
 
     if (( temp = dnsr_ntoptr( simta_dnsr, in, NULL )) == NULL ) {
         syslog( LOG_ERR, "check_reverse: dnsr_ntoptr: %s",
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	return( -1 );
+	return( REVERSE_ERROR );
     }
 
     /* Get PTR for connection */
@@ -252,7 +253,7 @@ check_reverse( char *dn, struct in_addr *in )
         syslog( LOG_ERR, "check_reverse: dnsr_query: %s",
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	free( temp );
-	return( -1 );
+	return( REVERSE_ERROR );
     }
 
     free( temp );
@@ -260,7 +261,7 @@ check_reverse( char *dn, struct in_addr *in )
     if (( result_ptr = dnsr_result( simta_dnsr, NULL )) == NULL ) {
         syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	return( -1 );
+	return( REVERSE_ERROR );
     }
 
     for ( i = 0; i < result_ptr->r_ancount; i++ ) {
@@ -278,6 +279,8 @@ check_reverse( char *dn, struct in_addr *in )
 		goto error;
 	    }
 
+	    ret = REVERSE_MISMATCH;
+
 	    /* Verify A record matches IP */
 	    for ( j = 0; j < result_a->r_ancount; j++ ) {
 		if ( result_a->r_answer[ j ].rr_type == DNSR_TYPE_A ) {
@@ -290,7 +293,7 @@ check_reverse( char *dn, struct in_addr *in )
 			}
 			dnsr_free_result( result_a );
 			dnsr_free_result( result_ptr );
-			return( 0 );
+			return( REVERSE_MATCH );
 		    }
 
 		} else {
@@ -309,11 +312,11 @@ check_reverse( char *dn, struct in_addr *in )
 	}
     }
     dnsr_free_result( result_ptr );
-    return( 1 );
+    return( ret );
 
 error:
     dnsr_free_result( result_ptr );
-    return( -1 );
+    return( REVERSE_ERROR );
 }
 
     int

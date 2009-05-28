@@ -106,7 +106,7 @@ struct receive_data {
     int				r_failed_rcpts;
     int				r_tls;
     int				r_auth;
-    char			*r_dns_match;
+    int				r_dns_match;
     int				r_rbl_status;
     struct rbl			*r_rbl;
     char			*r_rbl_msg;
@@ -2487,7 +2487,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
     memset( &r, 0, sizeof( struct receive_data ));
     r.r_sin = &c->c_sin;
-    r.r_dns_match = S_UNRESOLVED;
+    r.r_dns_match = REVERSE_UNRESOLVED;
     r.r_remote_hostname = S_UNRESOLVED;
     r.r_rbl_status = RBL_UNKNOWN;
     r.r_mdctx_status = MDCTX_UNINITILIZED;
@@ -2575,49 +2575,62 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	*hostname = '\0';
+        switch ( r.r_dns_match =
+		check_reverse( hostname, &(c->c_sin.sin_addr))) {
 
-        if (( ret = check_reverse( hostname, &(c->c_sin.sin_addr))) == 0 ) {
-            r.r_dns_match = "PASSED";
-	    r.r_remote_hostname = hostname;
-
-        } else {
-            r.r_dns_match = "FAILED";
+	default:
+	    syslog( LOG_ERR, "Syserror smtp_receive check_reverse: "
+		    "out of range" );
+	    /* fall through to REVERSE_ERROR */
+        case REVERSE_ERROR:
 	    r.r_remote_hostname = S_UNKNOWN;
-            if ( ret < 0 ) {                     /* DNS error */
-                if ( simta_ignore_connect_in_reverse_errors ) {
-                    syslog( LOG_INFO, "Connect.in [%s] %s: "
-			    "Warning: reverse address error: %s",
-			    inet_ntoa( r.r_sin->sin_addr ),
-			    r.r_remote_hostname,
-			    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	    if ( simta_ignore_connect_in_reverse_errors ) {
+		syslog( LOG_INFO, "Connect.in [%s] %s: "
+			"Warning: reverse address error: %s",
+			inet_ntoa( r.r_sin->sin_addr ),
+			r.r_remote_hostname,
+			dnsr_err2string( dnsr_errno( simta_dnsr )));
 
-                } else {
-                    syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
-			    "reverse address error: %s",
-			    inet_ntoa( r.r_sin->sin_addr ),
-			    r.r_remote_hostname,
-			    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	    } else {
+		syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
+			"reverse address error: %s",
+			inet_ntoa( r.r_sin->sin_addr ),
+			r.r_remote_hostname,
+			dnsr_err2string( dnsr_errno( simta_dnsr )));
 
-		    smtp_write_banner( &r, 421, S_421_DECLINE, NULL );
-		    goto closeconnection;
-                }
+		smtp_write_banner( &r, 421, S_421_DECLINE, NULL );
+		goto closeconnection;
+	    }
+	    break;
 
-            } else {                            /* invalid reverse */
-                if ( simta_ignore_reverse == 0 ) {
-                    syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
-                            "invalid reverse", inet_ntoa( r.r_sin->sin_addr ),
-			    r.r_remote_hostname );
-		    smtp_write_banner( &r, 421, S_421_DECLINE,
-			    simta_reverse_url );
-                    goto closeconnection;
+        case REVERSE_MATCH:
+	    r.r_remote_hostname = hostname;
+	    break;
 
-                } else {
-                    syslog( LOG_INFO, "Connect.in [%s] %s: Warning: "
-                            "invalid reverse", inet_ntoa( r.r_sin->sin_addr ),
-			    r.r_remote_hostname );
-                }
-            }
-        }
+	case REVERSE_UNKNOWN:
+        case REVERSE_MISMATCH:
+	    /* invalid reverse */
+	    if ( r.r_dns_match == REVERSE_MISMATCH ) {
+		r.r_remote_hostname = S_MISMATCH;
+	    } else {
+		r.r_remote_hostname = S_UNKNOWN;
+	    }
+
+	    if ( simta_ignore_reverse == 0 ) {
+		syslog( LOG_INFO, "Connect.in [%s] %s: Failed: "
+			"invalid reverse", inet_ntoa( r.r_sin->sin_addr ),
+			r.r_remote_hostname );
+		smtp_write_banner( &r, 421, S_421_DECLINE,
+			simta_reverse_url );
+		goto closeconnection;
+
+	    } else {
+		syslog( LOG_INFO, "Connect.in [%s] %s: Warning: "
+			"invalid reverse", inet_ntoa( r.r_sin->sin_addr ),
+			r.r_remote_hostname );
+	    }
+	    break;
+        } /* end of switch */
 
 #ifdef HAVE_LIBWRAP
 	if ( *hostname == '\0' ) {
@@ -3307,8 +3320,9 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    exit( MESSAGE_TEMPFAIL );
 	}
 
+	sprintf( buf, "%d", r->r_dns_match );
 	if (( filter_envp[ 4 ] = env_string( "SIMTA_REVERSE_LOOKUP",
-		r->r_dns_match )) == NULL ) {
+		buf )) == NULL ) {
 	    exit( MESSAGE_TEMPFAIL );
 	}
 

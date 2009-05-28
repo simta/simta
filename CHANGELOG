@@ -1,5 +1,8 @@
+0.8.2.b
+    - RBL_LOG_ONLY now a valid action
+    - DNS string progression better defined, content filter defs changed
+
 0.8.2.a
-    - added RBL_LOG_ONLY
     - global connection throttles
     - connect startup sequence audit
     - local throttles overridden by RBL ACCEPT
