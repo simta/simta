@@ -115,6 +115,7 @@ int			simta_banner_delay = 0;
 int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
 int			simta_inactivity_timer = 0;
+int			simta_message_timer = 0;
 int			simta_receive_session_wait = 0;
 int			simta_receive_line_wait = 600;
 int			simta_data_transaction_wait = 3600;
@@ -127,6 +128,7 @@ int			simta_smtp_outbound_delivered = 0;
 int			simta_fast_files = 0;
 int			simta_smtp_punishment_mode = SMTP_MODE_TEMPFAIL;
 int			simta_smtp_default_mode = SMTP_MODE_NORMAL;
+int			simta_global_relay_from_checking = 1;
 int			simta_smtp_tarpit_default = 120;
 int			simta_smtp_tarpit_connect = 0;
 int			simta_smtp_tarpit_mail = 0;
@@ -678,8 +680,8 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_inactivity_timer = atoi( av[ 1 ] );
-	    if ( simta_inactivity_timer < 0 ) {
+	    simta_message_timer = atoi( av[ 1 ] );
+	    if ( simta_message_timer < 0 ) {
 		fprintf( stderr,
 			"%s: line %d: SMTP_DELIVERY_TIMER must be "
 			"greater than or equal to 0",
@@ -687,7 +689,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "SMTP_DELIVERY_TIMER %d\n",
-		    simta_inactivity_timer );
+		    simta_message_timer );
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_INACTIVITY_TIMER" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -834,6 +836,41 @@ simta_read_config( char *fname )
 		    simta_local_connections_max );
 
 	} else if ( strcasecmp( av[ 0 ],
+		"MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_local_throttle_max = atoi( av [ 1 ] );
+	    if ( simta_local_throttle_max < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST "
+			"can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf(
+		    "MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST: %d\n",
+		    simta_local_throttle_max );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_global_connections_max = atoi( av [ 1 ] );
+	    if ( simta_global_connections_max < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"MAX_RECEIVE_CONNECTIONS can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_RECEIVE_CONNECTIONS: %d\n",
+		    simta_global_connections_max );
+
+	} else if ( strcasecmp( av[ 0 ],
 		"MAX_RECEIVE_THROTTLE_CONNECTIONS" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
@@ -841,9 +878,9 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    simta_global_throttle_max = atoi( av [ 1 ] );
-	    if ( simta_global_throttle_max < 0 ) {
+	    if ( simta_local_throttle_max < 0 ) {
 		fprintf( stderr, "%s: line %d: "
-			"MAX_RECEIVE_THROTTLE_CONNECTIONS "
+			"MAX_RECEIVE_THROTTLE_CONNECTIONS"
 			"can't be less than 0",
 			fname, lineno );
 		goto error;
@@ -889,22 +926,6 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf(
 		    "RECEIVE_THROTTLE_SECONDS_PER_HOST: %d\n",
 		    simta_local_throttle_sec );
-
-	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_global_connections_max = atoi( av [ 1 ] );
-	    if ( simta_global_connections_max < 0 ) {
-		fprintf( stderr, "%s: line %d: "
-			"MAX_RECEIVE_CONNECTIONS can't be less than 0",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "MAX_RECEIVE_CONNECTIONS: %d\n",
-		    simta_global_connections_max );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVED_HEADERS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1327,6 +1348,18 @@ simta_read_config( char *fname )
 	    }
 	    simta_strict_smtp_syntax = 0;
 	    if ( simta_debug ) printf( "STRICT_SMTP_SYNTAX_OFF\n" );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"GLOBAL_RELAY_DISABLE_SENDER_CHECKING" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_global_relay_from_checking = 0;
+	    if ( simta_debug ) {
+		printf( "GLOBAL_RELAY_DISABLE_SENDER_CHECKING\n" );
+	    }
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_PORT" ) == 0 ) {
 	    if ( ac != 2 ) {

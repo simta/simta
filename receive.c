@@ -162,6 +162,7 @@ struct receive_data {
 #define S_DELIVERY "Delivery"
 #define S_SMTP "SMTP"
 #define S_DATA "Data"
+#define S_SESSION "Session"
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -886,8 +887,13 @@ f_mail( struct receive_data *r )
 	return( smtp_write_banner( r, 503, NULL, NULL ));
 
     case SMTP_MODE_TARPIT:
-    case SMTP_MODE_GLOBAL_RELAY:
 	break;
+
+    case SMTP_MODE_GLOBAL_RELAY:
+	if ( simta_global_relay_from_checking == 0 ) {
+	    break;
+	}
+	/* fall through to SMTP_MODE_NORMAL */
 
     case SMTP_MODE_NORMAL:
 	if ( domain == NULL ) {
@@ -1506,6 +1512,7 @@ f_data( struct receive_data *r )
 	tv_wait.tv_sec = simta_data_line_wait;
 	tv_wait.tv_usec = 0;
 	timer_type = S_LINE;
+syslog( LOG_DEBUG, "Debug Timer %s: %ld", timer_type, tv_wait.tv_sec );
 
 	if ( tv_session.tv_sec != 0 ) {
 	    if ( tv_session.tv_sec <= tv_now.tv_sec ) {
@@ -1520,6 +1527,7 @@ f_data( struct receive_data *r )
 	    if ( tv_wait.tv_sec > ( tv_session.tv_sec - tv_now.tv_sec )) {
 		tv_wait.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
 		timer_type = session_type;
+syslog( LOG_DEBUG, "Debug Timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 
@@ -1785,6 +1793,10 @@ f_data( struct receive_data *r )
 		goto error;
 	    }
 
+	    if ( simta_message_timer ) {
+		r->r_tv_delivery.tv_sec = simta_message_timer + tv_now.tv_sec;
+	    }
+
 	    r->r_data_success++;
 
 	    syslog( LOG_NOTICE, "Receive [%s] %s: %s: Message Accepted: "
@@ -1873,7 +1885,8 @@ f_data( struct receive_data *r )
 	    goto error;
 	}
 
-    } else {	/* ACCEPT */
+    } else {
+	/* ACCEPT Message */
 	if ( filter_message != NULL ) {
 	    if ( snet_writef( r->r_snet, "250 Accepted: (%s): %s\r\n",
 		    r->r_env->e_id, filter_message ) < 0 ) {
@@ -2767,16 +2780,19 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	tv_wait.tv_sec = simta_receive_line_wait;
 	tv_wait.tv_usec = 0;
 	timer_type = S_LINE;
+syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 
 	/* global session timer */
 	if ( r.r_tv_session.tv_sec != 0 ) {
 	    if ( r.r_tv_session.tv_sec <= tv_now.tv_sec ) {
-		timer_type = S_LINE;
+		timer_type = S_SESSION;
+syslog( LOG_DEBUG, "Debug timer %s: break", timer_type );
 		break;
 	    }
 	    if ( tv_wait.tv_sec > ( r.r_tv_session.tv_sec - tv_now.tv_sec )) {
 		tv_wait.tv_sec = r.r_tv_session.tv_sec - tv_now.tv_sec;
-		timer_type = S_LINE;
+		timer_type = S_SESSION;
+syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 
@@ -2785,6 +2801,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    if ( r.r_tv_inactive.tv_sec != 0 ) {
 		if ( r.r_tv_inactive.tv_sec <= tv_now.tv_sec ) {
 		    timer_type = S_INACTIVITY;
+syslog( LOG_DEBUG, "Debug timer %s: break", timer_type );
 		    break;
 		}
 	    } else {
@@ -2794,6 +2811,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    if ( tv_wait.tv_sec > ( r.r_tv_inactive.tv_sec - tv_now.tv_sec )) {
 		tv_wait.tv_sec = r.r_tv_inactive.tv_sec - tv_now.tv_sec;
 		timer_type = S_INACTIVITY;
+syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 
@@ -2804,12 +2822,14 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		if ( deliver_accepted( &r ) != RECEIVE_OK ) {
 		    return( RECEIVE_SYSERROR );
 		}
+syslog( LOG_DEBUG, "Debug timer: Delivery: continuing" );
 		continue;
 	    }
 	    if ( tv_wait.tv_sec > ( r.r_tv_delivery.tv_sec - tv_now.tv_sec )) {
 		tv_wait.tv_sec = r.r_tv_delivery.tv_sec - tv_now.tv_sec;
 		continue_after_timeout = 1;
 		timer_type = S_DELIVERY;
+syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 

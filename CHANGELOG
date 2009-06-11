@@ -1,3 +1,8 @@
+0.8.2.c
+    - global_relay does normal domain checking for "Mail from"
+    - timer bugfixes
+    - RBL_LOG_ONLY bugfix
+
 0.8.2.b
     - RBL_LOG_ONLY now a valid action
     - DNS string progression better defined, content filter defs changed

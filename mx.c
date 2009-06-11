@@ -432,26 +432,26 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 	    free( reverse_ip );
 	    dnsr_free_result( result );
 
+	    if ( rbl->rbl_type == RBL_LOG_ONLY ) {
+		continue;
+	    }
+
 	    if ( msg != NULL ) {
 		*msg = ip;
 	    } else {
 		free( ip );
 	    }
 
-	    if ( rbl->rbl_type == RBL_LOG_ONLY ) {
-		continue;
-	    }
-
 	    return( rbl->rbl_type );
-
-	} else {
-	    if ( simta_rbl_verbose_logging ) {
-		syslog( LOG_DEBUG, "RBL [%s] %s: Unlisted in %s list %s",
-			inet_ntoa( *in ), host ? host : "Unknown",
-			rbl->rbl_type_text, rbl->rbl_domain );
-	    }
 	}
 
+	if ( simta_rbl_verbose_logging ) {
+	    syslog( LOG_DEBUG, "RBL [%s] %s: Unlisted in %s list %s",
+		    inet_ntoa( *in ), host ? host : "Unknown",
+		    rbl->rbl_type_text, rbl->rbl_domain );
+	}
+
+	free( reverse_ip );
 	dnsr_free_result( result );
     }
 
@@ -459,8 +459,6 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 	syslog( LOG_DEBUG, "RBL [%s] %s: RBL list exhausted, no matches",
 		inet_ntoa( *in ), host ? host : "Unknown" );
     }
-
-    free( reverse_ip );
 
     if ( found != NULL ) {
 	*found = NULL;
