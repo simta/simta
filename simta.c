@@ -115,7 +115,7 @@ int			simta_banner_delay = 0;
 int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
 int			simta_inactivity_timer = 0;
-int			simta_message_timer = 0;
+int			simta_message_timer = -1;
 int			simta_receive_session_wait = 0;
 int			simta_receive_line_wait = 600;
 int			simta_data_transaction_wait = 3600;
@@ -128,7 +128,7 @@ int			simta_smtp_outbound_delivered = 0;
 int			simta_fast_files = 0;
 int			simta_smtp_punishment_mode = SMTP_MODE_TEMPFAIL;
 int			simta_smtp_default_mode = SMTP_MODE_NORMAL;
-int			simta_global_relay_from_checking = 1;
+int			simta_from_checking = 1;
 int			simta_smtp_tarpit_default = 120;
 int			simta_smtp_tarpit_connect = 0;
 int			simta_smtp_tarpit_mail = 0;
@@ -1074,15 +1074,6 @@ simta_read_config( char *fname )
             simta_queue_incoming_smtp_mail = 1;
             if ( simta_debug ) printf( "QUEUE_INCOMING_SMTP_MAIL" );
 
-        } else if ( strcasecmp( av[ 0 ], "DELIVER_AFTER_ACCEPT" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-                goto error;
-            }
-            simta_deliver_after_accept = 1;
-            if ( simta_debug ) printf( "DELIVER_AFTER_ACCEPT" );
-
         } else if ( strcasecmp( av[ 0 ],
                 "IGNORE_CONNECT_IN_DNS_ERRORS" ) == 0 ) {
             if ( ac != 1 ) {
@@ -1356,7 +1347,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_global_relay_from_checking = 0;
+	    simta_from_checking = 0;
 	    if ( simta_debug ) {
 		printf( "GLOBAL_RELAY_DISABLE_SENDER_CHECKING\n" );
 	    }

@@ -171,7 +171,7 @@ extern int				simta_max_failed_rcpts;
 extern int				simta_dns_config;
 extern int				simta_smtp_default_mode;
 extern int				simta_smtp_punishment_mode;
-extern int				simta_global_relay_from_checking;
+extern int				simta_from_checking;
 extern int				simta_smtp_tarpit_default;
 extern int				simta_smtp_tarpit_connect;
 extern int				simta_smtp_tarpit_mail;

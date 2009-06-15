@@ -1,3 +1,7 @@
+0.8.2.d
+    - disable from checking a global option now
+    - DELIVER_AFTER_ACCEPT gos away
+
 0.8.2.c
     - global_relay does normal domain checking for "Mail from"
     - timer bugfixes

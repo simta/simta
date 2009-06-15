@@ -890,12 +890,10 @@ f_mail( struct receive_data *r )
 	break;
 
     case SMTP_MODE_GLOBAL_RELAY:
-	if ( simta_global_relay_from_checking == 0 ) {
+    case SMTP_MODE_NORMAL:
+	if ( simta_from_checking == 0 ) {
 	    break;
 	}
-	/* fall through to SMTP_MODE_NORMAL */
-
-    case SMTP_MODE_NORMAL:
 	if ( domain == NULL ) {
 	    break;
 	}
@@ -1793,7 +1791,7 @@ syslog( LOG_DEBUG, "Debug Timer %s: %ld", timer_type, tv_wait.tv_sec );
 		goto error;
 	    }
 
-	    if ( simta_message_timer ) {
+	    if ( simta_message_timer > 0 ) {
 		r->r_tv_delivery.tv_sec = simta_message_timer + tv_now.tv_sec;
 	    }
 
@@ -1903,7 +1901,7 @@ syslog( LOG_DEBUG, "Debug Timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 
-	if ( simta_deliver_after_accept != 0 ) {
+	if ( simta_message_timer == 0 ) {
 	    if ( reset( r ) != RECEIVE_OK ) {
 		return( RECEIVE_SYSERROR );
 	    }
