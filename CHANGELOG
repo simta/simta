@@ -1,4 +1,6 @@
 0.8.2.d
+    - ignore trailing dot in email addresses
+    - removed timer debugging logging
     - disable from checking a global option now
     - DELIVER_AFTER_ACCEPT gos away
 

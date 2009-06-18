@@ -123,16 +123,29 @@ simta_red_lookup_host( char *host_name )
 {
     struct simta_red		*red;
     int				d;
+    char			*dot = NULL;
 
-    for ( red = simta_red_hosts; red != NULL; red = red->red_next ) {
-	if (( d = strcasecmp( host_name, red->red_host_name )) == 0 ) {
-	    return( red );
-	} else if ( d > 0 ) {
-	    return( NULL );
+    if ( simta_domain_trailing_dot != 0 ) {
+	dot = host_name + strlen( host_name ) - 1;
+	if ( *dot == '.' ) {
+	    *dot = '\0';
 	}
     }
 
-    return( NULL );
+    for ( red = simta_red_hosts; red != NULL; red = red->red_next ) {
+	if (( d = strcasecmp( host_name, red->red_host_name )) == 0 ) {
+	    break;
+	} else if ( d > 0 ) {
+	    red = NULL;
+	    break;
+	}
+    }
+
+    if (( dot != NULL ) && ( *dot == '\0' )) {
+	*dot = '.';
+    }
+
+    return( red );
 }
 
 

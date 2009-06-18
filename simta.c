@@ -74,6 +74,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_domain_trailing_dot = 1;
 int			simta_bitbucket = -1;
 int			simta_aggressive_delivery = 1;
 int			simta_smtp_port_defined = 0;

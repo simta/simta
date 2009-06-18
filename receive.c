@@ -1510,7 +1510,6 @@ f_data( struct receive_data *r )
 	tv_wait.tv_sec = simta_data_line_wait;
 	tv_wait.tv_usec = 0;
 	timer_type = S_LINE;
-syslog( LOG_DEBUG, "Debug Timer %s: %ld", timer_type, tv_wait.tv_sec );
 
 	if ( tv_session.tv_sec != 0 ) {
 	    if ( tv_session.tv_sec <= tv_now.tv_sec ) {
@@ -1525,7 +1524,6 @@ syslog( LOG_DEBUG, "Debug Timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    if ( tv_wait.tv_sec > ( tv_session.tv_sec - tv_now.tv_sec )) {
 		tv_wait.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
 		timer_type = session_type;
-syslog( LOG_DEBUG, "Debug Timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 
@@ -2778,19 +2776,16 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	tv_wait.tv_sec = simta_receive_line_wait;
 	tv_wait.tv_usec = 0;
 	timer_type = S_LINE;
-syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 
 	/* global session timer */
 	if ( r.r_tv_session.tv_sec != 0 ) {
 	    if ( r.r_tv_session.tv_sec <= tv_now.tv_sec ) {
 		timer_type = S_SESSION;
-syslog( LOG_DEBUG, "Debug timer %s: break", timer_type );
 		break;
 	    }
 	    if ( tv_wait.tv_sec > ( r.r_tv_session.tv_sec - tv_now.tv_sec )) {
 		tv_wait.tv_sec = r.r_tv_session.tv_sec - tv_now.tv_sec;
 		timer_type = S_SESSION;
-syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 
@@ -2799,7 +2794,6 @@ syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    if ( r.r_tv_inactive.tv_sec != 0 ) {
 		if ( r.r_tv_inactive.tv_sec <= tv_now.tv_sec ) {
 		    timer_type = S_INACTIVITY;
-syslog( LOG_DEBUG, "Debug timer %s: break", timer_type );
 		    break;
 		}
 	    } else {
@@ -2809,7 +2803,6 @@ syslog( LOG_DEBUG, "Debug timer %s: break", timer_type );
 	    if ( tv_wait.tv_sec > ( r.r_tv_inactive.tv_sec - tv_now.tv_sec )) {
 		tv_wait.tv_sec = r.r_tv_inactive.tv_sec - tv_now.tv_sec;
 		timer_type = S_INACTIVITY;
-syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 
@@ -2820,14 +2813,12 @@ syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 		if ( deliver_accepted( &r ) != RECEIVE_OK ) {
 		    return( RECEIVE_SYSERROR );
 		}
-syslog( LOG_DEBUG, "Debug timer: Delivery: continuing" );
 		continue;
 	    }
 	    if ( tv_wait.tv_sec > ( r.r_tv_delivery.tv_sec - tv_now.tv_sec )) {
 		tv_wait.tv_sec = r.r_tv_delivery.tv_sec - tv_now.tv_sec;
 		continue_after_timeout = 1;
 		timer_type = S_DELIVERY;
-syslog( LOG_DEBUG, "Debug timer %s: %ld", timer_type, tv_wait.tv_sec );
 	    }
 	}
 
