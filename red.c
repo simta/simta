@@ -129,6 +129,8 @@ simta_red_lookup_host( char *host_name )
 	dot = host_name + strlen( host_name ) - 1;
 	if ( *dot == '.' ) {
 	    *dot = '\0';
+	} else {
+	    dot = NULL;
 	}
     }
 
@@ -141,7 +143,7 @@ simta_red_lookup_host( char *host_name )
 	}
     }
 
-    if (( dot != NULL ) && ( *dot == '\0' )) {
+    if ( dot != NULL ) {
 	*dot = '.';
     }
 
