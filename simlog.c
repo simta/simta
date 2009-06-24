@@ -46,9 +46,9 @@ main( int argc, char *argv[] )
     char		path[ MAXPATHLEN ];
     int			c;
 
-    if ( gettimeofday( &tv, NULL ) != 0 ) {
+    if ( simta_gettimeofday( &tv ) != 0 ) {
 	perror( "gettimeofday" );
-	exit( 1 );
+	return( 1 );
     }
 
     /* XXX hard path */

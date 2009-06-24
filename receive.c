@@ -1480,8 +1480,7 @@ f_data( struct receive_data *r )
 	goto error;
     }
 
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	goto error;
     }
 
@@ -1544,8 +1543,7 @@ f_data( struct receive_data *r )
 	    goto error;
 	}
 
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    goto error;
 	}
 
@@ -1670,8 +1668,7 @@ f_data( struct receive_data *r )
 	}
 #endif /* HAVE_LIBSSL */
 
-	if ( gettimeofday( &tv_filter, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
+	if ( simta_gettimeofday( &tv_filter ) != 0 ) {
 	    goto error;
 	}
 
@@ -1687,8 +1684,7 @@ f_data( struct receive_data *r )
 		filter_message ? filter_message : "no filter message" );
     }
 
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror f_data: gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	goto error;
     }
 
@@ -2502,8 +2498,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     r.r_mdctx_status = MDCTX_UNINITILIZED;
     set_smtp_mode( &r, simta_smtp_default_mode, "Default" );
 
-    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror smtp_receive: gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_start ) != 0 ) {
 	tv_start.tv_sec = 0;
     }
 
@@ -2767,8 +2762,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     }
 
     for ( ; ; ) {
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive: gettimeofday: %m" );
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    goto syserror;
 	}
 
@@ -2954,13 +2948,11 @@ closeconnection:
     }
 #endif /* HAVE_LIBSSL */
 
-    if (( tv_start.tv_sec != 0 ) &&
-	    (( ret = gettimeofday( &tv_stop, NULL )) != 0 )) {
-	if ( ret != 0 ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive: gettimeofday: %m" );
+    if ( tv_start.tv_sec != 0 ) {
+	if ( simta_gettimeofday( &tv_stop ) != 0 ) {
+	    tv_start.tv_sec = 0;
+	    tv_stop.tv_sec = 0;
 	}
-	tv_start.tv_sec = 1;
-	tv_stop.tv_sec = 0;
     }
 
     if ( simta_sasl ) {
@@ -3253,7 +3245,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	return( MESSAGE_TEMPFAIL );
     }
 
-    simta_gettimenow();
+    simta_gettimeofday( NULL );
 
     switch ( pid = fork()) {
     case -1 :

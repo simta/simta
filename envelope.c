@@ -53,26 +53,7 @@ env_id( struct envelope *e )
 
     assert( e->e_id == NULL );
 
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "env_id gettimeofday: %m" );
-	return( -1 );
-    }
-
-    /* did gettimeofday() return a unique timestamp not in the past? */
-    if (( tv_now.tv_sec < simta_tv_mid.tv_sec ) ||
-	    (( tv_now.tv_sec == simta_tv_mid.tv_sec ) &&
-	    ( tv_now.tv_usec <= simta_tv_mid.tv_usec ))) {
-	tv_now.tv_usec = simta_tv_mid.tv_usec + 1;
-	if ( tv_now.tv_usec <= simta_tv_mid.tv_usec ) {
-	    tv_now.tv_usec = 0;
-	    tv_now.tv_sec = simta_tv_mid.tv_sec + 1;
-	} else {
-	    tv_now.tv_sec = simta_tv_mid.tv_sec;
-	}
-    }
-
-    simta_tv_mid.tv_usec = tv_now.tv_usec;
-    simta_tv_mid.tv_sec = tv_now.tv_sec;
+    simta_gettimeofday( &tv_now );
 
     if (( pid = getpid()) < 0 ) {
 	syslog( LOG_ERR, "env_id getpid: %m" );
@@ -104,8 +85,7 @@ env_is_old( struct envelope *env, int dfile_fd )
 	    return( 0 );
 	}
 
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "env_is_old gettimeofday: %m" );
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    return( 0 );
 	}
 
@@ -569,8 +549,7 @@ env_efile( struct envelope *e )
     e->e_flags = ( e->e_flags & ( ~ENV_FLAG_TFILE ));
     e->e_flags |= ENV_FLAG_EFILE;
 
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "env_touch gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return( -1 );
     }
 
@@ -599,8 +578,7 @@ env_touch( struct envelope *env )
 	return( -1 );
     }
 
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "env_touch gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return( -1 );
     }
 

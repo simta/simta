@@ -1,3 +1,6 @@
+internal
+    - simta_gettimeofday() preffered interface
+
 0.8.2.d
     - ignore trailing dot in email addresses
     - removed timer debugging logging

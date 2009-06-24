@@ -61,8 +61,7 @@
 
 /* global variables */
 
-struct timeval		simta_tv_mid = { 0, 0 };
-struct timeval		simta_tv_now;
+struct timeval		simta_tv_now = { 0, 0 };
 struct timeval		simta_log_tv;
 struct envelope		*simta_env_queue = NULL;
 struct host_q		*simta_host_q = NULL;
@@ -185,11 +184,34 @@ panic( char *message )
 
 
     int
-simta_gettimenow( void )
+simta_gettimeofday( struct timeval *tv )
 {
-    if ( gettimeofday( &simta_tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: simta_gettimenow gettimeofday: %m" );
+    struct timeval		tv_now;
+
+    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: simta_gettimeofday: gettimeofday: %m" );
 	return( 1 );
+    }
+
+    /* did gettimeofday() return a unique timestamp not in the past? */
+    if (( tv_now.tv_sec < simta_tv_now.tv_sec ) ||
+	    (( tv_now.tv_sec == simta_tv_now.tv_sec ) &&
+	    ( tv_now.tv_usec <= simta_tv_now.tv_usec ))) {
+	tv_now.tv_usec = simta_tv_now.tv_usec + 1;
+	if ( tv_now.tv_usec <= simta_tv_now.tv_usec ) {
+	    tv_now.tv_usec = 0;
+	    tv_now.tv_sec = simta_tv_now.tv_sec + 1;
+	} else {
+	    tv_now.tv_sec = simta_tv_now.tv_sec;
+	}
+    }
+
+    simta_tv_now.tv_usec = tv_now.tv_usec;
+    simta_tv_now.tv_sec = tv_now.tv_sec;
+
+    if ( tv != NULL ) {
+	tv->tv_usec = tv_now.tv_usec;
+	tv->tv_sec = tv_now.tv_sec;
     }
 
     return( 0 );

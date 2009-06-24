@@ -290,9 +290,7 @@ q_runner( void )
 	queue_time_order( hq );
     }
 
-    /* get start time for metrics */
-    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
-	syslog( LOG_ERR, "q_runner gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_start ) != 0 ) {
 	return( simta_fast_files );
     }
 
@@ -442,10 +440,7 @@ unexpanded_clean_up:
 
 q_runner_done:
     /* get end time for metrics */
-    if ( gettimeofday( &tv_end, NULL ) != 0 ) {
-	syslog( LOG_ERR, "q_runner gettimeofday: %m" );
-
-    } else {
+    if ( simta_gettimeofday( &tv_end ) == 0 ) {
 	tv_end.tv_sec -= tv_start.tv_sec;
 	day = ( tv_end.tv_sec / 86400 );
 	hour = (( tv_end.tv_sec % 86400 ) / 3600 );
@@ -657,8 +652,7 @@ q_read_dir( char *dir )
     int				removed = 0;
     int				messages = 0;
 
-    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: q_read_dir gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_start ) != 0 ) {
 	return( -1 );
     }
 
@@ -780,8 +774,7 @@ q_read_dir( char *dir )
 	return( ret );
     }
 
-    if ( gettimeofday( &tv_schedule, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: q_read_dir gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_schedule ) != 0 ) {
 	return( -1 );
     }
 
@@ -842,8 +835,7 @@ q_read_dir( char *dir )
 	hq = &((*hq)->hq_next);
     }
 
-    if ( gettimeofday( &tv_stop, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: q_read_dir gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_stop ) != 0 ) {
 	return( -1 );
     }
 
@@ -1326,8 +1318,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
     struct timeval		tv_start;
     struct timeval		tv_stop;
 
-    if ( gettimeofday( &tv_start, NULL ) != 0 ) {
-	syslog( LOG_DEBUG, "deliver_remote gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_start ) != 0 ) {
 	return;
     }
 
@@ -1411,11 +1402,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    d->d_queue_movement = 1;
 	    env_movement = 1;
 	    simta_smtp_outbound_delivered++;
-
-	    if ( gettimeofday( &tv_stop, NULL ) != 0 ) {
-		syslog( LOG_DEBUG, "deliver_remote gettimeofday: %m" );
-	    }
-
+	    simta_gettimeofday( &tv_stop );
 	    syslog( LOG_DEBUG, "Queue %s: %s Delivery activity: "
 		    "%d failed %d accepted %ld seconds", hq->hq_hostname,
 		    d->d_env->e_id, d->d_n_rcpt_failed,
@@ -1899,8 +1886,7 @@ queue_log_metrics( struct host_q *hq_schedule )
     struct timeval	tv_now;
     struct host_q	*hq;
 
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return;
     }
 

@@ -96,7 +96,7 @@ deliver_binary( struct deliver *d )
 	return( EX_TEMPFAIL );
     }
 
-    simta_gettimenow();
+    simta_gettimeofday( NULL );
 
     switch ( pid = fork()) {
     case -1 :

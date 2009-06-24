@@ -453,7 +453,10 @@ main( int ac, char **av )
     /* set our umask */
     umask( 022 );
 
-    simta_gettimenow();
+    if ( simta_gettimeofday( NULL ) != 0 ) {
+        exit( 1 );
+    }
+
     simta_openlog( 0 );
 
     if ( simta_read_config( config_fname ) < 0 ) {
@@ -643,7 +646,10 @@ main( int ac, char **av )
     }
 
     /* Start logging in daemon mode */
-    simta_gettimenow();
+    if ( simta_gettimeofday( NULL ) != 0 ) {
+        exit( 1 );
+    }
+
     simta_openlog( 0 );
 
     /* catch SIGHUP */
@@ -694,7 +700,9 @@ simta_child_queue_scheduler( void )
     int				pid;
     struct simta_socket		*ss;
 
-    simta_gettimenow();
+    if ( simta_gettimeofday( NULL ) != 0 ) {
+        return( 1 );
+    }
 
     switch ( pid = fork()) {
     case 0 :
@@ -757,9 +765,8 @@ simta_q_scheduler( void )
     simta_process_type = PROCESS_Q_SCHEDULER;
 
     /* read the disk ASAP */
-    if ( gettimeofday( &tv_disk, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
-	return( 1 );
+    if ( simta_gettimeofday( &tv_disk ) != 0 ) {
+        return( 1 );
     }
 
     srandom((unsigned int)tv_disk.tv_usec );
@@ -785,8 +792,7 @@ simta_q_scheduler( void )
 	    }
 	}
 
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    return( 1 );
 	}
 
@@ -806,8 +812,7 @@ simta_q_scheduler( void )
 
 		queue_log_metrics( simta_deliver_q );
 
-		if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-		    syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+		if ( simta_gettimeofday( &tv_now ) != 0 ) {
 		    return( 1 );
 		}
 
@@ -826,8 +831,7 @@ simta_q_scheduler( void )
 
 	/* check to see if we need to launch queue runners */
 	for ( launched = 1; simta_deliver_q != NULL; launched++ ) {
-	    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-		syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+	    if ( simta_gettimeofday( &tv_now ) != 0 ) {
 		return( 1 );
 	    }
 
@@ -907,8 +911,7 @@ simta_q_scheduler( void )
 	}
 
 	/* compute sleep time */
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror: q_scheduler gettimeofday: %m" );
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    return( 1 );
 	}
 
@@ -988,8 +991,7 @@ simta_waitpid( void )
 
     child_signal = 0;
 
-    if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: simta_waitpid gettimeofday: %m" );
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return( 1 );
     }
 
@@ -1104,7 +1106,9 @@ simta_wait_for_child( int child_type )
     int				status;
     char			*p_name;
 
-    simta_gettimenow();
+    if ( simta_gettimeofday( NULL ) != 0 ) {
+	return( 1 );
+    }
 
     switch ( pid = fork()) {
     case -1 :
@@ -1245,9 +1249,7 @@ simta_smtp_server( void )
 	}
 
 	/* clean up the connection_info table */
-	if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	    syslog( LOG_ERR,
-		    "Syserror: simta_child_smtp_daemon gettimeofday: %m" );
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    return( 1 );
 	}
 
@@ -1331,7 +1333,9 @@ simta_child_receive( struct simta_socket *ss )
     cinfo->c_proc_total++;
     simta_global_connections++;
 
-    simta_gettimenow();
+    if ( simta_gettimeofday( NULL ) != 0 ) {
+	return( 1 );
+    }
 
     if ( simta_local_throttle_max > 0 ) {
 	if (( cinfo->c_tv.tv_sec + simta_local_throttle_sec
@@ -1424,7 +1428,9 @@ simta_child_q_runner( struct host_q *hq )
     return( 0 );
 #endif /* Q_SIMULATION */
 
-    simta_gettimenow();
+    if ( simta_gettimeofday( NULL ) != 0 ) {
+	return( 1 );
+    }
 
     switch ( pid = fork()) {
     case 0 :

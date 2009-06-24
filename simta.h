@@ -109,7 +109,6 @@ struct simta_socket {
 extern struct timeval			simta_global_throttle_tv;
 extern struct timeval			simta_tv_now;
 extern struct timeval			simta_log_tv;
-extern struct timeval			simta_tv_mid;
 extern struct host_q			*simta_deliver_q;
 extern struct host_q			*simta_unexpanded_q;
 extern struct host_q			*simta_punt_q;
@@ -233,7 +232,7 @@ int	simta_init_hosts( void );
 int	simta_config( char * );
 int     simta_read_config( char * );
 void	simta_openlog( int );
-int	simta_gettimenow( void );
+int	simta_gettimeofday( struct timeval * );
 
 /*****     bounce.c     *****/
 
