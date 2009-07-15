@@ -54,6 +54,8 @@ struct deliver {
 
 struct host_q {
     int				hq_entries;
+    int				hq_entries_new;
+    int				hq_entries_removed;
     struct simta_red		*hq_red;
     struct host_q		*hq_deliver;
     struct host_q		*hq_next;
@@ -87,5 +89,5 @@ int	q_single( struct host_q * );
 void	hq_deliver_pop( struct host_q * );
 void	queue_log_metrics( struct host_q * );
 
-int	q_read_dir( char * );
-void	hq_deliver_push( struct host_q *, struct timeval * );
+int	q_read_dir( struct simta_dirp * );
+void	hq_deliver_push( struct host_q *, struct timeval *, int );

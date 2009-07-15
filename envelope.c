@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 
+#include <dirent.h>
 #include <assert.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -36,11 +37,11 @@
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
 #include "line_file.h"
 #include "header.h"
 #include "simta.h"
+#include "queue.h"
 
 
     int
@@ -63,12 +64,7 @@ env_id( struct envelope *e )
     snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
 	    (unsigned long)tv_now.tv_usec, pid );
 
-    if (( e->e_id = strdup( buf )) == NULL ) {
-	syslog( LOG_ERR, "env_id strdup: %m" );
-	return( -1 );
-    }
-
-    return( 0 );
+    return( env_set_id( e, buf ));
 }
 
 
@@ -248,6 +244,29 @@ env_sender( struct envelope *env, char *e_mail )
 	return( 1 );
     }
 
+    /* JAIL-ADD look up sender in master sender list */
+    /*
+    for ( i = &simta_sender_list; *i != NULL; i = &((*i)->st_next) ) {
+	if (( c = strcasecmp( e_mail, (*i)->s_sender )) <= 0 ) {
+	    break;
+	}
+    }
+
+    if ( c != 0 ) {
+    }
+
+    /* JAIL-ADD link envelope and master sender entry */
+    /*
+    for ( e = &((*i)->s_envs; *e != NULL; e = &((*e)->e_next ) ) {
+	if (( c = strcasecmp( env->e_id, (*i)->s_sender )) <= 0 ) {
+	    break;
+	}
+    }
+
+    if ( c != 0 ) {
+    }
+    */
+
     return( 0 );
 }
 
@@ -262,6 +281,9 @@ env_reset( struct envelope *env )
 	}
 
 	if ( env->e_mail != NULL ) {
+	    /* JAIL-ADD look up sender in master sender list */
+	    /* JAIL-ADD unlink envelope and master sender entry */
+	    /* JAIL-ADD if deleted sender, print out new sender list */
 	    free( env->e_mail );
 	    env->e_mail = NULL;
 	}

@@ -34,8 +34,9 @@
 
 #include <snet.h>
 
-#include "wildcard.h"
 #include "denser.h"
+#include "simta.h"
+#include "wildcard.h"
 #include "ll.h"
 #include "envelope.h"
 #include "queue.h"
@@ -44,7 +45,6 @@
 #include "smtp.h"
 #include "expand.h"
 #include "red.h"
-#include "simta.h"
 #include "mx.h"
 
 void	q_deliver( struct host_q * );
@@ -58,6 +58,7 @@ void	connection_data_free( struct deliver *, struct connection_data * );
 int	get_outboud_dns( struct deliver *, struct host_q * );
 struct connection_data *connection_data_create( struct deliver * );
 void	queue_time_order( struct host_q * );
+void	prune_messages( struct host_q *hq );
 
 
     struct host_q *
@@ -95,10 +96,8 @@ host_q_create_or_lookup( char *hostname )
 	memset( simta_unexpanded_q, 0, sizeof( struct host_q ));
 
 	/* add this host to the host_q */
-	simta_unexpanded_q->hq_hostname = "";
+	simta_unexpanded_q->hq_hostname = S_UNEXPANDED;
 	simta_unexpanded_q->hq_status = HOST_NULL;
-	simta_unexpanded_q->hq_next = simta_host_q;
-	simta_host_q = simta_unexpanded_q;
 
 	if ( simta_punt_host != NULL ) {
 	    if (( simta_punt_q = (struct host_q*)malloc(
@@ -301,7 +300,7 @@ q_runner( void )
 	for ( hq = simta_host_q; hq != NULL; hq = hq->hq_next ) {
 	    hq->hq_deliver = NULL;
 
-	    if (( hq->hq_env_head == NULL ) || ( hq == simta_unexpanded_q )) {
+	    if ( hq->hq_env_head == NULL ) {
 		continue;
 	    }
 
@@ -499,30 +498,39 @@ q_runner_done:
     int
 q_runner_dir( char *dir )
 {
-    if ( q_read_dir( dir ) != 0 ) {
-	syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
-	return( EXIT_OK );
-    }
+    struct simta_dirp		s_dirp;
+
+    memset( &s_dirp, 0, sizeof( struct simta_dirp ));
+    s_dirp.sd_dir = dir;
+
+    do {
+	if ( q_read_dir( &s_dirp ) != 0 ) {
+	    syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
+	    return( EXIT_OK );
+	}
+    } while ( s_dirp.sd_dirp != NULL );
 
     exit ( q_runner() != 0 );
 }
 
 
     void
-hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
+hq_deliver_push( struct host_q *hq, struct timeval *tv_now, int nodelay )
 {
     long			diff;
     int				max_wait = 80 * 60;
     int				min_wait = 5 * 60;
     int				wait;
     int				half;
-    int				delay;
+    int				delay = 0;
     struct timeval		next_launch;
     struct host_q		*insert;
 
     if ( hq->hq_last_launch.tv_sec == 0 ) {
 	hq->hq_last_leaky.tv_sec = tv_now->tv_sec;
-	delay = random() % min_wait;
+	if ( nodelay == 0 ) {
+	    delay = random() % min_wait;
+	}
 	next_launch.tv_sec = tv_now->tv_sec + delay;
 
     } else {
@@ -544,7 +552,9 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
 	next_launch.tv_sec = hq->hq_last_launch.tv_sec + wait;
 
 	if ( next_launch.tv_sec < tv_now->tv_sec ) {
-	    delay = random() % min_wait;
+	    if ( nodelay == 0 ) {
+		delay = random() % min_wait;
+	    }
 	    next_launch.tv_sec = tv_now->tv_sec + delay;
 	}
     }
@@ -631,218 +641,262 @@ hq_free( struct host_q *hq_free )
 }
 
 
-    int
-q_read_dir( char *dir )
+    void
+prune_messages( struct host_q *hq )
 {
-    struct dirent		*entry;
-    struct envelope		*last_read = NULL;
     struct envelope		*env;
     struct envelope		**e;
-    DIR				*dirp;
-    int				ret = -1;
+
+    e = &(hq->hq_env_head);
+    hq->hq_entries = 0;
+    hq->hq_entries_new = 0;
+    hq->hq_entries_removed = 0;
+
+    /* make sure that all envs in all host queues are up to date */
+    while ( *e != NULL ) {
+	if ((*e)->e_cycle != simta_disk_cycle ) {
+	    env = *e;
+	    env->e_list_next->e_list_prev = env->e_list_prev;
+	    env->e_list_prev->e_list_next = env->e_list_next;
+	    if ( simta_env_queue == env ) {
+		if ( env->e_list_next == env ) {
+		    simta_env_queue = NULL;
+		} else {
+		    simta_env_queue = env->e_list_next;
+		}
+	    }
+	    env->e_list_next = NULL;
+	    env->e_list_prev = NULL;
+
+	    *e = (*e)->e_hq_next;
+	    env_free( env );
+	    hq->hq_entries_removed++;
+
+	} else {
+	    hq->hq_entries++;
+	    e = &((*e)->e_hq_next);
+	}
+    }
+
+    return;
+}
+
+
+    int
+q_read_dir( struct simta_dirp *sd )
+{
+    struct dirent		*entry;
+
+    struct envelope		*last_read = NULL;
+    struct envelope		*env;
     struct host_q		**hq;
     struct host_q		*h_free;
-    struct timeval		tv_schedule;
+
     /* metrics */
-    struct timeval		tv_start;
     struct timeval		tv_stop;
     int				remain_hq = 0;
-    int				old = 0;
+    int				total = 0;
     int				new = 0;
     int				removed = 0;
-    int				messages = 0;
 
-    if ( simta_gettimeofday( &tv_start ) != 0 ) {
-	return( -1 );
+    if ( sd->sd_dirp == NULL ) {
+	if ( simta_gettimeofday( &(sd->sd_tv_start)) != 0 ) {
+	    return( 1 );
+	}
+
+	if (( sd->sd_dirp = opendir( sd->sd_dir )) == NULL ) {
+	    syslog( LOG_ERR, "Syserror: q_read_dir opendir %s: %m",
+		    sd->sd_dir );
+	    return( 1 );
+	}
+
+	sd->sd_entries = 0;
+	sd->sd_cycle++;
+	return( 0 );
     }
 
-    if (( dirp = opendir( dir )) == NULL ) {
-	syslog( LOG_ERR, "Syserror: q_read_dir opendir %s: %m", dir );
-	return( -1 );
-    }
+    errno = 0;
 
-    simta_disk_cycle++;
-
-    for ( errno = 0; ( entry = readdir( dirp )) != NULL; errno = 0 ) {
-	/* we're only interested in Envelopes */
-	if ( *entry->d_name != 'E' ) {
-	    continue;
+    if (( entry = readdir( sd->sd_dirp )) == NULL ) {
+	if ( errno != 0 ) {
+	    syslog( LOG_ERR, "Syserror q_read_dir readdir %s: %m",
+		    sd->sd_dir );
+	    return( 1 );
 	}
 
-	env = NULL;
-
-	if ( simta_env_queue != NULL ) {
-	    for ( ; ; env = env->e_list_next ) {
-		if ( env == NULL ) {
-		    if ( last_read != NULL ) {
-			env = last_read->e_list_next;
-		    } else {
-			env = simta_env_queue;
-		    }
-		} else if (( env == simta_env_queue ) &&
-			( last_read == NULL )) {
-		    env = NULL;
-		    break;
-		}
-
-		if ( strcmp( entry->d_name + 1, env->e_id ) == 0 ) {
-		    break;
-		}
-
-		if ( env == last_read ) {
-		    env = NULL;
-		    break;
-		}
-	    }
+	if ( closedir( sd->sd_dirp ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror q_read_dir closedir %s: %m",
+		    sd->sd_dir );
+	    return( 1 );
 	}
 
-	if ( env != NULL ) {
-	    old++;
-	    env->e_cycle = simta_disk_cycle;
-	    last_read = env;
-	    continue;
+	sd->sd_dirp = NULL;
+
+	if ( simta_gettimeofday( &tv_stop ) != 0 ) {
+	    return( 1 );
 	}
 
-	/* here env is NULL, we need to create an envelope */
-	if (( env = env_create( NULL, NULL )) == NULL ) {
-	    continue;
+	/* post disk-read queue management */
+	if ( simta_unexpanded_q != NULL ) {
+	    prune_messages( simta_unexpanded_q );
 	}
 
-	if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
-	    env_free( env );
-	    continue;
-	}
-	env->e_dir = dir;
+	hq = &simta_host_q;
+	while ( *hq != NULL ) {
+	    prune_messages( *hq );
 
-	if ( env_read( READ_QUEUE_INFO, env, NULL ) != 0 ) {
-	    env_free( env );
-	    continue;
-	}
+	    total += (*hq)->hq_entries;
+	    new += (*hq)->hq_entries_new;
+	    removed += (*hq)->hq_entries_removed;
+	    (*hq)->hq_entries_new = 0;
+	    (*hq)->hq_entries_removed = 0;
 
-	/* only stand-alone queue runners should do this */
-	if ( simta_queue_filter != NULL ) {
-	    /* check to see if we should skip this message */
-	    if (( env->e_hostname == NULL ) || ( wildcard(
-		    simta_queue_filter, env->e_hostname, 0 ) == 0 )) {
-		env_free( env );
+	    /* remove any empty host queues */
+	    if ((*hq)->hq_env_head == NULL ) {
+		/* delete this host */
+		h_free = *hq;
+		*hq = (*hq)->hq_next;
+		syslog( LOG_INFO, "Queue Removing: %s", h_free->hq_hostname );
+		hq_free( h_free );
 		continue;
 	    }
-	}
 
-	if ( queue_envelope( env ) != 0 ) {
-	    env_free( env );
-	    continue;
-	}
-
-	env->e_cycle = simta_disk_cycle;
-	new++;
-
-	if ( simta_env_queue == NULL ) {
-	    /* insert as the head */
-	    env->e_list_next = env;
-	    env->e_list_prev = env;
-	    simta_env_queue = env;
-	} else if ( last_read == NULL ) {
-	    /* insert before the head */
-	    env->e_list_next = simta_env_queue;
-	    env->e_list_prev = simta_env_queue->e_list_prev;
-	    simta_env_queue->e_list_prev->e_list_next = env;
-	    simta_env_queue->e_list_prev = env;
-	    simta_env_queue = env;
-	} else if ( last_read != NULL ) {
-	    /* insert after the last read */
-	    env->e_list_next = last_read->e_list_next;
-	    env->e_list_prev = last_read;
-	    last_read->e_list_next->e_list_prev = env;
-	    last_read->e_list_next = env;
-	    last_read = env;
-	}
-    }
-
-    if ( errno != 0 ) {
-	syslog( LOG_ERR, "q_read_dir readdir %s: %m", dir );
-    } else {
-	ret = 0;
-    }
-
-    if ( closedir( dirp ) != 0 ) {
-	syslog( LOG_ERR, "q_read_dir closedir %s: %m", dir );
-	return( -1 );
-    }
-
-    if ( ret != 0 ) {
-	return( ret );
-    }
-
-    if ( simta_gettimeofday( &tv_schedule ) != 0 ) {
-	return( -1 );
-    }
-
-    /* post disk-read queue management */
-    hq = &simta_host_q;
-    while ( *hq != NULL ) {
-	e = &(*hq)->hq_env_head;
-	messages = 0;
-	/* make sure that all envs in all host queues are up to date */
-	while ( *e != NULL ) {
-	    if ((*e)->e_cycle != simta_disk_cycle ) {
-		env = *e;
-		env->e_list_next->e_list_prev = env->e_list_prev;
-		env->e_list_prev->e_list_next = env->e_list_next;
-		if ( simta_env_queue == env ) {
-		    if ( env->e_list_next == env ) {
-			simta_env_queue = NULL;
-		    } else {
-			simta_env_queue = env->e_list_next;
-		    }
-		}
-		env->e_list_next = NULL;
-		env->e_list_prev = NULL;
-
-		*e = (*e)->e_hq_next;
-		removed++;
-		env_free( env );
-
-	    } else {
-		messages++;
-		e = &((*e)->e_hq_next);
-	    }
-	}
-
-	(*hq)->hq_entries = messages;
-
-	/* remove any empty host queues */
-	if (((*hq)->hq_env_head == NULL ) && ( *hq != simta_unexpanded_q )) {
-	    /* delete this host */
-	    h_free = *hq;
-	    *hq = (*hq)->hq_next;
-	    syslog( LOG_INFO, "Queue Removing: %s", h_free->hq_hostname );
-	    hq_free( h_free );
-	    continue;
-	}
-
-	/* add new host queues to the deliver queue */
-	if ( *hq != simta_unexpanded_q ) {
+	    /* add new host queues to the deliver queue */
 	    remain_hq++;
 
 	    if ( (*hq)->hq_next_launch.tv_sec == 0 ) {
 		syslog( LOG_INFO, "Queue Adding: %s %d messages",
 			(*hq)->hq_hostname, (*hq)->hq_entries );
-		hq_deliver_push( *hq, &tv_schedule );
+		hq_deliver_push( *hq, &tv_stop, 0 );
 	    }
+
+	    hq = &((*hq)->hq_next);
 	}
 
-	hq = &((*hq)->hq_next);
+	syslog( LOG_INFO, "Queue Metrics: cycle %d Messages %d seconds %d "
+		"new %d removed %d hosts %d",
+		sd->sd_cycle, sd->sd_entries,
+		(int)(tv_stop.tv_sec - sd->sd_tv_start.tv_sec),
+		new, removed, remain_hq );
+
+	return( 0 );
     }
 
-    if ( simta_gettimeofday( &tv_stop ) != 0 ) {
-	return( -1 );
+    switch ( *entry->d_name ) {
+    /* "E*" */
+    case 'E':
+	sd->sd_entries++;
+	break;
+
+    /* "D*" */
+    case 'D':
+	return( 0 );
+
+    /* "." && ".." */
+    case '.':
+	if ( * ( entry->d_name + 1 ) == '\0' ) {
+	    /* "." */
+	    return( 0 );
+	} else if (( * ( entry->d_name + 1 ) == '.' ) &&
+		( * ( entry->d_name + 2 ) == '\0' )) {
+	    /* ".." */
+	    return( 0 );
+	}
+	/* fall through to default */
+
+    /* "*" */
+    default:
+	syslog( LOG_WARNING, "Queue: unknown file: %s/%s", sd->sd_dir,
+		entry->d_name );
+	return( 0 );
     }
 
-    syslog( LOG_INFO, "Queue Metrics: Disk Read %d: %d messages in %d seconds: "
-	    "%d new messages %d removed messages %d hosts", simta_disk_cycle,
-	    old + new, (int)(tv_stop.tv_sec - tv_start.tv_sec), new, removed,
-	    remain_hq );
+    env = NULL;
+
+    if ( simta_env_queue != NULL ) {
+	for ( ; ; env = env->e_list_next ) {
+	    if ( env == NULL ) {
+		if ( last_read != NULL ) {
+		    env = last_read->e_list_next;
+		} else {
+		    env = simta_env_queue;
+		}
+	    } else if (( env == simta_env_queue ) &&
+		    ( last_read == NULL )) {
+		env = NULL;
+		break;
+	    }
+
+	    if ( strcmp( entry->d_name + 1, env->e_id ) == 0 ) {
+		break;
+	    }
+
+	    if ( env == last_read ) {
+		env = NULL;
+		break;
+	    }
+	}
+    }
+
+    if ( env != NULL ) {
+	// ZZZ old++;
+	env->e_cycle = simta_disk_cycle;
+	last_read = env;
+	return( 0 );
+    }
+
+    /* here env is NULL, we need to create an envelope */
+    if (( env = env_create( NULL, NULL )) == NULL ) {
+	return( 1 );
+    }
+
+    if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
+	return( 1 );
+    }
+    env->e_dir = sd->sd_dir;
+
+    if ( env_read( READ_QUEUE_INFO, env, NULL ) != 0 ) {
+	env_free( env );
+	return( 0 );
+    }
+
+    /* only stand-alone queue runners should do this */
+    if ( simta_queue_filter != NULL ) {
+	/* check to see if we should skip this message */
+	if (( env->e_hostname == NULL ) || ( wildcard(
+		simta_queue_filter, env->e_hostname, 0 ) == 0 )) {
+	    env_free( env );
+	    return( 0 );
+	}
+    }
+
+    if ( queue_envelope( env ) != 0 ) {
+	return( 1 );
+    }
+
+    env->e_cycle = simta_disk_cycle;
+    // ZZZ new++;
+
+    if ( simta_env_queue == NULL ) {
+	/* insert as the head */
+	env->e_list_next = env;
+	env->e_list_prev = env;
+	simta_env_queue = env;
+    } else if ( last_read == NULL ) {
+	/* insert before the head */
+	env->e_list_next = simta_env_queue;
+	env->e_list_prev = simta_env_queue->e_list_prev;
+	simta_env_queue->e_list_prev->e_list_next = env;
+	simta_env_queue->e_list_prev = env;
+	simta_env_queue = env;
+    } else if ( last_read != NULL ) {
+	/* insert after the last read */
+	env->e_list_next = last_read->e_list_next;
+	env->e_list_prev = last_read;
+	last_read->e_list_next->e_list_prev = env;
+	last_read->e_list_next = env;
+	last_read = env;
+    }
 
     return( 0 );
 }
@@ -909,6 +963,8 @@ q_deliver( struct host_q *deliver_q )
 	} else {
 	    snet_lock = NULL;
 	}
+
+	/* JAIL-ADD implement sender selection here */
 
 	/* don't memset entire structure because we reuse connection data */
 	d.d_env = env_deliver;
@@ -1883,15 +1939,14 @@ queue_log_metrics( struct host_q *hq_schedule )
     char		filename[ MAXPATHLEN ];
     int			fd;
     FILE		*f;
-    struct timeval	tv_now;
     struct host_q	*hq;
+    struct timeval	tv_now;
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return;
     }
 
-    sprintf( filename, "%s/etc/%lX", simta_base_dir,
-	    (unsigned long)tv_now.tv_sec );
+    sprintf( filename, "%s/etc/queue_schedule", simta_base_dir );
 
     if (( fd = creat( filename, 0666 )) < 0 ) {
 	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );

@@ -31,6 +31,7 @@
 #include <signal.h>
 #include <sysexits.h>
 #include <syslog.h>
+#include <dirent.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -39,11 +40,11 @@
 #include <snet.h>
 
 #include "denser.h"
-#include "queue.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"
 #include "simta.h"
+#include "queue.h"
 
 void catch_sigint( int );
 

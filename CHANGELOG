@@ -1,4 +1,5 @@
-internal
+0.8.3.a
+    - simta one process model
     - simta_gettimeofday() preffered interface
 
 0.8.2.d

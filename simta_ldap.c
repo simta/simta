@@ -34,11 +34,11 @@
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
+#include <dirent.h>
 
 #include <snet.h>
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
 #include "simta.h"
 #include "argcargv.h"
@@ -46,6 +46,7 @@
 #include "header.h"
 #include "expand.h"
 #include "simta_ldap.h"
+#include "queue.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 

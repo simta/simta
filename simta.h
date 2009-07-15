@@ -20,6 +20,7 @@
 #define	MESSAGE_BOUNCE			(1<<6)
 
 #define	STRING_POSTMASTER		"postmaster"
+#define	S_UNEXPANDED			"Unexpanded"
 
 #define SIMTA_LOG_ID_LEN		80
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
@@ -49,8 +50,7 @@
 #define	PROCESS_Q_SLOW			2
 #define	PROCESS_RECEIVE			3
 #define	PROCESS_CLEANUP			4
-#define	PROCESS_SMTP_SERVER		5
-#define	PROCESS_Q_SCHEDULER		6
+#define	PROCESS_SERVER			5
 
 #define SERVICE_SUBMISSION_OFF		0
 #define SERVICE_SUBMISSION_ON		1
@@ -75,6 +75,15 @@
 #ifdef HAVE_LIBSSL
 #define SIMTA_SOCKET_TLS	(1<<0)
 #endif /* HAVE_LIBSSL */
+
+struct simta_dirp {
+    DIR				*sd_dirp;
+    char			*sd_dir;
+    int				sd_cycle;
+    int				sd_entries;
+    struct timeval		sd_tv_start;
+    struct timeval		sd_tv_next;
+};
 
 struct proc_type {
     struct proc_type		*p_next;
@@ -130,6 +139,7 @@ extern int				simta_listen_backlog;
 extern int				simta_disk_cycle;
 extern int				simta_launch_limit;
 extern int				simta_min_work_time;
+extern int				simta_unexpanded_time;
 extern int				simta_global_connections_max;
 extern int				simta_global_connections;
 extern int				simta_global_throttle_max;
@@ -199,6 +209,7 @@ extern char				*simta_dir_fast;
 extern char				*simta_dir_slow;
 extern char				*simta_dir_dead;
 extern char				*simta_dir_local;
+extern char				*simta_dir_command;
 extern char				*simta_data_url;
 extern char				*simta_libwrap_url;
 extern char				*simta_reverse_url;

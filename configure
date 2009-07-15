@@ -278,7 +278,7 @@ PACKAGE_BUGREPORT='simta@umich.edu'
 ac_default_prefix=/usr/local
 ac_subdirs_all="$ac_subdirs_all libsnet"
 ac_subdirs_all="$ac_subdirs_all denser"
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS resolvconf aliasdb maxconnections CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA SIMTA_MAIL_LOCAL SIMTA_PROCMAIL OPTOPTS HAVE_TM_GMTOFF SRC SIMTA_OBJ SIMSEND_OBJ Q_RUNNER_OBJ EXPANDER_OBJ SIMTALIBS SIMTALDFLAGS SIMTACPPFLAGS HAVE_DB subdirs LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS resolvconf aliasdb maxconnections CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA SIMTA_MAIL_LOCAL SIMTA_PROCMAIL OPTOPTS HAVE_TM_GMTOFF SRC SIMTA_OBJ SIMSEND_OBJ SIMC_OBJ Q_RUNNER_OBJ EXPANDER_OBJ SIMTALIBS SIMTALDFLAGS SIMTACPPFLAGS HAVE_DB subdirs LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -2857,6 +2857,7 @@ echo "${ECHO_T}$ac_cv_struct_gmtoff" >&6
 
 
 
+
     echo "$as_me:$LINENO: checking for db" >&5
 echo $ECHO_N "checking for db... $ECHO_C" >&6
     dbdirs="/usr/local/db /usr/db \
@@ -2930,6 +2931,7 @@ echo "${ECHO_T}yes" >&6
 	    SRC="$SRC simta_ldap.c dn.c"
 	    SIMTA_OBJ="$SIMTA_OBJ simta_ldap.o dn.o"
 	    SIMSEND_OBJ="$SIMSEND_OBJ simta_ldap.o dn.o"
+	    SIMC_OBJ="$SIMC_OBJ simta_ldap.o dn.o"
 	    Q_RUNNER_OBJ="$Q_RUNNER_OBJ simta_ldap.o dn.o"
 	    EXPANDER_OBJ="$EXPANDER_OBJ simta_ldap.o dn.o"
 	    cat >>confdefs.h <<\_ACEOF
@@ -4116,6 +4118,7 @@ s,@HAVE_TM_GMTOFF@,$HAVE_TM_GMTOFF,;t t
 s,@SRC@,$SRC,;t t
 s,@SIMTA_OBJ@,$SIMTA_OBJ,;t t
 s,@SIMSEND_OBJ@,$SIMSEND_OBJ,;t t
+s,@SIMC_OBJ@,$SIMC_OBJ,;t t
 s,@Q_RUNNER_OBJ@,$Q_RUNNER_OBJ,;t t
 s,@EXPANDER_OBJ@,$EXPANDER_OBJ,;t t
 s,@SIMTALIBS@,$SIMTALIBS,;t t

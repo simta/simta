@@ -31,9 +31,9 @@
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
 #include "simta.h"
+#include "queue.h"
 
 #define	INCOMPLETE_T		1
 #define	STRANDED_D		2

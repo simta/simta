@@ -41,13 +41,13 @@
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
-#include "ml.h"
 #include "line_file.h"
-#include "smtp.h"
 #include "expand.h"
 #include "simta.h"
+#include "queue.h"
+#include "smtp.h"
+#include "ml.h"
 
 
     int

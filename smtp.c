@@ -35,16 +35,17 @@
 #include <strings.h>
 #include <string.h>
 #include <syslog.h>
+#include <dirent.h>
 
 #include "denser.h"
-#include "queue.h"
 #include "line_file.h"
 #include "envelope.h"
-#include "smtp.h"
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
 #include "simta.h"
+#include "queue.h"
+#include "smtp.h"
 #include "mx.h"
 
 #ifdef DEBUG

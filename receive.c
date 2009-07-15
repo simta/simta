@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <db.h>
+#include <dirent.h>
 
 #ifdef HAVE_LIBWRAP
 #include <tcpd.h>
@@ -62,7 +63,6 @@ extern SSL_CTX	*ctx;
 
 #include "bdb.h"
 #include "denser.h"
-#include "queue.h"
 #include "ll.h"
 #include "envelope.h"
 #include "expand.h"
@@ -72,6 +72,7 @@ extern SSL_CTX	*ctx;
 #include "timeval.h"
 #include "mx.h"
 #include "simta.h"
+#include "queue.h"
 #include "line_file.h"
 #include "header.h"
 
@@ -2472,6 +2473,17 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 #ifdef HAVE_LIBWRAP
     char				*ctl_hostname;
 #endif /* HAVE_LIBWRAP */
+
+    /*
+     * global connections max 
+     * auth init
+     * check DNS reverse
+     * TCP wrappers
+     * RBLs
+     * if not RBL_ACCEPT, local connections max
+     * write before banner check
+     * opening banner * command line loop
+     */
 
     /*
      * local variable init

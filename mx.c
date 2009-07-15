@@ -15,6 +15,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <syslog.h>
+#include <dirent.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -32,12 +33,12 @@ extern SSL_CTX  *ctx;
 #include <db.h>
 #include "ll.h"
 #include "denser.h"
-#include "queue.h"
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"
 #include "mx.h"
 #include "simta.h"
+#include "queue.h"
 
 
     struct dnsr_result *

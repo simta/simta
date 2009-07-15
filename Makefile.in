@@ -15,6 +15,8 @@ LOCAL_Q=/var/spool/simta/local
 SLOW_Q=/var/spool/simta/slow
 FAST_Q=/var/spool/simta/fast
 DEAD_Q=/var/spool/simta/dead
+SIMTA_ETC=/var/spool/simta/etc
+SIMTA_COMMAND=/var/spool/simta/command
 CERTDIR=${SIMTACONFDIR}/cert
 TLS_CAFILE=${CERTDIR}/ca.pem
 TLS_CERT=${CERTDIR}/cert.pem
@@ -27,6 +29,9 @@ SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		queue.c ml.o smtp.o expand.o mx.o bounce.o \
 		q_cleanup.o tls.o wildcard.o red.o
 TLSCONOBJ=	tlsconnect.o
+SIMCOBJ=	@SIMC_OBJ@ simc.o line_file.o envelope.o header.o \
+		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
+		smtp.c ml.o mx.o wildcard.o red.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o header.o \
 		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
 		smtp.c ml.o mx.o wildcard.o red.o
@@ -74,7 +79,7 @@ SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
 BINTARGETS=	simrbl simreverse simalias simexpander denser/dense
-TARGETS=	simta tlsconnect simsendmail q_runner simexpander sla \
+TARGETS=	simta tlsconnect simsendmail q_runner simexpander sla simc \
 		${BINTARGETS}
 
 all : ${TARGETS}
@@ -91,11 +96,14 @@ install : all FRC
 	-mkdir -p ${SLOW_Q}
 	-mkdir -p ${FAST_Q}
 	-mkdir -p ${DEAD_Q}
+	-mkdir -p ${SIMTA_ETC}
+	-mkdir -p ${SIMTA_COMMAND}
 	-chown -R simta ${SPOOLDIR}
 	-chgrp -R simta ${SPOOLDIR}
 	-chmod -R 750 ${SPOOLDIR}
 	${INSTALL} -m 755 -o simta -g simta -c simta ${SBINDIR}/
 	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${SBINDIR}/
+	${INSTALL} -m 6755 -o simta -g simta -c simc ${SBINDIR}/
 	for i in ${BINTARGETS}; do \
 	    ${INSTALL} -m 0755 -c $$i ${BINDIR}; \
 	done
@@ -116,6 +124,10 @@ simck : libsnet/libsnet.a ${SIMCKOBJ} Makefile
 
 sla : libsnet/libsnet.a ${SLAOBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
+
+simc : ${SIMCOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simc ${SIMCOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
 simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile

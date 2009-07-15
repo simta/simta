@@ -36,18 +36,19 @@
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
+#include <dirent.h>
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "expand.h"
 #include "red.h"
 #include "envelope.h"
-#include "ml.h"
 #include "simta.h"
 #include "argcargv.h"
 #include "mx.h"
 #include "simta_ldap.h"
+#include "queue.h"
+#include "ml.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -95,6 +96,7 @@ int			simta_local_throttle_sec = 1;
 int			simta_local_connections_max = 0;
 int			simta_launch_limit = SIMTA_LAUNCH_LIMIT;
 int			simta_min_work_time = SIMTA_MIN_WORK_TIME;
+int			simta_unexpanded_time = 60;
 int			simta_q_runner_local_max = SIMTA_MAX_RUNNERS_LOCAL;
 int			simta_q_runner_local = 0;
 int			simta_q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
@@ -161,6 +163,7 @@ char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
 char			*simta_dir_slow = NULL;
 char			*simta_dir_fast = NULL;
+char			*simta_dir_command = NULL;
 char			*simta_base_dir = "/var/spool/simta";
 char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
 char			simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
@@ -1012,7 +1015,23 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_LAUNCH: %d\n",
-		simta_launch_limit );
+		    simta_launch_limit );
+
+	} else if ( strcasecmp( av[ 0 ], "UNEXPANDED_TIME" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_unexpanded_time = atoi( av [ 1 ] );
+	    if ( simta_unexpanded_time < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: UNEXPANDED_TIME can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MIN_WORK_TIME: %d\n",
+		    simta_unexpanded_time );
 
 	} else if ( strcasecmp( av[ 0 ], "MIN_WORK_TIME" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1791,6 +1810,12 @@ simta_config( char *base_dir )
 
     sprintf( path, "%s/%s", base_dir, "local" );
     if (( simta_dir_local = strdup( path )) == NULL ) {
+	perror( "strdup" );
+	return( -1 );
+    }
+
+    sprintf( path, "%s/%s", base_dir, "command" );
+    if (( simta_dir_command = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }

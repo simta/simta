@@ -11,6 +11,7 @@
 #include <time.h>
 #include <pwd.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -29,13 +30,13 @@
 #include "mx.h"
 #include "denser.h"
 #include "line_file.h"
-#include "queue.h"
 #include "ll.h"
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"
 #include "header.h"
 #include "simta.h"
+#include "queue.h"
 #include "bdb.h"
 
 #ifdef HAVE_LDAP

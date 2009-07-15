@@ -30,13 +30,13 @@
 #include <snet.h>
 
 #include "denser.h"
-#include "queue.h"
 #include "envelope.h"
 #include "expand.h"
 #include "ll.h"
 #include "simta.h"
 #include "line_file.h"
 #include "header.h"
+#include "queue.h"
 
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
