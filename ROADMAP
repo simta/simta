@@ -1,58 +1,57 @@
 SiMTA
-26 January 2006
-Attending: Ed, Patrick, Paul, Becky, Wes, Sean, Gab, Kevin, Liam
+18 July 2006
+Attending: Ed, Becky, Wes, Sean, Gab, Brian, Liam, Tony
 
-Logging:
-- (B 2)   Message-Id
+- no progress
+? unknown progress
+D this feature is currently under development
+P this feature is currently in production
 
-Config File:
-P (S 2)   sample
-P (B 2)   ignore reverse & service smtp off are broken
-P (B 3)   -m -' ' aren't in the config
-D (S 1)   ability to function with no config file = sensible defaults
-D (B 3)   precedence of config vs command line
+B bug
+F feature
+S support
 
-Build:
-? (B 1)        BDB -> no aliases, or flatfile aliases
-P (B 1)        LDAP + SASL
-- (B 1)        non-Linux
-?(B 1)         SASL
-?(B 1)         SSL
+Build & Config:
+D (S 1)    ability to function with no config file = sensible defaults
+- (B 2)    non-Linux build
+- (S 2)    man pages
+- (S 3)    simta talk/class
+- (B 3)    precedence of config vs command line
+- (B 3)    BDB -> no aliases, or flatfile aliases
+? (B 3)    SASL build
+? (B 3)    SSL build
 
-simsendmail:
-P (F 1)   -f trusted
-
-P (B 1) queue runner
-P (B 1)   slow start on large queue
-- (F 3)   fast timeouts during startup
-- (F 3)   fast timeouts for new mail
-
-P (B 1) don't receive messages you can't expand
-
-delivery:
-- (F 3)   webmaster@wcbn.org -> wcbn-webmaster@umich.edu
-D (F 1)   support configuration of local delivery agents
-
-aliases:
-- (B 3)   don't accept aliases you can't use
-- (F 3)   /dev/null support
-D (F 2)   support on a per-domain basis
-- (F 3)   ldap-config shouldn't be global
+RED:
+D (F 1)D   support configuration of local delivery agents
+- (B 1)D   smtp outbound clients exit with 0 or 1 depending on
+          success (2xx or 5xx) or failures (can't connect, 4xx)
+- (F 1)RE  support for aliases & passwd file on a per-domain basis
+- (B 1)E   configurable bad email address default target address
+- (B 2)RED quoting for illegal email addresses (RED)
+- (F 2)D   LMTP + simlmtp wrapper
+- (F 2)D   Simta IPC for queue runner launches
+- (B 2)RED MID follow-through logging
+- (B 2)R   Missing message-id
+- (B 2)R   Connect.in multiple log line vetting
+- (B 2)R   message size logging
+- (B 2)R   simalias: don't accept aliases you can't use
+- (F 3)RE  per-domain regex webmaster@wcbn.org -> wcbn-webmaster@umich.edu
+- (F 3)E   /dev/null support
+- (F 3)RE  ldap-config shouldn't be global
+- (F 3)D   expander only thread
+- (F 3)R   incoming connections that reach TEMPFAIL status don't count
+- (F 3)RED Gentle child killing (SIGUSR1?)
+- (F 3)D   config file support for queue launch times
+- (F 3)R   interface listening choices
 
 anti-spam measures:
-- (F 2)   mail-from SMTP checking
-P (B 3)   3-strikes off-by-one bug
-- (F 2)   tar pit
-- (F 1)   penalty-box
-
-blocking:
-- (F 3)   env to/from blocking
-- (F 2)   content filter edit E-file
-
-DNS:
-- (F 3)   shorten RBL timeouts
+- (F 1)    penalty-box - optionally calculate checksum
+- (F 2)    tar pit
+- (F 3)    mail-from SMTP checking
+- (F 3)    env to/from blocking
+- (F 3)    shorten RBL timeouts
 
 smtp-auth:
-- (F 3)   received header
-- (F 3)   other headers
+- (F 3)    received header
+- (F 3)    other headers
 
