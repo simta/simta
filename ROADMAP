@@ -1,57 +1,118 @@
-SiMTA
-18 July 2006
-Attending: Ed, Becky, Wes, Sean, Gab, Brian, Liam, Tony
+simta roadmap Apr-07
 
+Development Status:
+-------------------
 - no progress
 ? unknown progress
-D this feature is currently under development
 P this feature is currently in production
+C this feature is completed
+D this feature is currently under development
 
+Feature type:
+-------------------
 B bug
 F feature
 S support
 
+Feature precedence:
+-------------------
+1 There is pressing need for this feature
+2 This feature is on the development short list
+3 THis feature is in the conceptual planning stages
+
+Completed:
 Build & Config:
-D (S 1)    ability to function with no config file = sensible defaults
-- (B 2)    non-Linux build
-- (S 2)    man pages
-- (S 3)    simta talk/class
-- (B 3)    precedence of config vs command line
-- (B 3)    BDB -> no aliases, or flatfile aliases
-? (B 3)    SASL build
-? (B 3)    SSL build
+P (B 3)    SASL build
+P (B 3)    SSL build
 
 RED:
-D (F 1)D   support configuration of local delivery agents
-- (B 1)D   smtp outbound clients exit with 0 or 1 depending on
-          success (2xx or 5xx) or failures (can't connect, 4xx)
-- (F 1)RE  support for aliases & passwd file on a per-domain basis
-- (B 1)E   configurable bad email address default target address
-- (B 2)RED quoting for illegal email addresses (RED)
-- (F 2)D   LMTP + simlmtp wrapper
-- (F 2)D   Simta IPC for queue runner launches
-- (B 2)RED MID follow-through logging
-- (B 2)R   Missing message-id
-- (B 2)R   Connect.in multiple log line vetting
-- (B 2)R   message size logging
-- (B 2)R   simalias: don't accept aliases you can't use
-- (F 3)RE  per-domain regex webmaster@wcbn.org -> wcbn-webmaster@umich.edu
-- (F 3)E   /dev/null support
-- (F 3)RE  ldap-config shouldn't be global
-- (F 3)D   expander only thread
-- (F 3)R   incoming connections that reach TEMPFAIL status don't count
-- (F 3)RED Gentle child killing (SIGUSR1?)
-- (F 3)D   config file support for queue launch times
-- (F 3)R   interface listening choices
+P (F 1)D   support configuration of local delivery agents
+P (B 1)D   queue deliver childern report back queue activity
+P (F 1)RE  support for aliases & passwd file on a per-domain basis
+P (B 2)R   Connect.in multiple log line vetting
+P (B 2)RED quoting for illegal email addresses (RED)
 
 anti-spam measures:
-- (F 1)    penalty-box - optionally calculate checksum
-- (F 2)    tar pit
+C (F 1)    penalty-box - calculate message checksum
+
+Here is the new list, with the completed items pruned, and some new items
+added in:
+
+FEATURES:
+D (F 1)    message size logging
+D (F 1)    MID follow-through logging, discussion of "no MID" mail
+- (F 1)    configurable bad email address default target address
+- (F 1)    optimise disk read MID search
+- (F 1)    alias upgrade: wildcards, /dev/null, pipe2program discussion
+- (F 1)    Recycle MX, agressive delivery
+- (F 2)    disk read and queue runner integration
+- (F 2)    timer for queue file dump
+- (F 2)    expander only thread
+- (F 2)    incoming connections that reach TEMPFAIL status don't count
+- (B 2)    high pref mx bug
+- (B 2)    make sure LDAP close is invoked
+- (F 2)    optional pipe to program for the alias db
+- (F 3)    Gentle child killing
+- (F 3)    ldap-config shouldn't be global
+- (F 3)    config file support for queue launch times
+- (F 3)    LMTP + simlmtp wrapper
+- (F 3)    Simta IPC for queue runner launches
+- (F 3)    per-domain regex webmaster@wcbn.org -> wcbn-webmaster@umich.edu
+- (F 3)    interface listening choices
+- (F 3)    RE rules for Cyrus
+- (F 3)    support mail filter changing the Efile
+- (F 3)    interface listening choices
+- (F 3)    smtp-auth: received & other header
+
+anti-spam measures:
+D (F 1)    tar pit
+- (F 1)    TCP window sizing
+- (S 1)    LDAP multi domain acceptance, for gateway consolidation
+- (S 1)    LDAP groups need permitted sender field
+- (F 1)    LDAP exclusive moderated groups - ignore non-moderators, for lists
+- (S 2)    Receive SERVICE BLOCK - negative opperator
+- (S 3)    SMTP inbounder has lesser domain requiremnts than the SMTP outbounder
+- (S 3)    pass RBL info to the content filter
+- (S 3)    UMICH DOMAIN ONLY groups, invoke rbl
 - (F 3)    mail-from SMTP checking
 - (F 3)    env to/from blocking
 - (F 3)    shorten RBL timeouts
 
-smtp-auth:
-- (F 3)    received header
-- (F 3)    other headers
+Build, Config, Support:
+D (S 1)    ability to function with no config file = sensible defaults
+D (S 1)    all options available in the config file
+D (S 1)    command line args override config file, and warnings are issued
+D (S 2)    man pages/other documentation
+- (S 2)    non-Linux build
+- (S 2)    Release on SourceForge/FreshMeat
+- (F 2)    Config file directives for machine classes
+D (S 3)    simta talk/class
+- (F 3)    BDB -> no aliases, or flatfile aliases
+
+0.8.0:
+   - S RECEIVE_PUNISHMENT can be configed for TARPIT or TEMPFAIL
+   - S TARPIT config
+   - S limit TCP window until we are sure it's a valid connection
+   - S better tarpit metrics, like how long they stuck around per stage
+   - double check size of incoming message gets logged correctly
+
+   + I clean up receive global variables
+   + read before banner triggers punishment
+   + env parse understands but does not create the MID entry
+   + content filter return can trigger tar pit mode
+   + SMTP Data has configurable timers for both overall and line
+   + receive data errors should remove the dfile ASAP
+   + Content filter checksum now includes all non-failed rcpt to addresses
+   + 0.7.2 merge
+   + 0.7.3 merge
+   + New Content Fileter environment variable, SIMTA_CHECKSUM_SIZE
+   + SMTP Data timer is for global transaction, not for a line
+   + SMTP DATA Time Metric
+   + SMTP User not local error message change includes local hostname
+   + Change MIN_WORK_TIME default to 300 seconds
+   + Added simck test program
+   + Supressed compiler warnings
+   + New queue scheduler timing prefers working to reading
+   + Added BLOCK and ACCEPT to RBL syntax for whitelisting
+   + bugfix: CTX init function added
 
