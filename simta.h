@@ -124,6 +124,8 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
+extern int				simta_command_read_entries;
+extern int				simta_disk_read_entries;
 extern int				simta_domain_trailing_dot;
 extern int				simta_bitbucket;
 extern int				simta_aggressive_delivery;

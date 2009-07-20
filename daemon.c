@@ -757,7 +757,7 @@ simta_daemonize_server( void )
 set_sleep_time( int *sleep, int val )
 {
     if ( val < 0 ) {
-	return( 1 );
+	val = 0;
     }
 
     if (( *sleep < 0 ) || ( *sleep > val )) {
@@ -830,8 +830,8 @@ simta_server( void )
     struct timeval		tv_sleep = { 0, 0 };
     struct timeval		tv_now;
     char			*sleep_reason;
+    int				entries;
     int				ready;
-    int				tmp;
     int				sleep_time;
     int				launched;
     FILE			*pf;
@@ -873,6 +873,16 @@ simta_server( void )
     /* main daemon loop */
     syslog( LOG_DEBUG, "Debug: Starting Daemon" );
     for ( ; ; ) {
+	/* LOCAL RUNER */
+	/* CLEAN CHILD PROCESSES */
+	/* COMMAND DISK */
+	/* SLOW DISK */
+	/* QUEUE RUNS */
+	/* LISTEN */
+	/* GETTIMEOFDAY */
+	/* CLEAN THROTTLE TABLE */
+	/* RECEIVE CHILDREN */
+
 	sleep_time = -1;
 	sleep_reason = "Unset";
 
@@ -882,53 +892,63 @@ simta_server( void )
 		simsendmail_signal = 0;
 
 		if ( simta_child_q_runner( NULL ) != 0 ) {
-		    break;
+		    goto error;
 		}
 	    } else {
 		syslog( LOG_WARNING, "Daemon Delay: MAX_Q_RUNNERS_LOCAL met: "
 			"local queue runner launch delayed" );
 	    }
-	} else {
-	    syslog( LOG_DEBUG, "Debug: No Local Runner" );
 	}
 
 	if ( child_signal != 0 ) {
-	    syslog( LOG_DEBUG, "Debug: waiting for children" );
 	    child_signal = 0;
 	    if ( daemon_waitpid() != 0 ) {
-		break;
+		goto error;
 	    }
 	}
 
 	if (( command_dirp.sd_dirp != NULL ) || ( command_signal != 0 )) {
-	    if ( command_dirp.sd_dirp == NULL ) {
-		syslog( LOG_DEBUG, "Debug: Command read start" );
-		command_signal = 0;
-	    } else {
-		syslog( LOG_DEBUG, "Debug: Command read entry" );
-	    }
-	    if ( daemon_commands( &command_dirp ) != 0 ) {
-		break;
-	    }
-	    if ( command_dirp.sd_dirp == NULL ) {
-		syslog( LOG_DEBUG, "Debug: Command read end" );
+	    for ( entries = 1; ; entries++ ) {
+		if ( command_dirp.sd_dirp == NULL ) {
+		    syslog( LOG_DEBUG, "Debug: Command read start" );
+		    command_signal = 0;
+		} else {
+		    syslog( LOG_DEBUG, "Debug: Command read entry" );
+		}
+		if ( daemon_commands( &command_dirp ) != 0 ) {
+		    goto error;
+		}
+		if ( command_dirp.sd_dirp == NULL ) {
+		    syslog( LOG_DEBUG, "Debug: Command read end" );
+		    break;
+		}
+		if (( simta_command_read_entries > 0 ) &&
+			( entries >= simta_command_read_entries )) {
+		    break;
+		}
 	    }
 	}
 
-	if (( slow_dirp.sd_dirp != NULL ) ||
-		( tv_now.tv_sec >= tv_disk.tv_sec )) {
-	    if ( slow_dirp.sd_dirp == NULL ) {
-		syslog( LOG_DEBUG, "Debug: Slow Queue Read Start" );
-	    } else {
-		syslog( LOG_DEBUG, "Debug: Slow Queue Read Entry" );
+	if ( tv_now.tv_sec >= tv_disk.tv_sec ) {
+	    for ( entries = 1; ; entries++ ) {
+		if ( slow_dirp.sd_dirp == NULL ) {
+		    syslog( LOG_DEBUG, "Debug: Slow Queue Read Start" );
+		} else {
+		    syslog( LOG_DEBUG, "Debug: Slow Queue Read Entry" );
+		}
+		if ( q_read_dir( &slow_dirp ) != 0 ) {
+		    goto error;
+		}
+		if ( slow_dirp.sd_dirp == NULL ) {
+		    tv_disk.tv_sec = tv_now.tv_sec + simta_min_work_time;
+		    syslog( LOG_DEBUG, "Debug: Slow Queue Read End" );
+		    break;
+		}
+		if (( simta_disk_read_entries > 0 ) &&
+			( entries >= simta_disk_read_entries )) {
+		    break;
+		}
 	    }
-	    if ( q_read_dir( &slow_dirp ) != 0 ) {
-		break;
-	    }
-	    if ( slow_dirp.sd_dirp == NULL ) {
-		syslog( LOG_DEBUG, "Debug: Slow Queue Read End" );
-	    }
-	    tv_disk.tv_sec = tv_now.tv_sec + simta_min_work_time;
 	}
 	if ( set_sleep_time( &sleep_time, tv_disk.tv_sec - tv_now.tv_sec )
 		== 0 ) {
@@ -944,7 +964,7 @@ simta_server( void )
 		tv_unexpanded.tv_sec = simta_unexpanded_time + tv_now.tv_sec;
 		syslog( LOG_DEBUG, "Debug: Unexpanded Runner" );
 		if ( simta_child_q_runner( simta_unexpanded_q ) != 0 ) {
-		    break;
+		    goto error;
 		}
 	    }
 	    if ( set_sleep_time( &sleep_time,
@@ -954,16 +974,6 @@ simta_server( void )
 			sleep_reason, sleep_time );
 	    }
 	}
-
-	/* LOCAL RUNER */
-	/* CLEAN CHILD PROCESSES */
-	/* COMMAND DISK */
-	/* SLOW DISK */
-	/* QUEUE RUNS */
-	/* LISTEN */
-	/* GETTIMEOFDAY */
-	/* CLEAN THROTTLE TABLE */
-	/* RECEIVE CHILDREN */
 
 	/* check to see if we need to launch queue runners */
 	for ( launched = 1; simta_deliver_q != NULL; launched++ ) {
@@ -998,7 +1008,8 @@ simta_server( void )
 		syslog( LOG_NOTICE, "Daemon Delay: %d : "
 			"Queues are not caught up and "
 			"MAX_Q_RUNNERS_SLOW has been met",
-			tmp );
+			tv_now.tv_sec -
+			simta_deliver_q->hq_next_launch.tv_sec );
 		break;
 	    }
 
@@ -1035,12 +1046,6 @@ simta_server( void )
 	    sleep_reason = "Child signal";
 	}
 
-	if ( slow_dirp.sd_dirp != NULL ) {
-	    syslog( LOG_DEBUG, "Debug: Reading slow" );
-	    sleep_time = 0;
-	    sleep_reason = "reading slow";
-	}
-
 	if ( sleep_time < 0 ) {
 	    sleep_time = 0;
 	}
@@ -1052,7 +1057,7 @@ simta_server( void )
 		sleep((unsigned int)sleep_time );
 	    }
 	    if ( simta_gettimeofday( &tv_now ) != 0 ) {
-		break;
+		goto error;
 	    }
 	    continue;
 	} 

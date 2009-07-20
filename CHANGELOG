@@ -1,3 +1,6 @@
+0.8.3.b
+    - DISK_FACTOR and COMMAND_FACTOR added
+
 0.8.3.a
     - simta one process model
     - simta_gettimeofday() preffered interface

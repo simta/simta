@@ -74,6 +74,8 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_command_read_entries = 10;
+int			simta_disk_read_entries = 10;
 int			simta_domain_trailing_dot = 1;
 int			simta_bitbucket = -1;
 int			simta_aggressive_delivery = 1;
@@ -1016,6 +1018,38 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_LAUNCH: %d\n",
 		    simta_launch_limit );
+
+	} else if ( strcasecmp( av[ 0 ], "DISK_FACTOR" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_disk_read_entries = atoi( av [ 1 ] );
+	    if ( simta_disk_read_entries < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: DISK_FACTOR can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DISK_FACTOR: %d\n",
+		    simta_disk_read_entries );
+
+	} else if ( strcasecmp( av[ 0 ], "COMMAND_FACTOR" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_command_read_entries = atoi( av [ 1 ] );
+	    if ( simta_command_read_entries < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: COMMAND_FACTOR can't be less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "COMMAND_FACTOR: %d\n",
+		    simta_command_read_entries );
 
 	} else if ( strcasecmp( av[ 0 ], "UNEXPANDED_TIME" ) == 0 ) {
 	    if ( ac != 2 ) {
