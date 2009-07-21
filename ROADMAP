@@ -1,99 +1,104 @@
-simta roadmap fall 2008
+simta roadmap spring-summer 2009
 ---
 
-0 - ASAP
-1 - high priority
-2 - medium priority
-3 - low priority
-4 - someday
+key                                 priority
++ : completed                       0 : ASAP
+x : in release pipeline             1 : high priority
+! : in progress                     2 : medium priority
+- : development has not started     3 : low priority
+                                    4 : someday
 
-release schedule
-0.8.1 FINAL
-- priority 1 bug fixes
-- as much logging as we can squeeze in
-0.8.2
-- 1 single master queue runner/smtp listener process
-- 1 content filter bounce (smtp.mail)
-- 1 receive.c timer for accepted message delivery & no activity
-0.8.3.x -- gateway enhancements
+0.8.1 (completed Apr-09)
++ 1 logging audit, improvements
++ 1 libsnet bugfix
++ 1 content filter return value now bitfield & invoked for all delivery modes
++ 1 RBL logging includes return value from lookup
++ 1 fix simta -C overwrites pidfile bug
++ 2 check for write before banner
++ 2 SIMTA_UID, SIMTA_MID, SIMTA_PID, SIMTA_CID in content filter
++ 3 add timezone to simsendmail's DATE field
+
+0.8.2 (completed Jun-09)
++ 1 content filter bounce (for smtp.mail)
++ 1 content filter jail
++ 1 receive.c timer for accepted message delivery & no activity
++ 1 global, per-IP connection rate limits
++ 2 global relay should still check mail from domain
++ 2 option to disable mail_from domain checking (DISABLE_SENDER_CHECKING)
++ 2 option to deliver immediately after accept
++ 2 connection startup sequence audit
++ 2 RBL_ACCEPT overrides per-IP max connections & connection rate
++ 2 DNS logging: "unresolved"/"unknown"/"mismatch"
++ 2 RBL_LOG
++ 3 simple logging when simta exits
+
+
+0.8.3 mail jail (active development)
++ 1 single master queue runner/smtp listener process
++ 1 simta IPC using C files
++ 2 ability to re-prioritize/kick queues
+! 2 queue processing by user (mail jail)
+- 2 queue-only (mail jail)
++ 3 better handling of domain names with trailing dot
+
+
+0.8.4.x gateway enhancements/collapse 2-tier delivery
 - 2 simta.conf & ldap include files
 - 2 per domain RBLs, potentially other config options as well
 - 2 RE module for cyrus lookups (mail.umich.edu)
 - 3 mutiple content filters: mail_from/rcpt_to/data/post-expansion
-0.8.?
-- 1 deliver local mail with no running simta daemon
-- 2 simsendmail overrun bug
+
 ...
 0.9.0 - first release to general public
 
-BUG
-x   1 simta -C overwrites pidfile
-x   1 add timezone to simsendmail's DATE field
-x   2 simsendmail overrun bug
-  3 group errors-to rewrite bug
-  3 better localhost check for punt and jail hostnames
+
+BUGS
+    1 ipv6/denser
+    3 simsendmail overrun bug
+    3 group errors-to rewrite bug
+    3 better localhost check for punt and jail hostnames
 
 FEATURES
-x   1 deliver local mail with no running simta daemon (sendmail replacement)
-x   1 content filter bounce (smtp.mail)
-x   1 receive.c timer for accepted message delivery & no activity
-  2 shorten RBL timeouts
-
-mail jail
-  2 queue-only (mail jail)
-  2 ability to re-prioritize (kick) queues
-  2 queue processing by user (mail jail)
-  4 config file support for queue launch times
-
 gateway enhancements
-  2 mail_from check vs domains we have R rules
+    2 mail_from check vs domains we have R rules
 x   2 simta.conf & ldap include files (1 week)
 x   2 RE module for cyrus lookups (mail.umich.edu)
 x   2 per domain RBLs, potentially other config options as well
 x   3 mutiple content filters: mail_from/rcpt_to/data/post-expansion
-  3 umich-only: requires user_rbl + accept + configurable attribute
-      - analyze the difficulty of configurable rbl attributes
-  4 LDAP exclusive moderated groups - ignore non-moderators, for lists
+    3 umich-only: requires user_rbl + accept + configurable attribute
+    4 LDAP exclusive moderated groups - ignore non-moderators, for lists
 
 delivery optimization
-  3 envelope splitting
-  3 deliver in parallel to multiple mx records
-  3 better interleave delivery/disk reads
-  3 delivery agent can be called with multiple recipients (LMTP)
-  3 expander only thread
+    3 envelope splitting
+    3 deliver in parallel to multiple mx records
+    3 better interleave delivery/disk reads
+    3 delivery agent can be called with multiple recipients (LMTP)
+    3 expander only thread
+    3 immediate queueing mode only applied to inbound port 25 (not local)
 
 general architecture
 x   1 single master queue runner/smtp listener process
-  2 R rules for accept AND exclusion
-  3 child killing
-  3 alias upgrade: wildcards, /dev/null, pipe2program discussion
-  4 delay mode, similar to tarpit but save data (eg for smtp.mail or kintera)
-  4 interface listening choices
-  4 SMTP stage individual timeouts
-  4 expansion limits (configurable)
-  4 strict moderator address matching?
+    1 deliver local mail with no running simta daemon (sendmail replacement)
+    1 smtp listen should occur after disk read during startup
+    2 relay host
+    2 R rules for accept AND exclusion
+    2 shorten RBL timeouts?
+    2 add option to skip rcpt to syntax check
+    3 child killing
+    3 alias upgrade: wildcards, /dev/null, pipe2program discussion
+    3 simexpander take addresses on stdin
+    4 config file support for queue launch times
+    4 interface listening choices
+    4 expansion limits (configurable)
+    4 strict moderator address matching?
+    4 variable SMTP stage timeouts
 
 support
-  3 "make test" (regression tests)
-  1 log auth info in mail header
-  - LOG logging info changes for gab
-  - LOG SMTP auth log who authed in Rcpt line
-  - LOG queue and process logging enhancements
-  - LOG expansion metric
-  - LOG log line for terminal recipients in an expanded message
-  - LOG message size for rejected messages
-  - LOG add sender info to PB log lines
-  - LOG IP with from/to
-  - LOG number of users for each SMTP case
-  - LOG # recipients A/T/F
-  - LOG want to know size of message in all cases
-  - LOG want to know why outcome
-  - LOG FROM address missing on some acceptance logs
-  - LOG IP/hostname on address acceptance
-  - LOG standardize on Metric
-  - LOG investigate improved efficiency for groups expansion limitations
-  - LOG better logging when pidfile doesn't point at daemon
-  - docs: INSTALL, README, config, man pages
-  - sourceforge, etc.
-  - log review
+    2 SIGHUP to re-read conf file (e.g. to change max connections w/o restart)
+    3 "make test" (regression tests)
+    3 BDB -> no aliases, or flatfile aliases
+    4 ability to function with no config file = sensible defaults
+    4 command line args override config file, and warnings are issued
+    4 non-Linux build
+
 
