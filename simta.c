@@ -1417,7 +1417,7 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "STRICT_SMTP_SYNTAX_OFF\n" );
 
 	} else if ( strcasecmp( av[ 0 ],
-		"GLOBAL_RELAY_DISABLE_SENDER_CHECKING" ) == 0 ) {
+		"DISABLE_SENDER_CHECKING" ) == 0 ) {
 	    if ( ac != 1 ) {
 		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
@@ -1425,7 +1425,7 @@ simta_read_config( char *fname )
 	    }
 	    simta_from_checking = 0;
 	    if ( simta_debug ) {
-		printf( "GLOBAL_RELAY_DISABLE_SENDER_CHECKING\n" );
+		printf( "DISABLE_SENDER_CHECKING\n" );
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_PORT" ) == 0 ) {
