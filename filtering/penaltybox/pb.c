@@ -10,14 +10,17 @@
  * This program will be exec'd by the enclosing shell script, so the exit
  * values must obey those that SiMTA uses for content filters:
  *
- *	0	accept
- *	1	discard
- *	2	reject
- *	3	tempfail
+ * The content filter return code is a bitfield.  The first line of text
+ * returned from the content filter will be logged and displayed to the
+ * SMTP client.
+ *
+ * Results:
+ * 0x0000 0000	MESSAGE_ACCEPT
+ * 0x0000 0001	MESSAGE_TEMPFAIL
+ * 0x0000 0010	MESSAGE_REJECT
  *
  * On most errors, we will "accept" the message.  During initial insertion
- * into the database, we will "tempfail" the message.  We're not using
- * "discard" or "reject" at all in this case.
+ * into the database, we will "tempfail" the message.
  */
 
 #define _PATH_MYSQL_CONFIG	"./my-pb.conf"
@@ -109,7 +112,7 @@ main( int ac, char *av[] )
 	 * Should I commit this transaction?  Should I close the connection?
 	 */
 	printf( "PenaltyBox: Record: [%s] <%s> %s\n", ip, from, reason );
-	exit( 3 );
+	exit( 1 );
     }
 
     if ( ER_DUP_ENTRY != mysql_errno( &mysql )) {
@@ -155,7 +158,7 @@ main( int ac, char *av[] )
     if (( dt = difftime( now, then )) < 5 * 60 ) {
 	printf( "PenaltyBox: Window: %ds [%s] <%s> %s\n",
 		(int)dt, ip, from, row[ 1 ] );
-	exit( 3 );
+	exit( 1 );
     }
 
     if (( len = snprintf( query, sizeof( query ),
@@ -175,3 +178,4 @@ main( int ac, char *av[] )
 	    (int)dt, ip, from, row[ 1 ] );
     exit( 0 );
 }
+
