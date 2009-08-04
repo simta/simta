@@ -80,6 +80,7 @@ struct simta_socket		*simta_listen_sockets = NULL;
 int daemon_local( void );
 int hq_launch( void );
 
+void		sender_log_metrics( struct dll_entry * );
 int		daemon_commands( struct simta_dirp * );
 void		usr1( int );
 void		usr2( int );
@@ -1005,7 +1006,7 @@ simta_server( void )
 	    if (( simta_q_runner_slow_max != 0 ) &&
 		    ( simta_q_runner_slow >= simta_q_runner_slow_max )) {
 		/* queues need to launch but process limit met */
-		syslog( LOG_NOTICE, "Daemon Delay: %d : "
+		syslog( LOG_NOTICE, "Daemon Delay: %ld : "
 			"Queues are not caught up and "
 			"MAX_Q_RUNNERS_SLOW has been met",
 			tv_now.tv_sec -
@@ -1769,9 +1770,12 @@ daemon_commands( struct simta_dirp *sd )
     } else if ( strcasecmp( av[ 0 ], S_SENDER ) == 0 ) {
 	if ( ac == 1 ) {
 	    syslog( LOG_DEBUG, "ZZZ Command %s: Sender", entry->d_name );
+	    sender_log_metrics( simta_sender_list );
+	    /* JAIL-ADD print out sender list */
 	} else if ( ac == 2 ) {
 	    syslog( LOG_DEBUG,
 		    "ZZZ Command %s: Sender %s", entry->d_name, av[ 1 ]);
+	    /* JAIL-ADD promote sender's mail */
 	} else {
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );
@@ -1816,4 +1820,38 @@ error:
     acav_free( acav );
 
     return( 1 );
+}
+
+
+    void
+sender_log_metrics( struct dll_entry *dll_head )
+{
+    char		filename[ MAXPATHLEN ];
+    int			fd;
+    FILE		*f;
+    struct dll_entry	*dll;
+    struct sender_list	*sl;
+
+    sprintf( filename, "%s/etc/sender_list", simta_base_dir );
+
+    if (( fd = creat( filename, 0666 )) < 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
+	return;
+    }
+
+    if (( f = fdopen( fd, "w" )) == NULL ) {
+	syslog( LOG_DEBUG, "metric log file failed: fdopen %s: %m", filename );
+	return;
+    }
+
+    fprintf( f, "Sender List:\n\n" );
+
+    for ( dll = dll_head; dll != NULL; dll = dll->dll_next ) {
+	sl = (struct sender_list*)dll->dll_data;
+	fprintf( f, "%s\t%d\n", dll->dll_key, sl->sl_n_entries );
+    }
+
+    fclose( f );
+
+    return;
 }

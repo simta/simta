@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <syslog.h>
 
 #include "ll.h"
 
@@ -74,6 +75,7 @@ ll_insert( struct stab_entry **stab, char *key, void *data,
 
     return( 0 );
 }
+
 
     /*****     ll_insert_tail     *****/
     /* This function inserts a given node to the tail of a given stab table */
@@ -183,4 +185,83 @@ ll__insert( struct stab_entry **stab, void *data,
     *i = st;
 
     return( 0 );
+}
+
+
+    struct dll_entry *
+dll_lookup_or_create( struct dll_entry **dll_head, char *key, int free_key )
+{
+    struct dll_entry			*dll;
+    struct dll_entry			*dll_last = NULL;
+    struct dll_entry			*dll_new;
+    int					c;
+
+    for ( dll = *dll_head; dll != NULL; dll = dll->dll_next ) {
+	if (( c = strcasecmp( key, dll->dll_key )) == 0 ) {
+	    return( dll );
+	} else if ( c < 0 ) {
+	    break;
+	}
+	dll_last = dll;
+    }
+
+    if (( dll_new = (struct dll_entry*)malloc( sizeof( struct dll_entry )))
+	    == NULL ) {
+	syslog( LOG_ERR, "Syserror: dll_lookup_or_create malloc: %m" );
+	return( NULL );
+    }
+    memset( dll_new, 0, sizeof( struct dll_entry ));
+
+    if (( dll_new->dll_free_key = free_key ) == 0 ) {
+	dll_new->dll_key = key;
+    } else {
+	if (( dll_new->dll_key = strdup( key )) == NULL ) {
+	    syslog( LOG_ERR, "Syserror: dll_lookup_or_create strdup: %m" );
+	    free( dll_new );
+	    return( NULL );
+	}
+    }
+
+    if ( dll_last == NULL ) {
+	/* head insert */
+	dll_new->dll_next = *dll_head;
+	*dll_head = dll_new;
+	if ( dll_new->dll_next != NULL ) {
+	    dll_new->dll_next->dll_prev = dll_new;
+	}
+    } else if ( dll == NULL ) {
+	/* tail insert */
+	dll_new->dll_prev = dll_last;
+	dll_last->dll_next = dll_new;
+    } else {
+	dll_new->dll_next = dll;
+	dll_new->dll_prev = dll->dll_prev;
+	dll->dll_prev->dll_next = dll_new;
+	dll->dll_prev = dll_new;
+    }
+
+    return( dll_new );
+}
+
+
+    void
+dll_remove_entry( struct dll_entry **head, struct dll_entry *dll )
+{
+    if ( dll->dll_next != NULL ) {
+	dll->dll_next->dll_prev = dll->dll_prev;
+    }
+
+    if ( dll->dll_prev != NULL ) {
+	dll->dll_prev->dll_next = dll->dll_next;
+    } else {
+	*head = dll->dll_next;
+    }
+
+    if ( dll->dll_free_key != 0 ) {
+	free( dll->dll_key );
+    }
+
+    free( dll );
+
+    return;
 }

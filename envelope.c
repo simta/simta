@@ -230,6 +230,11 @@ env_hostname( struct envelope *env, char *hostname )
     int
 env_sender( struct envelope *env, char *e_mail )
 {
+    struct dll_entry			*sl_dll;
+    struct dll_entry			*se_dll;
+    struct sender_list			*list;
+    struct sender_entry			*entry;
+
     if ( env->e_mail != NULL ) {
 	syslog( LOG_ERR, "env_sender: %s already has a sender", env->e_id );
 	return( 1 );
@@ -244,28 +249,44 @@ env_sender( struct envelope *env, char *e_mail )
 	return( 1 );
     }
 
-    /* JAIL-ADD look up sender in master sender list */
-    /*
-    for ( i = &simta_sender_list; *i != NULL; i = &((*i)->st_next) ) {
-	if (( c = strcasecmp( e_mail, (*i)->s_sender )) <= 0 ) {
-	    break;
+
+    if ( simta_sender_list_enable != 0 ) {
+	if (( sl_dll = dll_lookup_or_create( &simta_sender_list,
+		env->e_mail, 1 )) == NULL ) {
+	    return( 1 );
 	}
-    }
 
-    if ( c != 0 ) {
-    }
-
-    /* JAIL-ADD link envelope and master sender entry */
-    /*
-    for ( e = &((*i)->s_envs; *e != NULL; e = &((*e)->e_next ) ) {
-	if (( c = strcasecmp( env->e_id, (*i)->s_sender )) <= 0 ) {
-	    break;
+	if (( list = (struct sender_list*)sl_dll->dll_data ) == NULL ) {
+	    if (( list = (struct sender_list*)malloc(
+		    sizeof( struct sender_list ))) == NULL ) {
+		return( 1 );
+	    }
+	    memset( list, 0, sizeof( struct sender_list ));
+	    list->sl_dll = sl_dll;
+	    sl_dll->dll_data = list;
 	}
-    }
 
-    if ( c != 0 ) {
+	if (( se_dll = dll_lookup_or_create( &(list->sl_entries),
+		env->e_id, 0 )) == NULL ) {
+	    return( 1 );
+	}
+
+	if ( se_dll->dll_data != NULL ) {
+	    return( 0 );
+	}
+
+	if (( entry = (struct sender_entry*)malloc(
+		sizeof( struct sender_entry ))) == NULL ) {
+	    return( 1 );
+	}
+	memset( entry, 0, sizeof( struct sender_entry ));
+	se_dll->dll_data = entry;
+	env->e_sender_entry = entry;
+	entry->se_env = env;
+	entry->se_list = list;
+	entry->se_dll = se_dll;
+	list->sl_n_entries++;
     }
-    */
 
     return( 0 );
 }
@@ -281,11 +302,21 @@ env_reset( struct envelope *env )
 	}
 
 	if ( env->e_mail != NULL ) {
-	    /* JAIL-ADD look up sender in master sender list */
-	    /* JAIL-ADD unlink envelope and master sender entry */
-	    /* JAIL-ADD if deleted sender, print out new sender list */
 	    free( env->e_mail );
 	    env->e_mail = NULL;
+	}
+
+	if ( env->e_sender_entry != NULL ) {
+	    dll_remove_entry( &(env->e_sender_entry->se_list->sl_entries),
+		    env->e_sender_entry->se_dll );
+	    env->e_sender_entry->se_list->sl_n_entries--;
+	    if ( env->e_sender_entry->se_list->sl_entries == NULL ) {
+		dll_remove_entry( &simta_sender_list,
+		    env->e_sender_entry->se_list->sl_dll );
+		free( env->e_sender_entry->se_list );
+	    }
+	    free( env->e_sender_entry );
+	    env->e_sender_entry = NULL;
 	}
 
 	if ( env->e_hostname != NULL ) {
@@ -299,12 +330,11 @@ env_reset( struct envelope *env )
 	}
 
 	env_rcpt_free( env );
-
 	env_clear_errors( env );
-
 	env->e_flags = 0;
-	return;
     }
+
+    return;
 }
 
 

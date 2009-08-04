@@ -10,6 +10,18 @@
 #define	READ_QUEUE_INFO		1
 #define	READ_DELIVER_INFO	2
 
+struct sender_list {
+    int					sl_n_entries;
+    struct dll_entry			*sl_dll;
+    struct dll_entry			*sl_entries;
+};
+
+struct sender_entry {
+    struct sender_list			*se_list;
+    struct envelope			*se_env;
+    struct dll_entry			*se_dll;
+};
+
 struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
@@ -25,6 +37,7 @@ struct envelope {
     struct envelope	*e_hq_prev;
     struct envelope	*e_expanded_next;
     struct recipient	*e_rcpt;
+    struct sender_entry	*e_sender_entry;
     int			e_n_rcpt;
     int			e_n_exp_level;
     int			e_cycle;

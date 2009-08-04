@@ -964,8 +964,6 @@ q_deliver( struct host_q *deliver_q )
 	    snet_lock = NULL;
 	}
 
-	/* JAIL-ADD implement sender selection here */
-
 	/* don't memset entire structure because we reuse connection data */
 	d.d_env = env_deliver;
 	d.d_dfile_fd = 0;

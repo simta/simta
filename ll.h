@@ -14,6 +14,17 @@ struct stab_entry {
     void		*st_data;
 };
 
+struct dll_entry {
+    struct dll_entry		*dll_next;
+    struct dll_entry		*dll_prev;
+    char			*dll_key;
+    int				dll_free_key;
+    void			*dll_data;
+};
+
+struct dll_entry *dll_lookup_or_create( struct dll_entry**, char*, int );
+void dll_remove_entry( struct dll_entry **, struct dll_entry * );
+
 void	*ll_lookup( struct stab_entry*, char * );
 int	ll_insert( struct stab_entry **, char *, void *,
 		int(*)( char *, char * ));

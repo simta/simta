@@ -403,7 +403,7 @@ expand( struct envelope *unexpanded_env )
 
 	    /* Add env to host_stab */
 	    if ( eo_insert( &host_stab, env ) != 0 ) {
-		syslog( LOG_ERR, "expand.ll_insert: %m" );
+		syslog( LOG_ERR, "expand.eo_insert: %m" );
 		env_free( env );
 		goto cleanup3;
 	    }
@@ -820,26 +820,29 @@ unblocked_path_to_root( struct exp_addr *e, int color )
     int
 permitted_create( struct exp_addr *e_addr, char **permitted )
 {
-    int		idx;
-    char	*namedup;
+    int					idx;
+    char				*namedup;
 
-    if (permitted && *permitted)
-    {
+    if (( permitted != NULL ) && (( *permitted ) != NULL )) {
 	/* 
 	** Normalize the permitted group list 
 	** normalization happens "in-place"
 	*/   
-	for (idx = 0;  permitted[idx] != NULL; idx++) {
-	    dn_normalize_case (permitted[idx]);
+	for ( idx = 0; permitted[idx] != NULL; idx++ ) {
+	    dn_normalize_case( permitted[idx] );
 
-	    if ((namedup = strdup (permitted[idx])) == NULL)
-		return (1);
+	    if (( namedup = strdup( permitted[idx] )) == NULL ) {
+		return( 1 );
+	    }
 
-	    if ( ll_insert ( &e_addr->e_addr_ok, namedup, namedup, NULL ) != 0 )
-		return (1);
+	    if ( ll_insert( &e_addr->e_addr_ok, namedup, namedup,
+		    NULL ) != 0 ) {
+		return( 1 );
+	    }
 	}		
     }
-    return 0;
+
+    return( 0 );
 }
 
 
