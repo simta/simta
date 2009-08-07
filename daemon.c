@@ -79,6 +79,7 @@ struct simta_socket		*simta_listen_sockets = NULL;
 
 int daemon_local( void );
 int hq_launch( void );
+int sender_promote( char * );
 
 void		sender_log_metrics( struct dll_entry * );
 int		daemon_commands( struct simta_dirp * );
@@ -821,7 +822,6 @@ hq_launch( void )
 }
 
 
-
     int
 simta_server( void )
 {
@@ -1143,7 +1143,7 @@ error:
 
 
     void
-requeue_host( char *hostname, int requeue )
+requeue_host( char *hostname, int requeue_nodelay )
 {
     struct host_q	*hq;
     struct timeval	tv_now;
@@ -1156,7 +1156,7 @@ requeue_host( char *hostname, int requeue )
 
 	hq_deliver_pop( hq );
 	hq->hq_last_leaky.tv_sec = tv_now.tv_sec;
-	hq_deliver_push( hq, &tv_now, requeue );
+	hq_deliver_push( hq, &tv_now, requeue_nodelay );
 	syslog( LOG_DEBUG, "Queue %s: Requeued", hostname );
     } else {
 	syslog( LOG_DEBUG, "Queue %s: Not Found", hostname );
@@ -1652,6 +1652,39 @@ simta_proc_add( int process_type, int pid )
 
 
     int
+sender_promote( char *sender )
+{
+    struct timeval		tv_now;
+    struct dll_entry		*dll;
+    struct sender_list		*sl;
+    struct sender_entry		*se;
+    struct dll_entry		*dll_se;
+
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	return( 1 );
+    }
+
+    if (( dll = dll_lookup( simta_sender_list, sender )) != NULL ) {
+	sl = (struct sender_list*)dll->dll_data;
+	for ( dll_se = sl->sl_entries; dll_se != NULL;
+		dll_se = dll_se->dll_next ) {
+	    se = (struct sender_entry*)dll->dll_data;
+	    /* tag env */
+	    env_priority( se->se_env, ENV_HIGH_PRIORITY );
+	    /* re-queue queue */
+	    if ( se->se_env->e_hq != NULL ) {
+		hq_deliver_pop( se->se_env->e_hq );
+		se->se_env->e_hq->hq_last_leaky.tv_sec = tv_now.tv_sec;
+		hq_deliver_push( se->se_env->e_hq, &tv_now, 1 );
+	    }
+	}
+    }
+
+    return( 0 );
+}
+
+
+    int
 daemon_commands( struct simta_dirp *sd )
 {
     struct dirent		*entry;
@@ -1769,13 +1802,14 @@ daemon_commands( struct simta_dirp *sd )
 
     } else if ( strcasecmp( av[ 0 ], S_SENDER ) == 0 ) {
 	if ( ac == 1 ) {
-	    syslog( LOG_DEBUG, "ZZZ Command %s: Sender", entry->d_name );
+	    syslog( LOG_DEBUG, "Command %s: Sender", entry->d_name );
 	    sender_log_metrics( simta_sender_list );
-	    /* JAIL-ADD print out sender list */
+
 	} else if ( ac == 2 ) {
-	    syslog( LOG_DEBUG,
-		    "ZZZ Command %s: Sender %s", entry->d_name, av[ 1 ]);
+	    syslog( LOG_DEBUG, "Command %s: Sender %s", entry->d_name, av[ 1 ]);
 	    /* JAIL-ADD promote sender's mail */
+	    sender_promote( av[ 1 ]);
+
 	} else {
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );

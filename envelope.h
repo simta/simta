@@ -49,6 +49,7 @@ struct envelope {
     ino_t		e_dinode;
     int			e_age;
     int			e_flags;
+    int			e_priority;
     struct timeval	e_etime;
     char		*e_hostname;
     char		*e_id;
@@ -58,6 +59,10 @@ struct envelope {
 #define ENV_AGE_UNKNOWN		0
 #define ENV_AGE_OLD		1
 #define ENV_AGE_NOT_OLD		2
+
+/* priority is boolean for the moment */
+#define ENV_LOW_PRIORITY	0
+#define ENV_HIGH_PRIORITY	1
 
 #define ENV_FLAG_TFILE			(1<<0)
 #define ENV_FLAG_EFILE			(1<<1)
@@ -86,6 +91,7 @@ void		env_free( struct envelope * );
 void		env_reset( struct envelope * );
 void		rcpt_free( struct recipient * );
 void		env_clear_errors( struct envelope * );
+int		env_priority( struct envelope *, int );
 int		env_is_old( struct envelope *, int );
 int		env_id( struct envelope * );
 int		env_set_id( struct envelope *, char * );
@@ -101,6 +107,7 @@ int		env_move( struct envelope *, char * );
 int		env_unlink( struct envelope * );
 int		env_read( int, struct envelope *, SNET ** );
 int		env_truncate_and_unlink( struct envelope *, SNET * );
+int		env_string_recipients( struct envelope *, char * );
 int		env_string_recipients( struct envelope *, char * );
 
 /* debugging  functions */

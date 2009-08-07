@@ -56,6 +56,7 @@ struct host_q {
     int				hq_entries;
     int				hq_entries_new;
     int				hq_entries_removed;
+    int				hq_high_priority;
     struct simta_red		*hq_red;
     struct host_q		*hq_deliver;
     struct host_q		*hq_next;

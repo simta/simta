@@ -189,6 +189,24 @@ ll__insert( struct stab_entry **stab, void *data,
 
 
     struct dll_entry *
+dll_lookup( struct dll_entry *dll_head, char *key )
+{
+    struct dll_entry			*dll;
+    int					c;
+
+    for ( dll = dll_head; dll != NULL; dll = dll->dll_next ) {
+	if (( c = strcasecmp( key, dll->dll_key )) == 0 ) {
+	    return( dll );
+	} else if ( c < 0 ) {
+	    return( NULL );
+	}
+    }
+
+    return( NULL );
+}
+
+
+    struct dll_entry *
 dll_lookup_or_create( struct dll_entry **dll_head, char *key, int free_key )
 {
     struct dll_entry			*dll;

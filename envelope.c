@@ -69,6 +69,41 @@ env_id( struct envelope *e )
 
 
     int
+env_priority( struct envelope *env, int priority )
+{
+    if ( env == NULL ) {
+	return( 0 );
+    }
+
+    switch ( priority ) {
+    default:
+	syslog( LOG_ERR, "Syserror env_priority: invalid priority: %d",
+		priority );
+	break;
+
+    case ENV_HIGH_PRIORITY:
+	if ( env->e_priority != ENV_HIGH_PRIORITY ) {
+	    if ( env->e_hq != NULL ) {
+		env->e_hq->hq_high_priority++;
+	    }
+	    env->e_priority = ENV_HIGH_PRIORITY;
+	}
+	break;
+
+    case ENV_LOW_PRIORITY:
+	if ( env->e_priority != ENV_LOW_PRIORITY ) {
+	    if ( env->e_hq != NULL ) {
+		env->e_hq->hq_high_priority--;
+	    }
+	    env->e_priority = ENV_LOW_PRIORITY;
+	}
+    }
+
+    return( 0 );
+}
+
+
+    int
 env_is_old( struct envelope *env, int dfile_fd )
 {
     struct timeval              tv_now;

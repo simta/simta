@@ -185,8 +185,12 @@ queue_envelope( struct envelope *env )
 	    return( 1 );
 	}
 
-	/* sort queued envelopes by access time */
+	/* sort queued envelopes by priority and access time */
 	for ( ep = &(hq->hq_env_head); *ep != NULL; ep = &((*ep)->e_hq_next)) {
+	    if ( env->e_priority > (*ep)->e_priority ) {
+		break;
+	    }
+
 	    if ( env->e_etime.tv_sec < (*ep)->e_etime.tv_sec ) {
 		break;
 	    }
@@ -196,6 +200,10 @@ queue_envelope( struct envelope *env )
 	*ep = env;
 	env->e_hq = hq;
 	hq->hq_entries++;
+
+	if ( env->e_priority == ENV_HIGH_PRIORITY ) {
+	    hq->hq_high_priority++;
+	}
     }
 
     return( 0 );
@@ -215,6 +223,9 @@ queue_remove_envelope( struct envelope *env )
 	*ep = env->e_hq_next;
 
 	env->e_hq->hq_entries--;
+	if ( env->e_priority == ENV_HIGH_PRIORITY ) {
+	    env->e_hq->hq_high_priority--;
+	}
 	env->e_hq = NULL;
 	env->e_hq_next = NULL;
     }
@@ -235,6 +246,7 @@ queue_time_order( struct host_q *hq )
 	/* sort the envs based on etime */
 	envs = hq->hq_env_head;
 	hq->hq_entries = 0;
+	hq->hq_high_priority = 0;
 	hq->hq_env_head = NULL;
 	while ( envs != NULL ) {
 	    sort = envs;
@@ -649,6 +661,7 @@ prune_messages( struct host_q *hq )
 
     e = &(hq->hq_env_head);
     hq->hq_entries = 0;
+    hq->hq_high_priority = 0;
     hq->hq_entries_new = 0;
     hq->hq_entries_removed = 0;
 
@@ -674,6 +687,9 @@ prune_messages( struct host_q *hq )
 
 	} else {
 	    hq->hq_entries++;
+	    if ( (*e)->e_priority == ENV_HIGH_PRIORITY ) {
+		hq->hq_high_priority++;
+	    }
 	    e = &((*e)->e_hq_next);
 	}
     }
