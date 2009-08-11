@@ -15,9 +15,10 @@ CURRENT ROADMAP
 + 1 simta IPC using C files
 - 1 ignore ipv6
 + 2 ability to re-prioritize/kick queues
-! 2 queue processing by user (mail jail)
-- 2 queue-only (mail jail)
++ 2 queue processing by user (mail jail)
+! 2 queue-only (mail jail)
 + 3 better handling of domain names with trailing dot
+- 3 simexpander log pid
 
 0.8.4 gateway enhancements/collapse 2-tier delivery
 - 2 simta.conf & ldap include files
@@ -40,6 +41,7 @@ x   1 ignore ipv6
     3 simsendmail overrun bug
     3 group errors-to rewrite bug
     3 better localhost check for punt and jail hostnames
+    4 better error messages when -requests/-errors/etc. are undeliverable
 
 FEATURES
 gateway enhancements
@@ -64,10 +66,13 @@ x   1 single master queue runner/smtp listener process
 x   1 deliver local mail with no running simta daemon (sendmail replacement)
     1 smtp listen should occur after disk read during startup
 x   2 relay host
+    2 option to fork child for outbound delivery during inbound smtp
     2 R rules for accept AND exclusion
     2 shorten RBL timeouts?
     2 add option to skip rcpt to syntax check
-    3 child killing
+    2 smtp timer for outbound DATA
+    3 child killing (simc)
+    3 queue processing by id (simc)
 x   3 alias upgrade: wildcards, /dev/null, pipe2program discussion
     3 simexpander take addresses on stdin
     4 config file support for queue launch times
@@ -128,4 +133,5 @@ COMPLETED
 + 3 updated simvacation code
 + 3 SMTP_RCVBUF directive limits TCP Window size until valid DATA segment
 + 3 Supressed compiler warnings
+
 
