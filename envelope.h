@@ -38,6 +38,7 @@ struct envelope {
     struct envelope	*e_expanded_next;
     struct recipient	*e_rcpt;
     struct sender_entry	*e_sender_entry;
+    struct dll_entry	*e_env_list_entry;
     int			e_n_rcpt;
     int			e_n_exp_level;
     int			e_cycle;

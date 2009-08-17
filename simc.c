@@ -69,10 +69,17 @@ main( int argc, char *argv[] )
 
     openlog( argv[ 0 ], LOG_NOWAIT|LOG_PID, LOG_SIMTA );
 
-    while (( c = getopt( argc, argv, "qs" )) != -1 ) {
+    while (( c = getopt( argc, argv, "mqs" )) != -1 ) {
 	switch ( c ) {
 	default:
 	    usage++;
+	    break;
+
+	case 'm':
+	    if ( command != NULL ) {
+		usage++;
+	    }
+	    command = "Message";
 	    break;
 
 	case 'q':
@@ -100,7 +107,7 @@ main( int argc, char *argv[] )
     }
 
     if ( usage != 0 ) {
-	fprintf( stderr, "Usage: %s -s | -q [ arg ] \n", argv[ 0 ] );
+	fprintf( stderr, "Usage: %s -m | -s | -q [ arg ] \n", argv[ 0 ] );
 	exit( EX_USAGE );
     }
 

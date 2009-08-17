@@ -64,6 +64,7 @@
 
 
 struct dll_entry	*simta_sender_list = NULL;
+struct dll_entry	*simta_env_list = NULL;
 struct timeval		simta_tv_now = { 0, 0 };
 struct timeval		simta_log_tv;
 struct envelope		*simta_env_queue = NULL;
@@ -77,6 +78,7 @@ struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
 int			simta_sender_list_enable = 0;
+int			simta_mid_list_enable = 0;
 int			simta_command_read_entries = 10;
 int			simta_disk_read_entries = 10;
 int			simta_domain_trailing_dot = 1;
@@ -1143,6 +1145,16 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
+
+        } else if ( strcasecmp( av[ 0 ], "ENABLE_MID_LIST" ) == 0 ) {
+            if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+			fname, lineno );
+                goto error;
+            }
+            simta_queue_incoming_smtp_mail = 1;
+	    simta_mid_list_enable = 1;
+            if ( simta_debug ) printf( "ENABLE_MID_LIST" );
 
         } else if ( strcasecmp( av[ 0 ], "ENABLE_SENDER_LIST" ) == 0 ) {
             if ( ac != 1 ) {

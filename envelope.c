@@ -138,6 +138,8 @@ env_is_old( struct envelope *env, int dfile_fd )
     int
 env_set_id( struct envelope *e, char *id )
 {
+    struct dll_entry		*e_dll;
+
     if (( id == NULL ) || ( *id == '\0' )) {
 	syslog( LOG_ERR, "env_set_id: must have valid ID" );
 	return( 1 );
@@ -146,6 +148,18 @@ env_set_id( struct envelope *e, char *id )
     if (( e->e_id = strdup( id )) == NULL ) {
 	syslog( LOG_ERR, "env_set_id malloc: %m" );
 	return( 1 );
+    }
+
+    if ( simta_mid_list_enable != 0 ) {
+	if (( e_dll = dll_lookup_or_create( &simta_env_list,
+		e->e_id, 0 )) == NULL ) {
+	    return( 1 );
+	}
+
+	if ( e_dll->dll_data == NULL ) {
+	    e_dll->dll_data = e;
+	    e->e_env_list_entry = e_dll;
+	}
     }
 
     return( 0 );
@@ -334,6 +348,11 @@ env_reset( struct envelope *env )
 	if ( env->e_mid != NULL ) {
 	    free( env->e_mid );
 	    env->e_mid = NULL;
+	}
+
+	if ( env->e_env_list_entry != NULL ) {
+	    dll_remove_entry( &simta_env_list, env->e_env_list_entry );
+	    env->e_env_list_entry = NULL;
 	}
 
 	if ( env->e_mail != NULL ) {

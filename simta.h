@@ -115,8 +115,8 @@ struct simta_socket {
 
 /* global variables */
 
+extern struct dll_entry			*simta_env_list;
 extern struct dll_entry			*simta_sender_list;
-extern int				simta_sender_list_enable;
 extern struct timeval			simta_global_throttle_tv;
 extern struct timeval			simta_tv_now;
 extern struct timeval			simta_log_tv;
@@ -126,6 +126,8 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
+extern int				simta_sender_list_enable;
+extern int				simta_mid_list_enable;
 extern int				simta_command_read_entries;
 extern int				simta_disk_read_entries;
 extern int				simta_domain_trailing_dot;

@@ -50,6 +50,7 @@
 #include "envelope.h"
 #include "tls.h"
 
+#define S_MESSAGE "Message"
 #define S_SENDER "sender"
 #define S_QUEUE "queue"
 #define S_DISK "Disk"
@@ -80,7 +81,9 @@ struct simta_socket		*simta_listen_sockets = NULL;
 int daemon_local( void );
 int hq_launch( void );
 int sender_promote( char * );
+int mid_promote( char * );
 
+void		env_log_metrics( struct dll_entry * );
 void		sender_log_metrics( struct dll_entry * );
 int		daemon_commands( struct simta_dirp * );
 void		usr1( int );
@@ -1652,6 +1655,31 @@ simta_proc_add( int process_type, int pid )
 
 
     int
+mid_promote( char *mid )
+{
+    struct timeval		tv_now;
+    struct dll_entry		*dll;
+    struct envelope		*e;
+
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	return( 1 );
+    }
+
+    if (( dll = dll_lookup( simta_env_list, mid )) != NULL ) {
+	e = (struct envelope*)dll->dll_data;
+	env_priority( e, ENV_HIGH_PRIORITY );
+	if ( e->e_hq != NULL ) {
+	    hq_deliver_pop( e->e_hq );
+	    e->e_hq->hq_last_leaky.tv_sec = tv_now.tv_sec;
+	    hq_deliver_push( e->e_hq, &tv_now, 1 );
+	}
+    }
+
+    return( 0 );
+}
+
+
+    int
 sender_promote( char *sender )
 {
     struct timeval		tv_now;
@@ -1800,6 +1828,21 @@ daemon_commands( struct simta_dirp *sd )
     if ( av[ 0 ] == NULL ) {
 	syslog( LOG_DEBUG, "Command %s: line %d: NULL", entry->d_name, lineno );
 
+    } else if ( strcasecmp( av[ 0 ], S_MESSAGE ) == 0 ) {
+	if ( ac == 1 ) {
+	    syslog( LOG_DEBUG, "Command %s: Message", entry->d_name );
+	    env_log_metrics( simta_sender_list );
+
+	} else if ( ac == 2 ) {
+	    syslog( LOG_DEBUG, "Command %s: Message %s", entry->d_name,
+		    av[ 1 ]);
+	    mid_promote( av[ 1 ]);
+
+	} else {
+	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
+		    entry->d_name, lineno );
+	}
+
     } else if ( strcasecmp( av[ 0 ], S_SENDER ) == 0 ) {
 	if ( ac == 1 ) {
 	    syslog( LOG_DEBUG, "Command %s: Sender", entry->d_name );
@@ -1856,6 +1899,67 @@ error:
     return( 1 );
 }
 
+
+    void
+env_log_metrics( struct dll_entry *dll_head )
+{
+    char		filename[ MAXPATHLEN ];
+    int			fd;
+    FILE		*f;
+    struct dll_entry	*dll;
+    struct envelope	*env;
+
+struct envelope {
+    struct envelope	*e_next;
+    struct envelope	*e_list_next;
+    struct envelope	*e_list_prev;
+    struct envelope	*e_hq_next;
+    struct envelope	*e_hq_prev;
+    struct envelope	*e_expanded_next;
+    struct recipient	*e_rcpt;
+    struct sender_entry	*e_sender_entry;
+    struct dll_entry	*e_env_list_entry;
+    int			e_n_rcpt;
+    int			e_n_exp_level;
+    int			e_cycle;
+    struct host_q	*e_hq;
+    int			e_error;
+    struct line_file	*e_err_text;
+    char		*e_dir;
+    char		*e_mail;
+    ino_t		e_dinode;
+    int			e_age;
+    int			e_flags;
+    int			e_priority;
+    struct timeval	e_etime;
+    char		*e_hostname;
+    char		*e_id;
+    char		*e_mid;
+};
+
+    sprintf( filename, "%s/etc/mid_list", simta_base_dir );
+
+    if (( fd = creat( filename, 0666 )) < 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
+	return;
+    }
+
+    if (( f = fdopen( fd, "w" )) == NULL ) {
+	syslog( LOG_DEBUG, "metric log file failed: fdopen %s: %m", filename );
+	return;
+    }
+
+    fprintf( f, "MID List:\n\n" );
+
+    for ( dll = dll_head; dll != NULL; dll = dll->dll_next ) {
+	env = (struct envelope*)dll->dll_data;
+	fprintf( f, "%s\t%s\t%s\n", env->e_id, env->e_hostname, env->e_mail );
+    }
+
+    fclose( f );
+
+    return;
+}
 
     void
 sender_log_metrics( struct dll_entry *dll_head )
