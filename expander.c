@@ -84,7 +84,7 @@ main( int argc, char *argv[])
 	exit( EX_USAGE );
     }
 
-    openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
+    simta_openlog( 0 );
 
     if ( simta_read_config( argv[ nextargc ] ) < 0 ) {
 	fprintf( stderr, "simta_read_config error: %s\n", argv[ nextargc ] );

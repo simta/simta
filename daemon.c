@@ -810,16 +810,23 @@ hq_launch( void )
 	    hq->hq_wait_last.tv_sec, hq->hq_wait_shortest.tv_sec,
 	    hq->hq_wait_longest.tv_sec, hq->hq_entries );
 
-    if ( simta_child_q_runner( hq ) != 0 ) {
-	return( 1 );
-    }
-
     hq->hq_wait_last.tv_sec = waited;
     hq->hq_last_launch.tv_sec = tv_now.tv_sec;
 
     /* zero out the next_launch (we just did it) and reschedule */
     hq->hq_next_launch.tv_sec = 0;
     hq_deliver_push( hq, &tv_now, 0 );
+
+    if (( simta_mail_jail != 0 ) && ( hq->hq_high_priority == 0 )) {
+	syslog( LOG_INFO, "Queue %s: launch %d: "
+		"no high priority messages, not launching queue",
+		hq->hq_hostname, hq->hq_launches );
+	return( 0 );
+    }
+
+    if ( simta_child_q_runner( hq ) != 0 ) {
+	return( 1 );
+    }
 
     return( 0 );
 }
@@ -1908,34 +1915,6 @@ env_log_metrics( struct dll_entry *dll_head )
     FILE		*f;
     struct dll_entry	*dll;
     struct envelope	*env;
-
-struct envelope {
-    struct envelope	*e_next;
-    struct envelope	*e_list_next;
-    struct envelope	*e_list_prev;
-    struct envelope	*e_hq_next;
-    struct envelope	*e_hq_prev;
-    struct envelope	*e_expanded_next;
-    struct recipient	*e_rcpt;
-    struct sender_entry	*e_sender_entry;
-    struct dll_entry	*e_env_list_entry;
-    int			e_n_rcpt;
-    int			e_n_exp_level;
-    int			e_cycle;
-    struct host_q	*e_hq;
-    int			e_error;
-    struct line_file	*e_err_text;
-    char		*e_dir;
-    char		*e_mail;
-    ino_t		e_dinode;
-    int			e_age;
-    int			e_flags;
-    int			e_priority;
-    struct timeval	e_etime;
-    char		*e_hostname;
-    char		*e_id;
-    char		*e_mid;
-};
 
     sprintf( filename, "%s/etc/mid_list", simta_base_dir );
 

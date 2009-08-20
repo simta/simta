@@ -67,7 +67,7 @@ main( int argc, char *argv[] )
 
     opterr = 0;
 
-    openlog( argv[ 0 ], LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+    simta_openlog( 0 );
 
     while (( c = getopt( argc, argv, "mqs" )) != -1 ) {
 	switch ( c ) {

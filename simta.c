@@ -77,6 +77,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_mail_jail = 0;
 int			simta_sender_list_enable = 0;
 int			simta_mid_list_enable = 0;
 int			simta_command_read_entries = 10;
@@ -1145,6 +1146,15 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
+
+        } else if ( strcasecmp( av[ 0 ], "MAIL_JAIL" ) == 0 ) {
+            if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+			fname, lineno );
+                goto error;
+            }
+            simta_mail_jail = 1;
+            if ( simta_debug ) printf( "MAIL_JAIL" );
 
         } else if ( strcasecmp( av[ 0 ], "ENABLE_MID_LIST" ) == 0 ) {
             if ( ac != 1 ) {

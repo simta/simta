@@ -965,6 +965,7 @@ q_deliver( struct host_q *deliver_q )
     while ( deliver_q->hq_env_head != NULL ) {
 	env_deliver = deliver_q->hq_env_head;
 	queue_remove_envelope( env_deliver );
+
 	syslog( LOG_DEBUG, "Deliver %s: Attempting delivery",
 		env_deliver->e_id );
 
@@ -1009,6 +1010,10 @@ q_deliver( struct host_q *deliver_q )
 
 	switch ( deliver_q->hq_status ) {
         case HOST_LOCAL:
+	    if (( simta_mail_jail != 0 ) && ( env_deliver->e_priority == 0 )) {
+		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d.d_env->e_id );
+		break;
+	    }
 	    if (( deliver_q->hq_red != NULL ) &&
 		    ( deliver_q->hq_red->red_deliver_argv != NULL )) {
 		d.d_deliver_argc = deliver_q->hq_red->red_deliver_argc;
@@ -1019,12 +1024,15 @@ q_deliver( struct host_q *deliver_q )
 
         case HOST_MX:
         case HOST_PUNT:
+	    if (( simta_mail_jail != 0 ) && ( env_deliver->e_priority == 0 )) {
+		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d.d_env->e_id );
+		break;
+	    }
 	    if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
 		syslog( LOG_ERR, "q_deliver snet_attach: %m" );
 		goto message_cleanup;
 	    }
 	    d.d_snet_dfile = snet_dfile;
-
 	    deliver_remote( &d, deliver_q );
 
 	    /* return if smtp transaction to the punt host failed */

@@ -111,7 +111,7 @@ main( int argc, char *argv[])
     }
 
     if ( nolog == 0 ) {
-	openlog( argv[ 0 ], LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+	simta_openlog( 0 );
 	simta_rbl_verbose_logging = 1;
     }
 

@@ -100,7 +100,7 @@ main( int argc, char *argv[] )
     /* ignore a good many options */
     opterr = 0;
 
-    openlog( argv[ 0 ], LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+    simta_openlog( 0 );
 
     while (( c = getopt( argc, argv, "b:f:io:r:st" )) != -1 ) {
 	switch ( c ) {

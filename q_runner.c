@@ -54,7 +54,7 @@ main( int argc, char *argv[] )
 	exit( EX_USAGE );
     }
 
-    openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
+    simta_openlog( 0 );
 
     if ( argc == 4 ) {
 	conf_file = argv[ 2 ];

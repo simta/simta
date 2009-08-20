@@ -126,6 +126,7 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
+extern int				simta_mail_jail;
 extern int				simta_sender_list_enable;
 extern int				simta_mid_list_enable;
 extern int				simta_command_read_entries;
