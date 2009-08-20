@@ -11,14 +11,15 @@ x : in release pipeline             1 : high priority
 CURRENT ROADMAP
 
 0.8.3 mail jail
+! 1 BUG: "no deliver" poison message
 + 1 single master queue runner/smtp listener process
 + 1 simta IPC using C files
-- 1 ignore ipv6
+! 1 ignore ipv6
 + 2 ability to re-prioritize/kick queues
 + 2 queue processing by user (mail jail)
-! 2 queue-only (mail jail)
++ 2 queue-only (mail jail)
 + 3 better handling of domain names with trailing dot
-- 3 simexpander log pid
++ 3 simexpander log pid
 
 0.8.4 gateway enhancements/collapse 2-tier delivery
 - 2 simta.conf & ldap include files
