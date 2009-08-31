@@ -15,6 +15,7 @@ CURRENT ROADMAP
 + 1 single master queue runner/smtp listener process
 + 1 simta IPC using C files
 ! 1 ignore ipv6
+! 1 content filter bitfield audit results
 + 2 ability to re-prioritize/kick queues
 + 2 queue processing by user (mail jail)
 + 2 queue-only (mail jail)

@@ -308,6 +308,7 @@ env_sender( struct envelope *env, char *e_mail )
 	if (( list = (struct sender_list*)sl_dll->dll_data ) == NULL ) {
 	    if (( list = (struct sender_list*)malloc(
 		    sizeof( struct sender_list ))) == NULL ) {
+		syslog( LOG_ERR, "Syserror: env_sender malloc: %m" );
 		return( 1 );
 	    }
 	    memset( list, 0, sizeof( struct sender_list ));
@@ -326,6 +327,7 @@ env_sender( struct envelope *env, char *e_mail )
 
 	if (( entry = (struct sender_entry*)malloc(
 		sizeof( struct sender_entry ))) == NULL ) {
+	    syslog( LOG_ERR, "Syserror: env_sender malloc: %m" );
 	    return( 1 );
 	}
 	memset( entry, 0, sizeof( struct sender_entry ));
@@ -720,7 +722,7 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     sprintf( filename, "%s/E%s", env->e_dir, env->e_id );
 
     if (( snet = snet_open( filename, O_RDWR, 0, 1024 * 1024 )) == NULL ) {
-	if ( errno != ENOENT ) {
+	if (( errno != ENOENT ) && ( simta_debug == 0 )) {
 	    syslog( LOG_ERR, "env_read snet_open %s: %m", filename );
 	}
 	return( 1 );
@@ -739,7 +741,7 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
 
 	    /* lock envelope fd for delivery attempt */
 	    if ( lockf( snet_fd( snet ), F_TLOCK, 0 ) != 0 ) {
-		if ( errno != EAGAIN ) {
+		if (( errno != EAGAIN ) && ( simta_debug == 0 )) {
 		    /* file not locked by a diferent process */
 		    syslog( LOG_ERR, "env_read lockf %s: %m", filename );
 		}
@@ -918,7 +920,7 @@ cleanup:
 	}
     }
 
-    return( ret);
+    return( ret );
 }
 
 

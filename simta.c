@@ -295,7 +295,6 @@ simta_read_config( char *fname )
     int			fd;
     int			ac;
     int			x;
-    extern int		simta_debug;
     char		*f_arg;
     char		*endptr;
     char		*line;
@@ -1101,6 +1100,15 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "CONTENT_FILTER: %s\n",
 		simta_mail_filter );
+
+	} else if ( strcasecmp( av[ 0 ], "DEBUG_LOGGING" ) == 0 ) {
+	    if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 arguments\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_debug = 1;
+	    if ( simta_debug ) printf( "DEBUG_LOGGING\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "IGNORE_REVERSE" ) == 0 ) {
 	    if ( ac != 1 ) {

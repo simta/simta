@@ -1110,7 +1110,6 @@ q_deliver( struct host_q *deliver_q )
 		    env_deliver->e_id );
 	}
 
-
 	/* bounce the message if the message is bad, or
 	 * if some recipients are bad.
 	 */
