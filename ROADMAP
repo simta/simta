@@ -1,4 +1,4 @@
-simta roadmap summer 2009
+simta roadmap fall 2009
 ---
 
 key                                 priority
@@ -14,11 +14,16 @@ CURRENT ROADMAP
 ! 1 BUG: "no deliver" poison message
 + 1 single master queue runner/smtp listener process
 + 1 simta IPC using C files
++ 1 DEBUG_LOGGING directive added to help debug the stuck message bugfix
 ! 1 ignore ipv6
-! 1 content filter bitfield audit results
+- 1 bounce + delete = bounce w/o body
+- 1 content filter stdout should be included in bounce
 + 2 ability to re-prioritize/kick queues
 + 2 queue processing by user (mail jail)
 + 2 queue-only (mail jail)
+- 2 verify that queue-only + bitbucket works (needed for testing purposes)
+- 2 jail + reject || tempfail, jail + bounce
++ 3 queue processing by id (simc)
 + 3 better handling of domain names with trailing dot
 + 3 simexpander log pid
 
