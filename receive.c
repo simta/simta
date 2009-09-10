@@ -353,11 +353,13 @@ deliver_accepted( struct receive_data *r )
 	}
 
 	if ( r->r_env == NULL ) {
-	    if (( r->r_env = env_create( NULL, NULL )) == NULL ) {
+	    if (( r->r_env = env_create( NULL, NULL, NULL )) == NULL ) {
 		return( RECEIVE_SYSERROR );
 	    }
 	} else {
-	    env_reset( r->r_env );
+	    if ( env_reset( r->r_env ) != 0 ) {
+		return( RECEIVE_SYSERROR );
+	    }
 	}
     }
 
@@ -378,10 +380,12 @@ reset( struct receive_data *r )
 		    r->r_env->e_id );
 	}
 
-	env_reset( r->r_env );
+	if ( env_reset( r->r_env ) != 0 ) {
+	    return( RECEIVE_SYSERROR );
+	}
 
     } else {
-	if (( r->r_env = env_create( NULL, NULL )) == NULL ) {
+	if (( r->r_env = env_create( NULL, NULL, NULL )) == NULL ) {
 	    return( RECEIVE_SYSERROR );
 	}
     }
@@ -918,10 +922,6 @@ f_mail( struct receive_data *r )
      * "RSET".
      */
     if ( reset( r ) != RECEIVE_OK ) {
-	return( RECEIVE_SYSERROR );
-    }
-
-    if ( env_id( r->r_env ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
 

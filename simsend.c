@@ -203,13 +203,8 @@ main( int argc, char *argv[] )
     }
 
     /* create envelope */
-    if (( env = env_create( NULL, NULL )) == NULL ) {
+    if (( env = env_create( NULL, NULL, NULL )) == NULL ) {
 	perror( "env_create" );
-	exit( EX_TEMPFAIL );
-    }
-
-    if ( env_id( env ) != 0 ) {
-	perror( "gettimeofday" );
 	exit( EX_TEMPFAIL );
     }
 

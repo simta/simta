@@ -1,4 +1,7 @@
 0.8.3.b
+    - queue scheduler bug
+    - envelope API changes needed to support MID and sender lists
+    - simc -d changes simta's debug level
     - simta_openlog() used instead of openlog()
     - MAIL_JAIL directive added
     - simc works for MID, queue, and sender

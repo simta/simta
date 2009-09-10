@@ -527,61 +527,48 @@ q_runner_dir( char *dir )
 
 
     void
-hq_deliver_push( struct host_q *hq, struct timeval *tv_now, int nodelay )
+hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
+	struct timeval *tv_delay )
 {
-    long			diff;
     int				max_wait = 80 * 60;
     int				min_wait = 5 * 60;
-    int				wait;
-    int				half;
-    int				delay = 0;
     struct timeval		next_launch;
     struct host_q		*insert;
 
-    if ( hq->hq_last_launch.tv_sec == 0 ) {
-	hq->hq_last_leaky.tv_sec = tv_now->tv_sec;
-	if ( nodelay == 0 ) {
-	    delay = random() % min_wait;
+    /* if there is a provided delay, use it but respect max_wait */
+    if ( tv_delay != NULL ) {
+	if ( tv_delay->tv_sec > max_wait ) {
+	    next_launch.tv_sec = max_wait + tv_now->tv_sec;
+	    hq->hq_wait_last.tv_sec = max_wait;
+	} else {
+	    next_launch.tv_sec = tv_delay->tv_sec + tv_now->tv_sec;
+	    if ( hq->hq_wait_last.tv_sec < min_wait ) {
+		hq->hq_wait_last.tv_sec = min_wait;
+	    } else {
+		hq->hq_wait_last.tv_sec = tv_delay->tv_sec;
+	    }
 	}
-	next_launch.tv_sec = tv_now->tv_sec + delay;
+
+    /* have we ever launched this queue or is it leaky? */
+    } else if (( hq->hq_last_launch.tv_sec == 0 ) || ( hq->hq_leaky != 0 )) {
+	hq->hq_leaky = 0;
+	next_launch.tv_sec = random() % min_wait + tv_now->tv_sec;
+	hq->hq_wait_last.tv_sec = min_wait;
 
     } else {
-	/* how many seconds the queue has been down */
-	diff = hq->hq_last_launch.tv_sec - hq->hq_last_leaky.tv_sec;
-
-	/* next wait time falls between min and max wait values */
-	if ( diff <= min_wait ) {
-	    wait = min_wait;
-
+	/* wait twice what you did last time, but respect max_wait */
+	if (( hq->hq_wait_last.tv_sec * 2 ) <= max_wait ) {
+	    hq->hq_wait_last.tv_sec = hq->hq_wait_last.tv_sec * 2;
 	} else {
-	    for ( wait = max_wait;
-		    ((( half = wait / 2 ) > diff ) && ( half > min_wait ));
-		    wait = half )
-		;
+	    hq->hq_wait_last.tv_sec = max_wait;
 	}
-
-	/* compute possible next launch time */
-	next_launch.tv_sec = hq->hq_last_launch.tv_sec + wait;
-
-	if ( next_launch.tv_sec < tv_now->tv_sec ) {
-	    if ( nodelay == 0 ) {
-		delay = random() % min_wait;
-	    }
-	    next_launch.tv_sec = tv_now->tv_sec + delay;
-	}
+	next_launch.tv_sec = hq->hq_wait_last.tv_sec +
+		hq->hq_next_launch.tv_sec;
     }
 
-    /* if the next launch is zero, or if it is greater than the computed
-     * value, use the computed value.
-     */
-    if ( hq->hq_next_launch.tv_sec == 0 ) {
-	syslog( LOG_DEBUG, "Queue %s: Queued %d", hq->hq_hostname,
-		(int)(next_launch.tv_sec - tv_now->tv_sec));
-	hq->hq_next_launch.tv_sec = next_launch.tv_sec;
-    } else if ( hq->hq_next_launch.tv_sec > next_launch.tv_sec ) {
-	syslog( LOG_DEBUG, "Queue %s: Requeued %d, Old %d",
-		hq->hq_hostname, (int)(next_launch.tv_sec - tv_now->tv_sec),
-		(int)(hq->hq_next_launch.tv_sec - tv_now->tv_sec));
+    /* use next_launch if the queue has already launched, or it's sooner */
+    if (( hq->hq_next_launch.tv_sec <= hq->hq_last_launch.tv_sec ) ||
+	    ( hq->hq_next_launch.tv_sec > next_launch.tv_sec )) {
 	hq->hq_next_launch.tv_sec = next_launch.tv_sec;
     }
 
@@ -783,7 +770,7 @@ q_read_dir( struct simta_dirp *sd )
 	    if ( (*hq)->hq_next_launch.tv_sec == 0 ) {
 		syslog( LOG_INFO, "Queue Adding: %s %d messages",
 			(*hq)->hq_hostname, (*hq)->hq_entries );
-		hq_deliver_push( *hq, &tv_stop, 0 );
+		hq_deliver_push( *hq, &tv_stop, NULL );
 	    }
 
 	    hq = &((*hq)->hq_next);
@@ -862,13 +849,10 @@ q_read_dir( struct simta_dirp *sd )
     }
 
     /* here env is NULL, we need to create an envelope */
-    if (( env = env_create( NULL, NULL )) == NULL ) {
+    if (( env = env_create( entry->d_name + 1, NULL, NULL )) == NULL ) {
 	return( 1 );
     }
 
-    if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
-	return( 1 );
-    }
     env->e_dir = sd->sd_dir;
 
     if ( env_read( READ_QUEUE_INFO, env, NULL ) != 0 ) {

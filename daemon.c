@@ -50,13 +50,6 @@
 #include "envelope.h"
 #include "tls.h"
 
-#define S_MESSAGE "Message"
-#define S_SENDER "sender"
-#define S_QUEUE "queue"
-#define S_DISK "Disk"
-#define S_LIMITER "Limiter"
-#define S_Unset "Unset"
-
 
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
@@ -810,12 +803,8 @@ hq_launch( void )
 	    hq->hq_wait_last.tv_sec, hq->hq_wait_shortest.tv_sec,
 	    hq->hq_wait_longest.tv_sec, hq->hq_entries );
 
-    hq->hq_wait_last.tv_sec = waited;
     hq->hq_last_launch.tv_sec = tv_now.tv_sec;
-
-    /* zero out the next_launch (we just did it) and reschedule */
-    hq->hq_next_launch.tv_sec = 0;
-    hq_deliver_push( hq, &tv_now, 0 );
+    hq_deliver_push( hq, &tv_now, NULL );
 
     if (( simta_mail_jail != 0 ) && ( hq->hq_high_priority == 0 )) {
 	syslog( LOG_INFO, "Queue %s: launch %d: "
@@ -1153,10 +1142,11 @@ error:
 
 
     void
-requeue_host( char *hostname, int requeue_nodelay )
+requeue_host( char *hostname, int leaky )
 {
     struct host_q	*hq;
     struct timeval	tv_now;
+    struct timeval	tv_nowait = { 0, 0 };
 
     if (( hq = host_q_lookup( hostname )) != NULL ) {
 	if ( simta_gettimeofday( &tv_now ) != 0 ) {
@@ -1165,9 +1155,13 @@ requeue_host( char *hostname, int requeue_nodelay )
 	}
 
 	hq_deliver_pop( hq );
-	hq->hq_last_leaky.tv_sec = tv_now.tv_sec;
-	hq_deliver_push( hq, &tv_now, requeue_nodelay );
-	syslog( LOG_DEBUG, "Queue %s: Requeued", hostname );
+
+	if ( leaky != 0 ) {
+	    hq->hq_leaky = 1;
+	    hq_deliver_push( hq, &tv_now, NULL );
+	} else {
+	    hq_deliver_push( hq, &tv_now, &tv_nowait );
+	}
     } else {
 	syslog( LOG_DEBUG, "Queue %s: Not Found", hostname );
     }
@@ -1227,7 +1221,7 @@ daemon_waitpid( void )
 			( exitstatus == SIMTA_EXIT_OK_LEAKY )) {
 		    activity = 1;
 		    /* remote host activity, requeue to encourage it */
-		    requeue_host( p_remove->p_host, 0 );
+		    requeue_host( p_remove->p_host, 1 );
 
 		} else {
 		    errors++;
@@ -1667,6 +1661,7 @@ mid_promote( char *mid )
     struct timeval		tv_now;
     struct dll_entry		*dll;
     struct envelope		*e;
+    struct timeval		tv_nowait = { 0, 0 };
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return( 1 );
@@ -1677,8 +1672,7 @@ mid_promote( char *mid )
 	env_priority( e, ENV_HIGH_PRIORITY );
 	if ( e->e_hq != NULL ) {
 	    hq_deliver_pop( e->e_hq );
-	    e->e_hq->hq_last_leaky.tv_sec = tv_now.tv_sec;
-	    hq_deliver_push( e->e_hq, &tv_now, 1 );
+	    hq_deliver_push( e->e_hq, &tv_now, &tv_nowait );
 	}
     }
 
@@ -1694,6 +1688,7 @@ sender_promote( char *sender )
     struct sender_list		*sl;
     struct sender_entry		*se;
     struct dll_entry		*dll_se;
+    struct timeval		tv_nowait = { 0, 0 };
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return( 1 );
@@ -1709,8 +1704,7 @@ sender_promote( char *sender )
 	    /* re-queue queue */
 	    if ( se->se_env->e_hq != NULL ) {
 		hq_deliver_pop( se->se_env->e_hq );
-		se->se_env->e_hq->hq_last_leaky.tv_sec = tv_now.tv_sec;
-		hq_deliver_push( se->se_env->e_hq, &tv_now, 1 );
+		hq_deliver_push( se->se_env->e_hq, &tv_now, &tv_nowait );
 	    }
 	}
     }
@@ -1729,6 +1723,7 @@ daemon_commands( struct simta_dirp *sd )
     char			fname[ MAXPATHLEN + 1 ];
     int				lineno = 1;
     int				ac;
+    int				int_arg;
     char			**av;
     ACAV			*acav;
 
@@ -1871,7 +1866,26 @@ daemon_commands( struct simta_dirp *sd )
 	    queue_log_metrics( simta_deliver_q );
 	} else if ( ac == 2 ) {
 	    syslog( LOG_DEBUG, "Command %s: Queue %s", entry->d_name, av[ 1 ]);
-	    requeue_host( av[ 1 ], 1 );
+	    requeue_host( av[ 1 ], 0 );
+	} else {
+	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
+		    entry->d_name, lineno );
+	}
+
+    } else if ( strcasecmp( av[ 0 ], S_DEBUG ) == 0 ) {
+	if ( ac == 1 ) {
+	    syslog( LOG_DEBUG, "Command %s: Debug: %d", entry->d_name,
+		    simta_debug );
+	} else if ( ac == 2 ) {
+	    int_arg = atoi( av[ 1 ]);
+	    if ( int_arg >= 0 ) {
+		simta_debug = int_arg;
+		syslog( LOG_DEBUG, "Command %s: Debug set: %d", entry->d_name,
+			simta_debug );
+	    } else {
+		syslog( LOG_DEBUG, "Command %s: Debug illegal arg: %d",
+			entry->d_name, simta_debug );
+	    }
 	} else {
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );

@@ -50,12 +50,7 @@ address_bounce_create( struct expand *exp )
 {
     struct envelope		*bounce_env;
 
-    if (( bounce_env = env_create( NULL, exp->exp_env )) == NULL ) {
-	return( NULL );
-    }
-
-    if ( env_id( bounce_env ) != 0 ) {
-	env_free( bounce_env );
+    if (( bounce_env = env_create( NULL, NULL, exp->exp_env )) == NULL ) {
 	return( NULL );
     }
 

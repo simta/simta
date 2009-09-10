@@ -226,13 +226,9 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 	    }
 
 	    if (( *env_p == NULL ) || ( result != 0 )) {
-		if (( env = env_create( NULL, NULL )) == NULL ) {
+		if (( env = env_create( entry->d_name + 1, NULL,
+			NULL )) == NULL ) {
 		    return( 1 );
-		}
-
-		if ( env_set_id( env, entry->d_name + 1 ) != 0 ) {
-		    env_free( env );
-		    continue;
 		}
 
 		env->e_dir = dir;

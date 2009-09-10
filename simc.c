@@ -69,31 +69,38 @@ main( int argc, char *argv[] )
 
     simta_openlog( 0 );
 
-    while (( c = getopt( argc, argv, "mqs" )) != -1 ) {
+    while (( c = getopt( argc, argv, "dmqs" )) != -1 ) {
 	switch ( c ) {
 	default:
 	    usage++;
+	    break;
+
+	case 'd':
+	    if ( command != NULL ) {
+		usage++;
+	    }
+	    command = S_DEBUG;
 	    break;
 
 	case 'm':
 	    if ( command != NULL ) {
 		usage++;
 	    }
-	    command = "Message";
+	    command = S_MESSAGE;
 	    break;
 
 	case 'q':
 	    if ( command != NULL ) {
 		usage++;
 	    }
-	    command = "Queue";
+	    command = S_QUEUE;
 	    break;
 
 	case 's':
 	    if ( command != NULL ) {
 		usage++;
 	    }
-	    command = "Sender";
+	    command = S_SENDER;
 	    break;
 	}
     }

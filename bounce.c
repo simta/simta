@@ -321,12 +321,8 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
     struct stat			sbuf;
     char                        daytime[ 35 ];
 
-    if (( bounce_env = env_create( NULL, env )) == NULL ) {
+    if (( bounce_env = env_create( NULL, NULL, env )) == NULL ) {
 	return( NULL );
-    }
-
-    if ( env_id( bounce_env ) != 0 ) {
-	goto cleanup1;
     }
 
     if ( env_sender( bounce_env, NULL ) != 0 ) {

@@ -44,29 +44,6 @@
 #include "queue.h"
 
 
-    int
-env_id( struct envelope *e )
-{
-    struct timeval		tv_now;
-    int				pid;
-    /* way bigger than we should ever need */
-    char			buf[ 1024 ];
-
-    assert( e->e_id == NULL );
-
-    simta_gettimeofday( &tv_now );
-
-    if (( pid = getpid()) < 0 ) {
-	syslog( LOG_ERR, "env_id getpid: %m" );
-	return( -1 );
-    }
-
-    snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
-	    (unsigned long)tv_now.tv_usec, pid );
-
-    return( env_set_id( e, buf ));
-}
-
 
     int
 env_priority( struct envelope *env, int priority )
@@ -139,10 +116,25 @@ env_is_old( struct envelope *env, int dfile_fd )
 env_set_id( struct envelope *e, char *id )
 {
     struct dll_entry		*e_dll;
+    struct timeval		tv_now;
+    int				pid;
+    /* way bigger than we should ever need */
+    char			buf[ 1024 ];
 
     if (( id == NULL ) || ( *id == '\0' )) {
-	syslog( LOG_ERR, "env_set_id: must have valid ID" );
-	return( 1 );
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	    return( 1 );
+	}
+
+	if (( pid = getpid()) < 0 ) {
+	    syslog( LOG_ERR, "env_set_id getpid: %m" );
+	    return( 1 );
+	}
+
+	snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
+		(unsigned long)tv_now.tv_usec, pid );
+
+	id = buf;
     }
 
     if (( e->e_id = strdup( id )) == NULL ) {
@@ -166,8 +158,9 @@ env_set_id( struct envelope *e, char *id )
 }
 
 
+
     struct envelope *
-env_create( char *e_mail, struct envelope *parent )
+env_create( char *id, char *e_mail, struct envelope *parent )
 {
     struct envelope	*env;
 
@@ -177,6 +170,10 @@ env_create( char *e_mail, struct envelope *parent )
 	return( NULL );
     }
     memset( env, 0, sizeof( struct envelope ));
+
+    if ( env_set_id( env, id ) != 0 ) {
+	return( NULL );
+    }
 
     if ( e_mail != NULL ) {
 	if ( env_sender( env, e_mail ) != 0 ) {
@@ -343,8 +340,17 @@ env_sender( struct envelope *env, char *e_mail )
 }
 
 
-    void
+    int
 env_reset( struct envelope *env )
+{
+    env_clear( env );
+
+    return( env_set_id( env, NULL ));
+}
+
+
+    void
+env_clear( struct envelope *env )
 {
     if ( env != NULL ) {
 	if ( env->e_mid != NULL ) {
@@ -398,7 +404,7 @@ env_reset( struct envelope *env )
 env_free( struct envelope *env )
 {
     if ( env != NULL ) {
-	env_reset( env );
+	env_clear( env );
 	memset( env, 0, sizeof( struct envelope ));
 	free( env );
     }

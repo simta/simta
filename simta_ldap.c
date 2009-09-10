@@ -1186,7 +1186,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		ldap_get_values( ld->ldap_ld, entry, "moderator" )) != NULL )) {
 	    if ( exp->exp_env->e_n_exp_level < simta_exp_level_max ) {
 		if (( e_addr->e_addr_env_moderated =
-			env_create( exp->exp_env->e_mail,
+			env_create( NULL, exp->exp_env->e_mail,
 			exp->exp_env )) == NULL ) {
 		    ldap_value_free( moderator );
 		    ldap_memfree( dn );

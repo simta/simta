@@ -97,7 +97,7 @@ main( int argc, char *argv[])
 	exit( EX_DATAERR );
     }
 
-    if (( env = env_create( sender, NULL )) == NULL ) {
+    if (( env = env_create( NULL, sender, NULL )) == NULL ) {
 	perror( "malloc" );
 	return( 1 );
     }

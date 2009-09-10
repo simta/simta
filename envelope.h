@@ -86,15 +86,15 @@ struct envelope {
  * 1 char*	Rto_address
  */
 
-struct envelope	*env_create( char *, struct envelope * );
+struct envelope	*env_create( char *, char *, struct envelope * );
 void		env_rcpt_free( struct envelope * );
 void		env_free( struct envelope * );
-void		env_reset( struct envelope * );
 void		rcpt_free( struct recipient * );
 void		env_clear_errors( struct envelope * );
+void		env_clear( struct envelope * );
+int		env_reset( struct envelope * );
 int		env_priority( struct envelope *, int );
 int		env_is_old( struct envelope *, int );
-int		env_id( struct envelope * );
 int		env_set_id( struct envelope *, char * );
 int		env_recipient( struct envelope *, char * );
 int		env_sender( struct envelope *, char * );
