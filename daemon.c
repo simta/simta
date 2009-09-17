@@ -95,7 +95,6 @@ int		set_rcvbuf( int );
 struct simta_socket	*simta_listen( char*, int, int );
 struct proc_type	*simta_proc_add( int, int );
 int		simta_proc_q_runner( int, struct host_q* );
-void		requeue_host( char *, int );
 int		simta_read_command( struct simta_dirp * );
 int		set_sleep_time( int *, int );
 
@@ -775,6 +774,10 @@ hq_launch( void )
     int				lag;
     u_long			waited;
 
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	return( 1 );
+    }
+
     hq = simta_deliver_q;
     hq_deliver_pop( hq );
     hq->hq_launches++;
@@ -804,13 +807,9 @@ hq_launch( void )
 	    hq->hq_wait_longest.tv_sec, hq->hq_entries );
 
     hq->hq_last_launch.tv_sec = tv_now.tv_sec;
-    hq_deliver_push( hq, &tv_now, NULL );
 
-    if (( simta_mail_jail != 0 ) && ( hq->hq_high_priority == 0 )) {
-	syslog( LOG_INFO, "Queue %s: launch %d: "
-		"no high priority messages, not launching queue",
-		hq->hq_hostname, hq->hq_launches );
-	return( 0 );
+    if ( hq_deliver_push( hq, &tv_now, NULL ) != 0 ) {
+	return( 1 );
     }
 
     if ( simta_child_q_runner( hq ) != 0 ) {
@@ -1141,35 +1140,6 @@ error:
 }
 
 
-    void
-requeue_host( char *hostname, int leaky )
-{
-    struct host_q	*hq;
-    struct timeval	tv_now;
-    struct timeval	tv_nowait = { 0, 0 };
-
-    if (( hq = host_q_lookup( hostname )) != NULL ) {
-	if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	    tv_now.tv_sec = simta_tv_now.tv_sec;
-	    tv_now.tv_usec = simta_tv_now.tv_usec;
-	}
-
-	hq_deliver_pop( hq );
-
-	if ( leaky != 0 ) {
-	    hq->hq_leaky = 1;
-	    hq_deliver_push( hq, &tv_now, NULL );
-	} else {
-	    hq_deliver_push( hq, &tv_now, &tv_nowait );
-	}
-    } else {
-	syslog( LOG_DEBUG, "Queue %s: Not Found", hostname );
-    }
-
-    return;
-}
-
-
     int
 daemon_waitpid( void )
 {
@@ -1183,6 +1153,7 @@ daemon_waitpid( void )
     struct proc_type	**p_search;
     struct proc_type	*p_remove;
     struct timeval	tv_now;
+    struct host_q	*hq;
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return( 1 );
@@ -1220,8 +1191,20 @@ daemon_waitpid( void )
 		if (( p_remove->p_type == PROCESS_Q_SLOW ) &&
 			( exitstatus == SIMTA_EXIT_OK_LEAKY )) {
 		    activity = 1;
+
 		    /* remote host activity, requeue to encourage it */
-		    requeue_host( p_remove->p_host, 1 );
+		    if (( hq = host_q_lookup( p_remove->p_host )) != NULL ) {
+			hq->hq_leaky = 1;
+			hq_deliver_pop( hq );
+
+			if ( hq_deliver_push( hq, &tv_now, NULL ) != 0 ) {
+			    return( 1 );
+			}
+
+		    } else {
+			syslog( LOG_DEBUG, "Queue %s: Not Found",
+				p_remove->p_host );
+		    }
 
 		} else {
 		    errors++;
@@ -1658,21 +1641,22 @@ simta_proc_add( int process_type, int pid )
     int
 mid_promote( char *mid )
 {
-    struct timeval		tv_now;
     struct dll_entry		*dll;
     struct envelope		*e;
     struct timeval		tv_nowait = { 0, 0 };
 
-    if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	return( 1 );
-    }
-
     if (( dll = dll_lookup( simta_env_list, mid )) != NULL ) {
 	e = (struct envelope*)dll->dll_data;
-	env_priority( e, ENV_HIGH_PRIORITY );
+	if ( env_priority( e, ENV_HIGH_PRIORITY ) != 0 ) {
+	    return( 1 );
+	}
+
 	if ( e->e_hq != NULL ) {
+	    e->e_hq->hq_priority++;
 	    hq_deliver_pop( e->e_hq );
-	    hq_deliver_push( e->e_hq, &tv_now, &tv_nowait );
+	    if ( hq_deliver_push( e->e_hq, NULL, &tv_nowait ) != 0 ) {
+		return( 1 );
+	    }
 	}
     }
 
@@ -1683,16 +1667,11 @@ mid_promote( char *mid )
     int
 sender_promote( char *sender )
 {
-    struct timeval		tv_now;
     struct dll_entry		*dll;
     struct sender_list		*sl;
     struct sender_entry		*se;
     struct dll_entry		*dll_se;
     struct timeval		tv_nowait = { 0, 0 };
-
-    if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	return( 1 );
-    }
 
     if (( dll = dll_lookup( simta_sender_list, sender )) != NULL ) {
 	sl = (struct sender_list*)dll->dll_data;
@@ -1700,11 +1679,18 @@ sender_promote( char *sender )
 		dll_se = dll_se->dll_next ) {
 	    se = (struct sender_entry*)dll->dll_data;
 	    /* tag env */
-	    env_priority( se->se_env, ENV_HIGH_PRIORITY );
+	    if ( env_priority( se->se_env, ENV_HIGH_PRIORITY ) != 0 ) {
+		return( 1 );
+	    }
+
 	    /* re-queue queue */
 	    if ( se->se_env->e_hq != NULL ) {
+		se->se_env->e_hq->hq_priority++;
 		hq_deliver_pop( se->se_env->e_hq );
-		hq_deliver_push( se->se_env->e_hq, &tv_now, &tv_nowait );
+		if ( hq_deliver_push( se->se_env->e_hq, NULL,
+			&tv_nowait ) != 0 ) {
+		    return( 1 );
+		}
 	    }
 	}
     }
@@ -1726,6 +1712,8 @@ daemon_commands( struct simta_dirp *sd )
     int				int_arg;
     char			**av;
     ACAV			*acav;
+    struct host_q		*hq;
+    struct timeval		tv_nowait = { 0, 0 };
 
     if ( sd->sd_dirp == NULL ) {
 	if ( simta_gettimeofday( &(sd->sd_tv_start)) != 0 ) {
@@ -1838,7 +1826,9 @@ daemon_commands( struct simta_dirp *sd )
 	} else if ( ac == 2 ) {
 	    syslog( LOG_DEBUG, "Command %s: Message %s", entry->d_name,
 		    av[ 1 ]);
-	    mid_promote( av[ 1 ]);
+	    if ( mid_promote( av[ 1 ]) != 0 ) {
+		goto error;
+	    }
 
 	} else {
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
@@ -1853,7 +1843,9 @@ daemon_commands( struct simta_dirp *sd )
 	} else if ( ac == 2 ) {
 	    syslog( LOG_DEBUG, "Command %s: Sender %s", entry->d_name, av[ 1 ]);
 	    /* JAIL-ADD promote sender's mail */
-	    sender_promote( av[ 1 ]);
+	    if ( sender_promote( av[ 1 ]) != 0 ) {
+		goto error;
+	    }
 
 	} else {
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
@@ -1866,7 +1858,18 @@ daemon_commands( struct simta_dirp *sd )
 	    queue_log_metrics( simta_deliver_q );
 	} else if ( ac == 2 ) {
 	    syslog( LOG_DEBUG, "Command %s: Queue %s", entry->d_name, av[ 1 ]);
-	    requeue_host( av[ 1 ], 0 );
+	    if (( hq = host_q_lookup( av[ 1 ])) != NULL ) {
+		hq_deliver_pop( hq );
+		hq->hq_priority++;
+/* ZZZZZZZ promote all the envs in the queue */
+
+		if ( hq_deliver_push( hq, NULL, &tv_nowait ) != 0 ) {
+		    return( 1 );
+		}
+	    } else {
+		syslog( LOG_DEBUG, "Queue %s: Not Found", av[ 1 ]);
+	    }
+
 	} else {
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );

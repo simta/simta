@@ -1,4 +1,4 @@
-$Id: ROADMAP,v 1.12 2009/09/14 21:28:34 sweda Exp $
+$Id: ROADMAP,v 1.13 2009/09/17 15:23:40 epcjr Exp $
 simta roadmap fall 2009
 ---
 
@@ -13,7 +13,7 @@ CURRENT ROADMAP
 
 0.8.3 mail jail
 ! 1 BUG: "no deliver" poison message
-+ + 1 BUG: queue scheduler issues
++ 1 BUG: queue scheduler issues
 + 1 single master queue runner/smtp listener process
 + 1 simta IPC using C files
 + 1 DEBUG_LOGGING directive added to help debug the stuck message bugfix

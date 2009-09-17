@@ -202,7 +202,7 @@ queue_envelope( struct envelope *env )
 	hq->hq_entries++;
 
 	if ( env->e_priority == ENV_HIGH_PRIORITY ) {
-	    hq->hq_high_priority++;
+	    hq->hq_priority_envs++;
 	}
     }
 
@@ -224,7 +224,7 @@ queue_remove_envelope( struct envelope *env )
 
 	env->e_hq->hq_entries--;
 	if ( env->e_priority == ENV_HIGH_PRIORITY ) {
-	    env->e_hq->hq_high_priority--;
+	    env->e_hq->hq_priority_envs--;
 	}
 	env->e_hq = NULL;
 	env->e_hq_next = NULL;
@@ -246,7 +246,7 @@ queue_time_order( struct host_q *hq )
 	/* sort the envs based on etime */
 	envs = hq->hq_env_head;
 	hq->hq_entries = 0;
-	hq->hq_high_priority = 0;
+	hq->hq_priority_envs = 0;
 	hq->hq_env_head = NULL;
 	while ( envs != NULL ) {
 	    sort = envs;
@@ -526,67 +526,96 @@ q_runner_dir( char *dir )
 }
 
 
-    void
+    int
 hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	struct timeval *tv_delay )
 {
-    int				max_wait = 80 * 60;
-    int				min_wait = 5 * 60;
+    int				order;
     struct timeval		next_launch;
     struct host_q		*insert;
+    struct timeval		tv;
+    struct timeval		wait_last;
 
-    /* if there is a provided delay, use it but respect max_wait */
-    if ( tv_delay != NULL ) {
-	if ( tv_delay->tv_sec > max_wait ) {
-	    next_launch.tv_sec = max_wait + tv_now->tv_sec;
-	    hq->hq_wait_last.tv_sec = max_wait;
+    if ( tv_now == NULL ) {
+	if ( simta_gettimeofday( &tv ) != 0 ) {
+	    return( 1 );
+	}
+
+	tv_now = &tv;
+    }
+
+    /* if a queue is high priority, put it to the front of the queue */
+    if ( hq->hq_priority > 0 ) {
+	wait_last.tv_sec = 0;
+	next_launch.tv_sec = tv_now->tv_sec;
+
+    /* if there is a provided delay, use it but respect simta_max_wait */
+    } else if ( tv_delay != NULL ) {
+	if ( tv_delay->tv_sec > simta_max_wait ) {
+	    wait_last.tv_sec = simta_max_wait;
+	    next_launch.tv_sec = simta_max_wait + tv_now->tv_sec;
+
 	} else {
+	    wait_last.tv_sec = simta_min_wait;
 	    next_launch.tv_sec = tv_delay->tv_sec + tv_now->tv_sec;
-	    if ( hq->hq_wait_last.tv_sec < min_wait ) {
-		hq->hq_wait_last.tv_sec = min_wait;
+	    if ( wait_last.tv_sec < simta_min_wait ) {
+		wait_last.tv_sec = simta_min_wait;
 	    } else {
-		hq->hq_wait_last.tv_sec = tv_delay->tv_sec;
+		wait_last.tv_sec = tv_delay->tv_sec;
 	    }
+	}
+
+    /* if we're a jail, does this queue have any active mail? */
+    } else if (( simta_mail_jail != 0 ) && ( hq->hq_priority_envs == 0 )) {
+	wait_last.tv_sec = simta_jail_seconds.tv_sec;
+	if ( hq->hq_last_launch.tv_sec == 0 ) {
+	    next_launch.tv_sec = random() % simta_jail_seconds.tv_sec +
+		    tv_now->tv_sec;
+	} else {
+	    next_launch.tv_sec = simta_jail_seconds.tv_sec + tv_now->tv_sec;
 	}
 
     /* have we ever launched this queue or is it leaky? */
     } else if (( hq->hq_last_launch.tv_sec == 0 ) || ( hq->hq_leaky != 0 )) {
 	hq->hq_leaky = 0;
-	next_launch.tv_sec = random() % min_wait + tv_now->tv_sec;
-	hq->hq_wait_last.tv_sec = min_wait;
+	wait_last.tv_sec = simta_min_wait;
+	next_launch.tv_sec = random() % simta_min_wait + tv_now->tv_sec;
 
     } else {
-	/* wait twice what you did last time, but respect max_wait */
-	if (( hq->hq_wait_last.tv_sec * 2 ) <= max_wait ) {
-	    hq->hq_wait_last.tv_sec = hq->hq_wait_last.tv_sec * 2;
+	/* wait twice what you did last time, but respect simta_max_wait */
+	if (( hq->hq_wait_last.tv_sec * 2 ) <= simta_max_wait ) {
+	    wait_last.tv_sec = hq->hq_wait_last.tv_sec * 2;
 	} else {
-	    hq->hq_wait_last.tv_sec = max_wait;
+	    wait_last.tv_sec = simta_max_wait;
 	}
-	next_launch.tv_sec = hq->hq_wait_last.tv_sec +
-		hq->hq_next_launch.tv_sec;
+	next_launch.tv_sec = wait_last.tv_sec + tv_now->tv_sec;
     }
 
     /* use next_launch if the queue has already launched, or it's sooner */
     if (( hq->hq_next_launch.tv_sec <= hq->hq_last_launch.tv_sec ) ||
 	    ( hq->hq_next_launch.tv_sec > next_launch.tv_sec )) {
+	hq->hq_wait_last.tv_sec = wait_last.tv_sec;
 	hq->hq_next_launch.tv_sec = next_launch.tv_sec;
     }
 
-    /* add to launch queue sorted on launch time */
+    /* add to launch queue sorted on priority and launch time */
     if (( simta_deliver_q == NULL ) ||
+	    ( simta_deliver_q->hq_priority < hq->hq_priority ) ||
 	    ( simta_deliver_q->hq_next_launch.tv_sec >=
 		    hq->hq_next_launch.tv_sec )) {
 	if (( hq->hq_deliver_next = simta_deliver_q ) != NULL ) {
 	    simta_deliver_q->hq_deliver_prev = hq;
 	}
 	simta_deliver_q = hq;
+	order = 1;
 
     } else {
-	for ( insert = simta_deliver_q;
+	for ( insert = simta_deliver_q, order = 2;
 		(( insert->hq_deliver_next != NULL ) &&
+		( insert->hq_priority > hq->hq_priority ) &&
 		( insert->hq_deliver_next->hq_next_launch.tv_sec <=
 			hq->hq_next_launch.tv_sec ));
-		insert = insert->hq_deliver_next )
+		insert = insert->hq_deliver_next, order++ )
 	    ;
 
 	if (( hq->hq_deliver_next = insert->hq_deliver_next ) != NULL ) {
@@ -596,7 +625,12 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	hq->hq_deliver_prev = insert;
     }
 
-    return;
+    syslog( LOG_DEBUG, "Queue %s: order %d, next %ld, wait %ld",
+	    hq->hq_hostname, order,
+	    hq->hq_next_launch.tv_sec - tv_now->tv_sec,
+	    hq->hq_wait_last.tv_sec );
+
+    return( 0 );
 }
 
 
@@ -648,7 +682,7 @@ prune_messages( struct host_q *hq )
 
     e = &(hq->hq_env_head);
     hq->hq_entries = 0;
-    hq->hq_high_priority = 0;
+    hq->hq_priority_envs = 0;
     hq->hq_entries_new = 0;
     hq->hq_entries_removed = 0;
 
@@ -669,13 +703,17 @@ prune_messages( struct host_q *hq )
 	    env->e_list_prev = NULL;
 
 	    *e = (*e)->e_hq_next;
+	    if ( simta_debug ) {
+		syslog( LOG_DEBUG, "Queue %s [%s]: Removed", hq->hq_hostname,
+			env->e_id );
+	    }
 	    env_free( env );
 	    hq->hq_entries_removed++;
 
 	} else {
 	    hq->hq_entries++;
 	    if ( (*e)->e_priority == ENV_HIGH_PRIORITY ) {
-		hq->hq_high_priority++;
+		hq->hq_priority_envs++;
 	    }
 	    e = &((*e)->e_hq_next);
 	}
@@ -742,6 +780,12 @@ q_read_dir( struct simta_dirp *sd )
 	/* post disk-read queue management */
 	if ( simta_unexpanded_q != NULL ) {
 	    prune_messages( simta_unexpanded_q );
+	    if ( simta_debug ) {
+		syslog( LOG_DEBUG, "Queue [Unexpanded]: entries %d, "
+			"priority_entries %d",
+			simta_unexpanded_q->hq_entries,
+			simta_unexpanded_q->hq_priority_envs );
+	    }
 	}
 
 	hq = &simta_host_q;
@@ -756,12 +800,20 @@ q_read_dir( struct simta_dirp *sd )
 
 	    /* remove any empty host queues */
 	    if ((*hq)->hq_env_head == NULL ) {
+		if ( simta_debug ) {
+		    syslog( LOG_DEBUG, "Queue [%s]: entries 0: Removing",
+			    (*hq)->hq_hostname );
+		}
 		/* delete this host */
 		h_free = *hq;
 		*hq = (*hq)->hq_next;
 		syslog( LOG_INFO, "Queue Removing: %s", h_free->hq_hostname );
 		hq_free( h_free );
 		continue;
+	    } else if ( simta_debug ) {
+		syslog( LOG_DEBUG, "Queue [%s]: entries %d, "
+			"priority_entries %d", (*hq)->hq_hostname,
+			(*hq)->hq_entries, (*hq)->hq_priority_envs );
 	    }
 
 	    /* add new host queues to the deliver queue */
@@ -770,7 +822,9 @@ q_read_dir( struct simta_dirp *sd )
 	    if ( (*hq)->hq_next_launch.tv_sec == 0 ) {
 		syslog( LOG_INFO, "Queue Adding: %s %d messages",
 			(*hq)->hq_hostname, (*hq)->hq_entries );
-		hq_deliver_push( *hq, &tv_stop, NULL );
+		if ( hq_deliver_push( *hq, &tv_stop, NULL ) != 0 ) {
+		    return( 1 );
+		}
 	    }
 
 	    hq = &((*hq)->hq_next);
@@ -842,7 +896,6 @@ q_read_dir( struct simta_dirp *sd )
     }
 
     if ( env != NULL ) {
-	// ZZZ old++;
 	env->e_cycle = simta_disk_cycle;
 	last_read = env;
 	return( 0 );
@@ -875,7 +928,6 @@ q_read_dir( struct simta_dirp *sd )
     }
 
     env->e_cycle = simta_disk_cycle;
-    // ZZZ new++;
 
     if ( simta_env_queue == NULL ) {
 	/* insert as the head */

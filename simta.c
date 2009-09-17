@@ -65,6 +65,7 @@
 
 struct dll_entry	*simta_sender_list = NULL;
 struct dll_entry	*simta_env_list = NULL;
+struct timeval		simta_jail_seconds = { 60 * 60 * 4, 0 };
 struct timeval		simta_tv_now = { 0, 0 };
 struct timeval		simta_log_tv;
 struct envelope		*simta_env_queue = NULL;
@@ -77,6 +78,8 @@ struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_max_wait = 80 * 60;
+int			simta_min_wait = 5 * 60;
 int			simta_mail_jail = 0;
 int			simta_sender_list_enable = 0;
 int			simta_mid_list_enable = 0;
@@ -835,6 +838,55 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "BITBUCKET: %d\n", simta_bitbucket );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_WAIT_SECONDS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_max_wait = atoi( av[ 1 ] );
+	    if ( simta_max_wait <= 0 ) {
+		fprintf( stderr, "%s: line %d: MAX_WAIT_SECONDS less than 1",
+			fname, lineno );
+		goto error;
+	    } else if ( simta_max_wait < simta_min_wait ) {
+		fprintf( stderr, "%s: line %d: MAX_WAIT_SECONDS less than 1",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_WAIT_SECONDS: %ld\n",
+		simta_jail_seconds.tv_sec );
+
+	} else if ( strcasecmp( av[ 0 ], "MIN_WAIT_SECONDS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_min_wait = atoi( av[ 1 ] );
+	    if ( simta_min_wait <= 0 ) {
+		fprintf( stderr, "%s: line %d: MIN_WAIT_SECONDS less than 1",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MIN_WAIT_SECONDS: %ld\n",
+		simta_jail_seconds.tv_sec );
+
+	} else if ( strcasecmp( av[ 0 ], "JAIL_SECONDS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_jail_seconds.tv_sec = atoi( av[ 1 ] );
+	    if ( simta_jail_seconds.tv_sec < 0 ) {
+		fprintf( stderr, "%s: line %d: JAIL_SECONDS less than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "JAIL_SECONDS: %ld\n",
+		simta_jail_seconds.tv_sec );
 
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {

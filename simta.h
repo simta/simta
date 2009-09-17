@@ -27,7 +27,7 @@
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
 #define	SIMTA_BOUNCE_LINES		100
-#define	SIMTA_EFILE_VERSION		3
+#define	SIMTA_EFILE_VERSION		4
 #define SIMTA_MAX_RUNNERS_SLOW		250
 #define SIMTA_MAX_RUNNERS_LOCAL		25
 #define	SIMTA_EXPANSION_FAILED		0
@@ -125,6 +125,7 @@ struct simta_socket {
 
 extern struct dll_entry			*simta_env_list;
 extern struct dll_entry			*simta_sender_list;
+extern struct timeval			simta_jail_seconds;
 extern struct timeval			simta_global_throttle_tv;
 extern struct timeval			simta_tv_now;
 extern struct timeval			simta_log_tv;
@@ -134,6 +135,8 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
+extern int				simta_min_wait;
+extern int				simta_max_wait;
 extern int				simta_mail_jail;
 extern int				simta_sender_list_enable;
 extern int				simta_mid_list_enable;

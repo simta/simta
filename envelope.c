@@ -48,32 +48,32 @@
     int
 env_priority( struct envelope *env, int priority )
 {
+    SNET			*snet_lock;
+
     if ( env == NULL ) {
 	return( 0 );
     }
 
-    switch ( priority ) {
-    default:
-	syslog( LOG_ERR, "Syserror env_priority: invalid priority: %d",
-		priority );
-	break;
-
-    case ENV_HIGH_PRIORITY:
-	if ( env->e_priority != ENV_HIGH_PRIORITY ) {
-	    if ( env->e_hq != NULL ) {
-		env->e_hq->hq_high_priority++;
+    if ( env->e_priority != priority ) {
+	if ( env->e_hq != NULL ) {
+	    if ( priority == 0 ) {
+		env->e_hq->hq_priority_envs--;
+	    } else {
+		env->e_hq->hq_priority_envs++;
 	    }
-	    env->e_priority = ENV_HIGH_PRIORITY;
 	}
-	break;
 
-    case ENV_LOW_PRIORITY:
-	if ( env->e_priority != ENV_LOW_PRIORITY ) {
-	    if ( env->e_hq != NULL ) {
-		env->e_hq->hq_high_priority--;
-	    }
-	    env->e_priority = ENV_LOW_PRIORITY;
+	if ( env_read( READ_PRIORITY_INFO, env, &snet_lock ) != 0 ) {
+	    return( 0 );
 	}
+
+	env->e_priority = priority;
+
+	if ( env_outfile( env ) != 0 ) {
+	    return( 1 );
+	}
+
+	env_rcpt_free( env );
     }
 
     return( 0 );
@@ -258,8 +258,12 @@ env_clear_errors( struct envelope *env )
 env_hostname( struct envelope *env, char *hostname )
 {
     if ( env->e_hostname != NULL ) {
-	syslog( LOG_ERR, "env_hostname: %s already has a hostname", env->e_id );
-	return( 1 );
+	if ( strcasecmp( env->e_hostname, hostname ) != 0 ) {
+	    syslog( LOG_WARNING, "Warning env_hostname: %s: "
+		    "can't reassign hostname from \"%s\" to \"%s\"",
+		    env->e_id, env->e_hostname, hostname );
+	}
+	return( 0 );
     }
 
     if (( hostname != NULL ) && ( *hostname != '\0' )) {
@@ -576,6 +580,12 @@ env_tfile( struct envelope *e )
 	goto cleanup;
     }
 
+    /* Priority Level */
+    if ( fprintf( tff, "P%d\n", e->e_priority ) < 0 ) {
+	syslog( LOG_ERR, "env_tfile fprintf: %m" );
+	goto cleanup;
+    }
+
     /* Hdestination-host */
     if (( e->e_hostname != NULL ) && ( e->e_dir != simta_dir_dead )) {
 	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
@@ -702,6 +712,16 @@ env_touch( struct envelope *env )
 }
 
 
+    /* Version
+     * Emessage-id
+     * [ Mid ]
+     * Inode
+     * Xpansion level
+     * Priority
+     * From
+     * Recipients
+     */
+
     int
 env_read( int mode, struct envelope *env, SNET **s_lock )
 {
@@ -713,194 +733,302 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     ino_t			dinode;
     int				version;
     int				exp_level;
+    int				priority;
+    int				line_no = 1;
 
-    /* check mode here */
-    if ( mode == READ_QUEUE_INFO ) {
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "Syserror env_read: unknown mode: %d", mode );
+	return( 1 );
+
+    case READ_QUEUE_INFO:
 	if ( s_lock != NULL ) {
-	    syslog( LOG_ERR, "env_read error: no lock allowed with READ" );
+	    syslog( LOG_ERR,
+		    "Syserror env_read: READ_QUEUE_INFO: no lock allowed" );
 	    return( 1 );
 	}
-    } else if ( mode != READ_DELIVER_INFO ) {
-	syslog( LOG_ERR, "env_read error: unknown mode: %d", mode );
-	return( 1 );
+	break;
+
+    case READ_DELIVER_INFO:
+    case READ_PRIORITY_INFO:
+	break;
     }
 
     sprintf( filename, "%s/E%s", env->e_dir, env->e_id );
 
     if (( snet = snet_open( filename, O_RDWR, 0, 1024 * 1024 )) == NULL ) {
 	if (( errno != ENOENT ) && ( simta_debug == 0 )) {
-	    syslog( LOG_ERR, "env_read snet_open %s: %m", filename );
+	    syslog( LOG_ERR, "Syserror env_read: snet_open %s: %m", filename );
 	}
 	return( 1 );
     }
 
-    if ( mode == READ_QUEUE_INFO ) {
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "Syserror env_read: mode change: %d", mode );
+	return( 1 );
+
+    case READ_QUEUE_INFO:
 	/* test to see if env is locked by a q_runner */
 	if ( lockf( snet_fd( snet ), F_TEST, 0 ) != 0 ) {
-	    syslog( LOG_ERR, "env_read lockf %s: %m", filename );
+	    syslog( LOG_ERR, "Syserror env_read: lockf %s: %m", filename );
 	    goto cleanup;
 	}
+	break;
 
-    } else {
+    case READ_DELIVER_INFO:
+    case READ_PRIORITY_INFO:
 	if ( s_lock != NULL ) {
 	    *s_lock = snet;
 
-	    /* lock envelope fd for delivery attempt */
+	    /* lock envelope fd */
 	    if ( lockf( snet_fd( snet ), F_TLOCK, 0 ) != 0 ) {
 		if (( errno != EAGAIN ) && ( simta_debug == 0 )) {
 		    /* file not locked by a diferent process */
-		    syslog( LOG_ERR, "env_read lockf %s: %m", filename );
+		    syslog( LOG_ERR, "Syserror env_read: lockf %s: %m",
+			    filename );
 		}
 		goto cleanup;
 	    }
 	}
+	break;
     }
 
     /* Vsimta-version */
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
+    if ((( line = snet_getline( snet, NULL )) == NULL ) || ( *line != 'V' )) {
+	syslog( LOG_ERR, "Syserror env_read: %s %d: expected version syntax",
+		filename, line_no );
 	goto cleanup;
     }
-    if ( *line != 'V' ) {
-	syslog( LOG_ERR, "env_read %s expected version syntax", filename );
-	goto cleanup;
-    }
-    if ( sscanf( line + 1, "%d", &version ) != 1 ) {
-	syslog( LOG_ERR, "env_read %s: bad version syntax", filename );
-	goto cleanup;
-    }
-    if ( version > SIMTA_EFILE_VERSION ) {
-	syslog( LOG_ERR, "env_read: %s: unsupported version", filename );
+    sscanf( line + 1, "%d", &version );
+    if (( version < 1 ) || ( version > SIMTA_EFILE_VERSION )) {
+	syslog( LOG_ERR,
+		"Syserror env_read: %s %d: unsupported efile version %d",
+		filename, line_no, version );
 	goto cleanup;
     }
 
     if ( version >= 2 ) {
 	/* Emessage-id */
-	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
-	    goto cleanup;
-	}
-	if ( *line != 'E' ) {
-	    syslog( LOG_ERR, "env_read %s: expected Equeue-id syntax",
-		    filename );
+	line_no++;
+	if ((( line = snet_getline( snet, NULL )) == NULL ) || 
+		( *line != 'E' )) {
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Equeue-id syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
 	if ( strcmp( line + 1, env->e_id ) != 0 ) {
-	    syslog( LOG_WARNING, "env_read %s: queue-id mismatch: %s",
-		    filename, line + 1 );
+	    syslog( LOG_WARNING,
+		    "Warning env_read: %s %d: queue-id mismatch: %s",
+		    filename, line_no, line + 1 );
 	}
     }
 
-    /* Dinode info */
+    line_no++;
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
+	syslog( LOG_ERR,
+		"Syserror env_read: %s %d: expected Dinode syntax", filename,
+			line_no );
 	goto cleanup;
     }
 
     /* ignore optional M for now */
     if ( *line == 'M' ) {
+	line_no++;
 	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Dinode syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
     }
 
+    /* Dinode info */
     if ( *line != 'I' ) {
-	syslog( LOG_ERR, "env_read %s bad Dinode syntax", filename );
+	syslog( LOG_ERR, "Syserror env_read: %s %d: expected Dinode syntax",
+		filename, line_no );
 	goto cleanup;
     }
 
     sscanf( line + 1, "%lu", &dinode );
-    if ( dinode == 0 ) {
-	syslog( LOG_WARNING, "env_read %s: Dinode is 0", filename );
-    } else if ( mode == READ_QUEUE_INFO ) {
+
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "Syserror env_read: mode change: %d", mode );
+	return( 1 );
+
+    case READ_PRIORITY_INFO:
+    case READ_DELIVER_INFO:
+	if ( dinode != env->e_dinode ) {
+	    syslog( LOG_WARNING,
+		    "Warning env_read %s %d: Dinode reread mismatch: "
+		    "old %d new %d, reassigning", filename, line_no,
+		    (int)env->e_dinode, (int)dinode );
+	    env->e_dinode = dinode;
+	}
+	break;
+
+    case READ_QUEUE_INFO:
+	if ( dinode == 0 ) {
+	    syslog( LOG_WARNING, "Warning env_read %s %d: Dinode is 0",
+		    filename, line_no );
+	}
 	env->e_dinode = dinode;
-    } else if ( dinode != env->e_dinode ) {
-	syslog( LOG_WARNING, "env_read %s: Dinode reread mismatch "
-		"old %d new %d", filename, (int)env->e_dinode, (int)dinode );
+	break;
     }
 
     /* expansion info */
     if ( version >= 3 ) {
-	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
-	    goto cleanup;
-	}
-
-	if ( *line != 'X' ) {
-	    syslog( LOG_ERR, "env_read %s: expected Xpansion syntax",
-		    filename );
+	line_no++;
+	if ((( line = snet_getline( snet, NULL )) == NULL ) ||
+		( *line != 'X' )) {
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Xpansion syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
 
 	if ( sscanf( line + 1, "%d", &exp_level) != 1 ) {
-	    syslog( LOG_ERR, "env_read: %s: bad Xpansion syntax", filename );
+	    syslog( LOG_ERR, "Syserror env_read: %s %d: bad Xpansion syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
 
-	if ( mode == READ_QUEUE_INFO ) {
+	switch ( mode ) {
+	default:
+	    syslog( LOG_ERR, "env_read error: mode change1: %d", mode );
+	    return( 1 );
+
+	case READ_DELIVER_INFO:
+	case READ_PRIORITY_INFO:
+	    if ( exp_level == env->e_n_exp_level ) {
+		break;
+	    }
+	    syslog( LOG_WARNING, "Warning env_read %s %d: Xpansion mismatch: "
+		    "old %d new %d, reassigning", filename, line_no,
+		    env->e_n_exp_level, exp_level );
 	    env->e_n_exp_level = exp_level;
-	} else if ( exp_level != env->e_n_exp_level ) {
-	    syslog( LOG_WARNING, "env_read %s: Xpansion mismatch, "
-		    "old %d new %d", filename, env->e_n_exp_level, exp_level );
+	    break;
+
+	case READ_QUEUE_INFO:
+	    env->e_n_exp_level = exp_level;
+	    break;
 	}
     }
 
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
-	goto cleanup;
+    /*  info */
+    if ( version >= 4 ) {
+	line_no++;
+	if ((( line = snet_getline( snet, NULL )) == NULL ) ||
+		( *line != 'P' )) {
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Priority syntax",
+		    filename, line_no );
+	    goto cleanup;
+	}
+
+	switch ( mode ) {
+	default:
+	    syslog( LOG_ERR, "env_read error: mode change2: %d", mode );
+	    return( 1 );
+
+	case READ_DELIVER_INFO:
+	    if ( env->e_priority == priority ) {
+		break;
+	    }
+	    syslog( LOG_WARNING, "Warning env_read %s %d: Priority mismatch: "
+		    "old %d new %d, reassigning", filename, line_no,
+		    env->e_priority, priority );
+	    env->e_priority = priority;
+	    break;
+
+	case READ_QUEUE_INFO:
+	    env->e_priority = priority;
+	    break;
+
+	case READ_PRIORITY_INFO:
+	    /* don't care about the old priority */
+	    break;
+	}
     }
 
-    if ( *line != 'H' ) {
-	syslog( LOG_ERR, "env_read %s: bad host syntax", filename );
+    line_no++;
+    if ((( line = snet_getline( snet, NULL )) == NULL ) || ( *line != 'H' )) {
+	syslog( LOG_ERR,
+		"Syserror env_read: %s %d: expected host syntax",
+		filename, line_no );
 	goto cleanup;
     }
 
     hostname = line + 1;
 
-    if ( mode == READ_QUEUE_INFO ) {
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "env_read error: mode change3: %d", mode );
+	return( 1 );
+
+    case READ_DELIVER_INFO:
+    case READ_PRIORITY_INFO:
+	if ( env->e_hostname == NULL ) {
+	    if ( *hostname != '\0' ) {
+		syslog( LOG_WARNING,
+			"Warning env_read: %s %d: hostname reread mismatch, "
+			"old \"%s\" new \"%s\"", filename, line_no,
+			env->e_hostname, hostname );
+	    }
+	} else if ( strcasecmp( hostname, env->e_hostname ) != 0 ) {
+	    syslog( LOG_WARNING,
+		    "Warning env_read: %s %d: hostname reread mismatch, "
+		    "old \"%s\" new \"%s\"", filename, line_no,
+		    env->e_hostname, hostname );
+	}
+	break;
+
+    case READ_QUEUE_INFO:
 	if ( env_hostname( env, hostname ) != 0 ) {
 	    goto cleanup;
 	}
-    }
-
-    if ( env->e_hostname == NULL ) {
-	if ( *hostname != '\0' ) {
-	    syslog( LOG_WARNING, "env_read %s: hostname reread mismatch, "
-		    "old \"%s\" new \"%s\"", filename, env->e_hostname,
-		    hostname );
-	}
-    } else if ( strcasecmp( hostname, env->e_hostname ) != 0 ) {
-	syslog( LOG_WARNING, "env_read %s: hostname reread mismatch, "
-		"old \"%s\" new \"%s\"", filename, env->e_hostname, hostname );
+	break;
     }
 
     /* Ffrom-address */
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read %s unexpected EOF", filename );
+    line_no++;
+    if ((( line = snet_getline( snet, NULL )) == NULL ) || ( *line != 'F' )) {
+	syslog( LOG_ERR, "Syserror env_read: %s %d: expected Ffrom syntax",
+		filename, line_no );
 	goto cleanup;
     }
 
-    if ( *line != 'F' ) {
-	syslog( LOG_ERR, "env_read %s expected Ffrom syntax", filename );
-	goto cleanup;
-    }
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "env_read error: mode change4: %d", mode );
+	return( 1 );
 
-    if ( mode == READ_QUEUE_INFO ) {
+    case READ_QUEUE_INFO:
 	if ( env_sender( env, line + 1 ) == 0 ) {
 	    ret = 0;
 	}
 	goto cleanup;
 
-    } else if ( strcmp( env->e_mail, line + 1 ) != 0 ) {
-	syslog( LOG_WARNING, "env_read %s: bad sender re-read",
-		filename );
+    case READ_PRIORITY_INFO:
+    case READ_DELIVER_INFO:
+	if ( strcmp( env->e_mail, line + 1 ) != 0 ) {
+	    syslog( LOG_WARNING,
+		    "Warning env_read: %s %d: bad sender re-read: "
+		    "old \"%s\" new \"%s\"",
+		    filename, line_no, env->e_mail, line + 1 );
+	}
+	break;
     }
 
     /* Rto-addresses */
-    while (( line = snet_getline( snet, NULL )) != NULL ) {
+    for ( line_no++; ( line = snet_getline( snet, NULL )) != NULL;
+	    line_no++ ) {
 	if ( *line != 'R' ) {
-	    syslog( LOG_ERR, "env_read %s expected Rrecieve syntax", filename );
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Recipient syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
 
@@ -910,7 +1038,9 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     }
 
     if ( env->e_rcpt == NULL ) {
-	syslog( LOG_ERR, "env_read %s no recipients", filename );
+	syslog( LOG_ERR,
+		"Syserror env_read: %s %d: expected Recipient syntax",
+		filename, line_no );
 	goto cleanup;
     }
 
@@ -920,7 +1050,7 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     if ( s_lock == NULL ) {
 cleanup:
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "env_read snet_close %s: %m",
+	    syslog( LOG_ERR, "Syserror env_read: snet_close %s: %m",
 		    filename );
 	    ret = 1;
 	}

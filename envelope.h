@@ -9,6 +9,7 @@
 
 #define	READ_QUEUE_INFO		1
 #define	READ_DELIVER_INFO	2
+#define	READ_PRIORITY_INFO	3
 
 struct sender_list {
     int					sl_n_entries;
@@ -93,7 +94,7 @@ void		rcpt_free( struct recipient * );
 void		env_clear_errors( struct envelope * );
 void		env_clear( struct envelope * );
 int		env_reset( struct envelope * );
-int		env_priority( struct envelope *, int );
+void		env_priority( struct envelope *, int );
 int		env_is_old( struct envelope *, int );
 int		env_set_id( struct envelope *, char * );
 int		env_recipient( struct envelope *, char * );
