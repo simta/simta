@@ -187,9 +187,11 @@ queue_envelope( struct envelope *env )
 
 	/* sort queued envelopes by priority and access time */
 	for ( ep = &(hq->hq_env_head); *ep != NULL; ep = &((*ep)->e_hq_next)) {
+	    /*
 	    if ( env->e_priority > (*ep)->e_priority ) {
 		break;
 	    }
+	    */
 
 	    if ( env->e_etime.tv_sec < (*ep)->e_etime.tv_sec ) {
 		break;
@@ -201,8 +203,8 @@ queue_envelope( struct envelope *env )
 	env->e_hq = hq;
 	hq->hq_entries++;
 
-	if ( env->e_priority == ENV_HIGH_PRIORITY ) {
-	    hq->hq_priority_envs++;
+	if ( env->e_jail == ENV_JAIL_PRISONER ) {
+	    hq->hq_jail_envs++;
 	}
     }
 
@@ -223,8 +225,8 @@ queue_remove_envelope( struct envelope *env )
 	*ep = env->e_hq_next;
 
 	env->e_hq->hq_entries--;
-	if ( env->e_priority == ENV_HIGH_PRIORITY ) {
-	    env->e_hq->hq_priority_envs--;
+	if ( env->e_jail == ENV_JAIL_PRISONER ) {
+	    env->e_hq->hq_jail_envs--;
 	}
 	env->e_hq = NULL;
 	env->e_hq_next = NULL;
@@ -246,7 +248,7 @@ queue_time_order( struct host_q *hq )
 	/* sort the envs based on etime */
 	envs = hq->hq_env_head;
 	hq->hq_entries = 0;
-	hq->hq_priority_envs = 0;
+	hq->hq_jail_envs = 0;
 	hq->hq_env_head = NULL;
 	while ( envs != NULL ) {
 	    sort = envs;
@@ -545,20 +547,22 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
     }
 
     /* if a queue is high priority, put it to the front of the queue */
+    /*
     if ( hq->hq_priority > 0 ) {
 	wait_last.tv_sec = 0;
 	next_launch.tv_sec = tv_now->tv_sec;
+    */
 
     /* if there is a provided delay, use it but respect simta_max_wait */
-    } else if ( tv_delay != NULL ) {
+    /*
+    } else */ if ( tv_delay != NULL ) {
 	if ( tv_delay->tv_sec > simta_max_wait ) {
 	    wait_last.tv_sec = simta_max_wait;
 	    next_launch.tv_sec = simta_max_wait + tv_now->tv_sec;
 
 	} else {
-	    wait_last.tv_sec = simta_min_wait;
 	    next_launch.tv_sec = tv_delay->tv_sec + tv_now->tv_sec;
-	    if ( wait_last.tv_sec < simta_min_wait ) {
+	    if ( tv_delay->tv_sec < simta_min_wait ) {
 		wait_last.tv_sec = simta_min_wait;
 	    } else {
 		wait_last.tv_sec = tv_delay->tv_sec;
@@ -566,7 +570,8 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	}
 
     /* if we're a jail, does this queue have any active mail? */
-    } else if (( simta_mail_jail != 0 ) && ( hq->hq_priority_envs == 0 )) {
+    } else if (( simta_mail_jail != 0 ) && 
+	    ( hq->hq_entries == hq->hq_jail_envs )) {
 	wait_last.tv_sec = simta_jail_seconds.tv_sec;
 	if ( hq->hq_last_launch.tv_sec == 0 ) {
 	    next_launch.tv_sec = random() % simta_jail_seconds.tv_sec +
@@ -576,7 +581,7 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	}
 
     /* have we ever launched this queue or is it leaky? */
-    } else if (( hq->hq_last_launch.tv_sec == 0 ) || ( hq->hq_leaky != 0 )) {
+    } else if (( hq->hq_wait_last.tv_sec == 0 ) || ( hq->hq_leaky != 0 )) {
 	hq->hq_leaky = 0;
 	wait_last.tv_sec = simta_min_wait;
 	next_launch.tv_sec = random() % simta_min_wait + tv_now->tv_sec;
@@ -585,6 +590,9 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	/* wait twice what you did last time, but respect simta_max_wait */
 	if (( hq->hq_wait_last.tv_sec * 2 ) <= simta_max_wait ) {
 	    wait_last.tv_sec = hq->hq_wait_last.tv_sec * 2;
+	    if ( wait_last.tv_sec < simta_min_wait ) {
+		wait_last.tv_sec = simta_min_wait;
+	    }
 	} else {
 	    wait_last.tv_sec = simta_max_wait;
 	}
@@ -600,7 +608,7 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 
     /* add to launch queue sorted on priority and launch time */
     if (( simta_deliver_q == NULL ) ||
-	    ( simta_deliver_q->hq_priority < hq->hq_priority ) ||
+	    /* ( simta_deliver_q->hq_priority < hq->hq_priority ) || */
 	    ( simta_deliver_q->hq_next_launch.tv_sec >=
 		    hq->hq_next_launch.tv_sec )) {
 	if (( hq->hq_deliver_next = simta_deliver_q ) != NULL ) {
@@ -612,7 +620,7 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
     } else {
 	for ( insert = simta_deliver_q, order = 2;
 		(( insert->hq_deliver_next != NULL ) &&
-		( insert->hq_priority > hq->hq_priority ) &&
+		/* ( insert->hq_priority > hq->hq_priority ) && */
 		( insert->hq_deliver_next->hq_next_launch.tv_sec <=
 			hq->hq_next_launch.tv_sec ));
 		insert = insert->hq_deliver_next, order++ )
@@ -625,10 +633,8 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	hq->hq_deliver_prev = insert;
     }
 
-    syslog( LOG_DEBUG, "Queue %s: order %d, next %ld, wait %ld",
-	    hq->hq_hostname, order,
-	    hq->hq_next_launch.tv_sec - tv_now->tv_sec,
-	    hq->hq_wait_last.tv_sec );
+    syslog( LOG_DEBUG, "Queue %s: order %d, next %ld", hq->hq_hostname, order,
+	    hq->hq_next_launch.tv_sec - tv_now->tv_sec );
 
     return( 0 );
 }
@@ -682,9 +688,9 @@ prune_messages( struct host_q *hq )
 
     e = &(hq->hq_env_head);
     hq->hq_entries = 0;
-    hq->hq_priority_envs = 0;
     hq->hq_entries_new = 0;
     hq->hq_entries_removed = 0;
+    hq->hq_jail_envs = 0;
 
     /* make sure that all envs in all host queues are up to date */
     while ( *e != NULL ) {
@@ -712,8 +718,8 @@ prune_messages( struct host_q *hq )
 
 	} else {
 	    hq->hq_entries++;
-	    if ( (*e)->e_priority == ENV_HIGH_PRIORITY ) {
-		hq->hq_priority_envs++;
+	    if ( (*e)->e_jail == ENV_JAIL_PRISONER ) {
+		hq->hq_jail_envs++;
 	    }
 	    e = &((*e)->e_hq_next);
 	}
@@ -782,9 +788,9 @@ q_read_dir( struct simta_dirp *sd )
 	    prune_messages( simta_unexpanded_q );
 	    if ( simta_debug ) {
 		syslog( LOG_DEBUG, "Queue [Unexpanded]: entries %d, "
-			"priority_entries %d",
+			"jail_entries %d",
 			simta_unexpanded_q->hq_entries,
-			simta_unexpanded_q->hq_priority_envs );
+			simta_unexpanded_q->hq_jail_envs );
 	    }
 	}
 
@@ -812,8 +818,8 @@ q_read_dir( struct simta_dirp *sd )
 		continue;
 	    } else if ( simta_debug ) {
 		syslog( LOG_DEBUG, "Queue [%s]: entries %d, "
-			"priority_entries %d", (*hq)->hq_hostname,
-			(*hq)->hq_entries, (*hq)->hq_priority_envs );
+			"jail_entries %d", (*hq)->hq_hostname,
+			(*hq)->hq_entries, (*hq)->hq_jail_envs );
 	    }
 
 	    /* add new host queues to the deliver queue */
@@ -1046,7 +1052,8 @@ q_deliver( struct host_q *deliver_q )
 
 	switch ( deliver_q->hq_status ) {
         case HOST_LOCAL:
-	    if (( simta_mail_jail != 0 ) && ( env_deliver->e_priority == 0 )) {
+	    if (( simta_mail_jail != 0 ) &&
+		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
 		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d.d_env->e_id );
 		break;
 	    }
@@ -1060,7 +1067,8 @@ q_deliver( struct host_q *deliver_q )
 
         case HOST_MX:
         case HOST_PUNT:
-	    if (( simta_mail_jail != 0 ) && ( env_deliver->e_priority == 0 )) {
+	    if (( simta_mail_jail != 0 ) &&
+		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
 		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d.d_env->e_id );
 		break;
 	    }

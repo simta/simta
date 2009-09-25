@@ -208,6 +208,10 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
+    if (( simta_mail_jail != 0 ) && ( simta_local_jail == 0 )) {
+	env->e_jail = ENV_JAIL_NO_CHANGE;
+    }
+
     if ( sender ) {
 	if ( simta_simsend_strict_from ) {
 	    fprintf( stderr, "-f option not enabled\n" );

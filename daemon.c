@@ -931,16 +931,23 @@ simta_server( void )
 	if ( tv_now.tv_sec >= tv_disk.tv_sec ) {
 	    for ( entries = 1; ; entries++ ) {
 		if ( slow_dirp.sd_dirp == NULL ) {
-		    syslog( LOG_DEBUG, "Debug: Slow Queue Read Start" );
+		    if ( simta_debug > 0 ) {
+			syslog( LOG_DEBUG, "Debug: Slow Queue Read Start" );
+		    }
+		    simta_disk_cycle++;
 		} else {
-		    syslog( LOG_DEBUG, "Debug: Slow Queue Read Entry" );
+		    if ( simta_debug > 1 ) {
+			syslog( LOG_DEBUG, "Debug: Slow Queue Read Entry" );
+		    }
 		}
 		if ( q_read_dir( &slow_dirp ) != 0 ) {
 		    goto error;
 		}
 		if ( slow_dirp.sd_dirp == NULL ) {
 		    tv_disk.tv_sec = tv_now.tv_sec + simta_min_work_time;
-		    syslog( LOG_DEBUG, "Debug: Slow Queue Read End" );
+		    if ( simta_debug > 0 ) {
+			syslog( LOG_DEBUG, "Debug: Slow Queue Read End" );
+		    }
 		    break;
 		}
 		if (( simta_disk_read_entries > 0 ) &&
@@ -1647,17 +1654,20 @@ mid_promote( char *mid )
 
     if (( dll = dll_lookup( simta_env_list, mid )) != NULL ) {
 	e = (struct envelope*)dll->dll_data;
-	if ( env_priority( e, ENV_HIGH_PRIORITY ) != 0 ) {
+	if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {
 	    return( 1 );
 	}
 
 	if ( e->e_hq != NULL ) {
-	    e->e_hq->hq_priority++;
+	    /* e->e_hq->hq_priority++; */
 	    hq_deliver_pop( e->e_hq );
 	    if ( hq_deliver_push( e->e_hq, NULL, &tv_nowait ) != 0 ) {
 		return( 1 );
 	    }
 	}
+	syslog( LOG_DEBUG, "Command: Message %s Paroled", mid );
+    } else {
+	syslog( LOG_DEBUG, "Command: Message %s not found", mid );
     }
 
     return( 0 );
@@ -1675,17 +1685,19 @@ sender_promote( char *sender )
 
     if (( dll = dll_lookup( simta_sender_list, sender )) != NULL ) {
 	sl = (struct sender_list*)dll->dll_data;
+	syslog( LOG_DEBUG, "Command: Sender %s found %d messages",
+		sl->sl_dll->dll_key, sl->sl_n_entries );
 	for ( dll_se = sl->sl_entries; dll_se != NULL;
 		dll_se = dll_se->dll_next ) {
-	    se = (struct sender_entry*)dll->dll_data;
+	    se = (struct sender_entry*)dll_se->dll_data;
 	    /* tag env */
-	    if ( env_priority( se->se_env, ENV_HIGH_PRIORITY ) != 0 ) {
+	    if ( env_jail_status( se->se_env, ENV_JAIL_PAROLEE ) != 0 ) {
 		return( 1 );
 	    }
 
 	    /* re-queue queue */
 	    if ( se->se_env->e_hq != NULL ) {
-		se->se_env->e_hq->hq_priority++;
+		/* se->se_env->e_hq->hq_priority++; */
 		hq_deliver_pop( se->se_env->e_hq );
 		if ( hq_deliver_push( se->se_env->e_hq, NULL,
 			&tv_nowait ) != 0 ) {
@@ -1714,6 +1726,7 @@ daemon_commands( struct simta_dirp *sd )
     ACAV			*acav;
     struct host_q		*hq;
     struct timeval		tv_nowait = { 0, 0 };
+    struct envelope		*e;
 
     if ( sd->sd_dirp == NULL ) {
 	if ( simta_gettimeofday( &(sd->sd_tv_start)) != 0 ) {
@@ -1821,7 +1834,7 @@ daemon_commands( struct simta_dirp *sd )
     } else if ( strcasecmp( av[ 0 ], S_MESSAGE ) == 0 ) {
 	if ( ac == 1 ) {
 	    syslog( LOG_DEBUG, "Command %s: Message", entry->d_name );
-	    env_log_metrics( simta_sender_list );
+	    env_log_metrics( simta_env_list );
 
 	} else if ( ac == 2 ) {
 	    syslog( LOG_DEBUG, "Command %s: Message %s", entry->d_name,
@@ -1860,8 +1873,13 @@ daemon_commands( struct simta_dirp *sd )
 	    syslog( LOG_DEBUG, "Command %s: Queue %s", entry->d_name, av[ 1 ]);
 	    if (( hq = host_q_lookup( av[ 1 ])) != NULL ) {
 		hq_deliver_pop( hq );
-		hq->hq_priority++;
-/* ZZZZZZZ promote all the envs in the queue */
+		/* hq->hq_priority++; */
+		/* promote all the envs in the queue */
+		for ( e = hq->hq_env_head; e != NULL; e = e->e_hq_next ) {
+		    if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {
+			return( 1 );
+		    }
+		}
 
 		if ( hq_deliver_push( hq, NULL, &tv_nowait ) != 0 ) {
 		    return( 1 );

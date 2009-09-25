@@ -56,8 +56,7 @@ struct host_q {
     int				hq_entries;
     int				hq_entries_new;
     int				hq_entries_removed;
-    int				hq_priority_envs;
-    int				hq_priority;
+    int				hq_jail_envs;
     struct simta_red		*hq_red;
     struct host_q		*hq_deliver;
     struct host_q		*hq_next;

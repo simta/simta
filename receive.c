@@ -2151,6 +2151,10 @@ _post_tls( struct receive_data *r )
     int		rc; 
 
     if ( simta_sasl ) {
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: _post_tls sasl_setprop 1" );
+	}
+
 	/* Get cipher_bits and set SSF_EXTERNAL */
 	memset( &r->r_secprops, 0, sizeof( sasl_security_properties_t ));
 	if (( rc = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
@@ -2164,6 +2168,10 @@ _post_tls( struct receive_data *r )
 	r->r_secprops.maxbufsize = 4096;
 	r->r_secprops.min_ssf = 0;
 	r->r_secprops.max_ssf = 256;
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: _post_tls sasl_setprop 2" );
+	}
 
 	if (( rc = sasl_setprop( r->r_conn, SASL_SEC_PROPS, &r->r_secprops))
 		!= SASL_OK ) {
@@ -2183,6 +2191,10 @@ _start_tls( struct receive_data *r )
     X509			*peer;
     char			buf[ 1024 ];
 
+    if ( simta_debug != 0 ) {
+	syslog( LOG_DEBUG, "Debug: _start_tls snet_starttls" );
+    }
+
     if (( rc = snet_starttls( r->r_snet, ctx, 1 )) != 1 ) {
 	syslog( LOG_ERR, "Syserror _start_tls: snet_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
@@ -2190,6 +2202,10 @@ _start_tls( struct receive_data *r )
     }
 
     if ( simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER ) {
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: _start_tls SSL_get_peer_certificate" );
+	}
+
 	if (( peer = SSL_get_peer_certificate( r->r_snet->sn_ssl )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror _start_tls: SSL_get_peer_certificate: "
 		    "no peer certificate" );
@@ -2590,6 +2606,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 	}
 
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_mail checking reverse" );
+	}
+
 	*hostname = '\0';
         switch ( r.r_dns_match =
 		check_reverse( hostname, &(c->c_sin.sin_addr))) {
@@ -2649,6 +2669,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
         } /* end of switch */
 
 #ifdef HAVE_LIBWRAP
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_mail host lookup" );
+	}
 	if ( *hostname == '\0' ) {
 	    ctl_hostname = STRING_UNKNOWN;
 	} else {
@@ -2670,6 +2694,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 #endif /* HAVE_LIBWRAP */
 
         if ( simta_rbls != NULL ) {
+	    if ( simta_debug != 0 ) {
+		syslog( LOG_DEBUG, "Debug: smtp_mail checking rbls" );
+	    }
+
             switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
 		    r.r_remote_hostname, &(r.r_rbl), &(r.r_rbl_msg))) {
             case RBL_BLOCK:
@@ -2732,6 +2760,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 	}
 
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_mail write before banner check" );
+	}
+
 	/* Write before Banner check */
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
@@ -2751,6 +2783,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	tarpit_sleep( &r, simta_smtp_tarpit_connect );
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_mail opening banner" );
+	}
 
 	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
 	    if ( snet_writef( r.r_snet,
@@ -3046,6 +3082,10 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 	 *                     authentication
 	 */ 
 
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init sasl_setprop 1" );
+	}
+
 	memset( &secprops, 0, sizeof( secprops ));
 	secprops.maxbufsize = 4096;
 	/* min_ssf set to zero with memset */
@@ -3059,12 +3099,21 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 	    return( -1 );
 	}
 
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init sasl_setprop 2" );
+	}
+
 	if (( ret = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
 		&(r->r_ext_ssf))) != SASL_OK ) {
 	    syslog( LOG_ERR, "Syserror auth_init: sasl_setprop2: %s",
 		    sasl_errdetail( r->r_conn ));
 	    return( -1 );
 	}
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init sasl_setprop 3" );
+	}
+
 	if (( ret = sasl_setprop( r->r_conn, SASL_AUTH_EXTERNAL, r->r_auth_id ))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "Syserror auth_init: sasl_setprop3: %s",
@@ -3076,9 +3125,19 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 
 #ifdef HAVE_LIBSSL
     if ( ss->ss_flags & SIMTA_SOCKET_TLS ) {
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init _start_tls" );
+	}
+
 	if ( _start_tls( r ) != RECEIVE_OK ) {
 	    return( -1 );
 	}
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init _post_tls" );
+	}
+
 	if (( ret = _post_tls( r )) != RECEIVE_OK ) {
 	    return( -1 );
 	}
@@ -3087,6 +3146,10 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
     }
 #endif /* HAVE_LIBSSL */
+
+    if ( simta_debug != 0 ) {
+	syslog( LOG_DEBUG, "Debug: auth_init finished" );
+    }
 
     return( 0 );
 }

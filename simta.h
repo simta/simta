@@ -138,6 +138,7 @@ extern unsigned short			simta_smtp_port;
 extern int				simta_min_wait;
 extern int				simta_max_wait;
 extern int				simta_mail_jail;
+extern int				simta_local_jail;
 extern int				simta_sender_list_enable;
 extern int				simta_mid_list_enable;
 extern int				simta_command_read_entries;

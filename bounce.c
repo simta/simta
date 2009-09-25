@@ -329,6 +329,9 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
 	goto cleanup1;
     }
 
+    /* bounces must be able to get out of jail */
+    env->e_jail = ENV_JAIL_NO_CHANGE;
+
     bounce_env->e_dir = simta_dir_fast;
 
     /* if the postmaster is a failed recipient,

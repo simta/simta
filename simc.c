@@ -113,14 +113,9 @@ main( int argc, char *argv[] )
 	usage++;
     }
 
-    if ( usage != 0 ) {
-	fprintf( stderr, "Usage: %s -m | -s | -q [ arg ] \n", argv[ 0 ] );
+    if (( usage != 0 ) || ( command == NULL )) {
+	fprintf( stderr, "Usage: %s -d | -m | -s | -q [ arg ] \n", argv[ 0 ] );
 	exit( EX_USAGE );
-    }
-
-    if ( command == NULL ) {
-	printf( "%s: no action\n", argv[ 0 ]);
-	exit( 0 );
     }
 
     if ( simta_read_config( SIMTA_FILE_CONFIG ) < 0 ) {
