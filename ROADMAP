@@ -1,4 +1,4 @@
-$Id: ROADMAP,v 1.14 2009/09/25 21:16:19 epcjr Exp $
+$Id: ROADMAP,v 1.15 2009/10/05 21:12:09 sweda Exp $
 simta roadmap fall 2009
 ---
 
@@ -11,24 +11,30 @@ x : in release pipeline             1 : high priority
 
 CURRENT ROADMAP
 
+0.8.2.1
++ 1 DEBUG_LOGGING directive added to help debug the stuck message bugfix
++ 1 additional logging to help track down "no deliver" poison message
++ 1 E file format change for queue prioritization
+
 0.8.3 mail jail
-! 1 BUG: "no deliver" poison message
 + 1 BUG: queue scheduler issues
 + 1 BUG: sasl bug?
 + 1 single master queue runner/smtp listener process
 + 1 simta IPC using C files
-+ 1 DEBUG_LOGGING directive added to help debug the stuck message bugfix
 ! 1 ignore ipv6
 - 1 bounce + delete = bounce w/o body
 - 1 content filter stdout should be included in bounce
+- 2 jail + reject || tempfail, jail + bounce
 + 2 ability to re-prioritize/kick queues
 + 2 queue processing by user (mail jail)
 + 2 queue-only (mail jail)
-! 2 verify that queue-only + bitbucket works (needed for testing purposes)
-- 2 jail + reject || tempfail, jail + bounce
++ 2 verify that queue-only + bitbucket works (needed for testing purposes)
 + 3 queue processing by id (simc)
+- 3 queue processing by host in non-jail enviroment (simc)
 + 3 better handling of domain names with trailing dot
 + 3 simexpander log pid
++ 3 simc changes DEBUG level
+- 3 simc manpage
 
 0.8.4 gateway enhancements/collapse 2-tier delivery
 - 2 simta.conf & ldap include files
@@ -48,6 +54,8 @@ CURRENT ROADMAP
 
 BUGS
 x   1 ignore ipv6
+    2 sasl hang
+    2 "no deliver" poison message
     3 simsendmail overrun bug
     3 group errors-to rewrite bug
     3 better localhost check for punt and jail hostnames
@@ -85,6 +93,8 @@ x   2 relay host
     2 smtp timer for outbound DATA
     3 child killing (simc)
 x   3 queue processing by id (simc)
+x   3 queue processing by host in non-jail enviroment (simc)
+    3 queue processing by id, sender, etc. in non-jail environment (sim)
 x   3 alias upgrade: wildcards, /dev/null, pipe2program discussion
     3 simexpander take addresses on stdin
     4 config file support for queue launch times
@@ -92,6 +102,7 @@ x   3 alias upgrade: wildcards, /dev/null, pipe2program discussion
     4 expansion limits (configurable)
     4 strict moderator address matching?
     4 variable SMTP stage timeouts
+    4 simvacation use header info when generating vacation notice
 
 support
     2 SIGHUP to re-read conf file (e.g. to change max connections w/o restart)
