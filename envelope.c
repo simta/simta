@@ -44,6 +44,37 @@
 #include "queue.h"
 
 
+    int
+env_jail_set( struct envelope *e, int val )
+{
+    char			*s;
+
+    if ( simta_debug > 1 ) {
+	switch ( val ) {
+	default:
+	    s = "Unknown";
+	    break;
+
+	case ENV_JAIL_NO_CHANGE:
+	    s = "JAIL_NO_CHANGE";
+	    break;
+
+	case ENV_JAIL_PAROLEE:
+	    s = "JAIL_PAROLEE";
+	    break;
+
+	case ENV_JAIL_PRISONER:
+	    s = "JAIL_PRISONER";
+	    break;
+	}
+
+	syslog( LOG_DEBUG, "Jail %s: value %d (%s)", e->e_id, val, s );
+    }
+
+    e->e_jail = val;
+
+    return( 0 );
+}
 
     int
 env_jail_status( struct envelope *env, int jail )
@@ -83,7 +114,7 @@ env_jail_status( struct envelope *env, int jail )
 	return( 0 );
     }
 
-    env->e_jail = jail;
+    env_jail_set( env, jail );
 
     if ( env_outfile( env ) != 0 ) {
 	return( 1 );
@@ -112,10 +143,13 @@ env_is_old( struct envelope *env, int dfile_fd )
 	    return( 0 );
 	}
 
-	if (( tv_now.tv_sec - sb.st_mtime ) > ( simta_bounce_seconds )) {
-	    env->e_age = ENV_AGE_OLD;
-	} else {
-	    env->e_age = ENV_AGE_NOT_OLD;
+	if ( simta_bounce_seconds > 0 ) {
+	    if (( tv_now.tv_sec - sb.st_mtime ) > ( simta_bounce_seconds )) {
+		env->e_age = ENV_AGE_OLD;
+	    } else {
+		env->e_age = ENV_AGE_NOT_OLD;
+	    }
+
 	}
     }
 
@@ -186,9 +220,9 @@ env_create( char *id, char *e_mail, struct envelope *parent )
 
     if ( parent ) {
 	env->e_n_exp_level = parent->e_n_exp_level + 1;
-	env->e_jail = parent->e_jail;
+	env_jail_set( env, parent->e_jail );
     } else if ( simta_mail_jail != 0 ) {
-	env->e_jail = ENV_JAIL_PRISONER;
+	env_jail_set( env, ENV_JAIL_PRISONER );
     }
 
     return( env );
@@ -978,7 +1012,7 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
 	    break;
 
 	case READ_QUEUE_INFO:
-	    env->e_jail = jail;
+	    env_jail_set( env, jail );
 	    break;
 	}
     }

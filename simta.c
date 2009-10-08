@@ -81,6 +81,7 @@ unsigned short		simta_smtp_port = 0;
 int			simta_max_wait = 80 * 60;
 int			simta_min_wait = 5 * 60;
 int			simta_mail_jail = 0;
+int			simta_bounce_jail = 0;
 int			simta_local_jail = 0;
 int			simta_sender_list_enable = 0;
 int			simta_mid_list_enable = 0;
@@ -856,8 +857,8 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "MAX_WAIT_SECONDS: %ld\n",
-		simta_jail_seconds.tv_sec );
+	    if ( simta_debug ) printf( "MAX_WAIT_SECONDS: %d\n",
+		    simta_max_wait );
 
 	} else if ( strcasecmp( av[ 0 ], "MIN_WAIT_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -871,8 +872,8 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "MIN_WAIT_SECONDS: %ld\n",
-		simta_jail_seconds.tv_sec );
+	    if ( simta_debug ) printf( "MIN_WAIT_SECONDS: %d\n",
+		    simta_min_wait );
 
 	} else if ( strcasecmp( av[ 0 ], "JAIL_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1157,13 +1158,19 @@ simta_read_config( char *fname )
 		simta_mail_filter );
 
 	} else if ( strcasecmp( av[ 0 ], "DEBUG_LOGGING" ) == 0 ) {
-	    if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 arguments\n",
+	    if ( ac == 1 ) {
+		simta_debug = 1;
+	    } else if ( ac == 2 ) {
+		if (( simta_debug = atoi( av[ 1 ])) < 0 ) {
+		    fprintf( stderr, "%s: line %d: "
+			    "argument must be 0 or greater\n", fname, lineno );
+		}
+	    } else {
+                fprintf( stderr, "%s: line %d: expected 0 or 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_debug = 1;
-	    if ( simta_debug ) printf( "DEBUG_LOGGING\n" );
+	    if ( simta_debug ) printf( "DEBUG_LOGGING %d\n", simta_debug );
 
 	} else if ( strcasecmp( av[ 0 ], "IGNORE_REVERSE" ) == 0 ) {
 	    if ( ac != 1 ) {
@@ -1209,6 +1216,15 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
+
+        } else if ( strcasecmp( av[ 0 ], "BOUNCE_JAIL" ) == 0 ) {
+            if ( ac != 1 ) {
+                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+			fname, lineno );
+                goto error;
+            }
+            simta_bounce_jail = 1;
+            if ( simta_debug ) printf( "BOUNCE_JAIL\n" );
 
         } else if ( strcasecmp( av[ 0 ], "LOCAL_JAIL" ) == 0 ) {
             if ( ac != 1 ) {

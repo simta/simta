@@ -113,6 +113,7 @@ int		env_truncate_and_unlink( struct envelope *, SNET * );
 int		env_string_recipients( struct envelope *, char * );
 int		env_string_recipients( struct envelope *, char * );
 int		sender_list_add( struct envelope * );
+int		env_jail_set( struct envelope *, int );
 
 /* debugging  functions */
 void		env_stdout( struct envelope * );

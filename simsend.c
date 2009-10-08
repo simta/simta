@@ -209,7 +209,7 @@ main( int argc, char *argv[] )
     }
 
     if (( simta_mail_jail != 0 ) && ( simta_local_jail == 0 )) {
-	env->e_jail = ENV_JAIL_NO_CHANGE;
+	env_jail_set( env, ENV_JAIL_NO_CHANGE );
     }
 
     if ( sender ) {

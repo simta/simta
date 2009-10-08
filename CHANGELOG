@@ -1,4 +1,11 @@
+0.8.3.c
+    - BOUNCE_JAIL directive added
+    - debugging statements added
+    - jail debugged
+    - changed BOUNCE_SECONDS to mean 0 is forever
+
 0.8.3.b
+    - many bugfixes
     - queue scheduler bug
     - envelope API changes needed to support MID and sender lists
     - simc -d changes simta's debug level

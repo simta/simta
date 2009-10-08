@@ -329,8 +329,10 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
 	goto cleanup1;
     }
 
-    /* bounces must be able to get out of jail */
-    env->e_jail = ENV_JAIL_NO_CHANGE;
+    if (( simta_mail_jail != 0 ) && ( simta_bounce_jail == 0 )) {
+	/* bounces must be able to get out of jail */
+	env_jail_set( bounce_env, ENV_JAIL_NO_CHANGE );
+    }
 
     bounce_env->e_dir = simta_dir_fast;
 
