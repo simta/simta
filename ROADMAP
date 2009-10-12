@@ -1,4 +1,4 @@
-$Id: ROADMAP,v 1.15 2009/10/05 21:12:09 sweda Exp $
+$Id: ROADMAP,v 1.16 2009/10/12 20:48:30 sweda Exp $
 simta roadmap fall 2009
 ---
 
@@ -15,16 +15,21 @@ CURRENT ROADMAP
 + 1 DEBUG_LOGGING directive added to help debug the stuck message bugfix
 + 1 additional logging to help track down "no deliver" poison message
 + 1 E file format change for queue prioritization
+! 1 delivery activity logs in all cases
+! 1 additional logging for host deliver ordering
+! 2 BITBUCKET options:
+    allow expansion before bitbucket local mail, should act like inbound smtp
+    option to allow delivery local mail
 
 0.8.3 mail jail
 + 1 BUG: queue scheduler issues
 + 1 BUG: sasl bug?
 + 1 single master queue runner/smtp listener process
 + 1 simta IPC using C files
-! 1 ignore ipv6
-- 1 bounce + delete = bounce w/o body
-- 1 content filter stdout should be included in bounce
-- 2 jail + reject || tempfail, jail + bounce
+- 1 ignore ipv6
++ 1 bounce + delete = bounce w/o body
+! 1 content filter stdout should be included in bounce
+! 2 jail + reject || tempfail, jail + bounce
 + 2 ability to re-prioritize/kick queues
 + 2 queue processing by user (mail jail)
 + 2 queue-only (mail jail)
