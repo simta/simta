@@ -1,4 +1,4 @@
-$Id: ROADMAP,v 1.16 2009/10/12 20:48:30 sweda Exp $
+$Id: ROADMAP,v 1.17 2009/10/20 20:54:37 sweda Exp $
 simta roadmap fall 2009
 ---
 
@@ -29,13 +29,13 @@ CURRENT ROADMAP
 - 1 ignore ipv6
 + 1 bounce + delete = bounce w/o body
 ! 1 content filter stdout should be included in bounce
-! 2 jail + reject || tempfail, jail + bounce
++ 2 jail + reject || tempfail, jail + bounce
 + 2 ability to re-prioritize/kick queues
 + 2 queue processing by user (mail jail)
 + 2 queue-only (mail jail)
 + 2 verify that queue-only + bitbucket works (needed for testing purposes)
 + 3 queue processing by id (simc)
-- 3 queue processing by host in non-jail enviroment (simc)
+! 3 queue processing by host in non-jail enviroment (simc)
 + 3 better handling of domain names with trailing dot
 + 3 simexpander log pid
 + 3 simc changes DEBUG level
