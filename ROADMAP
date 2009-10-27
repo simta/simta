@@ -1,4 +1,4 @@
-$Id: ROADMAP,v 1.17 2009/10/20 20:54:37 sweda Exp $
+$Id: ROADMAP,v 1.18 2009/10/27 21:35:35 sweda Exp $
 simta roadmap fall 2009
 ---
 
@@ -15,8 +15,9 @@ CURRENT ROADMAP
 + 1 DEBUG_LOGGING directive added to help debug the stuck message bugfix
 + 1 additional logging to help track down "no deliver" poison message
 + 1 E file format change for queue prioritization
-! 1 delivery activity logs in all cases
-! 1 additional logging for host deliver ordering
+- 1 receive timer overhaul, add deliver timers
++ 1 delivery activity logs in all cases
++ 1 additional logging for host deliver ordering
 ! 2 BITBUCKET options:
     allow expansion before bitbucket local mail, should act like inbound smtp
     option to allow delivery local mail
