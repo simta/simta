@@ -242,7 +242,6 @@ expand( struct envelope *unexpanded_env )
 
 	if ( e_addr->e_addr_env_moderated != NULL ) {
 	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
-	    e_addr->e_addr_env_moderated->e_dir = simta_dir_fast;
 	    e_addr->e_addr_env_moderated->e_dinode = unexpanded_env->e_dinode;
 
 	    syslog( LOG_DEBUG, "expand moderation env %s dinode %d",
@@ -370,8 +369,8 @@ expand( struct envelope *unexpanded_env )
 
 	if ( env == NULL ) {
 	    /* Create envelope and add it to list */
-	    if (( env = env_create( NULL, e_addr->e_addr_from,
-		    unexpanded_env )) == NULL ) {
+	    if (( env = env_create( domain ? simta_dir_fast : simta_dir_dead,
+		    NULL, e_addr->e_addr_from, unexpanded_env )) == NULL ) {
 		syslog( LOG_ERR, "expand.env_create: %m" );
 		goto cleanup3;
 	    }
@@ -383,13 +382,11 @@ expand( struct envelope *unexpanded_env )
 
 	    /* fill in env */
 	    if ( domain != NULL ) {
-		env->e_dir = simta_dir_fast;
 		if ( env_hostname( env, domain ) != 0 ) {
 		    env_free( env );
 		    goto cleanup3;
 		}
 	    } else {
-		env->e_dir = simta_dir_dead;
 		env_dead = env;
 	    }
 

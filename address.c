@@ -50,16 +50,11 @@ address_bounce_create( struct expand *exp )
 {
     struct envelope		*bounce_env;
 
-    if (( bounce_env = env_create( NULL, NULL, exp->exp_env )) == NULL ) {
+    if (( bounce_env =
+	    env_create( simta_dir_fast, NULL, "", exp->exp_env )) == NULL ) {
 	return( NULL );
     }
 
-    if ( env_sender( bounce_env, NULL ) != 0 ) {
-	env_free( bounce_env );
-	return( NULL );
-    }
-
-    bounce_env->e_dir = simta_dir_fast;
     bounce_env->e_next = exp->exp_errors;
     exp->exp_errors = bounce_env;
 

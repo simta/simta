@@ -270,6 +270,6 @@ int	simta_gettimeofday( struct timeval * );
 int bounce_text( struct envelope *, int, char *, char *, char * );
 void bounce_stdout( struct envelope * );
 ino_t bounce_dfile_out( struct envelope *, SNET * );
-struct envelope *bounce( struct envelope *, struct host_q *, char * );
+struct envelope *bounce( struct envelope *, int, char * );
 struct envelope *bounce_snet( struct envelope *, SNET *, struct host_q *,
 	char *err );

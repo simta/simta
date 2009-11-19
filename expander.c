@@ -97,12 +97,7 @@ main( int argc, char *argv[])
 	exit( EX_DATAERR );
     }
 
-    if (( env = env_create( NULL, sender, NULL )) == NULL ) {
-	perror( "malloc" );
-	return( 1 );
-    }
-
-    if (( env->e_id = strdup( "Test" )) == NULL ) {
+    if (( env = env_create( NULL, "Expander", sender, NULL )) == NULL ) {
 	perror( "malloc" );
 	return( 1 );
     }

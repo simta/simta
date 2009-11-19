@@ -88,13 +88,12 @@ struct envelope {
  * 1 char*	Rto_address
  */
 
-struct envelope	*env_create( char *, char *, struct envelope * );
+struct envelope	*env_create( char *, char *, char *, struct envelope * );
 void		env_rcpt_free( struct envelope * );
 void		env_free( struct envelope * );
 void		rcpt_free( struct recipient * );
 void		env_clear_errors( struct envelope * );
-void		env_clear( struct envelope * );
-int		env_reset( struct envelope * );
+int		env_clear( struct envelope * );
 int		env_jail_status( struct envelope *, int );
 int		env_is_old( struct envelope *, int );
 int		env_set_id( struct envelope *, char * );
@@ -105,6 +104,7 @@ int		env_outfile( struct envelope * );
 int		env_efile( struct envelope * );
 int		env_tfile( struct envelope * );
 int		env_tfile_unlink( struct envelope * );
+int		env_dfile_unlink( struct envelope * );
 int		env_touch( struct envelope * );
 int		env_move( struct envelope *, char * );
 int		env_unlink( struct envelope * );
@@ -114,6 +114,7 @@ int		env_string_recipients( struct envelope *, char * );
 int		env_string_recipients( struct envelope *, char * );
 int		sender_list_add( struct envelope * );
 int		env_jail_set( struct envelope *, int );
+int		env_dfile_open( struct envelope * );
 
 /* debugging  functions */
 void		env_stdout( struct envelope * );

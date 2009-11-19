@@ -47,6 +47,7 @@
 #include "red.h"
 #include "mx.h"
 
+void	_q_deliver( struct host_q * );
 void	q_deliver( struct host_q * );
 void	deliver_local( struct deliver *d );
 void	deliver_remote( struct deliver *d, struct host_q * );
@@ -331,9 +332,31 @@ q_runner( void )
 		 * From addresses first, then by overall number of messages in
 		 * the queue.
 		 */
+
+		if ( simta_debug > 0 ) {
+		    syslog( LOG_DEBUG,
+			    "Queue %s: %d entries, adding to deliver queue",
+			    hq->hq_hostname, hq->hq_entries );
+		}
+
 		for ( dq = &deliver_q; *dq != NULL; dq = &((*dq)->hq_deliver)) {
 		    if ( hq->hq_entries >= ((*dq)->hq_entries)) {
+			if ( simta_debug > 0 ) {
+			    syslog( LOG_DEBUG,
+				    "Queue %s: insert before %s (%d)",
+				    hq->hq_hostname,
+				    ((*dq)->hq_hostname),
+				    ((*dq)->hq_entries));
+			}
 			break;
+		    }
+
+		    if ( simta_debug > 1 ) {
+			syslog( LOG_DEBUG,
+				"Queue %s: insert after %s (%d)",
+				hq->hq_hostname,
+				((*dq)->hq_hostname),
+				((*dq)->hq_entries));
 		    }
 		}
 
@@ -908,11 +931,10 @@ q_read_dir( struct simta_dirp *sd )
     }
 
     /* here env is NULL, we need to create an envelope */
-    if (( env = env_create( entry->d_name + 1, NULL, NULL )) == NULL ) {
+    if (( env = env_create( sd->sd_dir, entry->d_name + 1, NULL, NULL ))
+	    == NULL ) {
 	return( 1 );
     }
-
-    env->e_dir = sd->sd_dir;
 
     if ( env_read( READ_QUEUE_INFO, env, NULL ) != 0 ) {
 	env_free( env );
@@ -962,6 +984,17 @@ q_read_dir( struct simta_dirp *sd )
 
     void
 q_deliver( struct host_q *deliver_q )
+{
+    // ZZZ START TIME
+
+    _q_deliver( deliver_q );
+
+    // ZZZ END TIME
+}
+
+
+    void
+_q_deliver( struct host_q *deliver_q )
 {
     int                         touch = 0;
     int                         n_processed = 0;

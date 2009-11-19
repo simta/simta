@@ -161,44 +161,14 @@ env_is_old( struct envelope *env, int dfile_fd )
 }
 
 
-    int
-env_set_id( struct envelope *e, char *id )
+    struct envelope *
+env_create( char *dir, char *id, char *e_mail, struct envelope *parent )
 {
+    struct envelope	*env;
     struct timeval		tv_now;
     int				pid;
     /* way bigger than we should ever need */
     char			buf[ 1024 ];
-
-    if (( id == NULL ) || ( *id == '\0' )) {
-	if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	    return( 1 );
-	}
-
-	if (( pid = getpid()) < 0 ) {
-	    syslog( LOG_ERR, "env_set_id getpid: %m" );
-	    return( 1 );
-	}
-
-	snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
-		(unsigned long)tv_now.tv_usec, pid );
-
-	id = buf;
-    }
-
-    if (( e->e_id = strdup( id )) == NULL ) {
-	syslog( LOG_ERR, "env_set_id malloc: %m" );
-	return( 1 );
-    }
-
-    return( 0 );
-}
-
-
-
-    struct envelope *
-env_create( char *id, char *e_mail, struct envelope *parent )
-{
-    struct envelope	*env;
 
     if (( env = (struct envelope *)malloc( sizeof( struct envelope ))) ==
 	    NULL ) {
@@ -207,7 +177,27 @@ env_create( char *id, char *e_mail, struct envelope *parent )
     }
     memset( env, 0, sizeof( struct envelope ));
 
-    if ( env_set_id( env, id ) != 0 ) {
+    if (( id == NULL ) || ( *id == '\0' )) {
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	    env_free( env );
+	    return( NULL );
+	}
+
+	if (( pid = getpid()) < 0 ) {
+	    syslog( LOG_ERR, "env_set_id getpid: %m" );
+	    env_free( env );
+	    return( NULL );
+	}
+
+	snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
+		(unsigned long)tv_now.tv_usec, pid );
+
+	id = buf;
+    }
+
+    if (( env->e_id = strdup( id )) == NULL ) {
+	syslog( LOG_ERR, "env_create strdup: %m" );
+	env_free( env );
 	return( NULL );
     }
 
@@ -224,6 +214,8 @@ env_create( char *id, char *e_mail, struct envelope *parent )
     } else if ( simta_mail_jail != 0 ) {
 	env_jail_set( env, ENV_JAIL_PRISONER );
     }
+
+    env->e_dir = dir;
 
     return( env );
 }
@@ -323,10 +315,6 @@ env_sender( struct envelope *env, char *e_mail )
 	syslog( LOG_ERR, "env_sender: %s already has a sender", env->e_id );
 	return( 1 );
     }
-
-    if ( e_mail == NULL ) {
-	e_mail = "";
-    }
     
     if (( env->e_mail = strdup( e_mail )) == NULL ) {
 	syslog( LOG_ERR, "env_sender strdup: %m" );
@@ -337,74 +325,51 @@ env_sender( struct envelope *env, char *e_mail )
 }
 
 
-    int
-env_reset( struct envelope *env )
-{
-    env_clear( env );
-
-    return( env_set_id( env, NULL ));
-}
-
-
-    void
-env_clear( struct envelope *env )
-{
-    if ( env != NULL ) {
-	if ( env->e_mid != NULL ) {
-	    free( env->e_mid );
-	    env->e_mid = NULL;
-	}
-
-	if ( env->e_env_list_entry != NULL ) {
-	    dll_remove_entry( &simta_env_list, env->e_env_list_entry );
-	    env->e_env_list_entry = NULL;
-	}
-
-	if ( env->e_mail != NULL ) {
-	    free( env->e_mail );
-	    env->e_mail = NULL;
-	}
-
-	if ( env->e_sender_entry != NULL ) {
-	    dll_remove_entry( &(env->e_sender_entry->se_list->sl_entries),
-		    env->e_sender_entry->se_dll );
-	    env->e_sender_entry->se_list->sl_n_entries--;
-	    if ( env->e_sender_entry->se_list->sl_entries == NULL ) {
-		dll_remove_entry( &simta_sender_list,
-		    env->e_sender_entry->se_list->sl_dll );
-		free( env->e_sender_entry->se_list );
-	    }
-	    free( env->e_sender_entry );
-	    env->e_sender_entry = NULL;
-	}
-
-	if ( env->e_hostname != NULL ) {
-	    free( env->e_hostname );
-	    env->e_hostname = NULL;
-	}
-
-	if ( env->e_id != NULL ) {
-	    free( env->e_id );
-	    env->e_id = NULL;
-	}
-
-	env_rcpt_free( env );
-	env_clear_errors( env );
-	env->e_flags = 0;
-    }
-
-    return;
-}
-
-
     void
 env_free( struct envelope *env )
 {
-    if ( env != NULL ) {
-	env_clear( env );
-	memset( env, 0, sizeof( struct envelope ));
-	free( env );
+    if ( env == NULL ) {
+	return;
     }
+
+    if ( env->e_mid != NULL ) {
+	free( env->e_mid );
+    }
+
+    if ( env->e_env_list_entry != NULL ) {
+	dll_remove_entry( &simta_env_list, env->e_env_list_entry );
+    }
+
+    if ( env->e_mail != NULL ) {
+	free( env->e_mail );
+    }
+
+    if ( env->e_sender_entry != NULL ) {
+	dll_remove_entry( &(env->e_sender_entry->se_list->sl_entries),
+		env->e_sender_entry->se_dll );
+	env->e_sender_entry->se_list->sl_n_entries--;
+	if ( env->e_sender_entry->se_list->sl_entries == NULL ) {
+	    dll_remove_entry( &simta_sender_list,
+		env->e_sender_entry->se_list->sl_dll );
+	    free( env->e_sender_entry->se_list );
+	}
+	free( env->e_sender_entry );
+    }
+
+    if ( env->e_hostname != NULL ) {
+	free( env->e_hostname );
+    }
+
+    if ( env->e_id != NULL ) {
+	free( env->e_id );
+    }
+
+    env_rcpt_free( env );
+    env_clear_errors( env );
+    memset( env, 0, sizeof( struct envelope ));
+    free( env );
+
+    return;
 }
 
 
@@ -414,6 +379,7 @@ env_syslog( struct envelope *e )
     syslog( LOG_DEBUG, "message %s rcpt %d host %s",
 	    e->e_id, e->e_n_rcpt, e->e_hostname ? e->e_hostname : "NULL" );
 }
+
 
     void
 env_stdout( struct envelope *e )
@@ -488,8 +454,10 @@ env_recipient( struct envelope *e, char *addr )
     int
 env_outfile( struct envelope *e )
 {
-    if ( env_tfile( e ) != 0 ) {
-	return( 1 );
+    if (( e->e_flags & ENV_FLAG_TFILE ) == 0 ) {
+	if ( env_tfile( e ) != 0 ) {
+	    return( 1 );
+	}
     }
 
     if ( env_efile( e ) != 0 ) {
@@ -501,9 +469,30 @@ env_outfile( struct envelope *e )
 
 
     int
+env_dfile_open( struct envelope *env )
+{
+    char				dfile_fname[ MAXPATHLEN + 1 ];
+    int					fd;
+
+    sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
+
+    if (( fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
+	syslog( LOG_ERR, "Syserror env_dfile_open: open %s: %m", dfile_fname );
+	return( -1 );
+    }
+
+    env->e_flags = ( env->e_flags |= ENV_FLAG_DFILE );
+
+    return( fd );
+}
+
+
+    int
 env_tfile_unlink( struct envelope *e )
 {
     char		tf[ MAXPATHLEN + 1 ];
+
+syslog( LOG_DEBUG, "env_tfile_unlink %s", e->e_id );
 
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
 
@@ -1162,16 +1151,34 @@ env_truncate_and_unlink( struct envelope *env, SNET *snet_lock )
 }
 
 
+    int
+env_dfile_unlink( struct envelope *e )
+{
+    char		df[ MAXPATHLEN + 1 ];
+
+syslog( LOG_DEBUG, "env_dfile_unlink %s ", e->e_id );
+
+    sprintf( df, "%s/D%s", e->e_dir, e->e_id );
+
+    if ( unlink( df ) != 0 ) {
+	syslog( LOG_ERR, "env_dfile_unlink unlink %s: %m", df );
+	return( -1 );
+    }
+
+    e->e_flags = ( e->e_flags & ( ~ENV_FLAG_DFILE ));
+
+    return( 0 );
+}
+
+
     /* truncate the efile before calling this function */
 
     int
 env_unlink( struct envelope *env )
 {
     char		efile_fname[ MAXPATHLEN + 1 ];
-    char		dfile_fname[ MAXPATHLEN + 1 ];
 
     sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
-    sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 
     if ( unlink( efile_fname ) != 0 ) {
 	syslog( LOG_ERR, "env_unlink unlink %s: %m", efile_fname );
@@ -1186,9 +1193,7 @@ env_unlink( struct envelope *env )
 		env->e_id, simta_fast_files );
     }
 
-    if ( unlink( dfile_fname ) != 0 ) {
-	syslog( LOG_ERR, "env_unlink unlink %s: %m", dfile_fname );
-    }
+    env_dfile_unlink( env );
 
     syslog( LOG_DEBUG, "env_unlink %s %s: unlinked", env->e_dir, env->e_id );
 
@@ -1236,7 +1241,6 @@ env_move( struct envelope *env, char *target_dir )
 		    env->e_id, simta_fast_files );
 	}
 
-
 	if ( env_unlink( env ) != 0 ) {
 	    if ( unlink( efile_new ) != 0 ) {
 		syslog( LOG_ERR, "env_move unlink %s: %m", efile_new );
@@ -1255,6 +1259,7 @@ env_move( struct envelope *env, char *target_dir )
 	}
 
 	env->e_dir = target_dir;
+	env->e_flags |= ENV_FLAG_EFILE;
 
 	syslog( LOG_DEBUG, "env_move %s %s: moved", env->e_dir, env->e_id );
     }

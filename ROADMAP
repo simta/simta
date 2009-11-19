@@ -1,4 +1,4 @@
-$Id: ROADMAP,v 1.18 2009/10/27 21:35:35 sweda Exp $
+$Id: ROADMAP,v 1.19 2009/11/19 18:37:05 epcjr Exp $
 simta roadmap fall 2009
 ---
 
@@ -23,6 +23,9 @@ CURRENT ROADMAP
     option to allow delivery local mail
 
 0.8.3 mail jail
+- ? clen up command directory
++ ? log transition to DATA for outbounder debugging
+
 + 1 BUG: queue scheduler issues
 + 1 BUG: sasl bug?
 + 1 single master queue runner/smtp listener process

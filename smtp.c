@@ -661,6 +661,8 @@ smtp_send( struct host_q *hq, struct deliver *d )
 	return( SMTP_OK );
     }
 
+    syslog( LOG_DEBUG, "Deliver %s: Sending DATA", d->d_env->e_id );
+
     /* say DATA */
     if ( snet_writef( d->d_snet_smtp, "DATA\r\n" ) < 0 ) {
 	syslog( LOG_NOTICE, "smtp_send %s: failed writef", hq->hq_hostname );

@@ -1467,6 +1467,12 @@ simta_child_receive( struct simta_socket *ss )
     case 0:
 	simta_openlog( 1 );
 	simta_process_type = PROCESS_RECEIVE;
+	simta_host_q = NULL;
+	if ( simta_unexpanded_q != NULL ) {
+	    simta_unexpanded_q->hq_env_head = NULL;
+	    simta_unexpanded_q->hq_next = NULL;
+	    simta_unexpanded_q->hq_entries = 0;
+	}
 	for ( s = simta_listen_sockets; s != NULL; s = s->ss_next ) {
 	    if ( close( s->ss_socket ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: simta_child_receive close: %m" );

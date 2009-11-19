@@ -439,7 +439,7 @@ mid_text( struct receive_headers *r, char *line, char **msg )
 	if (( r->r_mid = strdup( start )) == NULL ) {
 	    *end = '>';
 	    syslog( LOG_ERR, "mid_text strdup: %m" );
-	    return( 1 );
+	    return( -1 );
 	}
 	*end = '>';
 
