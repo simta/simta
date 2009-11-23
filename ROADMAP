@@ -1,4 +1,4 @@
-$Id: ROADMAP,v 1.19 2009/11/19 18:37:05 epcjr Exp $
+$Id: ROADMAP,v 1.20 2009/11/23 22:08:36 sweda Exp $
 simta roadmap fall 2009
 ---
 
@@ -15,17 +15,15 @@ CURRENT ROADMAP
 + 1 DEBUG_LOGGING directive added to help debug the stuck message bugfix
 + 1 additional logging to help track down "no deliver" poison message
 + 1 E file format change for queue prioritization
-- 1 receive timer overhaul, add deliver timers
++ 1 receive timer overhaul, add deliver timers
 + 1 delivery activity logs in all cases
 + 1 additional logging for host deliver ordering
 ! 2 BITBUCKET options:
     allow expansion before bitbucket local mail, should act like inbound smtp
     option to allow delivery local mail
++ 2 log transition to DATA for outbounder debugging
 
 0.8.3 mail jail
-- ? clen up command directory
-+ ? log transition to DATA for outbounder debugging
-
 + 1 BUG: queue scheduler issues
 + 1 BUG: sasl bug?
 + 1 single master queue runner/smtp listener process
@@ -40,6 +38,7 @@ CURRENT ROADMAP
 + 2 verify that queue-only + bitbucket works (needed for testing purposes)
 + 3 queue processing by id (simc)
 ! 3 queue processing by host in non-jail enviroment (simc)
+- 3 clean up command directory (simta -C)
 + 3 better handling of domain names with trailing dot
 + 3 simexpander log pid
 + 3 simc changes DEBUG level
@@ -63,6 +62,7 @@ CURRENT ROADMAP
 
 BUGS
 x   1 ignore ipv6
+    2 need to bounce if ldap MFA has no syntactically correct entry
     2 sasl hang
     2 "no deliver" poison message
     3 simsendmail overrun bug
