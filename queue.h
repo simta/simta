@@ -31,9 +31,15 @@ struct deliver {
     off_t			d_size;
     off_t			d_sent;
     int				d_dfile_fd;
+    int				d_n_message_accepted_total;
+    int				d_n_message_failed_total;
+    int				d_n_message_tempfailed_total;
     int				d_n_rcpt_accepted;
+    int				d_n_rcpt_accepted_total;
     int				d_n_rcpt_failed;
-    int				d_n_rcpt_tempfail;
+    int				d_n_rcpt_failed_total;
+    int				d_n_rcpt_tempfailed;
+    int				d_n_rcpt_tempfailed_total;
     int				d_delivered;
     int				d_unlinked;
 

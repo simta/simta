@@ -47,7 +47,7 @@
 #include "red.h"
 #include "mx.h"
 
-void	_q_deliver( struct host_q * );
+void	_q_deliver( struct deliver *, struct host_q * );
 void	q_deliver( struct host_q * );
 void	deliver_local( struct deliver *d );
 void	deliver_remote( struct deliver *d, struct host_q * );
@@ -378,6 +378,8 @@ q_runner( void )
 
 	/* deliver all mail in every expanded queue */
 	for ( ; deliver_q != NULL; deliver_q = deliver_q->hq_deliver ) {
+	    syslog( LOG_DEBUG, "Queue: Delivering mail to %s",
+		    deliver_q->hq_hostname );
 	    q_deliver( deliver_q );
 	}
 
@@ -985,16 +987,49 @@ q_read_dir( struct simta_dirp *sd )
     void
 q_deliver( struct host_q *deliver_q )
 {
-    // ZZZ START TIME
+    struct deliver		d;
+    struct timeval		tv_start;
+    struct timeval		tv_stop;
+    int				message_total;
+    int				rcpt_total;
 
-    _q_deliver( deliver_q );
+    if ( simta_gettimeofday( &tv_start ) != 0 ) {
+	return;
+    }
 
-    // ZZZ END TIME
+    memset( &d, 0, sizeof( struct deliver ));
+
+    _q_deliver( &d, deliver_q );
+
+    if ( simta_gettimeofday( &tv_stop ) != 0 ) {
+	return;
+    }
+
+    message_total = d.d_n_message_accepted_total +
+	    d.d_n_message_failed_total + d.d_n_message_tempfailed_total;
+
+    rcpt_total = d.d_n_rcpt_accepted_total +
+	    d.d_n_rcpt_failed_total + d.d_n_rcpt_tempfailed_total;
+
+    syslog( LOG_DEBUG, "Queue %s: Delivery complete: %ld seconds, "
+	    "%d messages: %d A %d T %d F, %d rcpts %d A %d F %d T",
+	    deliver_q->hq_hostname, 
+	    tv_stop.tv_sec - tv_start.tv_sec,
+	    message_total, 
+	    d.d_n_message_accepted_total,
+	    d.d_n_message_failed_total,
+	    d.d_n_message_tempfailed_total,
+	    rcpt_total, 
+	    d.d_n_rcpt_accepted_total,
+	    d.d_n_rcpt_failed_total,
+	    d.d_n_rcpt_tempfailed_total );
+
+    return;
 }
 
 
     void
-_q_deliver( struct host_q *deliver_q )
+_q_deliver( struct deliver *d, struct host_q *deliver_q )
 {
     int                         touch = 0;
     int                         n_processed = 0;
@@ -1008,7 +1043,6 @@ _q_deliver( struct host_q *deliver_q )
     struct recipient		*remove;
     struct envelope		*env_deliver;
     struct envelope		*env_bounce = NULL;
-    struct deliver		d;
     struct stat			sbuf;
 
     memset( &d, 0, sizeof( struct deliver ));
@@ -1057,15 +1091,15 @@ _q_deliver( struct host_q *deliver_q )
 	}
 
 	/* don't memset entire structure because we reuse connection data */
-	d.d_env = env_deliver;
-	d.d_dfile_fd = 0;
-	d.d_n_rcpt_accepted = 0;
-	d.d_n_rcpt_failed = 0;
-	d.d_n_rcpt_tempfail = 0;
-	d.d_delivered = 0;
-	d.d_unlinked = 0;
-	d.d_size = 0;
-	d.d_sent = 0;
+	d->d_env = env_deliver;
+	d->d_dfile_fd = 0;
+	d->d_n_rcpt_accepted = 0;
+	d->d_n_rcpt_failed = 0;
+	d->d_n_rcpt_tempfailed = 0;
+	d->d_delivered = 0;
+	d->d_unlinked = 0;
+	d->d_size = 0;
+	d->d_sent = 0;
 
 	/* open Dfile to deliver */
         sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
@@ -1074,43 +1108,43 @@ _q_deliver( struct host_q *deliver_q )
 	    goto message_cleanup;
         }
 
-	d.d_dfile_fd = dfile_fd;
+	d->d_dfile_fd = dfile_fd;
 
 	if ( fstat( dfile_fd, &sbuf ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror q_deliver: fstat %s: %m", dfile_fname );
 	    goto message_cleanup;
 	}
 
-	d.d_size = sbuf.st_size;
+	d->d_size = sbuf.st_size;
 
 	switch ( deliver_q->hq_status ) {
         case HOST_LOCAL:
 	    if (( simta_mail_jail != 0 ) &&
 		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
-		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d.d_env->e_id );
+		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d->d_env->e_id );
 		break;
 	    }
 	    if (( deliver_q->hq_red != NULL ) &&
 		    ( deliver_q->hq_red->red_deliver_argv != NULL )) {
-		d.d_deliver_argc = deliver_q->hq_red->red_deliver_argc;
-		d.d_deliver_argv = deliver_q->hq_red->red_deliver_argv;
+		d->d_deliver_argc = deliver_q->hq_red->red_deliver_argc;
+		d->d_deliver_argv = deliver_q->hq_red->red_deliver_argv;
 	    }
-	    deliver_local( &d );
+	    deliver_local( d );
 	    break;
 
         case HOST_MX:
         case HOST_PUNT:
 	    if (( simta_mail_jail != 0 ) &&
 		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
-		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d.d_env->e_id );
+		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d->d_env->e_id );
 		break;
 	    }
 	    if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
 		syslog( LOG_ERR, "q_deliver snet_attach: %m" );
 		goto message_cleanup;
 	    }
-	    d.d_snet_dfile = snet_dfile;
-	    deliver_remote( &d, deliver_q );
+	    d->d_snet_dfile = snet_dfile;
+	    deliver_remote( d, deliver_q );
 
 	    /* return if smtp transaction to the punt host failed */
 	    if ( deliver_q->hq_status == HOST_PUNT_DOWN ) {
@@ -1128,17 +1162,17 @@ _q_deliver( struct host_q *deliver_q )
 
         case HOST_SUPRESSED:
 	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s supressed",
-		    d.d_env->e_id, deliver_q->hq_hostname );
+		    d->d_env->e_id, deliver_q->hq_hostname );
 	    break;
 
         case HOST_DOWN:
 	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s down",
-		    d.d_env->e_id, deliver_q->hq_hostname );
+		    d->d_env->e_id, deliver_q->hq_hostname );
 	    break;
 
         case HOST_BOUNCE:
 	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s bouncing mail",
-		    d.d_env->e_id, deliver_q->hq_hostname );
+		    d->d_env->e_id, deliver_q->hq_hostname );
 	    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    break;
 
@@ -1146,8 +1180,8 @@ _q_deliver( struct host_q *deliver_q )
 	    syslog( LOG_WARNING, "Deliver.remote %s: bitbucket in %d seconds",
 		    env_deliver->e_id, simta_bitbucket );
 	    sleep( simta_bitbucket );
-	    d.d_delivered = 1;
-	    d.d_n_rcpt_accepted = env_deliver->e_n_rcpt;
+	    d->d_delivered = 1;
+	    d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
 	    break;
 
 	default:
@@ -1155,14 +1189,26 @@ _q_deliver( struct host_q *deliver_q )
 	}
 
 	/* check to see if this is the primary queue, and if it has leaked */
-	if (( deliver_q->hq_primary ) && ( d.d_queue_movement != 0 )) {
+	if (( deliver_q->hq_primary ) && ( d->d_queue_movement != 0 )) {
 	    simta_leaky_queue = 1;
 	}
 
-	n_rcpt_remove = d.d_n_rcpt_failed;
-
-	if ( d.d_delivered ) {
-	    n_rcpt_remove += d.d_n_rcpt_accepted;
+	if ( d->d_delivered != 0 ) {
+	    d->d_n_message_accepted_total++;
+	    n_rcpt_remove = d->d_n_rcpt_failed + d->d_n_rcpt_accepted;
+	    d->d_n_rcpt_accepted_total += d->d_n_rcpt_accepted;
+	    d->d_n_rcpt_failed_total += d->d_n_rcpt_failed;
+	    d->d_n_rcpt_tempfailed_total += d->d_n_rcpt_tempfailed;
+	} else if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) != 0 ) {
+	    d->d_n_message_failed_total++;
+	    n_rcpt_remove = env_deliver->e_n_rcpt;
+	    d->d_n_rcpt_failed_total += env_deliver->e_n_rcpt;
+	} else {
+	    d->d_n_message_tempfailed_total++;
+	    n_rcpt_remove = d->d_n_rcpt_failed;
+	    d->d_n_rcpt_failed_total += d->d_n_rcpt_failed;
+	    d->d_n_rcpt_tempfailed_total += d->d_n_rcpt_tempfailed +
+		    d->d_n_rcpt_accepted;
 	}
 
 	/* check the age of the original message unless we've created
@@ -1172,8 +1218,7 @@ _q_deliver( struct host_q *deliver_q )
 	 * a message: it is not nessecary to check a message's age
 	 * for bounce purposes when it is already slated for deletion.
 	 */
-	if (( n_rcpt_remove != env_deliver->e_n_rcpt ) &&
-		(( env_deliver->e_flags & ENV_FLAG_BOUNCE ) == 0 )) {
+	if ( n_rcpt_remove != env_deliver->e_n_rcpt ) {
 	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
 		    syslog( LOG_NOTICE, "Deliver %s: old message, bouncing",
 			    env_deliver->e_id );
@@ -1190,7 +1235,8 @@ _q_deliver( struct host_q *deliver_q )
 	/* bounce the message if the message is bad, or
 	 * if some recipients are bad.
 	 */
-	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) || d.d_n_rcpt_failed ) {
+	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) ||
+		d->d_n_rcpt_failed ) {
 	    syslog( LOG_DEBUG, "Deliver %s: creating bounce",
 		    env_deliver->e_id );
             if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
@@ -1205,7 +1251,8 @@ _q_deliver( struct host_q *deliver_q )
 		    /* fall through, just won't get to append dfile */
 		}
 	    } else {
-		if ( lseek( snet_fd( snet_dfile ), (off_t)0, SEEK_SET ) != 0 ) {
+		if ( lseek( snet_fd( snet_dfile ),
+			(off_t)0, SEEK_SET ) != 0 ) {
 		    syslog( LOG_ERR, "q_deliver lseek: %m" );
 		    panic( "q_deliver lseek fail" );
 		}
@@ -1226,13 +1273,12 @@ _q_deliver( struct host_q *deliver_q )
 	 * a bounce for the entire message, or if we've successfully
 	 * delivered the message and no recipients tempfailed.
 	 */
-	if (( n_rcpt_remove == env_deliver->e_n_rcpt ) ||
-		( env_deliver->e_flags & ENV_FLAG_BOUNCE )) {
+	if ( n_rcpt_remove == env_deliver->e_n_rcpt ) {
 	    if ( env_truncate_and_unlink( env_deliver, snet_lock ) != 0 ) {
 		goto message_cleanup;
 	    }
 
-	    d.d_unlinked = 1;
+	    d->d_unlinked = 1;
 
 	    if ( env_deliver->e_flags & ENV_FLAG_BOUNCE ) {
 		syslog( LOG_INFO, "Deliver %s: Message Deleted: Bounced",
@@ -1243,14 +1289,15 @@ _q_deliver( struct host_q *deliver_q )
 	    }
 
 	/* else we remove rcpts that were delivered or hard failed */
-        } else if ( n_rcpt_remove ) {
+        } else if ( n_rcpt_remove != 0 ) {
 	    syslog( LOG_INFO, "Deliver %s: Rewriting Envelope",
 		    env_deliver->e_id );
 
 	    r_sort = &(env_deliver->e_rcpt);
 	    while ( *r_sort != NULL ) {
 		/* remove rcpts that were delivered or hard failed */
-		if (( d.d_delivered && ((*r_sort)->r_status == R_ACCEPTED )) ||
+		if (( d->d_delivered &&
+			((*r_sort)->r_status == R_ACCEPTED )) ||
 			((*r_sort)->r_status == R_FAILED )) {
 		    remove = *r_sort;
 		    *r_sort = (*r_sort)->r_next;
@@ -1305,7 +1352,7 @@ _q_deliver( struct host_q *deliver_q )
 	 * queue from preserving order in the case of a perm tempfail
 	 * situation.
 	 */
-	} else if ( d.d_n_rcpt_accepted ) {
+	} else if ( d->d_n_rcpt_accepted ) {
 	    touch++;
 	}
 
@@ -1317,7 +1364,7 @@ _q_deliver( struct host_q *deliver_q )
 message_cleanup:
         if ((( touch != 0 ) || ( n_processed == 0 )) &&
                 ( env_deliver->e_dir == simta_dir_slow ) &&
-		( d.d_unlinked == 0 ))  {
+		( d->d_unlinked == 0 ))  {
 	    touch = 0;
 	    env_touch( env_deliver );
 	    syslog( LOG_INFO, "Deliver %s: Envelope Touched",
@@ -1340,7 +1387,7 @@ message_cleanup:
 	    env_bounce = NULL;
 	}
 
-	if ( d.d_unlinked == 0 ) {
+	if ( d->d_unlinked == 0 ) {
 	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q ) &&
 		    ( deliver_q->hq_no_punt == 0 )) {
 		syslog( LOG_INFO, "Deliver %s: queueing for Punt",
@@ -1381,16 +1428,16 @@ message_cleanup:
 	}
     }
 
-    if ( d.d_snet_smtp != NULL ) {
+    if ( d->d_snet_smtp != NULL ) {
 	syslog( LOG_DEBUG, "q_deliver: calling smtp_quit" );
-        smtp_quit( deliver_q, &d );
-	if ( snet_close( d.d_snet_smtp ) != 0 ) {
+        smtp_quit( deliver_q, d );
+	if ( snet_close( d->d_snet_smtp ) != 0 ) {
 	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
 	}
-	if ( d.d_dnsr_result_ip != NULL ) {
-	    dnsr_free_result( d.d_dnsr_result_ip );
+	if ( d->d_dnsr_result_ip != NULL ) {
+	    dnsr_free_result( d->d_dnsr_result_ip );
 	}
-	dnsr_free_result( d.d_dnsr_result );
+	dnsr_free_result( d->d_dnsr_result );
     }
 
     return;
@@ -1434,7 +1481,7 @@ lseek_fail:
 	default:
 	case EX_TEMPFAIL:
 	    d->d_rcpt->r_status = R_TEMPFAIL;
-	    d->d_n_rcpt_tempfail++;
+	    d->d_n_rcpt_tempfailed++;
 	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> "
 		    "Tempfailed: %d", d->d_env->e_id, d->d_rcpt->r_rcpt,
 		    d->d_env->e_mail, ml_error );
@@ -1453,7 +1500,7 @@ lseek_fail:
 
 	syslog( LOG_INFO, "Deliver.local %s: Accepted %d Tempfailed %d "
 		"Failed %d", d->d_env->e_id, d->d_n_rcpt_accepted,
-		d->d_n_rcpt_tempfail, d->d_n_rcpt_failed );
+		d->d_n_rcpt_tempfailed, d->d_n_rcpt_failed );
     }
 
     d->d_delivered = 1;
@@ -1468,7 +1515,6 @@ deliver_remote( struct deliver *d, struct host_q *hq )
     int				r_smtp;
     int				s;
     int				env_movement = 0;
-    struct timeval		tv;
     struct timeval		tv_start;
     struct timeval		tv_stop;
 
@@ -1525,10 +1571,6 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 		continue;
 	    }
 
-	    memset( &tv, 0, sizeof( struct timeval ));
-	    tv.tv_sec = 5 * 60;
-	    snet_timeout( d->d_snet_smtp, SNET_WRITE_TIMEOUT, &tv );
-
 	    simta_smtp_outbound_attempts++;
 
 	    hq_clear_errors( hq );
@@ -1547,7 +1589,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	env_clear_errors( d->d_env );
 	d->d_n_rcpt_accepted = 0;
 	d->d_n_rcpt_failed = 0;
-	d->d_n_rcpt_tempfail = 0;
+	d->d_n_rcpt_tempfailed = 0;
 
 	r_smtp = smtp_send( hq, d );
 
@@ -1605,6 +1647,12 @@ smtp_cleanup:
 		hq->hq_status = HOST_MX;
 		return;
 	    }
+	}
+
+	if ( lseek( snet_fd( d->d_snet_dfile ), (off_t)0, SEEK_SET ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: deliver_remote lseek %s%s: %m",
+		    d->d_env->e_dir, d->d_env->e_id );
+	    return;
 	}
     }
 }

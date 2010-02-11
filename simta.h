@@ -183,12 +183,6 @@ extern int				simta_strict_smtp_syntax;
 extern int				simta_no_sync;
 extern int				simta_ignore_reverse;
 extern int				simta_ignore_connect_in_reverse_errors;
-extern int				simta_inactivity_timer;
-extern int				simta_message_timer;
-extern int				simta_receive_session_wait;
-extern int				simta_receive_line_wait;
-extern int				simta_data_transaction_wait;
-extern int				simta_data_line_wait;
 extern int				simta_message_count;
 extern int				simta_max_received_headers;
 extern int				simta_max_bounce_lines;
@@ -253,6 +247,18 @@ char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
+
+/* SMTP INBOUND & OUTBOUND TIMERS */
+extern int				simta_inbound_accepted_message_timer;
+extern int				simta_inbound_global_session_timer;
+extern int				simta_inbound_command_line_timer;
+extern int				simta_inbound_command_inactivity_timer;
+extern int				simta_inbound_data_line_timer;
+extern int				simta_inbound_data_session_timer;
+
+extern int				simta_outbound_command_line_timer;
+extern int				simta_outbound_data_line_timer;
+extern int				simta_outbound_data_session_timer;
 
 int	q_cleanup( void );
 int	smtp_receive( int, struct connection_info *, struct simta_socket * );

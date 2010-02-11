@@ -129,12 +129,6 @@ int			simta_max_bounce_lines;
 int			simta_banner_delay = 0;
 int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
-int			simta_inactivity_timer = 0;
-int			simta_message_timer = -1;
-int			simta_receive_session_wait = 0;
-int			simta_receive_line_wait = 600;
-int			simta_data_transaction_wait = 3600;
-int			simta_data_line_wait = 300;
 int			simta_ignore_reverse = 0;
 int			simta_ignore_connect_in_reverse_errors = 0;
 int			simta_message_count = 0;
@@ -189,6 +183,17 @@ char			*simta_file_cert = "cert/cert.pem";
 char			*simta_file_private_key = "cert/cert.pem";
 char			**simta_deliver_default_argv;
 int			simta_deliver_default_argc;
+
+/* SMTP RECEIVE & DELIVER TIMERS */
+int			simta_inbound_accepted_message_timer = -1;
+int			simta_inbound_global_session_timer = 0;
+int			simta_inbound_command_inactivity_timer = 3600;
+int			simta_inbound_command_line_timer = 600;
+int			simta_inbound_data_line_timer = 300;
+int			simta_inbound_data_session_timer = 3600;
+int			simta_outbound_command_line_timer = 300;
+int			simta_outbound_data_line_timer = 300;
+int			simta_outbound_data_session_timer = 0;
 
 
     void
@@ -712,105 +717,157 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "base dir: %s\n", simta_base_dir );
 
-	} else if ( strcasecmp( av[ 0 ], "SMTP_DELIVERY_TIMER" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_COMMAND_INACTIVITY_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_message_timer = atoi( av[ 1 ] );
-	    if ( simta_message_timer < 0 ) {
-		fprintf( stderr,
-			"%s: line %d: SMTP_DELIVERY_TIMER must be "
-			"greater than or equal to 0\n",
+	    simta_inbound_command_inactivity_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_command_inactivity_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"RECEIVE_COMMAND_INACTIVITY_TIMEOUT "
+			"must be greater than or equal to 0",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "SMTP_DELIVERY_TIMER %d\n",
-		    simta_message_timer );
+	    if ( simta_debug ) printf(
+		    "RECEIVE_COMMAND_INACTIVITY_TIMEOUT %d\n",
+		    simta_inbound_command_inactivity_timer );
 
-	} else if ( strcasecmp( av[ 0 ], "SMTP_INACTIVITY_TIMER" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_ACCEPTED_MESSAGE_TIMER" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_inactivity_timer = atoi( av[ 1 ] );
-	    if ( simta_inactivity_timer < 0 ) {
-		fprintf( stderr,
-			"%s: line %d: SMTP_INACTIVITY_TIMER must be "
-			"greater than or equal to 0\n",
+	    simta_inbound_accepted_message_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_accepted_message_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_ACCEPTED_MESSAGE_TIMER "
+			"must be greater than or equal to 0",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "SMTP_INACTIVITY_TIMER %d\n",
-		    simta_inactivity_timer );
+	    if ( simta_debug ) printf( "RECEIVE_ACCEPTED_MESSAGE_TIMER %d\n",
+		    simta_inbound_accepted_message_timer );
 
-	} else if ( strcasecmp( av[ 0 ], "RECEIVE_LINE_WAIT" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_GLOBAL_SESSION_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_receive_line_wait = atoi( av[ 1 ] );
-	    if ( simta_receive_line_wait <= 0 ) {
-		fprintf( stderr,
-			"%s: line %d: RECEIVE_WAIT must be greater than 0\n",
+	    simta_inbound_global_session_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_global_session_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_GLOBAL_SESSION_TIMEOUT "
+			"must be greater than or equal to 0",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RECEIVE_LINE_WAIT %d\n",
-		    simta_receive_line_wait );
+	    if ( simta_debug ) printf( "RECEIVE_GLOBAL_SESSION_TIMEOUT %d\n",
+		    simta_inbound_global_session_timer );
 
-	} else if ( strcasecmp( av[ 0 ], "RECEIVE_SESSION_WAIT" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_COMMAND_LINE_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_receive_session_wait = atoi( av[ 1 ] );
-	    if ( simta_receive_session_wait < 0 ) {
-		fprintf( stderr,
-			"%s: line %d: RECEIVE_SESSION_WAIT "
-			"must be greater than or equal to 0\n",
-			fname, lineno );
+	    simta_inbound_command_line_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_command_line_timer <= 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_COMMAND_LINE_TIMEOUT "
+			"must be greater than 0", fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RECEIVE_SESSION_WAIT %d\n",
-		    simta_receive_session_wait );
+	    if ( simta_debug ) printf( "RECEIVE_COMMAND_LINE_TIMEOUT %d\n",
+		    simta_inbound_command_line_timer );
 
-	} else if ( strcasecmp( av[ 0 ], "DATA_LINE_WAIT" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_DATA_SESSION_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_data_line_wait = atoi( av[ 1 ] );
-	    if ( simta_data_line_wait <= 0 ) {
-		fprintf( stderr,
-			"%s: line %d: DATA_LINE_WAIT must be greater than 0\n",
+	    simta_inbound_data_session_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_data_session_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_DATA_SESSION_TIMEOUT "
+			"must be greater than or equal to 0",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "DATA_LINE_WAIT %d\n",
-		    simta_data_line_wait );
+	    if ( simta_debug ) printf( "RECEIVE_DATA_SESSION_TIMEOUT %d\n",
+		    simta_inbound_data_session_timer );
 
-	} else if ( strcasecmp( av[ 0 ], "DATA_SESSION_WAIT" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "RECEIVE_DATA_LINE_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_data_transaction_wait = atoi( av[ 1 ] );
-	    if ( simta_data_transaction_wait < 0 ) {
-		fprintf( stderr,
-			"%s: line %d: DATA_SESSION_WAIT must be greater than "
-			"or equal to 0\n",
+	    simta_inbound_data_line_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_data_line_timer <= 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_DATA_LINE_TIMEOUT "
+			"must be greater than 0",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "DATA_SESSION_WAIT %d\n",
-		    simta_data_transaction_wait );
+	    if ( simta_debug ) printf( "RECEIVE_DATA_LINE_TIMEOUT %d\n",
+		    simta_inbound_data_line_timer );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"DELIVER_COMMAND_LINE_TIMEOUT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_outbound_command_line_timer = atoi( av[ 1 ] );
+	    if ( simta_outbound_command_line_timer <= 0 ) {
+		fprintf( stderr, "%s: line %d: DELIVER_COMMAND_LINE_TIMEOUT "
+			"must be greater than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DELIVER_COMMAND_LINE_TIMEOUT %d\n",
+		    simta_outbound_command_line_timer );
+
+	} else if ( strcasecmp( av[ 0 ], "DELIVER_DATA_LINE_TIMEOUT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_outbound_data_line_timer = atoi( av[ 1 ] );
+	    if ( simta_outbound_data_line_timer <= 0 ) {
+		fprintf( stderr, "%s: line %d: DELIVER_DATA_LINE_TIMEOUT "
+			"must be greater than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DELIVER_DATA_LINE_TIMEOUT %d\n",
+		    simta_outbound_data_line_timer );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"DELIVER_DATA_SESSION_TIMEOUT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_outbound_data_session_timer = atoi( av[ 1 ] );
+	    if ( simta_outbound_data_session_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: DELIVER_DATA_SESSION_TIMEOUT "
+			"must be greater than or equal to 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DELIVER_DATA_SESSION_TIMEOUT %d\n",
+		    simta_outbound_data_session_timer );
 
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -913,7 +970,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    simta_local_connections_max = atoi( av [ 1 ] );
-	    if ( simta_local_throttle_max < 0 ) {
+	    if ( simta_local_connections_max < 0 ) {
 		fprintf( stderr, "%s: line %d: "
 			"MAX_RECEIVE_CONNECTIONS_PER_HOST "
 			"can't be less than 0\n", fname, lineno );
@@ -1158,15 +1215,13 @@ simta_read_config( char *fname )
 		simta_mail_filter );
 
 	} else if ( strcasecmp( av[ 0 ], "DEBUG_LOGGING" ) == 0 ) {
-	    if ( ac == 1 ) {
-		simta_debug = 1;
-	    } else if ( ac == 2 ) {
+	    if ( ac == 2 ) {
 		if (( simta_debug = atoi( av[ 1 ])) < 0 ) {
 		    fprintf( stderr, "%s: line %d: "
 			    "argument must be 0 or greater\n", fname, lineno );
 		}
 	    } else {
-                fprintf( stderr, "%s: line %d: expected 0 or 1 arguments\n",
+                fprintf( stderr, "%s: line %d: 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }

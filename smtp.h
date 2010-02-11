@@ -34,7 +34,7 @@
 void	stdout_logger ( char * );
 int	smtp_reply( int, struct host_q *, struct deliver * );
 int	smtp_consume_banner ( struct line_file **, struct deliver *,
-		struct timeval *, char *, char * );
+		char *, char * );
 
 int	smtp_connect( struct host_q *, struct deliver * );
 int	smtp_rset( struct host_q *, struct deliver * );

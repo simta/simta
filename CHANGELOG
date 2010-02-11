@@ -19,6 +19,30 @@
     - simta one process model
     - simta_gettimeofday() preffered interface
 
+0.8.2.4
+    - timeout bugfixes
+
+0.8.2.4
+    - debug logging added
+    - nomenclature changes
+
+0.8.2.3
+    - bugfixes
+
+0.8.2.2
+    - bugfixes
+
+0.8.2.1
+    - DEBUG_LOGGING directive added to help debug the stuck message bugfix
+    - log transition to DATA for outbounder debugging
+    - E file format change for queue prioritization
+    - additional logging for host deliver ordering
+    - delivery activity logs in all cases
+    - additional logging to help track down "no deliver" poison message
+    - logging for SASL bug @ DEBUG_LOGGING level 1
+    - receive inbound timer overhaul, add outbound timers
+
+
 0.8.2.d
     - ignore trailing dot in email addresses
     - removed timer debugging logging

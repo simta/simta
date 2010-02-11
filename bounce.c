@@ -294,6 +294,11 @@ bounce( struct envelope *env, int body, char *err )
 
     env->e_flags |= ENV_FLAG_BOUNCE;
 
+    if (( simta_mail_jail != 0 ) && ( simta_bounce_jail == 0 )) {
+	/* bounces must be able to get out of jail */
+	env_jail_set( env_bounce, ENV_JAIL_NO_CHANGE );
+    }
+
     if (( env_bounce = bounce_snet( env, sn, NULL, "ZZZ err msg" )) == NULL ) {
 	return( NULL );
     }
