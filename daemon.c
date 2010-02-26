@@ -737,7 +737,7 @@ simta_daemonize_server( void )
 
     case -1 :
 	syslog( LOG_ERR, "Syserror: simta_child_queue_scheduler fork: %m" );
-	abort();
+	return( -1 );
 
     default :
 	if ( simta_proc_add( PROCESS_SERVER, pid ) == NULL ) {
@@ -829,6 +829,7 @@ simta_server( void )
     struct timeval		tv_sleep = { 0, 0 };
     struct timeval		tv_now;
     char			*sleep_reason;
+    char			*error_msg = NULL;
     int				entries;
     int				ready;
     int				sleep_time;
@@ -864,7 +865,7 @@ simta_server( void )
     simta_process_type = PROCESS_SERVER;
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	return( 1 );
+	exit( 1 );
     }
 
     srandom((unsigned int)tv_now.tv_usec );
@@ -1098,7 +1099,7 @@ syslog( LOG_DEBUG, "Daemon: selecting %ld: %s", tv_sleep.tv_sec,
 syslog( LOG_DEBUG, "Debug: select over" );
 
 	if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	    return( 1 );
+	    goto error;
 	}
 
 	for ( c = &cinfo_stab; *c != NULL; ) {
@@ -1142,6 +1143,8 @@ error:
 	}
 	*/
     }
+
+    syslog( LOG_NOTICE, "Daemon: Shutdown %s", error_msg ? error_msg : "" );
 
     return( 1 );
 }
@@ -1300,7 +1303,7 @@ simta_wait_for_child( int child_type )
 	    syslog( LOG_ERR,
 		    "Syserror: wait_for_child: child_type out of range: %d",
 		    child_type );
-	    exit( 1 );
+	    return( 1 );
 	}
 
     default :
@@ -1483,7 +1486,7 @@ simta_child_receive( struct simta_socket *ss )
 
     case -1:
 	syslog( LOG_ERR, "Syserror: simta_child_receive fork: %m" );
-	abort();
+	return( 1 );
 
     default:
 	/* Here we are the server */
@@ -1567,7 +1570,7 @@ simta_child_q_runner( struct host_q *hq )
 
     case -1 :
 	syslog( LOG_ERR, "Syserror: simta_child_q_runner fork: %m" );
-	abort();
+	return( 1 );
 
     default :
 	/* here we are the server.  this is ok */
