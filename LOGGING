@@ -1,0 +1,77 @@
+
+Templates:
+Connect.in [IP] Hostname: message
+Receive [IP] Hostname: MID: message
+Syserror function: syscall: error message
+
+Queue FNAME: Check: Missing Efile
+Queue FNAME: Check: Stranded t_file
+Queue FNAME: Cleaning: Missing Efile
+Queue FNAME: Cleaning: Collision
+Queue FNAME: Cleaning: Stranded t_file
+Queue FNAME: Cleaning: MID expansion interrupted
+Queue FNAME: Unlinked
+Queue FNAME: Failed: Directory not empty
+Queue FNAME: Failed: Missing Dfile
+Queue FNAME: Failed: Missing Efile
+Queue FNAME: Failed: Stranded t_file
+Queue FNAME: Failed: Unknown file
+Queue FNAME: Failed: Collision
+Queue Syserror: system-call: err-text
+Queue Metrics: METRICS
+
+Connect.in [IP] (hostname): Accepted
+Connect.in [IP] (hostname): Warning: text
+Connect.in [IP] (hostname): Failed: text
+
+Child PID: start TYPE
+Child PID: exited TYPE: EXITSTATUS
+Child PID: died TYPE: SIGNAL
+Child PID: died TYPE
+Child PID: Syserror: ERROR
+
+Receive MID: From <sender@domain> Accepted
+Receive MID: To <rcpt@domain> From <sender@domain> Accepted
+Receive MID: To <rcpt@domain> From <sender@domain> Failed: error
+Receive MID: Message Accepted: [IP] hostname SIZE
+Receive MID: Message Tempfailed: [IP] hostname: text
+Receive MID: Message Failed: [IP] hostname: text
+Receive MID: Message Deleted after acceptance: [IP] hostname: text
+
+Expand Unexpanded-MID: Expanded-MID: To <expanded-recipient@domain>
+	From <expanded-sender@domain> (original-sender@domain)
+Expand Unexpanded-MID: Expanded-MID: Expanded # "moderators|recipients|bounces"
+Expand Unexpanded-MID: Message Deleted: Expansion complete
+
+Deliver.local MID: To <rcpt@domain> From <sender@domain> Accepted
+Deliver.local MID: To <rcpt@domain> From <sender@domain> Tempfailed: exit_val
+Deliver.local MID: To <rcpt@domain> From <sender@domain> Failed: exit_val
+Deliver.local MID: Accepted # Tempfailed # Failed #
+
+Connect.out [IP] hostname: Accepted: smtp-hostname: banner-text
+Connect.out [IP] hostname: Tempfailed: bannner-text
+Connect.out [IP] hostname: Failed: text
+
+Deliver.SMTP MID: Attempting remote delivery: remote-hostname
+Deliver.SMTP MID: From <sender@domain> Accepted: banner-text
+Deliver.SMTP MID: From <sender@domain> Tempfailed: banner-text
+Deliver.SMTP MID: From <sender@domain> Failed: banner-text
+Deliver.SMTP MID: To <rcpt@domain> From <sender@domain> Accepted: banner-text
+Deliver.SMTP MID: To <rcpt@domain> From <sender@domain> Tempfailed: banner-text
+Deliver.SMTP MID: To <rcpt@domain> From <sender@domain> Failed: banner-text
+Deliver.SMTP MID: Message Accepted: [remote.ip] remote-hostname: banner-text
+Deliver.SMTP MID: Message Tempfailed: [remote.ip] remote-hostname: banner-text
+Deliver.SMTP MID: Message Failed: [remote.ip] remote-hostname: banner-text
+
+Bounce Old-MID: Bounce-MID: To <recipient@domain> From <>
+Bounce Old-MID: Bounce-MID: Bouncing <rcpt@domain> From <original-sender@domain>
+Bounce Old-MID: Bounce-MID: Bounced # addresses
+
+Deliver MID: Message Deleted: Delivered
+Deliver MID: Message Deleted: Bounced
+Deliver MID: Keeping To <sender@domain> From <rcpt@domain>
+Deliver MID: Removing To <sender@domain> From <rcpt@domain>
+Deliver MID: Rewrote # recipients
+
+Restart: VERSION
+Syserror: SYSERROR

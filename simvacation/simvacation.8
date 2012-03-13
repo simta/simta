@@ -1,0 +1,149 @@
+.TH SIMVACATION "8" "23 February 2005" "U-M LDAP Project" "MAINTENANCE COMMANDS"
+.SH NAME
+.B simvacation
+\- LDAP-aware vacation mailer.
+.SH SYNOPSIS
+.B simvacation
+[
+.B \-r
+.I interval
+]
+[
+.B \-s
+.I searchbase
+]
+[
+.B \-h
+.I ldap-host
+]
+[
+.B \-p
+.I ldap-port
+]
+[
+.B \-v
+.I database-directory
+]
+[
+.B \-f
+.I sender/from
+]
+.I user
+.SH DESCRIPTION
+.B
+simvacation
+automatically replies to incoming mail.  It is similar in function to
+the vacation(1) program, but is designed to (1) run as a mailer, and (2)
+obtain its reply from a user's LDAP entry.  Users arrange to forward a
+copy of their mail to the host running the vacation mailer, either via
+a .forward file on a UNIX host, or via the
+.B simta
+program.
+.LP
+When an incoming piece of mail is processed by
+.B simvacation,
+the umich-specific
+.I onVacation
+Boolean attribute and 
+.I vacationMessage
+CaseIgnoreList attribute are retrieved from the LDAP directory.
+If the
+.I onVacation
+attribute is
+.B TRUE
+then the contents of the
+.I vacationMessage
+attribute are used to generate an automated reply.  If the
+.I vacationMessage
+attribute is empty, a default reply is generated.
+.LP
+.B simvacation
+does not require that a user have a password file entry or home directory
+on the machine running
+.B simvacation.
+.LP
+As with
+.B vaction(1),
+no reply is generated unless the user is explicitly listed in the
+.B To:
+or
+.B Cc:
+fields of the message.  Additionally, the reply is suppressed if the
+.B From:
+field contains the string
+.B -request@,
+or if either of the header lines
+.B Precedence: bulk
+or
+.B Precedence: junk
+appear in the message.
+.LP
+.B
+simvacation
+logs its activity via syslog(3), with facility LOG_MAIL. The facility can be
+overridden during the build time.
+.SH OPTIONS
+.TP
+.B \-r
+Specify the interval, in days, between repeat replies to the same sender. 
+The default is one week.
+.TP
+.B \-s
+Specify the LDAP searchbase.  When searching the LDAP directory for
+the command-line argument
+.I user,
+.B simvacation
+does a subtree search beginning at the location in the LDAP directory
+tree specified by the
+.B -s
+option.
+.TP
+.B \-h
+Specify the host running the LDAP (Lightweight Directory Access Protocol)
+daemon.
+.TP
+.B \-p
+Specify the tcp port to use when connecting to the LDAP server.
+.TP
+.B \-v
+Specify the location of the database file directory.  Default is
+/var/vacationdb.
+
+.SH USAGE
+.B simvacation
+is designed to be invoked by simta(8) or another mailer.
+The following line defines a "simvacation" mailer in simta(8):
+.IP
+
+@hostname	D	/usr/bin/simvacation -f $S -d 
+.LP
+Generally, one should configure the MTA to recognize an alternative
+hostname as "local", e.g.
+.I vacation.rs.itd.umich.edu,
+and arrange for the
+.B simvacation
+mailer to be invoked when mail for the alternate host is received.
+.LP
+Periodically, the
+.B simunvacate(8)
+program should be run on the vacation host to clean up any unneeded
+database files left when users return from vacation.  It is recommended
+that
+.B simunvacate
+be run at least nightly out of cron.
+.SH FILES
+.B simvacation
+maintains database files named
+.B $USER.ddb
+in
+.B /var/vacationdb/[a-z]/.
+.SH SEE ALSO
+.BR simunvacate(8),
+.BR simvacreport(8),
+.BR sendmail(8),
+.BR simta(8),
+.BR ldap(3)
+.LP
+.B RFC 2251
+\- Lightweight Directory Access Protocol (v3)
+.LP

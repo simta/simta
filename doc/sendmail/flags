@@ -1,0 +1,37 @@
+cron	-oi epcjr
+elm	-oi -oem elm@test.com
+mail	-oi mail@test.com
+mailx	-i mailx@test.com
+mutt	-oem -oi -- mutt@test.com
+nmh	-bs -odb -oem -om
+nefu	-fnefu -odb -t
+pine	-bs -odb -oem
+
+--
+	    Stop  processing  command flags and use the rest of
+	    the arguments as addresses.
+
+to-address
+    need
+
+-bs
+-ba
+    reject
+
+-fnefu
+    ignore
+
+-odb
+    reject
+
+-oem
+    ignore
+
+-om
+    ignore
+
+-oi
+    in place
+
+-t
+    ignore

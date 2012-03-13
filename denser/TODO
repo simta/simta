@@ -1,0 +1,25 @@
+check response for
+    question was asked of responding machine
+    answer to question asked of that machine
+
+read resolv.conf for DNS info
+
+look at DJBDNS for RFC "bugs"
+
+int convert_arpa( int in )
+    converts an IP number to it's .in-addr.arpa format
+    ex: 141.211.231.10 -> 10.231.211.141.in-addr.arpa
+
+Set default QTYPE and QCLASS to 0
+
+char * dnsr_errorstr( DNSR dnsr )
+    looks at the error code and returns an error message.
+
+void dnsr_close( DNSR dnsr )
+    closes a DNSR opened with dnsr_open
+
+API:
+
+want as few calls as possible
+
+dnsr_parse() to get other info, additional sections, etc

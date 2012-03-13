@@ -1,0 +1,167 @@
+Access control:
+
+    Use tcp_wrappers during "MAIL FROM:" phase.  This allows SMTP-SASL
+    to by-pass tcp_wrappers.  By having a command-line option to
+    disable "open relay" checks, we can have the function that
+    smtp.itd.umich.edu currently has: on campus clients can send mail
+    anywhere, off-campus clients need to authenticate.  (This doesn't
+    give the "off-campus clients can send mail to campus".)
+
+    We also need the equivalent of "DeniedFrom" so that admins can
+    break loops without denying connections from whole domains.
+
+Maximum processes:
+
+    The parent has a maximum number of children it can start, M.
+    (See below for how queue runners are handled.)  Each child has
+    a maximum number of child they can start, N.  The total maximum
+    number of simta processes is M * N.
+
+Queuing:
+
+    We attempt to deliver newly received mail immediately.  If we
+    successfully deliver mail for a host, we check for a queue for
+    the host, and become a queue runner for that host.  This reduces
+    admin intervention required to recover from a large queue.  To
+    limit the maximum number of queue runners, only the first 1/2
+    of the accepting children will become queue runners.  The second
+    1/2 are exclusively reserved for accepting new connections.
+
+    A queue runner first attempts to reserve a message.  If this
+    succeeds, a connection is attempted.  If the connection succeeds,
+    the reserved message is deleted and dequeued.  If the connection
+    fails, the reservation is cancelled.  If delivery temp-fails,
+    the message is re-queued to the bottom of the queue.
+
+    Reserving stores pid & time.  A message that's been recently
+    reserved can't be reserved again inside some time limit.  This
+    prevents a remote-crash-causing message from repeated crash a
+    remote host.
+
+    On startup, all reservations are cancelled.  All mail in tmp
+    is moved to queues.  SMTP is started and a queue runner is
+    started.
+
+    System must handle case where queued message has no corresponding
+    file.
+
+    q_insert -> q_reserve ->	q_delete
+				q_unreserve
+				q_reinsert
+
+    q_reinsert adds the message to the end, then removes it from
+    the beginning.
+
+Bounce:
+
+    As the delivery proceeds, a transcript is kept of "critical"
+    errors.  At the end of the delivery process, the transcript is
+    converted into a DSN and added to the end of the envelope list, to
+    be delivered as normal mail.
+
+    Double bounces?
+
+simsendmail:
+
+    This is a setuid program, living in /usr/lib/sendmail.  It
+    accepts mail from stdin, possibly reads a config file to control
+    e.g. masquerading, and queues mail in /var/spool/simta/local.
+    Once the mail is queued, it signals simta with USR1.  If simta
+    is running, it examines /var/spool/simta/local on SIGUSR1 or
+    each time a queue runner is started.
+
+modules:
+
+    content filtering
+    rbl
+    addressing
+
+misc:
+
+    need an option so no SMTP port is opened.
+
+    do we need equivalent of /usr/lib/sendmail -q?  How about a
+    signal that tells the running simta to start another queue
+    runner?
+
+    fsync newly queued messages?
+
+RFCs:
+
+    rfc0821.txt
+    rfc0822.txt
+    rfc2821.txt
+    rfc2822.txt
+
+    rfc1123.txt
+    rfc1521.txt
+    rfc1869.txt
+    rfc1870.txt
+
+    rfc2078.txt
+    rfc2197.txt
+    rfc2222.txt
+    rfc2245.txt
+    rfc2476.txt
+    rfc2554.txt
+    rfc2743.txt
+    rfc2744.txt
+
+    rfc1652.txt-crap
+    rfc1830.txt-crap
+    rfc1845.txt-crap
+    rfc2034.txt-crap
+    rfc2645.txt-crap
+
+Existing MX's:
+
+    simta-mx-test.rsug.itd.umich.edu	->	(0)savannah.staff
+					  	(1)plates.rsug.itd.umich.edu
+					  	(1)deathsmarathon.mr
+					  	(2)terminator.rsug
+    simtatest1.rsug.itd.umich.edu	->	plates.rsug.itd.umich.edu
+    simtatest1.rsug.itd.umich.edu	->	(0)eq.rsug.itd.umich.edu
+					->	(1)plates.rsug.itd.umich.edu
+
+Existing A's:
+    simtatest3.rsug.itd.umich.edu	->	plates.rsug.itd.umich.edu
+
+Exiting cname:
+    /* For sending mail on plates to simtatest4 */
+    simtatest4.rsug.itd.umich.edu	->	plates.rsug.itd.umich.edu
+
+Truncated record ( MX ):
+    simtatest5.rsug.itd.umich.edu
+
+Bad records:
+	test1.rsug.itd.umich.edu	valid glue records
+	test2.rsug.itd.umich.edu	invalid glue records
+	test3.rsug.itd.umich.edu	
+
+Multiple A record:
+    simta-mult-a.rsug.itd.umich.edu 	-> 141.213.231.124 
+    					   (savannah.staff.itd.umich.edu.)
+					-> 141.213.231.71
+					   (plates.rsug.itd.umich.edu.)
+					-> 141.211.93.149
+				      	   (deathsmarathon.mr.itd.umich.edu.)
+
+Low Preference MX:
+    simta-low-pref-mx.rsug.itd.umich.edu -> 141.211.144.10
+   					   (jim.mr.itd.umich.edu.)
+					 -> 141.211.144.10
+					   (jack.mr.itd.umich.edu.)
+
+MX record:
+    simta-low-pref-mx.rsug.itd.umich.edu -> 0  savannah.staff.itd.umich.edu.
+				 	 -> 20 simta-mx.rsug.itd.umich.edu.
+
+A record:
+    simta-mx.rsug.itd.umich.edu		-> 141.211.144.10
+   					   (jim.mr.itd.umich.edu.)
+					-> 141.211.144.11
+					   (jack.mr.itd.umich.edu.)
+
+Same preference MX
+    simta-same-pref-mx.rsug.itd.umich.edu -> 20 savannah.staff.itd.umich.edu
+					  -> 20 simta-mx.rsug.itd.umich.edu

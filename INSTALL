@@ -1,0 +1,55 @@
+simta Installation
+=================
+
+1.  Requirements
+
+    To build simta, you will need:
+	- c compiler
+	- local mail delivery program (mail.local or procmail)
+	- libssl
+	- Berekely db
+
+2.  Configuring the source tree
+
+    The `configure' shell script attempts to guess correct values for various
+    system-dependent variables used during compilation.  It uses those values
+    to create a `Makefile' in each directory of the package.  It will also
+    create one or more `.h' files containing system-dependent definitions.
+    Finally, it creates a shell script `config.status' that you can run in
+    the future to recreate the current configuration, and a file `config.log'
+    containing compiler output (useful mainly for debugging `configure').
+
+    The autoconf program uses the file `configure.ac' used to create
+    `configure'.  You only autoconf if you want to change `configure.ac' or
+    regenerate `configure' using a newer version of `autoconf'.
+
+    simta requires a local mail delivery agent.  mail.local and procmail are
+    currently supported.  Also see simta.conf for the DEFAULT_LOCAL_MAILER
+    option.
+
+    configure options:
+	--with-mail_local=/path/to/mail_local/
+	    For mail.local support, simta needs the directory of the
+	    mail.local binary.  Use this option if mail.local isn't in
+	    /usr/lib/ or /usr/sbin/.  The argument "no" disables mail.local
+	    support.
+
+	--with-procmail=/path/to/procmail/
+	    For procmail support, simta needs the directory of the procmail
+	    binary.  Use this option if procmail isn't in /usr/bin/
+	    /usr/local/bin/ or /usr/local/procmail/bin/.  The argument "no"
+	    disables procmail support.
+
+	--with-ldap=/path/to/ldap/
+	    If configure can't find LDAP, use this to give it a path.
+	    The argument "no" disables LDAP support.
+
+3.  Building simta
+
+    At this point, simply run the command
+	
+	$ make
+
+4.  Installing simta
+
+5.  Checking simta's installation

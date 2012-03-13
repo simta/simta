@@ -1,0 +1,145 @@
+#!/bin/bash
+# generic startup script for LFS written by sweda
+# version 1.3
+
+. /etc/rc.d/init.d/functions.rsug
+
+name="simta"
+conffile="/etc/simta.conf"
+execfile="/usr/sbin/simta"
+execflags="-m 250 -I -' '"
+pidfile=/var/run/simta.pid
+howtokill=pkill
+howtostatus=pidstatus
+
+preload(){
+        simalias="/bin/simalias"
+        aliasfile="/etc/mail/aliases"
+        aliasdb="/etc/alias.db"
+        basedir="/var/spool/simta"
+        spooldir=$basedir
+
+        # Check lost+found
+        while [ `grep -w -c $spooldir /etc/mtab` -eq 0 ]; do
+                spooldir=`dirname $spooldir`
+        done
+        if [ $spooldir = "/" ]; then
+                spooldir=""
+        fi
+
+        lostdir=$spooldir/lost+found
+        if [  -d $lostdir ]; then
+        	dirlist=`ls $lostdir`
+        	if [ $? -ne 0 ]; then
+		exit 1
+		fi
+	fi
+        echo "$lostdir not a directory or doesn't exist"
+
+#        dirlist=`ls $lostdir`
+#        if [ $? -ne 0 ]; then
+#                exit 1
+#        fi
+#        if [ $dirlist ]; then
+#                echo "$lostdir may contain lost mail"
+#                exit 1
+#        fi
+
+        # Check for files in fast queue
+        fastdir=$basedir/fast
+        if [ ! -d $fastdir ]; then
+                echo "$fastdir not a directory"
+                exit 1
+        fi
+        dirlist=`ls $fastdir`
+        if [ $? -ne 0 ]; then
+                exit 1
+        fi
+                echo "cleaning $fastdir"
+                if [ -x $execfile -a -f $conffile ]; then
+                        $execfile -C
+                        if [ $? -ne 0 ]; then
+                            	echo "Could not clean $fastdir"
+                            	exit 1
+                        fi
+                else
+                	echo "Could not clean $fastdir"
+                    	exit 1
+                fi
+
+	# Create alias db
+        if [ -f $aliasdb ]; then
+		echo "Removing old alias db"
+		rm $aliasdb
+		if [ $? -ne 0 ]; then
+			echo "Unable to remove $aliasdb."
+                	exit 1
+            	fi
+        fi
+        if [ -x $simalias -a -f $aliasfile ]; then
+                echo "creating alias db $aliasdb from $aliasfile"
+                $simalias -i $aliasfile -o $aliasdb
+                if [ $? -ne 0 ]; then
+               	     	echo "unable to create $aliasfile"
+                    	exit 1
+                fi
+        else
+                echo "no alias db created"
+        fi
+
+	return
+}
+
+postload(){
+	return
+}
+
+case "$1" in
+start)
+	pid=`$0 status`
+	if [ $? -eq 0 ]; then
+		echo "$name already running with pid $pid"
+		exit 1
+	fi
+	if [ -x $execfile -a -f $conffile ]; then
+		preload
+		echo "$name starting."
+		$execfile -I -' ' -m250
+		postload
+	else
+		echo "could not start $name"
+		exit 1
+	fi
+	;;
+
+stop)
+	$howtokill $name
+	;;
+
+forcestart)
+	rmpid
+	$0 start
+	;;
+
+status)
+	$howtostatus
+	;;
+
+restart)
+	$0 stop
+	sleep 10
+	$0 start
+	;;
+
+reload)
+	$howtokill -HUP reloaded
+	;;
+
+daily)
+	;;
+
+*)
+	echo "Usage: $0 { start | stop | status | restart | reload }"
+	exit 1
+	;;
+esac

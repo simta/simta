@@ -1,0 +1,262 @@
+# @configure_input@
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+DESTDIR=@prefix@
+MANDIR=/usr/share/man
+BINDIR=@bindir@
+ETCDIR=@sysconfdir@/simta
+SBINDIR=@sbindir@
+RUNDIR=/var/run
+RUNFILE=/var/run/simta.pid
+LIBDIR=/usr/lib
+SPOOLDIR=/var/spool/simta/
+LOCAL_Q=/var/spool/simta/local
+SLOW_Q=/var/spool/simta/slow
+FAST_Q=/var/spool/simta/fast
+DEAD_Q=/var/spool/simta/dead
+CERTDIR=${SIMTACONFDIR}/cert
+TLS_CAFILE=${CERTDIR}/ca.pem
+TLS_CERT=${CERTDIR}/cert.pem
+
+SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
+	simsend.c rcptlist.c tlsconnect.c address.c \
+	simalias.c bounce.c wildcard.c
+SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
+		address.o line_file.o ll.o bdb.o header.o simta.o \
+		queue.c ml.o smtp.o expand.o mx.o bounce.o \
+		q_cleanup.o tls.o wildcard.o red.o
+TLSCONOBJ=	tlsconnect.o
+SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o header.o \
+		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
+		smtp.c ml.o mx.o wildcard.o red.o
+SIMLOGOBJ=	simlog.o
+EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \
+		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
+SIMRBLOBJ=	@EXPANDER_OBJ@ simrbl.o queue.o ll.o line_file.o \
+		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
+SIMREVERSEOBJ=	@EXPANDER_OBJ@ simreverse.o queue.o ll.o line_file.o \
+		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
+QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
+		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
+QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o ml.o \
+		smtp.o simta.o mx.o wildcard.o red.o
+SIMALIASOBJ=	@EXPANDER_OBJ@ simalias.o queue.o ll.o line_file.o \
+		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
+		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
+SLAOBJ=		sla.o
+SIMCKOBJ=	simck.o base64.o
+
+SIMTALOG=LOG_MAIL
+SIMTA_ALIAS_DB=	@aliasdb@
+SIMTA_MAXCONNECTIONS=	@maxconnections@
+RESOLV_CONF=	@resolvconf@
+
+CC=		@CC@
+OPTOPTS=	@OPTOPTS@
+INSTALL=	@INSTALL@
+INCPATH=	-Idenser -Ilibsnet @CPPFLAGS@
+DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -g @DEFS@ 
+LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@
+LIBS=		-ldnsr -lsnet @LIBS@
+TAGSFILE=	tags
+CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
+
+SIMTALIBPATH=	${LIBPATH} @SIMTALDFLAGS@
+SIMTALIBS=	${LIBS} @SIMTALIBS@
+SIMTAINCPATH=	@SIMTACPPFLAGS@ ${INCPATH} 
+SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
+
+MAN1TARGETS=	simsendmail.1
+MAN8TARGETS=	simta.8
+BINTARGETS=	simrbl simreverse simalias simexpander denser/dense
+TARGETS=	simta tlsconnect simsendmail q_runner simexpander sla \
+		${BINTARGETS}
+
+all : ${TARGETS}
+
+install : all FRC
+	-mkdir -p ${RUNDIR}
+	-touch ${RUNFILE}
+	-chown -R simta ${RUNFILE}
+	-chgrp -R simta ${RUNFILE}
+	-chmod 755 ${RUNFILE}
+	-mkdir -p ${MANDIR}/man1
+	-mkdir -p ${MANDIR}/man8
+	-mkdir -p ${LOCAL_Q}
+	-mkdir -p ${SLOW_Q}
+	-mkdir -p ${FAST_Q}
+	-mkdir -p ${DEAD_Q}
+	-chown -R simta ${SPOOLDIR}
+	-chgrp -R simta ${SPOOLDIR}
+	-chmod -R 750 ${SPOOLDIR}
+	${INSTALL} -m 755 -o simta -g simta -c simta ${SBINDIR}/
+	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${SBINDIR}/
+	for i in ${BINTARGETS}; do \
+	    ${INSTALL} -m 0755 -c $$i ${BINDIR}; \
+	done
+	ln -f ${SBINDIR}/simsendmail ${SBINDIR}/sendmail
+	for i in ${MAN1TARGETS}; do \
+	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
+	done
+	for i in ${MAN8TARGETS}; do \
+	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man8/; \
+	done
+
+simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+simck : libsnet/libsnet.a ${SIMCKOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simck ${SIMCKOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
+
+sla : libsnet/libsnet.a ${SLAOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
+
+simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
+
+simalias : ${SIMALIASOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simalias ${SIMALIASOBJ} ${SIMTALIBPATH} \
+	${SIMTALIBS}
+
+simalias.o : simalias.c
+	${CC} ${SIMTACFLAGS} \
+		-c simalias.c -o simalias.o
+
+daemon.o : daemon.c
+	${CC} ${SIMTACFLAGS} \
+	    -DVERSION=\"`cat VERSION`\" \
+	    -c daemon.c -o daemon.o
+
+header.o : header.c
+	${CC} ${SIMTACFLAGS} @HAVE_TM_GMTOFF@ \
+		-c header.c -o header.o
+
+receive.o : receive.c
+	${CC} ${SIMTACFLAGS} \
+		-DVERSION=\"`cat VERSION`\" \
+		-c receive.c -o receive.o
+
+simta.o : simta.c
+	${CC} ${SIMTACFLAGS} \
+		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
+		-DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
+		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
+		-c simta.c -o simta.o
+
+mx.o : mx.c
+	${CC} ${SIMTACFLAGS} \
+		-c mx.c -o mx.o
+
+red.o : red.c
+	${CC} ${SIMTACFLAGS} \
+		-c red.c -o red.o
+
+queue.o : queue.c
+	${CC} ${SIMTACFLAGS} \
+		-c queue.c -o queue.o
+
+bdb.o : bdb.c
+	${CC} ${SIMTACFLAGS} \
+		-c bdb.c -o bdb.o
+
+address.o : address.c
+	${CC} ${SIMTACFLAGS} \
+		-c address.c -o address.o
+
+tlsconnect : libsnet/libsnet.a denser/denser.o ${TLSCONOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o tlsconnect ${TLSCONOBJ} ${LIBPATH} ${LIBS}
+
+simlog : libsnet/libsnet.a denser/denser.o ${SIMLOGOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
+
+ml.o : ml.c
+	${CC} ${CFLAGS} \
+		-DSIMTA_MAIL_LOCAL=\"@SIMTA_MAIL_LOCAL@\" \
+		-DSIMTA_PROCMAIL=\"@SIMTA_PROCMAIL@\" \
+		-c ml.c -o ml.o
+
+tls.o : tls.c
+	${CC} ${CFLAGS} \
+		-D_SIMTA_TLS_CAFILE=\"${TLS_CAFILE}\" \
+		-D_SIMTA_TLS_CERT=\"${TLS_CERT}\" \
+		-c tls.c -o tls.o
+
+simexpander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simexpander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+simrbl : libsnet/libsnet.a denser/denser.o ${SIMRBLOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simrbl ${SIMRBLOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+simreverse : libsnet/libsnet.a denser/denser.o ${SIMREVERSEOBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simreverse ${SIMREVERSEOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
+	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+q_cleanup : libsnet/libsnet.a denser/denser.o ${QCLEANUPOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
+
+FRC :
+
+libsnet/libsnet.a : FRC
+	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC} DEFS="${DEFS}" \
+		INCPATH="${INCPATH}"
+
+denser/denser.o	: FRC
+	cd denser; ${MAKE} ${MFLAGS} CC=${CC} INCPATH="${INCPATH}"
+
+VERSION=`date +%Y_%m_%d`
+DISTDIR=simta-${VERSION}
+
+dist : clean
+	mkdir ../${DISTDIR}
+	tar -c -f - -X EXCLUDE . | tar xpf - -C ../${DISTDIR}
+	echo ${VERSION} > ../${DISTDIR}/VERSION
+	cd ..; tar cfz ${DISTDIR}.tgz ${DISTDIR}
+
+clean :
+	cd denser; ${MAKE} ${MFLAGS} clean
+	cd libsnet; ${MAKE} ${MFLAGS} clean
+	rm -f a.out core* *.o *.bak *[Ee]rrs tags
+	rm -f ${TARGETS}
+	rm -f simlog
+
+realclean : clean
+	rm -rf autom4te.cache
+	rm -f config.status config.log config.h
+	rm -f Makefile
+	cd libsnet; ${MAKE} ${MFLAGS} distclean
+	cd denser; ${MAKE} ${MFLAGS} realclean
+
+tags : ${SRC}
+	cwd=`pwd`; \
+	for i in ${SRC}; do \
+	    ctags -t -a -f ${TAGSFILE} $$cwd/$$i; \
+	done
+
+depend :
+	for i in ${SRC} ; do \
+	    ${CC} -M ${DEFS} ${INCPATH} $$i | \
+	    awk ' { if ($$1 != prev) { print rec; rec = $$0; prev = $$1; } \
+		else { if (length(rec $$2) > 78) { print rec; rec = $$0; } \
+		else rec = rec " " $$2 } } \
+		END { print rec } ' >> makedep; done
+	sed -n '1,/^# DO NOT DELETE THIS LINE/p' Makefile > Makefile.tmp
+	cat makedep >> Makefile.tmp
+	rm makedep
+	echo '# DEPENDENCIES MUST END AT END OF FILE' >> Makefile.tmp
+	echo '# IF YOU PUT STUFF HERE IT WILL GO AWAY' >> Makefile.tmp
+	echo '# see make depend above' >> Makefile.tmp
+	rm -f Makefile.bak
+	cp Makefile Makefile.bak
+	mv Makefile.tmp Makefile
+
+# DO NOT DELETE THIS LINE

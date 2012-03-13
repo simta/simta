@@ -1,0 +1,464 @@
+internal
+    - simta_gettimeofday() preffered interface
+
+0.8.2.d
+    - ignore trailing dot in email addresses
+    - removed timer debugging logging
+    - disable from checking a global option now
+    - DELIVER_AFTER_ACCEPT gos away
+
+0.8.2.c
+    - global_relay does normal domain checking for "Mail from"
+    - timer bugfixes
+    - RBL_LOG_ONLY bugfix
+
+0.8.2.b
+    - RBL_LOG_ONLY now a valid action
+    - DNS string progression better defined, content filter defs changed
+
+0.8.2.a
+    - global connection throttles
+    - connect startup sequence audit
+    - local throttles overridden by RBL ACCEPT
+    - connect sequence change
+    - client hostname is "Unresolved" before DNS check
+    - RBL check more error tolerant
+    - CF Bounce
+    - JAIL bugfix
+    - REFUSE_MODE bugfix
+    - DELIVER_AFTER_ACCEPT
+    - timers
+
+0.8.1.ab
+    - simsendmail -r is the same as -f
+    - simsendmail generates FROM header based on envelope from address
+    - corrected Receive syslogs in header.c
+    - hardfail message too large and too many received headers
+
+0.8.1.aa
+    - dont overwrite CID for cf
+
+0.8.1.z
+    - bad return bugfix
+
+0.8.1.y
+    - Don't hang up after 554
+
+0.8.1.x
+    - MAX_CONNECT log bug fixed
+
+0.8.1.w
+    - make sure that RBL_BLOCK gives back IP Address
+    - bugfix for TIMEOUT call
+    - more standardization for smtp banners
+
+0.8.1.v
+    - SMTP_OFF mode defined
+    - TCP Wrapers before RBLs
+    - RBL bugfix
+    - string mismatch bugfix
+
+0.8.1.u
+    - lbwrap_url bugfix
+    - banner audit of 421/251
+
+0.8.1.t
+    - transmitted size bugfix
+
+0.8.1.s
+    - queue time bug fixed
+    - SIMTA_PID, SIMTA_CID variables in cf now
+    - report data read and wrote to a client relative to Dfile size
+    - no double syslog message
+    - log more of what the client says
+
+0.8.1.r
+    - bugfix
+
+0.8.1.q
+    - better rcpt accounting/logging
+    - smtp functions returning SYSERROR get proper SMTP reply
+
+0.8.1.p
+    - better mail from/rcpt to metric counting
+    - WRITE_BEFORE_BANNER config file bugfix
+
+0.8.1.o
+    - bugfixes
+
+0.8.1.n
+    - consuistent metrics in tempfail mode
+    - SMTP mode changes are logged
+    - Receive logging standard adhered to
+
+0.8.1.m
+    - Auth logging fixed
+    - RBL logging fixed
+
+0.8.1.l
+    - makefile patch
+    - RBL "secret messages" bugfix
+    - SIMTA_UID available in the content filter
+    - RBL accounting bugfig
+    - switched from double to single linked list for connection_info tracking
+    - syslog openlog() bug fixed
+
+0.8.1.k
+    - bugfix for connection search uninitilized variable fixed
+
+0.8.1.j
+    - simta unique PIDs
+    - RBL logging cleaned up
+    - connection throttling on a per IP basis introduced
+
+0.8.1.i
+    - pidfd locking hopefully better
+    - Timezone info added to Received header
+    - logging Members Only accept/deny explained
+    - logging expansion depth metric
+    - bugfix for sender matching memonly group
+
+0.8.1.h
+    - MAXHOSTNAMELEN bug fixed
+    - RBL logging now includes failure/accept codes
+    - better receive logging
+    - DATA_SESSION_WAIT added to simta.c
+    - bug: JAIL_HOST bugfixes
+
+0.8.1.g
+    - logging bugfixes
+
+0.8.1.f
+    - snet bugfixes
+
+0.8.1.e
+    - bugfix
+
+0.8.1.d
+    - content filter now logs who AUTHed
+
+0.8.1.c
+    - f_data better optimized for content filter
+    - better error propagation
+
+0.8.1.b
+    - bugfix TARPIT rcpt to always accepts
+    - bugfix for content filter illegal accept return in tarpit mode
+    - bugfixes for libsnet
+    - log change for base64 encode errors
+    - receive always checks for write before banner
+
+0.8.1.a
+    - content filter message propogated to SMTP client
+    - LIBWRAP_URL directive added
+    - content filter check for write before banner happens on all connections
+    - bugfix for RBL disconnect
+    - content filter supports mail jail
+    - content filter no longer opens Dfile on stdin
+    - content filter envoked in every delivery mode
+    - content filter return value now a bitfield
+    - content filter supports DISCONNECT
+
+0.8.0.6
+    - tarpit_sleep() optimized
+
+0.8.0.5
+    - bugfix: return SMTP mode to the user default mode after auth
+
+0.8.0.4
+    - bugfix: f_data connection drop after message acceptance error
+
+0.8.0.3
+    - multiple Queue Added bugfix
+
+0.8.0.2
+    - bitbucket bugfix
+
+0.8.0.1
+    - simsendmail logs message size
+    - bitbucket delivery option for deliver testing
+    - better Daemon logging
+    - local queue runner accounting bugfix
+
+0.8.0
+    - SMTP failed rcpt punishment bugfix
+    - DISCONNECT is a possible failed rcpt punishment
+    - faster disk read times
+    - outbound SMTP DNS has better logging and is more consice
+    - better process accounting, and logging
+    - better listen connection management
+    - consolidate envelope reading functions, and make mismatches non-fatal
+    - uninitilized variable bugfix
+    - AGGRESSIVE_DELIVERY option and behavior added
+    - SMTP_RCVBUF directive limits TCP Window size until valid DATA segment
+    - Multiple LDAP DBs
+    - updated simvacation code
+    - Better Data metrics, and max message size checking
+    - TARPIT individual stage timings
+    - SMTP_MODE config directive
+    - LDAP "bad filter" error doesn't stop expansion
+    - added FAILED_RCPT_PUNISHMENT to give the TARPIT option
+    - SMTP READ_BEFORE_BANNER option added
+    - ignore optional Efile entry M
+    - content filter can trigger tarpitting
+    - f_data() cleaned up
+    - SMTP DATA Time Metric
+    - SMTP Data timer is for global transaction, not for a line
+    - SMTP User not local error message change includes local hostname
+    - Change MIN_WORK_TIME default to 300 seconds
+    - New Content Fileter environment variable, SIMTA_CHECKSUM_SIZE
+    - Content filter checksum now includes all non-failed rcpt to addresses
+    - Added simck test program
+    - Supressed compiler warnings
+    - New queue scheduler timing prefers working to reading
+    - Added BLOCK and ACCEPT to RBL syntax for whitelisting
+    - Added better penalty box logging
+    - bugfix: CTX init function added
+
+0.7.8
+    - use file_size variable for correct Receive reporting
+    - Non-local fdailed domains count in the receive phase
+    - Simta MID unique timestams ensured
+
+0.7.7
+    - CA_DIRECTORY directive
+
+0.7.6.5.1
+    - simvacation ldap changes
+
+0.7.6.5
+    - ldap changes & upgrades
+
+0.7.6.4
+    - simta_ld_init()->simta_ldap_init() bugfix
+
+0.7.6.3
+    - removed reliance on associatedDomain
+
+0.7.6.2
+    - Bugfix for uninitilized variable
+
+0.7.6.1
+    - make sure we print the file size
+    - simvacation upgrades
+
+0.7.6
+    - multiple LDAP databases
+
+0.7.5
+    - RED "D" Bugfix
+
+0.7.4
+    - LDAP "bad filter" error doesn't stop expansion
+
+0.7.3
+    - SMTP_DATA_URL config file option added
+    - refined content filter logging
+    - don't publish content filter results via SMTP
+
+0.7.2
+    - Added SIMTA_MID for the SMTP Receive content filter
+    - New Content Fileter environment variable, SIMTA_CHECKSUM_SIZE
+    - Content filter checksum now includes all non-failed rcpt to addresses
+
+0.7.1
+    - checksum bugfix
+
+0.7.0rc3
+    - minimal dequoting of quoted strings for LDAP searches
+
+0.7.0rc2
+    - better description of QUEUE_INCOMING_MAIL in simta.conf
+    - bugfix for default RED actions
+    - better logging for Expand
+    - make a bad Dinode re-read not a terminal error in envelope.c
+    - differentiate between implied or defined SMTP in the red structure
+    - add LOCALHOST token to RED rules
+    - removed env_dup() from envelope.c, unused function
+
+0.7.0rc1
+    - install simexpander by default
+    - Isolate D from RE in RED
+    - QUEUE_INCOMING_SMTP_MAIL option added
+
+2006-11-09
+    - Multi-alias RE for PASSWORD and ALIAS
+
+2006-11-08
+    - Bugfix for MX host RE Isolation
+
+2006-11-04
+    - TARPIT directive added
+    - Incoming SMTP connection metrics
+
+2006-11-03
+ - CHANGELOG added
+ - libwrap #define fix, thanks Gab!
+
+2006-10-27
+ - SMTP error messages changed for postmaster
+ - Leaky queue bugfix: only requeue if there's a schedule advantage
+ - Added DNS, Punt, Delivery, and Dfile inode logging
+ - Cleaned up DNS delivery code
+ - Bugfix: Isolate R from E
+
+2006-08-16
+ - LDAP enhancements
+ - Faster requing for remote up remote queues
+ - Checksums for incoming SMTP content filter
+ - D Rules
+ - spelling errors fixed
+
+0.6.4
+ - MAIL FROM DNS Connection dropping bugfix
+ - -Q works with the new queue runner
+ - simta.conf bugfixes
+ - RBL off by one bug fixed
+ - ALIAS_FILE config option added
+ - MAX_MESSAGE_SIZE dropped connection bugfix
+ - command line args synched with config file
+ - multiple RBL added back in
+
+0.6.3
+ - expand and receive share same address verification code
+ - reject incoming messages if oversized
+ - punting fixed with new queue runner
+ - bugfixes
+
+0.6.2
+ - partial postmaster receive bug fix
+
+0.6.1
+ - MIN_WORK_TIME feature
+ - sleep() -> nanosleep() bugfix
+ - simta.conf template
+ - bugfixes
+
+0.6.0
+ - new master queue runner
+ - fixed simta -C bug
+
+0.5.7
+ - fix crash if DNS is down on RBL lookup
+ - fix off-by-one error for failed rcpts
+
+0.5.4
+ - always do a reverse lookup of SMTP clients for information
+ - BUGFIX: receive/expand parse skew fixed
+ - content filter uses execve() and new environment variables
+ - content filter is provided a tfile to examine
+ - logging change for RBL rejection
+ - BUGFIX: SMTP Auth
+ - BUGFIX: SNET write hangs
+ - Better SMTP error messages to client
+
+0.5.3
+ - BUGFIX: merged bugfixes
+
+0.5.2g3
+ - BUGFIX: Members-only mail leak
+
+0.5.2g2
+ - BUGFIX: bad memfree
+
+0.5.2g
+ - BUGFIX: Resetting SASL after user canceled AUTH
+
+0.5.2f
+ - Bugfixes
+ - better test scripts
+
+0.5.2e
+ - Ordered LDAP expansion, better DB connection management
+ - fully timed read/write calls
+ - bugfix: incorrect Abandonded logs addresses
+ - bugfix: better file touching algorithm
+ - bugfix: Better Rewrite logging
+ - LOGGING doc updated
+ - Permitted Person added
+
+0.5.2d
+ - bugfix: SASL made optional for build
+ - libsnet timeouts for write
+ - Added support for SMTP and mail submission
+ - Logging command given on no_auth
+ - Added GLOBAL_RELAY and SUBMISSION_PORT to conf file
+
+0.5.2
+ - bugfix: smtp partial fail
+ - bugfix: "bad touch"
+ - bugfix: RBL down should accept mail
+ - bugfix: moderation loops broken
+
+0.5.1
+ - Bug fix: Denser cname/mx sorting patch from 0.4.x
+
+0.5.0
+ - Added -owner info to bounces
+ - Added NO_INBOUND_SMTP
+ - Check LDAP mail attribute for MO group sender match
+ - Added red code
+ - expander tool takes multiple command line args
+ - Bug fix: Member only groups fixed
+ - Bug fix: memory error
+ - Bug fix: Moderator string sanity checking
+ - Bug fix: Moderator string error checking & bounces
+ - Bug fix: MO Moderator value can be other than "TRUE"
+ - Bug fix: Moderators can always send to a MO group
+ - Bug fix: auto-dns works 
+ - Bug fix: simreverse core dump 
+ - Bug fix: logging for PM RBL
+
+0.4.8
+ - Simta file checking and cleaning (-C) functions made more robust
+ - Messages get another TTL after expansion
+ - All simta children are waited for, and exit status logged
+
+0.4.7
+ - Bugfix for bad punt communication stranding fast files
+
+0.4.0rc4
+ - Fixed a bug in argcargv parser.
+ - SMTP server does not repeat bad commands back to a smtp client.
+
+0.4.0rc3
+ - Added UMICH_IMAP_LETTERS
+ - fixed bug in failed rcpts logging
+ - move any unpuntable message to the slow queue
+ - return if smtp transaction to the punt host failed
+ - Cleaned up NOTES
+
+0.4.0rc2
+ - Fixed NULL dnsr access for local mail delivery
+ - Fixed make dist to exclude correct files
+ - make dist creates tar ball
+
+0.4.0rc1
+ - Added support for low_pref_mx
+ - Loop through entire DNSR response before punting mail.
+ - Fixed denser bug that didn't set pointer after freeing a bad tcp_resp
+ - Added rules for never bouncing punt host delivery
+ - Added -C option to daemon for directory cleanup
+ - Added -Q option to daemon for specific slow queue run
+ - Fixed TLS support
+ - Only log transition to "Too many failed recipients" once
+ - Removed -o option for procmail
+ - Only determine age of envelope once, when it's unknown
+ - Corrected mx preference check for auto dns config
+ - Moved get_dnsr_result function into calling code
+ - Added autoconf support for certificates
+ - Added simta.8 man page
+ - Moved config files into /etc/simta/
+ - Added test DNS records to NOTES
+
+0.3.2.1
+ - Fixed argargc bug
+
+0.3.2
+ - get_mx returns NULL only on error
+ - Added simalias, simrbl and simreverse
+ - Improved simsendmail logging to include sender and recipients
+ - Correct type-o in f_mail logging
+
+0.3.1
+ - version in CVS

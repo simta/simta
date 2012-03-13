@@ -1,0 +1,85 @@
+.TH simsendmail "1" "January 2003" "RSUG" "User Commands"
+
+.SH NAME
+.B simsendmail 
+\- simta's sendmail interface
+
+.SH SYNOPSIS
+.B simsendmail 
+[
+.BI \-b\  option
+] [
+.B \-i
+] [
+.BI \-o\  option
+] [[
+.I --
+] 
+.I to-address ...
+]
+.sp
+.SH DESCRIPTION
+
+.B simsendmail
+is 
+.B simta's
+.B sendmail
+interface.
+simsendmail is intended
+as a replacement for sendmail in that any program that currently
+uses sendmail for communication may use simsendmail instead.
+simsendmail's behavior, including common command line options,
+should mimic sendmail.
+
+With no flags, simsendmail reads standard input until it reaches
+either the end of file or a special marker consisting only of a
+single dot on a line.  The single dot may be ignored as an end of
+file marker with the -i option.   simsendmail then queues a copy
+of the message in the LOCAL queue.  The message's recipients will
+be the to-addresses listed on the command line.  If the -t flag is
+used, recipients in the message's headers are included, as well.
+simsendmail will not attempt to deliver a message with no recipients.
+
+After simsendmail queues the message it attempts to signal the
+simta daemon so that it will start a LOCAL queue runner.  When
+simsendmail is run with the -s flag, it only tries to signal the
+simta daemon and no message is expected.  If simsendmail successfully
+signals the simta daemon, a queue runner is launched to handle all
+mail queued in the LOCAL queue.  Mail should only enter the LOCAL
+queue via. simsendmail.
+
+simsendmail reads simta.conf(4), and makes use of the masquerade
+field.
+
+simsendmail may reject or correct a message if it finds fault with
+the message's headers.  Addresses given in the "From", "Sender",
+"To", "CC", and "BCC" must be qualified by a domain.  Simple
+addresses will be appended with either the masquerade hostname (if
+it is set in simta.conf), or the machine name.
+
+.sp
+.SH OPTIONS
+.TP 19
+.BI \-b\  option
+Currently ignore all -b options.
+.TP 19
+.B \-i
+ignore a single dot on a line as an end of message marker.
+.TP 19
+.B \-oi
+ignore a single dot on a line as an end of message marker.
+.TP 19
+.B \-s
+signal simta server only.
+.TP 19
+.B \-t
+read message headers for recipients.
+.TP 19
+.B \--
+Stop processing command flags and use the rest of the arguments as
+to-addresses.
+.sp
+.SH SEE ALSO
+.BR sendmail (1)
+.BR simta (1)
+.BR simta.conf (4)
