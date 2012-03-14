@@ -38,7 +38,7 @@ if test "X${CDPATH+set}" = Xset; then CDPATH=:; export CDPATH; fi
 
 # ### BEGIN LIBTOOL CONFIG
 
-# Libtool was configured on host plates.rsug.itd.umich.edu:
+# Libtool was configured on host fontina.ifs.umich.edu:
 
 # Shell to use when invoking shell scripts.
 SHELL="/bin/sh"
@@ -144,7 +144,7 @@ dlopen_self=unknown
 dlopen_self_static=unknown
 
 # Compiler flag to prevent dynamic linking.
-link_static_flag=""
+link_static_flag="-static"
 
 # Compiler flag to turn off builtin functions.
 no_builtin_flag=" -fno-builtin -fno-rtti -fno-exceptions"
