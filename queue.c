@@ -1394,6 +1394,12 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	d->d_n_rcpt_accepted = 0;
 	d->d_n_rcpt_failed = 0;
 	d->d_n_rcpt_tempfail = 0;
+	d.d_sent = 0;
+    
+	if ( lseek( d.d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
+	    syslog( LOG_ERR, "deliver_remote lseek: %m" );
+	    panic( "deliver_remote: lseek failed" );
+	}
 
 	r_smtp = smtp_send( hq, d );
 
