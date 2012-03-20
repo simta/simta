@@ -1,7 +1,11 @@
+srcdir=@srcdir@
+VPATH=@srcdir@
+
 OPTOPTS=        -Wall -Wmissing-prototypes
 CC=             gcc
 DEFS=		@ENDIAN@
 RESOLVCONFPATH=	@resolv_conf_path@
+INCPATH=	-I. -I$(srcdir)
 
 CFLAGS=         ${DEFS} ${OPTOPTS} -g -O2 ${INCPATH}
 
@@ -21,12 +25,12 @@ dense:	libdnsr.a ${DENSE_OBJ}
 config.o : config.c
 	${CC} -p ${CFLAGS} \
 		-D_DNSR_RESOLV_CONF_PATH=\"${RESOLVCONFPATH}\" \
-		-c config.c
+		-c $(srcdir)/config.c
 	-ld -r -o config.o- config.o
 	mv config.o- profiled/config.o
 	${CC} -p ${CFLAGS} \
 		-D_DNSR_RESOLV_CONF_PATH=\"${RESOLVCONFPATH}\" \
-		-c config.c
+		-c $(srcdir)/config.c
 	-ld -r -o config.o- config.o
 	mv config.o- config.o
 
@@ -39,10 +43,11 @@ libdnsr.a libdnsr_p.a : ${DENSER_OBJ}
 	@ranlib libdnsr.a
 
 .c.o :
-	${CC} -p ${CFLAGS} -c $*.c
+	@mkdir -p profiled
+	${CC} -p ${CFLAGS} -c $<
 	-ld -r -o $*.o- $*.o
 	mv $*.o- profiled/$*.o
-	${CC} ${CFLAGS} -c $*.c
+	${CC} ${CFLAGS} -c $<
 	-ld -r -o $*.o- $*.o
 	mv $*.o- $*.o
 

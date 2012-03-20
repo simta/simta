@@ -1,5 +1,8 @@
 # @configure_input@
 
+srcdir=@srcdir@
+VPATH=@srcdir@
+
 prefix=@prefix@
 exec_prefix=@exec_prefix@
 DESTDIR=@prefix@
