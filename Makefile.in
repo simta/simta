@@ -29,12 +29,12 @@ SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
 	simalias.c bounce.c wildcard.c
 SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o \
-		queue.c ml.o smtp.o expand.o mx.o bounce.o \
+		queue.o ml.o smtp.o expand.o mx.o bounce.o \
 		q_cleanup.o tls.o wildcard.o red.o
 TLSCONOBJ=	tlsconnect.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o header.o \
 		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
-		smtp.c ml.o mx.o wildcard.o red.o
+		smtp.o ml.o mx.o wildcard.o red.o
 SIMLOGOBJ=	simlog.o
 EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
@@ -45,10 +45,10 @@ SIMRBLOBJ=	@EXPANDER_OBJ@ simrbl.o queue.o ll.o line_file.o \
 SIMREVERSEOBJ=	@EXPANDER_OBJ@ simreverse.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
-QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.c queue.o ll.o line_file.o \
+QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
-QCLEANUPOBJ=	q_cleanup.c queue.o ll.o line_file.o envelope.o ml.o \
+QCLEANUPOBJ=	q_cleanup.o queue.o ll.o line_file.o envelope.o ml.o \
 		smtp.o simta.o mx.o wildcard.o red.o
 SIMALIASOBJ=	@EXPANDER_OBJ@ simalias.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o smtp.o expand.o address.o bdb.o \
@@ -69,12 +69,10 @@ DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -g @DEFS@
 LIBPATH=	-Ldenser -Llibsnet @LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@
 TAGSFILE=	tags
-CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
+CFLAGS=		${DEFS} ${OPTOPTS} @SIMTACPPFLAGS@ ${INCPATH}
 
 SIMTALIBPATH=	${LIBPATH} @SIMTALDFLAGS@
 SIMTALIBS=	${LIBS} @SIMTALIBS@
-SIMTAINCPATH=	@SIMTACPPFLAGS@ ${INCPATH} 
-SIMTACFLAGS=	${DEFS} ${OPTOPTS} ${SIMTAINCPATH}
 
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
@@ -113,18 +111,18 @@ install : all FRC
 	done
 
 simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 simck : libsnet/libsnet.a ${SIMCKOBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simck ${SIMCKOBJ} \
+	${CC} ${CFLAGS} ${LDFLAGS} -o simck ${SIMCKOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
 sla : libsnet/libsnet.a ${SLAOBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
+	${CC} ${CFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
 simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
+	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
 simalias : ${SIMALIASOBJ} Makefile
@@ -132,48 +130,48 @@ simalias : ${SIMALIASOBJ} Makefile
 	${SIMTALIBS}
 
 simalias.o : simalias.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 		-c ${SRCPFX}simalias.c -o simalias.o
 
 daemon.o : daemon.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 	    -DVERSION=\"`cat VERSION`\" \
 	    -c ${SRCPFX}daemon.c -o daemon.o
 
 header.o : header.c
-	${CC} ${SIMTACFLAGS} @HAVE_TM_GMTOFF@ \
+	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ \
 		-c ${SRCPFX}header.c -o header.o
 
 receive.o : receive.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 		-DVERSION=\"`cat VERSION`\" \
 		-c ${SRCPFX}receive.c -o receive.o
 
 simta.o : simta.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
 		-DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
 		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
 		-c ${SRCPFX}simta.c -o simta.o
 
 mx.o : mx.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 		-c ${SRCPFX}mx.c -o mx.o
 
 red.o : red.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 		-c ${SRCPFX}red.c -o red.o
 
 queue.o : queue.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 		-c ${SRCPFX}queue.c -o queue.o
 
 bdb.o : bdb.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 		-c ${SRCPFX}bdb.c -o bdb.o
 
 address.o : address.c
-	${CC} ${SIMTACFLAGS} \
+	${CC} ${CFLAGS} \
 		-c ${SRCPFX}address.c -o address.o
 
 tlsconnect : libsnet/libsnet.a denser/denser.o ${TLSCONOBJ} Makefile
@@ -195,16 +193,16 @@ tls.o : tls.c
 		-c ${SRCPFX}tls.c -o tls.o
 
 simexpander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simexpander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o simexpander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 simrbl : libsnet/libsnet.a denser/denser.o ${SIMRBLOBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simrbl ${SIMRBLOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o simrbl ${SIMRBLOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 simreverse : libsnet/libsnet.a denser/denser.o ${SIMREVERSEOBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simreverse ${SIMREVERSEOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o simreverse ${SIMREVERSEOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
-	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 q_cleanup : libsnet/libsnet.a denser/denser.o ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
