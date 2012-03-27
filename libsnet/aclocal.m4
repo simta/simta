@@ -45,7 +45,7 @@ AC_DEFUN([CHECK_SSL],
     if test x_$found_ssl != x_yes; then
 	AC_MSG_ERROR(cannot find ssl libraries)
     else
-	AC_DEFINE(HAVE_LIBSSL)
+        AC_DEFINE(HAVE_LIBSSL, 1, [openssl present])
 	LIBS="$LIBS -lssl -lcrypto";
 	LDFLAGS="$LDFLAGS -L$ssldir/lib";
     fi
@@ -70,7 +70,7 @@ AC_DEFUN([CHECK_ZEROCONF],
     if test x_$found_zeroconf != x_yes; then
 	AC_MSG_RESULT(no)
     else
-	AC_DEFINE(HAVE_ZEROCONF)
+	AC_DEFINE(HAVE_ZEROCONF, 1, [zeroconf present])
 	AC_MSG_RESULT(yes)
     fi
 ])
@@ -98,7 +98,7 @@ AC_DEFUN([CHECK_ZLIB],
 		if test "$dir" != "/usr"; then
 			CPPFLAGS="$CPPFLAGS -I$zlibdir/include";
 	    fi
-	    AC_DEFINE(HAVE_ZLIB)
+	    AC_DEFINE(HAVE_ZLIB, 1, [zlib present])
 	    AC_MSG_RESULT(yes)
 	else
 	    AC_MSG_RESULT(no)
@@ -149,7 +149,7 @@ AC_DEFUN([CHECK_SASL],
 	    fi
 	done
 	if test x_$found_sasl == x_yes; then
-	    AC_DEFINE(HAVE_LIBSASL)
+	    AC_DEFINE(HAVE_LIBSASL, 1, [sasl library present])
 	    LIBS="$LIBS -lsasl2";
 	    LDFLAGS="$LDFLAGS -L$sasldir/lib";
 	    AC_MSG_RESULT(yes)

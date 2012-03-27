@@ -34,7 +34,7 @@ AC_DEFUN([CHECK_LDAP],
 	    SIMSEND_OBJ="$SIMSEND_OBJ simta_ldap.o dn.o"
 	    Q_RUNNER_OBJ="$Q_RUNNER_OBJ simta_ldap.o dn.o"
 	    EXPANDER_OBJ="$EXPANDER_OBJ simta_ldap.o dn.o"
-	    AC_DEFINE(HAVE_LDAP)
+	    AC_DEFINE([HAVE_LDAP], 1, [Define to 1 if you have LDAP])
 	fi
 
     else
@@ -251,7 +251,7 @@ AC_DEFUN([CHECK_LIBWRAP],
     else
         HAVE_LIBWRAP=yes
         SIMTALIBS="$SIMTALIBS -lwrap";
-	AC_DEFINE(HAVE_LIBWRAP)
+	AC_DEFINE([HAVE_LIBWRAP], 1, [Define to 1 if you have LIBWRAP])
 	AC_MSG_RESULT(yes)
     fi
 ])
@@ -281,7 +281,7 @@ AC_DEFUN([CHECK_SASL],
         if test x_$found_sasl != x_yes; then
             AC_MSG_ERROR(cannot find sasl libraries) 
         else
-            AC_DEFINE(HAVE_LIBSASL)
+	    AC_DEFINE([HAVE_LIBSASL], 1, [Define to 1 if you have the `sasl' library (-lsasl2).])
             LIBS="$LIBS -lsasl2";
             LDFLAGS="$LDFLAGS -L$sasldir/lib";
         fi
