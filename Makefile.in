@@ -228,6 +228,7 @@ dist : clean
 	cd ..; tar cfz ${DISTDIR}.tgz ${DISTDIR}
 
 clean :
+	rm -f stamp-libsnet stamp-denser
 	cd denser; ${MAKE} ${MFLAGS} clean
 	cd libsnet; ${MAKE} ${MFLAGS} clean
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
