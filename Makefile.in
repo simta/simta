@@ -64,7 +64,7 @@ RESOLV_CONF=	@resolvconf@
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
-INCPATH=	-Idenser -Ilibsnet -I. @CPPFLAGS@ ${SRCPFX_INCPATH}
+INCPATH=	-I. -Idenser -Ilibsnet @CPPFLAGS@ ${SRCPFX_INCPATH}
 DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -g @DEFS@ 
 LIBPATH=	-Ldenser -Llibsnet @LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@
@@ -110,18 +110,18 @@ install : all FRC
 	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man8/; \
 	done
 
-simta : libsnet/libsnet.a denser/denser.o ${SIMTAOBJ} Makefile
+simta : stamp-libsnet stamp-denser ${SIMTAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-simck : libsnet/libsnet.a ${SIMCKOBJ} Makefile
+simck : stamp-libsnet ${SIMCKOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simck ${SIMCKOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
-sla : libsnet/libsnet.a ${SLAOBJ} Makefile
+sla : stamp-libsnet ${SLAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
-simsendmail : libsnet/libsnet.a denser/denser.o ${SIMSENDOBJ} Makefile
+simsendmail : stamp-libsnet stamp-denser ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
@@ -135,7 +135,7 @@ simalias.o : simalias.c
 
 daemon.o : daemon.c
 	${CC} ${CFLAGS} \
-	    -DVERSION=\"`cat VERSION`\" \
+	    -DVERSION=\"`cat ${SRCPFX}VERSION`\" \
 	    -c ${SRCPFX}daemon.c -o daemon.o
 
 header.o : header.c
@@ -144,7 +144,7 @@ header.o : header.c
 
 receive.o : receive.c
 	${CC} ${CFLAGS} \
-		-DVERSION=\"`cat VERSION`\" \
+		-DVERSION=\"`cat ${SRCPFX}VERSION`\" \
 		-c ${SRCPFX}receive.c -o receive.o
 
 simta.o : simta.c
@@ -174,10 +174,10 @@ address.o : address.c
 	${CC} ${CFLAGS} \
 		-c ${SRCPFX}address.c -o address.o
 
-tlsconnect : libsnet/libsnet.a denser/denser.o ${TLSCONOBJ} Makefile
+tlsconnect : stamp-libsnet stamp-denser ${TLSCONOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o tlsconnect ${TLSCONOBJ} ${LIBPATH} ${LIBS}
 
-simlog : libsnet/libsnet.a denser/denser.o ${SIMLOGOBJ} Makefile
+simlog : stamp-libsnet stamp-denser ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
 
 ml.o : ml.c
@@ -192,29 +192,31 @@ tls.o : tls.c
 		-D_SIMTA_TLS_CERT=\"${TLS_CERT}\" \
 		-c ${SRCPFX}tls.c -o tls.o
 
-simexpander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
+simexpander : stamp-libsnet stamp-denser ${EXPANDEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simexpander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-simrbl : libsnet/libsnet.a denser/denser.o ${SIMRBLOBJ} Makefile
+simrbl : stamp-libsnet stamp-denser ${SIMRBLOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simrbl ${SIMRBLOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-simreverse : libsnet/libsnet.a denser/denser.o ${SIMREVERSEOBJ} Makefile
+simreverse : stamp-libsnet stamp-denser ${SIMREVERSEOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simreverse ${SIMREVERSEOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-q_runner : libsnet/libsnet.a denser/denser.o ${QRUNNEROBJ} Makefile
+q_runner : stamp-libsnet stamp-denser ${QRUNNEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-q_cleanup : libsnet/libsnet.a denser/denser.o ${QCLEANUPOBJ} Makefile
+q_cleanup : stamp-libsnet stamp-denser ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
 
 FRC :
 
-libsnet/libsnet.a : FRC
+stamp-libsnet : libsnet/libsnet.a
 	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC} DEFS="${DEFS}" \
 		INCPATH="${INCPATH}"
+	@touch stamp-libsnet
 
-denser/denser.o	: FRC
+stamp-denser: denser/libdnsr.a
 	cd denser; ${MAKE} ${MFLAGS} CC=${CC} INCPATH="${INCPATH}"
+	@touch stamp-denser
 
 VERSION=`date +%Y_%m_%d`
 DISTDIR=simta-${VERSION}
