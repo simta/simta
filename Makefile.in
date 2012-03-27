@@ -1,7 +1,9 @@
 # @configure_input@
 
-srcdir=@srcdir@
 VPATH=@srcdir@
+srcdir=@srcdir@
+SRCPFX=$(srcdir)/
+SRCPFX_INCPATH=-I$(srcdir)/denser -I$(srcdir)/libsnet -I$(srcdir)
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -62,9 +64,9 @@ RESOLV_CONF=	@resolvconf@
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
-INCPATH=	-Idenser -Ilibsnet @CPPFLAGS@
+INCPATH=	-Idenser -Ilibsnet -I. @CPPFLAGS@ ${SRCPFX_INCPATH}
 DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -g @DEFS@ 
-LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@
+LIBPATH=	-Ldenser -Llibsnet @LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@
 TAGSFILE=	tags
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
@@ -131,48 +133,48 @@ simalias : ${SIMALIASOBJ} Makefile
 
 simalias.o : simalias.c
 	${CC} ${SIMTACFLAGS} \
-		-c simalias.c -o simalias.o
+		-c ${SRCPFX}simalias.c -o simalias.o
 
 daemon.o : daemon.c
 	${CC} ${SIMTACFLAGS} \
 	    -DVERSION=\"`cat VERSION`\" \
-	    -c daemon.c -o daemon.o
+	    -c ${SRCPFX}daemon.c -o daemon.o
 
 header.o : header.c
 	${CC} ${SIMTACFLAGS} @HAVE_TM_GMTOFF@ \
-		-c header.c -o header.o
+		-c ${SRCPFX}header.c -o header.o
 
 receive.o : receive.c
 	${CC} ${SIMTACFLAGS} \
 		-DVERSION=\"`cat VERSION`\" \
-		-c receive.c -o receive.o
+		-c ${SRCPFX}receive.c -o receive.o
 
 simta.o : simta.c
 	${CC} ${SIMTACFLAGS} \
 		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
 		-DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
 		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
-		-c simta.c -o simta.o
+		-c ${SRCPFX}simta.c -o simta.o
 
 mx.o : mx.c
 	${CC} ${SIMTACFLAGS} \
-		-c mx.c -o mx.o
+		-c ${SRCPFX}mx.c -o mx.o
 
 red.o : red.c
 	${CC} ${SIMTACFLAGS} \
-		-c red.c -o red.o
+		-c ${SRCPFX}red.c -o red.o
 
 queue.o : queue.c
 	${CC} ${SIMTACFLAGS} \
-		-c queue.c -o queue.o
+		-c ${SRCPFX}queue.c -o queue.o
 
 bdb.o : bdb.c
 	${CC} ${SIMTACFLAGS} \
-		-c bdb.c -o bdb.o
+		-c ${SRCPFX}bdb.c -o bdb.o
 
 address.o : address.c
 	${CC} ${SIMTACFLAGS} \
-		-c address.c -o address.o
+		-c ${SRCPFX}address.c -o address.o
 
 tlsconnect : libsnet/libsnet.a denser/denser.o ${TLSCONOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o tlsconnect ${TLSCONOBJ} ${LIBPATH} ${LIBS}
@@ -184,13 +186,13 @@ ml.o : ml.c
 	${CC} ${CFLAGS} \
 		-DSIMTA_MAIL_LOCAL=\"@SIMTA_MAIL_LOCAL@\" \
 		-DSIMTA_PROCMAIL=\"@SIMTA_PROCMAIL@\" \
-		-c ml.c -o ml.o
+		-c ${SRCPFX}ml.c -o ml.o
 
 tls.o : tls.c
 	${CC} ${CFLAGS} \
 		-D_SIMTA_TLS_CAFILE=\"${TLS_CAFILE}\" \
 		-D_SIMTA_TLS_CERT=\"${TLS_CERT}\" \
-		-c tls.c -o tls.o
+		-c ${SRCPFX}tls.c -o tls.o
 
 simexpander : libsnet/libsnet.a denser/denser.o ${EXPANDEROBJ} Makefile
 	${CC} ${SIMTACFLAGS} ${LDFLAGS} -o simexpander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}

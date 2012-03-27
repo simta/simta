@@ -42,6 +42,12 @@ if test x_$GCC = x_yes; then
 fi
 AC_SUBST(OPTOPTS)
 
+if test "x$srcdir" = x.; then
+extrasub="$extrasub
+/^srcdir=/d
+/^SRCPFX/d"
+fi
+
 # Write output:
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

@@ -60,6 +60,12 @@ AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
 AC_CHECK_LIB([crypt], [crypt])
 
+if test "x$srcdir" = x.; then
+extrasub="$extrasub
+/^srcdir=/d
+/^SRCPFX/d"
+fi
+
 AC_CONFIG_SUBDIRS(libsnet)
 AC_CONFIG_SUBDIRS(denser)
 

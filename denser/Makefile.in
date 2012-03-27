@@ -1,11 +1,13 @@
 srcdir=@srcdir@
 VPATH=@srcdir@
+SRCPFX=$(srcdir)/
+SRCPFX_INCPATH=-I$(srcdir)
 
 OPTOPTS=        -Wall -Wmissing-prototypes
 CC=             gcc
 DEFS=		@ENDIAN@
 RESOLVCONFPATH=	@resolv_conf_path@
-INCPATH=	-I. -I$(srcdir)
+INCPATH=	-I. $(SRCPFX_INCPATH)
 
 CFLAGS=         ${DEFS} ${OPTOPTS} -g -O2 ${INCPATH}
 
@@ -25,7 +27,7 @@ dense:	libdnsr.a ${DENSE_OBJ}
 config.o : config.c
 	${CC} ${CFLAGS} \
 		-D_DNSR_RESOLV_CONF_PATH=\"${RESOLVCONFPATH}\" \
-		-c $(srcdir)/config.c
+		-c ${SRCPFX}config.c
 
 libdnsr.a: ${DENSER_OBJ}
 	@echo "building normal libdnsr.a"

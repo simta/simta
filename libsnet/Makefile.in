@@ -2,6 +2,8 @@ SHELL=/bin/sh
 
 srcdir=@srcdir@
 VPATH=@srcdir@
+SRCPFX=$(srcdir)/
+SRCPFX_INCPATH=-I$(srcdir)/denser -I$(srcdir)/libsnet -I$(srcdir)
 
 prefix      =	@prefix@
 libdir      =	@libdir@
@@ -10,7 +12,7 @@ includedir  =	@includedir@
 SRC  = snet.c
 OBJ  = snet.o
 
-INCPATH=	@CPPFLAGS@ -I.
+INCPATH=	@CPPFLAGS@ -I. $(SRCPFX_INCPATH)
 DEFS=		
 OPTOPTS=	@OPTOPTS@
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH} @CFLAGS@

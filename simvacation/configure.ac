@@ -35,5 +35,11 @@ AC_FUNC_MALLOC
 AC_FUNC_FORK
 AC_CHECK_FUNCS([dup2 memset strcasecmp strdup strerror strncasecmp strrchr])
 
+if test "x$srcdir" = x.; then
+extrasub="$extrasub
+/^srcdir=/d
+/^SRCPFX/d"
+fi
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
