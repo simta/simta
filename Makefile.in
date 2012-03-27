@@ -209,12 +209,12 @@ q_cleanup : stamp-libsnet stamp-denser ${QCLEANUPOBJ} Makefile
 
 FRC :
 
-stamp-libsnet : libsnet/libsnet.a
+stamp-libsnet :
 	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC} DEFS="${DEFS}" \
 		INCPATH="${INCPATH}"
 	@touch stamp-libsnet
 
-stamp-denser: denser/libdnsr.a
+stamp-denser :
 	cd denser; ${MAKE} ${MFLAGS} CC=${CC} INCPATH="${INCPATH}"
 	@touch stamp-denser
 
