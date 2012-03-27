@@ -1,3 +1,4 @@
+*,v
 *.la
 *.lo
 *.o
@@ -7,12 +8,15 @@
 Makefile
 autom4te.cache
 config.h
+config.h.in
 config.log
 config.status
+configure
 dense
 errors
 lib*.a
 libtool
+ltmain.sh
 q_runner
 simalias
 simexpander
