@@ -23,37 +23,18 @@ dense:	libdnsr.a ${DENSE_OBJ}
 	${CC} ${CFLAGS} -o dense ${DENSE_OBJ} ${LDFLAGS} -L. -ldnsr
 
 config.o : config.c
-	${CC} -p ${CFLAGS} \
+	${CC} ${CFLAGS} \
 		-D_DNSR_RESOLV_CONF_PATH=\"${RESOLVCONFPATH}\" \
 		-c $(srcdir)/config.c
-	-ld -r -o config.o- config.o
-	mv config.o- profiled/config.o
-	${CC} -p ${CFLAGS} \
-		-D_DNSR_RESOLV_CONF_PATH=\"${RESOLVCONFPATH}\" \
-		-c $(srcdir)/config.c
-	-ld -r -o config.o- config.o
-	mv config.o- config.o
 
-libdnsr.a libdnsr_p.a : ${DENSER_OBJ}
-	@echo "building profiled libdnsr"
-	@cd profiled; ar cru ../libdnsr_p.a ${DENSER_OBJ}
-	@ranlib libdnsr_p.a
+libdnsr.a: ${DENSER_OBJ}
 	@echo "building normal libdnsr.a"
 	@ar cru libdnsr.a ${DENSER_OBJ}
 	@ranlib libdnsr.a
 
-.c.o :
-	@mkdir -p profiled
-	${CC} -p ${CFLAGS} -c $<
-	-ld -r -o $*.o- $*.o
-	mv $*.o- profiled/$*.o
-	${CC} ${CFLAGS} -c $<
-	-ld -r -o $*.o- $*.o
-	mv $*.o- $*.o
-
 clean :
-	rm -f *.o profiled/*.o *.bak *[Ee]rrs tags
-	rm -f libdnsr.a libdnsr_p.a
+	rm -f *.o *.bak *[Ee]rrs tags
+	rm -f libdnsr.a
 
 realclean : clean
 	rm -rf autom4te.cache
