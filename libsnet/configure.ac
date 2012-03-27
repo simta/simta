@@ -18,7 +18,7 @@ if test \! x_$with_ssl = x_no; then
     AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
 fi
 CHECK_SASL
-CHECK_UNIVERSAL_BINARIES
+dnl CHECK_UNIVERSAL_BINARIES
 
 # Checks for header files.
 #AC_HEADER_STDC
@@ -33,9 +33,8 @@ CHECK_UNIVERSAL_BINARIES
 #AC_CHECK_FUNCS([gettimeofday select])
 
 # Checks for how to build libraries
-CHECK_PROFILED
-AC_DISABLE_SHARED
-AC_PROG_LIBTOOL  # Checks whether to build shared and/or static libraries
+dnl CHECK_PROFILED
+dnl AC_DISABLE_SHARED
 
 # Miscellaneous:
 if test x_$GCC = x_yes; then

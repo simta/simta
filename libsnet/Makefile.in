@@ -9,7 +9,6 @@ includedir  =	@includedir@
 
 SRC  = snet.c
 OBJ  = snet.o
-LOBJ = snet.lo
 
 INCPATH=	@CPPFLAGS@ -I.
 DEFS=		
@@ -27,54 +26,21 @@ TAGSFILE=	tags
 VERSION=	`date +%Y%m%d`
 DISTDIR=	../libsnet-${VERSION}
 
+all:		libsnet.a
 
-.SUFFIXES: .o .lo
-
-.c.o:
-	$(LIBTOOL) --mode=compile \
-	  $(CC) -c $(CFLAGS) $<
-	@if test x_$(PROFILED) = x_true ; then echo "building profiled $@" ; \
-	  ( mkdir -p profiled; cd profiled ; ../$(LIBTOOL) --mode=compile \
-	  $(CC) -c $(CFLAGS) -p -I.. -I$(srcdir) `if [ -f $< ]; then echo $<; \
-	  else echo ../$<; fi` >/dev/null 2>&1 ) ; fi
-
-.c.lo:
-	$(LIBTOOL) --mode=compile \
-	  $(CC) -c $(CFLAGS) $<
-	@if test x_$(PROFILED) = x_true ; then echo "building profiled $@" ; \
-	  ( mkdir -p profiled; cd profiled ; ../$(LIBTOOL) --mode=compile \
-	  $(CC) -c $(CFLAGS) -p -I.. -I$(srcdir) `if [ -f $< ]; then echo $<; \
-	  else echo ../$<; fi` >/dev/null 2>&1 ) ; fi
-
-
-all:		libsnet.la
-
-libsnet.la:	$(OBJ) $(LOBJ)
-	$(LIBTOOL) --mode=link \
-	  $(CC) -o libsnet.la $(LDFLAGS) $(LOBJ) -rpath $(libdir) -version-info 0:0:0
-	@if test x_$(PROFILED) = x_true ; then echo "building profiled $@" ; \
-	  ( cd profiled ; ../$(LIBTOOL) --mode=link \
-	  $(CC) -o libsnet_p.la $(LDFLAGS) $(LOBJ) -rpath $(libdir) \
-	  -version-info 0:0:0 >/dev/null 2>&1 ) ; fi
+libsnet.a: ${OBJ}
+	@echo "building normal libsnet.a"
+	@ar cru libsnet.a ${OBJ}
+	@ranlib libsnet.a
 
 install:	all
-	mkdir -p $(libdir)
-	chmod 755 $(libdir)
-	mkdir -p $(includedir)
-	chmod 755 $(includedir)
-	$(INSTALL) -c -m 644 snet.h $(includedir)/snet.h
-	$(LIBTOOL) --mode=install \
-	  $(INSTALL) -c -m 644 libsnet.la $(libdir)/libsnet.la
-	@if test x_$(PROFILED) = x_true ; then \
-	  echo "installing profiled libraries" ; \
-	  ( cd profiled ; ../$(LIBTOOL) --mode=install \
-	  $(INSTALL) -c -m 644 libsnet_p.la \
-	  $(libdir)/libsnet_p.la >/dev/null 2>&1 ) ; fi
+	mkdir -p $(DESTDIR)$(libdir) $(DESTDIR)$(includedir)
+	$(INSTALL) -c -m 644 snet.h $(DESTDIR)$(includedir)/snet.h
+	$(INSTALL) -c -m 644 libsnet.a $(DESTDIR)$(libdir)/libsnet.a
 
 clean:
-	rm -f *.o *.lo libsnet.la profiled/libsnet_p.la profiled/snet.lo profiled/snet.o
+	rm -f *.o libsnet.a
 	rm -f *.bak *[Ee]rrs tags
-	rm -rf .libs profiled/.libs
 
 dist:		distclean
 	mkdir ${DISTDIR}
