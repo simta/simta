@@ -276,7 +276,6 @@ simta_red_add_host( char *host_name, int host_type )
 
     default:
 	syslog( LOG_ERR, "simta_red_create: host type out of range" );
-	free( red );
 	return( NULL );
     }
 
