@@ -127,7 +127,7 @@ struct receive_data {
     EVP_MD_CTX			r_mdctx;
     int				r_mdctx_status;
     unsigned int		r_mdctx_bytes;
-    int				r_md_len;
+    unsigned int		r_md_len;
     char			r_md_bytes[ BYTE_LEN + 1 ];
 #endif /* HAVE_LIBSSL */
 
@@ -154,7 +154,7 @@ struct receive_data {
 #define S_TIMEOUT "Connection length exceeded"
 #define S_CLOSING "closing transmission channel"
 #define S_UNKNOWN_HOST "Unknown host"
-#define S_UNKNOWN "Unknown"
+#define S_UNKNOWN string_unknown	/* "unknown" */
 #define S_UNRESOLVED "Unresolved"
 #define S_DENIED "Access denied for IP"
 #define S_LINE "Line"
@@ -270,6 +270,8 @@ char *smtp_mode_str[] = {
     "NoAuth",
     NULL
 };
+
+char string_unknown[] = STRING_UNKNOWN;	/* also S_UNKNOWN */
 
 
     static void
@@ -2652,7 +2654,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    goto closeconnection;
 	}
 
-	if ( r.r_remote_hostname == STRING_UNKNOWN ) {
+	if ( r.r_remote_hostname == string_unknown ) {
 	    r.r_remote_hostname = NULL;
 	}
 #endif /* HAVE_LIBWRAP */
