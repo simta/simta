@@ -151,7 +151,7 @@ static sasl_callback_t callbacks[] = {
     int
 set_rcvbuf( int s )
 {
-    int				len;
+    socklen_t			len;
 
     if ( simta_smtp_rcvbuf_max == 0 ) {
 	len = sizeof( simta_smtp_rcvbuf_max );
@@ -1299,7 +1299,7 @@ simta_child_receive( struct simta_socket *ss )
     struct sockaddr_in		sin;
     int				pid;
     int				fd;
-    int				sinlen;
+    socklen_t			sinlen;
 
     sinlen = sizeof( struct sockaddr_in );
 
