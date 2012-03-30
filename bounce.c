@@ -123,14 +123,12 @@ bounce_text( struct envelope *bounce_env, int mode, char *t1, char *t2,
 	    if ( line_append( bounce_env->e_err_text, t1, COPY )
 		    == NULL ) {
 		syslog( LOG_ERR, "bounce_text line_append: %m" );
-		free( text );
 		return( -1 );
 	    }
 	} else {
 	    if ( line_prepend( bounce_env->e_err_text, t1, COPY )
 		    == NULL ) {
 		syslog( LOG_ERR, "bounce_text line_append: %m" );
-		free( text );
 		return( -1 );
 	    }
 	}
