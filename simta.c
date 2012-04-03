@@ -849,7 +849,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    simta_local_connections_max = atoi( av [ 1 ] );
-	    if ( simta_local_throttle_max < 0 ) {
+	    if ( simta_local_connections_max < 0 ) {
 		fprintf( stderr, "%s: line %d: "
 			"MAX_RECEIVE_CONNECTIONS_PER_HOST can't be less than 0",
 			fname, lineno );

@@ -4,6 +4,7 @@ internal
     - delivery activity logs in all cases
     - additional logging to help track down "no deliver" poison message
     - logging for SASL bug @ DEBUG_LOGGING level 1
+    - (bugfix) accurately complain about simta_local_connections_max
 
 0.8.2
     - simta_gettimeofday() preffered interface
