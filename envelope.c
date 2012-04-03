@@ -732,6 +732,16 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
 	}
     }
 
+    /* Jail info */
+    if ( version >= 4 ) {
+	if ((( line = snet_getline( snet, NULL )) == NULL ) ||
+		( *line != 'J' )) {
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s: expected Jail syntax", filename );
+	    goto cleanup;
+	}
+    }
+
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
 	goto cleanup;

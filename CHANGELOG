@@ -1,4 +1,7 @@
 internal
+    - E file format change for jail directive
+
+0.8.2
     - simta_gettimeofday() preffered interface
 
 0.8.2.d
