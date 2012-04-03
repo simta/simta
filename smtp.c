@@ -335,6 +335,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
+	    d->d_n_message_accepted_total++;
 	    d->d_delivered = 1;
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Message Accepted [%s] %s: "
@@ -401,7 +402,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_RCPT:
 	    d->d_rcpt->r_status = R_TEMPFAIL;
-	    d->d_n_rcpt_tempfail++;
+	    d->d_n_rcpt_tempfailed++;
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: To <%s> From <%s> Tempfailed: %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail, line );
@@ -418,6 +419,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
+	    d->d_n_message_tempfailed_total++;
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_INFO, "Deliver.SMTP %s: Tempfailed %s [%s]: "
 		    "transmitted %ld/%ld: %s",
@@ -509,6 +511,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
+	    d->d_n_message_failed_total++;
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s: Failed %s [%s]: "
@@ -659,6 +662,8 @@ smtp_send( struct host_q *hq, struct deliver *d )
 		d->d_env->e_id, hq->hq_hostname );
 	return( SMTP_OK );
     }
+
+    syslog( LOG_DEBUG, "Deliver %s: Sending DATA", d->d_env->e_id );
 
     /* say DATA */
     if ( snet_writef( d->d_snet_smtp, "DATA\r\n" ) < 0 ) {

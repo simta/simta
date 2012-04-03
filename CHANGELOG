@@ -1,5 +1,9 @@
 internal
     - E file format change for jail directive
+    - additional logging for host deliver ordering
+    - delivery activity logs in all cases
+    - additional logging to help track down "no deliver" poison message
+    - logging for SASL bug @ DEBUG_LOGGING level 1
 
 0.8.2
     - simta_gettimeofday() preffered interface

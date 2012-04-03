@@ -1300,6 +1300,7 @@ f_rcpt( struct receive_data *r )
 f_data( struct receive_data *r )
 {
     FILE				*dff = NULL;
+    int					deliver = 0;
     int					dfile_fd = -1;
     int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
@@ -3036,6 +3037,10 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 	 *                     authentication
 	 */ 
 
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init sasl_setprop 1" );
+	}
+
 	memset( &secprops, 0, sizeof( secprops ));
 	secprops.maxbufsize = 4096;
 	/* min_ssf set to zero with memset */
@@ -3049,12 +3054,21 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 	    return( -1 );
 	}
 
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init sasl_setprop 2" );
+	}
+
 	if (( ret = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
 		&(r->r_ext_ssf))) != SASL_OK ) {
 	    syslog( LOG_ERR, "Syserror auth_init: sasl_setprop2: %s",
 		    sasl_errdetail( r->r_conn ));
 	    return( -1 );
 	}
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init sasl_setprop 3" );
+	}
+
 	if (( ret = sasl_setprop( r->r_conn, SASL_AUTH_EXTERNAL, r->r_auth_id ))
 		!= SASL_OK ) {
 	    syslog( LOG_ERR, "Syserror auth_init: sasl_setprop3: %s",
@@ -3066,9 +3080,19 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 
 #ifdef HAVE_LIBSSL
     if ( ss->ss_flags & SIMTA_SOCKET_TLS ) {
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init _start_tls" );
+	}
+
 	if ( _start_tls( r ) != RECEIVE_OK ) {
 	    return( -1 );
 	}
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init _post_tls" );
+	}
+
 	if (( ret = _post_tls( r )) != RECEIVE_OK ) {
 	    return( -1 );
 	}
@@ -3077,6 +3101,10 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
     }
 #endif /* HAVE_LIBSSL */
+
+    if ( simta_debug != 0 ) {
+	syslog( LOG_DEBUG, "Debug: auth_init finished" );
+    }
 
     return( 0 );
 }
