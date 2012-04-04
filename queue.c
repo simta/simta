@@ -915,7 +915,7 @@ q_deliver( struct host_q *deliver_q )
 	d.d_dfile_fd = 0;
 	d.d_n_rcpt_accepted = 0;
 	d.d_n_rcpt_failed = 0;
-	d.d_n_rcpt_tempfail = 0;
+	d.d_n_rcpt_tempfailed = 0;
 	d.d_delivered = 0;
 	d.d_unlinked = 0;
 	d.d_size = 0;
@@ -1280,7 +1280,7 @@ lseek_fail:
 	default:
 	case EX_TEMPFAIL:
 	    d->d_rcpt->r_status = R_TEMPFAIL;
-	    d->d_n_rcpt_tempfail++;
+	    d->d_n_rcpt_tempfailed++;
 	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> "
 		    "Tempfailed: %d", d->d_env->e_id, d->d_rcpt->r_rcpt,
 		    d->d_env->e_mail, ml_error );
@@ -1299,7 +1299,7 @@ lseek_fail:
 
 	syslog( LOG_INFO, "Deliver.local %s: Accepted %d Tempfailed %d "
 		"Failed %d", d->d_env->e_id, d->d_n_rcpt_accepted,
-		d->d_n_rcpt_tempfail, d->d_n_rcpt_failed );
+		d->d_n_rcpt_tempfailed, d->d_n_rcpt_failed );
     }
 
     d->d_delivered = 1;
@@ -1393,7 +1393,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	env_clear_errors( d->d_env );
 	d->d_n_rcpt_accepted = 0;
 	d->d_n_rcpt_failed = 0;
-	d->d_n_rcpt_tempfail = 0;
+	d->d_n_rcpt_tempfailed = 0;
 	d->d_sent = 0;
     
 	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
