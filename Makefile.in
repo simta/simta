@@ -7,7 +7,6 @@ SRCPFX_INCPATH=-I$(srcdir)/denser -I$(srcdir)/libsnet -I$(srcdir)
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
-DESTDIR=@prefix@
 MANDIR=/usr/share/man
 BINDIR=@bindir@
 ETCDIR=@sysconfdir@/simta
@@ -15,11 +14,12 @@ SBINDIR=@sbindir@
 RUNDIR=/var/run
 RUNFILE=/var/run/simta.pid
 LIBDIR=/usr/lib
-SPOOLDIR=/var/spool/simta/
-LOCAL_Q=/var/spool/simta/local
-SLOW_Q=/var/spool/simta/slow
-FAST_Q=/var/spool/simta/fast
-DEAD_Q=/var/spool/simta/dead
+spool=/var/spool
+SPOOLDIR=$(spool)/simta/
+LOCAL_Q=${SPOOLDIR}local
+SLOW_Q=${SPOOLDIR}slow
+FAST_Q=${SPOOLDIR}fast
+DEAD_Q=${SPOOLDIR}dead
 CERTDIR=${SIMTACONFDIR}/cert
 TLS_CAFILE=${CERTDIR}/ca.pem
 TLS_CERT=${CERTDIR}/cert.pem
@@ -83,31 +83,22 @@ TARGETS=	simta tlsconnect simsendmail q_runner simexpander sla \
 all : ${TARGETS}
 
 install : all FRC
-	-mkdir -p ${RUNDIR}
-	-touch ${RUNFILE}
-	-chown -R simta ${RUNFILE}
-	-chgrp -R simta ${RUNFILE}
-	-chmod 755 ${RUNFILE}
-	-mkdir -p ${MANDIR}/man1
-	-mkdir -p ${MANDIR}/man8
-	-mkdir -p ${LOCAL_Q}
-	-mkdir -p ${SLOW_Q}
-	-mkdir -p ${FAST_Q}
-	-mkdir -p ${DEAD_Q}
-	-chown -R simta ${SPOOLDIR}
-	-chgrp -R simta ${SPOOLDIR}
-	-chmod -R 750 ${SPOOLDIR}
-	${INSTALL} -m 755 -o simta -g simta -c simta ${SBINDIR}/
-	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${SBINDIR}/
+	@mkdir -p ${DESTDIR}${RUNDIR} ${DESTDIR}${SBINDIR} ${DESTDIR}${BINDIR} ${DESTDIR}${MANDIR}/man1 ${DESTDIR}${MANDIR}/man8 ${DESTDIR}$(spool)
+	@touch empty-file
+	${INSTALL} -m 0644 -o simta -g simta empty-file ${DESTDIR}${RUNFILE}
+	@rm -f empty-file
+	${INSTALL} -m 0750 -o simta -g simta -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q}
+	${INSTALL} -m 755 -o simta -g simta -c simta ${DESTDIR}${SBINDIR}/
+	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${DESTDIR}${SBINDIR}/
 	for i in ${BINTARGETS}; do \
-	    ${INSTALL} -m 0755 -c $$i ${BINDIR}; \
+	    ${INSTALL} -m 0755 -c $$i ${DESTDIR}${BINDIR}; \
 	done
-	ln -f ${SBINDIR}/simsendmail ${SBINDIR}/sendmail
+	ln -f ${DESTDIR}${SBINDIR}/simsendmail ${DESTDIR}${SBINDIR}/sendmail
 	for i in ${MAN1TARGETS}; do \
-	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man1/; \
+	    ${INSTALL} -m 0644 -c ${SRCPFX}$$i ${DESTDIR}${MANDIR}/man1/; \
 	done
 	for i in ${MAN8TARGETS}; do \
-	    ${INSTALL} -m 0644 -c $$i ${MANDIR}/man8/; \
+	    ${INSTALL} -m 0644 -c ${SRCPFX}$$i ${DESTDIR}${MANDIR}/man8/; \
 	done
 
 simta : stamp-libsnet stamp-denser ${SIMTAOBJ} Makefile
