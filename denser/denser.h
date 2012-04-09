@@ -29,6 +29,7 @@
 #define DNSR_TYPE_MINFO	14	/* Mailbox or mail list information */
 #define DNSR_TYPE_MX	15	/* Mail exchange */
 #define DNSR_TYPE_TXT	16	/* Text string */
+#define DNSR_TYPE_AAAA	28	/* IPv6 AAAA type */
 #define DNSR_TYPE_SRV	33	/* Service Record RFC 2728 */
 #define DNSR_TYPE_ALL	255	/* All records */
 
