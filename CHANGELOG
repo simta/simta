@@ -8,6 +8,7 @@ internal
     - (warnings fix) make sure oflags is initialized
     - Fix parallel build bug found by zeke
     - dnsr bug fix (ignore IPV6 AAAA records)
+    - simrbl new feature: -t check_text
 
 0.8.2
     - simta_gettimeofday() preffered interface
