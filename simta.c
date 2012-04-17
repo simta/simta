@@ -345,6 +345,7 @@ simta_read_config( char *fname )
 
 	/* @hostname RED OPTION */
 	if ( *av[ 0 ] == '@' ) {
+
 	    domain = av[ 0 ] + 1;
 	    if ( strlen( domain ) > DNSR_MAX_HOSTNAME ) {
 		printf( "len: %d\n", strlen( domain ));
@@ -353,6 +354,13 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    /* XXX - need to lower-case domain */
+
+	    if ( ac <= 2 ) {
+		fprintf( stderr,
+			"%s: line %d: expected 1 or more arguments\n",
+			fname, lineno );
+		goto error;
+	    }
 
 	    /* RED code parse */
 	    red_code = 0;
@@ -475,12 +483,6 @@ simta_read_config( char *fname )
 		}
 
 	    } else if ( *(av[ 2 ]) == '/' ) {
-		if ( ac <= 2 ) {
-		    fprintf( stderr,
-			    "%s: line %d: expected 1 or more arguments\n",
-			    fname, lineno );
-		    goto error;
-		}
 
 		if ( red_code != RED_CODE_D ) {
 		    fprintf( stderr,
@@ -514,40 +516,6 @@ simta_read_config( char *fname )
 
 		red->red_deliver_argv[ x ] = NULL;
 		red->red_deliver_type = RED_DELIVER_BINARY;
-
-	    } else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
-		if ( ac < 2 ) {
-		    fprintf( stderr,
-			    "%s: line %d: expected at least 1 argument\n",
-			    fname, lineno );
-		    goto error;
-		}
-
-		/* store array */
-		simta_deliver_default_argc = ac - 1;
-		if (( simta_deliver_default_argv =
-			(char**)malloc( sizeof(char*) * ( ac ))) == NULL ) {
-		    perror( "malloc" );
-		    goto error;
-		}
-
-		for ( x = 0; x < simta_deliver_default_argc; x++ ) {
-		    if (( simta_deliver_default_argv[ x ] =
-			    strdup( av[ x + 1 ])) == NULL ) {
-			perror( "strdup" );
-			goto error;
-		    }
-		}
-
-		red->red_deliver_argv[ x ] = NULL;
-		red->red_deliver_type = RED_DELIVER_BINARY;
-
-		if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-		    goto error;
-		}
-		if ( simta_debug ) printf( "DEFAULT_LOCAL_MAILER: %s\n",
-		    simta_mail_filter );
 
 #ifdef HAVE_LDAP
 	    } else if ( strcasecmp( av[ 2 ], "LDAP" ) == 0 ) {
@@ -593,6 +561,40 @@ simta_read_config( char *fname )
 			fname, lineno, av[ 2 ] );
 		goto error;
 	    }
+
+	} else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
+	    if ( ac < 2 ) {
+		fprintf( stderr,
+			"%s: line %d: expected at least 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	    /* store array */
+	    simta_deliver_default_argc = ac - 1;
+	    if (( simta_deliver_default_argv =
+		    (char**)malloc( sizeof(char*) * ( ac ))) == NULL ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+	    for ( x = 0; x < simta_deliver_default_argc; x++ ) {
+		if (( simta_deliver_default_argv[ x ] =
+			strdup( av[ x + 1 ])) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+	    }
+
+	    red->red_deliver_argv[ x ] = NULL;
+	    red->red_deliver_type = RED_DELIVER_BINARY;
+
+	    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DEFAULT_LOCAL_MAILER: %s\n",
+		simta_mail_filter );
 
 #ifdef HAVE_LIBSSL
 	} else if ( strcasecmp( av[ 0 ], "CHECKSUM_ALGORITHM" ) == 0 ) {
