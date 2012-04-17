@@ -9,6 +9,7 @@ internal
     - Fix parallel build bug found by zeke
     - dnsr bug fix (ignore IPV6 AAAA records)
     - simrbl new feature: -t check_text
+    - CVE-2011-0411: discard pending read data
 
 0.8.2
     - simta_gettimeofday() preffered interface
