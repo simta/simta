@@ -11,6 +11,8 @@ internal
     - simrbl new feature: -t check_text
     - CVE-2011-0411: discard pending read data
     - config file bugfixes: RED rules, DEFAULT_LOCAL_MAILER
+    - if group has mailforwardingaddress set,
+	expand to that and ignore local members or moderation.
 
 0.8.2
     - simta_gettimeofday() preffered interface

@@ -1138,6 +1138,11 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	mailvals = NULL;
 	errmsg = NULL;
 
+	if (( mailvals = ldap_get_values(ld->ldap_ld, entry,
+		ld->ldap_mailfwdattr )) != NULL) {
+	    break;
+	}
+
 	if (( memonly = ldap_get_values( ld->ldap_ld, entry,
 		"membersonly" )) != NULL ) {
 	    if ( strcasecmp( memonly[0], "TRUE" ) == 0 ) {
