@@ -108,6 +108,7 @@ struct simta_ldap {
     char				*ldap_vacationhost;
     char				*ldap_vacationattr;
     char				*ldap_mailfwdattr;
+    char				*ldap_gmailfwdattr;
     char				*ldap_mailattr;
     char				*ldap_associated_domain;
     int					ldap_ndomain;
@@ -1138,8 +1139,10 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	mailvals = NULL;
 	errmsg = NULL;
 
-	if (( mailvals = ldap_get_values(ld->ldap_ld, entry,
-		ld->ldap_mailfwdattr )) != NULL) {
+	/* check for group email forwarding (google) */
+	if ( ld->ldap_gmailfwdattr &&
+		( mailvals = ldap_get_values(ld->ldap_ld, entry,
+		ld->ldap_gmailfwdattr )) != NULL ) {
 	    break;
 	}
 
@@ -2206,6 +2209,22 @@ simta_ldap_config( char *fname, char *domain )
 	    }
 	    if (( ld->ldap_mailfwdattr = (char*)strdup( av[ 1 ])) == NULL ) {
 		syslog( LOG_ERR, "mailfwdattr strdup error: %m" ); 
+		goto errexit;
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "groupmailforwardingattr" ) == 0 ) {
+	    if ( ac != 2 ) {
+		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
+		syslog( LOG_ERR, "Missing group mailforwardingattr value\n" );
+		goto errexit;
+	    }
+	    if ( ld->ldap_gmailfwdattr ) {
+		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
+		syslog( LOG_ERR, "Multiple group mailforwarding attributes\n" );
+		goto errexit;
+	    }
+	    if (( ld->ldap_gmailfwdattr = (char*)strdup( av[ 1 ])) == NULL ) {
+		syslog( LOG_ERR, "gmailfwdattr strdup error: %m" ); 
 		goto errexit;
 	    }
 
