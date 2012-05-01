@@ -1300,7 +1300,6 @@ f_rcpt( struct receive_data *r )
 f_data( struct receive_data *r )
 {
     FILE				*dff = NULL;
-    int					deliver = 0;
     int					dfile_fd = -1;
     int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
