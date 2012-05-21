@@ -119,10 +119,11 @@ simta_red_close_ldap_dbs( void )
 
 
     struct simta_red *
-simta_red_lookup_host_2( char *host_name, struct simta_red *red )
+simta_red_lookup_host_2( char *host_name, struct simta_red **redp )
 {
     int				d;
     char			*dot = NULL;
+    struct simta_red		*red = *redp;
 
     if ( simta_domain_trailing_dot != 0 ) {
 	dot = host_name + strlen( host_name ) - 1;
@@ -273,7 +274,6 @@ simta_red_add_host( char *host_name, int host_type )
     red->red_host_type = host_type;
     red->red_next = *insert;
     *insert = red;
-    break;
 
     return( red );
 }

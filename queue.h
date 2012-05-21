@@ -17,6 +17,10 @@
 #define HOST_SUPRESSED	8
 #define HOST_BITBUCKET	9
 
+/* bits for host_q->hq_no_punt */
+#define	NOPUNT_MX	1
+#define NOPUNT_CONFIG	2
+
 struct connection_data {
     struct connection_data	*c_prev;
     struct connection_data	*c_next;
@@ -70,6 +74,8 @@ struct host_q {
     int				hq_primary;
     int				hq_status;
     int				hq_no_punt;
+    int				hq_min_wait;
+    int				hq_max_wait;
     int				hq_launches;
     int				hq_delay;
     struct envelope		*hq_env_head;

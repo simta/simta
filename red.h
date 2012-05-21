@@ -26,6 +26,7 @@ struct simta_red {
 /* remote only */
     int				red_min_wait;
     int				red_max_wait;
+    int				red_no_punt;
 };
 
 /* red_deliver_types */
@@ -46,9 +47,10 @@ struct simta_red {
 /* struct simta_red->red_host_type */
 #define RED_HOST_TYPE_LOCAL		1
 #define RED_HOST_TYPE_SECONDARY_MX	2
-#define RED_HOST_TYPE_LOCAL		3
+#define RED_HOST_TYPE_REMOTE		3
 
 struct simta_red *simta_red_lookup_host( char * );
+struct simta_red *simta_red_lookup_host_2( char *, struct simta_red ** );
 struct simta_red *simta_red_add_host( char *, int );
 struct action *simta_red_add_action( struct simta_red *, int, int, char * );
 int simta_red_action_default( struct simta_red * );

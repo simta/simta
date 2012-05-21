@@ -142,10 +142,12 @@ host_q_create_or_lookup( char *hostname )
 
 	hq->hq_min_wait = 5 * 60;
 	hq->hq_max_wait = 80 * 60;
+	hq->hq_no_punt = 0;
 	if (( red = simta_red_lookup_host_2( hostname,
 		&simta_remote_hosts )) != NULL ) {
 	    hq->hq_min_wait = red->red_min_wait;
 	    hq->hq_max_wait = red->red_max_wait;
+	    hq->hq_no_punt = red->red_no_punt ? NOPUNT_CONFIG : 0;
 	}
 
 	if (( hq->hq_status == HOST_UNKNOWN ) &&
@@ -1504,7 +1506,7 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
     int 			i;
 
     if (( d->d_dnsr_result = get_mx( hq->hq_hostname )) == NULL ) {
-	hq->hq_no_punt = 1;
+	hq->hq_no_punt |= NOPUNT_MX;
 	syslog( LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
 		hq->hq_hostname );
 	return( 1 );
@@ -1532,7 +1534,7 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
 
 	    if (( strcasecmp( simta_hostname,
 		    d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange )) == 0 ) {
-		hq->hq_no_punt = 1;
+		hq->hq_no_punt |= NOPUNT_MX;
 		d->d_mx_preference_cutoff =
 			d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
 		syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
@@ -1544,7 +1546,7 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
 	    if (( simta_secondary_mx != NULL ) &&
 		    ( strcasecmp( simta_secondary_mx->red_host_name,
 		    d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange ) == 0 )) {
-		hq->hq_no_punt = 1;
+		hq->hq_no_punt |= NOPUNT_MX;
 		d->d_mx_preference_cutoff =
 			d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
 		syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
@@ -1603,7 +1605,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     struct connection_data	*cd;
 
     if ( d->d_dnsr_result == NULL ) {
-	hq->hq_no_punt = 0;
+	hq->hq_no_punt &= ~NOPUNT_MX;
 	d->d_mx_preference_cutoff = 0;
 	d->d_cur_dnsr_result = 0;
 
@@ -1738,7 +1740,7 @@ retry:
 	    /* Stop checking hosts if we know the local hostname is in
 	     * the mx record, and if we've reached it's preference level.
 	     */
-	    if (( hq->hq_no_punt != 0 ) && ( d->d_mx_preference_cutoff == 
+	    if (( hq->hq_no_punt & NOPUNT_MX ) && ( d->d_mx_preference_cutoff == 
     d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference )) {
 		syslog( LOG_INFO,
 			"DNS %s: Entry %d: MX preference %d: cutoff",
