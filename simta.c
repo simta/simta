@@ -296,6 +296,7 @@ simta_read_config( char *fname )
     struct simta_red	*red;
     struct action	*a;
     struct simta_ldap	*ld;
+    int			host_type = RED_HOST_TYPE_LOCAL;
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
@@ -403,8 +404,13 @@ simta_read_config( char *fname )
 		domain = simta_hostname;
 	    }
 
+	    if ( strcasecmp( av[ 2 ], "REMOTE" ) == 0 ) {
+		matched_remote = 1;
+		host_type = RED_HOST_TYPE_REMOTE;
+	    }
+
 	    if (( red = simta_red_add_host( domain,
-		    RED_HOST_TYPE_LOCAL )) == NULL ) {
+		    host_type )) == NULL ) {
 		perror( "malloc" );
 		goto error;
 	    }
@@ -448,6 +454,28 @@ simta_read_config( char *fname )
 			goto error;
 		    }
 		}
+
+	    } else if ( matched_remote ) {
+		long t;
+		if ( ac != 5 ) {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
+			    fname, lineno );
+		    goto error;
+		}
+		t = strtol( ac[ 3 ], &f_arg, 0 );
+		if ( f_arg == ac[ 3 ] || *f_arg ) {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
+			    fname, lineno );
+		    goto error;
+		}
+		red->red_min_wait = t;
+		t = strtol( ac[ 4 ], &f_arg, 0 );
+		if ( f_arg == ac[ 3 ] || *f_arg ) {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
+			    fname, lineno );
+		    goto error;
+		}
+		red->red_max_wait = t;
 
 	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
 		if ( ac == 3 ) {

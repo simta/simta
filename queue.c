@@ -82,6 +82,7 @@ host_q_lookup( char *hostname )
 host_q_create_or_lookup( char *hostname ) 
 {
     struct host_q		*hq;
+    struct simta_red		*red;
 
     /* create NULL host queue for unexpanded messages.  we always need to
      * have a NULL queue for error reporting. 
@@ -137,6 +138,14 @@ host_q_create_or_lookup( char *hostname )
 	    if ( hq->hq_red->red_deliver_type == RED_DELIVER_BINARY ) {
 		hq->hq_status = HOST_LOCAL;
 	    }
+	}
+
+	hq->hq_min_wait = 5 * 60;
+	hq->hq_max_wait = 80 * 60;
+	if (( red = simta_red_lookup_host_2( hostname,
+		&simta_remote_hosts )) != NULL ) {
+	    hq->hq_min_wait = red->red_min_wait;
+	    hq->hq_max_wait = red->red_max_wait;
 	}
 
 	if (( hq->hq_status == HOST_UNKNOWN ) &&
@@ -512,8 +521,6 @@ q_runner_dir( char *dir )
 hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
 {
     long			diff;
-    int				max_wait = 80 * 60;
-    int				min_wait = 5 * 60;
     int				wait;
     int				half;
     int				delay;
@@ -522,7 +529,7 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
 
     if ( hq->hq_last_launch.tv_sec == 0 ) {
 	hq->hq_last_leaky.tv_sec = tv_now->tv_sec;
-	delay = random() % min_wait;
+	delay = random() % hq->hq_min_wait;
 	next_launch.tv_sec = tv_now->tv_sec + delay;
 
     } else {
@@ -530,12 +537,12 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
 	diff = hq->hq_last_launch.tv_sec - hq->hq_last_leaky.tv_sec;
 
 	/* next wait time falls between min and max wait values */
-	if ( diff <= min_wait ) {
-	    wait = min_wait;
+	if ( diff <= hq->hq_min_wait ) {
+	    wait = hq->hq_min_wait;
 
 	} else {
-	    for ( wait = max_wait;
-		    ((( half = wait / 2 ) > diff ) && ( half > min_wait ));
+	    for ( wait = hq->hq_max_wait;
+		    ((( half = wait / 2 ) > diff ) && ( half > hq->hq_min_wait ));
 		    wait = half )
 		;
 	}
@@ -544,7 +551,7 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now )
 	next_launch.tv_sec = hq->hq_last_launch.tv_sec + wait;
 
 	if ( next_launch.tv_sec < tv_now->tv_sec ) {
-	    delay = random() % min_wait;
+	    delay = random() % hq->hq_min_wait;
 	    next_launch.tv_sec = tv_now->tv_sec + delay;
 	}
     }

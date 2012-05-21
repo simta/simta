@@ -119,9 +119,8 @@ simta_red_close_ldap_dbs( void )
 
 
     struct simta_red *
-simta_red_lookup_host( char *host_name )
+simta_red_lookup_host_2( char *host_name, struct simta_red *red )
 {
-    struct simta_red		*red;
     int				d;
     char			*dot = NULL;
 
@@ -134,7 +133,7 @@ simta_red_lookup_host( char *host_name )
 	}
     }
 
-    for ( red = simta_red_hosts; red != NULL; red = red->red_next ) {
+    for ( ; red != NULL; red = red->red_next ) {
 	if (( d = strcasecmp( host_name, red->red_host_name )) == 0 ) {
 	    break;
 	} else if ( d > 0 ) {
@@ -148,6 +147,12 @@ simta_red_lookup_host( char *host_name )
     }
 
     return( red );
+}
+
+    struct simta_red *
+simta_red_lookup_host( char *host_name )
+{
+    return simta_red_lookup_host_2( host_name, &simta_red_hosts );
 }
 
 
@@ -229,55 +234,46 @@ simta_red_add_host( char *host_name, int host_type )
 		    "not supported at this time" );
 	    return( NULL );
 	}
+	insert = &simta_secondary_mx;
+	break;
 
-	if (( red = (struct simta_red*)malloc(
-		sizeof( struct simta_red ))) == NULL ) {
-	    syslog( LOG_ERR, "simta_red_create: malloc: %m" );
-	    return( NULL );
-	}
-	memset( red, 0, sizeof( struct simta_red ));
-
-	red->red_host_type = host_type;
-	if (( red->red_host_name = strdup( host_name )) == NULL ) {
-	    syslog( LOG_ERR, "simta_red_create: malloc: %m" );
-	    free( red );
-	    return( NULL );
-	}
-
-	simta_secondary_mx = red;
+    case RED_HOST_TYPE_REMOTE:
+	insert = &simta_remote_hosts;
 	break;
 
     case RED_HOST_TYPE_LOCAL:
-	for ( insert = &simta_red_hosts; *insert != NULL;
-		insert = &((*insert)->red_next )) {
-	    if (( d = strcasecmp((*insert)->red_host_name, host_name )) == 0 ) {
-		return( *insert );
-	    } else if ( d < 0 ) {
-		break;
-	    }
-	}
-
-	if (( red = (struct simta_red*)malloc(
-		sizeof( struct simta_red ))) == NULL ) {
-	    syslog( LOG_ERR, "simta_red_create: malloc: %m" );
-	    return( NULL );
-	}
-	memset( red, 0, sizeof( struct simta_red ));
-
-	if (( red->red_host_name = strdup( host_name )) == NULL ) {
-	    syslog( LOG_ERR, "simta_red_create: malloc: %m" );
-	    free( red );
-	}
-
-	red->red_host_type = host_type;
-	red->red_next = *insert;
-	*insert = red;
+	insert = &simta_red_hosts;
 	break;
 
     default:
 	syslog( LOG_ERR, "simta_red_create: host type out of range" );
 	return( NULL );
     }
+    for ( ; *insert != NULL;
+	    insert = &((*insert)->red_next )) {
+	if (( d = strcasecmp((*insert)->red_host_name, host_name )) == 0 ) {
+	    return( *insert );
+	} else if ( d < 0 ) {
+	    break;
+	}
+    }
+
+    if (( red = (struct simta_red*)malloc(
+	    sizeof( struct simta_red ))) == NULL ) {
+	syslog( LOG_ERR, "simta_red_create: malloc: %m" );
+	return( NULL );
+    }
+    memset( red, 0, sizeof( struct simta_red ));
+
+    if (( red->red_host_name = strdup( host_name )) == NULL ) {
+	syslog( LOG_ERR, "simta_red_create: malloc: %m" );
+	free( red );
+    }
+
+    red->red_host_type = host_type;
+    red->red_next = *insert;
+    *insert = red;
+    break;
 
     return( red );
 }
