@@ -497,13 +497,13 @@ simta_read_config( char *fname )
 		    red->red_max_wait = t;
 		    if ( simta_debug ) {
 			printf( "QUEUE WAITING for %s: %d %d\n",
-			    av[ x ],  red->red_min_wait, red->red_max_wait );
+			    domain,  red->red_min_wait, red->red_max_wait );
 		    }
 		    break;
 
 		case REMOTE_NO_PUNT:
 		    red->red_no_punt = 1;
-		    if ( simta_debug ) printf( "NO PUNTING for %s\n", av[ x ] );
+		    if ( simta_debug ) printf( "NO PUNTING for %s\n", domain );
 		    break;
 
 		default:
