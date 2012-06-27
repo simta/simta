@@ -222,6 +222,7 @@ char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
+extern char				*simta_seen_before_domain;
 
 int	q_cleanup( void );
 int	smtp_receive( int, struct connection_info *, struct simta_socket * );
