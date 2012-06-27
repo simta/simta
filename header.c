@@ -81,6 +81,11 @@ int	match_sender( struct line_token *, struct line_token *, char * );
 int	line_token_unfold( struct line_token * );
 int	header_lines( struct line_file *, struct header *, int );
 int	mid_text( struct receive_headers *, char *, char ** );
+int	seen_text( struct receive_headers *, char *, char ** );
+int	is_unquoted_atom_text( int );
+char	*token_unquoted_atom( char * );
+void	make_more_seen( struct receive_headers * );
+char	*append_seen( struct receive_headers *, char *, int );
 
 
 struct header headers_punt[] = {
@@ -456,6 +461,115 @@ mid_text( struct receive_headers *r, char *line, char **msg )
     return( 0 );
 }
 
+    void
+make_more_seen( struct receive_headers *r )
+{
+    int				n = 0;
+    int				i;
+    char			**cpp;
+
+    if ( !r ) {
+	return;
+    }
+    if ( r->r_all_seen_before ) {
+	for ( i = 0 ; r->r_all_seen_before[ i ] ; ++i ) {
+	}
+	n = i;
+    }
+    cpp = malloc( (n+2) * sizeof *cpp );
+    if ( cpp ) {
+	if ( r->r_all_seen_before ) {
+	    memcpy( cpp, r->r_all_seen_before, n * sizeof *cpp );
+	    free( r->r_all_seen_before );
+	}
+	cpp[ n ] = strdup( "" );
+	cpp[ n+1 ] = 0;
+	r->r_all_seen_before = cpp;
+syslog( LOG_ERR, "make_more_seen: n=%d\n", n);
+    }
+}
+
+    char *
+append_seen( struct receive_headers *r, char *msg, int l2 )
+{
+    int				i;
+    int				l1;
+    char			*cp;
+    char			*new;
+syslog( LOG_ERR, "append_seen: msg=%d<%.*s>", l2, l2, msg);	// ZZZ
+
+    if ( !r || ! r->r_all_seen_before) {
+	errno = EDOM;
+	return( 0 );
+    }
+    for ( i = 0 ; r->r_all_seen_before[ i ] ; ++i ) {
+    }
+    if ( !i ) {
+	errno = EDOM;
+	return( 0 );
+    }
+    --i;
+    cp = r->r_all_seen_before[ i ];
+    l1 = strlen( cp );
+    if ( (new = malloc( l1 + l2 + 1 + !!*cp )) ) {
+	if ( *cp ) {
+	    memcpy( new, cp, l1 );
+	    new[ l1++ ] = ' ';
+	    if ( r->r_seen_before == cp ) {
+		r->r_seen_before = new;
+	    }
+	} else {
+	    int l3 = strlen( simta_seen_before_domain );
+	    if ( l3 == l2 && !memcmp( msg, simta_seen_before_domain, l3 )) {
+		r->r_seen_before = new;
+	    }
+	}
+	memcpy( new + l1, msg, l2 );
+	new[ l1 + l2 ] = 0;
+	free(cp);
+	r->r_all_seen_before[ i ] = new;
+    }
+    return( new );
+}
+
+    int
+seen_text( struct receive_headers *r, char *line, char **msg )
+{
+    char			*start;
+    char			*end;
+    char			*t;
+
+    while (( start = skip_cws( line )) != NULL ) {
+
+	if ( *start == '"' ) {
+	    t = "Illegal " STRING_SEEN_BEFORE " Header: bad quoted string";
+	    end = token_quoted_string( start );
+	} else {
+	    t = "Illegal " STRING_SEEN_BEFORE " Header: bad unquoted atom text";
+	    end = token_unquoted_atom( start );
+	}
+
+	if ( end == NULL ) {
+	    r->r_state = R_HEADER_READ;
+	    if ( msg != NULL ) {
+		*msg = t;
+	    }
+	    return( 0 );
+	}
+
+	end++;
+
+	if (!(append_seen( r, start, end - start ))) {
+	    syslog( LOG_ERR, "seen_text strdup: %m" );
+	    return( 1 );
+	}
+
+	line = end;
+    }
+
+    return( 0 );
+}
+
 
     /* return 0 if line is the next line in header block lf */
     /* rfc2822, 2.1 General Description:
@@ -503,6 +617,8 @@ header_text( int line_no, char *line, struct receive_headers *r, char **msg )
 
 	} else if (( r != NULL ) && ( r->r_state == R_HEADER_MID )) {
 	    return( mid_text( r, line, msg ));
+	} else if (( r != NULL ) && ( r->r_state == R_HEADER_SEEN )) {
+	    return( seen_text( r, line, msg ));
 	}
 
     } else {
@@ -544,6 +660,12 @@ header_text( int line_no, char *line, struct receive_headers *r, char **msg )
 		    ( strncasecmp( line, STRING_RECEIVED,
 		    STRING_RECEIVED_LEN ) == 0 )) {
 		r->r_received_count++;
+	    } else if (( header_len == STRING_SEEN_BEFORE_LEN ) &&
+		    ( strncasecmp( line, STRING_SEEN_BEFORE,
+		    STRING_SEEN_BEFORE_LEN ) == 0 )) {
+		r->r_state = R_HEADER_SEEN;
+		make_more_seen( r );
+		return( seen_text( r, c + 1, msg ));
 	    }
 
 	} else {
@@ -1264,6 +1386,35 @@ skip_ws( char *start )
     return( start );
 }
 
+    int
+is_unquoted_atom_text( int c )
+{
+    switch ( c ) {
+    case 0:
+    case '(': case ' ': case '\t': case '"':
+	return 0;
+
+    default:
+	return( 1 );
+    }
+}
+
+
+    char *
+token_unquoted_atom( char *start )
+{
+    if ( is_unquoted_atom_text( *start ) == 0 ) {
+	return( NULL );
+    }
+
+    for ( ; ; ) {
+	if ( is_unquoted_atom_text( *(start + 1)) == 0 ) {
+	    return( start );
+	}
+
+	start++;
+    }
+}
 
     int
 parse_addr( struct envelope *env, struct line **start_line, char **start,
@@ -2309,4 +2460,27 @@ string_address_parse( struct string_address *sa )
     }
 
     return( NULL );
+}
+
+    void
+header_free( struct receive_headers *r )
+{
+    int				i;
+
+    if ( r->r_mid != NULL ) {
+syslog( LOG_ERR, "header_free: mid=<%s>", r->r_mid );	// ZZZ
+	free( r->r_mid );
+	r->r_mid = NULL;
+    }
+
+    if ( r->r_all_seen_before ) {
+	for ( i = 0 ; r->r_all_seen_before[ i ] ; ++i ) {
+syslog( LOG_ERR, "header_free: seen.%d=<%s>", i, r->r_all_seen_before[i] );	// ZZZ
+	    free( r->r_all_seen_before[ i ] );
+	}
+syslog( LOG_ERR, "header_free: total seens=%d\n",i);	// ZZZ
+	free( r->r_all_seen_before );
+	r->r_all_seen_before = 0;
+    }
+syslog( LOG_ERR, "header_free done");	// ZZZ
 }

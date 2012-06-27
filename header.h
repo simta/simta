@@ -4,11 +4,14 @@
 #define STRING_MID_LEN		10
 #define STRING_RECEIVED		"Received"
 #define STRING_RECEIVED_LEN	8
+#define STRING_SEEN_BEFORE	"X-Simta-Seen-Before"
+#define STRING_SEEN_BEFORE_LEN	19
 
 /* for struct receive_headers->r_state */
 #define R_HEADER_READ		0
 #define R_HEADER_END		1
 #define R_HEADER_MID		2
+#define R_HEADER_SEEN		3
 
 struct header {
     char                *h_key;
@@ -29,6 +32,8 @@ struct receive_headers {
     int				r_mid_set;
     int				r_received_count;
     struct envelope		*r_env;
+    char			**r_all_seen_before;
+    char			*r_seen_before;
 };
 
 
@@ -50,3 +55,4 @@ char	*tz( struct tm * );
 struct string_address *string_address_init( char * );
 void	string_address_free( struct string_address * );
 char	*string_address_parse( struct string_address * );
+void	header_free( struct receive_headers * );
