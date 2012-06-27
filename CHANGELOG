@@ -16,6 +16,8 @@ internal
     - per-host queue configuration: min/max wait, no_punt option.
     - revised configuration syntax for no_punt & per-host, bug fix.
     - "ignore" optional Efile D line - efile change phase 1
+    - x-simta-seen-before - suppress redundant mail delivery for groups
+	which were already expanded
 
 0.8.2
     - simta_gettimeofday() preffered interface
