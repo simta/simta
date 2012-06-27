@@ -1628,6 +1628,13 @@ f_data( struct receive_data *r )
 	    continue;
 	}
 
+	if ( rh.r_seen_before ) {
+	    system_message = "Seen Before";
+	    filter_message = strdup( rh.r_seen_before );
+	    message_result = MESSAGE_DELETE;
+	    continue;
+	}
+
 	if ( fprintf( dff, "%s\n", line ) < 0 ) {
 	    syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
 	    goto error;
@@ -1675,6 +1682,7 @@ f_data( struct receive_data *r )
 	}
 
 	r->r_env->e_mid = rh.r_mid;
+	rh.r_mid = 0;
 
 	/* note that this will over-write the previous message_result value */
 	message_result = content_filter( r, &filter_message );
@@ -1899,6 +1907,7 @@ f_data( struct receive_data *r )
 
 	if ( simta_message_timer == 0 ) {
 	    if ( reset( r ) != RECEIVE_OK ) {
+		header_free( &rh );
 		return( RECEIVE_SYSERROR );
 	    }
 	}
@@ -1907,6 +1916,7 @@ f_data( struct receive_data *r )
     if ( filter_message != NULL ) {
 	free( filter_message );
     }
+    header_free( &rh );
 
     return( RECEIVE_OK );
 
@@ -1938,6 +1948,7 @@ error:
     if ( filter_message != NULL ) {
 	free( filter_message );
     }
+    header_free( &rh );
 
     return( ret_code );
 }
