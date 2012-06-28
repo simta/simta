@@ -247,6 +247,7 @@ expand( struct envelope *unexpanded_env )
 	    if ( env_id( e_addr->e_addr_env_moderated ) != 0 ) {
 		goto cleanup3;
 	    }
+	    e_addr->e_addr_env_moderated->e_attributes = unexpanded_env->e_attributes;
 
 	    syslog( LOG_DEBUG, "expand moderation env %s dinode %d",
 		    e_addr->e_addr_env_moderated->e_id,
@@ -390,6 +391,7 @@ expand( struct envelope *unexpanded_env )
 		    (int)env->e_dinode );
 
 	    /* fill in env */
+	    env->e_attributes = unexpanded_env->e_attributes;
 	    if ( domain != NULL ) {
 		env->e_dir = simta_dir_fast;
 		if ( env_hostname( env, domain ) != 0 ) {
