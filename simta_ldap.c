@@ -1140,10 +1140,50 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	errmsg = NULL;
 
 	/* check for group email forwarding (google) */
-	if ( ld->ldap_gmailfwdattr &&
-		( mailvals = ldap_get_values(ld->ldap_ld, entry,
+	if (ld->ldap_gmailfwdattr &&
+		( mailvals = ldap_get_values( ld->ldap_ld, entry,
 		ld->ldap_gmailfwdattr )) != NULL ) {
-	    break;
+	    if ( exp->exp_env->e_n_exp_level < simta_exp_level_max ) {
+		if (( e_addr->e_addr_env_gmailfwd =
+			env_create( e_addr->e_addr_from,
+			exp->exp_env )) == NULL ) {
+		    ldap_value_free( mailvals );
+		    ldap_memfree( dn );
+		    free( senderbuf );
+		    return( LDAP_SYSERROR );
+		}
+
+		for ( idx = 0; mailvals[ idx ] != NULL; idx++ ) {
+		    if ( env_string_recipients( e_addr->e_addr_env_gmailfwd,
+			    mailvals[ idx ]) != 0 ) {
+			env_free( e_addr->e_addr_env_gmailfwd );
+			e_addr->e_addr_env_gmailfwd = NULL;
+			ldap_value_free( mailvals );
+			ldap_memfree( dn );
+			free( senderbuf );
+			return( LDAP_SYSERROR );
+		    }
+		}
+
+		ldap_value_free( mailvals );
+		mailvals = NULL;
+
+		if (( r = e_addr->e_addr_env_gmailfwd->e_rcpt ) == NULL ) {
+		    /* no valid email addresses */
+		    env_free( e_addr->e_addr_env_gmailfwd );
+		    e_addr->e_addr_env_gmailfwd = NULL;
+		    bounce_text( e_addr->e_addr_errors, TEXT_ERROR,	/* XXX addr? */
+			    "bad group mail forwarding: ", dn, NULL );
+		}
+		e_addr->e_addr_env_gmailfwd->e_next = exp->exp_gmailfwding;
+		exp->exp_gmailfwding = e_addr->e_addr_env_gmailfwd;
+	    } else {
+		ldap_value_free( mailvals );
+		mailvals = NULL;
+		bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
+			"group mail audit loop: ", dn, NULL );
+		break;
+	    }
 	}
 
 	if (( memonly = ldap_get_values( ld->ldap_ld, entry,

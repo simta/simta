@@ -87,6 +87,30 @@ eo_insert( struct expand_output **eo_list, struct envelope *env )
     return( 0 );
 }
 
+    void
+cleanup_envelope_list( struct envelope **env_p )
+{
+    struct envelope		*env;
+    while ( *env_p != NULL ) {
+	env = *env_p;
+	env_p = &(env->e_next);
+
+	/* unlink if written to disk */
+	if (( env->e_flags & ENV_FLAG_EFILE ) != 0 ) {
+	    queue_remove_envelope( env );
+	    if ( env_unlink( env ) == 0 ) {
+		syslog( LOG_INFO, "Expand %s: Message Deleted: "
+			"System error, unwinding expansion", env->e_id );
+	    } else {
+		syslog( LOG_INFO, "Expand %s: "
+			"System error, can't unwind expansion", env->e_id );
+	    }
+	}
+
+	env_free( env );
+    }
+}
+
 
     /* return 0 on success
      * return 1 on syserror
@@ -238,6 +262,71 @@ expand( struct envelope *unexpanded_env )
 		printf( "Supressed: %s\n", e_addr->e_addr );
 	    }
 	    continue;
+	}
+	if ( e_addr->e_addr_env_gmailfwd != NULL ) {
+	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
+	    e_addr->e_addr_env_gmailfwd->e_dir = simta_dir_fast;
+	    e_addr->e_addr_env_gmailfwd->e_dinode = unexpanded_env->e_dinode;
+	    if ( env_id( e_addr->e_addr_env_gmailfwd ) != 0 ) {
+		goto cleanup3;
+	    }
+	    e_addr->e_addr_env_gmailfwd->e_attributes = unexpanded_env->e_attributes
+		| ENV_ATTR_ARCHIVE_ONLY;
+
+	    syslog( LOG_DEBUG, "expand group mail env %s dinode %d",
+		    e_addr->e_addr_env_gmailfwd->e_id,
+		    (int)e_addr->e_addr_env_gmailfwd->e_dinode );
+
+	    if ( simta_expand_debug != 0 ) {
+		printf( "Group mail forwarding: %s\n", e_addr->e_addr );
+		env_stdout( e_addr->e_addr_env_gmailfwd );
+		continue;
+	    }
+
+	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_gmailfwd->e_dir,
+		    e_addr->e_addr_env_gmailfwd->e_id );
+	    if ( link( d_original, d_out ) != 0 ) {
+		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_out );
+		goto cleanup3;
+	    }
+
+	    sendermatch = !strcasecmp( unexpanded_env->e_mail,
+		    e_addr->e_addr_env_gmailfwd->e_mail );
+
+	    n_rcpts = 0;
+	    for ( rcpt = e_addr->e_addr_env_gmailfwd->e_rcpt; rcpt != NULL;
+		    rcpt = rcpt->r_next ) {
+		n_rcpts++;
+		if ( sendermatch ) {
+		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s>",
+			    unexpanded_env->e_id,
+			    e_addr->e_addr_env_gmailfwd->e_id, rcpt->r_rcpt,
+			    e_addr->e_addr_env_gmailfwd->e_mail );
+		} else {
+		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s> (%s)",
+			    unexpanded_env->e_id,
+			    e_addr->e_addr_env_gmailfwd->e_id, rcpt->r_rcpt,
+			    e_addr->e_addr_env_gmailfwd->e_mail,
+			    unexpanded_env->e_mail );
+		}
+
+	    }
+	    syslog( LOG_INFO,
+		    "Expand %s: %s: Expanded %d group mail forwarders",
+		    unexpanded_env->e_id, e_addr->e_addr_env_gmailfwd->e_id,
+		    n_rcpts );
+
+	    if ( env_outfile( e_addr->e_addr_env_gmailfwd ) != 0 ) {
+		/* env_outfile syslogs errors */
+		if ( unlink( d_out ) != 0 ) {
+		    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
+		}
+		goto cleanup3;
+	    }
+	    env_out++;
+	    queue_envelope( e_addr->e_addr_env_gmailfwd );
+	    continue;
+
 	}
 
 	if ( e_addr->e_addr_env_moderated != NULL ) {
@@ -614,24 +703,8 @@ expand( struct envelope *unexpanded_env )
     goto cleanup2;
 
 cleanup5:
-    while ( exp.exp_errors != NULL ) {
-	env = exp.exp_errors;
-	exp.exp_errors = exp.exp_errors->e_next;
-
-	/* unlink if written to disk */
-	if (( env->e_flags & ENV_FLAG_EFILE ) != 0 ) {
-	    queue_remove_envelope( env );
-	    if ( env_unlink( env ) == 0 ) {
-		syslog( LOG_INFO, "Expand %s: Message Deleted: "
-			"System error, unwinding expansion", env->e_id );
-	    } else {
-		syslog( LOG_INFO, "Expand %s: "
-			"System error, can't unwind expansion", env->e_id );
-	    }
-	}
-
-	env_free( env );
-    }
+    cleanup_envelope_list( &exp.exp_errors );
+    cleanup_envelope_list( &exp.exp_gmailfwding );
 
 cleanup4:
     for ( eo = host_stab; eo != NULL; eo = eo->eo_next ) {
