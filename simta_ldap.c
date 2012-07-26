@@ -1552,7 +1552,12 @@ startsearch:
 			attrs, 0, &timeout, &res );
 
 	/* if the address is illegal in LDAP, we can't find it */
+	/* (this can also happen if the container isn't there) */
 	if (( rc == LDAP_FILTER_ERROR ) || ( rc == LDAP_NO_SUCH_OBJECT )) {
+	    syslog( LOG_ERR,
+		"%s so giving up! (addr=%s: problem with base=%s or filter=%s)",
+		ldap_err2string(rc),
+		addr, lds->lds_plud->lud_dn, search_string );
 	    return( LDAP_NOT_FOUND );
 	}
 
