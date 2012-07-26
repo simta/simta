@@ -18,6 +18,7 @@ internal
     - "ignore" optional Efile D line - efile change phase 1
     - x-simta-seen-before - suppress redundant mail delivery for groups
 	which were already expanded
+    - ldap group expansion for group archive functionality.
 
 0.8.2
     - simta_gettimeofday() preffered interface
