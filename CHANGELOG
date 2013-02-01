@@ -1,3 +1,6 @@
+internal
+    - simta_gettimeofday() preffered interface
+
 0.8.3.c
     - BOUNCE_JAIL directive added
     - debugging statements added

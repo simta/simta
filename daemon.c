@@ -177,7 +177,7 @@ static sasl_callback_t callbacks[] = {
     int
 set_rcvbuf( int s )
 {
-    int				len;
+    socklen_t			len;
 
     if ( simta_smtp_rcvbuf_max == 0 ) {
 	len = sizeof( simta_smtp_rcvbuf_max );
@@ -1180,7 +1180,7 @@ daemon_waitpid( void )
 	}
 
 	if ( *p_search == NULL ) {
-	    syslog( LOG_ERR, "Child %d: Error unkown child process", pid );
+	    syslog( LOG_ERR, "Child Error %d: unkown child process", pid );
 	    errors++;
 	    continue;
 	}
@@ -1396,7 +1396,7 @@ simta_child_receive( struct simta_socket *ss )
     struct sockaddr_in		sin;
     int				pid;
     int				fd;
-    int				sinlen;
+    socklen_t			sinlen;
 
     sinlen = sizeof( struct sockaddr_in );
 

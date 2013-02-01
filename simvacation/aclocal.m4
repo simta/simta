@@ -17,14 +17,14 @@ AC_DEFUN([CHECK_LDAP],
 	CFLAGS="$CFLAGS -I$ldapdir/include";
 	LIBS="$LIBS -lldap -llber";
 	LDFLAGS="$LDFLAGS -L$ldapdir/lib";
-	AC_DEFINE(HAVE_LDAP)
+	AC_DEFINE(HAVE_LDAP, 1, [openldap present])
 	AC_MSG_RESULT(yes)
         
     else
 	if test -f "/usr/include/ldap.h"; then
 	    found_ldap="yes";
 	    LIBS="$LIBS -lldap -llber";
-	    AC_DEFINE(HAVE_LDAP)
+	    AC_DEFINE(HAVE_LDAP, 1, [openldap present])
 	    AC_MSG_RESULT(yes)
 	else
 	    AC_MSG_RESULT(no)

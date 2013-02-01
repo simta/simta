@@ -9,7 +9,6 @@
 
 #include "config.h"
 
-#include <syslog.h>
 #include <stdlib.h>
 #include <strings.h>
 

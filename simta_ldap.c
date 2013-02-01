@@ -279,7 +279,7 @@ simta_ldap_dequote( char *s )
 ** This SASL callback works for "EXTERNAL" and "GSSAPI" SASL methods
 */
     static int
-simta_ldap_sasl_interact( struct simta_ldap *ld, int unsigned flags,
+simta_ldap_sasl_interact( LDAP *ld, int unsigned flags,
         void *defaults, void *in )
 {
    
@@ -874,7 +874,6 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
     char			*dup_name;
     char			*pname;
     char			*dq;
-    int				nametype;
     int				rc;
     int				count = 0; /* Number of ldap entries found */
     char			*search_string;
@@ -909,7 +908,7 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
     ** Strip off any "-owners", or "-otherstuff"
     ** and search again
     */
-    nametype = simta_address_type( dup_name );
+    (void) simta_address_type( dup_name );
 
     /* for each base string in ldap_searches:
      *     - Build search string

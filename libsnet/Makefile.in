@@ -1,0 +1,81 @@
+SHELL=/bin/sh
+
+srcdir=@srcdir@
+VPATH=@srcdir@
+SRCPFX=$(srcdir)/
+SRCPFX_INCPATH=-I$(srcdir)/denser -I$(srcdir)/libsnet -I$(srcdir)
+
+prefix      =	@prefix@
+libdir      =	@libdir@
+includedir  =	@includedir@
+
+SRC  = snet.c
+OBJ  = snet.o
+
+INCPATH=	@CPPFLAGS@ -I. $(SRCPFX_INCPATH)
+DEFS=		
+OPTOPTS=	@OPTOPTS@
+CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH} @CFLAGS@
+LDFLAGS=	@LDFLAGS@
+PROFILED=	@PROFILED@
+CC=		@CC@	
+
+INSTALL=	@INSTALL@
+AWK=		@AWK@
+LIBTOOL=	./libtool --quiet
+TAGSFILE=	tags
+
+VERSION=	`date +%Y%m%d`
+DISTDIR=	../libsnet-${VERSION}
+
+all:		libsnet.a
+
+libsnet.a: ${OBJ}
+	@echo "building normal libsnet.a"
+	@ar cru libsnet.a ${OBJ}
+	@ranlib libsnet.a
+
+install:	all
+	mkdir -p $(DESTDIR)$(libdir) $(DESTDIR)$(includedir)
+	$(INSTALL) -c -m 644 snet.h $(DESTDIR)$(includedir)/snet.h
+	$(INSTALL) -c -m 644 libsnet.a $(DESTDIR)$(libdir)/libsnet.a
+
+clean:
+	rm -f *.o libsnet.a
+	rm -f *.bak *[Ee]rrs tags
+
+dist:		distclean
+	mkdir ${DISTDIR}
+	tar chfFFX - EXCLUDE . | ( cd ${DISTDIR}; tar xvf - )
+	echo ${VERSION} > ${DISTDIR}/VERSION
+
+distclean:	clean
+	rm -f config.log config.status config.cache Makefile libtool config.h
+	rm -rf autom4te.cache
+
+tags:		${SRC}
+	cwd=`pwd`; \
+	for i in ${SRC}; do \
+	    ctags -t -a -f ${TAGSFILE} $$cwd/$$i; \
+	done
+
+depend:
+	for i in ${SRC} ; do \
+	    ${CC} -M ${DEFS} ${INCPATH} $$i | \
+	    $(AWK) ' { if ($$1 != prev) { print rec; rec = $$0; prev = $$1; } \
+		else { if (length(rec $$2) > 78) { print rec; rec = $$0; } \
+		else rec = rec " " $$2 } } \
+		END { print rec } ' >> makedep; done
+	sed -n '1,/^# DO NOT DELETE THIS LINE/p' Makefile > Makefile.tmp
+	cat makedep >> Makefile.tmp
+	rm makedep
+	echo '# DEPENDENCIES MUST END AT END OF FILE' >> Makefile.tmp
+	echo '# IF YOU PUT STUFF HERE IT WILL GO AWAY' >> Makefile.tmp
+	echo '# see make depend above' >> Makefile.tmp
+	rm -f Makefile.bak
+	cp Makefile Makefile.bak
+	mv Makefile.tmp Makefile
+
+# DO NOT DELETE THIS LINE
+
+
