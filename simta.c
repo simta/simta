@@ -608,12 +608,13 @@ simta_read_config( char *fname )
 
 	    simta_deliver_default_argv[ x ] = NULL;
 
-	    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
+	    if ( simta_debug ) {
+		printf( "DEFAULT_LOCAL_MAILER:" );
+		for ( x = 0; simta_deliver_default_argv[ x ] ; x++ ) {
+		    printf( " %s", simta_deliver_default_argv[ x ] );
+		}
+		printf( "\n" );
 	    }
-	    if ( simta_debug ) printf( "DEFAULT_LOCAL_MAILER: %s\n",
-		simta_mail_filter );
 
 #ifdef HAVE_LIBSSL
 	} else if ( strcasecmp( av[ 0 ], "CHECKSUM_ALGORITHM" ) == 0 ) {
