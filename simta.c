@@ -606,8 +606,7 @@ simta_read_config( char *fname )
 		}
 	    }
 
-	    red->red_deliver_argv[ x ] = NULL;
-	    red->red_deliver_type = RED_DELIVER_BINARY;
+	    simta_deliver_default_argv[ x ] = NULL;
 
 	    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
 		perror( "strdup" );

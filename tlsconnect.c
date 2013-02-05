@@ -228,17 +228,6 @@ main( int ac, char *av[] )
 				ERR_error_string( ERR_get_error(), NULL ) );
 			continue;
 		    }
-		    /* CVE-2011-0411: discard pending data from libsnet */
-		    while (snet_hasdata( snet )) {
-			struct timeval temptv[1];
-			char tempc[1];
-			ssize_t r;
-
-			if (( r = snet_read( snet, tempc, sizeof tempc, temptv )) != sizeof tempc) {
-			    fprintf( stderr, "bad return from snet_read\n");
-			    break;
-			}
-		    }
 		    if (( peer = SSL_get_peer_certificate( snet->sn_ssl ))
 			    == NULL ) {
 			fprintf( stderr, "no certificate\n" );

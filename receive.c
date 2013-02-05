@@ -1286,7 +1286,6 @@ f_data( struct receive_data *r )
 {
     FILE				*dff = NULL;
     int					banner = 0;
-    int					deliver = 0;
     int					dfile_fd = -1;
     int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
@@ -2286,6 +2285,19 @@ _start_tls( struct receive_data *r )
 
     r->r_tls = 1;
     simta_smtp_extension--;
+
+    /* CVE-2011-0411: discard pending data from libsnet */
+    while (snet_hasdata( r->r_snet )) {
+	struct timeval temptv[1];
+	char tempc[1];
+	ssize_t rc;
+
+	if (( rc = snet_read( r->r_snet, tempc, sizeof tempc, temptv )) != sizeof tempc) {
+	    syslog( LOG_ERR, "Syserror _start_tls: read failed on %s %s: %d",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, (int)rc); 
+	    break;
+	}
+    }
 
     return( RECEIVE_OK );
 }
