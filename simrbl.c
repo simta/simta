@@ -55,14 +55,23 @@ main( int argc, char *argv[])
     int			err = 0;
     int			quiet = 0;
     int			nolog = 0;
-
+    int			exclusive = 0;
+    int			check_text = 0;
     struct in_addr	addr;
     struct rbl		*rbl_found;
 
-    while(( c = getopt( argc, argv, "dl:ns:q" )) != -1 ) {
+    while(( c = getopt( argc, argv, "dil:ns:tq" )) != -1 ) {
 	switch( c ) {
 	case 'd':
 	    simta_debug++;
+	    break;
+
+	case 'i':
+	    if ( exclusive != 0 ) {
+		err++;
+		break;
+	    }
+	    exclusive++;
 	    break;
 
 	case 'l':
@@ -81,6 +90,15 @@ main( int argc, char *argv[])
 	    server = optarg;
 	    break;
 
+	case 't':
+	    if ( exclusive != 0 ) {
+		err++;
+		break;
+	    }
+	    exclusive++;
+	    check_text = 1;
+	    break;
+
 	default:
 	    err++;
 	    break;
@@ -92,9 +110,11 @@ main( int argc, char *argv[])
     }
 
     if ( err ) {
-	fprintf( stderr, "Usage: %s [ -dq ] [ -l rbl-domain ] ", argv[ 0 ] );
+	fprintf( stderr, "Usage: %s ", argv[ 0 ] );
+	fprintf( stderr, "[ -dq ] " );
+	fprintf( stderr, "[ -l rbl-domain ] " );
 	fprintf( stderr, "[ -s server ] " );
-	fprintf( stderr, "address\n" );
+	fprintf( stderr, "([ -i ] address | -t text )\n" );
 	exit( EX_USAGE );
     }
 
@@ -119,21 +139,29 @@ main( int argc, char *argv[])
         perror( "malloc" );
         exit( SIMRBL_EXIT_ERROR );
     }     
-
-    rc = inet_pton( AF_INET, argv[ optind ], &addr );
-    if ( rc < 0 ) {
-	perror( "inet_pton" );
-	exit( SIMRBL_EXIT_ERROR );
-    } else if ( rc == 0 ) {
-	fprintf( stderr, "%s: invalid address\n", argv[ optind ] );
-	exit( SIMRBL_EXIT_ERROR );
-    }
-
     simta_rbl_verbose_logging = 1;
-    if (( rc = rbl_check( simta_rbls, &addr, NULL, &rbl_found, &rbl_msg ))
-	    == RBL_ERROR ) {
-	if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
-	exit( SIMRBL_EXIT_ERROR );
+
+    if ( check_text == 0 ) {
+	rc = inet_pton( AF_INET, argv[ optind ], &addr );
+	if ( rc < 0 ) {
+	    perror( "inet_pton" );
+	    exit( SIMRBL_EXIT_ERROR );
+	} else if ( rc == 0 ) {
+	    fprintf( stderr, "%s: invalid address\n", argv[ optind ] );
+	    exit( SIMRBL_EXIT_ERROR );
+	}
+
+	if (( rc = rbl_check( simta_rbls, &addr, NULL, NULL, &rbl_found,
+		&rbl_msg )) == RBL_ERROR ) {
+	    if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
+	    exit( SIMRBL_EXIT_ERROR );
+	}
+    } else {
+	if (( rc = rbl_check( simta_rbls, NULL, argv[ optind ], NULL,
+		&rbl_found, &rbl_msg )) == RBL_ERROR ) {
+	    if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
+	    exit( SIMRBL_EXIT_ERROR );
+	}
     }
 
     if ( rc == RBL_BLOCK ) {

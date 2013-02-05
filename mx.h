@@ -31,4 +31,5 @@ int check_reverse( char *, struct in_addr * );
 int check_hostname( char * );
 struct simta_red *host_local( char * );
 int rbl_add( struct rbl**, int, char *, char * );
-int rbl_check( struct rbl *, struct in_addr *, char *, struct rbl**, char ** );
+int rbl_check( struct rbl *, struct in_addr *, char *, char *,
+	struct rbl**, char ** );

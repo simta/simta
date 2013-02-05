@@ -1179,7 +1179,7 @@ f_rcpt( struct receive_data *r )
 
 		if ( r->r_rbl_status == RBL_UNKNOWN ) {
 		    r->r_rbl_status = rbl_check( simta_user_rbls,
-			    &(r->r_sin->sin_addr), r->r_remote_hostname,
+			    &(r->r_sin->sin_addr), NULL, r->r_remote_hostname,
 			    &(r->r_rbl), &(r->r_rbl_msg));
 		}
 
@@ -1286,7 +1286,8 @@ f_data( struct receive_data *r )
 {
     FILE				*dff = NULL;
     int					banner = 0;
-    int					dfile_fd;
+    int					deliver = 0;
+    int					dfile_fd = -1;
     int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
     int					line_no = 0;
@@ -2763,7 +2764,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 
             switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
-		    r.r_remote_hostname, &(r.r_rbl), &(r.r_rbl_msg))) {
+		    r.r_remote_hostname, NULL, &(r.r_rbl), &(r.r_rbl_msg))) {
             case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
                 syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked %s: %s",

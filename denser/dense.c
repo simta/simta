@@ -149,6 +149,15 @@ print_rr( struct dnsr_rr *rr )
 	    rr->rr_srv.srv_port );
 	break;
 
+    case DNSR_TYPE_AAAA:
+	{
+	struct in_addr      addr;
+	printf( "\tAAAA" );
+	memcpy( &addr.s_addr, &rr->rr_a, sizeof( int ));
+	printf( "\t%s\n", inet_ntoa( addr ));
+	break;
+	}
+
     default:      
 	printf( "\t%d: unknown type\n", rr->rr_type );
 	break;

@@ -380,8 +380,8 @@ check_hostname( char *hostname )
  */
 
     int
-rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
-	char **msg )
+rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
+	struct rbl **found, char **msg )
 {
     struct rbl				*rbl;
     char				*reverse_ip;
@@ -399,11 +399,20 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 	    *found = rbl;
 	}
 
-	if (( reverse_ip =
-		dnsr_ntoptr( simta_dnsr, in, rbl->rbl_domain )) == NULL ) {
-	    syslog( LOG_ERR, "RBL %s: dnsr_ntoptr failed: %s",
-		    inet_ntoa( *in ), rbl->rbl_domain );
-	    continue;
+	if ( in != NULL ) {
+	    if (( reverse_ip =
+		    dnsr_ntoptr( simta_dnsr, in, rbl->rbl_domain )) == NULL ) {
+		syslog( LOG_ERR, "RBL %s: dnsr_ntoptr failed: %s",
+			inet_ntoa( *in ), rbl->rbl_domain );
+		continue;
+	    }
+	} else {
+	    if (( reverse_ip = (char*)malloc( strlen( rbl->rbl_domain ) +
+		    strlen( text ) + 2 )) == NULL ) {
+		syslog( LOG_ERR, "malloc %m" );
+		return( RBL_ERROR );
+	    }
+	    sprintf( reverse_ip, "%s.%s", text, rbl->rbl_domain );
 	}
 
 	if (( result = get_a( reverse_ip )) == NULL ) {
@@ -426,7 +435,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 
 	    if ( simta_rbl_verbose_logging ) {
 		syslog( LOG_DEBUG, "RBL [%s] %s: Found in %s list %s: %s",
-			inet_ntoa( *in ), host ? host : "Unknown",
+			in ? inet_ntoa( *in ) : text, host ? host : "Unknown",
 			rbl->rbl_type_text, rbl->rbl_domain, ip );
 	    }
 
@@ -448,7 +457,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 
 	if ( simta_rbl_verbose_logging ) {
 	    syslog( LOG_DEBUG, "RBL [%s] %s: Unlisted in %s list %s",
-		    inet_ntoa( *in ), host ? host : "Unknown",
+		    in ? inet_ntoa( *in ) : text, host ? host : "Unknown",
 		    rbl->rbl_type_text, rbl->rbl_domain );
 	}
 
@@ -458,7 +467,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *host, struct rbl **found,
 
     if ( simta_rbl_verbose_logging ) {
 	syslog( LOG_DEBUG, "RBL [%s] %s: RBL list exhausted, no matches",
-		inet_ntoa( *in ), host ? host : "Unknown" );
+		in ? inet_ntoa( *in ) : text, host ? host : "Unknown" );
     }
 
     if ( found != NULL ) {

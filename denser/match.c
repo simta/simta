@@ -15,6 +15,13 @@ _dnsr_match_additional( DNSR *dnsr, struct dnsr_result *result )
     int		i, j;
 
     for ( i = 0; i < result->r_arcount; i++ ) { 
+	if ( result->r_additional[ i ].rr_type != DNSR_TYPE_A ) {
+	    DEBUG( printf( "%s rr_type %d\n",
+		    &result->r_additional[ i ].rr_name,
+		    result->r_additional[ i ].rr_type ));
+	    continue;
+	}
+
 	for ( j = 0; j < result->r_ancount; j++ ) {
 	    if ( _dnsr_match_ip( dnsr, &result->r_additional[ i ],
 		    &result->r_answer[ j ] ) < 0 ) {

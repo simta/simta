@@ -1215,13 +1215,15 @@ simta_read_config( char *fname )
 		simta_mail_filter );
 
 	} else if ( strcasecmp( av[ 0 ], "DEBUG_LOGGING" ) == 0 ) {
-	    if ( ac == 2 ) {
+	    if ( ac == 1 ) {
+		simta_debug = 1;
+	    } else if ( ac == 2 ) {
 		if (( simta_debug = atoi( av[ 1 ])) < 0 ) {
 		    fprintf( stderr, "%s: line %d: "
 			    "argument must be 0 or greater\n", fname, lineno );
 		}
 	    } else {
-                fprintf( stderr, "%s: line %d: 1 argument\n",
+                fprintf( stderr, "%s: line %d: expected 0 or 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }

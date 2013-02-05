@@ -796,7 +796,8 @@ snet_read1( sn, buf, len, tv )
     ssize_t		rc;
     struct timeval	default_tv;
     extern int		errno;
-    int			oflags, dontblock = 0;
+    int			oflags = 0;
+    int			dontblock = 0;
 
     if (( tv == NULL ) && ( sn->sn_flag & SNET_READ_TIMEOUT )) {
 	default_tv = sn->sn_read_timeout;
