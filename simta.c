@@ -317,8 +317,11 @@ simta_read_config( char *fname )
     struct simta_red	*red;
     struct action	*a;
     struct simta_ldap	*ld;
-    int			host_type = RED_HOST_TYPE_LOCAL;
+    int			host_type;
     int			matched_remote;
+/* values for matched_remote */
+#   define REMOTE_QUEUE_WAIT	1
+#   define REMOTE_NO_PUNT	2
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
@@ -387,6 +390,8 @@ simta_read_config( char *fname )
 
 	    /* RED code parse */
 	    red_code = 0;
+	    matched_remote = 0;
+	    host_type = RED_HOST_TYPE_LOCAL;
 	    for ( c = av[ 1 ]; *c != '\0'; c++ ) {
 		switch ( *c ) {
 		case 'R':
@@ -426,10 +431,18 @@ simta_read_config( char *fname )
 		domain = simta_hostname;
 	    }
 
-	    matched_remote = 0;
-	    if ( strcasecmp( av[ 2 ], "REMOTE" ) == 0 ) {
-		matched_remote = 1;
+	    if ( strcasecmp( av[ 2 ], "QUEUE_WAIT" ) == 0 ) {
+		matched_remote = REMOTE_QUEUE_WAIT;
 		host_type = RED_HOST_TYPE_REMOTE;
+	    } else if ( strcasecmp( av[ 2 ], "NO_PUNT" ) == 0 ) {
+		matched_remote = REMOTE_NO_PUNT;
+		host_type = RED_HOST_TYPE_REMOTE;
+	    }
+	    if ( host_type == RED_HOST_TYPE_REMOTE && red_code != RED_CODE_D ) {
+		    fprintf( stderr,
+			    "%s: line %d: only D support for %s\n",
+			    fname, lineno, av[2] );
+		    goto error;
 	    }
 
 	    if (( red = simta_red_add_host( domain,
@@ -480,26 +493,44 @@ simta_read_config( char *fname )
 
 	    } else if ( matched_remote ) {
 		long t;
-		if ( ac != 5 ) {
-		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
-			    fname, lineno );
-		    goto error;
-		}
-		t = strtol( av[ 3 ], &f_arg, 0 );
-		if ( f_arg == av[ 3 ] || *f_arg ) {
-		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
-			    fname, lineno );
-		    goto error;
-		}
-		red->red_min_wait = t;
-		t = strtol( av[ 4 ], &f_arg, 0 );
-		if ( f_arg == av[ 3 ] || *f_arg ) {
-		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
-			    fname, lineno );
-		    goto error;
-		}
-		red->red_max_wait = t;
 
+		switch ( matched_remote ) {
+		case REMOTE_QUEUE_WAIT:
+		    if ( ac != 5 ) {
+			fprintf( stderr, "%s: line %d: incorrect syntax\n",
+				fname, lineno );
+			goto error;
+		    }
+		    t = strtol( av[ 3 ], &f_arg, 0 );
+		    if ( f_arg == av[ 3 ] || *f_arg ) {
+			fprintf( stderr, "%s: line %d: incorrect syntax\n",
+				fname, lineno );
+			goto error;
+		    }
+		    red->red_min_wait = t;
+		    t = strtol( av[ 4 ], &f_arg, 0 );
+		    if ( f_arg == av[ 3 ] || *f_arg ) {
+			fprintf( stderr, "%s: line %d: incorrect syntax\n",
+				fname, lineno );
+			goto error;
+		    }
+		    red->red_max_wait = t;
+		    if ( simta_debug ) {
+			printf( "QUEUE WAITING for %s: %d %d\n",
+			    av[ x ],  red->red_min_wait, red->red_max_wait );
+		    }
+		    break;
+
+		case REMOTE_NO_PUNT:
+		    red->red_no_punt = 1;
+		    if ( simta_debug ) printf( "NO PUNTING for %s\n", av[ x ] );
+		    break;
+
+		default:
+		    fprintf( stderr, "%s: line %d: unimplemented RED feature: %s\n",
+			    fname, lineno, av[ 2 ]);
+		    goto error;
+		}
 	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
 		if ( ac == 3 ) {
 		    f_arg = simta_default_passwd_file;
@@ -533,11 +564,16 @@ simta_read_config( char *fname )
 		    }
 		}
 
-	    } else if ( *(av[ 2 ]) == '/' ) {
+	    } else if ( strcasecmp( av[ 2 ], "MAILER" ) == 0 ) {
+		if ( ac < 4 ) {
+		    fprintf( stderr, "%s: line %d: expected at least 2 arguments\n",
+			    fname, lineno );
+		    goto error;
+		}
 
 		if ( red_code != RED_CODE_D ) {
 		    fprintf( stderr,
-			    "%s: line %d: only D support for BINARY\n",
+			    "%s: line %d: only D support for MAILER\n",
 			    fname, lineno );
 		    goto error;
 		}
@@ -550,16 +586,16 @@ simta_read_config( char *fname )
 		}
 
 		/* store array */
-		red->red_deliver_argc = ac - 2;
+		red->red_deliver_argc = ac - 3;
 		if (( red->red_deliver_argv =
-			(char**)malloc( sizeof(char*) * ( ac - 1 ))) == NULL ) {
+			(char**)malloc( sizeof(char*) * ( ac - 2 ))) == NULL ) {
 		    perror( "malloc" );
 		    goto error;
 		}
 
 		for ( x = 0; x < red->red_deliver_argc; x++ ) {
 		    if (( red->red_deliver_argv[ x ] =
-			    strdup( av[ x + 2 ])) == NULL ) {
+			    strdup( av[ x + 3 ])) == NULL ) {
 			perror( "strdup" );
 			goto error;
 		    }
@@ -733,27 +769,6 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "PUNT to %s\n", simta_punt_host );
 
-	} else if ( strcasecmp( av[ 0 ], "NO_PUNT" ) == 0 ) {
-	    if ( ac < 2 ) {
-		fprintf( stderr, "%s: line %d: expected at least 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    for ( x = 1; x < ac; x++ ) {
-		if ( strlen( av[ x ]  ) > DNSR_MAX_HOSTNAME ) {
-		    fprintf( stderr,
-			    "%s: line %d: domain name too long\n", fname, lineno );
-		    goto error;
-		}
-
-		if (( red = simta_red_add_host( av[ x ],
-			RED_HOST_TYPE_REMOTE )) == NULL ) {
-		    perror( "malloc" );
-		    goto error;
-		}
-		red->red_no_punt = 1;
-		if ( simta_debug ) printf( "NO PUNTING for %s\n", av[ x ] );
-	    }
 	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",

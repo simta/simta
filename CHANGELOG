@@ -14,6 +14,7 @@ internal
     - if group has mailforwardingaddress set,
 	expand to that and ignore local members or moderation.
     - per-host queue configuration: min/max wait, no_punt option.
+    - revised configuration syntax for no_punt & per-host, bug fix.
 
 0.8.2
     - simta_gettimeofday() preffered interface
