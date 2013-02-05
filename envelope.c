@@ -969,7 +969,7 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     }
 
     /* Jail info */
-    if ( version >= 4 ) {
+    if ( version >= 5 ) {
 	line_no++;
 	if ((( line = snet_getline( snet, NULL )) == NULL ) ||
 		( *line != 'J' )) {
@@ -1044,6 +1044,33 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
 	    goto cleanup;
 	}
 	break;
+    }
+
+    /* Dattributes */
+    if ( version >= 4 ) {
+	line_no++;
+	if (( line = snet_getline( snet, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
+	    goto cleanup;
+	}
+
+	if ( *line != 'D' ) {
+	    syslog( LOG_ERR, "env_read %s: expected Xpansion syntax",
+		    filename );
+	    goto cleanup;
+	}
+
+	if ( sscanf( line + 1, "%d", &exp_level) != 1 ) {
+	    syslog( LOG_ERR, "env_read: %s: bad Xpansion syntax", filename );
+	    goto cleanup;
+	}
+
+	if ( mode == READ_QUEUE_INFO ) {
+	    env->e_attributes = exp_level;
+	} else if ( exp_level != env->e_attributes ) {
+	    syslog( LOG_WARNING, "env_read %s: Dattributes reread mismatch "
+		    "old %d new %d", filename, env->e_attributes, exp_level );
+	}
     }
 
     /* Ffrom-address */

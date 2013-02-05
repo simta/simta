@@ -56,6 +56,7 @@ struct envelope {
     char		*e_hostname;
     char		*e_id;
     char		*e_mid;
+    int			e_attributes;
 };
 
 #define ENV_AGE_UNKNOWN		0
@@ -76,6 +77,8 @@ struct envelope {
 #define ENV_FLAG_DELETE			(1<<6)
 #define ENV_FLAG_SUPRESS_NO_EMAIL	(1<<7)
 
+#define ENV_ATTR_ARCHIVE_ONLY		(1<<0)
+
 /* Efile syntax, by minimum version number:
  *
  * 1 int	Vsimta_version
@@ -84,6 +87,7 @@ struct envelope {
  * 1 ino_t	Idinode
  * 3 int	Xexpansion_level
  * 1 char*	Hhostname
+ * 1 int	Dattributes
  * 1 char*	Ffrom_address
  * 1 char*	Rto_address
  */
