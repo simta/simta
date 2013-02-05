@@ -15,11 +15,18 @@ struct simta_red {
     char			*red_host_name;
     int				red_host_type;
     struct simta_red		*red_next;
+/* local only */
     struct action		*red_receive;
     struct action		*red_expand;
     int				red_deliver_type;
     int				red_deliver_argc;
     char			**red_deliver_argv;
+/* 2nd mx only */
+    /* nothing */
+/* remote only */
+    int				red_min_wait;
+    int				red_max_wait;
+    int				red_no_punt;
 };
 
 /* red_deliver_types */
@@ -40,8 +47,10 @@ struct simta_red {
 /* struct simta_red->red_host_type */
 #define RED_HOST_TYPE_LOCAL		1
 #define RED_HOST_TYPE_SECONDARY_MX	2
+#define RED_HOST_TYPE_REMOTE		3
 
 struct simta_red *simta_red_lookup_host( char * );
+struct simta_red *simta_red_lookup_host_2( char *, struct simta_red ** );
 struct simta_red *simta_red_add_host( char *, int );
 struct action *simta_red_add_action( struct simta_red *, int, int, char * );
 int simta_red_action_default( struct simta_red * );
@@ -58,3 +67,4 @@ void simta_red_close_ldap_dbs( void );
 extern struct simta_red			*simta_red_hosts;
 extern struct simta_red			*simta_default_host;
 extern struct simta_red			*simta_secondary_mx;
+extern struct simta_red			*simta_remote_hosts;

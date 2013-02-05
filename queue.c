@@ -84,6 +84,7 @@ host_q_lookup( char *hostname )
 host_q_create_or_lookup( char *hostname ) 
 {
     struct host_q		*hq;
+    struct simta_red		*red;
 
     /* create NULL host queue for unexpanded messages.  we always need to
      * have a NULL queue for error reporting. 
@@ -137,6 +138,16 @@ host_q_create_or_lookup( char *hostname )
 	    if ( hq->hq_red->red_deliver_type == RED_DELIVER_BINARY ) {
 		hq->hq_status = HOST_LOCAL;
 	    }
+	}
+
+	hq->hq_min_wait = simta_min_wait;
+	hq->hq_max_wait = simta_max_wait;
+	hq->hq_no_punt = 0;
+	if (( red = simta_red_lookup_host_2( hostname,
+		&simta_remote_hosts )) != NULL ) {
+	    hq->hq_min_wait = red->red_min_wait;
+	    hq->hq_max_wait = red->red_max_wait;
+	    hq->hq_no_punt = red->red_no_punt ? NOPUNT_CONFIG : 0;
 	}
 
 	if (( hq->hq_status == HOST_UNKNOWN ) &&
@@ -578,17 +589,17 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	next_launch.tv_sec = tv_now->tv_sec;
     */
 
-    /* if there is a provided delay, use it but respect simta_max_wait */
+    /* if there is a provided delay, use it but respect hq->hq_max_wait */
     /*
     } else */ if ( tv_delay != NULL ) {
-	if ( tv_delay->tv_sec > simta_max_wait ) {
-	    wait_last.tv_sec = simta_max_wait;
-	    next_launch.tv_sec = simta_max_wait + tv_now->tv_sec;
+	if ( tv_delay->tv_sec > hq->hq_max_wait ) {
+	    wait_last.tv_sec = hq->hq_max_wait;
+	    next_launch.tv_sec = hq->hq_max_wait + tv_now->tv_sec;
 
 	} else {
 	    next_launch.tv_sec = tv_delay->tv_sec + tv_now->tv_sec;
-	    if ( tv_delay->tv_sec < simta_min_wait ) {
-		wait_last.tv_sec = simta_min_wait;
+	    if ( tv_delay->tv_sec < hq->hq_min_wait ) {
+		wait_last.tv_sec = hq->hq_min_wait;
 	    } else {
 		wait_last.tv_sec = tv_delay->tv_sec;
 	    }
@@ -608,18 +619,18 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
     /* have we ever launched this queue or is it leaky? */
     } else if (( hq->hq_wait_last.tv_sec == 0 ) || ( hq->hq_leaky != 0 )) {
 	hq->hq_leaky = 0;
-	wait_last.tv_sec = simta_min_wait;
-	next_launch.tv_sec = random() % simta_min_wait + tv_now->tv_sec;
+	wait_last.tv_sec = hq->hq_min_wait;
+	next_launch.tv_sec = random() % hq->hq_min_wait + tv_now->tv_sec;
 
     } else {
-	/* wait twice what you did last time, but respect simta_max_wait */
-	if (( hq->hq_wait_last.tv_sec * 2 ) <= simta_max_wait ) {
+	/* wait twice what you did last time, but respect hq->hq_max_wait */
+	if (( hq->hq_wait_last.tv_sec * 2 ) <= hq->hq_max_wait ) {
 	    wait_last.tv_sec = hq->hq_wait_last.tv_sec * 2;
-	    if ( wait_last.tv_sec < simta_min_wait ) {
-		wait_last.tv_sec = simta_min_wait;
+	    if ( wait_last.tv_sec < hq->hq_min_wait ) {
+		wait_last.tv_sec = hq->hq_min_wait;
 	    }
 	} else {
-	    wait_last.tv_sec = simta_max_wait;
+	    wait_last.tv_sec = hq->hq_max_wait;
 	}
 	next_launch.tv_sec = wait_last.tv_sec + tv_now->tv_sec;
     }
@@ -1699,7 +1710,7 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
     int 			i;
 
     if (( d->d_dnsr_result = get_mx( hq->hq_hostname )) == NULL ) {
-	hq->hq_no_punt = 1;
+	hq->hq_no_punt |= NOPUNT_MX;
 	syslog( LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
 		hq->hq_hostname );
 	return( 1 );
@@ -1727,7 +1738,7 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
 
 	    if (( strcasecmp( simta_hostname,
 		    d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange )) == 0 ) {
-		hq->hq_no_punt = 1;
+		hq->hq_no_punt |= NOPUNT_MX;
 		d->d_mx_preference_cutoff =
 			d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
 		syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
@@ -1739,7 +1750,7 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
 	    if (( simta_secondary_mx != NULL ) &&
 		    ( strcasecmp( simta_secondary_mx->red_host_name,
 		    d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange ) == 0 )) {
-		hq->hq_no_punt = 1;
+		hq->hq_no_punt |= NOPUNT_MX;
 		d->d_mx_preference_cutoff =
 			d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
 		syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
@@ -1798,7 +1809,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
     struct connection_data	*cd;
 
     if ( d->d_dnsr_result == NULL ) {
-	hq->hq_no_punt = 0;
+	hq->hq_no_punt &= ~NOPUNT_MX;
 	d->d_mx_preference_cutoff = 0;
 	d->d_cur_dnsr_result = 0;
 
@@ -1933,7 +1944,7 @@ retry:
 	    /* Stop checking hosts if we know the local hostname is in
 	     * the mx record, and if we've reached it's preference level.
 	     */
-	    if (( hq->hq_no_punt != 0 ) && ( d->d_mx_preference_cutoff == 
+	    if (( hq->hq_no_punt & NOPUNT_MX ) && ( d->d_mx_preference_cutoff == 
     d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference )) {
 		syslog( LOG_INFO,
 			"DNS %s: Entry %d: MX preference %d: cutoff",

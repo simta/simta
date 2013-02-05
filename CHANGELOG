@@ -13,6 +13,7 @@ internal
     - config file bugfixes: RED rules, DEFAULT_LOCAL_MAILER
     - if group has mailforwardingaddress set,
 	expand to that and ignore local members or moderation.
+    - per-host queue configuration: min/max wait, no_punt option.
 
 0.8.2
     - simta_gettimeofday() preffered interface

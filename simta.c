@@ -76,6 +76,7 @@ struct host_q		*simta_punt_q = NULL;
 struct simta_red	*simta_default_host = NULL;
 struct simta_red	*simta_red_hosts = NULL;
 struct simta_red	*simta_secondary_mx = NULL;
+struct simta_red	*simta_remote_hosts = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
 int			simta_max_wait = 80 * 60;
@@ -316,6 +317,8 @@ simta_read_config( char *fname )
     struct simta_red	*red;
     struct action	*a;
     struct simta_ldap	*ld;
+    int			host_type = RED_HOST_TYPE_LOCAL;
+    int			matched_remote;
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
@@ -423,8 +426,14 @@ simta_read_config( char *fname )
 		domain = simta_hostname;
 	    }
 
+	    matched_remote = 0;
+	    if ( strcasecmp( av[ 2 ], "REMOTE" ) == 0 ) {
+		matched_remote = 1;
+		host_type = RED_HOST_TYPE_REMOTE;
+	    }
+
 	    if (( red = simta_red_add_host( domain,
-		    RED_HOST_TYPE_LOCAL )) == NULL ) {
+		    host_type )) == NULL ) {
 		perror( "malloc" );
 		goto error;
 	    }
@@ -468,6 +477,28 @@ simta_read_config( char *fname )
 			goto error;
 		    }
 		}
+
+	    } else if ( matched_remote ) {
+		long t;
+		if ( ac != 5 ) {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
+			    fname, lineno );
+		    goto error;
+		}
+		t = strtol( av[ 3 ], &f_arg, 0 );
+		if ( f_arg == av[ 3 ] || *f_arg ) {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
+			    fname, lineno );
+		    goto error;
+		}
+		red->red_min_wait = t;
+		t = strtol( av[ 4 ], &f_arg, 0 );
+		if ( f_arg == av[ 3 ] || *f_arg ) {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
+			    fname, lineno );
+		    goto error;
+		}
+		red->red_max_wait = t;
 
 	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
 		if ( ac == 3 ) {
@@ -702,6 +733,27 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "PUNT to %s\n", simta_punt_host );
 
+	} else if ( strcasecmp( av[ 0 ], "NO_PUNT" ) == 0 ) {
+	    if ( ac < 2 ) {
+		fprintf( stderr, "%s: line %d: expected at least 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    for ( x = 1; x < ac; x++ ) {
+		if ( strlen( av[ x ]  ) > DNSR_MAX_HOSTNAME ) {
+		    fprintf( stderr,
+			    "%s: line %d: domain name too long\n", fname, lineno );
+		    goto error;
+		}
+
+		if (( red = simta_red_add_host( av[ x ],
+			RED_HOST_TYPE_REMOTE )) == NULL ) {
+		    perror( "malloc" );
+		    goto error;
+		}
+		red->red_no_punt = 1;
+		if ( simta_debug ) printf( "NO PUNTING for %s\n", av[ x ] );
+	    }
 	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
