@@ -514,6 +514,7 @@ env_tfile( struct envelope *e )
     struct recipient				*r;
     FILE					*tff;
     char					tf[ MAXPATHLEN + 1 ];
+    int						version_to_write;
 
     assert( e->e_dir != NULL );
     assert( e->e_id != NULL );
@@ -534,7 +535,12 @@ env_tfile( struct envelope *e )
     }
 
     /* VSIMTA_EFILE_VERSION */
-    if ( fprintf( tff, "V%d\n", SIMTA_EFILE_VERSION ) < 0 ) {
+    version_to_write = SIMTA_EFILE_VERSION;
+    if (( !e->e_attributes )) {
+	version_to_write = 3;
+    }
+
+    if ( fprintf( tff, "V%d\n", version_to_write ) < 0 ) {
 	syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	goto cleanup;
     }
@@ -580,6 +586,12 @@ env_tfile( struct envelope *e )
 	    syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	    goto cleanup;
 	}
+    }
+
+    if (( version_to_write < 4 )) {
+    } else if ( fprintf( tff, "D%lu\n", e->e_attributes ) < 0 ) {
+	syslog( LOG_ERR, "env_tfile fprintf: %m" );
+	goto cleanup;
     }
 
     /* Ffrom-addr@sender.com */

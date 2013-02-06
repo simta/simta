@@ -247,6 +247,7 @@ char					*simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
+extern char				*simta_seen_before_domain;
 
 /* SMTP INBOUND & OUTBOUND TIMERS */
 extern int				simta_inbound_accepted_message_timer;

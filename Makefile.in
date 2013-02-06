@@ -143,7 +143,7 @@ header.o : header.c
 	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ \
 		-c ${SRCPFX}header.c -o header.o
 
-receive.o : receive.c
+receive.o : receive.c 
 	${CC} ${CFLAGS} \
 		-DVERSION=\"`cat ${SRCPFX}VERSION`\" \
 		-c ${SRCPFX}receive.c -o receive.o
@@ -208,6 +208,40 @@ q_runner : stamp-libsnet stamp-denser ${QRUNNEROBJ} Makefile
 q_cleanup : stamp-libsnet stamp-denser ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
 
+address.o: bdb.h config.h envelope.h expand.h header.h line_file.h ll.h mx.h queue.h red.h simta.h simta_ldap.h
+argcargv.o: argcargv.h config.h
+base64.o: base64.h config.h
+bdb.o: bdb.h config.h
+bounce.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
+daemon.o: config.h envelope.h ll.h queue.h simta.h tls.h
+dn.o: dn.h
+envelope.o: config.h envelope.h header.h line_file.h ll.h queue.h simta.h
+expand.o: config.h dn.h envelope.h expand.h header.h line_file.h ll.h queue.h simta.h simta_ldap.h
+expander.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
+header.o: config.h envelope.h header.h line_file.h queue.h simta.h
+line_file.o: config.h line_file.h
+ll.o: config.h ll.h
+ml.o: config.h envelope.h line_file.h ml.h queue.h simta.h
+mx.o: config.h envelope.h expand.h ll.h mx.h queue.h red.h simta.h
+q_cleanup.o: config.h envelope.h ll.h queue.h simta.h
+q_runner.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
+queue.o: config.h envelope.h expand.h line_file.h ll.h ml.h mx.h queue.h red.h simta.h smtp.h wildcard.h
+receive.o: argcargv.h base64.h bdb.h config.h envelope.h expand.h header.h line_file.h ll.h mx.h queue.h red.h simta.h simta_ldap.h
+red.o: argcargv.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h simta.h simta_ldap.h
+simalias.o: argcargv.h bdb.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h simta.h simta_ldap.h
+simck.o: base64.h
+simlog.o: config.h simta.h
+simrbl.o: config.h envelope.h ll.h mx.h simta.h
+simreverse.o: config.h envelope.h ll.h mx.h simta.h
+simsend.o: config.h envelope.h header.h line_file.h queue.h simta.h
+simta.o: argcargv.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h simta.h simta_ldap.h
+simta_ldap.o: argcargv.h config.h dn.h envelope.h expand.h header.h ll.h queue.h simta.h simta_ldap.h
+sla.o: config.h envelope.h expand.h line_file.h ll.h queue.h simta.h
+smtp.o: argcargv.h config.h envelope.h header.h line_file.h mx.h queue.h simta.h smtp.h
+tls.o: config.h tls.h
+tlsconnect.o: config.h
+wildcard.o: config.h wildcard.h
+
 FRC :
 
 stamp-libsnet :
@@ -253,20 +287,24 @@ tags : ${SRC}
 	done
 
 depend :
-	for i in ${SRC} ; do \
-	    ${CC} -M ${DEFS} ${INCPATH} $$i | \
-	    awk ' { if ($$1 != prev) { print rec; rec = $$0; prev = $$1; } \
-		else { if (length(rec $$2) > 78) { print rec; rec = $$0; } \
-		else rec = rec " " $$2 } } \
-		END { print rec } ' >> makedep; done
-	sed -n '1,/^# DO NOT DELETE THIS LINE/p' Makefile > Makefile.tmp
-	cat makedep >> Makefile.tmp
-	rm makedep
-	echo '# DEPENDENCIES MUST END AT END OF FILE' >> Makefile.tmp
-	echo '# IF YOU PUT STUFF HERE IT WILL GO AWAY' >> Makefile.tmp
-	echo '# see make depend above' >> Makefile.tmp
-	rm -f Makefile.bak
-	cp Makefile Makefile.bak
-	mv Makefile.tmp Makefile
+	echo for now, no...
+#	for i in ${SRC} ; do \
+#	    echo ${CC} -M ${DEFS} ${INCPATH} $$i
+#	done
+#makedep; done
+#| \
+#	    awk ' { if ($$1 != prev) { print rec; rec = $$0; prev = $$1; } \
+#		else { if (length(rec $$2) > 78) { print rec; rec = $$0; } \
+#		else rec = rec " " $$2 } } \
+#		END { print rec } ' >>
+#	sed -n '1,/^# DO NOT DELETE THIS LINE/p' Makefile > Makefile.tmp
+#	cat makedep >> Makefile.tmp
+#	rm makedep
+#	echo '# DEPENDENCIES MUST END AT END OF FILE' >> Makefile.tmp
+#	echo '# IF YOU PUT STUFF HERE IT WILL GO AWAY' >> Makefile.tmp
+#	echo '# see make depend above' >> Makefile.tmp
+#	rm -f Makefile.bak
+#	cp Makefile Makefile.bak
+#	mv Makefile.tmp Makefile
 
 # DO NOT DELETE THIS LINE

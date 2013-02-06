@@ -43,6 +43,7 @@
 #include "bprint.h"
 #include "argcargv.h"
 #include "timeval.h"
+#include "header.h"
 #include "simta.h"
 #include "queue.h"
 #include "smtp.h"
@@ -557,6 +558,19 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     return( r );
 }
 
+    static char *
+make_seen_before_line( struct host_q *hq, struct deliver *d )
+{
+    char temp[512];
+
+    snprintf ( temp, sizeof temp,
+	    "%s: %s id %s origin %s destination %s (%s)",
+	    STRING_SEEN_BEFORE, simta_seen_before_domain,
+	    d->d_env->e_id, simta_hostname,
+	    hq->hq_hostname, hq->hq_smtp_hostname );
+    return strdup( temp );
+}
+
 
     int
 smtp_send( struct host_q *hq, struct deliver *d )
@@ -654,6 +668,23 @@ smtp_send( struct host_q *hq, struct deliver *d )
     if (( d->d_env->e_flags & ENV_FLAG_BOUNCE ) ||
 	    ( d->d_env->e_flags & ENV_FLAG_TEMPFAIL )) {
 	return( SMTP_OK );
+    }
+
+    if (( d->d_env->e_attributes & ENV_ATTR_ARCHIVE_ONLY )) {
+	int r;
+
+	if ( !( line = make_seen_before_line( hq, d )) ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: failed malloc",
+		    hq->hq_hostname );
+	    return( SMTP_BAD_CONNECTION );
+	}
+	r = snet_writef( d->d_snet_smtp, "%s\r\n", line );
+	free( line );
+	if ( r < 0 ) {
+	    syslog( LOG_NOTICE, "smtp_send %s: failed writef",
+		    hq->hq_hostname );
+	    return( SMTP_BAD_CONNECTION );
+	}
     }
 
     for ( ; ; ) {

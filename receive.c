@@ -1593,6 +1593,13 @@ f_data( struct receive_data *r )
 	    read_err = PROTOCOL_ERROR;
 	}
 
+	if ( rh.r_seen_before ) {
+	    system_message = "Seen Before";
+	    filter_message = strdup( rh.r_seen_before );
+	    message_banner = MESSAGE_DELETE;
+	    read_err = PROTOCOL_ERROR;
+	}
+
 	if ( read_err == NO_ERROR ) {
 	    if ( fprintf( dff, "%s\n", line ) < 0 ) {
 		syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
@@ -1659,6 +1666,7 @@ f_data( struct receive_data *r )
 	}
 
 	r->r_env->e_mid = rh.r_mid;
+	rh.r_mid = 0;
 
 	if ( env_tfile( r->r_env ) != 0 ) {
 	    goto error;
@@ -1956,6 +1964,8 @@ f_data( struct receive_data *r )
     }
 
 error:
+    header_free( &rh );
+
     /* if dff is still open, there was an error and we need to close it */
     if (( dff != NULL ) && ( fclose( dff ) != 0 )) {
 	syslog( LOG_ERR, "Syserror f_data: fclose3: %m" );

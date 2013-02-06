@@ -61,6 +61,7 @@ struct expand {
     int				exp_entries;
 #ifdef HAVE_LDAP
     struct exp_link		*exp_memonly;
+    struct envelope		*exp_gmailfwding;
 #endif /* HAVE_LDAP */
 };
 
@@ -89,6 +90,7 @@ struct exp_addr {
     char			*e_addr_owner;
     struct stab_entry		*e_addr_ok;
     struct envelope		*e_addr_env_moderated;
+    struct envelope		*e_addr_env_gmailfwd;
     struct exp_link		*e_addr_parents;
     struct exp_link		*e_addr_children;
 #endif /* HAVE_LDAP */

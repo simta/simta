@@ -6,6 +6,7 @@
 ,*
 .libs
 Makefile
+Makefile.bak
 autom4te.cache
 config.guess
 config.h

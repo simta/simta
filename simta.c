@@ -184,6 +184,7 @@ char			*simta_file_cert = "cert/cert.pem";
 char			*simta_file_private_key = "cert/cert.pem";
 char			**simta_deliver_default_argv;
 int			simta_deliver_default_argc;
+char			*simta_seen_before_domain = NULL;
 
 /* SMTP RECEIVE & DELIVER TIMERS */
 int			simta_inbound_accepted_message_timer = -1;
@@ -714,6 +715,24 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "CHECKSUM_ALGORITHM %s\n",
 		    simta_checksum_algorithm );
 #endif /* HAVE_LIBSSL */
+
+	} else if ( strcasecmp( av[ 0 ], "SEEN_BEFORE_DOMAIN" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
+		fprintf( stderr,
+			"%s: line %d: domain name too long\n", fname, lineno );
+		goto error;
+	    }
+	    /* XXX - need to lower-case domain */
+	    if (( simta_seen_before_domain = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SEEN_BEFORE_DOMAIN is %s\n", simta_seen_before_domain );
 
 	} else if ( strcasecmp( av[ 0 ], "MASQUERADE" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2030,8 +2049,15 @@ simta_config( char *base_dir )
 	}
     }
 
-    /* simta_domain defaults to simta_hostname */
-    simta_domain = simta_hostname;
+    if ( !simta_domain ) {
+	/* simta_domain defaults to simta_hostname */
+	simta_domain = simta_hostname;
+    }
+
+    if ( !simta_seen_before_domain ) {
+	/* simta_seen_before_domain defaults to simta_domain */
+	simta_seen_before_domain = simta_domain;
+    }
 
     if (( simta_postmaster = (char*)malloc( 12 + strlen( simta_hostname )))
 	    == NULL ) {
