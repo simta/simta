@@ -536,9 +536,11 @@ env_tfile( struct envelope *e )
 
     /* VSIMTA_EFILE_VERSION */
     version_to_write = SIMTA_EFILE_VERSION;
-    if (( !e->e_attributes )) {
+#if 0
+    if (( !e->e_attributes ) && ( !e->e_jail )) {
 	version_to_write = 3;
     }
+#endif
 
     if ( fprintf( tff, "V%d\n", version_to_write ) < 0 ) {
 	syslog( LOG_ERR, "env_tfile fprintf: %m" );
@@ -569,7 +571,8 @@ env_tfile( struct envelope *e )
     }
 
     /* Jail Level */
-    if ( fprintf( tff, "J%d\n", e->e_jail ) < 0 ) {
+    if (( version_to_write < 5 )) {
+    } else if ( fprintf( tff, "J%d\n", e->e_jail ) < 0 ) {
 	syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	goto cleanup;
     }
