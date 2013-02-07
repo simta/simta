@@ -1056,7 +1056,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
     struct envelope		*env_bounce = NULL;
     struct stat			sbuf;
 
-    memset( &d, 0, sizeof( struct deliver ));
+    memset( d, 0, sizeof( struct deliver ));
 
     syslog( LOG_INFO, "Queue %s: delivering %d messages",
 	    deliver_q->hq_hostname, deliver_q->hq_entries );
