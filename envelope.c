@@ -481,7 +481,7 @@ env_dfile_open( struct envelope *env )
 	return( -1 );
     }
 
-    env->e_flags = ( env->e_flags |= ENV_FLAG_DFILE );
+    env->e_flags |= ENV_FLAG_DFILE;
 
     return( fd );
 }
@@ -592,7 +592,7 @@ env_tfile( struct envelope *e )
     }
 
     if (( version_to_write < 4 )) {
-    } else if ( fprintf( tff, "D%lu\n", e->e_attributes ) < 0 ) {
+    } else if ( fprintf( tff, "D%u\n", e->e_attributes ) < 0 ) {
 	syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	goto cleanup;
     }

@@ -43,6 +43,8 @@
 #include "dn.h"
 #endif /* HAVE_LDAP */
 
+void cleanup_envelope_list( struct envelope ** );
+
 int				simta_expand_debug = 0;
 
 
