@@ -138,8 +138,8 @@ main( int ac, char *av[] )
     int
 acav_parse( ACAV *acav, char *line, char **argv[] )
 {
-    int		ac;
-    int		state;
+    int		ac = 0;
+    int		state = ACV_WHITE;
 
     if ( acav == NULL ) {
 	if ( acavg == NULL ) {
@@ -147,9 +147,6 @@ acav_parse( ACAV *acav, char *line, char **argv[] )
 	}
 	acav = acavg;
     }
-
-    ac = 0;
-    state = ACV_WHITE;
 
     for ( ; *line != '\0'; line++ ) {
 	switch ( *line ) {
@@ -186,8 +183,10 @@ acav_parse( ACAV *acav, char *line, char **argv[] )
     int
 acav_free( ACAV *acav )
 {
-    free( acav->acv_argv );
-    free( acav );
+    if ( acav ) {
+	free( acav->acv_argv );
+	free( acav );
+    }
 
     return( 0 );
 }

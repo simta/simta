@@ -30,13 +30,13 @@
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
 #include "line_file.h"
-#include "ml.h"
-#include "smtp.h"
 #include "expand.h"
 #include "simta.h"
+#include "queue.h"
+#include "smtp.h"
+#include "ml.h"
 
 
     int
@@ -54,7 +54,7 @@ main( int argc, char *argv[] )
 	exit( EX_USAGE );
     }
 
-    openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
+    simta_openlog( 0 );
 
     if ( argc == 4 ) {
 	conf_file = argv[ 2 ];

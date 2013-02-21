@@ -20,13 +20,14 @@
 #define	MESSAGE_BOUNCE			(1<<6)
 
 #define	STRING_POSTMASTER		"postmaster"
+#define	S_UNEXPANDED			"Unexpanded"
 
 #define SIMTA_LOG_ID_LEN		80
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
 #define	SIMTA_BOUNCE_LINES		100
-#define	SIMTA_EFILE_VERSION		4
+#define	SIMTA_EFILE_VERSION		5
 #define SIMTA_MAX_RUNNERS_SLOW		250
 #define SIMTA_MAX_RUNNERS_LOCAL		25
 #define	SIMTA_EXPANSION_FAILED		0
@@ -49,8 +50,7 @@
 #define	PROCESS_Q_SLOW			2
 #define	PROCESS_RECEIVE			3
 #define	PROCESS_CLEANUP			4
-#define	PROCESS_SMTP_SERVER		5
-#define	PROCESS_Q_SCHEDULER		6
+#define	PROCESS_SERVER			5
 
 #define SERVICE_SUBMISSION_OFF		0
 #define SERVICE_SUBMISSION_ON		1
@@ -75,6 +75,23 @@
 #ifdef HAVE_LIBSSL
 #define SIMTA_SOCKET_TLS	(1<<0)
 #endif /* HAVE_LIBSSL */
+
+#define S_DEBUG "Debug"
+#define S_MESSAGE "Message"
+#define S_SENDER "sender"
+#define S_QUEUE "queue"
+#define S_DISK "Disk"
+#define S_LIMITER "Limiter"
+#define S_Unset "Unset"
+
+struct simta_dirp {
+    DIR				*sd_dirp;
+    char			*sd_dir;
+    int				sd_cycle;
+    int				sd_entries;
+    struct timeval		sd_tv_start;
+    struct timeval		sd_tv_next;
+};
 
 struct proc_type {
     struct proc_type		*p_next;
@@ -106,6 +123,9 @@ struct simta_socket {
 
 /* global variables */
 
+extern struct dll_entry			*simta_env_list;
+extern struct dll_entry			*simta_sender_list;
+extern struct timeval			simta_jail_seconds;
 extern struct timeval			simta_global_throttle_tv;
 extern struct timeval			simta_tv_now;
 extern struct timeval			simta_log_tv;
@@ -115,6 +135,15 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
+extern int				simta_min_wait;
+extern int				simta_max_wait;
+extern int				simta_mail_jail;
+extern int				simta_bounce_jail;
+extern int				simta_local_jail;
+extern int				simta_sender_list_enable;
+extern int				simta_mid_list_enable;
+extern int				simta_command_read_entries;
+extern int				simta_disk_read_entries;
 extern int				simta_domain_trailing_dot;
 extern int				simta_bitbucket;
 extern int				simta_aggressive_delivery;
@@ -130,6 +159,7 @@ extern int				simta_listen_backlog;
 extern int				simta_disk_cycle;
 extern int				simta_launch_limit;
 extern int				simta_min_work_time;
+extern int				simta_unexpanded_time;
 extern int				simta_global_connections_max;
 extern int				simta_global_connections;
 extern int				simta_global_throttle_max;
@@ -153,12 +183,6 @@ extern int				simta_strict_smtp_syntax;
 extern int				simta_no_sync;
 extern int				simta_ignore_reverse;
 extern int				simta_ignore_connect_in_reverse_errors;
-extern int				simta_inactivity_timer;
-extern int				simta_message_timer;
-extern int				simta_receive_session_wait;
-extern int				simta_receive_line_wait;
-extern int				simta_data_transaction_wait;
-extern int				simta_data_line_wait;
 extern int				simta_message_count;
 extern int				simta_max_received_headers;
 extern int				simta_max_bounce_lines;
@@ -199,6 +223,7 @@ extern char				*simta_dir_fast;
 extern char				*simta_dir_slow;
 extern char				*simta_dir_dead;
 extern char				*simta_dir_local;
+extern char				*simta_dir_command;
 extern char				*simta_data_url;
 extern char				*simta_libwrap_url;
 extern char				*simta_reverse_url;
@@ -224,6 +249,18 @@ extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
 extern char				*simta_seen_before_domain;
 
+/* SMTP INBOUND & OUTBOUND TIMERS */
+extern int				simta_inbound_accepted_message_timer;
+extern int				simta_inbound_global_session_timer;
+extern int				simta_inbound_command_line_timer;
+extern int				simta_inbound_command_inactivity_timer;
+extern int				simta_inbound_data_line_timer;
+extern int				simta_inbound_data_session_timer;
+
+extern int				simta_outbound_command_line_timer;
+extern int				simta_outbound_data_line_timer;
+extern int				simta_outbound_data_session_timer;
+
 int	q_cleanup( void );
 int	smtp_receive( int, struct connection_info *, struct simta_socket * );
 void	panic( char * );
@@ -240,6 +277,6 @@ int	simta_gettimeofday( struct timeval * );
 int bounce_text( struct envelope *, int, char *, char *, char * );
 void bounce_stdout( struct envelope * );
 ino_t bounce_dfile_out( struct envelope *, SNET * );
-struct envelope *bounce( struct envelope *, struct host_q *, char * );
+struct envelope *bounce( struct envelope *, int, char * );
 struct envelope *bounce_snet( struct envelope *, SNET *, struct host_q *,
 	char *err );

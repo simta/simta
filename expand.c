@@ -30,18 +30,20 @@
 #include <snet.h>
 
 #include "denser.h"
-#include "queue.h"
 #include "envelope.h"
 #include "expand.h"
 #include "ll.h"
 #include "simta.h"
 #include "line_file.h"
 #include "header.h"
+#include "queue.h"
 
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
 #include "dn.h"
 #endif /* HAVE_LDAP */
+
+void cleanup_envelope_list( struct envelope ** );
 
 int				simta_expand_debug = 0;
 
@@ -267,9 +269,6 @@ expand( struct envelope *unexpanded_env )
 	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
 	    e_addr->e_addr_env_gmailfwd->e_dir = simta_dir_fast;
 	    e_addr->e_addr_env_gmailfwd->e_dinode = unexpanded_env->e_dinode;
-	    if ( env_id( e_addr->e_addr_env_gmailfwd ) != 0 ) {
-		goto cleanup3;
-	    }
 	    e_addr->e_addr_env_gmailfwd->e_attributes = unexpanded_env->e_attributes
 		| ENV_ATTR_ARCHIVE_ONLY;
 
@@ -331,11 +330,7 @@ expand( struct envelope *unexpanded_env )
 
 	if ( e_addr->e_addr_env_moderated != NULL ) {
 	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
-	    e_addr->e_addr_env_moderated->e_dir = simta_dir_fast;
 	    e_addr->e_addr_env_moderated->e_dinode = unexpanded_env->e_dinode;
-	    if ( env_id( e_addr->e_addr_env_moderated ) != 0 ) {
-		goto cleanup3;
-	    }
 	    e_addr->e_addr_env_moderated->e_attributes = unexpanded_env->e_attributes;
 
 	    syslog( LOG_DEBUG, "expand moderation env %s dinode %d",
@@ -463,14 +458,9 @@ expand( struct envelope *unexpanded_env )
 
 	if ( env == NULL ) {
 	    /* Create envelope and add it to list */
-	    if (( env = env_create( e_addr->e_addr_from,
-		    unexpanded_env )) == NULL ) {
+	    if (( env = env_create( domain ? simta_dir_fast : simta_dir_dead,
+		    NULL, e_addr->e_addr_from, unexpanded_env )) == NULL ) {
 		syslog( LOG_ERR, "expand.env_create: %m" );
-		goto cleanup3;
-	    }
-
-	    if ( env_id( env ) != 0 ) {
-		env_free( env );
 		goto cleanup3;
 	    }
 
@@ -482,19 +472,17 @@ expand( struct envelope *unexpanded_env )
 	    /* fill in env */
 	    env->e_attributes = unexpanded_env->e_attributes;
 	    if ( domain != NULL ) {
-		env->e_dir = simta_dir_fast;
 		if ( env_hostname( env, domain ) != 0 ) {
 		    env_free( env );
 		    goto cleanup3;
 		}
 	    } else {
-		env->e_dir = simta_dir_dead;
 		env_dead = env;
 	    }
 
 	    /* Add env to host_stab */
 	    if ( eo_insert( &host_stab, env ) != 0 ) {
-		syslog( LOG_ERR, "expand.ll_insert: %m" );
+		syslog( LOG_ERR, "expand.eo_insert: %m" );
 		env_free( env );
 		goto cleanup3;
 	    }
@@ -895,26 +883,29 @@ unblocked_path_to_root( struct exp_addr *e, int color )
     int
 permitted_create( struct exp_addr *e_addr, char **permitted )
 {
-    int		idx;
-    char	*namedup;
+    int					idx;
+    char				*namedup;
 
-    if (permitted && *permitted)
-    {
+    if (( permitted != NULL ) && (( *permitted ) != NULL )) {
 	/* 
 	** Normalize the permitted group list 
 	** normalization happens "in-place"
 	*/   
-	for (idx = 0;  permitted[idx] != NULL; idx++) {
-	    dn_normalize_case (permitted[idx]);
+	for ( idx = 0; permitted[idx] != NULL; idx++ ) {
+	    dn_normalize_case( permitted[idx] );
 
-	    if ((namedup = strdup (permitted[idx])) == NULL)
-		return (1);
+	    if (( namedup = strdup( permitted[idx] )) == NULL ) {
+		return( 1 );
+	    }
 
-	    if ( ll_insert ( &e_addr->e_addr_ok, namedup, namedup, NULL ) != 0 )
-		return (1);
+	    if ( ll_insert( &e_addr->e_addr_ok, namedup, namedup,
+		    NULL ) != 0 ) {
+		return( 1 );
+	    }
 	}		
     }
-    return 0;
+
+    return( 0 );
 }
 
 

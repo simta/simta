@@ -34,11 +34,11 @@
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
+#include <dirent.h>
 
 #include <snet.h>
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
 #include "simta.h"
 #include "argcargv.h"
@@ -46,6 +46,7 @@
 #include "header.h"
 #include "expand.h"
 #include "simta_ldap.h"
+#include "queue.h"
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
@@ -1145,7 +1146,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		ld->ldap_gmailfwdattr )) != NULL ) {
 	    if ( exp->exp_env->e_n_exp_level < simta_exp_level_max ) {
 		if (( e_addr->e_addr_env_gmailfwd =
-			env_create( e_addr->e_addr_from,
+			env_create( simta_dir_fast, NULL, e_addr->e_addr_from,
 			exp->exp_env )) == NULL ) {
 		    ldap_value_free( mailvals );
 		    ldap_memfree( dn );
@@ -1232,7 +1233,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		ldap_get_values( ld->ldap_ld, entry, "moderator" )) != NULL )) {
 	    if ( exp->exp_env->e_n_exp_level < simta_exp_level_max ) {
 		if (( e_addr->e_addr_env_moderated =
-			env_create( exp->exp_env->e_mail,
+			env_create( simta_dir_fast, NULL, exp->exp_env->e_mail,
 			exp->exp_env )) == NULL ) {
 		    ldap_value_free( moderator );
 		    ldap_memfree( dn );

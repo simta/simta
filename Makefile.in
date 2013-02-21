@@ -20,6 +20,8 @@ LOCAL_Q=${SPOOLDIR}local
 SLOW_Q=${SPOOLDIR}slow
 FAST_Q=${SPOOLDIR}fast
 DEAD_Q=${SPOOLDIR}dead
+SIMTA_ETC=${SPOOLDIR}etc
+SIMTA_COMMAND=${SPOOLDIR}command
 CERTDIR=${SIMTACONFDIR}/cert
 TLS_CAFILE=${CERTDIR}/ca.pem
 TLS_CERT=${CERTDIR}/cert.pem
@@ -32,6 +34,9 @@ SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		queue.o ml.o smtp.o expand.o mx.o bounce.o \
 		q_cleanup.o tls.o wildcard.o red.o
 TLSCONOBJ=	tlsconnect.o
+SIMCOBJ=	@SIMC_OBJ@ simc.o line_file.o envelope.o header.o \
+		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
+		smtp.o ml.o mx.o wildcard.o red.o
 SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o header.o \
 		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
 		smtp.o ml.o mx.o wildcard.o red.o
@@ -77,7 +82,7 @@ SIMTALIBS=	${LIBS} @SIMTALIBS@
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
 BINTARGETS=	simrbl simreverse simalias simexpander denser/dense
-TARGETS=	simta tlsconnect simsendmail q_runner simexpander sla \
+TARGETS=	simta tlsconnect simsendmail q_runner simexpander sla simc \
 		${BINTARGETS}
 
 all : ${TARGETS}
@@ -87,9 +92,10 @@ install : all FRC
 	@touch empty-file
 	${INSTALL} -m 0644 -o simta -g simta empty-file ${DESTDIR}${RUNFILE}
 	@rm -f empty-file
-	${INSTALL} -m 0750 -o simta -g simta -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q}
+	${INSTALL} -m 0750 -o simta -g simta -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q} ${DESTDIR}${SIMTA_ETC} ${DESTDIR}${SIMTA_COMMAND}
 	${INSTALL} -m 755 -o simta -g simta -c simta ${DESTDIR}${SBINDIR}/
 	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${DESTDIR}${SBINDIR}/
+	${INSTALL} -m 6755 -o simta -g simta -c simc ${DESTDIR}${SBINDIR}/
 	for i in ${BINTARGETS}; do \
 	    ${INSTALL} -m 0755 -c $$i ${DESTDIR}${BINDIR}; \
 	done
@@ -110,6 +116,10 @@ simck : stamp-libsnet ${SIMCKOBJ} Makefile
 
 sla : stamp-libsnet ${SLAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
+
+simc : ${SIMCOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simc ${SIMCOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
 simsendmail : stamp-libsnet stamp-denser ${SIMSENDOBJ} Makefile

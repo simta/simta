@@ -41,13 +41,13 @@
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
-#include "ml.h"
 #include "line_file.h"
-#include "smtp.h"
 #include "expand.h"
 #include "simta.h"
+#include "queue.h"
+#include "smtp.h"
+#include "ml.h"
 
 
     int
@@ -189,10 +189,8 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 
     sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
 
-    if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
-            < 0 ) {
-        syslog( LOG_ERR, "bounce_dfile_out open %s: %m", dfile_fname );
-	return( 0 );
+    if (( dfile_fd = env_dfile_open( bounce_env )) < 0 ) {
+	goto cleanup;
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
@@ -265,46 +263,49 @@ cleanup:
 	return( sbuf.st_ino );
     }
 
-    if ( unlink( dfile_fname ) != 0 ) {
-	syslog( LOG_ERR, "bounce_dfile_out unlink %s: %m", dfile_fname );
-    }
+    env_dfile_unlink( bounce_env );
 
     return( 0 );
 }
 
 
     struct envelope *
-bounce( struct envelope *env, struct host_q *hq, char *err )
+bounce( struct envelope *env, int body, char *err )
 {
     struct envelope             *env_bounce;
     char                        dfile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
-    SNET			*s;
+    SNET			*sn = NULL;
 
-    sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
-    if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
-	syslog( LOG_WARNING, "bounce bad Dfile: %s", dfile_fname );
+    if ( body == 1 ) {
+	sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
+	if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+	    syslog( LOG_WARNING, "bounce bad Dfile: %s", dfile_fname );
+	    return( NULL );
+	}
+
+	if (( sn = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
+	    close( dfile_fd );
+	    return( NULL );
+	}
+    }
+
+    env->e_flags |= ENV_FLAG_BOUNCE;
+
+    if (( env_bounce = bounce_snet( env, sn, NULL, "ZZZ err msg" )) == NULL ) {
 	return( NULL );
     }
 
-    if (( s = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
-	close( dfile_fd );
-	return( NULL );
+    if ( sn != NULL ) {
+	snet_close( sn );
     }
-
-    if (( env_bounce = bounce_snet( env, s, NULL, NULL )) == NULL ) {
-	snet_close( s );
-	return( NULL );
-    }
-
-    snet_close( s );
 
     return( env_bounce );
 }
 
 
     struct envelope *
-bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
+bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
 {
     struct envelope             *bounce_env;
     char                        dfile_fname[ MAXPATHLEN ];
@@ -319,19 +320,15 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
     struct stat			sbuf;
     char                        daytime[ 35 ];
 
-    if (( bounce_env = env_create( NULL, env )) == NULL ) {
+    if (( bounce_env =
+	    env_create( simta_dir_fast, NULL, "", env )) == NULL ) {
 	return( NULL );
     }
 
-    if ( env_id( bounce_env ) != 0 ) {
-	goto cleanup1;
+    if (( simta_mail_jail != 0 ) && ( simta_bounce_jail == 0 )) {
+	/* bounces must be able to get out of jail */
+	env_jail_set( bounce_env, ENV_JAIL_NO_CHANGE );
     }
-
-    if ( env_sender( bounce_env, NULL ) != 0 ) {
-	goto cleanup1;
-    }
-
-    bounce_env->e_dir = simta_dir_fast;
 
     /* if the postmaster is a failed recipient,
      * we need to put the bounce in the dead queue.
@@ -346,6 +343,7 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
 	}
     }
 
+syslog( LOG_DEBUG, "ZZZ bounce %s: email %s", env->e_id, env->e_mail );
     if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
 	goto cleanup1;
     }
@@ -402,11 +400,6 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
     fprintf( dfile, "Message delivery failed for one or more recipients, " );
     fprintf( dfile, "check specific errors below\n" );
     fprintf( dfile, "\n" );
-
-    if ( env->e_hostname == NULL ) {
-        fprintf( dfile, "There was a local error in expanding the "
-		"recipients of your message\n\n" );
-    }
 
     if ( env->e_age == ENV_AGE_OLD ) {
         fprintf( dfile, "This message is old and undeliverable.\n\n" );
@@ -465,10 +458,12 @@ bounce_snet( struct envelope *env, SNET *s, struct host_q *hq, char *err )
         }
     }
 
-    fprintf( dfile, "Bounced message:\n" );
-    fprintf( dfile, "\n" );
-    while (( line = snet_getline( s, NULL )) != NULL ) {
-	fprintf( dfile, "%s\n", line );
+    if ( sn != NULL ) {
+	fprintf( dfile, "Bounced message:\n" );
+	fprintf( dfile, "\n" );
+	while (( line = snet_getline( sn, NULL )) != NULL ) {
+	    fprintf( dfile, "%s\n", line );
+	}
     }
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {

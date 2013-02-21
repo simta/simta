@@ -24,6 +24,7 @@
 #include <sysexits.h>
 #include <netdb.h>
 #include <string.h>
+#include <dirent.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -32,11 +33,11 @@
 #include <snet.h>
 
 #include "denser.h"
-#include "queue.h"
 #include "envelope.h"
-#include "ml.h"
 #include "line_file.h"
 #include "simta.h"
+#include "queue.h"
+#include "ml.h"
 
 
 char		*maillocal_argv[] = { SIMTA_MAIL_LOCAL,

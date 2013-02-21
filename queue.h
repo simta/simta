@@ -64,6 +64,9 @@ struct deliver {
 
 struct host_q {
     int				hq_entries;
+    int				hq_entries_new;
+    int				hq_entries_removed;
+    int				hq_jail_envs;
     struct simta_red		*hq_red;
     struct host_q		*hq_deliver;
     struct host_q		*hq_next;
@@ -78,9 +81,9 @@ struct host_q {
     int				hq_max_wait;
     int				hq_launches;
     int				hq_delay;
+    int				hq_leaky;
     struct envelope		*hq_env_head;
     struct line_file		*hq_err_text;
-    struct timeval		hq_last_leaky;
     struct timeval		hq_last_launch;
     struct timeval		hq_next_launch;
     struct timeval		hq_wait_last;
@@ -99,5 +102,5 @@ int	q_single( struct host_q * );
 void	hq_deliver_pop( struct host_q * );
 void	queue_log_metrics( struct host_q * );
 
-int	q_read_dir( char * );
-void	hq_deliver_push( struct host_q *, struct timeval * );
+int	q_read_dir( struct simta_dirp * );
+int	hq_deliver_push( struct host_q *, struct timeval *, struct timeval * );

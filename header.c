@@ -30,13 +30,14 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <dirent.h>
 
 #include "denser.h"
-#include "queue.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"
 #include "simta.h"
+#include "queue.h"
 
 #define	TOKEN_UNDEFINED			0
 #define	TOKEN_QUOTED_STRING		1
@@ -443,7 +444,7 @@ mid_text( struct receive_headers *r, char *line, char **msg )
 	if (( r->r_mid = strdup( start )) == NULL ) {
 	    *end = '>';
 	    syslog( LOG_ERR, "mid_text strdup: %m" );
-	    return( 1 );
+	    return( -1 );
 	}
 	*end = '>';
 

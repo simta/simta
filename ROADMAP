@@ -1,0 +1,167 @@
+$Id: ROADMAP,v 1.20 2009/11/23 22:08:36 sweda Exp $
+simta roadmap fall 2009
+---
+
+key                                 priority
++ : completed                       0 : ASAP
+x : in release pipeline             1 : high priority
+! : in progress                     2 : medium priority
+- : development has not started     3 : low priority
+                                    4 : someday
+
+CURRENT ROADMAP
+
+0.8.2.1
++ 1 DEBUG_LOGGING directive added to help debug the stuck message bugfix
++ 1 additional logging to help track down "no deliver" poison message
++ 1 E file format change for queue prioritization
++ 1 receive timer overhaul, add deliver timers
++ 1 delivery activity logs in all cases
++ 1 additional logging for host deliver ordering
+! 2 BITBUCKET options:
+    allow expansion before bitbucket local mail, should act like inbound smtp
+    option to allow delivery local mail
++ 2 log transition to DATA for outbounder debugging
+
+0.8.3 mail jail
++ 1 BUG: queue scheduler issues
++ 1 BUG: sasl bug?
++ 1 single master queue runner/smtp listener process
++ 1 simta IPC using C files
+- 1 ignore ipv6
++ 1 bounce + delete = bounce w/o body
+! 1 content filter stdout should be included in bounce
++ 2 jail + reject || tempfail, jail + bounce
++ 2 ability to re-prioritize/kick queues
++ 2 queue processing by user (mail jail)
++ 2 queue-only (mail jail)
++ 2 verify that queue-only + bitbucket works (needed for testing purposes)
++ 3 queue processing by id (simc)
+! 3 queue processing by host in non-jail enviroment (simc)
+- 3 clean up command directory (simta -C)
++ 3 better handling of domain names with trailing dot
++ 3 simexpander log pid
++ 3 simc changes DEBUG level
+- 3 simc manpage
+
+0.8.4 gateway enhancements/collapse 2-tier delivery
+- 2 simta.conf & ldap include files
+- 2 per domain RBLs, potentially other config options as well
+- 2 RE module for cyrus lookups (mail.umich.edu)
+- 3 mutiple content filters: mail_from/rcpt_to/data/post-expansion
+
+0.8.5 usability improvements
+- 1 deliver local mail with no running simta daemon (sendmail replacement)
+- 2 relay host
+- 3 alias upgrade: wildcards, /dev/null, pipe2program discussion
+
+...
+
+0.9.0 - first release to general public
+
+
+BUGS
+x   1 ignore ipv6
+    2 need to bounce if ldap MFA has no syntactically correct entry
+    2 sasl hang
+    2 "no deliver" poison message
+    3 simsendmail overrun bug
+    3 group errors-to rewrite bug
+    3 better localhost check for punt and jail hostnames
+    4 better error messages when -requests/-errors/etc. are undeliverable
+
+FEATURES
+gateway enhancements
+    2 mail_from check vs domains we have R rules
+x   2 simta.conf & ldap include files (1 week)
+x   2 RE module for cyrus lookups (mail.umich.edu)
+x   2 per domain RBLs, potentially other config options as well
+x   3 mutiple content filters: mail_from/rcpt_to/data/post-expansion
+    3 helo mismatch
+    3 umich-only: requires user_rbl + accept + configurable attribute
+    4 LDAP exclusive moderated groups - ignore non-moderators, for lists
+
+delivery optimization
+    2 "shadow queues" for non-primary delivery
+    3 envelope splitting
+    3 deliver in parallel to multiple mx records
+    3 better interleave delivery/disk reads
+    3 delivery agent can be called with multiple recipients (LMTP)
+    3 expander only thread
+    3 immediate queueing mode only applied to inbound port 25 (not local)
+
+general architecture
+x   1 single master queue runner/smtp listener process
+x   1 deliver local mail with no running simta daemon (sendmail replacement)
+    1 smtp listen should occur after disk read during startup
+x   2 relay host
+    2 option to fork child for outbound delivery during inbound smtp
+    2 R rules for accept AND exclusion
+    2 shorten RBL timeouts?
+    2 add option to skip rcpt to syntax check
+    2 smtp timer for outbound DATA
+    3 child killing (simc)
+x   3 queue processing by id (simc)
+x   3 queue processing by host in non-jail enviroment (simc)
+    3 queue processing by id, sender, etc. in non-jail environment (sim)
+x   3 alias upgrade: wildcards, /dev/null, pipe2program discussion
+    3 simexpander take addresses on stdin
+    4 config file support for queue launch times
+    4 interface listening choices
+    4 expansion limits (configurable)
+    4 strict moderator address matching?
+    4 variable SMTP stage timeouts
+    4 simvacation use header info when generating vacation notice
+
+support
+    2 SIGHUP to re-read conf file (e.g. to change max connections w/o restart)
+    3 "make test" (regression tests)
+    3 BDB -> no aliases, or flatfile aliases
+    4 ability to function with no config file = sensible defaults
+    4 command line args override config file, and warnings are issued
+    4 non-Linux build
+
+
+COMPLETED
+---------
+
+0.8.2 (completed Jun-09)
++ 1 content filter bounce (for smtp.mail)
++ 1 content filter jail
++ 1 receive.c timer for accepted message delivery & no activity
++ 1 global, per-IP connection rate limits
++ 2 global relay should still check mail from domain
++ 2 option to disable mail_from domain checking (DISABLE_SENDER_CHECKING)
++ 2 option to deliver immediately after accept
++ 2 connection startup sequence audit
++ 2 RBL_ACCEPT overrides per-IP max connections & connection rate
++ 2 DNS logging: "unresolved"/"unknown"/"mismatch"
++ 2 RBL_LOG
++ 3 simple logging when simta exits
+
+0.8.1 (completed Apr-09)
++ 1 logging audit, improvements
++ 1 libsnet bugfix
++ 1 content filter return value now bitfield & invoked for all delivery modes
++ 1 RBL logging includes return value from lookup
++ 1 fix simta -C overwrites pidfile bug
++ 2 check for write before banner
++ 2 SIMTA_UID, SIMTA_MID, SIMTA_PID, SIMTA_CID in content filter
++ 3 add timezone to simsendmail's DATE field
+
+0.8.0 (completed Jul-08)
++ 1 AGGRESSIVE_DELIVERY option and behavior added
++ 1 Multiple LDAP DBs (subdomain support)
++ 1 Added BLOCK and ACCEPT to RBL syntax
++ 1 faster disk read times, improved queue management
++ 1 consolidate envelope reading functions
++ 1 content filter access to message checksum (backported to 0.7.2)
++ 2 better listen connection management
++ 2 logging improvements
++ 2 SMTP failed rcpt punishment options: TARPIT, TEMPFAIL, DISCONNECT
++ 2 bitbucket delivery option for deliver testing
++ 2 SMTP_MODE config directive, modes: OFF, NORMAL, TARPIT, GLOBAL_RELAY, etc.
++ 2 SMTP READ_BEFORE_BANNER option added
++ 3 updated simvacation code
++ 3 SMTP_RCVBUF directive limits TCP Window size until valid DATA segment
++ 3 Supressed compiler warnings

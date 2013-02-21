@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <db.h>
+#include <dirent.h>
 
 #ifdef HAVE_LIBWRAP
 #include <tcpd.h>
@@ -62,7 +63,6 @@ extern SSL_CTX	*ctx;
 
 #include "bdb.h"
 #include "denser.h"
-#include "queue.h"
 #include "ll.h"
 #include "envelope.h"
 #include "expand.h"
@@ -72,6 +72,7 @@ extern SSL_CTX	*ctx;
 #include "timeval.h"
 #include "mx.h"
 #include "simta.h"
+#include "queue.h"
 #include "line_file.h"
 #include "header.h"
 
@@ -117,9 +118,9 @@ struct receive_data {
     int				r_ncommands;
     int				r_smtp_mode;
     char			*r_auth_id;
-    struct timeval		r_tv_inactive;
+    struct timeval		r_tv_inactivity;
     struct timeval		r_tv_session;
-    struct timeval		r_tv_delivery;
+    struct timeval		r_tv_accepted;
 
 #ifdef HAVE_LIBSSL
     unsigned char		r_md_value[ EVP_MAX_MD_SIZE ];
@@ -127,7 +128,7 @@ struct receive_data {
     EVP_MD_CTX			r_mdctx;
     int				r_mdctx_status;
     unsigned int		r_mdctx_bytes;
-    unsigned int		r_md_len;
+    unsigned int				r_md_len;
     char			r_md_bytes[ BYTE_LEN + 1 ];
 #endif /* HAVE_LIBSSL */
 
@@ -150,6 +151,8 @@ struct receive_data {
 #define S_421_DECLINE "Service not available: closing transmission channel"
 #define S_451_DECLINE "Requested action aborted: "\
 	"service temporarily unavailable"
+#define S_451_MESSAGE "Message Tempfailed"
+#define S_554_MESSAGE "Message Failed"
 #define S_MAXCONNECT "Maximum connections exceeded"
 #define S_TIMEOUT "Connection length exceeded"
 #define S_CLOSING "closing transmission channel"
@@ -157,12 +160,16 @@ struct receive_data {
 #define S_UNKNOWN string_unknown	/* "unknown" */
 #define S_UNRESOLVED "Unresolved"
 #define S_DENIED "Access denied for IP"
-#define S_LINE "Line"
-#define S_INACTIVITY "Inactivity"
-#define S_DELIVERY "Delivery"
-#define S_SMTP "SMTP"
-#define S_DATA "Data"
-#define S_SESSION "Session"
+
+#define S_DATA_LINE "Data Line"
+#define S_COMMAND_LINE "Command Line"
+#define S_INACTIVITY "Command Inactivity"
+#define S_ACCEPTED_MESSAGE "Accepted Message"
+#define S_GLOBAL_SESSION "Global Session"
+#define S_DATA_SESSION "Data Session"
+
+#define _S_SMTP "SMTP"
+#define _S_DATA "Data"
 
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
@@ -170,6 +177,10 @@ struct receive_data {
 #define	LOCAL_ERROR			3
 #define	MX_ADDRESS			4
 #define	LOCAL_ADDRESS_RBL		5
+
+#define NO_ERROR		0
+#define PROTOCOL_ERROR		1
+#define SYSTEM_ERROR		2
 
 struct command {
     char	*c_name;
@@ -271,8 +282,7 @@ char *smtp_mode_str[] = {
     NULL
 };
 
-char string_unknown[] = STRING_UNKNOWN;	/* also S_UNKNOWN */
-
+char string_unknown[] = STRING_UNKNOWN;        /* also S_UNKNOWN */
 
     static void
 set_smtp_mode( struct receive_data *r, int mode, char *msg )
@@ -339,27 +349,12 @@ set_smtp_mode( struct receive_data *r, int mode, char *msg )
 deliver_accepted( struct receive_data *r )
 {
     if (( r->r_env ) && ( r->r_env->e_flags & ENV_FLAG_EFILE )) {
-	if ( r->r_env->e_hostname == NULL ) {
-	    if ( expand( r->r_env ) != 0 ) {
-		env_move( r->r_env, simta_dir_slow );
-		return( RECEIVE_SYSERROR );
-	    }
-	} else {
-	    queue_envelope( r->r_env );
-	    r->r_env = NULL;
-	}
+	queue_envelope( r->r_env );
+	r->r_env = NULL;
+    }
 
-	if ( q_runner() != 0 ) {
-	    return( RECEIVE_SYSERROR );
-	}
-
-	if ( r->r_env == NULL ) {
-	    if (( r->r_env = env_create( NULL, NULL )) == NULL ) {
-		return( RECEIVE_SYSERROR );
-	    }
-	} else {
-	    env_reset( r->r_env );
-	}
+    if ( q_runner() != 0 ) {
+	return( RECEIVE_SYSERROR );
     }
 
     return( RECEIVE_OK );
@@ -369,22 +364,16 @@ deliver_accepted( struct receive_data *r )
     int
 reset( struct receive_data *r )
 {
-    if ( r->r_env ) {
-	if ( r->r_env->e_flags & ENV_FLAG_EFILE ) {
-	    return( deliver_accepted( r ));
+    if ( deliver_accepted( r ) != RECEIVE_OK ) {
+	return( RECEIVE_SYSERROR );
+    }
 
-	} else if ( r->r_env->e_id != NULL ) {
-	    syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed: Abandoned",
-		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id );
-	}
-
-	env_reset( r->r_env );
-
-    } else {
-	if (( r->r_env = env_create( NULL, NULL )) == NULL ) {
-	    return( RECEIVE_SYSERROR );
-	}
+    if ( r->r_env != NULL ) {
+	syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed: Abandoned",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id );
+	env_free( r->r_env );
+	r->r_env = NULL;
     }
 
     return( RECEIVE_OK );
@@ -760,7 +749,6 @@ f_mail( struct receive_data *r )
     char		*endptr;
 
     r->r_mail_attempt++;
-    r->r_tv_inactive.tv_sec = 0;
 
     if ( r->r_smtp_mode == SMTP_MODE_OFF ) {
 	syslog( LOG_DEBUG, "Receive [%s] %s: SMTP_Off: %s",
@@ -922,11 +910,7 @@ f_mail( struct receive_data *r )
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( env_id( r->r_env ) != 0 ) {
-	return( RECEIVE_SYSERROR );
-    }
-
-    if ( env_sender( r->r_env, addr ) != 0 ) {
+    if (( r->r_env = env_create( simta_dir_fast, NULL, addr, NULL )) == NULL ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -957,6 +941,7 @@ f_mail( struct receive_data *r )
 		r->r_env->e_id, r->r_env->e_mail );
     }
 
+    r->r_tv_inactivity.tv_sec = 0;
     return( smtp_write_banner( r, 250, NULL, NULL ));
 }
 
@@ -991,7 +976,6 @@ f_rcpt( struct receive_data *r )
     struct simta_red		*red;
 
     r->r_rcpt_attempt++;
-    r->r_tv_inactive.tv_sec = 0;
 
     if ( r->r_smtp_mode == SMTP_MODE_OFF ) {
 	syslog( LOG_DEBUG, "Receive [%s] %s: SMTP_Off: %s",
@@ -1003,7 +987,7 @@ f_rcpt( struct receive_data *r )
     tarpit_sleep( r, simta_smtp_tarpit_rcpt );
 
     /* Must already have "MAIL FROM:", and no valid message */
-    if (( r->r_env->e_mail == NULL ) ||
+    if (( r->r_env == NULL ) ||
 	    (( r->r_env->e_flags & ENV_FLAG_EFILE ) != 0 )) {
 	return( f_bad_sequence( r ));
     }
@@ -1292,6 +1276,7 @@ f_rcpt( struct receive_data *r )
     }
 #endif /* HAVE_LIBSSL */
 
+    r->r_tv_inactivity.tv_sec = 0;
     return( smtp_write_banner( r, 250, NULL, NULL ));
 }
 
@@ -1300,12 +1285,15 @@ f_rcpt( struct receive_data *r )
 f_data( struct receive_data *r )
 {
     FILE				*dff = NULL;
+    int					banner = 0;
     int					dfile_fd = -1;
     int					ret_code = RECEIVE_SYSERROR;
     int					header = 1;
     int					line_no = 0;
-    int					message_result = MESSAGE_ACCEPT;
-    int					result;
+    int					message_banner = MESSAGE_TEMPFAIL;
+    int					filter_result;
+    int					f_result;
+    int					read_err = NO_ERROR;
     unsigned int			line_len;
     char				*line;
     char				*msg;
@@ -1313,7 +1301,7 @@ f_data( struct receive_data *r )
     char				*filter_message = NULL;
     char				*system_message = NULL;
     char				*timer_type;
-    char				*session_type = S_DATA;
+    char				*session_type = NULL;
     struct tm				*tm;
     struct timeval			tv_data_start;
     struct timeval			tv_wait;
@@ -1333,7 +1321,6 @@ f_data( struct receive_data *r )
     rh.r_env = r->r_env;
 
     r->r_data_attempt++;
-    r->r_tv_inactive.tv_sec = 0;
 
     if ( r->r_smtp_mode == SMTP_MODE_OFF ) {
 	syslog( LOG_DEBUG, "Receive [%s] %s: SMTP_Off: %s",
@@ -1366,7 +1353,7 @@ f_data( struct receive_data *r )
      * Also note that having already accepted a message is bad.
      * A previous reset is also not a good thing.
      */
-    if (( r->r_env->e_mail == NULL ) ||
+    if (( r->r_env == NULL ) ||
 	    (( r->r_env->e_flags & ENV_FLAG_EFILE ) != 0 )) {
 	return( f_bad_sequence( r ));
     }
@@ -1396,21 +1383,19 @@ f_data( struct receive_data *r )
 	return( f_bad_sequence( r ));
 
     case SMTP_MODE_TARPIT:
-	message_result = MESSAGE_TEMPFAIL;
 	break;
 
     case SMTP_MODE_GLOBAL_RELAY:
     case SMTP_MODE_NORMAL:
-	sprintf( dfile_fname, "%s/D%s", simta_dir_fast, r->r_env->e_id );
-	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
-		< 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: open %s: %m", dfile_fname );
-	    return( RECEIVE_SYSERROR );
+	if (( dfile_fd = env_dfile_open( r->r_env )) < 0 ) {
+	    return( -1 );
 	}
-	r->r_env->e_flags |= ENV_FLAG_DFILE;
 
 	if (( dff = fdopen( dfile_fd, "w" )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror f_data: fdopen %s: %m", dfile_fname );
+	    if ( close( dfile_fd ) != 0 ) {
+		syslog( LOG_ERR, "Syserror f_data: close: %m" );
+	    }
 	    goto error;
 	}
 
@@ -1477,6 +1462,8 @@ f_data( struct receive_data *r )
 	}
     }
 
+    r->r_tv_inactivity.tv_sec = 0;
+
     if ( smtp_write_banner( r, 354, NULL, NULL ) != RECEIVE_OK ) {
 	ret_code = RECEIVE_CLOSECONNECTION;
 	goto error;
@@ -1489,35 +1476,41 @@ f_data( struct receive_data *r )
     tv_data_start.tv_sec = tv_now.tv_sec;
     tv_data_start.tv_usec = tv_now.tv_usec;
 
+    /* global smtp session timer */
     if ( r->r_tv_session.tv_sec != 0 ) {
-	if ( simta_data_transaction_wait != 0 ) {
-	    tv_session.tv_sec = tv_data_start.tv_sec +
-		    simta_data_transaction_wait;
-	    if ( tv_session.tv_sec > r->r_tv_session.tv_sec ) {
-		session_type = S_SMTP;
-		tv_session.tv_sec = r->r_tv_session.tv_sec;
+	session_type = S_GLOBAL_SESSION;
+	tv_session.tv_sec = r->r_tv_session.tv_sec;
+	tv_session.tv_usec = 0;
+    }
+
+    /* smtp data session timer */
+    if ( simta_inbound_data_session_timer != 0 ) {
+	if ( session_type != NULL ) {
+	    if (( tv_now.tv_sec + simta_inbound_data_session_timer ) <
+		    tv_session.tv_sec ) {
+		session_type = NULL;
 	    }
-	} else {
-	    session_type = S_SMTP;
-	    tv_session.tv_sec = r->r_tv_session.tv_sec;
 	}
-    } else if ( simta_data_transaction_wait != 0 ) {
-	tv_session.tv_sec = tv_data_start.tv_sec + simta_data_transaction_wait;
-    } else {
-	tv_session.tv_sec = 0;
+
+	if ( session_type == NULL ) {
+	    session_type = S_DATA_SESSION;
+	    tv_session.tv_sec = tv_now.tv_sec +
+		    simta_inbound_data_session_timer;
+	}
     }
 
     for ( ; ; ) {
-	tv_wait.tv_sec = simta_data_line_wait;
+	tv_wait.tv_sec = simta_inbound_data_line_timer;
 	tv_wait.tv_usec = 0;
-	timer_type = S_LINE;
+	timer_type = S_DATA_LINE;
 
-	if ( tv_session.tv_sec != 0 ) {
+	if ( session_type != NULL ) {
 	    if ( tv_session.tv_sec <= tv_now.tv_sec ) {
 		syslog( LOG_DEBUG,
 			"Receive [%s] %s: %s: %s time limit exceeded",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			r->r_env->e_id, timer_type );
+			r->r_env->e_id, session_type );
+		smtp_write_banner( r, 421, S_TIMEOUT, S_CLOSING );
 		ret_code = RECEIVE_CLOSECONNECTION;
 		goto error;
 	    }
@@ -1546,7 +1539,7 @@ f_data( struct receive_data *r )
 	}
 
 	if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	    goto error;
+	    read_err = SYSTEM_ERROR;
 	}
 
 	line_no++;
@@ -1560,51 +1553,22 @@ f_data( struct receive_data *r )
 	    line++;
 	}
 
-	if ( message_result != MESSAGE_ACCEPT ) {
-	    if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
-		r->r_env->e_flags = ( r->r_env->e_flags & ( ~ENV_FLAG_DFILE ));
-
-		if ( unlink( dfile_fname ) < 0 ) {
-		    syslog( LOG_ERR, "Syserror f_data: unlink %s: %m",
-			    dfile_fname );
-		    goto error;
-		}
-	    }
-
-	    if ( dff != NULL ) {
-		if ( fclose( dff ) != 0 ) {
-		    syslog( LOG_ERR, "Syserror f_data: fclose1: %m" );
-		    dff = NULL;
-		    goto error;
-		}
-		dff = NULL;
-	    }
-	    continue;
-	}
-
-#ifdef HAVE_LIBSSL 
-	if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
-	    EVP_DigestUpdate( &r->r_mdctx, line, line_len );
-	    r->r_mdctx_bytes += line_len;
-	}
-#endif /* HAVE_LIBSSL */
-
-	if ( header == 1 ) {
+	if (( read_err == NO_ERROR ) && ( header == 1 )) {
 	    msg = NULL;
-	    if (( result = header_text( line_no, line, &rh, &msg )) == 0 ) {
+	    if (( f_result = header_text( line_no, line, &rh, &msg )) == 0 ) {
 		if ( msg != NULL ) {
 		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_env->e_id, msg );
 		}
-	    } else if ( result < 0 ) {
-		goto error;
+	    } else if ( f_result < 0 ) {
+		read_err = SYSTEM_ERROR;
 	    } else {
 		header = 0;
 	    }
 	}
 
-	if (( simta_max_message_size != 0 ) &&
+	if (( read_err == NO_ERROR ) && ( simta_max_message_size != 0 ) &&
 		(( data_wrote + line_len + 1 ) > simta_max_message_size )) {
 	    /* If we're going to reach max size, continue reading lines
 	     * until the '.' otherwise, check message size.
@@ -1614,58 +1578,78 @@ f_data( struct receive_data *r )
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id );
 	    system_message = "Message too large";
-	    message_result = MESSAGE_REJECT;
-	    continue;
+	    message_banner = MESSAGE_REJECT;
+	    read_err = PROTOCOL_ERROR;
 	}
 
-	if ( rh.r_received_count > simta_max_received_headers ) {
+	if (( read_err == NO_ERROR ) &&
+		( rh.r_received_count > simta_max_received_headers )) {
 	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: Message Failed: "
 		    "Too many Received headers",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		    r->r_env->e_id );
 	    system_message = "Too many Received headers";
-	    message_result = MESSAGE_REJECT;
-	    continue;
+	    message_banner = MESSAGE_REJECT;
+	    read_err = PROTOCOL_ERROR;
 	}
 
 	if ( rh.r_seen_before ) {
 	    system_message = "Seen Before";
 	    filter_message = strdup( rh.r_seen_before );
-	    message_result = MESSAGE_DELETE;
-	    continue;
+	    message_banner = MESSAGE_DELETE;
+	    read_err = PROTOCOL_ERROR;
 	}
 
-	if ( fprintf( dff, "%s\n", line ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
-	    goto error;
+	if ( read_err == NO_ERROR ) {
+	    if ( fprintf( dff, "%s\n", line ) < 0 ) {
+		syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
+		read_err = SYSTEM_ERROR;
+	    } else {
+		data_wrote += line_len + 1;
+	    }
 	}
-	data_wrote += line_len + 1;
+
+	if (( read_err != NO_ERROR ) && ( dff != NULL )) {
+	    if ( fclose( dff ) != 0 ) {
+		syslog( LOG_ERR, "Syserror f_data: fclose1: %m" );
+		read_err = SYSTEM_ERROR;
+	    }
+	    dff = NULL;
+	    if ( env_dfile_unlink( r->r_env ) != 0 ) {
+		read_err = SYSTEM_ERROR;
+	    }
+	}
+
+#ifdef HAVE_LIBSSL 
+	if (( dff != NULL ) && ( simta_mail_filter != NULL ) &&
+		( simta_checksum_md != NULL )) {
+	    EVP_DigestUpdate( &r->r_mdctx, line, line_len );
+	    r->r_mdctx_bytes += line_len;
+	}
+#endif /* HAVE_LIBSSL */
     }
 
     if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
 	/* get the Dfile's inode for the envelope structure */
 	if ( fstat( dfile_fd, &sbuf ) != 0 ) {
+	    sprintf( dfile_fname, "%s/D%s", simta_dir_fast, r->r_env->e_id );
 	    syslog( LOG_ERR, "Syserror f_data: fstat %s: %m", dfile_fname );
 	    goto error;
 	}
 	r->r_env->e_dinode = sbuf.st_ino;
 
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: fclose2: %m" );
-	    dff = NULL;
-	    goto error;
-	}
+	f_result = fclose( dff );
 	dff = NULL;
-	dfile_fd = -1;
-
-	r->r_env->e_dir = simta_dir_fast;
-
-	if ( env_tfile( r->r_env ) != 0 ) {
+	if ( f_result != 0 ) {
+	    syslog( LOG_ERR, "Syserror f_data: fclose2: %m" );
 	    goto error;
 	}
+	message_banner = MESSAGE_ACCEPT;
     }
 
-    if ( simta_mail_filter != NULL ) {
+    if ( simta_mail_filter == NULL ) {
+	filter_result = MESSAGE_ACCEPT;
+    } else {
 #ifdef HAVE_LIBSSL 
 	if (( simta_mail_filter != NULL ) &&
 		( simta_checksum_md != NULL )) {
@@ -1684,14 +1668,92 @@ f_data( struct receive_data *r )
 	r->r_env->e_mid = rh.r_mid;
 	rh.r_mid = 0;
 
-	/* note that this will over-write the previous message_result value */
-	message_result = content_filter( r, &filter_message );
+	if ( env_tfile( r->r_env ) != 0 ) {
+	    goto error;
+	}
+
+	filter_result = content_filter( r, &filter_message );
 
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 		"content filter %s exited %d: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		r->r_env->e_id, simta_mail_filter, message_result,
+		r->r_env->e_id, simta_mail_filter, filter_result,
 		filter_message ? filter_message : "no filter message" );
+	/* TEMPFAIL has precedence over REJECT */
+
+	if ( message_banner == MESSAGE_TEMPFAIL ) {
+	    if ( filter_result & MESSAGE_TEMPFAIL ) {
+		if ( filter_result & MESSAGE_REJECT ) {
+		syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+			"Message Tempfail: Filter Error: Tempfail and Reject",
+			inet_ntoa( r->r_sin->sin_addr ),
+			r->r_remote_hostname,
+			r->r_env->e_id );
+		}
+	    } else if ( filter_result & MESSAGE_REJECT ) {
+		    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+			    "Message Tempfail: Filter Reject overridden",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname,
+			    r->r_env->e_id );
+	    } else {
+		    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+			    "Message Tempfail: Filter Accept overridden",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname,
+			    r->r_env->e_id );
+	    }
+
+	} else if ( message_banner == MESSAGE_REJECT ) {
+	    if ( filter_result & MESSAGE_REJECT ) {
+		if ( filter_result & MESSAGE_TEMPFAIL ) {
+		    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+			    "Message Reject: Filter Error: Tempfail and Reject",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname,
+			    r->r_env->e_id );
+		}
+	    } else if ( filter_result & MESSAGE_TEMPFAIL ) {
+		syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+			"Message Reject: Filter Tempfail overridden",
+			inet_ntoa( r->r_sin->sin_addr ),
+			r->r_remote_hostname,
+			r->r_env->e_id );
+	    } else {
+		syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+			"Message Reject: Filter Accept overridden",
+			inet_ntoa( r->r_sin->sin_addr ),
+			r->r_remote_hostname,
+			r->r_env->e_id );
+	    }
+
+	} else {
+	    /* Message Accept, content filter can do whatever it wants */
+	    if ( filter_result & MESSAGE_TEMPFAIL ) {
+		if ( filter_result & MESSAGE_REJECT ) {
+		    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+			    "Message Tempfail: "
+			    "Filter Error: Tempfail and Reject",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname,
+			    r->r_env->e_id );
+		} else {
+		    syslog( LOG_INFO, "Receive [%s] %s: %s: "
+			    "Message Tempfail: Filter",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname,
+			    r->r_env->e_id );
+		}
+		message_banner = MESSAGE_TEMPFAIL;
+	    } else if ( filter_result & MESSAGE_REJECT ) {
+		message_banner = MESSAGE_REJECT;
+		syslog( LOG_INFO, "Receive [%s] %s: %s: "
+			"Message Reject: Filter",
+			inet_ntoa( r->r_sin->sin_addr ),
+			r->r_remote_hostname,
+			r->r_env->e_id );
+	    }
+	}
     }
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
@@ -1714,126 +1776,115 @@ f_data( struct receive_data *r )
 		(int)(tv_now.tv_sec - tv_filter.tv_sec));
     }
 
-    /* check for message acceptance */
-    if ((( message_result & MESSAGE_REJECT ) == 0 ) &&
-	    (( message_result & MESSAGE_TEMPFAIL ) == 0 )) {
-	if ( message_result & MESSAGE_DELETE ) {
+    if ( filter_result & MESSAGE_BOUNCE ) {
+	if (( env_bounce = bounce( r->r_env,
+		(( r->r_env->e_flags & ENV_FLAG_DFILE ) &&
+		(( filter_result & MESSAGE_DELETE ) == 0 )),
+		filter_message ? filter_message :
+		"This message was rejected based on local content policies"
+		)) == NULL ) {
+	    goto error;
+	}
+	queue_envelope( env_bounce );
+	syslog( LOG_NOTICE, "Receive [%s] %s: %s: Message Bounced: "
+		"MID <%s> From <%s>: size %d: %s, %s: Bounce_ID: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id,
+		r->r_env->e_mid ? r->r_env->e_mid : "NULL",
+		r->r_env->e_mail, data_read,
+		system_message ? system_message : "no system message",
+		filter_message ? filter_message : "no filter message",
+		env_bounce->e_id );
+	if ( simta_inbound_accepted_message_timer >= 0 ) {
+	    r->r_tv_accepted.tv_sec = simta_inbound_accepted_message_timer +
+		    tv_now.tv_sec;
+	}
+    }
+
+    if ( filter_result & MESSAGE_JAIL ) {
+	if (( r->r_env->e_flags & ENV_FLAG_DFILE ) == 0 ) {
+	    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+		    "no Dfile can't accept message:"
+		    "MID <%s> size %d: %s, %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
+		    data_read,
+		    system_message ? system_message : "no system message",
+		    filter_message ? filter_message : "no filter message" );
+	} else if ( simta_jail_host == NULL ) {
+	    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
+		    "content filter returned MESSAGE_JAIL and "
+		    "no JAIL_HOST is configured",
+		    inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname,
+		    r->r_env->e_id );
+	} else {
+	    /* remove tfile because we're going to change the hostname */
+	    if ( env_tfile_unlink( r->r_env ) != 0 ) {
+		goto error;
+	    }
+	    if ( env_hostname( r->r_env, simta_jail_host ) != 0 ) {
+		goto error;
+	    }
+	    if (( simta_mail_jail != 0 ) && ( simta_bounce_jail == 0 )) {
+		/* bounces must be able to get out of jail */
+		env_jail_set( r->r_env, ENV_JAIL_NO_CHANGE );
+	    }
+	    syslog( LOG_NOTICE, "Receive [%s] %s: %s: "
+		    "sending to JAIL_HOST %s",
+		    inet_ntoa( r->r_sin->sin_addr ),
+		    r->r_remote_hostname,
+		    r->r_env->e_id, r->r_env->e_hostname );
+	}
+
+    /* see if we need to delete the message */
+    } else if (( message_banner == MESSAGE_TEMPFAIL ) ||
+	    ( message_banner == MESSAGE_REJECT ) ||
+	    ( filter_result & MESSAGE_DELETE ) ||
+	    ( filter_result & MESSAGE_BOUNCE )) {
+	if (( filter_result & MESSAGE_DELETE ) &&
+		(( filter_result & MESSAGE_BOUNCE ) == 0 )) {
 	    syslog( LOG_NOTICE, "Receive [%s] %s: %s: "
 		    "Message Deleted by content filter: "
 		    "MID <%s> size %d: %s, %s",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
+		    r->r_env->e_id,
+		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		    data_read,
 		    system_message ? system_message : "no system message",
 		    filter_message ? filter_message : "no filter message" );
+	}
 
-	} else if (( r->r_env->e_flags & ENV_FLAG_TFILE ) == 0 ) {
-	    message_result |= MESSAGE_TEMPFAIL;
-	    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
-		    "no tfile can't accept message:"
-		    "MID <%s> size %d: %s, %s",
-		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-		    data_read,
-		    system_message ? system_message : "no system message",
-		    filter_message ? filter_message : "no filter message" );
-
-	} else if ( message_result & MESSAGE_BOUNCE ) {
-	    if (( env_bounce = bounce( r->r_env, NULL,
-		    filter_message ? filter_message :
-		    "This message was rejected based on local content policies"
-		    )) == NULL ) {
-		goto error;
-	    }
-
-	    syslog( LOG_NOTICE, "Receive [%s] %s: %s: Message Bounced: "
-		    "MID <%s> From <%s>: size %d: %s, %s: Bounce_ID: %s",
-		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id,
-		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-		    r->r_env->e_mail, data_read,
-		    system_message ? system_message : "no system message",
-		    filter_message ? filter_message : "no filter message",
-		    env_bounce->e_id );
-
-	    if ( env_tfile_unlink( r->r_env ) != 0 ) {
-		goto error;
-	    }
-
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "Syserror f_data: unlink %s: %m",
-			dfile_fname );
-		goto error;
-	    }
-
-	    env_free( r->r_env );
-	    r->r_env = env_bounce;
-
-	} else {
-	    if ( message_result & MESSAGE_JAIL ) {
-		if ( simta_jail_host == NULL ) {
-		    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
-			    "content filter returned MESSAGE_JAIL and "
-			    "no JAIL_HOST is configured",
-			    inet_ntoa( r->r_sin->sin_addr ),
-			    r->r_remote_hostname,
-			    r->r_env->e_id );
-		} else {
-		    if ( env_hostname( r->r_env, simta_jail_host ) != 0 ) {
-			goto error;
-		    }
-
-		    syslog( LOG_NOTICE, "Receive [%s] %s: %s: "
-			    "sending to JAIL_HOST %s",
-			    inet_ntoa( r->r_sin->sin_addr ),
-			    r->r_remote_hostname,
-			    r->r_env->e_id, r->r_env->e_hostname );
-		}
-	    }
-
-	    if ( env_efile( r->r_env ) != 0 ) {
-		goto error;
-	    }
-
-	    if ( simta_message_timer > 0 ) {
-		r->r_tv_delivery.tv_sec = simta_message_timer + tv_now.tv_sec;
-	    }
-
-	    r->r_data_success++;
-
-	    syslog( LOG_NOTICE, "Receive [%s] %s: %s: Message Accepted: "
-		    "MID <%s> From <%s>: size %d: %s, %s",
-		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id,
-		    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-		    r->r_env->e_mail, data_read,
-		    system_message ? system_message : "no system message",
-		    filter_message ? filter_message : "no filter message" );
+	if ( env_dfile_unlink( r->r_env ) != 0 ) {
+	    goto error;
 	}
     }
 
-    /* if the message hasn't been acepted, remove it from the disk */
-    if (( r->r_env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
-	if ( r->r_env->e_flags & ENV_FLAG_TFILE ) {
-	    if ( env_tfile_unlink( r->r_env ) != 0 ) {
-		goto error;
-	    }
+    if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
+	if ( env_outfile( r->r_env ) != 0 ) {
+	    goto error;
 	}
 
-	if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
-	    r->r_env->e_flags = ( r->r_env->e_flags & ( ~ENV_FLAG_DFILE ));
-
-	    if ( unlink( dfile_fname ) < 0 ) {
-		syslog( LOG_ERR, "Syserror f_data: unlink %s: %m",
-			dfile_fname );
-		goto error;
-	    }
+	if ( simta_inbound_accepted_message_timer >= 0 ) {
+	    r->r_tv_accepted.tv_sec = simta_inbound_accepted_message_timer +
+		    tv_now.tv_sec;
 	}
+
+	r->r_data_success++;
+
+	syslog( LOG_NOTICE, "Receive [%s] %s: %s: Message Accepted: "
+		"MID <%s> From <%s>: size %d: %s, %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id,
+		r->r_env->e_mid ? r->r_env->e_mid : "NULL",
+		r->r_env->e_mail, data_read,
+		system_message ? system_message : "no system message",
+		filter_message ? filter_message : "no filter message" );
     }
 
-    if ( message_result & MESSAGE_DISCONNECT ) {
+    if ( filter_result & MESSAGE_DISCONNECT ) {
 	set_smtp_mode( r, SMTP_MODE_OFF, simta_mail_filter );
-    } else if ( message_result & MESSAGE_TARPIT ) {
+    } else if ( filter_result & MESSAGE_TARPIT ) {
 	set_smtp_mode( r, SMTP_MODE_TARPIT, simta_mail_filter );
     }
 
@@ -1851,44 +1902,45 @@ f_data( struct receive_data *r )
 	failure_message = NULL;
     }
 
-    if ( message_result & MESSAGE_TEMPFAIL ) {
-	if ( message_result & MESSAGE_REJECT ) {
-	    syslog( LOG_WARNING, "Receive [%s] %s: %s: "
-		    "content filter returned both TEMPFAIL and REJECT",
-		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id );
-	}
+    banner++;
 
-	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Message Tempfailed: "
+    /* TEMPFAIL has precedence over REJECT */
+    if ( message_banner == MESSAGE_TEMPFAIL ) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Tempfail Banner: "
 		"MID <%s> size %d: %s, %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		data_read,
 		system_message ? system_message : "no system message",
 		filter_message ? filter_message : "no filter message" );
-
-	if ( smtp_write_banner( r, 451, S_451_DECLINE, failure_message )
+	if ( smtp_write_banner( r, 451, S_451_MESSAGE, failure_message )
 		!= RECEIVE_OK ) {
 	    ret_code = RECEIVE_CLOSECONNECTION;
 	    goto error;
 	}
 
-    } else if ( message_result & MESSAGE_REJECT ) {
-	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Message Failed: "
+    } else if ( message_banner == MESSAGE_REJECT ) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Failed Banner: "
 		"MID <%s> size %d: %s, %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
 		data_read,
 		system_message ? system_message : "no system message",
 		filter_message ? filter_message : "no filter message" );
-	if ( smtp_write_banner( r, 554, NULL, failure_message ) !=
+	if ( smtp_write_banner( r, 554, S_554_MESSAGE, failure_message ) !=
 		RECEIVE_OK ) {
 	    ret_code = RECEIVE_CLOSECONNECTION;
 	    goto error;
 	}
 
     } else {
-	/* ACCEPT Message */
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: Accept Banner: "
+		"MID <%s> size %d: %s, %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, r->r_env->e_mid ? r->r_env->e_mid : "NULL",
+		data_read,
+		system_message ? system_message : "no system message",
+		filter_message ? filter_message : "no filter message" );
 	if ( filter_message != NULL ) {
 	    if ( snet_writef( r->r_snet, "250 Accepted: (%s): %s\r\n",
 		    r->r_env->e_id, filter_message ) < 0 ) {
@@ -1904,51 +1956,62 @@ f_data( struct receive_data *r )
 		goto error;
 	    }
 	}
-
-	if ( simta_message_timer == 0 ) {
-	    if ( reset( r ) != RECEIVE_OK ) {
-		header_free( &rh );
-		return( RECEIVE_SYSERROR );
-	    }
-	}
     }
 
-    if ( filter_message != NULL ) {
-	free( filter_message );
+    /* if we just had a protocol error, we're OK */
+    if ( read_err != SYSTEM_ERROR ) {
+	ret_code = RECEIVE_OK;
     }
-    header_free( &rh );
-
-    return( RECEIVE_OK );
 
 error:
-    if ( dff != NULL ) {
-	if ( fclose( dff ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: fclose3: %m" );
-	}
-    } else if ( dfile_fd >= 0 ) {
-	if ( close( dfile_fd ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: close: %m" );
-	}
-    }
+    header_free( &rh );
 
-    /* delete the dfile if we haven't acepted the message */
-    if (( r->r_env->e_flags & ENV_FLAG_DFILE ) && 
-	    (( r->r_env->e_flags & ENV_FLAG_EFILE ) == 0 )) {
-	r->r_env->e_flags = ( r->r_env->e_flags & ( ~ENV_FLAG_DFILE ));
-
-	if ( unlink( dfile_fname ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: unlink %s: %m", dfile_fname );
+    /* if dff is still open, there was an error and we need to close it */
+    if (( dff != NULL ) && ( fclose( dff ) != 0 )) {
+	syslog( LOG_ERR, "Syserror f_data: fclose3: %m" );
+	if ( ret_code == RECEIVE_OK ) {
+	    ret_code = RECEIVE_SYSERROR;
 	}
     }
 
-    if ( r->r_env->e_flags & ENV_FLAG_TFILE ) {
-	env_tfile_unlink( r->r_env );
+    /* if we didn't put a message on the disk, we need to clean up */
+    if (( r->r_env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
+	/* Dfile no Efile */
+	if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
+	    if ( env_dfile_unlink( r->r_env ) != 0 ) {
+		if ( ret_code == RECEIVE_OK ) {
+		    ret_code = RECEIVE_SYSERROR;
+		}
+	    }
+	}
+
+	/* Tfile no Efile */
+	if ( r->r_env->e_flags & ENV_FLAG_TFILE ) {
+	    if ( env_tfile_unlink( r->r_env ) != 0 ) {
+		if ( ret_code == RECEIVE_OK ) {
+		    ret_code = RECEIVE_SYSERROR;
+		}
+	    }
+	}
+
+	syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id );
+	env_free( r->r_env );
+	r->r_env = NULL;
     }
 
     if ( filter_message != NULL ) {
 	free( filter_message );
     }
-    header_free( &rh );
+
+    /* if we've already given a message result banner,
+     * delay the syserror banner
+     */
+    if (( banner != 0 ) && ( ret_code == RECEIVE_SYSERROR )) {
+	set_smtp_mode( r, SMTP_MODE_OFF, "Syserror" );
+	return( RECEIVE_OK );
+    }
 
     return( ret_code );
 }
@@ -2163,6 +2226,10 @@ _post_tls( struct receive_data *r )
     int		rc; 
 
     if ( simta_sasl ) {
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: _post_tls sasl_setprop 1" );
+	}
+
 	/* Get cipher_bits and set SSF_EXTERNAL */
 	memset( &r->r_secprops, 0, sizeof( sasl_security_properties_t ));
 	if (( rc = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
@@ -2176,6 +2243,10 @@ _post_tls( struct receive_data *r )
 	r->r_secprops.maxbufsize = 4096;
 	r->r_secprops.min_ssf = 0;
 	r->r_secprops.max_ssf = 256;
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: _post_tls sasl_setprop 2" );
+	}
 
 	if (( rc = sasl_setprop( r->r_conn, SASL_SEC_PROPS, &r->r_secprops))
 		!= SASL_OK ) {
@@ -2195,6 +2266,10 @@ _start_tls( struct receive_data *r )
     X509			*peer;
     char			buf[ 1024 ];
 
+    if ( simta_debug != 0 ) {
+	syslog( LOG_DEBUG, "Debug: _start_tls snet_starttls" );
+    }
+
     if (( rc = snet_starttls( r->r_snet, ctx, 1 )) != 1 ) {
 	syslog( LOG_ERR, "Syserror _start_tls: snet_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
@@ -2202,6 +2277,10 @@ _start_tls( struct receive_data *r )
     }
 
     if ( simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER ) {
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: _start_tls SSL_get_peer_certificate" );
+	}
+
 	if (( peer = SSL_get_peer_certificate( r->r_snet->sn_ssl )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror _start_tls: SSL_get_peer_certificate: "
 		    "no peer certificate" );
@@ -2275,7 +2354,7 @@ f_auth( struct receive_data *r )
     }
 
     /* RFC 2554 The AUTH command is not permitted during a mail transaction. */
-    if ( r->r_env->e_mail != NULL ) {
+    if (( r->r_env != NULL ) && ( r->r_env->e_mail != NULL )) {
 	return( f_bad_sequence( r ));
     }
 
@@ -2319,12 +2398,11 @@ f_auth( struct receive_data *r )
 
 	if ( smtp_write_banner( r, 334, (char*)serverout, NULL )
 		!= RECEIVE_OK ) {
-	    syslog( LOG_DEBUG, "Syserror f_auth: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
 	/* Get response from the client */
-	tv.tv_sec = simta_receive_line_wait;
+	tv.tv_sec = simta_inbound_command_line_timer;
 	tv.tv_usec = 0;
 	if (( clientin = snet_getline( r->r_snet, &tv )) == NULL ) {
 	    syslog( LOG_DEBUG, "Syserror f_auth: snet_getline: %m" );
@@ -2486,11 +2564,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     int					i;
     int					ret;
     int					continue_after_timeout = 0;
+    int					time_remaining;
     char				*timer_type;
     char				*line;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv;
-    struct timeval			tv_write;
     struct timeval			tv_start;
     struct timeval			tv_stop;
     struct timeval			tv_now;
@@ -2498,6 +2576,17 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 #ifdef HAVE_LIBWRAP
     char				*ctl_hostname;
 #endif /* HAVE_LIBWRAP */
+
+    /*
+     * global connections max 
+     * auth init
+     * check DNS reverse
+     * TCP wrappers
+     * RBLs
+     * if not RBL_ACCEPT, local connections max
+     * write before banner check
+     * opening banner * command line loop
+     */
 
     /*
      * local variable init
@@ -2528,8 +2617,9 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	tv_start.tv_sec = 0;
     }
 
-    if ( simta_receive_session_wait > 0 ) {
-	r.r_tv_session.tv_sec = simta_receive_session_wait + tv_start.tv_sec;
+    if ( simta_inbound_global_session_timer > 0 ) {
+	r.r_tv_session.tv_sec = simta_inbound_global_session_timer +
+		tv_start.tv_sec;
     }
 
     if (( r.r_snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
@@ -2537,9 +2627,9 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	return( 0 );
     }
 
-    memset( &tv_write, 0, sizeof( struct timeval ));
-    tv_write.tv_sec = 5 * 60;
-    snet_timeout( r.r_snet, SNET_WRITE_TIMEOUT, &tv_write );
+    tv_wait.tv_sec = simta_inbound_command_line_timer;
+    tv_wait.tv_usec = 0;
+    snet_timeout( r.r_snet, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait );
 
     if ( reset( &r ) != RECEIVE_OK ) {
 	goto syserror;
@@ -2604,6 +2694,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 	}
 
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_mail checking reverse" );
+	}
+
 	*hostname = '\0';
         switch ( r.r_dns_match =
 		check_reverse( hostname, &(c->c_sin.sin_addr))) {
@@ -2663,6 +2757,9 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
         } /* end of switch */
 
 #ifdef HAVE_LIBWRAP
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_mail host lookup" );
+	}
 	if ( *hostname == '\0' ) {
 	    ctl_hostname = STRING_UNKNOWN;
 	} else {
@@ -2684,6 +2781,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 #endif /* HAVE_LIBWRAP */
 
         if ( simta_rbls != NULL ) {
+	    if ( simta_debug != 0 ) {
+		syslog( LOG_DEBUG, "Debug: smtp_mail checking rbls" );
+	    }
+
             switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
 		    r.r_remote_hostname, NULL, &(r.r_rbl), &(r.r_rbl_msg))) {
             case RBL_BLOCK:
@@ -2746,6 +2847,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 	}
 
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_mail write before banner check" );
+	}
+
 	/* Write before Banner check */
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
@@ -2765,6 +2870,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	tarpit_sleep( &r, simta_smtp_tarpit_connect );
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_mail opening banner" );
+	}
 
 	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
 	    if ( snet_writef( r.r_snet,
@@ -2793,52 +2902,56 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	/* command line timer */
-	tv_wait.tv_sec = simta_receive_line_wait;
+	tv_wait.tv_sec = simta_inbound_command_line_timer;
 	tv_wait.tv_usec = 0;
-	timer_type = S_LINE;
+	timer_type = S_COMMAND_LINE;
 
 	/* global session timer */
 	if ( r.r_tv_session.tv_sec != 0 ) {
 	    if ( r.r_tv_session.tv_sec <= tv_now.tv_sec ) {
-		timer_type = S_SESSION;
+		timer_type = S_GLOBAL_SESSION;
 		break;
 	    }
-	    if ( tv_wait.tv_sec > ( r.r_tv_session.tv_sec - tv_now.tv_sec )) {
-		tv_wait.tv_sec = r.r_tv_session.tv_sec - tv_now.tv_sec;
-		timer_type = S_SESSION;
+	    time_remaining = r.r_tv_session.tv_sec - tv_now.tv_sec;
+	    if ( tv_wait.tv_sec > time_remaining ) {
+		tv_wait.tv_sec = time_remaining;
+		timer_type = S_GLOBAL_SESSION;
 	    }
 	}
 
 	/* inactivity timer */
-	if ( simta_inactivity_timer > 0 ) {
-	    if ( r.r_tv_inactive.tv_sec != 0 ) {
-		if ( r.r_tv_inactive.tv_sec <= tv_now.tv_sec ) {
+	if ( simta_inbound_command_inactivity_timer > 0 ) {
+	    if ( r.r_tv_inactivity.tv_sec != 0 ) {
+		if ( r.r_tv_inactivity.tv_sec <= tv_now.tv_sec ) {
 		    timer_type = S_INACTIVITY;
 		    break;
 		}
 	    } else {
-		r.r_tv_inactive.tv_sec = simta_inactivity_timer + tv_now.tv_sec;
+		r.r_tv_inactivity.tv_sec =
+			simta_inbound_command_inactivity_timer + tv_now.tv_sec;
 	    }
 
-	    if ( tv_wait.tv_sec > ( r.r_tv_inactive.tv_sec - tv_now.tv_sec )) {
-		tv_wait.tv_sec = r.r_tv_inactive.tv_sec - tv_now.tv_sec;
+	    time_remaining = r.r_tv_inactivity.tv_sec - tv_now.tv_sec;
+	    if ( tv_wait.tv_sec > time_remaining ) {
+		tv_wait.tv_sec = time_remaining;
 		timer_type = S_INACTIVITY;
 	    }
 	}
 
 	/* message send timer */
-	if ( r.r_tv_delivery.tv_sec != 0 ) {
-	    if ( r.r_tv_delivery.tv_sec <= tv_now.tv_sec ) {
-		r.r_tv_delivery.tv_sec = 0;
+	if ( r.r_tv_accepted.tv_sec != 0 ) {
+	    if ( r.r_tv_accepted.tv_sec <= tv_now.tv_sec ) {
+		r.r_tv_accepted.tv_sec = 0;
 		if ( deliver_accepted( &r ) != RECEIVE_OK ) {
 		    return( RECEIVE_SYSERROR );
 		}
 		continue;
 	    }
-	    if ( tv_wait.tv_sec > ( r.r_tv_delivery.tv_sec - tv_now.tv_sec )) {
-		tv_wait.tv_sec = r.r_tv_delivery.tv_sec - tv_now.tv_sec;
+	    time_remaining = r.r_tv_accepted.tv_sec - tv_now.tv_sec;
+	    if ( tv_wait.tv_sec > time_remaining ) {
+		tv_wait.tv_sec = time_remaining;
 		continue_after_timeout = 1;
-		timer_type = S_DELIVERY;
+		timer_type = S_ACCEPTED_MESSAGE;
 	    }
 	}
 
@@ -3357,7 +3470,6 @@ content_filter( struct receive_data *r, char **smtp_message )
 	} else {
 	    *fname = '\0';
 	}
-
 
 	if (( filter_envp[ 1 ] = env_string( "SIMTA_TFILE",
 		fname )) == NULL ) {

@@ -31,6 +31,7 @@
 #include <signal.h>
 #include <sysexits.h>
 #include <syslog.h>
+#include <dirent.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -39,11 +40,11 @@
 #include <snet.h>
 
 #include "denser.h"
-#include "queue.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"
 #include "simta.h"
+#include "queue.h"
 
 void catch_sigint( int );
 
@@ -99,7 +100,7 @@ main( int argc, char *argv[] )
     /* ignore a good many options */
     opterr = 0;
 
-    openlog( argv[ 0 ], LOG_NOWAIT|LOG_PID, LOG_SIMTA );
+    simta_openlog( 0 );
 
     while (( c = getopt( argc, argv, "b:f:io:r:st" )) != -1 ) {
 	switch ( c ) {
@@ -201,32 +202,20 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
+    if (( sender ) && ( simta_simsend_strict_from )) {
+	fprintf( stderr, "-f option not enabled\n" );
+	exit( EX_TEMPFAIL );
+    }
+
     /* create envelope */
-    if (( env = env_create( NULL, NULL )) == NULL ) {
+    if (( env = env_create( simta_dir_local, NULL,
+	    sender ? sender : simta_sender(), NULL )) == NULL ) {
 	perror( "env_create" );
 	exit( EX_TEMPFAIL );
     }
 
-    if ( env_id( env ) != 0 ) {
-	perror( "gettimeofday" );
-	exit( EX_TEMPFAIL );
-    }
-
-    if ( sender ) {
-	if ( simta_simsend_strict_from ) {
-	    fprintf( stderr, "-f option not enabled\n" );
-	    exit( EX_TEMPFAIL );
-	} else {
-	    if ( env_sender( env, sender ) != 0 ) {
-		perror( "malloc" );
-		exit( EX_TEMPFAIL );
-	    }
-	}
-    } else {
-	if ( env_sender( env, simta_sender()) != 0 ) {
-	    perror( "malloc" );
-	    exit( EX_TEMPFAIL );
-	}
+    if (( simta_mail_jail != 0 ) && ( simta_local_jail == 0 )) {
+	env_jail_set( env, ENV_JAIL_NO_CHANGE );
     }
 
     /* optind = first to-address */
@@ -323,7 +312,7 @@ main( int argc, char *argv[] )
 		}
 
 		/* open Dfile */
-		sprintf( dfile_fname, "%s/D%s", simta_dir_local, env->e_id );
+		sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 
 		if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
 			O_EXCL, 0600 )) < 0 ) {
@@ -405,7 +394,7 @@ main( int argc, char *argv[] )
 	}
 
 	/* open Dfile */
-	sprintf( dfile_fname, "%s/D%s", simta_dir_local, env->e_id );
+	sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 
 	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
 		O_EXCL, 0600 )) < 0 ) {
@@ -464,7 +453,6 @@ main( int argc, char *argv[] )
     }
 
     /* store Efile */
-    env->e_dir = simta_dir_local;
     if ( env_outfile( env ) != 0 ) {
 	syslog( LOG_INFO, "Local %s: Message Aborted", env->e_id );
 	perror( "env_outfile" );

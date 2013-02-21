@@ -23,6 +23,51 @@ internal
 0.8.2
     - simta_gettimeofday() preffered interface
 
+0.8.3.c
+    - BOUNCE_JAIL directive added
+    - debugging statements added
+    - jail debugged
+    - changed BOUNCE_SECONDS to mean 0 is forever
+
+0.8.3.b
+    - many bugfixes
+    - queue scheduler bug
+    - envelope API changes needed to support MID and sender lists
+    - simc -d changes simta's debug level
+    - simta_openlog() used instead of openlog()
+    - MAIL_JAIL directive added
+    - simc works for MID, queue, and sender
+    - DISK_FACTOR and COMMAND_FACTOR added
+    - GLOBAL_RELAY_DISABLE_SENDER_CHECKING -> DISABLE_SENDER_CHECKING
+
+0.8.3.a
+    - simta one process model
+    - simta_gettimeofday() preffered interface
+
+0.8.2.4
+    - timeout bugfixes
+
+0.8.2.4
+    - debug logging added
+    - nomenclature changes
+
+0.8.2.3
+    - bugfixes
+
+0.8.2.2
+    - bugfixes
+
+0.8.2.1
+    - DEBUG_LOGGING directive added to help debug the stuck message bugfix
+    - log transition to DATA for outbounder debugging
+    - E file format change for queue prioritization
+    - additional logging for host deliver ordering
+    - delivery activity logs in all cases
+    - additional logging to help track down "no deliver" poison message
+    - logging for SASL bug @ DEBUG_LOGGING level 1
+    - receive inbound timer overhaul, add outbound timers
+
+
 0.8.2.d
     - ignore trailing dot in email addresses
     - removed timer debugging logging

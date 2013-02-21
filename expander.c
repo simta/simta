@@ -30,13 +30,13 @@
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
 #include "line_file.h"
-#include "ml.h"
-#include "smtp.h"
 #include "expand.h"
 #include "simta.h"
+#include "queue.h"
+#include "ml.h"
+#include "smtp.h"
 
 
     int
@@ -84,7 +84,7 @@ main( int argc, char *argv[])
 	exit( EX_USAGE );
     }
 
-    openlog( argv[ 0 ], LOG_NDELAY, LOG_SIMTA );
+    simta_openlog( 0 );
 
     if ( simta_read_config( argv[ nextargc ] ) < 0 ) {
 	fprintf( stderr, "simta_read_config error: %s\n", argv[ nextargc ] );
@@ -97,12 +97,7 @@ main( int argc, char *argv[])
 	exit( EX_DATAERR );
     }
 
-    if (( env = env_create( sender, NULL )) == NULL ) {
-	perror( "malloc" );
-	return( 1 );
-    }
-
-    if (( env->e_id = strdup( "Test" )) == NULL ) {
+    if (( env = env_create( NULL, "Expander", sender, NULL )) == NULL ) {
 	perror( "malloc" );
 	return( 1 );
     }

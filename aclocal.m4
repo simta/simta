@@ -32,8 +32,10 @@ AC_DEFUN([CHECK_LDAP],
 	    SRC="$SRC simta_ldap.c dn.c"
 	    SIMTA_OBJ="$SIMTA_OBJ simta_ldap.o dn.o"
 	    SIMSEND_OBJ="$SIMSEND_OBJ simta_ldap.o dn.o"
+	    SIMC_OBJ="$SIMC_OBJ simta_ldap.o dn.o"
 	    Q_RUNNER_OBJ="$Q_RUNNER_OBJ simta_ldap.o dn.o"
 	    EXPANDER_OBJ="$EXPANDER_OBJ simta_ldap.o dn.o"
+	    AC_DEFINE(HAVE_LDAP)
 	    AC_DEFINE([HAVE_LDAP], 1, [Define to 1 if you have LDAP])
 	fi
 

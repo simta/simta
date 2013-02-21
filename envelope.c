@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 
+#include <dirent.h>
 #include <assert.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -36,37 +37,90 @@
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "envelope.h"
 #include "line_file.h"
 #include "header.h"
 #include "simta.h"
+#include "queue.h"
 
 
     int
-env_id( struct envelope *e )
+env_jail_set( struct envelope *e, int val )
 {
-    struct timeval		tv_now;
-    int				pid;
-    /* way bigger than we should ever need */
-    char			buf[ 1024 ];
+    char			*s;
 
-    assert( e->e_id == NULL );
+    if ( simta_debug > 1 ) {
+	switch ( val ) {
+	default:
+	    s = "Unknown";
+	    break;
 
-    simta_gettimeofday( &tv_now );
+	case ENV_JAIL_NO_CHANGE:
+	    s = "JAIL_NO_CHANGE";
+	    break;
 
-    if (( pid = getpid()) < 0 ) {
-	syslog( LOG_ERR, "env_id getpid: %m" );
-	return( -1 );
+	case ENV_JAIL_PAROLEE:
+	    s = "JAIL_PAROLEE";
+	    break;
+
+	case ENV_JAIL_PRISONER:
+	    s = "JAIL_PRISONER";
+	    break;
+	}
+
+	syslog( LOG_DEBUG, "Jail %s: value %d (%s)", e->e_id, val, s );
     }
 
-    snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
-	    (unsigned long)tv_now.tv_usec, pid );
+    e->e_jail = val;
 
-    if (( e->e_id = strdup( buf )) == NULL ) {
-	syslog( LOG_ERR, "env_id strdup: %m" );
-	return( -1 );
+    return( 0 );
+}
+
+    int
+env_jail_status( struct envelope *env, int jail )
+{
+    SNET			*snet_lock;
+
+    if ( env == NULL ) {
+	return( 0 );
     }
+
+    if (( jail != ENV_JAIL_PRISONER ) && ( jail != ENV_JAIL_PAROLEE )) {
+	syslog( LOG_ERR, "Syserror %s: env_jail_status: illegal code: %d",
+		env->e_id, jail );
+	return( 1 );
+    }
+
+    if (( env->e_jail != ENV_JAIL_PRISONER ) &&
+	    ( env->e_jail != ENV_JAIL_PAROLEE )) {
+	syslog( LOG_ERR, "Syserror %s: env_jail_status: illegal env code: %d",
+		env->e_id, env->e_jail );
+	return( 1 );
+    }
+
+    if ( env->e_jail == jail ) {
+	return( 0 );
+    }
+
+    if ( env->e_hq != NULL ) {
+	if ( jail == ENV_JAIL_PRISONER ) {
+	    env->e_hq->hq_jail_envs--;
+	} else {
+	    env->e_hq->hq_jail_envs++;
+	}
+    }
+
+    if ( env_read( READ_JAIL_INFO, env, &snet_lock ) != 0 ) {
+	return( 0 );
+    }
+
+    env_jail_set( env, jail );
+
+    if ( env_outfile( env ) != 0 ) {
+	return( 1 );
+    }
+
+    env_rcpt_free( env );
 
     return( 0 );
 }
@@ -89,10 +143,13 @@ env_is_old( struct envelope *env, int dfile_fd )
 	    return( 0 );
 	}
 
-	if (( tv_now.tv_sec - sb.st_mtime ) > ( simta_bounce_seconds )) {
-	    env->e_age = ENV_AGE_OLD;
-	} else {
-	    env->e_age = ENV_AGE_NOT_OLD;
+	if ( simta_bounce_seconds > 0 ) {
+	    if (( tv_now.tv_sec - sb.st_mtime ) > ( simta_bounce_seconds )) {
+		env->e_age = ENV_AGE_OLD;
+	    } else {
+		env->e_age = ENV_AGE_NOT_OLD;
+	    }
+
 	}
     }
 
@@ -104,27 +161,14 @@ env_is_old( struct envelope *env, int dfile_fd )
 }
 
 
-    int
-env_set_id( struct envelope *e, char *id )
-{
-    if (( id == NULL ) || ( *id == '\0' )) {
-	syslog( LOG_ERR, "env_set_id: must have valid ID" );
-	return( 1 );
-    }
-
-    if (( e->e_id = strdup( id )) == NULL ) {
-	syslog( LOG_ERR, "env_set_id malloc: %m" );
-	return( 1 );
-    }
-
-    return( 0 );
-}
-
-
     struct envelope *
-env_create( char *e_mail, struct envelope *parent )
+env_create( char *dir, char *id, char *e_mail, struct envelope *parent )
 {
     struct envelope	*env;
+    struct timeval		tv_now;
+    int				pid;
+    /* way bigger than we should ever need */
+    char			buf[ 1024 ];
 
     if (( env = (struct envelope *)malloc( sizeof( struct envelope ))) ==
 	    NULL ) {
@@ -132,6 +176,30 @@ env_create( char *e_mail, struct envelope *parent )
 	return( NULL );
     }
     memset( env, 0, sizeof( struct envelope ));
+
+    if (( id == NULL ) || ( *id == '\0' )) {
+	if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	    env_free( env );
+	    return( NULL );
+	}
+
+	if (( pid = getpid()) < 0 ) {
+	    syslog( LOG_ERR, "env_set_id getpid: %m" );
+	    env_free( env );
+	    return( NULL );
+	}
+
+	snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
+		(unsigned long)tv_now.tv_usec, pid );
+
+	id = buf;
+    }
+
+    if (( env->e_id = strdup( id )) == NULL ) {
+	syslog( LOG_ERR, "env_create strdup: %m" );
+	env_free( env );
+	return( NULL );
+    }
 
     if ( e_mail != NULL ) {
 	if ( env_sender( env, e_mail ) != 0 ) {
@@ -142,7 +210,12 @@ env_create( char *e_mail, struct envelope *parent )
 
     if ( parent ) {
 	env->e_n_exp_level = parent->e_n_exp_level + 1;
+	env_jail_set( env, parent->e_jail );
+    } else if ( simta_mail_jail != 0 ) {
+	env_jail_set( env, ENV_JAIL_PRISONER );
     }
+
+    env->e_dir = dir;
 
     return( env );
 }
@@ -216,8 +289,12 @@ env_clear_errors( struct envelope *env )
 env_hostname( struct envelope *env, char *hostname )
 {
     if ( env->e_hostname != NULL ) {
-	syslog( LOG_ERR, "env_hostname: %s already has a hostname", env->e_id );
-	return( 1 );
+	if ( strcasecmp( env->e_hostname, hostname ) != 0 ) {
+	    syslog( LOG_WARNING, "Warning env_hostname: %s: "
+		    "can't reassign hostname from \"%s\" to \"%s\"",
+		    env->e_id, env->e_hostname, hostname );
+	}
+	return( 0 );
     }
 
     if (( hostname != NULL ) && ( *hostname != '\0' )) {
@@ -238,10 +315,6 @@ env_sender( struct envelope *env, char *e_mail )
 	syslog( LOG_ERR, "env_sender: %s already has a sender", env->e_id );
 	return( 1 );
     }
-
-    if ( e_mail == NULL ) {
-	e_mail = "";
-    }
     
     if (( env->e_mail = strdup( e_mail )) == NULL ) {
 	syslog( LOG_ERR, "env_sender strdup: %m" );
@@ -253,47 +326,50 @@ env_sender( struct envelope *env, char *e_mail )
 
 
     void
-env_reset( struct envelope *env )
-{
-    if ( env != NULL ) {
-	if ( env->e_mid != NULL ) {
-	    free( env->e_mid );
-	    env->e_mid = NULL;
-	}
-
-	if ( env->e_mail != NULL ) {
-	    free( env->e_mail );
-	    env->e_mail = NULL;
-	}
-
-	if ( env->e_hostname != NULL ) {
-	    free( env->e_hostname );
-	    env->e_hostname = NULL;
-	}
-
-	if ( env->e_id != NULL ) {
-	    free( env->e_id );
-	    env->e_id = NULL;
-	}
-
-	env_rcpt_free( env );
-
-	env_clear_errors( env );
-
-	env->e_flags = 0;
-	return;
-    }
-}
-
-
-    void
 env_free( struct envelope *env )
 {
-    if ( env != NULL ) {
-	env_reset( env );
-	memset( env, 0, sizeof( struct envelope ));
-	free( env );
+    if ( env == NULL ) {
+	return;
     }
+
+    if ( env->e_mid != NULL ) {
+	free( env->e_mid );
+    }
+
+    if ( env->e_env_list_entry != NULL ) {
+	dll_remove_entry( &simta_env_list, env->e_env_list_entry );
+    }
+
+    if ( env->e_mail != NULL ) {
+	free( env->e_mail );
+    }
+
+    if ( env->e_sender_entry != NULL ) {
+	dll_remove_entry( &(env->e_sender_entry->se_list->sl_entries),
+		env->e_sender_entry->se_dll );
+	env->e_sender_entry->se_list->sl_n_entries--;
+	if ( env->e_sender_entry->se_list->sl_entries == NULL ) {
+	    dll_remove_entry( &simta_sender_list,
+		env->e_sender_entry->se_list->sl_dll );
+	    free( env->e_sender_entry->se_list );
+	}
+	free( env->e_sender_entry );
+    }
+
+    if ( env->e_hostname != NULL ) {
+	free( env->e_hostname );
+    }
+
+    if ( env->e_id != NULL ) {
+	free( env->e_id );
+    }
+
+    env_rcpt_free( env );
+    env_clear_errors( env );
+    memset( env, 0, sizeof( struct envelope ));
+    free( env );
+
+    return;
 }
 
 
@@ -303,6 +379,7 @@ env_syslog( struct envelope *e )
     syslog( LOG_DEBUG, "message %s rcpt %d host %s",
 	    e->e_id, e->e_n_rcpt, e->e_hostname ? e->e_hostname : "NULL" );
 }
+
 
     void
 env_stdout( struct envelope *e )
@@ -377,8 +454,10 @@ env_recipient( struct envelope *e, char *addr )
     int
 env_outfile( struct envelope *e )
 {
-    if ( env_tfile( e ) != 0 ) {
-	return( 1 );
+    if (( e->e_flags & ENV_FLAG_TFILE ) == 0 ) {
+	if ( env_tfile( e ) != 0 ) {
+	    return( 1 );
+	}
     }
 
     if ( env_efile( e ) != 0 ) {
@@ -390,9 +469,30 @@ env_outfile( struct envelope *e )
 
 
     int
+env_dfile_open( struct envelope *env )
+{
+    char				dfile_fname[ MAXPATHLEN + 1 ];
+    int					fd;
+
+    sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
+
+    if (( fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
+	syslog( LOG_ERR, "Syserror env_dfile_open: open %s: %m", dfile_fname );
+	return( -1 );
+    }
+
+    env->e_flags |= ENV_FLAG_DFILE;
+
+    return( fd );
+}
+
+
+    int
 env_tfile_unlink( struct envelope *e )
 {
     char		tf[ MAXPATHLEN + 1 ];
+
+syslog( LOG_DEBUG, "env_tfile_unlink %s", e->e_id );
 
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
 
@@ -436,9 +536,11 @@ env_tfile( struct envelope *e )
 
     /* VSIMTA_EFILE_VERSION */
     version_to_write = SIMTA_EFILE_VERSION;
-    if (( !e->e_attributes )) {
+#if 0
+    if (( !e->e_attributes ) && ( !e->e_jail )) {
 	version_to_write = 3;
     }
+#endif
 
     if ( fprintf( tff, "V%d\n", version_to_write ) < 0 ) {
 	syslog( LOG_ERR, "env_tfile fprintf: %m" );
@@ -468,6 +570,13 @@ env_tfile( struct envelope *e )
 	goto cleanup;
     }
 
+    /* Jail Level */
+    if (( version_to_write < 5 )) {
+    } else if ( fprintf( tff, "J%d\n", e->e_jail ) < 0 ) {
+	syslog( LOG_ERR, "env_tfile fprintf: %m" );
+	goto cleanup;
+    }
+
     /* Hdestination-host */
     if (( e->e_hostname != NULL ) && ( e->e_dir != simta_dir_dead )) {
 	if ( fprintf( tff, "H%s\n", e->e_hostname ) < 0 ) {
@@ -483,7 +592,7 @@ env_tfile( struct envelope *e )
     }
 
     if (( version_to_write < 4 )) {
-    } else if ( fprintf( tff, "D%lu\n", e->e_attributes ) < 0 ) {
+    } else if ( fprintf( tff, "D%u\n", e->e_attributes ) < 0 ) {
 	syslog( LOG_ERR, "env_tfile fprintf: %m" );
 	goto cleanup;
     }
@@ -534,11 +643,62 @@ cleanup:
 
 
     int
+sender_list_add( struct envelope *e )
+{
+    struct dll_entry			*sl_dll;
+    struct dll_entry			*se_dll;
+    struct sender_list			*list;
+    struct sender_entry			*entry;
+
+    if (( sl_dll = dll_lookup_or_create( &simta_sender_list,
+	e->e_mail, 1 )) == NULL ) {
+	return( 1 );
+    }
+
+    if (( list = (struct sender_list*)sl_dll->dll_data ) == NULL ) {
+	if (( list = (struct sender_list*)malloc(
+		sizeof( struct sender_list ))) == NULL ) {
+	    syslog( LOG_ERR, "Syserror: env_sender malloc: %m" );
+	    return( 1 );
+	}
+	memset( list, 0, sizeof( struct sender_list ));
+	list->sl_dll = sl_dll;
+	sl_dll->dll_data = list;
+    }
+
+    if (( se_dll = dll_lookup_or_create( &(list->sl_entries),
+	    e->e_id, 0 )) == NULL ) {
+	return( 1 );
+    }
+
+    if ( se_dll->dll_data != NULL ) {
+	return( 0 );
+    }
+
+    if (( entry = (struct sender_entry*)malloc(
+	    sizeof( struct sender_entry ))) == NULL ) {
+	syslog( LOG_ERR, "Syserror: env_sender malloc: %m" );
+	return( 1 );
+    }
+    memset( entry, 0, sizeof( struct sender_entry ));
+    se_dll->dll_data = entry;
+    e->e_sender_entry = entry;
+    entry->se_env = e;
+    entry->se_list = list;
+    entry->se_dll = se_dll;
+    list->sl_n_entries++;
+
+    return( 0 );
+}
+
+
+    int
 env_efile( struct envelope *e )
 {
     char		tf[ MAXPATHLEN + 1 ];
     char		ef[ MAXPATHLEN + 1 ];
     struct timeval	tv_now;
+    struct dll_entry	*e_dll;
 
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
     sprintf( ef, "%s/E%s", e->e_dir, e->e_id );
@@ -571,6 +731,24 @@ env_efile( struct envelope *e )
 	sync();
     }
 
+    if ( simta_mid_list_enable != 0 ) {
+	if (( e_dll = dll_lookup_or_create( &simta_env_list,
+		e->e_id, 0 )) == NULL ) {
+	    return( 1 );
+	}
+
+	if ( e_dll->dll_data == NULL ) {
+	    e_dll->dll_data = e;
+	    e->e_env_list_entry = e_dll;
+	}
+    }
+
+    if ( simta_sender_list_enable != 0 ) {
+	if ( sender_list_add( e ) != 0 ) {
+	    return( 1 );
+	}
+    }
+
     return( 0 );
 }
 
@@ -600,6 +778,16 @@ env_touch( struct envelope *env )
 }
 
 
+    /* Version
+     * Emessage-id
+     * [ Mid ]
+     * Inode
+     * Xpansion level
+     * Jail
+     * From
+     * Recipients
+     */
+
     int
 env_read( int mode, struct envelope *env, SNET **s_lock )
 {
@@ -611,180 +799,271 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     ino_t			dinode;
     int				version;
     int				exp_level;
+    int				jail;
+    int				line_no = 1;
+    struct dll_entry		*e_dll;
 
-    /* check mode here */
-    if ( mode == READ_QUEUE_INFO ) {
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "Syserror env_read: unknown mode: %d", mode );
+	return( 1 );
+
+    case READ_QUEUE_INFO:
 	if ( s_lock != NULL ) {
-	    syslog( LOG_ERR, "env_read error: no lock allowed with READ" );
+	    syslog( LOG_ERR,
+		    "Syserror env_read: READ_QUEUE_INFO: no lock allowed" );
 	    return( 1 );
 	}
-    } else if ( mode != READ_DELIVER_INFO ) {
-	syslog( LOG_ERR, "env_read error: unknown mode: %d", mode );
-	return( 1 );
+	break;
+
+    case READ_DELIVER_INFO:
+    case READ_JAIL_INFO:
+	break;
     }
 
     sprintf( filename, "%s/E%s", env->e_dir, env->e_id );
 
     if (( snet = snet_open( filename, O_RDWR, 0, 1024 * 1024 )) == NULL ) {
-	if ( errno != ENOENT ) {
-	    syslog( LOG_ERR, "env_read snet_open %s: %m", filename );
+	if (( errno != ENOENT ) || ( simta_debug != 0 )) {
+	    syslog( LOG_ERR, "Syserror env_read: snet_open %s: %m", filename );
 	}
 	return( 1 );
     }
 
-    if ( mode == READ_QUEUE_INFO ) {
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "Syserror env_read: mode change: %d", mode );
+	goto cleanup;
+
+    case READ_QUEUE_INFO:
 	/* test to see if env is locked by a q_runner */
 	if ( lockf( snet_fd( snet ), F_TEST, 0 ) != 0 ) {
-	    syslog( LOG_ERR, "env_read lockf %s: %m", filename );
+	    syslog( LOG_ERR, "Syserror env_read: lockf %s: %m", filename );
 	    goto cleanup;
 	}
+	break;
 
-    } else {
+    case READ_DELIVER_INFO:
+    case READ_JAIL_INFO:
 	if ( s_lock != NULL ) {
 	    *s_lock = snet;
 
-	    /* lock envelope fd for delivery attempt */
+	    /* lock envelope fd */
 	    if ( lockf( snet_fd( snet ), F_TLOCK, 0 ) != 0 ) {
-		if ( errno != EAGAIN ) {
+		if (( errno != EAGAIN ) && ( simta_debug == 0 )) {
 		    /* file not locked by a diferent process */
-		    syslog( LOG_ERR, "env_read lockf %s: %m", filename );
+		    syslog( LOG_ERR, "Syserror env_read: lockf %s: %m",
+			    filename );
 		}
 		goto cleanup;
 	    }
 	}
+	break;
     }
 
     /* Vsimta-version */
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
+    if ((( line = snet_getline( snet, NULL )) == NULL ) || ( *line != 'V' )) {
+	syslog( LOG_ERR, "Syserror env_read: %s %d: expected version syntax",
+		filename, line_no );
 	goto cleanup;
     }
-    if ( *line != 'V' ) {
-	syslog( LOG_ERR, "env_read %s expected version syntax", filename );
-	goto cleanup;
-    }
-    if ( sscanf( line + 1, "%d", &version ) != 1 ) {
-	syslog( LOG_ERR, "env_read %s: bad version syntax", filename );
-	goto cleanup;
-    }
-    if ( version > SIMTA_EFILE_VERSION ) {
-	syslog( LOG_ERR, "env_read: %s: unsupported version", filename );
+    sscanf( line + 1, "%d", &version );
+    if (( version < 1 ) || ( version > SIMTA_EFILE_VERSION )) {
+	syslog( LOG_ERR,
+		"Syserror env_read: %s %d: unsupported efile version %d",
+		filename, line_no, version );
 	goto cleanup;
     }
 
     if ( version >= 2 ) {
 	/* Emessage-id */
-	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
-	    goto cleanup;
-	}
-	if ( *line != 'E' ) {
-	    syslog( LOG_ERR, "env_read %s: expected Equeue-id syntax",
-		    filename );
+	line_no++;
+	if ((( line = snet_getline( snet, NULL )) == NULL ) || 
+		( *line != 'E' )) {
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Equeue-id syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
 	if ( strcmp( line + 1, env->e_id ) != 0 ) {
-	    syslog( LOG_WARNING, "env_read %s: queue-id mismatch: %s",
-		    filename, line + 1 );
+	    syslog( LOG_WARNING,
+		    "Syserror env_read: %s %d: queue-id mismatch: %s",
+		    filename, line_no, line + 1 );
+	    goto cleanup;
 	}
     }
 
-    /* Dinode info */
+    line_no++;
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
+	syslog( LOG_ERR,
+		"Syserror env_read: %s %d: expected Dinode syntax", filename,
+			line_no );
 	goto cleanup;
     }
 
     /* ignore optional M for now */
     if ( *line == 'M' ) {
+	line_no++;
 	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Dinode syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
     }
 
+    /* Dinode info */
     if ( *line != 'I' ) {
-	syslog( LOG_ERR, "env_read %s bad Dinode syntax", filename );
+	syslog( LOG_ERR, "Syserror env_read: %s %d: expected Dinode syntax",
+		filename, line_no );
 	goto cleanup;
     }
 
     sscanf( line + 1, "%lu", &dinode );
-    if ( dinode == 0 ) {
-	syslog( LOG_WARNING, "env_read %s: Dinode is 0", filename );
-    } else if ( mode == READ_QUEUE_INFO ) {
+
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "Syserror env_read: mode change: %d", mode );
+	goto cleanup;
+
+    case READ_JAIL_INFO:
+    case READ_DELIVER_INFO:
+	if ( dinode != env->e_dinode ) {
+	    syslog( LOG_WARNING,
+		    "Warning env_read %s %d: Dinode reread mismatch: "
+		    "old %d new %d, ignoring", filename, line_no,
+		    (int)env->e_dinode, (int)dinode );
+	}
+	break;
+
+    case READ_QUEUE_INFO:
+	if ( dinode == 0 ) {
+	    syslog( LOG_WARNING, "Warning env_read %s %d: Dinode is 0",
+		    filename, line_no );
+	}
 	env->e_dinode = dinode;
-    } else if ( dinode != env->e_dinode ) {
-	syslog( LOG_WARNING, "env_read %s: Dinode reread mismatch "
-		"old %d new %d", filename, (int)env->e_dinode, (int)dinode );
+	break;
     }
 
     /* expansion info */
     if ( version >= 3 ) {
-	if (( line = snet_getline( snet, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
-	    goto cleanup;
-	}
-
-	if ( *line != 'X' ) {
-	    syslog( LOG_ERR, "env_read %s: expected Xpansion syntax",
-		    filename );
+	line_no++;
+	if ((( line = snet_getline( snet, NULL )) == NULL ) ||
+		( *line != 'X' )) {
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Xpansion syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
 
 	if ( sscanf( line + 1, "%d", &exp_level) != 1 ) {
-	    syslog( LOG_ERR, "env_read: %s: bad Xpansion syntax", filename );
+	    syslog( LOG_ERR, "Syserror env_read: %s %d: bad Xpansion syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
 
-	if ( mode == READ_QUEUE_INFO ) {
+	switch ( mode ) {
+	default:
+	    syslog( LOG_ERR, "env_read error: mode change1: %d", mode );
+	    goto cleanup;
+
+	case READ_DELIVER_INFO:
+	case READ_JAIL_INFO:
+	    if ( exp_level == env->e_n_exp_level ) {
+		break;
+	    }
+	    syslog( LOG_WARNING, "Warning env_read %s %d: Xpansion mismatch: "
+		    "old %d new %d, ignoring", filename, line_no,
+		    env->e_n_exp_level, exp_level );
+	    break;
+
+	case READ_QUEUE_INFO:
 	    env->e_n_exp_level = exp_level;
-	} else if ( exp_level != env->e_n_exp_level ) {
-	    syslog( LOG_WARNING, "env_read %s: Xpansion mismatch, "
-		    "old %d new %d", filename, env->e_n_exp_level, exp_level );
+	    break;
 	}
     }
 
     /* Jail info */
     if ( version >= 5 ) {
+	line_no++;
 	if ((( line = snet_getline( snet, NULL )) == NULL ) ||
 		( *line != 'J' )) {
 	    syslog( LOG_ERR,
-		    "Syserror env_read: %s: expected Jail syntax", filename );
+		    "Syserror env_read: %s %d: expected Jail syntax",
+		    filename, line_no );
 	    goto cleanup;
+	}
+
+	if ( sscanf( line + 1, "%d", &jail) != 1 ) {
+	    syslog( LOG_ERR, "Syserror env_read: %s %d: bad Jail syntax",
+		    filename, line_no );
+	    goto cleanup;
+	}
+
+	switch ( mode ) {
+	default:
+	    syslog( LOG_ERR, "env_read error: mode change2: %d", mode );
+	    goto cleanup;
+
+	case READ_JAIL_INFO:
+	case READ_DELIVER_INFO:
+	    if ( env->e_jail == jail ) {
+		break;
+	    }
+	    syslog( LOG_WARNING, "Warning env_read %s %d: Jail mismatch: "
+		    "old %d new %d, ignoring", filename, line_no,
+		    env->e_jail, jail );
+	    break;
+
+	case READ_QUEUE_INFO:
+	    env_jail_set( env, jail );
+	    break;
 	}
     }
 
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
-	goto cleanup;
-    }
-
-    if ( *line != 'H' ) {
-	syslog( LOG_ERR, "env_read %s: bad host syntax", filename );
+    line_no++;
+    if ((( line = snet_getline( snet, NULL )) == NULL ) || ( *line != 'H' )) {
+	syslog( LOG_ERR,
+		"Syserror env_read: %s %d: expected host syntax",
+		filename, line_no );
 	goto cleanup;
     }
 
     hostname = line + 1;
 
-    if ( mode == READ_QUEUE_INFO ) {
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "env_read error: mode change3: %d", mode );
+	goto cleanup;
+
+    case READ_DELIVER_INFO:
+    case READ_JAIL_INFO:
+	if ( env->e_hostname == NULL ) {
+	    if ( *hostname != '\0' ) {
+		syslog( LOG_ERR,
+			"Syserror env_read: %s %d: hostname reread mismatch, "
+			"old \"\" new \"%s\"", filename, line_no, hostname );
+		goto cleanup;
+	    }
+	} else if ( strcasecmp( hostname, env->e_hostname ) != 0 ) {
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: hostname reread mismatch, "
+		    "old \"%s\" new \"%s\"", filename, line_no,
+		    env->e_hostname, hostname );
+	    goto cleanup;
+	}
+	break;
+
+    case READ_QUEUE_INFO:
 	if ( env_hostname( env, hostname ) != 0 ) {
 	    goto cleanup;
 	}
-    }
-
-    if ( env->e_hostname == NULL ) {
-	if ( *hostname != '\0' ) {
-	    syslog( LOG_WARNING, "env_read %s: hostname reread mismatch, "
-		    "old \"%s\" new \"%s\"", filename, env->e_hostname,
-		    hostname );
-	}
-    } else if ( strcasecmp( hostname, env->e_hostname ) != 0 ) {
-	syslog( LOG_WARNING, "env_read %s: hostname reread mismatch, "
-		"old \"%s\" new \"%s\"", filename, env->e_hostname, hostname );
+	break;
     }
 
     /* Dattributes */
     if ( version >= 4 ) {
+	line_no++;
 	if (( line = snet_getline( snet, NULL )) == NULL ) {
 	    syslog( LOG_ERR, "env_read %s: unexpected EOF", filename );
 	    goto cleanup;
@@ -810,31 +1089,42 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     }
 
     /* Ffrom-address */
-    if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_ERR, "env_read %s unexpected EOF", filename );
+    line_no++;
+    if ((( line = snet_getline( snet, NULL )) == NULL ) || ( *line != 'F' )) {
+	syslog( LOG_ERR, "Syserror env_read: %s %d: expected Ffrom syntax",
+		filename, line_no );
 	goto cleanup;
     }
 
-    if ( *line != 'F' ) {
-	syslog( LOG_ERR, "env_read %s expected Ffrom syntax", filename );
+    switch ( mode ) {
+    default:
+	syslog( LOG_ERR, "env_read error: mode change4: %d", mode );
 	goto cleanup;
-    }
 
-    if ( mode == READ_QUEUE_INFO ) {
+    case READ_QUEUE_INFO:
 	if ( env_sender( env, line + 1 ) == 0 ) {
 	    ret = 0;
 	}
 	goto cleanup;
 
-    } else if ( strcmp( env->e_mail, line + 1 ) != 0 ) {
-	syslog( LOG_WARNING, "env_read %s: bad sender re-read",
-		filename );
+    case READ_JAIL_INFO:
+    case READ_DELIVER_INFO:
+	if ( strcmp( env->e_mail, line + 1 ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror env_read: %s %d: bad sender re-read: "
+		    "old \"%s\" new \"%s\"",
+		    filename, line_no, env->e_mail, line + 1 );
+	    goto cleanup;
+	}
+	break;
     }
 
     /* Rto-addresses */
-    while (( line = snet_getline( snet, NULL )) != NULL ) {
+    for ( line_no++; ( line = snet_getline( snet, NULL )) != NULL;
+	    line_no++ ) {
 	if ( *line != 'R' ) {
-	    syslog( LOG_ERR, "env_read %s expected Rrecieve syntax", filename );
+	    syslog( LOG_ERR,
+		    "Syserror env_read: %s %d: expected Recipient syntax",
+		    filename, line_no );
 	    goto cleanup;
 	}
 
@@ -844,7 +1134,9 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     }
 
     if ( env->e_rcpt == NULL ) {
-	syslog( LOG_ERR, "env_read %s no recipients", filename );
+	syslog( LOG_ERR,
+		"Syserror env_read: %s %d: expected Recipient syntax",
+		filename, line_no );
 	goto cleanup;
     }
 
@@ -854,13 +1146,31 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     if ( s_lock == NULL ) {
 cleanup:
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "env_read snet_close %s: %m",
+	    syslog( LOG_ERR, "Syserror env_read: snet_close %s: %m",
 		    filename );
 	    ret = 1;
 	}
     }
 
-    return( ret);
+    if (( simta_mid_list_enable != 0 ) && ( ret == 0 )) {
+	if (( e_dll = dll_lookup_or_create( &simta_env_list,
+		env->e_id, 0 )) == NULL ) {
+	    return( 1 );
+	}
+
+	if ( e_dll->dll_data == NULL ) {
+	    e_dll->dll_data = env;
+	    env->e_env_list_entry = e_dll;
+	}
+    }
+
+    if (( simta_sender_list_enable != 0 ) && ( ret == 0 )) {
+	if ( sender_list_add( env ) != 0 ) {
+	    return( 1 );
+	}
+    }
+
+    return( ret );
 }
 
 
@@ -883,16 +1193,34 @@ env_truncate_and_unlink( struct envelope *env, SNET *snet_lock )
 }
 
 
+    int
+env_dfile_unlink( struct envelope *e )
+{
+    char		df[ MAXPATHLEN + 1 ];
+
+syslog( LOG_DEBUG, "env_dfile_unlink %s ", e->e_id );
+
+    sprintf( df, "%s/D%s", e->e_dir, e->e_id );
+
+    if ( unlink( df ) != 0 ) {
+	syslog( LOG_ERR, "env_dfile_unlink unlink %s: %m", df );
+	return( -1 );
+    }
+
+    e->e_flags = ( e->e_flags & ( ~ENV_FLAG_DFILE ));
+
+    return( 0 );
+}
+
+
     /* truncate the efile before calling this function */
 
     int
 env_unlink( struct envelope *env )
 {
     char		efile_fname[ MAXPATHLEN + 1 ];
-    char		dfile_fname[ MAXPATHLEN + 1 ];
 
     sprintf( efile_fname, "%s/E%s", env->e_dir, env->e_id );
-    sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 
     if ( unlink( efile_fname ) != 0 ) {
 	syslog( LOG_ERR, "env_unlink unlink %s: %m", efile_fname );
@@ -907,9 +1235,7 @@ env_unlink( struct envelope *env )
 		env->e_id, simta_fast_files );
     }
 
-    if ( unlink( dfile_fname ) != 0 ) {
-	syslog( LOG_ERR, "env_unlink unlink %s: %m", dfile_fname );
-    }
+    env_dfile_unlink( env );
 
     syslog( LOG_DEBUG, "env_unlink %s %s: unlinked", env->e_dir, env->e_id );
 
@@ -957,7 +1283,6 @@ env_move( struct envelope *env, char *target_dir )
 		    env->e_id, simta_fast_files );
 	}
 
-
 	if ( env_unlink( env ) != 0 ) {
 	    if ( unlink( efile_new ) != 0 ) {
 		syslog( LOG_ERR, "env_move unlink %s: %m", efile_new );
@@ -976,6 +1301,7 @@ env_move( struct envelope *env, char *target_dir )
 	}
 
 	env->e_dir = target_dir;
+	env->e_flags |= ENV_FLAG_EFILE;
 
 	syslog( LOG_DEBUG, "env_move %s %s: moved", env->e_dir, env->e_id );
     }

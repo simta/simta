@@ -30,19 +30,20 @@
 #include <syslog.h>
 #include <stdio.h>
 #include <db.h>
+#include <dirent.h>
 
 #include "denser.h"
 #include "ll.h"
-#include "queue.h"
 #include "expand.h"
 #include "red.h"
 #include "envelope.h"
-#include "ml.h"
 #include "simta.h"
 #include "argcargv.h"
 #include "mx.h"
 #include "simta_ldap.h"
 #include "bdb.h"
+#include "queue.h"
+#include "ml.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>

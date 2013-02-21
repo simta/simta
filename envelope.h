@@ -9,6 +9,19 @@
 
 #define	READ_QUEUE_INFO		1
 #define	READ_DELIVER_INFO	2
+#define	READ_JAIL_INFO		3
+
+struct sender_list {
+    int					sl_n_entries;
+    struct dll_entry			*sl_dll;
+    struct dll_entry			*sl_entries;
+};
+
+struct sender_entry {
+    struct sender_list			*se_list;
+    struct envelope			*se_env;
+    struct dll_entry			*se_dll;
+};
 
 struct recipient {
     struct recipient	*r_next;
@@ -25,6 +38,8 @@ struct envelope {
     struct envelope	*e_hq_prev;
     struct envelope	*e_expanded_next;
     struct recipient	*e_rcpt;
+    struct sender_entry	*e_sender_entry;
+    struct dll_entry	*e_env_list_entry;
     int			e_n_rcpt;
     int			e_n_exp_level;
     int			e_cycle;
@@ -36,6 +51,7 @@ struct envelope {
     ino_t		e_dinode;
     int			e_age;
     int			e_flags;
+    int			e_jail;
     struct timeval	e_etime;
     char		*e_hostname;
     char		*e_id;
@@ -46,6 +62,11 @@ struct envelope {
 #define ENV_AGE_UNKNOWN		0
 #define ENV_AGE_OLD		1
 #define ENV_AGE_NOT_OLD		2
+
+/* jail values */
+#define ENV_JAIL_NO_CHANGE	0
+#define ENV_JAIL_PAROLEE	1
+#define ENV_JAIL_PRISONER	2
 
 #define ENV_FLAG_TFILE			(1<<0)
 #define ENV_FLAG_EFILE			(1<<1)
@@ -71,14 +92,14 @@ struct envelope {
  * 1 char*	Rto_address
  */
 
-struct envelope	*env_create( char *, struct envelope * );
+struct envelope	*env_create( char *, char *, char *, struct envelope * );
 void		env_rcpt_free( struct envelope * );
 void		env_free( struct envelope * );
-void		env_reset( struct envelope * );
 void		rcpt_free( struct recipient * );
 void		env_clear_errors( struct envelope * );
+int		env_clear( struct envelope * );
+int		env_jail_status( struct envelope *, int );
 int		env_is_old( struct envelope *, int );
-int		env_id( struct envelope * );
 int		env_set_id( struct envelope *, char * );
 int		env_recipient( struct envelope *, char * );
 int		env_sender( struct envelope *, char * );
@@ -87,12 +108,17 @@ int		env_outfile( struct envelope * );
 int		env_efile( struct envelope * );
 int		env_tfile( struct envelope * );
 int		env_tfile_unlink( struct envelope * );
+int		env_dfile_unlink( struct envelope * );
 int		env_touch( struct envelope * );
 int		env_move( struct envelope *, char * );
 int		env_unlink( struct envelope * );
 int		env_read( int, struct envelope *, SNET ** );
 int		env_truncate_and_unlink( struct envelope *, SNET * );
 int		env_string_recipients( struct envelope *, char * );
+int		env_string_recipients( struct envelope *, char * );
+int		sender_list_add( struct envelope * );
+int		env_jail_set( struct envelope *, int );
+int		env_dfile_open( struct envelope * );
 
 /* debugging  functions */
 void		env_stdout( struct envelope * );
