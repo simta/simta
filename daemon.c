@@ -631,7 +631,7 @@ main( int ac, char **av )
     /*
      * Disassociate from controlling tty.
      */
-    if ( simta_debug > 8 ) {
+    if ( simta_debug < 8 ) {
 	int		i, dt;
 	switch ( fork()) {
 	case 0 :
