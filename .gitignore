@@ -30,3 +30,8 @@ simta
 sla
 stamp-*
 tlsconnect
+.cproject
+.gdbinit
+.project
+.settings/
+
