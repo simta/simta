@@ -1023,7 +1023,7 @@ q_deliver( struct host_q *deliver_q )
 	    d.d_n_rcpt_failed_total + d.d_n_rcpt_tempfailed_total;
 
     syslog( LOG_DEBUG, "Queue %s: Delivery complete: %ld seconds, "
-	    "%d messages: %d A %d T %d F, %d rcpts %d A %d F %d T",
+	    "%d messages: %d A %d F %d T, %d rcpts %d A %d F %d T",
 	    deliver_q->hq_hostname, 
 	    tv_stop.tv_sec - tv_start.tv_sec,
 	    message_total, 
