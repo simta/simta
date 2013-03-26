@@ -50,7 +50,9 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 
     if ( acav == NULL ) {
 	if ( acavg == NULL ) {
-	    acavg = acav_alloc();
+	    if (( acavg = acav_alloc() ) == NULL ) {
+                return ( -1 );
+            }
 	}
 	acav = acavg;
     }
@@ -143,7 +145,9 @@ acav_parse( ACAV *acav, char *line, char **argv[] )
 
     if ( acav == NULL ) {
 	if ( acavg == NULL ) {
-	    acavg = acav_alloc();
+	    if (( acavg = acav_alloc() ) == NULL ) {
+                return ( -1 );
+            };
 	}
 	acav = acavg;
     }
