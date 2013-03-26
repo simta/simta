@@ -292,7 +292,7 @@ bounce( struct envelope *env, int body, char *err )
 
     env->e_flags |= ENV_FLAG_BOUNCE;
 
-    if (( env_bounce = bounce_snet( env, sn, NULL, "ZZZ err msg" )) == NULL ) {
+    if (( env_bounce = bounce_snet( env, sn, NULL, err )) == NULL ) {
 	return( NULL );
     }
 
@@ -409,6 +409,8 @@ syslog( LOG_DEBUG, "ZZZ bounce %s: email %s", env->e_id, env->e_mail );
 	if ( err == NULL ) {
 	    fprintf( dfile, "An error occurred during "
 		    "the expansion of the message recipients.\n\n" );
+	} else {
+	    fprintf( dfile, "%s\n\n", err );
 	}
 
     } else if ( hq->hq_err_text != NULL ) {
