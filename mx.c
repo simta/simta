@@ -443,6 +443,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 	    dnsr_free_result( result );
 
 	    if ( rbl->rbl_type == RBL_LOG_ONLY ) {
+                free( ip );
 		continue;
 	    }
 
