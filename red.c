@@ -270,6 +270,7 @@ simta_red_add_host( char *host_name, int host_type )
     if (( red->red_host_name = strdup( host_name )) == NULL ) {
 	syslog( LOG_ERR, "simta_red_create: malloc: %m" );
 	free( red );
+        return( NULL );
     }
 
     red->red_host_type = host_type;
