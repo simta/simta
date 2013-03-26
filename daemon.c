@@ -1170,8 +1170,6 @@ daemon_waitpid( void )
     }
 
     while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-	p_search = &proc_stab;
-
 	for ( p_search = &proc_stab; *p_search != NULL;
 		p_search = &((*p_search)->p_next)) {
 	    if ((*p_search)->p_id == pid ) {
