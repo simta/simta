@@ -497,7 +497,6 @@ append_seen( struct receive_headers *r, char *msg, int l2 )
     int				l1;
     char			*cp;
     char			*new;
-syslog( LOG_ERR, "append_seen: msg=%d<%.*s>", l2, l2, msg);	// ZZZ
 
     if ( !r || ! r->r_all_seen_before) {
 	errno = EDOM;
@@ -2469,19 +2468,15 @@ header_free( struct receive_headers *r )
     int				i;
 
     if ( r->r_mid != NULL ) {
-syslog( LOG_ERR, "header_free: mid=<%s>", r->r_mid );	// ZZZ
 	free( r->r_mid );
 	r->r_mid = NULL;
     }
 
     if ( r->r_all_seen_before ) {
 	for ( i = 0 ; r->r_all_seen_before[ i ] ; ++i ) {
-syslog( LOG_ERR, "header_free: seen.%d=<%s>", i, r->r_all_seen_before[i] );	// ZZZ
 	    free( r->r_all_seen_before[ i ] );
 	}
-syslog( LOG_ERR, "header_free: total seens=%d\n",i);	// ZZZ
 	free( r->r_all_seen_before );
 	r->r_all_seen_before = 0;
     }
-syslog( LOG_ERR, "header_free done");	// ZZZ
 }
