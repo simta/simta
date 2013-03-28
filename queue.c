@@ -1284,7 +1284,8 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	 * a bounce for the entire message, or if we've successfully
 	 * delivered the message and no recipients tempfailed.
 	 */
-	if ( n_rcpt_remove == env_deliver->e_n_rcpt ) {
+	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) ||
+		( n_rcpt_remove == env_deliver->e_n_rcpt )) {
 	    if ( env_truncate_and_unlink( env_deliver, snet_lock ) != 0 ) {
 		goto message_cleanup;
 	    }
