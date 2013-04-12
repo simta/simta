@@ -148,6 +148,9 @@ host_q_create_or_lookup( char *hostname )
 	    hq->hq_min_wait = red->red_min_wait;
 	    hq->hq_max_wait = red->red_max_wait;
 	    hq->hq_no_punt = red->red_no_punt ? NOPUNT_CONFIG : 0;
+	} else if (( simta_jail_host != NULL ) &&
+		( strcasecmp( simta_jail_host, hostname )) == 0 ) {
+	    hq->hq_no_punt = NOPUNT_CONFIG;
 	}
 
 	if (( hq->hq_status == HOST_UNKNOWN ) &&

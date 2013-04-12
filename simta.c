@@ -323,6 +323,7 @@ simta_read_config( char *fname )
 /* values for matched_remote */
 #   define REMOTE_QUEUE_WAIT	1
 #   define REMOTE_NO_PUNT	2
+#   define REMOTE_PUNT	3	/* "jail punt" */
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
@@ -438,6 +439,9 @@ simta_read_config( char *fname )
 	    } else if ( strcasecmp( av[ 2 ], "NO_PUNT" ) == 0 ) {
 		matched_remote = REMOTE_NO_PUNT;
 		host_type = RED_HOST_TYPE_REMOTE;
+	    } else if ( strcasecmp( av[ 2 ], "PUNT" ) == 0 ) {
+		matched_remote = REMOTE_PUNT;
+		host_type = RED_HOST_TYPE_REMOTE;
 	    }
 	    if ( host_type == RED_HOST_TYPE_REMOTE && red_code != RED_CODE_D ) {
 		    fprintf( stderr,
@@ -526,6 +530,12 @@ simta_read_config( char *fname )
 		    red->red_no_punt = 1;
 		    if ( simta_debug ) printf( "NO PUNTING for %s\n", domain );
 		    break;
+
+		case REMOTE_PUNT:
+		    red->red_no_punt = 0;
+		    if ( simta_debug ) printf( "PUNTING for %s\n", domain );
+		    break;
+
 
 		default:
 		    fprintf( stderr, "%s: line %d: unimplemented RED feature: %s\n",
