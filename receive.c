@@ -1601,7 +1601,7 @@ f_data( struct receive_data *r )
 	}
 
 	if ( read_err == NO_ERROR ) {
-	    if ( fprintf( dff, "%s\n", line ) < 0 ) {
+	    if (( dff != NULL ) && ( fprintf( dff, "%s\n", line ) < 0 )) {
 		syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
 		read_err = SYSTEM_ERROR;
 	    } else {
@@ -1638,16 +1638,25 @@ f_data( struct receive_data *r )
 	}
 	r->r_env->e_dinode = sbuf.st_ino;
 
-	f_result = fclose( dff );
-	dff = NULL;
-	if ( f_result != 0 ) {
-	    syslog( LOG_ERR, "Syserror f_data: fclose2: %m" );
-	    goto error;
+	if ( dff != NULL ) {
+	    f_result = fclose( dff );
+	    dff = NULL;
+	    if ( f_result != 0 ) {
+		syslog( LOG_ERR, "Syserror f_data: fclose2: %m" );
+		goto error;
+	    }
 	}
 	message_banner = MESSAGE_ACCEPT;
     }
 
     if ( simta_mail_filter == NULL ) {
+	filter_result = MESSAGE_ACCEPT;
+    } else if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
+		"content filter %s not run because tarpit",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, simta_mail_filter);
+	message_banner = MESSAGE_ACCEPT;
 	filter_result = MESSAGE_ACCEPT;
     } else {
 #ifdef HAVE_LIBSSL 
@@ -1855,8 +1864,10 @@ f_data( struct receive_data *r )
 		    filter_message ? filter_message : "no filter message" );
 	}
 
-	if ( env_dfile_unlink( r->r_env ) != 0 ) {
-	    goto error;
+	if (( r->r_env->e_flags & ENV_FLAG_DFILE ) ) {
+	     if ( env_dfile_unlink( r->r_env ) != 0 ) {
+		 goto error;
+	     }
 	}
     }
 
