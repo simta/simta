@@ -1656,7 +1656,6 @@ f_data( struct receive_data *r )
 		"content filter %s not run because tarpit",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, simta_mail_filter);
-	message_banner = MESSAGE_ACCEPT;
 	filter_result = MESSAGE_ACCEPT;
     } else {
 #ifdef HAVE_LIBSSL 
