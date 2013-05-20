@@ -233,6 +233,7 @@ extern char				*simta_base_dir;
 extern char				simta_hostname[];
 extern char				*simta_punt_host;
 extern char				*simta_jail_host;
+extern char				*simta_jail_bounce_address;
 extern struct rbl		        *simta_rbls;
 extern struct rbl	         	*simta_user_rbls;
 extern char				*simta_queue_filter;

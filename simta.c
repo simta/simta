@@ -162,6 +162,7 @@ char			*simta_reverse_url = NULL;
 char			*simta_libwrap_url = NULL;
 char			*simta_punt_host = NULL;
 char			*simta_jail_host = NULL;
+char			*simta_jail_bounce_address = NULL;
 char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
 struct rbl	     	*simta_rbls = NULL;
@@ -797,6 +798,18 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "PUNT to %s\n", simta_punt_host );
+
+	} else if ( strcasecmp( av[ 0 ], "JAIL_BOUNCE_ADDRESS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_jail_bounce_address = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "JAIL BOUNCES to %s\n", simta_jail_bounce_address );
 
 	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
 	    if ( ac != 2 ) {
