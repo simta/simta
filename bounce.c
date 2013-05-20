@@ -319,6 +319,7 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
     struct tm                   *tm;
     struct stat			sbuf;
     char                        daytime[ 35 ];
+    char                        *return_address;
 
     if (( bounce_env =
 	    env_create( simta_dir_fast, NULL, "", env )) == NULL ) {
@@ -343,8 +344,13 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
 	}
     }
 
-syslog( LOG_DEBUG, "ZZZ bounce %s: email %s", env->e_id, env->e_mail );
-    if ( env_recipient( bounce_env, env->e_mail ) != 0 ) {
+    return_address = env->e_mail;
+    if (( env->e_jail == ENV_JAIL_PRISONER ) && ( simta_jail_bounce_address
+	    != NULL )) {
+	return_address = simta_jail_bounce_address;
+    }
+syslog( LOG_DEBUG, "ZZZ bounce %s: email %s", env->e_id, return_address );
+    if ( env_recipient( bounce_env, return_address ) != 0 ) {
 	goto cleanup1;
     }
 
