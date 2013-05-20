@@ -2053,16 +2053,26 @@ error:
 
 
     int
+simta_host_is_jailhost( char *host )
+{
+    if ( simta_jail_host != NULL ) {
+	if ( strcasecmp( simta_jail_host, host ) == 0 ) {
+	    return( 1 );
+	}
+    }
+    return 0;
+}
+
+
+    int
 simta_config( char *base_dir )
 {
     struct simta_red	*red = NULL;
     char		path[ MAXPATHLEN + 1 ];
 
-    if ( simta_jail_host != NULL ) {
-	if ( strcasecmp( simta_jail_host, simta_hostname ) == 0 ) {
-	    fprintf( stderr, "punt host can't be localhost\n" );
-	    return( -1 );
-	}
+    if ( simta_host_is_jailhost( simta_hostname )) {
+	fprintf( stderr, "punt host can't be localhost\n" );
+	return( -1 );
     }
 
     if ( simta_punt_host != NULL ) {

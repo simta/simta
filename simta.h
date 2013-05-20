@@ -272,6 +272,7 @@ int	simta_config( char * );
 int     simta_read_config( char * );
 void	simta_openlog( int );
 int	simta_gettimeofday( struct timeval * );
+int	simta_host_is_jailhost( char *  );
 
 /*****     bounce.c     *****/
 
