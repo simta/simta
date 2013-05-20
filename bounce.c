@@ -303,6 +303,23 @@ bounce( struct envelope *env, int body, char *err )
     return( env_bounce );
 }
 
+    static char *
+host_or_jailhost( struct host_q *hq )
+{
+    return( simta_host_is_jailhost( hq->hq_hostname )
+	    ? "quarantine host"
+	    : "host" );
+}
+
+    static char *
+old_or_jailed( struct envelope *env )
+{
+    if ( env->e_jail == ENV_JAIL_PRISONER ) {
+	return( "quarantined" );
+    }
+    return( "undeliverable" );
+}
+
 
     struct envelope *
 bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
@@ -408,10 +425,11 @@ syslog( LOG_DEBUG, "ZZZ bounce %s: email %s", env->e_id, return_address );
     fprintf( dfile, "\n" );
 
     if ( env->e_age == ENV_AGE_OLD ) {
-        fprintf( dfile, "This message is old and undeliverable.\n\n" );
+	fprintf( dfile, "This message is old and %s.\n\n", old_or_jailed( env ));
     }
 
-    if ( hq == NULL ) {
+    if ( env->e_jail == ENV_JAIL_PRISONER ) {
+    } else if ( hq == NULL ) {
 	if ( err == NULL ) {
 	    fprintf( dfile, "An error occurred during "
 		    "the expansion of the message recipients.\n\n" );
@@ -421,15 +439,15 @@ syslog( LOG_DEBUG, "ZZZ bounce %s: email %s", env->e_id, return_address );
 
     } else if ( hq->hq_err_text != NULL ) {
 	fprintf( dfile, "The following error occurred during delivery to "
-		"host %s:\n", hq->hq_hostname );
+		"%s %s:\n", host_or_jailhost( hq ), hq->hq_hostname );
 	for ( l = hq->hq_err_text->l_first; l != NULL; l = l->line_next ) {
 	    fprintf( dfile, "%s\n", l->line_data );
 	}
 	fprintf( dfile, "\n" );
 
     } else {
-	fprintf( dfile, "An error occurred during delivery to host %s.\n\n",
-		hq->hq_hostname );
+	fprintf( dfile, "An error occurred during delivery to %s %s.\n\n",
+		host_or_jailhost( hq ), hq->hq_hostname );
     }
 
     if ( env->e_err_text != NULL ) {
