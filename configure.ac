@@ -1,6 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
-AC_INIT(simta, VERSION, simta@umich.edu)
+AC_INIT(simta, m4_esyscmd([bash version.sh]), simta@umich.edu)
+
 AC_PREREQ(2.52)
 AC_CONFIG_HEADER(config.h)
 AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])

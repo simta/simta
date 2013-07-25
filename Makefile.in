@@ -136,7 +136,7 @@ simalias.o : simalias.c
 
 daemon.o : daemon.c
 	${CC} ${CFLAGS} \
-	    -DVERSION=\"`cat ${SRCPFX}VERSION`\" \
+	    -DVERSION=\"@PACKAGE_VERSION@\" \
 	    -c ${SRCPFX}daemon.c -o daemon.o
 
 header.o : header.c
@@ -145,7 +145,7 @@ header.o : header.c
 
 receive.o : receive.c 
 	${CC} ${CFLAGS} \
-		-DVERSION=\"`cat ${SRCPFX}VERSION`\" \
+		-DVERSION=\"@PACKAGE_VERSION@\" \
 		-c ${SRCPFX}receive.c -o receive.o
 
 simta.o : simta.c
@@ -256,13 +256,11 @@ stamp-denser :
 denser/dense : stamp-denser
 	@true
 
-VERSION=`date +%Y_%m_%d`
-DISTDIR=simta-${VERSION}
+DISTDIR=@PACKAGE_NAME@-@PACKAGE_VERSION@
 
 dist : clean
 	mkdir ../${DISTDIR}
 	tar -c -f - -X EXCLUDE . | tar xpf - -C ../${DISTDIR}
-	echo ${VERSION} > ../${DISTDIR}/VERSION
 	cd ..; tar cfz ${DISTDIR}.tgz ${DISTDIR}
 
 clean :

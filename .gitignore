@@ -11,6 +11,7 @@
 .settings/
 Makefile
 Makefile.bak
+VERSION
 autom4te.cache
 config.guess
 config.h
