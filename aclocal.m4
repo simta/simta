@@ -1,3 +1,6 @@
+m4_include([m4/ax_compare_version.m4])
+m4_include([m4/ax_path_bdb.m4])
+
 AC_DEFUN([CHECK_LDAP],
 [
     AC_MSG_CHECKING(for ldap)
@@ -202,37 +205,6 @@ AC_DEFUN([PROG_MAIL_LOCAL],
 	AC_MSG_RESULT(disabled);
     fi
 ])
-
-AC_DEFUN([CHECK_DB],
-[
-    AC_MSG_CHECKING(for db)
-    dbdirs="/usr/local/db /usr/db \
-            /usr/pkg /usr/local /usr"
-    AC_ARG_WITH(db,
-            AC_HELP_STRING([--with-db=DIR], [path to db]),
-            dbdirs="$withval")
-    for dir in $dbdirs; do
-        dbdir="$dir"
-        if test -f "$dir/lib/libdb.a"; then
-            found_db="yes";
-            SIMTACPPFLAGS="-I$dbdir/include";
-            break;
-        fi
-    done
-    if test x_$found_db != x_yes; then
-        AC_MSG_ERROR(cannot find db )
-    else
-        SIMTALIBS="$SIMTALIBS -ldb";
-        SIMTALDFLAGS="-L$dbdir/lib -Wl,-rpath -Wl,$dbdir/lib";
-	AC_SUBST(SIMTALIBS)
-	AC_SUBST(SIMTALDFLAGS)
-	AC_SUBST(SIMTACPPFLAGS)
-        HAVE_DB=yes
-    fi
-    AC_SUBST(HAVE_DB)
-    AC_MSG_RESULT(yes)
-])
-
 
 AC_DEFUN([CHECK_LIBWRAP],
 [
