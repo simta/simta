@@ -7,15 +7,15 @@ AC_CONFIG_HEADER(config.h)
 AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
 AC_CONFIG_AUX_DIR([libsnet])
 
-# Setup local variables
-AC_ARG_WITH(resolvconf, AC_HELP_STRING([--with-resolv=RESOLV], [default resolv.conf]), resolvconf="$withval", resolvconf="/etc/resolv.conf" )
-AC_SUBST(resolvconf)
+# Set up local variables
+AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-aliasdb=DB], [default alias db]), [], with_aliasdb="/etc/alias.db" )
+AC_DEFINE_UNQUOTED(SIMTA_ALIAS_DB, ["$with_aliasdb"], [default alias db location])
 
-AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-alias-db=DB], [default alias db]), aliasdb="$withval", aliasdb="/etc/alias.db" )
-AC_SUBST(aliasdb)
+AC_ARG_WITH(logfacility, AC_HELP_STRING([--with-logfacility=facility], [syslog facility]), [], with_logfacility="LOG_MAIL")
+AC_DEFINE_UNQUOTED(LOG_SIMTA, [$with_logfacility], [syslog facility])
 
-AC_ARG_WITH(maxconnections, AC_HELP_STRING([--with-maxconnections=MAX], [maximum number of client connections]), maxconnections="$withval", maxconnections=0 )
-AC_SUBST(maxconnections)
+AC_ARG_WITH(maxconnections, AC_HELP_STRING([--with-maxconnections=MAX], [maximum number of client connections]), [], with_maxconnections=0 )
+AC_DEFINE_UNQUOTED(SIMTA_MAXCONNECTIONS, [$with_maxconnections], [default maximum number of client connections])
 
 # Local Stuff
 AC_PREFIX_DEFAULT(/usr/local)
@@ -25,7 +25,6 @@ AC_PROG_CC
 AC_PROG_INSTALL
 
 # Check for files
-AC_CHECK_FILE($resolvconf,,AC_MSG_ERROR(No valid resolv.conf)) 
 AC_STRUCT_TIMEZONE
 
 # Find local mailers

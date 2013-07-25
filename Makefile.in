@@ -64,16 +64,11 @@ SIMALIASOBJ=	@EXPANDER_OBJ@ simalias.o queue.o ll.o line_file.o \
 SLAOBJ=		sla.o
 SIMCKOBJ=	simck.o base64.o
 
-SIMTALOG=LOG_MAIL
-SIMTA_ALIAS_DB=	@aliasdb@
-SIMTA_MAXCONNECTIONS=	@maxconnections@
-RESOLV_CONF=	@resolvconf@
-
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
 INCPATH=	-I. -Idenser -Ilibsnet @CPPFLAGS@ ${SRCPFX_INCPATH}
-DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -g @DEFS@ 
+DEFS=		-DTLS -g @DEFS@
 LIBPATH=	-Ldenser -Llibsnet @LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@
 TAGSFILE=	tags
@@ -154,9 +149,6 @@ receive.o : receive.c
 
 simta.o : simta.c
 	${CC} ${CFLAGS} \
-		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
-		-DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
-		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
 		-c ${SRCPFX}simta.c -o simta.o
 
 mx.o : mx.c
