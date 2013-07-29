@@ -21,6 +21,7 @@ config.status
 config.sub
 configure
 denser/dense
+dist
 errors
 lib*.a
 libtool

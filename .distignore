@@ -1,0 +1,12 @@
+.distignore
+.git
+.gitignore
+CVS
+Makefile
+autom4te.cache
+config.h
+config.h.in~
+config.log
+config.status
+dist
+test_data

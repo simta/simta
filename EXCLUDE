@@ -1,7 +1,0 @@
-EXCLUDE
-Makefile
-configure.ac
-config.log
-config.status
-test_data
-CVS
