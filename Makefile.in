@@ -267,9 +267,9 @@ denser/dense : stamp-denser
 DISTDIR=@PACKAGE_NAME@-@PACKAGE_VERSION@
 
 dist : clean
-	mkdir ../${DISTDIR}
-	tar -c -f - -X EXCLUDE . | tar xpf - -C ../${DISTDIR}
-	cd ..; tar cfz ${DISTDIR}.tgz ${DISTDIR}
+	mkdir -p ${DESTDIR}dist/${DISTDIR}
+	tar -c -f - -X .distignore . | tar xpf - -C ${DESTDIR}dist/${DISTDIR}
+	cd ${DESTDIR}dist; tar cfz ${DISTDIR}.tar.gz ${DISTDIR}
 
 clean :
 	rm -f stamp-libsnet stamp-denser
