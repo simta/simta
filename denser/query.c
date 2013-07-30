@@ -311,7 +311,7 @@ dnsr_ntoptr( DNSR *dnsr, const void *src, char *suffix )
     }
     DEBUG( fprintf( stderr, "inet_ntop -> %s\n", temp ));
 
-    return( dnsr_reverse_ip( dnsr, temp, suffix ? suffix : "IN-ADDR.ARPA" ));
+    return( dnsr_reverse_ip( dnsr, temp, suffix ? suffix : "in-addr.arpa" ));
 }
 
     char *
