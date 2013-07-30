@@ -1,4 +1,4 @@
-dnl m4_include([libtool.m4])
+m4_include([libtool.m4])
 
 AC_DEFUN([CHECK_SNET],
 [
@@ -45,7 +45,7 @@ AC_DEFUN([CHECK_SSL],
     if test x_$found_ssl != x_yes; then
 	AC_MSG_ERROR(cannot find ssl libraries)
     else
-        AC_DEFINE(HAVE_LIBSSL, 1, [openssl present])
+	AC_DEFINE(HAVE_LIBSSL)
 	LIBS="$LIBS -lssl -lcrypto";
 	LDFLAGS="$LDFLAGS -L$ssldir/lib";
     fi
@@ -70,7 +70,7 @@ AC_DEFUN([CHECK_ZEROCONF],
     if test x_$found_zeroconf != x_yes; then
 	AC_MSG_RESULT(no)
     else
-	AC_DEFINE(HAVE_ZEROCONF, 1, [zeroconf present])
+	AC_DEFINE(HAVE_ZEROCONF)
 	AC_MSG_RESULT(yes)
     fi
 ])
@@ -85,7 +85,7 @@ AC_DEFUN([CHECK_ZLIB],
             [])
     if test x_$withval != x_no; then
 	if test x_$withval != x_yes -a \! -z "$withval"; then
-		zlibdirs="$answer"
+		zlibdirs="$withval"
 	fi
 	for dir in $zlibdirs; do
 	    zlibdir="$dir"
@@ -94,11 +94,11 @@ AC_DEFUN([CHECK_ZLIB],
 			break;
 		fi
 	done
-	if test x_$found_zlib == x_yes; then
+	if test x_$found_zlib = x_yes; then
 		if test "$dir" != "/usr"; then
 			CPPFLAGS="$CPPFLAGS -I$zlibdir/include";
 	    fi
-	    AC_DEFINE(HAVE_ZLIB, 1, [zlib present])
+	    AC_DEFINE(HAVE_ZLIB)
 	    AC_MSG_RESULT(yes)
 	else
 	    AC_MSG_RESULT(no)
@@ -108,9 +108,25 @@ AC_DEFUN([CHECK_ZLIB],
     fi
 ])
 
+AC_DEFUN([CHECK_PROFILED],
+[
+    # Allow user to control whether or not profiled libraries are built
+    AC_MSG_CHECKING(whether to build profiled libraries)
+    PROFILED=true
+    AC_ARG_ENABLE(profiled,
+      [  --enable-profiled       build profiled libsnet (default=yes)],
+      [test x_$enable_profiled = x_no && PROFILED=false]
+    )
+    AC_SUBST(PROFILED)
+    if test x_$PROFILED = x_true ; then
+      AC_MSG_RESULT(yes)
+    else
+      AC_MSG_RESULT(no)
+    fi
+])
+
 AC_DEFUN([CHECK_SASL],
 [
-    withval=""
     AC_MSG_CHECKING(for sasl)
     sasldirs="/usr/local/sasl2 /usr/lib/sasl2 /usr/sasl2 \
             /usr/pkg /usr/local /usr"
@@ -131,8 +147,8 @@ AC_DEFUN([CHECK_SASL],
 		break
 	    fi
 	done
-	if test x_$found_sasl == x_yes; then
-	    AC_DEFINE(HAVE_LIBSASL, 1, [sasl library present])
+	if test x_$found_sasl = x_yes; then
+	    AC_DEFINE(HAVE_LIBSASL)
 	    LIBS="$LIBS -lsasl2";
 	    LDFLAGS="$LDFLAGS -L$sasldir/lib";
 	    AC_MSG_RESULT(yes)
@@ -142,4 +158,58 @@ AC_DEFUN([CHECK_SASL],
     else
 	AC_MSG_RESULT(no)
     fi
+])
+
+AC_DEFUN([CHECK_UNIVERSAL_BINARIES],
+[
+    AC_ARG_ENABLE(universal_binaries,
+	AC_HELP_STRING([--enable-universal_binaries], [build universal binaries (default=no)]),
+	,[enable_universal_binaries=no])
+    if test "${enable_universal_binaries}" = "yes"; then
+	AC_CANONICAL_SYSTEM
+	case "${host_os}" in
+	  darwin8*)
+	    macosx_sdk="MacOSX10.4u.sdk"
+	    arches="-arch i386 -arch ppc"
+	    ;;
+
+	  darwin9*)
+	    dep_target="-mmacosx-version-min=10.4"
+	    macosx_sdk="MacOSX10.5.sdk"
+	    arches="-arch i386 -arch x86_64 -arch ppc -arch ppc64"
+	    ;;
+
+	  darwin10*)
+	    dep_target="-mmacosx-version-min=10.4"
+	    macosx_sdk="MacOSX10.6.sdk"
+	    arches="-arch i386 -arch x86_64 -arch ppc"
+	    ;;
+	
+	  *)
+	    AC_MSG_ERROR([Building universal binaries on ${host_os} is not supported])
+	    ;;
+	  esac
+	echo ===========================================================
+	echo Setting up universal binaries for ${host_os}
+	echo ===========================================================
+	OPTOPTS="$OPTOPTS -isysroot /Developer/SDKs/$macosx_sdk $dep_target $arches"
+    fi
+])
+
+AC_DEFUN([MACOSX_MUTE_DEPRECATION_WARNINGS],
+[
+    dnl Lion deprecates a system-provided OpenSSL. Build output
+    dnl is cluttered with useless deprecation warnings.
+
+    AS_IF([test x"$CC" = x"gcc"], [
+        case "${host_os}" in
+        darwin11*)
+            AC_MSG_NOTICE([muting deprecation warnings from compiler])
+            OPTOPTS="$OPTOPTS -Wno-deprecated-declarations"
+            ;;
+
+        *)
+            ;;
+        esac
+    ])
 ])

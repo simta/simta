@@ -18,7 +18,8 @@ if test \! x_$with_ssl = x_no; then
     AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
 fi
 CHECK_SASL
-dnl CHECK_UNIVERSAL_BINARIES
+CHECK_UNIVERSAL_BINARIES
+MACOSX_MUTE_DEPRECATION_WARNINGS
 
 # Checks for header files.
 #AC_HEADER_STDC
@@ -33,20 +34,15 @@ dnl CHECK_UNIVERSAL_BINARIES
 #AC_CHECK_FUNCS([gettimeofday select])
 
 # Checks for how to build libraries
-dnl CHECK_PROFILED
-dnl AC_DISABLE_SHARED
+CHECK_PROFILED
+AC_DISABLE_SHARED
+AC_PROG_LIBTOOL  # Checks whether to build shared and/or static libraries
 
 # Miscellaneous:
 if test x_$GCC = x_yes; then
     OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes"}
 fi
 AC_SUBST(OPTOPTS)
-
-if test "x$srcdir" = x.; then
-extrasub="$extrasub
-/^srcdir=/d
-/^SRCPFX/d"
-fi
 
 # Write output:
 AC_CONFIG_FILES([Makefile])
