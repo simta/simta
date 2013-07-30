@@ -10,14 +10,13 @@ AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_INSTALL
 
-CHECK_ZLIB
-
 # Checks for libraries.
-if test \! x_$with_ssl = x_no; then
-    AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])
-    AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
-fi
-CHECK_SASL
+AX_WITH_LIBRARY([zlib], [ZLIB], [zlib.h], [z])
+AX_WITH_LIBRARY([ssl], [LIBSSL], [openssl/ssl.h], [ssl], [-lcrypto])
+AX_WITH_LIBRARY([sasl2], [LIBSASL], [sasl/sasl.h], [sasl2])
+
+LIBS="$EXTRALIBS $LIBS"
+
 CHECK_UNIVERSAL_BINARIES
 MACOSX_MUTE_DEPRECATION_WARNINGS
 

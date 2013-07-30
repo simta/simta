@@ -11,11 +11,12 @@ SRC  = snet.c
 OBJ  = snet.o
 LOBJ = snet.lo
 
-INCPATH=	@CPPFLAGS@ -I.
+LIBS=           @LIBS@
+INCPATH=	@CPPFLAGS@ @ZLIB_CPPFLAGS@ @LIBSSL_CPPFLAGS@ @LIBSASL_CPPFLAGS@ -I.
 DEFS=		
 OPTOPTS=	@OPTOPTS@
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH} @CFLAGS@
-LDFLAGS=	@LDFLAGS@
+LDFLAGS=	@LDFLAGS@ @ZLIB_LDFLAGS@ @LIBSSL_LDFLAGS@ @LIBSASL_LDFLAGS@
 PROFILED=	@PROFILED@
 CC=		@CC@	
 
@@ -51,10 +52,10 @@ all:		libsnet.la
 
 libsnet.la:	$(OBJ) $(LOBJ)
 	$(LIBTOOL) --mode=link \
-	  $(CC) -o libsnet.la $(LDFLAGS) $(LOBJ) -rpath $(libdir) -version-info 0:0:0
+	  $(CC) -o libsnet.la $(LDFLAGS) $(LOBJ) -rpath $(libdir) $(LIBS) -version-info 0:0:0
 	@if test x_$(PROFILED) = x_true ; then echo "building profiled $@" ; \
 	  ( cd profiled ; ../$(LIBTOOL) --mode=link \
-	  $(CC) -o libsnet_p.la $(LDFLAGS) $(LOBJ) -rpath $(libdir) \
+	  $(CC) -o libsnet_p.la $(LDFLAGS) $(LOBJ) -rpath $(libdir) $(LIBS) \
 	  -version-info 0:0:0 >/dev/null 2>&1 ) ; fi
 
 install:	all
