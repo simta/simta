@@ -1,0 +1,15 @@
+.libs
+Makefile
+autom4te.cache
+configure
+config.log
+config.status
+config.h
+libtool
+profiled
+version.c
+*.a
+*.la
+*.lo
+*.o
+*.slo
