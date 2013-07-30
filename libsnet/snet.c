@@ -21,18 +21,6 @@
 
 #include <netinet/in.h>
 
-#ifdef HAVE_LIBSSL
-#include <openssl/ssl.h>
-#endif /* HAVE_LIBSSL */
-
-#ifdef HAVE_ZLIB
-#include <zlib.h>
-#endif /* HAVE_ZLIB */
-
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
 #ifdef __STDC__
 #include <stdarg.h>
 #else /* __STDC__ */
