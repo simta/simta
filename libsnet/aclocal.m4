@@ -1,4 +1,4 @@
-m4_include([libtool.m4])
+m4_include([m4/libtool.m4])
 
 AC_DEFUN([CHECK_SNET],
 [
