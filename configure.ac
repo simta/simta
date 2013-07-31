@@ -65,6 +65,7 @@ AX_WITH_LIBRARY([ssl], [LIBSSL], [openssl/ssl.h], [ssl], [-lcrypto])
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
 AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
 AX_WITH_LIBRARY([sasl2], [LIBSASL], [sasl/sasl.h], [sasl2])
+AX_WITH_LIBRARY([zlib], [ZLIB], [zlib.h], [z])
 
 # Is this really where we should put this?
 if test x"$ax_cv_have_LDAP" = xyes; then
