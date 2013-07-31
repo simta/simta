@@ -2,7 +2,7 @@
 
 AC_INIT(simta, m4_esyscmd([bash version.sh]), simta@umich.edu)
 
-AC_PREREQ(2.52)
+AC_PREREQ(2.63)
 AC_CONFIG_HEADER(config.h)
 AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
 AC_CONFIG_AUX_DIR([libsnet])
@@ -47,29 +47,34 @@ AC_SUBST(SIMSEND_OBJ, [])
 AC_SUBST(SIMC_OBJ, [])
 AC_SUBST(Q_RUNNER_OBJ, [])
 AC_SUBST(EXPANDER_OBJ, [])
+AC_SUBST(EXTRALIBS, [])
 
-AX_PATH_BDB([4],[
-    SIMTALIBS="$SIMTALIBS $BDB_LIBS"
-    SIMTALDFLAGS="$SIMTALDFLAGS $BDB_LDFLAGS"
-    SIMTACPPFLAGS="$SIMTACPPFLAGS $BDB_CPPFLAGS"
-    HAVE_DB=yes
-])
-
-AC_SUBST(SIMTALIBS)
-AC_SUBST(SIMTALDFLAGS)
-AC_SUBST(SIMTACPPFLAGS)
-AC_SUBST(HAVE_DB)
-
-CHECK_LDAP
-CHECK_LIBWRAP
-CHECK_SASL
-
-#AC_CHECK_LIB([ldap], [ldap_init], , [CHECK_LDAP])
-AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])
-AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
+# Check for libraries
 AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
 AC_CHECK_LIB([crypt], [crypt])
+
+AX_PATH_BDB([4], [
+    AC_DEFINE([HAVE_DB], [1], [Define if BDB exists.])
+    EXTRALIBS="$BDB_LIBS $EXTRALIBS"
+    AC_SUBST(BDB_LDFLAGS)
+    AC_SUBST(BDB_CPPFLAGS)
+])
+
+AX_WITH_LIBRARY([ssl], [LIBSSL], [openssl/ssl.h], [ssl], [-lcrypto])
+AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
+AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
+AX_WITH_LIBRARY([sasl2], [LIBSASL], [sasl/sasl.h], [sasl2])
+
+# Is this really where we should put this?
+if test x"$ax_cv_have_LDAP" = xyes; then
+    SRC="$SRC simta_ldap.c dn.c"
+    SIMTA_OBJ="$SIMTA_OBJ simta_ldap.o dn.o"
+    SIMSEND_OBJ="$SIMSEND_OBJ simta_ldap.o dn.o"
+    SIMC_OBJ="$SIMC_OBJ simta_ldap.o dn.o"
+    Q_RUNNER_OBJ="$Q_RUNNER_OBJ simta_ldap.o dn.o"
+    EXPANDER_OBJ="$EXPANDER_OBJ simta_ldap.o dn.o"
+fi
 
 if test "x$srcdir" = x.; then
 extrasub="$extrasub
