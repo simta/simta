@@ -3,6 +3,9 @@
  * All Rights Reserved.  See COPYRIGHT.
  */
 
+#ifndef SNET_H_
+#define SNET_H_
+
 #ifdef __STDC__
 #define ___P(x)		x
 #else /* __STDC__ */
@@ -96,3 +99,5 @@ int     snet_starttls_tv ___P(( SNET *, SSL_CTX *, int, struct timeval * ));
 #if @HARDCODE_HAVE_LIBSASL@
 int	snet_setsasl  ___P(( SNET *, sasl_conn_t * ));
 #endif /* HAVE_LIBSASL */
+
+#endif /* SNET_H_ */
