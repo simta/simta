@@ -44,5 +44,5 @@ fi
 AC_SUBST(OPTOPTS)
 
 # Write output:
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile snet.h])
 AC_OUTPUT

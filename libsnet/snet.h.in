@@ -25,18 +25,18 @@ typedef struct {
     struct timeval	sn_ssl_connect_timeout;
     struct timeval	sn_ssl_accept_timeout;
 
-#ifdef HAVE_ZLIB
+#if @HARDCODE_HAVE_ZLIB@
     z_stream		sn_zistream;
     z_stream		sn_zostream;
     char		*sn_zbuf;
     int			sn_zbuflen;
 #endif /* HAVE_ZLIB */
 
-#ifdef HAVE_LIBSSL
+#if @HARDCODE_HAVE_LIBSSL@
     void		*sn_ssl;
 #endif /* HAVE_LIBSSL */
 
-#ifdef HAVE_LIBSASL
+#if @HARDCODE_HAVE_LIBSASL@
     sasl_conn_t		*sn_conn;
     int			sn_saslssf;
     unsigned int	sn_saslmaxout;
@@ -45,7 +45,7 @@ typedef struct {
 
 #define SNET_EOF		(1<<0)
 #define SNET_TLS		(1<<1)
-#ifdef HAVE_LIBSASL
+#if @HARDCODE_HAVE_LIBSASL@
 #define SNET_SASL		(1<<2)
 #endif /* HAVE_LIBSASL */
 #define SNET_WRITE_TIMEOUT	(1<<3)
@@ -76,11 +76,11 @@ int	snet_hasdata ___P(( SNET * ));
 ssize_t	snet_read ___P(( SNET *, char *, size_t, struct timeval * ));
 ssize_t	snet_write ___P(( SNET *, char *, size_t, struct timeval * ));
 int	snet_setcompression( SNET *, int, int );
-int	snet_select( int, fd_set *, fd_set *, fd_set *, struct timeval * );
-#ifdef HAVE_LIBSSL
+int     snet_select( int, fd_set *, fd_set *, fd_set *, struct timeval * );
+#if @HARDCODE_HAVE_LIBSSL@
 int	snet_starttls ___P(( SNET *, SSL_CTX *, int ));
-int	snet_starttls_tv ___P(( SNET *, SSL_CTX *, int, struct timeval * ));
-#endif
-#ifdef HAVE_LIBSASL
+int     snet_starttls_tv ___P(( SNET *, SSL_CTX *, int, struct timeval * ));
+#endif /* HAVE_LIBSSL */
+#if @HARDCODE_HAVE_LIBSASL@
 int	snet_setsasl  ___P(( SNET *, sasl_conn_t * ));
-#endif
+#endif /* HAVE_LIBSASL */
