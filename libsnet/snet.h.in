@@ -9,6 +9,18 @@
 #define ___P(x)		()
 #endif /* __STDC__ */
 
+#if @HARDCODE_HAVE_LIBSSL@
+#include <openssl/ssl.h>
+#endif /* HAVE_LIBSSL */
+
+#if @HARDCODE_HAVE_ZLIB@
+#include <zlib.h>
+#endif /* HAVE_ZLIB */
+
+#if @HARDCODE_HAVE_LIBSASL@
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 typedef struct {
     int			sn_fd;
     char		*sn_rbuf;
