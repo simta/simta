@@ -1,0 +1,165 @@
+# package options
+%define with_tls	yes
+%define with_sasl2	yes
+%define with_ldap	yes
+
+%define smshell /sbin/nologin
+%define spooldir %{_localstatedir}/spool
+
+Summary: A Simple internet Mail Transfer Agent
+Name: @PACKAGE_NAME@
+Version: @PACKAGE_VERSION@ 
+Release: 1%{?dist}
+License: BSD
+Group: System Environment/Daemons
+URL: http://rsug.itd.umich.edu/software/simta/
+Source0: url://maybe/replace/this/%{name}-%{version}.tar.gz
+Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+Provides: MTA smtpdaemon server(smtp)
+Provides: %{_sbindir}/sendmail %{_bindir}/newaliases
+%if 0%{?el7}
+BuildRequires: libdb-devel
+%else
+BuildRequires: db4-devel
+%endif
+BuildRequires: tcp_wrappers-devel
+BuildRequires: groff
+BuildRequires: procmail
+BuildRequires: setup
+%if "%{with_tls}" == "yes"
+BuildRequires: openssl-devel
+Requires: openssl
+%endif
+%if "%{with_sasl2}" == "yes"
+BuildRequires: cyrus-sasl-devel
+Requires: %{_sbindir}/saslauthd
+%endif
+%if "%{with_ldap}" == "yes"
+BuildRequires: openldap-devel
+Requires: openldap
+%endif
+Requires(pre): shadow-utils
+Requires(preun): %{_sbindir}/alternatives chkconfig
+Requires(post): %{_sbindir}/alternatives chkconfig coreutils
+Requires(postun): %{_sbindir}/alternatives coreutils
+%if 0%{?el7}
+Requires: libdb
+%else
+Requires: db4
+%endif
+Requires: bash >= 2.0
+Requires: initscripts
+Requires: procmail
+Requires: setup
+Requires: tcp_wrappers
+
+%description
+simta is used for mail routing and delivery.
+
+%prep
+%setup -q
+
+%build
+%configure \
+%if "%{with_tls}" != "yes"
+	--with-ssl=no \
+%endif
+%if "%{with_sasl2}" != "yes"
+	--with-sasl=no \
+%endif
+%if "%{with_ldap}" != "yes"
+	--with-ldap=no \
+%endif
+	--with-zlib=no \
+        --with-group=mail \
+        --with-aliasdb=%{_sysconfdir}/aliases.db \
+        --disable-chown
+
+make %{?_smp_mflags} 
+
+%install
+rm -rf %{buildroot}
+make DESTDIR=%{buildroot} INSTALL_OPTS='' install
+install -m 755 -d %{buildroot}%{_sysconfdir} %{buildroot}%{_initrddir}
+install -p -m 644 simta.conf %{buildroot}%{_sysconfdir}/simta.conf
+install -p -m 755 packaging/rpm/simta.init %{buildroot}%{_initrddir}/simta
+touch %{buildroot}%{_sysconfdir}/aliases.db
+
+# rename files for alternative usage
+mv %{buildroot}%{_sbindir}/sendmail %{buildroot}%{_sbindir}/sendmail.simta
+mkdir -p %{buildroot}/usr/lib
+ln -s /usr/sbin/simsendmail %{buildroot}/usr/lib/sendmail.simta
+
+%clean
+rm -rf %{buildroot}
+
+%pre
+getent passwd simta >/dev/null || \
+  %{_sbindir}/useradd -g mail -d %{spooldir}/simta -r \
+  -s %{smshell} simta >/dev/null 2>&1
+exit 0
+
+%postun
+if [ "$1" -ge "1" ]; then
+	%{_initrddir}/simta condrestart >/dev/null 2>&1
+	mta=`readlink %{_sysconfdir}/alternatives/mta`
+	if [ "$mta" == "%{_sbindir}/sendmail.simta" ]; then
+		%{_sbindir}/alternatives --set mta %{_sbindir}/sendmail.simta
+	fi
+fi
+exit 0
+
+%post
+/sbin/chkconfig --add simta
+# Set up the alternatives files for MTAs.
+%{_sbindir}/alternatives --install %{_sbindir}/sendmail mta %{_sbindir}/sendmail.simta 90 \
+	--slave %{_bindir}/newaliases mta-newaliases %{_bindir}/simalias \
+	--slave /usr/lib/sendmail mta-sendmail /usr/lib/sendmail.simta \
+	--initscript simta
+
+# Rebuild maps
+{
+	/usr/bin/simalias -i /etc/aliases
+} > /dev/null 2>&1
+
+exit 0
+
+%preun
+if [ $1 = 0 ]; then
+	%{_initrddir}/simta stop >/dev/null 2>&1
+	/sbin/chkconfig --del simta
+	%{_sbindir}/alternatives --remove mta %{_sbindir}/sendmail.simta
+fi
+exit 0
+
+%files
+%defattr(-,root,root,-)
+%{_sbindir}/simta
+%attr(6755,simta,mail) %{_sbindir}/simsendmail
+%attr(6755,simta,mail) %{_sbindir}/sendmail.simta
+%attr(6755,simta,mail) %{_sbindir}/simc
+%{_bindir}/dense
+%{_bindir}/simalias
+%{_bindir}/simexpander
+%{_bindir}/simrbl
+%{_bindir}/simreverse
+/usr/lib/sendmail.simta
+
+%{_mandir}/man8/simta.8.gz
+%{_mandir}/man1/simsendmail.1.gz
+
+%attr(0755,simta,mail) %dir %{spooldir}/simta
+%attr(0755,simta,mail) %dir %{spooldir}/simta/command
+%attr(0755,simta,mail) %dir %{spooldir}/simta/dead
+%attr(0755,simta,mail) %dir %{spooldir}/simta/etc
+%attr(0755,simta,mail) %dir %{spooldir}/simta/fast
+%attr(0755,simta,mail) %dir %{spooldir}/simta/local
+%attr(0755,simta,mail) %dir %{spooldir}/simta/slow
+
+%{_initrddir}/simta
+%config(noreplace) %{_sysconfdir}/simta.conf
+%attr(0644,simta,mail) %config(noreplace) %{_sysconfdir}/aliases.db
+
+%changelog
+* %(date "+%a %b %d %Y") (Automated RPM build) - %{version}-%{release}
+- See git log for actual changes.

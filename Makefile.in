@@ -258,6 +258,9 @@ dist : clean
 	tar -c -f - -X .distignore . | tar xpf - -C ${DESTDIR}dist/${DISTDIR}
 	cd ${DESTDIR}dist; tar cfz ${DISTDIR}.tar.gz ${DISTDIR}
 
+rpm : dist
+	rpmbuild -ta ${DESTDIR}dist/${DISTDIR}.tar.gz
+
 clean :
 	rm -f stamp-libsnet stamp-denser
 	cd denser; ${MAKE} ${MFLAGS} clean
