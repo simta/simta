@@ -1,0 +1,104 @@
+#!/bin/bash
+# simta init script for RHEL.
+# chkconfig: 2345 80 30
+# description: simta is a simple internet mail transfer agent
+# processname: simta
+# config: /etc/simta.conf
+# pidfile: /var/run/simta.pid
+
+### BEGIN INIT INFO
+# Provides: simta MTA smtpdaemon
+# Required-Start: $local_fs $network
+# Required-Stop: $local_fs $network
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start and stop simta
+# Description: simta is a simple internet mail transfer agent
+### END INIT INFO
+
+. /etc/rc.d/init.d/functions
+[ -f /etc/sysconfig/network ] && . /etc/sysconfig/network
+[ -f /etc/sysconfig/simta ] && . /etc/sysconfig/simta
+
+exec="/usr/sbin/simta"
+prog="simta"
+config="/etc/simta.conf"
+pidfile=/var/run/simta.pid
+howtokill=pkill
+
+preload(){
+    [ -x $exec ] || exit 5
+    [ -f $config ] || exit 6
+
+    /usr/bin/simalias -i /etc/aliases
+    $exec -C
+}
+
+start(){
+    preload
+    echo -n $"Starting $prog: "
+    $exec
+    retval=$?
+    echo
+    [ $retval -eq 0 ] && touch "/var/lock/subsys/$prog"
+    return $retval
+}
+
+stop(){
+    echo -n $"Stopping $prog: "
+    killproc simta
+    retval=$?
+    echo
+    [ $retval -eq 0 ] && rm -f /var/lock/subsys/simta
+    return $retval
+}
+
+restart(){
+    stop
+    start
+}
+
+reload(){
+    restart
+}
+
+force_reload(){
+    restart
+}
+
+status -p /var/run/simta.pid > /dev/null
+running=$?
+
+case "$1" in
+start)
+    [ $running -eq 0 ] && exit 0
+    $1
+;;
+stop)
+    [ $running -eq 0 ] || exit 0
+    $1
+;;
+reload)
+    [ $running -eq 0 ] || exit 7
+    $1
+;;
+restart)
+    $1
+;;
+force-reload)
+    force_reload
+;;
+condrestart|try-restart)
+    [ $running -eq 0 ] || exit 0
+    restart
+;;
+status)
+    status -p /var/run/simta.pid -l simta
+;;
+*)
+    echo "Usage: $0 {start|stop|status|restart}"
+    exit 2
+;;
+esac
+
+exit $?

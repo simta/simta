@@ -89,5 +89,5 @@ fi
 AC_CONFIG_SUBDIRS(libsnet)
 AC_CONFIG_SUBDIRS(denser)
 
-AC_CONFIG_FILES([ Makefile ])
+AC_CONFIG_FILES([ Makefile packaging/rpm/simta.spec ])
 AC_OUTPUT

@@ -26,6 +26,7 @@ errors
 lib*.a
 libtool
 ltmain.sh
+packaging/rpm/simta.spec
 q_runner
 simalias
 simc
