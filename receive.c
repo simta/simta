@@ -1657,7 +1657,7 @@ f_data( struct receive_data *r )
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, simta_mail_filter);
 	filter_result = MESSAGE_ACCEPT;
-    } else {
+    } else if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
 #ifdef HAVE_LIBSSL 
 	if (( simta_mail_filter != NULL ) &&
 		( simta_checksum_md != NULL )) {
