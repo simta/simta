@@ -283,11 +283,7 @@ main( int ac, char **av )
     extern int		optind;
     extern char		*optarg;
     struct simta_socket	*ss;
-#ifdef Q_SIMULATION
-    char		*simta_uname = "simta";
-#else /* Q_SIMULATION */
-    char		*simta_uname = "simta";
-#endif /* Q_SIMULATION */
+    char                *simta_uname = "simta";
     struct passwd	*simta_pw;
     char		*config_fname = SIMTA_FILE_CONFIG;
     char		*config_base_dir = SIMTA_BASE_DIR;
@@ -304,7 +300,7 @@ main( int ac, char **av )
 	prog++;
     }
 
-    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRs:SVw:x:y:z:" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRs:Su:Vw:x:y:z:" ))
 	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
@@ -428,6 +424,10 @@ main( int ac, char **av )
 	    simta_service_submission = SERVICE_SUBMISSION_ON;
 	    break;
 
+        case 'u' :
+            simta_uname = optarg;
+            break;
+
 	case 'V' :		/* virgin */
 	    printf( "%s\n", version );
 	    exit( 0 );
@@ -468,6 +468,7 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
 	fprintf( stderr, " [ -P ca-directory ] [ -Q queue]" );
 	fprintf( stderr, " [ -s spooldir ]" );
+        fprintf( stderr, " [ -u user ]" );
 	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
         fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
 	fprintf( stderr, "\n" );
