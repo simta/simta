@@ -579,8 +579,8 @@ main( int ac, char **av )
     if ( q_run == 0 ) {
 	/* open and truncate the pid file */
 	if (( simta_pidfd =
-		open( SIMTA_FILE_PID, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
-	    fprintf( stderr, "open %s: ", SIMTA_FILE_PID );
+		open( simta_file_pid, O_CREAT | O_WRONLY, 0644 )) < 0 ) {
+	    fprintf( stderr, "open %s: ", simta_file_pid );
 	    perror( NULL );
 	    exit( 1 );
 	}
@@ -590,11 +590,11 @@ main( int ac, char **av )
 	    if ( errno == EAGAIN ) {
 		/* file locked by a diferent process */
 		fprintf( stderr, "flock %s: daemon already running\n",
-			SIMTA_FILE_PID );
+			simta_file_pid );
 		exit( 1 );
 
 	    } else {
-		fprintf( stderr, "flock %s:" , SIMTA_FILE_PID );
+		fprintf( stderr, "flock %s:" , simta_file_pid );
 		perror( NULL );
 		exit( 1 );
 	    }

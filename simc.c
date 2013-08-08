@@ -192,20 +192,20 @@ main( int argc, char *argv[] )
     }
 
     /* signal server */
-    if (( pidfd = open( SIMTA_FILE_PID, O_RDONLY, 0 )) < 0 ) {
-	syslog( LOG_NOTICE, "open %s: %m", SIMTA_FILE_PID );
+    if (( pidfd = open( simta_file_pid, O_RDONLY, 0 )) < 0 ) {
+	syslog( LOG_NOTICE, "open %s: %m", simta_file_pid );
 	exit( EX_TEMPFAIL );
     }
 
     if (( pf = fdopen( pidfd, "r" )) == NULL ) {
-	syslog( LOG_NOTICE, "fdopen %s: %m", SIMTA_FILE_PID );
+	syslog( LOG_NOTICE, "fdopen %s: %m", simta_file_pid );
 	exit( EX_TEMPFAIL );
     }
 
     fscanf( pf, "%d\n", &server_pid );
 
     if ( server_pid <= 0 ) {
-	syslog( LOG_NOTICE, "illegal pid %s: %d", SIMTA_FILE_PID, server_pid );
+	syslog( LOG_NOTICE, "illegal pid %s: %d", simta_file_pid, server_pid );
 	exit( EX_TEMPFAIL );
     }
 

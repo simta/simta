@@ -175,6 +175,7 @@ char			*simta_dir_slow = NULL;
 char			*simta_dir_fast = NULL;
 char			*simta_dir_command = NULL;
 char			*simta_base_dir = "/var/spool/simta";
+char                    *simta_file_pid = SIMTA_FILE_PID;
 char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
 char			simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
 DNSR			*simta_dnsr = NULL;
@@ -897,6 +898,24 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "base dir: %s\n", simta_base_dir );
+
+        } else if ( strcasecmp( av[ 0 ], "PID_FILE" ) == 0 ) {
+            if ( ac != 2 ) {
+                fprintf( stderr,
+                        "%s: line %d: expected 1 argument\n",
+                        fname, lineno );
+                goto error;
+            }
+            if ( strlen( av[ 1 ]  ) > MAXPATHLEN ) {
+                fprintf( stderr,
+                        "%s: line %d: path too long\n", fname, lineno );
+                goto error;
+            }
+            if (( simta_file_pid = strdup( av[ 1 ] )) == NULL ) {
+                perror( "strdup" );
+                goto error;
+            }
+            if ( simta_debug ) printf( "pid file: %s\n", simta_file_pid );
 
 	} else if ( strcasecmp( av[ 0 ],
 		"RECEIVE_COMMAND_INACTIVITY_TIMEOUT" ) == 0 ) {
