@@ -466,20 +466,20 @@ main( int argc, char *argv[] )
 
 signal_server:
     /* if possible, signal server */
-    if (( pidfd = open( SIMTA_FILE_PID, O_RDONLY, 0 )) < 0 ) {
-	syslog( LOG_NOTICE, "open %s: %m", SIMTA_FILE_PID );
+    if (( pidfd = open( simta_file_pid, O_RDONLY, 0 )) < 0 ) {
+	syslog( LOG_NOTICE, "open %s: %m", simta_file_pid );
 	return( 0 );
     }
 
     if (( pf = fdopen( pidfd, "r" )) == NULL ) {
-	syslog( LOG_NOTICE, "fdopen %s: %m", SIMTA_FILE_PID );
+	syslog( LOG_NOTICE, "fdopen %s: %m", simta_file_pid );
 	return( 0 );
     }
 
     fscanf( pf, "%d\n", &pid );
 
     if ( pid <= 0 ) {
-	syslog( LOG_NOTICE, "illegal pid %s: %d", SIMTA_FILE_PID, pid );
+	syslog( LOG_NOTICE, "illegal pid %s: %d", simta_file_pid, pid );
 	return( 0 );
     }
 

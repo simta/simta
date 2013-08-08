@@ -11,8 +11,6 @@ MANDIR=/usr/share/man
 BINDIR=@bindir@
 ETCDIR=@sysconfdir@/simta
 SBINDIR=@sbindir@
-RUNDIR=/var/run
-RUNFILE=/var/run/simta.pid
 LIBDIR=/usr/lib
 spool=/var/spool
 SPOOLDIR=$(spool)/simta/
@@ -87,10 +85,7 @@ TARGETS=	simta smtpconnect tlsconnect simsendmail q_runner simexpander \
 all : ${TARGETS}
 
 install : all FRC
-	@mkdir -p ${DESTDIR}${RUNDIR} ${DESTDIR}${SBINDIR} ${DESTDIR}${BINDIR} ${DESTDIR}${MANDIR}/man1 ${DESTDIR}${MANDIR}/man8 ${DESTDIR}$(spool)
-	@touch empty-file
-	${INSTALL} -m 0644 empty-file ${DESTDIR}${RUNFILE}
-	@rm -f empty-file
+	@mkdir -p ${DESTDIR}${SBINDIR} ${DESTDIR}${BINDIR} ${DESTDIR}${MANDIR}/man1 ${DESTDIR}${MANDIR}/man8 ${DESTDIR}$(spool)
 	${INSTALL} -m 0750 @SUID_OWNER@ -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q} ${DESTDIR}${SIMTA_ETC} ${DESTDIR}${SIMTA_COMMAND}
 	${INSTALL} -m 755 -c simta ${DESTDIR}${SBINDIR}/
 	${INSTALL} -m 6755 @SUID_OWNER@ -c simsendmail ${DESTDIR}${SBINDIR}/

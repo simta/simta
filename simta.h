@@ -257,6 +257,7 @@ extern char				*simta_reverse_url;
 extern char				*simta_domain;
 extern char				*simta_mail_filter;
 extern char				*simta_base_dir;
+extern char                             *simta_file_pid;
 extern char				simta_hostname[];
 extern char				*simta_punt_host;
 extern char				*simta_jail_host;
