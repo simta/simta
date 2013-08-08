@@ -17,6 +17,9 @@ AC_DEFINE_UNQUOTED(LOG_SIMTA, [$with_logfacility], [syslog facility])
 AC_ARG_WITH(maxconnections, AC_HELP_STRING([--with-maxconnections=MAX], [maximum number of client connections]), [], with_maxconnections=0 )
 AC_DEFINE_UNQUOTED(SIMTA_MAXCONNECTIONS, [$with_maxconnections], [default maximum number of client connections])
 
+AC_ARG_ENABLE(chown, AC_HELP_STRING([--disable-chown], [do not set ownership of setuid binaries during installation]), [], enable_chown="yes")
+AS_IF([test "x$enable_chown" = "xyes"], [AC_SUBST(SUID_OWNER, "-o simta -g simta")], [AC_SUBST(SUID_OWNER, "")])
+
 # Local Stuff
 AC_PREFIX_DEFAULT(/usr/local)
 

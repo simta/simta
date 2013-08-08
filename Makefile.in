@@ -89,12 +89,12 @@ all : ${TARGETS}
 install : all FRC
 	@mkdir -p ${DESTDIR}${RUNDIR} ${DESTDIR}${SBINDIR} ${DESTDIR}${BINDIR} ${DESTDIR}${MANDIR}/man1 ${DESTDIR}${MANDIR}/man8 ${DESTDIR}$(spool)
 	@touch empty-file
-	${INSTALL} -m 0644 -o simta -g simta empty-file ${DESTDIR}${RUNFILE}
+	${INSTALL} -m 0644 empty-file ${DESTDIR}${RUNFILE}
 	@rm -f empty-file
-	${INSTALL} -m 0750 -o simta -g simta -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q} ${DESTDIR}${SIMTA_ETC} ${DESTDIR}${SIMTA_COMMAND}
-	${INSTALL} -m 755 -o simta -g simta -c simta ${DESTDIR}${SBINDIR}/
-	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${DESTDIR}${SBINDIR}/
-	${INSTALL} -m 6755 -o simta -g simta -c simc ${DESTDIR}${SBINDIR}/
+	${INSTALL} -m 0750 @SUID_OWNER@ -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q} ${DESTDIR}${SIMTA_ETC} ${DESTDIR}${SIMTA_COMMAND}
+	${INSTALL} -m 755 -c simta ${DESTDIR}${SBINDIR}/
+	${INSTALL} -m 6755 @SUID_OWNER@ -c simsendmail ${DESTDIR}${SBINDIR}/
+	${INSTALL} -m 6755 @SUID_OWNER@ -c simc ${DESTDIR}${SBINDIR}/
 	for i in ${BINTARGETS}; do \
 	    ${INSTALL} -m 0755 -c $$i ${DESTDIR}${BINDIR}; \
 	done
