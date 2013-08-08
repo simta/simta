@@ -1,7 +1,3 @@
-m4_include([m4/libtool.m4])
-m4_include([m4/ax_check_library.m4])
-m4_include([m4/ax_with_library.m4])
-
 AC_DEFUN([CHECK_PROFILED],
 [
     # Allow user to control whether or not profiled libraries are built
