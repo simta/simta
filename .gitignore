@@ -22,6 +22,7 @@ libtool
 ltmain.sh
 q_runner
 simalias
+simck
 simexpander
 simrbl
 simreverse

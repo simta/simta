@@ -75,17 +75,11 @@ extern SSL_CTX	*ctx;
 #include "queue.h"
 #include "line_file.h"
 #include "header.h"
+#include "md.h"
 
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
-
-#define BYTE_LEN		10
-
-#define	MDCTX_UNINITILIZED	0
-#define	MDCTX_READY		1
-#define	MDCTX_IN_USE		2
-#define	MDCTX_FINAL		3
 
 #define SIMTA_EXTENSION_SIZE    (1<<0)
 
@@ -123,13 +117,7 @@ struct receive_data {
     struct timeval		r_tv_accepted;
 
 #ifdef HAVE_LIBSSL
-    unsigned char		r_md_value[ EVP_MAX_MD_SIZE ];
-    char			r_md_b64[ SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 ];
-    EVP_MD_CTX			r_mdctx;
-    int				r_mdctx_status;
-    unsigned int		r_mdctx_bytes;
-    unsigned int				r_md_len;
-    char			r_md_bytes[ BYTE_LEN + 1 ];
+    struct message_digest	r_md;
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
@@ -916,17 +904,7 @@ f_mail( struct receive_data *r )
 
 #ifdef HAVE_LIBSSL 
     if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
-	if ( r->r_mdctx_status != MDCTX_READY ) {
-	    if ( r->r_mdctx_status == MDCTX_UNINITILIZED ) {
-		EVP_MD_CTX_init( &r->r_mdctx );
-	    } else if ( r->r_mdctx_status == MDCTX_IN_USE ) {
-		EVP_DigestFinal_ex( &r->r_mdctx, r->r_md_value, &r->r_md_len );
-	    }
-
-	    EVP_DigestInit_ex( &r->r_mdctx, simta_checksum_md, NULL);
-	    r->r_mdctx_status = MDCTX_READY;
-	    r->r_mdctx_bytes = 0;
-	}
+	md_reset( &r->r_md );
     }
 #endif /* HAVE_LIBSSL */
 
@@ -1086,9 +1064,7 @@ f_rcpt( struct receive_data *r )
 		if (( simta_mail_filter != NULL ) &&
 			( simta_checksum_md != NULL )) {
 		    addr_len = strlen( addr );
-		    EVP_DigestUpdate( &r->r_mdctx, addr, addr_len );
-		    r->r_mdctx_bytes += addr_len;
-		    r->r_mdctx_status = MDCTX_IN_USE;
+		    md_update( &r->r_md, addr, addr_len );
 		}
 #endif /* HAVE_LIBSSL */
 		syslog( LOG_ERR, "Syserror f_rcpt: check_hostname: %s: failed",
@@ -1159,9 +1135,7 @@ f_rcpt( struct receive_data *r )
 		if (( simta_mail_filter != NULL ) &&
 			( simta_checksum_md != NULL )) {
 		    addr_len = strlen( addr );
-		    EVP_DigestUpdate( &r->r_mdctx, addr, addr_len );
-		    r->r_mdctx_bytes += addr_len;
-		    r->r_mdctx_status = MDCTX_IN_USE;
+		    md_update( &r->r_md, addr, addr_len );
 		}
 #endif /* HAVE_LIBSSL */
 
@@ -1270,9 +1244,7 @@ f_rcpt( struct receive_data *r )
 #ifdef HAVE_LIBSSL 
     if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
 	addr_len = strlen( addr );
-	EVP_DigestUpdate( &r->r_mdctx, addr, addr_len );
-	r->r_mdctx_bytes += addr_len;
-	r->r_mdctx_status = MDCTX_IN_USE;
+	md_update( &r->r_md, addr, addr_len );
     }
 #endif /* HAVE_LIBSSL */
 
@@ -1623,8 +1595,7 @@ f_data( struct receive_data *r )
 #ifdef HAVE_LIBSSL 
 	if (( dff != NULL ) && ( simta_mail_filter != NULL ) &&
 		( simta_checksum_md != NULL )) {
-	    EVP_DigestUpdate( &r->r_mdctx, line, line_len );
-	    r->r_mdctx_bytes += line_len;
+	    md_update( &r->r_md, line, line_len );
 	}
 #endif /* HAVE_LIBSSL */
     }
@@ -1661,11 +1632,7 @@ f_data( struct receive_data *r )
 #ifdef HAVE_LIBSSL 
 	if (( simta_mail_filter != NULL ) &&
 		( simta_checksum_md != NULL )) {
-	    EVP_DigestFinal_ex( &r->r_mdctx, r->r_md_value, &r->r_md_len );
-	    r->r_mdctx_status = MDCTX_FINAL;
-	    memset( r->r_md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
-	    base64_e( r->r_md_value, r->r_md_len, r->r_md_b64 );
-	    snprintf( r->r_md_bytes, BYTE_LEN, "%d", r->r_mdctx_bytes );
+	    md_finalize( &r->r_md );
 	}
 #endif /* HAVE_LIBSSL */
 
@@ -2620,7 +2587,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     r.r_dns_match = REVERSE_UNRESOLVED;
     r.r_remote_hostname = S_UNRESOLVED;
     r.r_rbl_status = RBL_UNKNOWN;
-    r.r_mdctx_status = MDCTX_UNINITILIZED;
+    md_init( &r.r_md );
     set_smtp_mode( &r, simta_smtp_default_mode, "Default" );
 
     if ( simta_gettimeofday( &tv_start ) != 0 ) {
@@ -3091,10 +3058,8 @@ closeconnection:
 
     reset( &r );
 
-#ifdef HAVE_LIBSSL 
-    if ( r.r_mdctx_status != MDCTX_UNINITILIZED ) {
-	EVP_MD_CTX_cleanup( &r.r_mdctx );
-    }
+#ifdef HAVE_LIBSSL
+    md_cleanup( &r.r_md );
 #endif /* HAVE_LIBSSL */
 
     if ( tv_start.tv_sec != 0 ) {
@@ -3556,12 +3521,12 @@ content_filter( struct receive_data *r, char **smtp_message )
 
 	if ( simta_checksum_md != NULL ) {
 	    if (( filter_envp[ 13 ] = env_string( "SIMTA_CHECKSUM_SIZE",
-		    r->r_md_bytes )) == NULL ) {
+		    r->r_md.md_bytes )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
 	    if (( filter_envp[ 14 ] = env_string( "SIMTA_CHECKSUM",
-		    r->r_md_b64 )) == NULL ) {
+		    r->r_md.md_b64 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
