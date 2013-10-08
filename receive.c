@@ -118,6 +118,7 @@ struct receive_data {
 
 #ifdef HAVE_LIBSSL
     struct message_digest	r_md;
+    struct message_digest	r_md_body;
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
@@ -1537,6 +1538,12 @@ f_data( struct receive_data *r )
 		read_err = SYSTEM_ERROR;
 	    } else {
 		header = 0;
+		#ifdef HAVE_LIBSSL
+		if (( simta_mail_filter != NULL ) &&
+			( simta_checksum_md != NULL )) {
+		    md_reset( &r->r_md_body );
+		}
+		#endif /* HAVE_LIBSSL */
 	    }
 	}
 
@@ -1596,6 +1603,9 @@ f_data( struct receive_data *r )
 	if (( dff != NULL ) && ( simta_mail_filter != NULL ) &&
 		( simta_checksum_md != NULL )) {
 	    md_update( &r->r_md, line, line_len );
+	    if ( header == 0 ) {
+		md_update( &r->r_md_body, line, line_len );
+	    }
 	}
 #endif /* HAVE_LIBSSL */
     }
@@ -1633,6 +1643,7 @@ f_data( struct receive_data *r )
 	if (( simta_mail_filter != NULL ) &&
 		( simta_checksum_md != NULL )) {
 	    md_finalize( &r->r_md );
+	    md_finalize( &r->r_md_body );
 	}
 #endif /* HAVE_LIBSSL */
 
@@ -2588,6 +2599,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     r.r_remote_hostname = S_UNRESOLVED;
     r.r_rbl_status = RBL_UNKNOWN;
     md_init( &r.r_md );
+    md_init( &r.r_md_body );
     set_smtp_mode( &r, simta_smtp_default_mode, "Default" );
 
     if ( simta_gettimeofday( &tv_start ) != 0 ) {
@@ -3060,6 +3072,7 @@ closeconnection:
 
 #ifdef HAVE_LIBSSL
     md_cleanup( &r.r_md );
+    md_cleanup( &r.r_md_body );
 #endif /* HAVE_LIBSSL */
 
     if ( tv_start.tv_sec != 0 ) {
@@ -3370,7 +3383,7 @@ content_filter( struct receive_data *r, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 14 ];
+    char		*filter_envp[ 16 ];
     char		fname[ MAXPATHLEN + 1 ];
     char		buf[ 256 ];
     struct timeval	log_tv;
@@ -3530,7 +3543,17 @@ content_filter( struct receive_data *r, char **smtp_message )
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
-	    filter_envp[ 15 ] = NULL;
+	    if (( filter_envp[ 15 ] = env_string( "SIMTA_BODY_CHECKSUM_SIZE",
+		    r->r_md_body.md_bytes )) == NULL ) {
+		exit( MESSAGE_TEMPFAIL );
+	    }
+
+	    if (( filter_envp[ 16 ] = env_string( "SIMTA_BODY_CHECKSUM",
+		    r->r_md_body.md_b64 )) == NULL ) {
+		exit( MESSAGE_TEMPFAIL );
+	    }
+
+	    filter_envp[ 17 ] = NULL;
 	} else {
 	    filter_envp[ 13 ] = NULL;
 	}
