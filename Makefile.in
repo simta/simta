@@ -29,7 +29,7 @@ SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
 	simalias.c bounce.c wildcard.c
 SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
 		address.o line_file.o ll.o bdb.o header.o simta.o \
-		queue.o ml.o smtp.o expand.o mx.o bounce.o \
+		md.o queue.o ml.o smtp.o expand.o mx.o bounce.o \
 		q_cleanup.o tls.o wildcard.o red.o
 SMTPCONOBJ=     @SIMTA_OBJ@ address.o bdb.o bounce.o envelope.o expand.o \
                 header.o line_file.o ll.o ml.o mx.o simta.o queue.o smtp.o \
@@ -60,7 +60,7 @@ SIMALIASOBJ=	@EXPANDER_OBJ@ simalias.o queue.o ll.o line_file.o \
 		envelope.o ml.o simta.o tls.o smtp.o expand.o address.o bdb.o \
 		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
 SLAOBJ=		sla.o
-SIMCKOBJ=	simck.o base64.o
+SIMCKOBJ=	simck.o base64.o md.o
 
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
@@ -142,6 +142,10 @@ receive.o : receive.c
 		-DVERSION=\"@PACKAGE_VERSION@\" \
 		-c ${SRCPFX}receive.c -o receive.o
 
+md.o : md.c
+	${CC} ${CFLAGS} \
+		-c ${SRCPFX}md.c -o md.o
+
 simta.o : simta.c
 	${CC} ${CFLAGS} \
 		-c ${SRCPFX}simta.c -o simta.o
@@ -215,15 +219,16 @@ expander.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h s
 header.o: config.h envelope.h header.h line_file.h queue.h simta.h
 line_file.o: config.h line_file.h
 ll.o: config.h ll.h
+md.o: base64.h config.h simta.h
 ml.o: config.h envelope.h line_file.h ml.h queue.h simta.h
 mx.o: config.h envelope.h expand.h ll.h mx.h queue.h red.h simta.h
 q_cleanup.o: config.h envelope.h ll.h queue.h simta.h
 q_runner.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
 queue.o: config.h envelope.h expand.h line_file.h ll.h ml.h mx.h queue.h red.h simta.h smtp.h wildcard.h
-receive.o: argcargv.h base64.h bdb.h config.h envelope.h expand.h header.h line_file.h ll.h mx.h queue.h red.h simta.h simta_ldap.h
+receive.o: argcargv.h base64.h bdb.h config.h envelope.h expand.h header.h line_file.h ll.h md.h mx.h queue.h red.h simta.h simta_ldap.h
 red.o: argcargv.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h simta.h simta_ldap.h
 simalias.o: argcargv.h bdb.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h simta.h simta_ldap.h
-simck.o: base64.h
+simck.o: base64.h config.h md.h
 simlog.o: config.h simta.h
 simrbl.o: config.h envelope.h ll.h mx.h simta.h
 simreverse.o: config.h envelope.h ll.h mx.h simta.h

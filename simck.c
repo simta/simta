@@ -2,6 +2,8 @@
  * All Rights Reserved.  See COPYRIGHT.
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -29,21 +31,19 @@
 #include <snet.h>
 
 #include "base64.h"
+#include "md.h"
 
-
+extern const EVP_MD *simta_checksum_md;
+const EVP_MD        *simta_checksum_md = NULL;
 
     int
 main( int argc, char *argv[])
 {
     int				i;
-    EVP_MD_CTX			mdctx;
-    int				md_len;
     SNET			*snet;
     char			*line;
     u_int			line_len;
-    unsigned char		md_value[ EVP_MAX_MD_SIZE ];
-    char			md_b64[ SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 ];
-    const EVP_MD		*simta_checksum_md;
+    struct message_digest       md;
 
     if ( argc != 2 ) {
 	fprintf( stderr, "Usage: %s checksum_algorithm\n", argv[ 0 ]);
@@ -58,8 +58,8 @@ main( int argc, char *argv[])
 	return( 1 );
     }
 
-    EVP_MD_CTX_init( &mdctx );
-    EVP_DigestInit_ex( &mdctx, simta_checksum_md, NULL);
+    md_init( &md );
+    md_reset( &md );
 
     if (( snet = snet_attach( 0, 1024 * 1024 )) == NULL ) {
 	perror( "snet_attach" );
@@ -68,25 +68,22 @@ main( int argc, char *argv[])
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	line_len = strlen( line );
-	EVP_DigestUpdate( &mdctx, line, line_len );
+        md_update( &md, line, line_len );
     }
 
-    EVP_DigestFinal_ex( &mdctx, md_value, &md_len );
-    EVP_MD_CTX_cleanup( &mdctx );
-
-    memset( md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
-    base64_e( md_value, md_len, md_b64 );
+    md_finalize( &md );
+    md_cleanup( &md );
 
     if ( snet_close( snet ) != 0 ) {
 	perror( "snet_close" );
 	return( 1 );
     }
 
-    printf( "\nChecksum: %s\n", md_b64 );
+    printf( "\nChecksum: %s\n", md.md_b64 );
 
     printf( "Digest: " );
-    for ( i = 0; i < md_len; i++ ) {
-	printf( "%02x", md_value[i] );
+    for ( i = 0; i < md.md_len; i++ ) {
+	printf( "%02x", md.md_value[i] );
     }
     printf( "\n" );
 
