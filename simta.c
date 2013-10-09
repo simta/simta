@@ -362,6 +362,9 @@ simta_read_config( char *fname )
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	lineno++;
 
+        /* strip leading whitespace */
+        for ( ; *line == ' ' || *line == '\t'; line++ );
+
 	if (( line[ 0 ] == '\0' ) || ( line[ 0 ] == '#' )) {
 	    /* blank line or comment */
 	    continue;
