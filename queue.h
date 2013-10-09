@@ -60,6 +60,10 @@ struct deliver {
     uint16_t			d_mx_preference_cutoff;
     int				d_cur_dnsr_result;
     int				d_cur_dnsr_result_ip;
+#ifdef HAVE_LIBSSL
+    int				d_tls_supported;
+    int				d_tls_banner_check;
+#endif /* HAVE_LIBSSL */
 };
 
 struct host_q {
