@@ -1568,7 +1568,7 @@ f_data( struct receive_data *r )
 	    }
 	}
 
-	if (( read_err == NO_ERROR ) && ( simta_max_message_size != 0 ) &&
+	if (( read_err == NO_ERROR ) && ( simta_max_message_size > 0 ) &&
 		(( data_wrote + line_len + 1 ) > simta_max_message_size )) {
 	    /* If we're going to reach max size, continue reading lines
 	     * until the '.' otherwise, check message size.
