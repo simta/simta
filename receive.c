@@ -526,7 +526,7 @@ smtp_write_banner( struct receive_data *r, int reply_code, char *msg,
 	break;
 
     case 535:
-	boilerplate = "Invalid initial-response arugment for mechanism";
+	boilerplate = "Invalid initial-response argument for mechanism";
 	break;
 
     case 538:
@@ -2475,7 +2475,7 @@ f_auth( struct receive_data *r )
 	 * reply.
 	 */
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"Invaid initial-response argument for mechanism %s",
+		"Invalid initial-response argument for mechanism %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id, r->r_av[ 1 ] );
 	return( smtp_write_banner( r, 535, NULL, NULL ));
