@@ -2513,6 +2513,7 @@ f_auth( struct receive_data *r )
 	return( smtp_write_banner( r, 538, NULL, NULL ));
 
     default:
+        sasl_getprop( r->r_conn, SASL_USERNAME, (const void **) &r->r_auth_id );
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"sasl_start_server: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
