@@ -515,6 +515,9 @@ main( int ac, char **av )
 	    exit( 1 );
 	}
 	simta_tls = 1;
+    }
+
+    if ( simta_tls ) {
 	simta_smtp_extension++;
     }
 
