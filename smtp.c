@@ -585,7 +585,8 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    }
 
 	    if ( simta_debug != 0 ) {
-		syslog( LOG_DEBUG, "Debug: smtp_connect SSL_get_peer_certificate" );
+		syslog( LOG_DEBUG,
+			"Debug: smtp_connect SSL_get_peer_certificate" );
 	    }
 
 	    if (( peer = SSL_get_peer_certificate( d->d_snet_smtp->sn_ssl ))
