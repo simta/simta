@@ -49,8 +49,6 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #ifdef HAVE_LIBSSL 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
-extern SSL_CTX	*ctx;
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
@@ -75,6 +73,10 @@ extern SSL_CTX	*ctx;
 #include "queue.h"
 #include "line_file.h"
 #include "header.h"
+
+#ifdef HAVE_LIBSSL 
+#include "tls.h"
+#endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
@@ -2275,12 +2277,21 @@ _start_tls( struct receive_data *r )
     int				rc;
     X509			*peer;
     char			buf[ 1024 ];
+    SSL_CTX			*ssl_ctx;
 
     if ( simta_debug != 0 ) {
 	syslog( LOG_DEBUG, "Debug: _start_tls snet_starttls" );
     }
 
-    if (( rc = snet_starttls( r->r_snet, ctx, 1 )) != 1 ) {
+    if (( ssl_ctx = tls_server_setup( simta_use_randfile,
+	    simta_service_smtps, simta_file_ca, simta_dir_ca,
+	    simta_file_cert, simta_file_private_key )) == NULL ) {
+	syslog( LOG_ERR, "Syserror: _start_tls: %s",
+		ERR_error_string( ERR_get_error(), NULL ));
+	return( smtp_write_banner( r, 501, NULL, "SSL didn't work!" ));
+    }
+
+    if (( rc = snet_starttls( r->r_snet, ssl_ctx, 1 )) != 1 ) {
 	syslog( LOG_ERR, "Syserror _start_tls: snet_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( smtp_write_banner( r, 501, NULL, "SSL didn't work!" ));

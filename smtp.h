@@ -15,6 +15,7 @@
 #define	SMTP_DATA_EOF		7
 #define	SMTP_RSET		8
 #define	SMTP_QUIT		9
+#define	SMTP_STARTTLS		10
 
 #define	SMTP_OK			0
 #define	SMTP_ERROR		1
