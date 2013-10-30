@@ -667,20 +667,6 @@ smtp_connect( struct host_q *hq, struct deliver *d )
                     hq->hq_hostname );
         }
 
-	/* CVE-2011-0411: discard pending data from libsnet */
-	/*
-	while ( snet_hasdata( d->d_snet_smtp )) {
-	    struct timeval temptv[1];
-	    char tempc[1];
-	    ssize_t rc;
-
-	    if (( rc = snet_read( d->d_snet_smtp,
-		    tempc, sizeof tempc, temptv )) != sizeof tempc ) {
-		syslog( LOG_ERR, "Syserror smtp_connect: read failed" );
-		break;
-	    }
-	}
-	*/
 #endif /* HAVE_LIBSSL */
 	break;
 
