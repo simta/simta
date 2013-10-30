@@ -622,6 +622,11 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    return( SMTP_BAD_CONNECTION );
 	}
 
+        if (( rc = smtp_reply( SMTP_STARTTLS, hq, d )) != SMTP_OK ) {
+            /* ZZZ consequences? */
+            return( rc );
+        }
+            
 	if (( ssl_ctx = tls_client_setup( 0, 0, simta_file_ca, simta_dir_ca,
 		NULL, NULL )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror: smtp_connect: tls_client_setup %s",
