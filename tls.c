@@ -173,25 +173,22 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     }
 
     /* Load CA */
-    if ( authlevel == 2 ) {
-	/* Load CA */
-	if ( caFile != NULL ) {
-	    if ( SSL_CTX_load_verify_locations( ssl_ctx, caFile, NULL ) != 1 ) {
-		fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
-			caFile, ERR_error_string( ERR_get_error(), NULL ));
-		goto error;
-	    }
-	}
-	if ( caDir != NULL ) {
-	    if ( SSL_CTX_load_verify_locations( ssl_ctx, NULL, caDir ) != 1 ) {
-		fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
-			caDir, ERR_error_string( ERR_get_error(), NULL ));
-		goto error;
-	    }
+    if ( caFile != NULL ) {
+	if ( SSL_CTX_load_verify_locations( ssl_ctx, caFile, NULL ) != 1 ) {
+	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+		    caFile, ERR_error_string( ERR_get_error(), NULL ));
+	    goto error;
 	}
     }
+    if ( caDir != NULL ) {
+        if ( SSL_CTX_load_verify_locations( ssl_ctx, NULL, caDir ) != 1 ) {
+            fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+                    caDir, ERR_error_string( ERR_get_error(), NULL ));
+            goto error;
+        }
+    }
 
-    /* Set level of security expecations */
+    /* Set level of security expectations */
     ssl_mode = SSL_VERIFY_NONE;
 
     SSL_CTX_set_verify( ssl_ctx, ssl_mode, NULL );
