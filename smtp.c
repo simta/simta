@@ -648,14 +648,24 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 		== NULL ) {
 	    syslog( LOG_ERR, "Syserror smtp_connect: "
 		    "SSL_get_peer_certificate: no peer certificate" );
-	    /* ZZZ consequences */
+	    /* ZZZ this should never happen - consequences? */
 	    abort();
 	}
-	syslog( LOG_DEBUG, "Deliver %s: CERT Subject: %s",
+	syslog( LOG_INFO, "Deliver %s: certificate subject: %s",
 		hq->hq_hostname,
 		X509_NAME_oneline( X509_get_subject_name( peer ), buf,
 		sizeof( buf )));
 	X509_free( peer );
+
+        if (( rc = SSL_get_verify_result( d->d_snet_smtp->sn_ssl ))
+                != X509_V_OK ) {
+            /* ZZZ config to allow continuation? */
+            syslog( LOG_ERR, "Syserror smtp_connect: certificate verification failed: %d", rc );
+            return( SMTP_ERROR );
+        } else {
+            syslog( LOG_INFO, "Deliver %s: certificate verified",
+                    hq->hq_hostname );
+        }
 
 	/* CVE-2011-0411: discard pending data from libsnet */
 	/*
