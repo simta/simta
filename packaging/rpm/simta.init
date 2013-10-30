@@ -37,7 +37,7 @@ preload(){
 start(){
     preload
     echo -n $"Starting $prog: "
-    $exec
+    $exec && success || failure $"$prog start"
     retval=$?
     echo
     [ $retval -eq 0 ] && touch "/var/lock/subsys/$prog"
@@ -46,7 +46,7 @@ start(){
 
 stop(){
     echo -n $"Stopping $prog: "
-    killproc simta
+    killproc simta && success || failure $"$prog stop"
     retval=$?
     echo
     [ $retval -eq 0 ] && rm -f /var/lock/subsys/simta
