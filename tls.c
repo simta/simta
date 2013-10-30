@@ -196,16 +196,6 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 
     SSL_CTX_set_verify( ssl_ctx, ssl_mode, NULL );
 
-    if (( ssl_X509 = SSL_get_peer_certificate( ssl_ctx )) == NULL ) {
-	/* ZZZ no certificate */
-    }
-
-    X509_free( ssl_X509 );
-
-    if ( SSL_get_verify_result( ssl_ctx ) != X509_V_OK ) {
-	/* ZZZ bad result */
-    }
-
     return( ssl_ctx );
 
     error:
