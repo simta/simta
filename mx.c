@@ -20,8 +20,6 @@
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
-extern SSL_CTX  *ctx;
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL

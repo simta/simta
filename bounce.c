@@ -366,7 +366,6 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
 	    != NULL )) {
 	return_address = simta_jail_bounce_address;
     }
-syslog( LOG_DEBUG, "ZZZ bounce %s: email %s", env->e_id, return_address );
     if ( env_recipient( bounce_env, return_address ) != 0 ) {
 	goto cleanup1;
     }

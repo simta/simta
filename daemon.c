@@ -48,8 +48,10 @@
 #include "simta.h"
 #include "queue.h"
 #include "envelope.h"
-#include "tls.h"
 
+#ifdef HAVE_LIBSSL
+#include "tls.h"
+#endif /* HAVE_LIBSSL */
 
 /* XXX testing purposes only, make paths configureable */
 #define _PATH_SPOOL	"/var/spool/simta"
@@ -67,7 +69,6 @@ struct sigaction		osachld;
 struct sigaction		osausr1;
 struct sigaction		osausr2;
 char				*version = VERSION;
-SSL_CTX				*ctx = NULL;
 struct simta_socket		*simta_listen_sockets = NULL;
 
 
@@ -293,6 +294,9 @@ main( int ac, char **av )
 #ifdef HAVE_LIBSASL
     int			rc;
 #endif /* HAVE_LIBSASL */
+#ifdef HAVE_LIBSSL
+    SSL_CTX		*ssl_ctx = NULL;
+#endif /* HAVE_LIBSSL */
 
     if (( prog = strrchr( av[ 0 ], '/' )) == NULL ) {
 	prog = av[ 0 ];
@@ -509,12 +513,24 @@ main( int ac, char **av )
 
 #ifndef Q_SIMULATION
     if ( simta_service_smtps ) {
-	if ( tls_server_setup( simta_use_randfile, simta_service_smtps,
-		simta_file_ca, simta_dir_ca, simta_file_cert,
-		simta_file_private_key ) != 0 ) {
+#ifndef HAVE_LIBSSL
+	syslog( LOG_ERR, "simta_service_smtps set but SSL is not available" );
+	exit( 1 );
+#else /* HAVE_LIBSSL */
+	/* Test whether our SSL config is usable */
+	if (( ssl_ctx = tls_server_setup( simta_use_randfile,
+		simta_service_smtps, simta_file_ca, simta_dir_ca,
+		simta_file_cert, simta_file_private_key )) == NULL ) {
+	    syslog( LOG_ERR, "Syserror: tls_server_setup: %s",
+		    ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
+	SSL_CTX_free( ssl_ctx );
 	simta_tls = 1;
+#endif /* HAVE_LIBSSL */
+    }
+
+    if ( simta_tls ) {
 	simta_smtp_extension++;
     }
 

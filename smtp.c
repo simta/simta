@@ -49,6 +49,12 @@
 #include "smtp.h"
 #include "mx.h"
 
+#ifdef HAVE_LIBSSL
+#include "tls.h"
+#define S_STARTTLS "STARTTLS"
+#endif /* HAVE_LIBSSL */
+
+
 #ifdef DEBUG
 void	(*smtp_logger)(char *) = stdout_logger;
 #else /* DEBUG */
@@ -61,6 +67,7 @@ smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 	char *line, char *error )
 {
     int				ret = SMTP_ERROR;
+    char			*c;
 
     if ( err_text != NULL ) {
 	if ( *err_text == NULL ) {
@@ -79,7 +86,7 @@ smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 	}
 
 	if ( line_append( *err_text, error, COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Ssyerror smtp_consume_banner: line_append: %m" );
+	    syslog( LOG_ERR, "Syserror smtp_consume_banner: line_append: %m" );
 	    goto consume;
 	}
 
@@ -87,7 +94,13 @@ smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 	    syslog( LOG_ERR, "Syserror smtp_consume_banner: line_append: %m" );
 	    goto consume;
 	}
+    }
 
+    if (( err_text != NULL ) 
+#ifdef HAVE_LIBSSL
+	    || ( d->d_tls_banner_check != 0 )
+#endif /* HAVE_LIBSSL */
+	    ) {
 	while (*(line + 3) == '-' ) {
 	    if (( line = snet_getline( d->d_snet_smtp, NULL )) == NULL ) {
 		syslog( LOG_DEBUG, "Deliver smtp_consume_banner: "
@@ -117,11 +130,31 @@ smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 		return( SMTP_BAD_CONNECTION );
 	    }
 
+#ifdef HAVE_LIBSSL
+	    if (( d->d_tls_banner_check != 0 ) && ( d->d_tls_supported == 0 )) {
+		c = line + 4;
+		if (( strncasecmp( S_STARTTLS, c,
+			strlen( S_STARTTLS )) == 0 )) {
+		    c += strlen( S_STARTTLS );
+		    while ( *c != '\0') {
+			if ( isspace( *c ) == 0 ) {
+			    break;
+			}
+			c++;
+		    }
+		    if ( *c == '\0' ) {
+			d->d_tls_supported = 1;
+		    }
+		}
+	    }
+#endif /* HAVE_LIBSSL */
+
 	    if ( smtp_logger != NULL ) {
 		(*smtp_logger)( line );
 	    }
 
-	    if ( line_append( *err_text, line, COPY ) == NULL ) {
+	    if (( err_text != NULL ) &&
+		    ( line_append( *err_text, line, COPY ) == NULL )) {
 		syslog( LOG_ERR, "Syserror smtp_consume_banner: "
 			"line_append: %m" );
 		goto consume;
@@ -272,6 +305,11 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		line );
 	    break;
 
+	case SMTP_STARTTLS:
+	    syslog( LOG_NOTICE, "smtp_reply %s STARTTLS: %s", hq->hq_hostname,
+		    line );
+	    break;
+
 	case SMTP_MAIL:
 	    syslog( LOG_INFO, "Deliver.SMTP %s: From <%s> Accepted: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
@@ -348,6 +386,15 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		    hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP EHLO reply" )) == SMTP_OK ) {
+		return( SMTP_ERROR );
+	    }
+	    return( smtp_reply );
+
+	case SMTP_STARTTLS:
+	    syslog( LOG_NOTICE, "smtp_reply %s tempfail STARTTLS reply: %s",
+		    hq->hq_hostname, line );
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
+		    line, "Bad SMTP STARTTLS reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
@@ -438,8 +485,17 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_EHLO:
 	    syslog( LOG_NOTICE, "smtp_reply %s failed EHLO reply: %s",
 		    hq->hq_hostname, line );
-	    if (( smtp_reply = smtp_consume_banner( NULL, d,
-		    line, NULL )) == SMTP_OK ) {
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
+		    line, "Bad SMTP EHLO reply" )) == SMTP_OK ) {
+		return( SMTP_ERROR );
+	    }
+	    return( smtp_reply );
+
+	case SMTP_STARTTLS:
+	    syslog( LOG_NOTICE, "smtp_reply %s failed STARTTLS reply: %s",
+		    hq->hq_hostname, line );
+	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
+		    line, "Bad SMTP STARTTLS reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
 	    }
 	    return( smtp_reply );
@@ -509,6 +565,12 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 {
     int				r;
     struct timeval		tv_wait;
+    int				rc;
+    X509			*peer;
+    char			buf[ 1024 ];
+#ifdef HAVE_LIBSSL
+    SSL_CTX			*ssl_ctx = NULL;
+#endif /* HAVE_LIBSSL */
 
     tv_wait.tv_sec = simta_outbound_command_line_timer;
     tv_wait.tv_usec = 0;
@@ -526,11 +588,122 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	return( SMTP_BAD_CONNECTION );
     }
 
-    if (( r = smtp_reply( SMTP_EHLO, hq, d )) == SMTP_OK ) {
-	return( SMTP_OK );
-    }
+#ifdef HAVE_LIBSSL
+    d->d_tls_supported = 0;
+    d->d_tls_banner_check = 1;
+#endif /* HAVE_LIBSSL */
 
-    if ( r == SMTP_ERROR ) {
+    r = smtp_reply( SMTP_EHLO, hq, d );
+
+#ifdef HAVE_LIBSSL
+    d->d_tls_banner_check = 0;
+#endif /* HAVE_LIBSSL */
+
+    switch ( r ) {
+    default:
+	panic( "smtp_connect: smtp_reply out of range" );
+
+    case SMTP_BAD_CONNECTION:
+	break;
+
+    case SMTP_OK:
+#ifdef HAVE_LIBSSL
+	if ( ! d->d_tls_supported ) {
+	    /* ZZZ POLICY */
+            return( SMTP_OK );
+	}
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: smtp_connect snet_starttls" );
+	}
+
+	if ( snet_writef( d->d_snet_smtp, "%s\r\n", S_STARTTLS ) < 0 ) {
+	    syslog( LOG_DEBUG, "Deliver: snet_writef failed: %s",
+		    S_STARTTLS );
+	    return( SMTP_BAD_CONNECTION );
+	}
+
+        if (( rc = smtp_reply( SMTP_STARTTLS, hq, d )) != SMTP_OK ) {
+            /* ZZZ consequences? */
+            return( rc );
+        }
+            
+	if (( ssl_ctx = tls_client_setup( 0, 0, simta_file_ca, simta_dir_ca,
+		NULL, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "Syserror: smtp_connect: tls_client_setup %s",
+		    ERR_error_string( ERR_get_error(), NULL ));
+	    /* ZZZ consequences */
+	    return( SMTP_BAD_CONNECTION );
+	}
+
+	if (( rc = snet_starttls( d->d_snet_smtp, ssl_ctx, 0 )) != 1 ) {
+	    syslog( LOG_ERR, "Syserror smtp_connect: snet_starttls: %s",
+		    ERR_error_string( ERR_get_error(), NULL ));
+	    /* ZZZ consequences */
+	    return( SMTP_BAD_CONNECTION );
+	}
+
+	SSL_CTX_free( ssl_ctx );
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG,
+		    "Debug: smtp_connect SSL_get_peer_certificate" );
+	}
+
+	if (( peer = SSL_get_peer_certificate( d->d_snet_smtp->sn_ssl ))
+		== NULL ) {
+	    syslog( LOG_ERR, "Syserror smtp_connect: "
+		    "SSL_get_peer_certificate: no peer certificate" );
+	    /* ZZZ this should never happen - consequences? */
+	    abort();
+	}
+	syslog( LOG_INFO, "Deliver %s: certificate subject: %s",
+		hq->hq_hostname,
+		X509_NAME_oneline( X509_get_subject_name( peer ), buf,
+		sizeof( buf )));
+	X509_free( peer );
+
+        if (( rc = SSL_get_verify_result( d->d_snet_smtp->sn_ssl ))
+                != X509_V_OK ) {
+            /* ZZZ config to allow continuation? */
+            syslog( LOG_ERR, "Syserror smtp_connect: certificate verification failed: %d", rc );
+            return( SMTP_ERROR );
+        } else {
+            syslog( LOG_INFO, "Deliver %s: certificate verified",
+                    hq->hq_hostname );
+        }
+
+        /* RFC 3207 4.2
+         *
+         * Upon completion of the TLS handshake, the SMTP protocol is reset to
+         * the initial state (the state in SMTP after a server issues a 220
+         * service ready greeting).  The server MUST discard any knowledge
+         * obtained from the client, such as the argument to the EHLO command,
+         * which was not obtained from the TLS negotiation itself.  The client
+         * MUST discard any knowledge obtained from the server, such as the list
+         * of SMTP service extensions, which was not obtained from the TLS
+         * negotiation itself.  The client SHOULD send an EHLO command as the
+         * first command after a successful TLS negotiation.
+         */
+
+        /* ZZZ reset state? */
+
+        /* Resend EHLO */
+        if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
+            syslog( LOG_DEBUG, "Deliver %s: snet_writef failed: EHLO",
+                    hq->hq_hostname );
+            return( SMTP_BAD_CONNECTION );
+        }
+
+        r = smtp_reply( SMTP_EHLO, hq, d );
+
+#endif /* HAVE_LIBSSL */
+	break;
+
+    case SMTP_ERROR:
+#ifdef HAVE_LIBSSL
+	/* ZZZ Policy */
+#endif /* HAVE_LIBSSL */
 	/* say HELO */
 	/* RFC 2821 2.2.1
 	 * (However, for compatibility with older conforming implementations,
@@ -546,7 +719,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	if ( snet_writef( d->d_snet_smtp, "HELO %s\r\n", simta_hostname )
 		< 0 ) {
 	    syslog( LOG_DEBUG, "Deliver %s: snet_writef failed: HELO",
-		hq->hq_hostname );
+		    hq->hq_hostname );
 	    return( SMTP_BAD_CONNECTION );
 	}
 	r = smtp_reply( SMTP_HELO, hq, d );
