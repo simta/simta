@@ -28,6 +28,7 @@ simreverse
 simsendmail
 simta
 sla
+smtpconnect
 stamp-*
 tlsconnect
 .cproject
