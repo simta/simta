@@ -1679,7 +1679,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    if ( simta_debug ) {
-		printf( "CA_DIRECTORY: %s\n", simta_file_ca );
+		printf( "CA_DIRECTORY: %s\n", simta_dir_ca );
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
