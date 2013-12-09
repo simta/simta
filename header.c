@@ -882,7 +882,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    return( -1 );
 	}
 
-	if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
+	if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T %z", tm )
 		== 0 ) {
 	    perror( "strftime" );
 	    return( -1 );
