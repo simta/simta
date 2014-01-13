@@ -177,8 +177,7 @@ struct receive_data {
 #define	LOCAL_ADDRESS			1
 #define	NOT_LOCAL			2
 #define	LOCAL_ERROR			3
-#define	MX_ADDRESS			4
-#define	LOCAL_ADDRESS_RBL		5
+#define	LOCAL_ADDRESS_RBL		4
 
 #define NO_ERROR		0
 #define PROTOCOL_ERROR		1
@@ -1107,8 +1106,7 @@ f_rcpt( struct receive_data *r )
 	}
 
 	if ((( red = host_local( domain )) == NULL ) ||
-		(( red->red_receive == NULL ) &&
-		( red->red_host_type == RED_HOST_TYPE_LOCAL ))) {
+		( red->red_receive == NULL )) {
 	    if ( r->r_smtp_mode == SMTP_MODE_NORMAL ) {
 		r->r_failed_rcpts++;
 		syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
@@ -1245,7 +1243,6 @@ f_rcpt( struct receive_data *r )
 		break; /* end case LOCAL_ADDRESS_RBL */
 
 	    case LOCAL_ADDRESS:
-	    case MX_ADDRESS:
 		break;
 
 	    default:
@@ -3281,16 +3278,12 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	return( NOT_LOCAL );
     }
 
-    /* If host is configured to be a high pref mx ( done by hand ),
-     * do not check for local address.
-     */
-    if ( red->red_host_type == RED_HOST_TYPE_SECONDARY_MX ) {
-	return( MX_ADDRESS );
-    }
-
     /* Search for user using expansion table */
     for ( action = red->red_receive; action != NULL; action = action->a_next ) {
 	switch ( action->a_action ) {
+	case EXPANSION_TYPE_GLOBAL_RELAY:
+	    return( LOCAL_ADDRESS );
+
 	case EXPANSION_TYPE_ALIAS:
 	    if ( action->a_dbp == NULL ) {
 		if (( rc = db_open_r( &(action->a_dbp), action->a_fname,

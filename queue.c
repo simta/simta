@@ -56,7 +56,7 @@ int	next_dnsr_host( struct deliver *, struct host_q * );
 int	next_dnsr_host_lookup( struct deliver *, struct host_q * );
 void	hq_free( struct host_q * );
 void	connection_data_free( struct deliver *, struct connection_data * );
-int	get_outboud_dns( struct deliver *, struct host_q * );
+int	get_outbound_dns( struct deliver *, struct host_q * );
 struct connection_data *connection_data_create( struct deliver * );
 void	queue_time_order( struct host_q * );
 void	prune_messages( struct host_q *hq );
@@ -84,7 +84,6 @@ host_q_lookup( char *hostname )
 host_q_create_or_lookup( char *hostname ) 
 {
     struct host_q		*hq;
-    struct simta_red		*red;
 
     /* create NULL host queue for unexpanded messages.  we always need to
      * have a NULL queue for error reporting. 
@@ -125,6 +124,9 @@ host_q_create_or_lookup( char *hostname )
 	}
 	memset( hq, 0, sizeof( struct host_q ));
 
+	hq->hq_wait_min = simta_wait_max;
+	hq->hq_wait_max = simta_wait_min;
+
 	if (( hq->hq_hostname = strdup( hostname )) == NULL ) {
 	    syslog( LOG_ERR, "host_q_create_or_lookup strdup: %m" );
 	    free( hq );
@@ -134,20 +136,14 @@ host_q_create_or_lookup( char *hostname )
 	if ( simta_bitbucket >= 0 ) {
 	    hq->hq_status = HOST_BITBUCKET;
 
-	} else if (( hq->hq_red = simta_red_lookup_host( hostname )) != NULL ) {
+	} else if (( hq->hq_red = red_host_lookup( hostname )) != NULL ) {
 	    if ( hq->hq_red->red_deliver_type == RED_DELIVER_BINARY ) {
 		hq->hq_status = HOST_LOCAL;
 	    }
-	}
-
-	hq->hq_min_wait = simta_min_wait;
-	hq->hq_max_wait = simta_max_wait;
-	hq->hq_no_punt = 0;
-	if (( red = simta_red_lookup_host_2( hostname,
-		&simta_remote_hosts )) != NULL ) {
-	    hq->hq_min_wait = red->red_min_wait;
-	    hq->hq_max_wait = red->red_max_wait;
-	    hq->hq_no_punt = red->red_no_punt ? NOPUNT_CONFIG : 0;
+	    if ( hq->hq_red->red_wait_set != 0 ) {
+		hq->hq_wait_min = simta_wait_max;
+		hq->hq_wait_max = simta_wait_min;
+	    }
 	} else if (( simta_jail_host != NULL ) &&
 		( strcasecmp( simta_jail_host, hostname )) == 0 ) {
 	    hq->hq_no_punt = NOPUNT_CONFIG;
@@ -533,7 +529,7 @@ q_runner_done:
     }
 
 #ifdef HAVE_LDAP
-    simta_red_close_ldap_dbs();
+    red_close_ldap_dbs();
 #endif /* HAVE_LDAP */
 
     if ( simta_fast_files != 0 ) {
@@ -585,24 +581,16 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	tv_now = &tv;
     }
 
-    /* if a queue is high priority, put it to the front of the queue */
-    /*
-    if ( hq->hq_priority > 0 ) {
-	wait_last.tv_sec = 0;
-	next_launch.tv_sec = tv_now->tv_sec;
-    */
-
-    /* if there is a provided delay, use it but respect hq->hq_max_wait */
-    /*
-    } else */ if ( tv_delay != NULL ) {
-	if ( tv_delay->tv_sec > hq->hq_max_wait ) {
-	    wait_last.tv_sec = hq->hq_max_wait;
-	    next_launch.tv_sec = hq->hq_max_wait + tv_now->tv_sec;
+    /* if there is a provided delay, use it but respect hq->hq_wait_max */
+    if ( tv_delay != NULL ) {
+	if ( tv_delay->tv_sec > hq->hq_wait_max ) {
+	    wait_last.tv_sec = hq->hq_wait_max;
+	    next_launch.tv_sec = hq->hq_wait_max + tv_now->tv_sec;
 
 	} else {
 	    next_launch.tv_sec = tv_delay->tv_sec + tv_now->tv_sec;
-	    if ( tv_delay->tv_sec < hq->hq_min_wait ) {
-		wait_last.tv_sec = hq->hq_min_wait;
+	    if ( tv_delay->tv_sec < hq->hq_wait_min ) {
+		wait_last.tv_sec = hq->hq_wait_min;
 	    } else {
 		wait_last.tv_sec = tv_delay->tv_sec;
 	    }
@@ -622,18 +610,18 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
     /* have we ever launched this queue or is it leaky? */
     } else if (( hq->hq_wait_last.tv_sec == 0 ) || ( hq->hq_leaky != 0 )) {
 	hq->hq_leaky = 0;
-	wait_last.tv_sec = hq->hq_min_wait;
-	next_launch.tv_sec = random() % hq->hq_min_wait + tv_now->tv_sec;
+	wait_last.tv_sec = hq->hq_wait_min;
+	next_launch.tv_sec = random() % hq->hq_wait_min + tv_now->tv_sec;
 
     } else {
-	/* wait twice what you did last time, but respect hq->hq_max_wait */
-	if (( hq->hq_wait_last.tv_sec * 2 ) <= hq->hq_max_wait ) {
+	/* wait twice what you did last time, but respect hq->hq_wait_max */
+	if (( hq->hq_wait_last.tv_sec * 2 ) <= hq->hq_wait_max ) {
 	    wait_last.tv_sec = hq->hq_wait_last.tv_sec * 2;
-	    if ( wait_last.tv_sec < hq->hq_min_wait ) {
-		wait_last.tv_sec = hq->hq_min_wait;
+	    if ( wait_last.tv_sec < hq->hq_wait_min ) {
+		wait_last.tv_sec = hq->hq_wait_min;
 	    }
 	} else {
-	    wait_last.tv_sec = hq->hq_max_wait;
+	    wait_last.tv_sec = hq->hq_wait_max;
 	}
 	next_launch.tv_sec = wait_last.tv_sec + tv_now->tv_sec;
     }
@@ -1402,6 +1390,17 @@ message_cleanup:
 	    env_bounce = NULL;
 	}
 
+	/* per-host punting */
+	if ( deliver_q->hq_red != NULL ) {
+	    if ( deliver_q->hq_red->red_policy_punting ==
+		    RED_PUNTING_ENABLED ) {
+		deliver_q->hq_no_punt &= ~NOPUNT_MX;
+	    } else if ( deliver_q->hq_red->red_policy_punting ==
+		    RED_PUNTING_DISABLED ) {
+		deliver_q->hq_no_punt |= NOPUNT_MX;
+	    }
+	}
+
 	if ( d->d_unlinked == 0 ) {
 	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q ) &&
 		    ( deliver_q->hq_no_punt == 0 )) {
@@ -1709,10 +1708,44 @@ next_dnsr_host_lookup( struct deliver *d, struct host_q *hq )
 
 
     int
-get_outboud_dns( struct deliver *d, struct host_q *hq )
+get_outbound_dns( struct deliver *d, struct host_q *hq )
 {
     int 			i;
 
+    /*
+     * From RFC 5321, Section 5.1:
+     *
+     * The lookup first attempts to locate an MX record associated with the
+     * name.  If a CNAME record is found, the resulting name is processed as
+     * if it were the initial name.  If a non-existent domain error is
+     * returned, this situation MUST be reported as an error.  If a
+     * temporary error is returned, the message MUST be queued and retried
+     * later (see Section 4.5.4.1).  If an empty list of MXs is returned,
+     * the address is treated as if it was associated with an implicit MX
+     * RR, with a preference of 0, pointing to that host.  If MX records are
+     * present, but none of them are usable, or the implicit MX is unusable,
+     * this situation MUST be reported as an error.
+     * 
+     * If one or more MX RRs are found for a given name, SMTP systems MUST
+     * NOT utilize any address RRs associated with that name unless they are
+     * located using the MX RRs; the "implicit MX" rule above applies only
+     * if there are no MX records present.  If MX records are present, but
+     * none of them are usable, this situation MUST be reported as an error.
+     * 
+     * When a domain name associated with an MX RR is looked up and the
+     * associated data field obtained, the data field of that response MUST
+     * contain a domain name.  That domain name, when queried, MUST return
+     * at least one address record (e.g., A or AAAA RR) that gives the IP
+     * address of the SMTP server to which the message should be directed.
+     * Any other response, specifically including a value that will return a
+     * CNAME record when queried, lies outside the scope of this Standard.
+     * The prohibition on labels in the data that resolve to CNAMEs is
+     * discussed in more detail in RFC 2181, Section 10.3 [38].
+     */
+
+    /* The lookup first attempts to locate an MX record associated with the
+     * name.
+     */
     if (( d->d_dnsr_result = get_mx( hq->hq_hostname )) == NULL ) {
 	hq->hq_no_punt |= NOPUNT_MX;
 	syslog( LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
@@ -1736,13 +1769,20 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
 		d->d_dnsr_result->r_ancount );
 
 	for ( i = 0; i < d->d_dnsr_result->r_ancount; i++ ) {
+	    struct action			*a;
+	    /* If one or more MX RRs are found for a given name, SMTP
+	     * systems MUST NOT utilize any address RRs associated with
+	     * that name unless they are located using the MX RRs;
+	     */
 	    if ( d->d_dnsr_result->r_answer[ i ].rr_type != DNSR_TYPE_MX ) {
 		continue;
 	    }
 
+	    /* set mx pref cutoff if we are listed in the MX record */
 	    if (( strcasecmp( simta_hostname,
 		    d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange )) == 0 ) {
 		hq->hq_no_punt |= NOPUNT_MX;
+		d->d_mx_preference_set = 1;
 		d->d_mx_preference_cutoff =
 			d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
 		syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
@@ -1751,24 +1791,38 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
 		break;
 	    }
 
-	    if (( simta_secondary_mx != NULL ) &&
-		    ( strcasecmp( simta_secondary_mx->red_host_name,
-		    d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange ) == 0 )) {
-		hq->hq_no_punt |= NOPUNT_MX;
-		d->d_mx_preference_cutoff =
-			d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
-		syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
-			"secondary MX at precedence %d, Punting disabled",
-			hq->hq_hostname, i, d->d_mx_preference_cutoff );
-		break;
+	    /* set mx pref cutoff if our secondary MX exchange is listed */
+	    for ( a = simta_red_action_secondary_mx;
+		    a != NULL; a = a->a_next_secondary_mx ) {
+		if ( strcasecmp( a->a_fname,
+			d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange )
+			== 0 ) {
+		    hq->hq_no_punt |= NOPUNT_MX;
+		    d->d_mx_preference_set = 1;
+		    d->d_mx_preference_cutoff =
+			    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
+		    syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
+			    "secondary MX %s at precedence %d, "
+			    "Punting disabled",
+			    hq->hq_hostname, i, a->a_fname,
+			    d->d_mx_preference_cutoff );
+		    break;
+		}
 	    }
 	}
 
     } else {
 	if ( d->d_dnsr_result->r_ancount == 0 ) {
+	    /* If an empty list of MXs is returned, the address is
+	     * treated as if it was associated with an implicit MX
+	     * RR, with a preference of 0, pointing to that host.
+	     */
 	    syslog( LOG_INFO, "DNS %s: MX record has 0 entries, "
 		    "getting A record", hq->hq_hostname );
 	} else {
+	    /* If a CNAME record is found, the resulting name is processed as
+	     * if it were the initial name.
+	     */
 	    syslog( LOG_INFO, "DNS %s: MX record is a single CNAME, "
 		    "getting A record", hq->hq_hostname );
 	}
@@ -1781,6 +1835,10 @@ get_outboud_dns( struct deliver *d, struct host_q *hq )
 	}
 
 	if ( d->d_dnsr_result->r_ancount == 0 ) {
+	    /* If MX records are present, but none of them are usable,
+	     * or the implicit MX is unusable, this situation MUST be
+	     * reported as an error.
+	     */
 	    syslog( LOG_INFO, "DNS %s: A record missing, bouncing mail",
 		    hq->hq_hostname );
 	    if ( hq->hq_err_text == NULL ) {
@@ -1814,7 +1872,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 
     if ( d->d_dnsr_result == NULL ) {
 	hq->hq_no_punt &= ~NOPUNT_MX;
-	d->d_mx_preference_cutoff = 0;
+	d->d_mx_preference_set = 0;
 	d->d_cur_dnsr_result = 0;
 
 	/* if the host is a regular MX host, try to get a valid MX record.
@@ -1825,7 +1883,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 
 	switch ( hq->hq_status ) {
 	case HOST_DOWN:
-	    if ( get_outboud_dns( d, hq ) != 0 ) {
+	    if ( get_outbound_dns( d, hq ) != 0 ) {
 		return( 1 );
 	    }
 	    break; /* case HOST_DOWN */
@@ -1948,7 +2006,8 @@ retry:
 	    /* Stop checking hosts if we know the local hostname is in
 	     * the mx record, and if we've reached it's preference level.
 	     */
-	    if (( hq->hq_no_punt & NOPUNT_MX ) && ( d->d_mx_preference_cutoff == 
+	    if (( d->d_mx_preference_set != 0 ) &&
+		    ( d->d_mx_preference_cutoff ==
     d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_mx.mx_preference )) {
 		syslog( LOG_INFO,
 			"DNS %s: Entry %d: MX preference %d: cutoff",

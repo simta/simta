@@ -312,7 +312,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'a' :		/* Automatically config with DNS */
-	    simta_dns_config = 0;
+	    simta_dns_auto_config = 1;
 	    break;
 
 	case 'b' :		/*X listen backlog */

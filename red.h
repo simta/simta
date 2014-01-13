@@ -6,6 +6,7 @@ struct action {
     char			*a_fname;
     DB				*a_dbp;
     struct action		*a_next;
+    struct action		*a_next_secondary_mx;
 #ifdef HAVE_LDAP
     struct simta_ldap		*a_ldap;
 #endif /* HAVE_LDAP */
@@ -13,20 +14,18 @@ struct action {
 
 struct simta_red {
     char			*red_host_name;
-    int				red_host_type;
     struct simta_red		*red_next;
-/* local only */
     struct action		*red_receive;
     struct action		*red_expand;
     int				red_deliver_type;
     int				red_deliver_argc;
     char			**red_deliver_argv;
-/* 2nd mx only */
-    /* nothing */
-/* remote only */
-    int				red_min_wait;
-    int				red_max_wait;
-    int				red_no_punt;
+    int				red_wait_set;
+    int				red_wait_min;
+    int				red_wait_max;
+    int				red_policy_punting;
+    int				red_policy_tls;
+    int				red_policy_tls_cert;
 };
 
 /* red_deliver_types */
@@ -44,27 +43,25 @@ struct simta_red {
 #define RED_CODE_E			1<<2
 #define RED_CODE_D			1<<4
 
-/* struct simta_red->red_host_type */
-#define RED_HOST_TYPE_LOCAL		1
-#define RED_HOST_TYPE_SECONDARY_MX	2
-#define RED_HOST_TYPE_REMOTE		3
+/* struct simta_red->red_punting_policy */
+#define RED_PUNTING_DEFAULT		0
+#define RED_PUNTING_ENABLED		1
+#define RED_PUNTING_DISABLED		2
 
-struct simta_red *simta_red_lookup_host( char * );
-struct simta_red *simta_red_lookup_host_2( char *, struct simta_red ** );
-struct simta_red *simta_red_add_host( char *, int );
-struct action *simta_red_add_action( struct simta_red *, int, int, char * );
-int simta_red_action_default( struct simta_red * );
-void simta_red_stdout( void );
+struct simta_red *red_host_lookup( char * );
+struct simta_red *red_host_add( char * );
+struct action *red_action_add( struct simta_red *, int, int, char * );
+int red_action_default( struct simta_red * );
+void red_hosts_stdout( void );
+void red_action_stdout( void );
 
 int alias_expand( struct expand *, struct exp_addr *, struct action * );
 struct passwd *simta_getpwnam( struct action *, char * );
 int password_expand( struct expand *, struct exp_addr *, struct action * );
 #ifdef HAVE_LDAP
-void simta_red_close_ldap_dbs( void );
+void red_close_ldap_dbs( void );
 #endif /* HAVE_LDAP */
 
 /* global variables */
 extern struct simta_red			*simta_red_hosts;
-extern struct simta_red			*simta_default_host;
-extern struct simta_red			*simta_secondary_mx;
-extern struct simta_red			*simta_remote_hosts;
+extern struct simta_red			*simta_red_host_default;

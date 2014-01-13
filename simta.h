@@ -72,6 +72,16 @@
 #define SERVICE_SMTPS_CLIENT_SERVER	2
 #endif /* HAVE_LIBSSL */
 
+/* TLS Policy */
+#define TLS_POLICY_DEFAULT		0
+#define TLS_POLICY_OPTIONAL		1
+#define TLS_POLICY_REQUIRED		2
+
+/* Punting Policy */
+#define PUNTING_POLICY_DEFAULT		0
+#define PUNTING_POLICY_DISABLED		1
+#define PUNTING_POLICY_ENABLED		2
+
 #ifdef HAVE_LIBSSL
 #define SIMTA_SOCKET_TLS	(1<<0)
 #endif /* HAVE_LIBSSL */
@@ -135,8 +145,11 @@ extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
-extern int				simta_min_wait;
-extern int				simta_max_wait;
+extern struct action			*simta_red_action_secondary_mx;
+extern int				simta_policy_tls;
+extern int				simta_policy_tls_cert;
+extern int				simta_wait_min;
+extern int				simta_wait_max;
 extern int				simta_mail_jail;
 extern int				simta_bounce_jail;
 extern int				simta_local_jail;
@@ -192,7 +205,7 @@ extern int				simta_read_before_banner;
 extern int				simta_banner_delay;
 extern int				simta_banner_punishment;
 extern int				simta_max_failed_rcpts;
-extern int				simta_dns_config;
+extern int				simta_dns_auto_config;
 extern int				simta_smtp_default_mode;
 extern int				simta_smtp_punishment_mode;
 extern int				simta_from_checking;

@@ -73,14 +73,15 @@ struct host_q		*simta_host_q = NULL;
 struct host_q		*simta_deliver_q = NULL;
 struct host_q		*simta_unexpanded_q = NULL;
 struct host_q		*simta_punt_q = NULL;
-struct simta_red	*simta_default_host = NULL;
+struct simta_red	*simta_red_host_default = NULL;
 struct simta_red	*simta_red_hosts = NULL;
-struct simta_red	*simta_secondary_mx = NULL;
-struct simta_red	*simta_remote_hosts = NULL;
+struct action		*simta_red_action_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
-int			simta_max_wait = 80 * 60;
-int			simta_min_wait = 5 * 60;
+int			simta_policy_tls = TLS_POLICY_DEFAULT;
+int			simta_policy_tls_cert = TLS_POLICY_DEFAULT;
+int			simta_wait_max = 80 * 60;
+int			simta_wait_min = 5 * 60;
 int			simta_mail_jail = 0;
 int			simta_bounce_jail = 0;
 int			simta_local_jail = 0;
@@ -123,7 +124,7 @@ int			simta_smtp_extension = 0;
 int			simta_smtp_rcvbuf_min = 0;
 int			simta_smtp_rcvbuf_max;
 int			simta_strict_smtp_syntax = 0;
-int			simta_dns_config = 1;
+int			simta_dns_auto_config = 0;
 int			simta_no_sync = 0;
 int			simta_max_received_headers = 100;
 int			simta_max_bounce_lines;
@@ -319,12 +320,6 @@ simta_read_config( char *fname )
     struct simta_red	*red;
     struct action	*a;
     struct simta_ldap	*ld;
-    int			host_type;
-    int			matched_remote;
-/* values for matched_remote */
-#   define REMOTE_QUEUE_WAIT	1
-#   define REMOTE_NO_PUNT	2
-#   define REMOTE_PUNT	3	/* "jail punt" */
 
     if ( simta_debug ) printf( "simta_config: %s\n", fname );
 
@@ -393,8 +388,6 @@ simta_read_config( char *fname )
 
 	    /* RED code parse */
 	    red_code = 0;
-	    matched_remote = 0;
-	    host_type = RED_HOST_TYPE_LOCAL;
 	    for ( c = av[ 1 ]; *c != '\0'; c++ ) {
 		switch ( *c ) {
 		case 'R':
@@ -434,25 +427,7 @@ simta_read_config( char *fname )
 		domain = simta_hostname;
 	    }
 
-	    if ( strcasecmp( av[ 2 ], "QUEUE_WAIT" ) == 0 ) {
-		matched_remote = REMOTE_QUEUE_WAIT;
-		host_type = RED_HOST_TYPE_REMOTE;
-	    } else if ( strcasecmp( av[ 2 ], "NO_PUNT" ) == 0 ) {
-		matched_remote = REMOTE_NO_PUNT;
-		host_type = RED_HOST_TYPE_REMOTE;
-	    } else if ( strcasecmp( av[ 2 ], "PUNT" ) == 0 ) {
-		matched_remote = REMOTE_PUNT;
-		host_type = RED_HOST_TYPE_REMOTE;
-	    }
-	    if ( host_type == RED_HOST_TYPE_REMOTE && red_code != RED_CODE_D ) {
-		    fprintf( stderr,
-			    "%s: line %d: only D support for %s\n",
-			    fname, lineno, av[2] );
-		    goto error;
-	    }
-
-	    if (( red = simta_red_add_host( domain,
-		    host_type )) == NULL ) {
+	    if (( red = red_host_add( domain )) == NULL ) {
 		perror( "malloc" );
 		goto error;
 	    }
@@ -476,13 +451,13 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_r ) {
-		    if ( simta_red_add_action( red, RED_CODE_r,
+		    if ( red_action_add( red, RED_CODE_r,
 			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
 		} else if ( red_code & RED_CODE_R ) {
-		    if ( simta_red_add_action( red, RED_CODE_R,
+		    if ( red_action_add( red, RED_CODE_R,
 			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
@@ -490,59 +465,119 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_E ) {
-		    if ( simta_red_add_action( red, RED_CODE_E,
+		    if ( red_action_add( red, RED_CODE_E,
 			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
 		}
 
-	    } else if ( matched_remote ) {
-		long t;
+	    } else if ( strcasecmp( av[ 2 ], "SECONDARY_MX" ) == 0 ) {
+		struct action			*a;
 
-		switch ( matched_remote ) {
-		case REMOTE_QUEUE_WAIT:
-		    if ( ac != 5 ) {
-			fprintf( stderr, "%s: line %d: incorrect syntax\n",
-				fname, lineno );
-			goto error;
-		    }
-		    t = strtol( av[ 3 ], &f_arg, 0 );
-		    if ( f_arg == av[ 3 ] || *f_arg ) {
-			fprintf( stderr, "%s: line %d: incorrect syntax\n",
-				fname, lineno );
-			goto error;
-		    }
-		    red->red_min_wait = t;
-		    t = strtol( av[ 4 ], &f_arg, 0 );
-		    if ( f_arg == av[ 3 ] || *f_arg ) {
-			fprintf( stderr, "%s: line %d: incorrect syntax\n",
-				fname, lineno );
-			goto error;
-		    }
-		    red->red_max_wait = t;
-		    if ( simta_debug ) {
-			printf( "QUEUE WAITING for %s: %d %d\n",
-			    domain,  red->red_min_wait, red->red_max_wait );
-		    }
-		    break;
-
-		case REMOTE_NO_PUNT:
-		    red->red_no_punt = 1;
-		    if ( simta_debug ) printf( "NO PUNTING for %s\n", domain );
-		    break;
-
-		case REMOTE_PUNT:
-		    red->red_no_punt = 0;
-		    if ( simta_debug ) printf( "PUNTING for %s\n", domain );
-		    break;
-
-
-		default:
-		    fprintf( stderr, "%s: line %d: unimplemented RED feature: %s\n",
-			    fname, lineno, av[ 2 ]);
+		/* @DOMAIN R SECONDARY_MX MX_EXCHANGE */
+		if (( ac != 4 ) || ( red_code != RED_CODE_R )) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain R SECONDARY_MX <mx_exchange>" );
 		    goto error;
 		}
+
+		if ( strcasecmp( simta_hostname, domain ) == 0 ) {
+		    fprintf( stderr, "%s: line %d: %s\n",
+			    fname, lineno,
+			    "secondary MX domain can't be local host" );
+		    goto error;
+		}
+
+		if (( a = red_action_add( red, RED_CODE_R,
+			EXPANSION_TYPE_GLOBAL_RELAY, av[ 3 ])) == NULL ) {
+		    perror( "malloc" );
+		    goto error;
+		}
+
+		a->a_next_secondary_mx = simta_red_action_secondary_mx;
+		simta_red_action_secondary_mx = a;
+
+	    } else if ( strcasecmp( av[ 2 ], "QUEUE_WAIT" ) == 0 ) {
+		/* @DOMAIN D QUEUE_WAIT min max */
+		if (( ac != 5 ) || ( red_code != RED_CODE_D )) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain D QUEUE_WAIT min max" );
+		    goto error;
+		}
+
+		red->red_wait_set = 1;
+		red->red_wait_min = strtol( av[ 3 ], &f_arg, 0 );
+		if ( f_arg == av[ 3 ] || *f_arg ) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain D QUEUE_WAIT min max" );
+		    goto error;
+		}
+
+		red->red_wait_max = strtol( av[ 4 ], &f_arg, 0 );
+		if ( f_arg == av[ 3 ] || *f_arg ) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain D QUEUE_WAIT min max" );
+		    goto error;
+		}
+
+		if ( simta_debug ) {
+		    printf( "QUEUE WAITING for %s: %d %d\n",
+			domain,  red->red_wait_min, red->red_wait_max );
+		}
+
+	    } else if ( strcasecmp( av[ 2 ], "PUNTING" ) == 0 ) {
+		/* @DOMAIN D PUNTING <ENABLED|DISABLED> */
+		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
+		    if ( strcasecmp( av[ 1 ], "ENABLED" ) == 0 ) {
+			red->red_policy_punting = RED_PUNTING_ENABLED;
+			continue;
+		    } else if ( strcasecmp( av[ 1 ], "DISABLED" ) == 0 ) {
+			red->red_policy_punting = RED_PUNTING_DISABLED;
+			continue;
+		    }
+		}
+		fprintf( stderr, "%s: line %d: usage: %s\n",
+			fname, lineno,
+			"@domain D PUNTING <ENABLED|DISABLED>" );
+		goto error;
+
+	    } else if ( strcasecmp( av[ 2 ], "TLS_OUTBOUND" ) == 0 ) {
+		/* @DOMAIN D TLS_OUTBOUND <OPTIONAL|REQUIRED> */
+		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
+		    if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+			red->red_policy_tls = TLS_POLICY_OPTIONAL;
+			continue;
+		    } else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+			red->red_policy_tls = TLS_POLICY_REQUIRED;
+			continue;
+		    }
+		}
+		fprintf( stderr, "%s: line %d: usage: %s\n",
+			fname, lineno,
+			"@domain D TLS_OUTBOUND <OPTIONAL|REQUIRED>" );
+		goto error;
+
+	    } else if ( strcasecmp( av[ 2 ], "TLS_CERT_OUTBOUND" ) == 0 ) {
+		/* @DOMAIN D TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED> */
+		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
+		    if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+			red->red_policy_tls_cert = TLS_POLICY_OPTIONAL;
+			continue;
+		    } else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+			red->red_policy_tls_cert = TLS_POLICY_REQUIRED;
+			continue;
+		    }
+		}
+		fprintf( stderr, "%s: line %d: usage: %s\n",
+			fname, lineno,
+			"@domain D TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED>" );
+		goto error;
+
 	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
 		if ( ac == 3 ) {
 		    f_arg = simta_default_passwd_file;
@@ -555,13 +590,13 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_r ) {
-		    if ( simta_red_add_action( red, RED_CODE_r,
+		    if ( red_action_add( red, RED_CODE_r,
 			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
 		} else if ( red_code & RED_CODE_R ) {
-		    if ( simta_red_add_action( red, RED_CODE_R,
+		    if ( red_action_add( red, RED_CODE_R,
 			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
@@ -569,7 +604,7 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_E ) {
-		    if ( simta_red_add_action( red, RED_CODE_E,
+		    if ( red_action_add( red, RED_CODE_E,
 			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
 			perror( "malloc" );
 			goto error;
@@ -577,16 +612,11 @@ simta_read_config( char *fname )
 		}
 
 	    } else if ( strcasecmp( av[ 2 ], "MAILER" ) == 0 ) {
-		if ( ac < 4 ) {
-		    fprintf( stderr, "%s: line %d: expected at least 2 arguments\n",
-			    fname, lineno );
-		    goto error;
-		}
-
-		if ( red_code != RED_CODE_D ) {
-		    fprintf( stderr,
-			    "%s: line %d: only D support for MAILER\n",
-			    fname, lineno );
+		/* @DOMAIN D MAILER <arg> [...] */
+		if (( ac < 4 ) || ( red_code != RED_CODE_D )) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@DOMAIN D MAILER <arg> [arg ...]" );
 		    goto error;
 		}
 
@@ -630,14 +660,14 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_r ) {
-		    if (( a = simta_red_add_action( red, RED_CODE_r,
+		    if (( a = red_action_add( red, RED_CODE_r,
 			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
 			perror( "malloc" );
 			goto error;
 		    }
 		    a->a_ldap = ld;
 		} else if ( red_code & RED_CODE_R ) {
-		    if (( a = simta_red_add_action( red, RED_CODE_R,
+		    if (( a = red_action_add( red, RED_CODE_R,
 			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
 			perror( "malloc" );
 			goto error;
@@ -646,7 +676,7 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_E ) {
-		    if (( a = simta_red_add_action( red, RED_CODE_E,
+		    if (( a = red_action_add( red, RED_CODE_E,
 			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
 			perror( "malloc" );
 			goto error;
@@ -660,6 +690,42 @@ simta_read_config( char *fname )
 			fname, lineno, av[ 2 ] );
 		goto error;
 	    }
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_OUTBOUND" ) == 0 ) {
+	    /* TLS_OUTBOUND <OPTIONAL|REQUIRED> */
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+		    simta_policy_tls = TLS_POLICY_OPTIONAL;
+		    if ( simta_debug ) printf( "TLS_OUTBOUND OPTIONAL\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+		    simta_policy_tls = TLS_POLICY_REQUIRED;
+		    if ( simta_debug ) printf( "TLS_OUTBOUND REQUIRED\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "TLS_OUTBOUND <OPTIONAL|REQUIRED>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_CERT_OUTBOUND" ) == 0 ) {
+	    /* TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED> */
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+		    simta_policy_tls_cert = TLS_POLICY_OPTIONAL;
+		    if ( simta_debug ) printf( "TLS_OUTBOUND OPTIONAL\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+		    simta_policy_tls_cert= TLS_POLICY_REQUIRED;
+		    if ( simta_debug ) printf( "TLS_OUTBOUND REQUIRED\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "TLS_OUTBOUND_CERT <OPTIONAL|REQUIRED>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
 	    if ( ac < 2 ) {
@@ -743,7 +809,8 @@ simta_read_config( char *fname )
 		perror( "strdup" );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "SEEN_BEFORE_DOMAIN is %s\n", simta_seen_before_domain );
+	    if ( simta_debug ) printf( "SEEN_BEFORE_DOMAIN is %s\n",
+		    simta_seen_before_domain );
 
 	} else if ( strcasecmp( av[ 0 ], "MASQUERADE" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -809,7 +876,8 @@ simta_read_config( char *fname )
 		perror( "strdup" );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "JAIL BOUNCES to %s\n", simta_jail_bounce_address );
+	    if ( simta_debug ) printf( "JAIL BOUNCES to %s\n",
+		    simta_jail_bounce_address );
 
 	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1015,18 +1083,18 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_max_wait = atoi( av[ 1 ] );
-	    if ( simta_max_wait <= 0 ) {
+	    simta_wait_max = atoi( av[ 1 ] );
+	    if ( simta_wait_max <= 0 ) {
 		fprintf( stderr, "%s: line %d: MAX_WAIT_SECONDS less than 1\n",
 			fname, lineno );
 		goto error;
-	    } else if ( simta_max_wait < simta_min_wait ) {
+	    } else if ( simta_wait_max < simta_wait_min ) {
 		fprintf( stderr, "%s: line %d: MAX_WAIT_SECONDS less than 1\n",
 			fname, lineno );
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "MAX_WAIT_SECONDS: %d\n",
-		    simta_max_wait );
+		    simta_wait_max );
 
 	} else if ( strcasecmp( av[ 0 ], "MIN_WAIT_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1034,14 +1102,14 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_min_wait = atoi( av[ 1 ] );
-	    if ( simta_min_wait <= 0 ) {
+	    simta_wait_min = atoi( av[ 1 ] );
+	    if ( simta_wait_min <= 0 ) {
 		fprintf( stderr, "%s: line %d: MIN_WAIT_SECONDS less than 1\n",
 			fname, lineno );
 		goto error;
 	    }
 	    if ( simta_debug ) printf( "MIN_WAIT_SECONDS: %d\n",
-		    simta_min_wait );
+		    simta_wait_min );
 
 	} else if ( strcasecmp( av[ 0 ], "JAIL_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1689,14 +1757,23 @@ simta_read_config( char *fname )
 	    simta_use_randfile = 1;
             if ( simta_debug ) printf( "USE_RANDFILE\n" );
 
-	} else if ( strcasecmp( av[ 0 ], "DNS_CONFIG_OFF" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
+	} else if ( strcasecmp( av[ 0 ], "DNS_AUTO_CONFIG" ) == 0 ) {
+	    /* DNS_AUTO_CONFIG <ON|OFF> */
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_dns_auto_config = 1;
+		    if ( simta_debug ) printf( "DNS_AUTO_CONFIG ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_dns_auto_config = 0;
+		    if ( simta_debug ) printf( "DNS_AUTO_CONFIG OFF\n" );
+		    continue;
+		}
 	    }
-	    simta_dns_config = 0;
-	    if ( simta_debug ) printf( "DNS_CONFIG_OFF\n" );
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "DNS_AUTO_CONFIG <ON|OFF>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "STRICT_SMTP_SYNTAX_OFF" ) == 0 ) {
 	    if ( ac != 1 ) {
@@ -1996,30 +2073,6 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "WRITE_BEFORE_BANNER: %d %d\n",
 		    simta_banner_delay, simta_banner_punishment );
 
-	} else if ( strcasecmp( av[ 0 ], "LOW_PREF_MX" ) == 0 ) {
-	   if ( simta_secondary_mx != NULL ) {
-	       fprintf( stderr, "%s: line %d: duplicate secondary_mx\n",
-		       fname, lineno );
-	       goto error;
-	   }
-	   if ( ac != 2 ) {
-	       fprintf( stderr, "%s: line %d: expected 1 argument\n",
-		       fname, lineno );
-	       goto error;
-	   }
-	   /* Do not allow local host to be secondary_mx */
-	   if ( strcasecmp( simta_hostname, av[ 1 ] ) == 0 ) {
-	       fprintf( stderr, "%s: line %d: invalid host\n", fname, lineno );
-	       goto error;
-	   }
-	   if (( red = simta_red_add_host( av[ 1 ],
-		    RED_HOST_TYPE_SECONDARY_MX)) == NULL ) {
-	       perror( "malloc" );
-	       goto error;
-	   }
-	   if ( simta_debug ) printf( "LOW_PREF_MX: %s\n",
-		   simta_secondary_mx->red_host_name );
-
 	} else if ( strcasecmp( av[ 0 ], "SASL_ON" ) == 0 ) {
 	   if ( ac != 1 ) {
 	       fprintf( stderr, "%s: line %d: expected 0 argument\n",
@@ -2067,7 +2120,6 @@ simta_host_is_jailhost( char *host )
     int
 simta_config( char *base_dir )
 {
-    struct simta_red	*red = NULL;
     char		path[ MAXPATHLEN + 1 ];
 
     if ( simta_host_is_jailhost( simta_hostname )) {
@@ -2107,13 +2159,11 @@ simta_config( char *base_dir )
 
     simta_max_bounce_lines = SIMTA_BOUNCE_LINES;
 
-    if (( red = simta_red_add_host( simta_hostname,
-	    RED_HOST_TYPE_LOCAL )) == NULL ) {
+    if (( simta_red_host_default = red_host_add( simta_hostname )) == NULL ) {
 	return( -1 );
     }
-    simta_default_host = red;
 
-    if ( simta_red_action_default( red ) != 0 ) {
+    if ( red_action_default( simta_red_host_default ) != 0 ) {
 	perror( "malloc" );
 	return( -1 );
     }
