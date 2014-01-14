@@ -1,4 +1,13 @@
-internal
+0.10.5
+    - removed unused queue priority logic
+    - red API cleaned up
+    - DNS auto configure syntax changed, default is OFF, code cleaned up
+    - secondary MX now a RED directive, better reception rules
+    - RFC rules for outbound delivery quoted for accuracy
+    - RED rules for TLS policy
+    - TLS global and RED policy rules
+
+0.10.1
     - E file format change for jail directive
     - additional logging for host deliver ordering
     - delivery activity logs in all cases

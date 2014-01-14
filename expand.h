@@ -2,6 +2,7 @@
 #define	EXPANSION_TYPE_PASSWORD		1
 #define	EXPANSION_TYPE_ALIAS		2
 #define	EXPANSION_TYPE_LDAP		3
+#define	EXPANSION_TYPE_GLOBAL_RELAY	4
 
 /* return codes for expand_and_deliver(...) */
 #define	EXPAND_OK			0

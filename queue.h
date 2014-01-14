@@ -58,6 +58,7 @@ struct deliver {
     SNET			*d_snet_smtp;
     SNET			*d_snet_dfile;
     uint16_t			d_mx_preference_cutoff;
+    int				d_mx_preference_set;
     int				d_cur_dnsr_result;
     int				d_cur_dnsr_result_ip;
 #ifdef HAVE_LIBSSL
@@ -81,8 +82,8 @@ struct host_q {
     int				hq_primary;
     int				hq_status;
     int				hq_no_punt;
-    int				hq_min_wait;
-    int				hq_max_wait;
+    int				hq_wait_min;
+    int				hq_wait_max;
     int				hq_launches;
     int				hq_delay;
     int				hq_leaky;

@@ -263,8 +263,7 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
 #ifdef HAVE_LDAP
 	    if ( e->e_addr_at != NULL ) {
 		/* check to see if we might need LDAP for this domain */
-		if (( red =
-			simta_red_lookup_host( e->e_addr_at + 1 )) != NULL ) {
+		if (( red = red_host_lookup( e->e_addr_at + 1 )) != NULL ) {
 		    for ( a = red->red_expand; a != NULL; a = a->a_next ) {
 			if ( a->a_action == EXPANSION_TYPE_LDAP ) {
 			    insert_head = 1;
@@ -357,7 +356,7 @@ address_expand( struct expand *exp )
     switch ( e_addr->e_addr_type ) {
     case ADDRESS_TYPE_EMAIL:
 	if ( e_addr->e_addr_at == NULL ) {
-	    red = simta_default_host;
+	    red = simta_red_host_default;
 
 	} else {
 	    if ( strlen( e_addr->e_addr_at + 1 ) > SIMTA_MAX_HOST_NAME_LEN ) {
@@ -367,9 +366,8 @@ address_expand( struct expand *exp )
 	    }
 
 	    /* Check to see if domain is off the local host */
-	    if ((( red = host_local( e_addr->e_addr_at + 1 )) == NULL ) 
-		    || ( red->red_host_type == RED_HOST_TYPE_SECONDARY_MX ) ||
-		    ( red->red_expand == NULL )) {
+	    if ((( red = red_host_lookup( e_addr->e_addr_at + 1 )) == NULL ) 
+		    || ( red->red_expand == NULL )) {
 		syslog( LOG_DEBUG,
 			"Expand %s: <%s> FINAL: expansion complete",
 			exp->exp_env->e_id, e_addr->e_addr );

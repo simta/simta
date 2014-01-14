@@ -3,7 +3,7 @@
  * All Rights Reserved.  See COPYRIGHT.
  */
 
-/**********	simta.c	**********/
+/**********	red.c	**********/
 #include "config.h"
 
 #ifdef HAVE_LIBSSL
@@ -59,15 +59,17 @@
 #define FALSE 0
 #endif
 
+struct simta_red *red_host_lookup_( char*, struct simta_red** );
+
 
     void
-simta_red_stdout( void )
+red_hosts_stdout( void )
 {
     struct simta_red		*red;
     struct action		*a;
 
     for ( red = simta_red_hosts; red != NULL; red = red->red_next ) {
-	printf( "RED %d %s:\n", red->red_host_type, red->red_host_name );
+	printf( "RED %s:\n", red->red_host_name );
 
 	if (( a = red->red_receive ) == NULL ) {
 	    printf( "\tNo Receive Methods\n" );
@@ -95,7 +97,7 @@ simta_red_stdout( void )
 
 #ifdef HAVE_LDAP
     void
-simta_red_close_ldap_dbs( void )
+red_close_ldap_dbs( void )
 {
     struct simta_red		*red;
     struct action		*a;
@@ -120,7 +122,7 @@ simta_red_close_ldap_dbs( void )
 
 
     struct simta_red *
-simta_red_lookup_host_2( char *host_name, struct simta_red **redp )
+red_host_lookup_( char *host_name, struct simta_red **redp )
 {
     int				d;
     char			*dot = NULL;
@@ -151,10 +153,11 @@ simta_red_lookup_host_2( char *host_name, struct simta_red **redp )
     return( red );
 }
 
+
     struct simta_red *
-simta_red_lookup_host( char *host_name )
+red_host_lookup( char *host_name )
 {
-    return simta_red_lookup_host_2( host_name, &simta_red_hosts );
+    return red_host_lookup_( host_name, &simta_red_hosts );
 }
 
 
@@ -163,8 +166,7 @@ simta_red_lookup_host( char *host_name )
      */
 
     struct action *
-simta_red_add_action( struct simta_red *red, int red_type, int action,
-	char *fname )
+red_action_add( struct simta_red *red, int red_type, int action, char *fname )
 {
     struct action		*a;
     struct action		**insert;
@@ -192,13 +194,13 @@ simta_red_add_action( struct simta_red *red, int red_type, int action,
 	break;
 
     default:
-	syslog( LOG_ERR, "simta_red_add_expansion: invalid red_type" );
+	syslog( LOG_ERR, "red_action_add: invalid red_type" );
 	return( NULL );
     }
 
     if (( a = (struct action*)malloc( sizeof( struct action )))
 	    == NULL ) {
-	syslog( LOG_ERR, "simta_red_add_expansion: malloc: %m" );
+	syslog( LOG_ERR, "red_action_add: malloc: %m" );
 	return( NULL );
     }
     memset( a, 0, sizeof( struct action ));
@@ -222,36 +224,13 @@ simta_red_add_action( struct simta_red *red, int red_type, int action,
 
 
     struct simta_red *
-simta_red_add_host( char *host_name, int host_type )
+red_host_add( char *host_name )
 {
     struct simta_red		*red;
     struct simta_red		**insert;
     int				d;
 
-    switch ( host_type ) {
-    case RED_HOST_TYPE_SECONDARY_MX:
-	/* this might become a linked list in the future */
-	if ( simta_secondary_mx != NULL ) {
-	    syslog( LOG_ERR, "simta_red_create: multiple low pref MX hosts "
-		    "not supported at this time" );
-	    return( NULL );
-	}
-	insert = &simta_secondary_mx;
-	break;
-
-    case RED_HOST_TYPE_REMOTE:
-	insert = &simta_remote_hosts;
-	break;
-
-    case RED_HOST_TYPE_LOCAL:
-	insert = &simta_red_hosts;
-	break;
-
-    default:
-	syslog( LOG_ERR, "simta_red_create: host type out of range" );
-	return( NULL );
-    }
-    for ( ; *insert != NULL;
+    for ( insert = &simta_red_hosts; *insert != NULL;
 	    insert = &((*insert)->red_next )) {
 	if (( d = strcasecmp((*insert)->red_host_name, host_name )) == 0 ) {
 	    return( *insert );
@@ -262,23 +241,23 @@ simta_red_add_host( char *host_name, int host_type )
 
     if (( red = (struct simta_red*)malloc(
 	    sizeof( struct simta_red ))) == NULL ) {
-	syslog( LOG_ERR, "simta_red_create: malloc: %m" );
+	syslog( LOG_ERR, "red_host_add: malloc: %m" );
 	return( NULL );
     }
     memset( red, 0, sizeof( struct simta_red ));
 
     if (( red->red_host_name = strdup( host_name )) == NULL ) {
-	syslog( LOG_ERR, "simta_red_create: malloc: %m" );
+	syslog( LOG_ERR, "red_host_add: malloc: %m" );
 	free( red );
         return( NULL );
     }
 
-    red->red_host_type = host_type;
     red->red_next = *insert;
     *insert = red;
 
     return( red );
 }
+
 
     /* Default RED actions are:
      *     R ALIAS simta_default_alias_db
@@ -288,27 +267,27 @@ simta_red_add_host( char *host_name, int host_type )
      */
 
     int
-simta_red_action_default( struct simta_red *red )
+red_action_default( struct simta_red *red )
 {
     if ( red->red_receive == NULL ) {
-	if ( simta_red_add_action( red, RED_CODE_R,
+	if ( red_action_add( red, RED_CODE_R,
 		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
 	    return( -1 );
 	}
 
-	if ( simta_red_add_action( red, RED_CODE_R,
+	if ( red_action_add( red, RED_CODE_R,
 		EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
 	    return( -1 );
 	}
     }
 
     if ( red->red_expand == NULL ) {
-	if ( simta_red_add_action( red, RED_CODE_E,
+	if ( red_action_add( red, RED_CODE_E,
 		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
 	    return( -1 );
 	}
 
-	if ( simta_red_add_action( red, RED_CODE_E,
+	if ( red_action_add( red, RED_CODE_E,
 		EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
 	    return( -1 );
 	}

@@ -26,6 +26,7 @@
 #endif /* HAVE_LIBSASL */
 
 #include <snet.h>
+#include <db.h>
 
 #include <ctype.h>
 #include <assert.h>
@@ -48,6 +49,14 @@
 #include "queue.h"
 #include "smtp.h"
 #include "mx.h"
+#include "expand.h"
+#include "red.h"
+
+#ifdef HAVE_LIBSSL
+#include "tls.h"
+#define S_STARTTLS "STARTTLS"
+#endif /* HAVE_LIBSSL */
+
 
 #ifdef HAVE_LIBSSL
 #include "tls.h"
@@ -566,9 +575,9 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     int				r;
     struct timeval		tv_wait;
     int				rc;
-    X509			*peer;
-    char			buf[ 1024 ];
 #ifdef HAVE_LIBSSL
+    int				tls_required;
+    int				tls_cert_required;
     SSL_CTX			*ssl_ctx = NULL;
 #endif /* HAVE_LIBSSL */
 
@@ -589,6 +598,35 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     }
 
 #ifdef HAVE_LIBSSL
+    switch ( simta_policy_tls ) {
+    default:
+    case TLS_POLICY_DEFAULT:
+    case TLS_POLICY_OPTIONAL:
+	tls_required = 0;
+	break;
+
+    case TLS_POLICY_REQUIRED:
+	tls_required = 1;
+	break;
+    }
+
+    if ( hq->hq_red != NULL ) {
+	switch ( hq->hq_red->red_policy_tls ) {
+	default:
+	case TLS_POLICY_DEFAULT:
+	    /* no change */
+	    break;
+
+	case TLS_POLICY_OPTIONAL:
+	    tls_required = 0;
+	    break;
+
+	case TLS_POLICY_REQUIRED:
+	    tls_required = 1;
+	    break;
+	}
+    }
+
     d->d_tls_supported = 0;
     d->d_tls_banner_check = 1;
 #endif /* HAVE_LIBSSL */
@@ -609,8 +647,12 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     case SMTP_OK:
 #ifdef HAVE_LIBSSL
 	if ( ! d->d_tls_supported ) {
-	    /* ZZZ POLICY */
-            return( SMTP_OK );
+	    if ( tls_required != 0 ) {
+		syslog( LOG_INFO, "Deliver.SMTP %s (%s): TLS required: %s",
+			hq->hq_hostname, hq->hq_smtp_hostname,
+			"not offered as EHLO extension" );
+		return( SMTP_ERROR );
+	    }
 	}
 
 	if ( simta_debug != 0 ) {
@@ -623,86 +665,79 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    return( SMTP_BAD_CONNECTION );
 	}
 
-        if (( rc = smtp_reply( SMTP_STARTTLS, hq, d )) != SMTP_OK ) {
-            /* ZZZ consequences? */
-            return( rc );
-        }
-            
 	if (( ssl_ctx = tls_client_setup( 0, 0, simta_file_ca, simta_dir_ca,
 		NULL, NULL )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror: smtp_connect: tls_client_setup %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
-	    /* ZZZ consequences */
-	    return( SMTP_BAD_CONNECTION );
-	}
+	    if ( tls_required != 0 ) {
+		syslog( LOG_INFO, "Deliver.SMTP %s (%s): TLS required: %s",
+			hq->hq_hostname, hq->hq_smtp_hostname,
+			"tls_client_setup error" );
+		return( SMTP_ERROR );
+	    }
 
-	if (( rc = snet_starttls( d->d_snet_smtp, ssl_ctx, 0 )) != 1 ) {
+	} else if (( rc = snet_starttls( d->d_snet_smtp, ssl_ctx, 0 )) != 1 ) {
 	    syslog( LOG_ERR, "Syserror smtp_connect: snet_starttls: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
-	    /* ZZZ consequences */
+	    SSL_CTX_free( ssl_ctx );
 	    return( SMTP_BAD_CONNECTION );
+
+	} else if ( tls_client_cert( hq->hq_hostname,
+		d->d_snet_smtp->sn_ssl ) != 0 ) {
+	    switch ( simta_policy_tls_cert ) {
+	    default:
+	    case TLS_POLICY_DEFAULT:
+	    case TLS_POLICY_OPTIONAL:
+		tls_cert_required = 0;
+		break;
+
+	    case TLS_POLICY_REQUIRED:
+		tls_cert_required = 1;
+		break;
+	    }
+
+	    if ( hq->hq_red != NULL ) {
+		switch ( hq->hq_red->red_policy_tls_cert ) {
+		default:
+		case TLS_POLICY_DEFAULT:
+		    /* no change */
+		    break;
+
+		case TLS_POLICY_OPTIONAL:
+		    tls_cert_required = 0;
+		    break;
+
+		case TLS_POLICY_REQUIRED:
+		    tls_cert_required = 1;
+		    break;
+		}
+	    }
+
+	    if ( tls_cert_required != 0 ) {
+		SSL_CTX_free( ssl_ctx );
+		syslog( LOG_INFO, "Deliver.SMTP %s (%s): TLS Cert required: %s",
+			hq->hq_hostname, hq->hq_smtp_hostname,
+			"tls_client_cert error" );
+		return( SMTP_ERROR );
+	    }
+	} else {
+	    syslog( LOG_INFO, "Deliver.SMTP %s (%s): TLS established",
+		    hq->hq_hostname, hq->hq_smtp_hostname );
 	}
 
 	SSL_CTX_free( ssl_ctx );
-
-	if ( simta_debug != 0 ) {
-	    syslog( LOG_DEBUG,
-		    "Debug: smtp_connect SSL_get_peer_certificate" );
-	}
-
-	if (( peer = SSL_get_peer_certificate( d->d_snet_smtp->sn_ssl ))
-		== NULL ) {
-	    syslog( LOG_ERR, "Syserror smtp_connect: "
-		    "SSL_get_peer_certificate: no peer certificate" );
-	    /* ZZZ this should never happen - consequences? */
-	    abort();
-	}
-	syslog( LOG_INFO, "Deliver %s: certificate subject: %s",
-		hq->hq_hostname,
-		X509_NAME_oneline( X509_get_subject_name( peer ), buf,
-		sizeof( buf )));
-	X509_free( peer );
-
-        if (( rc = SSL_get_verify_result( d->d_snet_smtp->sn_ssl ))
-                != X509_V_OK ) {
-            /* ZZZ config to allow continuation? */
-            syslog( LOG_ERR, "Syserror smtp_connect: certificate verification failed: %d", rc );
-            return( SMTP_ERROR );
-        } else {
-            syslog( LOG_INFO, "Deliver %s: certificate verified",
-                    hq->hq_hostname );
-        }
-
-        /* RFC 3207 4.2
-         *
-         * Upon completion of the TLS handshake, the SMTP protocol is reset to
-         * the initial state (the state in SMTP after a server issues a 220
-         * service ready greeting).  The server MUST discard any knowledge
-         * obtained from the client, such as the argument to the EHLO command,
-         * which was not obtained from the TLS negotiation itself.  The client
-         * MUST discard any knowledge obtained from the server, such as the list
-         * of SMTP service extensions, which was not obtained from the TLS
-         * negotiation itself.  The client SHOULD send an EHLO command as the
-         * first command after a successful TLS negotiation.
-         */
-
-        /* ZZZ reset state? */
-
-        /* Resend EHLO */
-        if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
-            syslog( LOG_DEBUG, "Deliver %s: snet_writef failed: EHLO",
-                    hq->hq_hostname );
-            return( SMTP_BAD_CONNECTION );
-        }
-
-        r = smtp_reply( SMTP_EHLO, hq, d );
 
 #endif /* HAVE_LIBSSL */
 	break;
 
     case SMTP_ERROR:
 #ifdef HAVE_LIBSSL
-	/* ZZZ Policy */
+	if ( tls_required != 0 ) {
+	    syslog( LOG_INFO, "Deliver.SMTP %s (%s): %s",
+		    hq->hq_hostname, hq->hq_smtp_hostname,
+		    "TLS required: EHLO unsupportred" );
+	    return( SMTP_ERROR );
+	}
 #endif /* HAVE_LIBSSL */
 	/* say HELO */
 	/* RFC 2821 2.2.1

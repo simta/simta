@@ -12,6 +12,7 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #include <string.h>
+#include <syslog.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -35,21 +36,21 @@ _randfile( void )
 
     /* generates a default path for the random seed file */
     if ( RAND_file_name( randfile, sizeof( randfile )) == NULL ) {
-	fprintf( stderr, "RAND_file_name: %s\n",
+	syslog( LOG_ERR, "_randfile: RAND_file_name: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( -1 );
     }
 
     /* reads the complete randfile and adds them to the PRNG */
     if ( RAND_load_file( randfile, -1 ) <= 0 ) {
-	fprintf( stderr, "RAND_load_file: %s: %s\n", randfile,
+	syslog( LOG_ERR, "_randfile: RAND_load_file: %s: %s", randfile,
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( -1 );
     }
 
     /* writes a number of random bytes (currently 1024) to randfile */
     if ( RAND_write_file( randfile ) < 0 ) {
-	fprintf( stderr, "RAND_write_file: %s: %s\n", randfile,
+	syslog( LOG_ERR, "_randfile: RAND_write_file: %s: %s", randfile,
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( -1 );
     }
@@ -73,25 +74,29 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     }
 
     if (( ssl_ctx = SSL_CTX_new( SSLv23_server_method())) == NULL ) {
-	fprintf( stderr, "SSL_CTX_new: %s\n",
+	syslog( LOG_ERR, "tls_server_setup: "
+		"SSL_CTX_new: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( NULL );
     }
 
     if ( SSL_CTX_use_PrivateKey_file( ssl_ctx, privatekey,
 	    SSL_FILETYPE_PEM ) != 1 ) {
-	fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
+	syslog( LOG_ERR, "tls_server_setup: "
+		"SSL_CTX_use_PrivateKey_file: %s: %s",
 		privatekey, ERR_error_string( ERR_get_error(), NULL ));
 	goto error;
     }
     if ( SSL_CTX_use_certificate_chain_file( ssl_ctx, cert ) != 1 ) {
-	fprintf( stderr, "SSL_CTX_use_certificate_chain_file: %s: %s\n",
+	syslog( LOG_ERR,
+		"tls_server_setup: SSL_CTX_use_certificate_chain_file: %s: %s",
 		cert, ERR_error_string( ERR_get_error(), NULL ));
 	goto error;
     }
     /* Verify that private key matches cert */
     if ( SSL_CTX_check_private_key( ssl_ctx ) != 1 ) {
-	fprintf( stderr, "SSL_CTX_check_private_key: %s\n",
+	syslog( LOG_ERR, "tls_server_setup: "
+		"SSL_CTX_check_private_key: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	goto error;
     }
@@ -99,14 +104,16 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     /* Load CA */
     if ( caFile != NULL ) {
 	if ( SSL_CTX_load_verify_locations( ssl_ctx, caFile, NULL ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+	    syslog( LOG_ERR, "tls_server_setup: "
+		    "SSL_CTX_load_verify_locations: %s: %s",
 		    caFile, ERR_error_string( ERR_get_error(), NULL ));
 	    goto error;
 	}
     }
     if ( caDir != NULL ) {
 	if ( SSL_CTX_load_verify_locations( ssl_ctx, NULL, caDir ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+	    syslog( LOG_ERR, "tls_server_setup: "
+		    "SSL_CTX_load_verify_locations: %s: %s",
 		    caDir, ERR_error_string( ERR_get_error(), NULL ));
 	    goto error;
 	}
@@ -135,7 +142,6 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 {
     SSL_CTX		*ssl_ctx;
     int                 ssl_mode = 0;
-    X509		*ssl_X509;
 
     SSL_load_error_strings();
     SSL_library_init();
@@ -147,7 +153,8 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     }
 
     if (( ssl_ctx = SSL_CTX_new( SSLv23_client_method())) == NULL ) {
-	fprintf( stderr, "SSL_CTX_new: %s\n",
+	syslog( LOG_ERR, "tls_client_setup: "
+		"SSL_CTX_new: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( NULL );
     }
@@ -155,18 +162,21 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     if ( authlevel == 2 ) {
 	if ( SSL_CTX_use_PrivateKey_file( ssl_ctx, privatekey,
 		SSL_FILETYPE_PEM ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_use_PrivateKey_file: %s: %s\n",
+	    syslog( LOG_ERR, "tls_client_setup: "
+		    "SSL_CTX_use_PrivateKey_file: %s: %s",
 		   privatekey, ERR_error_string( ERR_get_error(), NULL ));
 	    goto error;
 	}
 	if ( SSL_CTX_use_certificate_chain_file( ssl_ctx, cert ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_use_certificate_chain_file: %s: %s\n",
+	    syslog( LOG_ERR, "tls_client_setup: "
+		    "SSL_CTX_use_certificate_chain_file: %s: %s",
 		    cert, ERR_error_string( ERR_get_error(), NULL ));
 	    goto error;
 	}
 	/* Verify that private key matches cert */
 	if ( SSL_CTX_check_private_key( ssl_ctx ) != 1 ) {
-	    fprintf( stderr, "SSL_CTX_check_private_key: %s\n",
+	    syslog( LOG_ERR, "tls_client_setup: "
+		    "SSL_CTX_check_private_key: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    goto error;
 	}
@@ -188,14 +198,43 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
         }
     }
 
-    /* Set level of security expectations */
+    /* Set level of security expecations */
     ssl_mode = SSL_VERIFY_NONE;
-
     SSL_CTX_set_verify( ssl_ctx, ssl_mode, NULL );
-
     return( ssl_ctx );
 
     error:
     SSL_CTX_free( ssl_ctx );
     return( NULL );
+}
+
+    int
+tls_client_cert( char *hostname, const SSL *ssl )
+{
+    X509		*peer;
+    char		buf[ 1024 ];
+
+    if ( ssl == NULL ) {
+	syslog( LOG_ERR, "tls_client_cert: ssl is NULL" );
+	return( 1 );
+    }
+
+    if (( peer = SSL_get_peer_certificate( ssl )) == NULL ) {
+	syslog( LOG_ERR, "tls_client_cert: SSL_X509: %s",
+		ERR_error_string( ERR_get_error(), NULL ));
+	return( 1 );
+    }
+
+    syslog( LOG_DEBUG, "Deliver %s: CERT Subject: %s",
+	    hostname, X509_NAME_oneline( X509_get_subject_name( peer ), buf,
+	    sizeof( buf )));
+    X509_free( peer );
+
+    if ( SSL_get_verify_result( ssl ) != X509_V_OK ) {
+	syslog( LOG_ERR, "tls_client_cert: SSL_get_verify_result: %s",
+		ERR_error_string( ERR_get_error(), NULL ));
+	return( 1 );
+    }
+
+    return( 0 );
 }
