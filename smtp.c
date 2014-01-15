@@ -665,6 +665,10 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    return( SMTP_BAD_CONNECTION );
 	}
 
+        if (( rc = smtp_reply( SMTP_STARTTLS, hq, d )) != SMTP_OK ) {
+            return( rc );
+        }
+
 	if (( ssl_ctx = tls_client_setup( 0, 0, simta_file_ca, simta_dir_ca,
 		NULL, NULL )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror: smtp_connect: tls_client_setup %s",
@@ -726,6 +730,30 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	}
 
 	SSL_CTX_free( ssl_ctx );
+
+        /* RFC 3207 4.2
+         *
+         * Upon completion of the TLS handshake, the SMTP protocol is reset to
+         * the initial state (the state in SMTP after a server issues a 220
+         * service ready greeting).  The server MUST discard any knowledge
+         * obtained from the client, such as the argument to the EHLO command,
+         * which was not obtained from the TLS negotiation itself.  The client
+         * MUST discard any knowledge obtained from the server, such as the list
+         * of SMTP service extensions, which was not obtained from the TLS
+         * negotiation itself.  The client SHOULD send an EHLO command as the
+         * first command after a successful TLS negotiation.
+         */
+
+        /* ZZZ reset state? */
+
+        /* Resend EHLO */
+        if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
+            syslog( LOG_DEBUG, "Deliver %s: snet_writef failed: EHLO",
+                    hq->hq_hostname );
+            return( SMTP_BAD_CONNECTION );
+        }
+
+        r = smtp_reply( SMTP_EHLO, hq, d );
 
 #endif /* HAVE_LIBSSL */
 	break;
