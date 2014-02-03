@@ -657,7 +657,9 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 			hq->hq_hostname, hq->hq_smtp_hostname,
 			"not offered as EHLO extension" );
 		return( SMTP_ERROR );
-	    }
+	    } else {
+                break;
+            }
 	}
 
 	if ( simta_debug != 0 ) {
