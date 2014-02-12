@@ -137,6 +137,10 @@ snet_timeout( SNET *sn, int flag, struct timeval *tv )
 	sn->sn_flag |= SNET_WRITE_TIMEOUT;
 	memcpy( &(sn->sn_write_timeout), tv, sizeof( struct timeval ));
     }
+    if ( flag & SNET_SSL_ACCEPT_TIMEOUT ) {
+	sn->sn_flag |= SNET_SSL_ACCEPT_TIMEOUT;
+	memcpy( &(sn->sn_ssl_accept_timeout), tv, sizeof( struct timeval ));
+    }
     if ( flag & SNET_SSL_CONNECT_TIMEOUT ) {
 	sn->sn_flag |= SNET_SSL_CONNECT_TIMEOUT;
 	memcpy( &(sn->sn_ssl_connect_timeout), tv, sizeof( struct timeval ));
@@ -155,7 +159,11 @@ snet_starttls( SNET *sn, SSL_CTX *sslctx, int sslaccept )
 {
     struct timeval	default_tv;
 
-    if ( sn->sn_flag & SNET_READ_TIMEOUT ) {
+    if (( sslaccept != 0 ) && ( sn->sn_flag & SNET_SSL_ACCEPT_TIMEOUT )) {
+	default_tv = sn->sn_ssl_accept_timeout;
+	return( snet_starttls_tv( sn, sslctx, sslaccept, &default_tv ));
+    } else if (( sslaccept == 0 ) &&
+	    ( sn->sn_flag & SNET_SSL_CONNECT_TIMEOUT )) {
 	default_tv = sn->sn_ssl_connect_timeout;
 	return( snet_starttls_tv( sn, sslctx, sslaccept, &default_tv ));
     } else {

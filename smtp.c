@@ -587,6 +587,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait );
 
     if ( simta_outbound_ssl_connect_timer != 0 ) {
+	tv_wait.tv_sec = simta_outbound_ssl_connect_timer;
 	snet_timeout( d->d_snet_smtp, SNET_SSL_CONNECT_TIMEOUT, &tv_wait );
     }
 

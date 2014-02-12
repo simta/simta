@@ -2275,6 +2275,7 @@ _start_tls( struct receive_data *r )
     X509			*peer;
     char			buf[ 1024 ];
     SSL_CTX			*ssl_ctx;
+    struct timeval		tv_wait;
 
     if ( simta_debug != 0 ) {
 	syslog( LOG_DEBUG, "Debug: _start_tls snet_starttls" );
@@ -2286,6 +2287,12 @@ _start_tls( struct receive_data *r )
 	syslog( LOG_ERR, "Syserror: _start_tls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( smtp_write_banner( r, 501, NULL, "SSL didn't work!" ));
+    }
+
+    if ( simta_outbound_ssl_connect_timer != 0 ) {
+	tv_wait.tv_usec = 0;
+	tv_wait.tv_sec = simta_outbound_ssl_connect_timer;
+	snet_timeout( r->r_snet, SNET_SSL_CONNECT_TIMEOUT, &tv_wait );
     }
 
     if (( rc = snet_starttls( r->r_snet, ssl_ctx, 1 )) != 1 ) {

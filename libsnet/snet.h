@@ -23,6 +23,7 @@ typedef struct {
     struct timeval	sn_read_timeout;
     struct timeval	sn_write_timeout;
     struct timeval	sn_ssl_connect_timeout;
+    struct timeval	sn_ssl_accept_timeout;
 
 #ifdef HAVE_ZLIB
     z_stream		sn_zistream;
@@ -50,6 +51,7 @@ typedef struct {
 #define SNET_WRITE_TIMEOUT	(1<<3)
 #define SNET_READ_TIMEOUT	(1<<4)
 #define SNET_SSL_CONNECT_TIMEOUT (1<<6)
+#define SNET_SSL_ACCEPT_TIMEOUT (1<<7)
 
 #define SNET_ZLIB		(1<<5)
 
