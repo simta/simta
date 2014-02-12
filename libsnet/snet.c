@@ -137,6 +137,10 @@ snet_timeout( SNET *sn, int flag, struct timeval *tv )
 	sn->sn_flag |= SNET_WRITE_TIMEOUT;
 	memcpy( &(sn->sn_write_timeout), tv, sizeof( struct timeval ));
     }
+    if ( flag & SNET_SSL_CONNECT_TIMEOUT ) {
+	sn->sn_flag |= SNET_SSL_CONNECT_TIMEOUT;
+	memcpy( &(sn->sn_ssl_connect_timeout), tv, sizeof( struct timeval ));
+    }
     return;
 }
 
@@ -147,27 +151,96 @@ snet_timeout( SNET *sn, int flag, struct timeval *tv )
  * stack for specific errors.
  */
     int
-snet_starttls( sn, sslctx, sslaccept )
-    SNET		*sn;
-    SSL_CTX		*sslctx;
-    int			sslaccept;
+snet_starttls( SNET *sn, SSL_CTX *sslctx, int sslaccept )
+{
+    struct timeval	default_tv;
+
+    if ( sn->sn_flag & SNET_READ_TIMEOUT ) {
+	default_tv = sn->sn_ssl_connect_timeout;
+	return( snet_starttls_tv( sn, sslctx, sslaccept, &default_tv ));
+    } else {
+	return( snet_starttls_tv( sn, sslctx, sslaccept, NULL ));
+    }
+}
+
+
+    int
+snet_starttls_tv( SNET *sn, SSL_CTX *sslctx, int sslaccept, struct timeval *tv )
 {
     int			rc;
+    int			oflags = 0;
 
     if (( sn->sn_ssl = SSL_new( sslctx )) == NULL ) {
 	return( -1 );
     }
+
     if (( rc = SSL_set_fd( sn->sn_ssl, snet_fd( sn ))) != 1 ) {
 	return( rc );
     }
-    if ( sslaccept ) {
-	rc = SSL_accept( sn->sn_ssl );
-    } else {
-	rc = SSL_connect( sn->sn_ssl );
+
+    if ( tv != NULL ) {
+	if (( oflags = fcntl( snet_fd( sn ), F_GETFL )) < 0 ) {
+	    return( -1 );
+	}
+	if (( oflags & O_NONBLOCK ) == 0 ) {
+	    if ( fcntl( snet_fd( sn ), F_SETFL, oflags | O_NONBLOCK ) < 0 ) {
+		return( -1 );
+	    }
+	}
     }
-    if ( rc == 1 ) {
-	sn->sn_flag |= SNET_TLS;
+
+    for ( ; ; ) {
+	int		err;
+	fd_set		fd_read;
+	fd_set		fd_write;
+
+	if ( sslaccept ) {
+	    rc = SSL_accept( sn->sn_ssl );
+	} else {
+	    rc = SSL_connect( sn->sn_ssl );
+	}
+
+	if ( rc == 1 ) {
+	    sn->sn_flag |= SNET_TLS;
+	    break;
+	}
+
+	if ( rc == 0 ) {
+	    break;
+	}
+
+	if ( tv == NULL ) {
+	    break;
+	}
+
+	err = SSL_get_error( sn->sn_ssl, rc );
+
+	if ( err == SSL_ERROR_WANT_READ ) {
+	    FD_ZERO( &fd_read );
+	    FD_ZERO( &fd_write );
+	    FD_SET( snet_fd( sn ), &fd_read );
+
+	} else if ( err == SSL_ERROR_WANT_WRITE ) {
+	    FD_ZERO( &fd_read );
+	    FD_ZERO( &fd_write );
+	    FD_SET( snet_fd( sn ), &fd_write );
+
+	} else {
+	    break;
+	}
+
+	if ( snet_select( snet_fd( sn ) + 1, &fd_read, &fd_write, NULL,
+		tv ) < 0 ) {
+	    break;
+	}
     }
+
+    if (( tv != NULL ) && (( oflags & O_NONBLOCK ) == 0 )) {
+	if ( fcntl( snet_fd( sn ), F_SETFL, oflags ) < 0 ) {
+	    return( -1 );
+	}
+    }
+
     return( rc );
 }
 #endif /* HAVE_LIBSSL */
@@ -458,7 +531,7 @@ modifier:
  * We could define snet_select to just be select on platforms that update
  * the timeout structure.
  */
-    static int
+    int
 snet_select( int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 	struct timeval *tv )
 {

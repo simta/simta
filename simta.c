@@ -198,6 +198,7 @@ int			simta_inbound_data_session_timer = 3600;
 int			simta_outbound_command_line_timer = 300;
 int			simta_outbound_data_line_timer = 300;
 int			simta_outbound_data_session_timer = 0;
+int			simta_outbound_ssl_connect_timer = 0;
 
 
     void
@@ -997,6 +998,23 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "RECEIVE_DATA_LINE_TIMEOUT %d\n",
 		    simta_inbound_data_line_timer );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"DELIVER_SSL_CONNECT_TIMER" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_outbound_ssl_connect_timer = atoi( av[ 1 ] );
+	    if ( simta_outbound_ssl_connect_timer <= 0 ) {
+		fprintf( stderr, "%s: line %d: DELIVER_SSL_CONNECT_TIMER "
+			"must be greater than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DELIVER_SSL_CONNECT_TIMER %d\n",
+		    simta_outbound_ssl_connect_timer );
 
 	} else if ( strcasecmp( av[ 0 ],
 		"DELIVER_COMMAND_LINE_TIMEOUT" ) == 0 ) {

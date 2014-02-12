@@ -274,6 +274,7 @@ extern int				simta_inbound_data_session_timer;
 extern int				simta_outbound_command_line_timer;
 extern int				simta_outbound_data_line_timer;
 extern int				simta_outbound_data_session_timer;
+extern int				simta_outbound_ssl_connect_timer;
 
 int	q_cleanup( void );
 int	smtp_receive( int, struct connection_info *, struct simta_socket * );
