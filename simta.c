@@ -158,6 +158,7 @@ const EVP_MD		*simta_checksum_md = NULL;
 char			*simta_checksum_algorithm;
 #endif /* HAVE_LIBSSL */
 long int		simta_max_message_size = -1;
+int                     simta_outbound_connection_msg_max = 0;
 char			*simta_mail_filter = NULL;
 char			*simta_data_url = NULL;
 char			*simta_reverse_url = NULL;
@@ -1922,6 +1923,39 @@ simta_read_config( char *fname )
 	    }
 	    simta_smtp_extension++;
 
+        } else if ( strcasecmp( av[ 0 ],
+                "DELIVER_MAX_MESSAGES_PER_CONNECTION" ) == 0 ) {
+            if ( ac != 2 ) {
+                fprintf( stderr, "%s: line %d: expected 1 argument\n",
+                        fname, lineno );
+                goto error;
+            }
+            simta_outbound_connection_msg_max = strtol( av[ 1 ], &endptr, 10 );
+            if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
+                fprintf( stderr, "%s: line %d: invalid argument\n",
+                        fname, lineno );
+                goto error;
+            }
+            if ( simta_outbound_connection_msg_max == LONG_MIN ) {
+                fprintf( stderr, "%s: line %d: argument too small\n",
+                        fname, lineno );
+                goto error;
+            }
+            if ( simta_outbound_connection_msg_max == LONG_MAX ) {
+                fprintf( stderr, "%s: line %d: argument too big\n",
+                        fname, lineno );
+                goto error;
+            }
+            if ( simta_outbound_connection_msg_max < 0 ) {
+                fprintf( stderr, "%s: line %d: invalid negative argument\n",
+                        fname, lineno );
+                goto error;
+            }
+
+            if ( simta_debug ) printf(
+                    "DELIVER_MAX_MESSAGES_PER_CONNECTION: %d\n",
+                    simta_outbound_connection_msg_max );
+            
 	} else if ( strcasecmp( av[ 0 ], "MAX_FAILED_RCPTS" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",

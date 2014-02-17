@@ -233,6 +233,7 @@ extern int				simta_service_submission;
 extern int				simta_smtp_extension;
 extern long int				simta_max_message_size;
 extern unsigned int			simta_max_message_size_value;
+extern int                              simta_outbound_connection_msg_max;
 extern char				*simta_dir_fast;
 extern char				*simta_dir_slow;
 extern char				*simta_dir_dead;
