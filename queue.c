@@ -1037,6 +1037,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
     int                         n_processed = 0;
     int                         n_rcpt_remove;
     int                         dfile_fd;
+    int                         shuffle;
     SNET                        *snet_dfile = NULL;
     SNET			*snet_lock;
     char                        dfile_fname[ MAXPATHLEN ];
@@ -1074,7 +1075,15 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 
     /* process each envelope in the queue */
     while ( deliver_q->hq_env_head != NULL ) {
-	env_deliver = deliver_q->hq_env_head;
+        env_deliver = deliver_q->hq_env_head;
+
+        if ( simta_shuffle_queues == 1 ) {
+            for ( shuffle = ( random() % deliver_q->hq_entries );
+                    shuffle > 0 ; shuffle-- ) {
+                env_deliver = env_deliver->e_hq_next;
+            }
+        }
+
 	queue_remove_envelope( env_deliver );
 
 	syslog( LOG_DEBUG, "Deliver %s: Attempting delivery",
