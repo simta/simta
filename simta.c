@@ -1397,7 +1397,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "MIN_WORK_TIME: %d\n",
+	    if ( simta_debug ) printf( "UNEXPANDED_TIME: %d\n",
 		    simta_unexpanded_time );
 
 	} else if ( strcasecmp( av[ 0 ], "MIN_WORK_TIME" ) == 0 ) {
