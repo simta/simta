@@ -124,8 +124,8 @@ host_q_create_or_lookup( char *hostname )
 	}
 	memset( hq, 0, sizeof( struct host_q ));
 
-	hq->hq_wait_min = simta_wait_max;
-	hq->hq_wait_max = simta_wait_min;
+	hq->hq_wait_max = simta_wait_max;
+	hq->hq_wait_min = simta_wait_min;
 
 	if (( hq->hq_hostname = strdup( hostname )) == NULL ) {
 	    syslog( LOG_ERR, "host_q_create_or_lookup strdup: %m" );
@@ -141,8 +141,8 @@ host_q_create_or_lookup( char *hostname )
 		hq->hq_status = HOST_LOCAL;
 	    }
 	    if ( hq->hq_red->red_wait_set != 0 ) {
-		hq->hq_wait_min = simta_wait_max;
-		hq->hq_wait_max = simta_wait_min;
+		hq->hq_wait_min = hq->hq_red->red_wait_min;
+		hq->hq_wait_max = hq->hq_red->red_wait_max;
 	    }
 	} else if (( simta_jail_host != NULL ) &&
 		( strcasecmp( simta_jail_host, hostname )) == 0 ) {
