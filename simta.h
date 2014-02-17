@@ -160,6 +160,7 @@ extern int				simta_disk_read_entries;
 extern int				simta_domain_trailing_dot;
 extern int				simta_bitbucket;
 extern int				simta_aggressive_delivery;
+extern int                              simta_shuffle_queues;
 extern int				simta_smtp_rcvbuf_min;
 extern int				simta_smtp_rcvbuf_max;
 extern int				simta_smtp_port_defined;
