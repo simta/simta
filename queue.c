@@ -1564,6 +1564,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
     for ( ; ; ) {
 	if ( d->d_snet_smtp == NULL ) {
+            d->d_connection_msg_total = 0;
 	    /* need to build SMTP connection */
 	    if ( next_dnsr_host_lookup( d, hq ) != 0 ) {
 		return;
@@ -1614,6 +1615,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	d->d_n_rcpt_failed = 0;
 	d->d_n_rcpt_tempfailed = 0;
 	d->d_sent = 0;
+        d->d_connection_msg_total++;
 
 	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
 	    syslog( LOG_ERR, "deliver_remote lseek: %m" );
@@ -1636,6 +1638,14 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	}
 
 	if ( r_smtp == SMTP_OK ) {
+            /* Close the connection if we've hit the per-connection
+             * message limit. */
+            if ( simta_outbound_connection_msg_max > 0 &&
+                    d->d_connection_msg_total >= simta_outbound_connection_msg_max ) {
+                smtp_quit( hq, d );
+                snet_close( d->d_snet_smtp );
+                d->d_snet_smtp = NULL;
+            }
 	    switch ( hq->hq_status ) {
 	    case HOST_DOWN:
 		hq->hq_status = HOST_MX;

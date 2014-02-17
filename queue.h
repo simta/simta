@@ -48,6 +48,7 @@ struct deliver {
     int				d_unlinked;
 
     /* SMTP connection variables */
+    int                         d_connection_msg_total;
     int				d_queue_movement;
     struct connection_data	*d_retry_list;
     struct connection_data	*d_retry_list_end;
