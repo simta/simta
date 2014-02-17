@@ -221,6 +221,10 @@ snet_starttls_tv( SNET *sn, SSL_CTX *sslctx, int sslaccept, struct timeval *tv )
 	    break;
 	}
 
+        if ( tv->tv_sec == 0 && tv->tv_usec == 0 ) {
+            break;
+        }
+
 	err = SSL_get_error( sn->sn_ssl, rc );
 
 	if ( err == SSL_ERROR_WANT_READ ) {
