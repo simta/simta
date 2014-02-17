@@ -7,6 +7,9 @@ AC_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR([snet.c])
 AC_CONFIG_MACRO_DIR([m4])
 
+# Canonicalise things
+AC_CANONICAL_HOST
+
 # Checks for programs.
 AC_PROG_AWK
 AC_PROG_CC

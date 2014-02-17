@@ -21,7 +21,6 @@ AC_DEFUN([CHECK_UNIVERSAL_BINARIES],
 	AC_HELP_STRING([--enable-universal_binaries], [build universal binaries (default=no)]),
 	,[enable_universal_binaries=no])
     if test "${enable_universal_binaries}" = "yes"; then
-	AC_CANONICAL_SYSTEM
 	case "${host_os}" in
 	  darwin8*)
 	    macosx_sdk="MacOSX10.4u.sdk"
