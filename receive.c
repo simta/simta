@@ -2286,7 +2286,7 @@ _start_tls( struct receive_data *r )
 	    simta_file_cert, simta_file_private_key )) == NULL ) {
 	syslog( LOG_ERR, "Syserror: _start_tls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
-	return( smtp_write_banner( r, 501, NULL, "SSL didn't work!" ));
+	return( smtp_write_banner( r, 554, NULL, "SSL didn't work!" ));
     }
 
     if ( simta_inbound_ssl_accept_timer != 0 ) {
@@ -2298,7 +2298,7 @@ _start_tls( struct receive_data *r )
     if (( rc = snet_starttls( r->r_snet, ssl_ctx, 1 )) != 1 ) {
 	syslog( LOG_ERR, "Syserror _start_tls: snet_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
-	return( smtp_write_banner( r, 501, NULL, "SSL didn't work!" ));
+	return( smtp_write_banner( r, 554, NULL, "SSL didn't work!" ));
     }
 
     if ( simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER ) {
@@ -2309,7 +2309,7 @@ _start_tls( struct receive_data *r )
 	if (( peer = SSL_get_peer_certificate( r->r_snet->sn_ssl )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror _start_tls: SSL_get_peer_certificate: "
 		    "no peer certificate" );
-	    return( smtp_write_banner( r, 501, NULL,  "SSL didn't work!" ));
+	    return( smtp_write_banner( r, 554, NULL,  "SSL didn't work!" ));
 	}
 	syslog( LOG_DEBUG, "Receive [%s] %s: CERT Subject: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
