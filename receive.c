@@ -2289,10 +2289,10 @@ _start_tls( struct receive_data *r )
 	return( smtp_write_banner( r, 501, NULL, "SSL didn't work!" ));
     }
 
-    if ( simta_outbound_ssl_connect_timer != 0 ) {
+    if ( simta_inbound_ssl_accept_timer != 0 ) {
 	tv_wait.tv_usec = 0;
-	tv_wait.tv_sec = simta_outbound_ssl_connect_timer;
-	snet_timeout( r->r_snet, SNET_SSL_CONNECT_TIMEOUT, &tv_wait );
+	tv_wait.tv_sec = simta_inbound_ssl_accept_timer;
+	snet_timeout( r->r_snet, SNET_SSL_ACCEPT_TIMEOUT, &tv_wait );
     }
 
     if (( rc = snet_starttls( r->r_snet, ssl_ctx, 1 )) != 1 ) {

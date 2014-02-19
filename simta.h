@@ -270,6 +270,7 @@ extern int				simta_inbound_command_line_timer;
 extern int				simta_inbound_command_inactivity_timer;
 extern int				simta_inbound_data_line_timer;
 extern int				simta_inbound_data_session_timer;
+extern int                              simta_inbound_ssl_accept_timer;
 
 extern int				simta_outbound_command_line_timer;
 extern int				simta_outbound_data_line_timer;
