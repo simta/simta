@@ -152,7 +152,7 @@ host_q_create_or_lookup( char *hostname )
 	if (( hq->hq_status == HOST_UNKNOWN ) &&
 		( simta_queue_incoming_smtp_mail != 0 ) &&
 		( simta_process_type == PROCESS_RECEIVE )) {
-	    hq->hq_status = HOST_SUPRESSED;
+	    hq->hq_status = HOST_SUPPRESSED;
 	}
 
 	/* add this host to the host_q_head */
@@ -374,7 +374,7 @@ q_runner( void )
 		*dq = hq;
 		break;
 
-	    case HOST_SUPRESSED:
+	    case HOST_SUPPRESSED:
 	    case HOST_DOWN:
 	    case HOST_BOUNCE:
 		q_deliver( hq );
@@ -1162,8 +1162,8 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    }
 	    break;
 
-        case HOST_SUPRESSED:
-	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s supressed",
+        case HOST_SUPPRESSED:
+	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s suppressed",
 		    d->d_env->e_id, deliver_q->hq_hostname );
 	    break;
 

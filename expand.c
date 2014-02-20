@@ -243,8 +243,8 @@ expand( struct envelope *unexpanded_env )
 	} else {
 	    syslog( LOG_DEBUG, "Expand %s: Memonly Group %s Suppressed",
 		    unexpanded_env->e_id, memonly->el_exp_addr->e_addr );
-	    memonly->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPRESSOR;
-	    supress_addrs( memonly->el_exp_addr->e_addr_children,
+	    memonly->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPPRESSOR;
+	    suppress_addrs( memonly->el_exp_addr->e_addr_children,
 		    loop_color++ );
 	}
     }
@@ -258,10 +258,10 @@ expand( struct envelope *unexpanded_env )
 	    e_addr = e_addr->e_addr_next ) {
 
 #ifdef HAVE_LDAP
-	if ((( e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPRESSED ) != 0 ) &&
+	if ((( e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPPRESSED ) != 0 ) &&
 		( !unblocked_path_to_root( e_addr, loop_color++ ))) {
 	    if ( simta_expand_debug != 0 ) {
-		printf( "Supressed: %s\n", e_addr->e_addr );
+		printf( "Suppressed: %s\n", e_addr->e_addr );
 	    }
 	    continue;
 	}
@@ -387,7 +387,7 @@ expand( struct envelope *unexpanded_env )
 	    queue_envelope( e_addr->e_addr_env_moderated );
 	    continue;
 
-	} else if ( e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPRESSOR ) {
+	} else if ( e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPPRESSOR ) {
 	    for ( parent = e_addr->e_addr_parents; parent != NULL;
 		    parent = parent->el_next ) {
 		if ( parent->el_exp_addr == NULL ) {
@@ -786,7 +786,7 @@ done:
 
 #ifdef HAVE_LDAP
     void
-supress_addrs( struct exp_link *list, int color )
+suppress_addrs( struct exp_link *list, int color )
 {
     struct exp_link		*el;
 
@@ -800,12 +800,12 @@ supress_addrs( struct exp_link *list, int color )
 	el->el_exp_addr->e_addr_anti_loop = color;
 
 	if (( el->el_exp_addr->e_addr_ldap_flags &
-		STATUS_LDAP_SUPRESSED ) != 0 ) {
+		STATUS_LDAP_SUPPRESSED ) != 0 ) {
 	    continue;
 	}
 
-	el->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPRESSED;
-	supress_addrs( el->el_exp_addr->e_addr_children, color );
+	el->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPPRESSED;
+	suppress_addrs( el->el_exp_addr->e_addr_children, color );
     }
 
     return;

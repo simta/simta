@@ -1324,7 +1324,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	}
 
 	if ( suppressnoemail ) {
-	    e_addr->e_addr_errors->e_flags |= ENV_FLAG_SUPRESS_NO_EMAIL;
+	    e_addr->e_addr_errors->e_flags |= ENV_FLAG_SUPPRESS_NO_EMAIL;
 	}
 	break;
     }   /* end of switch */
@@ -1427,7 +1427,7 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 		do_noemail( ld, e_addr, addr, entry );
 	    } else {
 		if (( e_addr->e_addr_errors->e_flags &
-			ENV_FLAG_SUPRESS_NO_EMAIL ) == 0 ) {
+			ENV_FLAG_SUPPRESS_NO_EMAIL ) == 0 ) {
 		    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr,
 			    " : Group member exists but does not have an "
 			    "email address", "\n" ) != 0 ) {
