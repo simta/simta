@@ -153,6 +153,7 @@ host_q_create_or_lookup( char *hostname )
 		( simta_queue_incoming_smtp_mail != 0 ) &&
 		( simta_process_type == PROCESS_RECEIVE )) {
 	    hq->hq_status = HOST_SUPPRESSED;
+            hq->hq_no_punt |= NOPUNT_MX;
 	}
 
 	/* add this host to the host_q_head */
@@ -1404,14 +1405,14 @@ message_cleanup:
 	if ( d->d_unlinked == 0 ) {
 	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q ) &&
 		    ( deliver_q->hq_no_punt == 0 )) {
-		syslog( LOG_INFO, "Deliver %s: queueing for Punt",
+		syslog( LOG_INFO, "Deliver %s: queueing for punt",
 			env_deliver->e_id );
 		env_clear_errors( env_deliver );
 		env_deliver->e_flags |= ENV_FLAG_PUNT;
 		queue_envelope( env_deliver );
 	    } else {
 		if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q )) {
-		    syslog( LOG_INFO, "Deliver %s: not Puntable",
+		    syslog( LOG_INFO, "Deliver %s: not puntable",
 			    env_deliver->e_id );
 		}
 		env_move( env_deliver, simta_dir_slow );
