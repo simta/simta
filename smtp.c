@@ -770,7 +770,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	if ( tls_required != 0 ) {
 	    syslog( LOG_INFO, "Deliver.SMTP %s (%s): %s",
 		    hq->hq_hostname, hq->hq_smtp_hostname,
-		    "TLS required: EHLO unsupportred" );
+		    "TLS required: EHLO unsupported" );
 	    return( SMTP_ERROR );
 	}
 #endif /* HAVE_LIBSSL */
