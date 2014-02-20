@@ -535,10 +535,10 @@ simta_read_config( char *fname )
 	    } else if ( strcasecmp( av[ 2 ], "PUNTING" ) == 0 ) {
 		/* @DOMAIN D PUNTING <ENABLED|DISABLED> */
 		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 1 ], "ENABLED" ) == 0 ) {
+		    if ( strcasecmp( av[ 3 ], "ENABLED" ) == 0 ) {
 			red->red_policy_punting = RED_PUNTING_ENABLED;
 			continue;
-		    } else if ( strcasecmp( av[ 1 ], "DISABLED" ) == 0 ) {
+		    } else if ( strcasecmp( av[ 3 ], "DISABLED" ) == 0 ) {
 			red->red_policy_punting = RED_PUNTING_DISABLED;
 			continue;
 		    }
