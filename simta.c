@@ -553,10 +553,10 @@ simta_read_config( char *fname )
 	    } else if ( strcasecmp( av[ 2 ], "TLS_OUTBOUND" ) == 0 ) {
 		/* @DOMAIN D TLS_OUTBOUND <OPTIONAL|REQUIRED> */
 		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+		    if ( strcasecmp( av[ 3 ], "OPTIONAL" ) == 0 ) {
 			red->red_policy_tls = TLS_POLICY_OPTIONAL;
 			continue;
-		    } else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
 			red->red_policy_tls = TLS_POLICY_REQUIRED;
 			continue;
 		    }
@@ -569,10 +569,10 @@ simta_read_config( char *fname )
 	    } else if ( strcasecmp( av[ 2 ], "TLS_CERT_OUTBOUND" ) == 0 ) {
 		/* @DOMAIN D TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED> */
 		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+		    if ( strcasecmp( av[ 3 ], "OPTIONAL" ) == 0 ) {
 			red->red_policy_tls_cert = TLS_POLICY_OPTIONAL;
 			continue;
-		    } else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
 			red->red_policy_tls_cert = TLS_POLICY_REQUIRED;
 			continue;
 		    }
