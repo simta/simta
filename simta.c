@@ -1003,37 +1003,37 @@ simta_read_config( char *fname )
 		    simta_inbound_data_line_timer );
 
 	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_SSL_ACCEPT_TIMER" ) == 0 ) {
+		"RECEIVE_SSL_ACCEPT_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
 	    simta_inbound_ssl_accept_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_ssl_accept_timer <= 0 ) {
-		fprintf( stderr, "%s: line %d: RECEIVE_SSL_ACCEPT_TIMER "
-			"must be greater than 0",
+	    if ( simta_inbound_ssl_accept_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_SSL_ACCEPT_TIMEOUT "
+			"cannot be negative",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RECEIVE_SSL_ACCEPT_TIMER %d\n",
+	    if ( simta_debug ) printf( "RECEIVE_SSL_ACCEPT_TIMEOUT %d\n",
 		    simta_inbound_ssl_accept_timer );
 
 	} else if ( strcasecmp( av[ 0 ],
-		"DELIVER_SSL_CONNECT_TIMER" ) == 0 ) {
+		"DELIVER_SSL_CONNECT_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
 	    simta_outbound_ssl_connect_timer = atoi( av[ 1 ] );
-	    if ( simta_outbound_ssl_connect_timer <= 0 ) {
-		fprintf( stderr, "%s: line %d: DELIVER_SSL_CONNECT_TIMER "
-			"must be greater than 0",
+	    if ( simta_outbound_ssl_connect_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: DELIVER_SSL_CONNECT_TIMEOUT "
+			"cannot be negative",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "DELIVER_SSL_CONNECT_TIMER %d\n",
+	    if ( simta_debug ) printf( "DELIVER_SSL_CONNECT_TIMEOUT %d\n",
 		    simta_outbound_ssl_connect_timer );
 
 	} else if ( strcasecmp( av[ 0 ],
