@@ -14,7 +14,7 @@
 #define HOST_DOWN	5
 #define HOST_PUNT	6
 #define HOST_PUNT_DOWN	7
-#define HOST_SUPRESSED	8
+#define HOST_SUPPRESSED	8
 #define HOST_BITBUCKET	9
 
 /* bits for host_q->hq_no_punt */

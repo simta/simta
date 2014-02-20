@@ -36,8 +36,8 @@
 #ifdef HAVE_LDAP
 #define	STATUS_LDAP_MEMONLY		(1<<0)
 #define	STATUS_LDAP_PRIVATE		(1<<1)
-#define	STATUS_LDAP_SUPRESSOR		(1<<2)
-#define	STATUS_LDAP_SUPRESSED		(1<<3)
+#define	STATUS_LDAP_SUPPRESSOR		(1<<2)
+#define	STATUS_LDAP_SUPPRESSED		(1<<3)
 #define	STATUS_EMAIL_SENDER		(1<<4)
 #define	STATUS_NO_EMAIL_SENDER		(1<<5)
 #define	STATUS_ROOT_PATH		(1<<6)
@@ -119,7 +119,7 @@ void exp_addr_link_free( struct exp_link * );
 int unblocked_path_to_root( struct exp_addr *, int );
 int sender_is_child( struct exp_link *, int );
 int sender_is_moderator( char *, struct exp_addr * );
-void supress_addrs( struct exp_link *, int );
+void suppress_addrs( struct exp_link *, int );
 int permitted_create( struct exp_addr *, char ** );
 void permitted_destroy( struct exp_addr * );
 char *parent_permitted( struct exp_addr * );

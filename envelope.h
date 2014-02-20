@@ -75,7 +75,7 @@ struct envelope {
 #define ENV_FLAG_TEMPFAIL		(1<<4)
 #define ENV_FLAG_PUNT			(1<<5)
 #define ENV_FLAG_DELETE			(1<<6)
-#define ENV_FLAG_SUPRESS_NO_EMAIL	(1<<7)
+#define ENV_FLAG_SUPPRESS_NO_EMAIL	(1<<7)
 
 #define ENV_ATTR_ARCHIVE_ONLY		(1<<0)
 

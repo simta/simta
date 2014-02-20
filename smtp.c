@@ -564,7 +564,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	}
     }
 
-    /* this is here to supress a compiler warning */
+    /* this is here to suppress a compiler warning */
     abort();
 }
 
