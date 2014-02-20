@@ -195,11 +195,11 @@ int			simta_inbound_command_inactivity_timer = 3600;
 int			simta_inbound_command_line_timer = 600;
 int			simta_inbound_data_line_timer = 300;
 int			simta_inbound_data_session_timer = 3600;
-int			simta_inbound_ssl_accept_timer = 0;
+int			simta_inbound_ssl_accept_timer = 300;
 int			simta_outbound_command_line_timer = 300;
 int			simta_outbound_data_line_timer = 300;
 int			simta_outbound_data_session_timer = 0;
-int			simta_outbound_ssl_connect_timer = 0;
+int			simta_outbound_ssl_connect_timer = 300;
 
 
     void
