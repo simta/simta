@@ -37,7 +37,7 @@
     int
 main( int ac, char *av[] )
 {
-    int			c, err = 0, s;
+    int			c, err = 0, r, s;
     unsigned short	port = 25;
     char                *hostname;
     struct host_q       *hq;
@@ -103,8 +103,12 @@ main( int ac, char *av[] )
         exit( 1 );
     }
 
-    smtp_connect( hq, &d );
-    smtp_quit( hq, &d );
+    r = smtp_connect( hq, &d );
+    if ( r == SMTP_OK || r == SMTP_ERROR ) {
+        smtp_quit( hq, &d );
+    }
+
+    snet_close( d.d_snet_smtp );
 
     exit( 0 );
 }
