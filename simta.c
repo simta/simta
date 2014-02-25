@@ -195,11 +195,11 @@ int			simta_inbound_command_inactivity_timer = 3600;
 int			simta_inbound_command_line_timer = 600;
 int			simta_inbound_data_line_timer = 300;
 int			simta_inbound_data_session_timer = 3600;
-int			simta_inbound_ssl_accept_timer = 0;
+int			simta_inbound_ssl_accept_timer = 300;
 int			simta_outbound_command_line_timer = 300;
 int			simta_outbound_data_line_timer = 300;
 int			simta_outbound_data_session_timer = 0;
-int			simta_outbound_ssl_connect_timer = 0;
+int			simta_outbound_ssl_connect_timer = 300;
 
 
     void
@@ -535,10 +535,10 @@ simta_read_config( char *fname )
 	    } else if ( strcasecmp( av[ 2 ], "PUNTING" ) == 0 ) {
 		/* @DOMAIN D PUNTING <ENABLED|DISABLED> */
 		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 1 ], "ENABLED" ) == 0 ) {
+		    if ( strcasecmp( av[ 3 ], "ENABLED" ) == 0 ) {
 			red->red_policy_punting = RED_PUNTING_ENABLED;
 			continue;
-		    } else if ( strcasecmp( av[ 1 ], "DISABLED" ) == 0 ) {
+		    } else if ( strcasecmp( av[ 3 ], "DISABLED" ) == 0 ) {
 			red->red_policy_punting = RED_PUNTING_DISABLED;
 			continue;
 		    }
@@ -551,10 +551,10 @@ simta_read_config( char *fname )
 	    } else if ( strcasecmp( av[ 2 ], "TLS_OUTBOUND" ) == 0 ) {
 		/* @DOMAIN D TLS_OUTBOUND <OPTIONAL|REQUIRED> */
 		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+		    if ( strcasecmp( av[ 3 ], "OPTIONAL" ) == 0 ) {
 			red->red_policy_tls = TLS_POLICY_OPTIONAL;
 			continue;
-		    } else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
 			red->red_policy_tls = TLS_POLICY_REQUIRED;
 			continue;
 		    }
@@ -567,10 +567,10 @@ simta_read_config( char *fname )
 	    } else if ( strcasecmp( av[ 2 ], "TLS_CERT_OUTBOUND" ) == 0 ) {
 		/* @DOMAIN D TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED> */
 		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+		    if ( strcasecmp( av[ 3 ], "OPTIONAL" ) == 0 ) {
 			red->red_policy_tls_cert = TLS_POLICY_OPTIONAL;
 			continue;
-		    } else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
 			red->red_policy_tls_cert = TLS_POLICY_REQUIRED;
 			continue;
 		    }
@@ -1001,37 +1001,37 @@ simta_read_config( char *fname )
 		    simta_inbound_data_line_timer );
 
 	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_SSL_ACCEPT_TIMER" ) == 0 ) {
+		"RECEIVE_SSL_ACCEPT_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
 	    simta_inbound_ssl_accept_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_ssl_accept_timer <= 0 ) {
-		fprintf( stderr, "%s: line %d: RECEIVE_SSL_ACCEPT_TIMER "
-			"must be greater than 0",
+	    if ( simta_inbound_ssl_accept_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_SSL_ACCEPT_TIMEOUT "
+			"cannot be negative",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "RECEIVE_SSL_ACCEPT_TIMER %d\n",
+	    if ( simta_debug ) printf( "RECEIVE_SSL_ACCEPT_TIMEOUT %d\n",
 		    simta_inbound_ssl_accept_timer );
 
 	} else if ( strcasecmp( av[ 0 ],
-		"DELIVER_SSL_CONNECT_TIMER" ) == 0 ) {
+		"DELIVER_SSL_CONNECT_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
 	    simta_outbound_ssl_connect_timer = atoi( av[ 1 ] );
-	    if ( simta_outbound_ssl_connect_timer <= 0 ) {
-		fprintf( stderr, "%s: line %d: DELIVER_SSL_CONNECT_TIMER "
-			"must be greater than 0",
+	    if ( simta_outbound_ssl_connect_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: DELIVER_SSL_CONNECT_TIMEOUT "
+			"cannot be negative",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "DELIVER_SSL_CONNECT_TIMER %d\n",
+	    if ( simta_debug ) printf( "DELIVER_SSL_CONNECT_TIMEOUT %d\n",
 		    simta_outbound_ssl_connect_timer );
 
 	} else if ( strcasecmp( av[ 0 ],

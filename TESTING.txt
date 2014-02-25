@@ -123,9 +123,9 @@ Suppress no email address
 
 
 mail from:<mcneal@umich.edu>
-rcpt to:<simta-test-supress-no-email@umich.edu>
+rcpt to:<simta-test-suppress-no-email@umich.edu>
 data
-Subject:  supress-no-email
+Subject:  suppress-no-email
 From: mcneal@umich.edu
 There should be no bounce
 .
@@ -133,9 +133,9 @@ quit
 	-> Owner should not get error
 
 mail from:<mcneal@umich.edu>
-rcpt to:<simta-test-no-supress-email@umich.edu>
+rcpt to:<simta-test-no-suppress-email@umich.edu>
 data
-Subject:  no-supress-email
+Subject:  no-suppress-email
 From: mcneal@umich.edu
 There should be a note to owner of group for member with no e-mail
 .

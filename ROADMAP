@@ -164,4 +164,4 @@ COMPLETED
 + 2 SMTP READ_BEFORE_BANNER option added
 + 3 updated simvacation code
 + 3 SMTP_RCVBUF directive limits TCP Window size until valid DATA segment
-+ 3 Supressed compiler warnings
++ 3 Suppressed compiler warnings
