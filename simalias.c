@@ -70,7 +70,7 @@ main( int argc, char **argv )
     extern char		*optarg;
 
     if (( progname = strrchr( argv[ 0 ], '/' )) == NULL ) {
-        progname = argv[ 0 ];
+	progname = argv[ 0 ];
     } else {
 	progname++;      
     }
@@ -219,18 +219,18 @@ simalias_create( void )
 	    continue;
 	}
 
-        /* Remove trailing ":" */
-        len = strlen( argv[ 0 ] );
-        if ( argv[ 0 ][ len - 1 ] == ':' ) {
-            argv[ 0 ][ len - 1 ] = '\0';
-        }
+	/* Remove trailing ":" */
+	len = strlen( argv[ 0 ] );
+	if ( argv[ 0 ][ len - 1 ] == ':' ) {
+	    argv[ 0 ][ len - 1 ] = '\0';
+	}
 
-        for ( i = 1; i < aac; i++ ) {
-            /* removed tailing "," */
-            len = strlen( argv[ i ] );
-            if ( argv[ i ][ len - 1 ] == ',' ) {
-                argv[ i ][ len - 1 ] = '\0';
-            }
+	for ( i = 1; i < aac; i++ ) {
+	    /* removed tailing "," */
+	    len = strlen( argv[ i ] );
+	    if ( argv[ i ][ len - 1 ] == ',' ) {
+		argv[ i ][ len - 1 ] = '\0';
+	    }
 
 	    if (( ret =  db_put( dbp, argv[ 0 ], argv[ i ] )) != 0 ) {
 		dbp->err( dbp, ret, "%s", argv[ 1 ] );
@@ -238,7 +238,7 @@ simalias_create( void )
 	    }
 
 	    if ( verbose ) printf( "Added %s -> %s\n", argv[ 0 ], argv[ i ] );
-        }
+	}
     }
 
     if (( ret = db_close( dbp )) != 0 ) {

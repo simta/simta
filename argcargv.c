@@ -51,8 +51,8 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
     if ( acav == NULL ) {
 	if ( acavg == NULL ) {
 	    if (( acavg = acav_alloc() ) == NULL ) {
-                return ( -1 );
-            }
+		return ( -1 );
+	    }
 	}
 	acav = acavg;
     }
@@ -98,7 +98,7 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 		state = ACV_WORD;
 	    }
 	    if ( *line == '<' && state == ACV_WORD ) {
-	    	state = ACV_BRACKET;
+		state = ACV_BRACKET;
 	    }
 	    if ( *line == '"' ) {
 		if ( state == ACV_BRACKET ) {
@@ -146,8 +146,8 @@ acav_parse( ACAV *acav, char *line, char **argv[] )
     if ( acav == NULL ) {
 	if ( acavg == NULL ) {
 	    if (( acavg = acav_alloc() ) == NULL ) {
-                return ( -1 );
-            };
+		return ( -1 );
+	    };
 	}
 	acav = acavg;
     }

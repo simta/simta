@@ -45,8 +45,8 @@ get_a( char *hostname )
     struct dnsr_result	*result;
 
     if ( simta_dnsr == NULL ) {
-        if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "get_a: dnsr_new: %m" );
+	if (( simta_dnsr = dnsr_new( )) == NULL ) {
+	    syslog( LOG_ERR, "get_a: dnsr_new: %m" );
 	    return( NULL );
 	}
     }
@@ -84,8 +84,8 @@ get_mx( char *hostname )
     struct simta_red	*red;
 
     if ( simta_dnsr == NULL ) {
-        if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "get_mx: dnsr_new: %m" );
+	if (( simta_dnsr = dnsr_new( )) == NULL ) {
+	    syslog( LOG_ERR, "get_mx: dnsr_new: %m" );
 	    return( NULL );
 	}
     }
@@ -214,21 +214,21 @@ check_reverse( char *dn, struct in_addr *in )
     struct dnsr_result		*result_ptr = NULL, *result_a = NULL;
 
     if ( simta_dnsr == NULL ) {
-        if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "Syserror check_reverse: dnsr_new: %m" );
+	if (( simta_dnsr = dnsr_new( )) == NULL ) {
+	    syslog( LOG_ERR, "Syserror check_reverse: dnsr_new: %m" );
 	    return( REVERSE_ERROR );
 	}
     }
 
     if (( temp = dnsr_ntoptr( simta_dnsr, in, NULL )) == NULL ) {
-        syslog( LOG_ERR, "check_reverse: dnsr_ntoptr: %s",
+	syslog( LOG_ERR, "check_reverse: dnsr_ntoptr: %s",
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( REVERSE_ERROR );
     }
 
     /* Get PTR for connection */
     if ( dnsr_query( simta_dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
-        syslog( LOG_ERR, "check_reverse: dnsr_query: %s",
+	syslog( LOG_ERR, "check_reverse: dnsr_query: %s",
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	free( temp );
 	return( REVERSE_ERROR );
@@ -237,7 +237,7 @@ check_reverse( char *dn, struct in_addr *in )
     free( temp );
 
     if (( result_ptr = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-        syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
+	syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( REVERSE_ERROR );
     }
@@ -420,7 +420,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 	    dnsr_free_result( result );
 
 	    if ( rbl->rbl_type == RBL_LOG_ONLY ) {
-                free( ip );
+		free( ip );
 		continue;
 	    }
 

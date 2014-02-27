@@ -140,24 +140,24 @@ chld( int sig )
 #ifdef HAVE_LIBSASL
 static int
 sasl_my_log(void *context __attribute__((unused)),
-            int priority,
-            const char *message)
+	    int priority,
+	    const char *message)
 {
     const char *label;
 
     if (! message)
-        return SASL_BADPARAM;
+	return SASL_BADPARAM;
 
     switch (priority) {
     case SASL_LOG_ERR:
-        label = "Error";
-        break;
+	label = "Error";
+	break;
     case SASL_LOG_NOTE:
-        label = "Info";
-        break;
+	label = "Info";
+	break;
     default:
-        label = "Other";
-        break;
+	label = "Other";
+	break;
   }
 
     syslog( LOG_ERR, "SASL %s: %s\n", label, message);
@@ -325,7 +325,7 @@ main( int ac, char **av )
 
 	case 'C' :		/* clean up directories */
 	    if ( q_run != 0 ) {
-                fprintf( stderr, "simta -q or -Q and -C illegal\n" );
+		fprintf( stderr, "simta -q or -Q and -C illegal\n" );
 		exit( 1 );
 	    }
 	    simta_filesystem_cleanup++;
@@ -366,7 +366,7 @@ main( int ac, char **av )
 	case 'p' :		/* TCP port */
 	    simta_smtp_port_defined = 1;
 	    if ( atoi( optarg ) < 0 ) {
-                fprintf( stderr, "simta -p [ port ] must be 0 or greater\n" );
+		fprintf( stderr, "simta -p [ port ] must be 0 or greater\n" );
 		exit( 1 );
 	    }
 	    simta_smtp_port = htons( atoi( optarg ));
@@ -378,12 +378,12 @@ main( int ac, char **av )
 
 	case 'q' :
 	    if ( simta_filesystem_cleanup != 0 ) {
-                fprintf( stderr, "simta -q and -C illegal\n" );
+		fprintf( stderr, "simta -q and -C illegal\n" );
 		exit( 1 );
 	    }
 
 	    if ( q_run != 0 ) {
-                fprintf( stderr, "simta invoke -Q or -q only once\n" );
+		fprintf( stderr, "simta invoke -Q or -q only once\n" );
 		exit( 1 );
 	    }
 
@@ -394,17 +394,17 @@ main( int ac, char **av )
 	case 'Q' :
 	    /* q_runner option: just run specific slow queue */
 	    if ( simta_filesystem_cleanup != 0 ) {
-                fprintf( stderr, "simta -Q and -C illegal\n" );
+		fprintf( stderr, "simta -Q and -C illegal\n" );
 		exit( 1 );
 	    }
 
 	    if ( simta_queue_filter != NULL ) {
-                fprintf( stderr, "simta -Q can't be invoked twice\n" );
+		fprintf( stderr, "simta -Q can't be invoked twice\n" );
 		exit( 1 );
 	    }
 
 	    if ( q_run != 0 ) {
-                fprintf( stderr, "simta invoke -Q or -q only once\n" );
+		fprintf( stderr, "simta invoke -Q or -q only once\n" );
 		exit( 1 );
 	    }
 
@@ -432,26 +432,26 @@ main( int ac, char **av )
 	    printf( "%s\n", version );
 	    exit( 0 );
 
-        case 'w' :              /* authlevel 0:none, 1:serv, 2:client & serv */
-            simta_service_smtps = atoi( optarg );
-            if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
-                fprintf( stderr, "%s: %s: invalid authorization level\n",
-                        prog, optarg );
-                exit( 1 );
-            }
-            break;
+	case 'w' :              /* authlevel 0:none, 1:serv, 2:client & serv */
+	    simta_service_smtps = atoi( optarg );
+	    if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
+		fprintf( stderr, "%s: %s: invalid authorization level\n",
+			prog, optarg );
+		exit( 1 );
+	    }
+	    break;
 
-        case 'x' :              /* ca file */
-            simta_file_ca = optarg;
-            break;
+	case 'x' :              /* ca file */
+	    simta_file_ca = optarg;
+	    break;
 
-        case 'y' :              /* cert file */
-            simta_file_cert = optarg;
-            break;
+	case 'y' :              /* cert file */
+	    simta_file_cert = optarg;
+	    break;
 
-        case 'z' :              /* private key */
-            simta_file_private_key = optarg;
-            break;
+	case 'z' :              /* private key */
+	    simta_file_private_key = optarg;
+	    break;
 
 	default:
 	    err++;
@@ -469,7 +469,7 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -P ca-directory ] [ -Q queue]" );
 	fprintf( stderr, " [ -s spooldir ]" );
 	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
-        fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
+	fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
 	fprintf( stderr, "\n" );
 	exit( 1 );
     }
@@ -484,13 +484,13 @@ main( int ac, char **av )
     umask( 022 );
 
     if ( simta_gettimeofday( NULL ) != 0 ) {
-        exit( 1 );
+	exit( 1 );
     }
 
     simta_openlog( 0 );
 
     if ( simta_read_config( config_fname ) < 0 ) {
-        exit( 1 );
+	exit( 1 );
     }
 
     /* ignore SIGPIPE */
@@ -689,7 +689,7 @@ main( int ac, char **av )
 
     /* Start logging in daemon mode */
     if ( simta_gettimeofday( NULL ) != 0 ) {
-        exit( 1 );
+	exit( 1 );
     }
 
     simta_openlog( 0 );
@@ -742,7 +742,7 @@ simta_daemonize_server( void )
     int				pid;
 
     if ( simta_gettimeofday( NULL ) != 0 ) {
-        return( 1 );
+	return( 1 );
     }
 
     switch ( pid = fork()) {
@@ -868,8 +868,8 @@ simta_server( void )
 
 #ifndef Q_SIMULATION
     if (( pf = fdopen( simta_pidfd, "w" )) == NULL ) {
-        syslog( LOG_ERR, "Syserror: can't fdopen simta_pidfd" );
-        exit( 1 );
+	syslog( LOG_ERR, "Syserror: can't fdopen simta_pidfd" );
+	exit( 1 );
     }
     fprintf( pf, "%d\n", (int)getpid());
     if ( fflush( pf ) != 0 ) {

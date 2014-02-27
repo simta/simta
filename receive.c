@@ -783,7 +783,7 @@ f_mail( struct receive_data *r )
 		r->r_av[ 1 ] + strlen( "FROM:" ), &addr, &domain ) != 0 ) {
 	    return( f_mail_usage( r ));
 	}
-    	parameters = 2;
+	parameters = 2;
     }
 
     for ( i = parameters; i < r->r_ac; i++ ) {
@@ -2476,7 +2476,7 @@ f_auth( struct receive_data *r )
 
     case SASL_BADPROT:
 	/* RFC 2554:
- 	 * If the client uses an initial-response argument to the AUTH    
+	 * If the client uses an initial-response argument to the AUTH    
 	 * command with a mechanism that sends data in the initial
 	 * challenge, the server rejects the AUTH command with a 535
 	 * reply.
@@ -2520,7 +2520,7 @@ f_auth( struct receive_data *r )
 	return( smtp_write_banner( r, 538, NULL, NULL ));
 
     default:
-        sasl_getprop( r->r_conn, SASL_USERNAME, (const void **) &r->r_auth_id );
+	sasl_getprop( r->r_conn, SASL_USERNAME, (const void **) &r->r_auth_id );
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"sasl_start_server: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
@@ -2725,14 +2725,14 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	*hostname = '\0';
-        switch ( r.r_dns_match =
+	switch ( r.r_dns_match =
 		check_reverse( hostname, &(c->c_sin.sin_addr))) {
 
 	default:
 	    syslog( LOG_ERR, "Syserror smtp_receive check_reverse: "
 		    "out of range" );
 	    /* fall through to REVERSE_ERROR */
-        case REVERSE_ERROR:
+	case REVERSE_ERROR:
 	    r.r_remote_hostname = S_UNKNOWN;
 	    if ( simta_ignore_connect_in_reverse_errors ) {
 		syslog( LOG_INFO, "Connect.in [%s] %s: "
@@ -2753,12 +2753,12 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 	    break;
 
-        case REVERSE_MATCH:
+	case REVERSE_MATCH:
 	    r.r_remote_hostname = hostname;
 	    break;
 
 	case REVERSE_UNKNOWN:
-        case REVERSE_MISMATCH:
+	case REVERSE_MISMATCH:
 	    /* invalid reverse */
 	    if ( r.r_dns_match == REVERSE_MISMATCH ) {
 		r.r_remote_hostname = S_MISMATCH;
@@ -2780,7 +2780,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 			r.r_remote_hostname );
 	    }
 	    break;
-        } /* end of switch */
+	} /* end of switch */
 
 #ifdef HAVE_LIBWRAP
 	if ( simta_debug != 0 ) {
@@ -2806,50 +2806,50 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 #endif /* HAVE_LIBWRAP */
 
-        if ( simta_rbls != NULL ) {
+	if ( simta_rbls != NULL ) {
 	    if ( simta_debug != 0 ) {
 		syslog( LOG_DEBUG, "Debug: smtp_mail checking rbls" );
 	    }
 
-            switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
+	    switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
 		    r.r_remote_hostname, NULL, &(r.r_rbl), &(r.r_rbl_msg))) {
-            case RBL_BLOCK:
+	    case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;
-                syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked %s: %s",
+		syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked %s: %s",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-                        (r.r_rbl)->rbl_domain, r.r_rbl_msg );
+			(r.r_rbl)->rbl_domain, r.r_rbl_msg );
 		set_smtp_mode( &r, SMTP_MODE_OFF, "RBL Blocked" );
 		break;
 
-            case RBL_ACCEPT:
+	    case RBL_ACCEPT:
 		r.r_rbl_status = RBL_ACCEPT;
-                syslog( LOG_INFO, "Connect.in [%s] %s: RBL Accepted: %s",
+		syslog( LOG_INFO, "Connect.in [%s] %s: RBL Accepted: %s",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-                        (r.r_rbl)->rbl_domain );
-                break;
+			(r.r_rbl)->rbl_domain );
+		break;
 
-            case RBL_NOT_FOUND:
+	    case RBL_NOT_FOUND:
 		/* leave as RBL_UNKNOWN so user tests happen */
 		r.r_rbl_status = RBL_UNKNOWN;
-                syslog( LOG_DEBUG, "Connect.in [%s] %s: RBL Unlisted",
+		syslog( LOG_DEBUG, "Connect.in [%s] %s: RBL Unlisted",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-                break;
+		break;
 
 	    case RBL_ERROR:
-            default:
+	    default:
 		r.r_rbl_status = RBL_UNKNOWN;
-                syslog( LOG_INFO,
+		syslog( LOG_INFO,
 			"Connect.in [%s] %s: RBL Error: %s",
 			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-                        (r.r_rbl)->rbl_domain );
-                if ( dnsr_errno( simta_dnsr ) !=
-                        DNSR_ERROR_TIMEOUT ) {
-                    goto syserror;
-                }
-                dnsr_errclear( simta_dnsr );
-                break;
-            }
-        }
+			(r.r_rbl)->rbl_domain );
+		if ( dnsr_errno( simta_dnsr ) !=
+			DNSR_ERROR_TIMEOUT ) {
+		    goto syserror;
+		}
+		dnsr_errclear( simta_dnsr );
+		break;
+	    }
+	}
 
 	if ( r.r_rbl_status != RBL_ACCEPT ) {
 	    if (( simta_local_connections_max != 0 ) &&
@@ -3178,7 +3178,7 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 	 * NULL terminated array of additional property names, values
 	 * const char **property_names;
 	 * const char **property_values;
-         */ 
+	 */ 
 
 	/* These are the various security flags apps can specify. */
 	/* NOPLAINTEXT      -- don't permit mechanisms susceptible to simple 
@@ -3650,24 +3650,24 @@ reset_sasl_conn( struct receive_data *r )
     sasl_dispose( &r->r_conn );
 
     if (( rc = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
-            0, &r->r_conn )) != SASL_OK ) {
+	    0, &r->r_conn )) != SASL_OK ) {
 	syslog( LOG_ERR, "Syserror reset_sasl_conn: sasl_server_new: %s",
 		sasl_errdetail( r->r_conn ));
-        return( rc );
+	return( rc );
     }
 
     if (( rc = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
 	    &r->r_ext_ssf )) != SASL_OK) {
 	syslog( LOG_ERR, "Syserror reset_sasl_conn: sasl_setprop1: %s",
 		sasl_errdetail( r->r_conn ));
-        return( rc );
+	return( rc );
     }
 
     if (( rc = sasl_setprop( r->r_conn, SASL_AUTH_EXTERNAL,
 	    &r->r_ext_ssf )) != SASL_OK) {
 	syslog( LOG_ERR, "Syserror reset_sasl_conn: sasl_setprop2: %s",
 		sasl_errdetail( r->r_conn ));
-        return( rc );
+	return( rc );
     }
 
     return( SASL_OK );

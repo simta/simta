@@ -195,26 +195,26 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
 	syslog( LOG_ERR, "bounce_dfile_out fdopen %s: %m", dfile_fname );
-        if ( close( dfile_fd ) != 0 ) {
+	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce_dfile_out fclose %s: %m", dfile_fname );
 	}
 	return( 0 );
     }
 
     if ( time( &clock ) < 0 ) {
-        syslog( LOG_ERR, "bounce_dfile_out time: %m" );
-        goto cleanup;
+	syslog( LOG_ERR, "bounce_dfile_out time: %m" );
+	goto cleanup;
     }
 
     if (( tm = localtime( &clock )) == NULL ) {
-        syslog( LOG_ERR, "bounce_dfile_out localtime: %m" );
-        goto cleanup;
+	syslog( LOG_ERR, "bounce_dfile_out localtime: %m" );
+	goto cleanup;
     }
 
     if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
-            == 0 ) {
-        syslog( LOG_ERR, "bounce_dfile_out strftime: %m" );
-        goto cleanup;
+	    == 0 ) {
+	syslog( LOG_ERR, "bounce_dfile_out strftime: %m" );
+	goto cleanup;
     }
 
     /* dfile message headers */
@@ -248,7 +248,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
 	syslog( LOG_ERR, "bounce_dfile_out fstat %s: %m", dfile_fname );
-        goto cleanup;
+	goto cleanup;
     }
 
     ret = 1;
@@ -372,39 +372,39 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
 
     sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
     if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 ))
-            < 0 ) {
-        syslog( LOG_ERR, "bounce %s open %s: %m", env->e_id, dfile_fname );
-        goto cleanup1;
+	    < 0 ) {
+	syslog( LOG_ERR, "bounce %s open %s: %m", env->e_id, dfile_fname );
+	goto cleanup1;
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
-        syslog( LOG_ERR, "bounce %s fdopen %s: %m", env->e_id, dfile_fname );
-        if ( close( dfile_fd ) != 0 ) {
+	syslog( LOG_ERR, "bounce %s fdopen %s: %m", env->e_id, dfile_fname );
+	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
 	}
-        goto cleanup2;
+	goto cleanup2;
     }
     if ( time( &clock ) < 0 ) {
-        syslog( LOG_ERR, "bounce %s time: %m", env->e_id );
-        if ( close( dfile_fd ) != 0 ) {
+	syslog( LOG_ERR, "bounce %s time: %m", env->e_id );
+	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
 	}
-        goto cleanup2;
+	goto cleanup2;
     }
     if (( tm = localtime( &clock )) == NULL ) {
-        syslog( LOG_ERR, "bounce %s localtime: %m", env->e_id );
-        if ( close( dfile_fd ) != 0 ) {
+	syslog( LOG_ERR, "bounce %s localtime: %m", env->e_id );
+	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
 	}
-        goto cleanup2;
+	goto cleanup2;
     }
     if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
-            == 0 ) {
-        syslog( LOG_ERR, "bounce %s strftime: %m", env->e_id );
-        if ( close( dfile_fd ) != 0 ) {
+	    == 0 ) {
+	syslog( LOG_ERR, "bounce %s strftime: %m", env->e_id );
+	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "bounce %s close %s: %m", env->e_id, dfile_fname );
 	}
-        goto cleanup2;
+	goto cleanup2;
     }
 
     fprintf( dfile, "From: <mailer-daemon@%s>\n", simta_hostname );
@@ -472,15 +472,15 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
 	    n_bounces++;
 	    syslog( LOG_INFO, "Bounce %s: %s: Bouncing <%s> From <%s>",
 		    env->e_id, bounce_env->e_id, r->r_rcpt, env->e_mail );
-            fprintf( dfile, "address %s\n", r->r_rcpt );
-            if ( r->r_err_text != NULL ) {
-                for ( l = r->r_err_text->l_first; l != NULL;
+	    fprintf( dfile, "address %s\n", r->r_rcpt );
+	    if ( r->r_err_text != NULL ) {
+		for ( l = r->r_err_text->l_first; l != NULL;
 			l = l->line_next ) {
-                    fprintf( dfile, "%s\n", l->line_data );
-                }
-            }
-            fprintf( dfile, "\n" );
-        }
+		    fprintf( dfile, "%s\n", l->line_data );
+		}
+	    }
+	    fprintf( dfile, "\n" );
+	}
     }
 
     if ( sn != NULL ) {
@@ -493,13 +493,13 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
 	syslog( LOG_ERR, "bounce %s fstat %s: %m", env->e_id, dfile_fname );
-        goto cleanup3;
+	goto cleanup3;
     }
     bounce_env->e_dinode = sbuf.st_ino;
 
     if ( fclose( dfile ) != 0 ) {
 	syslog( LOG_ERR, "bounce %s fclose %s: %m", env->e_id, dfile_fname );
-        goto cleanup3;
+	goto cleanup3;
     }
 
     if ( env_outfile( bounce_env ) != 0 ) {

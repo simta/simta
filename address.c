@@ -447,7 +447,7 @@ address_expand( struct expand *exp )
 	    }
 
 #ifdef HAVE_LDAP
-        case EXPANSION_TYPE_LDAP:
+	case EXPANSION_TYPE_LDAP:
 	    if ( e_addr->e_addr_at == NULL ) {
 		continue;
 	    }

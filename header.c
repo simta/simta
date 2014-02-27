@@ -847,7 +847,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
     } else {
-        if (( simta_simsend_strict_from != 0 ) &&
+	if (( simta_simsend_strict_from != 0 ) &&
 		( simta_generate_sender != 0 )) {
 	    if (( len = ( strlen( headers_simsendmail[ HEAD_SENDER ].h_key ) +
 		    strlen( env->e_mail ) + 3 )) > prepend_len ) {
@@ -859,16 +859,16 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 		prepend_len = len;
 
-                sprintf( prepend_line, "%s: %s",
-                        headers_simsendmail[ HEAD_SENDER ].h_key, env->e_mail );
+		sprintf( prepend_line, "%s: %s",
+			headers_simsendmail[ HEAD_SENDER ].h_key, env->e_mail );
 
-                if (( headers_simsendmail[ HEAD_SENDER ].h_line =
-                        line_prepend( lf, prepend_line, COPY )) == NULL ) {
-                    perror( "malloc" );
-                    return( -1 );
-                }
-            }
-        }
+		if (( headers_simsendmail[ HEAD_SENDER ].h_line =
+			line_prepend( lf, prepend_line, COPY )) == NULL ) {
+		    perror( "malloc" );
+		    return( -1 );
+		}
+	    }
+	}
     }
 
     if ( headers_simsendmail[ HEAD_DATE ].h_line == NULL ) {
@@ -1976,7 +1976,7 @@ line_token_quoted_string( struct line_token *token, struct line *l,
 
 	    if ( *start == '\0' ) {
 		/* trailing '\' is illegal */
-	    	return( 1 );
+		return( 1 );
 	    }
 	    break;
 
@@ -2025,7 +2025,7 @@ token_quoted_string( char *start )
 
 	    if ( *start == '\0' ) {
 		/* eol */
-	    	return( NULL );
+		return( NULL );
 	    }
 	    break;
 
@@ -2069,7 +2069,7 @@ line_token_domain_literal( struct line_token *token, struct line *l,
 
 	    if ( *start == '\0' ) {
 		/* trailing '\' is illegal */
-	    	return( -1 );
+		return( -1 );
 	    }
 	    break;
 
@@ -2118,7 +2118,7 @@ token_domain_literal( char *i )
 
 	    if ( *i == '\0' ) {
 		/* eol */
-	    	return( NULL );
+		return( NULL );
 	    }
 	    break;
 
