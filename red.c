@@ -299,3 +299,4 @@ red_action_default( struct simta_red *red )
 
     return( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

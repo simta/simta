@@ -110,3 +110,4 @@ void	queue_log_metrics( struct host_q * );
 
 int	q_read_dir( struct simta_dirp * );
 int	hq_deliver_push( struct host_q *, struct timeval *, struct timeval * );
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

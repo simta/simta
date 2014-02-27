@@ -33,3 +33,4 @@ struct simta_red *host_local( char * );
 int rbl_add( struct rbl**, int, char *, char * );
 int rbl_check( struct rbl *, struct in_addr *, char *, char *,
 	struct rbl**, char ** );
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

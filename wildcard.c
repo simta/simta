@@ -84,3 +84,4 @@ wildcard( char *wild, char *p, int sensitive )
 	}
     }
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -64,3 +64,4 @@ main( int argc, char *argv[] )
 
     exit( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -254,3 +254,4 @@ tls_client_cert( char *hostname, const SSL *ssl )
 
     return( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

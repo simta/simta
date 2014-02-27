@@ -124,3 +124,4 @@ int permitted_create( struct exp_addr *, char ** );
 void permitted_destroy( struct exp_addr * );
 char *parent_permitted( struct exp_addr * );
 #endif /* HAVE_LDAP */
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

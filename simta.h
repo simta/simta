@@ -299,3 +299,4 @@ ino_t bounce_dfile_out( struct envelope *, SNET * );
 struct envelope *bounce( struct envelope *, int, char * );
 struct envelope *bounce_snet( struct envelope *, SNET *, struct host_q *,
 	char *err );
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

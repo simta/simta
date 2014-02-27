@@ -511,3 +511,4 @@ file_list_add( struct file_list **f_list, int mode, char *dir, char *f_id )
 
     return( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

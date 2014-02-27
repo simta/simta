@@ -790,3 +790,4 @@ exp_addr_link_free( struct exp_link *links )
     return;
 }
 #endif /* HAVE_LDAP */
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

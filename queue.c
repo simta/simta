@@ -2223,3 +2223,4 @@ queue_log_metrics( struct host_q *hq_schedule )
 
     return;
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

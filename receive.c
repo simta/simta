@@ -3681,3 +3681,4 @@ reset_sasl_conn( struct receive_data *r )
 }
 
 #endif /* HAVE_LIBSASL */
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

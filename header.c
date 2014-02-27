@@ -2480,3 +2480,4 @@ header_free( struct receive_headers *r )
 	r->r_all_seen_before = 0;
     }
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

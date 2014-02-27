@@ -1030,3 +1030,4 @@ smtp_quit( struct host_q *hq, struct deliver *d )
 
     return;
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

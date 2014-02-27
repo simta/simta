@@ -173,3 +173,4 @@ main( int argc, char *argv[])
 	exit( SIMRBL_EXIT_NOT_BLOCKED );
     }
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

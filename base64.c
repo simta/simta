@@ -421,3 +421,4 @@ base64_d( char *e, int elen, unsigned char *d )
     }
     return;
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

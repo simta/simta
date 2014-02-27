@@ -951,3 +951,4 @@ parent_permitted( struct exp_addr *memonly )
     return( NULL );
 }
 #endif /* HAVE_LDAP */
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
