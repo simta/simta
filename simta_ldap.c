@@ -886,6 +886,10 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
 
     if ( ld->ldap_ld == NULL ) {
 	if (( rc = simta_ldap_init( ld )) != 0 ) {
+	    /* Reset so that future calls don't think everything's hunky-dory
+	     * and return incorrect results.
+	     */
+	    simta_ldap_unbind( ld );
 	    return( rc );
 	}
     }
@@ -935,6 +939,7 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
 		    "%s", ldap_err2string( rc ));
 	    ldap_msgfree( res );
 	    free( dup_name );
+	    simta_ldap_unbind( ld );
 	    return( LDAP_SYSERROR );
 	}
 
