@@ -158,7 +158,6 @@ struct receive_data {
 #define S_MAXCONNECT "Maximum connections exceeded"
 #define S_TIMEOUT "Connection length exceeded"
 #define S_CLOSING "closing transmission channel"
-#define S_UNKNOWN_HOST "Unknown host"
 #define S_UNKNOWN string_unknown	/* "unknown" */
 #define S_UNRESOLVED "Unresolved"
 #define S_DENIED "Access denied for IP"

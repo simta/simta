@@ -21,6 +21,7 @@
 
 #define	STRING_POSTMASTER		"postmaster"
 #define	S_UNEXPANDED			"Unexpanded"
+#define S_UNKNOWN_HOST                  "Unknown host"
 
 #define SIMTA_LOG_ID_LEN		80
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
