@@ -235,43 +235,48 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	     * 
 	     */
 
-	    c = line + 4;
+	    free( hq->hq_smtp_hostname );
 
-	    if ( *c == '[' ) {
-		for ( c++; *c != ']'; c++ ) {
-		    if ( *c == '\0' ) {
-			syslog( LOG_NOTICE, "Connect.out [%s] %s: Failed: "
-				"illlegal hostname in SMTP banner: %s",
-				inet_ntoa( d->d_sin.sin_addr ),
-				hq->hq_hostname, line );
-			if (( smtp_reply = smtp_consume_banner(
-				&(hq->hq_err_text), d, line,
-				"Illegal hostname in banner" )) != SMTP_OK ) {
-			    return( smtp_reply );
+	    if ( strlen( line ) > 4 ) {
+		c = line + 4;
+
+		if ( *c == '[' ) {
+		    /* Make sure there's a closing bracket */
+		    for ( c++; *c != ']'; c++ ) {
+			if ( *c == '\0' ) {
+			    syslog( LOG_NOTICE, "Connect.out [%s] %s: Failed: "
+				    "illegal hostname in SMTP banner: %s",
+				    inet_ntoa( d->d_sin.sin_addr ),
+				    hq->hq_hostname, line );
+			    if (( smtp_reply = smtp_consume_banner(
+				    &(hq->hq_err_text), d, line,
+				    "Illegal hostname in banner" )) != SMTP_OK ) {
+				return( smtp_reply );
+			    }
+
+			    return( SMTP_ERROR );
 			}
-
-			return( SMTP_ERROR );
 		    }
+
 		}
-
-		c++;
-
-	    } else {
 		for ( c++; *c != '\0'; c++ ) {
-		    if ( isspace( *c ) != 0 ) {
+		    if (( *c == ']' ) || ( isspace( *c ) != 0 )) {
 			break;
 		    }
 		}
-	    }
 
-	    old = *c;
-	    *c = '\0';
-	    free( hq->hq_smtp_hostname );
-	    if (( hq->hq_smtp_hostname = strdup( line + 4 )) == NULL ) {
-		syslog( LOG_ERR, "Syserror smtp_reply: strdup: %m" );
-		return( SMTP_ERROR );
-	    }
-	    *c = old;
+		old = *c;
+		*c = '\0';
+		if (( hq->hq_smtp_hostname = strdup( line + 4 )) == NULL ) {
+		    syslog( LOG_ERR, "Syserror smtp_reply: strdup: %m" );
+		    return( SMTP_ERROR );
+		}
+		*c = old;
+	    } else if (( hq->hq_smtp_hostname = strdup( S_UNKNOWN_HOST ))
+                    == NULL ) {
+                syslog( LOG_ERR, "Syserror smtp_reply: strdup: %m" );
+                return( SMTP_ERROR );
+            }
 
 	    if ( strcmp( hq->hq_smtp_hostname, simta_hostname ) == 0 ) {
 		syslog( LOG_WARNING,
