@@ -57,13 +57,6 @@
 #define S_STARTTLS "STARTTLS"
 #endif /* HAVE_LIBSSL */
 
-
-#ifdef HAVE_LIBSSL
-#include "tls.h"
-#define S_STARTTLS "STARTTLS"
-#endif /* HAVE_LIBSSL */
-
-
 #ifdef DEBUG
 void	(*smtp_logger)(char *) = stdout_logger;
 #else /* DEBUG */
