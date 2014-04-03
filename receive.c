@@ -549,7 +549,7 @@ smtp_write_banner( struct receive_data *r, int reply_code, char *msg,
 
     if ( hostname ) {
 	if ( arg != NULL ) {
-	    if ( snet_writef( r->r_snet, "%d <%s> %s: %s\r\n", reply_code,
+	    if ( snet_writef( r->r_snet, "%d %s %s: %s\r\n", reply_code,
 		    simta_hostname, msg ? msg : boilerplate, arg ) < 0 ) {
 		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
 			"smtp_banner_message: snet_writef: %m",
@@ -558,7 +558,7 @@ smtp_write_banner( struct receive_data *r, int reply_code, char *msg,
 	    }
 
 	} else {
-	    if ( snet_writef( r->r_snet, "%d <%s> %s\r\n", reply_code,
+	    if ( snet_writef( r->r_snet, "%d %s %s\r\n", reply_code,
 		    simta_hostname, msg ? msg : boilerplate ) < 0 ) {
 		syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
 			"smtp_banner_message: snet_writef: %m",
