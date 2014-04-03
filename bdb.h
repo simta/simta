@@ -11,3 +11,4 @@ int db_cursor_next( DB *dbp, DBC **dbcp, DBT *key, DBT *value );
 int db_cursor_close( DBC *dbcp );
 
 int db_close( DB *dbp );
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -143,7 +143,7 @@ main( int argc, char *argv[] )
 	case 'f':
 	case 'r':
 	    /* Specify a different from address, for testing purposes */
-    	    sender = optarg;
+	    sender = optarg;
 	    if ( !is_emailaddr( sender )) {
 		usage = 1;
 	    }
@@ -151,7 +151,7 @@ main( int argc, char *argv[] )
 
 	case 'i':
 	    /* Ignore a single dot on a line as an end of message marker */
-    	    ignore_dot = 1;
+	    ignore_dot = 1;
 	    break;
 
 	case 'o':
@@ -424,7 +424,7 @@ main( int argc, char *argv[] )
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
 	perror( "fstat" );
 	fclose( dfile );
-        goto cleanup;
+	goto cleanup;
     }
     env->e_dinode = sbuf.st_ino;
 
@@ -495,3 +495,4 @@ cleanup:
 
     exit( EX_TEMPFAIL );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

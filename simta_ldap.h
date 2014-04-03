@@ -49,3 +49,4 @@ int	simta_ldap_address_local( struct simta_ldap *, char *, char * );
 int	simta_mbx_compare( int, char *, char * );
 void	simta_ldap_unbind( struct simta_ldap * );
 
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

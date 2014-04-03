@@ -447,7 +447,7 @@ address_expand( struct expand *exp )
 	    }
 
 #ifdef HAVE_LDAP
-        case EXPANSION_TYPE_LDAP:
+	case EXPANSION_TYPE_LDAP:
 	    if ( e_addr->e_addr_at == NULL ) {
 		continue;
 	    }
@@ -790,3 +790,4 @@ exp_addr_link_free( struct exp_link *links )
     return;
 }
 #endif /* HAVE_LDAP */
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

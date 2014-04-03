@@ -192,11 +192,11 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 	}
     }
     if ( caDir != NULL ) {
-        if ( SSL_CTX_load_verify_locations( ssl_ctx, NULL, caDir ) != 1 ) {
-            fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
-                    caDir, ERR_error_string( ERR_get_error(), NULL ));
-            goto error;
-        }
+	if ( SSL_CTX_load_verify_locations( ssl_ctx, NULL, caDir ) != 1 ) {
+	    fprintf( stderr, "SSL_CTX_load_verify_locations: %s: %s\n",
+		    caDir, ERR_error_string( ERR_get_error(), NULL ));
+	    goto error;
+	}
     }
 
     /* Set level of security expecations */
@@ -236,11 +236,11 @@ tls_client_cert( char *hostname, const SSL *ssl )
     san_names = X509_get_ext_d2i( peer, NID_subject_alt_name, NULL, NULL );
     san_names_num = sk_GENERAL_NAME_num( san_names );
     for ( i = 0 ; i < san_names_num ; i++ ) {
-        current_name = sk_GENERAL_NAME_value( san_names, i );
-        if ( current_name->type == GEN_DNS ) {
-            syslog( LOG_DEBUG, "Deliver %s: cert subject alt name: %s",
-                    hostname, ASN1_STRING_data( current_name->d.dNSName ));
-        }
+	current_name = sk_GENERAL_NAME_value( san_names, i );
+	if ( current_name->type == GEN_DNS ) {
+	    syslog( LOG_DEBUG, "Deliver %s: cert subject alt name: %s",
+		    hostname, ASN1_STRING_data( current_name->d.dNSName ));
+	}
     }
 
     sk_GENERAL_NAME_pop_free(san_names, GENERAL_NAME_free);
@@ -254,3 +254,4 @@ tls_client_cert( char *hostname, const SSL *ssl )
 
     return( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

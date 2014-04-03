@@ -41,3 +41,4 @@ int	smtp_connect( struct host_q *, struct deliver * );
 int	smtp_rset( struct host_q *, struct deliver * );
 int	smtp_send( struct host_q *, struct deliver * );
 void	smtp_quit( struct host_q *, struct deliver * );
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -1440,7 +1440,7 @@ simta_read_config( char *fname )
 			    "argument must be 0 or greater\n", fname, lineno );
 		}
 	    } else {
-                fprintf( stderr, "%s: line %d: expected 0 or 1 arguments\n",
+		fprintf( stderr, "%s: line %d: expected 0 or 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
@@ -1448,7 +1448,7 @@ simta_read_config( char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "IGNORE_REVERSE" ) == 0 ) {
 	    if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 arguments\n",
+		fprintf( stderr, "%s: line %d: expected 0 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
@@ -1457,7 +1457,7 @@ simta_read_config( char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_DATA_URL" ) == 0 ) {
 	    if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 arguments\n",
+		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
@@ -1469,7 +1469,7 @@ simta_read_config( char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "LIBWRAP_URL" ) == 0 ) {
 	    if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 arguments\n",
+		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
@@ -1481,7 +1481,7 @@ simta_read_config( char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "REVERSE_URL" ) == 0 ) {
 	    if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 arguments\n",
+		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
@@ -1491,136 +1491,136 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
 
-        } else if ( strcasecmp( av[ 0 ], "BOUNCE_JAIL" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "BOUNCE_JAIL" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_bounce_jail = 1;
-            if ( simta_debug ) printf( "BOUNCE_JAIL\n" );
+		goto error;
+	    }
+	    simta_bounce_jail = 1;
+	    if ( simta_debug ) printf( "BOUNCE_JAIL\n" );
 
-        } else if ( strcasecmp( av[ 0 ], "LOCAL_JAIL" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "LOCAL_JAIL" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_local_jail = 1;
-            if ( simta_debug ) printf( "LOCAL_JAIL\n" );
+		goto error;
+	    }
+	    simta_local_jail = 1;
+	    if ( simta_debug ) printf( "LOCAL_JAIL\n" );
 
-        } else if ( strcasecmp( av[ 0 ], "MAIL_JAIL" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "MAIL_JAIL" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_mail_jail = 1;
-            if ( simta_debug ) printf( "MAIL_JAIL\n" );
+		goto error;
+	    }
+	    simta_mail_jail = 1;
+	    if ( simta_debug ) printf( "MAIL_JAIL\n" );
 
-        } else if ( strcasecmp( av[ 0 ], "ENABLE_MID_LIST" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "ENABLE_MID_LIST" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_queue_incoming_smtp_mail = 1;
+		goto error;
+	    }
+	    simta_queue_incoming_smtp_mail = 1;
 	    simta_mid_list_enable = 1;
-            if ( simta_debug ) printf( "ENABLE_MID_LIST\n" );
+	    if ( simta_debug ) printf( "ENABLE_MID_LIST\n" );
 
-        } else if ( strcasecmp( av[ 0 ], "ENABLE_SENDER_LIST" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "ENABLE_SENDER_LIST" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_queue_incoming_smtp_mail = 1;
+		goto error;
+	    }
+	    simta_queue_incoming_smtp_mail = 1;
 	    simta_sender_list_enable = 1;
-            if ( simta_debug ) printf( "ENABLE_SENDER_LIST\n" );
+	    if ( simta_debug ) printf( "ENABLE_SENDER_LIST\n" );
 
-        } else if ( strcasecmp( av[ 0 ], "QUEUE_INCOMING_SMTP_MAIL" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "QUEUE_INCOMING_SMTP_MAIL" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_queue_incoming_smtp_mail = 1;
-            if ( simta_debug ) printf( "QUEUE_INCOMING_SMTP_MAIL\n" );
+		goto error;
+	    }
+	    simta_queue_incoming_smtp_mail = 1;
+	    if ( simta_debug ) printf( "QUEUE_INCOMING_SMTP_MAIL\n" );
 
-        } else if ( strcasecmp( av[ 0 ],
-                "IGNORE_CONNECT_IN_DNS_ERRORS" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ],
+		"IGNORE_CONNECT_IN_DNS_ERRORS" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_ignore_connect_in_reverse_errors = 1;
+		goto error;
+	    }
+	    simta_ignore_connect_in_reverse_errors = 1;
 	    simta_ignore_reverse = 1;
-            if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
+	    if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_VERBOSE_LOGGING" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 arguments\n",
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 arguments\n",
 			fname, lineno );
-                goto error;
-            }
+		goto error;
+	    }
 	    simta_rbl_verbose_logging = 1;
-            if ( simta_debug ) printf( "RBL_VERBOSE_LOGGING\n" );
+	    if ( simta_debug ) printf( "RBL_VERBOSE_LOGGING\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_BLOCK" ) == 0 ) {
-            if ( ac != 3 ) {
-                fprintf( stderr, "%s: line %d: expected 2 argument\n",
-                    fname, lineno );
-                goto error;
-            }
+	    if ( ac != 3 ) {
+		fprintf( stderr, "%s: line %d: expected 2 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
 
 	    if ( rbl_add( &simta_rbls, RBL_BLOCK, av[ 1 ], av[ 2 ]) != 0 ) {
 		perror( "malloc" );
 		goto error;
 	    }
 
-            if ( simta_debug ) {
+	    if ( simta_debug ) {
 		printf( "RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_LOG_ONLY" ) == 0 ) {
-            if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 argument\n",
-                    fname, lineno );
-                goto error;
-            }
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
 
 	    if ( rbl_add( &simta_rbls, RBL_LOG_ONLY, av[ 1 ], "") != 0 ) {
 		perror( "malloc" );
 		goto error;
 	    }
 
-            if ( simta_debug ) {
+	    if ( simta_debug ) {
 		printf( "RBL_LOG_ONLY: %s\n", av[ 1 ]);
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_ACCEPT" ) == 0 ) {
-            if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 argument\n",
-                    fname, lineno );
-                goto error;
-            }
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
 
 	    if ( rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], "") != 0 ) {
 		perror( "malloc" );
 		goto error;
 	    }
 
-            if ( simta_debug ) {
+	    if ( simta_debug ) {
 		printf( "RBL_ACCEPT: %s\n", av[ 1 ]);
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "USER_RBL_BLOCK" ) == 0 ) {
-            if ( ac != 3 ) {
-                fprintf( stderr, "%s: line %d: expected 2 argument\n",
-                    fname, lineno );
-                goto error;
-            }
+	    if ( ac != 3 ) {
+		fprintf( stderr, "%s: line %d: expected 2 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
 
 	    if ( rbl_add( &simta_user_rbls, RBL_BLOCK, av[ 1 ],
 		    av[ 2 ]) != 0 ) {
@@ -1628,39 +1628,39 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-            if ( simta_debug ) {
+	    if ( simta_debug ) {
 		printf( "USER_RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "USER_RBL_LOG_ONLY" ) == 0 ) {
-            if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 argument\n",
-                    fname, lineno );
-                goto error;
-            }
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
 
 	    if ( rbl_add( &simta_user_rbls, RBL_LOG_ONLY, av[ 1 ], "" ) != 0 ) {
 		perror( "malloc" );
 		goto error;
 	    }
 
-            if ( simta_debug ) {
+	    if ( simta_debug ) {
 		printf( "USER_RBL_LOG_ONLY: %s\n", av[ 1 ]);
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "USER_RBL_ACCEPT" ) == 0 ) {
-            if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 argument\n",
-                    fname, lineno );
-                goto error;
-            }
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
 
 	    if ( rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ], "" ) != 0 ) {
 		perror( "malloc" );
 		goto error;
 	    }
 
-            if ( simta_debug ) {
+	    if ( simta_debug ) {
 		printf( "USER_RBL_ACCEPT: %s\n", av[ 1 ]);
 	    }
 
@@ -1740,60 +1740,60 @@ simta_read_config( char *fname )
 			simta_default_alias_db : "Disabled" );
 	    }
 
-        } else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM_OFF" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM_OFF" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
+		goto error;
+	    }
 	    simta_simsend_strict_from = 0;
-            if ( simta_debug ) printf( "SIMSEND_STRICT_FROM_OFF\n" );
+	    if ( simta_debug ) printf( "SIMSEND_STRICT_FROM_OFF\n" );
 
-        } else if ( strcasecmp( av[ 0 ], "SUBMISSION_PORT" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_PORT" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_service_submission = SERVICE_SUBMISSION_ON;
-            if ( simta_debug ) printf( "SUBMISSION_PORT\n" );
+		goto error;
+	    }
+	    simta_service_submission = SERVICE_SUBMISSION_ON;
+	    if ( simta_debug ) printf( "SUBMISSION_PORT\n" );
 
-        } else if ( strcasecmp( av[ 0 ], "AUTHLEVEL" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "AUTHLEVEL" ) == 0 ) {
 	    /* authlevel 0:none, 1:serv, 2:client & serv */
-            if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_service_smtps = atoi( av[ 1 ]);
-            if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
-                fprintf( stderr, "%s: line %d: invalid authorization level\n",
+		goto error;
+	    }
+	    simta_service_smtps = atoi( av[ 1 ]);
+	    if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
+		fprintf( stderr, "%s: line %d: invalid authorization level\n",
 			fname, lineno );
-                goto error;
-            }
+		goto error;
+	    }
 
-        } else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
 	    if ( simta_tls ) {
-                fprintf( stderr, "%s: line %d: tls already started\n",
+		fprintf( stderr, "%s: line %d: tls already started\n",
 			fname, lineno );
-                goto error;
-            }
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+		goto error;
+	    }
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
-            simta_tls = 1;
-            if ( simta_debug ) printf( "TLS_ON\n" );
+		goto error;
+	    }
+	    simta_tls = 1;
+	    if ( simta_debug ) printf( "TLS_ON\n" );
 
-        } else if ( strcasecmp( av[ 0 ], "USE_RANDFILE" ) == 0 ) {
-            if ( ac != 1 ) {
-                fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "USE_RANDFILE" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
-                goto error;
-            }
+		goto error;
+	    }
 	    simta_use_randfile = 1;
-            if ( simta_debug ) printf( "USE_RANDFILE\n" );
+	    if ( simta_debug ) printf( "USE_RANDFILE\n" );
 
 	} else if ( strcasecmp( av[ 0 ], "DNS_AUTO_CONFIG" ) == 0 ) {
 	    /* DNS_AUTO_CONFIG <ON|OFF> */
@@ -1923,39 +1923,39 @@ simta_read_config( char *fname )
 	    }
 	    simta_smtp_extension++;
 
-        } else if ( strcasecmp( av[ 0 ],
-                "DELIVER_MAX_MESSAGES_PER_CONNECTION" ) == 0 ) {
-            if ( ac != 2 ) {
-                fprintf( stderr, "%s: line %d: expected 1 argument\n",
-                        fname, lineno );
-                goto error;
-            }
-            simta_outbound_connection_msg_max = strtol( av[ 1 ], &endptr, 10 );
-            if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
-                fprintf( stderr, "%s: line %d: invalid argument\n",
-                        fname, lineno );
-                goto error;
-            }
-            if ( simta_outbound_connection_msg_max == LONG_MIN ) {
-                fprintf( stderr, "%s: line %d: argument too small\n",
-                        fname, lineno );
-                goto error;
-            }
-            if ( simta_outbound_connection_msg_max == LONG_MAX ) {
-                fprintf( stderr, "%s: line %d: argument too big\n",
-                        fname, lineno );
-                goto error;
-            }
-            if ( simta_outbound_connection_msg_max < 0 ) {
-                fprintf( stderr, "%s: line %d: invalid negative argument\n",
-                        fname, lineno );
-                goto error;
-            }
+	} else if ( strcasecmp( av[ 0 ],
+		"DELIVER_MAX_MESSAGES_PER_CONNECTION" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_outbound_connection_msg_max = strtol( av[ 1 ], &endptr, 10 );
+	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
+		fprintf( stderr, "%s: line %d: invalid argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_outbound_connection_msg_max == LONG_MIN ) {
+		fprintf( stderr, "%s: line %d: argument too small\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_outbound_connection_msg_max == LONG_MAX ) {
+		fprintf( stderr, "%s: line %d: argument too big\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_outbound_connection_msg_max < 0 ) {
+		fprintf( stderr, "%s: line %d: invalid negative argument\n",
+			fname, lineno );
+		goto error;
+	    }
 
-            if ( simta_debug ) printf(
-                    "DELIVER_MAX_MESSAGES_PER_CONNECTION: %d\n",
-                    simta_outbound_connection_msg_max );
-            
+	    if ( simta_debug ) printf(
+		    "DELIVER_MAX_MESSAGES_PER_CONNECTION: %d\n",
+		    simta_outbound_connection_msg_max );
+	    
 	} else if ( strcasecmp( av[ 0 ], "MAX_FAILED_RCPTS" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
@@ -1999,22 +1999,22 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-        } else if ( strcasecmp( av[ 0 ], "SHUFFLE_QUEUES" ) == 0 ) {
-            if ( ac == 2 ) {
-                if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
-                    simta_shuffle_queues = 1;
-                    if ( simta_debug ) printf( "SHUFFLE_QUEUES ON\n" );
-                    continue;
-                } else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
-                    simta_shuffle_queues = 0;
-                    if ( simta_debug ) printf( "SHUFFLE_QUEUES OFF\n" );
-                    continue;
-                }
-            }
-            fprintf( stderr, "%s: line %d: usage: %s\n",
-                    fname, lineno,
-                    "SHUFFLE_QUEUES <ON|OFF>" );
-            goto error;
+	} else if ( strcasecmp( av[ 0 ], "SHUFFLE_QUEUES" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_shuffle_queues = 1;
+		    if ( simta_debug ) printf( "SHUFFLE_QUEUES ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_shuffle_queues = 0;
+		    if ( simta_debug ) printf( "SHUFFLE_QUEUES OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "SHUFFLE_QUEUES <ON|OFF>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_MODE" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2295,3 +2295,4 @@ simta_config( char *base_dir )
 
     return( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

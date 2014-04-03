@@ -177,8 +177,8 @@ simta_ldap_message_stdout( struct simta_ldap *ld, LDAPMessage *m )
     ldap_memfree( dn );
 
     for ( attribute = ldap_first_attribute( ld->ldap_ld, message, &ber );
-          attribute != NULL;
-          attribute = ldap_next_attribute( ld->ldap_ld, message, ber )) {
+	  attribute != NULL;
+	  attribute = ldap_next_attribute( ld->ldap_ld, message, ber )) {
 	printf( "%s:\n", attribute );
 
 	if (( values =
@@ -281,7 +281,7 @@ simta_ldap_dequote( char *s )
 */
     static int
 simta_ldap_sasl_interact( LDAP *ld, int unsigned flags,
-        void *defaults, void *in )
+	void *defaults, void *in )
 {
    
     sasl_interact_t *interact = in;
@@ -388,7 +388,7 @@ simta_ldap_init( struct simta_ldap *ld )
 		}
 	    }
 
-            if ( ld->ldap_tls_key ) {
+	    if ( ld->ldap_tls_key ) {
 		if (( ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_KEYFILE,
 			ld->ldap_tls_key )) != LDAP_OPT_SUCCESS ) {
 		    syslog( LOG_ERR, 
@@ -632,20 +632,20 @@ simta_address_type( char *address )
     addrtype = LDS_USER;  /* default */
 
     if (( paddr = strrchr( address, '-' )) != NULL ) {
-        paddr++;
-        if (( strcasecmp( paddr, ERROR ) == 0 ) ||
+	paddr++;
+	if (( strcasecmp( paddr, ERROR ) == 0 ) ||
 		( strcasecmp( paddr, ERRORS ) == 0 )) {
-            addrtype = LDS_GROUP_ERRORS;
-            *(--paddr) = '\0';
-        } else if (( strcasecmp( paddr, REQUEST ) == 0 ) ||
+	    addrtype = LDS_GROUP_ERRORS;
+	    *(--paddr) = '\0';
+	} else if (( strcasecmp( paddr, REQUEST ) == 0 ) ||
 		( strcasecmp( paddr, REQUESTS ) == 0 )) {
-            addrtype = LDS_GROUP_REQUEST;
-            *(--paddr) = '\0';
-        } else if (( strcasecmp( paddr, OWNER ) == 0 ) ||
+	    addrtype = LDS_GROUP_REQUEST;
+	    *(--paddr) = '\0';
+	} else if (( strcasecmp( paddr, OWNER ) == 0 ) ||
 		( strcasecmp( paddr, OWNERS ) == 0 )) {
-            addrtype = LDS_GROUP_OWNER;
-            *(--paddr) = '\0';
-        }
+	    addrtype = LDS_GROUP_OWNER;
+	    *(--paddr) = '\0';
+	}
     }
 
     return( addrtype );
@@ -761,7 +761,7 @@ do_noemail( struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
 
     /* titles or descriptions */
     if ((( vals = ldap_get_values( ld->ldap_ld, res, "title" )) == NULL ) &&
-         (( vals = ldap_get_values( ld->ldap_ld, res,
+	 (( vals = ldap_get_values( ld->ldap_ld, res,
 		"description" )) == NULL )) {
 	if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, "\t", 
 		"No title or description registered" , NULL ) != 0 ) {
@@ -790,7 +790,7 @@ do_noemail( struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
 	}
 
     } else {
-        for( pstart = vals[0]; pstart; pstart = pnl ) {
+	for( pstart = vals[0]; pstart; pstart = pnl ) {
 	    pnl = strchr( pstart, '$' );
 	    if ( pnl ) {
 		*pnl = '\0';
@@ -1035,7 +1035,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	    "suppressNoEmailError" )) != NULL ) {
 	if ( strcasecmp( vals[0], "TRUE" ) == 0 ) {
 	    suppressnoemail = 1;
-        }
+	}
 	ldap_value_free( vals );
     }
 
@@ -1057,7 +1057,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
     }
 
     if ( *(e_addr->e_addr_from) == '\0' ) {
-        senderbuf = strdup( "" );
+	senderbuf = strdup( "" );
 
     } else {
 	/*
@@ -1102,7 +1102,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	}
 
 	if ( env_recipient( e_addr->e_addr_errors, senderbuf ) != 0 ) {
-       	    syslog( LOG_ERR, "simta_ldap_expand_group: failed setting error "
+	    syslog( LOG_ERR, "simta_ldap_expand_group: failed setting error "
 		    "recip: %s", dn );
 	    free( senderbuf );
 	    ldap_memfree( dn );
@@ -1373,7 +1373,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		} else {
 		    rc = address_string_recipients( exp, attrval,
 			    e_addr, e_addr->e_addr_from );
-                }
+		}
 
 		if ( rc != 0 ) {
 		    syslog( LOG_ERR,
@@ -1470,7 +1470,7 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 	    /*
 	    * If the user is on vacation, send a copy of the mail to
 	    * the vacation server.  The address is constructed from
- 	    * the vacationhost (specified in the config file) and
+	    * the vacationhost (specified in the config file) and
 	    * the uid (XXX this this attr should be configurable XXX).
 	    */
 	    onvacation = NULL;
@@ -1492,10 +1492,10 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 		    }
 		    ldap_value_free( uid );
 
-	    	} else {
+		} else {
 		    syslog( LOG_ERR, "user without a uid on vacation (%s)",
 				 addr );
-	    	}
+		}
 	    }
 
 	    if ( onvacation ) {
@@ -1508,8 +1508,8 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
     } else {
 	/* Neither a group, or a person */
 	syslog( LOG_ERR, "Entry: %s is neither person or group ",
-                e_addr->e_addr);
-        bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr,
+		e_addr->e_addr);
+	bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr,
 		" : Entry exists but is neither a group or person", NULL );
 	return( LDAP_EXCLUDE );
     }
@@ -1539,7 +1539,7 @@ simta_ldap_name_search( struct simta_ldap *ld, struct expand *exp,
      *       - query the LDAP db with the search string
      */
     for ( lds = ld->ldap_searches; lds != NULL; lds = lds->lds_next ) {
-        if ( ! (lds->lds_search_type & addrtype)) {
+	if ( ! (lds->lds_search_type & addrtype)) {
 	    continue; 
 	}
 
@@ -1572,7 +1572,7 @@ startsearch:
 	** by the ldap server.  A long idle time can result if we
 	** are processing a really long queue of mail.
 	** If connection timeout, restart the connection.
-        */
+	*/
 	if ( rc == LDAP_SERVER_DOWN ) {
 	    ldap_msgfree( res );
 
@@ -1602,7 +1602,7 @@ startsearch:
 
 	ldap_msgfree( res );
 
-        /* Search timeout w/ no matches -- generate a temporary failure */
+	/* Search timeout w/ no matches -- generate a temporary failure */
 	if ( rc ==  LDAP_TIMELIMIT_EXCEEDED ) {
 	    return( LDAP_SYSERROR );
 	}
@@ -1621,11 +1621,11 @@ startsearch:
     default:
 	/*
 	** More than one match -- if no rdn preference 
-        ** then bounce w/ ambiguous user 
-        */
+	** then bounce w/ ambiguous user 
+	*/
 	if ( ! lds->lds_rdn_pref ) {
 	    do_ambiguous( ld, e_addr, addr, res );
-            ldap_msgfree( res );
+	    ldap_msgfree( res );
 	    return ( LDAP_EXCLUDE );
 	}
 
@@ -1651,32 +1651,32 @@ startsearch:
 	/* if nothing matched by rdn - go ahead and bounce */
 	if ( tmpres == NULL ) {
 	    do_ambiguous( ld, e_addr, addr, res );
-            ldap_msgfree( res );
+	    ldap_msgfree( res );
 	    return( LDAP_EXCLUDE );
 
 	/* if more than one matched by rdn - bounce with rdn matches */
 	} else if (( match = ldap_count_entries( ld->ldap_ld, tmpres )) > 1 ) {
 	    do_ambiguous( ld, e_addr, addr, res );
-            ldap_msgfree( res );
-            ldap_msgfree( tmpres );
+	    ldap_msgfree( res );
+	    ldap_msgfree( tmpres );
 	    return( LDAP_EXCLUDE );
 
 	/* trouble --  tmpres hosed? */
 	} else if ( match < 0 ) {
 	    syslog( LOG_ERR, "simta_ldap_name_search: Error parsing LDAP "
 		    "result for address: %s", e_addr->e_addr );
-            ldap_msgfree( res );
-            ldap_msgfree( tmpres );
+	    ldap_msgfree( res );
+	    ldap_msgfree( tmpres );
 	    return( LDAP_SYSERROR );
 	}
 
 	/* otherwise one matched by rdn - send to it */
 	ldap_msgfree( res );
 	res = tmpres;
-        /*  
-        ** we've sorted this ambiguity out, 
+	/*  
+	** we've sorted this ambiguity out, 
 	** so fall thru to next case and process this entry.
-        */
+	*/
     
     case 1:
 	/*
@@ -1686,7 +1686,7 @@ startsearch:
 	    syslog( LOG_ERR, "simta_ldap_name_search: ldap_first_entry: %s",
 		ldap_err2string( ldap_result2error( ld->ldap_ld, res, 1 )));
 	    return( LDAP_SYSERROR );
-        }
+	}
     }
 
     rc = simta_ldap_process_entry( ld, exp, e_addr, addrtype, entry, addr );
@@ -1738,7 +1738,7 @@ simta_ldap_dn_expand( struct simta_ldap *ld, struct expand *exp,
     if ( match == 0 ) {
 	ldap_msgfree( res );
 
-    	if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, search_dn,
+	if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, search_dn,
 		" : Group member does not exist" , NULL ) != 0 ) {
 	    syslog( LOG_ERR, "simta_ldap_dn_expand: Failed building bounce "
 		    "message -- no member: %s", search_dn );
@@ -1958,7 +1958,7 @@ simta_ldap_config( char *fname, char *domain )
 	    linecopy = NULL;
 	}
 
-        if (( linecopy = strdup( line )) == NULL ) {
+	if (( linecopy = strdup( line )) == NULL ) {
 	    syslog( LOG_ERR, "simta_ldap_config: strdup: %m");
 	    goto errexit;
 	}
@@ -1976,7 +1976,7 @@ simta_ldap_config( char *fname, char *domain )
 		goto errexit;
 	    }
 
- 	    if ( ldap_is_ldap_url( av[ 1 ] ) == 0 ) {
+	    if ( ldap_is_ldap_url( av[ 1 ] ) == 0 ) {
 		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
 		syslog( LOG_ERR, "uri not an ld uri\n" );
 		goto errexit;
@@ -2047,7 +2047,7 @@ simta_ldap_config( char *fname, char *domain )
 		goto errexit;
 	    }
 
-            if (( attrs =
+	    if (( attrs =
 		    (char**)calloc((unsigned)ac, sizeof(char *))) == NULL) { 
 		syslog( LOG_ERR, "simta_ldap_config calloc: %m" ); 
 		goto errexit;
@@ -2320,15 +2320,15 @@ simta_ldap_config( char *fname, char *domain )
     /* check to see that ldap is configured correctly */
 
     if ( ld->ldap_people == NULL ) {
-        syslog( LOG_ERR, "No ldap people objectclass specified\n" );
+	syslog( LOG_ERR, "No ldap people objectclass specified\n" );
 	goto errexit;
     }
     if ( ld->ldap_searches == NULL ) {
-        syslog( LOG_ERR, "No ldap searches specified\n" );
+	syslog( LOG_ERR, "No ldap searches specified\n" );
 	goto errexit;
     }
     if ( ! ld->ldap_host) {
-        syslog( LOG_ERR, "No ldap server specified\n" );
+	syslog( LOG_ERR, "No ldap server specified\n" );
 	goto errexit;
     }
     if ( ld->ldap_port <= 0 ) {
@@ -2386,3 +2386,4 @@ errexit:
     }    
     return( ret );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

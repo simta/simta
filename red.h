@@ -65,3 +65,4 @@ void red_close_ldap_dbs( void );
 /* global variables */
 extern struct simta_red			*simta_red_hosts;
 extern struct simta_red			*simta_red_host_default;
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

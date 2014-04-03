@@ -283,3 +283,4 @@ dll_remove_entry( struct dll_entry **head, struct dll_entry *dll )
 
     return;
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

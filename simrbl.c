@@ -136,8 +136,8 @@ main( int argc, char *argv[])
     }
 
     if ( rbl_add( &simta_rbls, RBL_BLOCK, block_domain, "none" ) != 0 ) {
-        perror( "malloc" );
-        exit( SIMRBL_EXIT_ERROR );
+	perror( "malloc" );
+	exit( SIMRBL_EXIT_ERROR );
     }     
     simta_rbl_verbose_logging = 1;
 
@@ -173,3 +173,4 @@ main( int argc, char *argv[])
 	exit( SIMRBL_EXIT_NOT_BLOCKED );
     }
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

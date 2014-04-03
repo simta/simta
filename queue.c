@@ -153,7 +153,7 @@ host_q_create_or_lookup( char *hostname )
 		( simta_queue_incoming_smtp_mail != 0 ) &&
 		( simta_process_type == PROCESS_RECEIVE )) {
 	    hq->hq_status = HOST_SUPPRESSED;
-            hq->hq_no_punt |= NOPUNT_MX;
+	    hq->hq_no_punt |= NOPUNT_MX;
 	}
 
 	/* add this host to the host_q_head */
@@ -1076,14 +1076,14 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 
     /* process each envelope in the queue */
     while ( deliver_q->hq_env_head != NULL ) {
-        env_deliver = deliver_q->hq_env_head;
+	env_deliver = deliver_q->hq_env_head;
 
-        if ( simta_shuffle_queues == 1 ) {
-            for ( shuffle = ( random() % deliver_q->hq_entries );
-                    shuffle > 0 ; shuffle-- ) {
-                env_deliver = env_deliver->e_hq_next;
-            }
-        }
+	if ( simta_shuffle_queues == 1 ) {
+	    for ( shuffle = ( random() % deliver_q->hq_entries );
+		    shuffle > 0 ; shuffle-- ) {
+		env_deliver = env_deliver->e_hq_next;
+	    }
+	}
 
 	queue_remove_envelope( env_deliver );
 
@@ -1114,11 +1114,11 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	d->d_sent = 0;
 
 	/* open Dfile to deliver */
-        sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
-        if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
+	sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
+	if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
 	    syslog( LOG_WARNING, "q_deliver bad Dfile: %s", dfile_fname );
 	    goto message_cleanup;
-        }
+	}
 
 	d->d_dfile_fd = dfile_fd;
 
@@ -1130,7 +1130,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	d->d_size = sbuf.st_size;
 
 	switch ( deliver_q->hq_status ) {
-        case HOST_LOCAL:
+	case HOST_LOCAL:
 	    if (( simta_mail_jail != 0 ) &&
 		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
 		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d->d_env->e_id );
@@ -1144,8 +1144,8 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    deliver_local( d );
 	    break;
 
-        case HOST_MX:
-        case HOST_PUNT:
+	case HOST_MX:
+	case HOST_PUNT:
 	    if (( simta_mail_jail != 0 ) &&
 		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
 		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d->d_env->e_id );
@@ -1172,23 +1172,23 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    }
 	    break;
 
-        case HOST_SUPPRESSED:
+	case HOST_SUPPRESSED:
 	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s suppressed",
 		    d->d_env->e_id, deliver_q->hq_hostname );
 	    break;
 
-        case HOST_DOWN:
+	case HOST_DOWN:
 	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s down",
 		    d->d_env->e_id, deliver_q->hq_hostname );
 	    break;
 
-        case HOST_BOUNCE:
+	case HOST_BOUNCE:
 	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s bouncing mail",
 		    d->d_env->e_id, deliver_q->hq_hostname );
 	    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    break;
 
-        case HOST_BITBUCKET:
+	case HOST_BITBUCKET:
 	    syslog( LOG_WARNING, "Deliver.remote %s: bitbucket in %d seconds",
 		    env_deliver->e_id, simta_bitbucket );
 	    sleep( simta_bitbucket );
@@ -1251,10 +1251,10 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 		d->d_n_rcpt_failed ) {
 	    syslog( LOG_DEBUG, "Deliver %s: creating bounce",
 		    env_deliver->e_id );
-            if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
-                syslog( LOG_ERR, "q_deliver lseek: %m" );
+	    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
+		syslog( LOG_ERR, "q_deliver lseek: %m" );
 		panic( "q_deliver lseek fail" );
-            }
+	    }
 
 	    if ( snet_dfile == NULL ) {
 		if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 ))
@@ -1274,9 +1274,9 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 		    deliver_q, NULL )) == NULL ) {
 		syslog( LOG_ERR, "q_deliver bounce failed" );
 		goto message_cleanup;
-            }
+	    }
 
-        } else {
+	} else {
 	    syslog( LOG_DEBUG, "Deliver %s: no bounces created",
 		    env_deliver->e_id );
 	}
@@ -1302,7 +1302,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    }
 
 	/* else we remove rcpts that were delivered or hard failed */
-        } else if ( n_rcpt_remove != 0 ) {
+	} else if ( n_rcpt_remove != 0 ) {
 	    syslog( LOG_INFO, "Deliver %s: Rewriting Envelope",
 		    env_deliver->e_id );
 
@@ -1339,14 +1339,14 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 		}
 	    }
 
-            assert( env_deliver->e_n_rcpt > 0 );
+	    assert( env_deliver->e_n_rcpt > 0 );
  
-            if ( env_outfile( env_deliver ) == 0 ) {
-                syslog( LOG_INFO, "Deliver %s: Rewrote %d recipients",
-                        env_deliver->e_id, env_deliver->e_n_rcpt );
-            } else {
-                syslog( LOG_INFO, "Deliver %s: Failed Rewrite, "
-                        "Double Deliver will occur", env_deliver->e_id );
+	    if ( env_outfile( env_deliver ) == 0 ) {
+		syslog( LOG_INFO, "Deliver %s: Rewrote %d recipients",
+			env_deliver->e_id, env_deliver->e_n_rcpt );
+	    } else {
+		syslog( LOG_INFO, "Deliver %s: Failed Rewrite, "
+			"Double Deliver will occur", env_deliver->e_id );
 		goto message_cleanup;
 	    }
 
@@ -1375,8 +1375,8 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	}
 
 message_cleanup:
-        if ((( touch != 0 ) || ( n_processed == 0 )) &&
-                ( env_deliver->e_dir == simta_dir_slow ) &&
+	if ((( touch != 0 ) || ( n_processed == 0 )) &&
+		( env_deliver->e_dir == simta_dir_slow ) &&
 		( d->d_unlinked == 0 ))  {
 	    touch = 0;
 	    env_touch( env_deliver );
@@ -1431,19 +1431,19 @@ message_cleanup:
 	    env_free( env_deliver );
 	}
 
-        if ( snet_dfile == NULL ) {
+	if ( snet_dfile == NULL ) {
 	    if ( dfile_fd > 0 ) {
 		if ( close( dfile_fd ) != 0 ) {
 		    syslog( LOG_ERR, "q_deliver close: %m" );
 		}
 	    }
 
-        } else {
-            if ( snet_close( snet_dfile ) != 0 ) {
-                syslog( LOG_ERR, "q_deliver snet_close: %m" );
-            }
+	} else {
+	    if ( snet_close( snet_dfile ) != 0 ) {
+		syslog( LOG_ERR, "q_deliver snet_close: %m" );
+	    }
 	    snet_dfile = NULL;
-        }
+	}
 
 	if ( snet_lock != NULL ) {
 	    if ( snet_close( snet_lock ) != 0 ) {
@@ -1454,7 +1454,7 @@ message_cleanup:
 
     if ( d->d_snet_smtp != NULL ) {
 	syslog( LOG_DEBUG, "q_deliver: calling smtp_quit" );
-        smtp_quit( deliver_q, d );
+	smtp_quit( deliver_q, d );
 	if ( snet_close( d->d_snet_smtp ) != 0 ) {
 	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
 	}
@@ -1557,7 +1557,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	syslog( LOG_NOTICE, "Deliver.remote %s: punt %s", d->d_env->e_id,
 		hq->hq_hostname );
 	hq->hq_status = HOST_PUNT_DOWN;
-    	break;
+	break;
 
     default:
 	panic( "deliver_remote: status out of range" );
@@ -1565,7 +1565,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
     for ( ; ; ) {
 	if ( d->d_snet_smtp == NULL ) {
-            d->d_connection_msg_total = 0;
+	    d->d_connection_msg_total = 0;
 	    /* need to build SMTP connection */
 	    if ( next_dnsr_host_lookup( d, hq ) != 0 ) {
 		return;
@@ -1616,7 +1616,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	d->d_n_rcpt_failed = 0;
 	d->d_n_rcpt_tempfailed = 0;
 	d->d_sent = 0;
-        d->d_connection_msg_total++;
+	d->d_connection_msg_total++;
 
 	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
 	    syslog( LOG_ERR, "deliver_remote lseek: %m" );
@@ -1639,14 +1639,14 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	}
 
 	if ( r_smtp == SMTP_OK ) {
-            /* Close the connection if we've hit the per-connection
-             * message limit. */
-            if ( simta_outbound_connection_msg_max > 0 &&
-                    d->d_connection_msg_total >= simta_outbound_connection_msg_max ) {
-                smtp_quit( hq, d );
-                snet_close( d->d_snet_smtp );
-                d->d_snet_smtp = NULL;
-            }
+	    /* Close the connection if we've hit the per-connection
+	     * message limit. */
+	    if ( simta_outbound_connection_msg_max > 0 &&
+		    d->d_connection_msg_total >= simta_outbound_connection_msg_max ) {
+		smtp_quit( hq, d );
+		snet_close( d->d_snet_smtp );
+		d->d_snet_smtp = NULL;
+	    }
 	    switch ( hq->hq_status ) {
 	    case HOST_DOWN:
 		hq->hq_status = HOST_MX;
@@ -2223,3 +2223,4 @@ queue_log_metrics( struct host_q *hq_schedule )
 
     return;
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -131,3 +131,4 @@ line_prepend( struct line_file *lf, char *data, int copy )
 
     return( l );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

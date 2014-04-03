@@ -81,7 +81,7 @@ main( int ac, char *av[] )
     d.d_env = env_create( NULL, "smtpconnect", "simta@umich.edu", NULL );
 
     if ( next_dnsr_host_lookup( &d, hq ) != 0 ) {
-        exit( 1 );
+	exit( 1 );
     }
 
     if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
@@ -89,26 +89,27 @@ main( int ac, char *av[] )
     }
 
     if ( connect( s, (struct sockaddr*)&(d.d_sin),
-            sizeof( struct sockaddr_in )) < 0 ) {
-        syslog( LOG_ERR, "[%s] %s: connect: %m",
-                inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
-        close( s );
-        exit( 1 );
+	    sizeof( struct sockaddr_in )) < 0 ) {
+	syslog( LOG_ERR, "[%s] %s: connect: %m",
+		inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
+	close( s );
+	exit( 1 );
     }
 
     if (( d.d_snet_smtp = snet_attach( s, 1024 * 1024 )) == NULL ) {
-        syslog( LOG_ERR, "[%s] %s: snet_attach: %m",
-                inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
-        close( s );
-        exit( 1 );
+	syslog( LOG_ERR, "[%s] %s: snet_attach: %m",
+		inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
+	close( s );
+	exit( 1 );
     }
 
     r = smtp_connect( hq, &d );
     if ( r == SMTP_OK || r == SMTP_ERROR ) {
-        smtp_quit( hq, &d );
+	smtp_quit( hq, &d );
     }
 
     snet_close( d.d_snet_smtp );
 
     exit( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -252,3 +252,4 @@ deliver_binary( struct deliver *d )
 	}
     }
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

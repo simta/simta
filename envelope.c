@@ -1333,3 +1333,4 @@ env_string_recipients( struct envelope *env, char *line )
 
     return( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

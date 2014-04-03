@@ -145,3 +145,4 @@ dn_normalize_case( char *dn )
 
 	return( dn );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

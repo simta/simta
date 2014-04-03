@@ -249,7 +249,7 @@ red_host_add( char *host_name )
     if (( red->red_host_name = strdup( host_name )) == NULL ) {
 	syslog( LOG_ERR, "red_host_add: malloc: %m" );
 	free( red );
-        return( NULL );
+	return( NULL );
     }
 
     red->red_next = *insert;
@@ -299,3 +299,4 @@ red_action_default( struct simta_red *red )
 
     return( 0 );
 }
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

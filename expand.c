@@ -918,12 +918,12 @@ permitted_destroy ( struct exp_addr *e_addr)
 
     pstab = e_addr->e_addr_ok;
     while ( pstab != NULL ) {
-        nstab = pstab;
-        pstab = pstab->st_next;
-        if ( nstab->st_key != NULL ) {
-            free( nstab->st_key );
-        }
-        free( nstab );
+	nstab = pstab;
+	pstab = pstab->st_next;
+	if ( nstab->st_key != NULL ) {
+	    free( nstab->st_key );
+	}
+	free( nstab );
     }
     return;
 }
@@ -951,3 +951,4 @@ parent_permitted( struct exp_addr *memonly )
     return( NULL );
 }
 #endif /* HAVE_LDAP */
+/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
