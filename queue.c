@@ -54,6 +54,7 @@ void	deliver_remote( struct deliver *d, struct host_q * );
 void	hq_clear_errors( struct host_q * );
 int	next_dnsr_host( struct deliver *, struct host_q * );
 int	next_dnsr_host_lookup( struct deliver *, struct host_q * );
+int     invalid_dnsr_ip( struct in_addr addr );
 void	hq_free( struct host_q * );
 void	connection_data_free( struct deliver *, struct connection_data * );
 int	get_outbound_dns( struct deliver *, struct host_q * );
@@ -1885,6 +1886,21 @@ get_outbound_dns( struct deliver *d, struct host_q *hq )
 
 
     int
+invalid_dnsr_ip( struct in_addr addr ) {
+    char    *ip;
+
+    ip = inet_ntoa ( addr );
+
+    /* Reject loopback addresses and non-routable meta addresses */
+    if (( strncmp( ip, "127.", 4 ) == 0 ) ||
+	( strcmp( ip, "0.0.0.0" ) == 0 )) {
+	return 1;
+    }
+
+    return 0;
+}
+
+    int
 next_dnsr_host( struct deliver *d, struct host_q *hq )
 {
     char			*ip;
@@ -1999,8 +2015,7 @@ retry:
 		ip = inet_ntoa( d->d_sin.sin_addr );
 		if ( hq->hq_status == HOST_DOWN ) {
 		    /* prevent spammers from using obviously fake addresses */
-		    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
-			    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
+		    if ( invalid_dnsr_ip( d->d_sin.sin_addr )) {
 			syslog( LOG_DEBUG,
 				"DNS %s: Entry %d: A record invalid: %s",
 				hq->hq_hostname, d->d_cur_dnsr_result, ip );
@@ -2047,11 +2062,20 @@ retry:
 		memcpy( &(d->d_sin.sin_addr.s_addr),
     &(d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_ip->ip_ip ),
 			sizeof( struct in_addr ));
+		ip = inet_ntoa( d->d_sin.sin_addr );
+		if ( invalid_dnsr_ip( d->d_sin.sin_addr )) {
+		    syslog( LOG_INFO,
+			    "DNS %s: Entry %d: Invalid MX preference %d: %s",
+			    hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_mx.mx_preference,
+			    ip );
+		    continue;
+		}
 		syslog( LOG_INFO,
 			"DNS %s: Entry %d: Trying MX preference %d: %s",
 			hq->hq_hostname, d->d_cur_dnsr_result,
     d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_mx.mx_preference,
-			inet_ntoa( d->d_sin.sin_addr ));
+			ip );
 		return( 0 );
 	    }
 
@@ -2101,8 +2125,7 @@ retry:
     &(d->d_dnsr_result_ip->r_answer[ d->d_cur_dnsr_result_ip ].rr_a ),
 		    sizeof( struct in_addr ));
 	    ip = inet_ntoa( d->d_sin.sin_addr );
-	    if (( strcmp( ip, "127.0.0.1" ) == 0 ) ||
-		    ( strcmp( ip, "0.0.0.0" ) == 0 )) {
+	    if ( invalid_dnsr_ip( d->d_sin.sin_addr )) {
 		syslog( LOG_DEBUG,
 			"DNS %s: Entry %d.%d: invalid A record: %s",
 			hq->hq_hostname, d->d_cur_dnsr_result,
