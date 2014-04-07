@@ -76,6 +76,7 @@
 #define TLS_POLICY_DEFAULT		0
 #define TLS_POLICY_OPTIONAL		1
 #define TLS_POLICY_REQUIRED		2
+#define TLS_POLICY_DISABLED		3
 
 /* Punting Policy */
 #define PUNTING_POLICY_DEFAULT		0

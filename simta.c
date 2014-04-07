@@ -560,11 +560,14 @@ simta_read_config( char *fname )
 		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
 			red->red_policy_tls = TLS_POLICY_REQUIRED;
 			continue;
+		    } else if ( strcasecmp( av[ 3 ], "DISABLED" ) == 0 ) {
+			red->red_policy_tls = TLS_POLICY_DISABLED;
+			continue;
 		    }
 		}
 		fprintf( stderr, "%s: line %d: usage: %s\n",
 			fname, lineno,
-			"@domain D TLS_OUTBOUND <OPTIONAL|REQUIRED>" );
+			"@domain D TLS_OUTBOUND <OPTIONAL|REQUIRED|DISABLED>" );
 		goto error;
 
 	    } else if ( strcasecmp( av[ 2 ], "TLS_CERT_OUTBOUND" ) == 0 ) {
@@ -720,11 +723,15 @@ simta_read_config( char *fname )
 		    simta_policy_tls = TLS_POLICY_REQUIRED;
 		    if ( simta_debug ) printf( "TLS_OUTBOUND REQUIRED\n" );
 		    continue;
+		} else if ( strcasecmp( av[ 1 ], "DISABLED" ) == 0 ) {
+		    simta_policy_tls = TLS_POLICY_DISABLED;
+		    if ( simta_debug ) printf( "TLS_OUTBOUND DISABLED\n" );
+		    continue;
 		}
 	    }
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
 		    fname, lineno,
-		    "TLS_OUTBOUND <OPTIONAL|REQUIRED>" );
+		    "TLS_OUTBOUND <OPTIONAL|REQUIRED|DISABLED>" );
 	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_CERT_OUTBOUND" ) == 0 ) {
@@ -750,7 +757,7 @@ simta_read_config( char *fname )
 		if (( simta_tls_ciphers = strdup( av[ 1 ] )) == NULL ) {
 		    perror( "strdup" );
 		    goto error;
-                }
+		}
 		if ( simta_debug ) printf( "TLS_CIPHERS_OUTBOUND: %s\n",
 			simta_tls_ciphers );
 		continue;
