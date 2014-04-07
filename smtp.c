@@ -597,7 +597,12 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     }
 
 #ifdef HAVE_LIBSSL
+    d->d_tls_banner_check = 1;
+
     switch ( simta_policy_tls ) {
+    case TLS_POLICY_DISABLED:
+	d->d_tls_banner_check = 0;
+	/* fall through */
     default:
     case TLS_POLICY_DEFAULT:
     case TLS_POLICY_OPTIONAL:
@@ -617,17 +622,23 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    break;
 
 	case TLS_POLICY_OPTIONAL:
+	    d->d_tls_banner_check = 1;
 	    tls_required = 0;
 	    break;
 
 	case TLS_POLICY_REQUIRED:
+	    d->d_tls_banner_check = 1;
 	    tls_required = 1;
+	    break;
+
+	case TLS_POLICY_DISABLED:
+	    d->d_tls_banner_check = 0;
+	    tls_required = 0;
 	    break;
 	}
     }
 
     d->d_tls_supported = 0;
-    d->d_tls_banner_check = 1;
 #endif /* HAVE_LIBSSL */
 
     r = smtp_reply( SMTP_EHLO, hq, d );
