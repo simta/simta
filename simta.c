@@ -182,6 +182,7 @@ char			simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
 DNSR			*simta_dnsr = NULL;
 char			*simta_default_alias_db = SIMTA_ALIAS_DB;
 char			*simta_default_passwd_file = "/etc/passwd";
+char			*simta_tls_ciphers = NULL;
 char			*simta_file_ca = NULL;
 char			*simta_dir_ca = NULL;
 char			*simta_file_cert = "cert/cert.pem";
@@ -582,6 +583,19 @@ simta_read_config( char *fname )
 			"@domain D TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED>" );
 		goto error;
 
+	    } else if ( strcasecmp( av[ 2 ], "TLS_CIPHERS_OUTBOUND" ) == 0 ) {
+		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
+		    if (( red->red_tls_ciphers = strdup( av[ 3 ] )) == NULL ) {
+			perror( "strdup" );
+			goto error;
+		    }
+		    continue;
+		}
+		fprintf( stderr, "%s: line %d: usage: %s\n",
+			fname, lineno,
+			"@domain D TLS_CIPHERS_OUTBOUND <cipher string>" );
+		goto error;
+
 	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
 		if ( ac == 3 ) {
 		    f_arg = simta_default_passwd_file;
@@ -729,6 +743,21 @@ simta_read_config( char *fname )
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
 		    fname, lineno,
 		    "TLS_OUTBOUND_CERT <OPTIONAL|REQUIRED>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_CIPHERS_OUTBOUND" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if (( simta_tls_ciphers = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+                }
+		if ( simta_debug ) printf( "TLS_CIPHERS_OUTBOUND: %s\n",
+			simta_tls_ciphers );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "TLS_CIPHERS_OUTBOUND <cipher string>" );
 	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
