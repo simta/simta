@@ -26,6 +26,7 @@ struct simta_red {
     int				red_policy_punting;
     int				red_policy_tls;
     int				red_policy_tls_cert;
+    char			*red_tls_ciphers;
 };
 
 /* red_deliver_types */

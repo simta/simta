@@ -139,7 +139,7 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 
     SSL_CTX *
 tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
-	char *cert, char *privatekey )
+	char *cert, char *privatekey, char *ciphers )
 {
     SSL_CTX		*ssl_ctx;
     int                 ssl_mode = 0;
@@ -158,6 +158,10 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 		"SSL_CTX_new: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( NULL );
+    }
+
+    if ( ciphers != NULL ) {
+        SSL_CTX_set_cipher_list( ssl_ctx, ciphers );
     }
 
     if ( authlevel == 2 ) {
