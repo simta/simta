@@ -2221,8 +2221,9 @@ f_starttls( struct receive_data *r )
 	return( rc );
     }
 
-    syslog( LOG_DEBUG, "Receive [%s] %s: Start TLS",
-	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+    syslog( LOG_DEBUG, "Receive [%s] %s: TLS established. Cipher: %s",
+	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+	    SSL_CIPHER_get_name( SSL_get_current_cipher( r->r_snet->sn_ssl )));
 
     return( RECEIVE_OK );
 }
