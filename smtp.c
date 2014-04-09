@@ -725,8 +725,10 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 		return( SMTP_ERROR );
 	    }
 	} else {
-	    syslog( LOG_INFO, "Deliver.SMTP %s (%s): TLS established",
-		    hq->hq_hostname, hq->hq_smtp_hostname );
+	    syslog( LOG_INFO,
+		    "Deliver.SMTP %s (%s): TLS established. Cipher: %s",
+		    hq->hq_hostname, hq->hq_smtp_hostname,
+	SSL_CIPHER_get_name( SSL_get_current_cipher( d->d_snet_smtp->sn_ssl )));
 	}
 
 	SSL_CTX_free( ssl_ctx );
