@@ -8,9 +8,14 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
-#include <openssl/ssl.h>
-#include <openssl/rand.h>
+#include <openssl/opensslconf.h>
+#ifndef OPENSSL_NO_ECDH
+#include <openssl/ecdh.h>
+#endif
 #include <openssl/err.h>
+#include <openssl/opensslv.h>
+#include <openssl/rand.h>
+#include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 #include <string.h>
 #include <syslog.h>
@@ -63,6 +68,9 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 	char *cert, char *privatekey )
 {
     SSL_CTX		*ssl_ctx;
+#ifndef OPENSSL_NO_ECDH
+    EC_KEY              *ecdh;
+#endif
     int                 ssl_mode = 0;
 
     SSL_load_error_strings();
@@ -128,6 +136,28 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 	ssl_mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
     }
     SSL_CTX_set_verify( ssl_ctx, ssl_mode, NULL );
+
+#ifndef OPENSSL_NO_ECDH
+    /* Do not reuse the same ECDH key pair */
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_SINGLE_ECDH_USE);
+
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L
+    /* OpenSSL >= 1.0.2 automatically handles parameter selection */
+    SSL_CTX_set_ecdh_auto(ssl_ctx, 1);
+
+#elif OPENSSL_VERSION_NUMBER >= 0x10000000L
+    /* Manually select the curve. This selection is compliant with RFC 6460
+     * when AES-256 cipher suites are in use, but noncompliant when AES-128
+     * cipher suites are used. Oh, well. */
+    if (( ecdh = EC_KEY_new_by_curve_name( NID_secp384r1 )) != NULL ) {
+	SSL_CTX_set_tmp_ecdh(ssl_ctx, ecdh);
+	EC_KEY_free(ecdh);
+    } else {
+	syslog( LOG_ERR, "tls_server_setup: EC_KEY_new failed: %s",
+		ERR_error_string( ERR_get_error(), NULL ));
+    }
+#endif /* openssl 1.0 - 1.0.1 */
+#endif /* OPENSSL_NO_ECDH */
 
     return( ssl_ctx );
 
