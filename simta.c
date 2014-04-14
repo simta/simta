@@ -503,6 +503,21 @@ simta_read_config( char *fname )
 		a->a_next_secondary_mx = simta_red_action_secondary_mx;
 		simta_red_action_secondary_mx = a;
 
+	    } else if ( strcasecmp( av[ 2 ], "ACCEPT" ) == 0 ) {
+		/* @DOMAIN R ACCEPT */
+		if (( ac != 3 ) || ( red_code != RED_CODE_R )) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain R ACCEPT" );
+		    goto error;
+		}
+		
+		if (( red_action_add( red, RED_CODE_R,
+			EXPANSION_TYPE_GLOBAL_RELAY, NULL)) == NULL ) {
+		    perror( "malloc" );
+		    goto error;
+		}
+
 	    } else if ( strcasecmp( av[ 2 ], "QUEUE_WAIT" ) == 0 ) {
 		/* @DOMAIN D QUEUE_WAIT min max */
 		if (( ac != 5 ) || ( red_code != RED_CODE_D )) {
