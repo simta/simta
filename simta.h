@@ -82,6 +82,10 @@
 #define PUNTING_POLICY_DISABLED		1
 #define PUNTING_POLICY_ENABLED		2
 
+/* Queue Policy */
+#define QUEUE_POLICY_FIFO		0
+#define QUEUE_POLICY_SHUFFLE		1
+
 #ifdef HAVE_LIBSSL
 #define SIMTA_SOCKET_TLS	(1<<0)
 #endif /* HAVE_LIBSSL */
@@ -160,7 +164,7 @@ extern int				simta_disk_read_entries;
 extern int				simta_domain_trailing_dot;
 extern int				simta_bitbucket;
 extern int				simta_aggressive_delivery;
-extern int                              simta_shuffle_queues;
+extern int				simta_queue_policy;
 extern int				simta_smtp_rcvbuf_min;
 extern int				simta_smtp_rcvbuf_max;
 extern int				simta_smtp_port_defined;

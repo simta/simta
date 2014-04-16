@@ -1078,7 +1078,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
     while ( deliver_q->hq_env_head != NULL ) {
         env_deliver = deliver_q->hq_env_head;
 
-        if ( simta_shuffle_queues == 1 ) {
+        if ( simta_queue_policy == QUEUE_POLICY_SHUFFLE ) {
             for ( shuffle = ( random() % deliver_q->hq_entries );
                     shuffle > 0 ; shuffle-- ) {
                 env_deliver = env_deliver->e_hq_next;
