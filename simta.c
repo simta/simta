@@ -92,7 +92,7 @@ int			simta_disk_read_entries = 10;
 int			simta_domain_trailing_dot = 1;
 int			simta_bitbucket = -1;
 int			simta_aggressive_delivery = 1;
-int                     simta_shuffle_queues = 0;
+int			simta_queue_policy = QUEUE_POLICY_FIFO;
 int			simta_smtp_port_defined = 0;
 int			simta_rbl_verbose_logging = 0;
 int			simta_queue_incoming_smtp_mail = 0;
@@ -2050,21 +2050,21 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	} else if ( strcasecmp( av[ 0 ], "SHUFFLE_QUEUES" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "QUEUE_POLICY" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
-		    simta_shuffle_queues = 1;
-		    if ( simta_debug ) printf( "SHUFFLE_QUEUES ON\n" );
+		if ( strcasecmp( av[ 1 ], "FIFO" ) == 0 ) {
+		    simta_queue_policy = QUEUE_POLICY_FIFO;
+		    if ( simta_debug ) printf( "QUEUE_POLICY FIFO\n" );
 		    continue;
-		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
-		    simta_shuffle_queues = 0;
-		    if ( simta_debug ) printf( "SHUFFLE_QUEUES OFF\n" );
+		} else if ( strcasecmp( av[ 1 ], "SHUFFLE" ) == 0 ) {
+		    simta_queue_policy = QUEUE_POLICY_SHUFFLE;
+		    if ( simta_debug ) printf( "QUEUE_POLICY SHUFFLE\n" );
 		    continue;
 		}
 	    }
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
 		    fname, lineno,
-		    "SHUFFLE_QUEUES <ON|OFF>" );
+		    "QUEUE_POLICY <FIFO|SHUFFLE>" );
 	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_MODE" ) == 0 ) {
