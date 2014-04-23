@@ -694,6 +694,14 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    }
 	}
 
+	ciphers = simta_tls_ciphers;
+
+	if ( hq->hq_red != NULL ) {
+	    if ( hq->hq_red->red_tls_ciphers != NULL ) {
+		ciphers = hq->hq_red->red_tls_ciphers;
+	    }
+	}
+
 	if (( ssl_ctx = tls_client_setup( 0, 0, simta_file_ca, simta_dir_ca,
 		NULL, NULL, ciphers )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror: smtp_connect: tls_client_setup %s",
