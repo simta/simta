@@ -711,8 +711,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    SSL_CTX_free( ssl_ctx );
 	    return( SMTP_BAD_CONNECTION );
 
-	} else if ( tls_client_cert( hq->hq_hostname,
-		d->d_snet_smtp->sn_ssl ) != 0 ) {
+	} else if ( tls_client_cert( hq->hq_hostname, d->d_snet_smtp->sn_ssl )) {
 	    switch ( simta_policy_tls_cert ) {
 	    default:
 	    case TLS_POLICY_DEFAULT:

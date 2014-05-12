@@ -219,8 +219,8 @@ static int 	reset_sasl_conn( struct receive_data *r );
 
 #ifdef HAVE_LIBSSL
 static int	f_starttls( struct receive_data * );
-static int	_start_tls( struct receive_data * );
-static int 	_post_tls( struct receive_data * );
+static int	start_tls( struct receive_data *, SSL_CTX * );
+static int 	sasl_init( struct receive_data * );
 #endif /* HAVE_LIBSSL */
 
 struct command	smtp_commands[] = {
@@ -494,6 +494,10 @@ smtp_write_banner( struct receive_data *r, int reply_code, char *msg,
 
     case 451:
 	boilerplate = "Local error in processing: requested action aborted";
+	break;
+
+    case 454:
+	boilerplate = "Cannot authenticate due to temporary system problem";
 	break;
 
     case 500:
@@ -2173,6 +2177,7 @@ f_noauth( struct receive_data *r )
 f_starttls( struct receive_data *r )
 {
     int				rc;
+    SSL_CTX			*ssl_ctx;
 
     tarpit_sleep( r, 0 );
 
@@ -2194,14 +2199,37 @@ f_starttls( struct receive_data *r )
 	return( smtp_write_banner( r, 501, NULL, "no parameters allowed" ));
     }
 
-    if ( smtp_write_banner( r, 220, "Ready to start TLS", NULL ) !=
-	    RECEIVE_OK ) {
+    if (( ssl_ctx = tls_server_setup( simta_use_randfile,
+	    simta_service_smtps, simta_file_ca, simta_dir_ca,
+	    simta_file_cert, simta_file_private_key )) == NULL ) {
+	syslog( LOG_ERR, "Syserror: f_starttls: %s",
+		ERR_error_string( ERR_get_error(), NULL ));
+	rc = smtp_write_banner( r, 454,
+		"TLS not available due to temporary reason", NULL );
+    } else {
+	rc = smtp_write_banner( r, 220, "Ready to start TLS", NULL );
+    }
+
+
+    if ( rc != RECEIVE_OK ) {
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( _start_tls( r ) != RECEIVE_OK ) {
-	return ( RECEIVE_OK );
+    if ( start_tls( r, ssl_ctx ) == RECEIVE_CLOSECONNECTION ) {
+	/* FIXME: Disconnecting is wrong.
+	 *
+	 * RFC 3207 4.1 After the STARTTLS Command
+	 * If the SMTP server decides that the level of authentication or
+	 * privacy is not high enough for it to continue, it SHOULD reply to
+	 * every SMTP command from the client (other than a QUIT command) with
+	 * the 554 reply code (with a possible text string such as "Command
+	 * refused due to lack of security").
+	 */
+	SSL_CTX_free( ssl_ctx );
+	return( RECEIVE_CLOSECONNECTION );
     }
+
+    SSL_CTX_free( ssl_ctx );
 
     /* RFC 3207 4.2 Result of the STARTTLS Command
      * Upon completion of the TLS handshake, the SMTP protocol is reset to
@@ -2227,33 +2255,25 @@ f_starttls( struct receive_data *r )
 	r->r_hello = NULL;
     }
 
-    if (( rc = _post_tls( r )) != RECEIVE_OK ) {
-	return( rc );
-    }
-
-    syslog( LOG_DEBUG, "Receive [%s] %s: TLS established. Cipher: %s",
-	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-	    SSL_CIPHER_get_name( SSL_get_current_cipher( r->r_snet->sn_ssl )));
-
-    return( RECEIVE_OK );
+    return( sasl_init( r ));
 }
 
     int
-_post_tls( struct receive_data *r )
+sasl_init( struct receive_data *r )
 {
 #ifdef HAVE_LIBSASL
     int		rc; 
 
     if ( simta_sasl ) {
 	if ( simta_debug != 0 ) {
-	    syslog( LOG_DEBUG, "Debug: _post_tls sasl_setprop 1" );
+	    syslog( LOG_DEBUG, "Debug: sasl_init sasl_setprop 1" );
 	}
 
 	/* Get cipher_bits and set SSF_EXTERNAL */
 	memset( &r->r_secprops, 0, sizeof( sasl_security_properties_t ));
 	if (( rc = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
 		&r->r_ext_ssf )) != SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror _post_tls: sasl_setprop1: %s",
+	    syslog( LOG_ERR, "Syserror sasl_init: sasl_setprop1: %s",
 		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_SYSERROR );
 	}
@@ -2264,12 +2284,12 @@ _post_tls( struct receive_data *r )
 	r->r_secprops.max_ssf = 256;
 
 	if ( simta_debug != 0 ) {
-	    syslog( LOG_DEBUG, "Debug: _post_tls sasl_setprop 2" );
+	    syslog( LOG_DEBUG, "Debug: sasl_init sasl_setprop 2" );
 	}
 
 	if (( rc = sasl_setprop( r->r_conn, SASL_SEC_PROPS, &r->r_secprops))
 		!= SASL_OK ) {
-	    syslog( LOG_ERR, "Syserror _post_tls: sasl_setprop2: %s",
+	    syslog( LOG_ERR, "Syserror sasl_init: sasl_setprop2: %s",
 		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_SYSERROR );
 	}
@@ -2279,24 +2299,14 @@ _post_tls( struct receive_data *r )
 }
 
     int
-_start_tls( struct receive_data *r )
+start_tls( struct receive_data *r, SSL_CTX *ssl_ctx )
 {
     int				rc;
-    X509			*peer;
-    char			buf[ 1024 ];
-    SSL_CTX			*ssl_ctx;
     struct timeval		tv_wait;
+    SSL_CIPHER			*ssl_cipher;
 
     if ( simta_debug != 0 ) {
-	syslog( LOG_DEBUG, "Debug: _start_tls snet_starttls" );
-    }
-
-    if (( ssl_ctx = tls_server_setup( simta_use_randfile,
-	    simta_service_smtps, simta_file_ca, simta_dir_ca,
-	    simta_file_cert, simta_file_private_key )) == NULL ) {
-	syslog( LOG_ERR, "Syserror: _start_tls: %s",
-		ERR_error_string( ERR_get_error(), NULL ));
-	return( smtp_write_banner( r, 554, NULL, "SSL didn't work!" ));
+	syslog( LOG_DEBUG, "Debug: start_tls snet_starttls" );
     }
 
     if ( simta_inbound_ssl_accept_timer != 0 ) {
@@ -2306,26 +2316,25 @@ _start_tls( struct receive_data *r )
     }
 
     if (( rc = snet_starttls( r->r_snet, ssl_ctx, 1 )) != 1 ) {
-	syslog( LOG_ERR, "Syserror _start_tls: snet_starttls: %s",
+	syslog( LOG_ERR, "Syserror start_tls: snet_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
-	return( smtp_write_banner( r, 554, NULL, "SSL didn't work!" ));
+	return( RECEIVE_SYSERROR );
+    }
+
+    if (( ssl_cipher = SSL_get_current_cipher( r->r_snet->sn_ssl )) != NULL ) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: TLS established. Cipher: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		SSL_CIPHER_get_name( ssl_cipher ));
     }
 
     if ( simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER ) {
 	if ( simta_debug != 0 ) {
-	    syslog( LOG_DEBUG, "Debug: _start_tls SSL_get_peer_certificate" );
+	    syslog( LOG_DEBUG, "Debug: start_tls SSL_get_peer_certificate" );
 	}
 
-	if (( peer = SSL_get_peer_certificate( r->r_snet->sn_ssl )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror _start_tls: SSL_get_peer_certificate: "
-		    "no peer certificate" );
-	    return( smtp_write_banner( r, 554, NULL,  "SSL didn't work!" ));
+	if ( tls_client_cert( r->r_remote_hostname, r->r_snet->sn_ssl ) != 0 ) {
+	    return( RECEIVE_CLOSECONNECTION );
 	}
-	syslog( LOG_DEBUG, "Receive [%s] %s: CERT Subject: %s",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
-		X509_NAME_oneline( X509_get_subject_name( peer ), buf,
-			sizeof( buf )));
-	X509_free( peer );
     }
 
     r->r_tls = 1;
@@ -2338,7 +2347,7 @@ _start_tls( struct receive_data *r )
 	ssize_t rc;
 
 	if (( rc = snet_read( r->r_snet, tempc, sizeof tempc, temptv )) != sizeof tempc) {
-	    syslog( LOG_ERR, "Syserror _start_tls: read failed on %s %s: %d",
+	    syslog( LOG_ERR, "Syserror start_tls: read failed on %s %s: %d",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, (int)rc); 
 	    break;
 	}
@@ -3172,6 +3181,9 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 #ifdef HAVE_LIBSASL
     sasl_security_properties_t		secprops;
 #endif /* HAVE_LIBSASL */
+#ifdef HAVE_LIBSSL
+    SSL_CTX				*ssl_ctx;
+#endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
@@ -3264,18 +3276,31 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
     if ( ss->ss_flags & SIMTA_SOCKET_TLS ) {
 
 	if ( simta_debug != 0 ) {
-	    syslog( LOG_DEBUG, "Debug: auth_init _start_tls" );
+	    syslog( LOG_DEBUG, "Debug: auth_init start_tls" );
 	}
 
-	if ( _start_tls( r ) != RECEIVE_OK ) {
+	if (( ssl_ctx = tls_server_setup( simta_use_randfile,
+		simta_service_smtps, simta_file_ca, simta_dir_ca,
+		simta_file_cert, simta_file_private_key )) == NULL ) {
+	    syslog( LOG_ERR, "Syserror: auth_init: %s",
+		    ERR_error_string( ERR_get_error(), NULL ));
+	    smtp_write_banner( r, 554, NULL, "SSL didn't work!" );
 	    return( -1 );
 	}
 
-	if ( simta_debug != 0 ) {
-	    syslog( LOG_DEBUG, "Debug: auth_init _post_tls" );
+	if ( start_tls( r, ssl_ctx ) != RECEIVE_OK ) {
+	    smtp_write_banner( r, 554, NULL, "SSL didn't work!" );
+	    SSL_CTX_free( ssl_ctx );
+	    return( -1 );
 	}
 
-	if (( ret = _post_tls( r )) != RECEIVE_OK ) {
+	SSL_CTX_free( ssl_ctx );
+
+	if ( simta_debug != 0 ) {
+	    syslog( LOG_DEBUG, "Debug: auth_init sasl_init" );
+	}
+
+	if (( ret = sasl_init( r )) != RECEIVE_OK ) {
 	    return( -1 );
 	}
 
