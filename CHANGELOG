@@ -1,3 +1,24 @@
+0.10.7
+    - QUEUE_POLICY instead of SHUFFLE_QUEUES
+    - new R rule: ACCEPT
+    - better TLS logging
+    - ECDHE cipher suite support for inbound TLS
+    - loopback connection bugfixes
+    - more flexible TLS configuration
+
+0.10.6
+    - LDAP bind failure bugfix
+    - better TLS logging
+    - always make a delivery attempt before punting, even when
+        QUEUE_INCOMING_SMTP_MAIL is set
+    - RED rule parsing bugfixes
+    - return SMTP 554 instead of 501 on SSL errors
+    - option to limit the number of messages delivered on a connection
+    - option to randomise message delivery order
+    - min/max queue wait time bugfix
+    - stop sending STARTTLS when it wasn't advertised
+    - use non-blocking SSL calls, for working SSL timeouts
+
 0.10.5
     - removed unused queue priority logic
     - red API cleaned up
