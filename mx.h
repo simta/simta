@@ -4,11 +4,13 @@
 #define	RBL_BLOCK		3
 #define	RBL_ACCEPT		4
 #define	RBL_LOG_ONLY		5
+#define	RBL_TRUST		6
 
 #define	S_MISMATCH	"Mismatch"
 #define	S_ACCEPT	"Accept"
 #define	S_BLOCK		"Block"
 #define	S_LOG_ONLY	"Log_Only"
+#define	S_TRUST		"Trust"
 
 #define	REVERSE_MATCH		0
 #define REVERSE_ERROR		1

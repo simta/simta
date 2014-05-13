@@ -468,6 +468,10 @@ rbl_add( struct rbl **list, int type, char *domain, char *url )
 	syslog( LOG_ERR, "rbl_add type out of range: %d", type );
 	return( 1 );
 
+    case RBL_TRUST:
+	text = S_TRUST;
+	break;
+
     case RBL_ACCEPT:
 	text = S_ACCEPT;
 	break;

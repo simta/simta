@@ -1220,6 +1220,16 @@ f_rcpt( struct receive_data *r )
 		    }
 		    return( RECEIVE_OK );
 
+		case RBL_TRUST:
+		    r->r_rbl_status = RBL_TRUST;
+		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
+			    "To <%s> From <%s>: RBL %s: Accepted: %s",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname,
+			    r->r_env->e_id, addr, r->r_env->e_mail,
+			    r->r_rbl->rbl_domain, r->r_rbl_msg );
+		    break;
+
 		case RBL_ACCEPT:
 		    r->r_rbl_status = RBL_ACCEPT;
 		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
@@ -2821,6 +2831,13 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		set_smtp_mode( &r, SMTP_MODE_OFF, "RBL Blocked" );
 		break;
 
+	    case RBL_TRUST:
+		r.r_rbl_status = RBL_TRUST;
+		syslog( LOG_INFO, "Connect.in [%s] %s: RBL Accepted: %s",
+			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
+			(r.r_rbl)->rbl_domain );
+		break;
+
 	    case RBL_ACCEPT:
 		r.r_rbl_status = RBL_ACCEPT;
 		syslog( LOG_INFO, "Connect.in [%s] %s: RBL Accepted: %s",
@@ -2851,7 +2868,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 	}
 
-	if ( r.r_rbl_status != RBL_ACCEPT ) {
+	if ( r.r_rbl_status != RBL_ACCEPT && r.r_rbl_status != RBL_TRUST ) {
 	    if (( simta_local_connections_max != 0 ) &&
 		    ( c->c_proc_total > simta_local_connections_max )) {
 		syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
@@ -2880,19 +2897,21 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	/* Write before Banner check */
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
-	tv.tv_sec = simta_banner_delay;
-	tv.tv_usec = 0;
+	if ( r.r_rbl_status != RBL_TRUST ) {
+	    tv.tv_sec = simta_banner_delay;
+	    tv.tv_usec = 0;
 
-	if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
-		NULL, &tv )) < 0 ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive select: %m (%d %d)",
-		    snet_fd( r.r_snet ) + 1, simta_banner_delay );
-	    goto syserror;
-	} else if ( ret > 0 ) {
-	    r.r_write_before_banner = 1;
-	    syslog( LOG_INFO, "Connect.in [%s] %s: Write before banner",
-		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-	    sleep( simta_banner_punishment );
+	    if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
+		    NULL, &tv )) < 0 ) {
+		syslog( LOG_ERR, "Syserror smtp_receive select: %m (%d %d)",
+			snet_fd( r.r_snet ) + 1, simta_banner_delay );
+		goto syserror;
+	    } else if ( ret > 0 ) {
+		r.r_write_before_banner = 1;
+		syslog( LOG_INFO, "Connect.in [%s] %s: Write before banner",
+			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
+		sleep( simta_banner_punishment );
+	    }
 	}
 
 	tarpit_sleep( &r, simta_smtp_tarpit_connect );
@@ -3074,6 +3093,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	if (( r.r_smtp_mode == SMTP_MODE_NORMAL ) &&
+		( r.r_rbl_status != RBL_TRUST ) &&
 		( simta_max_failed_rcpts > 0 ) &&
 		( r.r_failed_rcpts >= simta_max_failed_rcpts )) {
 	    syslog( LOG_INFO, "Receive [%s] %s: %s: Too many failed recipients",

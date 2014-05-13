@@ -1,3 +1,6 @@
+0.10.8
+    - new RBL type: TRUST
+
 0.10.7
     - QUEUE_POLICY instead of SHUFFLE_QUEUES
     - new R rule: ACCEPT
