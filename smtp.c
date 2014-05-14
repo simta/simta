@@ -708,8 +708,10 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	} else if (( rc = snet_starttls( d->d_snet_smtp, ssl_ctx, 0 )) != 1 ) {
 	    syslog( LOG_ERR, "Syserror smtp_connect: snet_starttls: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
-	    SSL_CTX_free( ssl_ctx );
-	    return( SMTP_BAD_CONNECTION );
+	    if ( tls_required ) {
+		SSL_CTX_free( ssl_ctx );
+		return( SMTP_BAD_CONNECTION );
+	    }
 
 	} else if ( tls_client_cert( hq->hq_hostname, d->d_snet_smtp->sn_ssl )) {
 	    switch ( simta_policy_tls_cert ) {
