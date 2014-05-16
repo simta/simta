@@ -578,6 +578,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     int				tls_cert_required;
     char			*ciphers;
     SSL_CTX			*ssl_ctx = NULL;
+    SSL_CIPHER			*ssl_cipher;
 #endif /* HAVE_LIBSSL */
 
     tv_wait.tv_sec = simta_outbound_command_line_timer;
@@ -750,11 +751,14 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 			"tls_client_cert error" );
 		return( SMTP_ERROR );
 	    }
-	} else {
+	}
+
+	if (( ssl_cipher = SSL_get_current_cipher( d->d_snet_smtp->sn_ssl ))
+		!= NULL ) {
 	    syslog( LOG_INFO,
 		    "Deliver.SMTP %s (%s): TLS established. Cipher: %s",
 		    hq->hq_hostname, hq->hq_smtp_hostname,
-	SSL_CIPHER_get_name( SSL_get_current_cipher( d->d_snet_smtp->sn_ssl )));
+		    SSL_CIPHER_get_name( ssl_cipher ));
 	}
 
 	SSL_CTX_free( ssl_ctx );
