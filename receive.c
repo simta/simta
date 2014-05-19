@@ -494,6 +494,7 @@ smtp_write_banner( struct receive_data *r, int reply_code, const char *msg,
 {
     const char                          *boilerplate;
     int                                 ret = RECEIVE_OK;
+    int                                 rc;
     int                                 hostname = 0;
 
     switch ( reply_code ) {
@@ -531,7 +532,7 @@ smtp_write_banner( struct receive_data *r, int reply_code, const char *msg,
 
     default:
         syslog( LOG_ERR, "Receive [%s] %s: "
-                "smtp_banner_message: reply_code out of range: %d",
+                "smtp_write_banner: reply_code out of range: %d",
                 r->r_ip, r->r_remote_hostname, reply_code );
         reply_code = 421;
         /* fall through to 421 */
@@ -605,43 +606,30 @@ smtp_write_banner( struct receive_data *r, int reply_code, const char *msg,
 
     if ( hostname ) {
         if ( arg != NULL ) {
-            if ( snet_writef( r->r_snet, "%d %s %s: %s\r\n", reply_code,
-                    simta_hostname, msg ? msg : boilerplate, arg ) < 0 ) {
-                syslog( LOG_ERR, "Receive [%s] %s: "
-                        "smtp_banner_message: snet_writef failed: %m",
-                        r->r_ip, r->r_remote_hostname );
-                return( RECEIVE_CLOSECONNECTION );
-            }
+            rc = snet_writef( r->r_snet, "%d %s %s: %s\r\n", reply_code,
+                    simta_hostname, msg ? msg : boilerplate, arg );
 
         } else {
-            if ( snet_writef( r->r_snet, "%d %s %s\r\n", reply_code,
-                    simta_hostname, msg ? msg : boilerplate ) < 0 ) {
-                syslog( LOG_ERR, "Receive [%s] %s: "
-                        "smtp_banner_message: snet_writef failed: %m",
-                        r->r_ip, r->r_remote_hostname );
-                return( RECEIVE_CLOSECONNECTION );
-            }
+            rc = snet_writef( r->r_snet, "%d %s %s\r\n", reply_code,
+                    simta_hostname, msg ? msg : boilerplate );
         }
 
     } else {
         if ( arg != NULL ) {
-            if ( snet_writef( r->r_snet, "%d %s: %s\r\n", reply_code,
-                    msg ? msg : boilerplate, arg ) < 0 ) {
-                syslog( LOG_ERR, "Receive [%s] %s: "
-                        "smtp_banner_message: snet_writef failed: %m",
-                        r->r_ip, r->r_remote_hostname );
-                return( RECEIVE_CLOSECONNECTION );
-            }
+            rc = snet_writef( r->r_snet, "%d %s: %s\r\n", reply_code,
+                    msg ? msg : boilerplate, arg );
 
         } else {
-            if ( snet_writef( r->r_snet, "%d %s\r\n", reply_code,
-                    msg ? msg : boilerplate ) < 0 ) {
-                syslog( LOG_ERR, "Receive [%s] %s: "
-                        "smtp_banner_message: snet_writef failed: %m",
-                        r->r_ip, r->r_remote_hostname );
-                return( RECEIVE_CLOSECONNECTION );
-            }
+            rc = snet_writef( r->r_snet, "%d %s\r\n", reply_code,
+                    msg ? msg : boilerplate );
         }
+    }
+
+    if ( rc < 0 ) {
+        syslog( LOG_ERR, "Receive [%s] %s: "
+                "smtp_write_banner snet_writef failed: %m",
+                r->r_ip, r->r_remote_hostname );
+        return( RECEIVE_CLOSECONNECTION );
     }
 
     return( ret );
