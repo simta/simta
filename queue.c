@@ -609,8 +609,17 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	    next_launch.tv_sec = simta_jail_seconds.tv_sec + tv_now->tv_sec;
 	}
 
-    /* have we ever launched this queue or is it leaky? */
-    } else if (( hq->hq_wait_last.tv_sec == 0 ) || ( hq->hq_leaky != 0 )) {
+    /* have we never launched this queue? */
+    } else if ( hq->hq_wait_last.tv_sec == 0 ) {
+	wait_last.tv_sec = hq->hq_wait_min;
+	if ( simta_queue_incoming_smtp_mail != 0 ) {
+	    next_launch.tv_sec = tv_now->tv_sec;
+	} else {
+	    next_launch.tv_sec = random() % hq->hq_wait_min + tv_now->tv_sec;
+	}
+    
+    /* is the queue leaky? */
+    } else if ( hq->hq_leaky != 0 ) {
 	hq->hq_leaky = 0;
 	wait_last.tv_sec = hq->hq_wait_min;
 	next_launch.tv_sec = random() % hq->hq_wait_min + tv_now->tv_sec;

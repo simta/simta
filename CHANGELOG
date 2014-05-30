@@ -1,4 +1,5 @@
 0.10.8
+    - immediately run new queues when QUEUE_INCOMING_SMTP_MAIL is set
     - better TLS logging
     - fall back to plaintext when optional STARTTLS failed
     - reworked inbound TLS, improved error handling
