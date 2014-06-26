@@ -668,6 +668,10 @@ f_ehlo( struct receive_data *r )
 	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
+    if ( snet_writef( r->r_snet, "%d-ENHANCEDSTATUSCODES\r\n", 250 ) < 0 ) {
+	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
+	return( RECEIVE_CLOSECONNECTION );
+    }
     if ( snet_writef( r->r_snet, "%d%s8BITMIME\r\n", 250,
 	    extension_count-- ? "-" : " " ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
