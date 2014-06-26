@@ -20,7 +20,7 @@ AC_SUBST(maxconnections)
 AC_PREFIX_DEFAULT(/usr/local)
 
 # Checks for programs.
-AC_PROG_CC
+AC_PROG_CC_C99
 AC_PROG_INSTALL
 
 # Check for files

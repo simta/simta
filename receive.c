@@ -211,6 +211,7 @@ static void	tarpit_sleep( struct receive_data *, int );
 static void	log_bad_syntax( struct receive_data* );
 static int 	smtp_write_banner( struct receive_data *, int, char *,
 			char * );
+static int	smtp_write_reply( struct receive_data *, int, int, int, int, char[][SIMTA_MAX_REPLY_LEN] );
 
 #ifdef HAVE_LIBSASL
 static int	f_auth( struct receive_data * );
@@ -437,6 +438,32 @@ log_bad_syntax( struct receive_data *r )
     return;
 }
 
+    static int
+smtp_write_reply( struct receive_data *r, int reply_code, int class,
+	int subject, int detail, char msg[][SIMTA_MAX_REPLY_LEN] )
+{
+    int rc, ret = RECEIVE_OK;
+
+    for ( int i = 0; msg[ i ][0] != '\0'; i++ ) {
+	if ( class == 0 ) {
+	    rc = snet_writef( r->r_snet, "%d%s%s\r\n", reply_code,
+		    msg[ i + 1 ][0] == '\0' ? " " : "-", msg[ i ] );
+	} else {
+	    rc = snet_writef( r->r_snet, "%d%s%d.%d.%d %s\r\n", reply_code,
+		    msg[ i + 1 ][0] == '\0' ? " " : "-", class, subject, detail,
+		    msg[ i ] );
+	}
+
+	if ( rc < 0 ) {
+            syslog( LOG_ERR, "Syserror: Receive [%s] %s: "
+                    "smtp_banner_message: snet_writef: %m",
+                    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+            return( RECEIVE_CLOSECONNECTION );
+
+	}
+    }
+    return( ret );
+}
 
     static int
 smtp_write_banner( struct receive_data *r, int reply_code, char *msg,
@@ -621,11 +648,9 @@ f_helo( struct receive_data *r )
     static int
 f_ehlo( struct receive_data *r )
 {
-    extern int		simta_smtp_extension;
-    int			extension_count;
     const char		*mechlist;
-
-    extension_count = simta_smtp_extension;
+    char msg[7][SIMTA_MAX_REPLY_LEN] = {{ 0 }};
+    int i = 0;
 
     tarpit_sleep( r, 0 );
 
@@ -663,27 +688,14 @@ f_ehlo( struct receive_data *r )
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( snet_writef( r->r_snet, "%d-%s Hello %s\r\n", 250,
-	    simta_hostname, r->r_av[ 1 ]) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-    if ( snet_writef( r->r_snet, "%d-ENHANCEDSTATUSCODES\r\n", 250 ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
-    if ( snet_writef( r->r_snet, "%d%s8BITMIME\r\n", 250,
-	    extension_count-- ? "-" : " " ) < 0 ) {
-	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
-	return( RECEIVE_CLOSECONNECTION );
-    }
+    snprintf( msg[ i++ ], SIMTA_MAX_REPLY_LEN, "%s Hello %s",
+	    simta_hostname, r->r_av[ 1 ] );
+    strncpy( msg[ i++ ], "ENHANCEDSTATUSCODES", SIMTA_MAX_REPLY_LEN );
+    strncpy( msg[ i++ ], "8BITMIME", SIMTA_MAX_REPLY_LEN );
+
     if ( simta_max_message_size >= 0 ) {
-	if ( snet_writef( r->r_snet, "%d%sSIZE=%d\r\n", 250,
-		extension_count-- ? "-" : " ",
-		simta_max_message_size ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
+	snprintf( msg[ i++ ], SIMTA_MAX_REPLY_LEN, "SIZE=%ld",
+		simta_max_message_size );
     }
 
 #ifdef HAVE_LIBSASL
@@ -694,11 +706,7 @@ f_ehlo( struct receive_data *r )
 		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_SYSERROR );
 	}
-	if ( snet_writef( r->r_snet, "250%sAUTH %s\r\n", 
-		    extension_count-- ? "-" : " ", mechlist ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
+	snprintf(  msg[ i++ ], SIMTA_MAX_REPLY_LEN, "AUTH %s", mechlist );
     }
 #endif /* HAVE_LIBSASL */
 
@@ -708,11 +716,7 @@ f_ehlo( struct receive_data *r )
      * EHLO command received after a TLS handshake has completed.
      */
     if ( simta_tls && !r->r_tls ) {
-	if ( snet_writef( r->r_snet, "%d%sSTARTTLS\r\n", 250,
-		    extension_count-- ? "-" : " " ) < 0 ) {
-	    syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
-	    return( RECEIVE_CLOSECONNECTION );
-	}
+	strncpy( msg[ i++ ], "STARTTLS", SIMTA_MAX_REPLY_LEN );
     }
 #endif /* HAVE_LIBSSL */
 
@@ -720,7 +724,7 @@ f_ehlo( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    return( RECEIVE_OK );
+    return( smtp_write_reply( r, 220, 0, 0, 0, msg ));
 }
 
 
