@@ -663,9 +663,13 @@ f_ehlo( struct receive_data *r )
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( snet_writef( r->r_snet, "%d%s%s Hello %s\r\n", 250,
-	    extension_count-- ? "-" : " ",
+    if ( snet_writef( r->r_snet, "%d-%s Hello %s\r\n", 250,
 	    simta_hostname, r->r_av[ 1 ]) < 0 ) {
+	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
+	return( RECEIVE_CLOSECONNECTION );
+    }
+    if ( snet_writef( r->r_snet, "%d%s8BITMIME\r\n", 250,
+	    extension_count-- ? "-" : " " ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -839,6 +843,33 @@ f_mail( struct receive_data *r )
 		}
 	    }
 
+	/* RFC 6152 2 Framework for the 8-bit MIME Transport Extension
+	 *
+	 * one optional parameter using the keyword BODY is added to the
+	 * MAIL command.  The value associated with this parameter is a
+	 * keyword indicating whether a 7-bit message (in strict compliance
+	 * with [RFC5321]) or a MIME message (in strict compliance with
+	 * [RFC2046] and [RFC2045]) with arbitrary octet content is being
+	 * sent.  The syntax of the value is as follows, using the ABNF
+	 * notation of [RFC5234]:
+	 
+	 * body-value = "7BIT" / "8BITMIME"
+	 */	
+	} else if ( strncasecmp( r->r_av[ i ], "BODY=",
+		strlen( "BODY=" )) == 0 ) {
+	    if (( strncasecmp( r->r_av[ i ] + strlen( "BODY=" ),
+			    "7BIT", strlen( "7BIT" )) != 0 ) &&
+		    ( strncasecmp( r->r_av[ i ] + strlen( "BODY=" ),
+			    "8BITMIME", strlen( "8BITMIME" )) != 0 )) {
+		syslog( LOG_DEBUG, "Receive [%s] %s: "
+			"unrecognized BODY value: %s",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_smtp_command );
+		return( smtp_write_banner( r, 501,
+			"Syntax Error: invalid BODY parameter",
+			r->r_av[ i ] + strlen( "BODY=" )));
+	    }
+
 	} else {
 	    syslog( LOG_DEBUG, "Receive [%s] %s: "
 		    "unsupported SMTP extension: %s",
@@ -846,7 +877,7 @@ f_mail( struct receive_data *r )
 		    r->r_smtp_command );
 
 	    return( smtp_write_banner( r, 501, "Syntax Error: "
-		    "unsupported SMPT service extension", r->r_av[ i ] ));
+		    "unsupported SMTP service extension", r->r_av[ i ] ));
 	}
     }
 
