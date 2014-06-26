@@ -84,7 +84,8 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
 
-#define SIMTA_EXTENSION_SIZE    (1<<0)
+#define SIMTA_EXTENSION_SIZE	    (1<<0)
+#define SIMTA_EXTENSION_8BITMIME    (1<<1)
 
 extern char		*version;
 
@@ -660,9 +661,13 @@ f_ehlo( struct receive_data *r )
 	return( RECEIVE_SYSERROR );
     }
 
-    if ( snet_writef( r->r_snet, "%d%s%s Hello %s\r\n", 250,
-	    extension_count-- ? "-" : " ",
+    if ( snet_writef( r->r_snet, "%d-%s Hello %s\r\n", 250,
 	    simta_hostname, r->r_av[ 1 ]) < 0 ) {
+	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
+	return( RECEIVE_CLOSECONNECTION );
+    }
+    if ( snet_writef( r->r_snet, "%d%s8BITMIME\r\n", 250,
+	    extension_count-- ? "-" : " " ) < 0 ) {
 	syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
 	return( RECEIVE_CLOSECONNECTION );
     }
@@ -744,6 +749,7 @@ f_mail( struct receive_data *r )
     int			i;
     int			parameters;
     int			seen_extensions = 0;
+    int			eightbit = 0;
     long int		message_size;
     char		*addr;
     char		*domain;
@@ -836,6 +842,45 @@ f_mail( struct receive_data *r )
 		}
 	    }
 
+	/* RFC 6152 2 Framework for the 8-bit MIME Transport Extension
+	 *
+	 * one optional parameter using the keyword BODY is added to the
+	 * MAIL command.  The value associated with this parameter is a
+	 * keyword indicating whether a 7-bit message (in strict compliance
+	 * with [RFC5321]) or a MIME message (in strict compliance with
+	 * [RFC2046] and [RFC2045]) with arbitrary octet content is being
+	 * sent.  The syntax of the value is as follows, using the ABNF
+	 * notation of [RFC5234]:
+	 
+	 * body-value = "7BIT" / "8BITMIME"
+	 */	
+	} else if ( strncasecmp( r->r_av[ i ], "BODY=",
+		strlen( "BODY=" )) == 0 ) {
+	    if ( seen_extensions & SIMTA_EXTENSION_8BITMIME ) {
+		syslog( LOG_DEBUG, "Receive [%s] %s: "
+			"duplicate BODY specified: %s",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_smtp_command );
+		return( smtp_write_banner( r, 501, NULL,
+			"duplicate BODY specified" ));
+	    } else {
+		seen_extensions = seen_extensions | SIMTA_EXTENSION_8BITMIME;
+	    }
+
+	    if ( strncasecmp( r->r_av[ i ] + strlen( "BODY=" ),
+		    "8BITMIME", strlen( "8BITMIME" )) == 0 ) {
+		eightbit = 1;
+	    } else if ( strncasecmp( r->r_av[ i ] + strlen( "BODY=" ),
+			    "7BIT", strlen( "7BIT" )) != 0 ) {
+		syslog( LOG_DEBUG, "Receive [%s] %s: "
+			"unrecognized BODY value: %s",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_smtp_command );
+		return( smtp_write_banner( r, 501,
+			"Syntax Error: invalid BODY parameter",
+			r->r_av[ i ] + strlen( "BODY=" )));
+	    }
+
 	} else {
 	    syslog( LOG_DEBUG, "Receive [%s] %s: "
 		    "unsupported SMTP extension: %s",
@@ -843,7 +888,7 @@ f_mail( struct receive_data *r )
 		    r->r_smtp_command );
 
 	    return( smtp_write_banner( r, 501, "Syntax Error: "
-		    "unsupported SMPT service extension", r->r_av[ i ] ));
+		    "unsupported SMTP service extension", r->r_av[ i ] ));
 	}
     }
 
@@ -913,6 +958,10 @@ f_mail( struct receive_data *r )
 
     if (( r->r_env = env_create( simta_dir_fast, NULL, addr, NULL )) == NULL ) {
 	return( RECEIVE_SYSERROR );
+    }
+
+    if ( eightbit ) {
+	r->r_env->e_attributes |= ENV_ATTR_8BITMIME;
     }
 
 #ifdef HAVE_LIBSSL 

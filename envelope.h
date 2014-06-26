@@ -78,6 +78,7 @@ struct envelope {
 #define ENV_FLAG_SUPPRESS_NO_EMAIL	(1<<7)
 
 #define ENV_ATTR_ARCHIVE_ONLY		(1<<0)
+#define ENV_ATTR_8BITMIME		(1<<1)
 
 /* Efile syntax, by minimum version number:
  *

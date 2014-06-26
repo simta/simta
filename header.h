@@ -2,6 +2,8 @@
 
 #define STRING_MID		"Message-ID"
 #define STRING_MID_LEN		10
+#define STRING_MIME_VERSION	"Mime-Version"
+#define STRING_MIME_VERSION_LEN	12
 #define STRING_RECEIVED		"Received"
 #define STRING_RECEIVED_LEN	8
 #define STRING_SEEN_BEFORE	"X-Simta-Seen-Before"

@@ -633,6 +633,10 @@ header_text( int line_no, char *line, struct receive_headers *r, char **msg )
 		r->r_state = R_HEADER_SEEN;
 		make_more_seen( r );
 		return( seen_text( r, c + 1, msg ));
+	    } else if (( header_len == STRING_MIME_VERSION_LEN ) &&
+		    ( strncasecmp( line, STRING_MIME_VERSION,
+		    STRING_MIME_VERSION_LEN ) == 0 )) {
+		r->r_env->e_attributes |= ENV_ATTR_8BITMIME;
 	    }
 
 	} else {

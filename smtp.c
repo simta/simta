@@ -889,7 +889,7 @@ make_seen_before_line( struct host_q *hq, struct deliver *d )
     int
 smtp_send( struct host_q *hq, struct deliver *d )
 {
-    int			smtp_result;
+    int			smtp_result, rc;
     char		*line;
     struct timeval	tv_session = { 0, 0 };
     struct timeval	tv_now;
@@ -904,8 +904,29 @@ smtp_send( struct host_q *hq, struct deliver *d )
 	    d->d_env->e_id, hq->hq_hostname, hq->hq_smtp_hostname );
 
     /* MAIL FROM: */
-    if ( snet_writef( d->d_snet_smtp, "MAIL FROM:<%s>\r\n",
-	    d->d_env->e_mail ) < 0 ) {
+    /* RFC 6152 2 Framework for the 8-bit MIME Transport Extension
+     *  one optional parameter using the keyword BODY is added to the
+     *  MAIL command.  The value associated with this parameter is a
+     *  keyword indicating whether a 7-bit message (in strict compliance
+     *  with [RFC5321]) or a MIME message (in strict compliance with
+     *  [RFC2046] and [RFC2045]) with arbitrary octet content is being
+     *  sent.  The syntax of the value is as follows, using the ABNF
+     *  notation of [RFC5234]:
+     *
+     *  body-value = "7BIT" / "8BITMIME"	
+     */
+
+    if ( d->d_esmtp_8bitmime && ( d->d_env->e_attributes & ENV_ATTR_8BITMIME )) {
+	syslog( LOG_DEBUG, "Deliver.SMTP %s: Delivering as 8BITMIME",
+		d->d_env->e_id );
+	rc = snet_writef( d->d_snet_smtp,
+		"MAIL FROM:<%s> BODY=8BITMIME\r\n", d->d_env->e_mail );
+    } else {
+	rc = snet_writef( d->d_snet_smtp, "MAIL FROM:<%s>\r\n",
+		d->d_env->e_mail );
+    }
+
+    if ( rc < 0 ) {
 	syslog( LOG_DEBUG, "Deliver %s: snet_writef failed: MAIL FROM",
 		hq->hq_hostname );
 	return( SMTP_BAD_CONNECTION );
