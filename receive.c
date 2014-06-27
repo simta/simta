@@ -154,6 +154,7 @@ struct receive_data {
 #define S_451_DECLINE "Requested action aborted: "\
 	"service temporarily unavailable"
 #define S_451_MESSAGE "Message Tempfailed"
+#define S_501_MESSAGE "Syntax error in parameters or arguments"
 #define S_554_MESSAGE "Message Failed"
 #define S_MAXCONNECT "Maximum connections exceeded"
 #define S_TIMEOUT "Connection length exceeded"
@@ -440,7 +441,7 @@ log_bad_syntax( struct receive_data *r )
 
     static int
 smtp_write_reply( struct receive_data *r, int reply_code, int class,
-	int subject, int detail, char msg[][SIMTA_MAX_REPLY_LEN] )
+	int subject, int detail, char *msg[] )
 {
     int rc, ret = RECEIVE_OK;
 
@@ -629,8 +630,7 @@ f_helo( struct receive_data *r )
 
     if ( r->r_ac != 2 ) {
 	log_bad_syntax( r );
-	return( smtp_write_banner( r, 501, NULL,
-		"RFC 2821 section 4.1.1.1: \"HELO\" SP Domain CRLF" ));
+	return( smtp_write_reply( r, 501, 0, 0, 0, (char[]){ S_501_MESSAGE, "RFC 2821 section 4.1.1.1: \"HELO\" SP Domain CRLF", 0 } ));
     }
 
     syslog( LOG_DEBUG, "Receive [%s] %s: %s",
@@ -649,7 +649,7 @@ f_helo( struct receive_data *r )
 f_ehlo( struct receive_data *r )
 {
     const char		*mechlist;
-    char msg[7][SIMTA_MAX_REPLY_LEN] = {{ 0 }};
+    char *msg[7] = {{ 0 }};
     int i = 0;
 
     tarpit_sleep( r, 0 );
@@ -662,8 +662,10 @@ f_ehlo( struct receive_data *r )
      */
     if ( r->r_ac != 2 ) {
 	log_bad_syntax( r );
-	return( smtp_write_banner( r, 501, NULL,
-		"RFC 2821 section 4.1.1.1: \"EHLO\" SP Domain CRLF" ));
+	strncpy( msg[ 0 ], S_501_MESSAGE, SIMTA_MAX_REPLY_LEN );
+	strncpy( msg[ 1 ], "RFC 2821 section 4.1.1.1: \"EHLO\" SP Domain CRLF",
+		SIMTA_MAX_REPLY_LEN );
+	return( smtp_write_reply( r, 501, 0, 0, 0, (char[]){ S_501_MESSAGE, "RFC 2821 section 4.1.1.1: \"EHLO\" SP Domain CRLF", 0 } )); 
     }
 
     /* rfc 2821 4.1.4
@@ -690,10 +692,11 @@ f_ehlo( struct receive_data *r )
 
     snprintf( msg[ i++ ], SIMTA_MAX_REPLY_LEN, "%s Hello %s",
 	    simta_hostname, r->r_av[ 1 ] );
-    strncpy( msg[ i++ ], "ENHANCEDSTATUSCODES", SIMTA_MAX_REPLY_LEN );
-    strncpy( msg[ i++ ], "8BITMIME", SIMTA_MAX_REPLY_LEN );
+    msg[ i++ ] = "ENHANCEDSTATUSCODES";
+    msg[ i++ ] = "8BITMIME";
 
     if ( simta_max_message_size >= 0 ) {
+	msg[ i++ ] = char[ SIMTA_MAX_REPLY_LEN ]
 	snprintf( msg[ i++ ], SIMTA_MAX_REPLY_LEN, "SIZE=%ld",
 		simta_max_message_size );
     }
