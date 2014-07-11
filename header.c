@@ -22,6 +22,7 @@
 
 #include <time.h>
 
+#include <errno.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>

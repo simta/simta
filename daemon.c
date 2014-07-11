@@ -300,7 +300,11 @@ main( int ac, char **av )
 	prog++;
     }
 
+#ifdef HAVE_LIBSSL
     while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRs:Su:Vw:x:y:z:" ))
+#else /* HAVE_LIBSSL */
+    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRs:Su:V" ))
+#endif /* HAVE_LIBSSL */
 	    != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
@@ -368,9 +372,11 @@ main( int ac, char **av )
 	    simta_smtp_port = htons( atoi( optarg ));
 	    break;
 
+#ifdef HAVE_LIBSSL
 	case 'P' :		/* ca dir */
 	    simta_dir_ca = optarg;
 	    break;
+#endif /* HAVE_LIBSSL */
 
 	case 'q' :
 	    if ( simta_filesystem_cleanup != 0 ) {
@@ -432,6 +438,7 @@ main( int ac, char **av )
 	    printf( "%s\n", version );
 	    exit( 0 );
 
+#ifdef HAVE_LIBSSL
 	case 'w' :              /* authlevel 0:none, 1:serv, 2:client & serv */
 	    simta_service_smtps = atoi( optarg );
 	    if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
@@ -452,6 +459,7 @@ main( int ac, char **av )
 	case 'z' :              /* private key */
 	    simta_file_private_key = optarg;
 	    break;
+#endif /* HAVE_LIBSSL */
 
 	default:
 	    err++;
@@ -469,8 +477,10 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -P ca-directory ] [ -Q queue]" );
 	fprintf( stderr, " [ -s spooldir ]" );
         fprintf( stderr, " [ -u user ]" );
+#ifdef HAVE_LIBSSL
 	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
 	fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
+#endif /* HAVE_LIBSSL */
 	fprintf( stderr, "\n" );
 	exit( 1 );
     }
@@ -513,11 +523,8 @@ main( int ac, char **av )
     }
 
 #ifndef Q_SIMULATION
+#ifdef HAVE_LIBSSL
     if ( simta_service_smtps ) {
-#ifndef HAVE_LIBSSL
-	syslog( LOG_ERR, "simta_service_smtps set but SSL is not available" );
-	exit( 1 );
-#else /* HAVE_LIBSSL */
 	/* Test whether our SSL config is usable */
 	if (( ssl_ctx = tls_server_setup( simta_use_randfile,
 		simta_service_smtps, simta_file_ca, simta_dir_ca,
@@ -528,12 +535,12 @@ main( int ac, char **av )
 	}
 	SSL_CTX_free( ssl_ctx );
 	simta_tls = 1;
-#endif /* HAVE_LIBSSL */
     }
 
     if ( simta_tls ) {
 	simta_smtp_extension++;
     }
+#endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl ) {

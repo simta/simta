@@ -44,13 +44,11 @@ AC_SUBST(OPTOPTS)
 AC_STRUCT_TM
 AC_STRUCT_GMTOFF
 
-AC_SUBST(SRC, [])
-AC_SUBST(SIMTA_OBJ, [])
-AC_SUBST(SIMSEND_OBJ, [])
-AC_SUBST(SIMC_OBJ, [])
-AC_SUBST(Q_RUNNER_OBJ, [])
-AC_SUBST(EXPANDER_OBJ, [])
 AC_SUBST(EXTRALIBS, [])
+AC_SUBST(LDAP_SRC, [])
+AC_SUBST(LDAP_OBJ, [])
+AC_SUBST(SSL_SRC, [])
+AC_SUBST(SSL_OBJ, [])
 
 # Check for libraries
 AC_CHECK_LIB([nsl], [inet_ntoa])
@@ -70,14 +68,14 @@ AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
 AX_WITH_LIBRARY([sasl2], [LIBSASL], [sasl/sasl.h], [sasl2])
 AX_WITH_LIBRARY([zlib], [ZLIB], [zlib.h], [z])
 
-# Is this really where we should put this?
 if test x"$ax_cv_have_LDAP" = xyes; then
-    SRC="$SRC simta_ldap.c dn.c"
-    SIMTA_OBJ="$SIMTA_OBJ simta_ldap.o dn.o"
-    SIMSEND_OBJ="$SIMSEND_OBJ simta_ldap.o dn.o"
-    SIMC_OBJ="$SIMC_OBJ simta_ldap.o dn.o"
-    Q_RUNNER_OBJ="$Q_RUNNER_OBJ simta_ldap.o dn.o"
-    EXPANDER_OBJ="$EXPANDER_OBJ simta_ldap.o dn.o"
+    LDAP_SRC="simta_ldap.c dn.c"
+    LDAP_OBJ="simta_ldap.o dn.o"
+fi
+
+if test x"$ax_cv_have_LIBSSL" = xyes; then
+    SSL_SRC="md.c tls.c"
+    SSL_OBJ="md.o tls.o"
 fi
 
 if test "x$srcdir" = x.; then

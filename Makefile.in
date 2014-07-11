@@ -24,41 +24,25 @@ CERTDIR=${SIMTACONFDIR}/cert
 TLS_CAFILE=${CERTDIR}/ca.pem
 TLS_CERT=${CERTDIR}/cert.pem
 
-SRC=    @SRC@  daemon.c receive.c argcargv.c envelope.c base64.c \
-	simsend.c smtpconnect.c rcptlist.c tlsconnect.c address.c \
+SRC=    @LDAP_SRC@ @SSL_SRC@ \
+	daemon.c receive.c argcargv.c envelope.c base64.c \
+	simsend.c smtpconnect.c rcptlist.c address.c \
 	simalias.c bounce.c wildcard.c
-SIMTAOBJ=	@SIMTA_OBJ@ daemon.o receive.o argcargv.o envelope.o base64.o \
-		address.o line_file.o ll.o bdb.o header.o simta.o \
-		md.o queue.o ml.o smtp.o expand.o mx.o bounce.o \
-		q_cleanup.o tls.o wildcard.o red.o
-SMTPCONOBJ=     @SIMTA_OBJ@ address.o bdb.o bounce.o envelope.o expand.o \
-                header.o line_file.o ll.o ml.o mx.o simta.o queue.o smtp.o \
-                red.o smtpconnect.o tls.o wildcard.o
-TLSCONOBJ=	tlsconnect.o
-SIMCOBJ=	@SIMC_OBJ@ simc.o line_file.o envelope.o header.o \
-		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
-		tls.o smtp.o ml.o mx.o wildcard.o red.o
-SIMSENDOBJ=	@SIMSEND_OBJ@ simsend.o line_file.o envelope.o header.o \
-		simta.o ll.o address.o bdb.o bounce.o queue.o expand.o \
-		tls.o smtp.o ml.o mx.o wildcard.o red.o
+COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ \
+		address.o argcargv.o base64.o bdb.o bounce.o envelope.o \
+		expand.o header.o line_file.o ll.o ml.o mx.o q_cleanup.o \
+		queue.o red.o simta.o smtp.o wildcard.o
+SIMTAOBJ=	${COMMONOBJ} daemon.o receive.o
+SMTPCONOBJ=     ${COMMONOBJ} smtpconnect.o
+SIMCOBJ=	${COMMONOBJ} simc.o
+SIMSENDOBJ=	${COMMONOBJ} simsend.o
 SIMLOGOBJ=	simlog.o
-EXPANDEROBJ=	@EXPANDER_OBJ@ expander.o queue.o ll.o line_file.o \
-		envelope.o ml.o simta.o tls.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
-SIMRBLOBJ=	@EXPANDER_OBJ@ simrbl.o queue.o ll.o line_file.o \
-		envelope.o ml.o simta.o tls.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
-SIMREVERSEOBJ=	@EXPANDER_OBJ@ simreverse.o queue.o ll.o line_file.o \
-		envelope.o ml.o simta.o tls.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
-QRUNNEROBJ=	@Q_RUNNER_OBJ@ q_runner.o queue.o ll.o line_file.o \
-		envelope.o ml.o simta.o tls.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
-QCLEANUPOBJ=	q_cleanup.o queue.o ll.o line_file.o envelope.o ml.o \
-		tls.o smtp.o simta.o mx.o wildcard.o red.o
-SIMALIASOBJ=	@EXPANDER_OBJ@ simalias.o queue.o ll.o line_file.o \
-		envelope.o ml.o simta.o tls.o smtp.o expand.o address.o bdb.o \
-		header.o bounce.o q_cleanup.o mx.o wildcard.o red.o
+EXPANDEROBJ=	${COMMONOBJ} expander.o
+SIMRBLOBJ=	${COMMONOBJ} simrbl.o
+SIMREVERSEOBJ=	${COMMONOBJ} simreverse.o
+QRUNNEROBJ=	${COMMONOBJ} q_runner.o
+QCLEANUPOBJ=	${COMMONOBJ} q_cleanup.o
+SIMALIASOBJ=	${COMMONOBJ} simalias.o
 SLAOBJ=		sla.o
 SIMCKOBJ=	simck.o base64.o md.o
 
@@ -78,7 +62,7 @@ SIMTALIBS=	${LIBS}
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
 BINTARGETS=	simrbl simreverse simalias simexpander denser/dense
-TARGETS=	simta smtpconnect tlsconnect simsendmail q_runner simexpander \
+TARGETS=	simta smtpconnect simsendmail q_runner simexpander \
                 sla simc \
 		${BINTARGETS}
 
@@ -170,9 +154,6 @@ address.o : address.c
 	${CC} ${CFLAGS} \
 		-c ${SRCPFX}address.c -o address.o
 
-tlsconnect : stamp-libsnet stamp-denser ${TLSCONOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o tlsconnect ${TLSCONOBJ} ${LIBPATH} ${LIBS}
-
 simlog : stamp-libsnet stamp-denser ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
 
@@ -239,7 +220,6 @@ sla.o: config.h envelope.h expand.h line_file.h ll.h queue.h simta.h
 smtp.o: argcargv.h config.h envelope.h header.h line_file.h mx.h queue.h simta.h smtp.h
 smtpconnect.o: argcargv.h config.h envelope.h header.h line_file.h mx.h queue.h simta.h smtp.h
 tls.o: config.h tls.h
-tlsconnect.o: config.h
 wildcard.o: config.h wildcard.h
 
 FRC :

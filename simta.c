@@ -25,6 +25,7 @@
 #include <snet.h>
 #include <db.h>
 
+#include <errno.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -150,7 +151,9 @@ int			simta_smtp_tarpit_data = 0;
 int			simta_smtp_tarpit_data_eof = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
+#ifdef HAVE_LIBSSL
 int			simta_tls = 0;
+#endif /* HAVE_LIBSSL */
 int			simta_sasl = 0;
 int			simta_service_submission = 0;
 #ifdef HAVE_LIBSSL
@@ -184,11 +187,13 @@ char			simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
 DNSR			*simta_dnsr = NULL;
 char			*simta_default_alias_db = SIMTA_ALIAS_DB;
 char			*simta_default_passwd_file = "/etc/passwd";
+#ifdef HAVE_LIBSSL
 char			*simta_tls_ciphers = NULL;
 char			*simta_file_ca = NULL;
 char			*simta_dir_ca = NULL;
 char			*simta_file_cert = "cert/cert.pem";
 char			*simta_file_private_key = "cert/cert.pem";
+#endif /* HAVE_LIBSSL */
 char			**simta_deliver_default_argv;
 int			simta_deliver_default_argc;
 char			*simta_seen_before_domain = NULL;
@@ -200,12 +205,15 @@ int			simta_inbound_command_inactivity_timer = 3600;
 int			simta_inbound_command_line_timer = 600;
 int			simta_inbound_data_line_timer = 300;
 int			simta_inbound_data_session_timer = 3600;
+#ifdef HAVE_LIBSSL
 int			simta_inbound_ssl_accept_timer = 300;
+#endif /* HAVE_LIBSSL */
 int			simta_outbound_command_line_timer = 300;
 int			simta_outbound_data_line_timer = 300;
 int			simta_outbound_data_session_timer = 0;
+#ifdef HAVE_LIBSSL
 int			simta_outbound_ssl_connect_timer = 300;
-
+#endif /* HAVE_LIBSSL */
 
     void
 panic( char *message )
@@ -568,6 +576,7 @@ simta_read_config( char *fname )
 			"@domain D PUNTING <ENABLED|DISABLED>" );
 		goto error;
 
+#ifdef HAVE_LIBSSL
 	    } else if ( strcasecmp( av[ 2 ], "TLS_OUTBOUND" ) == 0 ) {
 		/* @DOMAIN D TLS_OUTBOUND <OPTIONAL|REQUIRED> */
 		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
@@ -615,6 +624,7 @@ simta_read_config( char *fname )
 			fname, lineno,
 			"@domain D TLS_CIPHERS_OUTBOUND <cipher string>" );
 		goto error;
+#endif /* HAVE_LIBSSL */
 
 	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
 		if ( ac == 3 ) {
@@ -729,6 +739,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
+#ifdef HAVE_LIBSSL
 	} else if ( strcasecmp( av[ 0 ], "TLS_OUTBOUND" ) == 0 ) {
 	    /* TLS_OUTBOUND <OPTIONAL|REQUIRED> */
 	    if ( ac == 2 ) {
@@ -783,6 +794,7 @@ simta_read_config( char *fname )
 		    fname, lineno,
 		    "TLS_CIPHERS_OUTBOUND <cipher string>" );
 	    goto error;
+#endif /* HAVE_LIBSSL */
 
 	} else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
 	    if ( ac < 2 ) {
@@ -1073,6 +1085,7 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "RECEIVE_DATA_LINE_TIMEOUT %d\n",
 		    simta_inbound_data_line_timer );
 
+#ifdef HAVE_LIBSSL
 	} else if ( strcasecmp( av[ 0 ],
 		"RECEIVE_SSL_ACCEPT_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1106,6 +1119,7 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "DELIVER_SSL_CONNECT_TIMEOUT %d\n",
 		    simta_outbound_ssl_connect_timer );
+#endif /* HAVE_LIBSSL */
 
 	} else if ( strcasecmp( av[ 0 ],
 		"DELIVER_COMMAND_LINE_TIMEOUT" ) == 0 ) {
@@ -1766,6 +1780,7 @@ simta_read_config( char *fname )
 		printf( "USER_RBL_TRUST: %s\n", av[ 1 ]);
 	    }
 
+#ifdef HAVE_LIBSSL
 	} else if ( strcasecmp( av[ 0 ], "PRIVATE_KEY_FILE" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
@@ -1821,6 +1836,7 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) {
 		printf( "CA_DIRECTORY: %s\n", simta_dir_ca );
 	    }
+#endif /* HAVE_LIBSSL */
 
 	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
 	    if ( ac == 2 ) {
@@ -1860,6 +1876,7 @@ simta_read_config( char *fname )
 	    simta_service_submission = SERVICE_SUBMISSION_ON;
 	    if ( simta_debug ) printf( "SUBMISSION_PORT\n" );
 
+#ifdef HAVE_LIBSSL
 	} else if ( strcasecmp( av[ 0 ], "AUTHLEVEL" ) == 0 ) {
 	    /* authlevel 0:none, 1:serv, 2:client & serv */
 	    if ( ac != 2 ) {
@@ -1896,6 +1913,7 @@ simta_read_config( char *fname )
 	    }
 	    simta_use_randfile = 1;
 	    if ( simta_debug ) printf( "USE_RANDFILE\n" );
+#endif /* HAVE_LIBSSL */
 
 	} else if ( strcasecmp( av[ 0 ], "DNS_AUTO_CONFIG" ) == 0 ) {
 	    /* DNS_AUTO_CONFIG <ON|OFF> */

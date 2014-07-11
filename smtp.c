@@ -586,10 +586,12 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     snet_timeout( d->d_snet_smtp,
 	    SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait );
 
+#ifdef HAVE_LIBSSL
     if ( simta_outbound_ssl_connect_timer != 0 ) {
 	tv_wait.tv_sec = simta_outbound_ssl_connect_timer;
 	snet_timeout( d->d_snet_smtp, SNET_SSL_CONNECT_TIMEOUT, &tv_wait );
     }
+#endif /* HAVE_LIBSSL */
 
     if (( r = smtp_reply( SMTP_CONNECT, hq, d )) != SMTP_OK ) {
 	return( r );
