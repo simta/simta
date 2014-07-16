@@ -113,7 +113,7 @@ struct header headers_simsendmail[] = {
     { "Reply-To",		NULL,		NULL },
 #define HEAD_REPLY_TO		7
     { "References",		NULL,		NULL },
-#define HEAD_REFRENCES		8
+#define HEAD_REFERENCES		8
     { "Subject",		NULL,		NULL },
 #define HEAD_SUBJECT		9
     { NULL,			NULL,		NULL }
@@ -198,7 +198,7 @@ skip_cfws( struct line **l, char **c )
 	    break;
 
 	case ')':
-	    comment --;
+	    comment--;
 
 	    if ( comment == 0 ) {
 		comment_line = NULL;
@@ -700,25 +700,27 @@ header_lines( struct line_file *lf, struct header headers[], int err_out )
 	 * between 33 and 126, inclusive), except colon.
 	 */
 
-	/* line is FWS if first character of the line is whitespace */
+	/* Lines starting with whitespace are continuations, we don't
+	 * want to look at them. */
 	if (( *l->line_data == ' ' ) || ( *l->line_data == '\t' )) {
 	    continue;
 	}
 
-	for ( colon = l->line_data; *colon != ':'; colon++ )
-		;
-
+	for ( colon = l->line_data; *colon != ':'; colon++ );
 	header_len = ( colon - ( l->line_data ));
 
-	/* field name followed by a colon */
 	for ( h = headers; h->h_key != NULL; h++ ) {
+	    /* Check whether the current line (up to the colon) matches */
 	    if ( strncasecmp( h->h_key, l->line_data, header_len ) == 0 ) {
-		/* correct field name */
+		/* The current line (up to the colon) matches h */
 		if ( h->h_line == NULL ) {
+		    /* We haven't seen this header before */
 		    h->h_line = l;
 
 		} else {
-		    /* header h->h_key appears at least twice */
+		    /* This is the second time this header has occurred,
+		     * so the message is not RFC compliant.
+		     */
 		    if ( err_out == HEADER_STDERR ) {
 			fprintf( stderr,
 				"line %d: illegal duplicate header %s\n",
