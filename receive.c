@@ -1300,6 +1300,7 @@ f_data( struct receive_data *r )
     int					banner = 0;
     int					dfile_fd = -1;
     int					ret_code = RECEIVE_SYSERROR;
+    int					rc;
     int					header = 1;
     int					line_no = 0;
     int					message_banner = MESSAGE_TEMPFAIL;
@@ -1309,6 +1310,8 @@ f_data( struct receive_data *r )
     unsigned int			line_len;
     char				*line;
     char				*msg;
+    struct line_file			*lf = NULL;
+    struct line				*l;
     char				*failure_message;
     char				*filter_message = NULL;
     char				*system_message = NULL;
@@ -1399,6 +1402,12 @@ f_data( struct receive_data *r )
 
     case SMTP_MODE_GLOBAL_RELAY:
     case SMTP_MODE_NORMAL:
+	/* create line_file for headers */	
+	if (( lf = line_file_create()) == NULL ) {
+	    perror( "malloc" );
+	    return( -1 );
+	}
+
 	if (( dfile_fd = env_dfile_open( r->r_env )) < 0 ) {
 	    return( -1 );
 	}
@@ -1573,10 +1582,44 @@ f_data( struct receive_data *r )
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_env->e_id, msg );
 		}
+		if (( l = line_append( lf, line, COPY )) == NULL ) {
+		    perror( "malloc" );
+		    ret_code = RECEIVE_CLOSECONNECTION;
+		    goto error;
+		}
+		l->line_no = line_no;
 	    } else if ( f_result < 0 ) {
 		read_err = SYSTEM_ERROR;
 	    } else {
 		header = 0;
+		if ( simta_submission_mode != SUBMISSION_MODE_MTA ) {
+		    /* Check and (maybe) correct headers */
+		    if (( rc = header_correct( 0, lf, r->r_env )) < 0 ) {
+			ret_code = RECEIVE_CLOSECONNECTION;
+			goto error;
+		    } else if ( rc > 0 ) {
+			/* Continue reading lines, but reject the message */
+			system_message = "Message is not RFC 2822 compliant";
+			message_banner = MESSAGE_REJECT;
+			read_err = PROTOCOL_ERROR;
+		    }
+		}
+		if (( rc = header_file_out( lf, dff )) < 0 ) {
+		    syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
+		    read_err = SYSTEM_ERROR;
+		} else {
+		    data_wrote += rc;
+		}
+		if ( *line != '\0' ) {
+		    if (( fprintf( dff, "\n" )) < 0 ) {
+			syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
+			read_err = SYSTEM_ERROR;
+		    } else {
+			data_wrote++;
+		    }
+		}
+		line_file_free( lf );
+		lf = NULL;
 	    }
 	}
 
@@ -1613,7 +1656,8 @@ f_data( struct receive_data *r )
 	}
 
 	if ( read_err == NO_ERROR ) {
-	    if (( dff != NULL ) && ( fprintf( dff, "%s\n", line ) < 0 )) {
+	    if (( dff != NULL ) && ( header == 0 ) &&
+		    ( fprintf( dff, "%s\n", line ) < 0 )) {
 		syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
 		read_err = SYSTEM_ERROR;
 	    } else {
@@ -1987,6 +2031,10 @@ f_data( struct receive_data *r )
 
 error:
     header_free( &rh );
+
+    if ( lf != NULL ) {
+	line_file_free ( lf );
+    }
 
     /* if dff is still open, there was an error and we need to close it */
     if (( dff != NULL ) && ( fclose( dff ) != 0 )) {

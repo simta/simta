@@ -78,6 +78,7 @@ struct simta_red	*simta_red_hosts = NULL;
 struct action		*simta_red_action_secondary_mx = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_submission_mode = SUBMISSION_MODE_MTA;
 int			simta_policy_tls = TLS_POLICY_DEFAULT;
 int			simta_policy_tls_cert = TLS_POLICY_DEFAULT;
 int			simta_wait_max = 80 * 60;
@@ -2115,6 +2116,23 @@ simta_read_config( char *fname )
 		simta_smtp_default_mode = SMTP_MODE_TEMPFAIL;
 	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
 		simta_smtp_default_mode = SMTP_MODE_TARPIT;
+	    } else {
+		fprintf( stderr, "%s: line %d: illegal argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_MODE" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    } else if ( strcasecmp( av[ 1 ], "MSA" ) == 0 ) {
+		simta_submission_mode = SUBMISSION_MODE_MSA;
+	    } else if ( strcasecmp( av[ 1 ], "MTA" ) == 0 ) {
+		simta_submission_mode = SUBMISSION_MODE_MTA;
+	    } else if ( strcasecmp( av[ 1 ], "MTA_STRICT" ) == 0 ) {
+		simta_submission_mode = SUBMISSION_MODE_MTA_STRICT;
 	    } else {
 		fprintf( stderr, "%s: line %d: illegal argument\n",
 			fname, lineno );

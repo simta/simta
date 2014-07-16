@@ -83,65 +83,6 @@ char	*token_unquoted_atom( char * );
 void	make_more_seen( struct receive_headers * );
 char	*append_seen( struct receive_headers *, char *, int );
 
-
-/* RFC 2821 3.6  Field definitions
- *  Field           Min number      Max number      Notes
- *
- *  orig-date       1               1
- *
- *  from            1               1               See sender and 3.6.2
- *
- *  sender          0*              1               MUST occur with multi-
- *                                                  address from - see 3.6.2
- *
- *  reply-to        0               1
- *
- *  to              0               1
- *
- *  cc              0               1
- *
- *  bcc             0               1
- *
- *  message-id      0*              1               SHOULD be present - see
- *                                                  3.6.4
- *
- *  in-reply-to     0*              1               SHOULD occur in some
- *                                                  replies - see 3.6.4
- *
- *  references      0*              1               SHOULD occur in some
- *                                                  replies - see 3.6.4
- *
- *  subject         0               1
- *
- * header_lines() will enforce max number.
- * header_correct() will add missing fields.
- */
-struct header headers_rfc2822[] = {
-    { "Date",			NULL,		NULL },
-#define HEAD_DATE		0
-    { "From",			NULL,		NULL },
-#define HEAD_FROM		1
-    { "Sender",			NULL,		NULL },
-#define HEAD_SENDER		2
-    { "Reply-To",		NULL,		NULL },
-#define HEAD_REPLY_TO		3
-    { "To",			NULL,		NULL },
-#define HEAD_TO			4
-    { "Cc",			NULL,		NULL },
-#define HEAD_CC			5
-    { "Bcc",			NULL,		NULL },
-#define HEAD_BCC		6
-    { "Message-ID",             NULL,           NULL },
-#define HEAD_MESSAGE_ID		7
-    { "In-Reply-To",		NULL,		NULL },
-#define HEAD_IN_REPLY_TO	8
-    { "References",		NULL,		NULL },
-#define HEAD_REFERENCES		9
-    { "Subject",		NULL,		NULL },
-#define HEAD_SUBJECT		10
-    { NULL,			NULL,		NULL }
-};
-
 int				simta_generate_sender;
 
 
@@ -336,14 +277,16 @@ header_exceptions( struct line_file *lf )
 header_file_out( struct line_file *lf, FILE *file )
 {
     struct line			*l;
+    int				rc, data_written = 0;
 
     for ( l = lf->l_first; l != NULL; l = l->line_next ) {
-	if ( fprintf( file, "%s\n", l->line_data ) < 0 ) {
-	    return( 1 );
+	if (( rc = fprintf( file, "%s\n", l->line_data )) < 0 ) {
+	    return( rc );
 	}
+	data_written += rc;
     }
 
-    return( 0 );
+    return( data_written );
 }
 
 
@@ -767,7 +710,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 {
     struct line			*l;
     struct line			**lp;
-    int				result;
+    int				ret = 0;
     char			*prepend_line = NULL;
     size_t			prepend_len = 0;
     size_t			len;
@@ -776,15 +719,76 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     char			daytime[ 35 ];
     struct envelope		*to_env = NULL;
 
+/* RFC 2821 3.6  Field definitions
+ *  Field           Min number      Max number      Notes
+ *
+ *  orig-date       1               1
+ *
+ *  from            1               1               See sender and 3.6.2
+ *
+ *  sender          0*              1               MUST occur with multi-
+ *                                                  address from - see 3.6.2
+ *
+ *  reply-to        0               1
+ *
+ *  to              0               1
+ *
+ *  cc              0               1
+ *
+ *  bcc             0               1
+ *
+ *  message-id      0*              1               SHOULD be present - see
+ *                                                  3.6.4
+ *
+ *  in-reply-to     0*              1               SHOULD occur in some
+ *                                                  replies - see 3.6.4
+ *
+ *  references      0*              1               SHOULD occur in some
+ *                                                  replies - see 3.6.4
+ *
+ *  subject         0               1
+ *
+ * header_lines() will enforce max number.
+ * header_correct() will add missing fields.
+ */
+    struct header headers_rfc2822[] = {
+	{ "Date",		NULL,		NULL },
+#define HEAD_DATE		0
+	{ "From",		NULL,		NULL },
+#define HEAD_FROM		1
+	{ "Sender",		NULL,		NULL },
+#define HEAD_SENDER		2
+	{ "Reply-To",		NULL,		NULL },
+#define HEAD_REPLY_TO		3
+	{ "To",			NULL,		NULL },
+#define HEAD_TO			4
+	{ "Cc",			NULL,		NULL },
+#define HEAD_CC			5
+	{ "Bcc",		NULL,		NULL },
+#define HEAD_BCC		6
+	{ "Message-ID",         NULL,           NULL },
+#define HEAD_MESSAGE_ID		7
+	{ "In-Reply-To",	NULL,		NULL },
+#define HEAD_IN_REPLY_TO	8
+	{ "References",		NULL,		NULL },
+#define HEAD_REFERENCES		9
+	{ "Subject",		NULL,		NULL },
+#define HEAD_SUBJECT		10
+	{ NULL,			NULL,		NULL }
+    };
+
+
     if ( read_headers != 0 ) {
 	to_env = env;
     }
 
     /* check headers for known mail clients behaving badly */
-    header_exceptions( lf );
+    if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
+	header_exceptions( lf );
+    }
 
-    if ( header_lines( lf, headers_rfc2822 ) != 0 ) {
-	return( 1 );
+    if (( ret = header_lines( lf, headers_rfc2822 )) != 0 ) {
+	goto error;
     }
 
     simta_generate_sender = 0;
@@ -793,11 +797,14 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     /* From: */
     if (( l = headers_rfc2822[ HEAD_FROM ].h_line ) != NULL ) {
-	if (( result = parse_mailbox_list( NULL, l, l->line_data + 5,
+	if (( ret = parse_mailbox_list( NULL, l, l->line_data + 5,
 		MAILBOX_FROM_CORRECT )) != 0 ) {
-	    return( result );
+	    goto error;
 	}
 
+    } else if ( simta_submission_mode == SUBMISSION_MODE_MTA_STRICT ) {
+	ret = 1;
+	goto error;
     } else {
 	/* generate From: header */
 	if (( len = ( strlen( headers_rfc2822[ HEAD_FROM ].h_key ) +
@@ -805,7 +812,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
 		perror( "realloc" );
-		return( -1 );
+		ret = -1;
+		goto error;
 	    }
 
 	    prepend_len = len;
@@ -817,57 +825,68 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	if (( headers_rfc2822[ HEAD_FROM ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
-	    return( -1 );
+	    ret = -1;
+	    goto error;
 	}
     }
 
     /* Sender: */
     if (( l = headers_rfc2822[ HEAD_SENDER ].h_line ) != NULL ) {
-	if (( result = parse_mailbox_list( env, l, l->line_data + 7,
+	if (( ret = parse_mailbox_list( env, l, l->line_data + 7,
 		MAILBOX_SENDER )) != 0 ) {
-	    return( result );
+	    goto error;
 	}
 
-    } else {
-	if (( simta_simsend_strict_from != 0 ) &&
-		( simta_generate_sender != 0 )) {
-	    if (( len = ( strlen( headers_rfc2822[ HEAD_SENDER ].h_key ) +
-		    strlen( env->e_mail ) + 3 )) > prepend_len ) {
-		if (( prepend_line = (char*)realloc( prepend_line, len ))
-			== NULL ) {
-		    perror( "realloc" );
-		    return( -1 );
-		}
-
-		prepend_len = len;
-
-		sprintf( prepend_line, "%s: %s",
-			headers_rfc2822[ HEAD_SENDER ].h_key, env->e_mail );
-
-		if (( headers_rfc2822[ HEAD_SENDER ].h_line =
-			line_prepend( lf, prepend_line, COPY )) == NULL ) {
-		    perror( "malloc" );
-		    return( -1 );
-		}
+    } else if ((( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
+	    ( simta_submission_mode == SUBMISSION_MODE_MSA )) &&
+	    ( simta_generate_sender != 0 ) &&
+	    ( simta_simsend_strict_from != 0 )) {
+	if (( len = ( strlen( headers_rfc2822[ HEAD_SENDER ].h_key ) +
+		strlen( env->e_mail ) + 3 )) > prepend_len ) {
+	    if (( prepend_line = (char*)realloc( prepend_line, len ))
+		    == NULL ) {
+		perror( "realloc" );
+		ret = -1;
+		goto error;
 	    }
+
+	    prepend_len = len;
+	}
+
+	sprintf( prepend_line, "%s: %s",
+		headers_rfc2822[ HEAD_SENDER ].h_key, env->e_mail );
+
+	if (( headers_rfc2822[ HEAD_SENDER ].h_line =
+		line_prepend( lf, prepend_line, COPY )) == NULL ) {
+	    perror( "malloc" );
+	    ret = -1;
+	    goto error;
 	}
     }
 
     if ( headers_rfc2822[ HEAD_DATE ].h_line == NULL ) {
+	if ( simta_submission_mode == SUBMISSION_MODE_MTA_STRICT ) {
+	    ret = 1;
+	    goto error;
+	}
+
 	if ( time( &clock ) < 0 ) {
 	    perror( "time" );
-	    return( -1 );
+	    ret = -1;
+	    goto error;
 	}
 
 	if (( tm = localtime( &clock )) == NULL ) {
 	    perror( "localtime" );
-	    return( -1 );
+	    ret = -1;
+	    goto error;
 	}
 
 	if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T %z", tm )
 		== 0 ) {
 	    perror( "strftime" );
-	    return( -1 );
+	    ret = -1;
+	    goto error;
 	}
 
 	if (( len = ( strlen( headers_rfc2822[ HEAD_DATE ].h_key ) +
@@ -876,7 +895,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
 		perror( "realloc" );
-		return( -1 );
+		ret = -1;
+		goto error;
 	    }
 
 	    prepend_len = len;
@@ -888,18 +908,22 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	if (( headers_rfc2822[ HEAD_DATE ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
-	    return( -1 );
+	    ret = -1;
+	    goto error;
 	}
     }
 
-    if ( headers_rfc2822[ HEAD_MESSAGE_ID ].h_line == NULL ) {
+    if (( headers_rfc2822[ HEAD_MESSAGE_ID ].h_line == NULL ) &&
+	    (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
+	    ( simta_submission_mode == SUBMISSION_MODE_MSA ))) {
 	if (( len = ( strlen( headers_rfc2822[ HEAD_MESSAGE_ID ].h_key ) +
 		strlen( env->e_id ) + 6 + strlen( simta_hostname ))) >
 		prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
 		perror( "realloc" );
-		return( -1 );
+		ret = -1;
+		goto error;
 	    }
 
 	    prepend_len = len;
@@ -912,51 +936,56 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	if (( headers_rfc2822[ HEAD_MESSAGE_ID ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
-	    return( -1 );
+	    ret = -1;
+	    goto error;
 	}
     }
 
     if (( l = headers_rfc2822[ HEAD_TO ].h_line ) != NULL ) {
-	if (( result = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
-	    return( result );
+	if (( ret = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
+	    goto error;
 	}
     }
 
     if ( headers_rfc2822[ HEAD_CC ].h_line != NULL ) {
-	if (( result = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
-	    return( result );
+	if (( ret = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
+	    goto error;
 	}
     }
 
     if (( l = headers_rfc2822[ HEAD_BCC ].h_line ) != NULL ) {
-	if (( result = parse_recipients( to_env, l, l->line_data + 4 )) != 0 ) {
-	    return( result );
+	if (( ret = parse_recipients( to_env, l, l->line_data + 4 )) != 0 ) {
+	    goto error;
 	}
 
-	/* remove bcc lines */
-	if ( l->line_prev != NULL ) {
-	    lp = &(l->line_prev->line_next);
+	if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
+	    /* remove bcc lines */
+	    if ( l->line_prev != NULL ) {
+		lp = &(l->line_prev->line_next);
 
-	} else {
-	    lp = &(lf->l_first);
-	}
-
-	for ( l = l->line_next; l != NULL; l = l->line_next ) {
-	    if (( *(l->line_data) != ' ' ) && ( *(l->line_data) != '\t' )) {
-		break;
+	    } else {
+		lp = &(lf->l_first);
 	    }
+
+	    for ( l = l->line_next; l != NULL; l = l->line_next ) {
+		if (( *(l->line_data) != ' ' ) && ( *(l->line_data) != '\t' )) {
+		    break;
+		}
+	    }
+
+	    *lp = l;
+
+	    /* XXX free bcc lines if we're anal */
 	}
-
-	*lp = l;
-
-	/* XXX free bcc lines if we're anal */
     }
+
+error:
 
     if ( prepend_line != NULL ) {
 	free( prepend_line );
     }
 
-    return( 0 );
+    return( ret );
 }
 
 
@@ -1583,14 +1612,15 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	if ( match_sender( &local, &domain, simta_sender()) == 0 ) {
 	    syslog( LOG_DEBUG,
 		    "parse_addr: line %d: sender address should be <%s>",
-		    headers_rfc2822[ HEAD_SENDER ].h_line->line_no,
+		    next_l->line_no,
 		    simta_sender());
 	    return( 1 );
 	}
 
     } else if ( mode == MAILBOX_FROM_CORRECT ) {
 	/* if addresses don't match, need to generate sender */
-	if ( match_sender( &local, &domain, simta_sender()) == 0 ) {
+	if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) &&
+		( match_sender( &local, &domain, simta_sender()) == 0 )) {
 	    simta_generate_sender = 1;
 	}
     }

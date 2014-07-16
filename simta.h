@@ -88,6 +88,12 @@
 #define QUEUE_POLICY_FIFO		0
 #define QUEUE_POLICY_SHUFFLE		1
 
+/* Message checking */
+#define SUBMISSION_MODE_MTA		0
+#define SUBMISSION_MODE_MSA		1
+#define SUBMISSION_MODE_SIMSEND		2
+#define SUBMISSION_MODE_MTA_STRICT	3
+
 #ifdef HAVE_LIBSSL
 #define SIMTA_SOCKET_TLS	(1<<0)
 #endif /* HAVE_LIBSSL */
@@ -152,6 +158,7 @@ extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
 extern struct action			*simta_red_action_secondary_mx;
+extern int				simta_submission_mode;
 extern int				simta_policy_tls;
 extern int				simta_policy_tls_cert;
 extern int				simta_wait_min;

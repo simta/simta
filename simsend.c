@@ -197,6 +197,8 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
+    simta_submission_mode = SUBMISSION_MODE_SIMSEND;
+
     /* init simta config / defaults */
     if ( simta_config( SIMTA_BASE_DIR ) != 0 ) {
 	exit( EX_TEMPFAIL );
@@ -333,7 +335,7 @@ main( int argc, char *argv[] )
 		}
 
 		/* print headers to Dfile */
-		if ( header_file_out( lf, dfile ) != 0 ) {
+		if ( header_file_out( lf, dfile ) < 0 ) {
 		    perror( "header_file_out" );
 		    fclose( dfile );
 		    goto cleanup;
@@ -414,7 +416,7 @@ main( int argc, char *argv[] )
 	}
 
 	/* print headers to Dfile */
-	if ( header_file_out( lf, dfile ) != 0 ) {
+	if ( header_file_out( lf, dfile ) < 0 ) {
 	    perror( "header_file_out" );
 	    fclose( dfile );
 	    goto cleanup;
