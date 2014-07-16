@@ -54,8 +54,6 @@
 #define	HEADER_STDERR			1
 #define	HEADER_NO_ERR			2
 
-#define	TEXT_PLAIN			"text/plain;"
-
 
 struct line_token {
     int			t_type;
@@ -88,12 +86,6 @@ char	*token_unquoted_atom( char * );
 void	make_more_seen( struct receive_headers * );
 char	*append_seen( struct receive_headers *, char *, int );
 
-
-struct header headers_punt[] = {
-    { "Content-Type",		NULL,		NULL },
-#define PUNT_CONTENT		0
-    { NULL,			NULL,		NULL }
-};
 
 struct header headers_simsendmail[] = {
     { "Date",			NULL,		NULL },
@@ -736,40 +728,6 @@ header_lines( struct line_file *lf, struct header headers[], int err_out )
     }
 
     return( 0 );
-}
-
-
-    /* return 0 if we don't punt
-     * return 1 if we punt
-     */
-
-    int
-header_punt( struct line_file *lf )
-{
-    char			*c;
-    struct line			*l;
-
-    if ( header_lines( lf, headers_punt, HEADER_NO_ERR ) != 0 ) {
-	return( 1 );
-    }
-
-    if (( l = headers_punt[ PUNT_CONTENT ].h_line ) == NULL ) {
-	return( 0 );
-    }
-
-    c = l->line_data + 13;
-
-    if ( skip_cfws( &l, &c ) != NULL ) {
-	return( 1 );
-    }
-
-    if ( c != NULL ) {
-	if ( strncasecmp( c, TEXT_PLAIN, strlen( TEXT_PLAIN )) == 0 ) {
-	    return( 0 );
-	}
-    }
-
-    return( 1 );
 }
 
 
