@@ -964,10 +964,6 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	/* XXX free bcc lines if we're anal */
     }
 
-#ifdef DEBUG
-    header_stdout( headers_rfc2822 );
-#endif /* DEBUG */
-
     if ( prepend_line != NULL ) {
 	free( prepend_line );
     }
