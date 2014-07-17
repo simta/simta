@@ -51,9 +51,6 @@
 #define	MAILBOX_RECIPIENTS_CORRECT	5
 #define	MAILBOX_GROUP_CORRECT		6
 
-#define	HEADER_STDERR			1
-#define	HEADER_NO_ERR			2
-
 
 struct line_token {
     int			t_type;
@@ -78,7 +75,7 @@ int	parse_mailbox_list( struct envelope *, struct line *, char *, int );
 int	parse_recipients( struct envelope *, struct line *, char * );
 int	match_sender( struct line_token *, struct line_token *, char * );
 int	line_token_unfold( struct line_token * );
-int	header_lines( struct line_file *, struct header *, int );
+int	header_lines( struct line_file *, struct header * );
 int	mid_text( struct receive_headers *, char *, char ** );
 int	seen_text( struct receive_headers *, char *, char ** );
 int	is_unquoted_atom_text( int );
@@ -708,7 +705,7 @@ header_text( int line_no, char *line, struct receive_headers *r, char **msg )
 
 
     int
-header_lines( struct line_file *lf, struct header headers[], int err_out )
+header_lines( struct line_file *lf, struct header headers[] )
 {
     struct line			*l;
     struct header		*h;
@@ -747,13 +744,8 @@ header_lines( struct line_file *lf, struct header headers[], int err_out )
 		    /* This is the second time this header has occurred,
 		     * so the message is not RFC compliant.
 		     */
-		    if ( err_out == HEADER_STDERR ) {
-			fprintf( stderr,
-				"line %d: illegal duplicate header %s\n",
-				l->line_no, h->h_key );
-		    } else {
-			/* XXX syslog? */
-		    }
+		    syslog( LOG_INFO, "header_lines: illegal duplicate header "
+			    "%s on line %d", h->h_key, l->line_no );
 
 		    return( 1 );
 		}
@@ -768,10 +760,6 @@ header_lines( struct line_file *lf, struct header headers[], int err_out )
     /* return 0 if all went well.
      * return 1 if we reject the message.
      * return -1 if there was a serious error.
-     */
-
-    /* all errors out to stderr, as you should only be correcting headers
-     * from simsendmail, for now.
      */
 
     int
@@ -795,7 +783,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     /* check headers for known mail clients behaving badly */
     header_exceptions( lf );
 
-    if ( header_lines( lf, headers_rfc2822, HEADER_NO_ERR ) != 0 ) {
+    if ( header_lines( lf, headers_rfc2822 ) != 0 ) {
 	return( 1 );
     }
 
@@ -975,10 +963,6 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     /* return 0 if all went well.
      * return 1 if we reject the message.
      * return -1 if there was a serious error.
-     */
-
-    /* all errors out to stderr, as you should only be correcting headers
-     * from simsendmail, for now.
      */
 
     /* RFC 2822:
@@ -1426,7 +1410,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER ) &&
 	    ( mode != MAILBOX_RECIPIENTS_CORRECT ) &&
 	    ( mode != MAILBOX_GROUP_CORRECT )) {
-	fprintf( stderr, "parse_addr: unsupported mode\n" );
+	syslog( LOG_DEBUG, "parse_addr: unsupported mode" );
 	return( -1 );
     }
 
@@ -1442,25 +1426,27 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     next_l = *start_line;
 
     if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
-	fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_addr: line %d: %s",
+		next_l->line_no, err_str );
 	return( 1 );
     }
 
     if ( next_c == NULL ) {
-	fprintf( stderr, "line %d: address expected\n",
+	syslog( LOG_DEBUG, "parse_addr: line %d: address expected",
 		next_l->line_no );
 	return( 1 );
 
     } else if ( *next_c == '"' ) {
 	if ( line_token_quoted_string( &local, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "line %d: unbalanced \"\n", next_l->line_no );
+	    syslog( LOG_DEBUG, "parse_addr: line %d: unbalanced \"",
+		    next_l->line_no );
 	    return( 1 );
 	}
 
     } else {
 	if ( line_token_dot_atom( &local, next_l, next_c ) != 0 ) {
-	    fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
-		    *next_c );
+	    syslog( LOG_DEBUG, "parse_addr: line %d: bad token: %c",
+		    next_l->line_no, *next_c );
 	    return( 1 );
 	}
     }
@@ -1469,7 +1455,8 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     next_l = local.t_end_line;
 
     if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
-	fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_addr: line %d: %s",
+		next_l->line_no, err_str );
 	return( 1 );
     }
 
@@ -1539,31 +1526,34 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	next_c++;
 
 	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
-	    fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_addr: line %d: %s",
+		    next_l->line_no, err_str );
 	    return( 1 );
 	}
 
 	if ( next_c == NULL ) {
-	    fprintf( stderr, "line %d: domain expected\n",
+	    syslog( LOG_DEBUG, "parse_addr: line %d: domain expected",
 		    next_l->line_no );
 	    return( 1 );
 
 	} else if ( *next_c == '[' ) {
 	    if ( line_token_domain_literal( &domain, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "line %d: unmatched [\n", next_l->line_no );
+		syslog( LOG_DEBUG, "parse_addr: line %d: unmatched [",
+			next_l->line_no );
 		return( 1 );
 	    }
 
 	} else {
 	    if ( line_token_dot_atom( &domain, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
-			*next_c );
+		syslog( LOG_DEBUG, "parse_addr: line %d: bad token: %c",
+			next_l->line_no, *next_c );
 		return( 1 );
 	    }
 	}
 
     } else {
-	fprintf( stderr, "line %d: '@' expected\n", next_l->line_no );
+	syslog( LOG_DEBUG, "parse_addr: line %d: '@' expected",
+		next_l->line_no );
 	return( 1 );
     }
 
@@ -1572,12 +1562,14 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 
     if ( **start == '<' ) {
 	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
-	    fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_addr: line %d: %s",
+		    next_l->line_no, err_str );
 	    return( 1 );
 	}
 
 	if (( next_c == NULL ) || ( *next_c != '>' )) {
-	    fprintf( stderr, "line %d: '>' expected\n", next_l->line_no );
+	    syslog( LOG_DEBUG, "parse_addr: line %d: '>' expected",
+		    next_l->line_no );
 	    return( 1 );
 	}
 
@@ -1589,7 +1581,8 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 
     if ( mode == MAILBOX_SENDER ) {
 	if ( match_sender( &local, &domain, simta_sender()) == 0 ) {
-	    fprintf( stderr, "line %d: sender address should be <%s>\n",
+	    syslog( LOG_DEBUG,
+		    "parse_addr: line %d: sender address should be <%s>",
 		    headers_rfc2822[ HEAD_SENDER ].h_line->line_no,
 		    simta_sender());
 	    return( 1 );
@@ -1647,13 +1640,14 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
     if (( mode != MAILBOX_FROM_CORRECT ) && ( mode != MAILBOX_SENDER ) &&
 	    ( mode != MAILBOX_RECIPIENTS_CORRECT ) &&
 	    ( mode != MAILBOX_GROUP_CORRECT )) {
-	fprintf( stderr, "parse_mailbox_list: unsupported mode\n" );
+	syslog( LOG_DEBUG, "parse_mailbox_list: unsupported mode" );
 	return( -1 );
     }
 
     /* is there data on the line? */
     if (( err_str = skip_cfws( &l, &c )) != NULL ) {
-	fprintf( stderr, "line %d: %s\n", l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
+		l->line_no, err_str );
 	return( 1 );
     }
 
@@ -1666,7 +1660,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	 */
 
 	if ( c == NULL ) {
-	    fprintf( stderr, "line %d: missing address\n", l->line_no );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: missing address",
+		    l->line_no );
 	    return( 1 );
 
 	} else if ( *c != '<' ) {
@@ -1679,14 +1674,17 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 
 	    if ( *c == '"' ) {
 		if ( line_token_quoted_string( &local, l, c ) != 0 ) {
-		    fprintf( stderr, "line %d: unbalanced \"\n", l->line_no );
+		    syslog( LOG_DEBUG,
+			    "parse_mailbox_list: line %d: unbalanced \"",
+			    l->line_no );
 		    return( 1 );
 		}
 
 	    } else {
 		if ( line_token_dot_atom( &local, l, c ) != 0 ) {
-		    fprintf( stderr, "line %d: bad token: %c\n", l->line_no,
-			    *c );
+		    syslog( LOG_DEBUG,
+			    "parse_mailbox_list: line %d: bad token: %c",
+			    l->line_no, *c );
 		    return( 1 );
 		}
 	    }
@@ -1695,7 +1693,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    next_l = local.t_end_line;
 
 	    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
-		fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
+		syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
+			next_l->line_no, err_str );
 		return( 1 );
 	    }
 	
@@ -1718,7 +1717,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    if ( *next_c == '"' ) {
 			if ( line_token_quoted_string( &local, next_l, next_c )
 				!= 0 ) {
-			    fprintf( stderr, "line %d: unbalanced \"\n",
+			    syslog( LOG_DEBUG,
+				    "parse_mailbox_list: line %d: unbalanced \"",
 				    next_l->line_no );
 			    return( 1 );
 			}
@@ -1726,7 +1726,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    } else {
 			if ( line_token_dot_atom( &local, next_l, next_c )
 				!= 0 ) {
-			    fprintf( stderr, "line %d: bad token: %c\n",
+			    syslog( LOG_DEBUG,
+				    "parse_mailbox_list: line %d: bad token: %c",
 				    next_l->line_no, *next_c );
 			    return( 1 );
 			}
@@ -1736,14 +1737,15 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    next_l = local.t_end_line;
 
 		    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
-			fprintf( stderr, "line %d: %s\n", next_l->line_no, 
-				err_str );
+			syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
+				next_l->line_no, err_str );
 			return( 1 );
 		    }
 		}
 
 		if ( next_c == NULL ) {
-		    fprintf( stderr, "line %d: unexpected end of header\n",
+		    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: "
+			    "unexpected end of header",
 			    next_l->line_no );
 		    return( 1 );
 		}
@@ -1764,13 +1766,15 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	}
 
 	if (( err_str = skip_cfws( &l, &c )) != NULL ) {
-	    fprintf( stderr, "line %d: %s\n", l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
+		    l->line_no, err_str );
 	    return( 1 );
 	}
 
 	if ( c == NULL ) {
 	    if ( mode == MAILBOX_GROUP_CORRECT ) {
-		fprintf( stderr, "line %d: ';' expected\n", l->line_no );
+		syslog( LOG_DEBUG, "parse_mailbox_list: line %d: ';' expected",
+			l->line_no );
 		return( 1 );
 	    }
 
@@ -1782,21 +1786,23 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		c++;
 
 		if (( err_str = skip_cfws( &l, &c )) != NULL ) {
-		    fprintf( stderr, "line %d: %s\n", l->line_no,
-			    err_str );
+		    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
+			    l->line_no, err_str );
 		    return( 1 );
 		}
 
 		if ( c != NULL ) {
-		    fprintf( stderr, "line %d: illegal token after group "
-			    "address: %c\n", l->line_no, *c );
+		    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: illegal "
+			    "token after group address: %c",
+			    l->line_no, *c );
 		    return( 1 );
 		}
 
 		return( 0 );
 	    }
 
-	    fprintf( stderr, "line %d: illegal token after address: %c\n",
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: "
+		    "illegal token after address: %c",
 		    l->line_no, *c );
 	    return( 1 );
 	}
@@ -1804,20 +1810,22 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	c++;
 
 	if (( err_str = skip_cfws( &l, &c )) != NULL ) {
-	    fprintf( stderr, "line %d: %s\n", l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
+		    l->line_no, err_str );
 	    return( 1 );
 	}
 
 	if ( c == NULL ) {
-	    fprintf( stderr, "line %d: address expected after ','\n",
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: "
+		    "address expected after ','",
 		    l->line_no );
 	    return( 1 );
 	}
 
 	/* c != NULL means more than one address on the line */
 	if ( mode == MAILBOX_SENDER ) {
-	    fprintf( stderr, "line %d: "
-		    "illegal second address in Sender header\n",
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: "
+		    "illegal second address in Sender header",
 		    l->line_no );
 	    return( 1 );
 
@@ -1851,17 +1859,19 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 
     /* is there data on the line? */
     if (( err_str = skip_cfws( &l, &c )) != NULL ) {
-	fprintf( stderr, "line %d: %s\n", l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_recipients: line %d: %s",
+		l->line_no, err_str );
 	return( 1 );
     }
 
     if ( c == NULL ) {
-	fprintf( stderr, "line %d: Missing address\n", l->line_no );
+	syslog( LOG_DEBUG, "parse_recipients: line %d: Missing address",
+		l->line_no );
 	return( 1 );
 
     } else if ( *c == ':' ) {
-	fprintf( stderr, "line %d: bad token: %c\n", l->line_no,
-		*c );
+	syslog( LOG_DEBUG, "parse_recipients: line %d: bad token: %c",
+		l->line_no, *c );
 	return( 1 );
 
     } else if ( *c == '<' ) {
@@ -1871,13 +1881,15 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
     /* at least one word on the line */
     if ( *c == '"' ) {
 	if ( line_token_quoted_string( &local, l, c ) != 0 ) {
-	    fprintf( stderr, "line %d: unbalanced \"\n", l->line_no );
+	    syslog( LOG_DEBUG, "parse_recipients: line %d: unbalanced \"",
+		    l->line_no );
 	    return( 1 );
 	}
 
     } else {
 	if ( line_token_dot_atom( &local, l, c ) != 0 ) {
-	    fprintf( stderr, "line %d: bad token: %c\n", l->line_no, *c );
+	    syslog( LOG_DEBUG, "parse_recipients: line %d: bad token: %c",
+		    l->line_no, *c );
 	    return( 1 );
 	}
     }
@@ -1886,7 +1898,8 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
     next_l = local.t_end_line;
 
     if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
-	fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_recipients: line %d: %s",
+		next_l->line_no, err_str );
 	return( 1 );
     }
 
@@ -1912,14 +1925,15 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	/* skip to next token */
 	if ( *next_c == '"' ) {
 	    if ( line_token_quoted_string( &local, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "line %d: unbalanced \"\n", next_l->line_no );
+		syslog( LOG_DEBUG, "parse_recipients: line %d: unbalanced \"",
+			next_l->line_no );
 		return( 1 );
 	    }
 
 	} else {
 	    if ( line_token_dot_atom( &local, next_l, next_c ) != 0 ) {
-		fprintf( stderr, "line %d: bad token: %c\n", next_l->line_no,
-			*next_c );
+		syslog( LOG_DEBUG, "parse_recipients: line %d: bad token: %c",
+			next_l->line_no, *next_c );
 		return( 1 );
 	    }
 	}
@@ -1928,12 +1942,14 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	next_l = local.t_end_line;
 
 	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
-	    fprintf( stderr, "line %d: %s\n", next_l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_recipients: line %d: %s",
+		    next_l->line_no, err_str );
 	    return( 1 );
 	}
     }
 
-    fprintf( stderr, "line %d: unexpected end of header\n", next_l->line_no );
+    syslog( LOG_DEBUG, "parse_recipients: line %d: unexpected end of header",
+	    next_l->line_no );
     return( 1 );
 }
 
