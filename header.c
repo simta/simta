@@ -87,27 +87,61 @@ void	make_more_seen( struct receive_headers * );
 char	*append_seen( struct receive_headers *, char *, int );
 
 
-struct header headers_simsendmail[] = {
+/* RFC 2821 3.6  Field definitions
+ *  Field           Min number      Max number      Notes
+ *
+ *  orig-date       1               1
+ *
+ *  from            1               1               See sender and 3.6.2
+ *
+ *  sender          0*              1               MUST occur with multi-
+ *                                                  address from - see 3.6.2
+ *
+ *  reply-to        0               1
+ *
+ *  to              0               1
+ *
+ *  cc              0               1
+ *
+ *  bcc             0               1
+ *
+ *  message-id      0*              1               SHOULD be present - see
+ *                                                  3.6.4
+ *
+ *  in-reply-to     0*              1               SHOULD occur in some
+ *                                                  replies - see 3.6.4
+ *
+ *  references      0*              1               SHOULD occur in some
+ *                                                  replies - see 3.6.4
+ *
+ *  subject         0               1
+ *
+ * header_lines() will enforce max number.
+ * header_correct() will add missing fields.
+ */
+struct header headers_rfc2822[] = {
     { "Date",			NULL,		NULL },
 #define HEAD_DATE		0
     { "From",			NULL,		NULL },
 #define HEAD_FROM		1
     { "Sender",			NULL,		NULL },
 #define HEAD_SENDER		2
+    { "Reply-To",		NULL,		NULL },
+#define HEAD_REPLY_TO		3
     { "To",			NULL,		NULL },
-#define HEAD_TO			3
-    { "Message-ID",		NULL,		NULL },
-#define HEAD_MESSAGE_ID		4
+#define HEAD_TO			4
     { "Cc",			NULL,		NULL },
 #define HEAD_CC			5
     { "Bcc",			NULL,		NULL },
 #define HEAD_BCC		6
-    { "Reply-To",		NULL,		NULL },
-#define HEAD_REPLY_TO		7
+    { "Message-ID",             NULL,           NULL },
+#define HEAD_MESSAGE_ID		7
+    { "In-Reply-To",		NULL,		NULL },
+#define HEAD_IN_REPLY_TO	8
     { "References",		NULL,		NULL },
-#define HEAD_REFERENCES		8
+#define HEAD_REFERENCES		9
     { "Subject",		NULL,		NULL },
-#define HEAD_SUBJECT		9
+#define HEAD_SUBJECT		10
     { NULL,			NULL,		NULL }
 };
 
@@ -761,7 +795,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     /* check headers for known mail clients behaving badly */
     header_exceptions( lf );
 
-    if ( header_lines( lf, headers_simsendmail, HEADER_NO_ERR ) != 0 ) {
+    if ( header_lines( lf, headers_rfc2822, HEADER_NO_ERR ) != 0 ) {
 	return( 1 );
     }
 
@@ -770,7 +804,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     /* examine & correct header data */
 
     /* From: */
-    if (( l = headers_simsendmail[ HEAD_FROM ].h_line ) != NULL ) {
+    if (( l = headers_rfc2822[ HEAD_FROM ].h_line ) != NULL ) {
 	if (( result = parse_mailbox_list( NULL, l, l->line_data + 5,
 		MAILBOX_FROM_CORRECT )) != 0 ) {
 	    return( result );
@@ -778,7 +812,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     } else {
 	/* generate From: header */
-	if (( len = ( strlen( headers_simsendmail[ HEAD_FROM ].h_key ) +
+	if (( len = ( strlen( headers_rfc2822[ HEAD_FROM ].h_key ) +
 		strlen( env->e_mail ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
@@ -790,9 +824,9 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: %s",
-		headers_simsendmail[ HEAD_FROM ].h_key, env->e_mail );
+		headers_rfc2822[ HEAD_FROM ].h_key, env->e_mail );
 
-	if (( headers_simsendmail[ HEAD_FROM ].h_line =
+	if (( headers_rfc2822[ HEAD_FROM ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
@@ -800,7 +834,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     }
 
     /* Sender: */
-    if (( l = headers_simsendmail[ HEAD_SENDER ].h_line ) != NULL ) {
+    if (( l = headers_rfc2822[ HEAD_SENDER ].h_line ) != NULL ) {
 	if (( result = parse_mailbox_list( env, l, l->line_data + 7,
 		MAILBOX_SENDER )) != 0 ) {
 	    return( result );
@@ -809,7 +843,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     } else {
 	if (( simta_simsend_strict_from != 0 ) &&
 		( simta_generate_sender != 0 )) {
-	    if (( len = ( strlen( headers_simsendmail[ HEAD_SENDER ].h_key ) +
+	    if (( len = ( strlen( headers_rfc2822[ HEAD_SENDER ].h_key ) +
 		    strlen( env->e_mail ) + 3 )) > prepend_len ) {
 		if (( prepend_line = (char*)realloc( prepend_line, len ))
 			== NULL ) {
@@ -820,9 +854,9 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		prepend_len = len;
 
 		sprintf( prepend_line, "%s: %s",
-			headers_simsendmail[ HEAD_SENDER ].h_key, env->e_mail );
+			headers_rfc2822[ HEAD_SENDER ].h_key, env->e_mail );
 
-		if (( headers_simsendmail[ HEAD_SENDER ].h_line =
+		if (( headers_rfc2822[ HEAD_SENDER ].h_line =
 			line_prepend( lf, prepend_line, COPY )) == NULL ) {
 		    perror( "malloc" );
 		    return( -1 );
@@ -831,7 +865,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if ( headers_simsendmail[ HEAD_DATE ].h_line == NULL ) {
+    if ( headers_rfc2822[ HEAD_DATE ].h_line == NULL ) {
 	if ( time( &clock ) < 0 ) {
 	    perror( "time" );
 	    return( -1 );
@@ -848,7 +882,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    return( -1 );
 	}
 
-	if (( len = ( strlen( headers_simsendmail[ HEAD_DATE ].h_key ) +
+	if (( len = ( strlen( headers_rfc2822[ HEAD_DATE ].h_key ) +
 		strlen( daytime ) + 3 )) > prepend_len ) {
 
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
@@ -861,17 +895,17 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: %s",
-		headers_simsendmail[ HEAD_DATE ].h_key, daytime );
+		headers_rfc2822[ HEAD_DATE ].h_key, daytime );
 
-	if (( headers_simsendmail[ HEAD_DATE ].h_line =
+	if (( headers_rfc2822[ HEAD_DATE ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
 	}
     }
 
-    if ( headers_simsendmail[ HEAD_MESSAGE_ID ].h_line == NULL ) {
-	if (( len = ( strlen( headers_simsendmail[ HEAD_MESSAGE_ID ].h_key ) +
+    if ( headers_rfc2822[ HEAD_MESSAGE_ID ].h_line == NULL ) {
+	if (( len = ( strlen( headers_rfc2822[ HEAD_MESSAGE_ID ].h_key ) +
 		strlen( env->e_id ) + 6 + strlen( simta_hostname ))) >
 		prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
@@ -884,29 +918,29 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: <%s@%s>",
-		headers_simsendmail[ HEAD_MESSAGE_ID ].h_key, env->e_id,
+		headers_rfc2822[ HEAD_MESSAGE_ID ].h_key, env->e_id,
 		simta_hostname );
 
-	if (( headers_simsendmail[ HEAD_MESSAGE_ID ].h_line =
+	if (( headers_rfc2822[ HEAD_MESSAGE_ID ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    perror( "malloc" );
 	    return( -1 );
 	}
     }
 
-    if (( l = headers_simsendmail[ HEAD_TO ].h_line ) != NULL ) {
+    if (( l = headers_rfc2822[ HEAD_TO ].h_line ) != NULL ) {
 	if (( result = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    return( result );
 	}
     }
 
-    if ( headers_simsendmail[ HEAD_CC ].h_line != NULL ) {
+    if ( headers_rfc2822[ HEAD_CC ].h_line != NULL ) {
 	if (( result = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    return( result );
 	}
     }
 
-    if (( l = headers_simsendmail[ HEAD_BCC ].h_line ) != NULL ) {
+    if (( l = headers_rfc2822[ HEAD_BCC ].h_line ) != NULL ) {
 	if (( result = parse_recipients( to_env, l, l->line_data + 4 )) != 0 ) {
 	    return( result );
 	}
@@ -931,7 +965,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     }
 
 #ifdef DEBUG
-    header_stdout( headers_simsendmail );
+    header_stdout( headers_rfc2822 );
 #endif /* DEBUG */
 
     if ( prepend_line != NULL ) {
@@ -1560,7 +1594,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     if ( mode == MAILBOX_SENDER ) {
 	if ( match_sender( &local, &domain, simta_sender()) == 0 ) {
 	    fprintf( stderr, "line %d: sender address should be <%s>\n",
-		    headers_simsendmail[ HEAD_SENDER ].h_line->line_no,
+		    headers_rfc2822[ HEAD_SENDER ].h_line->line_no,
 		    simta_sender());
 	    return( 1 );
 	}
