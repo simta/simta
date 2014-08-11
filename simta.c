@@ -129,7 +129,7 @@ int			simta_strict_smtp_syntax = 0;
 int			simta_dns_auto_config = 0;
 int			simta_no_sync = 0;
 int			simta_max_received_headers = 100;
-int			simta_max_bounce_lines;
+int			simta_max_bounce_lines = 100;
 int			simta_banner_delay = 0;
 int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
@@ -2344,8 +2344,6 @@ simta_config( char *base_dir )
 	fprintf( stderr, "simta_config: set_local_mailer failed!\n" );
 	return( -1 );
     }
-
-    simta_max_bounce_lines = SIMTA_BOUNCE_LINES;
 
     if (( simta_red_host_default = red_host_add( simta_hostname )) == NULL ) {
 	return( -1 );

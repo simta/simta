@@ -178,6 +178,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     int				ret = 0;
     char                        dfile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
+    int				lines_written = 0;
     FILE                        *dfile;
     struct line                 *l;
     char                        *line;
@@ -241,8 +242,11 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 	fprintf( dfile, "Bounced message:\n" );
 	fprintf( dfile, "\n" );
 
-	while (( line = snet_getline( message, NULL )) != NULL ) {
+	while ((( line = snet_getline( message, NULL )) != NULL ) &&
+		(( simta_max_bounce_lines == 0 ) ||
+		( lines_written < simta_max_bounce_lines ))) {
 	    fprintf( dfile, "%s\n", line );
+	    lines_written++;
 	}
     }
 
@@ -328,6 +332,7 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
     char                        dfile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
     int                         n_bounces = 0;
+    int				lines_written = 0;
     FILE                        *dfile;
     struct recipient            *r;
     struct line                 *l;
@@ -486,8 +491,11 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
     if ( sn != NULL ) {
 	fprintf( dfile, "Bounced message:\n" );
 	fprintf( dfile, "\n" );
-	while (( line = snet_getline( sn, NULL )) != NULL ) {
+	while ((( line = snet_getline( sn, NULL )) != NULL ) &&
+		(( simta_max_bounce_lines == 0 ) ||
+	        ( lines_written < simta_max_bounce_lines ))) {
 	    fprintf( dfile, "%s\n", line );
+	    lines_written++;
 	}
     }
 

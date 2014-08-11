@@ -27,7 +27,6 @@
 #define	SIMTA_FILE_CONFIG		"/etc/simta.conf"
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
-#define	SIMTA_BOUNCE_LINES		100
 #define	SIMTA_EFILE_VERSION		5
 #define SIMTA_MAX_RUNNERS_SLOW		250
 #define SIMTA_MAX_RUNNERS_LOCAL		25
