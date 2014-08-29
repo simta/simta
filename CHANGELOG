@@ -1,3 +1,7 @@
+0.10.9
+    - SUBMISSION_MODE for MSAs, strict MTAs
+    - BOUNCE_LINES now does something
+
 0.10.8
     - immediately run new queues when QUEUE_INCOMING_SMTP_MAIL is set
     - better TLS logging
