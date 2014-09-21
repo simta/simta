@@ -947,7 +947,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if ( headers_rfc2822[ HEAD_CC ].h_line != NULL ) {
+    if (( l = headers_rfc2822[ HEAD_CC ].h_line ) != NULL ) {
 	if (( ret = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    goto error;
 	}
