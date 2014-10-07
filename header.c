@@ -832,9 +832,11 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     /* Sender: */
     if (( l = headers_rfc2822[ HEAD_SENDER ].h_line ) != NULL ) {
-	if (( ret = parse_mailbox_list( env, l, l->line_data + 7,
-		MAILBOX_SENDER )) != 0 ) {
-	    goto error;
+	if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
+	    if (( ret = parse_mailbox_list( env, l, l->line_data + 7,
+		    MAILBOX_SENDER )) != 0 ) {
+		goto error;
+	    }
 	}
 
     } else if ((( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
