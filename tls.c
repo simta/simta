@@ -89,6 +89,9 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 	return( NULL );
     }
 
+    /* Disable SSLv2 and SSLv3 */ 
+    SSL_CTX_set_options( ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 );
+
     if ( SSL_CTX_use_PrivateKey_file( ssl_ctx, privatekey,
 	    SSL_FILETYPE_PEM ) != 1 ) {
 	syslog( LOG_ERR, "tls_server_setup: "
@@ -189,6 +192,9 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( NULL );
     }
+
+    /* Disable SSLv2 and SSLv3 */ 
+    SSL_CTX_set_options( ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 );
 
     if ( ciphers != NULL ) {
         SSL_CTX_set_cipher_list( ssl_ctx, ciphers );
