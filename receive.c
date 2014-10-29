@@ -1598,10 +1598,15 @@ f_data( struct receive_data *r )
 			ret_code = RECEIVE_CLOSECONNECTION;
 			goto error;
 		    } else if ( rc > 0 ) {
-			/* Continue reading lines, but reject the message */
+			syslog( LOG_INFO, "Receive [%s] %s: %s: "
+				"Message is not RFC 2822 compliant",
+				inet_ntoa( r->r_sin->sin_addr ),
+				r->r_remote_hostname, r->r_env->e_id );
+			/* Continue reading lines, but reject the message
 			system_message = "Message is not RFC 2822 compliant";
 			message_banner = MESSAGE_REJECT;
 			read_err = PROTOCOL_ERROR;
+			*/
 		    }
 		}
 		if (( rc = header_file_out( lf, dff )) < 0 ) {
