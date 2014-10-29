@@ -1301,6 +1301,7 @@ f_data( struct receive_data *r )
     int					dfile_fd = -1;
     int					ret_code = RECEIVE_SYSERROR;
     int					rc;
+    int					header_only = 0;
     int					header = 1;
     int					line_no = 0;
     int					message_banner = MESSAGE_TEMPFAIL;
@@ -1569,7 +1570,11 @@ f_data( struct receive_data *r )
 
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
-		break;
+		if ( header == 1 ) {
+		    header_only = 1;
+		} else { 
+		    break;
+		}
 	    }
 	    line++;
 	}
@@ -1625,6 +1630,10 @@ f_data( struct receive_data *r )
 		}
 		line_file_free( lf );
 		lf = NULL;
+
+		if ( header_only == 1 ) {
+		    break;
+		}
 	    }
 	}
 
