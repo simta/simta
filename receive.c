@@ -1404,7 +1404,7 @@ f_data( struct receive_data *r )
     case SMTP_MODE_NORMAL:
 	/* create line_file for headers */	
 	if (( lf = line_file_create()) == NULL ) {
-	    perror( "malloc" );
+	    syslog( LOG_ERR, "f_data malloc: %m" );
 	    return( -1 );
 	}
 
@@ -1583,7 +1583,7 @@ f_data( struct receive_data *r )
 			    r->r_remote_hostname, r->r_env->e_id, msg );
 		}
 		if (( l = line_append( lf, line, COPY )) == NULL ) {
-		    perror( "malloc" );
+		    syslog( LOG_ERR, "f_data malloc: %m" );
 		    ret_code = RECEIVE_CLOSECONNECTION;
 		    goto error;
 		}

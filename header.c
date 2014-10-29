@@ -452,7 +452,7 @@ make_more_seen( struct receive_headers *r )
 	cpp[ n ] = strdup( "" );
 	cpp[ n+1 ] = 0;
 	r->r_all_seen_before = cpp;
-syslog( LOG_ERR, "make_more_seen: n=%d\n", n);
+	syslog( LOG_ERR, "make_more_seen: n=%d", n);
     }
 }
 
@@ -811,7 +811,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		strlen( env->e_mail ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
-		perror( "realloc" );
+		syslog( LOG_ERR, "header_correct realloc: %m" );
 		ret = -1;
 		goto error;
 	    }
@@ -824,7 +824,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 	if (( headers_rfc2822[ HEAD_FROM ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
-	    perror( "malloc" );
+	    syslog( LOG_ERR, "header_correct malloc: %m" );
 	    ret = -1;
 	    goto error;
 	}
@@ -847,7 +847,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		strlen( env->e_mail ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
-		perror( "realloc" );
+		syslog( LOG_ERR, "header_correct realloc: %m" );
 		ret = -1;
 		goto error;
 	    }
@@ -860,7 +860,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 	if (( headers_rfc2822[ HEAD_SENDER ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
-	    perror( "malloc" );
+	    syslog( LOG_ERR, "header_correct malloc: %m" );
 	    ret = -1;
 	    goto error;
 	}
@@ -873,20 +873,20 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	if ( time( &clock ) < 0 ) {
-	    perror( "time" );
+	    syslog( LOG_ERR, "header_correct time: %m" );
 	    ret = -1;
 	    goto error;
 	}
 
 	if (( tm = localtime( &clock )) == NULL ) {
-	    perror( "localtime" );
+	    syslog( LOG_ERR, "header_correct localtime: %m" );
 	    ret = -1;
 	    goto error;
 	}
 
 	if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T %z", tm )
 		== 0 ) {
-	    perror( "strftime" );
+	    syslog( LOG_ERR, "header_correct strftime: %m" );
 	    ret = -1;
 	    goto error;
 	}
@@ -896,7 +896,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
-		perror( "realloc" );
+		syslog( LOG_ERR, "header_correct realloc: %m" );
 		ret = -1;
 		goto error;
 	    }
@@ -909,7 +909,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 	if (( headers_rfc2822[ HEAD_DATE ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
-	    perror( "malloc" );
+	    syslog( LOG_ERR, "header_correct malloc: %m" );
 	    ret = -1;
 	    goto error;
 	}
@@ -923,7 +923,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
-		perror( "realloc" );
+		syslog( LOG_ERR, "header_correct realloc: %m" );
 		ret = -1;
 		goto error;
 	    }
@@ -937,7 +937,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
 	if (( headers_rfc2822[ HEAD_MESSAGE_ID ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
-	    perror( "malloc" );
+	    syslog( LOG_ERR, "header_correct malloc: %m" );
 	    ret = -1;
 	    goto error;
 	}
@@ -1459,18 +1459,21 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
 	syslog( LOG_DEBUG, "parse_addr: line %d: %s",
 		next_l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	return( 1 );
     }
 
     if ( next_c == NULL ) {
 	syslog( LOG_DEBUG, "parse_addr: line %d: address expected",
 		next_l->line_no );
+	syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	return( 1 );
 
     } else if ( *next_c == '"' ) {
 	if ( line_token_quoted_string( &local, next_l, next_c ) != 0 ) {
 	    syslog( LOG_DEBUG, "parse_addr: line %d: unbalanced \"",
 		    next_l->line_no );
+	    syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	    return( 1 );
 	}
 
@@ -1478,6 +1481,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	if ( line_token_dot_atom( &local, next_l, next_c ) != 0 ) {
 	    syslog( LOG_DEBUG, "parse_addr: line %d: bad token: %c",
 		    next_l->line_no, *next_c );
+	    syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	    return( 1 );
 	}
     }
@@ -1488,6 +1492,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
 	syslog( LOG_DEBUG, "parse_addr: line %d: %s",
 		next_l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	return( 1 );
     }
 
@@ -1502,7 +1507,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	buf_len += strlen( local.t_end_line->line_data );
 
 	if (( buf = (char*)malloc( buf_len )) == NULL ) {
-	    perror( "malloc" );
+	    syslog( LOG_ERR, "parse_addr malloc: %m" );
 	    return( -1 );
 	}
 	memset( buf, 0, buf_len );
@@ -1559,18 +1564,21 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
 	    syslog( LOG_DEBUG, "parse_addr: line %d: %s",
 		    next_l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	    return( 1 );
 	}
 
 	if ( next_c == NULL ) {
 	    syslog( LOG_DEBUG, "parse_addr: line %d: domain expected",
 		    next_l->line_no );
+	    syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	    return( 1 );
 
 	} else if ( *next_c == '[' ) {
 	    if ( line_token_domain_literal( &domain, next_l, next_c ) != 0 ) {
 		syslog( LOG_DEBUG, "parse_addr: line %d: unmatched [",
 			next_l->line_no );
+		syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 		return( 1 );
 	    }
 
@@ -1578,6 +1586,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	    if ( line_token_dot_atom( &domain, next_l, next_c ) != 0 ) {
 		syslog( LOG_DEBUG, "parse_addr: line %d: bad token: %c",
 			next_l->line_no, *next_c );
+		syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 		return( 1 );
 	    }
 	}
@@ -1585,6 +1594,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
     } else {
 	syslog( LOG_DEBUG, "parse_addr: line %d: '@' expected",
 		next_l->line_no );
+	syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	return( 1 );
     }
 
@@ -1595,12 +1605,14 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
 	    syslog( LOG_DEBUG, "parse_addr: line %d: %s",
 		    next_l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	    return( 1 );
 	}
 
 	if (( next_c == NULL ) || ( *next_c != '>' )) {
 	    syslog( LOG_DEBUG, "parse_addr: line %d: '>' expected",
 		    next_l->line_no );
+	    syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	    return( 1 );
 	}
 
@@ -1616,6 +1628,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 		    "parse_addr: line %d: sender address should be <%s>",
 		    next_l->line_no,
 		    simta_sender());
+	    syslog( LOG_DEBUG, "parse_addr: line: %s", next_l->line_data );
 	    return( 1 );
 	}
 
@@ -1641,13 +1654,13 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	addr_len += 2;
 
 	if (( addr = (char*)malloc( addr_len )) == NULL ) {
-	    perror( "malloc" );
+	    syslog( LOG_ERR, "parse_addr malloc: %m" );
 	    return( -1 );
 	}
 	sprintf( addr, "%s@%s", local.t_unfolded, domain.t_unfolded );
 
 	if ( env_recipient( env, addr ) != 0 ) {
-	    perror( "malloc" );
+	    syslog( LOG_ERR, "parse_addr malloc: %m" );
 	    return( -1 );
 	}
 
@@ -1680,6 +1693,7 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
     if (( err_str = skip_cfws( &l, &c )) != NULL ) {
 	syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
 		l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_mailbox_list: line: %s", l->line_data );
 	return( 1 );
     }
 
@@ -1694,6 +1708,7 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	if ( c == NULL ) {
 	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: missing address",
 		    l->line_no );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s", l->line_data );
 	    return( 1 );
 
 	} else if ( *c != '<' ) {
@@ -1709,6 +1724,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    syslog( LOG_DEBUG,
 			    "parse_mailbox_list: line %d: unbalanced \"",
 			    l->line_no );
+		    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+			    l->line_data );
 		    return( 1 );
 		}
 
@@ -1717,6 +1734,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    syslog( LOG_DEBUG,
 			    "parse_mailbox_list: line %d: bad token: %c",
 			    l->line_no, *c );
+		    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+			    l->line_data );
 		    return( 1 );
 		}
 	    }
@@ -1727,6 +1746,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
 		syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
 			next_l->line_no, err_str );
+		syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+			next_l->line_data );
 		return( 1 );
 	    }
 	
@@ -1752,6 +1773,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 			    syslog( LOG_DEBUG,
 				    "parse_mailbox_list: line %d: unbalanced \"",
 				    next_l->line_no );
+			    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+				    next_l->line_data );
 			    return( 1 );
 			}
 
@@ -1761,6 +1784,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 			    syslog( LOG_DEBUG,
 				    "parse_mailbox_list: line %d: bad token: %c",
 				    next_l->line_no, *next_c );
+			    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+				    next_l->line_data );
 			    return( 1 );
 			}
 		    }
@@ -1771,6 +1796,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
 			syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
 				next_l->line_no, err_str );
+			syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+				next_l->line_data );
 			return( 1 );
 		    }
 		}
@@ -1779,6 +1806,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: "
 			    "unexpected end of header",
 			    next_l->line_no );
+		    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+			    next_l->line_data );
 		    return( 1 );
 		}
 
@@ -1800,6 +1829,7 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	if (( err_str = skip_cfws( &l, &c )) != NULL ) {
 	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
 		    l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s", l->line_data );
 	    return( 1 );
 	}
 
@@ -1807,6 +1837,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    if ( mode == MAILBOX_GROUP_CORRECT ) {
 		syslog( LOG_DEBUG, "parse_mailbox_list: line %d: ';' expected",
 			l->line_no );
+		syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+			l->line_data );
 		return( 1 );
 	    }
 
@@ -1820,6 +1852,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		if (( err_str = skip_cfws( &l, &c )) != NULL ) {
 		    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
 			    l->line_no, err_str );
+		    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+			    l->line_data );
 		    return( 1 );
 		}
 
@@ -1827,6 +1861,8 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 		    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: illegal "
 			    "token after group address: %c",
 			    l->line_no, *c );
+		    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s",
+			    l->line_data );
 		    return( 1 );
 		}
 
@@ -1836,6 +1872,7 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: "
 		    "illegal token after address: %c",
 		    l->line_no, *c );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s", l->line_data );
 	    return( 1 );
 	}
 
@@ -1844,6 +1881,7 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	if (( err_str = skip_cfws( &l, &c )) != NULL ) {
 	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: %s",
 		    l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s", l->line_data );
 	    return( 1 );
 	}
 
@@ -1851,6 +1889,7 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: "
 		    "address expected after ','",
 		    l->line_no );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s", l->line_data );
 	    return( 1 );
 	}
 
@@ -1859,6 +1898,7 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 	    syslog( LOG_DEBUG, "parse_mailbox_list: line %d: "
 		    "illegal second address in Sender header",
 		    l->line_no );
+	    syslog( LOG_DEBUG, "parse_mailbox_list: line: %s", l->line_data );
 	    return( 1 );
 
 	} else if ( mode == MAILBOX_FROM_CORRECT ) {
@@ -1893,17 +1933,20 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
     if (( err_str = skip_cfws( &l, &c )) != NULL ) {
 	syslog( LOG_DEBUG, "parse_recipients: line %d: %s",
 		l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_recipients: line: %s", l->line_data );
 	return( 1 );
     }
 
     if ( c == NULL ) {
 	syslog( LOG_DEBUG, "parse_recipients: line %d: Missing address",
 		l->line_no );
+	syslog( LOG_DEBUG, "parse_recipients: line: %s", l->line_data );
 	return( 1 );
 
     } else if ( *c == ':' ) {
 	syslog( LOG_DEBUG, "parse_recipients: line %d: bad token: %c",
 		l->line_no, *c );
+	syslog( LOG_DEBUG, "parse_recipients: line: %s", l->line_data );
 	return( 1 );
 
     } else if ( *c == '<' ) {
@@ -1915,6 +1958,7 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	if ( line_token_quoted_string( &local, l, c ) != 0 ) {
 	    syslog( LOG_DEBUG, "parse_recipients: line %d: unbalanced \"",
 		    l->line_no );
+	    syslog( LOG_DEBUG, "parse_recipients: line: %s", l->line_data );
 	    return( 1 );
 	}
 
@@ -1922,6 +1966,7 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	if ( line_token_dot_atom( &local, l, c ) != 0 ) {
 	    syslog( LOG_DEBUG, "parse_recipients: line %d: bad token: %c",
 		    l->line_no, *c );
+	    syslog( LOG_DEBUG, "parse_recipients: line: %s", l->line_data );
 	    return( 1 );
 	}
     }
@@ -1932,6 +1977,7 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
     if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
 	syslog( LOG_DEBUG, "parse_recipients: line %d: %s",
 		next_l->line_no, err_str );
+	syslog( LOG_DEBUG, "parse_recipients: line: %s", l->line_data );
 	return( 1 );
     }
 
@@ -1959,6 +2005,8 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	    if ( line_token_quoted_string( &local, next_l, next_c ) != 0 ) {
 		syslog( LOG_DEBUG, "parse_recipients: line %d: unbalanced \"",
 			next_l->line_no );
+		syslog( LOG_DEBUG, "parse_recipients: line: %s",
+			next_l->line_data );
 		return( 1 );
 	    }
 
@@ -1966,6 +2014,8 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	    if ( line_token_dot_atom( &local, next_l, next_c ) != 0 ) {
 		syslog( LOG_DEBUG, "parse_recipients: line %d: bad token: %c",
 			next_l->line_no, *next_c );
+		syslog( LOG_DEBUG, "parse_recipients: line: %s", 
+			next_l->line_data );
 		return( 1 );
 	    }
 	}
@@ -1976,12 +2026,15 @@ parse_recipients( struct envelope *env, struct line *l, char *c )
 	if (( err_str = skip_cfws( &next_l, &next_c )) != NULL ) {
 	    syslog( LOG_DEBUG, "parse_recipients: line %d: %s",
 		    next_l->line_no, err_str );
+	    syslog( LOG_DEBUG, "parse_recipients: line: %s",
+		    next_l->line_data );
 	    return( 1 );
 	}
     }
 
     syslog( LOG_DEBUG, "parse_recipients: line %d: unexpected end of header",
 	    next_l->line_no );
+    syslog( LOG_DEBUG, "parse_recipients: line: %s", next_l->line_data );
     return( 1 );
 }
 
@@ -2261,7 +2314,7 @@ line_token_unfold( struct line_token *token )
 	len = token->t_end - token->t_start + 2;
 
 	if (( token->t_unfolded = (char*)malloc( len )) == NULL ) {
-	    perror( "line_token_unfold malloc" );
+	    syslog( LOG_ERR, "line_token_unfold malloc: %m" );
 	    return( -1 );
 	}
 	memset( token->t_unfolded, 0, len );
@@ -2275,7 +2328,7 @@ line_token_unfold( struct line_token *token )
     len = strlen( token->t_start ) + 1;
 
     if (( token->t_unfolded = (char*)malloc( len )) == NULL ) {
-	perror( "line_token_unfold malloc" );
+	syslog( LOG_ERR, "line_token_unfold malloc: %m" );
 	return( -1 );
     }
     strcpy( token->t_unfolded, token->t_start );
@@ -2295,7 +2348,7 @@ line_token_unfold( struct line_token *token )
 	    len += token->t_end - c + 1;
 
 	    if (( tmp = (char*)malloc( len )) == NULL ) {
-		perror( "line_token_unfold malloc" );
+		syslog( LOG_ERR, "line_token_unfold malloc: %m" );
 		return( -1 );
 	    }
 	    sprintf( tmp, "%s ", token->t_unfolded );
@@ -2309,7 +2362,7 @@ line_token_unfold( struct line_token *token )
 	    len += strlen( c ) + 1;
 
 	    if (( tmp = (char*)malloc( len )) == NULL ) {
-		perror( "line_token_unfold malloc" );
+		syslog( LOG_ERR, "line_token_unfold malloc: %m" );
 		return( -1 );
 	    }
 	    sprintf( tmp, "%s %s", token->t_unfolded, c );
