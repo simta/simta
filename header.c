@@ -710,6 +710,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 {
     struct line			*l;
     struct line			**lp;
+    int				rc;
     int				ret = 0;
     char			*prepend_line = NULL;
     size_t			prepend_len = 0;
@@ -797,9 +798,12 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 
     /* From: */
     if (( l = headers_rfc2822[ HEAD_FROM ].h_line ) != NULL ) {
-	if (( ret = parse_mailbox_list( NULL, l, l->line_data + 5,
+	if (( rc = parse_mailbox_list( NULL, l, l->line_data + 5,
 		MAILBOX_FROM_CORRECT )) != 0 ) {
-	    goto error;
+	    ret = rc;
+	    if ( rc < 0 ) {
+		goto error;
+	    }
 	}
 
     } else if ( simta_submission_mode == SUBMISSION_MODE_MTA_STRICT ) {
@@ -833,9 +837,12 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     /* Sender: */
     if (( l = headers_rfc2822[ HEAD_SENDER ].h_line ) != NULL ) {
 	if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
-	    if (( ret = parse_mailbox_list( env, l, l->line_data + 7,
+	    if (( rc = parse_mailbox_list( env, l, l->line_data + 7,
 		    MAILBOX_SENDER )) != 0 ) {
-		goto error;
+		ret = rc;
+		if ( rc < 0 ) {
+		    goto error;
+		}
 	    }
 	}
 
@@ -944,20 +951,29 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     }
 
     if (( l = headers_rfc2822[ HEAD_TO ].h_line ) != NULL ) {
-	if (( ret = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
-	    goto error;
+	if (( rc = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
+	    ret = rc;
+	    if ( rc < 0 ) {
+		goto error;
+	    }
 	}
     }
 
     if (( l = headers_rfc2822[ HEAD_CC ].h_line ) != NULL ) {
-	if (( ret = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
-	    goto error;
+	if (( rc = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
+	    ret = rc;
+	    if ( rc < 0 ) {
+		goto error;
+	    }
 	}
     }
 
     if (( l = headers_rfc2822[ HEAD_BCC ].h_line ) != NULL ) {
-	if (( ret = parse_recipients( to_env, l, l->line_data + 4 )) != 0 ) {
-	    goto error;
+	if (( rc = parse_recipients( to_env, l, l->line_data + 4 )) != 0 ) {
+	    ret = rc;
+	    if ( rc < 0 ) {
+		goto error;
+	    }
 	}
 
 	if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {

@@ -1604,7 +1604,7 @@ f_data( struct receive_data *r )
 			goto error;
 		    } else if ( rc > 0 ) {
 			syslog( LOG_INFO, "Receive [%s] %s: %s: "
-				"Message is not RFC 2822 compliant",
+				"header_correct failed",
 				inet_ntoa( r->r_sin->sin_addr ),
 				r->r_remote_hostname, r->r_env->e_id );
 			/* Continue reading lines, but reject the message
