@@ -613,7 +613,9 @@ f_ehlo( struct receive_data *r )
 {
     extern int		simta_smtp_extension;
     int			extension_count;
+#ifdef HAVE_LIBSASL
     const char		*mechlist;
+#endif /* HAVE_LIBSASL */
 
     extension_count = simta_smtp_extension;
 
@@ -1430,6 +1432,7 @@ f_data( struct receive_data *r )
 	 *
 	 */
 
+#ifdef HAVE_LIBSASL
 	if ( simta_sasl ) {
 	    if ( fprintf( dff,
 		    "Received: FROM %s (%s [%s])\n"
@@ -1445,6 +1448,7 @@ f_data( struct receive_data *r )
 	    }
 
 	} else {
+#endif /* HAVE_LIBSASL */
 	    if ( fprintf( dff,
 		    "Received: FROM %s (%s [%s])\n"
 		    "\tBy %s ID %s ;\n"
@@ -1455,7 +1459,9 @@ f_data( struct receive_data *r )
 		syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
 		goto error;
 	    }
+#ifdef HAVE_LIBSASL
 	}
+#endif /* HAVE_LIBSASL */
     }
 
     r->r_tv_inactivity.tv_sec = 0;
@@ -3187,6 +3193,7 @@ closeconnection:
 	}
     }
 
+#ifdef HAVE_LIBSASL
     if ( simta_sasl ) {
 	syslog( LOG_DEBUG,
 		"Connect.stat [%s] %s: Metrics: "
@@ -3198,6 +3205,7 @@ closeconnection:
 		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
 		r.r_data_attempt, r.r_auth_id );
     } else {
+#endif /* HAVE_LIBSASL */
 	syslog( LOG_DEBUG,
 		"Connect.stat [%s] %s: Metrics: "
 		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
@@ -3206,7 +3214,9 @@ closeconnection:
 		r.r_mail_attempt,
 		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
 		r.r_data_attempt );
+#ifdef HAVE_LIBSASL
     }
+#endif /* HAVE_LIBSASL */
 
     return( simta_fast_files );
 }
@@ -3768,13 +3778,5 @@ reset_sasl_conn( struct receive_data *r )
 
     return( SASL_OK );
 }
-
-#else /* HAVE_LIBSASL */
-    int
-reset_sasl_conn( struct receive_data *r )
-{
-    return( -1 );
-}
-
 #endif /* HAVE_LIBSASL */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
