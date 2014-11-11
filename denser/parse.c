@@ -104,9 +104,11 @@ _dnsr_validate_resp( DNSR *dnsr, char *resp, struct sockaddr_in *reply_from )
 	return( DNSR_ERROR_NOT_RESPONSE );
     }
     /* Check RA */
-    if ( !( flags & DNSR_RECURSION_AVAILBLE )) {
+    if ( !( flags & DNSR_RECURSION_AVAILABLE )) {
 	DEBUG( fprintf( stderr, "Recursion not available\n" ));
-	return( DNSR_ERROR_NO_RECURSION );
+        if ( flags & DNSR_RECURSION_DESIRED ) {
+	    return( DNSR_ERROR_NO_RECURSION );
+        }
     }
     /* Check TC */
     if ( flags & DNSR_TRUNCATION ) {
@@ -574,7 +576,7 @@ _dnsr_display_header( struct dnsr_header *h)
 	printf( "( Recursion not desired )\n" );
     }
     printf( "RA:     " );
-    if ( flags & DNSR_RECURSION_AVAILBLE ) {
+    if ( flags & DNSR_RECURSION_AVAILABLE ) {
 	printf( "( Recursion available )\n" );
     } else {
 	printf( "( Recursion not available )\n" );

@@ -174,7 +174,7 @@ dnsr_result( DNSR *dnsr, struct timeval *timeout )
 	    } )
 
 	    if (( rc = _dnsr_validate_resp( dnsr, resp, &reply_from )) != 0 ) {
-		DEBUG( dnsr_perror( dnsr, "_dnsr_verify_resp" ));
+		DEBUG( dnsr_perror( dnsr, "_dnsr_validate_resp" ));
 		if ( rc == DNSR_ERROR_TRUNCATION ) {
 		    if ((( resp_tcp = _dnsr_send_query_tcp( dnsr,
 			    &resplen )) == NULL )) {
