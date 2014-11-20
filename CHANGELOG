@@ -1,3 +1,11 @@
+0.10.10
+    - Disabled message rejection due to header parsing issues
+    - Fixed crash in header parsing
+    - Improved error handling and logging in header parsing
+    - Disabled SSLv2 and SSLv3
+    - Improved SMTP receive session responsiveness
+    - Fixed header caching bug
+
 0.10.9
     - SUBMISSION_MODE for MSAs, strict MTAs
     - BOUNCE_LINES now does something
