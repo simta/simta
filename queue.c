@@ -1546,7 +1546,7 @@ lseek_fail:
     void
 deliver_remote( struct deliver *d, struct host_q *hq )
 {
-    int				r_smtp;
+    int				r_smtp, rc;
     int				s;
     int				env_movement = 0;
     struct timeval		tv_start;
@@ -1628,9 +1628,17 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	d->d_sent = 0;
 	d->d_connection_msg_total++;
 
-	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
+	/* Reset to the beginning of the file... */
+	if ( lseek( snet_fd( d->d_snet_dfile ), (off_t)0, SEEK_SET ) != 0 ) {
 	    syslog( LOG_ERR, "deliver_remote lseek: %m" );
-	    panic( "deliver_remote: lseek failed" );
+	    syslog( LOG_ERR, "Syserror: deliver_remote lseek %s%s: %m",
+		    d->d_env->e_dir, d->d_env->e_id );
+	    return;
+	}
+
+	/* ...and clear the buffer of stale data */
+	if (( rc = snet_flush( d->d_snet_dfile )) > 0 ) {
+	    syslog( LOG_DEBUG, "deliver_remote snet_flush: %d", rc );
 	}
 
 	r_smtp = smtp_send( hq, d );
@@ -1697,12 +1705,6 @@ smtp_cleanup:
 		hq->hq_status = HOST_MX;
 		return;
 	    }
-	}
-
-	if ( lseek( snet_fd( d->d_snet_dfile ), (off_t)0, SEEK_SET ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror: deliver_remote lseek %s%s: %m",
-		    d->d_env->e_dir, d->d_env->e_id );
-	    return;
 	}
     }
 }

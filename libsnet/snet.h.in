@@ -90,6 +90,7 @@ char	*snet_getline_multi ___P(( SNET *, void (*)(char *),
 		struct timeval * ));
 void	snet_timeout ___P(( SNET *, int, struct timeval * ));
 int	snet_hasdata ___P(( SNET * ));
+ssize_t snet_flush ___P(( SNET * ));
 ssize_t	snet_read ___P(( SNET *, char *, size_t, struct timeval * ));
 ssize_t	snet_write ___P(( SNET *, char *, size_t, struct timeval * ));
 int	snet_setcompression( SNET *, int, int );

@@ -1038,6 +1038,21 @@ snet_read( sn, buf, len, tv )
 }
 
 /*
+ * Flush snet's internal buffer
+ */
+    ssize_t
+snet_flush( sn )
+    SNET                *sn;
+{
+    ssize_t             rc;
+
+    rc = sn->sn_rend - sn->sn_rcur;
+    sn->sn_rcur = sn->sn_rend = sn->sn_rbuf;
+    sn->sn_rstate = SNET_BOL;
+    return rc;
+}
+
+/*
  * Get a null-terminated line of input, handle CR/LF issues.
  * Note that snet_getline() returns information from a common area which
  * may be overwritten by subsequent calls.
