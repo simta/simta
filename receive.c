@@ -183,7 +183,7 @@ static int	content_filter( struct receive_data *, char ** );
 static int	local_address( char *, char *, struct simta_red *);
 static int	hello( struct receive_data *, char * );
 static int	reset( struct receive_data * );
-static int	deliver_accepted( struct receive_data * );
+static int	deliver_accepted( struct receive_data *, int );
 static int	f_helo( struct receive_data * );
 static int	f_ehlo( struct receive_data * );
 static int	f_mail( struct receive_data * );
@@ -338,15 +338,18 @@ set_smtp_mode( struct receive_data *r, int mode, char *msg )
 
 
     int
-deliver_accepted( struct receive_data *r )
+deliver_accepted( struct receive_data *r, int force )
 {
     if (( r->r_env ) && ( r->r_env->e_flags & ENV_FLAG_EFILE )) {
 	queue_envelope( r->r_env );
 	r->r_env = NULL;
     }
 
-    if ( q_runner() != 0 ) {
-	return( RECEIVE_SYSERROR );
+    if (( force || ( simta_queue_incoming_smtp_mail != 0 )
+	|| ( simta_fast_files >= simta_aggressive_receipt_max ))) {
+	if ( q_runner() != 0 ) {
+	    return( RECEIVE_SYSERROR );
+	}
     }
 
     return( RECEIVE_OK );
@@ -356,7 +359,7 @@ deliver_accepted( struct receive_data *r )
     int
 reset( struct receive_data *r )
 {
-    if ( deliver_accepted( r ) != RECEIVE_OK ) {
+    if ( deliver_accepted( r, 0 ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -726,7 +729,7 @@ f_mail_usage( struct receive_data *r )
 	return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( deliver_accepted( r ) != RECEIVE_OK ) {
+    if ( deliver_accepted( r, 0 ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -2132,10 +2135,6 @@ f_noop( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    if ( deliver_accepted( r ) != RECEIVE_OK ) {
-	return( RECEIVE_SYSERROR );
-    }
-
     tarpit_sleep( r, 0 );
 
     return( smtp_write_banner( r, 250, "simta", version ));
@@ -2149,7 +2148,7 @@ f_help( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    if ( deliver_accepted( r ) != RECEIVE_OK ) {
+    if ( deliver_accepted( r, 1 ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -2189,7 +2188,7 @@ f_not_implemented( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    if ( deliver_accepted( r ) != RECEIVE_OK ) {
+    if ( deliver_accepted( r, 1 ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
@@ -3039,7 +3038,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	if ( r.r_tv_accepted.tv_sec != 0 ) {
 	    if ( r.r_tv_accepted.tv_sec <= tv_now.tv_sec ) {
 		r.r_tv_accepted.tv_sec = 0;
-		if ( deliver_accepted( &r ) != RECEIVE_OK ) {
+		if ( deliver_accepted( &r, 1 ) != RECEIVE_OK ) {
 		    return( RECEIVE_SYSERROR );
 		}
 		continue;
@@ -3178,6 +3177,7 @@ closeconnection:
     }
 
     reset( &r );
+    deliver_accepted( &r, 1);
 
 #ifdef HAVE_LIBSSL
     md_cleanup( &r.r_md );
