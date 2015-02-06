@@ -356,15 +356,15 @@ deliver_accepted( struct receive_data *r )
     int
 reset( struct receive_data *r )
 {
+    if ( deliver_accepted( r ) != RECEIVE_OK ) {
+	return( RECEIVE_SYSERROR );
+    }
+
     if ( r->r_env != NULL ) {
-	if ( r->r_env->e_flags & ENV_FLAG_EFILE ) {
-	    queue_envelope( r->r_env );
-	} else {
-	    syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed: Abandoned",
-		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id );
-	    env_free( r->r_env );
-	}
+	syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed: Abandoned",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id );
+	env_free( r->r_env );
 	r->r_env = NULL;
     }
 
@@ -2132,6 +2132,10 @@ f_noop( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
+    if ( deliver_accepted( r ) != RECEIVE_OK ) {
+	return( RECEIVE_SYSERROR );
+    }
+
     tarpit_sleep( r, 0 );
 
     return( smtp_write_banner( r, 250, "simta", version ));
@@ -2145,7 +2149,6 @@ f_help( struct receive_data *r )
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
 
-    /* If they have time to ask for help, we have time to deliver */
     if ( deliver_accepted( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
@@ -2185,6 +2188,10 @@ f_not_implemented( struct receive_data *r )
     syslog( LOG_DEBUG, "Receive [%s] %s: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_smtp_command );
+
+    if ( deliver_accepted( r ) != RECEIVE_OK ) {
+	return( RECEIVE_SYSERROR );
+    }
 
     tarpit_sleep( r, 0 );
 
@@ -3171,7 +3178,6 @@ closeconnection:
     }
 
     reset( &r );
-    deliver_accepted( &r );
 
 #ifdef HAVE_LIBSSL
     md_cleanup( &r.r_md );
