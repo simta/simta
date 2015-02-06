@@ -31,6 +31,7 @@ q_runner
 simalias
 simc
 simck
+simconnect
 simexpander
 simrbl
 simreverse
@@ -40,5 +41,4 @@ simvacation/simunvacation
 simvacation/simvacation
 simvacation/simvacreport
 sla
-smtpconnect
 stamp-*

@@ -26,14 +26,14 @@ TLS_CERT=${CERTDIR}/cert.pem
 
 SRC=    @LDAP_SRC@ @SSL_SRC@ \
 	daemon.c receive.c argcargv.c envelope.c base64.c \
-	simsend.c smtpconnect.c rcptlist.c address.c \
+	simsend.c simconnect.c rcptlist.c address.c \
 	simalias.c bounce.c wildcard.c
 COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ \
 		address.o argcargv.o base64.o bdb.o bounce.o envelope.o \
 		expand.o header.o line_file.o ll.o ml.o mx.o q_cleanup.o \
 		queue.o red.o simta.o smtp.o wildcard.o
 SIMTAOBJ=	${COMMONOBJ} daemon.o receive.o
-SMTPCONOBJ=     ${COMMONOBJ} smtpconnect.o
+SIMCONOBJ=	${COMMONOBJ} simconnect.o
 SIMCOBJ=	${COMMONOBJ} simc.o
 SIMSENDOBJ=	${COMMONOBJ} simsend.o
 SIMLOGOBJ=	simlog.o
@@ -61,8 +61,8 @@ SIMTALIBS=	${LIBS}
 
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
-BINTARGETS=	simrbl simreverse simalias simexpander denser/dense
-TARGETS=	simta smtpconnect simsendmail q_runner simexpander \
+BINTARGETS=	simrbl simreverse simalias simexpander denser/dense simconnect
+TARGETS=	simta simconnect simsendmail q_runner simexpander \
                 sla simc \
 		${BINTARGETS}
 
@@ -176,8 +176,8 @@ simrbl : stamp-libsnet stamp-denser ${SIMRBLOBJ} Makefile
 simreverse : stamp-libsnet stamp-denser ${SIMREVERSEOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simreverse ${SIMREVERSEOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-smtpconnect : stamp-libsnet stamp-denser ${SMTPCONOBJ} Makefile
-	${CC} ${CFLAGS} ${LDFLAGS} -o smtpconnect ${SMTPCONOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+simconnect : stamp-libsnet stamp-denser ${SIMCONOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simconnect ${SIMCONOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 q_runner : stamp-libsnet stamp-denser ${QRUNNEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
@@ -216,7 +216,7 @@ simta.o: argcargv.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h si
 simta_ldap.o: argcargv.h config.h dn.h envelope.h expand.h header.h ll.h queue.h simta.h simta_ldap.h
 sla.o: config.h envelope.h expand.h line_file.h ll.h queue.h simta.h
 smtp.o: argcargv.h config.h envelope.h header.h line_file.h mx.h queue.h simta.h smtp.h
-smtpconnect.o: argcargv.h config.h envelope.h header.h line_file.h mx.h queue.h simta.h smtp.h
+simconnect.o: argcargv.h config.h envelope.h header.h line_file.h mx.h queue.h simta.h smtp.h
 tls.o: config.h tls.h
 wildcard.o: config.h wildcard.h
 

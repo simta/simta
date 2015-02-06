@@ -140,6 +140,7 @@ exit 0
 %attr(6755,simta,mail) %{_sbindir}/simc
 %{_bindir}/dense
 %{_bindir}/simalias
+%{_bindir}/simconnect
 %{_bindir}/simexpander
 %{_bindir}/simrbl
 %{_bindir}/simreverse
