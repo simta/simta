@@ -63,12 +63,13 @@ AC_DEFUN([PROG_PROCMAIL],
 	if test x_$found_procmail != x_yes; then
 	    AC_MSG_RESULT(no)
 	else
-	    AC_SUBST( SIMTA_PROCMAIL, [$dir/procmail])
+	    PROCMAIL="$dir/procmail"
 	fi
 
     else
 	AC_MSG_RESULT(disabled);
     fi
+    AC_DEFINE_UNQUOTED(SIMTA_PROCMAIL, ["$PROCMAIL"], [path to procmail])
 ])
 
 
@@ -97,10 +98,11 @@ AC_DEFUN([PROG_MAIL_LOCAL],
 	if test x_$found_mail_local != x_yes; then
 	    AC_MSG_RESULT(no)
 	else
-	    AC_SUBST( SIMTA_MAIL_LOCAL, [$dir/mail.local])
+            MAIL_LOCAL="$dir/mail.local"
 	fi
 
     else
 	AC_MSG_RESULT(disabled);
     fi
+    AC_DEFINE_UNQUOTED(SIMTA_MAIL_LOCAL, ["$MAIL_LOCAL"], [path to mail.local])
 ])

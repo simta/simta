@@ -159,8 +159,6 @@ simlog : stamp-libsnet stamp-denser ${SIMLOGOBJ} Makefile
 
 ml.o : ml.c
 	${CC} ${CFLAGS} \
-		-DSIMTA_MAIL_LOCAL=\"@SIMTA_MAIL_LOCAL@\" \
-		-DSIMTA_PROCMAIL=\"@SIMTA_PROCMAIL@\" \
 		-c ${SRCPFX}ml.c -o ml.o
 
 tls.o : tls.c
