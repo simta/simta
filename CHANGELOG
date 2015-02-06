@@ -1,3 +1,16 @@
+0.11.0
+    - reworked build system and added RPM packaging
+    - added message body checksum calculation
+    - fixed message corruption due to snet buffering bug
+    - fixed segfault in config file parsing
+    - made queue deferral during Receive configurable
+    - added setuid delivery agent wrapper
+    - 'newaliases' now behaves as expected
+    - improved alias file handling in general
+    - added ESMTP 8BITMIME support
+    - fixed ESMTP SIZE advertisement
+    - added basic ESMTP SIZE support during delivery
+
 0.10.10
     - Disabled message rejection due to header parsing issues
     - Fixed crash in header parsing
