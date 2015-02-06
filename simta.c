@@ -372,6 +372,11 @@ simta_read_config( char *fname )
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	lineno++;
 
+	while (( line[ 0 ] == ' ' ) || ( line[ 0 ] == '\t' )) {
+	    /* Leading whitespace */
+	    line++;
+	}
+
 	if (( line[ 0 ] == '\0' ) || ( line[ 0 ] == '#' )) {
 	    /* blank line or comment */
 	    continue;
@@ -379,6 +384,15 @@ simta_read_config( char *fname )
 
 	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
 	    perror( "simta_read_config: acav_parse:" );
+	    goto error;
+	}
+
+	if ( ac == 0 ) {
+	    /* Not sure if this can happen, but if it does we would segfault.
+	     * That's bad. */
+	    fprintf( stderr,
+		    "%s: line %d: not blank but parsing returned nothing\n",
+		    fname, lineno );
 	    goto error;
 	}
 
