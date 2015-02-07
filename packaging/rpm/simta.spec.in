@@ -138,6 +138,7 @@ exit 0
 %attr(6755,simta,mail) %{_sbindir}/simsendmail
 %attr(6755,simta,mail) %{_sbindir}/sendmail.simta
 %attr(6755,simta,mail) %{_sbindir}/simc
+%attr(6750,root,mail) %{_libexecdir}/simta/simda
 %{_bindir}/dense
 %{_bindir}/simalias
 %{_bindir}/simconnect

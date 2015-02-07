@@ -11,6 +11,7 @@ MANDIR=/usr/share/man
 BINDIR=@bindir@
 ETCDIR=@sysconfdir@/simta
 SBINDIR=@sbindir@
+LIBEXECDIR=@libexecdir@/simta
 spool=/var/spool
 SPOOLDIR=$(spool)/simta/
 LOCAL_Q=${SPOOLDIR}local
@@ -31,6 +32,7 @@ COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ \
 SIMTAOBJ=	${COMMONOBJ} daemon.o receive.o
 SIMCONOBJ=	${COMMONOBJ} simconnect.o
 SIMCOBJ=	${COMMONOBJ} simc.o
+SIMDAOBJ=	simda.o
 SIMSENDOBJ=	${COMMONOBJ} simsend.o
 SIMLOGOBJ=	simlog.o
 EXPANDEROBJ=	${COMMONOBJ} expander.o
@@ -46,7 +48,7 @@ CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
 INCPATH=	-I. -Idenser -Ilibsnet @CPPFLAGS@ @BDB_CPPFLAGS@ @LIBSSL_CPPFLAGS@ @LDAP_CPPFLAGS@ @LIBWRAP_CPPFLAGS@ @LIBSASL_CPPFLAGS@${SRCPFX_INCPATH}
-DEFS=		-g @DEFS@
+DEFS=		-g -DLIBEXECDIR=\"$(LIBEXECDIR)\" @DEFS@
 LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@ @BDB_LDFLAGS@ @LIBSSL_LDFLAGS@ @LDAP_LDFLAGS@ @LIBWRAP_LDFLAGS@ @LIBSASL_LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@ @EXTRALIBS@
 TAGSFILE=	tags
@@ -59,17 +61,18 @@ MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
 BINTARGETS=	simrbl simreverse simalias simexpander denser/dense simconnect
 TARGETS=	simta simconnect simsendmail q_runner simexpander \
-                sla simc \
+                sla simc simda \
 		${BINTARGETS}
 
 all : ${TARGETS}
 
 install : all FRC
-	@mkdir -p ${DESTDIR}${SBINDIR} ${DESTDIR}${BINDIR} ${DESTDIR}${MANDIR}/man1 ${DESTDIR}${MANDIR}/man8 ${DESTDIR}$(spool)
+	@mkdir -p ${DESTDIR}${SBINDIR} ${DESTDIR}${BINDIR} ${DESTDIR}${LIBEXECDIR} ${DESTDIR}${MANDIR}/man1 ${DESTDIR}${MANDIR}/man8 ${DESTDIR}$(spool)
 	${INSTALL} -m 0750 @SUID_OWNER@ -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q} ${DESTDIR}${SIMTA_ETC} ${DESTDIR}${SIMTA_COMMAND}
 	${INSTALL} -m 755 -c simta ${DESTDIR}${SBINDIR}/
 	${INSTALL} -m 6755 @SUID_OWNER@ -c simsendmail ${DESTDIR}${SBINDIR}/
 	${INSTALL} -m 6755 @SUID_OWNER@ -c simc ${DESTDIR}${SBINDIR}/
+	${INSTALL} -m 6750 -c simda ${DESTDIR}${LIBEXECDIR}/
 	for i in ${BINTARGETS}; do \
 	    ${INSTALL} -m 0755 -c $$i ${DESTDIR}${BINDIR}; \
 	done
@@ -95,6 +98,9 @@ sla : stamp-libsnet ${SLAOBJ} Makefile
 simc : ${SIMCOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simc ${SIMCOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
+
+simda : ${SIMDAOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simda ${SIMDAOBJ}
 
 simsendmail : stamp-libsnet stamp-denser ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \

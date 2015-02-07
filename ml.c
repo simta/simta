@@ -42,8 +42,8 @@
 
 char		*maillocal_argv[] = { SIMTA_MAIL_LOCAL,
 					    "-f", "$S", "--", "$R", 0 };
-char		*procmail_argv[] = { SIMTA_PROCMAIL,
-					    "-f", "$S", "-d", "$R", 0 };
+char		*procmail_argv[] = { LIBEXECDIR "/simda", "$R", SIMTA_PROCMAIL,
+					    "-f", "$S", 0 };
 
     int
 set_local_mailer( void )
@@ -52,7 +52,7 @@ set_local_mailer( void )
 	return( 0 );
     }
 
-    if (( procmail_argv[ 0 ] != NULL ) && ( *(procmail_argv[ 0 ]) != '\0' )) {
+    if (( procmail_argv[ 2 ] != NULL ) && ( *(procmail_argv[ 2 ]) != '\0' )) {
 	simta_deliver_default_argv = procmail_argv;
 	simta_deliver_default_argc = 5;
 	return( 0 );
