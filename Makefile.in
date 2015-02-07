@@ -11,7 +11,6 @@ MANDIR=/usr/share/man
 BINDIR=@bindir@
 ETCDIR=@sysconfdir@/simta
 SBINDIR=@sbindir@
-LIBDIR=/usr/lib
 spool=/var/spool
 SPOOLDIR=$(spool)/simta/
 LOCAL_Q=${SPOOLDIR}local
@@ -20,9 +19,6 @@ FAST_Q=${SPOOLDIR}fast
 DEAD_Q=${SPOOLDIR}dead
 SIMTA_ETC=${SPOOLDIR}etc
 SIMTA_COMMAND=${SPOOLDIR}command
-CERTDIR=${SIMTACONFDIR}/cert
-TLS_CAFILE=${CERTDIR}/ca.pem
-TLS_CERT=${CERTDIR}/cert.pem
 
 SRC=    @LDAP_SRC@ @SSL_SRC@ \
 	daemon.c receive.c argcargv.c envelope.c base64.c \
@@ -50,7 +46,7 @@ CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
 INCPATH=	-I. -Idenser -Ilibsnet @CPPFLAGS@ @BDB_CPPFLAGS@ @LIBSSL_CPPFLAGS@ @LDAP_CPPFLAGS@ @LIBWRAP_CPPFLAGS@ @LIBSASL_CPPFLAGS@${SRCPFX_INCPATH}
-DEFS=		-DTLS -g @DEFS@
+DEFS=		-g @DEFS@
 LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@ @BDB_LDFLAGS@ @LIBSSL_LDFLAGS@ @LDAP_LDFLAGS@ @LIBWRAP_LDFLAGS@ @LIBSASL_LDFLAGS@
 LIBS=		-ldnsr -lsnet @LIBS@ @EXTRALIBS@
 TAGSFILE=	tags
@@ -108,64 +104,8 @@ simalias : ${SIMALIASOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simalias ${SIMALIASOBJ} ${SIMTALIBPATH} \
 	${SIMTALIBS}
 
-simalias.o : simalias.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}simalias.c -o simalias.o
-
-daemon.o : daemon.c
-	${CC} ${CFLAGS} \
-	    -DVERSION=\"@PACKAGE_VERSION@\" \
-	    -c ${SRCPFX}daemon.c -o daemon.o
-
-header.o : header.c
-	${CC} ${CFLAGS} @HAVE_TM_GMTOFF@ \
-		-c ${SRCPFX}header.c -o header.o
-
-receive.o : receive.c 
-	${CC} ${CFLAGS} \
-		-DVERSION=\"@PACKAGE_VERSION@\" \
-		-c ${SRCPFX}receive.c -o receive.o
-
-md.o : md.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}md.c -o md.o
-
-simta.o : simta.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}simta.c -o simta.o
-
-mx.o : mx.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}mx.c -o mx.o
-
-red.o : red.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}red.c -o red.o
-
-queue.o : queue.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}queue.c -o queue.o
-
-bdb.o : bdb.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}bdb.c -o bdb.o
-
-address.o : address.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}address.c -o address.o
-
 simlog : stamp-libsnet stamp-denser ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
-
-ml.o : ml.c
-	${CC} ${CFLAGS} \
-		-c ${SRCPFX}ml.c -o ml.o
-
-tls.o : tls.c
-	${CC} ${CFLAGS} \
-		-D_SIMTA_TLS_CAFILE=\"${TLS_CAFILE}\" \
-		-D_SIMTA_TLS_CERT=\"${TLS_CERT}\" \
-		-c ${SRCPFX}tls.c -o tls.o
 
 simexpander : stamp-libsnet stamp-denser ${EXPANDEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simexpander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}

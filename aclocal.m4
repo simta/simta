@@ -19,7 +19,7 @@ AC_DEFUN([AC_STRUCT_GMTOFF],
     AC_MSG_RESULT($ac_cv_struct_gmtoff)
     AC_SUBST(HAVE_TM_GMTOFF, "")
     if test $ac_cv_struct_gmtoff = yes; then
-	HAVE_TM_GMTOFF="-DHAVE_TM_GMTOFF";
+	AC_DEFINE(HAVE_TM_GMTOFF, [1], [Define to 1 if tm contains tm_gmtoff])
     fi
 ])
 

@@ -68,7 +68,7 @@ struct sigaction		osahup;
 struct sigaction		osachld;
 struct sigaction		osausr1;
 struct sigaction		osausr2;
-char				*version = VERSION;
+char				*version = PACKAGE_VERSION;
 struct simta_socket		*simta_listen_sockets = NULL;
 
 
