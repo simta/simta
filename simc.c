@@ -31,6 +31,7 @@
 #include <signal.h>
 #include <sysexits.h>
 #include <syslog.h>
+#include <time.h>
 #include <dirent.h>
 
 #ifdef HAVE_LIBSASL

@@ -33,6 +33,7 @@
 #include <inttypes.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <strings.h>
 #include <string.h>
 #include <syslog.h>

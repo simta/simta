@@ -20,6 +20,7 @@
 #include <netdb.h>
 #include <errno.h>
 #include <dirent.h>
+#include <time.h>
 #include <unistd.h>
 #include <syslog.h>
 

@@ -1256,11 +1256,6 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    simta_bounce_seconds = atoi( av[ 1 ] );
-	    if ( simta_bounce_seconds < 0 ) {
-		fprintf( stderr, "%s: line %d: BOUNCE_SECONDS less than 0\n",
-			fname, lineno );
-		goto error;
-	    }
 	    if ( simta_debug ) printf( "BOUNCE_SECONDS: %d\n",
 		simta_bounce_seconds );
 
@@ -2050,19 +2045,15 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
+	    errno = 0;
 	    simta_outbound_connection_msg_max = strtol( av[ 1 ], &endptr, 10 );
 	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
 		fprintf( stderr, "%s: line %d: invalid argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_outbound_connection_msg_max == LONG_MIN ) {
-		fprintf( stderr, "%s: line %d: argument too small\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_outbound_connection_msg_max == LONG_MAX ) {
-		fprintf( stderr, "%s: line %d: argument too big\n",
+	    if (( errno == EINVAL || errno == ERANGE )) {
+		fprintf( stderr, "%s: line %d: invalid value\n",
 			fname, lineno );
 		goto error;
 	    }
@@ -2082,19 +2073,15 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
+	    errno = 0;
 	    simta_max_failed_rcpts = strtol( av[ 1 ], &endptr, 10 );
 	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
 		fprintf( stderr, "%s: line %d: invalid argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_max_failed_rcpts == LONG_MIN ) {
-		fprintf( stderr, "%s: line %d: argument too small\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_max_failed_rcpts == LONG_MAX ) {
-		fprintf( stderr, "%s: line %d: argument too big\n",
+	    if (( errno == EINVAL || errno == ERANGE )) {
+		fprintf( stderr, "%s: line %d: invalid value\n",
 			fname, lineno );
 		goto error;
 	    }

@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
+#include <time.h>
 #include <dirent.h>
 
 #include <snet.h>

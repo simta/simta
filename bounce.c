@@ -22,6 +22,7 @@
 #include <syslog.h>
 #include <fcntl.h>
 #include <sysexits.h>
+#include <time.h>
 #include <utime.h>
 
 #include <stdio.h>
@@ -191,7 +192,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
 
     if (( dfile_fd = env_dfile_open( bounce_env )) < 0 ) {
-	goto cleanup;
+	goto error;
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
@@ -263,6 +264,7 @@ cleanup:
 	ret = 0;
     }
 
+error:
     if ( ret != 0 ) {
 	return( sbuf.st_ino );
     }
