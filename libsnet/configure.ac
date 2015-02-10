@@ -1,24 +1,29 @@
 # Process this file with autoconf to produce a configure script.
-AC_INIT(libsnet,VERSION,rsug@umich.edu) 
-AC_CONFIG_HEADER(config.h)
+AC_INIT(libsnet, 1.0.0, rsug@umich.edu) 
+AM_INIT_AUTOMAKE([foreign])
 AC_PREREQ(2.52)
 AC_COPYRIGHT([Copyright (c) 1995-2003 Regents of The University of Michigan.  All Rights Reserved.])
+AC_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR([snet.c])
+AC_CONFIG_MACRO_DIR([m4])
+
+# Canonicalise things
+AC_CANONICAL_HOST
 
 # Checks for programs.
 AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_INSTALL
 
-CHECK_ZLIB
-
 # Checks for libraries.
-if test \! x_$with_ssl = x_no; then
-    AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])
-    AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
-fi
-CHECK_SASL
-dnl CHECK_UNIVERSAL_BINARIES
+AX_WITH_LIBRARY([zlib], [ZLIB], [zlib.h], [z])
+AX_WITH_LIBRARY([ssl], [LIBSSL], [openssl/ssl.h], [ssl], [-lcrypto])
+AX_WITH_LIBRARY([sasl2], [LIBSASL], [sasl/sasl.h], [sasl2])
+
+LIBS="$EXTRALIBS $LIBS"
+
+CHECK_UNIVERSAL_BINARIES
+MACOSX_MUTE_DEPRECATION_WARNINGS
 
 # Checks for header files.
 #AC_HEADER_STDC
@@ -33,8 +38,9 @@ dnl CHECK_UNIVERSAL_BINARIES
 #AC_CHECK_FUNCS([gettimeofday select])
 
 # Checks for how to build libraries
-dnl CHECK_PROFILED
-dnl AC_DISABLE_SHARED
+CHECK_PROFILED
+AC_DISABLE_SHARED
+AC_PROG_LIBTOOL  # Checks whether to build shared and/or static libraries
 
 # Miscellaneous:
 if test x_$GCC = x_yes; then
@@ -42,12 +48,6 @@ if test x_$GCC = x_yes; then
 fi
 AC_SUBST(OPTOPTS)
 
-if test "x$srcdir" = x.; then
-extrasub="$extrasub
-/^srcdir=/d
-/^SRCPFX/d"
-fi
-
 # Write output:
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile snet.h])
 AC_OUTPUT

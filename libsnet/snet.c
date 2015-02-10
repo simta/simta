@@ -21,18 +21,6 @@
 
 #include <netinet/in.h>
 
-#ifdef HAVE_LIBSSL
-#include <openssl/ssl.h>
-#endif /* HAVE_LIBSSL */
-
-#ifdef HAVE_ZLIB
-#include <zlib.h>
-#endif /* HAVE_ZLIB */
-
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
 #ifdef __STDC__
 #include <stdarg.h>
 #else /* __STDC__ */
@@ -732,18 +720,15 @@ snet_setcompression( sn, type, level )
 {
 #ifdef HAVE_ZLIB
     int		len = 0;
-#endif /* HAVE_ZLIB */
 
     if ( sn->sn_flag & SNET_ZLIB ) {
 	return( -1 );
     }
-    sn->sn_flag |= SNET_ZLIB;
 
     if ( type != SNET_ZLIB ) {
 	return( -1 );
     }
 
-#ifdef HAVE_ZLIB
     memset( &sn->sn_zistream, 0, sizeof( sn->sn_zistream ));
     if ( inflateInit( &sn->sn_zistream ) != Z_OK ) {
 	return( -1 );
@@ -881,8 +866,7 @@ snet_read1( sn, buf, len, tv )
     ssize_t		rc;
     struct timeval	default_tv;
     extern int		errno;
-    int			oflags = 0;
-    int			dontblock = 0;
+    int			oflags = 0, dontblock = 0;
 
     if (( tv == NULL ) && ( sn->sn_flag & SNET_READ_TIMEOUT )) {
 	default_tv = sn->sn_read_timeout;

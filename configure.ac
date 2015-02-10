@@ -1,20 +1,24 @@
 # Process this file with autoconf to produce a configure script.
 
-AC_INIT(simta, VERSION, simta@umich.edu)
-AC_PREREQ(2.52)
+AC_INIT(simta, m4_esyscmd([bash version.sh]), simta@umich.edu)
+
+AC_PREREQ(2.63)
 AC_CONFIG_HEADER(config.h)
 AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
 AC_CONFIG_AUX_DIR([libsnet])
 
-# Setup local variables
-AC_ARG_WITH(resolvconf, AC_HELP_STRING([--with-resolv=RESOLV], [default resolv.conf]), resolvconf="$withval", resolvconf="/etc/resolv.conf" )
-AC_SUBST(resolvconf)
+# Set up local variables
+AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-alias-db=DB], [default alias db]), [], with_aliasdb="/etc/alias.db" )
+AC_DEFINE_UNQUOTED(SIMTA_ALIAS_DB, ["$with_aliasdb"], [default alias db location])
 
-AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-alias-db=DB], [default alias db]), aliasdb="$withval", aliasdb="/etc/alias.db" )
-AC_SUBST(aliasdb)
+AC_ARG_WITH(logfacility, AC_HELP_STRING([--with-log-facility=facility], [syslog facility]), [], with_logfacility="LOG_MAIL")
+AC_DEFINE_UNQUOTED(LOG_SIMTA, [$with_logfacility], [syslog facility])
 
-AC_ARG_WITH(maxconnections, AC_HELP_STRING([--with-maxconnections=MAX], [maximum number of client connections]), maxconnections="$withval", maxconnections=0 )
-AC_SUBST(maxconnections)
+AC_ARG_WITH(maxconnections, AC_HELP_STRING([--with-maxconnections=MAX], [maximum number of client connections]), [], with_maxconnections=0 )
+AC_DEFINE_UNQUOTED(SIMTA_MAXCONNECTIONS, [$with_maxconnections], [default maximum number of client connections])
+
+AC_ARG_ENABLE(chown, AC_HELP_STRING([--disable-chown], [do not set ownership of setuid binaries during installation]), [], enable_chown="yes")
+AS_IF([test "x$enable_chown" = "xyes"], [AC_SUBST(SUID_OWNER, "-o simta -g simta")], [AC_SUBST(SUID_OWNER, "")])
 
 # Local Stuff
 AC_PREFIX_DEFAULT(/usr/local)
@@ -24,7 +28,6 @@ AC_PROG_CC
 AC_PROG_INSTALL
 
 # Check for files
-AC_CHECK_FILE($resolvconf,,AC_MSG_ERROR(No valid resolv.conf)) 
 AC_STRUCT_TIMEZONE
 
 # Find local mailers
@@ -47,18 +50,35 @@ AC_SUBST(SIMSEND_OBJ, [])
 AC_SUBST(SIMC_OBJ, [])
 AC_SUBST(Q_RUNNER_OBJ, [])
 AC_SUBST(EXPANDER_OBJ, [])
+AC_SUBST(EXTRALIBS, [])
 
-CHECK_DB
-CHECK_LDAP
-CHECK_LIBWRAP
-CHECK_SASL
-
-#AC_CHECK_LIB([ldap], [ldap_init], , [CHECK_LDAP])
-AC_CHECK_LIB([ssl], [SSL_accept], , [CHECK_SSL])
-AC_CHECK_LIB([crypto], [SSLeay_version], , [CHECK_SSL])
+# Check for libraries
 AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
 AC_CHECK_LIB([crypt], [crypt])
+
+AX_PATH_BDB([4], [
+    AC_DEFINE([HAVE_DB], [1], [Define if BDB exists.])
+    EXTRALIBS="$BDB_LIBS $EXTRALIBS"
+    AC_SUBST(BDB_LDFLAGS)
+    AC_SUBST(BDB_CPPFLAGS)
+])
+
+AX_WITH_LIBRARY([ssl], [LIBSSL], [openssl/ssl.h], [ssl], [-lcrypto])
+AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
+AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
+AX_WITH_LIBRARY([sasl2], [LIBSASL], [sasl/sasl.h], [sasl2])
+AX_WITH_LIBRARY([zlib], [ZLIB], [zlib.h], [z])
+
+# Is this really where we should put this?
+if test x"$ax_cv_have_LDAP" = xyes; then
+    SRC="$SRC simta_ldap.c dn.c"
+    SIMTA_OBJ="$SIMTA_OBJ simta_ldap.o dn.o"
+    SIMSEND_OBJ="$SIMSEND_OBJ simta_ldap.o dn.o"
+    SIMC_OBJ="$SIMC_OBJ simta_ldap.o dn.o"
+    Q_RUNNER_OBJ="$Q_RUNNER_OBJ simta_ldap.o dn.o"
+    EXPANDER_OBJ="$EXPANDER_OBJ simta_ldap.o dn.o"
+fi
 
 if test "x$srcdir" = x.; then
 extrasub="$extrasub
@@ -69,5 +89,5 @@ fi
 AC_CONFIG_SUBDIRS(libsnet)
 AC_CONFIG_SUBDIRS(denser)
 
-AC_CONFIG_FILES([ Makefile ])
+AC_CONFIG_FILES([ Makefile packaging/rpm/simta.spec ])
 AC_OUTPUT

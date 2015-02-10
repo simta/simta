@@ -692,7 +692,9 @@ expand( struct envelope *unexpanded_env )
 
 cleanup5:
     cleanup_envelope_list( &exp.exp_errors );
+#ifdef HAVE_LDAP
     cleanup_envelope_list( &exp.exp_gmailfwding );
+#endif /* HAVE_LDAP */
 
 cleanup4:
     for ( eo = host_stab; eo != NULL; eo = eo->eo_next ) {

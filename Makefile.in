@@ -11,8 +11,6 @@ MANDIR=/usr/share/man
 BINDIR=@bindir@
 ETCDIR=@sysconfdir@/simta
 SBINDIR=@sbindir@
-RUNDIR=/var/run
-RUNFILE=/var/run/simta.pid
 LIBDIR=/usr/lib
 spool=/var/spool
 SPOOLDIR=$(spool)/simta/
@@ -64,23 +62,18 @@ SIMALIASOBJ=	@EXPANDER_OBJ@ simalias.o queue.o ll.o line_file.o \
 SLAOBJ=		sla.o
 SIMCKOBJ=	simck.o base64.o
 
-SIMTALOG=LOG_MAIL
-SIMTA_ALIAS_DB=	@aliasdb@
-SIMTA_MAXCONNECTIONS=	@maxconnections@
-RESOLV_CONF=	@resolvconf@
-
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
-INCPATH=	-I. -Idenser -Ilibsnet @CPPFLAGS@ ${SRCPFX_INCPATH}
-DEFS=		-DLOG_SIMTA=${SIMTALOG} -DTLS -g @DEFS@ 
-LIBPATH=	-Ldenser -Llibsnet @LDFLAGS@
-LIBS=		-ldnsr -lsnet @LIBS@
+INCPATH=	-I. -Idenser -Ilibsnet @CPPFLAGS@ @BDB_CPPFLAGS@ @LIBSSL_CPPFLAGS@ @LDAP_CPPFLAGS@ @LIBWRAP_CPPFLAGS@ @LIBSASL_CPPFLAGS@${SRCPFX_INCPATH}
+DEFS=		-DTLS -g @DEFS@
+LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@ @BDB_LDFLAGS@ @LIBSSL_LDFLAGS@ @LDAP_LDFLAGS@ @LIBWRAP_LDFLAGS@ @LIBSASL_LDFLAGS@
+LIBS=		-ldnsr -lsnet @LIBS@ @EXTRALIBS@
 TAGSFILE=	tags
-CFLAGS=		${DEFS} ${OPTOPTS} @SIMTACPPFLAGS@ ${INCPATH}
+CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
 
-SIMTALIBPATH=	${LIBPATH} @SIMTALDFLAGS@
-SIMTALIBS=	${LIBS} @SIMTALIBS@
+SIMTALIBPATH=	${LIBPATH}
+SIMTALIBS=	${LIBS}
 
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
@@ -92,14 +85,11 @@ TARGETS=	simta smtpconnect tlsconnect simsendmail q_runner simexpander \
 all : ${TARGETS}
 
 install : all FRC
-	@mkdir -p ${DESTDIR}${RUNDIR} ${DESTDIR}${SBINDIR} ${DESTDIR}${BINDIR} ${DESTDIR}${MANDIR}/man1 ${DESTDIR}${MANDIR}/man8 ${DESTDIR}$(spool)
-	@touch empty-file
-	${INSTALL} -m 0644 -o simta -g simta empty-file ${DESTDIR}${RUNFILE}
-	@rm -f empty-file
-	${INSTALL} -m 0750 -o simta -g simta -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q} ${DESTDIR}${SIMTA_ETC} ${DESTDIR}${SIMTA_COMMAND}
-	${INSTALL} -m 755 -o simta -g simta -c simta ${DESTDIR}${SBINDIR}/
-	${INSTALL} -m 6755 -o simta -g simta -c simsendmail ${DESTDIR}${SBINDIR}/
-	${INSTALL} -m 6755 -o simta -g simta -c simc ${DESTDIR}${SBINDIR}/
+	@mkdir -p ${DESTDIR}${SBINDIR} ${DESTDIR}${BINDIR} ${DESTDIR}${MANDIR}/man1 ${DESTDIR}${MANDIR}/man8 ${DESTDIR}$(spool)
+	${INSTALL} -m 0750 @SUID_OWNER@ -d ${DESTDIR}${SPOOLDIR} ${DESTDIR}${LOCAL_Q} ${DESTDIR}${SLOW_Q} ${DESTDIR}${FAST_Q} ${DESTDIR}${DEAD_Q} ${DESTDIR}${SIMTA_ETC} ${DESTDIR}${SIMTA_COMMAND}
+	${INSTALL} -m 755 -c simta ${DESTDIR}${SBINDIR}/
+	${INSTALL} -m 6755 @SUID_OWNER@ -c simsendmail ${DESTDIR}${SBINDIR}/
+	${INSTALL} -m 6755 @SUID_OWNER@ -c simc ${DESTDIR}${SBINDIR}/
 	for i in ${BINTARGETS}; do \
 	    ${INSTALL} -m 0755 -c $$i ${DESTDIR}${BINDIR}; \
 	done
@@ -140,7 +130,7 @@ simalias.o : simalias.c
 
 daemon.o : daemon.c
 	${CC} ${CFLAGS} \
-	    -DVERSION=\"`cat ${SRCPFX}VERSION`\" \
+	    -DVERSION=\"@PACKAGE_VERSION@\" \
 	    -c ${SRCPFX}daemon.c -o daemon.o
 
 header.o : header.c
@@ -149,14 +139,11 @@ header.o : header.c
 
 receive.o : receive.c 
 	${CC} ${CFLAGS} \
-		-DVERSION=\"`cat ${SRCPFX}VERSION`\" \
+		-DVERSION=\"@PACKAGE_VERSION@\" \
 		-c ${SRCPFX}receive.c -o receive.o
 
 simta.o : simta.c
 	${CC} ${CFLAGS} \
-		-DSIMTA_ALIAS_DB=\"${SIMTA_ALIAS_DB}\" \
-		-DSIMTA_MAXCONNECTIONS=${SIMTA_MAXCONNECTIONS} \
-		-DSIMTA_RESOLV_CONF=\"${RESOLV_CONF}\" \
 		-c ${SRCPFX}simta.c -o simta.o
 
 mx.o : mx.c
@@ -264,14 +251,12 @@ stamp-denser :
 denser/dense : stamp-denser
 	@true
 
-VERSION=`date +%Y_%m_%d`
-DISTDIR=simta-${VERSION}
+DISTDIR=@PACKAGE_NAME@-@PACKAGE_VERSION@
 
 dist : clean
-	mkdir ../${DISTDIR}
-	tar -c -f - -X EXCLUDE . | tar xpf - -C ../${DISTDIR}
-	echo ${VERSION} > ../${DISTDIR}/VERSION
-	cd ..; tar cfz ${DISTDIR}.tgz ${DISTDIR}
+	mkdir -p ${DESTDIR}dist/${DISTDIR}
+	tar -c -f - -X .distignore . | tar xpf - -C ${DESTDIR}dist/${DISTDIR}
+	cd ${DESTDIR}dist; tar cfz ${DISTDIR}.tar.gz ${DISTDIR}
 
 clean :
 	rm -f stamp-libsnet stamp-denser
