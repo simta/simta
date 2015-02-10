@@ -33,31 +33,18 @@
 #include "queue.h"
 #include "smtp.h"
 
+int     next_dnsr_host_lookup( struct deliver *, struct host_q * );
 
     int
 main( int ac, char *av[] )
 {
-    int			c, err = 0, r, s;
-    unsigned short	port = 25;
+    int			s, r;
     char                *hostname;
     struct host_q       *hq;
     struct deliver      d;
 
-    while (( c = getopt( ac, av, "C:rp:" )) != EOF ) {
-	switch ( c ) {
-	case 'p' :
-	    port = htons( atoi( optarg ));
-	    break;
-
-	case '?' :
-	default :
-	    err++;
-	    break;
-	}
-    }
-
-    if ( err || ( optind == ac )) {
-	fprintf( stderr, "Usage:\t%s -p port hostname\n", av[ 0 ] );
+    if ( ac != 2 ) {
+	fprintf( stderr, "Usage:\t%s hostname\n", av[ 0 ] );
 	exit( 1 );
     }
 
@@ -71,7 +58,7 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-    hostname = av[ optind ];
+    hostname = av[ 1 ];
 
     hq = host_q_create_or_lookup( hostname );
     memset( &d, 0, sizeof( struct deliver ));

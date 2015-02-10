@@ -387,7 +387,7 @@ simta_read_config( char *fname )
 
 	    domain = av[ 0 ] + 1;
 	    if ( strlen( domain ) > DNSR_MAX_HOSTNAME ) {
-		printf( "len: %d\n", strlen( domain ));
+		printf( "len: %zu\n", strlen( domain ));
 		fprintf( stderr, "%s: line %d: domain name too long\n",
 			fname, lineno );
 		goto error;

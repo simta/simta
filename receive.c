@@ -2346,7 +2346,7 @@ start_tls( struct receive_data *r, SSL_CTX *ssl_ctx )
 {
     int				rc;
     struct timeval		tv_wait;
-    SSL_CIPHER			*ssl_cipher;
+    const SSL_CIPHER		*ssl_cipher;
 
     if ( simta_debug != 0 ) {
 	syslog( LOG_DEBUG, "Debug: start_tls snet_starttls" );

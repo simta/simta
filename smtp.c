@@ -578,7 +578,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     int				tls_cert_required;
     char			*ciphers;
     SSL_CTX			*ssl_ctx = NULL;
-    SSL_CIPHER			*ssl_cipher;
+    const SSL_CIPHER		*ssl_cipher;
 #endif /* HAVE_LIBSSL */
 
     tv_wait.tv_sec = simta_outbound_command_line_timer;
