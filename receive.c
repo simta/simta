@@ -148,7 +148,7 @@ struct receive_data {
 #define S_MAXCONNECT "Maximum connections exceeded"
 #define S_TIMEOUT "Connection length exceeded"
 #define S_CLOSING "closing transmission channel"
-#define S_UNKNOWN string_unknown	/* "unknown" */
+#define S_UNKNOWN "unknown"
 #define S_UNRESOLVED "Unresolved"
 #define S_DENIED "Access denied for IP"
 
@@ -272,7 +272,9 @@ char *smtp_mode_str[] = {
     NULL
 };
 
-char string_unknown[] = STRING_UNKNOWN;        /* also S_UNKNOWN */
+#ifdef HAVE_LIBWRAP
+char string_unknown[] = STRING_UNKNOWN;
+#endif /* HAVE_LIBWRAP */
 
     static void
 set_smtp_mode( struct receive_data *r, int mode, char *msg )
