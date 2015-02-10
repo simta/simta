@@ -126,6 +126,10 @@ main( int argc, char **argv )
 
     } else {
 	/* not dump */
+	if (( input == NULL ) && ( strcmp( progname, "newaliases" ) == 0 )) {
+	    input = simta_default_alias_file;
+	}
+
 	if ( input == NULL ) {
 	    finput = stdin;
 	} else {

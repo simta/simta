@@ -30,7 +30,7 @@ preload(){
     [ -x $exec ] || exit 5
     [ -f $config ] || exit 6
 
-    /usr/bin/simalias -i /etc/aliases
+    /usr/bin/newaliases
     $exec -C
 }
 

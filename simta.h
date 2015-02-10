@@ -267,6 +267,7 @@ extern struct rbl		        *simta_rbls;
 extern struct rbl	         	*simta_user_rbls;
 extern char				*simta_queue_filter;
 extern char				*simta_default_alias_db;
+extern char				*simta_default_alias_file;
 extern char				*simta_default_passwd_file;
 extern char				*simta_tls_ciphers;
 extern char				*simta_file_ca;

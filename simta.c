@@ -187,6 +187,7 @@ char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
 char			simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
 DNSR			*simta_dnsr = NULL;
 char			*simta_default_alias_db = SIMTA_ALIAS_DB;
+char			*simta_default_alias_file = "/etc/aliases";
 char			*simta_default_passwd_file = "/etc/passwd";
 #ifdef HAVE_LIBSSL
 char			*simta_tls_ciphers = NULL;
@@ -1866,6 +1867,18 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) {
 		printf( "ALIAS_DB: %s\n", simta_default_alias_db ?
 			simta_default_alias_db : "Disabled" );
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "ALIAS_FILE" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if (( simta_default_alias_file = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+	    } else {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM_OFF" ) == 0 ) {
