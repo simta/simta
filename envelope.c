@@ -1071,13 +1071,13 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
 	}
 
 	if ( *line != 'D' ) {
-	    syslog( LOG_ERR, "env_read %s: expected Xpansion syntax",
+	    syslog( LOG_ERR, "env_read %s: expected Dattributes syntax",
 		    filename );
 	    goto cleanup;
 	}
 
 	if ( sscanf( line + 1, "%d", &exp_level) != 1 ) {
-	    syslog( LOG_ERR, "env_read: %s: bad Xpansion syntax", filename );
+	    syslog( LOG_ERR, "env_read: %s: bad Dattributes syntax", filename );
 	    goto cleanup;
 	}
 
