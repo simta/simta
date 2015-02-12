@@ -252,11 +252,8 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     int
 tls_client_cert( char *hostname, const SSL *ssl )
 {
-    int                         i, san_names_num;
     char                        buf[ 1024 ];
     X509                        *peer;
-    STACK_OF(GENERAL_NAME)      *san_names = NULL;
-    GENERAL_NAME                *current_name;
 
     if ( ssl == NULL ) {
 	syslog( LOG_ERR, "tls_client_cert: ssl is NULL" );
@@ -274,17 +271,6 @@ tls_client_cert( char *hostname, const SSL *ssl )
 	    X509_NAME_oneline(
 		X509_get_subject_name( peer ), buf, sizeof( buf )));
 
-    san_names = X509_get_ext_d2i( peer, NID_subject_alt_name, NULL, NULL );
-    san_names_num = sk_GENERAL_NAME_num( san_names );
-    for ( i = 0 ; i < san_names_num ; i++ ) {
-	current_name = sk_GENERAL_NAME_value( san_names, i );
-	if ( current_name->type == GEN_DNS ) {
-	    syslog( LOG_DEBUG, "tls_client_cert %s: cert subject alt name: %s",
-		    hostname, ASN1_STRING_data( current_name->d.dNSName ));
-	}
-    }
-
-    sk_GENERAL_NAME_pop_free(san_names, GENERAL_NAME_free);
     X509_free( peer );
 
     if ( SSL_get_verify_result( ssl ) != X509_V_OK ) {
