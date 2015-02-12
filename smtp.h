@@ -34,10 +34,12 @@
 
 void	stdout_logger ( char * );
 int	smtp_reply( int, struct host_q *, struct deliver * );
+int	smtp_check_banner_line( char * );
 int	smtp_consume_banner ( struct line_file **, struct deliver *,
 		char *, char * );
 
 int	smtp_connect( struct host_q *, struct deliver * );
+int	smtp_parse_ehlo_banner( struct deliver *, char * );
 int	smtp_rset( struct host_q *, struct deliver * );
 int	smtp_send( struct host_q *, struct deliver * );
 void	smtp_quit( struct host_q *, struct deliver * );

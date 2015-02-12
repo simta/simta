@@ -55,8 +55,11 @@
 
 #ifdef HAVE_LIBSSL
 #include "tls.h"
-#define S_STARTTLS "STARTTLS"
 #endif /* HAVE_LIBSSL */
+
+#define S_8BITMIME  "8BITMIME"
+#define S_SIZE	    "SIZE"
+#define S_STARTTLS  "STARTTLS"
 
 #ifdef DEBUG
 void	(*smtp_logger)(char *) = stdout_logger;
@@ -66,11 +69,38 @@ void	(*smtp_logger)(char *) = NULL;
 
 
     int
+smtp_check_banner_line( char *line ) {
+
+    if ( strlen( line ) < 3 ) {
+	syslog( LOG_DEBUG, "Deliver smtp_check_banner_line: "
+		"snet_getline: bad banner syntax: %s", line );
+	return( SMTP_ERROR );
+    }
+
+    if ( !isdigit( (int)line[ 0 ] ) ||
+	    !isdigit( (int)line[ 1 ] ) ||
+	    !isdigit( (int)line[ 2 ] )) {
+	syslog( LOG_DEBUG, "Deliver smtp_check_banner_line: "
+		"snet_getline: bad banner syntax: %s", line );
+	return( SMTP_ERROR );
+    }
+
+    if ( line[ 3 ] != '\0' &&
+	    line[ 3 ] != ' ' &&
+	    line [ 3 ] != '-' ) {
+	syslog( LOG_DEBUG, "Deliver smtp_check_banner_line: "
+		"snet_getline: bad banner syntax: %s", line );
+	return( SMTP_ERROR );
+    }
+
+    return( SMTP_OK );
+}
+
+    int
 smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 	char *line, char *error )
 {
     int				ret = SMTP_ERROR;
-    char			*c;
 
     if ( err_text != NULL ) {
 	if ( *err_text == NULL ) {
@@ -99,11 +129,7 @@ smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 	}
     }
 
-    if (( err_text != NULL ) 
-#ifdef HAVE_LIBSSL
-	    || ( d->d_tls_banner_check != 0 )
-#endif /* HAVE_LIBSSL */
-	    ) {
+    if (( err_text != NULL )) { 
 	while (*(line + 3) == '-' ) {
 	    if (( line = snet_getline( d->d_snet_smtp, NULL )) == NULL ) {
 		syslog( LOG_DEBUG, "Deliver smtp_consume_banner: "
@@ -111,46 +137,9 @@ smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 		return( SMTP_BAD_CONNECTION );
 	    }
 
-	    if ( strlen( line ) < 3 ) {
-		syslog( LOG_DEBUG, "Deliver smtp_consume_banner: "
-			"snet_getline: bad banner syntax: %s", line );
-		return( SMTP_BAD_CONNECTION );
+	    if ( smtp_check_banner_line( line ) == SMTP_ERROR ) {
+		return ( SMTP_BAD_CONNECTION );
 	    }
-
-	    if ( !isdigit( (int)line[ 0 ] ) ||
-		    !isdigit( (int)line[ 1 ] ) ||
-		    !isdigit( (int)line[ 2 ] )) {
-		syslog( LOG_DEBUG, "Deliver smtp_consume_banner: "
-			"snet_getline: bad banner syntax: %s", line );
-		return( SMTP_BAD_CONNECTION );
-	    }
-
-	    if ( line[ 3 ] != '\0' &&
-		    line[ 3 ] != ' ' &&
-		    line [ 3 ] != '-' ) {
-		syslog( LOG_DEBUG, "Deliver smtp_consume_banner: "
-			"snet_getline: bad banner syntax: %s", line );
-		return( SMTP_BAD_CONNECTION );
-	    }
-
-#ifdef HAVE_LIBSSL
-	    if (( d->d_tls_banner_check != 0 ) && ( d->d_tls_supported == 0 )) {
-		c = line + 4;
-		if (( strncasecmp( S_STARTTLS, c,
-			strlen( S_STARTTLS )) == 0 )) {
-		    c += strlen( S_STARTTLS );
-		    while ( *c != '\0') {
-			if ( isspace( *c ) == 0 ) {
-			    break;
-			}
-			c++;
-		    }
-		    if ( *c == '\0' ) {
-			d->d_tls_supported = 1;
-		    }
-		}
-	    }
-#endif /* HAVE_LIBSSL */
 
 	    if ( smtp_logger != NULL ) {
 		(*smtp_logger)( line );
@@ -179,6 +168,67 @@ consume:
     }
 
     return( ret );
+}
+
+    int
+smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
+    char	*c;
+    int		size;		
+
+    while (*(line + 3) == '-' ) {
+	if (( line = snet_getline( d->d_snet_smtp, NULL )) == NULL ) {
+	    syslog( LOG_DEBUG, "Deliver smtp_parse_ehlo_banner: "
+		    "snet_getline: unexpected EOF" );
+	    return( SMTP_BAD_CONNECTION );
+	}
+
+	if ( smtp_check_banner_line( line ) == SMTP_ERROR ) {
+	    return( SMTP_BAD_CONNECTION );
+	}
+
+	/* Parse SMTP extensions that we care about */
+	c = line + 4;
+
+	if (( strncasecmp( S_8BITMIME, c, strlen( S_8BITMIME )) == 0 )) {
+	    for ( c += strlen( S_8BITMIME ); isspace( *c ) ; c++ );
+	    if ( *c == '\0' ) {
+		syslog( LOG_DEBUG, "Deliver smtp_parse_ehlo_banner: "
+			"8BITMIME supported" );
+		d->d_esmtp_8bitmime = 1;
+	    }
+	} else if (( strncasecmp( S_SIZE, c, strlen( S_SIZE )) == 0 )) {
+	    for ( c += strlen( S_SIZE ); isspace( *c ) ; c++ );
+	    if ( *c == '\0' ) {
+		syslog( LOG_DEBUG, "Deliver smtp_parse_ehlo_banner: "
+			"SIZE supported" );
+		d->d_esmtp_size = -1;
+	    } else {
+		/* Quirk: handle broken simta versions */
+		if ( *c == '=' ) {
+		    c++;
+		}
+		errno = 0;
+		size = strtol( c, NULL, 0 );
+		if (( errno == EINVAL ) || ( errno == ERANGE )) {
+		    syslog( LOG_DEBUG, "Deliver smtp_parse_ehlo_banner: "
+			"error parsing SIZE parameter: %s", c );
+		} else {
+		    syslog( LOG_DEBUG, "Deliver smtp_parse_ehlo_banner: "
+			"SIZE supported: %d", size );
+		    d->d_esmtp_size = size;
+		}
+	    }
+	} else if (( strncasecmp( S_STARTTLS, c, strlen( S_STARTTLS )) == 0 )) {
+	    for ( c += strlen( S_STARTTLS ); isspace( *c ) ; c++ );
+	    if ( *c == '\0' ) {
+		syslog( LOG_DEBUG, "Deliver smtp_parse_ehlo_banner: "
+		    "STARTTLS supported" );
+		d->d_esmtp_starttls = 1;
+	    }
+	}
+    }
+
+    return( SMTP_OK );
 }
 
 
@@ -311,6 +361,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_EHLO:
 	    syslog( LOG_NOTICE, "smtp_reply %s EHLO: %s", hq->hq_hostname,
 		line );
+	    return smtp_parse_ehlo_banner( d, line );
 	    break;
 
 	case SMTP_STARTTLS:
@@ -575,8 +626,8 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     struct timeval		tv_wait;
     int				rc;
 #ifdef HAVE_LIBSSL
-    int				tls_required;
-    int				tls_cert_required;
+    int				tls_required = 0;
+    int				tls_cert_required = 0;
     char			*ciphers;
     SSL_CTX			*ssl_ctx = NULL;
     const SSL_CIPHER		*ssl_cipher;
@@ -606,20 +657,17 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     }
 
 #ifdef HAVE_LIBSSL
-    d->d_tls_banner_check = 1;
-
     switch ( simta_policy_tls ) {
-    case TLS_POLICY_DISABLED:
-	d->d_tls_banner_check = 0;
-	/* fall through */
     default:
-    case TLS_POLICY_DEFAULT:
-    case TLS_POLICY_OPTIONAL:
-	tls_required = 0;
+	/* no change */
 	break;
 
     case TLS_POLICY_REQUIRED:
 	tls_required = 1;
+	break;
+
+    case TLS_POLICY_DISABLED:
+	tls_required = -1;
 	break;
     }
 
@@ -631,30 +679,21 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    break;
 
 	case TLS_POLICY_OPTIONAL:
-	    d->d_tls_banner_check = 1;
 	    tls_required = 0;
 	    break;
 
 	case TLS_POLICY_REQUIRED:
-	    d->d_tls_banner_check = 1;
 	    tls_required = 1;
 	    break;
 
 	case TLS_POLICY_DISABLED:
-	    d->d_tls_banner_check = 0;
-	    tls_required = 0;
+	    tls_required = -1;
 	    break;
 	}
     }
-
-    d->d_tls_supported = 0;
 #endif /* HAVE_LIBSSL */
 
     r = smtp_reply( SMTP_EHLO, hq, d );
-
-#ifdef HAVE_LIBSSL
-    d->d_tls_banner_check = 0;
-#endif /* HAVE_LIBSSL */
 
     switch ( r ) {
     default:
@@ -665,8 +704,12 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 
     case SMTP_OK:
 #ifdef HAVE_LIBSSL
-	if ( ! d->d_tls_supported ) {
-	    if ( tls_required != 0 ) {
+	if ( tls_required == -1 ) {
+	    break;
+	}
+
+	if ( ! d->d_esmtp_starttls ) {
+	    if ( tls_required > 0 ) {
 		syslog( LOG_INFO, "Deliver.SMTP %s (%s): TLS required: %s",
 			hq->hq_hostname, hq->hq_smtp_hostname,
 			"not offered as EHLO extension" );
@@ -779,8 +822,11 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	 * first command after a successful TLS negotiation.
 	 */
 
+	d->d_esmtp_8bitmime = 0;
+	d->d_esmtp_size = 0;
+	d->d_esmtp_starttls = 0;
 	/* ZZZ reset state? */
-
+	
 	/* Resend EHLO */
 	if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
 	    syslog( LOG_DEBUG, "Deliver %s: snet_writef failed: EHLO",

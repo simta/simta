@@ -62,10 +62,9 @@ struct deliver {
     int				d_mx_preference_set;
     int				d_cur_dnsr_result;
     int				d_cur_dnsr_result_ip;
-#ifdef HAVE_LIBSSL
-    int				d_tls_supported;
-    int				d_tls_banner_check;
-#endif /* HAVE_LIBSSL */
+    int				d_esmtp_8bitmime;
+    int				d_esmtp_size;
+    int				d_esmtp_starttls;
 };
 
 struct host_q {
