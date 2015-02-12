@@ -667,7 +667,7 @@ f_ehlo( struct receive_data *r )
 	return( RECEIVE_CLOSECONNECTION );
     }
     if ( simta_max_message_size >= 0 ) {
-	if ( snet_writef( r->r_snet, "%d%sSIZE=%d\r\n", 250,
+	if ( snet_writef( r->r_snet, "%d%sSIZE %d\r\n", 250,
 		extension_count-- ? "-" : " ",
 		simta_max_message_size ) < 0 ) {
 	    syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
