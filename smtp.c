@@ -900,6 +900,32 @@ smtp_send( struct host_q *hq, struct deliver *d )
     snet_timeout( d->d_snet_smtp,
 	    SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait );
 
+    if (( d->d_esmtp_size > 0 ) && ( d->d_size > d->d_esmtp_size )) {
+	syslog( LOG_INFO, "Deliver.SMTP %s: Message is too large for %s",
+		d->d_env->e_id, hq->hq_smtp_hostname );
+
+	/* Set the error message */
+	if ( d->d_env->e_err_text == NULL ) {
+	    if ((d->d_env->e_err_text = line_file_create()) == NULL ) {
+		syslog( LOG_ERR, "Syserror smtp_send: line_file_create: %m" );
+		return ( SMTP_ERROR );
+	    }
+	}
+	if ( line_append( d->d_env->e_err_text, "", COPY ) == NULL ) {
+	    syslog( LOG_ERR, "Syserror smtp_send: line_file_create: %m" );
+	    return ( SMTP_ERROR );
+	}
+	if ( line_append( d->d_env->e_err_text,
+		"This message exceeds the size limit for the recipient domain.",
+		COPY ) == NULL ) {
+	    syslog( LOG_ERR, "Syserror smtp_send: line_file_create: %m" );
+	    return ( SMTP_ERROR );
+	}
+
+	d->d_env->e_flags |= ENV_FLAG_BOUNCE;
+	return( SMTP_OK );
+    }
+
     syslog( LOG_INFO, "Deliver.SMTP %s: Attempting remote delivery: %s (%s)",
 	    d->d_env->e_id, hq->hq_hostname, hq->hq_smtp_hostname );
 
