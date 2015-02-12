@@ -180,6 +180,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     char                        dfile_fname[ MAXPATHLEN ];
     int                         dfile_fd;
     int				lines_written = 0;
+    int				still_writing = 1;
     FILE                        *dfile;
     struct line                 *l;
     char                        *line;
@@ -244,10 +245,18 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 	fprintf( dfile, "\n" );
 
 	while ((( line = snet_getline( message, NULL )) != NULL ) &&
-		(( simta_max_bounce_lines == 0 ) ||
-		( lines_written < simta_max_bounce_lines ))) {
-	    fprintf( dfile, "%s\n", line );
-	    lines_written++;
+		( still_writing != 0 )) {
+	    if ( *line == '\0' ) {
+		/* End of headers */
+		still_writing = 0;
+	    } else {
+		fprintf( dfile, "%s\n", line );
+	    }
+
+	    if (( simta_max_bounce_lines > 0 ) &&
+		    ( ++lines_written >= simta_max_bounce_lines )) {
+		still_writing = 0;
+	    }
 	}
     }
 
