@@ -1488,6 +1488,16 @@ deliver_local( struct deliver *d )
 
     for ( d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
 	    d->d_rcpt = d->d_rcpt->r_next ) {
+
+	/* Special handling for /dev/null */
+	if ( strncasecmp( d->d_rcpt->r_rcpt, "/dev/null@", 10 ) == 0 ) {
+	    d->d_rcpt->r_status = R_ACCEPTED;
+	    d->d_n_rcpt_accepted++;
+	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> Bitbucketed",
+		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail );
+	    continue;
+	}
+
 	ml_error = EX_TEMPFAIL;
 
 	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {

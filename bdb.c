@@ -123,7 +123,6 @@ db_cursor_set( DB *dbp, DBC **dbcp, DBT *key, DBT *value )
     return( (*dbcp)->c_get( *dbcp, key, value, DB_SET ));
 }
 
-
     int
 db_cursor_next( DB *dbp, DBC **dbcp, DBT *key, DBT *value )
 {

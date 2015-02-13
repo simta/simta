@@ -562,6 +562,11 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     char		fname[ MAXPATHLEN ];
     char		buf[ 1024 ];
 
+    /* Special handling for /dev/null */
+    if ( strncasecmp( e_addr->e_addr, "/dev/null@", 10 ) == 0 ) {
+	return( PASSWORD_FINAL );
+    }
+
     /* Check password file */
     if ( e_addr->e_addr_at != NULL ) {
 	*e_addr->e_addr_at = '\0';
@@ -637,11 +642,17 @@ cleanup_forward:
 alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 {
     int			ret = ALIAS_NOT_FOUND;
-    char		address[ 1024 + 1 ];
+    char		address[ ALIAS_MAX_DOMAIN_LEN ];
+    char		domain[ ALIAS_MAX_DOMAIN_LEN ];
+    char		owner[ ALIAS_MAX_DOMAIN_LEN * 2 ];
     char		*alias_addr;
+    char		*addr_dash;
     DBC			*dbcp = NULL;
     DBT			key;
     DBT			value;
+    DBC			*owner_dbcp = NULL;
+    DBT			owner_key;
+    DBT			owner_value;
 
     if ( a->a_dbp == NULL ) {
 	if (( ret = db_open_r( &(a->a_dbp), a->a_fname, NULL )) != 0 ) {
@@ -658,18 +669,43 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     memset( &value, 0, sizeof( DBT ));
 
     if ( e_addr->e_addr_at != NULL ) {
-	if (( e_addr->e_addr_at - e_addr->e_addr ) > ALIAS_MAX_DOMAIN_LEN ) {
+	if (( e_addr->e_addr_at - e_addr->e_addr ) >= ALIAS_MAX_DOMAIN_LEN ) {
 	    syslog( LOG_WARNING, "alias_expand: address too long: %s",
 		    e_addr->e_addr );
 	    goto done;
 	}
+	if ( strlen( e_addr->e_addr_at + 1 ) >= ALIAS_MAX_DOMAIN_LEN ) {
+	    syslog( LOG_WARNING, "alias_expand: domain too long: %s",
+		    e_addr->e_addr_at + 1 );
+	    goto done;
+	}
+
+	strncpy( domain, e_addr->e_addr_at + 1, ALIAS_MAX_DOMAIN_LEN - 1 );
 
 	*e_addr->e_addr_at = '\0';
-	strcpy( address, e_addr->e_addr );
+	if ( strncasecmp( e_addr->e_addr, "owner-", 6 ) == 0 ) {
+	    /* Canonicalise sendmail-style owner */
+	    strncpy( address, e_addr->e_addr + 6, ALIAS_MAX_DOMAIN_LEN - 8 );
+	    strcat( address, "-errors" );
+	} else if ((( addr_dash = strrchr( e_addr->e_addr, '-' )) != NULL ) &&
+		(( strcasecmp( addr_dash, "-owner" ) == 0 ) ||
+		( strcasecmp( addr_dash, "-owners" ) == 0 ) ||
+		( strcasecmp( addr_dash, "-error" ) == 0 ) ||
+		( strcasecmp( addr_dash, "-request" ) == 0 ) ||
+		( strcasecmp( addr_dash, "-requests" ) == 0 ))) {
+	    /* simta-style owners are all the same for ALIAS.
+	     * errors is canonical */
+	    *addr_dash = '\0';
+	    strncpy( address, e_addr->e_addr, ALIAS_MAX_DOMAIN_LEN - 8 );
+	    *addr_dash = '-';
+	    strcat( address, "-errors" );
+	} else {
+	    strncpy( address, e_addr->e_addr, ALIAS_MAX_DOMAIN_LEN - 1 );
+	}
 	*e_addr->e_addr_at = '@';
 
     } else {
-	strcpy( address, STRING_POSTMASTER );
+	strncpy( address, STRING_POSTMASTER, ALIAS_MAX_DOMAIN_LEN - 1 );
     }
 
     key.data = &address;
@@ -687,6 +723,39 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	/* not in alias db, try next expansion */
 	ret = ALIAS_NOT_FOUND;
 	goto done;
+    }
+
+    if ( strcmp( address, STRING_POSTMASTER ) != 0 ) {
+	sprintf( owner, "%s-errors", address );
+	memset( &owner_key, 0, sizeof( DBT ));
+	memset( &owner_value, 0, sizeof( DBT ));
+	owner_key.data = owner;
+	owner_key.size = strlen( owner ) + 1;
+	if (( ret = db_cursor_set(
+		a->a_dbp, &owner_dbcp, &owner_key, &owner_value )) != 0 ) {
+	    if ( ret != DB_NOTFOUND ) {
+		syslog( LOG_ERR, "alias_expand: db_cursor_set: %s",
+			db_strerror( ret ));
+		ret = ALIAS_SYSERROR;
+		goto done;
+	    }
+	} else {
+	    sprintf( owner, "%s-errors@%s", address, domain );
+	    if (( e_addr->e_addr_errors =
+		    address_bounce_create( exp )) == NULL ) {
+		syslog( LOG_ERR, "alias_expand: failed creating error env: %s",
+			owner );
+		ret = ALIAS_SYSERROR;
+		goto done;
+	    }
+	    if ( env_recipient( e_addr->e_addr_errors, owner ) != 0 ) {
+		syslog( LOG_ERR, "alias_expand: failed setting error recip: %s",
+			owner );
+		ret = ALIAS_SYSERROR;
+		goto done;
+	    }
+	    e_addr->e_addr_from = strdup( owner );
+	}
     }
 
     for ( ; ; ) {
@@ -745,6 +814,12 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 done:
     if ( dbcp != NULL ) {
 	if ( db_cursor_close( dbcp ) != 0 ) {
+	    syslog( LOG_ERR, "alias_expand: db_cursor_close: %s",
+		db_strerror( ret ));
+	}
+    }
+    if ( owner_dbcp != NULL ) {
+	if ( db_cursor_close( owner_dbcp ) != 0 ) {
 	    syslog( LOG_ERR, "alias_expand: db_cursor_close: %s",
 		db_strerror( ret ));
 	}

@@ -17,6 +17,7 @@
 
 #include <snet.h>
 
+#include <ctype.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -50,7 +51,10 @@
 #include "ldap.h"
 #endif /* HAVE_LDAP */
 
-
+#define	    ALIAS_WHITE	0
+#define	    ALIAS_CONT	1
+#define	    ALIAS_WORD  2
+#define	    ALIAS_QUOTE 3
 
 int simalias_dump( void );
 int simalias_create( void );
@@ -109,6 +113,9 @@ main( int argc, char **argv )
 	fprintf( stderr, "simta_read_config error: %s\n", SIMTA_FILE_CONFIG );
 	exit( 1 );
     }
+
+    /* Make sure error and verbose output are nicely synced */
+    setbuf( stdout, NULL );
 
     if ( dump ) {
 	if ( input == NULL ) {
@@ -204,9 +211,14 @@ error:
     int
 simalias_create( void )
 {
-    int			linenum = 0, aac, i, len, ret;
-    char		line[ MAXPATHLEN * 2 ];
-    char		**argv;
+    int			linenum = 0, ret, i;
+    int			state = ALIAS_WHITE;
+    char		line[ MAXPATHLEN ];
+    char		key[ MAXPATHLEN ];
+    char		value[ MAXPATHLEN ];
+    char		*l;
+    char		*p;
+    char		*v;
     DB			*dbp = NULL;
 
     if (( ret = db_new( &dbp, DB_DUP, output, NULL, DB_HASH )) != 0 ) {
@@ -217,36 +229,157 @@ simalias_create( void )
     while ( fgets( line, MAXPATHLEN, finput ) != NULL ) {
 	linenum++;
 
-	aac = acav_parse( NULL, line, &argv );
+	/* Skip leading whitespace */
+	for ( l = line; isspace( *l ) ; l++ );
 
-	if (( aac == 0 ) || ( *argv[ 0 ] == '#' )) {
+	/* Blank line or comment */
+	if (( *l == '\0' ) || ( *l == '#' )) {
 	    continue;
 	}
 
-	/* Remove trailing ":" */
-	len = strlen( argv[ 0 ] );
-	if ( argv[ 0 ][ len - 1 ] == ':' ) {
-	    argv[ 0 ][ len - 1 ] = '\0';
+	/* Force lowercase */
+	for ( p = l ; *p != '\0' ; p++ ) {
+	    *p = tolower( *p );
 	}
 
-	for ( i = 1; i < aac; i++ ) {
-	    /* removed tailing "," */
-	    len = strlen( argv[ i ] );
-	    if ( argv[ i ][ len - 1 ] == ',' ) {
-		argv[ i ][ len - 1 ] = '\0';
+	if ( isspace( *line )) {
+	    if ( state == ALIAS_WHITE ) {
+		/* How unexpected. */
+		fprintf( stderr, "%s line %d: Unexpected continuation line.\n",
+			input, linenum );
+		state = ALIAS_CONT;
+	    }
+	} else if ( state == ALIAS_CONT ) {
+	    fprintf( stderr, "%s line %d: Expected a continuation line.\n",
+		    input, linenum );
+	    state = ALIAS_WHITE;
+	}
+
+	if ( state == ALIAS_WHITE ) {
+	    if (( v = strchr( l, ':' )) != NULL ) {
+		*v = '\0';
+		v++;
+
+		if ( strncmp( l, "owner-", 6 ) == 0 ) {
+		    /* Canonicalise sendmail-style owner */
+		    if ( verbose ) {
+			fprintf ( stderr, "%s line %d: noncanonical owner %s "
+				"will be made canonical\n",
+				input, linenum, l );
+		    }
+		    strncpy( key, l + 6, MAXPATHLEN - 8 );
+		    strcat( key, "-errors" );
+		} else if ((( p = strrchr( l, '-' )) != NULL ) &&
+			(( strcmp( p, "-owner" ) == 0 ) ||
+			( strcmp( p, "-owners" ) == 0 ) ||
+			( strcmp( p, "-error" ) == 0 ) ||
+			( strcmp( p, "-request" ) == 0 ) ||
+			( strcmp( p, "-requests" ) == 0 ))) {
+		    /* Canonicalise simta-style owner */
+		    if ( verbose ) {
+			fprintf ( stderr, "%s line %d: noncanonical owner %s "
+				"will be made canonical\n",
+				input, linenum, l );
+		    }
+		    *p = '\0';
+		    strncpy( key, l, MAXPATHLEN - 8 );
+		    strcat( key, "-errors" );
+		} else {
+		    strncpy( key, l, MAXPATHLEN - 1 );
+		}
+	    } else {
+		fprintf( stderr,
+			"%s line %d: Expected a colon somewhere. Skipping.\n",
+			input, linenum );
+		continue;
 	    }
 
-	    if (( ret =  db_put( dbp, argv[ 0 ], argv[ i ] )) != 0 ) {
-		dbp->err( dbp, ret, "%s", argv[ 1 ] );
-		return( 1 );
+	    l = v;
+	} else {
+	    state = ALIAS_WHITE;
+	}
+
+	memset( value, 0, MAXPATHLEN );
+	i = 0;
+	for ( p = l ; *p != '\0' ; p++ ) {
+	    if ( *p == '"' ) {
+		if ( i > 0 && ( value[ i - 1 ] == '\\' )) {
+		    value[ i - 1 ] = '"';
+		} else if ( state == ALIAS_QUOTE ) {
+		    state = ALIAS_WHITE;
+		    if ( *value == '\0' ) {
+			fprintf( stderr, "%s line %d: Empty quoted value.\n",
+				input, linenum );
+		    }
+		} else if ( state == ALIAS_WORD ) {
+		    fprintf( stderr, "%s line %d: Unexpected quote.\n",
+			input, linenum );
+		} else {
+		    state = ALIAS_QUOTE;
+		}
+	    } else if ( *p == ',' ) {
+		switch ( state ) {
+		case ALIAS_QUOTE :
+		    value[ i++ ] = *p;
+		    break;
+		case ALIAS_CONT :
+		    fprintf( stderr, "%s line %d: Empty list element.\n",
+			    input, linenum );
+		    break;
+		default :
+		    state = ALIAS_CONT;
+		}
+	    } else if ( isspace( *p )) {
+		switch ( state ) {
+		case ALIAS_QUOTE :
+		    value[ i++ ] = *p;
+		    break;
+		case ALIAS_WORD :
+		    state = ALIAS_WHITE;
+		    break;
+		default :
+		    break;
+		}
+	    } else {
+		if ( state == ALIAS_WHITE || state == ALIAS_CONT ) {
+		    state = ALIAS_WORD;
+		}
+		value[ i++ ] = *p;
 	    }
 
-	    if ( verbose ) printf( "Added %s -> %s\n", argv[ 0 ], argv[ i ] );
+	    if ( *value != '\0' &&
+		    ( state == ALIAS_WHITE || state == ALIAS_CONT )) {
+
+		/* Check for known but unsupported syntax */
+		if ( *value == '/' ) {
+		    /* We have special support for nullrouting, so that's OK. */
+		    if ( strcmp( value, "/dev/null" ) != 0 ) {
+			fprintf( stderr,
+				"%s line %d: Unsupported: delivery to file\n",
+				input, linenum );
+		    }
+		} else if ( *value == '|' ) {
+		    fprintf( stderr, "%s line %d: Unsupported: delivery to pipe\n",
+			    input, linenum );
+		} else if ( strncmp( value, ":include:", 9 ) == 0 ) {
+		    fprintf( stderr, "%s line %d: Unsupported: file include\n",
+			    input, linenum );
+		} else if (( ret = db_put( dbp, key, value )) != 0 ) {
+		    dbp->err( dbp, ret, "%s", value );
+		    return( 1 );
+		} else if ( verbose ) {
+		    printf( "%s line %d: Added %s -> %s\n",
+			    input, linenum, key, value );
+		}
+
+		memset( value, 0, MAXPATHLEN );
+		i = 0;
+	    }
 	}
     }
 
     if (( ret = db_close( dbp )) != 0 ) {
-	printf( "db_close failed: %s\n", db_strerror( ret ));
+	fprintf( stderr, "db_close failed: %s\n", db_strerror( ret ));
 	return( 1 );
     }
 
