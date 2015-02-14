@@ -691,23 +691,27 @@ simta_read_config( char *fname )
 		    goto error;
 		}
 
-		/* store array */
-		red->red_deliver_argc = ac - 3;
-		if (( red->red_deliver_argv =
-			(char**)malloc( sizeof(char*) * ( ac - 2 ))) == NULL ) {
-		    perror( "malloc" );
-		    goto error;
-		}
-
-		for ( x = 0; x < red->red_deliver_argc; x++ ) {
-		    if (( red->red_deliver_argv[ x ] =
-			    strdup( av[ x + 3 ])) == NULL ) {
-			perror( "strdup" );
+		if ( strcasecmp( av[ 3 ], "DEFAULT" ) != 0 ) {
+		    /* store array */
+		    red->red_deliver_argc = ac - 3;
+		    if (( red->red_deliver_argv =
+			    (char**)malloc( sizeof(char*) * ( ac - 2 ))) ==
+			    NULL ) {
+			perror( "malloc" );
 			goto error;
 		    }
+
+		    for ( x = 0; x < red->red_deliver_argc; x++ ) {
+			if (( red->red_deliver_argv[ x ] =
+				strdup( av[ x + 3 ])) == NULL ) {
+			    perror( "strdup" );
+			    goto error;
+			}
+		    }
+
+		    red->red_deliver_argv[ x ] = NULL;
 		}
 
-		red->red_deliver_argv[ x ] = NULL;
 		red->red_deliver_type = RED_DELIVER_BINARY;
 
 #ifdef HAVE_LDAP
