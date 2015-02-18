@@ -2227,16 +2227,19 @@ connection_data_free( struct deliver *d, struct connection_data *cd )
 queue_log_metrics( struct host_q *hq_schedule )
 {
     char		filename[ MAXPATHLEN ];
+    char		linkname[ MAXPATHLEN ];
     int			fd;
     FILE		*f;
     struct host_q	*hq;
     struct timeval	tv_now;
+    struct stat		st_file;
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return;
     }
 
-    sprintf( filename, "%s/etc/queue_schedule", simta_base_dir );
+    sprintf( linkname, "%s/etc/queue_schedule", simta_base_dir );
+    sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
     if (( fd = creat( filename, 0666 )) < 0 ) {
 	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
@@ -2265,6 +2268,12 @@ queue_log_metrics( struct host_q *hq_schedule )
 
     fclose( f );
 
+    if (( stat( linkname, &st_file ) == 0 ) && ( unlink( linkname ) != 0 )) {
+	syslog( LOG_DEBUG, "metric log file failed: unlink %s: %m", linkname );
+    } else if ( link( filename, linkname ) != 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: link %s: %m", linkname );
+    }
+    
     return;
 }
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

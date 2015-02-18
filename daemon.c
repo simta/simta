@@ -1977,12 +1977,20 @@ error:
 env_log_metrics( struct dll_entry *dll_head )
 {
     char		filename[ MAXPATHLEN ];
+    char		linkname[ MAXPATHLEN ];
     int			fd;
     FILE		*f;
     struct dll_entry	*dll;
     struct envelope	*env;
+    struct timeval	tv_now;
+    struct stat		st_file;
 
-    sprintf( filename, "%s/etc/mid_list", simta_base_dir );
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	return;
+    }
+
+    sprintf( linkname, "%s/etc/mid_list", simta_base_dir );
+    sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
     if (( fd = creat( filename, 0666 )) < 0 ) {
 	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
@@ -2003,6 +2011,12 @@ env_log_metrics( struct dll_entry *dll_head )
 
     fclose( f );
 
+    if (( stat( linkname, &st_file ) == 0 ) && ( unlink( linkname ) != 0 )) {
+	syslog( LOG_DEBUG, "metric log file failed: unlink %s: %m", linkname );
+    } else if ( link( filename, linkname ) != 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: link %s: %m", linkname );
+    }
+
     return;
 }
 
@@ -2010,12 +2024,20 @@ env_log_metrics( struct dll_entry *dll_head )
 sender_log_metrics( struct dll_entry *dll_head )
 {
     char		filename[ MAXPATHLEN ];
+    char		linkname[ MAXPATHLEN ];
     int			fd;
     FILE		*f;
     struct dll_entry	*dll;
     struct sender_list	*sl;
+    struct timeval	tv_now;
+    struct stat		st_file;
 
-    sprintf( filename, "%s/etc/sender_list", simta_base_dir );
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	return;
+    }
+
+    sprintf( linkname, "%s/etc/sender_list", simta_base_dir );
+    sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
     if (( fd = creat( filename, 0666 )) < 0 ) {
 	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
@@ -2035,6 +2057,12 @@ sender_log_metrics( struct dll_entry *dll_head )
     }
 
     fclose( f );
+
+    if (( stat( linkname, &st_file ) == 0 ) && ( unlink( linkname ) != 0 )) {
+        syslog( LOG_DEBUG, "metric log file failed: unlink %s: %m", linkname );
+    } else if ( link( filename, linkname ) != 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: link %s: %m", linkname );
+    }
 
     return;
 }
