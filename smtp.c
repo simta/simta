@@ -44,7 +44,6 @@
 #include "envelope.h"
 #include "bprint.h"
 #include "argcargv.h"
-#include "timeval.h"
 #include "header.h"
 #include "simta.h"
 #include "queue.h"
