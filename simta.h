@@ -307,6 +307,10 @@ void	simta_openlog( int );
 int	simta_gettimeofday( struct timeval * );
 int	simta_host_is_jailhost( char *  );
 
+#define SIMTA_ELAPSED_MSEC(a, b) \
+	(((((b).tv_sec * 1000)) + ((b).tv_usec / 1000)) - \
+	 ((((a).tv_sec * 1000)) + ((a).tv_usec / 1000)))
+
 /*****     bounce.c     *****/
 
 int bounce_text( struct envelope *, int, char *, char *, char * );

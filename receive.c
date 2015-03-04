@@ -1879,18 +1879,18 @@ f_data( struct receive_data *r )
 
     if ( tv_filter.tv_sec == 0 ) {
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-		"Data Metric: Read %d write %d bytes in %d seconds",
+		"Data Metric: Read %d write %d bytes in %ld milliseconds",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, (int)data_read, (int)data_wrote,
-		(int)(tv_now.tv_sec - tv_data_start.tv_sec));
+		SIMTA_ELAPSED_MSEC( tv_data_start, tv_now ));
     } else {
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
-		"Data Metric: Read %d write %d bytes in %d seconds, "
-		"filter %d seconds",
+		"Data Metric: Read %d write %d bytes in %ld milliseconds, "
+		"filter %ld milliseconds",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, (int)data_read, (int)data_wrote,
-		(int)(tv_now.tv_sec - tv_data_start.tv_sec),
-		(int)(tv_now.tv_sec - tv_filter.tv_sec));
+		SIMTA_ELAPSED_MSEC( tv_data_start, tv_now ),
+		SIMTA_ELAPSED_MSEC( tv_filter, tv_now ));
     }
 
     if ( filter_result & MESSAGE_BOUNCE ) {
@@ -3243,10 +3243,10 @@ closeconnection:
     if ( simta_sasl ) {
 	syslog( LOG_DEBUG,
 		"Connect.stat [%s] %s: Metrics: "
-		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d: "
+		"milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d: "
 		"Authuser %s",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		(int)(tv_stop.tv_sec - tv_start.tv_sec), r.r_mail_success,
+		SIMTA_ELAPSED_MSEC( tv_start, tv_stop ), r.r_mail_success,
 		r.r_mail_attempt,
 		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
 		r.r_data_attempt, r.r_auth_id );
@@ -3254,9 +3254,9 @@ closeconnection:
 #endif /* HAVE_LIBSASL */
 	syslog( LOG_DEBUG,
 		"Connect.stat [%s] %s: Metrics: "
-		"seconds %d, mail from %d/%d, rcpt to %d/%d, data %d/%d",
+		"milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d",
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-		(int)(tv_stop.tv_sec - tv_start.tv_sec), r.r_mail_success,
+		SIMTA_ELAPSED_MSEC( tv_start, tv_stop ), r.r_mail_success,
 		r.r_mail_attempt,
 		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
 		r.r_data_attempt );

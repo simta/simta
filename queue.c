@@ -874,10 +874,10 @@ q_read_dir( struct simta_dirp *sd )
 	    hq = &((*hq)->hq_next);
 	}
 
-	syslog( LOG_INFO, "Queue Metrics: cycle %d Messages %d seconds %d "
-		"new %d removed %d hosts %d",
+	syslog( LOG_INFO, "Queue Metrics: cycle %d Messages %d "
+		"milliseconds %ld new %d removed %d hosts %d",
 		sd->sd_cycle, sd->sd_entries,
-		(int)(tv_stop.tv_sec - sd->sd_tv_start.tv_sec),
+		SIMTA_ELAPSED_MSEC( sd->sd_tv_start, tv_stop ),
 		new, removed, remain_hq );
 
 	return( 0 );
@@ -1024,10 +1024,10 @@ q_deliver( struct host_q *deliver_q )
     rcpt_total = d.d_n_rcpt_accepted_total +
 	    d.d_n_rcpt_failed_total + d.d_n_rcpt_tempfailed_total;
 
-    syslog( LOG_DEBUG, "Queue %s: Delivery complete: %ld seconds, "
+    syslog( LOG_DEBUG, "Queue %s: Delivery complete: %ld milliseconds, "
 	    "%d messages: %d A %d F %d T, %d rcpts %d A %d F %d T",
-	    deliver_q->hq_hostname, 
-	    tv_stop.tv_sec - tv_start.tv_sec,
+	    deliver_q->hq_hostname,
+	    SIMTA_ELAPSED_MSEC( tv_start, tv_stop ),
 	    message_total, 
 	    d.d_n_message_accepted_total,
 	    d.d_n_message_failed_total,
@@ -1660,10 +1660,10 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    simta_smtp_outbound_delivered++;
 	    simta_gettimeofday( &tv_stop );
 	    syslog( LOG_DEBUG, "Queue %s: %s Delivery activity: "
-		    "%d failed %d accepted %ld seconds", hq->hq_hostname,
+		    "%d failed %d accepted %ld milliseconds", hq->hq_hostname,
 		    d->d_env->e_id, d->d_n_rcpt_failed,
 		    d->d_delivered ? d->d_n_rcpt_accepted : 0,
-		    tv_stop.tv_sec - tv_start.tv_sec );
+		    SIMTA_ELAPSED_MSEC( tv_start, tv_stop ));
 	}
 
 	if ( r_smtp == SMTP_OK ) {

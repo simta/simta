@@ -1183,7 +1183,7 @@ daemon_waitpid( void )
     int			activity;
     int			status;
     int			exitstatus;
-    int			seconds;
+    long		milliseconds;
     struct proc_type	**p_search;
     struct proc_type	*p_remove;
     struct timeval	tv_now;
@@ -1214,7 +1214,7 @@ daemon_waitpid( void )
 	    (*p_remove->p_limit)--;
 	}
 
-	seconds = tv_now.tv_sec - p_remove->p_tv.tv_sec;
+	milliseconds = SIMTA_ELAPSED_MSEC( p_remove->p_tv, tv_now );
 	activity = 0;
 	ll = LOG_INFO;
 
@@ -1246,14 +1246,14 @@ daemon_waitpid( void )
 
 	    switch ( p_remove->p_type ) {
 	    case PROCESS_Q_LOCAL:
-		syslog( ll, "Child Exited %d.%ld: %d (%d Local %d)",
-			pid, p_remove->p_tv.tv_sec, exitstatus, seconds,
+		syslog( ll, "Child Exited %d.%ld: %d (%ld Local %d)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
 			*p_remove->p_limit );
 		break;
 
 	    case PROCESS_Q_SLOW:
-		syslog( ll, "Child Exited %d.%ld: %d (%d Slow %d %s %s)",
-			pid, p_remove->p_tv.tv_sec, exitstatus, seconds,
+		syslog( ll, "Child Exited %d.%ld: %d (%ld Slow %d %s %s)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
 			*p_remove->p_limit,
 			*(p_remove->p_host) ? p_remove->p_host : S_UNEXPANDED,
 			activity ? "Activity" : "Unresponsive" );
@@ -1262,27 +1262,27 @@ daemon_waitpid( void )
 	    case PROCESS_RECEIVE:
 		p_remove->p_ss->ss_count--;
 		p_remove->p_cinfo->c_proc_total--;
-		syslog( ll, "Child Exited %d.%ld: %d (%d Receive %d %s %d %s)",
-			pid, p_remove->p_tv.tv_sec, exitstatus, seconds,
+		syslog( ll, "Child Exited %d.%ld: %d (%ld Receive %d %s %d %s)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
 			*p_remove->p_limit, p_remove->p_ss->ss_service,
 			p_remove->p_ss->ss_count, p_remove->p_host );
 		break;
 
 	    default:
 		errors++;
-		syslog( LOG_ERR, "Child Exited %d.%ld: %d (%d Unknown)",
-			pid, p_remove->p_tv.tv_sec, exitstatus, seconds );
+		syslog( LOG_ERR, "Child Exited %d.%ld: %d (%ld Unknown)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds );
 		break;
 	    }
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Child Died %d.%ld: %d (%d seconds)", pid,
-		    p_remove->p_tv.tv_sec, WTERMSIG( status ), seconds );
+	    syslog( LOG_ERR, "Child Died %d.%ld: %d (%ld milliseconds)", pid,
+		    p_remove->p_tv.tv_sec, WTERMSIG( status ), milliseconds );
 	    errors++;
 
 	} else {
-	    syslog( LOG_ERR, "Child Died %d.%ld: (%d seconds)", pid,
-		    p_remove->p_tv.tv_sec, seconds );
+	    syslog( LOG_ERR, "Child Died %d.%ld: (%ld milliseconds)", pid,
+		    p_remove->p_tv.tv_sec, milliseconds );
 	    errors++;
 	}
 
@@ -1796,9 +1796,10 @@ daemon_commands( struct simta_dirp *sd )
 	    return( 1 );
 	}
 
-	syslog( LOG_INFO, "Command Metric: cycle %d Commands %d seconds %d",
+	syslog( LOG_INFO,
+		"Command Metric: cycle %d Commands %d milliseconds %ld",
 		sd->sd_cycle, sd->sd_entries,
-		(int)(tv_stop.tv_sec - sd->sd_tv_start.tv_sec));
+		SIMTA_ELAPSED_MSEC( sd->sd_tv_start, tv_stop ));
 
 	return( 0 );
     }

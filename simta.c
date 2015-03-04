@@ -259,7 +259,6 @@ simta_gettimeofday( struct timeval *tv )
     return( 0 );
 }
 
-
     void
 simta_openlog( int cl )
 {
