@@ -3115,7 +3115,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 	    syslog( LOG_DEBUG, "Receive [%s] %s: Command: connection dropped",
 		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
-	    goto syserror;
+	    goto closeconnection;
 	}
 
 	if ( r.r_smtp_command != NULL ) {
