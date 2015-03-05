@@ -263,10 +263,12 @@ red_host_add( char *host_name )
 red_action_default( struct simta_red *red )
 {
     if ( red->red_receive == NULL ) {
+#ifdef HAVE_LMDB
 	if ( red_action_add( red, RED_CODE_R,
 		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
 	    return( -1 );
 	}
+#endif /* HAVE_LMDB */
 
 	if ( red_action_add( red, RED_CODE_R,
 		EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
@@ -275,10 +277,12 @@ red_action_default( struct simta_red *red )
     }
 
     if ( red->red_expand == NULL ) {
+#ifdef HAVE_LMDB
 	if ( red_action_add( red, RED_CODE_E,
 		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
 	    return( -1 );
 	}
+#endif /* HAVE_LMDB */
 
 	if ( red_action_add( red, RED_CODE_E,
 		EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {

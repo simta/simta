@@ -33,8 +33,9 @@
 #include <strings.h>
 #include <syslog.h>
 #include <stdio.h>
-#include <db.h>
 #include <dirent.h>
+
+#include <yasl.h>
 
 #include "expand.h"
 #include "red.h"
@@ -42,7 +43,6 @@
 #include "simta.h"
 #include "dns.h"
 #include "simta_ldap.h"
-#include "bdb.h"
 #include "queue.h"
 #include "ml.h"
 
@@ -50,6 +50,10 @@
 #include <ldap.h>
 #include "ldap.h"
 #endif /* HAVE_LDAP */
+
+#ifdef HAVE_LMDB
+#include "simta_lmdb.h"
+#endif /* HAVE_LMDB */
 
 #define	    ALIAS_WHITE	0
 #define	    ALIAS_CONT	1
@@ -155,94 +159,94 @@ main( int argc, char **argv )
     int
 simalias_dump( void )
 {
-    DB		*dbp;
-    DBC		*dbcp;
-    DBT		 key, data;
-    int		 ret, close_db = 0, close_dbc = 0;
+    int ret = 0;
+#ifdef HAVE_LMDB
+    struct simta_dbh	*dbh = NULL;
+    struct simta_dbc	*dbc = NULL;
+    yastr		key = NULL, value = NULL;
+    int			rc;
 
-    if (( ret = db_open_r( &dbp, input, NULL )) != 0 ) {
-	fprintf( stderr, "db_open_r: %s: %s\n", input, db_strerror( ret ));
-	goto error;
-    }
-    close_db = 1;
+    ret = 1;
 
-    if (( ret = dbp->cursor( dbp, NULL, &dbcp, 0 )) != 0 ) {
-	dbp->err(dbp, ret, "DB->cursor");
-	goto error;
-    }
-    close_dbc = 1;
-
-    memset( &key, 0, sizeof( key ));
-    memset( &data, 0, sizeof(data ));
-
-    while (( ret = dbcp->c_get( dbcp, &key, &data, DB_NEXT )) == 0 ) {
-	printf("%s:\t\t%s\n", (char *)key.data, (char *)data.data);
-    }
-    if ( ret != DB_NOTFOUND ) {
-	dbp->err(dbp, ret, "DBcursor->get");
+    if (( rc = simta_db_open_r( &dbh, input )) != 0 ) {
+	fprintf( stderr, "simta_db_open_r: %s: %s\n", input,
+		simta_db_strerror( rc ));
 	goto error;
     }
 
-    if ( close_dbc && (( ret = dbcp->c_close( dbcp )) != 0 )) {
-	    dbp->err(dbp, ret, "DBcursor->close");
-	    goto error;
-    }
-    if ( close_db && (( ret = dbp->close( dbp, 0 )) != 0 )) {
-	fprintf(stderr,
-	    "%s: DB->close: %s\n", progname, db_strerror(ret));
+    key = yaslempty( );
+    value = yaslempty( );
+
+    if (( rc = simta_db_cursor_open( dbh, &dbc )) != 0 ) {
+	fprintf( stderr, "simta_db_cursor_open: %s: %s\n", input,
+	    simta_db_strerror( rc ));
 	goto error;
     }
 
-    return( 0 );
+    while (( rc = simta_db_cursor_get( dbc, &key, &value )) == 0 ) {
+	printf( "%s:\t\t%s\n", key, value );
+    }
+    if ( rc != SIMTA_DB_NOTFOUND ) {
+	fprintf( stderr, "simta_db_cursor_get: %s: %s\n", input,
+		simta_db_strerror( rc ));
+	goto error;
+    }
+
+    ret = 0;
 
 error:
-    if ( close_dbc ) {
-	dbcp->c_close( dbcp );
-    }
-    close_dbc = 0;
-    if ( close_db ) {
-	dbp->close( dbp, 0 );
-    }
-    close_db = 0;
+    yaslfree( key );
+    yaslfree( value );
+    simta_db_cursor_close( dbc );
+    simta_db_close( dbh );
+#endif /* HAVE_LMDB */
 
-    return( 1 );
+    return( ret );
 }
 
     int
 simalias_create( void )
 {
-    int			linenum = 0, ret, i;
+    int			linenum = 0, i;
     int			state = ALIAS_WHITE;
-    char		line[ MAXPATHLEN ];
-    char		key[ MAXPATHLEN ];
-    char		value[ MAXPATHLEN ];
-    char		*l;
+    char		rawline[ MAXPATHLEN ];
+    yastr		line, key, value;
     char		*p;
-    char		*v;
-    DB			*dbp = NULL;
+#ifdef HAVE_LMDB
+    int			rc;
+    struct simta_dbh	*dbh = NULL;
+#endif /* HAVE_LMDB */
 
-    if (( ret = db_new( &dbp, DB_DUP, output, NULL, DB_HASH )) != 0 ) {
-	fprintf( stderr, "db_new: %s: %s\n", output, db_strerror( ret ));
+    unlink( output );    
+
+#ifdef HAVE_LMDB
+    if (( rc = simta_db_new( &dbh, output )) != 0 ) {
+	fprintf( stderr, "simta_db_new: %s: %s\n", output,
+		simta_db_strerror( rc ));
 	return( 1 );
     }
+#else /* HAVE_LMDB */
+    fprintf( stderr, "Compiled without DB support, data will not be saved.\n" );
+#endif /* HAVE_LMDB */
 
-    while ( fgets( line, MAXPATHLEN, finput ) != NULL ) {
+    line = yaslempty( );
+    key = yaslempty( );
+    value = yaslempty( );
+    while ( fgets( rawline, MAXPATHLEN, finput ) != NULL ) {
 	linenum++;
 
-	/* Skip leading whitespace */
-	for ( l = line; isspace( *l ) ; l++ );
+	line = yaslcpy( line, rawline );
+	yasltrim( line, " \f\n\r\t\v" );
 
 	/* Blank line or comment */
-	if (( *l == '\0' ) || ( *l == '#' )) {
+	if (( *line == '\0' ) || ( *line == '#' )) {
 	    continue;
 	}
 
-	/* Force lowercase */
-	for ( p = l ; *p != '\0' ; p++ ) {
-	    *p = tolower( *p );
-	}
+	yasltolower( line );
+	line = yaslcatlen( line, "\n", 1 );
 
-	if ( isspace( *line )) {
+	if ( isspace( *rawline )) {
 	    if ( state == ALIAS_WHITE ) {
 		/* How unexpected. */
 		fprintf( stderr, "%s line %d: Unexpected continuation line.\n",
@@ -256,20 +260,20 @@ simalias_create( void )
 	}
 
 	if ( state == ALIAS_WHITE ) {
-	    if (( v = strchr( l, ':' )) != NULL ) {
-		*v = '\0';
-		v++;
+	    if (( p = strchr( line, ':' )) != NULL ) {
+		key = yaslcpylen( key, line, p - line );
+		yaslrange( line, p - line + 1, -1 );
 
-		if ( strncmp( l, "owner-", 6 ) == 0 ) {
+		if ( strncmp( key, "owner-", 6 ) == 0 ) {
 		    /* Canonicalise sendmail-style owner */
 		    if ( verbose ) {
 			fprintf ( stderr, "%s line %d: noncanonical owner %s "
 				"will be made canonical\n",
-				input, linenum, l );
+				input, linenum, key );
 		    }
-		    strncpy( key, l + 6, MAXPATHLEN - 8 );
-		    strcat( key, "-errors" );
-		} else if ((( p = strrchr( l, '-' )) != NULL ) &&
+		    yaslrange( key, 6, -1 );
+		    key = yaslcat( key, "-errors" );
+		} else if ((( p = strrchr( key, '-' )) != NULL ) &&
 			(( strcmp( p, "-owner" ) == 0 ) ||
 			( strcmp( p, "-owners" ) == 0 ) ||
 			( strcmp( p, "-error" ) == 0 ) ||
@@ -279,13 +283,10 @@ simalias_create( void )
 		    if ( verbose ) {
 			fprintf ( stderr, "%s line %d: noncanonical owner %s "
 				"will be made canonical\n",
-				input, linenum, l );
+				input, linenum, key );
 		    }
-		    *p = '\0';
-		    strncpy( key, l, MAXPATHLEN - 8 );
-		    strcat( key, "-errors" );
-		} else {
-		    strncpy( key, l, MAXPATHLEN - 1 );
+		    yaslrange( key, 0, p - key );
+		    key = yaslcat( key, "-errors" );
 		}
 	    } else {
 		fprintf( stderr,
@@ -293,15 +294,13 @@ simalias_create( void )
 			input, linenum );
 		continue;
 	    }
-
-	    l = v;
 	} else {
 	    state = ALIAS_WHITE;
 	}
 
-	memset( value, 0, MAXPATHLEN );
 	i = 0;
-	for ( p = l ; *p != '\0' ; p++ ) {
+	yaslclear( value );
+	for ( p = line ; *p != '\0' ; p++ ) {
 	    if ( *p == '"' ) {
 		if ( i > 0 && ( value[ i - 1 ] == '\\' )) {
 		    value[ i - 1 ] = '"';
@@ -319,10 +318,10 @@ simalias_create( void )
 		}
 	    } else if ( *p == ',' ) {
 		switch ( state ) {
-		case ALIAS_QUOTE :
-		    value[ i++ ] = *p;
+		case ALIAS_QUOTE:
+		    value = yaslcatlen( value, p, 1 );
 		    break;
-		case ALIAS_CONT :
+		case ALIAS_CONT:
 		    fprintf( stderr, "%s line %d: Empty list element.\n",
 			    input, linenum );
 		    break;
@@ -331,8 +330,8 @@ simalias_create( void )
 		}
 	    } else if ( isspace( *p )) {
 		switch ( state ) {
-		case ALIAS_QUOTE :
-		    value[ i++ ] = *p;
+		case ALIAS_QUOTE:
+		    value = yaslcatlen( value, p, 1 );
 		    break;
 		case ALIAS_WORD :
 		    state = ALIAS_WHITE;
@@ -344,7 +343,7 @@ simalias_create( void )
 		if ( state == ALIAS_WHITE || state == ALIAS_CONT ) {
 		    state = ALIAS_WORD;
 		}
-		value[ i++ ] = *p;
+		value = yaslcatlen( value, p, 1 );
 	    }
 
 	    if ( *value != '\0' &&
@@ -364,26 +363,33 @@ simalias_create( void )
 		} else if ( strncmp( value, ":include:", 9 ) == 0 ) {
 		    fprintf( stderr, "%s line %d: Unsupported: file include\n",
 			    input, linenum );
-		} else if (( ret = db_put( dbp, key, value )) != 0 ) {
-		    dbp->err( dbp, ret, "%s", value );
+#ifdef HAVE_LMDB
+		} else if (( rc = simta_db_put( dbh, key, value )) != 0 ) {
+		    fprintf( stderr, "simta_db_put: %s: %s\n", input,
+			    simta_db_strerror( rc ));
 		    return( 1 );
+#endif /* HAVE_LMDB */
 		} else if ( verbose ) {
 		    printf( "%s line %d: Added %s -> %s\n",
 			    input, linenum, key, value );
 		}
 
-		memset( value, 0, MAXPATHLEN );
+		yaslclear( value );
 		i = 0;
 	    }
 	}
     }
 
-    if (( ret = db_close( dbp )) != 0 ) {
-	fprintf( stderr, "db_close failed: %s\n", db_strerror( ret ));
-	return( 1 );
-    }
-
+#ifdef HAVE_LMDB
+    simta_db_close( dbh );
     if ( verbose ) printf( "%s: created\n", output );
+#else /* HAVE_LMDB */
+    if ( verbose ) printf( "%s: not created\n", output );
+#endif /* HAVE_LMDB */
+
+    yaslfree( line );
+    yaslfree( key );
+    yaslfree( value );
 
     return( 0 );
 }

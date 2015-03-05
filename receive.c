@@ -27,11 +27,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
-#include <db.h>
 #include <dirent.h>
 
 #include <denser.h>
 #include <snet.h>
+#include <yasl.h>
 
 #ifdef HAVE_LIBWRAP
 #include <tcpd.h>
@@ -62,7 +62,6 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #include "base64.h"
 #endif /* HAVE_LIBSASL */
 
-#include "bdb.h"
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"
@@ -81,6 +80,11 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
+
+#ifdef HAVE_LMDB
+#include <lmdb.h>
+#include "simta_lmdb.h"
+#endif /* HAVE_LMDB */
 
 #define SIMTA_EXTENSION_SIZE	    (1<<0)
 #define SIMTA_EXTENSION_8BITMIME    (1<<1)
@@ -3486,7 +3490,9 @@ local_address( char *addr, char *domain, struct simta_red *red )
     char		*at;
     struct passwd	*passwd;
     struct action	*action;
-    DBT			value;
+#ifdef HAVE_LMDB
+    yastr		key, value;
+#endif /* HAVE_LMDB */
 
     if (( at = strchr( addr, '@' )) == NULL ) {
 	return( NOT_LOCAL );
@@ -3498,20 +3504,25 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	case EXPANSION_TYPE_GLOBAL_RELAY:
 	    return( LOCAL_ADDRESS );
 
+#ifdef HAVE_LMDB
 	case EXPANSION_TYPE_ALIAS:
-	    if ( action->a_dbp == NULL ) {
-		if (( rc = db_open_r( &(action->a_dbp), action->a_fname,
-			NULL )) != 0 ) {
-		    action->a_dbp = NULL;
-		    syslog( LOG_ERR, "Syserror local_address: db_open_r %s: %s",
-			    action->a_fname, db_strerror( rc ));
+	    if ( action->a_dbh == NULL ) {
+		if (( rc = simta_db_open_r( &(action->a_dbh),
+			action->a_fname )) != 0 ) {
+		    action->a_dbh = NULL;
+		    syslog( LOG_ERR,
+			    "Liberror: local_address simta_db_open_r %s: %s",
+			    action->a_fname, simta_db_strerror( rc ));
 		    break;
 		}
 	    }
 
-	    *at = '\0';
-	    rc = db_get( action->a_dbp, addr, &value );
-	    *at = '@';
+	    if (( key = yaslnew( addr, at - addr )) == NULL ) {
+		return( LOCAL_ERROR );
+	    }
+	    rc = simta_db_get( action->a_dbh, key, &value );
+	    yaslfree( key );
+	    yaslfree( value );
 
 	    if ( rc == 0 ) {
 		if ( action->a_flags == ACTION_SUFFICIENT ) {
@@ -3519,10 +3530,13 @@ local_address( char *addr, char *domain, struct simta_red *red )
 		} else {
 		    n_required_found++;
 		}
+	    } else if ( rc == 1 ) {
+		return( LOCAL_ERROR );
 	    } else if ( action->a_flags == ACTION_REQUIRED ) {
 		return( NOT_LOCAL );
 	    }
 	    break;
+#endif /* HAVE_LMDB */
 
 	case EXPANSION_TYPE_PASSWORD:
 	    /* Check password file */

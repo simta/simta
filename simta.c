@@ -473,6 +473,7 @@ simta_read_config( char *fname )
 		    goto error;
 		}
 
+#ifdef HAVE_LMDB
 	    } else if ( strcasecmp( av[ 2 ], "ALIAS" ) == 0 ) {
 		if ( ac == 3 ) {
 		    if ( simta_default_alias_db == NULL ) {
@@ -512,6 +513,7 @@ simta_read_config( char *fname )
 			goto error;
 		    }
 		}
+#endif /* HAVE_LMDB */
 
 #ifdef HAVE_LDAP
 	    } else if ( strcasecmp( av[ 2 ], "LDAP" ) == 0 ) {
@@ -785,6 +787,7 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "AGGRESSIVE_RECEIPT: %d\n",
 		    simta_aggressive_receipt_max );
 
+#ifdef HAVE_LMDB
 	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
 	    if ( ac == 2 ) {
 		if (( simta_default_alias_db = strdup( av[ 1 ] )) == NULL ) {
@@ -816,6 +819,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
+#endif /* HAVE_LMDB */
 
 	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
 	    if ( ac != 2 ) {

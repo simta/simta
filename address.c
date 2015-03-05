@@ -29,8 +29,6 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include <db.h>
-
 #include "dns.h"
 #include "envelope.h"
 #include "expand.h"
@@ -38,13 +36,15 @@
 #include "header.h"
 #include "simta.h"
 #include "queue.h"
-#include "bdb.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
 
+#ifdef HAVE_LMDB
+#include "simta_lmdb.h"
+#endif /* HAVE_LMDB */
 
     struct envelope *
 address_bounce_create( struct expand *exp )
@@ -399,6 +399,7 @@ address_expand( struct expand *exp )
 	    exp->exp_current_action = exp->exp_current_action->a_next ) {
 	switch ( exp->exp_current_action->a_action ) {
 	/* Other types might include files, pipes, etc */
+#ifdef HAVE_LMDB
 	case EXPANSION_TYPE_ALIAS:
 	    switch ( alias_expand( exp, e_addr, exp->exp_current_action )) {
 	    case ALIAS_EXCLUDE:
@@ -419,6 +420,7 @@ address_expand( struct expand *exp )
 	    default:
 		panic( "address_expand default alias switch" );
 	    }
+#endif /* HAVE_LMDB */
 
 	case EXPANSION_TYPE_PASSWORD:
 	    switch ( password_expand( exp, e_addr, exp->exp_current_action )) {
@@ -638,6 +640,7 @@ cleanup_forward:
 }
 
 
+#ifdef HAVE_LMDB
     int
 alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 {
@@ -647,26 +650,19 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     char		owner[ ALIAS_MAX_DOMAIN_LEN * 2 ];
     char		*alias_addr;
     char		*addr_dash;
-    DBC			*dbcp = NULL;
-    DBT			key;
-    DBT			value;
-    DBC			*owner_dbcp = NULL;
-    DBT			owner_key;
-    DBT			owner_value;
+    struct simta_dbc	*dbcp = NULL, *owner_dbcp = NULL;
+    yastr		key = NULL, value = NULL;
+    yastr		owner_key = NULL, owner_value = NULL;
 
-    if ( a->a_dbp == NULL ) {
-	if (( ret = db_open_r( &(a->a_dbp), a->a_fname, NULL )) != 0 ) {
-	    syslog( LOG_ERR, "alias_expand: db_open_r %s: %s",
-		    a->a_fname, db_strerror( ret ));
-	    a->a_dbp = NULL;
+    if ( a->a_dbh == NULL ) {
+	if (( ret = simta_db_open_r( &(a->a_dbh), a->a_fname )) != 0 ) {
+	    syslog( LOG_ERR, "Liberror: alias_expand simta_db_open_r %s: %s",
+		    a->a_fname, simta_db_strerror( ret ));
+	    a->a_dbh = NULL;
 	    ret = ALIAS_NOT_FOUND;
 	    goto done;
 	}
     }
-
-    /* Set cursor and get first result */
-    memset( &key, 0, sizeof( DBT ));
-    memset( &value, 0, sizeof( DBT ));
 
     if ( e_addr->e_addr_at != NULL ) {
 	if (( e_addr->e_addr_at - e_addr->e_addr ) >= ALIAS_MAX_DOMAIN_LEN ) {
@@ -708,34 +704,53 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	strncpy( address, STRING_POSTMASTER, ALIAS_MAX_DOMAIN_LEN - 1 );
     }
 
-    key.data = &address;
-    key.size = strlen( key.data ) + 1;
+    key = yaslauto( address );
 
-    if (( ret = db_cursor_set( a->a_dbp, &dbcp, &key, &value ))
-	    != 0 ) {
-	if ( ret != DB_NOTFOUND ) {
-	    syslog( LOG_ERR, "alias_expand: db_cursor_set: %s",
-		    db_strerror( ret ));
+    if (( ret = simta_db_cursor_open( a->a_dbh, &dbcp )) != 0 ) {
+	syslog( LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
+		simta_db_strerror( ret ));
+	ret = ALIAS_SYSERROR;
+	goto done;
+    }
+
+    if (( ret = simta_db_cursor_get( dbcp, &key, &value )) != 0 ) {
+	if ( ret == SIMTA_DB_NOTFOUND ) {
+	    ret = ALIAS_NOT_FOUND;
+	} else {
+	    syslog( LOG_ERR, "Liberror: alias_expand simta_db_cursor_get: %s",
+		    simta_db_strerror( ret ));
 	    ret = ALIAS_SYSERROR;
-	    goto done;
 	}
-
-	/* not in alias db, try next expansion */
-	ret = ALIAS_NOT_FOUND;
 	goto done;
     }
 
     if ( strcmp( address, STRING_POSTMASTER ) != 0 ) {
-	sprintf( owner, "%s-errors", address );
-	memset( &owner_key, 0, sizeof( DBT ));
-	memset( &owner_value, 0, sizeof( DBT ));
-	owner_key.data = owner;
-	owner_key.size = strlen( owner ) + 1;
-	if (( ret = db_cursor_set(
-		a->a_dbp, &owner_dbcp, &owner_key, &owner_value )) != 0 ) {
-	    if ( ret != DB_NOTFOUND ) {
-		syslog( LOG_ERR, "alias_expand: db_cursor_set: %s",
-			db_strerror( ret ));
+	if ( owner_key == NULL ) {
+	    if (( owner_key = yaslempty( )) == NULL ) {
+		ret = ALIAS_SYSERROR;
+		goto done;
+	    }
+	}
+	if (( owner_key = yaslcpy( owner_key, address )) == NULL ) {
+	    ret = ALIAS_SYSERROR;
+	    goto done;
+	}
+	if (( owner_key = yaslcat( owner_key, "-errors" )) == NULL ) {
+	    ret = ALIAS_SYSERROR;
+	    goto done;
+	}
+	if (( ret = simta_db_cursor_open( a->a_dbh, &owner_dbcp )) != 0 ) {
+	    syslog( LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
+		    simta_db_strerror( ret ));
+	    ret = ALIAS_SYSERROR;
+	    goto done;
+	}
+	if (( ret = simta_db_cursor_get( owner_dbcp, &owner_key,
+		&owner_value )) != 0 ) {
+	    if ( ret != SIMTA_DB_NOTFOUND ) {
+		syslog( LOG_ERR,
+			"Liberror: alias_expand simta_db_cursor_get: %s",
+			simta_db_strerror( ret ));
 		ret = ALIAS_SYSERROR;
 		goto done;
 	    }
@@ -759,7 +774,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     }
 
     for ( ; ; ) {
-	if (( alias_addr = strdup((char*)value.data )) == NULL ) {
+	if (( alias_addr = strdup( value )) == NULL ) {
 	    ret = ALIAS_SYSERROR;
 	    goto done;
 	}
@@ -795,12 +810,10 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	}
 
 	/* Get next db result, if any */
-	memset( &value, 0, sizeof( DBT ));
-	if (( ret = db_cursor_next( a->a_dbp, &dbcp, &key, &value ))
-		!= 0 ) {
-	    if ( ret != DB_NOTFOUND ) {
-		syslog( LOG_ERR, "alias_expand: db_cursor_next: %s",
-		    db_strerror( ret ));
+	if (( ret = simta_db_cursor_get( dbcp, &key, &value )) != 0 ) {
+	    if ( ret != SIMTA_DB_NOTFOUND ) {
+		syslog( LOG_ERR, "Liberror: alias_expand db_cursor_get: %s",
+		    simta_db_strerror( ret ));
 		ret = ALIAS_SYSERROR;
 		goto done;
 	    } else {
@@ -812,20 +825,15 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     }
 
 done:
-    if ( dbcp != NULL ) {
-	if ( db_cursor_close( dbcp ) != 0 ) {
-	    syslog( LOG_ERR, "alias_expand: db_cursor_close: %s",
-		db_strerror( ret ));
-	}
-    }
-    if ( owner_dbcp != NULL ) {
-	if ( db_cursor_close( owner_dbcp ) != 0 ) {
-	    syslog( LOG_ERR, "alias_expand: db_cursor_close: %s",
-		db_strerror( ret ));
-	}
-    }
+    yaslfree( key );
+    yaslfree( value );
+    yaslfree( owner_key );
+    yaslfree( owner_value );
+    simta_db_cursor_close( dbcp );
+    simta_db_cursor_close( owner_dbcp );
     return( ret );
 }
+#endif /* HAVE_LMDB */
 
 #ifdef HAVE_LDAP
     int

@@ -1,15 +1,19 @@
 #ifndef SIMTA_RED_H
 #define SIMTA_RED_H
 
-#include <db.h>
-
 #include "expand.h"
+
+#ifdef HAVE_LMDB
+#include "simta_lmdb.h"
+#endif /* HAVE_LMDB */
 
 struct action {
     int				a_action;
     int				a_flags;
     char			*a_fname;
-    DB				*a_dbp;
+#ifdef HAVE_LMDB
+    struct simta_dbh		*a_dbh;
+#endif /* HAVE_LMDB */
     struct action		*a_next;
     struct action		*a_next_secondary_mx;
 #ifdef HAVE_LDAP
@@ -61,7 +65,9 @@ int red_action_default( struct simta_red * );
 void red_hosts_stdout( void );
 void red_action_stdout( void );
 
+#ifdef HAVE_LMDB
 int alias_expand( struct expand *, struct exp_addr *, struct action * );
+#endif /* HAVE_LMDB */
 struct passwd *simta_getpwnam( struct action *, char * );
 int password_expand( struct expand *, struct exp_addr *, struct action * );
 #ifdef HAVE_LDAP

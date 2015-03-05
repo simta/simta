@@ -17,11 +17,7 @@ Source0: %{name}-%{version}.tar.gz
 Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Provides: MTA smtpdaemon server(smtp)
 Provides: %{_sbindir}/sendmail %{_bindir}/newaliases
-%if 0%{?el7}
-BuildRequires: libdb-devel
-%else
-BuildRequires: db4-devel
-%endif
+BuildRequires: lmdb-devel
 BuildRequires: tcp_wrappers-devel
 BuildRequires: groff
 BuildRequires: procmail
@@ -47,16 +43,12 @@ Requires(pre): shadow-utils
 Requires(preun): %{_sbindir}/alternatives chkconfig
 Requires(post): %{_sbindir}/alternatives chkconfig coreutils
 Requires(postun): %{_sbindir}/alternatives coreutils
-%if 0%{?el7}
-Requires: libdb
-%else
-Requires: db4
-%endif
 Requires: bash >= 2.0
 Requires: initscripts
 Requires: denser
 Requires: jemalloc
 Requires: libsnet
+Requires: lmdb
 Requires: procmail
 Requires: setup
 Requires: tcp_wrappers

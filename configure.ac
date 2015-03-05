@@ -44,6 +44,8 @@ AC_SUBST(OPTOPTS)
 AC_SUBST(EXTRALIBS, [])
 AC_SUBST(LDAP_SRC, [])
 AC_SUBST(LDAP_OBJ, [])
+AC_SUBST(LMDB_SRC, [])
+AC_SUBST(LMDB_OBJ, [])
 AC_SUBST(SSL_SRC, [])
 AC_SUBST(SSL_OBJ, [])
 
@@ -51,13 +53,6 @@ AC_SUBST(SSL_OBJ, [])
 AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
 AC_CHECK_LIB([crypt], [crypt])
-
-AX_PATH_BDB([4], [
-    AC_DEFINE([HAVE_DB], [1], [Define if BDB exists.])
-    EXTRALIBS="$BDB_LIBS $EXTRALIBS"
-    AC_SUBST(BDB_LDFLAGS)
-    AC_SUBST(BDB_CPPFLAGS)
-])
 
 # Required packages
 PKG_CHECK_MODULES([DENSER], [denser])
@@ -79,10 +74,16 @@ AS_IF(
 # Packages without pkgconfig files
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
 AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
+AX_WITH_LIBRARY([lmdb], [LMDB], [lmdb.h], [lmdb])
 
 if test x"$ax_cv_have_LDAP" = xyes; then
     LDAP_SRC="simta_ldap.c dn.c"
     LDAP_OBJ="simta_ldap.o dn.o"
+fi
+
+if test x"$ax_cv_have_LMDB" = xyes; then
+    LMDB_SRC="simta_lmdb.c"
+    LMDB_OBJ="simta_lmdb.o"
 fi
 
 if test x"$with_ssl" != xno; then
