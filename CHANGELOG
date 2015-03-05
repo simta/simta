@@ -1,3 +1,11 @@
+0.11.1
+    - improved default TLS configuration
+    - added TLS_CIPHERS to control server cipher suites
+    - renamed some config variables
+    - added the ability to disable message body checksum
+    - fixed handling of dropped connections
+    - increased precision of logged metrics
+
 0.11.0
     - reworked build system and added RPM packaging
     - added message body checksum calculation
