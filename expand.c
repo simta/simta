@@ -12,6 +12,7 @@
 #endif /* HAVE_LIBSSL */
 
 #include <assert.h>
+#include <db.h>
 #include <fcntl.h>
 #include <utime.h>
 #include <stdio.h>
@@ -38,6 +39,7 @@
 #include "line_file.h"
 #include "header.h"
 #include "queue.h"
+#include "red.h"
 
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
@@ -135,6 +137,7 @@ expand( struct envelope *unexpanded_env )
     struct expand_output	*eo_free;
     struct exp_addr		*e_addr;
     struct exp_addr		*next_e_addr;
+    struct simta_red		*hq_red;
     char			*domain;
     SNET			*snet = NULL;
     int				n_rcpts;
@@ -145,6 +148,11 @@ expand( struct envelope *unexpanded_env )
     char			e_original[ MAXPATHLEN ];
     char			d_original[ MAXPATHLEN ];
     char			d_out[ MAXPATHLEN ];
+    /* RFC 5321 4.5.3.1.3.  Path
+     * The maximum total length of a reverse-path or forward-path is 256
+     * octets (including the punctuation and element separators).
+     */
+    char			header[ 270 ];
 #ifdef HAVE_LDAP
     char			*p;
     int				loop_color = 1;
@@ -504,12 +512,33 @@ expand( struct envelope *unexpanded_env )
 	env = eo->eo_env;
 
 	if ( simta_expand_debug == 0 ) {
-	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
 	    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
 
-	    if ( link( d_original, d_out ) != 0 ) {
-		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_out );
-		goto cleanup4;
+	    /* RFC 5321 4.4 Trace Information
+	     * When the delivery SMTP server makes the "final delivery" of a
+	     * message, it inserts a return-path line at the beginning of the
+	     * mail data.  This use of return-path is required; mail systems
+	     * MUST support it.  The return-path line preserves the
+	     * information in the <reverse-path> from the MAIL command.
+	     * Here, final delivery means the message has left the SMTP
+	     * environment.
+	     */
+	    if ((( hq_red = red_host_lookup( eo->eo_hostname )) != NULL ) &&
+		    ( hq_red->red_deliver_type == RED_DELIVER_BINARY )) {
+		if ( snprintf( header, 270, "Return-Path: <%s>", env->e_mail ) >= 270 ) {
+		    syslog( LOG_ERR, "expand: return path is too large" );
+		}
+		if ( env_inject_header( env, d_original, header, 1 ) != 0 ) {
+		    syslog( LOG_ERR, "expand: env_inject_header failed" );
+		    goto cleanup4;
+		}
+	    } else {
+		/* Dfile: link Dold_id env->e_dir/Dnew_id */
+		if ( link( d_original, d_out ) != 0 ) {
+		    syslog( LOG_ERR, "Syserror expand: link %s %s: %m",
+			    d_original, d_out );
+		    goto cleanup4;
+		}
 	    }
 
 	    sendermatch = !strcasecmp( unexpanded_env->e_mail, env->e_mail );
