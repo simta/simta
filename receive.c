@@ -1734,7 +1734,7 @@ f_data( struct receive_data *r )
 	if (( dff != NULL ) && ( simta_mail_filter != NULL ) &&
 		( simta_checksum_md != NULL )) {
 	    md_update( &r->r_md, line, line_len );
-	    if ( header == 0 ) {
+	    if (( header == 0 ) && ( simta_checksum_body == 1 )) {
 		md_update( &r->r_md_body, line, line_len );
 	    }
 	}

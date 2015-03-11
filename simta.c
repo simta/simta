@@ -161,6 +161,7 @@ int			simta_service_submission = 0;
 int			simta_service_smtps = 0;
 const EVP_MD		*simta_checksum_md = NULL;
 char			*simta_checksum_algorithm;
+int			simta_checksum_body = 0;
 #endif /* HAVE_LIBSSL */
 long int		simta_max_message_size = -1;
 int                     simta_outbound_connection_msg_max = 0;
@@ -879,6 +880,24 @@ simta_read_config( char *fname )
 
 	    if ( simta_debug ) printf( "CHECKSUM_ALGORITHM %s\n",
 		    simta_checksum_algorithm );
+	
+	} else if ( strcasecmp( av[ 0 ], "CHECKSUM_BODY" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_checksum_body = 1;
+		    if ( simta_debug ) printf( "CHECKSUM_BODY ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_checksum_body = 0;
+		    if ( simta_debug ) printf( "CHECKSUM_BODY OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "CHECKSUM_BODY <ON|OFF>" );
+	    goto error;
+
 #endif /* HAVE_LIBSSL */
 
 	} else if ( strcasecmp( av[ 0 ], "SEEN_BEFORE_DOMAIN" ) == 0 ) {

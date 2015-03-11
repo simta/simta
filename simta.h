@@ -239,8 +239,9 @@ extern int				simta_sasl;
 #endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBSSL
 extern int				simta_service_smtps;
-extern const EVP_MD				*simta_checksum_md;
+extern const EVP_MD			*simta_checksum_md;
 extern char				*simta_checksum_algorithm;
+extern int				simta_checksum_body;
 #endif /* HAVE_LIBSSL */
 extern int				simta_service_submission;
 extern int				simta_smtp_extension;
