@@ -571,18 +571,19 @@ seen_text( struct receive_headers *r, char *line, char **msg )
 
 
     /* return 0 if line is the next line in header block lf */
-    /* rfc2822, 2.1 General Description:
+    /* RFC 5322 2.1 General Description
      * A message consists of header fields (collectively called "the header
-     * of the message") followed, optionally, by a body.  The header is a
-     * sequence of lines of characters with special syntax as defined in
-     * this standard. The body is simply a sequence of characters that
-     * follows the header and is separated from the header by an empty line
-     * (i.e., a line with nothing preceding the CRLF).
+     * section of the message") followed, optionally, by a body.  The header
+     * section is a sequence of lines of characters with special syntax as
+     * defined in this specification. The body is simply a sequence of
+     * characters that follows the header section and is separated from the
+     * header section by an empty line (i.e., a line with nothing preceding
+     * the CRLF).
      */
 
-    /* rfc 2822, 2.2.2. Structured Header Field Bodies:
-     * SP, ASCII value 32) and horizontal tab (HTAB, ASCII value 9)
-     * characters (together known as the white space characters, WSP
+    /* RFC 5322 2.2 Header Fields
+     * space (SP, ASCII value 32) and horizontal tab (HTAB, ASCII value 9)
+     * characters (together known as the white space characters, WSP)
      */
     /* this only takes two header types in to account, so it is currently
      * a state machine.  If additional headers need to be added, a better
@@ -695,8 +696,8 @@ header_lines( struct line_file *lf, struct header headers[] )
     /* put header information in to data structures for later processing */
     for ( l = lf->l_first; l != NULL ; l = l->line_next ) {
 
-	/* rfc 2822:
-	 * Header fields are lines composed of a field name, followed
+	/* RFC 5322 2.2 Header Fields
+	 * Header fields are lines beginning with a field name, followed
 	 * by a colon (":"), followed by a field body, and terminated
 	 * by CRLF.  A field name MUST be composed of printable
 	 * US-ASCII characters (i.e., characters that have values
@@ -755,7 +756,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     char			daytime[ RFC822_TIMESTAMP_LEN ];
     struct envelope		*to_env = NULL;
 
-/* RFC 2821 3.6  Field definitions
+/* RFC 5322 3.6 Field definitions
  *  Field           Min number      Max number      Notes
  *
  *  orig-date       1               1
@@ -787,7 +788,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
  * header_lines() will enforce max number.
  * header_correct() will add missing fields.
  */
-    struct header headers_rfc2822[] = {
+    struct header headers_rfc5322[] = {
 	{ "Date",		NULL,		NULL },
 #define HEAD_DATE		0
 	{ "From",		NULL,		NULL },
@@ -823,7 +824,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	header_exceptions( lf );
     }
 
-    if (( ret = header_lines( lf, headers_rfc2822 )) != 0 ) {
+    if (( ret = header_lines( lf, headers_rfc5322 )) != 0 ) {
 	goto error;
     }
 
@@ -832,7 +833,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     /* examine & correct header data */
 
     /* From: */
-    if (( l = headers_rfc2822[ HEAD_FROM ].h_line ) != NULL ) {
+    if (( l = headers_rfc5322[ HEAD_FROM ].h_line ) != NULL ) {
 	if (( rc = parse_mailbox_list( NULL, l, l->line_data + 5,
 		MAILBOX_FROM_CORRECT )) != 0 ) {
 	    ret = rc;
@@ -846,7 +847,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	goto error;
     } else {
 	/* generate From: header */
-	if (( len = ( strlen( headers_rfc2822[ HEAD_FROM ].h_key ) +
+	if (( len = ( strlen( headers_rfc5322[ HEAD_FROM ].h_key ) +
 		strlen( env->e_mail ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
@@ -859,9 +860,9 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: %s",
-		headers_rfc2822[ HEAD_FROM ].h_key, env->e_mail );
+		headers_rfc5322[ HEAD_FROM ].h_key, env->e_mail );
 
-	if (( headers_rfc2822[ HEAD_FROM ].h_line =
+	if (( headers_rfc5322[ HEAD_FROM ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    syslog( LOG_ERR, "header_correct malloc: %m" );
 	    ret = -1;
@@ -870,7 +871,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     }
 
     /* Sender: */
-    if (( l = headers_rfc2822[ HEAD_SENDER ].h_line ) != NULL ) {
+    if (( l = headers_rfc5322[ HEAD_SENDER ].h_line ) != NULL ) {
 	if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
 	    if (( rc = parse_mailbox_list( env, l, l->line_data + 7,
 		    MAILBOX_SENDER )) != 0 ) {
@@ -885,7 +886,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    ( simta_submission_mode == SUBMISSION_MODE_MSA )) &&
 	    ( simta_generate_sender != 0 ) &&
 	    ( simta_simsend_strict_from != 0 )) {
-	if (( len = ( strlen( headers_rfc2822[ HEAD_SENDER ].h_key ) +
+	if (( len = ( strlen( headers_rfc5322[ HEAD_SENDER ].h_key ) +
 		strlen( env->e_mail ) + 3 )) > prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
 		    == NULL ) {
@@ -898,9 +899,9 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: %s",
-		headers_rfc2822[ HEAD_SENDER ].h_key, env->e_mail );
+		headers_rfc5322[ HEAD_SENDER ].h_key, env->e_mail );
 
-	if (( headers_rfc2822[ HEAD_SENDER ].h_line =
+	if (( headers_rfc5322[ HEAD_SENDER ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    syslog( LOG_ERR, "header_correct malloc: %m" );
 	    ret = -1;
@@ -908,7 +909,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if ( headers_rfc2822[ HEAD_DATE ].h_line == NULL ) {
+    if ( headers_rfc5322[ HEAD_DATE ].h_line == NULL ) {
 	if ( simta_submission_mode == SUBMISSION_MODE_MTA_STRICT ) {
 	    ret = 1;
 	    goto error;
@@ -919,7 +920,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    goto error;
 	}
 
-	if (( len = ( strlen( headers_rfc2822[ HEAD_DATE ].h_key ) +
+	if (( len = ( strlen( headers_rfc5322[ HEAD_DATE ].h_key ) +
 		strlen( daytime ) + 3 )) > prepend_len ) {
 
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
@@ -933,9 +934,9 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: %s",
-		headers_rfc2822[ HEAD_DATE ].h_key, daytime );
+		headers_rfc5322[ HEAD_DATE ].h_key, daytime );
 
-	if (( headers_rfc2822[ HEAD_DATE ].h_line =
+	if (( headers_rfc5322[ HEAD_DATE ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    syslog( LOG_ERR, "header_correct malloc: %m" );
 	    ret = -1;
@@ -943,10 +944,10 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if (( headers_rfc2822[ HEAD_MESSAGE_ID ].h_line == NULL ) &&
+    if (( headers_rfc5322[ HEAD_MESSAGE_ID ].h_line == NULL ) &&
 	    (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
 	    ( simta_submission_mode == SUBMISSION_MODE_MSA ))) {
-	if (( len = ( strlen( headers_rfc2822[ HEAD_MESSAGE_ID ].h_key ) +
+	if (( len = ( strlen( headers_rfc5322[ HEAD_MESSAGE_ID ].h_key ) +
 		strlen( env->e_id ) + 6 + strlen( simta_hostname ))) >
 		prepend_len ) {
 	    if (( prepend_line = (char*)realloc( prepend_line, len ))
@@ -960,10 +961,10 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
 
 	sprintf( prepend_line, "%s: <%s@%s>",
-		headers_rfc2822[ HEAD_MESSAGE_ID ].h_key, env->e_id,
+		headers_rfc5322[ HEAD_MESSAGE_ID ].h_key, env->e_id,
 		simta_hostname );
 
-	if (( headers_rfc2822[ HEAD_MESSAGE_ID ].h_line =
+	if (( headers_rfc5322[ HEAD_MESSAGE_ID ].h_line =
 		line_prepend( lf, prepend_line, COPY )) == NULL ) {
 	    syslog( LOG_ERR, "header_correct malloc: %m" );
 	    ret = -1;
@@ -971,7 +972,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if (( l = headers_rfc2822[ HEAD_TO ].h_line ) != NULL ) {
+    if (( l = headers_rfc5322[ HEAD_TO ].h_line ) != NULL ) {
 	if (( rc = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    ret = rc;
 	    if ( rc < 0 ) {
@@ -980,7 +981,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if (( l = headers_rfc2822[ HEAD_CC ].h_line ) != NULL ) {
+    if (( l = headers_rfc5322[ HEAD_CC ].h_line ) != NULL ) {
 	if (( rc = parse_recipients( to_env, l, l->line_data + 3 )) != 0 ) {
 	    ret = rc;
 	    if ( rc < 0 ) {
@@ -989,7 +990,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	}
     }
 
-    if (( l = headers_rfc2822[ HEAD_BCC ].h_line ) != NULL ) {
+    if (( l = headers_rfc5322[ HEAD_BCC ].h_line ) != NULL ) {
 	if (( rc = parse_recipients( to_env, l, l->line_data + 4 )) != 0 ) {
 	    ret = rc;
 	    if ( rc < 0 ) {
@@ -1033,48 +1034,78 @@ error:
      * return -1 if there was a serious error.
      */
 
-    /* RFC 2822:
+    /* RFC 5322 3.2.1 Quoted characters
+     * quoted-pair     =   ("\" (VCHAR / WSP)) / obs-qp
+     *
+     * RFC 5322 3.2.2 Folding White Space and Comments
+     * FWS             =   ([*WSP CRLF] 1*WSP) /  obs-FWS
+     * ctext           =   %d33-39 /          ; Printable US-ASCII
+     *                     %d42-91 /          ;  characters not including
+     *                     %d93-126 /         ;  "(", ")", or "\"
+     *                     obs-ctext
+     * ccontent        =   ctext / quoted-pair / comment
+     * comment         =   "(" *([FWS] ccontent) [FWS] ")"
+     * CFWS            =   (1*([FWS] comment) [FWS]) / FWS
+     *
+     * RFC 5322 3.2.3 Atom
+     * atext           =   ALPHA / DIGIT /    ; Printable US-ASCII
+     *                     "!" / "#" /        ;  characters not including
+     *                     "$" / "%" /        ;  specials.  Used for atoms.
+     *                     "&" / "'" /
+     *                     "*" / "+" /
+     *                     "-" / "/" /
+     *                     "=" / "?" /
+     *                     "^" / "_" /
+     *                     "`" / "{" /
+     *                     "|" / "}" /
+     *                     "~"
+     * atom            =   [CFWS] 1*atext [CFWS]
+     * dot-atom-text   =   1*atext *("." 1*atext)
+     * dot-atom        =   [CFWS] dot-atom-text [CFWS]
+     * specials        =   "(" / ")" /        ; Special characters that do
+     *                     "<" / ">" /        ;  not appear in atext
+     *                     "[" / "]" /
+     *                     ":" / ";" /
+     *                     "@" / "\" /
+     *                     "," / "." /
+     *                     DQUOTE
+     *
+     * RFC 5322 3.2.4 Quoted Strings
+     * qtext           =   %d33 /             ; Printable US-ASCII
+     *                     %d35-91 /          ;  characters not including
+     *                     %d93-126 /         ;  "\" or the quote character
+     *                     obs-qtext
+     * qcontent        =   qtext / quoted-pair
+     * quoted-string   =   [CFWS]
+     *                     DQUOTE *([FWS] qcontent) [FWS] DQUOTE
+     *                     [CFWS]
+     *
+     * RFC 5322 3.2.5 Miscellaneous Tokens
+     * word            =   atom / quoted-string
+     * phrase          =   1*word / obs-phrase
+     *
+     * RFC 5322 3.4 Address Specification:
      *
      * address         =   mailbox / group
-     * group           =   display-name ":" [mailbox-list / CFWS] ";" [CFWS]
-     * mailbox-list    =   (mailbox *("," mailbox))
      * mailbox         =   name-addr / addr-spec
      * name-addr       =   [display-name] angle-addr
-     * display-name    =   phrase
-     * phrase          =   1*word
      * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS]
+     *                     obs-angle-addr
+     * group           =   display-name ":" [group-list] ";" [CFWS]
+     * display-name    =   phrase
+     * mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
+     * address-list    =   (address *("," address)) / obs-addr-list
+     * group-list      =   mailbox-list / CFWS / obs-group-list
+     *
+     * RFC 5322 3.4.1 Addr-Spec Specification 
+     *
      * addr-spec       =   local-part "@" domain
-     * local-part      =   dot-atom / quoted-string
-     * domain          =   dot-atom / domain-literal
-     * domain-literal  =   [CFWS] "[" *([FWS] dcontent) [FWS] "]" [CFWS]
-     * word            =   atom / quoted-string
-     * atom            =   [CFWS] 1*atext [CFWS]
-     * atext           =   ALPHA / DIGIT / ; Any character except controls,
-     *			     "!" / "#" /     ;  SP, and specials.
-     *			     "$" / "%" /     ;  Used for atoms
-     *			     "&" / "'" /
-     *			     "*" / "+" /
-     *			     "-" / "/" /
-     *			     "=" / "?" /
-     *			     "^" / "_" /
-     *			     "`" / "{" /
-     *			     "|" / "}" /
-     *			     "~"
-     * dcontent        =   dtext / quoted-pair
-     * dtext           =   NO-WS-CTL /     ; Non white space controls
-     *			%d33-90 /       ; The rest of the US-ASCII
-     *			%d94-126        ;  characters not including "[",
-     *					;  "]", or "\"
-     * dot-atom        =   [CFWS] dot-atom-text [CFWS]
-     * dot-atom-text   =   1*atext *("." 1*atext)
-     * qtext           =       NO-WS-CTL /   ; Non white space controls
-     *			    %d33 /       ; The rest of the US-ASCII
-     *			    %d35-91 /    ;  characters not including "\"
-     *			    %d93-126     ;  or the quote character
-     * qcontent        =       qtext / quoted-pair
-     * quoted-string   =       [CFWS]
-     *			    DQUOTE *([FWS] qcontent) [FWS] DQUOTE
-     *			    [CFWS]
+     * local-part      =   dot-atom / quoted-string / obs-local-part
+     * domain          =   dot-atom / domain-literal / obs-domain
+     * domain-literal  =   [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
+     * dtext           =   %d33-90 /          ; Printable US-ASCII
+     *                     %d94-126 /         ;  characters not including
+     *                     obs-dtext          ;  "[", "]", or "\"
      */
 
 
@@ -1110,8 +1141,8 @@ parse_emailaddr( int mode, char *addr, char **user, char **domain )
 
     /* make sure mode is in range */
     switch ( mode ) {
-    case RFC_2821_MAIL_FROM:
-    case RFC_2821_RCPT_TO:
+    case RFC_821_MAIL_FROM:
+    case RFC_821_RCPT_TO:
     case EMAIL_ADDRESS_NORMAL:
 	break;
 
@@ -1192,7 +1223,7 @@ parse_emailaddr( int mode, char *addr, char **user, char **domain )
 
     /* <> is a valid address for MAIL FROM commands */
     if ( *u == '>' ) {
-	if (( mode == RFC_2821_MAIL_FROM ) && ( *( u + 1 ) == '\0' )) {
+	if (( mode == RFC_821_MAIL_FROM ) && ( *( u + 1 ) == '\0' )) {
 	    *u = '\0';
 	    *domain = NULL;
 	    return( 0 );
@@ -1213,14 +1244,14 @@ parse_emailaddr( int mode, char *addr, char **user, char **domain )
 
     at = end + 1;
 
-    /* rfc 2821 3.6
+    /* RFC 5321 2.3.5 Domain Names
      * The reserved mailbox name "postmaster" may be used in a RCPT
      * command without domain qualification (see section 4.1.1.3) and
      * MUST be accepted if so used.
      */
 
     if ((( *at == '\0' ) && ( mode == EMAIL_ADDRESS_NORMAL )) ||
-	    (( *at == '>' ) && ( mode == RFC_2821_RCPT_TO ))) {
+	    (( *at == '>' ) && ( mode == RFC_821_RCPT_TO ))) {
 	swap = *at;
 	*at = '\0';
 	if ( strcasecmp( u, STRING_POSTMASTER ) != 0 ) {
@@ -1228,7 +1259,7 @@ parse_emailaddr( int mode, char *addr, char **user, char **domain )
 	    return( 1 );
 	}
 
-	if ( mode == RFC_2821_RCPT_TO ) {
+	if ( mode == RFC_821_RCPT_TO ) {
 	    *domain = NULL;
 	}
 
@@ -1945,17 +1976,17 @@ parse_mailbox_list( struct envelope *env, struct line *l, char *c, int mode )
 }
 
 
-    /* RFC 2822:
+    /* RFC 5322 3.4 Address Specification
      *
      * address         =   mailbox / group
      * mailbox         =   name-addr / addr-spec
      * name-addr       =   [display-name] angle-addr
-     * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS]
-     * addr-spec       =   local-part "@" domain
-     * group           =   display-name ":" [mailbox-list / CFWS] ";" [CFWS]
+     * angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
+     * group           =   display-name ":" [group-list] ";" [CFWS]
      * display-name    =   phrase
-     * phrase          =   1*word
-     * word            =   atom / quoted-string
+     * mailbox-list    =   (mailbox *("," mailbox)) / obs-mbox-list
+     * address-list    =   (address *("," address)) / obs-addr-list
+     * group-list      =   mailbox-list / CFWS / obs-group-list
      */
 
     int

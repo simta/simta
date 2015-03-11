@@ -1,11 +1,4 @@
 /*
- * RFC's of interest:
- *
- * RFC 822  "Standard for the format of ARPA Internet text messages"
- * RFC 1123 "Requirements for Internet Hosts -- Application and Support"
- * RFC 2476 "Message Submission"
- * RFC 2822 "Internet Message Format"
- *
  */
 #include "config.h"
 

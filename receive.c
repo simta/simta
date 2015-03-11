@@ -129,6 +129,7 @@ struct receive_data {
     /* external security strength factor zero = NONE */
     sasl_ssf_t			r_ext_ssf;
     sasl_security_properties_t	r_secprops;
+    int				r_failedauth;
 #endif /* HAVE_LIBSASL */
 };
 
@@ -372,19 +373,26 @@ reset( struct receive_data *r )
     static int
 hello( struct receive_data *r, char *hostname )
 {
-    /* If we get "HELO" twice, just toss the new one */
-    if ( r->r_hello == NULL ) {
-	/*
-	 * rfc1123 5.2.5: We don't check that the "HELO" domain matches
-	 * anything like the hostname.  When we create the data file, we'll
-	 * reverse the source IP address and thus determine what the
-	 * "Received:" header should say.  Since mail clients don't send well
-	 * formed "HELO", we won't even do syntax checks on av[ 1 ].
-	 */
-	if (( r->r_hello = strdup( hostname )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror helo: strdup: %m" );
-	    return( RECEIVE_SYSERROR );
-	}
+    /* If they're saying hello again, we want the new value for the trace
+     * field. 
+     */
+    if ( r->r_hello != NULL ) {
+	free( r->r_hello );
+    }
+
+    /*
+     * RFC 5321 4.1.4 Order of Commands
+     * An SMTP server MAY verify that the domain name argument in the EHLO
+     * command actually corresponds to the IP address of the client. However,
+     * if the verification fails, the server MUST NOT refuse to accept
+     * a message on that basis.
+     *
+     * We don't verify.
+     */
+
+    if (( r->r_hello = strdup( hostname )) == NULL ) {
+	syslog( LOG_ERR, "Syserror helo: strdup: %m" );
+	return( RECEIVE_SYSERROR );
     }
 
     return( RECEIVE_OK );
@@ -481,12 +489,16 @@ smtp_write_banner( struct receive_data *r, int reply_code, char *msg,
 	hostname = 1;
 	break;
 
+    case 432:
+	boilerplate = "A password transition is needed";
+	break;
+
     case 451:
 	boilerplate = "Local error in processing: requested action aborted";
 	break;
 
     case 454:
-	boilerplate = "Cannot authenticate due to temporary system problem";
+	boilerplate = "Temporary authentication failure";
 	break;
 
     case 500:
@@ -518,7 +530,7 @@ smtp_write_banner( struct receive_data *r, int reply_code, char *msg,
 	break;
 
     case 535:
-	boilerplate = "Invalid initial-response argument for mechanism";
+	boilerplate = "Authentication credentials invalid";
 	break;
 
     case 538:
@@ -592,7 +604,7 @@ f_helo( struct receive_data *r )
     if ( r->r_ac != 2 ) {
 	log_bad_syntax( r );
 	return( smtp_write_banner( r, 501, NULL,
-		"RFC 2821 section 4.1.1.1: \"HELO\" SP Domain CRLF" ));
+		"RFC 5321 section 4.1.1.1: \"HELO\" SP Domain CRLF" ));
     }
 
     syslog( LOG_DEBUG, "Receive [%s] %s: %s",
@@ -620,7 +632,7 @@ f_ehlo( struct receive_data *r )
 
     tarpit_sleep( r, 0 );
 
-    /* rfc 2821 4.1.4
+    /* RFC 5321 4.1.4 Order of Commands
      * A session that will contain mail transactions MUST first be
      * initialized by the use of the EHLO command.  An SMTP server SHOULD
      * accept commands for non-mail transactions (e.g., VRFY or EXPN)
@@ -629,25 +641,27 @@ f_ehlo( struct receive_data *r )
     if ( r->r_ac != 2 ) {
 	log_bad_syntax( r );
 	return( smtp_write_banner( r, 501, NULL,
-		"RFC 2821 section 4.1.1.1: \"EHLO\" SP Domain CRLF" ));
+		"RFC 5321 section 4.1.1.1: \"EHLO\" SP Domain CRLF" ));
     }
 
-    /* rfc 2821 4.1.4
-     * An EHLO command MAY be issued by a client later in the session.  If
-     * it is issued after the session begins, the SMTP server MUST clear all
-     * buffers and reset the state exactly as if a RSET command had been
-     * issued.  In other words, the sequence of RSET followed immediately by
-     * EHLO is redundant, but not harmful other than in the performance cost
-     * of executing unnecessary commands.
+    /* RFC 5321 4.1.4 Order of Commands
+     * An EHLO command MAY be issued by a client later in the session.  If it
+     * is issued after the session begins and the EHLO command is acceptable
+     * to the SMTP server, the SMTP server MUST clear all buffers and reset
+     * the state exactly as if a RSET command had been issued.  In other words,
+     * the sequence of RSET followed immediately by EHLO is redundant, but not
+     * harmful other than in the performance cost of executing unnecessary
+     * commands.
      */
     if ( reset( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
     }
 
-    /* rfc 2821 3.6
-     * The domain name given in the EHLO command MUST BE either a primary
-     * host name (a domain name that resolves to an A RR) or, if the host
-     * has no name, an address literal as described in section 4.1.1.1.
+    /* RFC 5321 2.3.5 Domain Names
+     * The domain name given in the EHLO command MUST be either a primary host
+     * name (a domain name that resolves to an address RR) or, if the host has
+     * no name, an address literal as described in section 4.1.3 and discussed
+     * further in in the EHLO discussion of Section 4.1.4.
      */
 
     if ( hello( r, r->r_av[ 1 ] ) != RECEIVE_OK ) {
@@ -690,7 +704,7 @@ f_ehlo( struct receive_data *r )
 #endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
-    /* RFC 2487 4.2 
+    /* RFC 3207 4.2 Result of the STARTTLS Command 
      * A server MUST NOT return the STARTTLS extension in response to an
      * EHLO command received after a TLS handshake has completed.
      */
@@ -717,7 +731,7 @@ f_mail_usage( struct receive_data *r )
     log_bad_syntax( r );
 
     if ( snet_writef( r->r_snet,
-	    "501-Syntax violates RFC 2821 section 4.1.1.2:\r\n"
+	    "501-Syntax violates RFC 5321 section 4.1.1.2:\r\n"
 	    "501-     \"MAIL FROM:\" (\"<>\" / Reverse-Path ) "
 	    "[ SP Mail-parameters ] CRLF\r\n"
 	    "501-         Reverse-path = Path\r\n"
@@ -766,7 +780,7 @@ f_mail( struct receive_data *r )
     if (( !simta_strict_smtp_syntax ) && ( r->r_ac >= 3 ) &&
 	    ( strcasecmp( r->r_av[ 1 ], "FROM:" ) == 0 )) {
 	/* r->r_av[ 1 ] = "FROM:", r->r_av[ 2 ] = "<ADDRESS>" */
-	if ( parse_emailaddr( RFC_2821_MAIL_FROM, r->r_av[ 2 ], &addr,
+	if ( parse_emailaddr( RFC_821_MAIL_FROM, r->r_av[ 2 ], &addr,
 		&domain ) != 0 ) {
 	    return( f_mail_usage( r ));
 	}
@@ -778,7 +792,7 @@ f_mail( struct receive_data *r )
 	}
 
 	/* r->r_av[ 1 ] = "FROM:<ADDRESS>" */
-	if ( parse_emailaddr( RFC_2821_MAIL_FROM,
+	if ( parse_emailaddr( RFC_821_MAIL_FROM,
 		r->r_av[ 1 ] + strlen( "FROM:" ), &addr, &domain ) != 0 ) {
 	    return( f_mail_usage( r ));
 	}
@@ -885,11 +899,10 @@ f_mail( struct receive_data *r )
 	}
     }
 
-    /*
-     * rfc1123 (5.3.2) Timeouts in SMTP.  We have a maximum of 5 minutes
-     * before we must return something to a "MAIL" command.  Soft failures
-     * can either be accepted (trusted) or the soft failures can be passed
-     * along.  "451" is probably the correct error.
+    /* We have a maximum of 5 minutes (RFC 5321 4.5.3.2.2) before we must
+     * return something to a "MAIL" command.  Soft failures can either be
+     * accepted (trusted) or the soft failures can be passe along. "451"
+     * is probably the correct error.
      */
 
     switch ( r->r_smtp_mode ) {
@@ -941,9 +954,15 @@ f_mail( struct receive_data *r )
     }
 
     /*
-     * Contrary to popular belief, it is not an error to give more than
-     * one "MAIL FROM:" command.  According to rfc822, this is just like
-     * "RSET".
+     * RFC 5321 4.1.4 Order of Commands
+     * MAIL (or SEND, SOML, or SAML) MUST NOT be sent if a mail transaction
+     * is already open, i.e., it should be sent only if no mail transaction
+     * had been started in the session, or if the previous one successfully
+     * concluded with a successful DATA command, or if the previous one was
+     * aborted, e.g., with a RSET or new EHLO.
+     *
+     * This restriction is not adhered to in practice, so we treat it like a
+     * RSET.
      */
     if ( reset( r ) != RECEIVE_OK ) {
 	return( RECEIVE_SYSERROR );
@@ -985,7 +1004,7 @@ f_rcpt_usage( struct receive_data *r )
     log_bad_syntax( r );
 
     if ( snet_writef( r->r_snet,
-	    "501-Syntax violates RFC 2821 section 4.1.1.3:\r\n"
+	    "501-Syntax violates RFC 5321 section 4.1.1.3:\r\n"
 	    "501-     \"RCPT TO:\" (\"<Postmaster@\" domain \">\" / "
 	    "\"<Postmaster>\" / Forward-Path ) "
 	    "[ SP Rcpt-parameters ] CRLF\r\n"
@@ -1030,7 +1049,7 @@ f_rcpt( struct receive_data *r )
 	    return( f_rcpt_usage( r ));
 	}
 
-	if ( parse_emailaddr( RFC_2821_RCPT_TO, r->r_av[ 1 ] + 3, &addr,
+	if ( parse_emailaddr( RFC_821_RCPT_TO, r->r_av[ 1 ] + 3, &addr,
 		&domain ) != 0 ) {
 	    return( f_rcpt_usage( r ));
 	}
@@ -1040,7 +1059,7 @@ f_rcpt( struct receive_data *r )
 	    return( f_rcpt_usage( r ));
 	}
 
-	if ( parse_emailaddr( RFC_2821_RCPT_TO, r->r_av[ 2 ], &addr,
+	if ( parse_emailaddr( RFC_821_RCPT_TO, r->r_av[ 2 ], &addr,
 		&domain ) != 0 ) {
 	    return( f_rcpt_usage( r ));
 	}
@@ -1049,12 +1068,12 @@ f_rcpt( struct receive_data *r )
 	return( f_rcpt_usage( r ));
     }
 
-    /* rfc 2821 3.7
-     * SMTP servers MAY decline to act as mail relays or to
-     * accept addresses that specify source routes.  When route information
-     * is encountered, SMTP servers are also permitted to ignore the route
-     * information and simply send to the final destination specified as the
-     * last element in the route and SHOULD do so.
+    /* RFC 5321 3.6.1 Source Routes and Relaying
+     * SMTP servers MAY decline to act as mail relays or to accept addresses
+     * that specify source routes.  When route information is encountered,
+     * SMTP servers MAY ignore the route information and simply send to the
+     * final destination specified as the last element in the route and
+     * SHOULD do so.
      */
 
     /*
@@ -1154,13 +1173,13 @@ f_rcpt( struct receive_data *r )
 
 	} else {
 	    /*
-	     * For local mail, we now have 5 minutes (rfc1123 5.3.2)
+	     * For local mail, we now have 5 minutes (RFC 5321 4.5.3.2.3)
 	     * to decline to receive the message.  If we're in the
 	     * default configuration, we check the passwd and alias file.
 	     * Other configurations use "mailer" specific checks.
 	     */
 
-	    /* rfc 2821 section 3.7
+	    /* RFC 5321 section 3.6.2 Mail eXchange Records and Relaying
 	     * A relay SMTP server is usually the target of a DNS MX record
 	     * that designates it, rather than the final delivery system.
 	     * The relay server may accept or reject the task of relaying
@@ -1368,7 +1387,7 @@ f_data( struct receive_data *r )
 
     tarpit_sleep( r, simta_smtp_tarpit_data );
 
-    /* rfc 2821 4.1.1
+    /* RFC 5321 4.1.1 Command Semantics and Syntax
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
      * parameters.  In the absence of specific extensions offered by the
      * server and accepted by the client, clients MUST NOT send such
@@ -1378,10 +1397,10 @@ f_data( struct receive_data *r )
     if ( r->r_ac != 1 ) {
 	log_bad_syntax( r );
 	return( smtp_write_banner( r, 501, NULL,
-		"RFC 2821 section 4.1.1.1 \"DATA\" CRLF" ));
+		"RFC 5321 section 4.1.1.4 \"DATA\" CRLF" ));
     }
 
-    /* rfc 2821 3.3
+    /* RFC 5321 3.3
      * If there was no MAIL, or no RCPT, command, or all such commands
      * were rejected, the server MAY return a "command out of sequence"
      * (503) or "no valid recipients" (554) reply in response to the DATA
@@ -1464,12 +1483,12 @@ f_data( struct receive_data *r )
 	 * header, since that is the first line in the file.  This is where
 	 * we might want to put the sender's domain name, if we obtained one.
 	 */
-	/* RFC 2821 4.4 Trace Information:
-	 *
+	/* RFC 5321 4.4 Trace Information
 	 * Time-stamp-line = "Received:" FWS Stamp <CRLF>
-	 * Stamp = From-domain By-domain Opt-info ";"  FWS date-time
-	 * From-domain = "FROM" FWS Extended-Domain CFWS
-	 * By-domain = "BY" FWS Extended-Domain CFWS
+	 * Stamp = From-domain By-domain Opt-info [CFWS] ";"
+	 *         FWS date-time
+	 * From-domain = "FROM" FWS Extended-Domain
+	 * By-domain = CFWS "BY" FWS Extended-Domain
 	 * Extended-Domain = Domain /
 	 *     ( Domain FWS "(" TCP-info ")" ) /
 	 *     ( Address-literal FWS "(" TCP-info ")" )
@@ -1633,7 +1652,7 @@ f_data( struct receive_data *r )
 				inet_ntoa( r->r_sin->sin_addr ),
 				r->r_remote_hostname, r->r_env->e_id );
 			/* Continue reading lines, but reject the message
-			system_message = "Message is not RFC 2822 compliant";
+			system_message = "Message is not RFC 5322 compliant";
 			message_banner = MESSAGE_REJECT;
 			read_err = PROTOCOL_ERROR;
 			*/
@@ -2199,7 +2218,7 @@ f_help( struct receive_data *r )
 
 
     /*
-     * rfc 2821 section 3.5.3:
+     * RFC 5321 3.5.3 Meaning of VRFY or EXPN Success Response
      * A server MUST NOT return a 250 code in response to a VRFY or EXPN
      * command unless it has actually verified the address.  In particular,
      * a server MUST NOT return 250 if all it has done is to verify that the
@@ -2210,7 +2229,7 @@ f_help( struct receive_data *r )
      * recommended.  Hence, implementations that return 500 or 502 for VRFY
      * are not in full compliance with this specification.
      *
-     * rfc 2821 section 7.3:
+     * RFC 5321 7.3 VRFY, EXPN, and Security
      * As discussed in section 3.5, individual sites may want to disable
      * either or both of VRFY or EXPN for security reasons.  As a corollary
      * to the above, implementations that permit this MUST NOT appear to
@@ -2455,31 +2474,33 @@ f_auth( struct receive_data *r )
 
     tarpit_sleep( r, 0 );
 
-    /* RFC 2554:
-     * The BASE64 string may in general be arbitrarily long.  Clients
-     * and servers MUST be able to support challenges and responses
-     * that are as long as are generated by the authentication   
-     * mechanisms they support, independent of any line length
-     * limitations the client or server may have in other parts of its
+    /* RFC 4954 4 The AUTH Command
+     * Note that these BASE64 strings can be much longer than normal SMTP
+     * commands. Clients and servers MUST be able to handle the maximum encoded
+     * size of challenges and responses generated by their supported
+     * authentication mechanisms. This requirement is independent of any line
+     * length limitations the client or server may have in other parts of its
      * protocol implementation.
      */
 
     if (( r->r_ac != 2 ) && ( r->r_ac != 3 )) {
 	log_bad_syntax( r );
 	return( smtp_write_banner( r, 501, NULL,
-		"RFC 2554 section 4 AUTH mechanism [initial-response]" ));
+		"RFC 4954 section 4 AUTH mechanism [initial-response]" ));
     }
 
-    /* RFC 2554 After an AUTH command has successfully completed, no more AUTH
-     * commands may be issued in the same session.  After a successful
-     * AUTH command completes, a server MUST reject any further AUTH
-     * commands with a 503 reply.
+    /* RFC 4954 4 The AUTH Command
+     * After an AUTH command has successfully completed, no more AUTH commands
+     * may be issued in the same session. After a successful AUTH command
+     * completes, a server MUST reject any further AUTH commands with a
+     * 503 reply.
      */
     if ( r->r_auth ) {
 	return( f_bad_sequence( r ));
     }
 
-    /* RFC 2554 The AUTH command is not permitted during a mail transaction. */
+    /* RFC 4954 4 The AUTH Command
+     * The AUTH command is not permitted during a mail transaction. */
     if (( r->r_env != NULL ) && ( r->r_env->e_mail != NULL )) {
 	return( f_bad_sequence( r ));
     }
@@ -2535,7 +2556,11 @@ f_auth( struct receive_data *r )
 	    return( RECEIVE_CLOSECONNECTION );
 	} 
 
-	/* Check if client canceled authentication exchange */
+	/* RFC 4954 4 The AUTH Command
+	 * If the client wishes to cancel the authentication exchange, it
+	 * issues a line with a single "*". If the server receives such a
+	 * response, it MUST reject the AUTH command by sending a 501 reply.
+	 */
 	if ( clientin[ 0 ] == '*' && clientin[ 1 ] == '\0' ) {
 	    syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		    "client canceled authentication",
@@ -2564,10 +2589,17 @@ f_auth( struct receive_data *r )
 		&serveroutlen );
     }
 
+    sasl_getprop( r->r_conn, SASL_USERNAME, (const void **) &r->r_auth_id );
+
     switch( rc ) {
     case SASL_OK:
 	break;
 
+    /* RFC 4954 4 The AUTH Command
+     * If the requested authentication mechanism is invalid (e.g., is not 
+     * supported or requires an encryption layer), the server rejects the AUTH
+     * command with a 504 reply.
+     */
     case SASL_NOMECH:
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"Unrecognized authentication type: %s",
@@ -2575,28 +2607,29 @@ f_auth( struct receive_data *r )
 		r->r_auth_id, r->r_av[ 1 ] );
 	return( smtp_write_banner( r, 504, NULL, NULL ));
 
+    case SASL_ENCRYPT:
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"Encryption required for mechanism %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_auth_id, r->r_av[ 1 ] );
+	return( smtp_write_banner( r, 504, NULL, NULL ));
+
     case SASL_BADPROT:
-	/* RFC 2554:
-	 * If the client uses an initial-response argument to the AUTH    
-	 * command with a mechanism that sends data in the initial
-	 * challenge, the server rejects the AUTH command with a 535
-	 * reply.
+	/* RFC 4954 4 The AUTH Command
+	 * If the client uses an initial-response argument to the AUTH command
+	 * with a SASL mechanism in which the client does not begin the
+	 * authentication exchange, the server MUST reject the AUTH command
+	 * with a 501 reply.
 	 */
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"Invalid initial-response argument for mechanism %s",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
+	inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id, r->r_av[ 1 ] );
-	return( smtp_write_banner( r, 535, NULL, NULL ));
-
-    /* Not sure what RC this is: RFC 2554 If the server rejects the
-     * authentication data, it SHOULD reject the AUTH command with a
-     * 535 reply unless a more specific error code, such as one listed
-     * in section 6, is appropriate.
-     */
+	return( smtp_write_banner( r, 501, NULL, NULL ));
 
     case SASL_TOOWEAK:
-	/* RFC 2554
-	 * 534 Authentication mechanism is too weak
+	/* RFC 4954 6 Status Codes
+	 * 534 5.7.9 Authentication mechanism is too weak
 	 * This response to the AUTH command indicates that the selected   
 	 * authentication mechanism is weaker than server policy permits for
 	 * that user.
@@ -2607,26 +2640,64 @@ f_auth( struct receive_data *r )
 		r->r_auth_id );
 	return( smtp_write_banner( r, 534, NULL, NULL ));
 
-    case SASL_ENCRYPT:
-	/* RFC 2554
-	 * 538 Encryption required for requested authentication mechanism
-	 * This response to the AUTH command indicates that the selected   
-	 * authentication mechanism may only be used when the underlying SMTP
-	 * connection is encrypted.
+    case SASL_TRANS:
+	/* RFC 4954 6 Status Codes
+	 * 432 4.7.12  A password transition is needed
+	 * This response to the AUTH command indicates that the user needs to
+	 * transition to the selected authentication mechanism.  This is
+	 * typically done by authenticating once using the [PLAIN]
+	 * authentication mechanism.  The selected mechanism SHOULD then work
+	 * for authentications in subsequent sessions.
 	 */
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"Encryption required for mechanism %s",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
-		r->r_auth_id, r->r_av[ 1 ] );
-	return( smtp_write_banner( r, 538, NULL, NULL ));
+		"A password transition is needed",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_auth_id );
+	return( smtp_write_banner( r, 432, NULL, NULL ));
+
+    case SASL_FAIL:
+    case SASL_NOMEM:
+    case SASL_BUFOVER:
+    case SASL_TRYAGAIN:
+    case SASL_BADMAC:
+    case SASL_NOTINIT:
+	/* RFC 4954 6 Status Codes
+	 * 454 4.7.0  Temporary authentication failure
+	 * This response to the AUTH command indicates that the authentication
+	 * failed due to a temporary server failure.  The client SHOULD NOT
+	 * prompt the user for another password in this case, and should
+	 * instead notify the user of server failure.
+	 */
+	syslog( LOG_ERR, "Auth [%s] %s: %s: "
+		"sasl_start_server: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_auth_id, sasl_errdetail( r->r_conn ));
+	return( smtp_write_banner( r, 454, NULL, NULL ));
 
     default:
-	sasl_getprop( r->r_conn, SASL_USERNAME, (const void **) &r->r_auth_id );
+	/* RFC 4954 4 The AUTH Command
+	 * If the server is unable to authenticate the client, it SHOULD reject
+	 * the AUTH command with a 535 reply unless a more specific error code
+	 * is appropriate.
+	 *
+	 * RFC 4954 6 Status Codes
+	 * 535 5.7.8  Authentication credentials invalid
+	 * This response to the AUTH command indicates that the authentication
+	 * failed due to invalid or insufficient authentication credentials.
+	 *
+	 * RFC 4954 4 The AUTH Command
+	 * Servers MAY implement a policy whereby the connection is dropped
+	 * after a number of failed authentication attempts. If they do so,
+	 * they SHOULD NOT drop the connection until at least 3 attempts to
+	 * authenticate have failed.
+	 */
+	r->r_failedauth++;
 	syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		"sasl_start_server: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id, sasl_errdetail( r->r_conn ));
-	return( RECEIVE_SYSERROR );
+	rc = smtp_write_banner( r, 535, NULL, NULL );
+	return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
     }
 
     if ( sasl_getprop( r->r_conn, SASL_USERNAME,
@@ -2635,7 +2706,7 @@ f_auth( struct receive_data *r )
 		"sasl_getprop: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id, sasl_errdetail( r->r_conn ));
-	return( RECEIVE_CLOSECONNECTION );
+	return( smtp_write_banner( r, 454, NULL, NULL ));
     }
 
     if ( sasl_getprop( r->r_conn, SASL_MECHNAME,
@@ -2644,7 +2715,7 @@ f_auth( struct receive_data *r )
 		"sasl_getprop: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 		r->r_auth_id, sasl_errdetail( r->r_conn ));
-	return( RECEIVE_CLOSECONNECTION );
+	return( smtp_write_banner( r, 454, NULL, NULL ));
     }
 
     syslog( LOG_INFO, "Auth [%s] %s: %s authenticated via %s%s",
@@ -2658,18 +2729,21 @@ f_auth( struct receive_data *r )
     r->r_auth = 1;
     snet_setsasl( r->r_snet, r->r_conn );
 
-    /* RFC 2554 If a security layer is negotiated through the SASL
-     * authentication exchange, it takes effect immediately following
-     * the CRLF that concludes the authentication exchange for the
-     * client, and the CRLF of the success reply for the server.  Upon
-     * a security layer's taking effect, the SMTP protocol is reset to
-     * the initial state (the state in SMTP after a server issues a
-     * 220 service ready greeting).  The server MUST discard any
-     * knowledge obtained from the client, such as the argument to the
-     * EHLO command, which was not obtained from the SASL negotiation
-     * itself.
+    /* RFC 4954 4 The AUTH Command
+     * If a security layer is negotiated during the SASL exchange, it takes
+     * effect for the client on the octet immediately following the CRLF
+     * that concludes the last response generated by the client.  For the
+     * server, it takes effect immediately following the CRLF of its success
+     * reply.
+     *
+     * When a security layer takes effect, the SMTP protocol is reset to the
+     * initial state (the state in SMTP after a server issues a 220 service
+     * ready greeting).  The server MUST discard any knowledge obtained from
+     * the client, such as the EHLO argument, which was not obtained from
+     * the SASL negotiation itself.
      */
      if ( snet_saslssf( r->r_snet )) {
+	reset( r );
 	if ( r->r_hello ) {
 	    free( r->r_hello );
 	    r->r_hello = NULL;
@@ -2791,7 +2865,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     }
 
     if ( r.r_smtp_mode == SMTP_MODE_REFUSE ) {
-	/* rfc 2821 3.1 Session Initiation
+	/* RFC 5321 3.1 Session Initiation
 	 * The SMTP protocol allows a server to formally reject a transaction   
 	 * while still allowing the initial connection as follows: a 554
 	 * response MAY be given in the initial connection opening message
@@ -3124,7 +3198,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	/*
-	 * This routine needs to be revised to take rfc822 quoting into
+	 * FIXME: This routine needs to be revised to take RFC 5321 quoting into
 	 * account.  E.g.  MAIL FROM:<"foo \: bar"@umich.edu>
 	 */
 	if (( r.r_ac = acav_parse2821( acav, line, &(r.r_av))) < 0 ) {
@@ -3132,9 +3206,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    goto syserror;
 	}
 
-	/* rfc 2821 2.4
-	 * No sending SMTP system is permitted to send envelope commands
-	 * in any character set other than US-ASCII; receiving systems
+	/* RFC 5321 2.4 General Syntax Principles and Transaction Model 
+	 * In the absence of a server-offered extension explicitly permitting
+	 * it, a sending SMTP system is not permitted to send envelope commands
+	 * in any character set other than US-ASCII. Receiving systems
 	 * SHOULD reject such commands, normally using "500 syntax error
 	 * - invalid character" replies.
 	 */

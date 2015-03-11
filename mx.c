@@ -67,13 +67,12 @@ get_a( char *hostname )
     return( result );
 }
 
-/* rfc 2821 3.6
- * Only resolvable, fully-qualified, domain names (FQDNs) are permitted
- * when domain names are used in SMTP.  In other words, names that can
- * be resolved to MX RRs or A RRs (as discussed in section 5) are
- * permitted, as are CNAME RRs whose targets can be resolved, in turn,
- * to MX or A RRs.  Local nicknames or unqualified names MUST NOT be
- * used.
+/* RFC 5321 2.3.5 Domain Names
+ * Only resolvable, fully-qualified, domain names (FQDNs) are permitted when
+ * domain names are used in SMTP.  In other words, names that can be resolved
+ * to MX RRs or address (i.e. A or AAAA) RRs (as discussed in section 5) are
+ * permitted, as are CNAME RRs whose targets can be resolved, in turn, to MX
+ * or address RRs.  Local nicknames or unqualified names MUST NOT be used.
  */
 
     struct dnsr_result *

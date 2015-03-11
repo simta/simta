@@ -1,12 +1,3 @@
-/*
- * RFC's of interest:
- *
- * RFC 822  "Standard for the format of ARPA Internet text messages"
- * RFC 1123 "Requirements for Internet Hosts -- Application and Support"
- * RFC 2476 "Message Submission"
- * RFC 2822 "Internet Message Format"
- *
- */
 #include "config.h"
 
 #include <sys/types.h>
@@ -260,7 +251,7 @@ main( int argc, char *argv[] )
     /* start in header mode */
     header = 1;
 
-    /* RFC 2822 2.1.1. Line Length Limits:
+    /* RFC 5322 2.1.1. Line Length Limits:
      * There are two limits that this standard places on the number of    
      * characters in a line. Each line of characters MUST be no more than   
      * 998 characters, and SHOULD be no more than 78 characters, excluding

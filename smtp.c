@@ -263,27 +263,33 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	switch ( smtp_command ) {
 	case SMTP_CONNECT:
 	    /* Loop detection 
-	     * RFC 2821 4.2 SMTP Replies
-	     * Greeting = "220 " Domain [ SP text ] CRLF
+	     * RFC 5321 4.2 SMTP Replies
+	     * Greeting = "220 " ( Domain / address-literal )
+	     *            [ SP textstring ] CRLF /
+	     *            ( "220-" (Domain / address-literal)
+	     *            [ SP textstring ] CRLF
+	     *            *( "220-" [ textstring ] CRLF )
+	     *            "220" [ SP textstring ] CRLF )
 	     * 
 	     * "Greeting" appears only in the 220 response that announces that
 	     * the server is opening its part of the connection.
 	     * 
-	     * RFC 2821 4.3.1 Sequencing Overview
+	     * RFC 5321 4.3.1 Sequencing Overview
 	     * Note: all the greeting-type replies have the official name (the
 	     * fully-qualified primary domain name) of the server host as the
 	     * first word following the reply code.  Sometimes the host will
-	     * have no meaningful name.  See 4.1.3 for a discussion of
+	     * have no meaningful name.  See Section 4.1.3 for a discussion of
 	     * alternatives in these situations.
 	     *
-	     * RFC 2821 4.1.2 Command Argument Syntax
-	     * Domain = (sub-domain 1*("." sub-domain)) / address-literal
-	     * sub-domain = Let-dig [Ldh-str]
-	     * address-literal = "[" IPv4-address-literal /
-	     * 		IPv6-address-literal /
-	     *		General-address-literal "]"
-	     *		; See section 4.1.3
-	     * 
+	     * RFC 5321 4.1.2 Command Argument Syntax
+	     * Domain         = sub-domain *("." sub-domain)
+	     * sub-domain     = Let-dig [Ldh-str]
+	     * Let-dig        = ALPHA / DIGIT
+	     * Ldh-str        = *( ALPHA / DIGIT / "-" ) Let-dig
+	     * address-literal  = "[" ( IPv4-address-literal /
+	     *                    IPv6-address-literal /
+	     *                    General-address-literal ) "]"
+	     *                    ; See Section 4.1.3
 	     */
 
 	    free( hq->hq_smtp_hostname );
@@ -849,12 +855,12 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	}
 #endif /* HAVE_LIBSSL */
 	/* say HELO */
-	/* RFC 2821 2.2.1
+	/* RFC 5321 2.2.1 Background
 	 * (However, for compatibility with older conforming implementations,
 	 * SMTP clients and servers MUST support the original HELO mechanisms
 	 * as a fallback.)
 	 *
-	 * RFC 2821 3.2
+	 * RFC 5321 3.2 Client Initiation
 	 * For a particular connection attempt, if the server returns a
 	 * "command not recognized" response to EHLO, the client SHOULD be
 	 * able to fall back and send HELO.

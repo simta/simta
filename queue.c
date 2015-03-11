@@ -1768,7 +1768,7 @@ get_outbound_dns( struct deliver *d, struct host_q *hq )
     int 			i;
 
     /*
-     * From RFC 5321, Section 5.1:
+     * RFC 5321 5.1 Locating the Target Host
      *
      * The lookup first attempts to locate an MX record associated with the
      * name.  If a CNAME record is found, the resulting name is processed as
@@ -1780,13 +1780,13 @@ get_outbound_dns( struct deliver *d, struct host_q *hq )
      * RR, with a preference of 0, pointing to that host.  If MX records are
      * present, but none of them are usable, or the implicit MX is unusable,
      * this situation MUST be reported as an error.
-     * 
+     *
      * If one or more MX RRs are found for a given name, SMTP systems MUST
      * NOT utilize any address RRs associated with that name unless they are
      * located using the MX RRs; the "implicit MX" rule above applies only
      * if there are no MX records present.  If MX records are present, but
      * none of them are usable, this situation MUST be reported as an error.
-     * 
+     *
      * When a domain name associated with an MX RR is looked up and the
      * associated data field obtained, the data field of that response MUST
      * contain a domain name.  That domain name, when queried, MUST return
