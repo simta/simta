@@ -2420,8 +2420,10 @@ start_tls( struct receive_data *r, SSL_CTX *ssl_ctx )
     }
 
     if (( ssl_cipher = SSL_get_current_cipher( r->r_snet->sn_ssl )) != NULL ) {
-	syslog( LOG_DEBUG, "Receive [%s] %s: TLS established. Cipher: %s",
+	syslog( LOG_DEBUG,
+		"Receive [%s] %s: TLS established. Protocol: %s Cipher: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		SSL_get_version( r->r_snet->sn_ssl ),
 		SSL_CIPHER_get_name( ssl_cipher ));
     }
 

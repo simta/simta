@@ -805,8 +805,10 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	if (( ssl_cipher = SSL_get_current_cipher( d->d_snet_smtp->sn_ssl ))
 		!= NULL ) {
 	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s (%s): TLS established. Cipher: %s",
+		    "Deliver.SMTP %s (%s): TLS established. "
+		    "Protocol: %s Cipher: %s",
 		    hq->hq_hostname, hq->hq_smtp_hostname,
+		    SSL_get_version( d->d_snet_smtp->sn_ssl ),
 		    SSL_CIPHER_get_name( ssl_cipher ));
 	}
 
