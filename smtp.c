@@ -732,7 +732,11 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    return( rc );
 	}
 
-	ciphers = simta_tls_ciphers;
+	if ( simta_tls_ciphers_outbound != NULL ) {
+	    ciphers = simta_tls_ciphers_outbound;
+	} else {
+	    ciphers = simta_tls_ciphers;
+	}
 
 	if ( hq->hq_red != NULL ) {
 	    if ( hq->hq_red->red_tls_ciphers != NULL ) {

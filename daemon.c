@@ -526,9 +526,10 @@ main( int ac, char **av )
 #ifdef HAVE_LIBSSL
     if ( simta_service_smtps ) {
 	/* Test whether our SSL config is usable */
-	if (( ssl_ctx = tls_server_setup( simta_use_randfile,
-		simta_service_smtps, simta_file_ca, simta_dir_ca,
-		simta_file_cert, simta_file_private_key )) == NULL ) {
+	if (( ssl_ctx = tls_server_setup( simta_use_randfile, 
+		simta_service_smtps, simta_file_ca, simta_dir_ca, 
+		simta_file_cert, simta_file_private_key, simta_tls_ciphers ))
+		== NULL ) {
 	    syslog( LOG_ERR, "Syserror: tls_server_setup: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );

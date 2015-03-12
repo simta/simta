@@ -2298,7 +2298,8 @@ f_starttls( struct receive_data *r )
 
     if (( ssl_ctx = tls_server_setup( simta_use_randfile,
 	    simta_service_smtps, simta_file_ca, simta_dir_ca,
-	    simta_file_cert, simta_file_private_key )) == NULL ) {
+	    simta_file_cert, simta_file_private_key, simta_tls_ciphers ))
+	    == NULL ) {
 	syslog( LOG_ERR, "Syserror: f_starttls: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	rc = smtp_write_banner( r, 454,
@@ -3375,7 +3376,8 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 
 	if (( ssl_ctx = tls_server_setup( simta_use_randfile,
 		simta_service_smtps, simta_file_ca, simta_dir_ca,
-		simta_file_cert, simta_file_private_key )) == NULL ) {
+		simta_file_cert, simta_file_private_key, simta_tls_ciphers ))
+		== NULL ) {
 	    syslog( LOG_ERR, "Syserror: auth_init: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    smtp_write_banner( r, 554, NULL, "SSL didn't work!" );

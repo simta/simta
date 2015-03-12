@@ -271,6 +271,7 @@ extern char				*simta_default_alias_db;
 extern char				*simta_default_alias_file;
 extern char				*simta_default_passwd_file;
 extern char				*simta_tls_ciphers;
+extern char				*simta_tls_ciphers_outbound;
 extern char				*simta_file_ca;
 extern char				*simta_dir_ca;
 extern char				*simta_file_cert;

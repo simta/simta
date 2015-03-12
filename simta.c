@@ -192,6 +192,7 @@ char			*simta_default_alias_file = "/etc/aliases";
 char			*simta_default_passwd_file = "/etc/passwd";
 #ifdef HAVE_LIBSSL
 char			*simta_tls_ciphers = NULL;
+char			*simta_tls_ciphers_outbound = NULL;
 char			*simta_file_ca = NULL;
 char			*simta_dir_ca = NULL;
 char			*simta_file_cert = "cert/cert.pem";
@@ -1134,12 +1135,13 @@ simta_read_config( char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "DELIVER_TLS_CIPHERS" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if (( simta_tls_ciphers = strdup( av[ 1 ] )) == NULL ) {
+		if (( simta_tls_ciphers_outbound = strdup( av[ 1 ] ))
+			== NULL ) {
 		    perror( "strdup" );
 		    goto error;
 		}
 		if ( simta_debug ) printf( "DELIVER_TLS_CIPHERS: %s\n",
-			simta_tls_ciphers );
+			simta_tls_ciphers_outbound );
 		continue;
 	    }
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
@@ -2265,6 +2267,21 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) {
 		printf( "TLS_CERT_KEY: %s\n", simta_file_private_key );
 	    }
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_CIPHERS" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if (( simta_tls_ciphers = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "TLS_CIPHERS: %s\n",
+			simta_tls_ciphers );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "TLS_CIPHERS <cipher string>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_LEGACY_PORT" ) == 0 ) {
 	    if ( ac == 2 ) {

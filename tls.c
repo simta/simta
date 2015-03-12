@@ -65,7 +65,7 @@ _randfile( void )
 
     SSL_CTX *
 tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
-	char *cert, char *privatekey )
+	char *cert, char *privatekey, char *ciphers )
 {
     SSL_CTX		*ssl_ctx;
 #ifndef OPENSSL_NO_ECDH
@@ -89,8 +89,18 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 	return( NULL );
     }
 
-    /* Disable SSLv2 and SSLv3 */ 
-    SSL_CTX_set_options( ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 );
+    /* Disable SSLv2 and SSLv3, prefer server cipher ordering */ 
+    SSL_CTX_set_options( ssl_ctx,
+	    SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+	    SSL_OP_CIPHER_SERVER_PREFERENCE );
+    
+    if ( ciphers == NULL ) {
+	SSL_CTX_set_cipher_list( ssl_ctx,
+		"EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:"
+		"EECDH+3DES:RSA+3DES:DH+AES128:DH+AES256:DH+3DES:!MD5" );
+    } else {
+	SSL_CTX_set_cipher_list( ssl_ctx, ciphers );
+    }
 
     if ( SSL_CTX_use_PrivateKey_file( ssl_ctx, privatekey,
 	    SSL_FILETYPE_PEM ) != 1 ) {
@@ -196,7 +206,11 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     /* Disable SSLv2 and SSLv3 */ 
     SSL_CTX_set_options( ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 );
 
-    if ( ciphers != NULL ) {
+    if ( ciphers == NULL ) {
+	SSL_CTX_set_cipher_list( ssl_ctx,
+		"EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:"
+		"ECDH+3DES:RSA+3DES:!MD5" );
+    } else {
         SSL_CTX_set_cipher_list( ssl_ctx, ciphers );
     }
 
