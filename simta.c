@@ -314,9 +314,7 @@ simta_sender( void )
 /* XXX - need to add support for:
  * include files/dirs
  *   in dirs, only read .conf files, have depth limit and exit on duplicate
- * Timeouts
  * virtual users - user@wcbn.org -> wcbn.user@domain
- * bit bucket
  */
     int
 simta_read_config( char *fname )
@@ -463,7 +461,22 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if ( strcasecmp( av[ 2 ], "ALIAS" ) == 0 ) {
+	    if ( strcasecmp( av[ 2 ], "ACCEPT" ) == 0 ) {
+		/* @DOMAIN R ACCEPT */
+		if (( ac != 3 ) || ( red_code != RED_CODE_R )) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain R ACCEPT" );
+		    goto error;
+		}
+
+		if (( red_action_add( red, RED_CODE_R,
+			EXPANSION_TYPE_GLOBAL_RELAY, NULL)) == NULL ) {
+		    perror( "malloc" );
+		    goto error;
+		}
+
+	    } else if ( strcasecmp( av[ 2 ], "ALIAS" ) == 0 ) {
 		if ( ac == 3 ) {
 		    if ( simta_default_alias_db == NULL ) {
 			fprintf( stderr,
@@ -502,217 +515,6 @@ simta_read_config( char *fname )
 			goto error;
 		    }
 		}
-
-	    } else if ( strcasecmp( av[ 2 ], "SECONDARY_MX" ) == 0 ) {
-		struct action			*a;
-
-		/* @DOMAIN R SECONDARY_MX MX_EXCHANGE */
-		if (( ac != 4 ) || ( red_code != RED_CODE_R )) {
-		    fprintf( stderr, "%s: line %d: usage: %s\n",
-			    fname, lineno,
-			    "@domain R SECONDARY_MX <mx_exchange>" );
-		    goto error;
-		}
-
-		if ( strcasecmp( simta_hostname, domain ) == 0 ) {
-		    fprintf( stderr, "%s: line %d: %s\n",
-			    fname, lineno,
-			    "secondary MX domain can't be local host" );
-		    goto error;
-		}
-
-		if (( a = red_action_add( red, RED_CODE_R,
-			EXPANSION_TYPE_GLOBAL_RELAY, av[ 3 ])) == NULL ) {
-		    perror( "malloc" );
-		    goto error;
-		}
-
-		a->a_next_secondary_mx = simta_red_action_secondary_mx;
-		simta_red_action_secondary_mx = a;
-
-	    } else if ( strcasecmp( av[ 2 ], "ACCEPT" ) == 0 ) {
-		/* @DOMAIN R ACCEPT */
-		if (( ac != 3 ) || ( red_code != RED_CODE_R )) {
-		    fprintf( stderr, "%s: line %d: usage: %s\n",
-			    fname, lineno,
-			    "@domain R ACCEPT" );
-		    goto error;
-		}
-		
-		if (( red_action_add( red, RED_CODE_R,
-			EXPANSION_TYPE_GLOBAL_RELAY, NULL)) == NULL ) {
-		    perror( "malloc" );
-		    goto error;
-		}
-
-	    } else if ( strcasecmp( av[ 2 ], "QUEUE_WAIT" ) == 0 ) {
-		/* @DOMAIN D QUEUE_WAIT min max */
-		if (( ac != 5 ) || ( red_code != RED_CODE_D )) {
-		    fprintf( stderr, "%s: line %d: usage: %s\n",
-			    fname, lineno,
-			    "@domain D QUEUE_WAIT min max" );
-		    goto error;
-		}
-
-		red->red_wait_set = 1;
-		red->red_wait_min = strtol( av[ 3 ], &f_arg, 0 );
-		if ( f_arg == av[ 3 ] || *f_arg ) {
-		    fprintf( stderr, "%s: line %d: usage: %s\n",
-			    fname, lineno,
-			    "@domain D QUEUE_WAIT min max" );
-		    goto error;
-		}
-
-		red->red_wait_max = strtol( av[ 4 ], &f_arg, 0 );
-		if ( f_arg == av[ 3 ] || *f_arg ) {
-		    fprintf( stderr, "%s: line %d: usage: %s\n",
-			    fname, lineno,
-			    "@domain D QUEUE_WAIT min max" );
-		    goto error;
-		}
-
-		if ( simta_debug ) {
-		    printf( "QUEUE WAITING for %s: %d %d\n",
-			domain,  red->red_wait_min, red->red_wait_max );
-		}
-
-	    } else if ( strcasecmp( av[ 2 ], "PUNTING" ) == 0 ) {
-		/* @DOMAIN D PUNTING <ENABLED|DISABLED> */
-		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 3 ], "ENABLED" ) == 0 ) {
-			red->red_policy_punting = RED_PUNTING_ENABLED;
-			continue;
-		    } else if ( strcasecmp( av[ 3 ], "DISABLED" ) == 0 ) {
-			red->red_policy_punting = RED_PUNTING_DISABLED;
-			continue;
-		    }
-		}
-		fprintf( stderr, "%s: line %d: usage: %s\n",
-			fname, lineno,
-			"@domain D PUNTING <ENABLED|DISABLED>" );
-		goto error;
-
-#ifdef HAVE_LIBSSL
-	    } else if ( strcasecmp( av[ 2 ], "TLS_OUTBOUND" ) == 0 ) {
-		/* @DOMAIN D TLS_OUTBOUND <OPTIONAL|REQUIRED> */
-		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 3 ], "OPTIONAL" ) == 0 ) {
-			red->red_policy_tls = TLS_POLICY_OPTIONAL;
-			continue;
-		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
-			red->red_policy_tls = TLS_POLICY_REQUIRED;
-			continue;
-		    } else if ( strcasecmp( av[ 3 ], "DISABLED" ) == 0 ) {
-			red->red_policy_tls = TLS_POLICY_DISABLED;
-			continue;
-		    }
-		}
-		fprintf( stderr, "%s: line %d: usage: %s\n",
-			fname, lineno,
-			"@domain D TLS_OUTBOUND <OPTIONAL|REQUIRED|DISABLED>" );
-		goto error;
-
-	    } else if ( strcasecmp( av[ 2 ], "TLS_CERT_OUTBOUND" ) == 0 ) {
-		/* @DOMAIN D TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED> */
-		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if ( strcasecmp( av[ 3 ], "OPTIONAL" ) == 0 ) {
-			red->red_policy_tls_cert = TLS_POLICY_OPTIONAL;
-			continue;
-		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
-			red->red_policy_tls_cert = TLS_POLICY_REQUIRED;
-			continue;
-		    }
-		}
-		fprintf( stderr, "%s: line %d: usage: %s\n",
-			fname, lineno,
-			"@domain D TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED>" );
-		goto error;
-
-	    } else if ( strcasecmp( av[ 2 ], "TLS_CIPHERS_OUTBOUND" ) == 0 ) {
-		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if (( red->red_tls_ciphers = strdup( av[ 3 ] )) == NULL ) {
-			perror( "strdup" );
-			goto error;
-		    }
-		    continue;
-		}
-		fprintf( stderr, "%s: line %d: usage: %s\n",
-			fname, lineno,
-			"@domain D TLS_CIPHERS_OUTBOUND <cipher string>" );
-		goto error;
-#endif /* HAVE_LIBSSL */
-
-	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
-		if ( ac == 3 ) {
-		    f_arg = simta_default_passwd_file;
-		} else if ( ac == 4 ) {
-		    f_arg = av[ 3 ];
-		} else {
-		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
-			    fname, lineno );
-		    goto error;
-		}
-
-		if ( red_code & RED_CODE_r ) {
-		    if ( red_action_add( red, RED_CODE_r,
-			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
-		} else if ( red_code & RED_CODE_R ) {
-		    if ( red_action_add( red, RED_CODE_R,
-			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
-		}
-
-		if ( red_code & RED_CODE_E ) {
-		    if ( red_action_add( red, RED_CODE_E,
-			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
-		}
-
-	    } else if ( strcasecmp( av[ 2 ], "MAILER" ) == 0 ) {
-		/* @DOMAIN D MAILER <arg> [...] */
-		if (( ac < 4 ) || ( red_code != RED_CODE_D )) {
-		    fprintf( stderr, "%s: line %d: usage: %s\n",
-			    fname, lineno,
-			    "@DOMAIN D MAILER <arg> [arg ...]" );
-		    goto error;
-		}
-
-		if ( red->red_deliver_argc != 0 ) {
-		    fprintf( stderr,
-			    "%s: line %d: D already defined for %s\n",
-			    fname, lineno, av[ 0 ]);
-		    goto error;
-		}
-
-		if ( strcasecmp( av[ 3 ], "DEFAULT" ) != 0 ) {
-		    /* store array */
-		    red->red_deliver_argc = ac - 3;
-		    if (( red->red_deliver_argv =
-			    (char**)malloc( sizeof(char*) * ( ac - 2 ))) ==
-			    NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
-
-		    for ( x = 0; x < red->red_deliver_argc; x++ ) {
-			if (( red->red_deliver_argv[ x ] =
-				strdup( av[ x + 3 ])) == NULL ) {
-			    perror( "strdup" );
-			    goto error;
-			}
-		    }
-
-		    red->red_deliver_argv[ x ] = NULL;
-		}
-
-		red->red_deliver_type = RED_DELIVER_BINARY;
 
 #ifdef HAVE_LDAP
 	    } else if ( strcasecmp( av[ 2 ], "LDAP" ) == 0 ) {
@@ -753,68 +555,428 @@ simta_read_config( char *fname )
 		}
 #endif /* HAVE_LDAP */
 
+	    } else if ( strcasecmp( av[ 2 ], "MAILER" ) == 0 ) {
+		/* @DOMAIN D MAILER <arg> [...] */
+		if (( ac < 4 ) || ( red_code != RED_CODE_D )) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@DOMAIN D MAILER <arg> [arg ...]" );
+		    goto error;
+		}
+
+		if ( red->red_deliver_argc != 0 ) {
+		    fprintf( stderr,
+			    "%s: line %d: D already defined for %s\n",
+			    fname, lineno, av[ 0 ]);
+		    goto error;
+		}
+
+		if ( strcasecmp( av[ 3 ], "DEFAULT" ) != 0 ) {
+		    /* store array */
+		    red->red_deliver_argc = ac - 3;
+		    if (( red->red_deliver_argv =
+			    (char**)malloc( sizeof(char*) * ( ac - 2 ))) ==
+			    NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+
+		    for ( x = 0; x < red->red_deliver_argc; x++ ) {
+			if (( red->red_deliver_argv[ x ] =
+				strdup( av[ x + 3 ])) == NULL ) {
+			    perror( "strdup" );
+			    goto error;
+			}
+		    }
+
+		    red->red_deliver_argv[ x ] = NULL;
+		}
+
+		red->red_deliver_type = RED_DELIVER_BINARY;
+
+	    } else if ( strcasecmp( av[ 2 ], "PASSWORD" ) == 0 ) {
+		if ( ac == 3 ) {
+		    f_arg = simta_default_passwd_file;
+		} else if ( ac == 4 ) {
+		    f_arg = av[ 3 ];
+		} else {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
+			    fname, lineno );
+		    goto error;
+		}
+
+		if ( red_code & RED_CODE_r ) {
+		    if ( red_action_add( red, RED_CODE_r,
+			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		} else if ( red_code & RED_CODE_R ) {
+		    if ( red_action_add( red, RED_CODE_R,
+			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		}
+
+		if ( red_code & RED_CODE_E ) {
+		    if ( red_action_add( red, RED_CODE_E,
+			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		}
+
+	    } else if ( strcasecmp( av[ 2 ], "PUNTING" ) == 0 ) {
+		/* @DOMAIN D PUNTING <ENABLED|DISABLED> */
+		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
+		    if ( strcasecmp( av[ 3 ], "ENABLED" ) == 0 ) {
+			red->red_policy_punting = RED_PUNTING_ENABLED;
+			continue;
+		    } else if ( strcasecmp( av[ 3 ], "DISABLED" ) == 0 ) {
+			red->red_policy_punting = RED_PUNTING_DISABLED;
+			continue;
+		    }
+		}
+		fprintf( stderr, "%s: line %d: usage: %s\n",
+			fname, lineno,
+			"@domain D PUNTING <ENABLED|DISABLED>" );
+		goto error;
+
+	    } else if ( strcasecmp( av[ 2 ], "QUEUE_WAIT" ) == 0 ) {
+		/* @DOMAIN D QUEUE_WAIT min max */
+		if (( ac != 5 ) || ( red_code != RED_CODE_D )) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain D QUEUE_WAIT min max" );
+		    goto error;
+		}
+
+		red->red_wait_set = 1;
+		red->red_wait_min = strtol( av[ 3 ], &f_arg, 0 );
+		if ( f_arg == av[ 3 ] || *f_arg ) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain D QUEUE_WAIT min max" );
+		    goto error;
+		}
+
+		red->red_wait_max = strtol( av[ 4 ], &f_arg, 0 );
+		if ( f_arg == av[ 3 ] || *f_arg ) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain D QUEUE_WAIT min max" );
+		    goto error;
+		}
+
+		if ( simta_debug ) {
+		    printf( "QUEUE WAITING for %s: %d %d\n",
+			domain,  red->red_wait_min, red->red_wait_max );
+		}
+
+	    } else if ( strcasecmp( av[ 2 ], "SECONDARY_MX" ) == 0 ) {
+		struct action			*a;
+
+		/* @DOMAIN R SECONDARY_MX MX_EXCHANGE */
+		if (( ac != 4 ) || ( red_code != RED_CODE_R )) {
+		    fprintf( stderr, "%s: line %d: usage: %s\n",
+			    fname, lineno,
+			    "@domain R SECONDARY_MX <mx_exchange>" );
+		    goto error;
+		}
+
+		if ( strcasecmp( simta_hostname, domain ) == 0 ) {
+		    fprintf( stderr, "%s: line %d: %s\n",
+			    fname, lineno,
+			    "secondary MX domain can't be local host" );
+		    goto error;
+		}
+
+		if (( a = red_action_add( red, RED_CODE_R,
+			EXPANSION_TYPE_GLOBAL_RELAY, av[ 3 ])) == NULL ) {
+		    perror( "malloc" );
+		    goto error;
+		}
+
+		a->a_next_secondary_mx = simta_red_action_secondary_mx;
+		simta_red_action_secondary_mx = a;
+
+#ifdef HAVE_LIBSSL
+	    } else if ( strcasecmp( av[ 2 ], "TLS" ) == 0 ) {
+		/* @DOMAIN D TLS <OPTIONAL|REQUIRED|DISABLED> */
+		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
+		    if ( strcasecmp( av[ 3 ], "OPTIONAL" ) == 0 ) {
+			red->red_policy_tls = TLS_POLICY_OPTIONAL;
+			continue;
+		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
+			red->red_policy_tls = TLS_POLICY_REQUIRED;
+			continue;
+		    } else if ( strcasecmp( av[ 3 ], "DISABLED" ) == 0 ) {
+			red->red_policy_tls = TLS_POLICY_DISABLED;
+			continue;
+		    }
+		}
+		fprintf( stderr, "%s: line %d: usage: %s\n",
+			fname, lineno,
+			"@domain D TLS <OPTIONAL|REQUIRED|DISABLED>" );
+		goto error;
+
+	    } else if ( strcasecmp( av[ 2 ], "TLS_CERT" ) == 0 ) {
+		/* @DOMAIN D TLS_CERT <OPTIONAL|REQUIRED> */
+		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
+		    if ( strcasecmp( av[ 3 ], "OPTIONAL" ) == 0 ) {
+			red->red_policy_tls_cert = TLS_POLICY_OPTIONAL;
+			continue;
+		    } else if ( strcasecmp( av[ 3 ], "REQUIRED" ) == 0 ) {
+			red->red_policy_tls_cert = TLS_POLICY_REQUIRED;
+			continue;
+		    }
+		}
+		fprintf( stderr, "%s: line %d: usage: %s\n",
+			fname, lineno,
+			"@domain D TLS_CERT <OPTIONAL|REQUIRED>" );
+		goto error;
+
+	    } else if ( strcasecmp( av[ 2 ], "TLS_CIPHERS" ) == 0 ) {
+		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
+		    if (( red->red_tls_ciphers = strdup( av[ 3 ] )) == NULL ) {
+			perror( "strdup" );
+			goto error;
+		    }
+		    continue;
+		}
+		fprintf( stderr, "%s: line %d: usage: %s\n",
+			fname, lineno,
+			"@domain D TLS_CIPHERS <cipher string>" );
+		goto error;
+#endif /* HAVE_LIBSSL */
+
 	    } else {
 		fprintf( stderr, "%s: line %d: unknown keyword: %s\n",
 			fname, lineno, av[ 2 ] );
 		goto error;
 	    }
 
-#ifdef HAVE_LIBSSL
-	} else if ( strcasecmp( av[ 0 ], "TLS_OUTBOUND" ) == 0 ) {
-	    /* TLS_OUTBOUND <OPTIONAL|REQUIRED> */
-	    if ( ac == 2 ) {
-		if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
-		    simta_policy_tls = TLS_POLICY_OPTIONAL;
-		    if ( simta_debug ) printf( "TLS_OUTBOUND OPTIONAL\n" );
-		    continue;
-		} else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
-		    simta_policy_tls = TLS_POLICY_REQUIRED;
-		    if ( simta_debug ) printf( "TLS_OUTBOUND REQUIRED\n" );
-		    continue;
-		} else if ( strcasecmp( av[ 1 ], "DISABLED" ) == 0 ) {
-		    simta_policy_tls = TLS_POLICY_DISABLED;
-		    if ( simta_debug ) printf( "TLS_OUTBOUND DISABLED\n" );
-		    continue;
-		}
+	} else if ( strcasecmp( av[ 0 ], "AGGRESSIVE_DELIVERY" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    } else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		simta_aggressive_delivery = 0;
+	    } else if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		simta_aggressive_delivery = 1;
+	    } else {
+		fprintf( stderr, "%s: line %d: illegal argument\n",
+			fname, lineno );
+		goto error;
 	    }
-	    fprintf( stderr, "%s: line %d: usage: %s\n",
-		    fname, lineno,
-		    "TLS_OUTBOUND <OPTIONAL|REQUIRED|DISABLED>" );
-	    goto error;
 
-	} else if ( strcasecmp( av[ 0 ], "TLS_CERT_OUTBOUND" ) == 0 ) {
-	    /* TLS_CERT_OUTBOUND <OPTIONAL|REQUIRED> */
-	    if ( ac == 2 ) {
-		if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
-		    simta_policy_tls_cert = TLS_POLICY_OPTIONAL;
-		    if ( simta_debug ) printf( "TLS_OUTBOUND OPTIONAL\n" );
-		    continue;
-		} else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
-		    simta_policy_tls_cert= TLS_POLICY_REQUIRED;
-		    if ( simta_debug ) printf( "TLS_OUTBOUND REQUIRED\n" );
-		    continue;
-		}
+	} else if ( strcasecmp( av[ 0 ], "AGGRESSIVE_RECEIPT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
 	    }
-	    fprintf( stderr, "%s: line %d: usage: %s\n",
-		    fname, lineno,
-		    "TLS_OUTBOUND_CERT <OPTIONAL|REQUIRED>" );
-	    goto error;
+	    errno = 0;
+	    simta_aggressive_receipt_max = strtol( av[ 1 ], &endptr, 10 );
+	    if (( errno == ERANGE ) || ( errno == EINVAL )) {
+		fprintf( stderr, "%s: line %d: invalid value\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "AGGRESSIVE_RECEIPT: %d\n",
+		    simta_aggressive_receipt_max );
 
-	} else if ( strcasecmp( av[ 0 ], "TLS_CIPHERS_OUTBOUND" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if (( simta_tls_ciphers = strdup( av[ 1 ] )) == NULL ) {
+		if (( simta_default_alias_db = strdup( av[ 1 ] )) == NULL ) {
 		    perror( "strdup" );
 		    goto error;
 		}
-		if ( simta_debug ) printf( "TLS_CIPHERS_OUTBOUND: %s\n",
-			simta_tls_ciphers );
-		continue;
+	    } else if ( ac == 1 ) {
+		simta_default_alias_db = NULL;
+
+	    } else {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	    if ( simta_debug ) {
+		printf( "ALIAS_DB: %s\n", simta_default_alias_db ?
+			simta_default_alias_db : "Disabled" );
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "ALIAS_FILE" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if (( simta_default_alias_file = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+	    } else {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( strlen( av[ 1 ]  ) > MAXPATHLEN ) {
+		fprintf( stderr,
+			"%s: line %d: path too long\n", fname, lineno );
+		goto error;
+	    }
+	    if (( simta_base_dir = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "base dir: %s\n", simta_base_dir );
+
+	} else if ( strcasecmp( av[ 0 ], "BITBUCKET" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_bitbucket = atoi( av[ 1 ] );
+	    if ( simta_bitbucket < 0 ) {
+		fprintf( stderr, "%s: line %d: BITBUCKET less than 0\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "BITBUCKET: %d\n", simta_bitbucket );
+
+	} else if ( strcasecmp( av[ 0 ], "BOUNCE_JAIL" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_bounce_jail = 1;
+	    if ( simta_debug ) printf( "BOUNCE_JAIL\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_max_bounce_lines = atoi( av[ 1 ] );
+	    if ( simta_max_bounce_lines < 0 ) {
+		fprintf( stderr, "%s: line %d: BOUNCE_LINES less than 0\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "BOUNCE_LINES: %d\n",
+		simta_max_bounce_lines );
+
+	} else if ( strcasecmp( av[ 0 ], "BOUNCE_SECONDS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_bounce_seconds = atoi( av[ 1 ] );
+	    if ( simta_debug ) printf( "BOUNCE_SECONDS: %d\n",
+		simta_bounce_seconds );
+
+#ifdef HAVE_LIBSSL
+	} else if ( strcasecmp( av[ 0 ], "CHECKSUM_ALGORITHM" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	    if ( simta_checksum_md != NULL ) {
+		fprintf( stderr,
+			"%s: line %d: CHECKSUM_ALGORITHM already defined\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	    OpenSSL_add_all_digests();
+	    simta_checksum_md = EVP_get_digestbyname( (const char*)(av[ 1 ]));
+	    if ( simta_checksum_md == NULL ) {
+		fprintf( stderr, "%s: line %d: Unknown message digest: %s\n",
+			fname, lineno, av[ 1 ]);
+		goto error;
+	    }
+
+	    if (( simta_checksum_algorithm = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+
+	    if ( simta_debug ) printf( "CHECKSUM_ALGORITHM %s\n",
+		    simta_checksum_algorithm );
+
+	} else if ( strcasecmp( av[ 0 ], "CHECKSUM_BODY" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_checksum_body = 1;
+		    if ( simta_debug ) printf( "CHECKSUM_BODY ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_checksum_body = 0;
+		    if ( simta_debug ) printf( "CHECKSUM_BODY OFF\n" );
+		    continue;
+		}
 	    }
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
 		    fname, lineno,
-		    "TLS_CIPHERS_OUTBOUND <cipher string>" );
+		    "CHECKSUM_BODY <ON|OFF>" );
 	    goto error;
 #endif /* HAVE_LIBSSL */
+
+	} else if ( strcasecmp( av[ 0 ], "COMMAND_FACTOR" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_command_read_entries = atoi( av [ 1 ] );
+	    if ( simta_command_read_entries < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: COMMAND_FACTOR can't be less than 0\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "COMMAND_FACTOR: %d\n",
+		    simta_command_read_entries );
+
+	} else if ( strcasecmp( av[ 0 ], "CONTENT_FILTER" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "CONTENT_FILTER: %s\n",
+		simta_mail_filter );
+
+	} else if ( strcasecmp( av[ 0 ], "DEBUG_LOGGING" ) == 0 ) {
+	    if ( ac == 1 ) {
+		simta_debug = 1;
+	    } else if ( ac == 2 ) {
+		if (( simta_debug = atoi( av[ 1 ])) < 0 ) {
+		    fprintf( stderr, "%s: line %d: "
+			    "argument must be 0 or greater\n", fname, lineno );
+		}
+	    } else {
+		fprintf( stderr, "%s: line %d: expected 0 or 1 arguments\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DEBUG_LOGGING %d\n", simta_debug );
 
 	} else if ( strcasecmp( av[ 0 ], "DEFAULT_LOCAL_MAILER" ) == 0 ) {
 	    if ( ac < 2 ) {
@@ -849,315 +1011,6 @@ simta_read_config( char *fname )
 		}
 		printf( "\n" );
 	    }
-
-#ifdef HAVE_LIBSSL
-	} else if ( strcasecmp( av[ 0 ], "CHECKSUM_ALGORITHM" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	    if ( simta_checksum_md != NULL ) {
-		fprintf( stderr,
-			"%s: line %d: CHECKSUM_ALGORITHM already defined\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	    OpenSSL_add_all_digests();
-	    simta_checksum_md = EVP_get_digestbyname( (const char*)(av[ 1 ]));
-	    if ( simta_checksum_md == NULL ) {
-		fprintf( stderr, "%s: line %d: Unknown message digest: %s\n",
-			fname, lineno, av[ 1 ]);
-		goto error;
-	    }
-
-	    if (( simta_checksum_algorithm = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-
-	    if ( simta_debug ) printf( "CHECKSUM_ALGORITHM %s\n",
-		    simta_checksum_algorithm );
-	
-	} else if ( strcasecmp( av[ 0 ], "CHECKSUM_BODY" ) == 0 ) {
-	    if ( ac == 2 ) {
-		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
-		    simta_checksum_body = 1;
-		    if ( simta_debug ) printf( "CHECKSUM_BODY ON\n" );
-		    continue;
-		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
-		    simta_checksum_body = 0;
-		    if ( simta_debug ) printf( "CHECKSUM_BODY OFF\n" );
-		    continue;
-		}
-	    }
-	    fprintf( stderr, "%s: line %d: usage: %s\n",
-		    fname, lineno,
-		    "CHECKSUM_BODY <ON|OFF>" );
-	    goto error;
-
-#endif /* HAVE_LIBSSL */
-
-	} else if ( strcasecmp( av[ 0 ], "SEEN_BEFORE_DOMAIN" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
-		fprintf( stderr,
-			"%s: line %d: domain name too long\n", fname, lineno );
-		goto error;
-	    }
-	    /* XXX - need to lower-case domain */
-	    if (( simta_seen_before_domain = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "SEEN_BEFORE_DOMAIN is %s\n",
-		    simta_seen_before_domain );
-
-	} else if ( strcasecmp( av[ 0 ], "MASQUERADE" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
-		fprintf( stderr,
-			"%s: line %d: domain name too long\n", fname, lineno );
-		goto error;
-	    }
-	    /* XXX - need to lower-case domain */
-	    if (( simta_domain = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "MASQUERADE as %s\n", simta_domain );
-
-	} else if ( strcasecmp( av[ 0 ], "JAIL" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
-		fprintf( stderr,
-			"%s: line %d: domain name too long\n", fname, lineno );
-		goto error;
-	    }
-	    /* XXX - need to lower-case domain */
-	    if (( simta_jail_host = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "JAIL to %s\n", simta_jail_host );
-
-	} else if ( strcasecmp( av[ 0 ], "PUNT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
-		fprintf( stderr,
-			"%s: line %d: domain name too long\n", fname, lineno );
-		goto error;
-	    }
-	    /* XXX - need to lower-case domain */
-	    if (( simta_punt_host = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "PUNT to %s\n", simta_punt_host );
-
-	} else if ( strcasecmp( av[ 0 ], "JAIL_BOUNCE_ADDRESS" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_jail_bounce_address = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "JAIL BOUNCES to %s\n",
-		    simta_jail_bounce_address );
-
-	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( strlen( av[ 1 ]  ) > MAXPATHLEN ) {
-		fprintf( stderr,
-			"%s: line %d: path too long\n", fname, lineno );
-		goto error;
-	    }
-	    if (( simta_base_dir = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "base dir: %s\n", simta_base_dir );
-
-        } else if ( strcasecmp( av[ 0 ], "PID_FILE" ) == 0 ) {
-            if ( ac != 2 ) {
-                fprintf( stderr,
-                        "%s: line %d: expected 1 argument\n",
-                        fname, lineno );
-                goto error;
-            }
-            if ( strlen( av[ 1 ]  ) > MAXPATHLEN ) {
-                fprintf( stderr,
-                        "%s: line %d: path too long\n", fname, lineno );
-                goto error;
-            }
-            if (( simta_file_pid = strdup( av[ 1 ] )) == NULL ) {
-                perror( "strdup" );
-                goto error;
-            }
-            if ( simta_debug ) printf( "pid file: %s\n", simta_file_pid );
-
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_COMMAND_INACTIVITY_TIMEOUT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_inbound_command_inactivity_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_command_inactivity_timer < 0 ) {
-		fprintf( stderr, "%s: line %d: "
-			"RECEIVE_COMMAND_INACTIVITY_TIMEOUT "
-			"must be greater than or equal to 0",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf(
-		    "RECEIVE_COMMAND_INACTIVITY_TIMEOUT %d\n",
-		    simta_inbound_command_inactivity_timer );
-
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_ACCEPTED_MESSAGE_TIMER" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_inbound_accepted_message_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_accepted_message_timer < 0 ) {
-		fprintf( stderr, "%s: line %d: RECEIVE_ACCEPTED_MESSAGE_TIMER "
-			"must be greater than or equal to 0",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "RECEIVE_ACCEPTED_MESSAGE_TIMER %d\n",
-		    simta_inbound_accepted_message_timer );
-
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_GLOBAL_SESSION_TIMEOUT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_inbound_global_session_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_global_session_timer < 0 ) {
-		fprintf( stderr, "%s: line %d: RECEIVE_GLOBAL_SESSION_TIMEOUT "
-			"must be greater than or equal to 0",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "RECEIVE_GLOBAL_SESSION_TIMEOUT %d\n",
-		    simta_inbound_global_session_timer );
-
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_COMMAND_LINE_TIMEOUT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_inbound_command_line_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_command_line_timer <= 0 ) {
-		fprintf( stderr, "%s: line %d: RECEIVE_COMMAND_LINE_TIMEOUT "
-			"must be greater than 0", fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "RECEIVE_COMMAND_LINE_TIMEOUT %d\n",
-		    simta_inbound_command_line_timer );
-
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_DATA_SESSION_TIMEOUT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_inbound_data_session_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_data_session_timer < 0 ) {
-		fprintf( stderr, "%s: line %d: RECEIVE_DATA_SESSION_TIMEOUT "
-			"must be greater than or equal to 0",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "RECEIVE_DATA_SESSION_TIMEOUT %d\n",
-		    simta_inbound_data_session_timer );
-
-	} else if ( strcasecmp( av[ 0 ], "RECEIVE_DATA_LINE_TIMEOUT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_inbound_data_line_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_data_line_timer <= 0 ) {
-		fprintf( stderr, "%s: line %d: RECEIVE_DATA_LINE_TIMEOUT "
-			"must be greater than 0",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "RECEIVE_DATA_LINE_TIMEOUT %d\n",
-		    simta_inbound_data_line_timer );
-
-#ifdef HAVE_LIBSSL
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_SSL_ACCEPT_TIMEOUT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_inbound_ssl_accept_timer = atoi( av[ 1 ] );
-	    if ( simta_inbound_ssl_accept_timer < 0 ) {
-		fprintf( stderr, "%s: line %d: RECEIVE_SSL_ACCEPT_TIMEOUT "
-			"cannot be negative",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "RECEIVE_SSL_ACCEPT_TIMEOUT %d\n",
-		    simta_inbound_ssl_accept_timer );
-
-	} else if ( strcasecmp( av[ 0 ],
-		"DELIVER_SSL_CONNECT_TIMEOUT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_outbound_ssl_connect_timer = atoi( av[ 1 ] );
-	    if ( simta_outbound_ssl_connect_timer < 0 ) {
-		fprintf( stderr, "%s: line %d: DELIVER_SSL_CONNECT_TIMEOUT "
-			"cannot be negative",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "DELIVER_SSL_CONNECT_TIMEOUT %d\n",
-		    simta_outbound_ssl_connect_timer );
-#endif /* HAVE_LIBSSL */
 
 	} else if ( strcasecmp( av[ 0 ],
 		"DELIVER_COMMAND_LINE_TIMEOUT" ) == 0 ) {
@@ -1209,68 +1062,230 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "DELIVER_DATA_SESSION_TIMEOUT %d\n",
 		    simta_outbound_data_session_timer );
 
-	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"DELIVER_MAX_MESSAGES_PER_CONNECTION" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_max_bounce_lines = atoi( av[ 1 ] );
-	    if ( simta_max_bounce_lines < 0 ) {
-		fprintf( stderr, "%s: line %d: BOUNCE_LINES less than 0\n",
+	    errno = 0;
+	    simta_outbound_connection_msg_max = strtol( av[ 1 ], &endptr, 10 );
+	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
+		fprintf( stderr, "%s: line %d: invalid argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "BOUNCE_LINES: %d\n",
-		simta_max_bounce_lines );
+	    if (( errno == EINVAL || errno == ERANGE )) {
+		fprintf( stderr, "%s: line %d: invalid value\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_outbound_connection_msg_max < 0 ) {
+		fprintf( stderr, "%s: line %d: invalid negative argument\n",
+			fname, lineno );
+		goto error;
+	    }
 
-	} else if ( strcasecmp( av[ 0 ], "BITBUCKET" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_bitbucket = atoi( av[ 1 ] );
-	    if ( simta_bitbucket < 0 ) {
-		fprintf( stderr, "%s: line %d: BITBUCKET less than 0\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "BITBUCKET: %d\n", simta_bitbucket );
+	    if ( simta_debug ) printf(
+		    "DELIVER_MAX_MESSAGES_PER_CONNECTION: %d\n",
+		    simta_outbound_connection_msg_max );
 
-	} else if ( strcasecmp( av[ 0 ], "MAX_WAIT_SECONDS" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
+#ifdef HAVE_LIBSSL
+	} else if ( strcasecmp( av[ 0 ], "DELIVER_TLS" ) == 0 ) {
+	    /* DELIVER_TLS <OPTIONAL|REQUIRED> */
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+		    simta_policy_tls = TLS_POLICY_OPTIONAL;
+		    if ( simta_debug ) printf( "DELIVER_TLS OPTIONAL\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+		    simta_policy_tls = TLS_POLICY_REQUIRED;
+		    if ( simta_debug ) printf( "DELIVER_TLS REQUIRED\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "DISABLED" ) == 0 ) {
+		    simta_policy_tls = TLS_POLICY_DISABLED;
+		    if ( simta_debug ) printf( "DELIVER_TLS DISABLED\n" );
+		    continue;
+		}
 	    }
-	    simta_wait_max = atoi( av[ 1 ] );
-	    if ( simta_wait_max <= 0 ) {
-		fprintf( stderr, "%s: line %d: MAX_WAIT_SECONDS less than 1\n",
-			fname, lineno );
-		goto error;
-	    } else if ( simta_wait_max < simta_wait_min ) {
-		fprintf( stderr, "%s: line %d: MAX_WAIT_SECONDS less than 1\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "MAX_WAIT_SECONDS: %d\n",
-		    simta_wait_max );
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "DELIVER_TLS <OPTIONAL|REQUIRED|DISABLED>" );
+	    goto error;
 
-	} else if ( strcasecmp( av[ 0 ], "MIN_WAIT_SECONDS" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "DELIVER_TLS_CERT" ) == 0 ) {
+	    /* DELIVER_TLS_CERT <OPTIONAL|REQUIRED> */
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "OPTIONAL" ) == 0 ) {
+		    simta_policy_tls_cert = TLS_POLICY_OPTIONAL;
+		    if ( simta_debug ) printf( "DELIVER_TLS_CERT OPTIONAL\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "REQUIRED" ) == 0 ) {
+		    simta_policy_tls_cert= TLS_POLICY_REQUIRED;
+		    if ( simta_debug ) printf( "DELIVER_TLS_CERT REQUIRED\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "DELIVER_TLS_CERT <OPTIONAL|REQUIRED>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "DELIVER_TLS_CIPHERS" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if (( simta_tls_ciphers = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "DELIVER_TLS_CIPHERS: %s\n",
+			simta_tls_ciphers );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "DELIVER_TLS_CIPHERS <cipher string>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ],
+		"DELIVER_TLS_CONNECT_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_wait_min = atoi( av[ 1 ] );
-	    if ( simta_wait_min <= 0 ) {
-		fprintf( stderr, "%s: line %d: MIN_WAIT_SECONDS less than 1\n",
+	    simta_outbound_ssl_connect_timer = atoi( av[ 1 ] );
+	    if ( simta_outbound_ssl_connect_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: DELIVER_TLS_CONNECT_TIMEOUT "
+			"cannot be negative",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "MIN_WAIT_SECONDS: %d\n",
-		    simta_wait_min );
+	    if ( simta_debug ) printf( "DELIVER_TLS_CONNECT_TIMEOUT %d\n",
+		    simta_outbound_ssl_connect_timer );
+#endif /* HAVE_LIBSSL */
+
+	} else if ( strcasecmp( av[ 0 ], "DISK_FACTOR" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_disk_read_entries = atoi( av [ 1 ] );
+	    if ( simta_disk_read_entries < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: DISK_FACTOR can't be less than 0\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "DISK_FACTOR: %d\n",
+		    simta_disk_read_entries );
+
+	} else if ( strcasecmp( av[ 0 ], "DNS_AUTO_CONFIG" ) == 0 ) {
+	    /* DNS_AUTO_CONFIG <ON|OFF> */
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_dns_auto_config = 1;
+		    if ( simta_debug ) printf( "DNS_AUTO_CONFIG ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_dns_auto_config = 0;
+		    if ( simta_debug ) printf( "DNS_AUTO_CONFIG OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "DNS_AUTO_CONFIG <ON|OFF>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "ENABLE_MID_LIST" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_queue_incoming_smtp_mail = 1;
+	    simta_mid_list_enable = 1;
+	    if ( simta_debug ) printf( "ENABLE_MID_LIST\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "ENABLE_SENDER_LIST" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_queue_incoming_smtp_mail = 1;
+	    simta_sender_list_enable = 1;
+	    if ( simta_debug ) printf( "ENABLE_SENDER_LIST\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "FAILED_RCPT_PUNISHMENT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    } else if ( strcasecmp( av[ 1 ], "TEMPFAIL" ) == 0 ) {
+		simta_smtp_punishment_mode = SMTP_MODE_TEMPFAIL;
+	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
+		simta_smtp_punishment_mode = SMTP_MODE_TARPIT;
+	    } else if ( strcasecmp( av[ 1 ], "DISCONNECT" ) == 0 ) {
+		simta_smtp_punishment_mode = SMTP_MODE_OFF;
+	    } else {
+		fprintf( stderr, "%s: line %d: illegal argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	} else if ( strcasecmp( av[ 0 ],
+		"IGNORE_CONNECT_IN_DNS_ERRORS" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 arguments\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_ignore_connect_in_reverse_errors = 1;
+	    simta_ignore_reverse = 1;
+	    if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "IGNORE_REVERSE" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 arguments\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_ignore_reverse = 1;
+	    if ( simta_debug ) printf( "IGNORE_REVERSE\n" );
+
+	} else if ( strcasecmp( av[ 0 ], "JAIL" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
+		fprintf( stderr,
+			"%s: line %d: domain name too long\n", fname, lineno );
+		goto error;
+	    }
+	    /* XXX - need to lower-case domain */
+	    if (( simta_jail_host = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "JAIL to %s\n", simta_jail_host );
+
+	} else if ( strcasecmp( av[ 0 ], "JAIL_BOUNCE_ADDRESS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_jail_bounce_address = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "JAIL BOUNCES to %s\n",
+		    simta_jail_bounce_address );
 
 	} else if ( strcasecmp( av[ 0 ], "JAIL_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1287,140 +1302,105 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "JAIL_SECONDS: %ld\n",
 		simta_jail_seconds.tv_sec );
 
-	} else if ( strcasecmp( av[ 0 ], "BOUNCE_SECONDS" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "LIBWRAP_URL" ) == 0 ) {
 	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_bounce_seconds = atoi( av[ 1 ] );
-	    if ( simta_debug ) printf( "BOUNCE_SECONDS: %d\n",
-		simta_bounce_seconds );
+	    if (( simta_libwrap_url = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "LIBWRAP_URL: %s\n", simta_libwrap_url );
 
-	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS_PER_HOST" )
-		== 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "LOCAL_JAIL" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_local_connections_max = atoi( av [ 1 ] );
-	    if ( simta_local_connections_max < 0 ) {
-		fprintf( stderr, "%s: line %d: "
-			"MAX_RECEIVE_CONNECTIONS_PER_HOST "
-			"can't be less than 0\n", fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "MAX_RECEIVE_CONNECTIONS_PER_HOST: %d\n",
-		    simta_local_connections_max );
+	    simta_local_jail = 1;
+	    if ( simta_debug ) printf( "LOCAL_JAIL\n" );
 
-	} else if ( strcasecmp( av[ 0 ],
-		"MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "MAIL_JAIL" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_local_throttle_max = atoi( av [ 1 ] );
-	    if ( simta_local_throttle_max < 0 ) {
-		fprintf( stderr, "%s: line %d: "
-			"MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST "
-			"can't be less than 0\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf(
-		    "MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST: %d\n",
-		    simta_local_throttle_max );
+	    simta_mail_jail = 1;
+	    if ( simta_debug ) printf( "MAIL_JAIL\n" );
 
-	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "MASQUERADE" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_global_connections_max = atoi( av [ 1 ] );
-	    if ( simta_global_connections_max < 0 ) {
-		fprintf( stderr, "%s: line %d: "
-			"MAX_RECEIVE_CONNECTIONS can't be less than 0\n",
-			fname, lineno );
+	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
+		fprintf( stderr,
+			"%s: line %d: domain name too long\n", fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "MAX_RECEIVE_CONNECTIONS: %d\n",
-		    simta_global_connections_max );
+	    /* XXX - need to lower-case domain */
+	    if (( simta_domain = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MASQUERADE as %s\n", simta_domain );
 
-	} else if ( strcasecmp( av[ 0 ],
-		"MAX_RECEIVE_THROTTLE_CONNECTIONS" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "MAX_FAILED_RCPTS" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_global_throttle_max = atoi( av [ 1 ] );
-	    if ( simta_local_throttle_max < 0 ) {
-		fprintf( stderr, "%s: line %d: "
-			"MAX_RECEIVE_THROTTLE_CONNECTIONS"
-			"can't be less than 0\n",
+	    errno = 0;
+	    simta_max_failed_rcpts = strtol( av[ 1 ], &endptr, 10 );
+	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
+		fprintf( stderr, "%s: line %d: invalid argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf(
-		    "MAX_RECEIVE_THROTTLE_CONNECTIONS: %d\n",
-		    simta_global_throttle_max );
+	    if (( errno == EINVAL || errno == ERANGE )) {
+		fprintf( stderr, "%s: line %d: invalid value\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_max_failed_rcpts < 0 ) {
+		fprintf( stderr, "%s: line %d: invalid negative argument\n",
+			fname, lineno );
+		goto error;
+	    }
 
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_THROTTLE_SECONDS" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "MAX_MESSAGE_SIZE" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_global_throttle_sec = atoi( av [ 1 ] );
-	    if ( simta_global_throttle_sec < 1 ) {
-		fprintf( stderr, "%s: line %d: "
-			"RECEIVE_THROTTLE_SECONDS "
-			"can't be less than 1\n",
+	    simta_max_message_size = strtol( av[ 1 ], &endptr, 10 );
+	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
+		fprintf( stderr, "%s: line %d: invalid argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf(
-		    "RECEIVE_THROTTLE_SECONDS: %d\n",
-		    simta_global_throttle_sec );
-
-	} else if ( strcasecmp( av[ 0 ],
-		"RECEIVE_THROTTLE_SECONDS_PER_HOST" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	    if ( simta_max_message_size == LONG_MIN ) {
+		fprintf( stderr, "%s: line %d: argument too small\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_local_throttle_sec = atoi( av [ 1 ] );
-	    if ( simta_local_throttle_sec < 1 ) {
-		fprintf( stderr, "%s: line %d: "
-			"RECEIVE_THROTTLE_SECONDS_PER_HOST "
-			"can't be less than 1\n",
+	    if ( simta_max_message_size == LONG_MAX ) {
+		fprintf( stderr, "%s: line %d: argument too big\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf(
-		    "RECEIVE_THROTTLE_SECONDS_PER_HOST: %d\n",
-		    simta_local_throttle_sec );
-
-	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVED_HEADERS" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	    if ( simta_max_message_size < 0 ) {
+		fprintf( stderr, "%s: line %d: invalid negative argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_max_received_headers = atoi( av [ 1 ] );
-	    if ( simta_max_received_headers <= 0 ) {
-		fprintf( stderr, "%s: line %d: "
-			"MAX_RECEIVED_HEADERS must be greater than 0\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "MAX_RECEIVED_HEADERS: %d\n",
-		simta_max_received_headers );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_Q_RUNNERS_LOCAL" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1472,53 +1452,126 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_LAUNCH: %d\n",
 		    simta_launch_limit );
 
-	} else if ( strcasecmp( av[ 0 ], "DISK_FACTOR" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_disk_read_entries = atoi( av [ 1 ] );
-	    if ( simta_disk_read_entries < 0 ) {
-		fprintf( stderr,
-			"%s: line %d: DISK_FACTOR can't be less than 0\n",
+	    simta_global_connections_max = atoi( av [ 1 ] );
+	    if ( simta_global_connections_max < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"MAX_RECEIVE_CONNECTIONS can't be less than 0\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "DISK_FACTOR: %d\n",
-		    simta_disk_read_entries );
+	    if ( simta_debug ) printf( "MAX_RECEIVE_CONNECTIONS: %d\n",
+		    simta_global_connections_max );
 
-	} else if ( strcasecmp( av[ 0 ], "COMMAND_FACTOR" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVE_CONNECTIONS_PER_HOST" )
+		== 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_command_read_entries = atoi( av [ 1 ] );
-	    if ( simta_command_read_entries < 0 ) {
-		fprintf( stderr,
-			"%s: line %d: COMMAND_FACTOR can't be less than 0\n",
-			fname, lineno );
+	    simta_local_connections_max = atoi( av [ 1 ] );
+	    if ( simta_local_connections_max < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"MAX_RECEIVE_CONNECTIONS_PER_HOST "
+			"can't be less than 0\n", fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "COMMAND_FACTOR: %d\n",
-		    simta_command_read_entries );
+	    if ( simta_debug ) printf( "MAX_RECEIVE_CONNECTIONS_PER_HOST: %d\n",
+		    simta_local_connections_max );
 
-	} else if ( strcasecmp( av[ 0 ], "UNEXPANDED_TIME" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"MAX_RECEIVE_THROTTLE_CONNECTIONS" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_unexpanded_time = atoi( av [ 1 ] );
-	    if ( simta_unexpanded_time < 0 ) {
-		fprintf( stderr,
-			"%s: line %d: UNEXPANDED_TIME can't be less than 0\n",
+	    simta_global_throttle_max = atoi( av [ 1 ] );
+	    if ( simta_local_throttle_max < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"MAX_RECEIVE_THROTTLE_CONNECTIONS"
+			"can't be less than 0\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "UNEXPANDED_TIME: %d\n",
-		    simta_unexpanded_time );
+	    if ( simta_debug ) printf(
+		    "MAX_RECEIVE_THROTTLE_CONNECTIONS: %d\n",
+		    simta_global_throttle_max );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_local_throttle_max = atoi( av [ 1 ] );
+	    if ( simta_local_throttle_max < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST "
+			"can't be less than 0\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf(
+		    "MAX_RECEIVE_THROTTLE_CONNECTIONS_PER_HOST: %d\n",
+		    simta_local_throttle_max );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_RECEIVED_HEADERS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_max_received_headers = atoi( av [ 1 ] );
+	    if ( simta_max_received_headers <= 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"MAX_RECEIVED_HEADERS must be greater than 0\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_RECEIVED_HEADERS: %d\n",
+		simta_max_received_headers );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_WAIT_SECONDS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_wait_max = atoi( av[ 1 ] );
+	    if ( simta_wait_max <= 0 ) {
+		fprintf( stderr, "%s: line %d: MAX_WAIT_SECONDS less than 1\n",
+			fname, lineno );
+		goto error;
+	    } else if ( simta_wait_max < simta_wait_min ) {
+		fprintf( stderr, "%s: line %d: MAX_WAIT_SECONDS less than 1\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_WAIT_SECONDS: %d\n",
+		    simta_wait_max );
+
+	} else if ( strcasecmp( av[ 0 ], "MIN_WAIT_SECONDS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_wait_min = atoi( av[ 1 ] );
+	    if ( simta_wait_min <= 0 ) {
+		fprintf( stderr, "%s: line %d: MIN_WAIT_SECONDS less than 1\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MIN_WAIT_SECONDS: %d\n",
+		    simta_wait_min );
 
 	} else if ( strcasecmp( av[ 0 ], "MIN_WORK_TIME" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1536,125 +1589,41 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "MIN_WORK_TIME: %d\n",
 		simta_min_work_time );
 
-	} else if ( strcasecmp( av[ 0 ], "CONTENT_FILTER" ) == 0 ) {
+        } else if ( strcasecmp( av[ 0 ], "PID_FILE" ) == 0 ) {
+            if ( ac != 2 ) {
+                fprintf( stderr,
+                        "%s: line %d: expected 1 argument\n",
+                        fname, lineno );
+                goto error;
+            }
+            if ( strlen( av[ 1 ]  ) > MAXPATHLEN ) {
+                fprintf( stderr,
+                        "%s: line %d: path too long\n", fname, lineno );
+                goto error;
+            }
+            if (( simta_file_pid = strdup( av[ 1 ] )) == NULL ) {
+                perror( "strdup" );
+                goto error;
+            }
+            if ( simta_debug ) printf( "pid file: %s\n", simta_file_pid );
+
+	} else if ( strcasecmp( av[ 0 ], "PUNT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
+	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
+		fprintf( stderr,
+			"%s: line %d: domain name too long\n", fname, lineno );
+		goto error;
+	    }
+	    /* XXX - need to lower-case domain */
+	    if (( simta_punt_host = strdup( av[ 1 ] )) == NULL ) {
 		perror( "strdup" );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "CONTENT_FILTER: %s\n",
-		simta_mail_filter );
-
-	} else if ( strcasecmp( av[ 0 ], "DEBUG_LOGGING" ) == 0 ) {
-	    if ( ac == 1 ) {
-		simta_debug = 1;
-	    } else if ( ac == 2 ) {
-		if (( simta_debug = atoi( av[ 1 ])) < 0 ) {
-		    fprintf( stderr, "%s: line %d: "
-			    "argument must be 0 or greater\n", fname, lineno );
-		}
-	    } else {
-		fprintf( stderr, "%s: line %d: expected 0 or 1 arguments\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "DEBUG_LOGGING %d\n", simta_debug );
-
-	} else if ( strcasecmp( av[ 0 ], "IGNORE_REVERSE" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 arguments\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_ignore_reverse = 1;
-	    if ( simta_debug ) printf( "IGNORE_REVERSE\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "SMTP_DATA_URL" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_data_url = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "SMTP_DATA_URL: %s\n", simta_data_url );
-
-	} else if ( strcasecmp( av[ 0 ], "LIBWRAP_URL" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_libwrap_url = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "LIBWRAP_URL: %s\n", simta_libwrap_url );
-
-	} else if ( strcasecmp( av[ 0 ], "REVERSE_URL" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_reverse_url = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
-
-	} else if ( strcasecmp( av[ 0 ], "BOUNCE_JAIL" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_bounce_jail = 1;
-	    if ( simta_debug ) printf( "BOUNCE_JAIL\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "LOCAL_JAIL" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_local_jail = 1;
-	    if ( simta_debug ) printf( "LOCAL_JAIL\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "MAIL_JAIL" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_mail_jail = 1;
-	    if ( simta_debug ) printf( "MAIL_JAIL\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "ENABLE_MID_LIST" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_queue_incoming_smtp_mail = 1;
-	    simta_mid_list_enable = 1;
-	    if ( simta_debug ) printf( "ENABLE_MID_LIST\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "ENABLE_SENDER_LIST" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_queue_incoming_smtp_mail = 1;
-	    simta_sender_list_enable = 1;
-	    if ( simta_debug ) printf( "ENABLE_SENDER_LIST\n" );
+	    if ( simta_debug ) printf( "PUNT to %s\n", simta_punt_host );
 
 	} else if ( strcasecmp( av[ 0 ], "QUEUE_INCOMING_SMTP_MAIL" ) == 0 ) {
 	    if ( ac != 1 ) {
@@ -1665,25 +1634,38 @@ simta_read_config( char *fname )
 	    simta_queue_incoming_smtp_mail = 1;
 	    if ( simta_debug ) printf( "QUEUE_INCOMING_SMTP_MAIL\n" );
 
-	} else if ( strcasecmp( av[ 0 ],
-		"IGNORE_CONNECT_IN_DNS_ERRORS" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
+	} else if ( strcasecmp( av[ 0 ], "QUEUE_POLICY" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "FIFO" ) == 0 ) {
+		    simta_queue_policy = QUEUE_POLICY_FIFO;
+		    if ( simta_debug ) printf( "QUEUE_POLICY FIFO\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "SHUFFLE" ) == 0 ) {
+		    simta_queue_policy = QUEUE_POLICY_SHUFFLE;
+		    if ( simta_debug ) printf( "QUEUE_POLICY SHUFFLE\n" );
+		    continue;
+		}
 	    }
-	    simta_ignore_connect_in_reverse_errors = 1;
-	    simta_ignore_reverse = 1;
-	    if ( simta_debug ) printf( "IGNORE_CONNECT_IN_DNS_ERRORS\n" );
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "QUEUE_POLICY <FIFO|SHUFFLE>" );
+	    goto error;
 
-	} else if ( strcasecmp( av[ 0 ], "RBL_VERBOSE_LOGGING" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 arguments\n",
-			fname, lineno );
+	} else if ( strcasecmp( av[ 0 ], "RBL_ACCEPT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
 		goto error;
 	    }
-	    simta_rbl_verbose_logging = 1;
-	    if ( simta_debug ) printf( "RBL_VERBOSE_LOGGING\n" );
+
+	    if ( rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], "") != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+	    if ( simta_debug ) {
+		printf( "RBL_ACCEPT: %s\n", av[ 1 ]);
+	    }
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_BLOCK" ) == 0 ) {
 	    if ( ac != 3 ) {
@@ -1717,22 +1699,6 @@ simta_read_config( char *fname )
 		printf( "RBL_LOG_ONLY: %s\n", av[ 1 ]);
 	    }
 
-	} else if ( strcasecmp( av[ 0 ], "RBL_ACCEPT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-		    fname, lineno );
-		goto error;
-	    }
-
-	    if ( rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], "") != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
-
-	    if ( simta_debug ) {
-		printf( "RBL_ACCEPT: %s\n", av[ 1 ]);
-	    }
-
 	} else if ( strcasecmp( av[ 0 ], "RBL_TRUST" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
@@ -1748,255 +1714,302 @@ simta_read_config( char *fname )
 		printf( "RBL_TRUST: %s\n", av[ 1 ]);
 	    }
 
-	} else if ( strcasecmp( av[ 0 ], "USER_RBL_BLOCK" ) == 0 ) {
-	    if ( ac != 3 ) {
-		fprintf( stderr, "%s: line %d: expected 2 argument\n",
-		    fname, lineno );
+	} else if ( strcasecmp( av[ 0 ], "RBL_VERBOSE_LOGGING" ) == 0 ) {
+	    if ( ac != 1 ) {
+		fprintf( stderr, "%s: line %d: expected 0 arguments\n",
+			fname, lineno );
 		goto error;
 	    }
+	    simta_rbl_verbose_logging = 1;
+	    if ( simta_debug ) printf( "RBL_VERBOSE_LOGGING\n" );
 
-	    if ( rbl_add( &simta_user_rbls, RBL_BLOCK, av[ 1 ],
-		    av[ 2 ]) != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
-
-	    if ( simta_debug ) {
-		printf( "USER_RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "USER_RBL_LOG_ONLY" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_ACCEPTED_MESSAGE_TIMER" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-		    fname, lineno );
+			fname, lineno );
 		goto error;
 	    }
-
-	    if ( rbl_add( &simta_user_rbls, RBL_LOG_ONLY, av[ 1 ], "" ) != 0 ) {
-		perror( "malloc" );
+	    simta_inbound_accepted_message_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_accepted_message_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_ACCEPTED_MESSAGE_TIMER "
+			"must be greater than or equal to 0",
+			fname, lineno );
 		goto error;
 	    }
+	    if ( simta_debug ) printf( "RECEIVE_ACCEPTED_MESSAGE_TIMER %d\n",
+		    simta_inbound_accepted_message_timer );
 
-	    if ( simta_debug ) {
-		printf( "USER_RBL_LOG_ONLY: %s\n", av[ 1 ]);
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "USER_RBL_ACCEPT" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_COMMAND_INACTIVITY_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-		    fname, lineno );
+			fname, lineno );
 		goto error;
 	    }
-
-	    if ( rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ], "" ) != 0 ) {
-		perror( "malloc" );
+	    simta_inbound_command_inactivity_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_command_inactivity_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: "
+			"RECEIVE_COMMAND_INACTIVITY_TIMEOUT "
+			"must be greater than or equal to 0",
+			fname, lineno );
 		goto error;
 	    }
+	    if ( simta_debug ) printf(
+		    "RECEIVE_COMMAND_INACTIVITY_TIMEOUT %d\n",
+		    simta_inbound_command_inactivity_timer );
 
-	    if ( simta_debug ) {
-		printf( "USER_RBL_ACCEPT: %s\n", av[ 1 ]);
-	    }
-
-        } else if ( strcasecmp( av[ 0 ], "USER_RBL_TRUST" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_COMMAND_LINE_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-		    fname, lineno );
+			fname, lineno );
 		goto error;
 	    }
-
-	    if ( rbl_add( &simta_user_rbls, RBL_TRUST, av[ 1 ], "" ) != 0 ) {
-		perror( "malloc" );
+	    simta_inbound_command_line_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_command_line_timer <= 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_COMMAND_LINE_TIMEOUT "
+			"must be greater than 0", fname, lineno );
 		goto error;
 	    }
+	    if ( simta_debug ) printf( "RECEIVE_COMMAND_LINE_TIMEOUT %d\n",
+		    simta_inbound_command_line_timer );
 
-	    if ( simta_debug ) {
-		printf( "USER_RBL_TRUST: %s\n", av[ 1 ]);
+	} else if ( strcasecmp( av[ 0 ], "RECEIVE_DATA_LINE_TIMEOUT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
 	    }
+	    simta_inbound_data_line_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_data_line_timer <= 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_DATA_LINE_TIMEOUT "
+			"must be greater than 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RECEIVE_DATA_LINE_TIMEOUT %d\n",
+		    simta_inbound_data_line_timer );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_DATA_SESSION_TIMEOUT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_inbound_data_session_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_data_session_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_DATA_SESSION_TIMEOUT "
+			"must be greater than or equal to 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RECEIVE_DATA_SESSION_TIMEOUT %d\n",
+		    simta_inbound_data_session_timer );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_GLOBAL_SESSION_TIMEOUT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_inbound_global_session_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_global_session_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_GLOBAL_SESSION_TIMEOUT "
+			"must be greater than or equal to 0",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "RECEIVE_GLOBAL_SESSION_TIMEOUT %d\n",
+		    simta_inbound_global_session_timer );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_THROTTLE_SECONDS" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_global_throttle_sec = atoi( av [ 1 ] );
+	    if ( simta_global_throttle_sec < 1 ) {
+		fprintf( stderr, "%s: line %d: "
+			"RECEIVE_THROTTLE_SECONDS "
+			"can't be less than 1\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf(
+		    "RECEIVE_THROTTLE_SECONDS: %d\n",
+		    simta_global_throttle_sec );
+
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_THROTTLE_SECONDS_PER_HOST" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_local_throttle_sec = atoi( av [ 1 ] );
+	    if ( simta_local_throttle_sec < 1 ) {
+		fprintf( stderr, "%s: line %d: "
+			"RECEIVE_THROTTLE_SECONDS_PER_HOST "
+			"can't be less than 1\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf(
+		    "RECEIVE_THROTTLE_SECONDS_PER_HOST: %d\n",
+		    simta_local_throttle_sec );
 
 #ifdef HAVE_LIBSSL
-	} else if ( strcasecmp( av[ 0 ], "PRIVATE_KEY_FILE" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ],
+		"RECEIVE_TLS_ACCEPT_TIMEOUT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_file_private_key = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) {
-		printf( "PRIVATE_KEY_FILE: %s\n", simta_file_private_key );
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "CERT_FILE" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+	    simta_inbound_ssl_accept_timer = atoi( av[ 1 ] );
+	    if ( simta_inbound_ssl_accept_timer < 0 ) {
+		fprintf( stderr, "%s: line %d: RECEIVE_TLS_ACCEPT_TIMEOUT "
+			"cannot be negative",
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_file_cert = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) {
-		printf( "CERT_FILE: %s\n", simta_file_cert );
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "CA_FILE" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_file_ca = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) {
-		printf( "CA_FILE: %s\n", simta_file_ca );
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "CA_DIRECTORY" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_dir_ca = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-	    if ( simta_debug ) {
-		printf( "CA_DIRECTORY: %s\n", simta_dir_ca );
-	    }
+	    if ( simta_debug ) printf( "RECEIVE_TLS_ACCEPT_TIMEOUT %d\n",
+		    simta_inbound_ssl_accept_timer );
 #endif /* HAVE_LIBSSL */
 
-	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
-	    if ( ac == 2 ) {
-		if (( simta_default_alias_db = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-		    goto error;
-		}
-	    } else if ( ac == 1 ) {
-		simta_default_alias_db = NULL;
-
-	    } else {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	    if ( simta_debug ) {
-		printf( "ALIAS_DB: %s\n", simta_default_alias_db ?
-			simta_default_alias_db : "Disabled" );
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "ALIAS_FILE" ) == 0 ) {
-	    if ( ac == 2 ) {
-		if (( simta_default_alias_file = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-		    goto error;
-		}
-	    } else {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM_OFF" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_simsend_strict_from = 0;
-	    if ( simta_debug ) printf( "SIMSEND_STRICT_FROM_OFF\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_PORT" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_service_submission = SERVICE_SUBMISSION_ON;
-	    if ( simta_debug ) printf( "SUBMISSION_PORT\n" );
-
-#ifdef HAVE_LIBSSL
-	} else if ( strcasecmp( av[ 0 ], "AUTHLEVEL" ) == 0 ) {
-	    /* authlevel 0:none, 1:serv, 2:client & serv */
+	} else if ( strcasecmp( av[ 0 ], "REVERSE_URL" ) == 0 ) {
 	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_service_smtps = atoi( av[ 1 ]);
-	    if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
-		fprintf( stderr, "%s: line %d: invalid authorization level\n",
-			fname, lineno );
+	    if (( simta_reverse_url = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
 		goto error;
 	    }
+	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
 
-	} else if ( strcasecmp( av[ 0 ], "TLS_ON" ) == 0 ) {
-	    if ( simta_tls ) {
-		fprintf( stderr, "%s: line %d: tls already started\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_tls = 1;
-	    if ( simta_debug ) printf( "TLS_ON\n" );
-
-	} else if ( strcasecmp( av[ 0 ], "USE_RANDFILE" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_use_randfile = 1;
-	    if ( simta_debug ) printf( "USE_RANDFILE\n" );
-#endif /* HAVE_LIBSSL */
-
-	} else if ( strcasecmp( av[ 0 ], "DNS_AUTO_CONFIG" ) == 0 ) {
-	    /* DNS_AUTO_CONFIG <ON|OFF> */
+#ifdef HAVE_LIBSASL
+	} else if ( strcasecmp( av[ 0 ], "SASL" ) == 0 ) {
 	    if ( ac == 2 ) {
 		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
-		    simta_dns_auto_config = 1;
-		    if ( simta_debug ) printf( "DNS_AUTO_CONFIG ON\n" );
+		    simta_sasl = 1;
+		    if ( simta_debug ) printf( "SASL ON\n" );
 		    continue;
 		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
-		    simta_dns_auto_config = 0;
-		    if ( simta_debug ) printf( "DNS_AUTO_CONFIG OFF\n" );
+		    simta_sasl = 0;
+		    if ( simta_debug ) printf( "SASL OFF\n" );
+		    continue;
+		}
+	    }
+#endif /* HAVE_LIBSASL */
+
+	} else if ( strcasecmp( av[ 0 ], "SEEN_BEFORE_DOMAIN" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( strlen( av[ 1 ]  ) > DNSR_MAX_HOSTNAME ) {
+		fprintf( stderr,
+			"%s: line %d: domain name too long\n", fname, lineno );
+		goto error;
+	    }
+	    /* XXX - need to lower-case domain */
+	    if (( simta_seen_before_domain = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SEEN_BEFORE_DOMAIN is %s\n",
+		    simta_seen_before_domain );
+
+	} else if ( strcasecmp( av[ 0 ], "SENDER_CHECKING" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_from_checking = 1;
+		    if ( simta_debug ) printf( "SENDER_CHECKING ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_from_checking = 0;
+		    if ( simta_debug ) printf( "SENDER_CHECKING OFF\n" );
 		    continue;
 		}
 	    }
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
 		    fname, lineno,
-		    "DNS_AUTO_CONFIG <ON|OFF>" );
+		    "SENDER_CHECKING <ON|OFF>" );
 	    goto error;
 
-	} else if ( strcasecmp( av[ 0 ], "STRICT_SMTP_SYNTAX_OFF" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
-			fname, lineno );
-		goto error;
+	} else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_simsend_strict_from = 1;
+		    if ( simta_debug ) printf( "SIMSEND_STRICT_FROM ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_simsend_strict_from = 0;
+		    if ( simta_debug ) printf( "SIMSEND_STRICT_FROM OFF\n" );
+		    continue;
+		}
 	    }
-	    simta_strict_smtp_syntax = 0;
-	    if ( simta_debug ) printf( "STRICT_SMTP_SYNTAX_OFF\n" );
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "SIMSEND_STRICT_FROM <ON|OFF>" );
+	    goto error;
 
-	} else if ( strcasecmp( av[ 0 ],
-		"DISABLE_SENDER_CHECKING" ) == 0 ) {
-	    if ( ac != 1 ) {
-		fprintf( stderr, "%s: line %d: expected 0 argument\n",
+	} else if ( strcasecmp( av[ 0 ], "SMTP_DATA_URL" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 arguments\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_from_checking = 0;
-	    if ( simta_debug ) {
-		printf( "DISABLE_SENDER_CHECKING\n" );
+	    if (( simta_data_url = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_DATA_URL: %s\n", simta_data_url );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_LISTEN_BACKLOG" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_listen_backlog = atoi( av[ 1 ] );
+	    if ( simta_listen_backlog < 0 ) {
+		fprintf( stderr, "%s: line %d: SMTP_LISTEN_BACKLOG "
+			"less than 0\n", fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_LISTEN_BACKLOG: %d\n",
+		    simta_listen_backlog );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_MODE" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    } else if ( strcasecmp( av[ 1 ], "NORMAL" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_NORMAL;
+	    } else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_OFF;
+	    } else if ( strcasecmp( av[ 1 ], "REFUSE" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_REFUSE;
+	    } else if ( strcasecmp( av[ 1 ], "GLOBAL_RELAY" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_GLOBAL_RELAY;
+	    } else if ( strcasecmp( av[ 1 ], "TEMPFAIL" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_TEMPFAIL;
+	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
+		simta_smtp_default_mode = SMTP_MODE_TARPIT;
+	    } else {
+		fprintf( stderr, "%s: line %d: illegal argument\n",
+			fname, lineno );
+		goto error;
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_PORT" ) == 0 ) {
@@ -2044,221 +2057,22 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	} else if ( strcasecmp( av[ 0 ], "SMTP_LISTEN_BACKLOG" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_listen_backlog = atoi( av[ 1 ] );
-	    if ( simta_listen_backlog < 0 ) {
-		fprintf( stderr, "%s: line %d: SMTP_LISTEN_BACKLOG "
-			"less than 0\n", fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "SMTP_LISTEN_BACKLOG: %d\n",
-		    simta_listen_backlog );
-
-	} else if ( strcasecmp( av[ 0 ], "MAX_MESSAGE_SIZE" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_max_message_size = strtol( av[ 1 ], &endptr, 10 );
-	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
-		fprintf( stderr, "%s: line %d: invalid argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_max_message_size == LONG_MIN ) {
-		fprintf( stderr, "%s: line %d: argument too small\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_max_message_size == LONG_MAX ) {
-		fprintf( stderr, "%s: line %d: argument too big\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_max_message_size < 0 ) {
-		fprintf( stderr, "%s: line %d: invalid negative argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    simta_smtp_extension++;
-
-	} else if ( strcasecmp( av[ 0 ],
-		"DELIVER_MAX_MESSAGES_PER_CONNECTION" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    errno = 0;
-	    simta_outbound_connection_msg_max = strtol( av[ 1 ], &endptr, 10 );
-	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
-		fprintf( stderr, "%s: line %d: invalid argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( errno == EINVAL || errno == ERANGE )) {
-		fprintf( stderr, "%s: line %d: invalid value\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_outbound_connection_msg_max < 0 ) {
-		fprintf( stderr, "%s: line %d: invalid negative argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	    if ( simta_debug ) printf(
-		    "DELIVER_MAX_MESSAGES_PER_CONNECTION: %d\n",
-		    simta_outbound_connection_msg_max );
-	    
-	} else if ( strcasecmp( av[ 0 ], "MAX_FAILED_RCPTS" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    errno = 0;
-	    simta_max_failed_rcpts = strtol( av[ 1 ], &endptr, 10 );
-	    if (( *av[ 1 ] == '\0' ) || ( *endptr != '\0' )) {
-		fprintf( stderr, "%s: line %d: invalid argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( errno == EINVAL || errno == ERANGE )) {
-		fprintf( stderr, "%s: line %d: invalid value\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_max_failed_rcpts < 0 ) {
-		fprintf( stderr, "%s: line %d: invalid negative argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "AGGRESSIVE_DELIVERY" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    } else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
-		simta_aggressive_delivery = 0;
-	    } else if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
-		simta_aggressive_delivery = 1;
-	    } else {
-		fprintf( stderr, "%s: line %d: illegal argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "AGGRESSIVE_RECEIPT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    errno = 0;
-	    simta_aggressive_receipt_max = strtol( av[ 1 ], &endptr, 10 );
-	    if (( errno == ERANGE ) || ( errno == EINVAL )) {
-		fprintf( stderr, "%s: line %d: invalid value\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "AGGRESSIVE_RECEIPT: %d\n",
-		    simta_aggressive_receipt_max );
-
-	} else if ( strcasecmp( av[ 0 ], "QUEUE_POLICY" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "SMTP_STRICT_SYNTAX" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if ( strcasecmp( av[ 1 ], "FIFO" ) == 0 ) {
-		    simta_queue_policy = QUEUE_POLICY_FIFO;
-		    if ( simta_debug ) printf( "QUEUE_POLICY FIFO\n" );
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_strict_smtp_syntax = 1;
+		    if ( simta_debug ) printf( "SMTP_STRICT_SYNTAX ON\n" );
 		    continue;
-		} else if ( strcasecmp( av[ 1 ], "SHUFFLE" ) == 0 ) {
-		    simta_queue_policy = QUEUE_POLICY_SHUFFLE;
-		    if ( simta_debug ) printf( "QUEUE_POLICY SHUFFLE\n" );
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_strict_smtp_syntax = 0;
+		    if ( simta_debug ) printf( "SMTP_STRICT_SYNTAX OFF\n" );
 		    continue;
 		}
 	    }
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
 		    fname, lineno,
-		    "QUEUE_POLICY <FIFO|SHUFFLE>" );
+		    "SMTP_STRICT_SYNTAX <ON|OFF>" );
 	    goto error;
-
-	} else if ( strcasecmp( av[ 0 ], "SMTP_MODE" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    } else if ( strcasecmp( av[ 1 ], "NORMAL" ) == 0 ) {
-		simta_smtp_default_mode = SMTP_MODE_NORMAL;
-	    } else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
-		simta_smtp_default_mode = SMTP_MODE_OFF;
-	    } else if ( strcasecmp( av[ 1 ], "REFUSE" ) == 0 ) {
-		simta_smtp_default_mode = SMTP_MODE_REFUSE;
-	    } else if ( strcasecmp( av[ 1 ], "GLOBAL_RELAY" ) == 0 ) {
-		simta_smtp_default_mode = SMTP_MODE_GLOBAL_RELAY;
-	    } else if ( strcasecmp( av[ 1 ], "TEMPFAIL" ) == 0 ) {
-		simta_smtp_default_mode = SMTP_MODE_TEMPFAIL;
-	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
-		simta_smtp_default_mode = SMTP_MODE_TARPIT;
-	    } else {
-		fprintf( stderr, "%s: line %d: illegal argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_MODE" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    } else if ( strcasecmp( av[ 1 ], "MSA" ) == 0 ) {
-		simta_submission_mode = SUBMISSION_MODE_MSA;
-	    } else if ( strcasecmp( av[ 1 ], "MTA" ) == 0 ) {
-		simta_submission_mode = SUBMISSION_MODE_MTA;
-	    } else if ( strcasecmp( av[ 1 ], "MTA_STRICT" ) == 0 ) {
-		simta_submission_mode = SUBMISSION_MODE_MTA_STRICT;
-	    } else {
-		fprintf( stderr, "%s: line %d: illegal argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "FAILED_RCPT_PUNISHMENT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    } else if ( strcasecmp( av[ 1 ], "TEMPFAIL" ) == 0 ) {
-		simta_smtp_punishment_mode = SMTP_MODE_TEMPFAIL;
-	    } else if ( strcasecmp( av[ 1 ], "TARPIT" ) == 0 ) {
-		simta_smtp_punishment_mode = SMTP_MODE_TARPIT;
-	    } else if ( strcasecmp( av[ 1 ], "DISCONNECT" ) == 0 ) {
-		simta_smtp_punishment_mode = SMTP_MODE_OFF;
-	    } else {
-		fprintf( stderr, "%s: line %d: illegal argument\n",
-			fname, lineno );
-		goto error;
-	    }
-
-	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_DEFAULT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_smtp_tarpit_default = atoi( av [ 1 ] )) < 0 ) {
-		fprintf( stderr, "%s: line %d: SMTP_TARPIT_DEFAULT "
-			"can't be less than 0\n", fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "SMTP_TARPIT_DEFAULT: %d\n",
-		simta_smtp_tarpit_default );
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_CONNECT" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2273,34 +2087,6 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "SMTP_TARPIT_CONNECT: %d\n",
 		simta_smtp_tarpit_connect );
-
-	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_MAIL" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_smtp_tarpit_mail = atoi( av [ 1 ] )) < 0 ) {
-		fprintf( stderr, "%s: line %d: SMTP_TARPIT_MAIL "
-			"can't be less than 0\n", fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "SMTP_TARPIT_MAIL: %d\n",
-		simta_smtp_tarpit_mail );
-
-	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_RCPT" ) == 0 ) {
-	    if ( ac != 2 ) {
-		fprintf( stderr, "%s: line %d: expected 1 argument\n",
-			fname, lineno );
-		goto error;
-	    }
-	    if (( simta_smtp_tarpit_rcpt = atoi( av [ 1 ] )) < 0 ) {
-		fprintf( stderr, "%s: line %d: SMTP_TARPIT_RCPT "
-			"can't be less than 0", fname, lineno );
-		goto error;
-	    }
-	    if ( simta_debug ) printf( "SMTP_TARPIT_RCPT: %d\n",
-		simta_smtp_tarpit_rcpt );
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_DATA" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2330,6 +2116,272 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "SMTP_TARPIT_DATA_EOF: %d\n",
 		simta_smtp_tarpit_data_eof );
 
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_DEFAULT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_default = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr, "%s: line %d: SMTP_TARPIT_DEFAULT "
+			"can't be less than 0\n", fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_DEFAULT: %d\n",
+		simta_smtp_tarpit_default );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_MAIL" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_mail = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr, "%s: line %d: SMTP_TARPIT_MAIL "
+			"can't be less than 0\n", fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_MAIL: %d\n",
+		simta_smtp_tarpit_mail );
+
+	} else if ( strcasecmp( av[ 0 ], "SMTP_TARPIT_RCPT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_smtp_tarpit_rcpt = atoi( av [ 1 ] )) < 0 ) {
+		fprintf( stderr, "%s: line %d: SMTP_TARPIT_RCPT "
+			"can't be less than 0", fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "SMTP_TARPIT_RCPT: %d\n",
+		simta_smtp_tarpit_rcpt );
+
+	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_MODE" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    } else if ( strcasecmp( av[ 1 ], "MSA" ) == 0 ) {
+		simta_submission_mode = SUBMISSION_MODE_MSA;
+	    } else if ( strcasecmp( av[ 1 ], "MTA" ) == 0 ) {
+		simta_submission_mode = SUBMISSION_MODE_MTA;
+	    } else if ( strcasecmp( av[ 1 ], "MTA_STRICT" ) == 0 ) {
+		simta_submission_mode = SUBMISSION_MODE_MTA_STRICT;
+	    } else {
+		fprintf( stderr, "%s: line %d: illegal argument\n",
+			fname, lineno );
+		goto error;
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_PORT" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_service_submission = 1;
+		    if ( simta_debug ) printf( "SUBMISSION_PORT ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_service_submission = 0;
+		    if ( simta_debug ) printf( "SUBMISSION_PORT OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "SUBMISSION_PORT <ON|OFF>" );
+	    goto error;
+
+#ifdef HAVE_LIBSSL
+	} else if ( strcasecmp( av[ 0 ], "TLS" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_tls = 1;
+		    if ( simta_debug ) printf( "TLS ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_tls = 0;
+		    if ( simta_debug ) printf( "TLS OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "TLS <ON|OFF>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_CA_DIRECTORY" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_dir_ca = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) {
+		printf( "TLS_CA_DIRECTORY: %s\n", simta_dir_ca );
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_CA_FILE" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_file_ca = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) {
+		printf( "TLS_CA_FILE: %s\n", simta_file_ca );
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_CERT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_file_cert = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) {
+		printf( "TLS_CERT: %s\n", simta_file_cert );
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_CERT_KEY" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if (( simta_file_private_key = strdup( av[ 1 ] )) == NULL ) {
+		perror( "strdup" );
+		goto error;
+	    }
+	    if ( simta_debug ) {
+		printf( "TLS_CERT_KEY: %s\n", simta_file_private_key );
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_LEGACY_PORT" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_service_smtps = 1;
+		    if ( simta_debug ) printf( "TLS_LEGACY_PORT ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_service_smtps = 0;
+		    if ( simta_debug ) printf( "TLS_LEGACY_PORT OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "TLS_LEGACY_PORT <ON|OFF>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "TLS_RANDFILE" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_use_randfile = 1;
+		    if ( simta_debug ) printf( "TLS_RANDFILE ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_use_randfile = 0;
+		    if ( simta_debug ) printf( "TLS_RANDFILE OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "TLS_RANDFILE <ON|OFF>" );
+	    goto error;
+#endif /* HAVE_LIBSSL */
+
+	} else if ( strcasecmp( av[ 0 ], "UNEXPANDED_TIME" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_unexpanded_time = atoi( av [ 1 ] );
+	    if ( simta_unexpanded_time < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: UNEXPANDED_TIME can't be less than 0\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "UNEXPANDED_TIME: %d\n",
+		    simta_unexpanded_time );
+
+	} else if ( strcasecmp( av[ 0 ], "USER_RBL_ACCEPT" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+
+	    if ( rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ], "" ) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+	    if ( simta_debug ) {
+		printf( "USER_RBL_ACCEPT: %s\n", av[ 1 ]);
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "USER_RBL_BLOCK" ) == 0 ) {
+	    if ( ac != 3 ) {
+		fprintf( stderr, "%s: line %d: expected 2 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+
+	    if ( rbl_add( &simta_user_rbls, RBL_BLOCK, av[ 1 ],
+		    av[ 2 ]) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+	    if ( simta_debug ) {
+		printf( "USER_RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
+	    }
+
+	} else if ( strcasecmp( av[ 0 ], "USER_RBL_LOG_ONLY" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+
+	    if ( rbl_add( &simta_user_rbls, RBL_LOG_ONLY, av[ 1 ], "" ) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+	    if ( simta_debug ) {
+		printf( "USER_RBL_LOG_ONLY: %s\n", av[ 1 ]);
+	    }
+
+        } else if ( strcasecmp( av[ 0 ], "USER_RBL_TRUST" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+		goto error;
+	    }
+
+	    if ( rbl_add( &simta_user_rbls, RBL_TRUST, av[ 1 ], "" ) != 0 ) {
+		perror( "malloc" );
+		goto error;
+	    }
+
+	    if ( simta_debug ) {
+		printf( "USER_RBL_TRUST: %s\n", av[ 1 ]);
+	    }
+
 	} else if ( strcasecmp( av[ 0 ], "WRITE_BEFORE_BANNER" ) == 0 ) {
 	    if ( ac == 3 ) {
 		if (( simta_banner_punishment = atoi( av[ 2 ])) < 0 ) {
@@ -2350,16 +2402,6 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "WRITE_BEFORE_BANNER: %d %d\n",
 		    simta_banner_delay, simta_banner_punishment );
-
-	} else if ( strcasecmp( av[ 0 ], "SASL_ON" ) == 0 ) {
-	   if ( ac != 1 ) {
-	       fprintf( stderr, "%s: line %d: expected 0 argument\n",
-		       fname, lineno );
-	       goto error;
-	   }
-	   simta_sasl++;
-	   simta_smtp_extension++;
-	   if ( simta_debug ) printf( "SASL_ON\n" );
 
 	} else {
 	    fprintf( stderr, "%s: line %d: unknown keyword: %s\n",

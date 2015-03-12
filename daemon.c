@@ -551,8 +551,13 @@ main( int ac, char **av )
 		    sasl_errstring( rc, NULL, NULL ));
 	    exit( 1 );
 	}
+	simta_smtp_extension++;
     }
 #endif /* HAVE_LIBSASL */
+
+    if ( simta_max_message_size >= 0 ) {
+	simta_smtp_extension++;
+    }
 
     if ( dontrun ) {
 	exit( 0 );
