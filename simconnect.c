@@ -44,11 +44,11 @@ main( int ac, char *av[] )
     struct deliver      d;
 
     if ( ac != 2 ) {
-	fprintf( stderr, "Usage:\t%s hostname\n", av[ 0 ] );
+	fprintf( stderr, "Usage:\t\t%s hostname\n", av[ 0 ] );
 	exit( 1 );
     }
 
-    openlog( "smtpconnect", LOG_NOWAIT | LOG_PERROR, LOG_SIMTA );
+    openlog( "simconnect", LOG_NOWAIT | LOG_PERROR, LOG_SIMTA );
 
     if ( simta_read_config( SIMTA_FILE_CONFIG ) < 0 ) {
 	exit( 1 );
@@ -65,7 +65,7 @@ main( int ac, char *av[] )
 
     /* Dummy up some values so we don't crash */
     hq->hq_status = HOST_DOWN;
-    d.d_env = env_create( NULL, "smtpconnect", "simta@umich.edu", NULL );
+    d.d_env = env_create( NULL, "simconnect", "simta@umich.edu", NULL );
 
     if ( next_dnsr_host_lookup( &d, hq ) != 0 ) {
 	exit( 1 );
