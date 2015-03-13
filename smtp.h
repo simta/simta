@@ -20,6 +20,7 @@
 #define	SMTP_OK			0
 #define	SMTP_ERROR		1
 #define	SMTP_BAD_CONNECTION	2
+#define	SMTP_BAD_TLS		3
 
 #define	SMTP_TIME_CONNECT	60 * 5
 #define	SMTP_TIME_HELO		60 * 5

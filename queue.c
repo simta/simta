@@ -1610,6 +1610,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 		return;
 	    }
 
+retry:
 	    /* build snet */
 	    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
 		syslog( LOG_ERR, "Syserror: deliver_remote socket: %m" );
@@ -1634,10 +1635,25 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 	    }
 
 	    simta_smtp_outbound_attempts++;
-
 	    hq_clear_errors( hq );
 
-	    if (( r_smtp = smtp_connect( hq, d )) != SMTP_OK ) {
+	    if (( r_smtp = smtp_connect( hq, d )) == SMTP_BAD_TLS ) {
+		snet_close( d->d_snet_smtp );
+		d->d_snet_smtp = NULL;
+		if ( hq->hq_red == NULL ) {
+		    if (( hq->hq_red = red_host_add( hq->hq_hostname )) ==
+			    NULL ) {
+			syslog( LOG_ERR,
+				"Syserror: deliver_remote malloc: %m" );
+			return;
+		    }
+		}
+		syslog( LOG_INFO,
+			"Deliver.remote %s: disabling TLS and retrying",
+			hq->hq_hostname );
+		hq->hq_red->red_policy_tls = TLS_POLICY_DISABLED;
+		goto retry;
+	    } else if ( r_smtp != SMTP_OK ) {
 		goto smtp_cleanup;
 	    }
 
