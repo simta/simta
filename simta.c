@@ -233,6 +233,12 @@ int			simta_outbound_data_session_timer = 0;
 int			simta_outbound_ssl_connect_timer = 300;
 #endif /* HAVE_LIBSSL */
 
+#ifdef HAVE_LIBSRS2
+int			simta_srs = SRS_POLICY_OFF;
+char			*simta_srs_domain;
+char			*simta_srs_secret = "0xdead60ff";
+#endif /* HAVE_LIBSRS2 */
+
     void
 panic( char *message )
 {
@@ -664,6 +670,37 @@ simta_read_config( char *fname )
 
 		a->a_next_secondary_mx = simta_red_action_secondary_mx;
 		simta_red_action_secondary_mx = a;
+
+#ifdef HAVE_LIBSRS2
+	    } else if ( strcasecmp( av[ 2 ], "SRS" ) == 0 ) {
+		if ( ac != 3 ) {
+		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
+			    fname, lineno );
+		    goto error;
+		}
+
+		if ( red_code & RED_CODE_r ) {
+		    if ( red_action_add( red, RED_CODE_r,
+			    EXPANSION_TYPE_SRS, f_arg ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		} else if ( red_code & RED_CODE_R ) {
+		    if ( red_action_add( red, RED_CODE_R,
+			    EXPANSION_TYPE_SRS, f_arg ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		}
+
+		if ( red_code & RED_CODE_E ) {
+		    if ( red_action_add( red, RED_CODE_E,
+			    EXPANSION_TYPE_SRS, f_arg ) == NULL ) {
+			perror( "malloc" );
+			goto error;
+		    }
+		}
+#endif /* HAVE_LIBSRS2 */
 
 #ifdef HAVE_LIBSSL
 	    } else if ( strcasecmp( av[ 2 ], "TLS" ) == 0 ) {
@@ -2172,6 +2209,60 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
+#ifdef HAVE_LIBSRS2
+	} else if ( strcasecmp( av[ 0 ], "SRS" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_srs = SRS_POLICY_OFF;
+		    if ( simta_debug ) printf( "SRS OFF\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "ALWAYS" ) == 0 ) {
+		    simta_srs = SRS_POLICY_ALWAYS;
+		    if ( simta_debug ) printf( "SRS ALWAYS\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "FOREIGN" ) == 0 ) {
+		    simta_srs = SRS_POLICY_FOREIGN;
+		    if ( simta_debug ) printf( "SRS FOREIGN\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "SMART" ) == 0 ) {
+		    simta_srs = SRS_POLICY_SMART;
+		    if ( simta_debug ) printf( "SRS SMART\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "SRS <OFF|ALWAYS|FOREIGN|SMART>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "SRS_DOMAIN" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if (( simta_srs_domain = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "SRS_DOMAIN: %s\n", simta_srs_domain );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "SRS_DOMAIN <domain>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "SRS_SECRET" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if (( simta_srs_secret = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "SRS_SECRET <secret>" );
+	    goto error;
+#endif /* HAVE_LIBSRS2 */
+
 	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_PORT" ) == 0 ) {
 	    if ( ac == 2 ) {
 		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
@@ -2471,6 +2562,12 @@ simta_config( void )
 	/* simta_seen_before_domain defaults to simta_domain */
 	simta_seen_before_domain = simta_domain;
     }
+
+#ifdef HAVE_LIBSRS2
+    if ( !simta_srs_domain ) {
+	simta_srs_domain = simta_domain;
+    }
+#endif /* HAVE_LIBSRS2 */
 
     simta_postmaster = malloc( 12 + strlen( simta_hostname ));
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );

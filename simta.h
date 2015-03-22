@@ -97,6 +97,14 @@
 #define SPF_POLICY_ON			1
 #define SPF_POLICY_STRICT		2
 
+#ifdef HAVE_LIBSRS2
+/* SRS policy */
+#define SRS_POLICY_OFF			0
+#define SRS_POLICY_ALWAYS		1
+#define SRS_POLICY_FOREIGN		2
+#define SRS_POLICY_SMART		3
+#endif /* HAVE_LIBSRS2 */
+
 /* Message checking */
 #define SUBMISSION_MODE_MTA		0
 #define SUBMISSION_MODE_MSA		1
@@ -322,6 +330,12 @@ extern int				simta_outbound_command_line_timer;
 extern int				simta_outbound_data_line_timer;
 extern int				simta_outbound_data_session_timer;
 extern int				simta_outbound_ssl_connect_timer;
+
+#ifdef HAVE_LIBSRS2
+extern int				simta_srs;
+extern char				*simta_srs_domain;
+extern char				*simta_srs_secret;
+#endif /* HAVE_LIBSRS2 */
 
 int	q_cleanup( void );
 int	smtp_receive( int, struct connection_info *, struct simta_socket * );

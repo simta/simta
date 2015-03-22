@@ -29,6 +29,10 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
+#ifdef HAVE_LIBSRS2
+#include <srs2.h>
+#endif /* HAVE_LIBSRS2 */
+
 #include "dns.h"
 #include "envelope.h"
 #include "expand.h"
@@ -41,6 +45,10 @@
 #include <ldap.h>
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
+
+#ifdef HAVE_LIBSRS2
+#include "srs.h"
+#endif /* HAVE_LIBSRS2 */
 
 #ifdef HAVE_LMDB
 #include "simta_lmdb.h"
@@ -436,6 +444,27 @@ address_expand( struct expand *exp )
 	    default:
 		panic( "address_expand default password switch" );
 	    }
+
+#ifdef HAVE_LIBSRS2
+	case EXPANSION_TYPE_SRS:
+	    switch( srs_expand( exp, e_addr, exp->exp_current_action )) {
+	    case EXPAND_SRS_OK:
+		syslog( LOG_DEBUG, "Expand %s: <%s> EXPANDED: SRS",
+			exp->exp_env->e_id, e_addr->e_addr );
+		return( ADDRESS_EXCLUDE );
+
+	    case EXPAND_SRS_NOT_FOUND:
+		syslog( LOG_DEBUG, "Expand %s: <%s>: not valid SRS",
+			exp->exp_env->e_id, e_addr->e_addr );
+		continue;
+	    
+	    case EXPAND_SRS_SYSERROR:
+		return( ADDRESS_SYSERROR );
+
+	    default:
+		panic( "address_expand srs_expand out of range" );
+	    }
+#endif /* HAVE_LIBSRS2 */
 
 #ifdef HAVE_LDAP
 	case EXPANSION_TYPE_LDAP:

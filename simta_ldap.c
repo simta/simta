@@ -36,6 +36,12 @@
 #include <dirent.h>
 
 #include <snet.h>
+#include <yasl.h>
+
+#ifdef HAVE_LIBSRS2
+#include <srs2.h>
+#endif /* HAVE_LIBSRS2 */
+
 #include "envelope.h"
 #include "simta.h"
 #include "argcargv.h"
@@ -44,6 +50,11 @@
 #include "expand.h"
 #include "simta_ldap.h"
 #include "queue.h"
+
+#ifdef HAVE_LIBSRS2
+#include "srs.h"
+#endif /* HAVE_LIBSRS2 */
+
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
@@ -198,13 +209,13 @@ simta_ldap_message_stdout( struct simta_ldap *ld, LDAPMessage *m )
 #endif
 
 
-    static void 
+    static void
 simta_ldapdomain( int ndomain, char *buf, char **domain )
 {
     char		*pbuf;
     int			dotcnt = 0;
 
-    pbuf = &buf [ strlen (buf) - 1 ];
+    pbuf = buf + strlen( buf ) - 1;
 
     while ( pbuf > buf ) {
 	if ( *pbuf == '.' ) {
@@ -1792,50 +1803,64 @@ simta_ldap_expand( struct simta_ldap *ld, struct expand *exp,
 }
 
 
-    static void 
+    static void
 simta_ldapuser( int ndomain, char *buf, char **user, char **domain )
 {
-    char  *puser;
+    yastr	u;
+    char	*p;
 
     *domain = NULL;
-    *user = strdup( buf );
 
-    puser = strchr( *user , '@' );
-    if ( puser ) {
-	*puser = '\0';
-	puser++;
-	simta_ldapdomain( ndomain, puser, domain );
+#ifdef HAVE_LIBSRS2
+    if (( strncasecmp( buf, "SRS0", 3 ) == 0 ) &&
+	    ( simta_srs_reverse( buf, &p ) == SRS_SUCCESS )) {
+	u = yaslauto( p );
+	free( p );
     } else {
-	*domain = strdup( "" );  
+	u = yaslauto( buf );
+    }
+#else
+    u = yaslauto( buf );
+#endif /* HAVE_LIBSRS2 */
+
+    if (( p = strrchr( u, '@' )) != NULL ) {
+	p++;
+	simta_ldapdomain( ndomain, p, domain );
+	yaslrange( u, 0, p - u - 2 );
+    } else {
+	*domain = strdup( "" );
     }
 
-    return;
+    *user = strdup( u );
+    yaslfree( u );
 }
 
 
     int
-simta_mbx_compare( int ndomain, char *firstemail, char *secondemail )
+simta_mbx_compare( int ndomain, char *addr1, char *addr2 )
 {
-    char *first_name;
-    char *first_domain;
-    char *second_name;
-    char *second_domain;
+    char *local1;
+    char *domain1;
+    char *local2;
+    char *domain2;
 
     int	 rc = -1;
 
-    if ( firstemail && *firstemail && secondemail && *secondemail ) {
-	simta_ldapuser( ndomain, firstemail, &first_name, &first_domain );
-	simta_ldapuser( ndomain, secondemail, &second_name, &second_domain );
-
-	if (( rc = strcasecmp( first_name, second_name )) == 0 ) {
-	    rc = strcasecmp( first_domain, second_domain );
-	}
-
-	free( first_name );
-	free( first_domain );
-	free( second_name );
-	free( second_domain );
+    if ( addr1 == NULL || addr2 == NULL || *addr1 == '\0' || *addr2 == '\0' ) {
+	return( -1 );
     }
+
+    simta_ldapuser( ndomain, addr1, &local1, &domain1 );
+    simta_ldapuser( ndomain, addr2, &local2, &domain2 );
+
+    if (( rc = strcasecmp( local1, local2 )) == 0 ) {
+	rc = strcasecmp( domain1, domain2 );
+    }
+
+    free( local1 );
+    free( domain1 );
+    free( local2 );
+    free( domain2 );
 
     return(  rc );
 }
