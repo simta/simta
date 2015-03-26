@@ -4,6 +4,7 @@
 %define with_libidn     yes
 %define with_ldap	yes
 %define with_srs        yes
+%define with_dkim       yes
 
 %define smshell /sbin/nologin
 %define spooldir %{_localstatedir}/spool
@@ -39,6 +40,9 @@ BuildRequires: pkgconfig(libidn)
 %endif
 %if "%{with_ldap}" == "yes"
 BuildRequires: openldap-devel
+%endif
+%if "%{with_dkim}" == "yes"
+BuildRequires: pkgconfig(opendkim)
 %endif
 %if "%{with_srs}" == "yes"
 BuildRequires: libsrs2-devel
@@ -76,6 +80,9 @@ export JEMALLOC_CFLAGS=-I/usr/include
 %endif
 %if "%{with_srs}" != "yes"
         --with-srs2=no \
+%endif
+%if "%{with_dkim}" != "yes"
+        --with-dkim=no \
 %endif
         --with-group=mail \
         --with-aliasdb=%{_sysconfdir}/aliases.db \

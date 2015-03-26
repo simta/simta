@@ -331,6 +331,10 @@ extern int				simta_outbound_data_line_timer;
 extern int				simta_outbound_data_session_timer;
 extern int				simta_outbound_ssl_connect_timer;
 
+#ifdef HAVE_LIBOPENDKIM
+extern int				simta_dkim_verify;
+#endif /* HAVE_LIBOPENDKIM */
+
 #ifdef HAVE_LIBSRS2
 extern int				simta_srs;
 extern char				*simta_srs_domain;

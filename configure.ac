@@ -67,6 +67,11 @@ PKG_CHECK_MODULES([DENSER], [denser])
 PKG_CHECK_MODULES([SNET], [libsnet])
 
 # Optional packages
+AC_ARG_WITH([dkim], AC_HELP_STRING([--with-dkim], [Build with DKIM support]))
+AS_IF(
+    [test "x$with_dkim" != "xno"],
+    [PKG_CHECK_MODULES([OPENDKIM], [opendkim],  [AC_DEFINE([HAVE_LIBOPENDKIM], [1], [Define to 1 if OPENDKIM is available])])])
+
 AC_ARG_WITH([sasl], AC_HELP_STRING([--with-sasl], [Build with SASL support]))
 AS_IF(
     [test "x$with_sasl" != "xno"],

@@ -56,6 +56,10 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
+#ifdef HAVE_LIBOPENDKIM
+#include <opendkim/dkim.h>
+#endif /* HAVE_LIBOPENDKIM */
+
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
 #include <sasl/saslutil.h>	/* For sasl_decode64 and sasl_encode64 */
@@ -132,6 +136,10 @@ struct receive_data {
     struct timeval		r_tv_session;
     struct timeval		r_tv_accepted;
     int				r_spf_result;
+
+#ifdef HAVE_LIBOPENDKIM
+    DKIM_LIB			*r_dkim;
+#endif /* HAVE_LIBOPENDKIM */
 
 #ifdef HAVE_LIBSSL
     struct message_digest	r_md;
@@ -1427,6 +1435,7 @@ f_data( struct receive_data *r )
     FILE				*dff = NULL;
     int					banner = 0;
     int					dfile_fd = -1;
+    int					i;
     int					ret_code = RECEIVE_SYSERROR;
     int					rc;
     int					header_only = 0;
@@ -1456,6 +1465,15 @@ f_data( struct receive_data *r )
     unsigned int			data_wrote = 0;
     unsigned int			data_read = 0;
     struct envelope			*env_bounce;
+#ifdef HAVE_LIBOPENDKIM
+    DKIM				*dkim = NULL;
+    DKIM_STAT				dkim_result;
+    DKIM_SIGINFO			**dkim_sigs;
+    struct line				*l;
+    yastr				dkim_buf = NULL;
+    char				*dkim_domain = NULL;
+    int					dkim_body_started = 0;
+#endif /* HAVE_LIBOPENDKIM */
 
     rh = calloc( 1, sizeof( struct receive_headers ));
     rh->r_env = r->r_env;
@@ -1538,6 +1556,18 @@ f_data( struct receive_data *r )
 	    }
 	    goto error;
 	}
+
+#ifdef HAVE_LIBOPENDKIM
+	dkim_buf = yaslempty( );
+	if ( simta_dkim_verify ) {
+	    if (( dkim = dkim_verify( r->r_dkim, r->r_env->e_id,
+		    NULL, &dkim_result )) == NULL ) {
+		syslog( LOG_ERR, "Liberror: f_data dkim_verify: %s",
+			dkim_getresultstr( dkim_result ));
+		goto error;
+	    }
+	}
+#endif /* HAVE_LIBOPENDKIM */
 
 	if ( rfc822_timestamp( daytime ) != 0 ) {
 	    goto error;
@@ -1699,6 +1729,7 @@ f_data( struct receive_data *r )
 		}
 	    }
 	    line++;
+	    line_len--;
 	}
 
 	if (( read_err == NO_ERROR ) && ( header == 1 )) {
@@ -1738,7 +1769,35 @@ f_data( struct receive_data *r )
 			data_wrote += rc;
 		    }
 		}
+#ifdef HAVE_LIBOPENDKIM
+		if ( simta_dkim_verify ) {
+		    yaslclear( dkim_buf );
+		    for ( l = rh->r_headers->l_first; l != NULL;
+			    l = l->line_next ) {
+			if (( *l->line_data != ' ' && *l->line_data != '\t' ) &&
+				( yasllen( dkim_buf ) > 0 )) {
+			    dkim_header( dkim, dkim_buf, yasllen( dkim_buf ));
+			    yaslclear( dkim_buf );
+			}
+			if ( yasllen( dkim_buf )) {
+			    dkim_buf = yaslcat( dkim_buf, "\r\n" );
+			}
+			dkim_buf = yaslcat( dkim_buf, l->line_data );
+		    }
+		    dkim_header( dkim, dkim_buf, yasllen( dkim_buf ));
+		    dkim_result = dkim_eoh( dkim );
+		    syslog( LOG_DEBUG,
+			    "Receive [%s] %s: %s: verify dkim_eoh: %s",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname, r->r_env->e_id,
+			    dkim_getresultstr( dkim_result ));
+		}
+#endif /* HAVE_LIBOPENDKIM */
+
 		if ( *line != '\0' ) {
+#ifdef HAVE_LIBOPENDKIM
+		    dkim_body_started = 1;
+#endif /* HAVE_LIBOPENDKIM */
 		    if (( fprintf( dff, "\n" )) < 0 ) {
 			syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
 			read_err = SYSTEM_ERROR;
@@ -1801,6 +1860,20 @@ f_data( struct receive_data *r )
 	    }
 	}
 
+#ifdef HAVE_LIBOPENDKIM
+	if (( read_err == NO_ERROR ) && ( header == 0 ) && simta_dkim_verify ) {
+	    if ( dkim_body_started == 0 ) {
+		/* We are on the blank line between the headers and the body,
+		 * which isn't part of the body. */
+		dkim_body_started = 1;
+	    } else {
+		dkim_buf = yaslcpylen( dkim_buf, line, line_len );
+		dkim_buf = yaslcatlen( dkim_buf, "\r\n", 2 );
+		dkim_body( dkim, dkim_buf, yasllen( dkim_buf ));
+	    }
+	}
+#endif /* HAVE_LIBOPENDKIM */
+
 	if (( read_err != NO_ERROR ) && ( dff != NULL )) {
 	    if ( fclose( dff ) != 0 ) {
 		syslog( LOG_ERR, "Syserror f_data: fclose1: %m" );
@@ -1856,6 +1929,31 @@ f_data( struct receive_data *r )
     syslog( LOG_INFO, "Receive [%s] %s: %s: Subject: %s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 	    r->r_env->e_id, r->r_env->e_subject );
+
+#ifdef HAVE_LIBOPENDKIM
+    if ( simta_dkim_verify ) {
+	dkim_result = dkim_eom( dkim, NULL );
+	syslog( LOG_INFO, "Receive [%s] %s: %s: DKIM verify result: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, dkim_getresultstr( dkim_result ));
+	dkim_getsiglist( dkim, &dkim_sigs, &rc );
+	for ( i = 0 ; i < rc ; i++ ) {
+	    dkim_domain = dkim_sig_getdomain( dkim_sigs[ i ] );
+	    if (( dkim_sig_getflags( dkim_sigs[ i ] ) & DKIM_SIGFLAG_PASSED ) &&
+		    ( dkim_sig_getbh( dkim_sigs[ i ] ) == DKIM_SIGBH_MATCH )) {
+		syslog( LOG_DEBUG,
+			"Receive [%s] %s: %s: valid DKIM signature: %s",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_env->e_id, dkim_domain );
+	    } else {
+		syslog( LOG_DEBUG,
+			"Receive [%s] %s: %s: invalid DKIM signature: %s",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_env->e_id, dkim_domain );
+	    }
+	}
+    }
+#endif /* HAVE_LIBOPENDKIM */
 
     if ( simta_mail_filter == NULL ) {
 	filter_result = MESSAGE_ACCEPT;
@@ -2215,6 +2313,13 @@ error:
     if ( filter_message != NULL ) {
 	free( filter_message );
     }
+
+#ifdef HAVE_LIBOPENDKIM
+    yaslfree( dkim_buf );
+    if ( dkim != NULL ) {
+	dkim_free( dkim );
+    }
+#endif /* HAVE_LIBOPENDKIM */
 
     /* if we've already given a message result banner,
      * delay the syserror banner
@@ -3162,6 +3267,13 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 	}
 
+#ifdef HAVE_LIBOPENDKIM
+	if (( r.r_dkim = dkim_init( NULL, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "Liberror: smtp_receive dkim_init: failed" );
+	    goto syserror;
+	}
+#endif /* HAVE_LIBOPENDKIM */
+
 	if ( simta_debug != 0 ) {
 	    syslog( LOG_DEBUG, "Debug: smtp_mail write before banner check" );
 	}
@@ -3402,6 +3514,12 @@ closeconnection:
     md_cleanup( &r.r_md );
     md_cleanup( &r.r_md_body );
 #endif /* HAVE_LIBSSL */
+
+#ifdef HAVE_LIBOPENDKIM
+    if ( r.r_dkim != NULL ) {
+	dkim_close( r.r_dkim );
+    }
+#endif /* HAVE_LIBOPENDKIM */
 
     if ( tv_start.tv_sec != 0 ) {
 	if ( simta_gettimeofday( &tv_stop ) != 0 ) {

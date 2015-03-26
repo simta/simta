@@ -233,6 +233,10 @@ int			simta_outbound_data_session_timer = 0;
 int			simta_outbound_ssl_connect_timer = 300;
 #endif /* HAVE_LIBSSL */
 
+#ifdef HAVE_LIBOPENDKIM
+int			simta_dkim_verify = 1;
+#endif /* HAVE_LIBOPENDKIM */
+
 #ifdef HAVE_LIBSRS2
 int			simta_srs = SRS_POLICY_OFF;
 char			*simta_srs_domain;
@@ -1192,6 +1196,25 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "DISK_FACTOR: %d\n",
 		    simta_disk_read_entries );
+
+#ifdef HAVE_LIBOPENDKIM
+	} else if ( strcasecmp( av[ 0 ], "DKIM_VERIFY" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_dkim_verify = 1;
+		    if ( simta_debug ) printf( "DKIM_VERIFY ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_dkim_verify = 0;
+		    if ( simta_debug ) printf( "DKIM_VERIFY OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "DKIM_VERIFY <ON|OFF>" );
+	    goto error;
+#endif /* HAVE_LIBOPENDKIM */
 
 	} else if ( strcasecmp( av[ 0 ], "DNS_AUTO_CONFIG" ) == 0 ) {
 	    /* DNS_AUTO_CONFIG <ON|OFF> */
