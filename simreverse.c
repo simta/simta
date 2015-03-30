@@ -33,7 +33,7 @@
 
 #include "denser.h"
 #include "envelope.h"
-#include "mx.h"
+#include "dns.h"
 #include "ll.h"
 #include "simta.h"
 

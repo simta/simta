@@ -48,7 +48,7 @@
 #include "simta.h"
 #include "queue.h"
 #include "smtp.h"
-#include "mx.h"
+#include "dns.h"
 #include "expand.h"
 #include "red.h"
 

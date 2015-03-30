@@ -26,8 +26,8 @@ SRC=    @LDAP_SRC@ @SSL_SRC@ \
 	simsend.c simconnect.c rcptlist.c address.c \
 	simalias.c bounce.c wildcard.c
 COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ \
-		address.o argcargv.o base64.o bdb.o bounce.o envelope.o \
-		expand.o header.o line_file.o ll.o ml.o mx.o q_cleanup.o \
+		address.o argcargv.o base64.o bdb.o bounce.o dns.o envelope.o \
+		expand.o header.o line_file.o ll.o ml.o q_cleanup.o \
 		queue.o red.o simta.o smtp.o wildcard.o
 SIMTAOBJ=	${COMMONOBJ} daemon.o receive.o
 SIMCONOBJ=	${COMMONOBJ} simconnect.o
@@ -131,13 +131,14 @@ q_runner : stamp-libsnet stamp-denser ${QRUNNEROBJ} Makefile
 q_cleanup : stamp-libsnet stamp-denser ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
 
-address.o: bdb.h config.h envelope.h expand.h header.h line_file.h ll.h mx.h queue.h red.h simta.h simta_ldap.h
+address.o: bdb.h config.h dns.h envelope.h expand.h header.h line_file.h ll.h queue.h red.h simta.h simta_ldap.h
 argcargv.o: argcargv.h config.h
 base64.o: base64.h config.h
 bdb.o: bdb.h config.h
 bounce.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
 daemon.o: config.h envelope.h ll.h queue.h simta.h tls.h
 dn.o: dn.h
+dns.o: config.h dns.h envelope.h expand.h ll.h queue.h red.h simta.h
 envelope.o: config.h envelope.h header.h line_file.h ll.h queue.h simta.h
 expand.o: config.h dn.h envelope.h expand.h header.h line_file.h ll.h queue.h simta.h simta_ldap.h
 expander.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
@@ -146,23 +147,22 @@ line_file.o: config.h line_file.h
 ll.o: config.h ll.h
 md.o: base64.h config.h simta.h
 ml.o: config.h envelope.h line_file.h ml.h queue.h simta.h
-mx.o: config.h envelope.h expand.h ll.h mx.h queue.h red.h simta.h
 q_cleanup.o: config.h envelope.h ll.h queue.h simta.h
 q_runner.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
-queue.o: config.h envelope.h expand.h line_file.h ll.h ml.h mx.h queue.h red.h simta.h smtp.h wildcard.h
-receive.o: argcargv.h base64.h bdb.h config.h envelope.h expand.h header.h line_file.h ll.h md.h mx.h queue.h red.h simta.h simta_ldap.h
-red.o: argcargv.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h simta.h simta_ldap.h
-simalias.o: argcargv.h bdb.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h simta.h simta_ldap.h
+queue.o: config.h dns.h envelope.h expand.h line_file.h ll.h ml.h queue.h red.h simta.h smtp.h wildcard.h
+receive.o: argcargv.h base64.h bdb.h config.h dns.h envelope.h expand.h header.h line_file.h ll.h md.h queue.h red.h simta.h simta_ldap.h
+red.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
+simalias.o: argcargv.h bdb.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
 simck.o: base64.h config.h md.h
 simlog.o: config.h simta.h
-simrbl.o: config.h envelope.h ll.h mx.h simta.h
-simreverse.o: config.h envelope.h ll.h mx.h simta.h
+simrbl.o: config.h dns.h envelope.h ll.h simta.h
+simreverse.o: config.h dns.h envelope.h ll.h simta.h
 simsend.o: config.h envelope.h header.h line_file.h queue.h simta.h
-simta.o: argcargv.h config.h envelope.h expand.h ll.h ml.h mx.h queue.h red.h simta.h simta_ldap.h
+simta.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
 simta_ldap.o: argcargv.h config.h dn.h envelope.h expand.h header.h ll.h queue.h simta.h simta_ldap.h
 sla.o: config.h envelope.h expand.h line_file.h ll.h queue.h simta.h
-smtp.o: argcargv.h config.h envelope.h header.h line_file.h mx.h queue.h simta.h smtp.h
-simconnect.o: argcargv.h config.h envelope.h header.h line_file.h mx.h queue.h simta.h smtp.h
+smtp.o: argcargv.h config.h dns.h envelope.h header.h line_file.h queue.h simta.h smtp.h
+simconnect.o: argcargv.h config.h dns.h envelope.h header.h line_file.h queue.h simta.h smtp.h
 tls.o: config.h tls.h
 wildcard.o: config.h wildcard.h
 

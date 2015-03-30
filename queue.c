@@ -45,7 +45,7 @@
 #include "smtp.h"
 #include "expand.h"
 #include "red.h"
-#include "mx.h"
+#include "dns.h"
 
 void	_q_deliver( struct deliver *, struct host_q * );
 void	q_deliver( struct host_q * );

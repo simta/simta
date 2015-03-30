@@ -28,8 +28,9 @@
 
 #include <db.h>
 
-#include "mx.h"
 #include "denser.h"
+
+#include "dns.h"
 #include "line_file.h"
 #include "ll.h"
 #include "envelope.h"

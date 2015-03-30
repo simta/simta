@@ -27,8 +27,9 @@ struct rbl {
     char			*rbl_url;
 };
 
-struct dnsr_result * get_a( char * );
-struct dnsr_result * get_mx( char * );
+struct dnsr_result *get_a( char * );
+struct dnsr_result *get_mx( char * );
+struct dnsr_result *get_txt( char * );
 int check_reverse( char *, struct in_addr * );
 int check_hostname( char * );
 struct simta_red *host_local( char * );

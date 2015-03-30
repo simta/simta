@@ -40,7 +40,7 @@
 #include "envelope.h"
 #include "simta.h"
 #include "argcargv.h"
-#include "mx.h"
+#include "dns.h"
 #include "simta_ldap.h"
 #include "bdb.h"
 #include "queue.h"

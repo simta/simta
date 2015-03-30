@@ -34,7 +34,7 @@
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"
-#include "mx.h"
+#include "dns.h"
 #include "simta.h"
 #include "queue.h"
 
@@ -166,6 +166,31 @@ get_mx( char *hostname )
     return( result );
 }
 
+    struct dnsr_result *
+get_txt( char *hostname )
+{
+    struct dnsr_result  *result;
+    if ( simta_dnsr == NULL ) {
+        if (( simta_dnsr = dnsr_new( )) == NULL ) {
+            syslog( LOG_ERR, "get_txt: dnsr_new: %m" );
+            return( NULL );
+        }
+    }
+
+    if ( dnsr_query( simta_dnsr, DNSR_TYPE_TXT, DNSR_CLASS_IN,
+            hostname ) < 0 ) {
+        syslog( LOG_ERR, "get_txt: dnsr_query: %s: %s", hostname,
+                dnsr_err2string( dnsr_errno( simta_dnsr )));
+        return( NULL );
+    }
+
+    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
+        syslog( LOG_ERR, "get_txt: dnsr_result: %s: %s", hostname,
+                dnsr_err2string( dnsr_errno( simta_dnsr )));
+    }
+
+    return( result );
+}
 
     struct simta_red *
 host_local( char *hostname )

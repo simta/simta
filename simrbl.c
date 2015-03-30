@@ -34,7 +34,7 @@
 #include "denser.h"
 #include "envelope.h"
 #include "ll.h"
-#include "mx.h"
+#include "dns.h"
 #include "simta.h"
 
 #define SIMRBL_EXIT_NOT_BLOCKED	0
