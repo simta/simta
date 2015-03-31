@@ -27,9 +27,6 @@ AC_PREFIX_DEFAULT(/usr/local)
 AC_PROG_CC
 AC_PROG_INSTALL
 
-# Check for files
-AC_STRUCT_TIMEZONE
-
 # Find local mailers
 SET_LOCALDELIVERY
 PROG_MAIL_LOCAL
@@ -40,9 +37,6 @@ if test x_$GCC = x_yes; then
     OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes"}
 fi
 AC_SUBST(OPTOPTS)
-
-AC_STRUCT_TM
-AC_STRUCT_GMTOFF
 
 AC_SUBST(EXTRALIBS, [])
 AC_SUBST(LDAP_SRC, [])

@@ -1347,15 +1347,13 @@ f_data( struct receive_data *r )
     char				*system_message = NULL;
     char				*timer_type;
     char				*session_type = NULL;
-    struct tm				*tm;
     struct timeval			tv_data_start;
     struct timeval			tv_wait;
     struct timeval			tv_session;
     struct timeval			tv_filter = { 0, 0 };
     struct timeval			tv_now;
-    time_t				clock;
     struct stat				sbuf;
-    char				daytime[ 60 ];
+    char				daytime[ RFC822_TIMESTAMP_LEN ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
     struct receive_headers		rh;
     unsigned int			data_wrote = 0;
@@ -1450,9 +1448,9 @@ f_data( struct receive_data *r )
 	    goto error;
 	}
 
-	clock = time( &clock );
-	tm = localtime( &clock );
-	strftime( daytime, sizeof( daytime ), "%e %b %Y %T %Z", tm );
+	if ( rfc822_timestamp( daytime ) != 0 ) {
+	    goto error;
+	}
 
 	if ( simta_smtp_rcvbuf_min != 0 ) {
 	    if ( setsockopt( snet_fd( r->r_snet ), SOL_SOCKET, SO_RCVBUF,

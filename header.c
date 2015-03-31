@@ -294,31 +294,63 @@ header_file_out( struct line_file *lf, FILE *file )
     int
 header_timestamp( struct envelope *env, FILE *file )
 {
-    time_t			clock;
-    struct tm			*tm;
-    char			daytime[ 30 ];
+    char	daytime[ RFC822_TIMESTAMP_LEN ];
 
-    if ( time( &clock ) < 0 ) {
-	return( -1 );
-    }
-
-    if (( tm = localtime( &clock )) == NULL ) {
-	return( -1 );
-    }
-
-    if ( strftime( daytime, sizeof( daytime ), "%e %b %Y %T", tm ) == 0 ) {
+    if ( rfc822_timestamp( daytime ) != 0 ) {
 	return( -1 );
     }
 
     /* Received header */
-    if ( fprintf( file, "Received: FROM %s\n\tBY %s ID %s ;\n\t%s %s\n",
-	    env->e_mail, simta_hostname, env->e_id, daytime, tz( tm )) < 0 ) {
+    if ( fprintf( file, "Received: FROM %s\n\tBY %s ID %s ;\n\t%s\n",
+	    env->e_mail, simta_hostname, env->e_id, daytime ) < 0 ) {
 	return( -1 );
     }
 
     return( 0 );
 }
 
+/* RFC 5322 3.3 Date and Time Specification
+ * date-time       =   [ day-of-week "," ] date time [CFWS]
+ * day-of-week     =   ([FWS] day-name) / obs-day-of-week
+ * day-name        =   "Mon" / "Tue" / "Wed" / "Thu" /
+ *                     "Fri" / "Sat" / "Sun"
+ * date            =   day month year
+ * day             =   ([FWS] 1*2DIGIT FWS) / obs-day
+ * month           =   "Jan" / "Feb" / "Mar" / "Apr" /
+ *                     "May" / "Jun" / "Jul" / "Aug" /
+ *                     "Sep" / "Oct" / "Nov" / "Dec"
+ * year            =   (FWS 4*DIGIT FWS) / obs-year
+ * time            =   time-of-day zone
+ * time-of-day     =   hour ":" minute [ ":" second ]
+ * zone            =   (FWS ( "+" / "-" ) 4DIGIT) / obs-zone
+ *
+ * %T and %z are defined in ISO C99; C89 compilers might
+ * not support them.
+ */
+    int
+rfc822_timestamp( char *daytime )
+{
+    time_t		clock;
+    struct tm		*tm;
+
+    if ( time( &clock ) < 0 ) {
+	syslog( LOG_ERR, "Syserror rfc822_timestamp time: %m" );
+	return( 1 );
+    }
+
+    if (( tm = localtime( &clock )) == NULL ) {
+	syslog( LOG_ERR, "Syserror rfc822_timestamp localtime: %m" );
+	return( 1 );
+    }
+
+    if ( strftime( daytime, RFC822_TIMESTAMP_LEN,
+	    "%a, %d %b %Y %T %z", tm ) == 0 ) {
+	syslog( LOG_ERR, "Syserror rfc822_timestamp strftime: %m" );
+	return( 1 );
+    }
+
+    return( 0 );
+}
 
     int
 mid_text( struct receive_headers *r, char *line, char **msg )
@@ -720,9 +752,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
     char			*prepend_line = NULL;
     size_t			prepend_len = 0;
     size_t			len;
-    time_t			clock;
-    struct tm			*tm;
-    char			daytime[ 35 ];
+    char			daytime[ RFC822_TIMESTAMP_LEN ];
     struct envelope		*to_env = NULL;
 
 /* RFC 2821 3.6  Field definitions
@@ -884,21 +914,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    goto error;
 	}
 
-	if ( time( &clock ) < 0 ) {
-	    syslog( LOG_ERR, "header_correct time: %m" );
-	    ret = -1;
-	    goto error;
-	}
-
-	if (( tm = localtime( &clock )) == NULL ) {
-	    syslog( LOG_ERR, "header_correct localtime: %m" );
-	    ret = -1;
-	    goto error;
-	}
-
-	if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T %z", tm )
-		== 0 ) {
-	    syslog( LOG_ERR, "header_correct strftime: %m" );
+	if ( rfc822_timestamp( daytime ) != 0 ) {
 	    ret = -1;
 	    goto error;
 	}
@@ -2407,35 +2423,6 @@ line_token_dot_atom( struct line_token *token, struct line *l, char *start )
     }
 
     return( 0 );
-}
-
-
-/*
- * So far, we know of two ways of doing this: Solaris 2.6 (>?) has a
- * collection of extern's called timezone, altzone, and daylight.  *BSD
- * (and probably Linux) has tm_gmtoff.
- */
-    char *
-tz( struct tm *tm )
-{
-    static char	zone[ 6 ];	/* ( "+" / "-" ) 4DIGIT */
-    int		gmtoff;
-
-#ifdef HAVE_TM_GMTOFF
-    gmtoff = tm->tm_gmtoff;
-#else /* HAVE_TM_GMTOFF */
-    if ( daylight ) {
-	gmtoff = altzone;
-    } else {
-	gmtoff = timezone;
-    }
-#endif /* HAVE_TM_GMTOFF */
-
-    sprintf( zone, "%s%.2d%.2d", ( gmtoff < 0 ? "" : "+" ),
-	    gmtoff / 60 / 60,
-	    gmtoff / 60 % 60 );
-
-    return( zone );
 }
 
 

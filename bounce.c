@@ -43,6 +43,7 @@
 #include "denser.h"
 #include "ll.h"
 #include "envelope.h"
+#include "header.h"
 #include "line_file.h"
 #include "expand.h"
 #include "simta.h"
@@ -183,9 +184,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     FILE                        *dfile;
     struct line                 *l;
     char                        *line;
-    time_t                      clock;
-    struct tm                   *tm;
-    char                        daytime[ 35 ];
+    char                        daytime[ RFC822_TIMESTAMP_LEN ];
     struct stat			sbuf;
     struct recipient		*r;
 
@@ -214,19 +213,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 	}
     }
 
-    if ( time( &clock ) < 0 ) {
-	syslog( LOG_ERR, "bounce_dfile_out time: %m" );
-	goto cleanup;
-    }
-
-    if (( tm = localtime( &clock )) == NULL ) {
-	syslog( LOG_ERR, "bounce_dfile_out localtime: %m" );
-	goto cleanup;
-    }
-
-    if ( strftime( daytime, sizeof( daytime ), "%a, %e %b %Y %T", tm )
-	    == 0 ) {
-	syslog( LOG_ERR, "bounce_dfile_out strftime: %m" );
+    if ( rfc822_timestamp( daytime ) != 0 ) {
 	goto cleanup;
     }
 

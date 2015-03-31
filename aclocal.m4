@@ -3,27 +3,6 @@ m4_include([m4/ax_path_bdb.m4])
 m4_include([m4/ax_check_library.m4])  
 m4_include([m4/ax_with_library.m4])  
 
-# AC_STRUCT_GMTOFF
-# If struct tm.tm_gmtoff exists, define HAVE_TM_GMTOFF.
-#
-# AC_STRUCT_TM defines $ac_cv_struct_tm to the library where struct
-# tm resides.
-
-AC_DEFUN([AC_STRUCT_GMTOFF],
-[
-    AC_REQUIRE([AC_STRUCT_TM])
-    AC_MSG_CHECKING([for struct tm.tm_gmtoff in $ac_cv_struct_tm])
-    AC_TRY_COMPILE([#include <$ac_cv_struct_tm>],
-	    [struct tm tm; tm.tm_gmtoff;],
-	    ac_cv_struct_gmtoff=yes, ac_cv_struct_gmtoff=no)
-    AC_MSG_RESULT($ac_cv_struct_gmtoff)
-    AC_SUBST(HAVE_TM_GMTOFF, "")
-    if test $ac_cv_struct_gmtoff = yes; then
-	AC_DEFINE(HAVE_TM_GMTOFF, [1], [Define to 1 if tm contains tm_gmtoff])
-    fi
-])
-
-
 AC_DEFUN([SET_LOCALDELIVERY],
 [
     have_local_delivery="no"

@@ -1,5 +1,7 @@
 /**********          header.h          **********/
 
+#define RFC822_TIMESTAMP_LEN	32
+
 #define STRING_MID		"Message-ID"
 #define STRING_MID_LEN		10
 #define STRING_MIME_VERSION	"Mime-Version"
@@ -52,7 +54,7 @@ int	header_correct( int, struct line_file *, struct envelope * );
 int	header_file_out( struct line_file *, FILE * );
 int	is_emailaddr( char * );
 int	correct_emailaddr( char ** );
-char	*tz( struct tm * );
+int	rfc822_timestamp( char * );
 struct string_address *string_address_init( char * );
 void	string_address_free( struct string_address * );
 char	*string_address_parse( struct string_address * );
