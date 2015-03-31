@@ -212,7 +212,7 @@ extern int				simta_ignore_reverse;
 extern int				simta_ignore_connect_in_reverse_errors;
 extern int				simta_message_count;
 extern int				simta_max_received_headers;
-extern int				simta_max_bounce_lines;
+extern int				simta_max_bounce_size;
 extern int				simta_smtp_outbound_attempts;
 extern int				simta_smtp_outbound_delivered;
 extern int				simta_read_before_banner;

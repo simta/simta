@@ -131,7 +131,7 @@ int			simta_strict_smtp_syntax = 0;
 int			simta_dns_auto_config = 0;
 int			simta_no_sync = 0;
 int			simta_max_received_headers = 100;
-int			simta_max_bounce_lines = 100;
+int			simta_max_bounce_size = 524288;
 int			simta_banner_delay = 0;
 int			simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
@@ -861,20 +861,20 @@ simta_read_config( char *fname )
 	    simta_bounce_jail = 1;
 	    if ( simta_debug ) printf( "BOUNCE_JAIL\n" );
 
-	} else if ( strcasecmp( av[ 0 ], "BOUNCE_LINES" ) == 0 ) {
+	} else if ( strcasecmp( av[ 0 ], "BOUNCE_SIZE" ) == 0 ) {
 	    if ( ac != 2 ) {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
 		goto error;
 	    }
-	    simta_max_bounce_lines = atoi( av[ 1 ] );
-	    if ( simta_max_bounce_lines < 0 ) {
-		fprintf( stderr, "%s: line %d: BOUNCE_LINES less than 0\n",
+	    simta_max_bounce_size = atoi( av[ 1 ] );
+	    if ( simta_max_bounce_size < 0 ) {
+		fprintf( stderr, "%s: line %d: BOUNCE_SIZE less than 0\n",
 			fname, lineno );
 		goto error;
 	    }
-	    if ( simta_debug ) printf( "BOUNCE_LINES: %d\n",
-		simta_max_bounce_lines );
+	    if ( simta_debug ) printf( "BOUNCE_SIZE: %d\n",
+		simta_max_bounce_size );
 
 	} else if ( strcasecmp( av[ 0 ], "BOUNCE_SECONDS" ) == 0 ) {
 	    if ( ac != 2 ) {
