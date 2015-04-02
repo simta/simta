@@ -2241,8 +2241,8 @@ queue_log_metrics( struct host_q *hq_schedule )
     sprintf( linkname, "%s/etc/queue_schedule", simta_base_dir );
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
-    if (( fd = creat( filename, 0666 )) < 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
+    if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) < 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: open %s: %m", filename );
 	return;
     }
 

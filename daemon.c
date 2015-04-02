@@ -1999,8 +1999,8 @@ env_log_metrics( struct dll_entry *dll_head )
     sprintf( linkname, "%s/etc/mid_list", simta_base_dir );
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
-    if (( fd = creat( filename, 0666 )) < 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
+    if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) < 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: open %s: %m", filename );
 	return;
     }
 
@@ -2046,8 +2046,8 @@ sender_log_metrics( struct dll_entry *dll_head )
     sprintf( linkname, "%s/etc/sender_list", simta_base_dir );
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
-    if (( fd = creat( filename, 0666 )) < 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: creat %s: %m", filename );
+    if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) < 0 ) {
+	syslog( LOG_DEBUG, "metric log file failed: open %s: %m", filename );
 	return;
     }
 
