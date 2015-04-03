@@ -1,12 +1,3 @@
-/*
- * Copyright (c) 1998 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- */
-
-/*****     ll.h     *****/
-
-/* this library is a linked list implamentation of a symbol table */
-
 struct stab_entry {
     char		*st_key;
     struct stab_entry	*st_next;

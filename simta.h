@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2003 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- */
-
-/*****     simta.h     *****/
-
 #define	EMAIL_ADDRESS_NORMAL		0x0000
 #define	RFC_821_MAIL_FROM		0x0001
 #define	RFC_821_RCPT_TO			0x0010

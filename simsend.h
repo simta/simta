@@ -1,8 +1,3 @@
-/*
-* Copyright (c) 1998 Regents of The University of Michigan.
-* All Rights Reserved.  See COPYRIGHT.
-*/
-
 int		main( int, char ** );
 int		read_headers( struct datalines **, struct rcptlist **,
 			char *, int );

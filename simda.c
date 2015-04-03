@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
+ */
+
 #include <grp.h>
 #include <pwd.h>
 #include <stdio.h>

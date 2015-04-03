@@ -1,5 +1,3 @@
-/*****     red.h     *****/
-
 struct action {
     int				a_action;
     int				a_flags;

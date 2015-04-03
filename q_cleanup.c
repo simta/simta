@@ -1,4 +1,8 @@
-/**********          q_cleanup.c          **********/
+/*
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
+ */
+
 #include "config.h"
 
 #ifdef HAVE_LIBSSL

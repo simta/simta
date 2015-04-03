@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 1998 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- */
-
-/*****     queue.h     *****/
-
 /* states for host_q->hq_status */
 #define HOST_UNKNOWN	0
 #define HOST_NULL	1

@@ -1,11 +1,3 @@
-/*
- * Copyright (c) 1998 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- */
-
-/*****     line_file.h     *****/
-
-
 struct line {
     struct line		*line_next;
     struct line		*line_prev;

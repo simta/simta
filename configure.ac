@@ -4,7 +4,7 @@ AC_INIT(simta, m4_esyscmd([bash version.sh]), simta@umich.edu)
 
 AC_PREREQ(2.63)
 AC_CONFIG_HEADER(config.h)
-AC_COPYRIGHT([Copyright (c) 1998 Regents of The University of Michigan])
+AC_COPYRIGHT([Copyright (c) 1998-2015 Regents of The University of Michigan])
 AC_CONFIG_AUX_DIR([libsnet])
 
 # Set up local variables

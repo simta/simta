@@ -1,8 +1,3 @@
-/*
- * Copyright (c) 1998 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- */
-
 #define	R_TEMPFAIL	0
 #define	R_ACCEPTED	1
 #define	R_FAILED	2

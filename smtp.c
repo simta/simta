@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2003 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
  */
 
-/*****     smtp.c     *****/
 #include "config.h"
 
 #include <sys/param.h>

@@ -1,11 +1,3 @@
-/*
- * Copyright (c) 1998 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- */
-
-/*****     smtp.h     *****/
-
-
 #define	SMTP_CONNECT		1
 #define	SMTP_HELO		2
 #define	SMTP_EHLO		3

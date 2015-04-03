@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 1998 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
  */
 
-/**********	ll.c	**********/
 #include "config.h"
 
 #include <stdio.h>

@@ -10,7 +10,7 @@ Summary: A Simple internet Mail Transfer Agent
 Name: @PACKAGE_NAME@
 Version: @PACKAGE_VERSION@ 
 Release: 1%{?dist}
-License: BSD
+License: BSD and MIT
 Group: System Environment/Daemons
 URL: http://rsug.itd.umich.edu/software/simta/
 Source0: url://maybe/replace/this/%{name}-%{version}.tar.gz

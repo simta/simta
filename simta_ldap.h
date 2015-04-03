@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2003 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- */
-/*****     ldap.h     *****/
-
 struct list {
     char		*l_string;
     struct list		*l_next;
