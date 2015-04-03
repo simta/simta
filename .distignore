@@ -9,4 +9,5 @@ config.h.in~
 config.log
 config.status
 dist
+doc
 test_data
