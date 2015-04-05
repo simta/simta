@@ -1,3 +1,6 @@
+#ifndef SIMTA_SMTP_H
+#define SIMTA_SMTP_H
+
 #define	SMTP_CONNECT		1
 #define	SMTP_HELO		2
 #define	SMTP_EHLO		3
@@ -35,4 +38,6 @@ int	smtp_parse_ehlo_banner( struct deliver *, char * );
 int	smtp_rset( struct host_q *, struct deliver * );
 int	smtp_send( struct host_q *, struct deliver * );
 void	smtp_quit( struct host_q *, struct deliver * );
+
+#endif /* SIMTA_SMTP_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

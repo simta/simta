@@ -31,7 +31,6 @@
 
 #include <snet.h>
 
-#include "base64.h"
 #include "md.h"
 
 extern const EVP_MD *simta_checksum_md;

@@ -25,7 +25,6 @@
 #endif /* HAVE_LIBSASL */
 
 #include <snet.h>
-#include <db.h>
 
 #include <ctype.h>
 #include <assert.h>
@@ -38,11 +37,8 @@
 #include <syslog.h>
 #include <dirent.h>
 
-#include "denser.h"
 #include "line_file.h"
 #include "envelope.h"
-#include "bprint.h"
-#include "argcargv.h"
 #include "header.h"
 #include "simta.h"
 #include "queue.h"

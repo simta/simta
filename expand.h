@@ -1,3 +1,6 @@
+#ifndef SIMTA_EXPAND_H
+#define SIMTA_EXPAND_H
+
 /* expansion types */
 #define	EXPANSION_TYPE_PASSWORD		1
 #define	EXPANSION_TYPE_ALIAS		2
@@ -124,4 +127,6 @@ int permitted_create( struct exp_addr *, char ** );
 void permitted_destroy( struct exp_addr * );
 char *parent_permitted( struct exp_addr * );
 #endif /* HAVE_LDAP */
+
+#endif /* SIMTA_EXPAND_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

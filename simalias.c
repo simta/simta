@@ -20,8 +20,6 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include <snet.h>
-
 #include <ctype.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -38,13 +36,10 @@
 #include <db.h>
 #include <dirent.h>
 
-#include "denser.h"
-#include "ll.h"
 #include "expand.h"
 #include "red.h"
 #include "envelope.h"
 #include "simta.h"
-#include "argcargv.h"
 #include "dns.h"
 #include "simta_ldap.h"
 #include "bdb.h"

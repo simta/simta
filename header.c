@@ -21,8 +21,6 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include <snet.h>
-
 #include <time.h>
 
 #include <errno.h>
@@ -36,7 +34,6 @@
 #include <syslog.h>
 #include <dirent.h>
 
-#include "denser.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"

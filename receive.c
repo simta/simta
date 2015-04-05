@@ -63,11 +63,9 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 
 #include "bdb.h"
 #include "denser.h"
-#include "ll.h"
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"
-#include "bprint.h"
 #include "argcargv.h"
 #include "dns.h"
 #include "simta.h"

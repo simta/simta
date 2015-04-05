@@ -1,3 +1,9 @@
+#ifndef SIMTA_ENVELOPE_H
+#define SIMTA_ENVELOPE_H
+
+#include <snet.h>
+#include <sys/stat.h>
+
 #define	R_TEMPFAIL	0
 #define	R_ACCEPTED	1
 #define	R_FAILED	2
@@ -120,4 +126,6 @@ int		env_dfile_open( struct envelope * );
 /* debugging  functions */
 void		env_stdout( struct envelope * );
 void		env_syslog( struct envelope * );
+
+#endif /* SIMTA_ENVELOPE_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

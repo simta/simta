@@ -1,3 +1,8 @@
+#ifndef SIMTA_DNS_H
+#define SIMTA_DNS_H
+
+#include <netinet/in.h>
+
 #define	RBL_UNKNOWN		0
 #define	RBL_ERROR		1
 #define	RBL_NOT_FOUND		2
@@ -36,4 +41,6 @@ struct simta_red *host_local( char * );
 int rbl_add( struct rbl**, int, char *, char * );
 int rbl_check( struct rbl *, struct in_addr *, char *, char *,
 	struct rbl**, char ** );
+
+#endif /* SIMTA_DNS_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

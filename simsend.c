@@ -36,7 +36,6 @@
 
 #include <snet.h>
 
-#include "denser.h"
 #include "line_file.h"
 #include "envelope.h"
 #include "header.h"

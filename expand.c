@@ -17,7 +17,6 @@
 #endif /* HAVE_LIBSSL */
 
 #include <assert.h>
-#include <db.h>
 #include <fcntl.h>
 #include <utime.h>
 #include <stdio.h>
@@ -36,7 +35,6 @@
 
 #include <snet.h>
 
-#include "denser.h"
 #include "envelope.h"
 #include "expand.h"
 #include "ll.h"

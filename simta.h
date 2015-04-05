@@ -1,3 +1,14 @@
+#ifndef SIMTA_SIMTA_H
+#define SIMTA_SIMTA_H
+
+#include <netinet/in.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <inttypes.h>
+
+#include <denser.h>
+#include <snet.h>
+
 #define	EMAIL_ADDRESS_NORMAL		0x0000
 #define	RFC_821_MAIL_FROM		0x0001
 #define	RFC_821_RCPT_TO			0x0010
@@ -320,4 +331,6 @@ ino_t bounce_dfile_out( struct envelope *, SNET * );
 struct envelope *bounce( struct envelope *, int, char * );
 struct envelope *bounce_snet( struct envelope *, SNET *, struct host_q *,
 	char *err );
+
+#endif /* SIMTA_SIMTA_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

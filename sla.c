@@ -33,12 +33,9 @@
 #include <unistd.h>
 #include <syslog.h>
 
-#include "denser.h"
 #include "envelope.h"
 #include "expand.h"
-#include "ll.h"
 #include "simta.h"
-#include "line_file.h"
 #include "queue.h"
 
     int

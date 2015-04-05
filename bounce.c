@@ -17,27 +17,18 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <netdb.h>
-#include <errno.h>
 #include <dirent.h>
-#include <unistd.h>
-#include <syslog.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <sysexits.h>
-#include <time.h>
-#include <utime.h>
-
+#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netdb.h>
-#include <errno.h>
-#include <dirent.h>
-#include <unistd.h>
+#include <sysexits.h>
 #include <syslog.h>
+#include <time.h>
+#include <unistd.h>
+#include <utime.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -45,8 +36,6 @@
 
 #include <snet.h>
 
-#include "denser.h"
-#include "ll.h"
 #include "envelope.h"
 #include "header.h"
 #include "line_file.h"

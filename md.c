@@ -5,15 +5,6 @@
 
 #include "config.h"
 
-/* simta.h header dependencies, this seems ugly */
-#include <inttypes.h>
-#include <netinet/in.h>
-#include <dirent.h>
-#include <snet.h>
-#include "denser.h"
-
-/* real header dependencies */
-
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 

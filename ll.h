@@ -1,3 +1,6 @@
+#ifndef SIMTA_LL_H
+#define SIMTA_LL_H
+
 struct stab_entry {
     char		*st_key;
     struct stab_entry	*st_next;
@@ -28,4 +31,6 @@ int 	ll_insert_tail( struct stab_entry **stab, char *key, void *data );
 int	ll_default_compare( char *, char * );
 int	ll_nokey_insert( struct stab_entry **, void *, int(*)( void *, void * ));
 void	*ll_nokey_lookup( struct stab_entry *, void *, int(*)( void *, void * ));
+
+#endif /* SIMTA_LL_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

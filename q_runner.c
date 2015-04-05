@@ -31,12 +31,7 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include <snet.h>
-
-#include "denser.h"
-#include "ll.h"
 #include "envelope.h"
-#include "line_file.h"
 #include "expand.h"
 #include "simta.h"
 #include "queue.h"

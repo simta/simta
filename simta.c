@@ -22,7 +22,6 @@
 #endif /* HAVE_LIBSASL */
 
 #include <snet.h>
-#include <db.h>
 
 #include <errno.h>
 #include <stdio.h>

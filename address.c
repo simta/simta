@@ -29,15 +29,9 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include <snet.h>
-
 #include <db.h>
 
-#include "denser.h"
-
 #include "dns.h"
-#include "line_file.h"
-#include "ll.h"
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"

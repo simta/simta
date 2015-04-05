@@ -31,7 +31,6 @@
 
 #include <snet.h>
 
-#include "denser.h"
 #include "envelope.h"
 #include "line_file.h"
 #include "simta.h"

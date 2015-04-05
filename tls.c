@@ -24,8 +24,6 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include <snet.h>
-
 #include "tls.h"
     
 static int tls_randfile( void );

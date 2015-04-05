@@ -43,7 +43,6 @@
 #include <snet.h>
 
 #include "argcargv.h"
-#include "denser.h"
 #include "ll.h"
 #include "simta.h"
 #include "queue.h"

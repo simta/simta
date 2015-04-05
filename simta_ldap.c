@@ -36,8 +36,6 @@
 #include <dirent.h>
 
 #include <snet.h>
-#include "denser.h"
-#include "ll.h"
 #include "envelope.h"
 #include "simta.h"
 #include "argcargv.h"

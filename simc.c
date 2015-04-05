@@ -34,10 +34,6 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include <snet.h>
-
-#include "denser.h"
-#include "line_file.h"
 #include "envelope.h"
 #include "header.h"
 #include "simta.h"

@@ -1,3 +1,8 @@
+#ifndef SIMTA_SIMTA_LDAP_H
+#define SIMTA_SIMTA_LDAP_H
+
+#include "expand.h"
+
 struct list {
     char		*l_string;
     struct list		*l_next;
@@ -43,4 +48,5 @@ int	simta_ldap_address_local( struct simta_ldap *, char *, char * );
 int	simta_mbx_compare( int, char *, char * );
 void	simta_ldap_unbind( struct simta_ldap * );
 
+#endif /* SIMTA_SIMTA_LDAP_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -1,3 +1,11 @@
+#ifndef SIMTA_QUEUE_H
+#define SIMTA_QUEUE_H
+
+#include <netinet/in.h>
+#include <snet.h>
+
+#include "simta.h"
+
 /* states for host_q->hq_status */
 #define HOST_UNKNOWN	0
 #define HOST_NULL	1
@@ -102,4 +110,6 @@ void	queue_log_metrics( struct host_q * );
 
 int	q_read_dir( struct simta_dirp * );
 int	hq_deliver_push( struct host_q *, struct timeval *, struct timeval * );
+
+#endif /* SIMTA_QUEUE_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -1,4 +1,9 @@
-/**********          header.h          **********/
+#ifndef SIMTA_HEADER_H
+#define SIMTA_HEADER_H
+
+#include <stdio.h>
+
+#include "line_file.h"
 
 #define RFC822_TIMESTAMP_LEN	32
 
@@ -59,4 +64,6 @@ struct string_address *string_address_init( char * );
 void	string_address_free( struct string_address * );
 char	*string_address_parse( struct string_address * );
 void	header_free( struct receive_headers * );
+
+#endif /* SIMTA_HEADER_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

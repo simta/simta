@@ -19,7 +19,6 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <db.h>
 #include <assert.h>
 #include <sysexits.h>
 #include <stdio.h>
@@ -42,7 +41,6 @@
 #include "denser.h"
 #include "simta.h"
 #include "wildcard.h"
-#include "ll.h"
 #include "envelope.h"
 #include "queue.h"
 #include "ml.h"

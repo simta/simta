@@ -1,3 +1,10 @@
+#ifndef SIMTA_RED_H
+#define SIMTA_RED_H
+
+#include <db.h>
+
+#include "expand.h"
+
 struct action {
     int				a_action;
     int				a_flags;
@@ -64,4 +71,6 @@ void red_close_ldap_dbs( void );
 /* global variables */
 extern struct simta_red			*simta_red_hosts;
 extern struct simta_red			*simta_red_host_default;
+
+#endif /* SIMTA_RED_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
