@@ -295,6 +295,7 @@ q_runner( void )
     struct envelope		*env_punt;
     struct envelope		*unexpanded;
     int				dfile_fd;
+    int				expanded;
     char                        dfile_fname[ MAXPATHLEN ];
     struct timeval		tv_start;
     struct timeval		tv_end;
@@ -402,11 +403,16 @@ q_runner( void )
 	    q_deliver( simta_punt_q );
 	}
 
-	/* EXPAND ONE MESSAGE */
-	for ( ; ; ) {
+	/* EXPAND MESSAGES */
+	for ( expanded = 0 ; ; ) {
 	    if (( unexpanded = simta_unexpanded_q->hq_env_head ) == NULL ) {
-		/* no more unexpanded mail.  we're done */
-		goto q_runner_done;
+		/* no more unexpanded mail. we're done */
+		if ( expanded == 0 ) {
+		    /* no mail was expanded in this loop, we're all done */
+		    goto q_runner_done;
+		} else {
+		    break;
+		}
 	    }
 
 	    /* pop message off unexpanded message queue */
@@ -425,8 +431,13 @@ q_runner( void )
 	    }
 	    /* expand message */
 	    if ( expand( unexpanded ) == 0 ) {
-		/* at least one address was expanded.  try to deliver it */
 		env_free( unexpanded );
+		if ( simta_process_type == PROCESS_RECEIVE ) {
+		    /* Keep expanding mail */
+		    expanded++;
+		    continue;
+		}
+		/* at least one address was expanded.  try to deliver it */
 		break;
 	    }
 
