@@ -245,7 +245,7 @@ check_reverse( char *dn, struct in_addr *in )
 	}
     }
 
-    if (( temp = dnsr_ntoptr( simta_dnsr, in, NULL )) == NULL ) {
+    if (( temp = dnsr_ntoptr( simta_dnsr, AF_INET, in, NULL )) == NULL ) {
 	syslog( LOG_ERR, "check_reverse: dnsr_ntoptr: %s",
 	    dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( REVERSE_ERROR );
@@ -403,7 +403,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 
 	if ( in != NULL ) {
 	    if (( reverse_ip =
-		    dnsr_ntoptr( simta_dnsr, in, rbl->rbl_domain )) == NULL ) {
+		    dnsr_ntoptr( simta_dnsr, AF_INET, in, rbl->rbl_domain )) == NULL ) {
 		syslog( LOG_ERR, "RBL %s: dnsr_ntoptr failed: %s",
 			inet_ntoa( *in ), rbl->rbl_domain );
 		continue;

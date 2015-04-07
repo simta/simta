@@ -2113,24 +2113,26 @@ retry:
 	    }
 
     if ( d->d_dnsr_result->r_answer[ d->d_cur_dnsr_result ].rr_ip != NULL ) {
-		memcpy( &(d->d_sin.sin_addr.s_addr),
-    &(d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_ip->ip_ip ),
-			sizeof( struct in_addr ));
-		ip = inet_ntoa( d->d_sin.sin_addr );
-		if ( invalid_dnsr_ip( d->d_sin.sin_addr )) {
+		if ( d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_ip->ip_sa.ss_family == AF_INET ) {
+		    memcpy( &(d->d_sin.sin_addr.s_addr),
+    &(((struct sockaddr_in *)(&d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_ip->ip_sa))->sin_addr.s_addr),
+			    sizeof( struct in_addr ));
+		    ip = inet_ntoa( d->d_sin.sin_addr );
+		    if ( invalid_dnsr_ip( d->d_sin.sin_addr )) {
+			syslog( LOG_INFO,
+				"DNS %s: Entry %d: Invalid MX preference %d: %s",
+				hq->hq_hostname, d->d_cur_dnsr_result,
+    d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_mx.mx_preference,
+				ip );
+			continue;
+		    }
 		    syslog( LOG_INFO,
-			    "DNS %s: Entry %d: Invalid MX preference %d: %s",
+			    "DNS %s: Entry %d: Trying MX preference %d: %s",
 			    hq->hq_hostname, d->d_cur_dnsr_result,
     d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_mx.mx_preference,
 			    ip );
-		    continue;
+		    return( 0 );
 		}
-		syslog( LOG_INFO,
-			"DNS %s: Entry %d: Trying MX preference %d: %s",
-			hq->hq_hostname, d->d_cur_dnsr_result,
-    d->d_dnsr_result->r_answer[d->d_cur_dnsr_result].rr_mx.mx_preference,
-			ip );
-		return( 0 );
 	    }
 
 	    if (( d->d_dnsr_result_ip = get_a(
