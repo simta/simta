@@ -19,6 +19,9 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#include <denser.h>
+#include <snet.h>
+
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
@@ -29,9 +32,6 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <snet.h>
-
-#include "denser.h"
 #include "envelope.h"
 #include "expand.h"
 #include "simta.h"

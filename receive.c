@@ -30,6 +30,9 @@
 #include <db.h>
 #include <dirent.h>
 
+#include <denser.h>
+#include <snet.h>
+
 #ifdef HAVE_LIBWRAP
 #include <tcpd.h>
 #ifndef LIBWRAP_ALLOW_FACILITY
@@ -59,10 +62,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #include "base64.h"
 #endif /* HAVE_LIBSASL */
 
-#include <snet.h>
-
 #include "bdb.h"
-#include "denser.h"
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"

@@ -3,7 +3,7 @@
 VPATH=@srcdir@
 srcdir=@srcdir@
 SRCPFX=$(srcdir)/
-SRCPFX_INCPATH=-I$(srcdir)/denser -I$(srcdir)/libsnet -I$(srcdir)
+SRCPFX_INCPATH=-I$(srcdir)
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -47,10 +47,10 @@ SIMCKOBJ=	simck.o base64.o md.o
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
 INSTALL=	@INSTALL@
-INCPATH=	-I. -Idenser -Ilibsnet @CPPFLAGS@ @BDB_CPPFLAGS@ @LIBSSL_CPPFLAGS@ @LDAP_CPPFLAGS@ @LIBWRAP_CPPFLAGS@ @LIBSASL_CPPFLAGS@${SRCPFX_INCPATH}
+INCPATH=	-I. @CPPFLAGS@ @DENSER_CFLAGS@ @SNET_CFLAGS@ @BDB_CPPFLAGS@ @LIBSSL_CFLAGS@ @LDAP_CPPFLAGS@ @LIBWRAP_CPPFLAGS@ @LIBSASL_CFLAGS@${SRCPFX_INCPATH}
 DEFS=		-g -DLIBEXECDIR=\"$(LIBEXECDIR)\" @DEFS@
-LIBPATH=	-Ldenser -Llibsnet/.libs @LDFLAGS@ @BDB_LDFLAGS@ @LIBSSL_LDFLAGS@ @LDAP_LDFLAGS@ @LIBWRAP_LDFLAGS@ @LIBSASL_LDFLAGS@
-LIBS=		-ldnsr -lsnet @LIBS@ @EXTRALIBS@
+LIBPATH=	@LDFLAGS@ @BDB_LDFLAGS@ @LDAP_LDFLAGS@ @LIBWRAP_LDFLAGS@
+LIBS=		@DENSER_LIBS@ @SNET_LIBS@ @LIBSSL_LIBS@ @LIBSASL_LIBS@  @LIBS@ @EXTRALIBS@
 TAGSFILE=	tags
 CFLAGS=		${DEFS} ${OPTOPTS} ${INCPATH}
 
@@ -59,7 +59,7 @@ SIMTALIBS=	${LIBS}
 
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
-BINTARGETS=	simrbl simreverse simalias simexpander denser/dense simconnect
+BINTARGETS=	simrbl simreverse simalias simexpander simconnect
 TARGETS=	simta simconnect simsendmail q_runner simexpander \
                 sla simc simda \
 		${BINTARGETS}
@@ -84,14 +84,14 @@ install : all FRC
 	    ${INSTALL} -m 0644 -c ${SRCPFX}$$i ${DESTDIR}${MANDIR}/man8/; \
 	done
 
-simta : stamp-libsnet stamp-denser ${SIMTAOBJ} Makefile
+simta : ${SIMTAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-simck : stamp-libsnet ${SIMCKOBJ} Makefile
+simck : ${SIMCKOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simck ${SIMCKOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
-sla : stamp-libsnet ${SLAOBJ} Makefile
+sla : ${SLAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o sla ${SLAOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
@@ -102,7 +102,7 @@ simc : ${SIMCOBJ} Makefile
 simda : ${SIMDAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simda ${SIMDAOBJ}
 
-simsendmail : stamp-libsnet stamp-denser ${SIMSENDOBJ} Makefile
+simsendmail : ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
 		${SIMTALIBPATH} ${SIMTALIBS}
 
@@ -110,25 +110,25 @@ simalias : ${SIMALIASOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simalias ${SIMALIASOBJ} ${SIMTALIBPATH} \
 	${SIMTALIBS}
 
-simlog : stamp-libsnet stamp-denser ${SIMLOGOBJ} Makefile
+simlog : ${SIMLOGOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simlog ${SIMLOGOBJ} ${LIBPATH} ${LIBS}
 
-simexpander : stamp-libsnet stamp-denser ${EXPANDEROBJ} Makefile
+simexpander : ${EXPANDEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simexpander ${EXPANDEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-simrbl : stamp-libsnet stamp-denser ${SIMRBLOBJ} Makefile
+simrbl : ${SIMRBLOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simrbl ${SIMRBLOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-simreverse : stamp-libsnet stamp-denser ${SIMREVERSEOBJ} Makefile
+simreverse : ${SIMREVERSEOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simreverse ${SIMREVERSEOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-simconnect : stamp-libsnet stamp-denser ${SIMCONOBJ} Makefile
+simconnect : ${SIMCONOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simconnect ${SIMCONOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-q_runner : stamp-libsnet stamp-denser ${QRUNNEROBJ} Makefile
+q_runner : ${QRUNNEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
-q_cleanup : stamp-libsnet stamp-denser ${QCLEANUPOBJ} Makefile
+q_cleanup : ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
 
 address.o: bdb.h config.h dns.h envelope.h expand.h header.h line_file.h ll.h queue.h red.h simta.h simta_ldap.h
@@ -168,18 +168,6 @@ wildcard.o: config.h wildcard.h
 
 FRC :
 
-stamp-libsnet :
-	cd libsnet; ${MAKE} ${MFLAGS} CC=${CC} DEFS="${DEFS}" \
-		INCPATH="${INCPATH}"
-	@touch stamp-libsnet
-
-stamp-denser :
-	cd denser; ${MAKE} ${MFLAGS} CC=${CC} INCPATH="${INCPATH}"
-	@touch stamp-denser
-
-denser/dense : stamp-denser
-	@true
-
 DISTDIR=@PACKAGE_NAME@-@PACKAGE_VERSION@
 
 dist : clean
@@ -191,9 +179,6 @@ rpm : dist
 	rpmbuild -ta ${DESTDIR}dist/${DISTDIR}.tar.gz
 
 clean :
-	rm -f stamp-libsnet stamp-denser
-	cd denser; ${MAKE} ${MFLAGS} clean
-	cd libsnet; ${MAKE} ${MFLAGS} clean
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
 	rm -f ${TARGETS}
 	rm -f simlog
@@ -202,8 +187,6 @@ realclean : clean
 	rm -rf autom4te.cache
 	rm -f config.status config.log config.h
 	rm -f Makefile
-	cd libsnet; ${MAKE} ${MFLAGS} distclean
-	cd denser; ${MAKE} ${MFLAGS} realclean
 
 tags : ${SRC}
 	cwd=`pwd`; \

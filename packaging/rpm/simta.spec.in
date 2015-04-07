@@ -13,7 +13,7 @@ Release: 1%{?dist}
 License: BSD and MIT
 Group: System Environment/Daemons
 URL: http://rsug.itd.umich.edu/software/simta/
-Source0: url://maybe/replace/this/%{name}-%{version}.tar.gz
+Source0: %{name}-%{version}.tar.gz
 Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Provides: MTA smtpdaemon server(smtp)
 Provides: %{_sbindir}/sendmail %{_bindir}/newaliases
@@ -26,12 +26,14 @@ BuildRequires: tcp_wrappers-devel
 BuildRequires: groff
 BuildRequires: procmail
 BuildRequires: setup
+BuildRequires: pkgconfig(denser)
+BuildRequires: pkgconfig(libsnet)
 %if "%{with_tls}" == "yes"
-BuildRequires: openssl-devel
+BuildRequires: pkgconfig(openssl)
 Requires: openssl
 %endif
 %if "%{with_sasl2}" == "yes"
-BuildRequires: cyrus-sasl-devel
+BuildRequires: pkgconfig(libsasl2)
 Requires: %{_sbindir}/saslauthd
 %endif
 %if "%{with_ldap}" == "yes"
@@ -49,6 +51,8 @@ Requires: db4
 %endif
 Requires: bash >= 2.0
 Requires: initscripts
+Requires: denser
+Requires: libsnet
 Requires: procmail
 Requires: setup
 Requires: tcp_wrappers
@@ -70,7 +74,6 @@ simta is used for mail routing and delivery.
 %if "%{with_ldap}" != "yes"
 	--with-ldap=no \
 %endif
-	--with-zlib=no \
         --with-group=mail \
         --with-aliasdb=%{_sysconfdir}/aliases.db \
         --disable-chown
@@ -139,7 +142,6 @@ exit 0
 %attr(6755,simta,mail) %{_sbindir}/sendmail.simta
 %attr(6755,simta,mail) %{_sbindir}/simc
 %attr(6750,root,mail) %{_libexecdir}/simta/simda
-%{_bindir}/dense
 %{_bindir}/simalias
 %{_bindir}/simconnect
 %{_bindir}/simexpander

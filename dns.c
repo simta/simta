@@ -22,6 +22,8 @@
 #include <syslog.h>
 #include <dirent.h>
 
+#include <denser.h>
+
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -31,7 +33,6 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include "denser.h"
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"

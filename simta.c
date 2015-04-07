@@ -5,6 +5,34 @@
 
 #include "config.h"
 
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <assert.h>
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <pwd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <syslog.h>
+#include <unistd.h>
+
+#include <denser.h>
+#include <snet.h>
+
+#ifdef HAVE_LDAP
+#include <ldap.h>
+#endif /* HAVE_LDAP */
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -12,32 +40,6 @@
 #include <openssl/evp.h>
 #endif /* HAVE_LIBSSL */
 
-#include <sys/param.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
-#include <snet.h>
-
-#include <errno.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <assert.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <pwd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <syslog.h>
-#include <dirent.h>
-
-#include "denser.h"
 #include "ll.h"
 #include "expand.h"
 #include "red.h"
@@ -48,11 +50,6 @@
 #include "simta_ldap.h"
 #include "queue.h"
 #include "ml.h"
-
-#ifdef HAVE_LDAP
-#include <ldap.h>
-#include "ldap.h"
-#endif /* HAVE_LDAP */
 
 #ifndef TRUE
 #define TRUE 1

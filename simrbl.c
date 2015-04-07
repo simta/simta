@@ -30,11 +30,12 @@
 #include <sysexits.h>
 #include <utime.h>
 
+#include <denser.h>
+
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include "denser.h"
 #include "envelope.h"
 #include "dns.h"
 #include "simta.h"

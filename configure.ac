@@ -1,11 +1,10 @@
 # Process this file with autoconf to produce a configure script.
 
-AC_INIT(simta, m4_esyscmd([bash version.sh]), simta@umich.edu)
+AC_INIT(simta, m4_esyscmd([sh version.sh]), simta@umich.edu)
 
 AC_PREREQ(2.63)
 AC_CONFIG_HEADER(config.h)
 AC_COPYRIGHT([Copyright (c) 1998-2015 Regents of The University of Michigan])
-AC_CONFIG_AUX_DIR([libsnet])
 
 # Set up local variables
 AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-aliasdb=DB], [default alias db]), [], with_aliasdb="/etc/alias.db" )
@@ -26,6 +25,10 @@ AC_PREFIX_DEFAULT(/usr/local)
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL
+
+# Checks for functions
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
 
 # Find local mailers
 SET_LOCALDELIVERY
@@ -56,30 +59,34 @@ AX_PATH_BDB([4], [
     AC_SUBST(BDB_CPPFLAGS)
 ])
 
-AX_WITH_LIBRARY([ssl], [LIBSSL], [openssl/ssl.h], [ssl], [-lcrypto])
+# Required packages
+PKG_CHECK_MODULES([DENSER], [denser])
+PKG_CHECK_MODULES([SNET], [libsnet])
+
+# Optional packages
+AC_ARG_WITH([sasl], AC_HELP_STRING([--with-sasl], [Build with SASL support]))
+AS_IF(
+    [test "x$with_sasl" != "xno"],
+    [PKG_CHECK_MODULES([LIBSASL], [libsasl2], [AC_DEFINE([HAVE_LIBSASL], [1], [Define to 1 if LIBSASL is found])])])
+
+AC_ARG_WITH([ssl], AC_HELP_STRING([--with-ssl], [Build with TLS support]))
+AS_IF(
+    [test "x$with_ssl" != "xno"],
+    [PKG_CHECK_MODULES([LIBSSL], [openssl], [AC_DEFINE([HAVE_LIBSSL], [1], [Define to 1 if LIBSSL is found])])])
+
+# Packages without pkgconfig files
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
 AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
-AX_WITH_LIBRARY([sasl2], [LIBSASL], [sasl/sasl.h], [sasl2])
-AX_WITH_LIBRARY([zlib], [ZLIB], [zlib.h], [z])
 
 if test x"$ax_cv_have_LDAP" = xyes; then
     LDAP_SRC="simta_ldap.c dn.c"
     LDAP_OBJ="simta_ldap.o dn.o"
 fi
 
-if test x"$ax_cv_have_LIBSSL" = xyes; then
+if test x"$with_ssl" != xno; then
     SSL_SRC="md.c tls.c"
     SSL_OBJ="md.o tls.o"
 fi
-
-if test "x$srcdir" = x.; then
-extrasub="$extrasub
-/^srcdir=/d
-/^SRCPFX/d"
-fi
-
-AC_CONFIG_SUBDIRS(libsnet)
-AC_CONFIG_SUBDIRS(denser)
 
 AC_CONFIG_FILES([ Makefile packaging/rpm/simta.spec ])
 AC_OUTPUT
