@@ -145,7 +145,7 @@ ll_walk( struct stab_entry *st, void (*ll_func)( void * ))
 
 
     void*
-ll__lookup( struct stab_entry *st, void *data,
+ll_nokey_lookup( struct stab_entry *st, void *data,
 	int (*ll_compare)( void *, void * ))
 {
     for( ; st != NULL; st = st->st_next ) {
@@ -160,7 +160,7 @@ ll__lookup( struct stab_entry *st, void *data,
 
 
     int
-ll__insert( struct stab_entry **stab, void *data,
+ll_nokey_insert( struct stab_entry **stab, void *data,
 	int (*ll_compare)( void *, void * ))
 {
     struct stab_entry	*st;

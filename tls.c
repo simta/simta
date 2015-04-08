@@ -28,35 +28,35 @@
 
 #include "tls.h"
     
-int _randfile( void );
+static int tls_randfile( void );
 
 extern void            (*logger)( char * );
 extern int		verbose;
 extern struct timeval	timeout;
 
 
-    int
-_randfile( void )
+    static int
+tls_randfile( void )
 {
     char        randfile[ MAXPATHLEN ];
 
     /* generates a default path for the random seed file */
     if ( RAND_file_name( randfile, sizeof( randfile )) == NULL ) {
-	syslog( LOG_ERR, "_randfile: RAND_file_name: %s",
+	syslog( LOG_ERR, "tls_randfile: RAND_file_name: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( -1 );
     }
 
     /* reads the complete randfile and adds them to the PRNG */
     if ( RAND_load_file( randfile, -1 ) <= 0 ) {
-	syslog( LOG_ERR, "_randfile: RAND_load_file: %s: %s", randfile,
+	syslog( LOG_ERR, "tls_randfile: RAND_load_file: %s: %s", randfile,
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( -1 );
     }
 
     /* writes a number of random bytes (currently 1024) to randfile */
     if ( RAND_write_file( randfile ) < 0 ) {
-	syslog( LOG_ERR, "_randfile: RAND_write_file: %s: %s", randfile,
+	syslog( LOG_ERR, "tls_randfile: RAND_write_file: %s: %s", randfile,
 		ERR_error_string( ERR_get_error(), NULL ));
 	return( -1 );
     }
@@ -77,7 +77,7 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     SSL_library_init();    
 
     if ( use_randfile ) {
-	if ( _randfile( ) != 0 ) {
+	if ( tls_randfile( ) != 0 ) {
 	    return( NULL );
 	}
     }
@@ -191,7 +191,7 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
     SSL_library_init();
 
     if ( use_randfile ) {
-	if ( _randfile( ) != 0 ) {
+	if ( tls_randfile( ) != 0 ) {
 	    return( NULL );
 	}
     }

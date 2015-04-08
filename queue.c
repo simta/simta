@@ -52,7 +52,7 @@
 #include "red.h"
 #include "dns.h"
 
-void	_q_deliver( struct deliver *, struct host_q * );
+static void	real_q_deliver( struct deliver *, struct host_q * );
 void	q_deliver( struct host_q * );
 void	deliver_local( struct deliver *d );
 void	deliver_remote( struct deliver *d, struct host_q * );
@@ -1030,7 +1030,7 @@ q_deliver( struct host_q *deliver_q )
 
     memset( &d, 0, sizeof( struct deliver ));
 
-    _q_deliver( &d, deliver_q );
+    real_q_deliver( &d, deliver_q );
 
     if ( simta_gettimeofday( &tv_stop ) != 0 ) {
 	return;
@@ -1060,7 +1060,7 @@ q_deliver( struct host_q *deliver_q )
 
 
     void
-_q_deliver( struct deliver *d, struct host_q *deliver_q )
+real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 {
     int                         touch = 0;
     int                         n_processed = 0;

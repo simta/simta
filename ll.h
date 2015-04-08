@@ -26,6 +26,6 @@ void	ll_walk( struct stab_entry *, void (*)( void *));
 int 	ll_insert_tail( struct stab_entry **stab, char *key, void *data );
 
 int	ll_default_compare( char *, char * );
-int	ll__insert( struct stab_entry **, void *, int(*)( void *, void * ));
-void	*ll__lookup( struct stab_entry *, void *, int(*)( void *, void * ));
+int	ll_nokey_insert( struct stab_entry **, void *, int(*)( void *, void * ));
+void	*ll_nokey_lookup( struct stab_entry *, void *, int(*)( void *, void * ));
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -154,9 +154,6 @@ struct receive_data {
 #define S_UNRESOLVED "Unresolved"
 #define S_DENIED "Access denied for IP"
 
-#define _S_SMTP "SMTP"
-#define _S_DATA "Data"
-
 /* return codes for address_expand */
 #define	LOCAL_ADDRESS			1
 #define	NOT_LOCAL			2
