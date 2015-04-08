@@ -124,7 +124,7 @@ main( int argc, char *argv[] )
     }
 
     /* init simta config / defaults */
-    if ( simta_config( SIMTA_BASE_DIR ) != 0 ) {
+    if ( simta_config( ) != 0 ) {
 	exit( EX_TEMPFAIL );
     }
 

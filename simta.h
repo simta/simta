@@ -309,7 +309,7 @@ void	panic( char * );
 char	*simta_sender( void );
 char	*simta_resolvconf( void );
 int	simta_init_hosts( void );
-int	simta_config( char * );
+int	simta_config( void );
 int     simta_read_config( char * );
 void	simta_openlog( int );
 int	simta_gettimeofday( struct timeval * );

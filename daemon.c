@@ -53,10 +53,6 @@
 #include "tls.h"
 #endif /* HAVE_LIBSSL */
 
-/* XXX testing purposes only, make paths configureable */
-#define _PATH_SPOOL	"/var/spool/simta"
-
-
 struct connection_info		*cinfo_stab = NULL;
 struct proc_type		*proc_stab = NULL;
 int				simta_pidfd;
@@ -279,14 +275,12 @@ main( int ac, char **av )
     int			dontrun = 0;
     int			q_run = 0;
     char		*prog;
-    char		*spooldir = _PATH_SPOOL;
     extern int		optind;
     extern char		*optarg;
     struct simta_socket	*ss;
     char                *simta_uname = "simta";
     struct passwd	*simta_pw;
     char		*config_fname = SIMTA_FILE_CONFIG;
-    char		*config_base_dir = SIMTA_BASE_DIR;
 #ifdef HAVE_LIBSASL
     int			rc;
 #endif /* HAVE_LIBSASL */
@@ -301,9 +295,9 @@ main( int ac, char **av )
     }
 
 #ifdef HAVE_LIBSSL
-    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRs:Su:Vw:x:y:z:" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRSu:Vw:x:y:z:" ))
 #else /* HAVE_LIBSSL */
-    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRs:Su:V" ))
+    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRSu:V" ))
 #endif /* HAVE_LIBSSL */
 	    != -1 ) {
 	switch ( c ) {
@@ -336,7 +330,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'D' :
-	    config_base_dir = optarg;
+	    simta_base_dir = strdup( optarg );
 	    break;
 
 	case 'f' :
@@ -422,10 +416,6 @@ main( int ac, char **av )
 	    simta_smtp_default_mode = SMTP_MODE_GLOBAL_RELAY;
 	    break;
 
-	case 's' :		/* spool dir */
-	    spooldir = optarg;
-	    break;
-
 	case 'S' :
 	    simta_service_submission = SERVICE_SUBMISSION_ON;
 	    break;
@@ -475,7 +465,6 @@ main( int ac, char **av )
 	fprintf( stderr, " [ -l process_launch_limit ]" );
 	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
 	fprintf( stderr, " [ -P ca-directory ] [ -Q queue]" );
-	fprintf( stderr, " [ -s spooldir ]" );
         fprintf( stderr, " [ -u user ]" );
 #ifdef HAVE_LIBSSL
 	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
@@ -512,13 +501,13 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    if ( chdir( spooldir ) < 0 ) {
-	perror( spooldir );
+    if ( chdir( simta_base_dir ) < 0 ) {
+	perror( simta_base_dir );
 	exit( 1 );
     }
 
     /* init simta config / defaults */
-    if ( simta_config( config_base_dir ) != 0 ) {
+    if ( simta_config( ) != 0 ) {
 	exit( 1 );
     }
 

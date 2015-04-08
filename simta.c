@@ -182,7 +182,7 @@ char			*simta_dir_local = NULL;
 char			*simta_dir_slow = NULL;
 char			*simta_dir_fast = NULL;
 char			*simta_dir_command = NULL;
-char			*simta_base_dir = "/var/spool/simta";
+char			*simta_base_dir = SIMTA_BASE_DIR;
 char                    *simta_file_pid = SIMTA_FILE_PID;
 char			simta_hostname[ DNSR_MAX_HOSTNAME + 1 ] = "\0";
 char			simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
@@ -2472,7 +2472,7 @@ simta_host_is_jailhost( char *host )
 
 
     int
-simta_config( char *base_dir )
+simta_config( void )
 {
     char		path[ MAXPATHLEN + 1 ];
 
@@ -2521,37 +2521,37 @@ simta_config( char *base_dir )
     }
 
     /* check base_dir before using it */
-    if ( base_dir == NULL ) {
+    if ( simta_base_dir == NULL ) {
 	fprintf( stderr, "No base directory defined.\n" );
 	return( -1 );
     }
 
     /* set up data dir pathnames */
-    sprintf( path, "%s/%s", base_dir, "fast" );
+    sprintf( path, "%s/%s", simta_base_dir, "fast" );
     if (( simta_dir_fast = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }
 
-    sprintf( path, "%s/%s", base_dir, "slow" );
+    sprintf( path, "%s/%s", simta_base_dir, "slow" );
     if (( simta_dir_slow = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }
 
-    sprintf( path, "%s/%s", base_dir, "dead" );
+    sprintf( path, "%s/%s", simta_base_dir, "dead" );
     if (( simta_dir_dead = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }
 
-    sprintf( path, "%s/%s", base_dir, "local" );
+    sprintf( path, "%s/%s", simta_base_dir, "local" );
     if (( simta_dir_local = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );
     }
 
-    sprintf( path, "%s/%s", base_dir, "command" );
+    sprintf( path, "%s/%s", simta_base_dir, "command" );
     if (( simta_dir_command = strdup( path )) == NULL ) {
 	perror( "strdup" );
 	return( -1 );

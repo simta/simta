@@ -54,7 +54,7 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-    if ( simta_config( SIMTA_BASE_DIR ) != 0 ) {
+    if ( simta_config( ) != 0 ) {
 	exit( 1 );
     }
 
