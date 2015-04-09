@@ -1,6 +1,7 @@
 # package options
 %define with_tls	yes
 %define with_sasl2	yes
+%define with_libidn     yes
 %define with_ldap	yes
 
 %define smshell /sbin/nologin
@@ -32,6 +33,9 @@ BuildRequires: pkgconfig(openssl)
 %if "%{with_sasl2}" == "yes"
 BuildRequires: pkgconfig(libsasl2)
 %endif
+%if "%{with_libidn}" == "yes"
+BuildRequires: pkgconfig(libidn)
+%endif
 %if "%{with_ldap}" == "yes"
 BuildRequires: openldap-devel
 %endif
@@ -59,6 +63,9 @@ export JEMALLOC_CFLAGS=-I/usr/include
 %endif
 %if "%{with_sasl2}" != "yes"
 	--with-sasl=no \
+%endif
+%if "%{with_libidn}" != "yes"
+        --with-libidn=no
 %endif
 %if "%{with_ldap}" != "yes"
 	--with-ldap=no \

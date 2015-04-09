@@ -9,6 +9,8 @@
 #include <denser.h>
 #include <snet.h>
 
+#include "ll.h"
+
 #define	EMAIL_ADDRESS_NORMAL		0x0000
 #define	RFC_821_MAIL_FROM		0x0001
 #define	RFC_821_RCPT_TO			0x0010
@@ -100,6 +102,10 @@
 #ifdef HAVE_LIBSSL
 #define SIMTA_SOCKET_TLS	(1<<0)
 #endif /* HAVE_LIBSSL */
+
+#define SIMTA_CHARSET_ASCII		0
+#define SIMTA_CHARSET_UTF8		1
+#define SIMTA_CHARSET_INVALID		2
 
 #define S_ACCEPTED_MESSAGE "Accepted Message"
 #define S_COMMAND_LINE "Command Line"
@@ -294,6 +300,8 @@ extern DNSR				*simta_dnsr;
 extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
 extern char				*simta_seen_before_domain;
+extern struct dll_entry			*simta_publicsuffix_list;
+extern char				*simta_file_publicsuffix;
 
 /* SMTP INBOUND & OUTBOUND TIMERS */
 extern int				simta_inbound_accepted_message_timer;
@@ -319,6 +327,7 @@ int	simta_config( void );
 int     simta_read_config( char * );
 void	simta_openlog( int );
 int	simta_gettimeofday( struct timeval * );
+int	simta_check_charset( const char * );
 int	simta_host_is_jailhost( char *  );
 
 #define SIMTA_ELAPSED_MSEC(a, b) \

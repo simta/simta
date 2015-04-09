@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <assert.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -32,6 +33,10 @@
 #ifdef HAVE_LDAP
 #include <ldap.h>
 #endif /* HAVE_LDAP */
+
+#ifdef HAVE_LIBIDN
+#include <idna.h>
+#endif /* HAVE_LIBIDN */
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -59,6 +64,8 @@
 #define TRUE 1
 #define FALSE 0
 #endif
+
+static int simta_read_publicsuffix( void );
 
 /* global variables */
 #if defined(HAVE_JEMALLOC) || defined(__FreeBSD__)
@@ -204,6 +211,8 @@ char			*simta_file_private_key = "cert/cert.pem";
 char			**simta_deliver_default_argv;
 int			simta_deliver_default_argc;
 char			*simta_seen_before_domain = NULL;
+struct dll_entry	*simta_publicsuffix_list = NULL;
+char			*simta_file_publicsuffix = NULL;
 
 /* SMTP RECEIVE & DELIVER TIMERS */
 int			simta_inbound_accepted_message_timer = -1;
@@ -1558,6 +1567,26 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "MIN_WORK_TIME: %d\n",
 		simta_min_work_time );
 
+	} else if ( strcasecmp( av[ 0 ], "PUBLICSUFFIX_FILE" ) == 0 ) {
+	    if (( ac == 2 ) && ( strlen( av[ 1 ]  ) <= MAXPATHLEN )) {
+		if (( simta_file_publicsuffix = strdup( av[ 1 ] )) == NULL ) {
+		    perror( "strdup" );
+		    goto error;
+		}
+		if ( simta_debug ) printf( "PUBLICSUFFIX_FILE: %s\n",
+			simta_file_publicsuffix );
+		if ( simta_read_publicsuffix( )) {
+		    goto error;
+		}
+		continue;
+	    }
+
+	    fprintf( stderr,
+		    "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "PUBLICSUFFIX_FILE <path>" );
+	    goto error;
+
         } else if ( strcasecmp( av[ 0 ], "PID_FILE" ) == 0 ) {
             if ( ac != 2 ) {
                 fprintf( stderr,
@@ -2441,4 +2470,135 @@ simta_config( void )
 
     return( 0 );
 }
+
+    int
+simta_check_charset( const char *str )
+{
+    const unsigned char	    *c;
+    size_t		    len, charlen;
+    int			    i;
+    uint32_t		    u;
+    uint8_t		    mask;
+    int			    ret = SIMTA_CHARSET_ASCII;
+
+    len = strlen( str );
+
+    for ( c = (unsigned char *)str; *c != '\0'; c++ ) {
+	if ( *c < 0x80 ) {
+	    continue;
+	}
+	ret = SIMTA_CHARSET_UTF8;
+	if (( *c & 0xe0 ) == 0xc0 ) {
+	    charlen = 2;
+	    mask = 0x1f;
+	} else if (( *c & 0xf0 ) == 0xe0 ) {
+	    charlen = 3;
+	    mask = 0x0f;
+	} else if (( *c & 0xf8 ) == 0xf0 ) {
+	    charlen = 4;
+	    mask = 0x07;
+	} else {
+	    /* RFC 3629 limits UTF-8 to 21 bits (4 bytes), so
+	     * anything else that has the high bit set is either an
+	     * out-of-order continuation octet or completely invalid.
+	     */
+	    return( SIMTA_CHARSET_INVALID );
+	}
+
+	u = *c & mask;
+	for ( i = 1; i < charlen; i++ ) {
+	    c++;
+	    if (( *c & 0xc0 ) != 0x80 ) {
+		return( SIMTA_CHARSET_INVALID );
+	    }
+	    u <<= 6;
+	    u |= ( *c & 0x3f );
+	}
+
+	/* Check that the codepoint used the shortest representation */
+	if (( u < 0x80 ) || (( u < 0x800 ) && ( charlen > 2 )) ||
+		(( u < 0x10000 ) && ( charlen > 4 ))) {
+	    return( SIMTA_CHARSET_INVALID );
+	}
+
+	/* Check for invalid codepoints */
+    }
+
+    return( ret );
+}
+
+    static int
+simta_read_publicsuffix ( void )
+{
+    SNET		*snet = NULL;
+    char		*line, *p;
+    struct dll_entry	*leaf;
+#ifdef HAVE_LIBIDN
+    char		*idna = NULL;
+#endif /* HAVE_LIBIDN */
+
+    /* Set up public suffix list */
+    if ( simta_file_publicsuffix != NULL ) {
+	if (( snet = snet_open( simta_file_publicsuffix,
+		O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	    fprintf( stderr, "simta_read_publicsuffix: open %s: %m",
+		    simta_file_publicsuffix );
+	    return( 1 );
+	}
+	while (( line = snet_getline( snet, NULL )) != NULL ) {
+	    /* Each line is only read up to the first whitespace; entire
+	     * lines can also be commented using //.
+	     */
+	    if (( *line == '\0' ) || ( *line == ' ' ) || ( *line == '\t' ) ||
+		    ( strncmp( line, "//", 2 ) == 0 )) {
+		continue;
+	    }
+	    for ( p = line; ((*p != '\0' ) && (!isspace(*p))) ; p++ );
+	    *p = '\0';
+	    leaf = NULL;
+
+
+#ifdef HAVE_LIBIDN
+	    if ( simta_check_charset( line ) == SIMTA_CHARSET_UTF8 ) {
+		if ( idna_to_ascii_8z( line, &idna, 0 ) == IDNA_SUCCESS ) {
+		    line = idna;
+		}
+	    }
+#endif /* HAVE_LIBIDN */
+
+	    while ( *line != '\0' ) {
+		if (( p = strrchr( line, '.' )) == NULL ) {
+		    p = line;
+		} else {
+		    *p = '\0';
+		    p++;
+		}
+
+		if ( leaf == NULL ) {
+		    leaf = dll_lookup_or_create( &simta_publicsuffix_list,
+			    p, 1 );
+		} else {
+		    leaf = dll_lookup_or_create(
+			    (struct dll_entry **)&leaf->dll_data, p, 1 );
+		}
+
+		*p = '\0';
+	    }
+
+#ifdef HAVE_LIBIDN
+	    if ( idna ) {
+		free( idna );
+		idna = NULL;
+	    }
+#endif /* HAVE_LIBIDN */
+	}
+	if ( snet_close( snet ) != 0 ) {
+	    perror( "snet_close" );
+	    return( 1 );
+	}
+    }
+
+    return( 0 );
+}
+
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
