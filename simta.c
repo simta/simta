@@ -2470,6 +2470,13 @@ simta_host_is_jailhost( char *host )
 simta_config( void )
 {
     char		path[ MAXPATHLEN + 1 ];
+    struct timeval	tv_now;
+
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
+        return( -1 );
+    }
+
+    srandom( tv_now.tv_usec * tv_now.tv_sec * getpid( ) );
 
     if ( simta_host_is_jailhost( simta_hostname )) {
 	fprintf( stderr, "punt host can't be localhost\n" );

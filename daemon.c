@@ -886,8 +886,6 @@ simta_server( void )
 	exit( 1 );
     }
 
-    srandom((unsigned int)tv_now.tv_usec );
-
     /* main daemon loop */
     syslog( LOG_DEBUG, "Debug: Starting Daemon" );
     for ( ; ; ) {
