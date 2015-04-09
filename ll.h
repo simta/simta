@@ -20,7 +20,7 @@ struct dll_entry *dll_lookup_or_create( struct dll_entry**, char*, int );
 void dll_remove_entry( struct dll_entry **, struct dll_entry * );
 struct dll_entry *dll_lookup( struct dll_entry *, char * );
 
-void	*ll_lookup( struct stab_entry*, char * );
+void	*ll_lookup( struct stab_entry*, const char * );
 int	ll_insert( struct stab_entry **, char *, void *,
 		int(*)( char *, char * ));
 void	*ll_remove( struct stab_entry **, char * );

@@ -20,7 +20,7 @@
      */
 
     void*
-ll_lookup( struct stab_entry *st, char *key )
+ll_lookup( struct stab_entry *st, const char *key )
 {
     for( ; st != NULL; st = st->st_next ) {
 	if ( strcasecmp( st->st_key, key ) == 0 ) {
