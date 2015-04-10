@@ -1591,6 +1591,23 @@ simta_read_config( char *fname )
 	    if ( simta_debug ) printf( "MIN_WORK_TIME: %d\n",
 		simta_min_work_time );
 
+	} else if ( strcasecmp( av[ 0 ], "NO_SYNC" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_no_sync = 1;
+		    if ( simta_debug ) printf( "NO_SYNC ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_no_sync = 0;
+		    if ( simta_debug ) printf( "NO_SYNC OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "NO_SYNC <ON|OFF>" );
+	    goto error;
+
         } else if ( strcasecmp( av[ 0 ], "PID_FILE" ) == 0 ) {
             if ( ac != 2 ) {
                 fprintf( stderr,
