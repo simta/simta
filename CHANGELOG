@@ -1,3 +1,13 @@
+0.11.2
+    - fixed a bug that broke delivery to ancient hosts when TLS was disabled
+    - fixed a bug that could cause simta to take spurious filter actions
+        during message receipt
+    - added config variable to control sync()ing
+    - added the ability to set unlimited AGGRESSIVE_RECEIPT
+    - improved delivery efficiency of AGGRESSIVE_RECEIPT
+    - made generated timestamp format consistent and correct
+    - added config variable to control whether bounces contain message bodies
+
 0.11.1
     - improved default TLS configuration
     - added TLS_CIPHERS to control server cipher suites
