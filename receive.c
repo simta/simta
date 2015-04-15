@@ -1335,7 +1335,7 @@ f_data( struct receive_data *r )
     int					header = 1;
     int					line_no = 0;
     int					message_banner = MESSAGE_TEMPFAIL;
-    int					filter_result;
+    int					filter_result = MESSAGE_ACCEPT;
     int					f_result;
     int					read_err = NO_ERROR;
     unsigned int			line_len;
