@@ -1602,7 +1602,7 @@ f_data( struct receive_data *r )
 
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
-		if ( header == 1 ) {
+		if (( read_err == NO_ERROR ) && ( header == 1 )) {
 		    header_only = 1;
 		} else { 
 		    break;
