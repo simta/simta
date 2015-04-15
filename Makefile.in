@@ -34,6 +34,7 @@ SIMCONOBJ=	${COMMONOBJ} simconnect.o
 SIMCOBJ=	${COMMONOBJ} simc.o
 SIMDAOBJ=	simda.o
 SIMSENDOBJ=	${COMMONOBJ} simsend.o
+SIMSPFOBJ=	${COMMONOBJ} simspf.o spf.o
 SIMLOGOBJ=	simlog.o
 EXPANDEROBJ=	${COMMONOBJ} expander.o
 SIMRBLOBJ=	${COMMONOBJ} simrbl.o
@@ -81,7 +82,7 @@ MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
 BINTARGETS=	simrbl simreverse simalias simexpander simconnect
 TARGETS=	simta simconnect simsendmail q_runner simexpander \
-                sla simc simda \
+                sla simc simda simspf \
 		${BINTARGETS}
 
 all : ${TARGETS}
@@ -121,6 +122,10 @@ simc : ${SIMCOBJ} Makefile
 
 simda : ${SIMDAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simda ${SIMDAOBJ}
+
+simspf : ${SIMSPFOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simspf ${SIMSPFOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
 
 simsendmail : ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
@@ -176,6 +181,7 @@ simlog.o: config.h simta.h
 simrbl.o: config.h dns.h envelope.h ll.h simta.h
 simreverse.o: config.h dns.h envelope.h ll.h simta.h
 simsend.o: config.h envelope.h header.h line_file.h queue.h simta.h
+simspf.o: config.h spf.h simta.h
 simta.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
 simta_ldap.o: argcargv.h config.h dn.h envelope.h expand.h header.h ll.h queue.h simta.h simta_ldap.h
 sla.o: config.h envelope.h expand.h line_file.h ll.h queue.h simta.h

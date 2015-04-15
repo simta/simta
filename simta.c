@@ -174,6 +174,7 @@ long int		simta_max_message_size = -1;
 int                     simta_outbound_connection_msg_max = 0;
 char			*simta_mail_filter = NULL;
 int			simta_filter_trusted = 1;
+int			simta_spf_verbose = 0;
 char			*simta_data_url = NULL;
 char			*simta_reverse_url = NULL;
 char			*simta_libwrap_url = NULL;
@@ -2116,6 +2117,22 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "SMTP_TARPIT_RCPT: %d\n",
 		simta_smtp_tarpit_rcpt );
+
+	} else if ( strcasecmp( av[ 0 ], "SPF_VERBOSE_LOGGING" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_spf_verbose = 1;
+		    if ( simta_debug ) printf( "SPF_VERBOSE_LOGGING ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_spf_verbose = 0;
+		    if ( simta_debug ) printf( "SPF_VERBOSE_LOGGING OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno, "SPF_VERBOSE_LOGGING <ON|OFF>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_MODE" ) == 0 ) {
 	    if ( ac != 2 ) {
