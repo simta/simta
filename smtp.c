@@ -846,7 +846,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 
     case SMTP_ERROR:
 #ifdef HAVE_LIBSSL
-	if ( tls_required != 0 ) {
+	if ( tls_required > 0 ) {
 	    syslog( LOG_INFO, "Deliver.SMTP %s (%s): %s",
 		    hq->hq_hostname, hq->hq_smtp_hostname,
 		    "TLS required: EHLO unsupported" );
