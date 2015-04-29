@@ -748,7 +748,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 		NULL, NULL, ciphers )) == NULL ) {
 	    syslog( LOG_ERR, "Syserror: smtp_connect: tls_client_setup %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
-	    if ( tls_required != 0 ) {
+	    if ( tls_required > 0 ) {
 		syslog( LOG_INFO, "Deliver.SMTP %s (%s): TLS required: %s",
 			hq->hq_hostname, hq->hq_smtp_hostname,
 			"tls_client_setup error" );
@@ -758,7 +758,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	} else if (( rc = snet_starttls( d->d_snet_smtp, ssl_ctx, 0 )) != 1 ) {
 	    syslog( LOG_ERR, "Syserror smtp_connect: snet_starttls: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
-	    if ( tls_required ) {
+	    if ( tls_required > 0 ) {
 		SSL_CTX_free( ssl_ctx );
 		return( SMTP_BAD_CONNECTION );
 	    }
