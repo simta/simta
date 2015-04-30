@@ -28,6 +28,7 @@ BuildRequires: procmail
 BuildRequires: setup
 BuildRequires: pkgconfig(denser)
 BuildRequires: pkgconfig(libsnet)
+BuildRequires: pkgconfig(libyasl)
 %if "%{with_tls}" == "yes"
 BuildRequires: pkgconfig(openssl)
 Requires: openssl
@@ -56,6 +57,7 @@ Requires: libsnet
 Requires: procmail
 Requires: setup
 Requires: tcp_wrappers
+Requires: yasl
 
 %description
 simta is used for mail routing and delivery.
