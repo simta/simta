@@ -97,13 +97,19 @@
 #define SIMTA_SOCKET_TLS	(1<<0)
 #endif /* HAVE_LIBSSL */
 
+#define S_ACCEPTED_MESSAGE "Accepted Message"
+#define S_COMMAND_LINE "Command Line"
+#define S_DATA_LINE "Data Line"
+#define S_DATA_SESSION "Data Session"
 #define S_DEBUG "Debug"
-#define S_MESSAGE "Message"
-#define S_SENDER "sender"
-#define S_QUEUE "queue"
 #define S_DISK "Disk"
+#define S_GLOBAL_SESSION "Global Session"
+#define S_INACTIVITY "Command Inactivity"
 #define S_LIMITER "Limiter"
-#define S_Unset "Unset"
+#define S_MESSAGE "Message"
+#define S_QUEUE "queue"
+#define S_SENDER "sender"
+#define S_UNSET "Unset"
 
 struct simta_dirp {
     DIR				*sd_dirp;

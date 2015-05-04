@@ -152,13 +152,6 @@ struct receive_data {
 #define S_UNRESOLVED "Unresolved"
 #define S_DENIED "Access denied for IP"
 
-#define S_DATA_LINE "Data Line"
-#define S_COMMAND_LINE "Command Line"
-#define S_INACTIVITY "Command Inactivity"
-#define S_ACCEPTED_MESSAGE "Accepted Message"
-#define S_GLOBAL_SESSION "Global Session"
-#define S_DATA_SESSION "Data Session"
-
 #define _S_SMTP "SMTP"
 #define _S_DATA "Data"
 

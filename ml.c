@@ -93,7 +93,7 @@ deliver_binary( struct deliver *d )
     char		*domain = "NULL";
 
     if ( pipe( fd ) < 0 ) {
-	syslog( LOG_ERR, "deliver_binary pipe: %m" );
+	syslog( LOG_ERR, "Syserror: deliver_binary pipe: %m" );
 	return( EX_TEMPFAIL );
     }
 
@@ -101,37 +101,37 @@ deliver_binary( struct deliver *d )
 
     switch ( pid = fork()) {
     case -1 :
-	syslog( LOG_ERR, "deliver_binary fork: %m" );
+	syslog( LOG_ERR, "Syserror: deliver_binary fork: %m" );
 	return( EX_TEMPFAIL );
 
     case 0 :
 	simta_openlog( 1 );
 	/* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
 	if ( close( fd[ 1 ] ) < 0 ) {
-	    syslog( LOG_ERR, "deliver_binary close: %m" );
+	    syslog( LOG_ERR, "Syserror: deliver_binary close: %m" );
 	    exit( EX_TEMPFAIL);
 	}
 
 	/* stdout -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 1 ) < 0 ) {
-	    syslog( LOG_ERR, "deliver_binary dup2: %m" );
+	    syslog( LOG_ERR, "Syserror: deliver_binary dup2: %m" );
 	    exit( EX_TEMPFAIL);
 	}
 
 	/* stderr -> fd[ 0 ] */
 	if ( dup2( fd[ 0 ], 2 ) < 0 ) {
-	    syslog( LOG_ERR, "deliver_binary dup2: %m" );
+	    syslog( LOG_ERR, "Syserror: deliver_binary dup2: %m" );
 	    exit( EX_TEMPFAIL);
 	}
 
 	if ( close( fd[ 0 ] ) < 0 ) {
-	    syslog( LOG_ERR, "deliver_binary close: %m" );
+	    syslog( LOG_ERR, "Syserror: deliver_binary close: %m" );
 	    exit( EX_TEMPFAIL);
 	}
 
 	/* f -> stdin */
 	if ( dup2( d->d_dfile_fd, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "deliver_binary dup2: %m" );
+	    syslog( LOG_ERR, "Syserror: deliver_binary dup2: %m" );
 	    exit( EX_TEMPFAIL);
 	}
 
@@ -184,70 +184,71 @@ deliver_binary( struct deliver *d )
 
 	execv( binary, d->d_deliver_argv );
 	/* if we are here, there is an error */
-	syslog( LOG_ERR, "deliver_binary execv: %m" );
+	syslog( LOG_ERR, "Syserror: deliver_binary execv: %m" );
 	exit( EX_TEMPFAIL);
 
     default :
 	/* use fd[ 1 ] to communicate with child, child uses fd[ 0 ] */
 	if ( close( fd[ 0 ] ) < 0 ) {
-	    syslog( LOG_ERR, "deliver_binary close: %m" );
+	    syslog( LOG_ERR, "Syserror: deliver_binary close: %m" );
 	    return( EX_TEMPFAIL );
 	}
 
 	if (( snet = snet_attach( fd[ 1 ], 1024 * 1024 )) == NULL ) {
-	    syslog( LOG_ERR, "snet_attach: %m" );
+	    syslog( LOG_ERR, "Liberror: deliver_binary snet_attach: %m" );
 	    return( EX_TEMPFAIL );
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
-	    syslog( LOG_NOTICE, "mail.local %d: %s", pid, line );
+	    syslog( LOG_INFO, "Deliver.binary %s: %d: %s",
+		    d->d_env->e_id, pid, line );
 
 	    if ( d->d_rcpt->r_err_text == NULL ) {
 		if (( d->d_rcpt->r_err_text = line_file_create()) == NULL ) {
-		    syslog( LOG_ERR, "line_file_create: %m" );
+		    syslog( LOG_ERR,
+			    "Syserror: deliver_binary line_file_create: %m" );
 		    snet_close( snet );
 		    return( EX_TEMPFAIL );
 		}
 	    }
 
 	    if ( line_append( d->d_rcpt->r_err_text, line, COPY ) == NULL ) {
-		syslog( LOG_ERR, "line_append: %m" );
+		syslog( LOG_ERR, "Syserror: deliver_binary line_append: %m" );
 		snet_close( snet );
 		return( EX_TEMPFAIL );
 	    }
 	}
 
 	if ( snet_close( snet ) < 0 ) {
-	    syslog( LOG_ERR, "deliver_binary snet_close: %m" );
+	    syslog( LOG_ERR, "Liberror: deliver_binary snet_close: %m" );
 	    return( EX_TEMPFAIL );
 	}
 
 	if (( waitpid( pid, &status, 0 ) < 0 ) && ( errno != ECHILD )) {
-	    syslog( LOG_ERR, "deliver_binary waitpid: %m" );
+	    syslog( LOG_ERR, "Syserror: deliver_binary waitpid: %m" );
 	    return( EX_TEMPFAIL );
 	}
 
 	if ( WIFEXITED( status )) {
 	    if (( val = WEXITSTATUS( status )) == 0 ) {
-		syslog( LOG_NOTICE, "mail.local %d done\n", pid );
-
-	    } else if ( val == EX_TEMPFAIL ) {
-		syslog( LOG_WARNING, "mail.local %d died %d EX_TEMPFAIL\n", pid,
-			val );
+		syslog( LOG_NOTICE, "Deliver.binary %s: %d done",
+			d->d_env->e_id, pid );
 
 	    } else {
-		syslog( LOG_WARNING, "mail.local %d died %d\n", pid, val );
+		syslog( LOG_WARNING, "Deliver.binary %s: %d exited %d",
+			d->d_env->e_id, pid, val );
 	    }
 
 	    return( val );
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "mail.local %d died on signal %d\n", pid, 
-		    WTERMSIG( status ));
+	    syslog( LOG_ERR, "Deliver.binary %s: %d signaled to death by %d",
+		    d->d_env->e_id, pid, WTERMSIG( status ));
 	    return( EX_TEMPFAIL);
 
 	} else {
-	    syslog( LOG_ERR, "mail.local %d died\n", pid );
+	    syslog( LOG_ERR, "Deliver.binary %s: %d died",
+		    d->d_env->e_id, pid );
 	    return( EX_TEMPFAIL);
 	}
     }

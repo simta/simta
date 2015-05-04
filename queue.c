@@ -92,7 +92,7 @@ host_q_create_or_lookup( char *hostname )
     if ( simta_unexpanded_q == NULL ) {
 	if (( simta_unexpanded_q = (struct host_q*)malloc(
 		sizeof( struct host_q ))) == NULL ) {
-	    syslog( LOG_ERR, "host_q_create_or_lookup malloc: %m" );
+	    syslog( LOG_ERR, "Syserror: host_q_create_or_lookup malloc: %m" );
 	    return( NULL );
 	}
 	memset( simta_unexpanded_q, 0, sizeof( struct host_q ));
@@ -104,7 +104,8 @@ host_q_create_or_lookup( char *hostname )
 	if ( simta_punt_host != NULL ) {
 	    if (( simta_punt_q = (struct host_q*)malloc(
 		    sizeof( struct host_q ))) == NULL ) {
-		syslog( LOG_ERR, "host_q_create_or_lookup malloc: %m" );
+		syslog( LOG_ERR,
+			"Syserror: host_q_create_or_lookup malloc: %m" );
 		return( NULL );
 	    }
 	    memset( simta_punt_q, 0, sizeof( struct host_q ));
@@ -120,7 +121,7 @@ host_q_create_or_lookup( char *hostname )
 
     if (( hq = host_q_lookup( hostname )) == NULL ) {
 	if (( hq = (struct host_q*)malloc( sizeof( struct host_q ))) == NULL ) {
-	    syslog( LOG_ERR, "host_q_create_or_lookup malloc: %m" );
+	    syslog( LOG_ERR, "Syserror: host_q_create_or_lookup malloc: %m" );
 	    return( NULL );
 	}
 	memset( hq, 0, sizeof( struct host_q ));
@@ -129,7 +130,7 @@ host_q_create_or_lookup( char *hostname )
 	hq->hq_wait_min = simta_wait_min;
 
 	if (( hq->hq_hostname = strdup( hostname )) == NULL ) {
-	    syslog( LOG_ERR, "host_q_create_or_lookup strdup: %m" );
+	    syslog( LOG_ERR, "Syserror: host_q_create_or_lookup strdup: %m" );
 	    free( hq );
 	    return( NULL );
 	}
@@ -272,7 +273,8 @@ queue_time_order( struct host_q *hq )
 	    sprintf( fname, "%s/E%s", sort->e_dir, sort->e_id );
 	    if ( stat( fname, &sb ) != 0 ) {
 		if ( errno != ENOENT ) {
-		    syslog( LOG_ERR, "simta_child_q_runner stat %s: %m",
+		    syslog( LOG_ERR,
+			    "Syserror: simta_child_q_runner stat %s: %m",
 			    fname );
 		}
 		env_free( sort );
@@ -307,7 +309,7 @@ q_runner( void )
     assert( simta_fast_files >= 0 );
 
     if (( simta_host_q == NULL ) && ( simta_unexpanded_q == NULL )) {
-	syslog( LOG_ERR, "q_runner: no host_q" );
+	syslog( LOG_ERR, "Queue.manage: no host_q" );
 	return( simta_fast_files );
     }
 
@@ -365,8 +367,7 @@ q_runner( void )
 		    }
 
 		    if ( simta_debug > 1 ) {
-			syslog( LOG_DEBUG,
-				"Queue %s: insert after %s (%d)",
+			syslog( LOG_DEBUG, "Queue %s: insert after %s (%d)",
 				hq->hq_hostname,
 				((*dq)->hq_hostname),
 				((*dq)->hq_entries));
@@ -384,22 +385,23 @@ q_runner( void )
 		break;
 
 	    default:
-		syslog( LOG_ERR, "q_runner: bad host type %d", hq->hq_status );
+		syslog( LOG_ERR, "Queue %s: bad host type %d",
+			hq->hq_hostname, hq->hq_status );
 		return( 1 );
 	    }
 	}
 
 	/* deliver all mail in every expanded queue */
 	for ( ; deliver_q != NULL; deliver_q = deliver_q->hq_deliver ) {
-	    syslog( LOG_DEBUG, "Queue: Delivering mail to %s",
+	    syslog( LOG_INFO, "Queue %s: Delivering mail",
 		    deliver_q->hq_hostname );
 	    q_deliver( deliver_q );
 	}
 
 	/* punt any undelivered mail, if possible */
 	if (( simta_punt_q != NULL ) && ( simta_punt_q->hq_env_head != NULL )) {
-	    syslog( LOG_INFO, "Queue: Punting undelivered mail to %s",
-		    simta_punt_host );
+	    syslog( LOG_INFO, "Queue %s: Punting undelivered mail to %s",
+		    simta_punt_host, simta_punt_host );
 	    q_deliver( simta_punt_q );
 	}
 
@@ -447,7 +449,7 @@ q_runner( void )
 		sprintf( dfile_fname, "%s/D%s", unexpanded->e_dir,
 			unexpanded->e_id );
 		if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
-		    syslog( LOG_WARNING, "q_deliver bad Dfile: %s",
+		    syslog( LOG_ERR, "Queue.manage: bad Dfile: %s",
 			    dfile_fname );
 		    goto unexpanded_clean_up;
 		}
@@ -514,7 +516,7 @@ q_runner_done:
 		    day = 99;
 		}
 
-		syslog( LOG_NOTICE, "q_runner metrics: %d messages, "
+		syslog( LOG_NOTICE, "Queue Metrics: %d messages, "
 			"%d outbound_attempts, %d outbound_delivered, "
 			"%d+%02d:%02d:%02d",
 			simta_message_count, simta_smtp_outbound_attempts,
@@ -522,7 +524,7 @@ q_runner_done:
 			day, hour, min, sec );
 
 	    } else {
-		syslog( LOG_NOTICE, "q_runner metrics: %d messages, "
+		syslog( LOG_NOTICE, "Queue Metrics: %d messages, "
 			"%d outbound_attempts, %d outbound_delivered, "
 			"%02d:%02d:%02d",
 			simta_message_count, simta_smtp_outbound_attempts,
@@ -546,7 +548,7 @@ q_runner_done:
 #endif /* HAVE_LDAP */
 
     if ( simta_fast_files != 0 ) {
-	syslog( LOG_WARNING, "q_runner exiting with %d fast_files",
+	syslog( LOG_ERR, "Queue.manage: exiting with %d fast_files",
 		simta_fast_files );
 	return( SIMTA_EXIT_ERROR );
     } else if ( simta_leaky_queue ) {
@@ -567,7 +569,7 @@ q_runner_dir( char *dir )
 
     do {
 	if ( q_read_dir( &s_dirp ) != 0 ) {
-	    syslog( LOG_ERR, "q_runner_dir opendir %s: %m", dir );
+	    syslog( LOG_ERR, "Syserror: q_runner_dir opendir %s: %m", dir );
 	    return( EXIT_OK );
 	}
     } while ( s_dirp.sd_dirp != NULL );
@@ -682,7 +684,8 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	hq->hq_deliver_prev = insert;
     }
 
-    syslog( LOG_DEBUG, "Queue %s: order %d, next %ld", hq->hq_hostname, order,
+    syslog( LOG_DEBUG, "Queue %s: order %d, next %ld",
+	    hq->hq_hostname, order,
 	    hq->hq_next_launch.tv_sec - tv_now->tv_sec );
 
     return( 0 );
@@ -759,8 +762,8 @@ prune_messages( struct host_q *hq )
 
 	    *e = (*e)->e_hq_next;
 	    if ( simta_debug ) {
-		syslog( LOG_DEBUG, "Queue %s [%s]: Removed", hq->hq_hostname,
-			env->e_id );
+		syslog( LOG_DEBUG, "Queue %s: removed %s",
+			hq->hq_hostname, env->e_id );
 	    }
 	    env_free( env );
 	    hq->hq_entries_removed++;
@@ -815,13 +818,13 @@ q_read_dir( struct simta_dirp *sd )
 
     if (( entry = readdir( sd->sd_dirp )) == NULL ) {
 	if ( errno != 0 ) {
-	    syslog( LOG_ERR, "Syserror q_read_dir readdir %s: %m",
+	    syslog( LOG_ERR, "Syserror: q_read_dir readdir %s: %m",
 		    sd->sd_dir );
 	    return( 1 );
 	}
 
 	if ( closedir( sd->sd_dirp ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror q_read_dir closedir %s: %m",
+	    syslog( LOG_ERR, "Syserror: q_read_dir closedir %s: %m",
 		    sd->sd_dir );
 	    return( 1 );
 	}
@@ -836,7 +839,7 @@ q_read_dir( struct simta_dirp *sd )
 	if ( simta_unexpanded_q != NULL ) {
 	    prune_messages( simta_unexpanded_q );
 	    if ( simta_debug ) {
-		syslog( LOG_DEBUG, "Queue [Unexpanded]: entries %d, "
+		syslog( LOG_DEBUG, "Queue Metrics [Unexpanded]: entries %d, "
 			"jail_entries %d",
 			simta_unexpanded_q->hq_entries,
 			simta_unexpanded_q->hq_jail_envs );
@@ -855,18 +858,17 @@ q_read_dir( struct simta_dirp *sd )
 
 	    /* remove any empty host queues */
 	    if ((*hq)->hq_env_head == NULL ) {
+		h_free = *hq;
 		if ( simta_debug ) {
-		    syslog( LOG_DEBUG, "Queue [%s]: entries 0: Removing",
-			    (*hq)->hq_hostname );
+		    syslog( LOG_DEBUG, "Queue.manage %s: 0 entries, removing",
+			    h_free->hq_hostname );
 		}
 		/* delete this host */
-		h_free = *hq;
 		*hq = (*hq)->hq_next;
-		syslog( LOG_INFO, "Queue Removing: %s", h_free->hq_hostname );
 		hq_free( h_free );
 		continue;
 	    } else if ( simta_debug ) {
-		syslog( LOG_DEBUG, "Queue [%s]: entries %d, "
+		syslog( LOG_DEBUG, "Queue Metrics %s: entries %d, "
 			"jail_entries %d", (*hq)->hq_hostname,
 			(*hq)->hq_entries, (*hq)->hq_jail_envs );
 	    }
@@ -875,7 +877,7 @@ q_read_dir( struct simta_dirp *sd )
 	    remain_hq++;
 
 	    if ( (*hq)->hq_next_launch.tv_sec == 0 ) {
-		syslog( LOG_INFO, "Queue Adding: %s %d messages",
+		syslog( LOG_INFO, "Queue %s: %d entries, adding",
 			(*hq)->hq_hostname, (*hq)->hq_entries );
 		if ( hq_deliver_push( *hq, &tv_stop, NULL ) != 0 ) {
 		    return( 1 );
@@ -885,7 +887,7 @@ q_read_dir( struct simta_dirp *sd )
 	    hq = &((*hq)->hq_next);
 	}
 
-	syslog( LOG_INFO, "Queue Metrics: cycle %d Messages %d "
+	syslog( LOG_INFO, "Queue Metrics: cycle %d messages %d "
 		"milliseconds %ld new %d removed %d hosts %d",
 		sd->sd_cycle, sd->sd_entries,
 		SIMTA_ELAPSED_MSEC( sd->sd_tv_start, tv_stop ),
@@ -918,7 +920,7 @@ q_read_dir( struct simta_dirp *sd )
 
     /* "*" */
     default:
-	syslog( LOG_WARNING, "Queue: unknown file: %s/%s", sd->sd_dir,
+	syslog( LOG_WARNING, "Queue.manage: unknown file: %s/%s", sd->sd_dir,
 		entry->d_name );
 	return( 0 );
     }
@@ -1108,7 +1110,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 
 	queue_remove_envelope( env_deliver );
 
-	syslog( LOG_DEBUG, "Deliver %s: Attempting delivery",
+	syslog( LOG_INFO, "Deliver %s: Attempting delivery",
 		env_deliver->e_id );
 
 	if ( env_deliver->e_rcpt == NULL ) {
@@ -1137,14 +1139,15 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	/* open Dfile to deliver */
 	sprintf( dfile_fname, "%s/D%s", env_deliver->e_dir, env_deliver->e_id );
 	if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
-	    syslog( LOG_WARNING, "q_deliver bad Dfile: %s", dfile_fname );
+	    syslog( LOG_ERR, "Queue %s: bad Dfile: %s",
+		    deliver_q->hq_hostname, dfile_fname );
 	    goto message_cleanup;
 	}
 
 	d->d_dfile_fd = dfile_fd;
 
 	if ( fstat( dfile_fd, &sbuf ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror q_deliver: fstat %s: %m", dfile_fname );
+	    syslog( LOG_ERR, "Syserror: q_deliver fstat %s: %m", dfile_fname );
 	    goto message_cleanup;
 	}
 
@@ -1173,7 +1176,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 		break;
 	    }
 	    if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
-		syslog( LOG_ERR, "q_deliver snet_attach: %m" );
+		syslog( LOG_ERR, "Liberror: q_deliver snet_attach: %m" );
 		goto message_cleanup;
 	    }
 	    d->d_snet_dfile = snet_dfile;
@@ -1273,27 +1276,28 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    syslog( LOG_DEBUG, "Deliver %s: creating bounce",
 		    env_deliver->e_id );
 	    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver lseek: %m" );
+		syslog( LOG_ERR, "Syserror: q_deliver lseek: %m" );
 		panic( "q_deliver lseek fail" );
 	    }
 
 	    if ( snet_dfile == NULL ) {
 		if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 ))
 			== NULL ) {
-		    syslog( LOG_ERR, "q_deliver snet_attach: %m" );
+		    syslog( LOG_ERR, "Liberror: q_deliver snet_attach: %m" );
 		    /* fall through, just won't get to append dfile */
 		}
 	    } else {
 		if ( lseek( snet_fd( snet_dfile ),
 			(off_t)0, SEEK_SET ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver lseek: %m" );
+		    syslog( LOG_ERR, "Syserror: q_deliver lseek: %m" );
 		    panic( "q_deliver lseek fail" );
 		}
 	    }
 
 	    if (( env_bounce = bounce_snet( env_deliver, snet_dfile,
 		    deliver_q, NULL )) == NULL ) {
-		syslog( LOG_ERR, "q_deliver bounce failed" );
+		syslog( LOG_ERR, "Deliver %s: bounce failed",
+			env_deliver->e_id );
 		goto message_cleanup;
 	    }
 
@@ -1324,7 +1328,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 
 	/* else we remove rcpts that were delivered or hard failed */
 	} else if ( n_rcpt_remove != 0 ) {
-	    syslog( LOG_INFO, "Deliver %s: Rewriting Envelope",
+	    syslog( LOG_DEBUG, "Deliver %s: Rewriting envelope",
 		    env_deliver->e_id );
 
 	    r_sort = &(env_deliver->e_rcpt);
@@ -1338,7 +1342,8 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 		    env_deliver->e_n_rcpt--;
 
 		    if ( remove->r_status == R_FAILED ) {
-			syslog( LOG_INFO, "Deliver %s: Removing To <%s> From "
+			syslog( LOG_WARNING,
+				"Deliver %s: Removing To <%s> From "
 				"<%s>: Failed",
 				env_deliver->e_id, remove->r_rcpt,
 				env_deliver->e_mail );
@@ -1353,7 +1358,7 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 		    rcpt_free( remove );
 
 		} else {
-		    syslog( LOG_INFO, "Deliver %s: Keeping To <%s> From <%s>",
+		    syslog( LOG_DEBUG, "Deliver %s: Keeping To <%s> From <%s>",
 			    env_deliver->e_id, (*r_sort)->r_rcpt,
 			    env_deliver->e_mail );
 		    r_sort = &((*r_sort)->r_next);
@@ -1366,16 +1371,18 @@ _q_deliver( struct deliver *d, struct host_q *deliver_q )
 		syslog( LOG_INFO, "Deliver %s: Rewrote %d recipients",
 			env_deliver->e_id, env_deliver->e_n_rcpt );
 	    } else {
-		syslog( LOG_INFO, "Deliver %s: Failed Rewrite, "
-			"Double Deliver will occur", env_deliver->e_id );
+		syslog( LOG_WARNING, "Deliver %s: Rewrite failed, "
+			"double delivery will occur", env_deliver->e_id );
 		goto message_cleanup;
 	    }
 
 	    if ( env_deliver->e_dir == simta_dir_fast ) {
 		/* overwrote fast file, not created a new one */
 		simta_fast_files--;
-		syslog( LOG_DEBUG, "q_deliver %s fast_files decrement %d",
-			env_deliver->e_id, simta_fast_files );
+		if ( simta_debug > 0 ) {
+		    syslog( LOG_DEBUG, "Deliver %s: fast_files decrement %d",
+			    env_deliver->e_id, simta_fast_files );
+		}
 	    }
 
 	    assert( simta_fast_files >= 0 );
@@ -1401,7 +1408,7 @@ message_cleanup:
 		( d->d_unlinked == 0 ))  {
 	    touch = 0;
 	    env_touch( env_deliver );
-	    syslog( LOG_INFO, "Deliver %s: Envelope Touched",
+	    syslog( LOG_DEBUG, "Deliver %s: Envelope touched",
 		    env_deliver->e_id );
 	}
 
@@ -1409,11 +1416,11 @@ message_cleanup:
 
 	if ( env_bounce != NULL ) {
 	    if ( env_unlink( env_bounce ) != 0 ) {
-		syslog( LOG_INFO,
-			"Deliver %s: System Error: Can't unwind bounce",
+		syslog( LOG_WARNING,
+			"Deliver %s: System error, can't unwind bounce",
 			env_bounce->e_id );
 	    } else {
-		syslog( LOG_INFO, "Deliver %s: Message Deleted: "
+		syslog( LOG_WARNING, "Deliver %s: Message deleted: "
 			"System error, unwound bounce", env_bounce->e_id );
 	    }
 
@@ -1455,29 +1462,30 @@ message_cleanup:
 	if ( snet_dfile == NULL ) {
 	    if ( dfile_fd > 0 ) {
 		if ( close( dfile_fd ) != 0 ) {
-		    syslog( LOG_ERR, "q_deliver close: %m" );
+		    syslog( LOG_ERR, "Syserror: q_deliver close: %m" );
 		}
 	    }
 
 	} else {
 	    if ( snet_close( snet_dfile ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver snet_close: %m" );
+		syslog( LOG_ERR, "Liberror: q_deliver snet_close: %m" );
 	    }
 	    snet_dfile = NULL;
 	}
 
 	if ( snet_lock != NULL ) {
 	    if ( snet_close( snet_lock ) != 0 ) {
-		syslog( LOG_ERR, "q_deliver snet_close: %m" );
+		syslog( LOG_ERR, "Liberror: q_deliver snet_close: %m" );
 	    }
 	}
     }
 
     if ( d->d_snet_smtp != NULL ) {
-	syslog( LOG_DEBUG, "q_deliver: calling smtp_quit" );
+	syslog( LOG_DEBUG, "Queue %s: calling smtp_quit",
+		deliver_q->hq_hostname );
 	smtp_quit( deliver_q, d );
 	if ( snet_close( d->d_snet_smtp ) != 0 ) {
-	    syslog( LOG_ERR, "q_deliver snet_close: %m" );
+	    syslog( LOG_ERR, "Liberror: q_deliver snet_close: %m" );
 	}
 	if ( d->d_dnsr_result_ip != NULL ) {
 	    dnsr_free_result( d->d_dnsr_result_ip );
@@ -1512,7 +1520,7 @@ deliver_local( struct deliver *d )
 	ml_error = EX_TEMPFAIL;
 
 	if ( lseek( d->d_dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
-	    syslog( LOG_ERR, "deliver_local lseek: %m" );
+	    syslog( LOG_ERR, "Syserror: deliver_local lseek: %m" );
 	    goto lseek_fail;
 	}
 
@@ -1604,8 +1612,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
 	    /* build snet */
 	    if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
-		syslog( LOG_ERR, "deliver_remote %s: socket: %m",
-			hq->hq_hostname );
+		syslog( LOG_ERR, "Syserror: deliver_remote socket: %m" );
 		continue;
 	    }
 
@@ -1621,8 +1628,7 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 		    inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname );
 
 	    if (( d->d_snet_smtp = snet_attach( s, 1024 * 1024 )) == NULL ) {
-		syslog( LOG_ERR, "deliver_remote %s snet_attach: %m",
-			hq->hq_hostname );
+		syslog( LOG_ERR, "Liberror: deliver_remote snet_attach: %m" );
 		close( s );
 		continue;
 	    }
@@ -1651,16 +1657,12 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
 	/* Reset to the beginning of the file... */
 	if ( lseek( snet_fd( d->d_snet_dfile ), (off_t)0, SEEK_SET ) != 0 ) {
-	    syslog( LOG_ERR, "deliver_remote lseek: %m" );
-	    syslog( LOG_ERR, "Syserror: deliver_remote lseek %s%s: %m",
-		    d->d_env->e_dir, d->d_env->e_id );
+	    syslog( LOG_ERR, "Syserror: deliver_remote lseek: %m" );
 	    return;
 	}
 
 	/* ...and clear the buffer of stale data */
-	if (( rc = snet_flush( d->d_snet_dfile )) > 0 ) {
-	    syslog( LOG_DEBUG, "deliver_remote snet_flush: %d", rc );
-	}
+	snet_flush( d->d_snet_dfile );
 
 	r_smtp = smtp_send( hq, d );
 
@@ -1896,13 +1898,14 @@ get_outbound_dns( struct deliver *d, struct host_q *hq )
 		    hq->hq_hostname );
 	    if ( hq->hq_err_text == NULL ) {
 		if (( hq->hq_err_text = line_file_create()) == NULL ) {
-		    syslog( LOG_ERR, "get_outbound_dns line_file_create: %m" );
+		    syslog( LOG_ERR,
+			    "Syserror: get_outbound_dns line_file_create: %m" );
 		    return( 1 );
 		}
 	    }
 	    if ( line_append( hq->hq_err_text, "Host does not exist",
 		    COPY ) == NULL ) {
-		syslog( LOG_ERR, "get_outbound_dns line_append: %m" );
+		syslog( LOG_ERR, "Syserror: get_outbound_dns line_append: %m" );
 		return( 1 );
 	    }
 	    hq->hq_status = HOST_BOUNCE;
@@ -1970,7 +1973,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	    break; /* case HOST_PUNT_DOWN */
 
 	default:
-	    panic( "next_dnsr_host: varaible out of range" );
+	    panic( "next_dnsr_host: variable out of range" );
 	}
 	d->d_cur_dnsr_result = -1;
     }
@@ -2190,7 +2193,7 @@ connection_data_create( struct deliver *d )
 
     if (( cd = (struct connection_data*)malloc(
 	    sizeof( struct connection_data ))) == NULL ) {
-	syslog( LOG_ERR, "connection_data_create malloc: %m" );
+	syslog( LOG_ERR, "Syserror: connection_data_create malloc: %m" );
 	return( NULL );
     }
 
@@ -2253,12 +2256,12 @@ queue_log_metrics( struct host_q *hq_schedule )
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
     if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) < 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: open %s: %m", filename );
+	syslog( LOG_ERR, "Syserror: queue_log_metrics open: %m" );
 	return;
     }
 
     if (( f = fdopen( fd, "w" )) == NULL ) {
-	syslog( LOG_DEBUG, "metric log file failed: fdopen %s: %m", filename );
+	syslog( LOG_ERR, "Syserror: queue_log_metrics fdopen: %m" );
 	return;
     }
 
@@ -2280,9 +2283,9 @@ queue_log_metrics( struct host_q *hq_schedule )
     fclose( f );
 
     if (( stat( linkname, &st_file ) == 0 ) && ( unlink( linkname ) != 0 )) {
-	syslog( LOG_DEBUG, "metric log file failed: unlink %s: %m", linkname );
+	syslog( LOG_ERR, "Syserror: queue_log_metrics unlink: %m" );
     } else if ( link( filename, linkname ) != 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: link %s: %m", linkname );
+	syslog( LOG_DEBUG, "Syserror: queue_log_metrics link: %m" );
     }
     
     return;

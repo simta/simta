@@ -34,7 +34,6 @@
 
 void	stdout_logger ( char * );
 int	smtp_reply( int, struct host_q *, struct deliver * );
-int	smtp_check_banner_line( char * );
 int	smtp_consume_banner ( struct line_file **, struct deliver *,
 		char *, char * );
 
