@@ -2340,11 +2340,9 @@ simta_ldap_config( char *fname, char *domain )
     }
     if ( ! ld->ldap_mailattr ) {
 	ld->ldap_mailattr = strdup( "mail" );
-	syslog( LOG_ERR, "Defaulting mail attribute to \'mail\'" ); 
     }
     if ( ! ld->ldap_mailfwdattr ) {
 	ld->ldap_mailfwdattr = strdup( "mail" );
-	syslog( LOG_ERR, "Defaulting mailforwardingaddress to \'mail\'" ); 
     }
     if (( ld->ldap_tls_cert ) || ( ld->ldap_tls_key )) {
 	if ( ! ld->ldap_tls_cert ) {
