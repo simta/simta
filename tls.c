@@ -30,11 +30,6 @@
     
 static int tls_randfile( void );
 
-extern void            (*logger)( char * );
-extern int		verbose;
-extern struct timeval	timeout;
-
-
     static int
 tls_randfile( void )
 {
