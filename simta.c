@@ -233,7 +233,7 @@ simta_gettimeofday( struct timeval *tv )
     struct timeval		tv_now;
 
     if ( gettimeofday( &tv_now, NULL ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: simta_gettimeofday: gettimeofday: %m" );
+	syslog( LOG_ERR, "Syserror: simta_gettimeofday gettimeofday: %m" );
 	return( 1 );
     }
 
