@@ -390,11 +390,7 @@ hello( struct receive_data *r, char *hostname )
      * We don't verify.
      */
 
-    if (( r->r_hello = strdup( hostname )) == NULL ) {
-	syslog( LOG_ERR, "Syserror helo: strdup: %m" );
-	return( RECEIVE_SYSERROR );
-    }
-
+    r->r_hello = strdup( hostname );
     return( RECEIVE_OK );
 }
 
@@ -1444,10 +1440,7 @@ f_data( struct receive_data *r )
     case SMTP_MODE_GLOBAL_RELAY:
     case SMTP_MODE_NORMAL:
 	/* create line_file for headers */	
-	if (( lf = line_file_create()) == NULL ) {
-	    syslog( LOG_ERR, "f_data malloc: %m" );
-	    return( -1 );
-	}
+	lf = line_file_create( );
 
 	if (( dfile_fd = env_dfile_open( r->r_env )) < 0 ) {
 	    return( -1 );
@@ -1631,11 +1624,7 @@ f_data( struct receive_data *r )
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_env->e_id, msg );
 		}
-		if (( l = line_append( lf, line, COPY )) == NULL ) {
-		    syslog( LOG_ERR, "f_data malloc: %m" );
-		    ret_code = RECEIVE_CLOSECONNECTION;
-		    goto error;
-		}
+		l = line_append( lf, line, COPY );
 		l->line_no = line_no;
 	    } else if ( f_result < 0 ) {
 		read_err = SYSTEM_ERROR;
@@ -2839,10 +2828,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	goto syserror;
     }
 
-    if (( acav = acav_alloc( )) == NULL ) {
-	syslog( LOG_ERR, "Syserror smtp_receive: argcargv_alloc: %m" );
-	goto syserror;
-    }
+    acav = acav_alloc( );
 
     if (( simta_global_connections_max != 0 ) &&
 	    ( simta_global_connections > simta_global_connections_max )) {
@@ -3192,10 +3178,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    r.r_smtp_command = NULL;
 	}
 
-	if (( r.r_smtp_command = strdup( line )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror smtp_receive: strdup: %m" );
-	    goto syserror;
-	}
+	r.r_smtp_command = strdup( line );
 
 	/*
 	 * FIXME: This routine needs to be revised to take RFC 5321 quoting into
@@ -3609,18 +3592,10 @@ env_string( char *left, char *right )
     char			*buf;
 
     if (( right == NULL ) || ( *right == '\0' )) {
-	if (( buf = (char*)malloc( strlen( left ) + 2 )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror env_string: malloc: %m" );
-	    return( NULL );
-	}
+	buf = malloc( strlen( left ) + 2 );
 	sprintf( buf, "%s=", left );
-
     } else {
-	if (( buf = (char*)malloc( strlen( left ) +
-		strlen( right ) + 2 )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror env_string: malloc: %m" );
-	    return( NULL );
-	}
+	buf = malloc( strlen( left ) + strlen( right ) + 2 );
 	sprintf( buf, "%s=%s", left, right );
     }
 
@@ -3840,11 +3815,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 		    r->r_env->e_id, line );
 
 	    if ( *smtp_message == NULL ) {
-		if (( *smtp_message = strdup( line )) == NULL ) {
-		    syslog( LOG_ERR, "Syserror content_filter: strdup: %m" );
-		    snet_close( snet );
-		    return( MESSAGE_TEMPFAIL );
-		}
+		*smtp_message = strdup( line );
 	    }
 	}
 

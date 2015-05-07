@@ -106,11 +106,7 @@ retry:
 	if ( r == SMTP_BAD_TLS ) {
 	    snet_close( d.d_snet_smtp );
 	    if ( hq->hq_red == NULL ) {
-		if (( hq->hq_red = red_host_add( hq->hq_hostname )) ==
-			NULL ) {
-		    syslog( LOG_ERR, "malloc: %m" );
-		    exit( 1 );
-		}
+		hq->hq_red = red_host_add( hq->hq_hostname );
 	    }
 	    syslog( LOG_INFO, "[%s] %s: disabling TLS",
 		    inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );

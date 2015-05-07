@@ -208,27 +208,15 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
     }
 
     if ( e == NULL ) {
-	if (( e = (struct exp_addr*)malloc( sizeof( struct exp_addr )))
-		== NULL ) {
-	    syslog( LOG_ERR, "add_address: malloc: %m" );
-	    return( 1 );
-	}
-	memset( e, 0, sizeof( struct exp_addr ));
+	e = calloc( 1, sizeof( struct exp_addr ));
 
 	e->e_addr_errors = error_env;
 	e->e_addr_type = addr_type;
 	e->e_addr_parent_action = exp->exp_current_action;
 	exp->exp_entries++;
 
-	if (( e->e_addr = strdup( addr )) == NULL ) {
-	    syslog( LOG_ERR, "strdup: %m" );
-	    goto error;
-	}
-
-	if (( e->e_addr_from = strdup( from )) == NULL ) {
-	    syslog( LOG_ERR, "strdup: %m" );
-	    goto error;
-	}
+	e->e_addr = strdup( addr );
+	e->e_addr_from = strdup( from );
 
 	/* do syntax checking and special processing */
 	switch ( addr_type ) {
@@ -774,10 +762,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     }
 
     for ( ; ; ) {
-	if (( alias_addr = strdup( value )) == NULL ) {
-	    ret = ALIAS_SYSERROR;
-	    goto done;
-	}
+	alias_addr = strdup( value );
 
 	switch ( correct_emailaddr( &alias_addr )) {
 	case -1:
@@ -847,11 +832,7 @@ exp_addr_link( struct exp_link **links, struct exp_addr *add )
 	}
     }
 
-    if (( link = malloc( sizeof( struct exp_link ))) == NULL ) {
-	syslog( LOG_ERR, "exp_addr_link: malloc: %m" );
-	return( 1 );
-    }
-    memset( link, 0, sizeof( struct exp_link ));
+    link = calloc( 1, sizeof( struct exp_link ));
 
     link->el_exp_addr = add;
     link->el_next = *links;

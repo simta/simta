@@ -218,33 +218,20 @@ main( int argc, char *argv[] )
 
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {
-	if (( addr = strdup( argv[ x ] )) == NULL ) {
-	    perror( "strdup" );
-	    exit( EX_TEMPFAIL );
-	}
+	addr = strdup( argv[ x ] );
 
-	if (( result = correct_emailaddr( &addr )) < 0 ) {
-	    perror( "malloc" );
-	    exit( EX_TEMPFAIL );
-
-	} else if ( result == 0 ) {
+	if (( result = correct_emailaddr( &addr )) == 0 ) {
 	    fprintf( stderr, "Invalid email address: %s\n", addr );
 	    exit( EX_DATAERR );
 	}
 
-	if ( env_recipient( env, addr ) != 0 ) {
-	    perror( "malloc" );
-	    exit( EX_TEMPFAIL );
-	}
+	env_recipient( env, addr );
 
 	free( addr );
     }
 
     /* create line_file for headers */
-    if (( lf = line_file_create()) == NULL ) {
-	perror( "malloc" );
-	exit( EX_TEMPFAIL );
-    }
+    lf = line_file_create( );
 
     /* need to read stdin in a line-oriented fashon */
     if (( snet_stdin = snet_attach( 0, 1024 * 1024 )) == NULL ) {
@@ -350,11 +337,7 @@ main( int argc, char *argv[] )
 		/* append line to headers if it's not whitespace */
 		for ( wsp = line; *wsp != '\0'; wsp++ ) {
 		    if (( *wsp != ' ' ) && ( *wsp != '\t' )) {
-			if (( l = line_append( lf, line, COPY )) == NULL ) {
-			    perror( "malloc" );
-			    exit( EX_TEMPFAIL );
-			}
-
+			l = line_append( lf, line, COPY );
 			l->line_no = line_no;
 
 			break;

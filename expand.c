@@ -78,10 +78,7 @@ eo_insert( struct expand_output **eo_list, struct envelope *env )
 {
     struct expand_output	*e_new;
 
-    if (( e_new = (struct expand_output*)malloc(
-	    sizeof( struct expand_output ))) == NULL ) {
-	return( 1 );
-    }
+    e_new = malloc( sizeof( struct expand_output ));
 
     if (( e_new->eo_hostname = env->e_hostname ) == NULL ) {
 	e_new->eo_hostname = "";
@@ -929,9 +926,7 @@ permitted_create( struct exp_addr *e_addr, char **permitted )
 	for ( idx = 0; permitted[idx] != NULL; idx++ ) {
 	    dn_normalize_case( permitted[idx] );
 
-	    if (( namedup = strdup( permitted[idx] )) == NULL ) {
-		return( 1 );
-	    }
+	    namedup = strdup( permitted[idx] );
 
 	    if ( ll_insert( &e_addr->e_addr_ok, namedup, namedup,
 		    NULL ) != 0 ) {

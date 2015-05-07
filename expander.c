@@ -68,7 +68,7 @@ main( int argc, char *argv[])
 	    break;
 
 	case 'f':
-	    sender = strdup (optarg);
+	    sender = strdup( optarg );
 	    nextargc = nextargc + 2;
 	    break;
 
@@ -97,10 +97,7 @@ main( int argc, char *argv[])
 	exit( EX_DATAERR );
     }
 
-    if (( env = env_create( NULL, "Expander", sender, NULL )) == NULL ) {
-	perror( "malloc" );
-	return( 1 );
-    }
+    env = env_create( NULL, "Expander", sender, NULL );
 
     env->e_n_exp_level = exp_level;
 
@@ -108,10 +105,7 @@ main( int argc, char *argv[])
 	nextargc++;
 
 	printf( "Original Recipient: %s\n", argv[ nextargc ]);
-	if ( env_recipient( env, argv[ nextargc ]) != 0 ) {
-	    perror( "malloc" );
-	    return( 1 );
-	}
+	env_recipient( env, argv[ nextargc ]);
 
     } while ( nextargc < argc - 1 );
 

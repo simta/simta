@@ -232,11 +232,7 @@ simta_ldap_dequote( char *s )
 	return( NULL );
     }
 
-    if (( buf = (char*)malloc( strlen( s ) + 1 )) == NULL ) {
-	syslog( LOG_ERR, "dequote strdup: %m" );
-	return( NULL );
-    }
-    memset( buf, 0, strlen( s ) + 1 );
+    buf = calloc( 1, strlen( s ) + 1 );
 
     r = s + 1;
     w = buf;
@@ -511,11 +507,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 
     /* make sure buf is big enough search url */
     if (( len = strlen( filter ) + 1 ) > buf_len ) {
-	if (( buf = (char*)realloc( buf, len )) == NULL ) {
-	    syslog( LOG_ERR, "realloc: %m" );
-	    return( NULL );
-	}
-
+	buf = realloc( buf, len );
 	buf_len = len;
     }
 
@@ -530,10 +522,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 		    /* if needed, resize buf to handle upcoming insert */
 		    if (( len += (2 * strlen( user ))) > buf_len ) {
 			place = d - buf;
-			if (( buf = (char*)realloc( buf, len )) == NULL ) {
-			    syslog( LOG_ERR, "realloc: %m" );
-			    return( NULL );
-			}
+			buf = realloc( buf, len );
 			d = buf + place;
 			buf_len = len;
 		    }
@@ -566,10 +555,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 		    /* if needed, resize buf to handle upcoming insert */
 		    if (( len += strlen( domain )) > buf_len ) {
 			place = d - buf;
-			if (( buf = (char*)realloc( buf, len )) == NULL ) {
-			    syslog( LOG_ERR, "realloc: %m" );
-			    return( NULL );
-			}
+			buf = realloc( buf, len );
 			d = buf + place;
 			buf_len = len;
 		    }
@@ -1038,12 +1024,8 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 
     rdns = ldap_explode_dn( dn, 1 );
 
-    if (( e_addr->e_addr_owner = (char*)malloc( strlen( rdns[0] ) +
-	    strlen( ld->ldap_associated_domain ) + 8 )) == NULL ) {
-	ldap_memfree( dn );
-	ldap_value_free( rdns );
-	return( LDAP_SYSERROR );
-    }
+    e_addr->e_addr_owner = malloc( strlen( rdns[0] ) +
+	    strlen( ld->ldap_associated_domain ) + 8 );
     sprintf( e_addr->e_addr_owner, "%s-owner@%s", rdns[0],
 	    ld->ldap_associated_domain );
 
@@ -1060,15 +1042,8 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	/*
 	* You can't send mail to groups that have no associatedDomain.
 	*/
-	senderbuf = (char*)malloc( strlen( rdns[0]) +
+	senderbuf = malloc( strlen( rdns[0]) +
 		strlen( ld->ldap_associated_domain ) + 12 );
-	if ( !senderbuf ) {
-	    syslog( LOG_ERR, "simta_ldap_expand_group: "
-		    "Failed allocating senderbuf: %s", dn );
-	    ldap_memfree( dn );
-	    ldap_value_free( rdns );
-	    return( LDAP_SYSERROR );
-	}
 
 	sprintf( senderbuf, "%s-errors@%s", rdns[0],
 		ld->ldap_associated_domain );
@@ -1089,11 +1064,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 
 	if ( is_emailaddr( senderbuf ) == 0 ) {
 	    free( senderbuf );
-	    if (( senderbuf = strdup( "" )) == NULL ) {
-		ldap_memfree( dn );
-		ldap_value_free( rdns );
-		return LDAP_SYSERROR;
-	    }
+	    senderbuf = strdup( "" );
 	    bounce_text( e_addr->e_addr_errors, TEXT_WARNING,
 		    "Illegal email group name: ", rdns[0], NULL );
 	}
@@ -1197,12 +1168,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 			(( senderlist = ldap_get_values( ld->ldap_ld, entry,
 			"permitted_sender" )) != NULL )) {
 		    for ( idx = 0; senderlist[ idx ] != NULL; idx++ ) {
-			if (( sa = string_address_init( senderlist[ idx ]))
-				== NULL ) {
-			    syslog( LOG_ERR,
-				    "simta_ldap_expand_group: malloc: %m" );
-			    return( LDAP_SYSERROR );
-			}
+			sa = string_address_init( senderlist[ idx ]);
 
 			while (( permitted_addr =
 				string_address_parse( sa )) != NULL ) {
@@ -1799,10 +1765,6 @@ simta_ldap_expand( struct simta_ldap *ld, struct expand *exp,
     *e_addr->e_addr_at = '\0';
     name = strdup( e_addr->e_addr );
     *e_addr->e_addr_at = '@';
-    if ( name == NULL ) {
-	syslog( LOG_ERR, "simta_ldap_expand: strdup: %m" );
-	return( LDAP_SYSERROR );
-    }
 
     if (( dq = simta_ldap_dequote( name )) != NULL ) {
 	free( name );
@@ -1923,25 +1885,13 @@ simta_ldap_config( char *fname, char *domain )
 	goto errexit;
     }
 
-    if (( acav = acav_alloc( )) == NULL ) {
-	syslog( LOG_ERR, "simta_ldap_config: acav_alloc error" );
-	goto errexit;
-    }	
-
-    if (( ld = (struct simta_ldap*)malloc( sizeof( struct simta_ldap )))
-	    == NULL ) { 
-	syslog( LOG_ERR, "simta_ldap_config malloc error: %m" ); 
-	goto errexit;
-    }
-    memset( ld, 0, sizeof( struct simta_ldap ));
+    acav = acav_alloc( );
+    ld = calloc( 1, sizeof( struct simta_ldap ));
     lds = &(ld->ldap_searches);
     ld->ldap_timeout = LDAP_TIMEOUT_VAL;
     ld->ldap_ndomain = 2;
 
-    if (( ld->ldap_associated_domain = strdup( domain )) == NULL ) {
-	syslog( LOG_ERR, "simta_ldap_config malloc error: %m" ); 
-	goto errexit;
-    }
+    ld->ldap_associated_domain = strdup( domain );
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	lineno++;
@@ -1952,13 +1902,9 @@ simta_ldap_config( char *fname, char *domain )
 
 	if ( linecopy != NULL ) {
 	    free( linecopy );
-	    linecopy = NULL;
 	}
 
-	if (( linecopy = strdup( line )) == NULL ) {
-	    syslog( LOG_ERR, "simta_ldap_config: strdup: %m");
-	    goto errexit;
-	}
+	linecopy = strdup( line );
 
 	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
 	    syslog( LOG_ERR, "simta_ldap_config: acav_parse returned -1");
@@ -2017,20 +1963,8 @@ simta_ldap_config( char *fname, char *domain )
 		acidx++;
 	    }
 
-	    if (( *lds = (struct ldap_search_list *)malloc
-			( sizeof( struct ldap_search_list ))) == NULL ) { 
-		syslog( LOG_ERR, "ldap_search_list malloc error: %m" ); 
-		ldap_free_urldesc( plud );
-		goto errexit;
-	    }
-	    memset( *lds, 0, sizeof( struct ldap_search_list ));
-
-	    if (((*lds)->lds_string = strdup( av[ 1 ] )) == NULL ) {
-		syslog( LOG_ERR, "ldap_search_list strdup error: %m" ); 
-		ldap_free_urldesc( plud );
-		goto errexit;
-	    }
-
+	    *lds = calloc( 1, sizeof( struct ldap_search_list ));
+	    (*lds)->lds_string = strdup( av[ 1 ] );
 	    (*lds)->lds_plud = plud;
 	    (*lds)->lds_rdn_pref = rdnpref;
 	    (*lds)->lds_search_type = search_type;
@@ -2044,18 +1978,10 @@ simta_ldap_config( char *fname, char *domain )
 		goto errexit;
 	    }
 
-	    if (( attrs =
-		    (char**)calloc((unsigned)ac, sizeof(char *))) == NULL) { 
-		syslog( LOG_ERR, "simta_ldap_config calloc: %m" ); 
-		goto errexit;
-	    }
-	    
+	    attrs = calloc( (unsigned)ac, sizeof(char *));
+
 	    for ( acidx = 1, attridx = 0; acidx < ac; acidx++, attridx++ ) {
-		attrs[attridx] = strdup (av[ acidx ]);
-		if ( attrs[attridx] == NULL ) {
-		    syslog( LOG_ERR, "ac calloc error: %m" ); 
-		    goto errexit;
-		}
+		attrs[ attridx ] = strdup( av[ acidx ] );
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "host" ) == 0 ) { 
@@ -2064,10 +1990,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Missing host value\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_host = strdup ( av[ 1 ] )) == NULL) {
-		syslog( LOG_ERR, "host strdup error: %m" ); 
-		goto errexit;
-	    } 
+	    ld->ldap_host = strdup ( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "port" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2135,10 +2058,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Missing TLS_CACERT value\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_tls_cacert = strdup (av[ 1 ])) == NULL) {
-		syslog( LOG_ERR, "tls_cacert strdup error: %m" ); 
-		goto errexit;
-	    } 
+	    ld->ldap_tls_cacert = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_CERT" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2146,10 +2066,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Missing TLS_CERT value\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_tls_cert = strdup( av[ 1 ])) == NULL ) {
-		syslog( LOG_ERR, "tls_cert strdup error: %m" ); 
-		goto errexit;
-	    } 
+	    ld->ldap_tls_cert = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_KEY" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2157,10 +2074,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Missing TLS_KEY value\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_tls_key = strdup (av[ 1 ])) == NULL ) {
-		syslog( LOG_ERR, "tls_key strdup error: %m" ); 
-		goto errexit;
-	    } 
+	    ld->ldap_tls_key = strdup( av[ 1 ] );
 
 #endif /* HAVE_LIBSSL */
 	} else if ( strcasecmp( av[ 0 ], "domaincomponentcount" ) == 0 ) {
@@ -2178,10 +2092,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Missing bindpw/bindpassword value\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_bindpw = strdup ( av[ 1 ] )) == NULL ) {
-		syslog( LOG_ERR, "bindpw strdup error: %m" ); 
-		goto errexit;
-	    } 
+	    ld->ldap_bindpw = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "binddn" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2189,10 +2100,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Missing binddn/bindpassword value\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_binddn = strdup ( av[ 1 ] )) == NULL ) {
-		syslog( LOG_ERR, "binddn strdup error: %m" ); 
-		goto errexit;
-	    } 
+	    ld->ldap_binddn = strdup( av[ 1 ] );
 	    
 	} else if (( strcasecmp( av[ 0 ], "oc" ) == 0 ) ||
 		   ( strcasecmp( av[ 0 ], "objectclass" ) == 0 )) {
@@ -2213,18 +2121,8 @@ simta_ldap_config( char *fname, char *domain )
 	    }
 
 	    /* av [ 2] is a objectclass name */
-	    if (( l_new = (struct list*) malloc( sizeof( struct list )))
-		    == NULL ) {
-		syslog( LOG_ERR, "list malloc error: %m" ); 
-		goto errexit;
-	    }
-	    memset( l_new, 0, sizeof( struct list ));
-
-	    if (( l_new->l_string = (char*)strdup( av[ 2 ])) == NULL ) {
-		syslog( LOG_ERR, "list strdup error: %m" ); 
-		goto errexit;
-	    }
-	
+	    l_new = calloc( 1, sizeof( struct list ));
+	    l_new->l_string = strdup( av[ 2 ] );
 	    l_new->l_next = *add;
 	    *add = l_new;
 
@@ -2239,10 +2137,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Multiple mail attributes\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_mailattr = (char*)strdup( av [ 1 ])) == NULL ) {
-		syslog( LOG_ERR, "mailattr strdup error: %m" ); 
-		goto errexit;
-	    }
+	    ld->ldap_mailattr = strdup( av [ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "mailforwardingattr" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2255,10 +2150,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Multiple mailforwarding attributes\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_mailfwdattr = (char*)strdup( av[ 1 ])) == NULL ) {
-		syslog( LOG_ERR, "mailfwdattr strdup error: %m" ); 
-		goto errexit;
-	    }
+	    ld->ldap_mailfwdattr = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "groupmailforwardingattr" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2271,10 +2163,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Multiple group mailforwarding attributes\n" );
 		goto errexit;
 	    }
-	    if (( ld->ldap_gmailfwdattr = (char*)strdup( av[ 1 ])) == NULL ) {
-		syslog( LOG_ERR, "gmailfwdattr strdup error: %m" ); 
-		goto errexit;
-	    }
+	    ld->ldap_gmailfwdattr = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "vacationhost" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2287,10 +2176,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Multiple vacationhost attributes\n");
 		goto errexit;
 	    }
-	    if (( ld->ldap_vacationhost = (char*)strdup( av[ 1 ])) == NULL ) {
-		syslog( LOG_ERR, "vacationhost strdup error: %m" ); 
-		goto errexit;
-	    }
+	    ld->ldap_vacationhost = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "vacationattr" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -2303,10 +2189,7 @@ simta_ldap_config( char *fname, char *domain )
 		syslog( LOG_ERR, "Multiple vacationattr attributes\n");
 		goto errexit;
 	    }
-	    if (( ld->ldap_vacationattr = (char*)strdup( av [ 1 ])) == NULL ) {
-		syslog( LOG_ERR, "vacationattr strdup error: %m" ); 
-		goto errexit;
-	    }
+	    ld->ldap_vacationattr = strdup( av [ 1 ] );
 
 	} else {
 	    syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );

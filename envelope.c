@@ -170,12 +170,7 @@ env_create( char *dir, char *id, char *e_mail, struct envelope *parent )
     /* way bigger than we should ever need */
     char			buf[ 1024 ];
 
-    if (( env = (struct envelope *)malloc( sizeof( struct envelope ))) ==
-	    NULL ) {
-	syslog( LOG_ERR, "env_create malloc: %m" );
-	return( NULL );
-    }
-    memset( env, 0, sizeof( struct envelope ));
+    env = calloc( 1, sizeof( struct envelope ));
 
     if (( id == NULL ) || ( *id == '\0' )) {
 	if ( simta_gettimeofday( &tv_now ) != 0 ) {
@@ -195,11 +190,7 @@ env_create( char *dir, char *id, char *e_mail, struct envelope *parent )
 	id = buf;
     }
 
-    if (( env->e_id = strdup( id )) == NULL ) {
-	syslog( LOG_ERR, "env_create strdup: %m" );
-	env_free( env );
-	return( NULL );
-    }
+    env->e_id = strdup( id );
 
     if ( e_mail != NULL ) {
 	if ( env_sender( env, e_mail ) != 0 ) {
@@ -298,10 +289,7 @@ env_hostname( struct envelope *env, char *hostname )
     }
 
     if (( hostname != NULL ) && ( *hostname != '\0' )) {
-	if (( env->e_hostname = strdup( hostname )) == NULL ) {
-	    syslog( LOG_ERR, "env_hostname strdup: %m" );
-	    return( 1 );
-	}
+	env->e_hostname = strdup( hostname );
     }
 
     return( 0 );
@@ -316,10 +304,7 @@ env_sender( struct envelope *env, char *e_mail )
 	return( 1 );
     }
     
-    if (( env->e_mail = strdup( e_mail )) == NULL ) {
-	syslog( LOG_ERR, "env_sender strdup: %m" );
-	return( 1 );
-    }
+    env->e_mail = strdup( e_mail );
 
     return( 0 );
 }
@@ -421,26 +406,12 @@ env_recipient( struct envelope *e, char *addr )
 {
     struct recipient		*r;
 
-    if (( r = (struct recipient*)malloc( sizeof( struct recipient )))
-	    == NULL ) {
-	syslog( LOG_ERR, "env_recipient malloc: %m" );
-	return( -1 );
-    }
-    memset( r, 0, sizeof( struct recipient ));
+    r = calloc( 1, sizeof( struct recipient ));
 
     if (( addr == NULL ) || ( *addr == '\0' )) {
-	if (( r->r_rcpt = strdup( "" )) == NULL ) {
-	    syslog( LOG_ERR, "env_recipient strdup: %m" );
-	    free( r );
-	    return( -1 );
-	}
-
+	r->r_rcpt = strdup( "" );
     } else {
-	if (( r->r_rcpt = strdup( addr )) == NULL ) {
-	    syslog( LOG_ERR, "env_recipient strdup: %m" );
-	    free( r );
-	    return( -1 );
-	}
+	r->r_rcpt = strdup( addr );
     }
 
     r->r_next = e->e_rcpt;
@@ -656,12 +627,7 @@ sender_list_add( struct envelope *e )
     }
 
     if (( list = (struct sender_list*)sl_dll->dll_data ) == NULL ) {
-	if (( list = (struct sender_list*)malloc(
-		sizeof( struct sender_list ))) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: env_sender malloc: %m" );
-	    return( 1 );
-	}
-	memset( list, 0, sizeof( struct sender_list ));
+	list = calloc( 1, sizeof( struct sender_list ));
 	list->sl_dll = sl_dll;
 	sl_dll->dll_data = list;
     }
@@ -675,12 +641,7 @@ sender_list_add( struct envelope *e )
 	return( 0 );
     }
 
-    if (( entry = (struct sender_entry*)malloc(
-	    sizeof( struct sender_entry ))) == NULL ) {
-	syslog( LOG_ERR, "Syserror: env_sender malloc: %m" );
-	return( 1 );
-    }
-    memset( entry, 0, sizeof( struct sender_entry ));
+    entry = calloc( 1, sizeof( struct sender_entry ));
     se_dll->dll_data = entry;
     e->e_sender_entry = entry;
     entry->se_env = e;
@@ -1384,11 +1345,7 @@ env_string_recipients( struct envelope *env, char *line )
     struct string_address		*sa;
     char				*addr;
 
-    if (( sa = string_address_init( line )) == NULL ) {
-	syslog( LOG_ERR,
-		"env_string_recipients: string_address_init: malloc: %m" );
-	return( 1 );
-    }
+    sa = string_address_init( line );
 
     while (( addr = string_address_parse( sa )) != NULL ) {
 	if ( env_recipient( env, addr ) != 0 ) {

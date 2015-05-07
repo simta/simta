@@ -410,11 +410,8 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 		continue;
 	    }
 	} else {
-	    if (( reverse_ip = (char*)malloc( strlen( rbl->rbl_domain ) +
-		    strlen( text ) + 2 )) == NULL ) {
-		syslog( LOG_ERR, "malloc %m" );
-		return( RBL_ERROR );
-	    }
+	    reverse_ip = malloc(
+		    strlen( rbl->rbl_domain ) + strlen( text ) + 2 );
 	    sprintf( reverse_ip, "%s.%s", text, rbl->rbl_domain );
 	}
 
@@ -431,10 +428,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 		    &(result->r_answer[0].rr_a),
 		    sizeof( struct in_addr ));
 
-	    if (( ip = strdup( inet_ntoa( sin.sin_addr ))) == NULL ) {
-		syslog( LOG_ERR, "Syserror rbl_check: strdup %m" );
-		return( RBL_ERROR );
-	    }
+	    ip = strdup( inet_ntoa( sin.sin_addr ));
 
 	    if ( simta_rbl_verbose_logging ) {
 		syslog( LOG_DEBUG, "RBL [%s] %s: Found in %s list %s: %s",
@@ -511,24 +505,13 @@ rbl_add( struct rbl **list, int type, char *domain, char *url )
 	break;
     }
 
-    if (( rbl = (struct rbl*)malloc( sizeof( struct rbl ))) == NULL ) {
-	syslog( LOG_ERR, "rbl_add malloc: %m" );
-	return( 1 );
-    }
-    memset( rbl, 0, sizeof( struct rbl ));
+    rbl = calloc( 1, sizeof( struct rbl ));
 
     rbl->rbl_type = type;
     rbl->rbl_type_text = text;
 
-    if (( rbl->rbl_domain = strdup( domain )) == NULL ) {
-	syslog( LOG_ERR, "rbl_add strdup: %m" );
-	return( 1 );
-    }
-
-    if (( rbl->rbl_url = strdup( url )) == NULL ) {
-	syslog( LOG_ERR, "rbl_add strdup: %m" );
-	return( 1 );
-    }
+    rbl->rbl_domain = strdup( domain );
+    rbl->rbl_url = strdup( url );
 
     /* add new struct to end of list */
     for ( i = list; *i != NULL; i = &((*i)->rbl_next) )

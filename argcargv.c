@@ -27,13 +27,8 @@ acav_alloc( void )
 {
     ACAV *acav;
 
-    if (( acav = (ACAV*)malloc( sizeof( ACAV ))) == NULL ) {
-	return( NULL );
-    }
-    if (( acav->acv_argv =
-	    (char **)malloc( sizeof(char *) * ( ACV_ARGC ))) == NULL ) {
-	return( NULL );
-    }
+    acav = malloc( sizeof( ACAV ));
+    acav->acv_argv = malloc( sizeof(char *) * ( ACV_ARGC ));
     acav->acv_argc = ACV_ARGC;
 
     return( acav );
@@ -87,12 +82,8 @@ acav_parse2821( ACAV *acav, char *line, char **argv[] )
 	    if ( state == ACV_WHITE ) {
 		acav->acv_argv[ ac++ ] = line;
 		if ( ac >= acav->acv_argc ) {
-		    /* realloc */
-		    if (( acav->acv_argv = (char **)realloc( acav->acv_argv,
-			    sizeof( char * ) * ( acav->acv_argc + ACV_ARGC )))
-			    == NULL ) {
-			return( -1 );
-		    }
+		    acav->acv_argv = (char **)realloc( acav->acv_argv,
+			    sizeof( char * ) * ( acav->acv_argc + ACV_ARGC ));
 		    acav->acv_argc += ACV_ARGC;
 		}
 		state = ACV_WORD;
@@ -167,11 +158,8 @@ acav_parse( ACAV *acav, char *line, char **argv[] )
 		acav->acv_argv[ ac++ ] = line;
 		if ( ac >= acav->acv_argc ) {
 		    /* realloc */
-		    if (( acav->acv_argv = (char **)realloc( acav->acv_argv,
-			    sizeof( char * ) * ( acav->acv_argc + ACV_ARGC )))
-			    == NULL ) {
-			return( -1 );
-		    }
+		    acav->acv_argv = realloc( acav->acv_argv,
+			    sizeof( char * ) * ( acav->acv_argc + ACV_ARGC ));
 		    acav->acv_argc += ACV_ARGC;
 		}
 		state = ACV_WORD;

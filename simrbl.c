@@ -138,10 +138,7 @@ main( int argc, char *argv[])
 	simta_rbl_verbose_logging = 1;
     }
 
-    if ( rbl_add( &simta_rbls, RBL_BLOCK, block_domain, "none" ) != 0 ) {
-	perror( "malloc" );
-	exit( SIMRBL_EXIT_ERROR );
-    }     
+    rbl_add( &simta_rbls, RBL_BLOCK, block_domain, "none" );
     simta_rbl_verbose_logging = 1;
 
     if ( check_text == 0 ) {

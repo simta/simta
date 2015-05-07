@@ -296,11 +296,7 @@ simta_sender( void )
 	    return( NULL );
 	}
 
-	if (( sender = (char*)malloc( strlen( pw->pw_name ) +
-		strlen( simta_domain ) + 2 )) == NULL ) {
-	    perror( "malloc" );
-	    return( NULL );
-	}
+	sender = malloc( strlen( pw->pw_name ) + strlen( simta_domain ) + 2 );
 	sprintf( sender, "%s@%s", pw->pw_name, simta_domain );
     }
 
@@ -360,11 +356,7 @@ simta_read_config( char *fname )
 	return( -1 );
     }
 
-    if (( acav = acav_alloc( )) == NULL ) {
-	perror( "simta_read_config: acav_alloc" );
-	snet_close( snet );
-	return( -1 );
-    }
+    acav = acav_alloc( );
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	lineno++;
@@ -453,10 +445,7 @@ simta_read_config( char *fname )
 		domain = simta_hostname;
 	    }
 
-	    if (( red = red_host_add( domain )) == NULL ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    red = red_host_add( domain );
 
 	    if ( strcasecmp( av[ 2 ], "ACCEPT" ) == 0 ) {
 		/* @DOMAIN R ACCEPT */
@@ -467,11 +456,8 @@ simta_read_config( char *fname )
 		    goto error;
 		}
 
-		if (( red_action_add( red, RED_CODE_R,
-			EXPANSION_TYPE_GLOBAL_RELAY, NULL)) == NULL ) {
-		    perror( "malloc" );
-		    goto error;
-		}
+		red_action_add( red, RED_CODE_R, EXPANSION_TYPE_GLOBAL_RELAY,
+			NULL );
 
 #ifdef HAVE_LMDB
 	    } else if ( strcasecmp( av[ 2 ], "ALIAS" ) == 0 ) {
@@ -493,25 +479,16 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_r ) {
-		    if ( red_action_add( red, RED_CODE_r,
-			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    red_action_add( red, RED_CODE_r, EXPANSION_TYPE_ALIAS,
+			    f_arg );
 		} else if ( red_code & RED_CODE_R ) {
-		    if ( red_action_add( red, RED_CODE_R,
-			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    red_action_add( red, RED_CODE_R, EXPANSION_TYPE_ALIAS,
+			    f_arg );
 		}
 
 		if ( red_code & RED_CODE_E ) {
-		    if ( red_action_add( red, RED_CODE_E,
-			    EXPANSION_TYPE_ALIAS, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    red_action_add( red, RED_CODE_E, EXPANSION_TYPE_ALIAS,
+			    f_arg );
 		}
 #endif /* HAVE_LMDB */
 
@@ -529,27 +506,18 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_r ) {
-		    if (( a = red_action_add( red, RED_CODE_r,
-			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    a = red_action_add( red, RED_CODE_r, EXPANSION_TYPE_LDAP,
+			    NULL );
 		    a->a_ldap = ld;
 		} else if ( red_code & RED_CODE_R ) {
-		    if (( a = red_action_add( red, RED_CODE_R,
-			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    a = red_action_add( red, RED_CODE_R, EXPANSION_TYPE_LDAP,
+			    NULL );
 		    a->a_ldap = ld;
 		}
 
 		if ( red_code & RED_CODE_E ) {
-		    if (( a = red_action_add( red, RED_CODE_E,
-			    EXPANSION_TYPE_LDAP, NULL )) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    a = red_action_add( red, RED_CODE_E, EXPANSION_TYPE_LDAP,
+			    NULL );
 		    a->a_ldap = ld;
 		}
 #endif /* HAVE_LDAP */
@@ -573,19 +541,10 @@ simta_read_config( char *fname )
 		if ( strcasecmp( av[ 3 ], "DEFAULT" ) != 0 ) {
 		    /* store array */
 		    red->red_deliver_argc = ac - 3;
-		    if (( red->red_deliver_argv =
-			    (char**)malloc( sizeof(char*) * ( ac - 2 ))) ==
-			    NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    red->red_deliver_argv = malloc( sizeof(char*) * ( ac - 2 ));
 
 		    for ( x = 0; x < red->red_deliver_argc; x++ ) {
-			if (( red->red_deliver_argv[ x ] =
-				strdup( av[ x + 3 ])) == NULL ) {
-			    perror( "strdup" );
-			    goto error;
-			}
+			red->red_deliver_argv[ x ] = strdup( av[ x + 3 ] );
 		    }
 
 		    red->red_deliver_argv[ x ] = NULL;
@@ -605,25 +564,16 @@ simta_read_config( char *fname )
 		}
 
 		if ( red_code & RED_CODE_r ) {
-		    if ( red_action_add( red, RED_CODE_r,
-			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    red_action_add( red, RED_CODE_r, EXPANSION_TYPE_PASSWORD,
+			    f_arg );
 		} else if ( red_code & RED_CODE_R ) {
-		    if ( red_action_add( red, RED_CODE_R,
-			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    red_action_add( red, RED_CODE_R, EXPANSION_TYPE_PASSWORD,
+			    f_arg );
 		}
 
 		if ( red_code & RED_CODE_E ) {
-		    if ( red_action_add( red, RED_CODE_E,
-			    EXPANSION_TYPE_PASSWORD, f_arg ) == NULL ) {
-			perror( "malloc" );
-			goto error;
-		    }
+		    red_action_add( red, RED_CODE_E, EXPANSION_TYPE_PASSWORD,
+			    f_arg );
 		}
 
 	    } else if ( strcasecmp( av[ 2 ], "PUNTING" ) == 0 ) {
@@ -691,11 +641,8 @@ simta_read_config( char *fname )
 		    goto error;
 		}
 
-		if (( a = red_action_add( red, RED_CODE_R,
-			EXPANSION_TYPE_GLOBAL_RELAY, av[ 3 ])) == NULL ) {
-		    perror( "malloc" );
-		    goto error;
-		}
+		a = red_action_add( red, RED_CODE_R,
+			EXPANSION_TYPE_GLOBAL_RELAY, av[ 3 ] );
 
 		a->a_next_secondary_mx = simta_red_action_secondary_mx;
 		simta_red_action_secondary_mx = a;
@@ -738,10 +685,7 @@ simta_read_config( char *fname )
 
 	    } else if ( strcasecmp( av[ 2 ], "TLS_CIPHERS" ) == 0 ) {
 		if (( ac == 4 ) && ( red_code == RED_CODE_D )) {
-		    if (( red->red_tls_ciphers = strdup( av[ 3 ] )) == NULL ) {
-			perror( "strdup" );
-			goto error;
-		    }
+		    red->red_tls_ciphers = strdup( av[ 3 ] );
 		    continue;
 		}
 		fprintf( stderr, "%s: line %d: usage: %s\n",
@@ -790,10 +734,7 @@ simta_read_config( char *fname )
 #ifdef HAVE_LMDB
 	} else if ( strcasecmp( av[ 0 ], "ALIAS_DB" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if (( simta_default_alias_db = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-		    goto error;
-		}
+		simta_default_alias_db = strdup( av[ 1 ] );
 	    } else if ( ac == 1 ) {
 		simta_default_alias_db = NULL;
 
@@ -810,10 +751,7 @@ simta_read_config( char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "ALIAS_FILE" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if (( simta_default_alias_file = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-		    goto error;
-		}
+		simta_default_alias_file = strdup( av[ 1 ] );
 	    } else {
 		fprintf( stderr, "%s: line %d: expected 1 argument\n",
 			fname, lineno );
@@ -832,10 +770,7 @@ simta_read_config( char *fname )
 			"%s: line %d: path too long\n", fname, lineno );
 		goto error;
 	    }
-	    if (( simta_base_dir = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_base_dir = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "base dir: %s\n", simta_base_dir );
 
 	} else if ( strcasecmp( av[ 0 ], "BITBUCKET" ) == 0 ) {
@@ -909,11 +844,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if (( simta_checksum_algorithm = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
-
+	    simta_checksum_algorithm = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "CHECKSUM_ALGORITHM %s\n",
 		    simta_checksum_algorithm );
 
@@ -957,10 +888,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_mail_filter = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_mail_filter = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "CONTENT_FILTER: %s\n",
 		simta_mail_filter );
 
@@ -989,18 +917,10 @@ simta_read_config( char *fname )
 
 	    /* store array */
 	    simta_deliver_default_argc = ac - 1;
-	    if (( simta_deliver_default_argv =
-		    (char**)malloc( sizeof(char*) * ( ac ))) == NULL ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    simta_deliver_default_argv = malloc( sizeof(char*) * ( ac ));
 
 	    for ( x = 0; x < simta_deliver_default_argc; x++ ) {
-		if (( simta_deliver_default_argv[ x ] =
-			strdup( av[ x + 1 ])) == NULL ) {
-		    perror( "strdup" );
-		    goto error;
-		}
+		simta_deliver_default_argv[ x ] = strdup( av[ x + 1 ] );
 	    }
 
 	    simta_deliver_default_argv[ x ] = NULL;
@@ -1135,11 +1055,7 @@ simta_read_config( char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "DELIVER_TLS_CIPHERS" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if (( simta_tls_ciphers_outbound = strdup( av[ 1 ] ))
-			== NULL ) {
-		    perror( "strdup" );
-		    goto error;
-		}
+		simta_tls_ciphers_outbound = strdup( av[ 1 ] );
 		if ( simta_debug ) printf( "DELIVER_TLS_CIPHERS: %s\n",
 			simta_tls_ciphers_outbound );
 		continue;
@@ -1270,10 +1186,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    /* XXX - need to lower-case domain */
-	    if (( simta_jail_host = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_jail_host = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "JAIL to %s\n", simta_jail_host );
 
 	} else if ( strcasecmp( av[ 0 ], "JAIL_BOUNCE_ADDRESS" ) == 0 ) {
@@ -1282,10 +1195,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_jail_bounce_address = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_jail_bounce_address = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "JAIL BOUNCES to %s\n",
 		    simta_jail_bounce_address );
 
@@ -1310,10 +1220,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_libwrap_url = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_libwrap_url = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "LIBWRAP_URL: %s\n", simta_libwrap_url );
 
 	} else if ( strcasecmp( av[ 0 ], "LOCAL_JAIL" ) == 0 ) {
@@ -1346,10 +1253,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    /* XXX - need to lower-case domain */
-	    if (( simta_domain = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_domain = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "MASQUERADE as %s\n", simta_domain );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_FAILED_RCPTS" ) == 0 ) {
@@ -1620,10 +1524,7 @@ simta_read_config( char *fname )
                         "%s: line %d: path too long\n", fname, lineno );
                 goto error;
             }
-            if (( simta_file_pid = strdup( av[ 1 ] )) == NULL ) {
-                perror( "strdup" );
-                goto error;
-            }
+            simta_file_pid = strdup( av[ 1 ] );
             if ( simta_debug ) printf( "pid file: %s\n", simta_file_pid );
 
 	} else if ( strcasecmp( av[ 0 ], "PUNT" ) == 0 ) {
@@ -1638,10 +1539,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    /* XXX - need to lower-case domain */
-	    if (( simta_punt_host = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_punt_host = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "PUNT to %s\n", simta_punt_host );
 
 	} else if ( strcasecmp( av[ 0 ], "QUEUE_INCOMING_SMTP_MAIL" ) == 0 ) {
@@ -1677,10 +1575,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if ( rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], "") != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], "" );
 
 	    if ( simta_debug ) {
 		printf( "RBL_ACCEPT: %s\n", av[ 1 ]);
@@ -1693,10 +1588,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if ( rbl_add( &simta_rbls, RBL_BLOCK, av[ 1 ], av[ 2 ]) != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    rbl_add( &simta_rbls, RBL_BLOCK, av[ 1 ], av[ 2 ] );
 
 	    if ( simta_debug ) {
 		printf( "RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
@@ -1709,10 +1601,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if ( rbl_add( &simta_rbls, RBL_LOG_ONLY, av[ 1 ], "") != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    rbl_add( &simta_rbls, RBL_LOG_ONLY, av[ 1 ], "" );
 
 	    if ( simta_debug ) {
 		printf( "RBL_LOG_ONLY: %s\n", av[ 1 ]);
@@ -1724,10 +1613,8 @@ simta_read_config( char *fname )
 		    fname, lineno );
 		goto error;
 	    }
-	    if ( rbl_add( &simta_rbls, RBL_TRUST, av[ 1 ], "") != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
+
+	    rbl_add( &simta_rbls, RBL_TRUST, av[ 1 ], "" );
 
 	    if ( simta_debug ) {
 		printf( "RBL_TRUST: %s\n", av[ 1 ]);
@@ -1907,10 +1794,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_reverse_url = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_reverse_url = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
 
 #ifdef HAVE_LIBSASL
@@ -1940,10 +1824,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 	    /* XXX - need to lower-case domain */
-	    if (( simta_seen_before_domain = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_seen_before_domain = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "SEEN_BEFORE_DOMAIN is %s\n",
 		    simta_seen_before_domain );
 
@@ -1987,10 +1868,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_data_url = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_data_url = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "SMTP_DATA_URL: %s\n", simta_data_url );
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_LISTEN_BACKLOG" ) == 0 ) {
@@ -2235,10 +2113,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_dir_ca = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_dir_ca = strdup( av[ 1 ] );
 	    if ( simta_debug ) {
 		printf( "TLS_CA_DIRECTORY: %s\n", simta_dir_ca );
 	    }
@@ -2249,10 +2124,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_file_ca = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_file_ca = strdup( av[ 1 ] );
 	    if ( simta_debug ) {
 		printf( "TLS_CA_FILE: %s\n", simta_file_ca );
 	    }
@@ -2263,10 +2135,7 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_file_cert = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_file_cert = strdup( av[ 1 ] );
 	    if ( simta_debug ) {
 		printf( "TLS_CERT: %s\n", simta_file_cert );
 	    }
@@ -2277,20 +2146,14 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    if (( simta_file_private_key = strdup( av[ 1 ] )) == NULL ) {
-		perror( "strdup" );
-		goto error;
-	    }
+	    simta_file_private_key = strdup( av[ 1 ] );
 	    if ( simta_debug ) {
 		printf( "TLS_CERT_KEY: %s\n", simta_file_private_key );
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_CIPHERS" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if (( simta_tls_ciphers = strdup( av[ 1 ] )) == NULL ) {
-		    perror( "strdup" );
-		    goto error;
-		}
+		simta_tls_ciphers = strdup( av[ 1 ] );
 		if ( simta_debug ) printf( "TLS_CIPHERS: %s\n",
 			simta_tls_ciphers );
 		continue;
@@ -2358,10 +2221,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if ( rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ], "" ) != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ], "" );
 
 	    if ( simta_debug ) {
 		printf( "USER_RBL_ACCEPT: %s\n", av[ 1 ]);
@@ -2374,11 +2234,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if ( rbl_add( &simta_user_rbls, RBL_BLOCK, av[ 1 ],
-		    av[ 2 ]) != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    rbl_add( &simta_user_rbls, RBL_BLOCK, av[ 1 ], av[ 2 ] );
 
 	    if ( simta_debug ) {
 		printf( "USER_RBL_BLOCK: %s\tURL: %s\n", av[ 1 ], av[ 2 ]);
@@ -2391,10 +2247,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if ( rbl_add( &simta_user_rbls, RBL_LOG_ONLY, av[ 1 ], "" ) != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    rbl_add( &simta_user_rbls, RBL_LOG_ONLY, av[ 1 ], "" );
 
 	    if ( simta_debug ) {
 		printf( "USER_RBL_LOG_ONLY: %s\n", av[ 1 ]);
@@ -2407,10 +2260,7 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 
-	    if ( rbl_add( &simta_user_rbls, RBL_TRUST, av[ 1 ], "" ) != 0 ) {
-		perror( "malloc" );
-		goto error;
-	    }
+	    rbl_add( &simta_user_rbls, RBL_TRUST, av[ 1 ], "" );
 
 	    if ( simta_debug ) {
 		printf( "USER_RBL_TRUST: %s\n", av[ 1 ]);
@@ -2505,11 +2355,7 @@ simta_config( void )
 	simta_seen_before_domain = simta_domain;
     }
 
-    if (( simta_postmaster = (char*)malloc( 12 + strlen( simta_hostname )))
-	    == NULL ) {
-	perror( "malloc" );
-	return( -1 );
-    }
+    simta_postmaster = malloc( 12 + strlen( simta_hostname ));
     sprintf( simta_postmaster, "postmaster@%s", simta_hostname );
 
     /* set our local mailer */
@@ -2518,14 +2364,8 @@ simta_config( void )
 	return( -1 );
     }
 
-    if (( simta_red_host_default = red_host_add( simta_hostname )) == NULL ) {
-	return( -1 );
-    }
-
-    if ( red_action_default( simta_red_host_default ) != 0 ) {
-	perror( "malloc" );
-	return( -1 );
-    }
+    simta_red_host_default = red_host_add( simta_hostname );
+    red_action_default( simta_red_host_default );
 
     /* check base_dir before using it */
     if ( simta_base_dir == NULL ) {
@@ -2535,34 +2375,19 @@ simta_config( void )
 
     /* set up data dir pathnames */
     sprintf( path, "%s/%s", simta_base_dir, "fast" );
-    if (( simta_dir_fast = strdup( path )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
+    simta_dir_fast = strdup( path );
 
     sprintf( path, "%s/%s", simta_base_dir, "slow" );
-    if (( simta_dir_slow = strdup( path )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
+    simta_dir_slow = strdup( path );
 
     sprintf( path, "%s/%s", simta_base_dir, "dead" );
-    if (( simta_dir_dead = strdup( path )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
+    simta_dir_dead = strdup( path );
 
     sprintf( path, "%s/%s", simta_base_dir, "local" );
-    if (( simta_dir_local = strdup( path )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
+    simta_dir_local = strdup( path );
 
     sprintf( path, "%s/%s", simta_base_dir, "command" );
-    if (( simta_dir_command = strdup( path )) == NULL ) {
-	perror( "strdup" );
-	return( -1 );
-    }
+    simta_dir_command = strdup( path );
 
     return( 0 );
 }

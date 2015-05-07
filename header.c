@@ -440,11 +440,7 @@ mid_text( struct receive_headers *r, char *line, char **msg )
 	}
 
 	*end = '\0';
-	if (( r->r_mid = strdup( start )) == NULL ) {
-	    *end = '>';
-	    syslog( LOG_ERR, "mid_text strdup: %m" );
-	    return( -1 );
-	}
+	r->r_mid = strdup( start );
 	*end = '>';
 
 	if ( skip_cws( end + 1 ) != NULL ) {
@@ -476,17 +472,15 @@ make_more_seen( struct receive_headers *r )
 	}
 	n = i;
     }
-    cpp = malloc( (n+2) * sizeof *cpp );
-    if ( cpp ) {
-	if ( r->r_all_seen_before ) {
-	    memcpy( cpp, r->r_all_seen_before, n * sizeof *cpp );
-	    free( r->r_all_seen_before );
-	}
-	cpp[ n ] = strdup( "" );
-	cpp[ n+1 ] = 0;
-	r->r_all_seen_before = cpp;
-	syslog( LOG_ERR, "make_more_seen: n=%d", n);
+    cpp = malloc( (n + 2) * sizeof *cpp );
+    if ( r->r_all_seen_before ) {
+	memcpy( cpp, r->r_all_seen_before, n * sizeof *cpp );
+	free( r->r_all_seen_before );
     }
+    cpp[ n ] = strdup( "" );
+    cpp[ n + 1 ] = 0;
+    r->r_all_seen_before = cpp;
+    syslog( LOG_ERR, "make_more_seen: n=%d", n );
 }
 
     char *
@@ -510,24 +504,23 @@ append_seen( struct receive_headers *r, char *msg, int l2 )
     --i;
     cp = r->r_all_seen_before[ i ];
     l1 = strlen( cp );
-    if ( (new = malloc( l1 + l2 + 1 + !!*cp )) ) {
-	if ( *cp ) {
-	    memcpy( new, cp, l1 );
-	    new[ l1++ ] = ' ';
-	    if ( r->r_seen_before == cp ) {
-		r->r_seen_before = new;
-	    }
-	} else {
-	    int l3 = strlen( simta_seen_before_domain );
-	    if ( l3 == l2 && !memcmp( msg, simta_seen_before_domain, l3 )) {
-		r->r_seen_before = new;
-	    }
+    new = malloc( l1 + l2 + 1 + !!*cp );
+    if ( *cp ) {
+	memcpy( new, cp, l1 );
+	new[ l1++ ] = ' ';
+	if ( r->r_seen_before == cp ) {
+	    r->r_seen_before = new;
 	}
-	memcpy( new + l1, msg, l2 );
-	new[ l1 + l2 ] = 0;
-	free(cp);
-	r->r_all_seen_before[ i ] = new;
+    } else {
+	int l3 = strlen( simta_seen_before_domain );
+	if ( l3 == l2 && !memcmp( msg, simta_seen_before_domain, l3 )) {
+	    r->r_seen_before = new;
+	}
     }
+    memcpy( new + l1, msg, l2 );
+    new[ l1 + l2 ] = 0;
+    free(cp);
+    r->r_all_seen_before[ i ] = new;
     return( new );
 }
 
@@ -558,10 +551,7 @@ seen_text( struct receive_headers *r, char *line, char **msg )
 
 	end++;
 
-	if (!(append_seen( r, start, end - start ))) {
-	    syslog( LOG_ERR, "seen_text strdup: %m" );
-	    return( 1 );
-	}
+	append_seen( r, start, end - start );
 
 	line = end;
     }
@@ -849,25 +839,15 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	/* generate From: header */
 	if (( len = ( strlen( headers_rfc5322[ HEAD_FROM ].h_key ) +
 		strlen( env->e_mail ) + 3 )) > prepend_len ) {
-	    if (( prepend_line = (char*)realloc( prepend_line, len ))
-		    == NULL ) {
-		syslog( LOG_ERR, "header_correct realloc: %m" );
-		ret = -1;
-		goto error;
-	    }
-
+	    prepend_line = realloc( prepend_line, len );
 	    prepend_len = len;
 	}
 
 	sprintf( prepend_line, "%s: %s",
 		headers_rfc5322[ HEAD_FROM ].h_key, env->e_mail );
 
-	if (( headers_rfc5322[ HEAD_FROM ].h_line =
-		line_prepend( lf, prepend_line, COPY )) == NULL ) {
-	    syslog( LOG_ERR, "header_correct malloc: %m" );
-	    ret = -1;
-	    goto error;
-	}
+	headers_rfc5322[ HEAD_FROM ].h_line =
+		line_prepend( lf, prepend_line, COPY );
     }
 
     /* Sender: */
@@ -888,25 +868,15 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	    ( simta_simsend_strict_from != 0 )) {
 	if (( len = ( strlen( headers_rfc5322[ HEAD_SENDER ].h_key ) +
 		strlen( env->e_mail ) + 3 )) > prepend_len ) {
-	    if (( prepend_line = (char*)realloc( prepend_line, len ))
-		    == NULL ) {
-		syslog( LOG_ERR, "header_correct realloc: %m" );
-		ret = -1;
-		goto error;
-	    }
-
+	    prepend_line = realloc( prepend_line, len );
 	    prepend_len = len;
 	}
 
 	sprintf( prepend_line, "%s: %s",
 		headers_rfc5322[ HEAD_SENDER ].h_key, env->e_mail );
 
-	if (( headers_rfc5322[ HEAD_SENDER ].h_line =
-		line_prepend( lf, prepend_line, COPY )) == NULL ) {
-	    syslog( LOG_ERR, "header_correct malloc: %m" );
-	    ret = -1;
-	    goto error;
-	}
+	headers_rfc5322[ HEAD_SENDER ].h_line =
+		line_prepend( lf, prepend_line, COPY );
     }
 
     if ( headers_rfc5322[ HEAD_DATE ].h_line == NULL ) {
@@ -923,25 +893,15 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	if (( len = ( strlen( headers_rfc5322[ HEAD_DATE ].h_key ) +
 		strlen( daytime ) + 3 )) > prepend_len ) {
 
-	    if (( prepend_line = (char*)realloc( prepend_line, len ))
-		    == NULL ) {
-		syslog( LOG_ERR, "header_correct realloc: %m" );
-		ret = -1;
-		goto error;
-	    }
-
+	    prepend_line = realloc( prepend_line, len );
 	    prepend_len = len;
 	}
 
 	sprintf( prepend_line, "%s: %s",
 		headers_rfc5322[ HEAD_DATE ].h_key, daytime );
 
-	if (( headers_rfc5322[ HEAD_DATE ].h_line =
-		line_prepend( lf, prepend_line, COPY )) == NULL ) {
-	    syslog( LOG_ERR, "header_correct malloc: %m" );
-	    ret = -1;
-	    goto error;
-	}
+	headers_rfc5322[ HEAD_DATE ].h_line =
+		line_prepend( lf, prepend_line, COPY );
     }
 
     if (( headers_rfc5322[ HEAD_MESSAGE_ID ].h_line == NULL ) &&
@@ -950,13 +910,7 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 	if (( len = ( strlen( headers_rfc5322[ HEAD_MESSAGE_ID ].h_key ) +
 		strlen( env->e_id ) + 6 + strlen( simta_hostname ))) >
 		prepend_len ) {
-	    if (( prepend_line = (char*)realloc( prepend_line, len ))
-		    == NULL ) {
-		syslog( LOG_ERR, "header_correct realloc: %m" );
-		ret = -1;
-		goto error;
-	    }
-
+	    prepend_line = realloc( prepend_line, len );
 	    prepend_len = len;
 	}
 
@@ -964,12 +918,8 @@ header_correct( int read_headers, struct line_file *lf, struct envelope *env )
 		headers_rfc5322[ HEAD_MESSAGE_ID ].h_key, env->e_id,
 		simta_hostname );
 
-	if (( headers_rfc5322[ HEAD_MESSAGE_ID ].h_line =
-		line_prepend( lf, prepend_line, COPY )) == NULL ) {
-	    syslog( LOG_ERR, "header_correct malloc: %m" );
-	    ret = -1;
-	    goto error;
-	}
+	headers_rfc5322[ HEAD_MESSAGE_ID ].h_line =
+		line_prepend( lf, prepend_line, COPY );
     }
 
     if (( l = headers_rfc5322[ HEAD_TO ].h_line ) != NULL ) {
@@ -1379,10 +1329,7 @@ correct_emailaddr( char **addr )
 	len += 3;
 	len += strlen( simta_domain );
 
-	if (( new = (char*)malloc( len )) == NULL ) {
-	    return( -1 );
-	}
-	memset( new, 0, len );
+	new = calloc( 1, len );
 
 	w = new;
 
@@ -1574,11 +1521,7 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	buf_len += 2; /* @ & \0 */
 	buf_len += strlen( local.t_end_line->line_data );
 
-	if (( buf = (char*)malloc( buf_len )) == NULL ) {
-	    syslog( LOG_ERR, "parse_addr malloc: %m" );
-	    return( -1 );
-	}
-	memset( buf, 0, buf_len );
+	buf = calloc( 1, buf_len );
 
 	r = local.t_end_line->line_data;
 	w = buf;
@@ -1721,16 +1664,10 @@ parse_addr( struct envelope *env, struct line **start_line, char **start,
 	addr_len += strlen( domain.t_unfolded );
 	addr_len += 2;
 
-	if (( addr = (char*)malloc( addr_len )) == NULL ) {
-	    syslog( LOG_ERR, "parse_addr malloc: %m" );
-	    return( -1 );
-	}
+	addr = malloc( addr_len );
 	sprintf( addr, "%s@%s", local.t_unfolded, domain.t_unfolded );
 
-	if ( env_recipient( env, addr ) != 0 ) {
-	    syslog( LOG_ERR, "parse_addr malloc: %m" );
-	    return( -1 );
-	}
+	env_recipient( env, addr );
 
 	free( addr );
 	free( local.t_unfolded );
@@ -2381,12 +2318,7 @@ line_token_unfold( struct line_token *token )
 	/* header not folded, simple case */
 	len = token->t_end - token->t_start + 2;
 
-	if (( token->t_unfolded = (char*)malloc( len )) == NULL ) {
-	    syslog( LOG_ERR, "line_token_unfold malloc: %m" );
-	    return( -1 );
-	}
-	memset( token->t_unfolded, 0, len );
-
+	token->t_unfolded = calloc( 1, len );
 	strncpy( token->t_unfolded, token->t_start, len - 1 );
 
 	return( 0 );
@@ -2395,10 +2327,7 @@ line_token_unfold( struct line_token *token )
     /* header folded */
     len = strlen( token->t_start ) + 1;
 
-    if (( token->t_unfolded = (char*)malloc( len )) == NULL ) {
-	syslog( LOG_ERR, "line_token_unfold malloc: %m" );
-	return( -1 );
-    }
+    token->t_unfolded = calloc( 1, len );
     strcpy( token->t_unfolded, token->t_start );
 
     line = token->t_start_line;
@@ -2415,10 +2344,7 @@ line_token_unfold( struct line_token *token )
 	if ( line == token->t_end_line ) {
 	    len += token->t_end - c + 1;
 
-	    if (( tmp = (char*)malloc( len )) == NULL ) {
-		syslog( LOG_ERR, "line_token_unfold malloc: %m" );
-		return( -1 );
-	    }
+	    tmp = malloc( len );
 	    sprintf( tmp, "%s ", token->t_unfolded );
 	    free( token->t_unfolded );
 	    strncat( tmp, c, (size_t)(token->t_end - c + 1));
@@ -2429,10 +2355,7 @@ line_token_unfold( struct line_token *token )
 	} else {
 	    len += strlen( c ) + 1;
 
-	    if (( tmp = (char*)malloc( len )) == NULL ) {
-		syslog( LOG_ERR, "line_token_unfold malloc: %m" );
-		return( -1 );
-	    }
+	    tmp = malloc( len );
 	    sprintf( tmp, "%s %s", token->t_unfolded, c );
 	    free( token->t_unfolded );
 	    token->t_unfolded = tmp;
@@ -2462,15 +2385,8 @@ string_address_init( char *string )
 {
     struct string_address		*sa;
 
-    if (( sa = (struct string_address*)malloc(
-	    sizeof( struct string_address ))) == NULL ) {
-	return( NULL );
-    }
-    memset( sa, 0, sizeof( struct string_address ));
-
-    if (( sa->sa_string = strdup( string )) == NULL ) {
-	return( NULL );
-    }
+    sa = calloc( 1, sizeof( struct string_address ));
+    sa->sa_string = strdup( string );
 
     return( sa );
 }

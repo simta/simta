@@ -93,25 +93,14 @@ host_q_create_or_lookup( char *hostname )
      * have a NULL queue for error reporting. 
      */
     if ( simta_unexpanded_q == NULL ) {
-	if (( simta_unexpanded_q = (struct host_q*)malloc(
-		sizeof( struct host_q ))) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: host_q_create_or_lookup malloc: %m" );
-	    return( NULL );
-	}
-	memset( simta_unexpanded_q, 0, sizeof( struct host_q ));
+	simta_unexpanded_q = calloc( 1, sizeof( struct host_q ));
 
 	/* add this host to the host_q */
 	simta_unexpanded_q->hq_hostname = S_UNEXPANDED;
 	simta_unexpanded_q->hq_status = HOST_NULL;
 
 	if ( simta_punt_host != NULL ) {
-	    if (( simta_punt_q = (struct host_q*)malloc(
-		    sizeof( struct host_q ))) == NULL ) {
-		syslog( LOG_ERR,
-			"Syserror: host_q_create_or_lookup malloc: %m" );
-		return( NULL );
-	    }
-	    memset( simta_punt_q, 0, sizeof( struct host_q ));
+	    simta_punt_q = calloc( 1, sizeof( struct host_q ));
 
 	    simta_punt_q->hq_hostname = simta_punt_host;
 	    simta_punt_q->hq_status = HOST_PUNT;
@@ -123,20 +112,12 @@ host_q_create_or_lookup( char *hostname )
     }
 
     if (( hq = host_q_lookup( hostname )) == NULL ) {
-	if (( hq = (struct host_q*)malloc( sizeof( struct host_q ))) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: host_q_create_or_lookup malloc: %m" );
-	    return( NULL );
-	}
-	memset( hq, 0, sizeof( struct host_q ));
+	hq = calloc( 1, sizeof( struct host_q ));
 
 	hq->hq_wait_max = simta_wait_max;
 	hq->hq_wait_min = simta_wait_min;
 
-	if (( hq->hq_hostname = strdup( hostname )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: host_q_create_or_lookup strdup: %m" );
-	    free( hq );
-	    return( NULL );
-	}
+	hq->hq_hostname = strdup( hostname );
 
 	if ( simta_bitbucket >= 0 ) {
 	    hq->hq_status = HOST_BITBUCKET;
@@ -1644,12 +1625,7 @@ retry:
 		snet_close( d->d_snet_smtp );
 		d->d_snet_smtp = NULL;
 		if ( hq->hq_red == NULL ) {
-		    if (( hq->hq_red = red_host_add( hq->hq_hostname )) ==
-			    NULL ) {
-			syslog( LOG_ERR,
-				"Syserror: deliver_remote malloc: %m" );
-			return;
-		    }
+		    hq->hq_red = red_host_add( hq->hq_hostname );
 		}
 		syslog( LOG_INFO,
 			"Deliver.remote %s: disabling TLS and retrying",
@@ -2212,13 +2188,7 @@ connection_data_create( struct deliver *d )
 {
     struct connection_data		*cd;
 
-    if (( cd = (struct connection_data*)malloc(
-	    sizeof( struct connection_data ))) == NULL ) {
-	syslog( LOG_ERR, "Syserror: connection_data_create malloc: %m" );
-	return( NULL );
-    }
-
-    memset( cd, 0, sizeof( struct connection_data ));
+    cd = calloc( 1, sizeof( struct connection_data ));
     memcpy( &(cd->c_sin),
 	    &(d->d_sin),
 	    sizeof( struct sockaddr_in ));

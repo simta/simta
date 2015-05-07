@@ -54,11 +54,7 @@ ll_insert( struct stab_entry **stab, char *key, void *data,
 	ll_compare = ll_default_compare;
     }
 
-    if (( st = (struct stab_entry*)malloc( sizeof( struct stab_entry )))
-	    == NULL ) {
-	return( 1 );
-    }
-    memset( st, 0, sizeof( struct stab_entry ));
+    st = calloc( 1, sizeof( struct stab_entry ));
 
     st->st_key = key;
     st->st_data = data;
@@ -85,11 +81,7 @@ ll_insert_tail( struct stab_entry **stab, char *key, void *data )
     struct stab_entry	*st;
     struct stab_entry	**i;
 
-    if (( st = (struct stab_entry*)malloc( sizeof( struct stab_entry )))
-	    == NULL ) {
-	return( 1 );
-    }
-    memset( st, 0, sizeof( struct stab_entry ));
+    st = calloc( 1, sizeof( struct stab_entry ));
 
     st->st_key = key;
     st->st_data = data;
@@ -166,11 +158,7 @@ ll_nokey_insert( struct stab_entry **stab, void *data,
     struct stab_entry	*st;
     struct stab_entry	**i;
 
-    if (( st = (struct stab_entry*)malloc( sizeof( struct stab_entry )))
-	    == NULL ) {
-	return( -1 );
-    }
-    memset( st, 0, sizeof( struct stab_entry ));
+    st = calloc( 1, sizeof( struct stab_entry ));
 
     st->st_data = data;
 
@@ -222,21 +210,12 @@ dll_lookup_or_create( struct dll_entry **dll_head, char *key, int free_key )
 	dll_last = dll;
     }
 
-    if (( dll_new = (struct dll_entry*)malloc( sizeof( struct dll_entry )))
-	    == NULL ) {
-	syslog( LOG_ERR, "Syserror: dll_lookup_or_create malloc: %m" );
-	return( NULL );
-    }
-    memset( dll_new, 0, sizeof( struct dll_entry ));
+    dll_new = calloc( 1, sizeof( struct dll_entry ));
 
     if (( dll_new->dll_free_key = free_key ) == 0 ) {
 	dll_new->dll_key = key;
     } else {
-	if (( dll_new->dll_key = strdup( key )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: dll_lookup_or_create strdup: %m" );
-	    free( dll_new );
-	    return( NULL );
-	}
+	dll_new->dll_key = strdup( key );
     }
 
     if ( dll_last == NULL ) {

@@ -67,10 +67,7 @@ bounce_text( struct envelope *bounce_env, int mode, char *t1, char *t2,
     if ( t3 != NULL ) {
 	len = strlen( t1 ) + strlen( t2 ) + strlen( t3 ) + 1;
 
-	if (( text = (char*)malloc( len )) == NULL ) {
-	    syslog( LOG_ERR, "bounce_text malloc: %m" );
-	    return( -1 );
-	}
+	text = malloc( len );
 	sprintf( text, "%s%s%s", t1, t2, t3 );
 
 	if ( mode != 0 ) {
@@ -92,10 +89,7 @@ bounce_text( struct envelope *bounce_env, int mode, char *t1, char *t2,
     } else if ( t2 != NULL ) {
 	len = strlen( t1 ) + strlen( t2 ) + 1;
 
-	if (( text = (char*)malloc( len )) == NULL ) {
-	    syslog( LOG_ERR, "bounce_text malloc: %m" );
-	    return( -1 );
-	}
+	text = malloc( len );
 	sprintf( text, "%s%s", t1, t2 );
 
 	if ( mode != 0 ) {

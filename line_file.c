@@ -20,12 +20,7 @@ line_file_create( void )
 {
     struct line_file		*lf;
 
-    if (( lf = (struct line_file*)malloc( sizeof( struct line_file )))
-	    == NULL ) {
-	syslog( LOG_ERR, "line_file_create malloc: %m" );
-	return( NULL );
-    }
-    memset( lf, 0, sizeof( struct line_file ));
+    lf = calloc( 1, sizeof( struct line_file ));
 
     return( lf );
 }
@@ -55,17 +50,10 @@ line_append( struct line_file *lf, char *data, int copy )
 {
     struct line		*l;
 
-    if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
-	syslog( LOG_ERR, "line_append malloc: %m" );
-	return( NULL );
-    }
-    memset( l, 0, sizeof( struct line ));
+    l = calloc( 1, sizeof( struct line ));
 
     if ( copy != 0 ) {
-	if (( l->line_data = strdup( data )) == NULL ) {
-	    syslog( LOG_ERR, "line_append strdup: %m" );
-	    return( NULL );
-	}
+	l->line_data = strdup( data );
     } else {
 	if (( l->line_data = data ) == NULL ) {
 	    syslog( LOG_ERR, "line_append: no data" );
@@ -97,17 +85,10 @@ line_prepend( struct line_file *lf, char *data, int copy )
 {
     struct line		*l;
 
-    if (( l = (struct line*)malloc( sizeof( struct line ))) == NULL ) {
-	syslog( LOG_ERR, "line_prepend malloc: %m" );
-	return( NULL );
-    }
-    memset( l, 0, sizeof( struct line ));
+    l = calloc( 1, sizeof( struct line ));
 
     if ( copy != 0 ) {
-	if (( l->line_data = strdup( data )) == NULL ) {
-	    syslog( LOG_ERR, "line_prepend strdup: %m" );
-	    return( NULL );
-	}
+	l->line_data = strdup( data );
     } else {
 	if (( l->line_data = data ) == NULL ) {
 	    syslog( LOG_ERR, "line_prepend: no data" );

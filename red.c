@@ -191,12 +191,7 @@ red_action_add( struct simta_red *red, int red_type, int action, char *fname )
 	return( NULL );
     }
 
-    if (( a = (struct action*)malloc( sizeof( struct action )))
-	    == NULL ) {
-	syslog( LOG_ERR, "red_action_add: malloc: %m" );
-	return( NULL );
-    }
-    memset( a, 0, sizeof( struct action ));
+    a = calloc( 1, sizeof( struct action ));
 
     /* note that while we're still using an int payload in the expansion
      * structure, it might change in the future.  This would be a great
@@ -207,9 +202,7 @@ red_action_add( struct simta_red *red, int red_type, int action, char *fname )
     a->a_action = action;
     a->a_flags = flags;
     if ( fname != NULL ) {
-	if (( a->a_fname = strdup( fname )) == NULL ) {
-	    return( NULL );
-	}
+	a->a_fname = strdup( fname );
     }
 
     return( a );
@@ -232,19 +225,8 @@ red_host_add( char *host_name )
 	}
     }
 
-    if (( red = (struct simta_red*)malloc(
-	    sizeof( struct simta_red ))) == NULL ) {
-	syslog( LOG_ERR, "red_host_add: malloc: %m" );
-	return( NULL );
-    }
-    memset( red, 0, sizeof( struct simta_red ));
-
-    if (( red->red_host_name = strdup( host_name )) == NULL ) {
-	syslog( LOG_ERR, "red_host_add: malloc: %m" );
-	free( red );
-	return( NULL );
-    }
-
+    red = calloc( 1, sizeof( struct simta_red ));
+    red->red_host_name = strdup( host_name );
     red->red_next = *insert;
     *insert = red;
 
@@ -264,30 +246,22 @@ red_action_default( struct simta_red *red )
 {
     if ( red->red_receive == NULL ) {
 #ifdef HAVE_LMDB
-	if ( red_action_add( red, RED_CODE_R,
-		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
-	    return( -1 );
-	}
+	red_action_add( red, RED_CODE_R, EXPANSION_TYPE_ALIAS,
+		simta_default_alias_db );
 #endif /* HAVE_LMDB */
 
-	if ( red_action_add( red, RED_CODE_R,
-		EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
-	    return( -1 );
-	}
+	red_action_add( red, RED_CODE_R, EXPANSION_TYPE_PASSWORD,
+		simta_default_passwd_file );
     }
 
     if ( red->red_expand == NULL ) {
 #ifdef HAVE_LMDB
-	if ( red_action_add( red, RED_CODE_E,
-		EXPANSION_TYPE_ALIAS, simta_default_alias_db ) == NULL ) {
-	    return( -1 );
-	}
+	red_action_add( red, RED_CODE_E, EXPANSION_TYPE_ALIAS,
+		simta_default_alias_db );
 #endif /* HAVE_LMDB */
 
-	if ( red_action_add( red, RED_CODE_E,
-		EXPANSION_TYPE_PASSWORD, simta_default_passwd_file ) == NULL ) {
-	    return( -1 );
-	}
+	red_action_add( red, RED_CODE_E, EXPANSION_TYPE_PASSWORD,
+		simta_default_passwd_file );
     }
 
     if ( red->red_deliver_type == 0 ) {

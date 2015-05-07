@@ -202,12 +202,7 @@ simta_listen( char *service, int port_default, int port_override )
     struct servent		*se;
     struct simta_socket		*ss;
 
-    if (( ss = (struct simta_socket*)malloc(
-	    sizeof( struct simta_socket ))) == NULL ) {
-	syslog( LOG_ERR, "Syserror: simta_listen malloc: %m" );
-	return( NULL );
-    }
-    memset( ss, 0, sizeof( struct simta_socket ));
+    ss = calloc( 1, sizeof( struct simta_socket ));
 
     ss->ss_service = service;
     ss->ss_next = simta_listen_sockets;
@@ -1429,12 +1424,7 @@ simta_child_receive( struct simta_socket *ss )
     }
 
     if ( cinfo == NULL ) {
-	if (( cinfo = (struct connection_info*)malloc(
-		sizeof( struct connection_info ))) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: simta_child_receive malloc: %m" );
-	    return( 1 );
-	}
-	memset( cinfo, 0, sizeof( struct connection_info ));
+	cinfo = calloc( 1, sizeof( struct connection_info ));
 	memcpy( &(cinfo->c_sin), &sin, sizeof( struct sockaddr ));
 
 	cinfo->c_next = cinfo_stab;
@@ -1521,11 +1511,7 @@ simta_child_receive( struct simta_socket *ss )
     p->p_ss->ss_count++;
     p->p_cinfo = cinfo;
 
-    if (( p->p_host = strdup( inet_ntoa( cinfo->c_sin.sin_addr ))) == NULL ) {
-	syslog( LOG_ERR, "Syserror: simta_child_receive strdup: %m" );
-	free( p );
-	return( 1 );
-    }
+    p->p_host = strdup( inet_ntoa( cinfo->c_sin.sin_addr ));
 
     syslog( LOG_NOTICE, "Child Start %d.%ld: Receive %d %s %d: %s", p->p_id,
 	    p->p_tv.tv_sec, *p->p_limit, p->p_ss->ss_service,
@@ -1631,11 +1617,7 @@ simta_proc_q_runner( int pid, struct host_q *hq )
 		    pid, p->p_tv.tv_sec, S_UNEXPANDED, *p->p_limit );
 
 	} else {
-	    if (( p->p_host = strdup( hq->hq_hostname )) == NULL ) {
-		syslog( LOG_ERR, "Syserror: simta_proc_add strdup: %m" );
-		free( p );
-		return( 1 );
-	    }
+	    p->p_host = strdup( hq->hq_hostname );
 
 	    syslog( LOG_NOTICE, "Child Start %d.%ld: Deliver %d %s", pid,
 		    p->p_tv.tv_sec, *p->p_limit, p->p_host );
@@ -1651,12 +1633,7 @@ simta_proc_add( int process_type, int pid )
 {
     struct proc_type	*p;
 
-    if (( p = (struct proc_type*)malloc(
-	    sizeof( struct proc_type ))) == NULL ) {
-	syslog( LOG_ERR, "Syserror: simta_proc_add malloc: %m" );
-	return( NULL );
-    }
-    memset( p, 0, sizeof( struct proc_type ));
+    p = calloc( 1, sizeof( struct proc_type ));
 
     p->p_tv.tv_sec = simta_tv_now.tv_sec;
     p->p_id = pid;
@@ -1837,10 +1814,7 @@ daemon_commands( struct simta_dirp *sd )
 	return( 1 );
     }
 
-    if (( acav = acav_alloc()) == NULL ) {
-	syslog( LOG_ERR, "Syserror simta_read_command acav_alloc: %m" );
-	goto error;
-    }
+    acav = acav_alloc( );
 
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_DEBUG, "Command %s: unexpected EOF", entry->d_name );

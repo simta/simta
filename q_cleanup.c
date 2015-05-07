@@ -422,12 +422,7 @@ q_expansion_cleanup( struct envelope **fast )
 
 	    } else {
 		/* insert into i stab */
-		if (( i_add = (struct i_list*)malloc(
-			sizeof( struct i_list ))) == NULL ) {
-		    syslog( LOG_ERR, "Queue Syserror: malloc: %m" );
-		    return( 1 );
-		}
-		memset( i_add, 0, sizeof( struct i_list ));
+		i_add = calloc( 1, sizeof( struct i_list ));
 
 		i_add->i_expanded_list = env;
 		i_add->i_dinode = env->e_dinode;
@@ -480,17 +475,8 @@ file_list_add( struct file_list **f_list, int mode, char *dir, char *f_id )
 	return( 1 );
     }
 
-    if (( f = (struct file_list*)malloc( sizeof( struct file_list )))
-	    == NULL ) {
-	syslog( LOG_ERR, "file_list_add malloc: %m" );
-	return( 1 );
-    }
-    memset( f, 0, sizeof( struct file_list ));
-
-    if (( f->f_name = (char*)malloc( len )) == NULL ) {
-	syslog( LOG_ERR, "file_list_add malloc: %m" );
-	return( 1 );
-    }
+    f = calloc( 1, sizeof( struct file_list ));
+    f->f_name = malloc( len );
 
     switch ( mode ) {
     case STRANDED_D:
