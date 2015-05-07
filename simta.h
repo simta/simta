@@ -277,6 +277,8 @@ extern char				*simta_jail_host;
 extern char				*simta_jail_bounce_address;
 extern struct rbl		        *simta_rbls;
 extern struct rbl	         	*simta_user_rbls;
+extern int				simta_authz_default;
+extern struct rbl			*simta_auth_rbls;
 extern char				*simta_queue_filter;
 extern char				*simta_default_alias_db;
 extern char				*simta_default_alias_file;

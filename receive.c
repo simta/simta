@@ -2712,6 +2712,36 @@ f_auth( struct receive_data *r )
 	return( smtp_write_banner( r, 454, NULL, NULL ));
     }
 
+    /* authn was successful, now we need to check authz */
+    switch( rbl_check( simta_auth_rbls,
+	    NULL, r->r_auth_id, "authz", NULL, NULL )) {
+    case RBL_BLOCK:
+	r->r_failedauth++;
+	syslog( LOG_INFO, "Auth [%s] %s: %s denied by DNS",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_auth_id );
+	rc = smtp_write_banner( r, 535, NULL, NULL );
+	return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
+    case RBL_ACCEPT:
+	syslog( LOG_INFO, "Auth [%s] %s: %s allowed by DNS",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_auth_id );
+	break;
+    default:
+	if ( simta_authz_default != RBL_BLOCK ) {
+	    syslog( LOG_DEBUG, "Auth [%s] %s: %s allowed by default",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_auth_id );
+	    break;
+	}
+	r->r_failedauth++;
+	syslog( LOG_INFO, "Auth [%s] %s: %s denied by default",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_auth_id );
+	rc = smtp_write_banner( r, 535, NULL, NULL );
+	return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
+    }
+
     syslog( LOG_INFO, "Auth [%s] %s: %s authenticated via %s%s",
 	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, 
 	    r->r_auth_id, mechname, r->r_tls ? "+TLS" : "" );

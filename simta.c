@@ -173,6 +173,8 @@ char			*simta_postmaster = NULL;
 char			*simta_domain = NULL;
 struct rbl	     	*simta_rbls = NULL;
 struct rbl     		*simta_user_rbls = NULL;
+int			simta_authz_default = RBL_ACCEPT;
+struct rbl		*simta_auth_rbls = NULL;
 char			*simta_queue_filter = NULL;
 char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
@@ -759,6 +761,45 @@ simta_read_config( char *fname )
 		goto error;
 	    }
 #endif /* HAVE_LMDB */
+
+#ifdef HAVE_LIBSASL
+	} else if ( strcasecmp( av[ 0 ], "AUTHZ_DEFAULT" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ALLOW" ) == 0 ) {
+		    simta_authz_default = RBL_ACCEPT;
+		    if ( simta_debug ) printf( "AUTHZ_DEFAULT ALLOW\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "DENY" ) == 0 ) {
+		    simta_authz_default = RBL_BLOCK;
+		    if ( simta_debug ) printf( "AUTHZ_DEFAULT DENY\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "AUTHZ_DEFAULT <ALLOW|DENY>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "AUTHZ_DNS" ) == 0 ) {
+	    if ( ac == 3 ) {
+		if ( strcasecmp( av[ 1 ], "ALLOW" ) == 0 ) {
+		    rbl_add( &simta_auth_rbls, RBL_ACCEPT, av[ 2 ], "" );
+		    if ( simta_debug ) printf( "AUTHZ_DNS ALLOW: %s\n",
+			    av[ 2 ] );
+		    continue;
+		}
+		else if ( strcasecmp( av[ 1 ], "DENY" ) == 0 ) {
+		    rbl_add( &simta_auth_rbls, RBL_BLOCK, av[ 2 ], "" );
+		    if ( simta_debug ) printf( "AUTHZ_DNS DENY: %s\n",
+			    av[ 2 ] );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: expected 1 argument\n",
+		    fname, lineno );
+	    goto error;
+
+#endif /* HAVE_LIBSASL */
 
 	} else if ( strcasecmp( av[ 0 ], "BASE_DIR" ) == 0 ) {
 	    if ( ac != 2 ) {
