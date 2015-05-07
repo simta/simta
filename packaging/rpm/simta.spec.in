@@ -27,6 +27,8 @@ BuildRequires: groff
 BuildRequires: procmail
 BuildRequires: setup
 BuildRequires: pkgconfig(denser)
+#BuildRequires: pkgconfig(jemalloc)
+BuildRequires: jemalloc-devel
 BuildRequires: pkgconfig(libsnet)
 BuildRequires: pkgconfig(libyasl)
 %if "%{with_tls}" == "yes"
@@ -53,6 +55,7 @@ Requires: db4
 Requires: bash >= 2.0
 Requires: initscripts
 Requires: denser
+Requires: jemalloc
 Requires: libsnet
 Requires: procmail
 Requires: setup
@@ -66,6 +69,9 @@ simta is used for mail routing and delivery.
 %setup -q
 
 %build
+export JEMALLOC_LIBS=-ljemalloc
+export JEMALLOC_CFLAGS=-I/usr/include
+
 %configure \
 %if "%{with_tls}" != "yes"
 	--with-ssl=no \

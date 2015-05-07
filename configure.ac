@@ -63,6 +63,7 @@ AX_PATH_BDB([4], [
 PKG_CHECK_MODULES([DENSER], [denser])
 PKG_CHECK_MODULES([SNET], [libsnet])
 PKG_CHECK_MODULES([YASL], [libyasl])
+PKG_CHECK_MODULES([JEMALLOC], [jemalloc])
 
 # Optional packages
 AC_ARG_WITH([sasl], AC_HELP_STRING([--with-sasl], [Build with SASL support]))
