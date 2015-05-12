@@ -8,7 +8,6 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-#include "base64.h"
 #include "md.h"
 #include "simta.h"
 
@@ -45,9 +44,12 @@ md_update( struct message_digest *md, const void *d, size_t cnt )
     void
 md_finalize( struct message_digest *md )
 {
+    int		i;
     EVP_DigestFinal_ex( &md->md_ctx, md->md_value, &md->md_len );
-    memset( md->md_b64, 0, SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 );
-    base64_e( md->md_value, md->md_len, md->md_b64 );
+    memset( md->md_b16, 0, ( EVP_MAX_MD_SIZE * 2 ) + 1 );
+    for ( i = 0 ; i < md->md_len ; i++ ) {
+	sprintf( &md->md_b16[ i * 2 ], "%02x", md->md_value[ i ] );
+    }
     snprintf( md->md_bytes, MD_BYTE_LEN, "%d", md->md_ctx_bytes );
     md->md_ctx_status = MDCTX_FINAL;
 }

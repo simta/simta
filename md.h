@@ -3,8 +3,6 @@
 
 #include <openssl/ssl.h>
 
-#include "base64.h"
-
 #define MDCTX_UNINITIALIZED	0
 #define MDCTX_READY		1
 #define MDCTX_IN_USE		2
@@ -14,7 +12,7 @@
 
 struct message_digest {
     unsigned char   md_value[ EVP_MAX_MD_SIZE ];
-    char	    md_b64[ SZ_BASE64_E( EVP_MAX_MD_SIZE ) + 1 ];
+    char	    md_b16[ ( EVP_MAX_MD_SIZE * 2 ) + 1 ];
     EVP_MD_CTX	    md_ctx;
     int		    md_ctx_status;
     unsigned int    md_ctx_bytes;

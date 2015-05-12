@@ -22,11 +22,11 @@ SIMTA_ETC=${SPOOLDIR}etc
 SIMTA_COMMAND=${SPOOLDIR}command
 
 SRC=    @LDAP_SRC@ @SSL_SRC@ @LMDB_SRC@ \
-	daemon.c receive.c argcargv.c envelope.c base64.c \
+	daemon.c receive.c argcargv.c envelope.c \
 	simsend.c simconnect.c rcptlist.c address.c \
 	simalias.c bounce.c wildcard.c
 COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ @LMDB_OBJ@ \
-		address.o argcargv.o base64.o bounce.o dns.o envelope.o \
+		address.o argcargv.o bounce.o dns.o envelope.o \
 		expand.o header.o line_file.o ll.o ml.o q_cleanup.o \
 		queue.o red.o simta.o smtp.o wildcard.o
 SIMTAOBJ=	${COMMONOBJ} daemon.o receive.o
@@ -42,7 +42,7 @@ QRUNNEROBJ=	${COMMONOBJ} q_runner.o
 QCLEANUPOBJ=	${COMMONOBJ} q_cleanup.o
 SIMALIASOBJ=	${COMMONOBJ} simalias.o
 SLAOBJ=		sla.o
-SIMCKOBJ=	simck.o base64.o md.o
+SIMCKOBJ=	simck.o md.o
 
 CC=		@CC@
 OPTOPTS=	@OPTOPTS@
@@ -133,7 +133,6 @@ q_cleanup : ${QCLEANUPOBJ} Makefile
 
 address.o: config.h dns.h envelope.h expand.h header.h line_file.h ll.h queue.h red.h simta.h simta_ldap.h
 argcargv.o: argcargv.h config.h
-base64.o: base64.h config.h
 bounce.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
 daemon.o: config.h envelope.h ll.h queue.h simta.h tls.h
 dn.o: dn.h
@@ -144,15 +143,15 @@ expander.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h s
 header.o: config.h envelope.h header.h line_file.h queue.h simta.h
 line_file.o: config.h line_file.h
 ll.o: config.h ll.h
-md.o: base64.h config.h simta.h
+md.o: config.h simta.h
 ml.o: config.h envelope.h line_file.h ml.h queue.h simta.h
 q_cleanup.o: config.h envelope.h ll.h queue.h simta.h
 q_runner.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
 queue.o: config.h dns.h envelope.h expand.h line_file.h ll.h ml.h queue.h red.h simta.h smtp.h wildcard.h
-receive.o: argcargv.h base64.h config.h dns.h envelope.h expand.h header.h line_file.h ll.h md.h queue.h red.h simta.h simta_ldap.h
+receive.o: argcargv.h config.h dns.h envelope.h expand.h header.h line_file.h ll.h md.h queue.h red.h simta.h simta_ldap.h
 red.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
 simalias.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
-simck.o: base64.h config.h md.h
+simck.o: config.h md.h
 simlog.o: config.h simta.h
 simrbl.o: config.h dns.h envelope.h ll.h simta.h
 simreverse.o: config.h dns.h envelope.h ll.h simta.h

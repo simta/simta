@@ -39,14 +39,14 @@ const EVP_MD        *simta_checksum_md = NULL;
     int
 main( int argc, char *argv[])
 {
-    int				i;
+    int				fd;
     SNET			*snet;
     char			*line;
     u_int			line_len;
     struct message_digest       md;
 
-    if ( argc != 2 ) {
-	fprintf( stderr, "Usage: %s checksum_algorithm\n", argv[ 0 ]);
+    if ( argc != 3 ) {
+	fprintf( stderr, "Usage: %s <checksum_algorithm> <file>\n", argv[ 0 ]);
 	return( 1 );
     }
 
@@ -61,7 +61,12 @@ main( int argc, char *argv[])
     md_init( &md );
     md_reset( &md );
 
-    if (( snet = snet_attach( 0, 1024 * 1024 )) == NULL ) {
+    if (( fd = open( argv[ 2 ], O_RDONLY, 0 )) < 0 ) {
+	perror( "open" );
+	exit( 1 );
+    }
+
+    if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	perror( "snet_attach" );
 	exit( 1 );
     }
@@ -79,13 +84,7 @@ main( int argc, char *argv[])
 	return( 1 );
     }
 
-    printf( "\nChecksum: %s\n", md.md_b64 );
-
-    printf( "Digest: " );
-    for ( i = 0; i < md.md_len; i++ ) {
-	printf( "%02x", md.md_value[i] );
-    }
-    printf( "\n" );
+    printf( "\nChecksum: %s\n", md.md_b16 );
 
     return( 0 );
 }

@@ -59,7 +59,6 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
 #include <sasl/saslutil.h>	/* For sasl_decode64 and sasl_encode64 */
-#include "base64.h"
 #endif /* HAVE_LIBSASL */
 
 #include "envelope.h"
@@ -972,8 +971,8 @@ f_mail( struct receive_data *r )
 	r->r_env->e_attributes |= ENV_ATTR_8BITMIME;
     }
 
-#ifdef HAVE_LIBSSL 
-    if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+#ifdef HAVE_LIBSSL
+    if ( simta_checksum_md != NULL ) {
 	md_reset( &r->r_md );
     }
 #endif /* HAVE_LIBSSL */
@@ -1130,9 +1129,8 @@ f_rcpt( struct receive_data *r )
 	if (( rc = check_hostname( domain )) != 0 ) {
 	    r->r_failed_rcpts++;
 	    if ( rc < 0 ) {
-#ifdef HAVE_LIBSSL 
-		if (( simta_mail_filter != NULL ) &&
-			( simta_checksum_md != NULL )) {
+#ifdef HAVE_LIBSSL
+		if ( simta_checksum_md != NULL ) {
 		    addr_len = strlen( addr );
 		    md_update( &r->r_md, addr, addr_len );
 		}
@@ -1200,9 +1198,8 @@ f_rcpt( struct receive_data *r )
 	    case LOCAL_ERROR:
 		syslog( LOG_ERR, "Syserror f_rcpt: local_address %s", addr );
 
-#ifdef HAVE_LIBSSL 
-		if (( simta_mail_filter != NULL ) &&
-			( simta_checksum_md != NULL )) {
+#ifdef HAVE_LIBSSL
+		if ( simta_checksum_md != NULL ) {
 		    addr_len = strlen( addr );
 		    md_update( &r->r_md, addr, addr_len );
 		}
@@ -1319,8 +1316,8 @@ f_rcpt( struct receive_data *r )
 		r->r_env->e_id, r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail );
     }
 
-#ifdef HAVE_LIBSSL 
-    if (( simta_mail_filter != NULL ) && ( simta_checksum_md != NULL )) {
+#ifdef HAVE_LIBSSL
+    if ( simta_checksum_md != NULL ) {
 	addr_len = strlen( addr );
 	md_update( &r->r_md, addr, addr_len );
     }
@@ -1665,8 +1662,7 @@ f_data( struct receive_data *r )
 		lf = NULL;
 
 #ifdef HAVE_LIBSSL
-		if (( simta_mail_filter != NULL ) &&
-			( simta_checksum_md != NULL )) {
+		if ( simta_checksum_md != NULL ) {
 		    md_reset( &r->r_md_body );
 		}
 #endif /* HAVE_LIBSSL */
@@ -1730,9 +1726,8 @@ f_data( struct receive_data *r )
 	    }
 	}
 
-#ifdef HAVE_LIBSSL 
-	if (( dff != NULL ) && ( simta_mail_filter != NULL ) &&
-		( simta_checksum_md != NULL )) {
+#ifdef HAVE_LIBSSL
+	if (( dff != NULL ) && ( simta_checksum_md != NULL )) {
 	    md_update( &r->r_md, line, line_len );
 	    if (( header == 0 ) && ( simta_checksum_body == 1 )) {
 		md_update( &r->r_md_body, line, line_len );
@@ -1758,6 +1753,17 @@ f_data( struct receive_data *r )
 		goto error;
 	    }
 	}
+
+#ifdef HAVE_LIBSSL
+	if ( simta_checksum_md != NULL ) {
+	    md_finalize( &r->r_md );
+	    md_finalize( &r->r_md_body );
+	    syslog( LOG_INFO, "Receive [%s] %s: %s: Message checksums: %s %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_env->e_id, r->r_md.md_b16, r->r_md_body.md_b16 );
+	}
+#endif /* HAVE_LIBSSL */
+
 	message_banner = MESSAGE_ACCEPT;
     }
 
@@ -1777,14 +1783,6 @@ f_data( struct receive_data *r )
 		r->r_env->e_id, simta_mail_filter);
 	filter_result = MESSAGE_ACCEPT;
     } else if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
-#ifdef HAVE_LIBSSL 
-	if (( simta_mail_filter != NULL ) &&
-		( simta_checksum_md != NULL )) {
-	    md_finalize( &r->r_md );
-	    md_finalize( &r->r_md_body );
-	}
-#endif /* HAVE_LIBSSL */
-
 	if ( simta_gettimeofday( &tv_filter ) != 0 ) {
 	    goto error;
 	}
@@ -3776,7 +3774,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    }
 
 	    if (( filter_envp[ 14 ] = env_string( "SIMTA_CHECKSUM",
-		    r->r_md.md_b64 )) == NULL ) {
+		    r->r_md.md_b16 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
@@ -3786,7 +3784,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    }
 
 	    if (( filter_envp[ 16 ] = env_string( "SIMTA_BODY_CHECKSUM",
-		    r->r_md_body.md_b64 )) == NULL ) {
+		    r->r_md_body.md_b16 )) == NULL ) {
 		exit( MESSAGE_TEMPFAIL );
 	    }
 
