@@ -1763,6 +1763,13 @@ f_data( struct receive_data *r )
 
     if ( simta_mail_filter == NULL ) {
 	filter_result = MESSAGE_ACCEPT;
+    } else if (( simta_filter_trusted == 0 ) &&
+	    ( r->r_rbl_status == RBL_TRUST )) {
+	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
+		"content filter %s skipped for trusted host",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, simta_mail_filter);
+	filter_result = MESSAGE_ACCEPT;
     } else if ( r->r_smtp_mode == SMTP_MODE_TARPIT ) {
 	syslog( LOG_DEBUG, "Receive [%s] %s: %s: "
 		"content filter %s not run because tarpit",

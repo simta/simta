@@ -162,6 +162,7 @@ int			simta_checksum_body = 1;
 long int		simta_max_message_size = -1;
 int                     simta_outbound_connection_msg_max = 0;
 char			*simta_mail_filter = NULL;
+int			simta_filter_trusted = 1;
 char			*simta_data_url = NULL;
 char			*simta_reverse_url = NULL;
 char			*simta_libwrap_url = NULL;
@@ -1153,6 +1154,23 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
+
+	} else if ( strcasecmp( av[ 0 ], "FILTER_TRUSTED" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_filter_trusted = 1;
+		    if ( simta_debug ) printf( "FILTER_TRUSTED ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_filter_trusted = 0;
+		    if ( simta_debug ) printf( "FILTER_TRUSTED OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "FILTER_TRUSTED <ON|OFF>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ],
 		"IGNORE_CONNECT_IN_DNS_ERRORS" ) == 0 ) {

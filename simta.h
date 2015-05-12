@@ -268,6 +268,7 @@ extern char				*simta_libwrap_url;
 extern char				*simta_reverse_url;
 extern char				*simta_domain;
 extern char				*simta_mail_filter;
+extern int				simta_filter_trusted;
 extern char				*simta_base_dir;
 extern char                             *simta_file_pid;
 extern char				simta_hostname[];
