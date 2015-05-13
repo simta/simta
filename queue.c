@@ -1559,7 +1559,7 @@ lseek_fail:
     void
 deliver_remote( struct deliver *d, struct host_q *hq )
 {
-    int				r_smtp, rc;
+    int				r_smtp;
     int				s;
     int				env_movement = 0;
     struct timeval		tv_start;
