@@ -161,7 +161,7 @@ int			simta_service_submission = 0;
 int			simta_service_smtps = 0;
 const EVP_MD		*simta_checksum_md = NULL;
 char			*simta_checksum_algorithm;
-int			simta_checksum_body = 0;
+int			simta_checksum_body = 1;
 #endif /* HAVE_LIBSSL */
 long int		simta_max_message_size = -1;
 int                     simta_outbound_connection_msg_max = 0;
