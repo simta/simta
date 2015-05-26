@@ -42,7 +42,7 @@
 
 
     struct dnsr_result *
-get_a( char *hostname )
+get_a( const char *hostname )
 {
     struct dnsr_result	*result;
 
@@ -78,7 +78,7 @@ get_a( char *hostname )
  */
 
     struct dnsr_result *
-get_mx( char *hostname )
+get_mx( const char *hostname )
 {
     int                 i;
     struct dnsr_result	*result = NULL;
@@ -169,7 +169,7 @@ get_mx( char *hostname )
 }
 
     struct dnsr_result *
-get_txt( char *hostname )
+get_txt( const char *hostname )
 {
     struct dnsr_result  *result;
     if ( simta_dnsr == NULL ) {
@@ -232,7 +232,7 @@ host_local( char *hostname )
 
 
     int
-check_reverse( char *dn, struct in_addr *in )
+check_reverse( char *dn, const struct in_addr *in )
 {
     int				i, j;
     int				ret = REVERSE_UNKNOWN;
@@ -324,7 +324,7 @@ error:
 }
 
     int
-check_hostname( char *hostname )
+check_hostname( const char *hostname )
 {
     struct dnsr_result		*result;
 
