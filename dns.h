@@ -34,6 +34,7 @@ struct rbl {
 
 struct dnsr_result *get_a( const char * );
 struct dnsr_result *get_mx( const char * );
+struct dnsr_result *get_ptr( const struct sockaddr * );
 struct dnsr_result *get_txt( const char * );
 int check_reverse( char *, const struct in_addr * );
 int check_hostname( const char * );

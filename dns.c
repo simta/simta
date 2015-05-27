@@ -169,6 +169,47 @@ get_mx( const char *hostname )
 }
 
     struct dnsr_result *
+get_ptr( const struct sockaddr *addr )
+{
+    struct dnsr_result  *result = NULL;
+    char		*hostname;
+
+    if ( simta_dnsr == NULL ) {
+        if (( simta_dnsr = dnsr_new( )) == NULL ) {
+            syslog( LOG_ERR, "Liberror: get_ptr dnsr_new: %m" );
+            return( NULL );
+        }
+    }
+
+    if (( hostname = dnsr_ntoptr( simta_dnsr, addr->sa_family,
+	    ( addr->sa_family == AF_INET ?
+		    (void *)&(((struct sockaddr_in *)addr)->sin_addr) :
+		    (void *)&(((struct sockaddr_in6 *)addr)->sin6_addr)),
+	    NULL )) == NULL ) {
+        syslog( LOG_ERR, "Liberror: get_ptr dnsr_ntoptr: %s",
+		dnsr_err2string( dnsr_errno( simta_dnsr )));
+	return( NULL );
+    }
+
+    if ( dnsr_query( simta_dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
+	    hostname ) < 0 ) {
+        syslog( LOG_ERR, "Liberror: get_ptr dnsr_query: %s: %s", hostname,
+                dnsr_err2string( dnsr_errno( simta_dnsr )));
+	goto error;
+    }
+
+    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
+        syslog( LOG_ERR, "Liberror: get_ptr dnsr_result: %s: %s", hostname,
+                dnsr_err2string( dnsr_errno( simta_dnsr )));
+    }
+
+error:
+    free( hostname );
+    return( result );
+}
+
+
+    struct dnsr_result *
 get_txt( const char *hostname )
 {
     struct dnsr_result  *result;
