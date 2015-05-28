@@ -68,6 +68,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #include "dns.h"
 #include "simta.h"
 #include "queue.h"
+#include "spf.h"
 #include "line_file.h"
 #include "header.h"
 
@@ -120,6 +121,7 @@ struct receive_data {
     struct timeval		r_tv_inactivity;
     struct timeval		r_tv_session;
     struct timeval		r_tv_accepted;
+    int				r_spf_result;
 
 #ifdef HAVE_LIBSSL
     struct message_digest	r_md;
@@ -170,7 +172,7 @@ struct command {
     int		(*c_func)( struct receive_data * );
 };
 
-static char 	*env_string( char *, char * );
+static char 	*env_string( const char *, const char * );
 static int	auth_init( struct receive_data *, struct simta_socket * );
 static int	content_filter( struct receive_data *, char ** );
 static int	local_address( char *, char *, struct simta_red *);
@@ -976,6 +978,33 @@ f_mail( struct receive_data *r )
 	md_reset( &r->r_md );
     }
 #endif /* HAVE_LIBSSL */
+
+    if ( simta_spf ) {
+	r->r_spf_result = spf_lookup( r->r_hello, addr,
+		(struct sockaddr *)r->r_sin );
+	syslog( LOG_INFO, "Receive [%s] %s: From <%s>: SPF result: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr,
+		spf_result_str( r->r_spf_result ));
+	switch( r->r_spf_result ) {
+	case SPF_RESULT_TEMPERROR:
+	    if ( simta_spf == SPF_POLICY_STRICT ) {
+		syslog( LOG_ERR, "Receive [%s] %s: From <%s>: "
+			"SPF Tempfailed: transient SPF lookup failure",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			addr );
+		return( smtp_write_banner( r, 451, NULL, NULL ));
+	    }
+	    break;
+	case SPF_RESULT_FAIL:
+	    if ( simta_spf == SPF_POLICY_STRICT ) {
+		syslog( LOG_ERR, "Receive [%s] %s: SPF Reject",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+		return( smtp_write_banner( r, 554,
+			"Rejected by local policy (SPF fail)", NULL ));
+	    }
+	    break;
+	}
+    }
 
     if ( r->r_smtp_mode != SMTP_MODE_TARPIT ) {
 	r->r_mail_success++;
@@ -3612,7 +3641,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
 
  
     char *
-env_string( char *left, char *right )
+env_string( const char *left, const char *right )
 {
     char			*buf;
 
@@ -3627,17 +3656,17 @@ env_string( char *left, char *right )
     return( buf );
 }
 
-
     int
 content_filter( struct receive_data *r, char **smtp_message )
 {
     int			fd[ 2 ];
     int			pid;
     int			status;
+    int			filter_envc = 0;
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 16 ];
+    char		*filter_envp[ 18 ];
     char		fname[ MAXPATHLEN + 1 ];
     char		buf[ 256 ];
     struct timeval	log_tv;
@@ -3701,10 +3730,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    *fname = '\0';
 	}
 
-	if (( filter_envp[ 0 ] = env_string( "SIMTA_DFILE",
-		fname )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_DFILE", fname );
 
 	if ( r->r_env->e_flags & ENV_FLAG_TFILE ) {
 	    snprintf( fname, MAXPATHLEN, "%s/t%s", r->r_env->e_dir,
@@ -3713,108 +3739,67 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    *fname = '\0';
 	}
 
-	if (( filter_envp[ 1 ] = env_string( "SIMTA_TFILE",
-		fname )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_TFILE", fname );
 
-	if (( filter_envp[ 2 ] = env_string( "SIMTA_REMOTE_IP",
-		inet_ntoa( r->r_sin->sin_addr ))) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_REMOTE_IP",
+		inet_ntoa( r->r_sin->sin_addr ));
 
-	if (( filter_envp[ 3 ] = env_string( "SIMTA_REMOTE_HOSTNAME",
-		r->r_remote_hostname )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_REMOTE_HOSTNAME",
+		r->r_remote_hostname );
 
 	sprintf( buf, "%d", r->r_dns_match );
-	if (( filter_envp[ 4 ] = env_string( "SIMTA_REVERSE_LOOKUP",
-		buf )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_REVERSE_LOOKUP",
+		buf );
 
-	if (( filter_envp[ 5 ] = env_string( "SIMTA_SMTP_MAIL_FROM",
-		r->r_env->e_mail )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_SMTP_MAIL_FROM",
+		r->r_env->e_mail );
 
-	if (( filter_envp[ 6 ] = env_string( "SIMTA_SMTP_HELO",
-		r->r_hello )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_SMTP_HELO",
+		r->r_hello );
 
-	if (( filter_envp[ 7 ] = env_string( "SIMTA_MID",
-		r->r_env->e_mid )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_MID",
+		r->r_env->e_mid );
 
-	if (( filter_envp[ 8 ] = env_string( "SIMTA_UID",
-		r->r_env->e_id )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_UID",
+		r->r_env->e_id );
 
 	if ( r->r_write_before_banner != 0 ) {
-	    if (( filter_envp[ 9 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
-		    "1" )) == NULL ) {
-		exit( MESSAGE_TEMPFAIL );
-	    }
-
+	    filter_envp[ filter_envc++ ] =
+		    env_string( "SIMTA_WRITE_BEFORE_BANNER", "1" );
 	} else {
-	    if (( filter_envp[ 9 ] = env_string( "SIMTA_WRITE_BEFORE_BANNER",
-		    "0" )) == NULL ) {
-		exit( MESSAGE_TEMPFAIL );
-	    }
+	    filter_envp[ filter_envc++ ] =
+		    env_string( "SIMTA_WRITE_BEFORE_BANNER", "0" );
 	}
 
-	if (( filter_envp[ 10 ] = env_string( "SIMTA_AUTH_ID",
-		r->r_auth_id )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
-
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_AUTH_ID",
+		r->r_auth_id );
 
 	sprintf( buf, "%d", getpid() );
-	if (( filter_envp[ 11 ] = env_string( "SIMTA_PID",
-		buf )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
-
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_PID", buf );
 
 	sprintf( buf, "%ld", log_tv.tv_sec );
-	if (( filter_envp[ 12 ] = env_string( "SIMTA_CID",
-		buf )) == NULL ) {
-	    exit( MESSAGE_TEMPFAIL );
-	}
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_CID", buf );
+
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_SPF_RESULT",
+		spf_result_str( r->r_spf_result ));
 
 #ifdef HAVE_LIBSSL
 	if ( simta_checksum_md != NULL ) {
-	    if (( filter_envp[ 13 ] = env_string( "SIMTA_CHECKSUM_SIZE",
-		    r->r_md.md_bytes )) == NULL ) {
-		exit( MESSAGE_TEMPFAIL );
-	    }
+	    filter_envp[ filter_envc++ ] =
+		    env_string( "SIMTA_CHECKSUM_SIZE", r->r_md.md_bytes );
 
-	    if (( filter_envp[ 14 ] = env_string( "SIMTA_CHECKSUM",
-		    r->r_md.md_b16 )) == NULL ) {
-		exit( MESSAGE_TEMPFAIL );
-	    }
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_CHECKSUM",
+		    r->r_md.md_b16 );
 
-	    if (( filter_envp[ 15 ] = env_string( "SIMTA_BODY_CHECKSUM_SIZE",
-		    r->r_md_body.md_bytes )) == NULL ) {
-		exit( MESSAGE_TEMPFAIL );
-	    }
+	    filter_envp[ filter_envc++ ] = env_string(
+		    "SIMTA_BODY_CHECKSUM_SIZE", r->r_md_body.md_bytes );
 
-	    if (( filter_envp[ 16 ] = env_string( "SIMTA_BODY_CHECKSUM",
-		    r->r_md_body.md_b16 )) == NULL ) {
-		exit( MESSAGE_TEMPFAIL );
-	    }
-
-	    filter_envp[ 17 ] = NULL;
-	} else {
-#endif /* HAVE_LIBSSL */
-	    filter_envp[ 13 ] = NULL;
-#ifdef HAVE_LIBSSL
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_BODY_CHECKSUM",
+		    r->r_md_body.md_b16 );
 	}
 #endif /* HAVE_LIBSSL */
+
+	filter_envp[ filter_envc ] = NULL;
 
 	execve( simta_mail_filter, filter_argv, filter_envp );
 	/* if we are here, there is an error */

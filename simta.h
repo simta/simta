@@ -93,6 +93,10 @@
 #define QUEUE_POLICY_FIFO		0
 #define QUEUE_POLICY_SHUFFLE		1
 
+#define SPF_POLICY_OFF			0
+#define SPF_POLICY_ON			1
+#define SPF_POLICY_STRICT		2
+
 /* Message checking */
 #define SUBMISSION_MODE_MTA		0
 #define SUBMISSION_MODE_MSA		1
@@ -274,6 +278,7 @@ extern char				*simta_reverse_url;
 extern char				*simta_domain;
 extern char				*simta_mail_filter;
 extern int				simta_filter_trusted;
+extern int				simta_spf;
 extern int				simta_spf_verbose;
 extern char				*simta_base_dir;
 extern char                             *simta_file_pid;

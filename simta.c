@@ -174,6 +174,7 @@ long int		simta_max_message_size = -1;
 int                     simta_outbound_connection_msg_max = 0;
 char			*simta_mail_filter = NULL;
 int			simta_filter_trusted = 1;
+int			simta_spf = SPF_POLICY_ON;
 int			simta_spf_verbose = 0;
 char			*simta_data_url = NULL;
 char			*simta_reverse_url = NULL;
@@ -2117,6 +2118,26 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "SMTP_TARPIT_RCPT: %d\n",
 		simta_smtp_tarpit_rcpt );
+
+	} else if ( strcasecmp( av[ 0 ], "SPF" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_spf = SPF_POLICY_ON;
+		    if ( simta_debug ) printf( "SPF ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_spf = SPF_POLICY_OFF;
+		    if ( simta_debug ) printf( "SPF OFF\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "STRICT" ) == 0 ) {
+		    simta_spf = SPF_POLICY_STRICT;
+		    if ( simta_debug ) printf( "SPF STRICT\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno, "SPF <ON|OFF|STRICT>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "SPF_VERBOSE_LOGGING" ) == 0 ) {
 	    if ( ac == 2 ) {

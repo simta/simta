@@ -29,7 +29,7 @@ COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ @LMDB_OBJ@ @YASL_OBJ@ \
 		address.o argcargv.o bounce.o dns.o envelope.o \
 		expand.o header.o line_file.o ll.o ml.o q_cleanup.o \
 		queue.o red.o simta.o smtp.o wildcard.o
-SIMTAOBJ=	${COMMONOBJ} daemon.o receive.o
+SIMTAOBJ=	${COMMONOBJ} daemon.o receive.o spf.o
 SIMCONOBJ=	${COMMONOBJ} simconnect.o
 SIMCOBJ=	${COMMONOBJ} simc.o
 SIMDAOBJ=	simda.o
@@ -173,7 +173,7 @@ ml.o: config.h envelope.h line_file.h ml.h queue.h simta.h
 q_cleanup.o: config.h envelope.h ll.h queue.h simta.h
 q_runner.o: config.h envelope.h expand.h line_file.h ll.h ml.h queue.h simta.h smtp.h
 queue.o: config.h dns.h envelope.h expand.h line_file.h ll.h ml.h queue.h red.h simta.h smtp.h wildcard.h
-receive.o: argcargv.h config.h dns.h envelope.h expand.h header.h line_file.h ll.h md.h queue.h red.h simta.h simta_ldap.h
+receive.o: argcargv.h config.h dns.h envelope.h expand.h header.h line_file.h ll.h md.h queue.h red.h simta.h simta_ldap.h spf.h
 red.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
 simalias.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
 simck.o: config.h md.h
