@@ -23,8 +23,11 @@
 #include <unistd.h>
 
 #include <denser.h>
-#include <jemalloc/jemalloc.h>
 #include <snet.h>
+
+#ifdef HAVE_JEMALLOC
+#include <jemalloc/jemalloc.h>
+#endif /* HAVE_JEMALLOC */
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -58,7 +61,9 @@
 #endif
 
 /* global variables */
+#ifdef HAVE_JEMALLOC
 const char		*malloc_conf = "xmalloc:true";
+#endif /* HAVE_JEMALLOC */
 
 struct dll_entry	*simta_sender_list = NULL;
 struct dll_entry	*simta_env_list = NULL;

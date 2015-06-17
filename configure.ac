@@ -42,6 +42,8 @@ fi
 AC_SUBST(OPTOPTS)
 
 AC_SUBST(EXTRALIBS, [])
+AC_SUBST(JEMALLOC_CFLAGS, [])
+AC_SUBST(JEMALLOC_LIBS, [])
 AC_SUBST(LDAP_SRC, [])
 AC_SUBST(LDAP_OBJ, [])
 AC_SUBST(LMDB_SRC, [])
@@ -58,7 +60,6 @@ AC_CHECK_LIB([crypt], [crypt])
 PKG_CHECK_MODULES([DENSER], [denser])
 PKG_CHECK_MODULES([SNET], [libsnet])
 PKG_CHECK_MODULES([YASL], [libyasl])
-PKG_CHECK_MODULES([JEMALLOC], [jemalloc])
 
 # Optional packages
 AC_ARG_WITH([sasl], AC_HELP_STRING([--with-sasl], [Build with SASL support]))
@@ -70,6 +71,11 @@ AC_ARG_WITH([ssl], AC_HELP_STRING([--with-ssl], [Build with TLS support]))
 AS_IF(
     [test "x$with_ssl" != "xno"],
     [PKG_CHECK_MODULES([LIBSSL], [openssl], [AC_DEFINE([HAVE_LIBSSL], [1], [Define to 1 if LIBSSL is found])])])
+
+AC_ARG_WITH([jemalloc], AC_HELP_STRING([--with-jemalloc], [Use the jemalloc allocator]))
+AS_IF(
+    [test "x$with_jemalloc" != "xno"],
+    [PKG_CHECK_MODULES([JEMALLOC], [jemalloc], [AC_DEFINE([HAVE_JEMALLOC], [1], [Define to 1 if JEMALLOC is available])])])
 
 # Packages without pkgconfig files
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
