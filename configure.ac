@@ -24,6 +24,7 @@ AC_PREFIX_DEFAULT(/usr/local)
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CC_C99
 AC_PROG_INSTALL
 
 # Checks for functions
@@ -50,6 +51,9 @@ AC_SUBST(LMDB_SRC, [])
 AC_SUBST(LMDB_OBJ, [])
 AC_SUBST(SSL_SRC, [])
 AC_SUBST(SSL_OBJ, [])
+AC_SUBST(YASL_CFLAGS, [])
+AC_SUBST(YASL_LIBS, [])
+AC_SUBST(YASL_OBJ, [])
 
 # Check for libraries
 AC_CHECK_LIB([nsl], [inet_ntoa])
@@ -59,7 +63,6 @@ AC_CHECK_LIB([crypt], [crypt])
 # Required packages
 PKG_CHECK_MODULES([DENSER], [denser])
 PKG_CHECK_MODULES([SNET], [libsnet])
-PKG_CHECK_MODULES([YASL], [libyasl])
 
 # Optional packages
 AC_ARG_WITH([sasl], AC_HELP_STRING([--with-sasl], [Build with SASL support]))
@@ -76,6 +79,12 @@ AC_ARG_WITH([jemalloc], AC_HELP_STRING([--with-jemalloc], [Use the jemalloc allo
 AS_IF(
     [test "x$with_jemalloc" != "xno"],
     [PKG_CHECK_MODULES([JEMALLOC], [jemalloc], [AC_DEFINE([HAVE_JEMALLOC], [1], [Define to 1 if JEMALLOC is available])])])
+
+AC_ARG_WITH([libyasl], AC_HELP_STRING([--with-libyasl], [Link against the yasl library]))
+AS_IF(
+    [test "x$with_libyasl" = "xyes"],
+    [PKG_CHECK_MODULES([YASL], [libyasl])],
+    [YASL_OBJ="yasl.o"])
 
 # Packages without pkgconfig files
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
