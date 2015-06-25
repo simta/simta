@@ -1346,8 +1346,6 @@ f_data( struct receive_data *r )
     unsigned int			line_len;
     char				*line;
     char				*msg;
-    struct line_file			*lf = NULL;
-    struct line				*l;
     char				*failure_message;
     char				*filter_message = NULL;
     char				*system_message = NULL;
@@ -1361,13 +1359,13 @@ f_data( struct receive_data *r )
     struct stat				sbuf;
     char				daytime[ RFC822_TIMESTAMP_LEN ];
     char				dfile_fname[ MAXPATHLEN + 1 ];
-    struct receive_headers		rh;
+    struct receive_headers		*rh;
     unsigned int			data_wrote = 0;
     unsigned int			data_read = 0;
     struct envelope			*env_bounce;
 
-    memset( &rh, 0, sizeof( struct receive_headers ));
-    rh.r_env = r->r_env;
+    rh = calloc( 1, sizeof( struct receive_headers ));
+    rh->r_env = r->r_env;
 
     r->r_data_attempt++;
 
@@ -1436,9 +1434,6 @@ f_data( struct receive_data *r )
 
     case SMTP_MODE_GLOBAL_RELAY:
     case SMTP_MODE_NORMAL:
-	/* create line_file for headers */	
-	lf = line_file_create( );
-
 	if (( dfile_fd = env_dfile_open( r->r_env )) < 0 ) {
 	    return( -1 );
 	}
@@ -1615,40 +1610,40 @@ f_data( struct receive_data *r )
 
 	if (( read_err == NO_ERROR ) && ( header == 1 )) {
 	    msg = NULL;
-	    if (( f_result = header_text( line_no, line, &rh, &msg )) == 0 ) {
+	    if (( f_result = header_text( line_no, line, rh, &msg )) == 0 ) {
 		if ( msg != NULL ) {
 		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: %s",
 			    inet_ntoa( r->r_sin->sin_addr ),
 			    r->r_remote_hostname, r->r_env->e_id, msg );
 		}
-		l = line_append( lf, line, COPY );
-		l->line_no = line_no;
 	    } else if ( f_result < 0 ) {
 		read_err = SYSTEM_ERROR;
 	    } else {
 		header = 0;
-		if ( simta_submission_mode != SUBMISSION_MODE_MTA ) {
-		    /* Check and (maybe) correct headers */
-		    if (( rc = header_correct( 0, lf, r->r_env )) < 0 ) {
-			ret_code = RECEIVE_CLOSECONNECTION;
-			goto error;
-		    } else if ( rc > 0 ) {
-			syslog( LOG_INFO, "Receive [%s] %s: %s: "
-				"header_correct failed",
-				inet_ntoa( r->r_sin->sin_addr ),
-				r->r_remote_hostname, r->r_env->e_id );
-			/* Continue reading lines, but reject the message
-			system_message = "Message is not RFC 5322 compliant";
-			message_banner = MESSAGE_REJECT;
-			read_err = PROTOCOL_ERROR;
-			*/
-		    }
+		/* Check and (maybe) correct headers */
+		if (( rc = header_check( rh, 0 )) < 0 ) {
+		    ret_code = RECEIVE_CLOSECONNECTION;
+		    goto error;
+		} else if ( rc > 0 ) {
+		    syslog( LOG_INFO, "Receive [%s] %s: %s: "
+			    "header_check failed",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname, r->r_env->e_id );
+		    /* Continue reading lines, but reject the message
+		     * FIXME: make this configurable 
+		    system_message = "Message is not RFC 5322 compliant";
+		    message_banner = MESSAGE_REJECT;
+		    read_err = PROTOCOL_ERROR;
+		    */
 		}
-		if (( rc = header_file_out( lf, dff )) < 0 ) {
-		    syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
-		    read_err = SYSTEM_ERROR;
-		} else {
-		    data_wrote += rc;
+
+		if ( rh->r_headers != NULL ) {
+		    if (( rc = header_file_out( rh->r_headers, dff )) < 0 ) {
+			syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
+			read_err = SYSTEM_ERROR;
+		    } else {
+			data_wrote += rc;
+		    }
 		}
 		if ( *line != '\0' ) {
 		    if (( fprintf( dff, "\n" )) < 0 ) {
@@ -1658,8 +1653,6 @@ f_data( struct receive_data *r )
 			data_wrote++;
 		    }
 		}
-		line_file_free( lf );
-		lf = NULL;
 
 #ifdef HAVE_LIBSSL
 		if ( simta_checksum_md != NULL ) {
@@ -1688,7 +1681,7 @@ f_data( struct receive_data *r )
 	}
 
 	if (( read_err == NO_ERROR ) &&
-		( rh.r_received_count > simta_max_received_headers )) {
+		( rh->r_received_count > simta_max_received_headers )) {
 	    syslog( LOG_DEBUG, "Receive [%s] %s: %s: Message Failed: "
 		    "Too many Received headers",
 		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
@@ -1698,9 +1691,9 @@ f_data( struct receive_data *r )
 	    read_err = PROTOCOL_ERROR;
 	}
 
-	if ( rh.r_seen_before ) {
+	if ( rh->r_seen_before ) {
 	    system_message = "Seen Before";
-	    filter_message = strdup( rh.r_seen_before );
+	    filter_message = strdup( rh->r_seen_before );
 	    message_banner = MESSAGE_DELETE;
 	    read_err = PROTOCOL_ERROR;
 	}
@@ -1767,6 +1760,10 @@ f_data( struct receive_data *r )
 	message_banner = MESSAGE_ACCEPT;
     }
 
+    syslog( LOG_INFO, "Receive [%s] %s: %s: Subject: %s",
+	    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+	    r->r_env->e_id, r->r_env->e_subject );
+
     if ( simta_mail_filter == NULL ) {
 	filter_result = MESSAGE_ACCEPT;
     } else if (( simta_filter_trusted == 0 ) &&
@@ -1786,9 +1783,6 @@ f_data( struct receive_data *r )
 	if ( simta_gettimeofday( &tv_filter ) != 0 ) {
 	    goto error;
 	}
-
-	r->r_env->e_mid = rh.r_mid;
-	rh.r_mid = 0;
 
 	if ( env_tfile( r->r_env ) != 0 ) {
 	    goto error;
@@ -2088,11 +2082,7 @@ f_data( struct receive_data *r )
     }
 
 error:
-    header_free( &rh );
-
-    if ( lf != NULL ) {
-	line_file_free ( lf );
-    }
+    receive_headers_free( rh );
 
     /* if dff is still open, there was an error and we need to close it */
     if (( dff != NULL ) && ( fclose( dff ) != 0 )) {

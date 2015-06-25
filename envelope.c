@@ -321,6 +321,14 @@ env_free( struct envelope *env )
 	free( env->e_mid );
     }
 
+    if ( env->e_subject != NULL ) {
+	free( env->e_subject );
+    }
+
+    if ( env->e_header_from != NULL ) {
+	free( env->e_header_from );
+    }
+
     if ( env->e_env_list_entry != NULL ) {
 	dll_remove_entry( &simta_env_list, env->e_env_list_entry );
     }

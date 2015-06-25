@@ -122,7 +122,6 @@ int			simta_q_runner_local = 0;
 int			simta_q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
 int			simta_q_runner_slow = 0;
 int			simta_exp_level_max = 5;
-int			simta_simsend_strict_from = 1;
 int			simta_process_type = 0;
 int			simta_filesystem_cleanup = 0;
 int			simta_smtp_extension = 0;
@@ -1893,21 +1892,8 @@ simta_read_config( char *fname )
 	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "SIMSEND_STRICT_FROM" ) == 0 ) {
-	    if ( ac == 2 ) {
-		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
-		    simta_simsend_strict_from = 1;
-		    if ( simta_debug ) printf( "SIMSEND_STRICT_FROM ON\n" );
-		    continue;
-		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
-		    simta_simsend_strict_from = 0;
-		    if ( simta_debug ) printf( "SIMSEND_STRICT_FROM OFF\n" );
-		    continue;
-		}
-	    }
-	    fprintf( stderr, "%s: line %d: usage: %s\n",
-		    fname, lineno,
-		    "SIMSEND_STRICT_FROM <ON|OFF>" );
-	    goto error;
+	    /* Ignore legacy directive */
+	    continue;
 
 	} else if ( strcasecmp( av[ 0 ], "SMTP_DATA_URL" ) == 0 ) {
 	    if ( ac != 2 ) {

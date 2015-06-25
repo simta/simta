@@ -69,10 +69,8 @@ main( int argc, char *argv[] )
     char		*sender = NULL;
     char		*addr;
     char		*line;
-    char		*wsp;
-    struct line_file	*lf;
-    struct line		*l;
     struct envelope	*env;
+    struct receive_headers rh;
     int			usage = 0;
     int			line_no = 0;
     int			line_len;
@@ -200,11 +198,6 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
-    if (( sender ) && ( simta_simsend_strict_from )) {
-	fprintf( stderr, "-f option not enabled\n" );
-	exit( EX_TEMPFAIL );
-    }
-
     /* create envelope */
     if (( env = env_create( simta_dir_local, NULL,
 	    sender ? sender : simta_sender(), NULL )) == NULL ) {
@@ -215,6 +208,9 @@ main( int argc, char *argv[] )
     if (( simta_mail_jail != 0 ) && ( simta_local_jail == 0 )) {
 	env_jail_set( env, ENV_JAIL_NO_CHANGE );
     }
+
+    memset( &rh, 0, sizeof( struct receive_headers ));
+    rh.r_env = env;
 
     /* optind = first to-address */
     for ( x = optind; x < argc; x++ ) {
@@ -229,9 +225,6 @@ main( int argc, char *argv[] )
 
 	free( addr );
     }
-
-    /* create line_file for headers */
-    lf = line_file_create( );
 
     /* need to read stdin in a line-oriented fashon */
     if (( snet_stdin = snet_attach( 0, 1024 * 1024 )) == NULL ) {
@@ -279,12 +272,10 @@ main( int argc, char *argv[] )
 	}
 
 	if ( header == 1 ) {
-	    if ( header_text( line_no, line, NULL, NULL ) != 0 ) {
-		if (( result = header_correct( read_headers, lf, env ))
-			!= 0 ) {
+	    if ( header_text( line_no, line, &rh, NULL ) != 0 ) {
+		if (( result = header_check( &rh, read_headers )) != 0 ) {
 		    if ( result > 0 ) {
 			exit( EX_DATAERR );
-
 		    } else {
 			exit( EX_TEMPFAIL );
 		    }
@@ -318,10 +309,12 @@ main( int argc, char *argv[] )
 		}
 
 		/* print headers to Dfile */
-		if ( header_file_out( lf, dfile ) < 0 ) {
-		    perror( "header_file_out" );
-		    fclose( dfile );
-		    goto cleanup;
+		if ( rh.r_headers != NULL ) {
+		    if ( header_file_out( rh.r_headers, dfile ) < 0 ) {
+			perror( "header_file_out" );
+			fclose( dfile );
+			goto cleanup;
+		    }
 		}
 
 		/* insert a blank line if need be */
@@ -332,19 +325,7 @@ main( int argc, char *argv[] )
 		/* print line to Dfile */
 		fprintf( dfile, "%s\n", line );
 		header = 0;
-
-	    } else {
-		/* append line to headers if it's not whitespace */
-		for ( wsp = line; *wsp != '\0'; wsp++ ) {
-		    if (( *wsp != ' ' ) && ( *wsp != '\t' )) {
-			l = line_append( lf, line, COPY );
-			l->line_no = line_no;
-
-			break;
-		    }
-		}
 	    }
-
 	} else {
 	    /* print line to Dfile */
 	    fprintf( dfile, "%s\n", line );
@@ -364,8 +345,7 @@ main( int argc, char *argv[] )
     }
 
     if ( header == 1 ) {
-	if (( result = header_correct( read_headers, lf, env ))
-		!= 0 ) {
+	if (( result = header_check( &rh, read_headers )) != 0 ) {
 	    if ( result > 0 ) {
 		exit( EX_DATAERR );
 
@@ -395,10 +375,12 @@ main( int argc, char *argv[] )
 	}
 
 	/* print headers to Dfile */
-	if ( header_file_out( lf, dfile ) < 0 ) {
-	    perror( "header_file_out" );
-	    fclose( dfile );
-	    goto cleanup;
+	if ( rh.r_headers != NULL ) {
+	    if ( header_file_out( rh.r_headers, dfile ) < 0 ) {
+		perror( "header_file_out" );
+		fclose( dfile );
+		goto cleanup;
+	    }
 	}
     }
 

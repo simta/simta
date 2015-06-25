@@ -57,6 +57,8 @@ struct envelope {
     char		*e_hostname;
     char		*e_id;
     char		*e_mid;
+    char		*e_subject;
+    char		*e_header_from;
     int			e_attributes;
 };
 

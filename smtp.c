@@ -877,20 +877,6 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     return( r );
 }
 
-    static char *
-make_seen_before_line( struct host_q *hq, struct deliver *d )
-{
-    char temp[512];
-
-    snprintf ( temp, sizeof temp,
-	    "%s: %s id %s origin %s destination %s (%s)",
-	    STRING_SEEN_BEFORE, simta_seen_before_domain,
-	    d->d_env->e_id, simta_hostname,
-	    hq->hq_hostname, hq->hq_smtp_hostname );
-    return strdup( temp );
-}
-
-
     int
 smtp_send( struct host_q *hq, struct deliver *d )
 {
@@ -1033,15 +1019,12 @@ smtp_send( struct host_q *hq, struct deliver *d )
     }
 
     if (( d->d_env->e_attributes & ENV_ATTR_ARCHIVE_ONLY )) {
-	int r;
-
-	if ( !( line = make_seen_before_line( hq, d )) ) {
-	    syslog( LOG_ERR, "Syserror: smtp_send make_seen_before_line: %m" );
-	    return( SMTP_BAD_CONNECTION );
-	}
-	r = snet_writef( d->d_snet_smtp, "%s\r\n", line );
-	free( line );
-	if ( r < 0 ) {
+	/* send X-SIMTA-Seen-Before trace header for poison pill */
+	/* FIXME: is this really where we should do this? */
+	if (( rc = snet_writef( d->d_snet_smtp,
+		"%s: %s id=%s origin=%s destination=%s smtp_destination=%s\r\n",
+		STRING_SEEN_BEFORE, simta_seen_before_domain, d->d_env->e_id,
+		simta_hostname, hq->hq_hostname, hq->hq_smtp_hostname )) < 0 ) {
 	    syslog( LOG_ERR, "Deliver.SMTP %s: seen: snet_writef failed: %m",
 		    d->d_env->e_id );
 	    return( SMTP_BAD_CONNECTION );

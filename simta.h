@@ -210,7 +210,6 @@ extern int				simta_q_runner_local_max;
 extern int				simta_q_runner_slow;
 extern int				simta_q_runner_slow_max;
 extern unsigned int			simta_bounce_seconds;
-extern int				simta_simsend_strict_from;
 extern int				simta_exp_level_max;
 extern int				simta_process_type;
 extern int				simta_umich_imap_letters;
