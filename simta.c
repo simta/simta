@@ -176,6 +176,7 @@ char			*simta_mail_filter = NULL;
 int			simta_filter_trusted = 1;
 int			simta_spf = SPF_POLICY_ON;
 int			simta_spf_verbose = 0;
+int			simta_dmarc = DMARC_POLICY_ON;
 char			*simta_data_url = NULL;
 char			*simta_reverse_url = NULL;
 char			*simta_libwrap_url = NULL;
@@ -1215,6 +1216,27 @@ simta_read_config( char *fname )
 		    "DKIM_VERIFY <ON|OFF>" );
 	    goto error;
 #endif /* HAVE_LIBOPENDKIM */
+
+	} else if ( strcasecmp( av[ 0 ], "DMARC" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_dmarc = DMARC_POLICY_ON;
+		    if ( simta_debug ) printf( "DMARC ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_dmarc = DMARC_POLICY_OFF;
+		    if ( simta_debug ) printf( "DMARC OFF\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "STRICT" ) == 0 ) {
+		    simta_dmarc = DMARC_POLICY_STRICT;
+		    if ( simta_debug ) printf( "DMARC STRICT\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "DMARC <ON|OFF|STRICT>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "DNS_AUTO_CONFIG" ) == 0 ) {
 	    /* DNS_AUTO_CONFIG <ON|OFF> */

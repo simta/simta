@@ -75,6 +75,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #include "expand.h"
 #include "red.h"
 #include "argcargv.h"
+#include "dmarc.h"
 #include "dns.h"
 #include "simta.h"
 #include "queue.h"
@@ -135,6 +136,8 @@ struct receive_data {
     struct timeval		r_tv_inactivity;
     struct timeval		r_tv_session;
     struct timeval		r_tv_accepted;
+    struct dmarc		*r_dmarc;
+    int				r_dmarc_result;
     int				r_spf_result;
 
 #ifdef HAVE_LIBOPENDKIM
@@ -383,6 +386,10 @@ reset( struct receive_data *r )
 		r->r_env->e_id );
 	env_free( r->r_env );
 	r->r_env = NULL;
+    }
+
+    if ( simta_dmarc ) {
+	dmarc_reset( r->r_dmarc );
     }
 
     return( RECEIVE_OK );
@@ -1009,7 +1016,8 @@ f_mail( struct receive_data *r )
 		spf_result_str( r->r_spf_result ));
 	switch( r->r_spf_result ) {
 	case SPF_RESULT_TEMPERROR:
-	    if ( simta_spf == SPF_POLICY_STRICT ) {
+	    if (( simta_spf == SPF_POLICY_STRICT ) ||
+		    ( simta_dmarc == DMARC_POLICY_STRICT )) {
 		syslog( LOG_ERR, "Receive [%s] %s: From <%s>: "
 			"SPF Tempfailed: transient SPF lookup failure",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
@@ -1023,6 +1031,11 @@ f_mail( struct receive_data *r )
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
 		return( smtp_write_banner( r, 554,
 			"Rejected by local policy (SPF fail)", NULL ));
+	    }
+	    break;
+	case SPF_RESULT_PASS:
+	    if ( simta_dmarc ) {
+		dmarc_spf_result( r->r_dmarc, domain );
 	    }
 	    break;
 	}
@@ -1761,6 +1774,17 @@ f_data( struct receive_data *r )
 		    */
 		}
 
+		if ( r->r_env->e_header_from ) {
+		    syslog( LOG_DEBUG, "Receive [%s] %s: %s: RFC5322.From: %s",
+			    inet_ntoa( r->r_sin->sin_addr ),
+			    r->r_remote_hostname, r->r_env->e_id,
+			    r->r_env->e_header_from );
+		    if ( simta_dmarc ) {
+			dmarc_lookup( r->r_dmarc,
+				strrchr( r->r_env->e_header_from, '@' ) + 1 );
+		    }
+		}
+
 		if ( rh->r_headers != NULL ) {
 		    if (( rc = header_file_out( rh->r_headers, dff )) < 0 ) {
 			syslog( LOG_ERR, "Syserror f_data: fprintf: %m" );
@@ -1945,6 +1969,9 @@ f_data( struct receive_data *r )
 			"Receive [%s] %s: %s: valid DKIM signature: %s",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 			r->r_env->e_id, dkim_domain );
+		if ( simta_dmarc ) {
+		    dmarc_dkim_result( r->r_dmarc, dkim_domain );
+		}
 	    } else {
 		syslog( LOG_DEBUG,
 			"Receive [%s] %s: %s: invalid DKIM signature: %s",
@@ -1955,7 +1982,19 @@ f_data( struct receive_data *r )
     }
 #endif /* HAVE_LIBOPENDKIM */
 
-    if ( simta_mail_filter == NULL ) {
+    if ( simta_dmarc ) {
+	r->r_dmarc_result = dmarc_result( r->r_dmarc );
+	syslog( LOG_INFO, "Receive [%s] %s: %s: DMARC result: %s (%s)",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, dmarc_result_str( r->r_dmarc_result ),
+		r->r_dmarc->domain );
+    }
+
+    if (( simta_dmarc == DMARC_POLICY_STRICT ) &&
+	    ( r->r_dmarc_result == DMARC_RESULT_REJECT )) {
+	message_banner = MESSAGE_REJECT;
+	system_message = "rejected by DMARC policy";
+    } else if ( simta_mail_filter == NULL ) {
 	filter_result = MESSAGE_ACCEPT;
     } else if (( simta_filter_trusted == 0 ) &&
 	    ( r->r_rbl_status == RBL_TRUST )) {
@@ -1986,8 +2025,8 @@ f_data( struct receive_data *r )
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, simta_mail_filter, filter_result,
 		filter_message ? filter_message : "no filter message" );
-	/* TEMPFAIL has precedence over REJECT */
 
+	/* TEMPFAIL has precedence over REJECT */
 	if ( message_banner == MESSAGE_TEMPFAIL ) {
 	    if ( filter_result & MESSAGE_TEMPFAIL ) {
 		if ( filter_result & MESSAGE_REJECT ) {
@@ -3029,6 +3068,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 #endif /* HAVE_LIBSSL */
     set_smtp_mode( &r, simta_smtp_default_mode, "Default" );
 
+    if ( simta_dmarc ) {
+	dmarc_init( &r.r_dmarc );
+    }
+
     if ( simta_gettimeofday( &tv_start ) != 0 ) {
 	tv_start.tv_sec = 0;
     }
@@ -3521,6 +3564,10 @@ closeconnection:
     }
 #endif /* HAVE_LIBOPENDKIM */
 
+    if ( simta_dmarc ) {
+	dmarc_free( r.r_dmarc );
+    }
+
     if ( tv_start.tv_sec != 0 ) {
 	if ( simta_gettimeofday( &tv_stop ) != 0 ) {
 	    tv_start.tv_sec = 0;
@@ -3980,6 +4027,9 @@ content_filter( struct receive_data *r, char **smtp_message )
 
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_SPF_RESULT",
 		spf_result_str( r->r_spf_result ));
+
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_DMARC_RESULT",
+		dmarc_result_str( r->r_dmarc_result ));
 
 #ifdef HAVE_LIBSSL
 	if ( simta_checksum_md != NULL ) {

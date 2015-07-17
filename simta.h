@@ -89,6 +89,10 @@
 #define PUNTING_POLICY_DISABLED		1
 #define PUNTING_POLICY_ENABLED		2
 
+#define DMARC_POLICY_OFF		0
+#define DMARC_POLICY_ON			1
+#define DMARC_POLICY_STRICT		2
+
 /* Queue Policy */
 #define QUEUE_POLICY_FIFO		0
 #define QUEUE_POLICY_SHUFFLE		1
@@ -288,6 +292,7 @@ extern char				*simta_mail_filter;
 extern int				simta_filter_trusted;
 extern int				simta_spf;
 extern int				simta_spf_verbose;
+extern int				simta_dmarc;
 extern char				*simta_base_dir;
 extern char                             *simta_file_pid;
 extern char				simta_hostname[];
