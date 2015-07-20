@@ -42,7 +42,6 @@ char	*token_domain_literal( char * );
 char	*token_domain( char * );
 char	*token_quoted_string( char * );
 char	*token_dot_atom( char * );
-int	header_timestamp( struct envelope *, FILE * );
 int	header_text( int, char *, struct receive_headers *, char ** );
 int	header_check( struct receive_headers *, int );
 int	header_file_out( struct line_file *, FILE * );

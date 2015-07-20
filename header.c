@@ -277,24 +277,6 @@ header_string( struct line *l )
     return buf;
 }
 
-    int
-header_timestamp( struct envelope *env, FILE *file )
-{
-    char	daytime[ RFC822_TIMESTAMP_LEN ];
-
-    if ( rfc822_timestamp( daytime ) != 0 ) {
-	return( -1 );
-    }
-
-    /* Received header */
-    if ( fprintf( file, "Received: FROM %s\n\tBY %s ID %s ;\n\t%s\n",
-	    env->e_mail, simta_hostname, env->e_id, daytime ) < 0 ) {
-	return( -1 );
-    }
-
-    return( 0 );
-}
-
 /* RFC 5322 3.3 Date and Time Specification
  * date-time       =   [ day-of-week "," ] date time [CFWS]
  * day-of-week     =   ([FWS] day-name) / obs-day-of-week

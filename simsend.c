@@ -35,6 +35,7 @@
 #endif /* HAVE_LIBSASL */
 
 #include <snet.h>
+#include <yasl.h>
 
 #include "line_file.h"
 #include "envelope.h"
@@ -46,16 +47,15 @@ void catch_sigint( int );
 
 /* dfile vars are global to unlink dfile if SIGINT */
 int		dfile_fd = -1;
-char		dfile_fname[ MAXPATHLEN ];
-
+struct envelope *env;
 
     /* catch SIGINT */
 
     void
 catch_sigint( int sigint )
 {
-    if ( dfile_fd > 0 ) {
-	unlink( dfile_fname );
+    if ( dfile_fd ) {
+	env_dfile_unlink( env );
     }
 
     exit( EX_TEMPFAIL );
@@ -68,8 +68,9 @@ main( int argc, char *argv[] )
     SNET		*snet_stdin;
     char		*sender = NULL;
     char		*addr;
+    char		daytime[ RFC822_TIMESTAMP_LEN ];
     char		*line;
-    struct envelope	*env;
+    yastr		buf;
     struct receive_headers rh;
     int			usage = 0;
     int			line_no = 0;
@@ -78,7 +79,8 @@ main( int argc, char *argv[] )
     int			ignore_dot = 0;
     int			x;
     int			header;
-    int			result;
+    int			rc;
+    int			ret = EX_TEMPFAIL;
     int			message_size = 0;
     FILE		*dfile = NULL;
     int			read_headers = 0;
@@ -216,7 +218,7 @@ main( int argc, char *argv[] )
     for ( x = optind; x < argc; x++ ) {
 	addr = strdup( argv[ x ] );
 
-	if (( result = correct_emailaddr( &addr )) == 0 ) {
+	if ( correct_emailaddr( &addr ) == 0 ) {
 	    fprintf( stderr, "Invalid email address: %s\n", addr );
 	    exit( EX_DATAERR );
 	}
@@ -236,8 +238,8 @@ main( int argc, char *argv[] )
     header = 1;
 
     /* RFC 5322 2.1.1. Line Length Limits:
-     * There are two limits that this standard places on the number of    
-     * characters in a line. Each line of characters MUST be no more than   
+     * There are two limits that this standard places on the number of
+     * characters in a line. Each line of characters MUST be no more than
      * 998 characters, and SHOULD be no more than 78 characters, excluding
      * the CRLF.
      */
@@ -248,7 +250,25 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
-    while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
+    /* open Dfile */
+    if (( dfile_fd = env_dfile_open( env )) < 0 ) {
+	perror( "open" );
+	exit( EX_TEMPFAIL );
+    }
+
+    if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
+	perror( "fdopen" );
+	goto error;
+    }
+
+    rfc822_timestamp( daytime );
+    buf = yaslempty( );
+    buf = yaslcatprintf( buf, "Received: BY %s (simsendmail) ID %s ;\n\t%s",
+	    simta_hostname, env->e_id, daytime );
+    header_text( line_no, buf, &rh, NULL );
+
+    while (( header == 1 ) &&
+	    (( line = snet_getline( snet_stdin, NULL )) != NULL )) {
 	line_no++;
 
 	line_len = strlen( line );
@@ -257,137 +277,87 @@ main( int argc, char *argv[] )
 	if ( line_len > 998 ) {
 	    fprintf( stderr, "%s: line %d too long\n", argv[ 0 ], line_no );
 
-	    if ( header == 0 ) {
-		goto cleanup;
-	    }
-
-	    exit( EX_DATAERR );
+	    ret = EX_DATAERR;
+	    goto error;
 	}
 
-	if ( ignore_dot == 0 ) {
-	    if (( line[ 0 ] == '.' ) && ( line[ 1 ] =='\0' )) {
-		/* single dot on a line */
-		break;
-	    }
-	}
-
-	if ( header == 1 ) {
-	    if ( header_text( line_no, line, &rh, NULL ) != 0 ) {
-		if (( result = header_check( &rh, read_headers )) != 0 ) {
-		    if ( result > 0 ) {
-			exit( EX_DATAERR );
-		    } else {
-			exit( EX_TEMPFAIL );
-		    }
-		}
-
-		/* make sure we have a recipient */
-		if ( env->e_rcpt == NULL ) {
-		    fprintf( stderr, "%s: no recipients\n", argv[ 0 ]);
-		    exit( EX_DATAERR );
-		}
-
-		/* open Dfile */
-		sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
-
-		if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
-			O_EXCL, 0600 )) < 0 ) {
-		    perror( dfile_fname );
-		    exit( EX_TEMPFAIL );
-		}
-
-		if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
-		    perror( "fdopen" );
-		    goto cleanup;
-		}
-
-		/* print received stamp */
-		if ( header_timestamp( env, dfile ) != 0 ) {
-		    perror( "header_timestamp" );
-		    fclose( dfile );
-		    goto cleanup;
-		}
-
-		/* print headers to Dfile */
-		if ( rh.r_headers != NULL ) {
-		    if ( header_file_out( rh.r_headers, dfile ) < 0 ) {
-			perror( "header_file_out" );
-			fclose( dfile );
-			goto cleanup;
-		    }
-		}
-
-		/* insert a blank line if need be */
-		if ( *line != '\0' ) {
-		    fprintf( dfile, "\n" );
-		}
-
-		/* print line to Dfile */
-		fprintf( dfile, "%s\n", line );
-		header = 0;
-	    }
-	} else {
-	    /* print line to Dfile */
-	    fprintf( dfile, "%s\n", line );
+	if ( header_text( line_no, line, &rh, NULL ) != 0 ) {
+	    header = 0;
 	}
     }
 
+    if (( rc = header_check( &rh, read_headers )) != 0 ) {
+	if ( rc > 0 ) {
+	    ret = EX_DATAERR;
+	} else {
+	    ret = EX_TEMPFAIL;
+	}
+	goto error;
+    }
+
+    /* make sure we have a recipient */
+    if ( env->e_rcpt == NULL ) {
+	fprintf( stderr, "%s: no recipients\n", argv[ 0 ]);
+	ret = EX_DATAERR;
+	goto error;
+    }
+
+    /* print headers to Dfile */
+    if ( rh.r_headers != NULL ) {
+	if ( header_file_out( rh.r_headers, dfile ) < 0 ) {
+	    perror( "header_file_out" );
+	    ret = EX_DATAERR;
+	    goto error;
+	}
+    }
+
+    if ( line != NULL ) {
+	/* insert a blank line if need be */
+	if ( *line != '\0' ) {
+	    fprintf( dfile, "\n" );
+	}
+
+	if (( ignore_dot == 0 ) &&
+		(( line[ 0 ] == '.' ) && ( line[ 1 ] =='\0' ))) {
+	    goto done;
+	}
+
+	fprintf( dfile, "%s\n", line );
+    }
+
+    while (( line = snet_getline( snet_stdin, NULL )) != NULL ) {
+	line_no++;
+
+	if (( ignore_dot == 0 ) &&
+		(( line[ 0 ] == '.' ) && ( line[ 1 ] =='\0' ))) {
+	    goto done;
+	}
+
+	line_len = strlen( line );
+	message_size += line_len;
+
+	if ( line_len > 998 ) {
+	    fprintf( stderr, "%s: line %d too long\n", argv[ 0 ], line_no );
+
+	    ret = EX_DATAERR;
+	    goto error;
+	}
+
+	fprintf( dfile, "%s\n", line );
+    }
+
+done:
     if ( snet_close( snet_stdin ) != 0 ) {
 	perror( "snet_close" );
 
-	if ( dfile == NULL ) {
-	    exit( EX_TEMPFAIL );
-
-	} else {
-	    fclose( dfile );
-	    goto cleanup;
-	}
-    }
-
-    if ( header == 1 ) {
-	if (( result = header_check( &rh, read_headers )) != 0 ) {
-	    if ( result > 0 ) {
-		exit( EX_DATAERR );
-
-	    } else {
-		exit( EX_TEMPFAIL );
-	    }
-	}
-
-	/* open Dfile */
-	sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
-
-	if (( dfile_fd = open( dfile_fname, O_WRONLY | O_CREAT |
-		O_EXCL, 0600 )) < 0 ) {
-	    perror( dfile_fname );
-	    exit( EX_TEMPFAIL );
-	}
-
-	if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
-	    perror( "fdopen" );
-	    goto cleanup;
-	}
-
-	/* print received stamp */
-	if ( header_timestamp( env, dfile ) != 0 ) {
-	    perror( "header_timestamp" );
-	    goto cleanup;
-	}
-
-	/* print headers to Dfile */
-	if ( rh.r_headers != NULL ) {
-	    if ( header_file_out( rh.r_headers, dfile ) < 0 ) {
-		perror( "header_file_out" );
-		fclose( dfile );
-		goto cleanup;
-	    }
-	}
+	ret = EX_TEMPFAIL;
+	goto error;
     }
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
 	perror( "fstat" );
 	fclose( dfile );
-	goto cleanup;
+	goto error;
     }
     env->e_dinode = sbuf.st_ino;
 
@@ -397,7 +367,7 @@ main( int argc, char *argv[] )
     /* close Dfile */
     if ( fclose( dfile ) != 0 ) {
 	perror( "fclose" );
-	goto cleanup;
+	goto error;
     }
 
     uid = getuid();
@@ -419,7 +389,7 @@ main( int argc, char *argv[] )
     if ( env_outfile( env ) != 0 ) {
 	syslog( LOG_INFO, "Local %s: Message Aborted", env->e_id );
 	perror( "env_outfile" );
-	goto cleanup;
+	goto error;
     }
 
     syslog( LOG_INFO, "Local %s: Message Accepted: lines %d size %d",
@@ -429,33 +399,33 @@ signal_server:
     /* if possible, signal server */
     if (( pidfd = open( simta_file_pid, O_RDONLY, 0 )) < 0 ) {
 	syslog( LOG_NOTICE, "open %s: %m", simta_file_pid );
-	return( 0 );
+	return( EX_OK );
     }
 
     if (( pf = fdopen( pidfd, "r" )) == NULL ) {
 	syslog( LOG_NOTICE, "fdopen %s: %m", simta_file_pid );
-	return( 0 );
+	return( EX_OK );
     }
 
     fscanf( pf, "%d\n", &pid );
 
     if ( pid <= 0 ) {
 	syslog( LOG_NOTICE, "illegal pid %s: %d", simta_file_pid, pid );
-	return( 0 );
+	return( EX_OK );
     }
 
     if ( kill( pid, SIGUSR1 ) < 0 ) {
 	syslog( LOG_NOTICE, "kill %d: %m", pid );
-	return( 0 );
+	return( EX_OK );
     }
 
-    return( 0 );
+    return( EX_OK );
 
-cleanup:
-    if ( dfile_fd > 0 ) {
-	unlink( dfile_fname );
+error:
+    if ( dfile_fd ) {
+	env_dfile_unlink( env );
     }
 
-    exit( EX_TEMPFAIL );
+    return( ret );
 }
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
