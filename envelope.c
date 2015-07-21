@@ -658,11 +658,13 @@ env_efile( struct envelope *e )
 {
     char		tf[ MAXPATHLEN + 1 ];
     char		ef[ MAXPATHLEN + 1 ];
+    char		df[ MAXPATHLEN + 1 ];
     struct timeval	tv_now;
     struct dll_entry	*e_dll;
 
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
     sprintf( ef, "%s/E%s", e->e_dir, e->e_id );
+    sprintf( df, "%s/D%s", e->e_dir, e->e_id );
 
     if ( rename( tf, ef ) < 0 ) {
 	syslog( LOG_ERR, "env_efile rename %s %s: %m", tf, ef );
@@ -688,8 +690,13 @@ env_efile( struct envelope *e )
 
     e->e_etime.tv_sec = tv_now.tv_sec;
 
-    if ( simta_no_sync == 0 ) {
-	sync();
+    if ( simta_sync ) {
+	env_fsync( ef );
+	env_fsync( df );
+	/* fsync() does not ensure that the directory entries for the files
+	 * have been synced, so we must explicitly sync the directory.
+	 */
+	env_fsync( e->e_dir );
     }
 
     if ( simta_mid_list_enable != 0 ) {
@@ -713,6 +720,34 @@ env_efile( struct envelope *e )
     return( 0 );
 }
 
+    int
+env_fsync( const char *path )
+{
+    int		fd;
+    int		ret = 0;
+
+    if (( fd = open( path, O_RDONLY )) < 0 ) {
+	syslog( LOG_ERR, "Syserror: env_fsync open %s: %m", path );
+	return( 1 );
+    }
+
+    /* fdatasync() "does not flush modified metadata unless that metadata is
+     * needed in order to allow a subsequent data retrieval to be correctly
+     * handled." We don't require that all metadata be synced to disk, so if
+     * fdatasync() is available it's preferred.
+     */
+#if defined(_POSIX_SYNCHRONIZED_IO) && _POSIX_SYNCHRONIZED_IO > 0
+    if ( fdatasync( fd ) < 0 ) {
+#else
+    if ( fsync( fd ) < 0 ) {
+#endif
+	syslog( LOG_ERR, "Syserror: env_fsync fsync %s: %m", path );
+	ret = 1;
+    }
+    close( fd );
+
+    return( ret );
+}
 
     /* calling this function updates the attempt time */
 

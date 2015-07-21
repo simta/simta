@@ -217,7 +217,7 @@ extern int				simta_umich_imap_letters;
 extern int				simta_filesystem_cleanup;
 extern int				sitma_smtp_extension;
 extern int				simta_strict_smtp_syntax;
-extern int				simta_no_sync;
+extern int				simta_sync;
 extern int				simta_ignore_reverse;
 extern int				simta_ignore_connect_in_reverse_errors;
 extern int				simta_message_count;

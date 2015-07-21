@@ -115,6 +115,7 @@ int		env_touch( struct envelope * );
 int		env_move( struct envelope *, char * );
 int		env_unlink( struct envelope * );
 int		env_read( int, struct envelope *, SNET ** );
+int		env_fsync( const char * );
 int		env_inject_header( struct envelope *, char *, char *, int );
 int		env_truncate_and_unlink( struct envelope *, SNET * );
 int		env_string_recipients( struct envelope *, char * );
