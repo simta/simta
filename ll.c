@@ -163,7 +163,8 @@ ll_nokey_insert( struct stab_entry **stab, void *data,
     st->st_data = data;
 
     for ( i = stab; *i != NULL; i = &((*i)->st_next) ) {
-	if ( ll_compare( data, (*i)->st_data ) < 0 ) {
+	if (( ll_compare != NULL ) &&
+		( ll_compare( data, (*i)->st_data ) < 0 )) {
 	    break;
 	}
     }
@@ -174,6 +175,16 @@ ll_nokey_insert( struct stab_entry **stab, void *data,
     return( 0 );
 }
 
+    void
+ll_free( struct stab_entry *stab )
+{
+    struct stab_entry	*next;
+
+    for ( ; stab != NULL ; stab = next ) {
+	next = stab->st_next;
+	free( stab );
+    }
+}
 
     struct dll_entry *
 dll_lookup( struct dll_entry *dll_head, char *key )
@@ -261,4 +272,18 @@ dll_remove_entry( struct dll_entry **head, struct dll_entry *dll )
 
     return;
 }
+
+    void
+dll_free( struct dll_entry *head )
+{
+    struct dll_entry	*next;
+    for ( ; head != NULL ; head = next ) {
+	next = head->dll_next;
+	if ( head->dll_free_key != 0 ) {
+	    free( head->dll_key );
+	}
+	free( head );
+    }
+}
+
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

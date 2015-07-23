@@ -19,6 +19,7 @@ struct dll_entry {
 struct dll_entry *dll_lookup_or_create( struct dll_entry**, char*, int );
 void dll_remove_entry( struct dll_entry **, struct dll_entry * );
 struct dll_entry *dll_lookup( struct dll_entry *, char * );
+void dll_free( struct dll_entry * );
 
 void	*ll_lookup( struct stab_entry*, const char * );
 int	ll_insert( struct stab_entry **, char *, void *,
@@ -31,6 +32,7 @@ int 	ll_insert_tail( struct stab_entry **stab, char *key, void *data );
 int	ll_default_compare( char *, char * );
 int	ll_nokey_insert( struct stab_entry **, void *, int(*)( void *, void * ));
 void	*ll_nokey_lookup( struct stab_entry *, void *, int(*)( void *, void * ));
+void	ll_free( struct stab_entry * );
 
 #endif /* SIMTA_LL_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
