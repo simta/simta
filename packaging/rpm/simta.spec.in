@@ -8,7 +8,7 @@
 
 Summary: A Simple internet Mail Transfer Agent
 Name: @PACKAGE_NAME@
-Version: @PACKAGE_VERSION@ 
+Version: @PACKAGE_VERSION@
 Release: 1%{?dist}
 License: BSD and MIT
 Group: System Environment/Daemons
@@ -28,29 +28,20 @@ BuildRequires: jemalloc-devel
 BuildRequires: pkgconfig(libsnet)
 %if "%{with_tls}" == "yes"
 BuildRequires: pkgconfig(openssl)
-Requires: openssl
 %endif
 %if "%{with_sasl2}" == "yes"
 BuildRequires: pkgconfig(libsasl2)
-Requires: %{_sbindir}/saslauthd
 %endif
 %if "%{with_ldap}" == "yes"
 BuildRequires: openldap-devel
-Requires: openldap
 %endif
 Requires(pre): shadow-utils
 Requires(preun): %{_sbindir}/alternatives chkconfig
 Requires(post): %{_sbindir}/alternatives chkconfig coreutils
 Requires(postun): %{_sbindir}/alternatives coreutils
-Requires: bash >= 2.0
 Requires: initscripts
-Requires: denser
-Requires: jemalloc
-Requires: libsnet
-Requires: lmdb
 Requires: procmail
 Requires: setup
-Requires: tcp_wrappers
 
 %description
 simta is used for mail routing and delivery.
@@ -76,7 +67,7 @@ export JEMALLOC_CFLAGS=-I/usr/include
         --with-aliasdb=%{_sysconfdir}/aliases.db \
         --disable-chown
 
-make %{?_smp_mflags} 
+make %{?_smp_mflags}
 
 %install
 rm -rf %{buildroot}
