@@ -527,6 +527,7 @@ simta_getpwnam( struct action *a, char *user )
 	return( NULL );
     }
 
+    /* FIXME: fgetpwent() is not portable */
     while (( p = fgetpwent( f )) != NULL ) {
 	if ( strcasecmp( user, p->pw_name ) == 0 ) {
 	    break;

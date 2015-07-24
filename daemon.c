@@ -6,7 +6,6 @@
 #include "config.h"
 
 #include <sys/types.h>
-#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/time.h>
@@ -29,6 +28,10 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <dirent.h>
+
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif /* __linux__ */
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -621,11 +624,13 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
+#ifdef __linux__
     /* we're debugging under linux */
     if ( prctl( PR_SET_DUMPABLE, 1, 0, 0, 0 ) != 0 ) {
 	perror( "prctl" );
 	exit( 1 );
     }
+#endif /* __linux__ */
 
 #ifndef Q_SIMULATION
     if ( q_run ) {

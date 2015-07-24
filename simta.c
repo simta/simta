@@ -61,7 +61,7 @@
 #endif
 
 /* global variables */
-#ifdef HAVE_JEMALLOC
+#if defined(HAVE_JEMALLOC) || defined(__FreeBSD__)
 const char		*malloc_conf = "xmalloc:true";
 #endif /* HAVE_JEMALLOC */
 
