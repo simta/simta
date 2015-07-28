@@ -932,7 +932,7 @@ simta_server( void )
 		    syslog( LOG_DEBUG, "Debug: Command read entry" );
 		}
 		if ( daemon_commands( &command_dirp ) != 0 ) {
-		    goto error;
+		    syslog( LOG_DEBUG, "Debug: Command read error" );
 		}
 		if ( command_dirp.sd_dirp == NULL ) {
 		    syslog( LOG_DEBUG, "Debug: Command read end" );
@@ -1659,8 +1659,13 @@ mid_promote( char *mid )
 
     if (( dll = dll_lookup( simta_env_list, mid )) != NULL ) {
 	e = (struct envelope*)dll->dll_data;
-	if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {
-	    return( 1 );
+
+	if ( simta_mail_jail ) {
+	    if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {
+		syslog( LOG_NOTICE,
+			"Command: Message %s: env_jail_status failed", mid );
+		return( 1 );
+	    }
 	}
 
 	if ( e->e_hq != NULL ) {
@@ -1669,10 +1674,13 @@ mid_promote( char *mid )
 	    if ( hq_deliver_push( e->e_hq, NULL, &tv_nowait ) != 0 ) {
 		return( 1 );
 	    }
+	    syslog( LOG_DEBUG, "Command: Message %s: promoted queue %s", mid,
+		    e->e_hq->hq_hostname );
+	} else {
+	    syslog( LOG_DEBUG, "Command: Message %s: not in a queue", mid );
 	}
-	syslog( LOG_DEBUG, "Command: Message %s Paroled", mid );
     } else {
-	syslog( LOG_DEBUG, "Command: Message %s not found", mid );
+	syslog( LOG_DEBUG, "Command: Message %s: not found", mid );
     }
 
     return( 0 );
@@ -1690,14 +1698,18 @@ sender_promote( char *sender )
 
     if (( dll = dll_lookup( simta_sender_list, sender )) != NULL ) {
 	sl = (struct sender_list*)dll->dll_data;
-	syslog( LOG_DEBUG, "Command: Sender %s found %d messages",
-		sl->sl_dll->dll_key, sl->sl_n_entries );
+	syslog( LOG_DEBUG, "Command: Sender %s: found %d messages",
+		sender, sl->sl_n_entries );
 	for ( dll_se = sl->sl_entries; dll_se != NULL;
 		dll_se = dll_se->dll_next ) {
 	    se = (struct sender_entry*)dll_se->dll_data;
-	    /* tag env */
-	    if ( env_jail_status( se->se_env, ENV_JAIL_PAROLEE ) != 0 ) {
-		return( 1 );
+	    if ( simta_mail_jail ) {
+		/* tag env */
+		if ( env_jail_status( se->se_env, ENV_JAIL_PAROLEE ) != 0 ) {
+		    syslog( LOG_NOTICE,
+			    "Command: Sender %s: env_jail_status failed for %s",
+			    sender, se->se_env->e_id );
+		}
 	    }
 
 	    /* re-queue queue */
@@ -1706,7 +1718,12 @@ sender_promote( char *sender )
 		hq_deliver_pop( se->se_env->e_hq );
 		if ( hq_deliver_push( se->se_env->e_hq, NULL,
 			&tv_nowait ) != 0 ) {
-		    return( 1 );
+		    syslog( LOG_NOTICE,
+			    "Command: Sender %s: hq_deliver_push failed for %s",
+			    sender, se->se_env->e_hq->hq_hostname );
+		} else {
+		    syslog( LOG_DEBUG, "Command: Sender %s: promoted queue %s",
+			    sender, se->se_env->e_hq->hq_hostname );
 		}
 	    }
 	}
@@ -1725,6 +1742,7 @@ daemon_commands( struct simta_dirp *sd )
     SNET			*snet;
     char			fname[ MAXPATHLEN + 1 ];
     int				lineno = 1;
+    int				ret = 0;
     int				ac;
     int				int_arg;
     char			**av;
@@ -1761,6 +1779,7 @@ daemon_commands( struct simta_dirp *sd )
 	if ( closedir( sd->sd_dirp ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror simta_read_command closedir %s: %m",
 		    sd->sd_dir );
+	    sd->sd_dirp = NULL;
 	    return( 1 );
 	}
 
@@ -1815,19 +1834,22 @@ daemon_commands( struct simta_dirp *sd )
 	if ( errno != ENOENT ) {
 	    syslog( LOG_ERR, "Syserror simta_read_command snet_open %s: %m",
 		    fname );
+	    return( 1 );
 	}
-	return( 1 );
+	return( 0 );
     }
 
     acav = acav_alloc( );
 
     if (( line = snet_getline( snet, NULL )) == NULL ) {
 	syslog( LOG_DEBUG, "Command %s: unexpected EOF", entry->d_name );
+	ret = 1;
 	goto error;
     }
 
     if (( ac = acav_parse( acav, line, &av )) < 0 ) {
 	syslog( LOG_ERR, "Syserror simta_read_command acav_parse: %m" );
+	ret = 1;
 	goto error;
     }
 
@@ -1843,12 +1865,13 @@ daemon_commands( struct simta_dirp *sd )
 	    syslog( LOG_DEBUG, "Command %s: Message %s", entry->d_name,
 		    av[ 1 ]);
 	    if ( mid_promote( av[ 1 ]) != 0 ) {
-		goto error;
+		ret = 1;
 	    }
 
 	} else {
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );
+	    ret = 1;
 	}
 
     } else if ( strcasecmp( av[ 0 ], S_SENDER ) == 0 ) {
@@ -1860,9 +1883,8 @@ daemon_commands( struct simta_dirp *sd )
 	    syslog( LOG_DEBUG, "Command %s: Sender %s", entry->d_name, av[ 1 ]);
 	    /* JAIL-ADD promote sender's mail */
 	    if ( sender_promote( av[ 1 ]) != 0 ) {
-		goto error;
+		ret++;
 	    }
-
 	} else {
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );
@@ -1877,18 +1899,31 @@ daemon_commands( struct simta_dirp *sd )
 	    if (( hq = host_q_lookup( av[ 1 ])) != NULL ) {
 		hq_deliver_pop( hq );
 		/* hq->hq_priority++; */
-		/* promote all the envs in the queue */
-		for ( e = hq->hq_env_head; e != NULL; e = e->e_hq_next ) {
-		    if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {
-			return( 1 );
+		if ( simta_mail_jail ) {
+		    /* promote all the envs in the queue */
+		    for ( e = hq->hq_env_head; e != NULL; e = e->e_hq_next ) {
+			if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {
+			    ret++;
+			    syslog( LOG_NOTICE,
+				    "Command %s: Queue %s: "
+				    "env_jail_status failed for %s",
+				    entry->d_name, av[ 1 ], e->e_id );
+			}
 		    }
 		}
 
 		if ( hq_deliver_push( hq, NULL, &tv_nowait ) != 0 ) {
-		    return( 1 );
+		    syslog( LOG_NOTICE,
+			    "Command %s: Queue %s: hq_deliver_push failed",
+			    entry->d_name, av[ 1 ] );
+		    ret = 1;
+		} else {
+		    syslog( LOG_DEBUG, "Command %s: Queue %s: promoted",
+			    entry->d_name, av[ 1 ] );
 		}
 	    } else {
-		syslog( LOG_DEBUG, "Queue %s: Not Found", av[ 1 ]);
+		syslog( LOG_DEBUG, "Command %s: Queue %s: not found",
+			entry->d_name, av[ 1 ]);
 	    }
 
 	} else {
@@ -1907,19 +1942,23 @@ daemon_commands( struct simta_dirp *sd )
 		syslog( LOG_DEBUG, "Command %s: Debug set: %d", entry->d_name,
 			simta_debug );
 	    } else {
+		ret = 1;
 		syslog( LOG_DEBUG, "Command %s: Debug illegal arg: %d",
 			entry->d_name, simta_debug );
 	    }
 	} else {
+	    ret = 1;
 	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );
 	}
 
     } else {
+	ret = 1;
 	syslog( LOG_DEBUG, "Command %s: line %d: Unknown command: \"%s\"",
 		entry->d_name, lineno, av[ 0 ]);
     }
 
+error:
     if ( snet_close( snet ) < 0 ) {
 	syslog( LOG_ERR, "Syserror simta_read_command snet_close %s: %m",
 		entry->d_name );
@@ -1931,17 +1970,7 @@ daemon_commands( struct simta_dirp *sd )
 
     acav_free( acav );
 
-    return( 0 );
-
-error:
-    if ( snet_close( snet ) < 0 ) {
-	syslog( LOG_ERR, "Syserror simta_read_command snet_close %s: %m",
-		entry->d_name );
-    }
-
-    acav_free( acav );
-
-    return( 1 );
+    return( ret );
 }
 
 

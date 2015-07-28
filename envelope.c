@@ -122,6 +122,10 @@ env_jail_status( struct envelope *env, int jail )
 
     env_rcpt_free( env );
 
+    syslog( LOG_INFO, "Jail %s: %s", env->e_id,
+	    ( jail == ENV_JAIL_PRISONER )
+	    ? "immured in durance vile" : "paroled" );
+
     return( 0 );
 }
 
