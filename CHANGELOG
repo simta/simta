@@ -1,3 +1,25 @@
+0.12.0
+    - lots of minor code and file cleanup
+    - cleaned up logging, made some of it more consistent
+    - fixed setting basedir via config
+    - added injection of a Return-Path header during local delivery
+    - updated all RFC references to the latest versions
+    - improved SMTP AUTH RFC compliance
+    - fixed fallback to plain after TLS failure
+    - unbundled libraries
+    - replaced default malloc() with jemalloc
+    - replaced Berkeley DB with LMDB from OpenLDAP
+    - added the ability to have trusted hosts skip the content filter
+    - message checksums are emitted in base 16 instead of base 64
+    - added support for post-authentication authorization using DNS lists
+    - added custom Diffie-Hellman parameters in TLS server setup
+    - renamed NO_SYNC to SYNC and improved performance when SYNC is on
+    - increased the default socket connection backlog
+    - added support for SRS rewriting
+    - added support for checking SPF, DKIM, and DMARC during Receive
+    - fixed using simc for queue control on non-jail hosts
+    - fixed moderated/members-only groups and BATV
+
 0.11.3
     - defaulted NO_SYNC and CHECKSUM_BODY to ON
     - removed some annoying log lines
