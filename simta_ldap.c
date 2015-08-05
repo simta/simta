@@ -1823,6 +1823,25 @@ simta_ldapuser( int ndomain, char *buf, char **user, char **domain )
     u = yaslauto( buf );
 #endif /* HAVE_LIBSRS2 */
 
+    /* Bounce Address Tag Validation (BATV) defines a method for including
+     * tagging information in the local-part of the RFC5321.MailFrom address,
+     * allowing senders to tag all outgoing mail and reject bounces that aren't
+     * to a tagged address.
+     *
+     * Software that needs to recover the original address can do so by
+     * checking for the presence of the tag-type, and if it is present,
+     * discarding the local-part up through the second equal sign.
+     *
+     * The only widespread tag-type right now is prvs, which adds a timestamp
+     * and cryptographic checksum. SRS uses a similar tagging scheme but
+     * does more extensive transformation and is therefore incompatible with
+     * this canonicalisation method.
+     */
+    if (( strncasecmp( u, "prvs=", 5 ) == 0 ) &&
+	    (( p = strchr( u + 5, '=' )) != NULL )) {
+	yaslrange( u, p - u + 1, -1 );
+    }
+
     if (( p = strrchr( u, '@' )) != NULL ) {
 	p++;
 	simta_ldapdomain( ndomain, p, domain );
