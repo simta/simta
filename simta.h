@@ -194,6 +194,7 @@ extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
 extern struct action			*simta_red_action_secondary_mx;
+struct proc_type			*simta_proc_stab;
 extern int				simta_submission_mode;
 extern int				simta_policy_tls;
 extern int				simta_policy_tls_cert;
@@ -237,6 +238,7 @@ extern int				simta_q_runner_local;
 extern int				simta_q_runner_local_max;
 extern int				simta_q_runner_slow;
 extern int				simta_q_runner_slow_max;
+extern int				simta_q_runner_receive_max;
 extern unsigned int			simta_bounce_seconds;
 extern int				simta_exp_level_max;
 extern int				simta_process_type;
@@ -269,6 +271,7 @@ extern int				simta_smtp_tarpit_data_eof;
 extern int				simta_debug;
 extern int				simta_expand_debug;
 extern int				simta_verbose;
+extern int				simta_child_signal;
 extern int				simta_fast_files;
 extern int				simta_tls;
 #ifdef HAVE_LIBSASL
@@ -364,6 +367,8 @@ void	simta_openlog( int, int );
 int	simta_gettimeofday( struct timeval * );
 int	simta_check_charset( const char * );
 int	simta_host_is_jailhost( char *  );
+int	simta_waitpid( int );
+int	simta_child_q_runner( struct host_q* );
 
 #define SIMTA_ELAPSED_MSEC(a, b) \
 	(((((b).tv_sec * 1000)) + ((b).tv_usec / 1000)) - \

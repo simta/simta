@@ -58,10 +58,8 @@
 const char			*simta_progname = "simta";
 
 struct connection_info		*cinfo_stab = NULL;
-struct proc_type		*proc_stab = NULL;
 int				simta_pidfd;
 int				simsendmail_signal = 0;
-int				child_signal = 0;
 int				command_signal = 0;
 struct sigaction		sa;
 struct sigaction		osahup;
@@ -86,11 +84,9 @@ void		hup ( int );
 void		chld( int );
 int		main( int, char *av[] );
 int		simta_wait_for_child( int );
-int		daemon_waitpid( void );
-int		simta_sigaction_reset( void );
+int		simta_sigaction_reset( int );
 int		simta_server( void );
 int		simta_daemonize_server( void );
-int		simta_child_q_runner( struct host_q* );
 int		simta_child_receive( struct simta_socket* );
 int		set_rcvbuf( int );
 struct simta_socket	*simta_listen( char*, int, int );
@@ -131,7 +127,7 @@ hup( int sig )
 chld( int sig )
 {
 #ifndef Q_SIMULATION
-    child_signal = 1;
+    simta_child_signal = 1;
 #endif /* Q_SIMULATION */
     return;
 }
@@ -920,9 +916,9 @@ simta_server( void )
 	    }
 	}
 
-	if ( child_signal != 0 ) {
-	    child_signal = 0;
-	    if ( daemon_waitpid() != 0 ) {
+	if ( simta_child_signal != 0 ) {
+	    simta_child_signal = 0;
+	    if ( simta_waitpid( WNOHANG ) != 0 ) {
 		goto error;
 	    }
 	}
@@ -1067,7 +1063,7 @@ simta_server( void )
 	    sleep_reason = "Simsendmail signal";
 	}
 
-	if ( child_signal != 0 ) {
+	if ( simta_child_signal != 0 ) {
 	    syslog( LOG_DEBUG, "Debug: child signal" );
 	    sleep_time = 0;
 	    sleep_reason = "Child signal";
@@ -1152,7 +1148,7 @@ syslog( LOG_DEBUG, "Debug: listen over" );
 
 error:
     /* Kill queue scheduler */
-    for ( p = proc_stab; p != NULL; p = p->p_next ) {
+    for ( p = simta_proc_stab; p != NULL; p = p->p_next ) {
 	/*
 	if ( p->p_type == PROCESS_Q_SCHEDULER ) {
 	    if ( kill( p->p_id, SIGKILL ) != 0 ) {
@@ -1171,7 +1167,7 @@ error:
 
 
     int
-daemon_waitpid( void )
+simta_waitpid( int options )
 {
     int			errors = 0;
     int			ll;
@@ -1189,8 +1185,8 @@ daemon_waitpid( void )
 	return( 1 );
     }
 
-    while (( pid = waitpid( 0, &status, WNOHANG )) > 0 ) {
-	for ( p_search = &proc_stab; *p_search != NULL;
+    while (( pid = waitpid( 0, &status, options )) > 0 ) {
+	for ( p_search = &simta_proc_stab; *p_search != NULL;
 		p_search = &((*p_search)->p_next)) {
 	    if ((*p_search)->p_id == pid ) {
 		break;
@@ -1381,12 +1377,14 @@ simta_wait_for_child( int child_type )
 
 
     int
-simta_sigaction_reset( void )
+simta_sigaction_reset( int retain_chld )
 {
     /* reset USR1, CHLD and HUP */
-    if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
-	syslog( LOG_ERR, "Syserror: simta_sigaction_reset sigaction: %m" );
-	return( 1 );
+    if ( retain_chld == 0 ) {
+	if ( sigaction( SIGCHLD, &osachld, 0 ) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_sigaction_reset sigaction: %m" );
+	    return( 1 );
+	}
     }
     if ( sigaction( SIGHUP, &osahup, 0 ) < 0 ) {
 	syslog( LOG_ERR, "Syserror: simta_sigaction_reset sigaction: %m" );
@@ -1494,7 +1492,10 @@ simta_child_receive( struct simta_socket *ss )
 		syslog( LOG_ERR, "Syserror: simta_child_receive close: %m" );
 	    }
 	}
-	simta_sigaction_reset();
+	/* smtp receive children may spawn children */
+	simta_sigaction_reset( simta_q_runner_receive_max );
+	simta_proc_stab = NULL;
+	simta_q_runner_slow = 0;
 	exit( smtp_receive( fd, cinfo, ss ));
 
     case -1:
@@ -1547,7 +1548,7 @@ simta_child_q_runner( struct host_q *hq )
     switch ( pid = fork()) {
     case 0 :
 	simta_openlog( 1, 0 );
-	simta_sigaction_reset();
+	simta_sigaction_reset( 0 );
 	close( simta_pidfd );
 	simta_host_q = NULL;
 
@@ -1647,8 +1648,8 @@ simta_proc_add( int process_type, int pid )
     p->p_tv.tv_sec = simta_tv_now.tv_sec;
     p->p_id = pid;
     p->p_type = process_type;
-    p->p_next = proc_stab;
-    proc_stab = p;
+    p->p_next = simta_proc_stab;
+    simta_proc_stab = p;
 
     return( p );
 }

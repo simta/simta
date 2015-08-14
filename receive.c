@@ -352,16 +352,46 @@ set_smtp_mode( struct receive_data *r, int mode, char *msg )
     int
 deliver_accepted( struct receive_data *r, int force )
 {
+    struct envelope			*e;
+
     if (( r->r_env ) && ( r->r_env->e_flags & ENV_FLAG_EFILE )) {
 	queue_envelope( r->r_env );
 	r->r_env = NULL;
     }
 
     if (( force || ( simta_queue_incoming_smtp_mail != 0 ) ||
-	(( simta_aggressive_receipt_max > 0 ) &&
-	( simta_fast_files >= simta_aggressive_receipt_max )))) {
-	if ( q_runner() != 0 ) {
-	    return( RECEIVE_SYSERROR );
+	    (( simta_aggressive_receipt_max > 0 ) &&
+	    ( simta_fast_files >= simta_aggressive_receipt_max )))) {
+	if (( simta_q_runner_receive_max == 0 ) ||
+		(( r->r_snet == NULL ) && ( simta_proc_stab == NULL ))) {
+	    /* not allowed to have deliver children, or do not have
+	    * connection and have no outstanding children
+	    */
+	    if ( q_runner() != 0 ) {
+		return( RECEIVE_SYSERROR );
+	    }
+
+	} else if ( simta_q_runner_slow < simta_q_runner_slow_max ) {
+	    if ( simta_child_q_runner( simta_unexpanded_q ) != 0 ) {
+		return( RECEIVE_SYSERROR );
+	    }
+	    /* clean mailbag */
+	    /* XXX Log these events? */
+	    while ( simta_unexpanded_q->hq_env_head != NULL ) {
+		e = simta_unexpanded_q->hq_env_head;
+		simta_unexpanded_q->hq_env_head = e->e_next;
+		env_free( e );
+	    }
+	    simta_unexpanded_q->hq_entries = 0;
+	    simta_fast_files = 0;
+
+	} else {
+	    /* XXX better log lines */
+	    /* syslog( LOG_NOTICE, "Daemon Delay: %ld : "
+		    "Queues are not caught up and "
+		    "MAX_Q_RUNNERS_SLOW has been met",
+		    tv_now.tv_sec -
+		    simta_deliver_q->hq_next_launch.tv_sec ); */
 	}
     }
 
@@ -1485,6 +1515,7 @@ f_rcpt( struct receive_data *r )
 f_data( struct receive_data *r )
 {
     FILE				*dff = NULL;
+    int                                 calculate_timers = 1;
     int					banner = 0;
     int					dfile_fd = -1;
     int					i;
@@ -1504,10 +1535,14 @@ f_data( struct receive_data *r )
     char				*filter_message = NULL;
     char				*system_message = NULL;
     char				*timer_type;
-    char				*session_type = NULL;
+    char				*session_timer = NULL;
+    struct timeval			*tv_session = NULL;
     struct timeval			tv_data_start;
+    struct timeval			tv_data_session;
     struct timeval			tv_wait;
-    struct timeval			tv_session;
+    struct timeval			*tv_timeout;
+    struct timeval			tv_line;
+    struct timeval			tv_add ;
     struct timeval			tv_filter = { 0, 0 };
     struct timeval			tv_now;
     struct stat				sbuf;
@@ -1705,68 +1740,75 @@ f_data( struct receive_data *r )
 
     /* global smtp session timer */
     if ( r->r_tv_session.tv_sec != 0 ) {
-	session_type = S_GLOBAL_SESSION;
-	tv_session.tv_sec = r->r_tv_session.tv_sec;
-	tv_session.tv_usec = 0;
+	session_timer = S_GLOBAL_SESSION;
+	tv_session = &r->r_tv_session;
     }
 
     /* smtp data session timer */
     if ( simta_inbound_data_session_timer != 0 ) {
-	if ( session_type != NULL ) {
-	    if (( tv_now.tv_sec + simta_inbound_data_session_timer ) <
-		    tv_session.tv_sec ) {
-		session_type = NULL;
-	    }
-	}
-
-	if ( session_type == NULL ) {
-	    session_type = S_DATA_SESSION;
-	    tv_session.tv_sec = tv_now.tv_sec +
-		    simta_inbound_data_session_timer;
+	tv_add.tv_sec = simta_inbound_data_session_timer;
+	timeradd( &tv_add, &tv_now, &tv_data_session );
+	if (( tv_session == NULL ) ||
+		( timercmp( &tv_data_session, tv_session, < ))) {
+	    session_timer = S_DATA_SESSION;
+	    tv_session = &tv_data_session;
 	}
     }
 
-    for ( ; ; ) {
-	tv_wait.tv_sec = simta_inbound_data_line_timer;
-	tv_wait.tv_usec = 0;
-	timer_type = S_DATA_LINE;
+    tv_add.tv_usec = 0;
 
-	if ( session_type != NULL ) {
-	    if ( tv_session.tv_sec <= tv_now.tv_sec ) {
-		syslog( LOG_DEBUG,
-			"Receive [%s] %s: %s: %s time limit exceeded",
-			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			r->r_env->e_id, session_type );
-		smtp_write_banner( r, 421, S_TIMEOUT, S_CLOSING );
-		ret_code = RECEIVE_CLOSECONNECTION;
+    for ( ; ; ) {
+	if ( simta_child_signal != 0 ) {
+	    simta_child_signal = 0;
+	    if ( simta_waitpid( WNOHANG ) != 0 ) {
 		goto error;
 	    }
-
-	    if ( tv_wait.tv_sec > ( tv_session.tv_sec - tv_now.tv_sec )) {
-		tv_wait.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
-		timer_type = session_type;
-	    }
-	}
-
-	if (( line = snet_getline( r->r_snet, &tv_wait )) == NULL ) {
-	    if ( errno == ETIMEDOUT ) {
-		ret_code = RECEIVE_CLOSECONNECTION;
-		syslog( LOG_DEBUG,
-			"Receive [%s] %s: %s: Data: Timeout %s",
-			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			r->r_env->e_id, timer_type );
-		smtp_write_banner( r, 421, S_TIMEOUT, S_CLOSING );
-	    } else {
-		syslog( LOG_DEBUG,
-			"Receive [%s] %s: %s: Data: connection dropped",
-			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			r->r_env->e_id );
-	    }
-	    goto error;
 	}
 
 	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    read_err = SYSTEM_ERROR;
+	}
+
+	if ( calculate_timers == 0 ) {
+	    calculate_timers = 1;
+	} else {
+	    tv_add.tv_sec = simta_inbound_data_line_timer;
+	    timeradd( &tv_add, &tv_now, &tv_line );
+
+	    /* use the session timer or the line timer */
+	    if (( session_timer != NULL ) &&
+		    ( timercmp( tv_session, &tv_line, < ))) {
+		tv_timeout = tv_session;
+		timer_type = session_timer;
+	    } else {
+		tv_timeout = &tv_line;
+		timer_type = S_DATA_LINE;
+	    }
+	}
+
+	if ( timercmp( &tv_now, tv_timeout, > )) {
+	    syslog( LOG_DEBUG,
+		    "Receive [%s] %s: %s: Data: Timeout %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_env->e_id, timer_type );
+	    smtp_write_banner( r, 421, S_TIMEOUT, S_CLOSING );
+	    ret_code = RECEIVE_CLOSECONNECTION;
+	    goto error;
+	}
+
+	timersub( tv_timeout, &tv_now, &tv_wait );
+
+	if (( line = snet_getline( r->r_snet, &tv_wait )) == NULL ) {
+	    if (( errno == EINTR ) || ( errno == ETIMEDOUT )) {
+		calculate_timers = 0;
+		continue;
+	    }
+
+	    syslog( LOG_DEBUG,
+		    "Receive [%s] %s: %s: Data: connection dropped",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_env->e_id );
+	    goto error;
 	}
 
 	line_no++;
@@ -2201,8 +2243,8 @@ f_data( struct receive_data *r )
 		filter_message ? filter_message : "no filter message",
 		env_bounce->e_id );
 	if ( simta_inbound_accepted_message_timer >= 0 ) {
-	    r->r_tv_accepted.tv_sec = simta_inbound_accepted_message_timer +
-		    tv_now.tv_sec;
+	    tv_add.tv_sec = simta_inbound_accepted_message_timer;
+	    timeradd( &tv_add, &tv_now, &r->r_tv_accepted );
 	}
     }
 
@@ -2273,8 +2315,8 @@ f_data( struct receive_data *r )
 	}
 
 	if ( simta_inbound_accepted_message_timer >= 0 ) {
-	    r->r_tv_accepted.tv_sec = simta_inbound_accepted_message_timer +
-		    tv_now.tv_sec;
+	    tv_add.tv_sec = simta_inbound_accepted_message_timer;
+	    timeradd( &tv_add, &tv_now, &r->r_tv_accepted );
 	}
 
 	r->r_data_success++;
@@ -3128,7 +3170,9 @@ f_auth( struct receive_data *r )
      * the SASL negotiation itself.
      */
      if ( snet_saslssf( r->r_snet )) {
-	reset( r );
+	if ( reset( r ) != 0 ) {
+	    return( RECEIVE_SYSERROR );
+	}
 	/* Some (all?) clients don't resend EHLO. If the previous value was
 	 * obtained under TLS, hang on to it. */
 	if ( r->r_hello && ( r->r_tls != 1 )) {
@@ -3150,16 +3194,19 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     fd_set				fdset;
     int					i;
     int					ret;
-    int					continue_after_timeout = 0;
-    int					time_remaining;
+    int					calculate_timers;
     char				*timer_type;
+    char				*fallback_type;
     char				*line;
     char				hostname[ DNSR_MAX_NAME + 1 ];
-    struct timeval			tv;
     struct timeval			tv_start;
     struct timeval			tv_stop;
     struct timeval			tv_now;
     struct timeval			tv_wait;
+    struct timeval			tv_line;
+    struct timeval			tv_add;
+    struct timeval			*tv_timeout;
+    struct timeval			*tv_fallback;
 #ifdef HAVE_LIBWRAP
     char				*ctl_hostname;
 #endif /* HAVE_LIBWRAP */
@@ -3211,11 +3258,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	tv_start.tv_sec = 0;
     }
 
-    if ( simta_inbound_global_session_timer > 0 ) {
-	r.r_tv_session.tv_sec = simta_inbound_global_session_timer +
-		tv_start.tv_sec;
-    }
-
     if (( r.r_snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "Syserror smtp_receive: snet_attach: %m" );
 	return( 0 );
@@ -3223,6 +3265,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
     tv_wait.tv_sec = simta_inbound_command_line_timer;
     tv_wait.tv_usec = 0;
+    /* XXX expose SNET_WRITE_TIMEOUT in simta.conf */
     snet_timeout( r.r_snet, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait );
 
     if ( reset( &r ) != RECEIVE_OK ) {
@@ -3460,11 +3503,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
 	if ( r.r_rbl_status != RBL_TRUST ) {
-	    tv.tv_sec = simta_banner_delay;
-	    tv.tv_usec = 0;
+	    tv_wait.tv_sec = simta_banner_delay;
+	    tv_wait.tv_usec = 0;
 
 	    if (( ret = select( snet_fd( r.r_snet ) + 1, &fdset, NULL,
-		    NULL, &tv )) < 0 ) {
+		    NULL, &tv_wait )) < 0 ) {
 		syslog( LOG_ERR, "Syserror smtp_receive select: %m (%d %d)",
 			snet_fd( r.r_snet ) + 1, simta_banner_delay );
 		goto syserror;
@@ -3503,83 +3546,95 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
     }
 
+    tv_add.tv_usec = 0;
+    calculate_timers = 1;
+
     for ( ; ; ) {
+	if ( simta_child_signal != 0 ) {
+	    simta_child_signal = 0;
+	    if ( simta_waitpid( WNOHANG ) != 0 ) {
+		goto syserror;
+	    }
+	}
+
 	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    goto syserror;
 	}
 
-	/* command line timer */
-	tv_wait.tv_sec = simta_inbound_command_line_timer;
-	tv_wait.tv_usec = 0;
-	timer_type = S_COMMAND_LINE;
+	/* see if we need to calculate the timers */
+	if ( calculate_timers == 1 ) {
+	    /* command line timer */
+	    tv_add.tv_sec = simta_inbound_command_line_timer;
+	    timeradd( &tv_add, &tv_now, &tv_line );
+	    tv_timeout = &tv_line;
+	    timer_type = S_COMMAND_LINE;
 
-	/* global session timer */
-	if ( r.r_tv_session.tv_sec != 0 ) {
-	    if ( r.r_tv_session.tv_sec <= tv_now.tv_sec ) {
-		timer_type = S_GLOBAL_SESSION;
-		break;
+	    /* global session timer */
+	    if ( simta_inbound_global_session_timer != 0 ) {
+		if ( r.r_tv_session.tv_sec == 0 ) {
+		    tv_add.tv_sec = simta_inbound_global_session_timer;
+		    timeradd( &tv_add, &tv_now, &r.r_tv_session );
+		}
+		if ( timercmp( tv_timeout, &(r.r_tv_session), > )) {
+		    tv_timeout = &r.r_tv_session;
+		    timer_type = S_GLOBAL_SESSION;
+		}
 	    }
-	    time_remaining = r.r_tv_session.tv_sec - tv_now.tv_sec;
-	    if ( tv_wait.tv_sec > time_remaining ) {
-		tv_wait.tv_sec = time_remaining;
-		timer_type = S_GLOBAL_SESSION;
-	    }
-	}
 
-	/* inactivity timer */
-	if ( simta_inbound_command_inactivity_timer > 0 ) {
-	    if ( r.r_tv_inactivity.tv_sec != 0 ) {
-		if ( r.r_tv_inactivity.tv_sec <= tv_now.tv_sec ) {
+	    /* inactivity timer */
+	    if ( simta_inbound_command_inactivity_timer > 0 ) {
+		if ( r.r_tv_inactivity.tv_sec == 0 ) {
+		    tv_add.tv_sec = simta_inbound_command_inactivity_timer;
+		    timeradd( &tv_add, &tv_now, &r.r_tv_inactivity );
+		}
+		if ( timercmp( tv_timeout, &r.r_tv_inactivity, > )) {
+		    tv_timeout = &r.r_tv_inactivity;
 		    timer_type = S_INACTIVITY;
-		    break;
 		}
-	    } else {
-		r.r_tv_inactivity.tv_sec =
-			simta_inbound_command_inactivity_timer + tv_now.tv_sec;
 	    }
 
-	    time_remaining = r.r_tv_inactivity.tv_sec - tv_now.tv_sec;
-	    if ( tv_wait.tv_sec > time_remaining ) {
-		tv_wait.tv_sec = time_remaining;
-		timer_type = S_INACTIVITY;
-	    }
-	}
-
-	/* message send timer */
-	if ( r.r_tv_accepted.tv_sec != 0 ) {
-	    if ( r.r_tv_accepted.tv_sec <= tv_now.tv_sec ) {
-		r.r_tv_accepted.tv_sec = 0;
-		if ( deliver_accepted( &r, 1 ) != RECEIVE_OK ) {
-		    return( RECEIVE_SYSERROR );
-		}
-		continue;
-	    }
-	    time_remaining = r.r_tv_accepted.tv_sec - tv_now.tv_sec;
-	    if ( tv_wait.tv_sec > time_remaining ) {
-		tv_wait.tv_sec = time_remaining;
-		continue_after_timeout = 1;
+	    /* message send timer - must calculate last */
+	    if (( r.r_tv_accepted.tv_sec != 0 ) &&
+		    timercmp( tv_timeout, &r.r_tv_accepted, > )) {
+		tv_fallback = tv_timeout;
+		tv_timeout = &r.r_tv_accepted;
+		fallback_type = timer_type;
 		timer_type = S_ACCEPTED_MESSAGE;
 	    }
 	}
 
-	if (( line = snet_getline( r.r_snet, &tv_wait )) == NULL ) {
-	    if ( errno == ETIMEDOUT ) {
-		if ( continue_after_timeout != 0 ) {
-		    continue_after_timeout = 0;
-		    continue;
+	if ( timercmp( &tv_now, tv_timeout, > )) {
+	    if ( timer_type == S_ACCEPTED_MESSAGE ) {
+		if ( deliver_accepted( &r, 1 ) != RECEIVE_OK ) {
+		    goto syserror;
 		}
-
-		syslog( LOG_DEBUG, "Receive [%s] %s: Command: Timeout %s",
-			inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname,
-			timer_type );
-		smtp_write_banner( &r, 421, S_TIMEOUT, S_CLOSING );
-		goto closeconnection;
+		tv_timeout = tv_fallback;
+		timer_type = fallback_type;
+		calculate_timers = 0;
+		continue;
 	    }
 
-	    syslog( LOG_DEBUG, "Receive [%s] %s: Command: connection dropped",
-		    inet_ntoa( r.r_sin->sin_addr ), r.r_remote_hostname );
+	    /* timeout */
+	    syslog( LOG_DEBUG, "Receive [%s] %s: Command: Timeout %s",
+		    inet_ntoa( r.r_sin->sin_addr ),
+		    r.r_remote_hostname,
+		    timer_type );
+	    smtp_write_banner( &r, 421, S_TIMEOUT, S_CLOSING );
 	    goto closeconnection;
 	}
+
+	timersub( tv_timeout, &tv_now, &tv_wait );
+
+	if (( line = snet_getline( r.r_snet, &tv_wait )) == NULL ) {
+	    if (( errno == ETIMEDOUT ) || ( errno == EINTR )) {
+		calculate_timers = 0;
+		continue;
+	    }
+	    syslog( LOG_ERR, "Syserror: smtp_receive snet_getline: %m" );
+	    goto syserror;
+	}
+
+	calculate_timers = 1;
 
 	if ( r.r_smtp_command != NULL ) {
 	    free( r.r_smtp_command );
@@ -3652,6 +3707,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    goto syserror;
 	}
 
+	if ( deliver_accepted( &r, 0 ) != RECEIVE_OK ) {
+	    goto syserror;
+	}
+
 	if (( r.r_smtp_mode == SMTP_MODE_NORMAL ) &&
 		( r.r_rbl_status != RBL_TRUST ) &&
 		( simta_max_failed_rcpts > 0 ) &&
@@ -3671,6 +3730,7 @@ closeconnection:
     if ( snet_close( r.r_snet ) != 0 ) {
 	syslog( LOG_ERR, "Syserror smtp_receive: snet_close: %m" );
     }
+    r.r_snet = NULL;
 
     if ( acav != NULL ) {
 	acav_free( acav );
@@ -3685,8 +3745,31 @@ closeconnection:
 	free( r.r_hello );
     }
 
-    reset( &r );
-    deliver_accepted( &r, 1);
+    if ( reset( &r ) != 0 ) {
+	return( RECEIVE_SYSERROR );
+    }
+
+    while (( simta_fast_files > 0 ) || ( simta_proc_stab != NULL )) {
+	if ( simta_fast_files > 0 ) {
+	    /* if we have mail, try to deliver it */
+	    if ( deliver_accepted( &r, 1 ) != RECEIVE_OK ) {
+		return( RECEIVE_SYSERROR );
+	    }
+
+	    if ( simta_child_signal != 0 ) {
+		simta_child_signal = 0;
+		if ( simta_waitpid( WNOHANG ) != 0 ) {
+		    syslog( LOG_ERR,
+			    "Syserror smtp_receive: simta_waitpid: %m" );
+		}
+	    }
+
+	} else if ( simta_proc_stab != NULL ) {
+	    if ( simta_waitpid( 0 ) != 0 ) {
+		syslog( LOG_ERR, "Syserror smtp_receive: simta_waitpid: %m" );
+	    }
+	}
+    }
 
 #ifdef HAVE_LIBSSL
     md_cleanup( &r.r_md );
@@ -4207,14 +4290,29 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    return( MESSAGE_TEMPFAIL );
 	}
 
-	while (( line = snet_getline( snet, NULL )) != NULL ) {
-	    syslog( LOG_INFO, "Filter [%s] %s: %s: %s",
-		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-		    r->r_env->e_id, line );
-
-	    if ( *smtp_message == NULL ) {
-		*smtp_message = strdup( line );
+	for ( ; ; ) {
+	    if (( line = snet_getline( snet, NULL )) != NULL ) {
+		syslog( LOG_INFO, "Filter [%s] %s: %s: %s",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_env->e_id, line );
+		if ( *smtp_message == NULL ) {
+		    *smtp_message = strdup( line );
+		}
+		continue;
 	    }
+
+	    if ( errno == EINTR ) {
+		if ( simta_child_signal != 0 ) {
+		    simta_child_signal = 0;
+		    if ( simta_waitpid( WNOHANG ) != 0 ) {
+			syslog( LOG_ERR, "Syserror simta_waitpid: %m" );
+			close( fd[ 0 ] );
+			return( MESSAGE_TEMPFAIL );
+		    }
+		}
+		continue;
+	    }
+	    break;
 	}
 
 	if ( snet_close( snet ) < 0 ) {
@@ -4222,9 +4320,24 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    return( MESSAGE_TEMPFAIL );
 	}
 
-	if (( waitpid( pid, &status, 0 ) < 0 ) && ( errno != ECHILD )) {
-	    syslog( LOG_ERR, "Syserror content_filter: waitpid: %m" );
-	    return( MESSAGE_TEMPFAIL );
+	for ( ; ; ) {
+	    if ( waitpid( pid, &status, 0 ) < 0 ) {
+		if ( errno == EINTR ) {
+		    if ( simta_child_signal != 0 ) {
+			simta_child_signal = 0;
+			if ( simta_waitpid( WNOHANG ) != 0 ) {
+			    syslog( LOG_ERR, "Syserror simta_waitpid: %m" );
+			    return( MESSAGE_TEMPFAIL );
+			}
+		    }
+		    continue;
+		} else if ( errno == ECHILD ) {
+		    break;
+		}
+
+		syslog( LOG_ERR, "Syserror content_filter: waitpid: %m" );
+		return( MESSAGE_TEMPFAIL );
+	    }
 	}
 
 	if ( WIFEXITED( status )) {

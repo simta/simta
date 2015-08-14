@@ -85,6 +85,7 @@ struct host_q		*simta_punt_q = NULL;
 struct simta_red	*simta_red_host_default = NULL;
 struct simta_red	*simta_red_hosts = NULL;
 struct action		*simta_red_action_secondary_mx = NULL;
+struct proc_type	*simta_proc_stab = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
 int			simta_submission_mode = SUBMISSION_MODE_MTA;
@@ -129,6 +130,7 @@ int			simta_q_runner_local_max = SIMTA_MAX_RUNNERS_LOCAL;
 int			simta_q_runner_local = 0;
 int			simta_q_runner_slow_max = SIMTA_MAX_RUNNERS_SLOW;
 int			simta_q_runner_slow = 0;
+int			simta_q_runner_receive_max = 0;
 int			simta_exp_level_max = 5;
 int			simta_process_type = 0;
 int			simta_filesystem_cleanup = 0;
@@ -160,6 +162,7 @@ int			simta_smtp_tarpit_data = 0;
 int			simta_smtp_tarpit_data_eof = 0;
 int			simta_debug = 0;
 int			simta_verbose = 0;
+int			simta_child_signal = 0;
 #ifdef HAVE_LIBSSL
 int			simta_tls = 0;
 #endif /* HAVE_LIBSSL */
@@ -1497,6 +1500,23 @@ simta_read_config( char *fname )
 	    }
 	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_LOCAL: %d\n",
 		simta_q_runner_local_max );
+
+	} else if ( strcasecmp( av[ 0 ], "MAX_Q_RUNNERS_RECEIVE" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    simta_q_runner_receive_max = atoi( av [ 1 ] );
+	    if ( simta_q_runner_receive_max < 0 ) {
+		fprintf( stderr,
+			"%s: line %d: MAX_Q_RUNNERS_RECEIVE "
+			"can't be less than 0\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "MAX_Q_RUNNERS_RECEIVE: %d\n",
+		    simta_q_runner_receive_max );
 
 	} else if ( strcasecmp( av[ 0 ], "MAX_Q_RUNNERS_SLOW" ) == 0 ) {
 	    if ( ac != 2 ) {
