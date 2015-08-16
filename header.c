@@ -1282,7 +1282,9 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	}
     }
 
-    return( mboxes );
+    if ( *count > 0 ) {
+	return( mboxes );
+    }
 
 error:
     if ( tmp ) {
