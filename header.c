@@ -222,7 +222,7 @@ header_exceptions( struct line_file *lf )
     char		*c;
     char		*end;
 
-    if ( lf->l_first == NULL ) {
+    if (( lf == NULL ) || ( lf->l_first == NULL )) {
 	/* empty message */
 	return;
     }
@@ -562,6 +562,9 @@ header_check( struct receive_headers *rh, int read_headers )
     } else if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
 	    ( simta_submission_mode == SUBMISSION_MODE_MSA )) {
 	/* generate From: header */
+	if ( rh->r_headers == NULL ) {
+	    rh->r_headers = line_file_create( );
+	}
 	yaslclear( buf );
 	buf = yaslcatprintf( buf, "From: %s", rh->r_env->e_mail );
 	line_prepend( rh->r_headers, buf, COPY );
@@ -594,6 +597,9 @@ header_check( struct receive_headers *rh, int read_headers )
     if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) &&
 	    sender ) {
 	/* Generate Sender: header */
+	if ( rh->r_headers == NULL ) {
+	    rh->r_headers = line_file_create( );
+	}
 	yaslclear( buf );
 	buf = yaslcatprintf( buf, "Sender: %s", sender );
 	line_prepend( rh->r_headers, buf, COPY );
@@ -632,7 +638,9 @@ header_check( struct receive_headers *rh, int read_headers )
 		ret = -1;
 		goto error;
 	    }
-
+	    if ( rh->r_headers == NULL ) {
+		rh->r_headers = line_file_create( );
+	    }
 	    yaslclear( buf );
 	    buf = yaslcatprintf( buf, "Date: %s", daytime );
 	    line_prepend( rh->r_headers, buf, COPY );
@@ -655,6 +663,9 @@ header_check( struct receive_headers *rh, int read_headers )
     } else if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
 	    ( simta_submission_mode == SUBMISSION_MODE_MSA )) {
 	/* generate Message-ID: header */
+	if ( rh->r_headers == NULL ) {
+	    rh->r_headers = line_file_create( );
+	}
 	yaslclear( buf );
 	buf = yaslcatprintf( buf, "Message-ID: <%s@%s>", rh->r_env->e_id,
 		simta_hostname );
