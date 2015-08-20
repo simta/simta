@@ -1794,7 +1794,7 @@ f_data( struct receive_data *r )
 		    }
 		}
 #ifdef HAVE_LIBOPENDKIM
-		if ( simta_dkim_verify ) {
+		if ( simta_dkim_verify && ( rh->r_headers != NULL )) {
 		    yaslclear( dkim_buf );
 		    for ( l = rh->r_headers->l_first; l != NULL;
 			    l = l->line_next ) {
@@ -1960,7 +1960,9 @@ f_data( struct receive_data *r )
 	syslog( LOG_INFO, "Receive [%s] %s: %s: DKIM verify result: %s",
 		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
 		r->r_env->e_id, dkim_getresultstr( dkim_result ));
-	dkim_getsiglist( dkim, &dkim_sigs, &rc );
+	if ( dkim_getsiglist( dkim, &dkim_sigs, &rc ) != DKIM_STAT_OK ) {
+	    rc = -1;
+	}
 	for ( i = 0 ; i < rc ; i++ ) {
 	    dkim_domain = dkim_sig_getdomain( dkim_sigs[ i ] );
 	    if (( dkim_sig_getflags( dkim_sigs[ i ] ) & DKIM_SIGFLAG_PASSED ) &&
