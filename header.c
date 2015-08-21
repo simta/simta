@@ -1227,6 +1227,7 @@ parse_addr_list( yastr list, size_t *count, int mode )
 {
     yastr	*mboxes, tmp = NULL;
     char	*l;
+    int		addr = 0;
     int		len;
     size_t	slots = 2;
 
@@ -1243,6 +1244,7 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	}
 
 	if ( *l == '<' ) {
+	    addr++;
 	    l++;
 	    if (( tmp = parse_addr_spec( l, &len )) == NULL ) {
 		syslog( LOG_DEBUG,
@@ -1261,6 +1263,7 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	     * sure we care enough about that to account for it here.
 	     */
 	    if ( *(l + len) == '@' ) {
+		addr++;
 		if (( tmp = parse_addr_spec( l, &len )) == NULL ) {
 		    syslog( LOG_NOTICE,
 			    "parse_addr_list: parse_addr_spec failed: %s", l );
@@ -1269,11 +1272,17 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	    }
 	    l += len;
 	} else if ( *l == ',' ) {
+	    if ( addr != 1 ) {
+		syslog( LOG_DEBUG, "parse_addr_list: bad list: %s", l );
+		goto error;
+	    }
+	    addr = 0;
 	    l++;
 	} else if (( mode == HEADER_ADDRESS_LIST ) && ( *l == ':' )) {
 	    mode = HEADER_MAILBOX_GROUP;
 	    l++;
 	} else if (( mode == HEADER_MAILBOX_GROUP ) && ( *l == ';' )) {
+	    addr = 1;
 	    mode = HEADER_ADDRESS_LIST;
 	    l++;
 	} else if ( *l != '\0' ) {
