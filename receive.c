@@ -1573,7 +1573,8 @@ f_data( struct receive_data *r )
 #ifdef HAVE_LIBOPENDKIM
 	dkim_buf = yaslempty( );
 	if ( simta_dkim_verify ) {
-	    if (( dkim = dkim_verify( r->r_dkim, r->r_env->e_id,
+	    if (( dkim = dkim_verify( r->r_dkim,
+		    (unsigned char *)( r->r_env->e_id ),
 		    NULL, &dkim_result )) == NULL ) {
 		syslog( LOG_ERR, "Liberror: f_data dkim_verify: %s",
 			dkim_getresultstr( dkim_result ));
@@ -1800,7 +1801,8 @@ f_data( struct receive_data *r )
 			    l = l->line_next ) {
 			if (( *l->line_data != ' ' && *l->line_data != '\t' ) &&
 				( yasllen( dkim_buf ) > 0 )) {
-			    dkim_header( dkim, dkim_buf, yasllen( dkim_buf ));
+			    dkim_header( dkim, (unsigned char *)dkim_buf,
+				    yasllen( dkim_buf ));
 			    yaslclear( dkim_buf );
 			}
 			if ( yasllen( dkim_buf )) {
@@ -1808,7 +1810,8 @@ f_data( struct receive_data *r )
 			}
 			dkim_buf = yaslcat( dkim_buf, l->line_data );
 		    }
-		    dkim_header( dkim, dkim_buf, yasllen( dkim_buf ));
+		    dkim_header( dkim, (unsigned char *)dkim_buf,
+			    yasllen( dkim_buf ));
 		    dkim_result = dkim_eoh( dkim );
 		    syslog( LOG_DEBUG,
 			    "Receive [%s] %s: %s: verify dkim_eoh: %s",
@@ -1893,7 +1896,8 @@ f_data( struct receive_data *r )
 	    } else {
 		dkim_buf = yaslcpylen( dkim_buf, line, line_len );
 		dkim_buf = yaslcatlen( dkim_buf, "\r\n", 2 );
-		dkim_body( dkim, dkim_buf, yasllen( dkim_buf ));
+		dkim_body( dkim, (unsigned char *)dkim_buf,
+			yasllen( dkim_buf ));
 	    }
 	}
 #endif /* HAVE_LIBOPENDKIM */
@@ -1964,7 +1968,7 @@ f_data( struct receive_data *r )
 	    rc = -1;
 	}
 	for ( i = 0 ; i < rc ; i++ ) {
-	    dkim_domain = dkim_sig_getdomain( dkim_sigs[ i ] );
+	    dkim_domain = (char *)dkim_sig_getdomain( dkim_sigs[ i ] );
 	    if (( dkim_sig_getflags( dkim_sigs[ i ] ) & DKIM_SIGFLAG_PASSED ) &&
 		    ( dkim_sig_getbh( dkim_sigs[ i ] ) == DKIM_SIGBH_MATCH )) {
 		syslog( LOG_DEBUG,
