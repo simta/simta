@@ -51,6 +51,7 @@ static int	cfws_len( const char * );
 static int	domain_literal_len( const char * );
 static int	dot_atom_text_len( const char * );
 static void	header_exceptions( struct line_file * );
+static void	header_masquerade( struct line * );
 static int	header_singleton( const char *, const struct rfc822_header * );
 static yastr	header_string( struct line * );
 static int	is_dot_atom_text( int );
@@ -473,6 +474,47 @@ header_text( int line_no, char *line, struct receive_headers *rh, char **msg )
     return( 0 );
 }
 
+    static void
+header_masquerade( struct line *l )
+{
+    yastr	inbuf, outbuf;
+    yastr	*split;
+    size_t	tok_count;
+    int		i;
+    struct line	*next;
+
+    inbuf = header_string( l );
+    outbuf = yaslcat( yaslnew( l->line_data,
+	    strchr( l->line_data, ':' ) - l->line_data ), ": " );
+
+    split = yaslsplitlen( inbuf, yasllen( inbuf ), ",", 1, &tok_count );
+    yaslfree( inbuf );
+    for ( i = 0 ; i < tok_count ; i++ ) {
+	yasltrim( split[ i ], " \t" );
+	if ( strchr( split[ i ], '@' ) == NULL ) {
+	    split[ i ] = yaslcatprintf( split[ i ], "@%s", simta_domain );
+	}
+    }
+    outbuf = yaslcat( outbuf, yasljoinyasl( split, tok_count, ", ", 2 ));
+    yaslfreesplitres( split, tok_count );
+
+    free( l->line_data );
+    l->line_data = strdup( outbuf );
+    yaslfree( outbuf );
+
+    l = l->line_next;
+    while ( l && (( *(l->line_data) == ' ' ) || ( *(l->line_data) == '\t' ))) {
+	next = l->line_next;
+	l->line_prev->line_next = next;
+	if ( next ) {
+	    next->line_prev = l->line_prev;
+	}
+	free( l->line_data );
+	free( l );
+	l = next;
+    }
+}
+
     int
 header_check( struct receive_headers *rh, int read_headers )
 {
@@ -525,6 +567,7 @@ header_check( struct receive_headers *rh, int read_headers )
  */
 
     buf = yaslempty( );
+    sender = simta_sender( );
 
     /* check headers for known mail clients behaving badly */
     if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
@@ -541,15 +584,24 @@ header_check( struct receive_headers *rh, int read_headers )
 	mh = dentry->dll_data;
 	ret += header_singleton( "From", mh );
 	tmp = header_string( mh->h_lines->st_data );
-	if (( split = parse_addr_list( tmp, &tok_count, HEADER_MAILBOX_LIST ))
-		!= NULL ) {
+	split = parse_addr_list( tmp, &tok_count, HEADER_MAILBOX_LIST );
+	if (( split == NULL ) &&
+		( simta_submission_mode == SUBMISSION_MODE_SIMSEND )) {
+	    yaslfree( tmp );
+	    header_masquerade( mh->h_lines->st_data );
+	    tmp = header_string( mh->h_lines->st_data );
+	    split = parse_addr_list( tmp, &tok_count, HEADER_MAILBOX_LIST );
+	}
+
+	if ( split == NULL ) {
+	    ret++;
+	} else {
 	    if ( tok_count != 1 ) {
 		syslog( LOG_DEBUG, "header_check: parse_addr_list returned "
 			"an unexpected number of From addresses: %s", tmp );
 	    }
 	    rh->r_env->e_header_from = strdup( split[ 0 ] );
 	    if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
-		sender = simta_sender( );
 		if (( tok_count == 1 ) &&
 			( strcasecmp( sender, split[ 0 ] ) == 0 )) {
 		    /* The sender is already in from, we don't need to add it */
@@ -568,6 +620,10 @@ header_check( struct receive_headers *rh, int read_headers )
 	yaslclear( buf );
 	buf = yaslcatprintf( buf, "From: %s", rh->r_env->e_mail );
 	line_prepend( rh->r_headers, buf, COPY );
+	if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) &&
+		( strcasecmp( sender, rh->r_env->e_mail ) == 0 )) {
+	    sender = NULL;
+	}
     } else {
 	ret++;
     }
@@ -580,13 +636,10 @@ header_check( struct receive_headers *rh, int read_headers )
 	    tmp = header_string( mh->h_lines->st_data );
 	    if (( split = parse_addr_list( tmp, &tok_count,
 		    HEADER_MAILBOX_LIST )) == NULL ) {
-		ret++;
+		sender = simta_sender( );
 	    } else {
 		if ( tok_count > 1 ) {
-		    ret++;
-		    if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
-			sender = simta_sender( );
-		    }
+		    sender = simta_sender( );
 		}
 		yaslfreesplitres( split, tok_count );
 	    }
@@ -679,8 +732,17 @@ header_check( struct receive_headers *rh, int read_headers )
 	mh = dentry->dll_data;
 	ret += header_singleton( "To", mh );
 	tmp = header_string( mh->h_lines->st_data );
-	if (( split = parse_addr_list( tmp, &tok_count,
-		HEADER_ADDRESS_LIST )) == NULL ) {
+	split = parse_addr_list( tmp, &tok_count, HEADER_ADDRESS_LIST );
+
+	if (( split == NULL ) &&
+		( simta_submission_mode == SUBMISSION_MODE_SIMSEND )) {
+	    yaslfree( tmp );
+	    header_masquerade( mh->h_lines->st_data );
+	    tmp = header_string( mh->h_lines->st_data );
+	    split = parse_addr_list( tmp, &tok_count, HEADER_ADDRESS_LIST );
+	}
+
+	if ( split == NULL ) {
 	    ret++;
 	} else {
 	    if ( read_headers ) {
@@ -698,8 +760,17 @@ header_check( struct receive_headers *rh, int read_headers )
 	mh = dentry->dll_data;
 	ret += header_singleton( "Cc", mh );
 	tmp = header_string( mh->h_lines->st_data );
-	if (( split = parse_addr_list( tmp, &tok_count,
-		HEADER_ADDRESS_LIST )) == NULL ) {
+	split = parse_addr_list( tmp, &tok_count, HEADER_ADDRESS_LIST );
+
+	if (( split == NULL ) &&
+		( simta_submission_mode == SUBMISSION_MODE_SIMSEND )) {
+	    yaslfree( tmp );
+	    header_masquerade( mh->h_lines->st_data );
+	    tmp = header_string( mh->h_lines->st_data );
+	    split = parse_addr_list( tmp, &tok_count, HEADER_ADDRESS_LIST );
+	}
+
+	if ( split == NULL ) {
 	    ret++;
 	} else {
 	    if ( read_headers ) {
@@ -718,8 +789,17 @@ header_check( struct receive_headers *rh, int read_headers )
 	ret += header_singleton( "Bcc", mh );
 	l = mh->h_lines->st_data;
 	tmp = header_string( l );
-	if (( split = parse_addr_list( tmp, &tok_count,
-		HEADER_ADDRESS_LIST )) == NULL ) {
+	split = parse_addr_list( tmp, &tok_count, HEADER_ADDRESS_LIST );
+
+	if (( split == NULL ) &&
+		( simta_submission_mode == SUBMISSION_MODE_SIMSEND )) {
+	    yaslfree( tmp );
+	    header_masquerade( mh->h_lines->st_data );
+	    tmp = header_string( mh->h_lines->st_data );
+	    split = parse_addr_list( tmp, &tok_count, HEADER_ADDRESS_LIST );
+	}
+
+	if ( split == NULL ) {
 	    ret++;
 	} else {
 	    if ( read_headers ) {
