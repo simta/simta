@@ -3604,7 +3604,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	if ( timercmp( &tv_now, tv_timeout, > )) {
-	    if ( timer_type == S_ACCEPTED_MESSAGE ) {
+	    if ( strcmp( timer_type, S_ACCEPTED_MESSAGE ) == 0 ) {
 		if ( deliver_accepted( &r, 1 ) != RECEIVE_OK ) {
 		    goto syserror;
 		}
