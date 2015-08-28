@@ -24,12 +24,13 @@ struct spf_state {
     yastr			s_domain;
     yastr			s_ehlo;
     const struct sockaddr	*s_addr;
+    int				s_queries;
 };
 
-int spf_check_host( const struct spf_state *, const yastr );
-static int spf_check_a( const struct spf_state *, const yastr, long int, const char * );
-static yastr spf_macro_expand( const struct spf_state *, const yastr, const yastr );
-static yastr spf_parse_domainspec_cidr( const struct spf_state *, const yastr, yastr, long int *, long int * );
+int spf_check_host( struct spf_state *, const yastr );
+static int spf_check_a( struct spf_state *, const yastr, long int, const char * );
+static yastr spf_macro_expand( struct spf_state *, const yastr, const yastr );
+static yastr spf_parse_domainspec_cidr( struct spf_state *, const yastr, yastr, long int *, long int * );
 static int simta_cidr_compare( int, long int, const struct sockaddr *, const struct sockaddr *, const char * );
 
     int
@@ -39,6 +40,7 @@ spf_lookup( const char *ehlo, const char *email, const struct sockaddr *addr )
     char		    *p;
     struct spf_state	    s;
 
+    s.s_queries = 0;
     s.s_addr = addr;
     s.s_ehlo = yaslauto( ehlo );
 
@@ -64,7 +66,7 @@ spf_lookup( const char *ehlo, const char *email, const struct sockaddr *addr )
 }
 
     int
-spf_check_host( const struct spf_state *s, const yastr domain )
+spf_check_host( struct spf_state *s, const yastr domain )
 {
     int			    i, j, rc, qualifier, ret = SPF_RESULT_NONE;
     struct dnsr_result	    *dnsr_res, *dnsr_res_mech = NULL;
@@ -74,6 +76,7 @@ spf_check_host( const struct spf_state *s, const yastr domain )
     yastr		    *split = NULL;
     char		    *p;
     long int		    cidr, cidr6;
+    int			    mech_queries = 0;
 
     /* RFC 7208 3.1 DNS Resource Records
      * SPF records MUST be published as a DNS TXT (type 16) Resource Record
@@ -142,6 +145,24 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 	    continue;
 	}
 
+
+	/* RFC 7208 4.6.4 DNS Lookup Limits
+	 * Some mechanisms and modifiers (collectively, "terms") cause DNS
+	 * queries at the time of evaluation [...] SPF implementations MUST
+	 * limit the total number of those terms to 10 during SPF evaluation,
+	 * to avoid unreasonable load on the DNS.  If this limit is exceeded,
+	 * the implementation MUST return "permerror".
+	 */
+	/* In real life strictly enforcing a limit of ten will break SPF
+	 * evaluation of multiple major domains, so we use a higher limit.
+	 */
+	if ( s->s_queries > 25 ) {
+	    syslog( LOG_WARNING, "SPF %s [%s]: DNS lookup limit exceeded",
+		    s->s_domain, domain );
+	    ret = SPF_RESULT_PERMERROR;
+	    goto cleanup;
+	}
+
 	/* RFC 7208 4.6.2 Mechanisms
 	 * The possible qualifiers, and the results they cause check_host() to
 	 * return, are as follows:
@@ -176,6 +197,7 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 	}
 
 	if ( strncasecmp( split[ i ], "redirect=", 9 ) == 0 ) {
+	    s->s_queries++;
 	    redirect = split[ i ];
 	    yaslrange( redirect, 9, -1 );
 	    if ( simta_spf_verbose ) {
@@ -199,6 +221,7 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 	 * check_host().
 	 */
 	} else if ( strncasecmp( split[ i ], "include:", 8 ) == 0 ) {
+	    s->s_queries++;
 	    yaslrange( split[ i ], 8, -1 );
 	    if ( simta_spf_verbose ) {
 		syslog( LOG_DEBUG, "SPF %s [%s]: include %s",
@@ -222,6 +245,7 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 	} else if (( strcasecmp( split[ i ], "a" ) == 0 ) ||
 		( strncasecmp( split[ i ], "a:", 2 ) == 0 ) ||
 		( strncasecmp( split[ i ], "a/", 2 ) == 0 )) {
+	    s->s_queries++;
 	    yaslrange( split[ i ], 1, -1 );
 
 	    if (( domain_spec = spf_parse_domainspec_cidr( s, domain,
@@ -257,6 +281,8 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 	} else if (( strcasecmp( split[ i ], "mx" ) == 0 ) ||
 		( strncasecmp( split[ i ], "mx:", 3 ) == 0 ) ||
 		( strncasecmp( split[ i ], "mx/", 3 ) == 0 )) {
+	    s->s_queries++;
+	    mech_queries = 0;
 	    yaslrange( split[ i ], 2, -1 );
 
 	    if (( domain_spec = spf_parse_domainspec_cidr( s, domain,
@@ -276,6 +302,12 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 
 	    for ( j = 0 ; j < dnsr_res_mech->r_ancount ; j++ ) {
 		if ( dnsr_res_mech->r_answer[ j ].rr_type == DNSR_TYPE_MX ) {
+		    /* RFC 7208 4.6.4 DNS Lookup Limits
+		     * When evaluating the "mx" mechanism, the number of "MX"
+		     * resource records queried is included in the overall
+		     * limit of 10 mechanisms/modifiers that cause DNS lookups
+		     */
+		    s->s_queries++;
 		    rc = spf_check_a( s, domain, cidr,
 			    dnsr_res_mech->r_answer[ j ].rr_mx.mx_exchange );
 		    switch( rc ) {
@@ -308,6 +340,8 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 	/* RFC 7208 5.5 "ptr" (do not use) */
 	} else if (( strcasecmp( split[ i ], "ptr" ) == 0 ) ||
 		( strncasecmp( split[ i ], "ptr:", 4 ) == 0 )) {
+	    s->s_queries++;
+	    mech_queries = 0;
 	    if (( dnsr_res_mech = get_ptr( s->s_addr )) == NULL ) {
 		/* RFC 7208 5.5 "ptr" (do not use )
 		 * If a DNS error occurs while doing the PTR RR lookup,
@@ -335,16 +369,15 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 		/* We only care if it's a pass; like the initial PTR query,
 		 * DNS errors are treated as a non-match rather than an error.
 		 */
-		/* FIXME:
-		 * RFC 7208 4.6.4 DNS Lookup Limits
+		/* RFC 7208 4.6.4 DNS Lookup Limits
 		 * the evaluation of each "PTR" record MUST NOT result in
 		 * querying more than 10 address records -- either "A" or
 		 * "AAAA" resource records.  If this limit is exceeded, all
 		 * records  other than the first 10 MUST be ignored.
 		 */
-		if ( spf_check_a( s, domain, 32,
+		if (( mech_queries++ < 10 ) && ( spf_check_a( s, domain, 32,
 			dnsr_res_mech->r_answer[ j ].rr_dn.dn_name ) ==
-			SPF_RESULT_PASS ) {
+			SPF_RESULT_PASS )) {
 		    tmp = yaslauto(
 			    dnsr_res_mech->r_answer[ j ].rr_dn.dn_name );
 		    while (( yasllen( tmp ) > yasllen( domain_spec )) &&
@@ -424,6 +457,7 @@ spf_check_host( const struct spf_state *s, const yastr domain )
 
 	/* RFC 7208 5.7 "exists" */
 	} else if ( strncasecmp( split[ i ], "exists:", 7 ) == 0 ) {
+	    s->s_queries++;
 	    yaslrange( split[ i ], 7, -1 );
 	    if (( domain_spec =
 		    spf_macro_expand( s, domain, split[ i ] )) == NULL ) {
@@ -510,7 +544,7 @@ cleanup:
 }
 
     static int
-spf_check_a( const struct spf_state *s, const yastr domain, long int cidr, const char *a )
+spf_check_a( struct spf_state *s, const yastr domain, long int cidr, const char *a )
 {
     int			    i;
     struct sockaddr_in	    sai;
@@ -540,8 +574,7 @@ spf_check_a( const struct spf_state *s, const yastr domain, long int cidr, const
 }
 
     static yastr
-spf_macro_expand( const struct spf_state *s,
-	const yastr domain, const yastr macro )
+spf_macro_expand( struct spf_state *s, const yastr domain, const yastr macro )
 {
     int	    urlescape, dtransform, rtransform, i, j;
     char    *p, *pp;
@@ -782,7 +815,7 @@ spf_result_str( const int res )
 }
 
     static yastr
-spf_parse_domainspec_cidr( const struct spf_state *s, yastr domain, yastr dsc, long int *cidr, long int *cidr6 )
+spf_parse_domainspec_cidr( struct spf_state *s, yastr domain, yastr dsc, long int *cidr, long int *cidr6 )
 {
     char    *p;
     yastr   tmp, domain_spec;
