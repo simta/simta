@@ -7,7 +7,7 @@
 #include "ll.h"
 
 #define RFC822_TIMESTAMP_LEN	32
-#define STRING_SEEN_BEFORE     "X-SIMTA-Seen-Before"
+#define STRING_SEEN_BEFORE     "SIMTA-Seen-Before"
 
 /* for struct receive_headers->r_state */
 #define R_HEADER_READ		0

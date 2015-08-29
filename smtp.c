@@ -1019,7 +1019,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
     }
 
     if (( d->d_env->e_attributes & ENV_ATTR_ARCHIVE_ONLY )) {
-	/* send X-SIMTA-Seen-Before trace header for poison pill */
+	/* send SIMTA-Seen-Before trace header for poison pill */
 	/* FIXME: is this really where we should do this? */
 	if (( rc = snet_writef( d->d_snet_smtp,
 		"%s: %s id=%s origin=%s destination=%s smtp_destination=%s\r\n",

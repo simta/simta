@@ -844,7 +844,7 @@ header_check( struct receive_headers *rh, int read_headers )
 	yaslfree( tmp );
     }
 
-    /* X-SIMTA-Seen-Before: */
+    /* SIMTA-Seen-Before: */
     if (( dentry =
 	    dll_lookup( rh->r_headers_index, STRING_SEEN_BEFORE )) != NULL ) {
 	mh = dentry->dll_data;
