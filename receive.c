@@ -1915,7 +1915,21 @@ f_data( struct receive_data *r )
 
 #ifdef HAVE_LIBSSL
 	if (( dff != NULL ) && ( simta_checksum_md != NULL )) {
-	    md_update( &r->r_md, line, line_len );
+	    /* Only add basic RFC5322 headers to the checksum. */
+	    if (( header == 0 ) ||
+		    ( strncasecmp( line, "Date:", 5 ) == 0 ) ||
+		    ( strncasecmp( line, "From:", 5 ) == 0 ) ||
+		    ( strncasecmp( line, "Sender:", 7 ) == 0 ) ||
+		    ( strncasecmp( line, "Reply-To:", 9 ) == 0 ) ||
+		    ( strncasecmp( line, "To:", 3 ) == 0 ) ||
+		    ( strncasecmp( line, "Cc:", 3 ) == 0 ) ||
+		    ( strncasecmp( line, "Bcc:", 4 ) == 0 ) ||
+		    ( strncasecmp( line, "Message-ID:", 11 ) == 0 ) ||
+		    ( strncasecmp( line, "In-Reply-To:", 12 ) == 0 ) ||
+		    ( strncasecmp( line, "References:", 11 ) == 0 ) ||
+		    ( strncasecmp( line, "Subject:", 8 ) == 0 )) {
+		md_update( &r->r_md, line, line_len );
+	    }
 	    if (( header == 0 ) && ( simta_checksum_body == 1 )) {
 		md_update( &r->r_md_body, line, line_len );
 	    }
