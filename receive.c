@@ -3604,6 +3604,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	if ( timercmp( &tv_now, tv_timeout, > )) {
+	    syslog( LOG_DEBUG, "Receive [%s] %s: Command: Timeout %s",
+		    inet_ntoa( r.r_sin->sin_addr ),
+		    r.r_remote_hostname,
+		    timer_type );
+
 	    if ( strcmp( timer_type, S_ACCEPTED_MESSAGE ) == 0 ) {
 		if ( deliver_accepted( &r, 1 ) != RECEIVE_OK ) {
 		    goto syserror;
@@ -3615,10 +3620,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 
 	    /* timeout */
-	    syslog( LOG_DEBUG, "Receive [%s] %s: Command: Timeout %s",
-		    inet_ntoa( r.r_sin->sin_addr ),
-		    r.r_remote_hostname,
-		    timer_type );
 	    smtp_write_banner( &r, 421, S_TIMEOUT, S_CLOSING );
 	    goto closeconnection;
 	}
