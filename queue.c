@@ -418,13 +418,13 @@ q_runner( void )
 	    /* expand message */
 	    if ( expand( unexpanded ) == 0 ) {
 		env_free( unexpanded );
-		if ( simta_process_type == PROCESS_RECEIVE ) {
-		    /* Keep expanding mail */
-		    expanded++;
-		    continue;
+		expanded++;
+		if ( expanded >= simta_aggressive_expansion_max ) {
+		    /* Try delivering mail */
+		    break;
 		}
-		/* at least one address was expanded.  try to deliver it */
-		break;
+		/* Keep expanding mail */
+		continue;
 	    }
 
 	    /* message not expandable */

@@ -102,7 +102,8 @@ int			simta_disk_read_entries = 10;
 int			simta_domain_trailing_dot = 1;
 int			simta_bitbucket = -1;
 int			simta_aggressive_delivery = 1;
-int			simta_aggressive_receipt_max = 100;
+int			simta_aggressive_expansion_max = 50;
+int			simta_aggressive_receipt_max = 50;
 int			simta_queue_policy = QUEUE_POLICY_FIFO;
 int			simta_smtp_port_defined = 0;
 int			simta_rbl_verbose_logging = 0;
@@ -774,6 +775,22 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
+
+	} else if ( strcasecmp( av[ 0 ], "AGGRESSIVE_EXPANSION" ) == 0 ) {
+	    if ( ac != 2 ) {
+		fprintf( stderr, "%s: line %d: expected 1 argument\n",
+			fname, lineno );
+		goto error;
+	    }
+	    errno = 0;
+	    simta_aggressive_expansion_max = strtol( av[ 1 ], &endptr, 10 );
+	    if (( errno == ERANGE ) || ( errno == EINVAL )) {
+		fprintf( stderr, "%s: line %d: invalid value\n",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( simta_debug ) printf( "AGGRESSIVE_EXPANSION: %d\n",
+		    simta_aggressive_expansion_max );
 
 	} else if ( strcasecmp( av[ 0 ], "AGGRESSIVE_RECEIPT" ) == 0 ) {
 	    if ( ac != 2 ) {
