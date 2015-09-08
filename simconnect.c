@@ -39,6 +39,8 @@
 #include "red.h"
 #include "smtp.h"
 
+const char	*simta_progname = "simconnect";
+
 int     next_dnsr_host_lookup( struct deliver *, struct host_q * );
 
     int
@@ -54,8 +56,6 @@ main( int ac, char *av[] )
 	exit( 1 );
     }
 
-    openlog( "simconnect", LOG_NOWAIT | LOG_PERROR, LOG_SIMTA );
-
     if ( simta_read_config( SIMTA_FILE_CONFIG ) < 0 ) {
 	exit( 1 );
     }
@@ -63,6 +63,8 @@ main( int ac, char *av[] )
     if ( simta_config( ) != 0 ) {
 	exit( 1 );
     }
+
+    simta_openlog( 0, LOG_PERROR );
 
     hostname = av[ 1 ];
 

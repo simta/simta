@@ -14,6 +14,8 @@
 #include "dmarc.h"
 #include "simta.h"
 
+const char	*simta_progname = "simdmarc";
+
     int
 main( int ac, char *av[ ] )
 {
@@ -26,8 +28,6 @@ main( int ac, char *av[ ] )
 	exit( 1 );
     }
 
-    openlog( "simdmarc", LOG_NOWAIT | LOG_PERROR, LOG_SIMTA );
-
     if ( simta_read_config( SIMTA_FILE_CONFIG ) < 0 ) {
 	exit( 1 );
     }
@@ -35,6 +35,8 @@ main( int ac, char *av[ ] )
     if ( simta_config( ) != 0 ) {
 	exit( 1 );
     }
+
+    simta_openlog( 0, LOG_PERROR );
 
     dmarc_init( &d );
 

@@ -287,7 +287,7 @@ simta_gettimeofday( struct timeval *tv )
 }
 
     void
-simta_openlog( int cl )
+simta_openlog( int cl, int options )
 {
     if ( cl ) {
 	closelog();
@@ -295,17 +295,17 @@ simta_openlog( int cl )
 
     simta_log_tv = simta_tv_now;
 
-    snprintf( simta_log_id, SIMTA_LOG_ID_LEN, "simta[%d.%ld]", getpid(),
-	    simta_log_tv.tv_sec );
+    snprintf( simta_log_id, SIMTA_LOG_ID_LEN, "%s[%d.%ld]",
+	    simta_progname, getpid( ), simta_log_tv.tv_sec );
 
     /* openlog now, as some support functions require it. */
 #ifdef ultrix
-    openlog( simta_log_id, LOG_NOWAIT );
+    openlog( simta_log_id, LOG_NOWAIT | options );
 #else /* ultrix */
 #ifndef Q_SIMULATION
-    openlog( simta_log_id, LOG_NOWAIT, LOG_SIMTA );
+    openlog( simta_log_id, LOG_NOWAIT | options, LOG_SIMTA );
 #else /* Q_SIMULATION */
-    openlog( simta_log_id, LOG_NOWAIT, LOG_USER );
+    openlog( simta_log_id, LOG_NOWAIT | options, LOG_USER );
 #endif /* Q_SIMULATION */
 #endif /*ultrix */
 

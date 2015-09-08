@@ -45,6 +45,8 @@
 #define SIMREVERSE_EXIT_DNS_ERROR	2
 #define SIMREVERSE_EXIT_ERROR		3
 
+const char	*simta_progname = "simreverse";
+
     int
 main( int argc, char *argv[])
 {

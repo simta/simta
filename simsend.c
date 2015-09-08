@@ -45,6 +45,8 @@
 
 void catch_sigint( int );
 
+const char	*simta_progname = "simsendmail";
+
 /* dfile vars are global to unlink dfile if SIGINT */
 int		dfile_fd = -1;
 struct envelope *env;
@@ -95,8 +97,6 @@ main( int argc, char *argv[] )
 
     /* ignore a good many options */
     opterr = 0;
-
-    simta_openlog( 0 );
 
     while (( c = getopt( argc, argv, "b:f:io:r:st" )) != -1 ) {
 	switch ( c ) {
@@ -199,6 +199,8 @@ main( int argc, char *argv[] )
     if ( simta_config( ) != 0 ) {
 	exit( EX_TEMPFAIL );
     }
+
+    simta_openlog( 0, 0 );
 
     /* create envelope */
     if (( env = env_create( simta_dir_local, NULL,

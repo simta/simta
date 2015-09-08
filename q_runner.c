@@ -38,6 +38,7 @@
 #include "smtp.h"
 #include "ml.h"
 
+const char	*simta_progname = "q_runner";
 
     int
 main( int argc, char *argv[] )
@@ -53,8 +54,6 @@ main( int argc, char *argv[] )
 		argv[ 0 ]);
 	exit( EX_USAGE );
     }
-
-    simta_openlog( 0 );
 
     if ( argc == 4 ) {
 	conf_file = argv[ 2 ];
@@ -74,6 +73,8 @@ main( int argc, char *argv[] )
 	fprintf( stderr, "simta_config error\n" );
 	exit( EX_DATAERR );
     }
+
+    simta_openlog( 0, 0 );
 
     if ( strcasecmp( op, "LOCAL" ) == 0 ) {
 	exit( q_runner_dir( simta_dir_local ));

@@ -60,6 +60,8 @@
 #define	    ALIAS_WORD  2
 #define	    ALIAS_QUOTE 3
 
+const char	*simta_progname = "simalias";
+
 int simalias_dump( void );
 int simalias_create( void );
 
@@ -80,7 +82,7 @@ main( int argc, char **argv )
     if (( progname = strrchr( argv[ 0 ], '/' )) == NULL ) {
 	progname = argv[ 0 ];
     } else {
-	progname++;      
+	progname++;
     }
 
     while (( c = getopt( argc, argv, "di:o:v" )) != -1 ) {
@@ -127,7 +129,7 @@ main( int argc, char **argv )
 	}
 	if ( output == NULL ) {
 	    foutput = stdout;
-	} else { 
+	} else {
 	    if (( foutput = fopen( output, "r" )) == NULL ) {
 		perror( output );
 		exit( 1 );

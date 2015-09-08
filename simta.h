@@ -176,6 +176,7 @@ struct simta_socket {
 
 /* global variables */
 
+extern const char			*simta_progname;
 extern struct dll_entry			*simta_env_list;
 extern struct dll_entry			*simta_sender_list;
 extern struct timeval			simta_jail_seconds;
@@ -354,7 +355,7 @@ char	*simta_resolvconf( void );
 int	simta_init_hosts( void );
 int	simta_config( void );
 int     simta_read_config( char * );
-void	simta_openlog( int );
+void	simta_openlog( int, int );
 int	simta_gettimeofday( struct timeval * );
 int	simta_check_charset( const char * );
 int	simta_host_is_jailhost( char *  );

@@ -3958,7 +3958,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 
     case 0 :
 	log_tv = simta_log_tv;
-	simta_openlog( 1 );
+	simta_openlog( 1, 0 );
 	/* use fd[ 1 ] to communicate with parent, parent uses fd[ 0 ] */
 	if ( close( fd[ 0 ] ) < 0 ) {
 	    syslog( LOG_ERR, "Syserror content_filter: close1: %m" );

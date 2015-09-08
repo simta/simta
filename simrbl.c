@@ -44,6 +44,7 @@
 #define SIMRBL_EXIT_BLOCKED	1
 #define SIMRBL_EXIT_ERROR	2
 
+const char	    *simta_progname = "simrbl";
 
     int
 main( int argc, char *argv[])
@@ -62,6 +63,7 @@ main( int argc, char *argv[])
     int			check_text = 0;
     struct in_addr	addr;
     struct rbl		*rbl_found;
+    struct timeval	tv_now;
 
     while(( c = getopt( argc, argv, "dil:ns:tq" )) != -1 ) {
 	switch( c ) {
@@ -134,7 +136,9 @@ main( int argc, char *argv[])
     }
 
     if ( nolog == 0 ) {
-	simta_openlog( 0 );
+	/* call simta_gettimeofday() to initialize simta_tv_now */
+	simta_gettimeofday( &tv_now );
+	simta_openlog( 0, 0 );
 	simta_rbl_verbose_logging = 1;
     }
 

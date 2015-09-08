@@ -39,6 +39,7 @@
 #include "simta.h"
 #include "queue.h"
 
+const char	*simta_progname = "simc";
 
     int
 main( int argc, char *argv[] )
@@ -59,8 +60,6 @@ main( int argc, char *argv[] )
     char					*arg1 = NULL;
 
     opterr = 0;
-
-    simta_openlog( 0 );
 
     while (( c = getopt( argc, argv, "dmqs" )) != -1 ) {
 	switch ( c ) {
@@ -119,6 +118,8 @@ main( int argc, char *argv[] )
     if ( simta_config( ) != 0 ) {
 	exit( EX_TEMPFAIL );
     }
+
+    simta_openlog( 0, 0 );
 
     if (( pid = getpid()) < 0 ) {
 	syslog( LOG_ERR, "env_id getpid: %m" );

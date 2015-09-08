@@ -38,6 +38,7 @@
 #include "ml.h"
 #include "smtp.h"
 
+const char	    *simta_progname = "simexpander";
 
     int
 main( int argc, char *argv[])
@@ -84,8 +85,6 @@ main( int argc, char *argv[])
 	exit( EX_USAGE );
     }
 
-    simta_openlog( 0 );
-
     if ( simta_read_config( argv[ nextargc ] ) < 0 ) {
 	fprintf( stderr, "simta_read_config error: %s\n", argv[ nextargc ] );
 	exit( EX_DATAERR );
@@ -97,7 +96,9 @@ main( int argc, char *argv[])
 	exit( EX_DATAERR );
     }
 
-    env = env_create( NULL, "Expander", sender, NULL );
+    simta_openlog( 0, 0 );
+
+    env = env_create( NULL, "DEAD60FF", sender, NULL );
 
     env->e_n_exp_level = exp_level;
 

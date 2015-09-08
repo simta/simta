@@ -55,6 +55,8 @@
 #include "tls.h"
 #endif /* HAVE_LIBSSL */
 
+const char			*simta_progname = "simta";
+
 struct connection_info		*cinfo_stab = NULL;
 struct proc_type		*proc_stab = NULL;
 int				simta_pidfd;
@@ -484,7 +486,7 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    simta_openlog( 0 );
+    simta_openlog( 0, 0 );
 
     if ( simta_read_config( config_fname ) < 0 ) {
 	exit( 1 );
@@ -694,7 +696,7 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    simta_openlog( 0 );
+    simta_openlog( 0, 0 );
 
     /* catch SIGHUP */
     memset( &sa, 0, sizeof( struct sigaction ));
@@ -750,7 +752,7 @@ simta_daemonize_server( void )
     switch ( pid = fork()) {
     case 0 :
 	/* Fall through */
-	simta_openlog( 1 );
+	simta_openlog( 1, 0 );
 	return( simta_server());
 
     case -1 :
@@ -1305,7 +1307,7 @@ simta_wait_for_child( int child_type )
 	return( 1 );
 
     case 0 :
-	simta_openlog( 1 );
+	simta_openlog( 1, 0 );
 	switch ( child_type ) {
 	case PROCESS_CLEANUP:
 	    exit( q_cleanup());
@@ -1477,7 +1479,7 @@ simta_child_receive( struct simta_socket *ss )
 
     switch ( pid = fork()) {
     case 0:
-	simta_openlog( 1 );
+	simta_openlog( 1, 0 );
 	simta_process_type = PROCESS_RECEIVE;
 	simta_host_q = NULL;
 	if ( simta_unexpanded_q != NULL ) {
@@ -1542,7 +1544,7 @@ simta_child_q_runner( struct host_q *hq )
 
     switch ( pid = fork()) {
     case 0 :
-	simta_openlog( 1 );
+	simta_openlog( 1, 0 );
 	simta_sigaction_reset();
 	close( simta_pidfd );
 	simta_host_q = NULL;
