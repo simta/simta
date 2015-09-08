@@ -13,22 +13,14 @@
 #define	EXPAND_SYSERROR			1
 #define	EXPAND_FATAL			2
 
-/* return codes for address_expand */
-#define	ADDRESS_FINAL			1
-#define	ADDRESS_EXCLUDE			2
-#define	ADDRESS_SYSERROR		3
+/* return codes for address expansion */
+#define	ADDRESS_SYSERROR		1
+#define	ADDRESS_NOT_FOUND		2
+#define	ADDRESS_FINAL			3
+#define	ADDRESS_EXCLUDE			4
 
-/* return codes for alias_expand */
-#define	ALIAS_NOT_FOUND			1
-#define	ALIAS_EXCLUDE			2
-#define	ALIAS_SYSERROR			3
+/* for alias_expand */
 #define	ALIAS_MAX_DOMAIN_LEN		1024
-
-/* return codes for password_expand */
-#define	PASSWORD_NOT_FOUND			1
-#define	PASSWORD_EXCLUDE			2
-#define	PASSWORD_SYSERROR			3
-#define	PASSWORD_FINAL				4
 
 /* address types */
 #define	ADDRESS_TYPE_EMAIL		1

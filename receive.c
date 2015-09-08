@@ -3843,13 +3843,13 @@ local_address( char *addr, char *domain, struct simta_red *red )
 
 #ifdef HAVE_LIBSRS2
 	case EXPANSION_TYPE_SRS:
-	    if (( rc = srs_valid( addr )) == EXPAND_SRS_OK ) {
+	    if (( rc = srs_valid( addr )) == ADDRESS_FINAL ) {
 		if ( action->a_flags == ACTION_SUFFICIENT ) {
 		    return( LOCAL_ADDRESS );
 		} else {
 		    n_required_found++;
 		}
-	    } else if ( rc == EXPAND_SRS_SYSERROR ) {
+	    } else if ( rc == ADDRESS_SYSERROR ) {
 		return( LOCAL_ERROR );
 	    } else if ( action->a_flags == ACTION_REQUIRED ) {
 		return( NOT_LOCAL );
@@ -3868,7 +3868,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	    default:
 		syslog( LOG_ERR, "Syserror local_address: "
 			"simta_ldap_address_local: bad value" );
-	    case LDAP_SYSERROR:
+	    case ADDRESS_SYSERROR:
 		return( LOCAL_ERROR );
 
 	    case LDAP_NOT_LOCAL:

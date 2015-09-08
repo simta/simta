@@ -26,12 +26,6 @@ struct list {
 #define OWNER           "owner"
 #define OWNERS          "owners"
 
-/* return codes for ldap_expand */
-#define LDAP_SYSERROR		1
-#define LDAP_NOT_FOUND		2
-#define LDAP_FINAL		3
-#define LDAP_EXCLUDE		4
-
 /* return codes for ldap_address_local */
 #define LDAP_LOCAL		2
 #define LDAP_NOT_LOCAL		3

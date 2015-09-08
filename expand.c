@@ -107,7 +107,7 @@ cleanup_envelope_list( struct envelope **env_p )
 		syslog( LOG_INFO, "Expand %s: Message Deleted: "
 			"System error, unwinding expansion", env->e_id );
 	    } else {
-		syslog( LOG_INFO, "Expand %s: "
+		syslog( LOG_ERR, "Expand %s: "
 			"System error, can't unwind expansion", env->e_id );
 	    }
 	}
@@ -161,7 +161,7 @@ expand( struct envelope *unexpanded_env )
 #endif /* HAVE_LDAP */
 
     if ( unexpanded_env->e_hostname != NULL ) {
-	syslog( LOG_DEBUG, "Expand %s: already expanded for host %s",
+	syslog( LOG_INFO, "Expand %s: already expanded for host %s",
 		unexpanded_env->e_id, unexpanded_env->e_hostname );
 	return_value = 0;
 	goto done;
@@ -176,20 +176,21 @@ expand( struct envelope *unexpanded_env )
      * if an address is expandable, the address(es) that it expands to will
      * be added to the expansion list. These non-terminal addresses must
      * have their st_data set to NULL to specify that they are not to be
-     * included in the terminal expansion list. 
+     * included in the terminal expansion list.
      *
-     * Any address in the expansion list who's st_data is not NULL is
+     * Any address in the expansion list whose st_data is not NULL is
      * considered a terminal address and will be written out as one
      * of the addresses in expanded envelope(s).
-     */ 
+     */
 
     if (( base_error_env = address_bounce_create( &exp )) == NULL ) {
-	syslog( LOG_ERR, "expand.env_create: %m" );
+	syslog( LOG_ERR, "Expand %s: address_bounce_create: %m",
+		unexpanded_env->e_id );
 	goto done;
     }
 
     if ( env_recipient( base_error_env, unexpanded_env->e_mail ) != 0 ) {
-	syslog( LOG_ERR, "expand.env_recipient: %m" );
+	syslog( LOG_ERR, "Expand %s: env_recipient: %m", unexpanded_env->e_id );
 	goto done;
     }
 
@@ -220,7 +221,7 @@ expand( struct envelope *unexpanded_env )
 	    goto cleanup1;
 
 	default:
-	    panic( "expand: address_expand out of range" );
+	    panic( "Expand: address_expand out of range" );
 	}
     }
 
@@ -232,12 +233,12 @@ expand( struct envelope *unexpanded_env )
 		( sender_is_child( memonly->el_exp_addr->e_addr_children,
 		loop_color++ ))) {
 	    if ( p != NULL ) {
-		syslog( LOG_DEBUG, "Expand %s: Memonly Group %s OK: "
+		syslog( LOG_INFO, "Expand %s: members-only group %s OK: "
 			"parent %s permitted",
 			unexpanded_env->e_id, memonly->el_exp_addr->e_addr, p );
 
 	    } else {
-		syslog( LOG_DEBUG, "Expand %s: Memonly Group %s OK: "
+		syslog( LOG_INFO, "Expand %s: members-only group %s OK: "
 			"sender is child",
 			unexpanded_env->e_id, memonly->el_exp_addr->e_addr );
 	    }
@@ -250,7 +251,7 @@ expand( struct envelope *unexpanded_env )
 	    }
 
 	} else {
-	    syslog( LOG_DEBUG, "Expand %s: Memonly Group %s Suppressed",
+	    syslog( LOG_NOTICE, "Expand %s: members-only group %s suppressed",
 		    unexpanded_env->e_id, memonly->el_exp_addr->e_addr );
 	    memonly->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPPRESSOR;
 	    suppress_addrs( memonly->el_exp_addr->e_addr_children,
@@ -281,7 +282,8 @@ expand( struct envelope *unexpanded_env )
 	    e_addr->e_addr_env_gmailfwd->e_attributes = unexpanded_env->e_attributes
 		| ENV_ATTR_ARCHIVE_ONLY;
 
-	    syslog( LOG_DEBUG, "expand group mail env %s dinode %d",
+	    syslog( LOG_DEBUG, "Expand %s: group mail env %s dinode %d",
+		    unexpanded_env->e_id,
 		    e_addr->e_addr_env_gmailfwd->e_id,
 		    (int)e_addr->e_addr_env_gmailfwd->e_dinode );
 
@@ -294,7 +296,8 @@ expand( struct envelope *unexpanded_env )
 	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_gmailfwd->e_dir,
 		    e_addr->e_addr_env_gmailfwd->e_id );
 	    if ( link( d_original, d_out ) != 0 ) {
-		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_out );
+		syslog( LOG_ERR, "Syserror: expand link %s %s: %m",
+			d_original, d_out );
 		goto cleanup3;
 	    }
 
@@ -327,7 +330,7 @@ expand( struct envelope *unexpanded_env )
 	    if ( env_outfile( e_addr->e_addr_env_gmailfwd ) != 0 ) {
 		/* env_outfile syslogs errors */
 		if ( unlink( d_out ) != 0 ) {
-		    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
+		    syslog( LOG_ERR, "Syserror: expand unlink %s: %m", d_out );
 		}
 		goto cleanup3;
 	    }
@@ -342,8 +345,8 @@ expand( struct envelope *unexpanded_env )
 	    e_addr->e_addr_env_moderated->e_dinode = unexpanded_env->e_dinode;
 	    e_addr->e_addr_env_moderated->e_attributes = unexpanded_env->e_attributes;
 
-	    syslog( LOG_DEBUG, "expand moderation env %s dinode %d",
-		    e_addr->e_addr_env_moderated->e_id,
+	    syslog( LOG_DEBUG, "Expand %s: %s: moderation env dinode %d",
+		    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
 		    (int)e_addr->e_addr_env_moderated->e_dinode );
 
 	    if ( simta_expand_debug != 0 ) {
@@ -355,7 +358,8 @@ expand( struct envelope *unexpanded_env )
 	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_moderated->e_dir,
 		    e_addr->e_addr_env_moderated->e_id );
 	    if ( link( d_original, d_out ) != 0 ) {
-		syslog( LOG_ERR, "expand: link %s %s: %m", d_original, d_out );
+		syslog( LOG_ERR, "Syserror: expand link %s %s: %m",
+			d_original, d_out );
 		goto cleanup3;
 	    }
 
@@ -412,7 +416,7 @@ expand( struct envelope *unexpanded_env )
 			goto cleanup3;
 		    }
 
-		} else if (( e_addr->e_addr_ldap_flags & 
+		} else if (( e_addr->e_addr_ldap_flags &
 			STATUS_LDAP_PRIVATE ) == 0 ) {
 		    if ( bounce_text( parent->el_exp_addr->e_addr_errors,
 			    TEXT_ERROR,
@@ -421,7 +425,7 @@ expand( struct envelope *unexpanded_env )
 			goto cleanup3;
 		    }
 
-		    if ( bounce_text( parent->el_exp_addr->e_addr_errors, 
+		    if ( bounce_text( parent->el_exp_addr->e_addr_errors,
 			    TEXT_ERROR,
 	    "If you have any questions, please contact the group owner: ",
 			    e_addr->e_addr_owner, NULL ) != 0 ) {
@@ -449,7 +453,8 @@ expand( struct envelope *unexpanded_env )
 	switch ( e_addr->e_addr_type ) {
 	case ADDRESS_TYPE_EMAIL:
 	    if (( domain = strchr( e_addr->e_addr, '@' )) == NULL ) {
-		syslog( LOG_ERR, "expand.strchr: unreachable code" );
+		syslog( LOG_ERR, "Expand %s: strchr blivet",
+			unexpanded_env->e_id );
 		goto cleanup3;
 	    }
 	    domain++;
@@ -469,14 +474,15 @@ expand( struct envelope *unexpanded_env )
 	    /* Create envelope and add it to list */
 	    if (( env = env_create( domain ? simta_dir_fast : simta_dir_dead,
 		    NULL, e_addr->e_addr_from, unexpanded_env )) == NULL ) {
-		syslog( LOG_ERR, "expand.env_create: %m" );
+		syslog( LOG_ERR, "Expand %s: env_create: %m",
+			unexpanded_env->e_id );
 		goto cleanup3;
 	    }
 
 	    env->e_dinode = unexpanded_env->e_dinode;
 
-	    syslog( LOG_DEBUG, "expand expansion env %s dinode %d", env->e_id,
-		    (int)env->e_dinode );
+	    syslog( LOG_DEBUG, "Expand %s: %s: expansion env dinode %d",
+		    unexpanded_env->e_id, env->e_id, (int)env->e_dinode );
 
 	    /* fill in env */
 	    env->e_attributes = unexpanded_env->e_attributes;
@@ -491,7 +497,8 @@ expand( struct envelope *unexpanded_env )
 
 	    /* Add env to host_stab */
 	    if ( eo_insert( &host_stab, env ) != 0 ) {
-		syslog( LOG_ERR, "expand.eo_insert: %m" );
+		syslog( LOG_ERR, "Expand %s: eo_insert %s failed: %m",
+			unexpanded_env->e_id, env->e_id );
 		env_free( env );
 		goto cleanup3;
 	    }
@@ -502,8 +509,8 @@ expand( struct envelope *unexpanded_env )
 	}
 
 	syslog( LOG_NOTICE,
-		"expand: recipient <%s> added to env %s for host %s",
-		e_addr->e_addr, env->e_id,
+		"Expand %s: %s: recipient <%s> added to env for host %s",
+		unexpanded_env->e_id, env->e_id, e_addr->e_addr,
 		env->e_hostname ? env->e_hostname : "NULL" );
     }
 
@@ -526,16 +533,18 @@ expand( struct envelope *unexpanded_env )
 	    if ((( hq_red = red_host_lookup( eo->eo_hostname )) != NULL ) &&
 		    ( hq_red->red_deliver_type == RED_DELIVER_BINARY )) {
 		if ( snprintf( header, 270, "Return-Path: <%s>", env->e_mail ) >= 270 ) {
-		    syslog( LOG_ERR, "expand: return path is too large" );
+		    syslog( LOG_ERR, "Expand %s: %s: return path is too large",
+			    unexpanded_env->e_id, env->e_id );
 		}
 		if ( env_inject_header( env, d_original, header, 1 ) != 0 ) {
-		    syslog( LOG_ERR, "expand: env_inject_header failed" );
+		    syslog( LOG_ERR, "Expand %s: %s: env_inject_header failed",
+			    unexpanded_env->e_id, env->e_id );
 		    goto cleanup4;
 		}
 	    } else {
 		/* Dfile: link Dold_id env->e_dir/Dnew_id */
 		if ( link( d_original, d_out ) != 0 ) {
-		    syslog( LOG_ERR, "Syserror expand: link %s %s: %m",
+		    syslog( LOG_ERR, "Syserror: expand link %s %s: %m",
 			    d_original, d_out );
 		    goto cleanup4;
 		}
@@ -552,7 +561,7 @@ expand( struct envelope *unexpanded_env )
 			    env->e_mail );
 		} else {
 		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s> (%s)",
-			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt, 
+			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
 			    env->e_mail, unexpanded_env->e_mail );
 		}
 	    }
@@ -562,13 +571,13 @@ expand( struct envelope *unexpanded_env )
 		    unexpanded_env->e_id, env->e_id, n_rcpts );
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
-	    syslog( LOG_NOTICE, "expand %s: writing %s %s",
+	    syslog( LOG_NOTICE, "Expand %s: %s: writing Efile for %s",
 		    unexpanded_env->e_id, env->e_id,
 		    env->e_hostname ? env->e_hostname : "NULL" );
 	    if ( env_outfile( env ) != 0 ) {
 		/* env_outfile syslogs errors */
 		if ( unlink( d_out ) != 0 ) {
-		    syslog( LOG_ERR, "expand unlink %s: %m", d_out );
+		    syslog( LOG_ERR, "Syserror: expand unlink %s: %m", d_out );
 		}
 		goto cleanup4;
 	    }
@@ -583,7 +592,7 @@ expand( struct envelope *unexpanded_env )
     }
 
     if ( env_out == 0 ) {
-	syslog( LOG_NOTICE, "expand %s: no terminal recipients, "
+	syslog( LOG_NOTICE, "Expand %s: no terminal recipients, "
 		"deleting message", unexpanded_env->e_id );
     }
 
@@ -597,13 +606,13 @@ expand( struct envelope *unexpanded_env )
 		if ( snet == NULL ) {
 		    if (( snet = snet_open( d_original, O_RDONLY, 0,
 			    1024 * 1024 )) == NULL ) {
-			syslog( LOG_ERR, "expand.snet_open %s: %m",
+			syslog( LOG_ERR, "Liberror: expand snet_open %s: %m",
 				d_original );
 			goto cleanup5;
 		    }
 		} else {
 		    if ( lseek( snet_fd( snet ), (off_t)0, SEEK_SET ) != 0 ) {
-			syslog( LOG_ERR, "q_deliver lseek: %m" );
+			syslog( LOG_ERR, "Syserror: q_deliver lseek: %m" );
 			panic( "q_deliver lseek fail" );
 		    }
 		}
@@ -612,7 +621,8 @@ expand( struct envelope *unexpanded_env )
 		if (( env->e_dinode = bounce_dfile_out( env, snet )) == 0 ) {
 		    if ( snet != NULL ) {
 			if ( snet_close( snet ) != 0 ) {
-			    syslog( LOG_ERR, "expand.snet_close %s: %m",
+			    syslog( LOG_ERR,
+				    "Liberror: expand snet_close %s: %m",
 				    d_original );
 			}
 		    }
@@ -620,8 +630,8 @@ expand( struct envelope *unexpanded_env )
 		    goto cleanup5;
 		}
 
-		syslog( LOG_DEBUG, "expand errors env %s dinode %d", env->e_id,
-			(int)env->e_dinode );
+		syslog( LOG_DEBUG, "Expand %s: %s: errors env dinode %d",
+			unexpanded_env->e_id, env->e_id, (int)env->e_dinode );
 
 		line_file_free( env->e_err_text );
 		env->e_err_text = NULL;
@@ -631,7 +641,8 @@ expand( struct envelope *unexpanded_env )
 		    /* env_outfile syslogs errors */
 		    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
 		    if ( unlink( d_out ) != 0 ) {
-			syslog( LOG_ERR, "expand unlink %s: %m", d_out );
+			syslog( LOG_ERR, "Syserror: expand unlink %s: %m",
+				d_out );
 		    }
 		    goto cleanup5;
 		}
@@ -654,7 +665,7 @@ expand( struct envelope *unexpanded_env )
 		    }
 		}
 
-		syslog( LOG_INFO, "Expand %s: %s: Expanded %d bounces",
+		syslog( LOG_NOTICE, "Expand %s: %s: Expanded %d bounces",
 			unexpanded_env->e_id, env->e_id, n_rcpts );
 
 		queue_envelope( env );
@@ -673,11 +684,10 @@ expand( struct envelope *unexpanded_env )
 
     if ( snet != NULL ) {
 	if ( snet_close( snet ) != 0 ) {
-	    syslog( LOG_ERR, "expand.snet_close %s: %m",
-		    d_original );
+	    syslog( LOG_ERR, "Liberror: expand snet_close %s: %m", d_original );
 	    sprintf( d_out, "%s/D%s", env->e_dir, env->e_id );
 	    if ( unlink( d_out ) != 0 ) {
-		syslog( LOG_ERR, "expand unlink %s: %m", d_out );
+		syslog( LOG_ERR, "Syserror: expand unlink %s: %m", d_out );
 	    }
 	    goto cleanup5;
 	}
@@ -693,7 +703,7 @@ expand( struct envelope *unexpanded_env )
     }
 
     if ( utime( d_original, NULL ) != 0 ) {
-	syslog( LOG_ERR, "expand.utime %s: %m", d_original );
+	syslog( LOG_ERR, "Syserror: expand utime %s: %m", d_original );
 	goto cleanup5;
     }
 
@@ -703,19 +713,19 @@ expand( struct envelope *unexpanded_env )
 		unexpanded_env->e_id );
 
 	if ( truncate( e_original, (off_t)0 ) != 0 ) {
-	    syslog( LOG_ERR, "expand.truncate %s: %m", e_original );
+	    syslog( LOG_ERR, "Syserror: expand truncate %s: %m", e_original );
 	    goto cleanup5;
 	}
     }
 
     /* delete original message */
     if ( env_unlink( unexpanded_env ) != 0 ) {
-	syslog( LOG_ERR, "expand env_unlink %s: can't delete original message",
+	syslog( LOG_ERR, "Expand %s: Expansion complete, can't delete message",
 		unexpanded_env->e_id );
-    }
-
-    syslog( LOG_INFO, "Expand %s: Message Deleted: Expansion complete",
+    } else {
+	syslog( LOG_INFO, "Expand %s: Expansion complete, message deleted",
 	    unexpanded_env->e_id );
+    }
 
     return_value = 0;
     goto cleanup2;
@@ -734,10 +744,10 @@ cleanup4:
 	if (( env->e_flags & ENV_FLAG_EFILE ) != 0 ) {
 	    queue_remove_envelope( env );
 	    if ( env_unlink( env ) == 0 ) {
-		syslog( LOG_INFO, "Expand %s: Message Deleted: "
+		syslog( LOG_WARNING, "Expand %s: Message Deleted: "
 			"System error, unwinding expansion", env->e_id );
 	    } else {
-		syslog( LOG_INFO, "Expand %s: "
+		syslog( LOG_ERR, "Expand %s: "
 			"System error, can't unwind expansion", env->e_id );
 	    }
 	}
@@ -760,7 +770,8 @@ cleanup3:
 #endif /* HAVE_LDAP */
 
     if ( simta_fast_files != fast_file_start ) {
-	syslog( LOG_WARNING, "expand: could not unwind expansion" );
+	syslog( LOG_ERR, "Expand %s: could not unwind expansion",
+		unexpanded_env->e_id );
 	return_value = 1;
     }
 
@@ -774,7 +785,7 @@ cleanup2:
     }
 
 cleanup1:
-#ifdef HAVE_LDAP  
+#ifdef HAVE_LDAP
     exp_addr_link_free( exp.exp_memonly );
 #endif /* HAVE_LDAP */
 
@@ -782,7 +793,7 @@ cleanup1:
     for ( e_addr = exp.exp_addr_head; e_addr != NULL; e_addr = next_e_addr ) {
 	next_e_addr = e_addr->e_addr_next;
 
-#ifdef HAVE_LDAP  
+#ifdef HAVE_LDAP
 	exp_addr_link_free( e_addr->e_addr_parents );
 	exp_addr_link_free( e_addr->e_addr_children );
 	permitted_destroy( e_addr );
@@ -808,8 +819,7 @@ cleanup1:
 
 done:
     if ( return_value != 0 ) {
-	syslog( LOG_NOTICE, "Expand %s: Expansion failed",
-		unexpanded_env->e_id );
+	syslog( LOG_ERR, "Expand %s: Expansion failed", unexpanded_env->e_id );
     }
 
     return( return_value );
@@ -919,10 +929,10 @@ permitted_create( struct exp_addr *e_addr, char **permitted )
     char				*namedup;
 
     if (( permitted != NULL ) && (( *permitted ) != NULL )) {
-	/* 
-	** Normalize the permitted group list 
+	/*
+	** Normalize the permitted group list
 	** normalization happens "in-place"
-	*/   
+	*/
 	for ( idx = 0; permitted[idx] != NULL; idx++ ) {
 	    dn_normalize_case( permitted[idx] );
 
@@ -932,7 +942,7 @@ permitted_create( struct exp_addr *e_addr, char **permitted )
 		    NULL ) != 0 ) {
 		return( 1 );
 	    }
-	}		
+	}
     }
 
     return( 0 );

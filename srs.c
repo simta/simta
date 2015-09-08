@@ -32,8 +32,7 @@ simta_srs_forward( struct envelope *env ) {
     }
 
     if (( at = strrchr( env->e_mail, '@' )) == NULL ) {
-	/* I think this shouldn't happen, ever. */
-	syslog( LOG_ERR, "srs_forward: no @ in %s", env->e_mail );
+	syslog( LOG_ERR, "srs_forward: strchr blivet: %s", env->e_mail );
 	return( 1 );
     }
 
@@ -87,23 +86,24 @@ srs_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	if ( add_address( exp, newaddr, e_addr->e_addr_errors,
 		ADDRESS_TYPE_EMAIL, e_addr->e_addr_from ) != 0 ) {
 	    free( newaddr );
-	    return( EXPAND_SRS_SYSERROR );
+	    return( ADDRESS_SYSERROR );
 	}
-	syslog( LOG_DEBUG, "Expand %s <%s> EXPANDED <%s>: SRS",
+	syslog( LOG_DEBUG, "Expand.SRS %s <%s>: expanded to <%s>",
 		exp->exp_env->e_id, e_addr->e_addr, newaddr );
 	free( newaddr );
-	return( EXPAND_SRS_OK );
+	return( ADDRESS_EXCLUDE );
     }
 
     switch( SRS_ERROR_TYPE( rc )) {
+
     case SRS_ERRTYPE_CONFIG:
-        return( EXPAND_SRS_SYSERROR );
+        return( ADDRESS_SYSERROR );
     case SRS_ERRTYPE_NONE:
     case SRS_ERRTYPE_INPUT:
     case SRS_ERRTYPE_SYNTAX:
     case SRS_ERRTYPE_SRS:
     default:
-        return( EXPAND_SRS_NOT_FOUND );
+        return( ADDRESS_NOT_FOUND );
     }
 }
 
@@ -114,23 +114,23 @@ srs_valid( const char *addr )
     int		rc;
 
     if ( strncasecmp( addr, "SRS", 3 ) != 0 ) {
-	return( EXPAND_SRS_NOT_FOUND );
+	return( ADDRESS_NOT_FOUND );
     }
 
     if (( rc = simta_srs_reverse( addr, &newaddr )) == SRS_SUCCESS ) {
 	free( newaddr );
-	return( EXPAND_SRS_OK );
+	return( ADDRESS_FINAL );
     }
 
     switch( SRS_ERROR_TYPE( rc )) {
     case SRS_ERRTYPE_CONFIG:
-	return( EXPAND_SRS_SYSERROR );
+	return( ADDRESS_SYSERROR );
     case SRS_ERRTYPE_NONE:
     case SRS_ERRTYPE_INPUT:
     case SRS_ERRTYPE_SYNTAX:
     case SRS_ERRTYPE_SRS:
     default:
-	return( EXPAND_SRS_NOT_FOUND );
+	return( ADDRESS_NOT_FOUND );
     }
 }
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
