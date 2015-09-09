@@ -72,6 +72,10 @@
 #define SMTP_MODE_TARPIT		5
 #define SMTP_MODE_NOAUTH		6
 
+#define SIMTA_SASL_OFF			0
+#define SIMTA_SASL_ON			1
+#define SIMTA_SASL_HONEYPOT		2
+
 #ifdef HAVE_LIBSSL
 #define SERVICE_SMTPS_OFF		0
 #define SERVICE_SMTPS_SERVER		1

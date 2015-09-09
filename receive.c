@@ -710,20 +710,29 @@ f_ehlo( struct receive_data *r )
     }
 
 #ifdef HAVE_LIBSASL
-    if ( simta_sasl ) {
+    if ( simta_sasl == SIMTA_SASL_ON ) {
 	if ( sasl_listmech( r->r_conn, NULL, "", " ", "", &mechlist, NULL,
 		NULL ) != SASL_OK ) {
 	    syslog( LOG_ERR, "Syserror f_ehlo: sasl_listmech: %s",
 		    sasl_errdetail( r->r_conn ));
 	    return( RECEIVE_SYSERROR );
 	}
-	if ( snet_writef( r->r_snet, "250%sAUTH %s\r\n", 
+	if ( snet_writef( r->r_snet, "250%sAUTH %s\r\n",
 		    extension_count-- ? "-" : " ", mechlist ) < 0 ) {
 	    syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
 	}
     }
 #endif /* HAVE_LIBSASL */
+
+    if ( simta_sasl == SIMTA_SASL_HONEYPOT ) {
+	/* Falsely advertise auth support */
+	if ( snet_writef( r->r_snet, "250%sAUTH PLAIN\r\n",
+		extension_count-- ? "-" : " " ) < 0 ) {
+	    syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+    }
 
 #ifdef HAVE_LIBSSL
     /* RFC 3207 4.2 Result of the STARTTLS Command 
@@ -1619,7 +1628,7 @@ f_data( struct receive_data *r )
 	 */
 
 #ifdef HAVE_LIBSASL
-	if ( simta_sasl ) {
+	if ( simta_sasl == SIMTA_SASL_ON ) {
 	    if ( fprintf( dff,
 		    "Received: FROM %s (%s [%s])\n"
 		    "\tBy %s ID %s ;\n"
@@ -2612,9 +2621,9 @@ f_starttls( struct receive_data *r )
 sasl_init( struct receive_data *r )
 {
 #ifdef HAVE_LIBSASL
-    int		rc; 
+    int		rc;
 
-    if ( simta_sasl ) {
+    if ( simta_sasl == SIMTA_SASL_ON ) {
 	if ( simta_debug != 0 ) {
 	    syslog( LOG_DEBUG, "Debug: sasl_init sasl_setprop 1" );
 	}
@@ -2700,10 +2709,10 @@ start_tls( struct receive_data *r, SSL_CTX *ssl_ctx )
 
 #endif /* HAVE_LIBSSL */
 
-#ifdef HAVE_LIBSASL
     int
 f_auth( struct receive_data *r )
 {
+#ifdef HAVE_LIBSASL
     int			rc;
     const char		*mechname;
     char		base64[ BASE64_BUF_SIZE + 1 ];
@@ -2712,13 +2721,23 @@ f_auth( struct receive_data *r )
     const char		*serverout;
     unsigned int	serveroutlen;
     struct timeval	tv;
+#endif /* HAVE_LIBSASL */
 
-    if ( !simta_sasl ) {
+    if ( simta_sasl == SIMTA_SASL_OFF ) {
 	return( f_not_implemented( r ));
     }
 
     tarpit_sleep( r, 0 );
 
+    if ( simta_sasl == SIMTA_SASL_HONEYPOT ) {
+	if ( smtp_write_banner( r, 235, NULL, NULL ) != RECEIVE_OK ) {
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	set_smtp_mode( r, simta_smtp_punishment_mode, "Honeypot AUTH" );
+	return( RECEIVE_OK );
+    }
+
+#ifdef HAVE_LIBSASL
     /* RFC 4954 4 The AUTH Command
      * Note that these BASE64 strings can be much longer than normal SMTP
      * commands. Clients and servers MUST be able to handle the maximum encoded
@@ -3027,9 +3046,8 @@ f_auth( struct receive_data *r )
 
     set_smtp_mode( r, simta_smtp_default_mode, "Default" );
     return( RECEIVE_OK );
-}
 #endif /* HAVE_LIBSASL */
-
+}
 
     int
 smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
@@ -3600,7 +3618,7 @@ closeconnection:
     }
 
 #ifdef HAVE_LIBSASL
-    if ( simta_sasl ) {
+    if ( simta_sasl == SIMTA_SASL_ON ) {
 	syslog( LOG_DEBUG,
 		"Connect.stat [%s] %s: Metrics: "
 		"milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d: "
@@ -3640,7 +3658,7 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
-    if ( simta_sasl ) {
+    if ( simta_sasl == SIMTA_SASL_ON ) {
 	set_smtp_mode( r, SMTP_MODE_NOAUTH, "Authentication" );
 	if (( ret = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
 		0, &(r->r_conn) )) != SASL_OK ) {

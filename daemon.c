@@ -532,7 +532,7 @@ main( int ac, char **av )
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
-    if ( simta_sasl ) {
+    if ( simta_sasl == SIMTA_SASL_ON ) {
 	if (( rc = sasl_server_init( callbacks, "simta" )) != SASL_OK ) {
 	    syslog( LOG_ERR, "sasl_server_init: %s",
 		    sasl_errstring( rc, NULL, NULL ));
@@ -540,9 +540,11 @@ main( int ac, char **av )
 		    sasl_errstring( rc, NULL, NULL ));
 	    exit( 1 );
 	}
-	simta_smtp_extension++;
     }
 #endif /* HAVE_LIBSASL */
+    if ( simta_sasl != SIMTA_SASL_OFF ) {
+	simta_smtp_extension++;
+    }
 
     if ( simta_max_message_size >= 0 ) {
 	simta_smtp_extension++;

@@ -162,7 +162,7 @@ int			simta_verbose = 0;
 #ifdef HAVE_LIBSSL
 int			simta_tls = 0;
 #endif /* HAVE_LIBSSL */
-int			simta_sasl = 0;
+int			simta_sasl = SIMTA_SASL_OFF;
 int			simta_service_submission = 0;
 #ifdef HAVE_LIBSSL
 int			simta_service_smtps = 0;
@@ -1956,20 +1956,28 @@ simta_read_config( char *fname )
 	    simta_reverse_url = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "REVERSE_URL: %s\n", simta_reverse_url );
 
-#ifdef HAVE_LIBSASL
 	} else if ( strcasecmp( av[ 0 ], "SASL" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
-		    simta_sasl = 1;
-		    if ( simta_debug ) printf( "SASL ON\n" );
-		    continue;
-		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
-		    simta_sasl = 0;
+		if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_sasl = SIMTA_SASL_OFF;
 		    if ( simta_debug ) printf( "SASL OFF\n" );
 		    continue;
+		} else if ( strcasecmp( av[ 1 ], "HONEYPOT" ) == 0 ) {
+		    simta_sasl = SIMTA_SASL_HONEYPOT;
+		    if ( simta_debug ) printf( "SASL HONEYPOT\n" );
+		    continue;
+#ifdef HAVE_LIBSASL
+		} else if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_sasl = SIMTA_SASL_ON;
+		    if ( simta_debug ) printf( "SASL ON\n" );
+		    continue;
+#endif /* HAVE_LIBSASL */
 		}
 	    }
-#endif /* HAVE_LIBSASL */
+
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno, "SASL <ON|OFF|HONEYPOT>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "SEEN_BEFORE_DOMAIN" ) == 0 ) {
 	    if ( ac != 2 ) {
