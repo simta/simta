@@ -2528,11 +2528,11 @@ f_starttls( struct receive_data *r )
     int				rc;
     SSL_CTX			*ssl_ctx;
 
-    tarpit_sleep( r, 0 );
-
     if ( !simta_tls ) {
-	return( smtp_write_banner( r, 502, NULL, NULL ));
+	return( f_not_implemented( r ));
     }
+
+    tarpit_sleep( r, 0 );
 
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
@@ -2712,6 +2712,10 @@ f_auth( struct receive_data *r )
     const char		*serverout;
     unsigned int	serveroutlen;
     struct timeval	tv;
+
+    if ( !simta_sasl ) {
+	return( f_not_implemented( r ));
+    }
 
     tarpit_sleep( r, 0 );
 
