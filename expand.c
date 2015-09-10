@@ -276,16 +276,8 @@ expand( struct envelope *unexpanded_env )
 	    continue;
 	}
 	if ( e_addr->e_addr_env_gmailfwd != NULL ) {
-	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
-	    e_addr->e_addr_env_gmailfwd->e_dir = simta_dir_fast;
-	    e_addr->e_addr_env_gmailfwd->e_dinode = unexpanded_env->e_dinode;
-	    e_addr->e_addr_env_gmailfwd->e_attributes = unexpanded_env->e_attributes
-		| ENV_ATTR_ARCHIVE_ONLY;
-
-	    syslog( LOG_DEBUG, "Expand %s: group mail env %s dinode %d",
-		    unexpanded_env->e_id,
-		    e_addr->e_addr_env_gmailfwd->e_id,
-		    (int)e_addr->e_addr_env_gmailfwd->e_dinode );
+	    e_addr->e_addr_env_gmailfwd->e_attributes =
+		    unexpanded_env->e_attributes | ENV_ATTR_ARCHIVE_ONLY;
 
 	    if ( simta_expand_debug != 0 ) {
 		printf( "Group mail forwarding: %s\n", e_addr->e_addr );
@@ -295,11 +287,19 @@ expand( struct envelope *unexpanded_env )
 
 	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_gmailfwd->e_dir,
 		    e_addr->e_addr_env_gmailfwd->e_id );
-	    if ( link( d_original, d_out ) != 0 ) {
-		syslog( LOG_ERR, "Syserror: expand link %s %s: %m",
-			d_original, d_out );
+	    if (( e_addr->e_addr_env_gmailfwd->e_dinode =
+		    env_dfile_copy( e_addr->e_addr_env_gmailfwd,
+		    d_original, NULL )) == 0 ) {
+		syslog( LOG_ERR, "Expand %s: %s: env_dfile_copy failed",
+			unexpanded_env->e_id,
+			e_addr->e_addr_env_gmailfwd->e_id );
 		goto cleanup3;
 	    }
+
+	    syslog( LOG_DEBUG, "Expand %s: group mail env %s dinode %d",
+		    unexpanded_env->e_id,
+		    e_addr->e_addr_env_gmailfwd->e_id,
+		    (int)e_addr->e_addr_env_gmailfwd->e_dinode );
 
 	    sendermatch = !strcasecmp( unexpanded_env->e_mail,
 		    e_addr->e_addr_env_gmailfwd->e_mail );
@@ -341,13 +341,8 @@ expand( struct envelope *unexpanded_env )
 	}
 
 	if ( e_addr->e_addr_env_moderated != NULL ) {
-	    /* Dfile: link Dold_id env->e_dir/Dnew_id */
-	    e_addr->e_addr_env_moderated->e_dinode = unexpanded_env->e_dinode;
-	    e_addr->e_addr_env_moderated->e_attributes = unexpanded_env->e_attributes;
-
-	    syslog( LOG_DEBUG, "Expand %s: %s: moderation env dinode %d",
-		    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
-		    (int)e_addr->e_addr_env_moderated->e_dinode );
+	    e_addr->e_addr_env_moderated->e_attributes =
+		    unexpanded_env->e_attributes;
 
 	    if ( simta_expand_debug != 0 ) {
 		printf( "Moderated: %s\n", e_addr->e_addr );
@@ -357,11 +352,18 @@ expand( struct envelope *unexpanded_env )
 
 	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_moderated->e_dir,
 		    e_addr->e_addr_env_moderated->e_id );
-	    if ( link( d_original, d_out ) != 0 ) {
-		syslog( LOG_ERR, "Syserror: expand link %s %s: %m",
-			d_original, d_out );
+	    if (( e_addr->e_addr_env_moderated->e_dinode =
+		    env_dfile_copy( e_addr->e_addr_env_moderated,
+		    d_original, NULL )) == 0 ) {
+		syslog( LOG_ERR, "Expand %s: %s: env_dfile_copy failed",
+			unexpanded_env->e_id,
+			e_addr->e_addr_env_moderated->e_id );
 		goto cleanup3;
 	    }
+
+	    syslog( LOG_DEBUG, "Expand %s: %s: moderation env dinode %d",
+		    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
+		    (int)e_addr->e_addr_env_moderated->e_dinode );
 
 	    sendermatch = !strcasecmp( unexpanded_env->e_mail,
 		    e_addr->e_addr_env_moderated->e_mail );
@@ -532,12 +534,14 @@ expand( struct envelope *unexpanded_env )
 	     */
 	    if ((( hq_red = red_host_lookup( eo->eo_hostname )) != NULL ) &&
 		    ( hq_red->red_deliver_type == RED_DELIVER_BINARY )) {
-		if ( snprintf( header, 270, "Return-Path: <%s>", env->e_mail ) >= 270 ) {
+		if ( snprintf( header, 270,
+			"Return-Path: <%s>", env->e_mail ) >= 270 ) {
 		    syslog( LOG_ERR, "Expand %s: %s: return path is too large",
 			    unexpanded_env->e_id, env->e_id );
 		}
-		if ( env_inject_header( env, d_original, header, 1 ) != 0 ) {
-		    syslog( LOG_ERR, "Expand %s: %s: env_inject_header failed",
+		if (( env->e_dinode =
+			env_dfile_copy( env, d_original, header )) == 0 ) {
+		    syslog( LOG_ERR, "Expand %s: %s: env_dfile_copy failed",
 			    unexpanded_env->e_id, env->e_id );
 		    goto cleanup4;
 		}

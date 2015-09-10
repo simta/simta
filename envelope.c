@@ -1185,70 +1185,64 @@ cleanup:
     return( ret );
 }
 
-    int
-env_inject_header( struct envelope *env, char *source, char *header, int prepend )
+    ino_t
+env_dfile_copy( struct envelope *env, char *source, char *header )
 {
     int			dfile_fd = -1;
-    int			head = 1;
-    int			retval = 1;
+    ino_t		retval = 0;
     FILE		*dfile = NULL;
+    struct stat         sbuf;
     SNET		*snet = NULL;
     char		*line;
 
     if (( dfile_fd = env_dfile_open( env )) < 0 ) {
-	return( -1 );
+	return( 0 );
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
-	syslog( LOG_ERR, "Syserror env_inject_header: fdopen: %m" );
+	syslog( LOG_ERR, "Syserror: env_dfile_copy fdopen: %m" );
 	if ( close( dfile_fd ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror env_inject_header: close: %m" );
+	    syslog( LOG_ERR, "Syserror: env_dfile_copy close: %m" );
 	}
 	goto error;
     }
 
     if (( snet = snet_open( source, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "Syserror env_inject_header: snet_open: %m" );
+	syslog( LOG_ERR, "Syserror: env_dfile_copy snet_open: %m" );
 	goto error;
     }
 
-    if ( prepend ) {
+    if ( header ) {
 	if ( fprintf( dfile, "%s\n", header ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror env_inject_header: fprintf: %m" );
+	    syslog( LOG_ERR, "Syserror: env_dfile_copy fprintf: %m" );
 	    goto error;
 	}
     }
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
-	if ( head == 1 && prepend == 0 ) {
-	    if ( *line == '\0' ) {
-		/* We assume that the input file is correctly formed; simta
-		 * always injects a trace header and ends the headers with
-		 * a blank line even if the message has no body.
-		 */
-		if ( fprintf( dfile, "%s\n", header ) < 0 ) {
-		    syslog( LOG_ERR,
-			    "Syserror env_inject_header: fprintf: %m" );
-		    goto error;
-		}
-		head = 0;
-	    }
-	}
 	if ( fprintf( dfile, "%s\n", line ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror env_inject_header: fprintf: %m" );
+	    syslog( LOG_ERR, "Syserror: env_dfile_copy fprintf: %m" );
 	    goto error;
 	}
     }
 
-    retval = 0;
+    if ( fstat( dfile_fd, &sbuf ) == 0 ) {
+	retval = sbuf.st_ino;
+    } else {
+	syslog( LOG_ERR, "Syserror: env_dfile_copy fstat: %m" );
+    }
 
 error:
     if ( dfile != NULL && ( fclose( dfile ) != 0 )) {
-	syslog( LOG_ERR, "Syserror env_inject_header: fclose: %m" );
+	syslog( LOG_ERR, "Syserror: env_dfile_copy fclose: %m" );
     }
 
     if ( snet != NULL && ( snet_close( snet ) != 0 )) {
-	syslog( LOG_ERR, "Syserror env_inject_header: snet_close: %m" );
+	syslog( LOG_ERR, "Syserror: env_dfile_copy snet_close: %m" );
+    }
+
+    if ( retval == 0 ) {
+	env_dfile_unlink( env );
     }
 
     return( retval );
