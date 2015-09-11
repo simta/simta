@@ -53,7 +53,6 @@ main( int argc, char *argv[])
     extern char         *optarg;
     char		c;
     char		*server = NULL;
-    char		*block_domain = "rbl.mail.umich.edu";
     char		*rbl_msg = NULL;
     int			rc;
     int			err = 0;
@@ -80,7 +79,7 @@ main( int argc, char *argv[])
 	    break;
 
 	case 'l':
-	    block_domain = optarg;
+	    rbl_add( &simta_rbls, RBL_BLOCK, optarg, "none" );
 	    break;
 
 	case 'n':
@@ -142,7 +141,10 @@ main( int argc, char *argv[])
 	simta_rbl_verbose_logging = 1;
     }
 
-    rbl_add( &simta_rbls, RBL_BLOCK, block_domain, "none" );
+    if ( simta_rbls == NULL ) {
+	rbl_add( &simta_rbls, RBL_BLOCK, "mx-deny.dnsbl", "none" );
+    }
+
     simta_rbl_verbose_logging = 1;
 
     if ( check_text == 0 ) {
