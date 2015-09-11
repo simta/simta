@@ -3038,7 +3038,9 @@ f_auth( struct receive_data *r )
      */
      if ( snet_saslssf( r->r_snet )) {
 	reset( r );
-	if ( r->r_hello ) {
+	/* Some (all?) clients don't resend EHLO. If the previous value was
+	 * obtained under TLS, hang on to it. */
+	if ( r->r_hello && ( r->r_tls != 1 )) {
 	    free( r->r_hello );
 	    r->r_hello = NULL;
 	}
