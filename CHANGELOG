@@ -1,3 +1,14 @@
+0.12.1
+    - minor bugfixes
+    - fixed simsendmail header masquerading
+    - added SPF query limits to prevent loops and other abuse
+    - reduced the number of headers included in the message checksum
+    - made Expand logging more consistent
+    - logging from utility programs no longer looks like it's from simta
+    - added SASL HONEYPOT
+    - added AGGRESSIVE_EXPANSION configuration variable
+    - simrbl can now check multiple DNSBLs in one invocation
+
 0.12.0
     - lots of minor code and file cleanup
     - cleaned up logging, made some of it more consistent
