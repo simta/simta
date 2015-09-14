@@ -1255,6 +1255,9 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		    }
 		}
 
+		syslog( LOG_DEBUG, "Expand.LDAP %s: <%s>: no moderator match",
+			exp->exp_env->e_id, e_addr->e_addr );
+
 	    } else {
 		bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
 			"moderator mail loop: ", dn, NULL );
