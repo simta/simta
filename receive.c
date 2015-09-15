@@ -4040,8 +4040,13 @@ content_filter( struct receive_data *r, char **smtp_message )
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_REVERSE_LOOKUP",
 		buf );
 
-	filter_envp[ filter_envc++ ] = env_string( "SIMTA_SMTP_MAIL_FROM",
-		r->r_env->e_mail );
+	if ( r->r_env->e_mail_orig ) {
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_SMTP_MAIL_FROM",
+		    r->r_env->e_mail_orig );
+	} else {
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_SMTP_MAIL_FROM",
+		    r->r_env->e_mail );
+	}
 
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_SMTP_HELO",
 		r->r_hello );

@@ -47,7 +47,7 @@ simta_srs_forward( struct envelope *env ) {
     srs_free( srs );
 
     if ( rc == SRS_SUCCESS ) {
-	free( env->e_mail );
+	env->e_mail_orig = env->e_mail;
 	env->e_mail = newaddr;
 	return( 0 );
     }

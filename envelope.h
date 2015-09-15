@@ -49,6 +49,7 @@ struct envelope {
     struct line_file	*e_err_text;
     char		*e_dir;
     char		*e_mail;
+    char		*e_mail_orig;
     ino_t		e_dinode;
     int			e_age;
     int			e_flags;

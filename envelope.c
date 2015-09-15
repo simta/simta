@@ -341,6 +341,10 @@ env_free( struct envelope *env )
 	free( env->e_mail );
     }
 
+    if ( env->e_mail_orig != NULL ) {
+	free( env->e_mail_orig );
+    }
+
     if ( env->e_sender_entry != NULL ) {
 	dll_remove_entry( &(env->e_sender_entry->se_list->sl_entries),
 		env->e_sender_entry->se_dll );
