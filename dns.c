@@ -40,33 +40,46 @@
 #include "simta.h"
 #include "queue.h"
 
+static struct dnsr_result *get_address( const char *, int );
 
-    struct dnsr_result *
-get_a( const char *hostname )
+
+    static struct dnsr_result *
+get_address( const char *hostname, int qtype )
 {
     struct dnsr_result	*result;
 
     if ( simta_dnsr == NULL ) {
 	if (( simta_dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "get_a: dnsr_new: %m" );
+	    syslog( LOG_ERR, "Liberror: get_address dnsr_new: %m" );
 	    return( NULL );
 	}
     }
 
-    /* Check for A */
-    if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
-	    hostname )) < 0 ) {
-	syslog( LOG_ERR, "get_a: dnsr_query: %s: %s", hostname,
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+    if (( dnsr_query( simta_dnsr, qtype, DNSR_CLASS_IN, hostname )) < 0 ) {
+	syslog( LOG_ERR, "Liberror: get_address dnsr_query: %d %s: %s",
+		qtype, hostname, dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
+
     if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "get_a: dnsr_result: %s: %s", hostname, 
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+	syslog( LOG_ERR, "Liberror: get_address dnsr_result: %d %s: %s",
+		qtype, hostname, dnsr_err2string( dnsr_errno( simta_dnsr )));
 	return( NULL );
     }
 
     return( result );
+}
+
+    struct dnsr_result *
+get_a( const char *hostname )
+{
+    return get_address( hostname, DNSR_TYPE_A );
+}
+
+    struct dnsr_result *
+get_aaaa( const char *hostname )
+{
+    return get_address( hostname, DNSR_TYPE_AAAA );
 }
 
 /* RFC 5321 2.3.5 Domain Names
@@ -84,26 +97,7 @@ get_mx( const char *hostname )
     struct dnsr_result	*result = NULL;
     struct simta_red	*red;
 
-    if ( simta_dnsr == NULL ) {
-	if (( simta_dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "get_mx: dnsr_new: %m" );
-	    return( NULL );
-	}
-    }
-
-    /* Check for MX */
-    if (( dnsr_query( simta_dnsr, DNSR_TYPE_MX, DNSR_CLASS_IN,
-	    hostname )) != 0 ) {
-	syslog( LOG_ERR, "get_mx: dnsr_query: %s: %s", hostname,
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	return( NULL );
-    }
-
-    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "get_mx: dnsr_result: %s: %s", hostname,
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	return( NULL );
-    }
+    result = get_address( hostname, DNSR_TYPE_MX );
 
     if ( simta_dns_auto_config == 0 ) {
 	return( result );
@@ -140,7 +134,7 @@ get_mx( const char *hostname )
 
 	case DNSR_TYPE_MX:
 	    if (( strcasecmp( simta_hostname,
-		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 ) 
+		    result->r_answer[ i ].rr_mx.mx_exchange ) == 0 )
 		    && ( result->r_answer[ i ].rr_mx.mx_preference <=
 		    result->r_answer[ 0 ].rr_mx.mx_preference )) {
 		if (( red = red_host_lookup(
@@ -159,7 +153,7 @@ get_mx( const char *hostname )
 
 	default:
 	    syslog( LOG_DEBUG, "get_mx: %s: uninteresting dnsr type: %d",
-		result->r_answer[ i ].rr_name, 
+		result->r_answer[ i ].rr_name,
 		result->r_answer[ i ].rr_type );
 	    break;
 	}
@@ -191,19 +185,7 @@ get_ptr( const struct sockaddr *addr )
 	return( NULL );
     }
 
-    if ( dnsr_query( simta_dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN,
-	    hostname ) < 0 ) {
-        syslog( LOG_ERR, "Liberror: get_ptr dnsr_query: %s: %s", hostname,
-                dnsr_err2string( dnsr_errno( simta_dnsr )));
-	goto error;
-    }
-
-    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-        syslog( LOG_ERR, "Liberror: get_ptr dnsr_result: %s: %s", hostname,
-                dnsr_err2string( dnsr_errno( simta_dnsr )));
-    }
-
-error:
+    result = get_address( hostname, DNSR_TYPE_PTR );
     free( hostname );
     return( result );
 }
@@ -212,27 +194,7 @@ error:
     struct dnsr_result *
 get_txt( const char *hostname )
 {
-    struct dnsr_result  *result;
-    if ( simta_dnsr == NULL ) {
-        if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            syslog( LOG_ERR, "get_txt: dnsr_new: %m" );
-            return( NULL );
-        }
-    }
-
-    if ( dnsr_query( simta_dnsr, DNSR_TYPE_TXT, DNSR_CLASS_IN,
-            hostname ) < 0 ) {
-        syslog( LOG_ERR, "get_txt: dnsr_query: %s: %s", hostname,
-                dnsr_err2string( dnsr_errno( simta_dnsr )));
-        return( NULL );
-    }
-
-    if (( result = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-        syslog( LOG_ERR, "get_txt: dnsr_result: %s: %s", hostname,
-                dnsr_err2string( dnsr_errno( simta_dnsr )));
-    }
-
-    return( result );
+    return( get_address( hostname, DNSR_TYPE_TXT ));
 }
 
     struct simta_red *

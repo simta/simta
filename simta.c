@@ -88,6 +88,8 @@ struct action		*simta_red_action_secondary_mx = NULL;
 struct proc_type	*simta_proc_stab = NULL;
 unsigned int		simta_bounce_seconds = 259200;
 unsigned short		simta_smtp_port = 0;
+int			simta_ipv4 = -1;
+int			simta_ipv6 = -1;
 int			simta_submission_mode = SUBMISSION_MODE_MTA;
 int			simta_policy_tls = TLS_POLICY_DEFAULT;
 int			simta_policy_tls_cert = TLS_POLICY_DEFAULT;
@@ -1364,6 +1366,40 @@ simta_read_config( char *fname )
 	    /* XXX - need to lower-case domain */
 	    simta_jail_host = strdup( av[ 1 ] );
 	    if ( simta_debug ) printf( "JAIL to %s\n", simta_jail_host );
+
+	} else if ( strcasecmp( av[ 0 ], "IPV4" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_ipv4 = 1;
+		    if ( simta_debug ) printf( "IPV4 ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_ipv4 = 0;
+		    if ( simta_debug ) printf( "IPV4 OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "IPV4 <ON|OFF>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "IPV6" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "ON" ) == 0 ) {
+		    simta_ipv6 = 1;
+		    if ( simta_debug ) printf( "IPV6 ON\n" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_ipv6 = 0;
+		    if ( simta_debug ) printf( "IPV6 OFF\n" );
+		    continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: %s\n",
+		    fname, lineno,
+		    "IPV6 <ON|OFF>" );
+	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "JAIL_BOUNCE_ADDRESS" ) == 0 ) {
 	    if ( ac != 2 ) {

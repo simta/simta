@@ -25,7 +25,8 @@
 struct connection_data {
     struct connection_data	*c_prev;
     struct connection_data	*c_next;
-    struct sockaddr_in		c_sin;
+    char			c_ip[ INET6_ADDRSTRLEN ];
+    struct sockaddr_storage	c_sa;
 };
 
 struct deliver {
@@ -56,7 +57,11 @@ struct deliver {
     struct connection_data	*d_retry_cur;
     struct dnsr_result		*d_dnsr_result;
     struct dnsr_result		*d_dnsr_result_ip;
-    struct sockaddr_in		d_sin;
+    struct dnsr_result		*d_dnsr_result_ip6;
+    struct ip_info		*d_dnsr_result_additional;
+    struct sockaddr_storage	d_sa;
+    char			d_ip[ INET6_ADDRSTRLEN ];
+    struct dll_entry		*d_ip_list;
     SNET			*d_snet_smtp;
     SNET			*d_snet_dfile;
     uint16_t			d_mx_preference_cutoff;

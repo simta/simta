@@ -195,6 +195,8 @@ extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
 extern struct action			*simta_red_action_secondary_mx;
 struct proc_type			*simta_proc_stab;
+extern int				simta_ipv4;
+extern int				simta_ipv6;
 extern int				simta_submission_mode;
 extern int				simta_policy_tls;
 extern int				simta_policy_tls_cert;

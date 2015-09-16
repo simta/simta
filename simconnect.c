@@ -81,25 +81,25 @@ main( int ac, char *av[] )
 	}
 
 retry:
-	if (( s = socket( AF_INET, SOCK_STREAM, 0 )) < 0 ) {
-	    syslog( LOG_ERR, "[%s] %s: socket: %m",
-		    inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
+	if (( s = socket( d.d_sa.ss_family, SOCK_STREAM, 0 )) < 0 ) {
+	    syslog( LOG_ERR, "[%s] %s: socket: %m", d.d_ip, hq->hq_hostname );
 	}
 
-	if ( connect( s, (struct sockaddr*)&(d.d_sin),
-		sizeof( struct sockaddr_in )) < 0 ) {
-	    syslog( LOG_ERR, "[%s] %s: connect: %m",
-		    inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
+	if ( connect( s, (struct sockaddr *)&(d.d_sa),
+		(( d.d_sa.ss_family == AF_INET6 )
+		? sizeof( struct sockaddr_in6 )
+		: sizeof( struct sockaddr_in ))) < 0 ) {
+	    syslog( LOG_ERR, "[%s] %s: connect: %m", d.d_ip, hq->hq_hostname );
 	    close( s );
 	    continue;
 	}
 
-	syslog( LOG_DEBUG, "[%s] %s: connect: Success",
-		inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
+	syslog( LOG_DEBUG, "[%s] %s: connect: Success", d.d_ip,
+		hq->hq_hostname );
 
 	if (( d.d_snet_smtp = snet_attach( s, 1024 * 1024 )) == NULL ) {
-	    syslog( LOG_ERR, "[%s] %s: snet_attach: %m",
-		    inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
+	    syslog( LOG_ERR, "[%s] %s: snet_attach: %m", d.d_ip,
+		    hq->hq_hostname );
 	    close( s );
 	    continue;
 	}
@@ -110,8 +110,8 @@ retry:
 	    if ( hq->hq_red == NULL ) {
 		hq->hq_red = red_host_add( hq->hq_hostname );
 	    }
-	    syslog( LOG_INFO, "[%s] %s: disabling TLS",
-		    inet_ntoa( d.d_sin.sin_addr ), hq->hq_hostname );
+	    syslog( LOG_INFO, "[%s] %s: disabling TLS", d.d_ip,
+		    hq->hq_hostname );
 	    hq->hq_red->red_policy_tls = TLS_POLICY_DISABLED;
 	    goto retry;
 	}

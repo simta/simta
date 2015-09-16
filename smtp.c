@@ -298,8 +298,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 			if ( *c == '\0' ) {
 			    syslog( LOG_ERR, "Connect.out [%s] %s: Failed: "
 				    "illegal hostname in SMTP banner: %s",
-				    inet_ntoa( d->d_sin.sin_addr ),
-				    hq->hq_hostname, line );
+				    d->d_ip, hq->hq_hostname, line );
 			    if (( smtp_reply = smtp_consume_banner(
 				    &(hq->hq_err_text), d, line,
 				    "Illegal hostname in banner" )) != SMTP_OK ) {
@@ -333,7 +332,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    if ( strcmp( hq->hq_smtp_hostname, simta_hostname ) == 0 ) {
 		syslog( LOG_ERR,
 			"Connect.out [%s] %s: Failed: banner mail loop: %s",
-			inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname, line );
+			d->d_ip, hq->hq_hostname, line );
 
 		/* Loop - connected to self */
 		if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text),
@@ -345,7 +344,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    }
 
 	    syslog( LOG_NOTICE, "Connect.out [%s] %s: Accepted: %s: %s",
-		    inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname,
+		    d->d_ip, hq->hq_hostname,
 		    hq->hq_smtp_hostname, line );
 
 	    break;
@@ -389,8 +388,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_NOTICE,
 		    "Deliver.SMTP %s: Message Tempfailed: [%s] %s: %s",
-		    d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
-		    hq->hq_smtp_hostname, line );
+		    d->d_env->e_id, d->d_ip, hq->hq_smtp_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP DATA reply" ));
 
@@ -398,8 +396,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    d->d_delivered = 1;
 	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Message Accepted [%s] %s: "
 		    "transmitted %ld/%ld: %s",
-		    d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
-		    hq->hq_smtp_hostname, d->d_sent, d->d_size, line );
+		    d->d_env->e_id, d->d_ip, hq->hq_smtp_hostname, d->d_sent,
+		    d->d_size, line );
 	    break;
 
 	default:
@@ -426,7 +424,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_CONNECT:
 	    syslog( LOG_NOTICE,
 		    "Connect.out [%s] %s: Tempfailed: SMTP banner: %s",
-		    inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname, line );
+		    d->d_ip, hq->hq_hostname, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP CONNECT reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
@@ -479,8 +477,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Tempfailed %s [%s]: %s",
-		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), line );
+		    d->d_env->e_id, hq->hq_smtp_hostname, d->d_ip, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP DATA reply" ));
 
@@ -488,9 +485,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Tempfailed %s [%s]: "
 		    "transmitted %ld/%ld: %s",
-		    d->d_env->e_id, hq->hq_smtp_hostname, 
-		    inet_ntoa( d->d_sin.sin_addr ), d->d_sent, d->d_size,
-		    line );
+		    d->d_env->e_id, hq->hq_smtp_hostname, d->d_ip, d->d_sent,
+		    d->d_size, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP DATA_EOF reply" ));
 
@@ -520,7 +516,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		hq->hq_status = HOST_BOUNCE;
 		syslog( LOG_NOTICE,
 			"Connect.out [%s] %s: Failed: SMTP banner: %s",
-			inet_ntoa( d->d_sin.sin_addr ), hq->hq_hostname, line );
+			d->d_ip, hq->hq_hostname, line );
 	    } else {
 		syslog( LOG_WARNING,
 			"Deliver.SMTP %s: punt Fail CONNECT reply: %s",
@@ -578,8 +574,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Message Failed: [%s] %s: %s",
-		    d->d_env->e_id, inet_ntoa( d->d_sin.sin_addr ),
-		    hq->hq_smtp_hostname, line );
+		    d->d_env->e_id, d->d_ip, hq->hq_smtp_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP DATA reply" ));
 
@@ -587,9 +582,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
 	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Failed %s [%s]: "
 		    "transmitted %ld/%ld: %s",
-		    d->d_env->e_id, hq->hq_smtp_hostname,
-		    inet_ntoa( d->d_sin.sin_addr ), d->d_sent, d->d_size,
-		    line );
+		    d->d_env->e_id, hq->hq_smtp_hostname, d->d_ip, d->d_sent,
+		    d->d_size, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP DATA_EOF reply" ));
 
