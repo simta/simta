@@ -341,24 +341,24 @@ check_hostname( const char *hostname )
  * against theft of service by spammers, is to arrange for it to make a DNS
  * query agains relays.ordb.org whenever you receive an incoming mail message
  * from a host whose relaying status you do not know.
- * 
+ *
  * The theory of operation is simple. Given a host address in its
  * dotted-quad form, reverse the octets and check for the existence of an ``A
  * RR'' at that node under the relays.ordb.org node. So if you get an SMTP
  * session from [192.89.123.5] you would check for the existence of:
  * 5.123.89.192.relays.ordb.org. IN A 127.0.0.2
- * 
+ *
  * We chose to use an ``A RR'' because that's what most MTA's can use to
  * filter incoming connections. The choice of [127.0.0.2] as the target
  * address was arbitary but will not change. As it happens, we supply a bogus
  * ORDB entry for [127.0.0.2] so that mail transport developers have
  * something to test against.
- * 
+ *
  * If an ``A RR'' is found by this mechanism, then there will also be a
  * ``TXT RR'' at the same DNS node. The text of this record will be suitable
  * for use as a reason text for a bounced mail notification. (Modified from
  * http://www.mail-abuse.org/rbl/usage.html)
- * 
+ *
  * Please note: Someone, completely unrelated to ORDB.org, has created a
  * zone called relays.ordb.com, in which everything resolves. That is,
  * anything from hamster.relays.ordb.com to 1.0.0.127.relays.ordb.com
@@ -370,17 +370,29 @@ check_hostname( const char *hostname )
  */
 
     int
-rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
+rbl_check( struct rbl *rbls, const struct sockaddr *sa, char *text, char *host,
 	struct rbl **found, char **msg )
 {
     struct rbl				*rbl;
     char				*reverse_ip;
     char				*ip;
+    char				sa_ip[ INET6_ADDRSTRLEN ];
     struct dnsr_result			*result;
     struct sockaddr_in			sin;
 
+    if ( sa ) {
+	if ( getnameinfo( (struct sockaddr *)sa,
+		(( sa->sa_family == AF_INET6 )
+		? sizeof( struct sockaddr_in6 )
+		: sizeof( struct sockaddr_in )),
+		sa_ip, INET6_ADDRSTRLEN, NULL, 0, NI_NUMERICHOST ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: rbl_check getnameinfo: %m" );
+	    strcpy( sa_ip, "INVALID" );
+	}
+    }
+
     for ( rbl = rbls; rbl != NULL; rbl = rbl->rbl_next ) {
-	if (( simta_rbl_verbose_logging == 0 ) && 
+	if (( simta_rbl_verbose_logging == 0 ) &&
 		( rbl->rbl_type == RBL_LOG_ONLY )) {
 	    continue;
 	}
@@ -389,11 +401,15 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 	    *found = rbl;
 	}
 
-	if ( in != NULL ) {
+	if ( sa ) {
 	    if (( reverse_ip =
-		    dnsr_ntoptr( simta_dnsr, AF_INET, in, rbl->rbl_domain )) == NULL ) {
+		    dnsr_ntoptr( simta_dnsr, sa->sa_family,
+		    (( sa->sa_family == AF_INET )
+		    ? (void *)&(((struct sockaddr_in *)sa)->sin_addr)
+		    : (void *)&(((struct sockaddr_in6 *)sa)->sin6_addr)),
+		    rbl->rbl_domain )) == NULL ) {
 		syslog( LOG_ERR, "RBL %s: dnsr_ntoptr failed: %s",
-			inet_ntoa( *in ), rbl->rbl_domain );
+			sa_ip, rbl->rbl_domain );
 		continue;
 	    }
 	} else {
@@ -419,7 +435,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 
 	    if ( simta_rbl_verbose_logging ) {
 		syslog( LOG_DEBUG, "RBL [%s] %s: Found in %s list %s: %s",
-			in ? inet_ntoa( *in ) : text, host ? host : "Unknown",
+			sa ? sa_ip : text, host ? host : "Unknown",
 			rbl->rbl_type_text, rbl->rbl_domain, ip );
 	    }
 
@@ -442,7 +458,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 
 	if ( simta_rbl_verbose_logging ) {
 	    syslog( LOG_DEBUG, "RBL [%s] %s: Unlisted in %s list %s",
-		    in ? inet_ntoa( *in ) : text, host ? host : "Unknown",
+		    sa ? sa_ip : text, host ? host : "Unknown",
 		    rbl->rbl_type_text, rbl->rbl_domain );
 	}
 
@@ -452,7 +468,7 @@ rbl_check( struct rbl *rbls, struct in_addr *in, char *text, char *host,
 
     if ( simta_rbl_verbose_logging ) {
 	syslog( LOG_DEBUG, "RBL [%s] %s: RBL list exhausted, no matches",
-		in ? inet_ntoa( *in ) : text, host ? host : "Unknown" );
+		sa ? sa_ip : text, host ? host : "Unknown" );
     }
 
     if ( found != NULL ) {

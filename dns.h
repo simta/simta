@@ -41,7 +41,7 @@ int check_reverse( char *, const struct sockaddr * );
 int check_hostname( const char * );
 struct simta_red *host_local( char * );
 int rbl_add( struct rbl**, int, char *, char * );
-int rbl_check( struct rbl *, struct in_addr *, char *, char *,
+int rbl_check( struct rbl *, const struct sockaddr *, char *, char *,
 	struct rbl**, char ** );
 
 #endif /* SIMTA_DNS_H */

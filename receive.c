@@ -1402,8 +1402,8 @@ f_rcpt( struct receive_data *r )
 
 		if ( r->r_rbl_status == RBL_UNKNOWN ) {
 		    r->r_rbl_status = rbl_check( simta_user_rbls,
-			    &(r->r_sin->sin_addr), NULL, r->r_remote_hostname,
-			    &(r->r_rbl), &(r->r_rbl_msg));
+			    (struct sockaddr *)r->r_sin, NULL,
+			    r->r_remote_hostname, &(r->r_rbl), &(r->r_rbl_msg));
 		}
 
 		switch ( r->r_rbl_status ) {
@@ -3419,7 +3419,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		syslog( LOG_DEBUG, "Debug: smtp_mail checking rbls" );
 	    }
 
-	    switch( rbl_check( simta_rbls, &(c->c_sin.sin_addr),
+	    switch( rbl_check( simta_rbls, (struct sockaddr *)r.r_sin,
 		    r.r_remote_hostname, NULL, &(r.r_rbl), &(r.r_rbl_msg))) {
 	    case RBL_BLOCK:
 		r.r_rbl_status = RBL_BLOCK;

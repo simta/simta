@@ -60,7 +60,8 @@ main( int argc, char *argv[])
     int			nolog = 0;
     int			exclusive = 0;
     int			check_text = 0;
-    struct in_addr	addr;
+    struct addrinfo	hints;
+    struct addrinfo	*ai;
     struct rbl		*rbl_found;
     struct timeval	tv_now;
 
@@ -148,16 +149,17 @@ main( int argc, char *argv[])
     simta_rbl_verbose_logging = 1;
 
     if ( check_text == 0 ) {
-	rc = inet_pton( AF_INET, argv[ optind ], &addr );
-	if ( rc < 0 ) {
-	    perror( "inet_pton" );
-	    exit( SIMRBL_EXIT_ERROR );
-	} else if ( rc == 0 ) {
-	    fprintf( stderr, "%s: invalid address\n", argv[ optind ] );
+	memset( &hints, 0, sizeof( struct addrinfo ));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_NUMERICHOST;
+
+	if (( rc = getaddrinfo( argv[ optind ], NULL, &hints, &ai )) != 0 ) {
+	    fprintf( stderr, "Syserror: getaddrinfo: %s\n", gai_strerror( rc ));
 	    exit( SIMRBL_EXIT_ERROR );
 	}
 
-	if (( rc = rbl_check( simta_rbls, &addr, NULL, NULL, &rbl_found,
+	if (( rc = rbl_check( simta_rbls, ai->ai_addr, NULL, NULL, &rbl_found,
 		&rbl_msg )) == RBL_ERROR ) {
 	    if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
 	    exit( SIMRBL_EXIT_ERROR );
