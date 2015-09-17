@@ -173,7 +173,6 @@ struct connection_info {
 struct simta_socket {
     struct simta_socket		*ss_next;
     int				ss_socket;
-    int				ss_port;
     char			*ss_service;
     int				ss_flags;
     int				ss_count;

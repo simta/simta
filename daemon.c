@@ -89,7 +89,7 @@ int		simta_server( void );
 int		simta_daemonize_server( void );
 int		simta_child_receive( struct simta_socket* );
 int		set_rcvbuf( int );
-struct simta_socket	*simta_listen( char*, int, int );
+struct simta_socket	*simta_listen( int );
 struct proc_type	*simta_proc_add( int, int );
 int		simta_proc_q_runner( int, struct host_q* );
 int		simta_read_command( struct simta_dirp * );
@@ -196,69 +196,107 @@ set_rcvbuf( int s )
 
 
      struct simta_socket *
-simta_listen( char *service, int port_default, int port_override )
+simta_listen( int port )
 {
-    int				reuseaddr = 1;
-    struct sockaddr_in		sin;
-    struct servent		*se;
-    struct simta_socket		*ss;
+    int				sockopt;
+    int				rc;
+    char			host[ NI_MAXHOST ];
+    char			service[ NI_MAXSERV ];
+    char			sport[ 6 ];
+    struct addrinfo		hints;
+    struct addrinfo		*ai, *air;
+    struct simta_socket		*ss = NULL;
 
-    ss = calloc( 1, sizeof( struct simta_socket ));
+    sprintf( sport, "%d", port );
+    memset( &hints, 0, sizeof( struct addrinfo ));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_ADDRCONFIG | AI_PASSIVE | AI_NUMERICSERV;
 
-    ss->ss_service = service;
-    ss->ss_next = simta_listen_sockets;
-    simta_listen_sockets = ss;
-
-    if (( se = getservbyname( ss->ss_service, "tcp" )) == NULL ) {
-	ss->ss_port = htons( port_default );
-	syslog( LOG_INFO, "simta_listen getservbyname can't find %s: "
-		"defaulting to port %d", ss->ss_service, ntohs( ss->ss_port ));
-	fprintf( stderr, "simta_listen getservbyname can't find %s: "
-		"defaulting to port %d\n", ss->ss_service,
-		ntohs( ss->ss_port ));
-    } else {
-	ss->ss_port = se->s_port;
-	syslog( LOG_DEBUG, "simta_listen getservbyname: %s port %d",
-		ss->ss_service, ntohs( ss->ss_port ));
-    }
-
-    if (( ss->ss_socket = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ) {
-	syslog( LOG_ERR, "simta_listen socket %s: %m", ss->ss_service );
-	perror( "socket" );
+    if (( rc = getaddrinfo( NULL, sport, &hints, &air )) != 0 ) {
+	syslog( LOG_ERR, "Syserror: simta_listen getaddrinfo: %s",
+		gai_strerror( rc ));
+	fprintf( stderr, "getaddrinfo: %s\n", gai_strerror( rc ));
 	return( NULL );
     }
 
-    if ( setsockopt( ss->ss_socket, SOL_SOCKET, SO_REUSEADDR,
-	    (void*)&reuseaddr, sizeof( int )) < 0 ) {
-	syslog( LOG_ERR, "simta_listen setsockopt %s: %m", ss->ss_service );
-	perror( "setsockopt" );
-	return( NULL );
-    }
+    for ( ai = air; ai != NULL ; ai = ai->ai_next ) {
+	if ( ai->ai_family == AF_INET6 ) {
+	    if ( simta_ipv6 == 0 ) {
+		continue;
+	    }
+	    simta_ipv6 = 1;
+	} else {
+	    if ( simta_ipv4 == 0 ) {
+		continue;
+	    }
+	    simta_ipv4 = 1;
+	}
 
-    if ( simta_smtp_rcvbuf_min != 0 ) {
-	if ( set_rcvbuf( ss->ss_socket ) != 0 ) {
+	ss = calloc( 1, sizeof( struct simta_socket ));
+
+	if (( rc = getnameinfo( ai->ai_addr, ai->ai_addrlen, host,
+		sizeof( host ), service, sizeof( service ),
+		NI_NUMERICHOST )) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_listen getnameinfo: %s",
+		    gai_strerror( rc ));
+	    fprintf( stderr, "getnameinfo: %s\n", gai_strerror( rc ));
+	    return( NULL );
+	}
+	ss->ss_service = strdup( service );
+	ss->ss_next = simta_listen_sockets;
+	simta_listen_sockets = ss;
+
+	if (( ss->ss_socket = socket( ai->ai_family, ai->ai_socktype,
+		ai->ai_protocol )) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_listen socket %s:%s: %m",
+		    host, service );
+	    perror( "socket" );
+	    return( NULL );
+	}
+
+	if ( ai->ai_family == AF_INET6 ) {
+	    sockopt = 1;
+	    if ( setsockopt( ss->ss_socket, IPPROTO_IPV6, IPV6_V6ONLY,
+		    &sockopt, sizeof( int )) < 0 ) {
+		syslog( LOG_ERR, "Syserror: simta_listen setsockopt %s:%s: %m",
+			host, service );
+		perror( "setsockopt" );
+		return( NULL );
+	    }
+	}
+
+	sockopt = 1;
+	if ( setsockopt( ss->ss_socket, SOL_SOCKET, SO_REUSEADDR,
+		&sockopt, sizeof( int )) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_listen setsockopt %s:%s: %m",
+		    host, service );
+	    perror( "setsockopt" );
+	    return( NULL );
+	}
+
+	if ( simta_smtp_rcvbuf_min != 0 ) {
+	    if ( set_rcvbuf( ss->ss_socket ) != 0 ) {
+		return( NULL );
+	    }
+	}
+
+	if ( bind( ss->ss_socket, ai->ai_addr, ai->ai_addrlen ) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_listen bind %s:%s: %m",
+		    host, service );
+	    perror( "bind" );
+	    return( NULL );
+	}
+
+	if ( listen( ss->ss_socket, simta_listen_backlog ) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_listen listen %s:%s: %m",
+		    host, service );
+	    perror( "listen" );
 	    return( NULL );
 	}
     }
 
-    memset( &sin, 0, sizeof( struct sockaddr_in ));
-    sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = INADDR_ANY;
-    sin.sin_port = ss->ss_port;
-
-    if ( bind( ss->ss_socket, (struct sockaddr *)&sin,
-	    sizeof( struct sockaddr_in )) < 0 ) {
-	syslog( LOG_ERR, "simta_listen bind %s: %m", ss->ss_service );
-	perror( "bind" );
-	return( NULL );
-    }
-
-    if ( listen( ss->ss_socket, simta_listen_backlog ) < 0 ) {
-	syslog( LOG_ERR, "simta_listen listen %s: %m", ss->ss_service );
-	perror( "listen" );
-	return( NULL );
-    }
-
+    freeaddrinfo( air );
     return( ss );
 }
 
@@ -554,14 +592,14 @@ main( int ac, char **av )
     if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 ) &&
 	    ( simta_smtp_default_mode != SMTP_MODE_OFF )) {
 	if (( simta_smtp_port_defined == 0 ) || ( simta_smtp_port != 0 )) {
-	    if ( simta_listen( "smtp", 25, simta_smtp_port ) == NULL ) {
+	    if ( simta_listen( 25 ) == NULL ) {
 		exit( 1 );
 	    }
 	}
 
 #ifdef HAVE_LIBSSL
 	if ( simta_service_smtps ) {
-	    if (( ss = simta_listen( "smtps", 465, 0 )) == NULL ) {
+	    if (( ss = simta_listen( 465 )) == NULL ) {
 		exit( 1 );
 	    }
 	    ss->ss_flags |= SIMTA_SOCKET_TLS;
@@ -569,7 +607,7 @@ main( int ac, char **av )
 #endif /* HAVE_LIBSSL */
 
 	if ( simta_service_submission ) {
-	    if ( simta_listen( "submission", 587, 0 ) == NULL ) {
+	    if ( simta_listen( 587 ) == NULL ) {
 		exit( 1 );
 	    }
 	}
