@@ -163,7 +163,7 @@ get_mx( const char *hostname )
 }
 
     struct dnsr_result *
-get_ptr( const struct sockaddr *addr )
+get_ptr( const struct sockaddr *sa )
 {
     struct dnsr_result  *result = NULL;
     char		*hostname;
@@ -175,10 +175,10 @@ get_ptr( const struct sockaddr *addr )
         }
     }
 
-    if (( hostname = dnsr_ntoptr( simta_dnsr, addr->sa_family,
-	    ( addr->sa_family == AF_INET ?
-		    (void *)&(((struct sockaddr_in *)addr)->sin_addr) :
-		    (void *)&(((struct sockaddr_in6 *)addr)->sin6_addr)),
+    if (( hostname = dnsr_ntoptr( simta_dnsr, sa->sa_family,
+	    (( sa->sa_family == AF_INET )
+	    ? (void *)&(((struct sockaddr_in *)sa)->sin_addr)
+	    : (void *)&(((struct sockaddr_in6 *)sa)->sin6_addr)),
 	    NULL )) == NULL ) {
         syslog( LOG_ERR, "Liberror: get_ptr dnsr_ntoptr: %s",
 		dnsr_err2string( dnsr_errno( simta_dnsr )));
@@ -233,56 +233,28 @@ host_local( char *hostname )
     return( NULL );
 }
 
-
     int
-check_reverse( char *dn, const struct in_addr *in )
+check_reverse( char *dn, const struct sockaddr *sa )
 {
     int				i, j;
     int				ret = REVERSE_UNKNOWN;
-    char			*temp;
     struct dnsr_result		*result_ptr = NULL, *result_a = NULL;
 
-    if ( simta_dnsr == NULL ) {
-	if (( simta_dnsr = dnsr_new( )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror check_reverse: dnsr_new: %m" );
-	    return( REVERSE_ERROR );
-	}
-    }
-
-    if (( temp = dnsr_ntoptr( simta_dnsr, AF_INET, in, NULL )) == NULL ) {
-	syslog( LOG_ERR, "check_reverse: dnsr_ntoptr: %s",
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	return( REVERSE_ERROR );
-    }
-
-    /* Get PTR for connection */
-    if ( dnsr_query( simta_dnsr, DNSR_TYPE_PTR, DNSR_CLASS_IN, temp ) < 0 ) {
-	syslog( LOG_ERR, "check_reverse: dnsr_query: %s",
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
-	free( temp );
-	return( REVERSE_ERROR );
-    }
-
-    free( temp );
-
-    if (( result_ptr = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-	syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
-	    dnsr_err2string( dnsr_errno( simta_dnsr )));
+    if (( result_ptr = get_ptr( sa )) == NULL ) {
 	return( REVERSE_ERROR );
     }
 
     for ( i = 0; i < result_ptr->r_ancount; i++ ) {
 	if ( result_ptr->r_answer[ i ].rr_type == DNSR_TYPE_PTR ) {
 	    /* Get A record on PTR result */
-	    if (( dnsr_query( simta_dnsr, DNSR_TYPE_A, DNSR_CLASS_IN,
-		    result_ptr->r_answer[ i ].rr_dn.dn_name )) < 0 ) {
-		syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
-		    dnsr_err2string( dnsr_errno( simta_dnsr )));
-		goto error;
+	    if ( sa->sa_family == AF_INET6 ) {
+		result_a = get_aaaa( result_ptr->r_answer[ i ].rr_dn.dn_name );
+	    } else {
+		result_a = get_a( result_ptr->r_answer[ i ].rr_dn.dn_name );
 	    }
-	    if (( result_a = dnsr_result( simta_dnsr, NULL )) == NULL ) {
-		syslog( LOG_ERR, "check_reverse: dnsr_result: %s",
-		    dnsr_err2string( dnsr_errno( simta_dnsr )));
+
+	    if ( result_a == NULL ) {
+		ret = REVERSE_ERROR;
 		goto error;
 	    }
 
@@ -290,40 +262,52 @@ check_reverse( char *dn, const struct in_addr *in )
 
 	    /* Verify A record matches IP */
 	    for ( j = 0; j < result_a->r_ancount; j++ ) {
-		if ( result_a->r_answer[ j ].rr_type == DNSR_TYPE_A ) {
-		    if ( memcmp( &(in->s_addr),
-			    &(result_a->r_answer[ j ].rr_a),
-			    sizeof( int )) == 0 ) {
-			if ( dn != NULL ) {
-			    strcpy( dn,
-				result_ptr->r_answer[ i ].rr_dn.dn_name );
-			}
-			dnsr_free_result( result_a );
-			dnsr_free_result( result_ptr );
-			return( REVERSE_MATCH );
+		if (( sa->sa_family == AF_INET6 ) &&
+			( result_a->r_answer[ j ].rr_type == DNSR_TYPE_AAAA )) {
+		    if ( memcmp(
+			    &(result_a->r_answer[ j ].rr_aaaa.aaaa_address),
+			    &(((struct sockaddr_in6 *)sa)->sin6_addr),
+			    sizeof( struct in6_addr )) == 0 ) {
+			ret = REVERSE_MATCH;
+		    }
+		} else if (( sa->sa_family == AF_INET ) &&
+			( result_a->r_answer[ j ].rr_type == DNSR_TYPE_A )) {
+		    if ( memcmp( &(result_a->r_answer[ j ].rr_a.a_address),
+			    &(((struct sockaddr_in *)sa)->sin_addr),
+			    sizeof( struct in_addr )) == 0 ) {
+			ret = REVERSE_MATCH;
 		    }
 
 		} else {
 		    syslog( LOG_DEBUG,
-			"check_reverse: %s: uninteresting dnsr type: %d",
-			result_a->r_answer[ j ].rr_name, 
+			"DNS: check_reverse %s: uninteresting dnsr type: %d",
+			result_a->r_answer[ j ].rr_name,
 			result_a->r_answer[ j ].rr_type );
+		}
+
+		if ( ret == REVERSE_MATCH ) {
+		    if ( dn ) {
+			strncpy( dn, result_ptr->r_answer[ i ].rr_dn.dn_name,
+				DNSR_MAX_NAME );
+		    }
+		    dnsr_free_result( result_a );
+		    dnsr_free_result( result_ptr );
+		    return( ret );
 		}
 	    }
 	    dnsr_free_result( result_a );
 
 	} else {
-	    syslog( LOG_DEBUG, "check_result: %s: uninteresting dnsr type: %d",
-		result_ptr->r_answer[ i ].rr_name, 
-		result_ptr->r_answer[ i ].rr_type );
+	    syslog( LOG_DEBUG,
+		    "DNS: check_reverse %s: uninteresting dnsr type: %d",
+		    result_ptr->r_answer[ i ].rr_name,
+		    result_ptr->r_answer[ i ].rr_type );
 	}
     }
-    dnsr_free_result( result_ptr );
-    return( ret );
 
 error:
     dnsr_free_result( result_ptr );
-    return( REVERSE_ERROR );
+    return( ret );
 }
 
     int

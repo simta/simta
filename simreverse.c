@@ -51,23 +51,25 @@ const char	*simta_progname = "simreverse";
 main( int argc, char *argv[])
 {
     int			rc;
-    struct in_addr	addr;
+    struct addrinfo	hints;
+    struct addrinfo	*ai;
 
     if ( argc != 2 ) {
 	fprintf( stderr, "Usage: %s address\n", argv[ 0 ]);
 	exit( EX_USAGE );
     }
 
-    rc = inet_pton( AF_INET, argv[ 1 ], &addr );
-    if ( rc < 0 ) {
-	perror( "inet_pton" );
-	exit( SIMREVERSE_EXIT_ERROR );
-    } else if ( rc == 0 ) {
-	fprintf( stderr, "%s: invalid address\n", argv[ 1 ] );
+    memset( &hints, 0, sizeof( struct addrinfo ));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_NUMERICHOST;
+
+    if (( rc = getaddrinfo( argv[ 1 ], NULL, &hints, &ai )) != 0 ) {
+	fprintf( stderr, "Syserror: getaddrinfo: %s\n", gai_strerror( rc ));
 	exit( SIMREVERSE_EXIT_ERROR );
     }
 
-    switch ( check_reverse( argv[ 1 ], &addr )) {
+    switch ( check_reverse( argv[ 1 ], ai->ai_addr )) {
     case REVERSE_MATCH:
 	printf( "valid reverse\n" );
 	exit( SIMREVERSE_EXIT_VALID );

@@ -37,7 +37,7 @@ struct dnsr_result *get_aaaa( const char * );
 struct dnsr_result *get_mx( const char * );
 struct dnsr_result *get_ptr( const struct sockaddr * );
 struct dnsr_result *get_txt( const char * );
-int check_reverse( char *, const struct in_addr * );
+int check_reverse( char *, const struct sockaddr * );
 int check_hostname( const char * );
 struct simta_red *host_local( char * );
 int rbl_add( struct rbl**, int, char *, char * );

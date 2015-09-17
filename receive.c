@@ -3334,7 +3334,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 	*hostname = '\0';
 	switch ( r.r_dns_match =
-		check_reverse( hostname, &(c->c_sin.sin_addr))) {
+		check_reverse( hostname, (struct sockaddr *)r.r_sin )) {
 
 	default:
 	    syslog( LOG_ERR, "Syserror smtp_receive check_reverse: "
