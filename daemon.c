@@ -1409,14 +1409,14 @@ simta_child_receive( struct simta_socket *ss )
     struct proc_type	*p;
     struct simta_socket		*s;
     struct connection_info	*cinfo = NULL;
-    struct sockaddr_in		sin;
+    struct sockaddr_storage	sa;
     int				pid;
     int				fd;
-    socklen_t			sinlen;
+    int				rc;
+    socklen_t			salen;
 
-    sinlen = sizeof( struct sockaddr_in );
-
-    if (( fd = accept( ss->ss_socket, (struct sockaddr*)&sin, &sinlen )) < 0 ) {
+    salen = sizeof( struct sockaddr_storage );
+    if (( fd = accept( ss->ss_socket, (struct sockaddr *)&sa, &salen )) < 0 ) {
 	syslog( LOG_ERR, "Syserror: simta_child_receive accept: %m" );
 	/* accept() errors aren't fatal */
 	return( 0 );
@@ -1424,15 +1424,33 @@ simta_child_receive( struct simta_socket *ss )
 
     /* Look up / Create IP related connection data entry */
     for ( cinfo = cinfo_stab; cinfo != NULL; cinfo = cinfo->c_next ) {
-	if ( memcmp( &(cinfo->c_sin.sin_addr), &sin.sin_addr,
-		sizeof( struct in_addr )) == 0 ) {
+	if ( sa.ss_family != cinfo->c_sa.ss_family ) {
+	    continue;
+	}
+	if (( sa.ss_family == AF_INET6 ) && (
+		memcmp( &(((struct sockaddr_in6 *)&sa)->sin6_addr),
+		&(((struct sockaddr_in6 *)&(cinfo->c_sa))->sin6_addr),
+		sizeof( struct sockaddr_in6 )) == 0 )) {
+	    break;
+	} else if ( memcmp( &(((struct sockaddr_in *)&sa)->sin_addr),
+		&(((struct sockaddr_in *)&(cinfo->c_sa))->sin_addr),
+		sizeof( struct sockaddr_in )) == 0 ) {
 	    break;
 	}
     }
 
     if ( cinfo == NULL ) {
 	cinfo = calloc( 1, sizeof( struct connection_info ));
-	memcpy( &(cinfo->c_sin), &sin, sizeof( struct sockaddr ));
+	memcpy( &(cinfo->c_sa), &sa, sizeof( struct sockaddr_storage ));
+
+	if (( rc = getnameinfo( (struct sockaddr *)&sa,
+		(( sa.ss_family == AF_INET6 )
+		? sizeof( struct sockaddr_in6 ) : sizeof( struct sockaddr_in )),
+		cinfo->c_ip, sizeof( cinfo->c_ip ),
+		NULL, 0, NI_NUMERICHOST )) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: simta_child_receive getnameinfo: %s",
+		    gai_strerror( rc ));
+	}
 
 	cinfo->c_next = cinfo_stab;
 	cinfo_stab = cinfo;
@@ -1473,7 +1491,7 @@ simta_child_receive( struct simta_socket *ss )
 
     syslog( LOG_DEBUG, "Connect.stat %s: global_total %d "
 	    "global_throttle %d local_total %d local_throttle %d",
-	    inet_ntoa( cinfo->c_sin.sin_addr ), simta_global_connections,
+	    cinfo->c_ip, simta_global_connections,
 	    simta_global_throttle_connections, cinfo->c_proc_total,
 	    cinfo->c_proc_throttle );
 
@@ -1521,7 +1539,7 @@ simta_child_receive( struct simta_socket *ss )
     p->p_ss->ss_count++;
     p->p_cinfo = cinfo;
 
-    p->p_host = strdup( inet_ntoa( cinfo->c_sin.sin_addr ));
+    p->p_host = strdup( cinfo->c_ip );
 
     syslog( LOG_NOTICE, "Child Start %d.%ld: Receive %d %s %d: %s", p->p_id,
 	    p->p_tv.tv_sec, *p->p_limit, p->p_ss->ss_service,

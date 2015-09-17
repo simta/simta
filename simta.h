@@ -163,7 +163,8 @@ struct proc_type {
 
 struct connection_info {
     struct connection_info	*c_next;
-    struct sockaddr_in		c_sin;
+    struct sockaddr_storage	c_sa;
+    char			c_ip[ INET6_ADDRSTRLEN ];
     int				c_proc_total;
     int				c_proc_throttle;
     struct timeval		c_tv;
