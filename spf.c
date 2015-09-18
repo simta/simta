@@ -28,10 +28,10 @@ struct spf_state {
 };
 
 int spf_check_host( struct spf_state *, const yastr );
-static int spf_check_a( struct spf_state *, const yastr, long int, const char * );
+static int spf_check_a( struct spf_state *, const yastr, long int, long int, const char * );
 static yastr spf_macro_expand( struct spf_state *, const yastr, const yastr );
 static yastr spf_parse_domainspec_cidr( struct spf_state *, const yastr, yastr, long int *, long int * );
-static int simta_cidr_compare( int, long int, const struct sockaddr *, const struct sockaddr *, const char * );
+static int simta_cidr_compare( long int, const struct sockaddr *, const struct sockaddr *, const char * );
 
     int
 spf_lookup( const char *ehlo, const char *email, const struct sockaddr *addr )
@@ -255,14 +255,14 @@ spf_check_host( struct spf_state *s, const yastr domain )
 		goto cleanup;
 	    }
 
-	    rc = spf_check_a( s, domain, cidr, domain_spec );
+	    rc = spf_check_a( s, domain, cidr, cidr6, domain_spec );
 
 	    switch( rc ) {
 	    case SPF_RESULT_PASS:
 		if ( simta_spf_verbose ) {
-		    syslog( LOG_DEBUG, "SPF %s [%s]: matched a %s/%ld: %s",
-			    s->s_domain, domain, domain_spec, cidr,
-			spf_result_str( qualifier ));
+		    syslog( LOG_DEBUG, "SPF %s [%s]: matched a %s/%ld/%ld: %s",
+			    s->s_domain, domain, domain_spec, cidr, cidr6,
+			    spf_result_str( qualifier ));
 		}
 		yaslfree( domain_spec );
 		ret = qualifier;
@@ -308,15 +308,15 @@ spf_check_host( struct spf_state *s, const yastr domain )
 		     * limit of 10 mechanisms/modifiers that cause DNS lookups
 		     */
 		    s->s_queries++;
-		    rc = spf_check_a( s, domain, cidr,
+		    rc = spf_check_a( s, domain, cidr, cidr6,
 			    dnsr_res_mech->r_answer[ j ].rr_mx.mx_exchange );
 		    switch( rc ) {
 		    case SPF_RESULT_PASS:
 			if ( simta_spf_verbose ) {
 			    syslog( LOG_DEBUG,
-				    "SPF %s [%s]: matched mx %s/%ld: %s",
+				    "SPF %s [%s]: matched mx %s/%ld/%ld: %s",
 				    s->s_domain, domain, domain_spec, cidr,
-				    spf_result_str( qualifier ));
+				    cidr6, spf_result_str( qualifier ));
 			}
 			ret = qualifier;
 			dnsr_free_result( dnsr_res_mech );
@@ -376,7 +376,7 @@ spf_check_host( struct spf_state *s, const yastr domain )
 		 * records  other than the first 10 MUST be ignored.
 		 */
 		if (( mech_queries++ < 10 ) && ( spf_check_a( s, domain, 32,
-			dnsr_res_mech->r_answer[ j ].rr_dn.dn_name ) ==
+			128, dnsr_res_mech->r_answer[ j ].rr_dn.dn_name ) ==
 			SPF_RESULT_PASS )) {
 		    tmp = yaslauto(
 			    dnsr_res_mech->r_answer[ j ].rr_dn.dn_name );
@@ -428,8 +428,8 @@ spf_check_host( struct spf_state *s, const yastr domain )
 		cidr = 32;
 	    }
 
-	    if (( rc = simta_cidr_compare( AF_INET, cidr,
-		    s->s_addr, NULL, split[ i ] )) < 0 ) {
+	    if (( rc = simta_cidr_compare( cidr, s->s_addr, NULL,
+		    split[ i ] )) < 0 ) {
 		syslog( LOG_WARNING,
 			"SPF %s [%s]: simta_cidr_compare failed for %s",
 			s->s_domain, domain, split[ i ] );
@@ -449,10 +449,36 @@ spf_check_host( struct spf_state *s, const yastr domain )
 	    if ( s->s_addr->sa_family != AF_INET6 ) {
 		continue;
 	    }
-	    /* This is just a stub for now; simta doesn't support IPv6 yet. */
-	    if ( simta_spf_verbose ) {
-		syslog( LOG_DEBUG, "SPF %s [%s]: burning desire to check ip6",
-			s->s_domain, domain );
+
+	    yaslrange( split[ i ], 4, -1 );
+	    if (( p = strchr( split[ i ], '/' )) != NULL ) {
+		cidr = strtol( p + 1, NULL, 10 );
+		if (( cidr < 0 ) || ( cidr > 128 )) {
+		    syslog( LOG_WARNING, "SPF %s [%s]: invalid CIDR mask: %ld",
+			    s->s_domain, domain, cidr );
+		    ret = SPF_RESULT_PERMERROR;
+		    goto cleanup;
+		}
+		yaslrange( split[ i ], 0, p - split[ i ] - 1 );
+	    } else {
+		cidr = 128;
+	    }
+
+	    if (( rc = simta_cidr_compare( cidr, s->s_addr, NULL,
+		    split[ i ] )) < 0 ) {
+		syslog( LOG_WARNING,
+			"SPF %s [%s]: simta_cidr_compare failed for %s",
+			s->s_domain, domain, split[ i ] );
+		ret = SPF_RESULT_PERMERROR;
+		goto cleanup;
+	    } else if ( rc == 0 ) {
+		if ( simta_spf_verbose ) {
+		    syslog( LOG_DEBUG, "SPF %s [%s]: matched ip6 %s/%ld: %s",
+			    s->s_domain, domain, split[ i ], cidr,
+			    spf_result_str( qualifier ));
+		}
+		ret = qualifier;
+		goto cleanup;
 	    }
 
 	/* RFC 7208 5.7 "exists" */
@@ -544,25 +570,45 @@ cleanup:
 }
 
     static int
-spf_check_a( struct spf_state *s, const yastr domain, long int cidr, const char *a )
+spf_check_a( struct spf_state *s, const yastr domain, long int cidr, long int cidr6, const char *a )
 {
     int			    i;
-    struct sockaddr_in	    sai;
+    int			    rr_type = DNSR_TYPE_A;
+    int			    ecidr = cidr;
+    struct sockaddr_storage sa;
+
     struct dnsr_result	    *dnsr_res;
 
-    if (( dnsr_res = get_a( a )) == NULL ) {
-	syslog( LOG_WARNING, "SPF %s [%s]: A lookup %s failed",
-	    s->s_domain, domain, a );
-	return( SPF_RESULT_TEMPERROR );
+    if ( s->s_addr->sa_family == AF_INET6 ) {
+	rr_type = DNSR_TYPE_AAAA;
+	ecidr = cidr6;
+	if (( dnsr_res = get_aaaa( a )) == NULL ) {
+	    syslog( LOG_WARNING, "SPF %s [%s]: AAAA lookup %s failed",
+		    s->s_domain, domain, a );
+	    return( SPF_RESULT_TEMPERROR );
+	}
+    } else {
+	if (( dnsr_res = get_a( a )) == NULL ) {
+	    syslog( LOG_WARNING, "SPF %s [%s]: A lookup %s failed",
+		    s->s_domain, domain, a );
+	    return( SPF_RESULT_TEMPERROR );
+	}
     }
 
     for ( i = 0 ; i < dnsr_res->r_ancount ; i++ ) {
-	if ( dnsr_res->r_answer[ i ].rr_type == DNSR_TYPE_A ) {
-	    sai.sin_family = AF_INET;
-	    memcpy( &(sai.sin_addr), &(dnsr_res->r_answer[ i ].rr_a.a_address),
-		    sizeof( struct in_addr ));
-	    if ( simta_cidr_compare( AF_INET, cidr, s->s_addr,
-		    (struct sockaddr *)&sai, NULL ) == 0 ) {
+	if ( dnsr_res->r_answer[ i ].rr_type == rr_type ) {
+	    sa.ss_family = s->s_addr->sa_family;
+	    if ( sa.ss_family == AF_INET6 ) {
+		memcpy( &(((struct sockaddr_in6 *)&sa)->sin6_addr),
+			&(dnsr_res->r_answer[ i ].rr_aaaa.aaaa_address),
+			sizeof( struct in6_addr ));
+	    } else {
+		memcpy( &(((struct sockaddr_in *)&sa)->sin_addr),
+			&(dnsr_res->r_answer[ i ].rr_a.a_address),
+			sizeof( struct in_addr ));
+	    }
+	    if ( simta_cidr_compare( ecidr, s->s_addr, (struct sockaddr *)&sa,
+		    NULL ) == 0 ) {
 		dnsr_free_result( dnsr_res );
 		return( SPF_RESULT_PASS );
 	    }
@@ -853,24 +899,19 @@ spf_parse_domainspec_cidr( struct spf_state *s, yastr domain, yastr dsc, long in
 }
 
     static int
-simta_cidr_compare( int af, long int netmask, const struct sockaddr *addr,
+simta_cidr_compare( long int netmask, const struct sockaddr *addr,
 	const struct sockaddr *addr2, const char *ip )
 {
-    int			rc, ret = 1;
+    int			rc;
+    int			ret = 1;
     struct addrinfo	*ip_ai = NULL;
     struct addrinfo	hints;
-
-    if ( af != addr->sa_family ) {
-	return( 1 );
-    }
-
-    if ( netmask == 0 ) {
-	return( 0 );
-    }
+    struct in6_addr	*addr_in6;
+    struct in6_addr	*addr2_in6;
 
     if ( addr2 == NULL ) {
 	memset( &hints, 0, sizeof( struct addrinfo ));
-	hints.ai_family = af;
+	hints.ai_family = addr->sa_family;
 	hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
 
 	if (( rc = getaddrinfo( ip, NULL, &hints, &ip_ai )) != 0 ) {
@@ -882,15 +923,34 @@ simta_cidr_compare( int af, long int netmask, const struct sockaddr *addr,
 	addr2 = ip_ai->ai_addr;
     }
 
-    if ( af == AF_INET ) {
+    if ( addr->sa_family != addr2->sa_family ) {
+	/* no need to check anything */
+    } else if ( netmask == 0 ) {
+	ret = 0;
+    } else if ( addr->sa_family == AF_INET ) {
 	if ( ! ((((struct sockaddr_in *)addr)->sin_addr.s_addr ^
 		((struct sockaddr_in *)addr2)->sin_addr.s_addr ) &
 		htonl(( 0xFFFFFFFF << ( 32 - netmask ))))) {
 	    ret = 0;
 	}
+    } else {
+	addr_in6 = &(((struct sockaddr_in6 *)addr)->sin6_addr);
+	addr2_in6 = &(((struct sockaddr_in6 *)addr2)->sin6_addr);
+	/* compare whole bytes */
+	if ( memcmp( addr_in6->s6_addr, addr2_in6->s6_addr,
+		( netmask / 8 )) == 0 ) {
+	    /* compare a partial byte, if needed */
+	    if (( netmask % 8 ) > 0 ) {
+		if ( ! (( addr_in6->s6_addr[ netmask / 8 ] ^
+			addr2_in6->s6_addr[ netmask / 8 ] ) &
+			( 0xFF << ( netmask % 8 )))) {
+		    ret = 0;
+		}
+	    } else {
+		ret = 0;
+	    }
+	}
     }
-
-    /* AF_INET6 is a bit trickier, so we won't worry about that right now. */
 
     if ( ip_ai != NULL ) {
 	freeaddrinfo( ip_ai );
