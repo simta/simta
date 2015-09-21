@@ -1109,7 +1109,10 @@ f_mail( struct receive_data *r )
 			continue;
 		    }
 
-		    if ( ifa->ifa_addr->sa_family == AF_INET ) {
+		    if (( simta_ipv4 &&
+			    ( ifa->ifa_addr->sa_family == AF_INET )) ||
+			    ( simta_ipv6 &&
+			    ( ifa->ifa_addr->sa_family == AF_INET6 ))) {
 			spf_result = spf_lookup( simta_hostname,
 				r->r_env->e_mail, ifa->ifa_addr );
 		    }
