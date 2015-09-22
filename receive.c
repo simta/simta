@@ -2871,7 +2871,12 @@ f_auth( struct receive_data *r )
 	tv.tv_sec = simta_inbound_command_line_timer;
 	tv.tv_usec = 0;
 	if (( clientin = snet_getline( r->r_snet, &tv )) == NULL ) {
-	    syslog( LOG_DEBUG, "Syserror f_auth: snet_getline: %m" );
+	    if ( snet_eof( r->r_snet )) {
+		syslog( LOG_ERR, "Auth [%s] %s: %s: unexpected EOF",
+			r->r_ip, r->r_remote_hostname, r->r_auth_id );
+	    } else {
+		syslog( LOG_ERR, "Liberror: f_auth snet_getline: %m" );
+	    }
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
@@ -3524,11 +3529,15 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	timersub( tv_timeout, &tv_now, &tv_wait );
 
 	if (( line = snet_getline( r.r_snet, &tv_wait )) == NULL ) {
-	    if (( errno == ETIMEDOUT ) || ( errno == EINTR )) {
+	    if ( snet_eof( r.r_snet )) {
+		syslog( LOG_ERR, "Receive [%s] %s: Command: "
+			"unexpected EOF", r.r_ip, r.r_remote_hostname );
+	    } else if (( errno == ETIMEDOUT ) || ( errno == EINTR )) {
 		calculate_timers = 0;
 		continue;
+	    } else {
+		syslog( LOG_ERR, "Liberror: smtp_receive snet_getline: %m" );
 	    }
-	    syslog( LOG_ERR, "Syserror: smtp_receive snet_getline: %m" );
 	    goto syserror;
 	}
 
