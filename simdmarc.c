@@ -19,7 +19,6 @@ const char	*simta_progname = "simdmarc";
     int
 main( int ac, char *av[ ] )
 {
-    yastr		record_str;
     yastr		test_str;
     struct dmarc	*d;
 
