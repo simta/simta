@@ -244,9 +244,7 @@ struct command	smtp_commands[] = {
 #ifdef HAVE_LIBSSL
     { "STARTTLS",	f_starttls },
 #endif /* HAVE_LIBSSL */
-#ifdef HAVE_LIBSASL
     { "AUTH", 		f_auth },
-#endif /* HAVE_LIBSASL */
 };
 
 struct command	refuse_commands[] = {
@@ -264,9 +262,7 @@ struct command	refuse_commands[] = {
 #ifdef HAVE_LIBSSL
     { "STARTTLS",	f_bad_sequence },
 #endif /* HAVE_LIBSSL */
-#ifdef HAVE_LIBSASL
     { "AUTH", 		f_bad_sequence },
-#endif /* HAVE_LIBSASL */
 };
 
 struct command	off_commands[] = {
@@ -727,7 +723,7 @@ f_ehlo( struct receive_data *r )
 
     if ( simta_sasl == SIMTA_SASL_HONEYPOT ) {
 	/* Falsely advertise auth support */
-	if ( snet_writef( r->r_snet, "250%sAUTH PLAIN\r\n",
+	if ( snet_writef( r->r_snet, "250%sAUTH LOGIN PLAIN\r\n",
 		extension_count-- ? "-" : " " ) < 0 ) {
 	    syslog( LOG_DEBUG, "Syserror f_ehlo: snet_writef: %m" );
 	    return( RECEIVE_CLOSECONNECTION );
@@ -2739,7 +2735,6 @@ start_tls( struct receive_data *r, SSL_CTX *ssl_ctx )
     int
 f_auth( struct receive_data *r )
 {
-#ifdef HAVE_LIBSASL
     int			rc;
     const char		*mechname;
     char		base64[ BASE64_BUF_SIZE + 1 ];
@@ -2748,7 +2743,6 @@ f_auth( struct receive_data *r )
     const char		*serverout;
     unsigned int	serveroutlen;
     struct timeval	tv;
-#endif /* HAVE_LIBSASL */
 
     if ( simta_sasl == SIMTA_SASL_OFF ) {
 	return( f_not_implemented( r ));
@@ -2756,15 +2750,6 @@ f_auth( struct receive_data *r )
 
     tarpit_sleep( r, 0 );
 
-    if ( simta_sasl == SIMTA_SASL_HONEYPOT ) {
-	if ( smtp_write_banner( r, 235, NULL, NULL ) != RECEIVE_OK ) {
-	    return( RECEIVE_CLOSECONNECTION );
-	}
-	set_smtp_mode( r, simta_smtp_punishment_mode, "Honeypot AUTH" );
-	return( RECEIVE_OK );
-    }
-
-#ifdef HAVE_LIBSASL
     /* RFC 4954 4 The AUTH Command
      * Note that these BASE64 strings can be much longer than normal SMTP
      * commands. Clients and servers MUST be able to handle the maximum encoded
@@ -2780,6 +2765,78 @@ f_auth( struct receive_data *r )
 		"RFC 4954 section 4 AUTH mechanism [initial-response]" ));
     }
 
+    if ( simta_sasl == SIMTA_SASL_HONEYPOT ) {
+	if ( strcasecmp( r->r_av[ 1 ], "PLAIN" ) == 0 ) {
+	    syslog( LOG_DEBUG, "Auth.fake [%s] %s: starting PLAIN auth",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+	    if ( r->r_ac == 3 ) {
+		clientin = r->r_av[ 2 ];
+
+	    } else {
+		if ( smtp_write_banner( r, 334, NULL, NULL ) != RECEIVE_OK ) {
+		    return( RECEIVE_CLOSECONNECTION );
+		}
+		tv.tv_sec = simta_inbound_command_line_timer;
+		tv.tv_usec = 0;
+		if (( clientin = snet_getline( r->r_snet, &tv )) == NULL ) {
+		    syslog( LOG_ERR,
+				"Auth.fake [%s] %s: snet_getline failed",
+				inet_ntoa( r->r_sin->sin_addr ),
+				r->r_remote_hostname );
+		    return( RECEIVE_CLOSECONNECTION );
+		}
+	    }
+	} else if ( strcasecmp( r->r_av[ 1 ], "LOGIN" ) == 0 ) {
+	    syslog( LOG_DEBUG, "Auth.fake [%s] %s: starting LOGIN auth",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+	    if ( smtp_write_banner( r, 334, "VXNlciBOYW1lAA==",
+		    NULL ) != RECEIVE_OK ) {
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	    tv.tv_sec = simta_inbound_command_line_timer;
+	    tv.tv_usec = 0;
+	    if (( clientin = snet_getline( r->r_snet, &tv )) == NULL ) {
+		syslog( LOG_ERR, "Auth.fake [%s] %s: snet_getline failed",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	    syslog( LOG_INFO, "Auth.fake [%s] %s: %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    clientin );
+	    if ( smtp_write_banner( r, 334, "UGFzc3dvcmQA",
+		    NULL ) != RECEIVE_OK ) {
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	    tv.tv_sec = simta_inbound_command_line_timer;
+	    tv.tv_usec = 0;
+	    if (( clientin = snet_getline( r->r_snet, &tv )) == NULL ) {
+		syslog( LOG_ERR, "Auth.fake [%s] %s: snet_getline failed",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	} else {
+	    syslog( LOG_ERR, "Auth.fake [%s] %s: "
+		    "unrecognized authentication type: %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_smtp_command );
+	    if ( smtp_write_banner( r, 504, NULL, NULL ) != RECEIVE_OK ) {
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	}
+
+	if ( clientin ) {
+	    syslog( LOG_INFO, "Auth.fake [%s] %s: %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    clientin );
+	    if ( smtp_write_banner( r, 235, NULL, NULL ) != RECEIVE_OK ) {
+		return( RECEIVE_CLOSECONNECTION );
+	    }
+	}
+	set_smtp_mode( r, simta_smtp_punishment_mode, "Honeypot AUTH" );
+	return( RECEIVE_OK );
+    }
+
+#ifdef HAVE_LIBSASL
     /* RFC 4954 4 The AUTH Command
      * After an AUTH command has successfully completed, no more AUTH commands
      * may be issued in the same session. After a successful AUTH command
