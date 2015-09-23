@@ -884,6 +884,33 @@ f_mail( struct receive_data *r )
 		}
 	    }
 
+	/* RFC 4954 5 The AUTH Parameter to the MAIL FROM command
+	 *
+	 * If the server trusts the authenticated identity of the client to
+	 * assert that the message was originally submitted by the supplied
+	 * <mailbox>, then the server SHOULD supply the same <mailbox> in an
+	 * AUTH parameter when relaying the message to any other server which
+	 * supports the AUTH extension.
+	 *
+	 * For this reason, servers that advertise support for this extension
+	 * MUST support the AUTH parameter to the MAIL FROM command even when
+	 * the client has not authenticated itself to the server.
+	 *
+	 * [...]
+	 *
+	 * Note that an implementation which is hard-coded to treat all clients
+	 * as being insufficiently trusted is compliant with this specification.
+	 * In that case, the implementation does nothing more than parse and
+	 * discard syntactically valid AUTH parameters to the MAIL FROM command,
+	 * and supply AUTH=<> parameters to any servers that it authenticates
+	 * to.
+	 */
+	} else if ( strncasecmp( r->r_av[ i ], "AUTH=",
+		strlen( "AUTH=" )) == 0 ) {
+	    syslog( LOG_INFO, "Receive [%s] %s: claimed %s",
+		    inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		    r->r_av[ i ] );
+
 	/* RFC 6152 2 Framework for the 8-bit MIME Transport Extension
 	 *
 	 * one optional parameter using the keyword BODY is added to the
