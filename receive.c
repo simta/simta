@@ -1043,24 +1043,31 @@ f_mail( struct receive_data *r )
     if ( simta_spf ) {
 	r->r_spf_result = spf_lookup( r->r_hello, addr,
 		(struct sockaddr *)r->r_sin );
-	syslog( LOG_INFO, "Receive [%s] %s: From <%s>: SPF result: %s",
-		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname, addr,
-		spf_result_str( r->r_spf_result ));
+	syslog( LOG_INFO, "Receive [%s] %s: %s: From <%s>: SPF result: %s",
+		inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+		r->r_env->e_id, addr, spf_result_str( r->r_spf_result ));
 	switch( r->r_spf_result ) {
 	case SPF_RESULT_TEMPERROR:
 	    if (( simta_spf == SPF_POLICY_STRICT ) ||
 		    ( simta_dmarc == DMARC_POLICY_STRICT )) {
-		syslog( LOG_ERR, "Receive [%s] %s: From <%s>: "
+		syslog( LOG_ERR, "Receive [%s] %s: %s: From <%s>: "
 			"SPF Tempfailed: transient SPF lookup failure",
 			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
-			addr );
+			r->r_env->e_id, addr );
+		if ( reset( r ) != RECEIVE_OK ) {
+		    return( RECEIVE_SYSERROR );
+		}
 		return( smtp_write_banner( r, 451, NULL, NULL ));
 	    }
 	    break;
 	case SPF_RESULT_FAIL:
 	    if ( simta_spf == SPF_POLICY_STRICT ) {
-		syslog( LOG_ERR, "Receive [%s] %s: SPF Reject",
-			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname );
+		syslog( LOG_ERR, "Receive [%s] %s: %s: From <%s>: SPF reject",
+			inet_ntoa( r->r_sin->sin_addr ), r->r_remote_hostname,
+			r->r_env->e_id, addr );
+		if ( reset( r ) != RECEIVE_OK ) {
+		    return( RECEIVE_SYSERROR );
+		}
 		return( smtp_write_banner( r, 554,
 			"Rejected by local policy (SPF fail)", NULL ));
 	    }
