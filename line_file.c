@@ -50,15 +50,17 @@ line_append( struct line_file *lf, char *data, int copy )
 {
     struct line		*l;
 
+    if ( data == NULL ) {
+	syslog( LOG_ERR, "line_append: no data" );
+	return( NULL );
+    }
+
     l = calloc( 1, sizeof( struct line ));
 
     if ( copy != 0 ) {
 	l->line_data = strdup( data );
     } else {
-	if (( l->line_data = data ) == NULL ) {
-	    syslog( LOG_ERR, "line_append: no data" );
-	    return( NULL );
-	}
+	l->line_data = data;
     }
 
     l->line_next = NULL;
@@ -85,15 +87,17 @@ line_prepend( struct line_file *lf, char *data, int copy )
 {
     struct line		*l;
 
+    if ( data == NULL ) {
+	syslog( LOG_ERR, "line_prepend: no data" );
+	return( NULL );
+    }
+
     l = calloc( 1, sizeof( struct line ));
 
     if ( copy != 0 ) {
 	l->line_data = strdup( data );
     } else {
-	if (( l->line_data = data ) == NULL ) {
-	    syslog( LOG_ERR, "line_prepend: no data" );
-	    return( NULL );
-	}
+	l->line_data = data;
     }
 
     l->line_prev = NULL;
