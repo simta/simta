@@ -2719,6 +2719,8 @@ f_auth( struct receive_data *r )
     const char		*serverout;
     unsigned int	serveroutlen;
     struct timeval	tv;
+    struct rbl		*rbl;
+    char		*rbl_msg = NULL;
 
     if ( simta_sasl == SIMTA_SASL_OFF ) {
 	return( f_not_implemented( r ));
@@ -3036,16 +3038,20 @@ f_auth( struct receive_data *r )
 
     /* authn was successful, now we need to check authz */
     switch( rbl_check( simta_auth_rbls,
-	    NULL, r->r_auth_id, "authz", NULL, NULL )) {
+	    NULL, r->r_auth_id, "authz", &rbl, &rbl_msg )) {
     case RBL_BLOCK:
 	r->r_failedauth++;
-	syslog( LOG_INFO, "Auth [%s] %s: %s denied by DNS",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id );
+	syslog( LOG_INFO, "Auth [%s] %s: %s denied by DNS %s: %s",
+		r->r_ip, r->r_remote_hostname, r->r_auth_id, rbl->rbl_domain,
+		rbl_msg );
+	free( rbl_msg );
 	rc = smtp_write_banner( r, 535, NULL, NULL );
 	return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
     case RBL_ACCEPT:
-	syslog( LOG_INFO, "Auth [%s] %s: %s allowed by DNS",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id );
+	syslog( LOG_INFO, "Auth [%s] %s: %s allowed by DNS %s: %s",
+		r->r_ip, r->r_remote_hostname, r->r_auth_id, rbl->rbl_domain,
+		rbl_msg );
+	free( rbl_msg );
 	break;
     default:
 	if ( simta_authz_default != RBL_BLOCK ) {
