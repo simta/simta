@@ -2193,7 +2193,7 @@ start:
 		    sizeof( struct in_addr ));
 	    if ( deliver_checksockaddr( d, hq ) == 0 ) {
 		syslog( LOG_DEBUG,
-			"DNS %s: Entry %d: Trying AAAA record: %s",
+			"DNS %s: Entry %d: Trying A record: %s",
 			hq->hq_hostname, d->d_cur_dnsr_result, d->d_ip );
 		return( 0 );
 	    }
