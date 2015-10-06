@@ -1102,6 +1102,7 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    if ( env_read( READ_DELIVER_INFO, env_deliver, &snet_lock ) != 0 ) {
 		/* envelope not valid.  disregard */
 		env_free( env_deliver );
+		env_deliver = NULL;
 		continue;
 	    }
 
@@ -1438,9 +1439,13 @@ message_cleanup:
 		}
 		env_move( env_deliver, simta_dir_slow );
 		env_free( env_deliver );
+		env_deliver = NULL;
+		d->d_env = NULL;
 	    }
 	} else {
 	    env_free( env_deliver );
+	    env_deliver = NULL;
+	    d->d_env = NULL;
 	}
 
 	if ( snet_dfile == NULL ) {
