@@ -69,7 +69,7 @@ smtp_check_banner_line( struct deliver *d, char *line ) {
 
     if ( strlen( line ) < 3 ) {
 	syslog( LOG_DEBUG, "Deliver.SMTP %s: bad banner syntax: %s",
-		d->d_env->e_id, line );
+		d->d_env ? d->d_env->e_id : "null", line );
 	return( SMTP_ERROR );
     }
 
@@ -77,7 +77,7 @@ smtp_check_banner_line( struct deliver *d, char *line ) {
 	    !isdigit( (int)line[ 1 ] ) ||
 	    !isdigit( (int)line[ 2 ] )) {
 	syslog( LOG_DEBUG, "Deliver.SMTP %s: bad banner syntax: %s",
-		d->d_env->e_id, line );
+		d->d_env ? d->d_env->e_id : "null", line );
 	return( SMTP_ERROR );
     }
 
@@ -85,7 +85,7 @@ smtp_check_banner_line( struct deliver *d, char *line ) {
 	    line[ 3 ] != ' ' &&
 	    line [ 3 ] != '-' ) {
 	syslog( LOG_DEBUG, "Deliver.SMTP %s: bad banner syntax: %s",
-		d->d_env->e_id, line );
+		d->d_env ? d->d_env->e_id : "null", line );
 	return( SMTP_ERROR );
     }
 
@@ -168,7 +168,7 @@ consume:
     int
 smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
     char	*c;
-    int		size;		
+    int		size;
 
     while (*(line + 3) == '-' ) {
 	if (( line = snet_getline( d->d_snet_smtp, NULL )) == NULL ) {
@@ -492,7 +492,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_RSET:
 	    syslog( LOG_WARNING, "Deliver.SMTP %s: Tempfail RSET reply: %s",
-		    d->d_env->e_id, line );
+		    d->d_env ? d->d_env->e_id : "null", line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP RSET reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
@@ -501,7 +501,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_QUIT:
 	    syslog( LOG_WARNING, "Deliver.SMTP %s: Tempfail QUIT reply: %s",
-		    d->d_env->e_id, line );
+		    d->d_env ? d->d_env->e_id : "null", line );
 	    return( smtp_consume_banner( NULL, d, line, NULL ));
 
 	default:
@@ -589,7 +589,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_RSET:
 	    syslog( LOG_WARNING, "Deliver.SMTP %s: Fail RSET reply: %s",
-		    d->d_env->e_id, line );
+		    d->d_env ? d->d_env->e_id : "null", line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP RSET reply" )) == SMTP_OK ) {
 		return( SMTP_ERROR );
@@ -598,7 +598,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_QUIT:
 	    syslog( LOG_WARNING, "Deliver.SMTP %s: Fail QUIT reply: %s",
-		    d->d_env->e_id, line );
+		    d->d_env ? d->d_env->e_id : "null", line );
 	    return( smtp_consume_banner( NULL, d, line, NULL ));
 
 	default:
@@ -1113,7 +1113,7 @@ smtp_rset( struct host_q *hq, struct deliver *d )
     /* say RSET */
     if ( snet_writef( d->d_snet_smtp, "RSET\r\n" ) < 0 ) {
 	syslog( LOG_ERR, "Deliver.SMTP %s: RSET: snet_writef failed: %m",
-		d->d_env->e_id );
+		d->d_env ? d->d_env->e_id : "null" );
 	return( SMTP_BAD_CONNECTION );
     }
 
@@ -1134,7 +1134,7 @@ smtp_quit( struct host_q *hq, struct deliver *d )
     /* say QUIT */
     if ( snet_writef( d->d_snet_smtp, "QUIT\r\n" ) < 0 ) {
 	syslog( LOG_ERR, "Deliver.SMTP %s: QUIT: snet_writef failed: %m",
-		d->d_env->e_id );
+		d->d_env ? d->d_env->e_id : "null" );
 	return;
     }
 
@@ -1147,10 +1147,10 @@ smtp_quit( struct host_q *hq, struct deliver *d )
 smtp_snet_eof( struct deliver *d, const char *infix ) {
     if ( snet_eof( d->d_snet_smtp )) {
 	syslog( LOG_ERR, "Deliver.SMTP %s: %s: unexpected EOF",
-		d->d_env->e_id, infix );
+		d->d_env ? d->d_env->e_id : "null", infix );
     } else {
 	syslog( LOG_ERR, "Deliver.SMTP %s: %s failed: %m",
-		d->d_env->e_id, infix );
+		d->d_env ? d->d_env->e_id : "null", infix );
     }
 }
 
