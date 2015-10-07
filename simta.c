@@ -305,15 +305,7 @@ simta_openlog( int cl, int options )
 	    simta_progname, getpid( ), simta_log_tv.tv_sec );
 
     /* openlog now, as some support functions require it. */
-#ifdef ultrix
-    openlog( simta_log_id, LOG_NOWAIT | options );
-#else /* ultrix */
-#ifndef Q_SIMULATION
     openlog( simta_log_id, LOG_NOWAIT | options, LOG_SIMTA );
-#else /* Q_SIMULATION */
-    openlog( simta_log_id, LOG_NOWAIT | options, LOG_USER );
-#endif /* Q_SIMULATION */
-#endif /*ultrix */
 
     return;
 }
