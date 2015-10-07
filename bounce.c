@@ -167,7 +167,7 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     fprintf( dfile, "From: <mailer-daemon@%s>\n", simta_hostname );
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
 	if ( r->r_rcpt == NULL || *r->r_rcpt == '\0' ) {
-	    fprintf( dfile, "To: <postmaster@%s>\n", simta_hostname );
+	    fprintf( dfile, "To: <%s>\n", simta_postmaster );
 	} else {
 	    fprintf( dfile, "To: <%s>\n", r->r_rcpt );
 	}
