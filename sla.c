@@ -31,7 +31,6 @@
 #include <errno.h>
 #include <dirent.h>
 #include <unistd.h>
-#include <syslog.h>
 
 #include "envelope.h"
 #include "expand.h"

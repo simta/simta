@@ -132,21 +132,20 @@ main( int argc, char *argv[])
 	    dnsr_perror( simta_dnsr, "dnsr_nameserver" );
 	    exit( SIMRBL_EXIT_ERROR );
 	}
-	if ( simta_debug ) fprintf( stderr, "using nameserver: %s\n", server );
+	if ( simta_debug > 1 ) {
+	    fprintf( stderr, "using nameserver: %s\n", server );
+	}
     }
 
     if ( nolog == 0 ) {
 	/* call simta_gettimeofday() to initialize simta_tv_now */
 	simta_gettimeofday( &tv_now );
 	simta_openlog( 0, 0 );
-	simta_rbl_verbose_logging = 1;
     }
 
     if ( simta_rbls == NULL ) {
 	rbl_add( &simta_rbls, RBL_BLOCK, "mx-deny.dnsbl", "none" );
     }
-
-    simta_rbl_verbose_logging = 1;
 
     if ( check_text == 0 ) {
 	memset( &hints, 0, sizeof( struct addrinfo ));

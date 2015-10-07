@@ -332,30 +332,21 @@ q_runner( void )
 		 * the queue.
 		 */
 
-		if ( simta_debug > 0 ) {
-		    syslog( LOG_DEBUG,
-			    "Queue %s: %d entries, adding to deliver queue",
-			    hq->hq_hostname, hq->hq_entries );
-		}
+		simta_debuglog( 1,
+			"Queue %s: %d entries, adding to deliver queue",
+			hq->hq_hostname, hq->hq_entries );
 
 		for ( dq = &deliver_q; *dq != NULL; dq = &((*dq)->hq_deliver)) {
 		    if ( hq->hq_entries >= ((*dq)->hq_entries)) {
-			if ( simta_debug > 0 ) {
-			    syslog( LOG_DEBUG,
-				    "Queue %s: insert before %s (%d)",
-				    hq->hq_hostname,
-				    ((*dq)->hq_hostname),
-				    ((*dq)->hq_entries));
-			}
+			simta_debuglog( 2, "Queue %s: insert before %s (%d)",
+				hq->hq_hostname, ((*dq)->hq_hostname),
+				((*dq)->hq_entries));
 			break;
 		    }
 
-		    if ( simta_debug > 1 ) {
-			syslog( LOG_DEBUG, "Queue %s: insert after %s (%d)",
-				hq->hq_hostname,
-				((*dq)->hq_hostname),
-				((*dq)->hq_entries));
-		    }
+		    simta_debuglog( 3, "Queue %s: insert after %s (%d)",
+			    hq->hq_hostname, ((*dq)->hq_hostname),
+			    ((*dq)->hq_entries));
 		}
 
 		hq->hq_deliver = *dq;
@@ -460,18 +451,19 @@ q_runner( void )
 		    if ( env_unlink( unexpanded ) == 0 ) {
 			queue_envelope( env_bounce );
 			syslog( LOG_INFO,
-				"Deliver %s: Message Deleted: Bounced",
+				"Deliver env <%s>: Message Deleted: Bounced",
 				unexpanded->e_id );
 
 		    } else {
 			if ( env_unlink( env_bounce ) != 0 ) {
-			    syslog( LOG_INFO, "Deliver %s: System "
-				    "Error: Can't unwind bounce", 
+			    syslog( LOG_INFO, "Deliver env <%s>: System Error: "
+				    "Can't unwind bounce",
 				    env_bounce->e_id );
 			} else {
-			    syslog( LOG_INFO, "Deliver %s: Message "
-				    "Deleted: System error, unwound "
-				    "bounce", env_bounce->e_id );
+			    syslog( LOG_INFO,
+				    "Deliver env <%s>: Message Deleted: "
+				    "System error, unwound bounce",
+				    env_bounce->e_id );
 			}
 		    }
 
@@ -668,8 +660,7 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	hq->hq_deliver_prev = insert;
     }
 
-    syslog( LOG_DEBUG, "Queue %s: order %d, next %ld",
-	    hq->hq_hostname, order,
+    simta_debuglog( 1, "Queue %s: order %d, next %ld", hq->hq_hostname, order,
 	    hq->hq_next_launch.tv_sec - tv_now->tv_sec );
 
     return( 0 );
@@ -745,10 +736,8 @@ prune_messages( struct host_q *hq )
 	    env->e_list_prev = NULL;
 
 	    *e = (*e)->e_hq_next;
-	    if ( simta_debug ) {
-		syslog( LOG_DEBUG, "Queue %s: removed %s",
-			hq->hq_hostname, env->e_id );
-	    }
+	    simta_debuglog( 1, "Queue %s: removed env <%s>", hq->hq_hostname,
+		    env->e_id );
 	    env_free( env );
 	    hq->hq_entries_removed++;
 
@@ -822,12 +811,10 @@ q_read_dir( struct simta_dirp *sd )
 	/* post disk-read queue management */
 	if ( simta_unexpanded_q != NULL ) {
 	    prune_messages( simta_unexpanded_q );
-	    if ( simta_debug ) {
-		syslog( LOG_DEBUG, "Queue Metrics [Unexpanded]: entries %d, "
-			"jail_entries %d",
-			simta_unexpanded_q->hq_entries,
-			simta_unexpanded_q->hq_jail_envs );
-	    }
+	    simta_debuglog( 2,
+		    "Queue Metrics [Unexpanded]: entries %d, jail_entries %d",
+		    simta_unexpanded_q->hq_entries,
+		    simta_unexpanded_q->hq_jail_envs );
 	}
 
 	hq = &simta_host_q;
@@ -843,25 +830,24 @@ q_read_dir( struct simta_dirp *sd )
 	    /* remove any empty host queues */
 	    if ((*hq)->hq_env_head == NULL ) {
 		h_free = *hq;
-		if ( simta_debug ) {
-		    syslog( LOG_DEBUG, "Queue.manage %s: 0 entries, removing",
-			    h_free->hq_hostname );
-		}
+		simta_debuglog( 2, "Queue.manage %s: 0 entries, removing",
+			h_free->hq_hostname );
 		/* delete this host */
 		*hq = (*hq)->hq_next;
 		hq_free( h_free );
 		continue;
-	    } else if ( simta_debug ) {
-		syslog( LOG_DEBUG, "Queue Metrics %s: entries %d, "
-			"jail_entries %d", (*hq)->hq_hostname,
-			(*hq)->hq_entries, (*hq)->hq_jail_envs );
+	    } else {
+		simta_debuglog( 2,
+			"Queue Metrics %s: entries %d, jail_entries %d",
+			(*hq)->hq_hostname, (*hq)->hq_entries,
+			(*hq)->hq_jail_envs );
 	    }
 
 	    /* add new host queues to the deliver queue */
 	    remain_hq++;
 
 	    if ( (*hq)->hq_next_launch.tv_sec == 0 ) {
-		syslog( LOG_INFO, "Queue %s: %d entries, adding",
+		syslog( LOG_INFO, "Queue.manage %s: %d entries, adding",
 			(*hq)->hq_hostname, (*hq)->hq_entries );
 		if ( hq_deliver_push( *hq, &tv_stop, NULL ) != 0 ) {
 		    return( 1 );
@@ -1021,15 +1007,15 @@ q_deliver( struct host_q *deliver_q )
     rcpt_total = d.d_n_rcpt_accepted_total +
 	    d.d_n_rcpt_failed_total + d.d_n_rcpt_tempfailed_total;
 
-    syslog( LOG_DEBUG, "Queue %s: Delivery complete: %ld milliseconds, "
+    syslog( LOG_INFO, "Queue %s: Delivery complete: %ld milliseconds, "
 	    "%d messages: %d A %d F %d T, %d rcpts %d A %d F %d T",
 	    deliver_q->hq_hostname,
 	    SIMTA_ELAPSED_MSEC( tv_start, tv_stop ),
-	    message_total, 
+	    message_total,
 	    d.d_n_message_accepted_total,
 	    d.d_n_message_failed_total,
 	    d.d_n_message_tempfailed_total,
-	    rcpt_total, 
+	    rcpt_total,
 	    d.d_n_rcpt_accepted_total,
 	    d.d_n_rcpt_failed_total,
 	    d.d_n_rcpt_tempfailed_total );
@@ -1094,7 +1080,7 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 
 	queue_remove_envelope( env_deliver );
 
-	syslog( LOG_INFO, "Deliver %s: Attempting delivery",
+	syslog( LOG_INFO, "Deliver env <%s>: Attempting delivery",
 		env_deliver->e_id );
 
 	if ( env_deliver->e_rcpt == NULL ) {
@@ -1142,7 +1128,8 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	case HOST_LOCAL:
 	    if (( simta_mail_jail != 0 ) &&
 		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
-		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d->d_env->e_id );
+		syslog( LOG_INFO, "Deliver.remote env <%s>: jail",
+			d->d_env->e_id );
 		break;
 	    }
 	    if (( deliver_q->hq_red != NULL ) &&
@@ -1157,7 +1144,8 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	case HOST_PUNT:
 	    if (( simta_mail_jail != 0 ) &&
 		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
-		syslog( LOG_DEBUG, "Deliver.remote %s: jail", d->d_env->e_id );
+		syslog( LOG_INFO, "Deliver.remote env <%s>: jail",
+			d->d_env->e_id );
 		break;
 	    }
 	    if (( snet_dfile = snet_attach( dfile_fd, 1024 * 1024 )) == NULL ) {
@@ -1182,23 +1170,25 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    break;
 
 	case HOST_SUPPRESSED:
-	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s suppressed",
+	    syslog( LOG_NOTICE, "Deliver.remote env <%s>: host %s suppressed",
 		    d->d_env->e_id, deliver_q->hq_hostname );
 	    break;
 
 	case HOST_DOWN:
-	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s down",
+	    syslog( LOG_NOTICE, "Deliver.remote env <%s>: host %s down",
 		    d->d_env->e_id, deliver_q->hq_hostname );
 	    break;
 
 	case HOST_BOUNCE:
-	    syslog( LOG_NOTICE, "Deliver.remote %s: host %s bouncing mail",
+	    syslog( LOG_NOTICE,
+		    "Deliver.remote env <%s>: host %s bouncing mail",
 		    d->d_env->e_id, deliver_q->hq_hostname );
 	    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    break;
 
 	case HOST_BITBUCKET:
-	    syslog( LOG_WARNING, "Deliver.remote %s: bitbucket in %d seconds",
+	    syslog( LOG_WARNING,
+		    "Deliver.remote env <%s>: bitbucket in %d seconds",
 		    env_deliver->e_id, simta_bitbucket );
 	    sleep( simta_bitbucket );
 	    d->d_delivered = 1;
@@ -1241,15 +1231,16 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	 */
 	if ( n_rcpt_remove != env_deliver->e_n_rcpt ) {
 	    if ( env_is_old( env_deliver, dfile_fd ) != 0 ) {
-		    syslog( LOG_NOTICE, "Deliver %s: old message, bouncing",
+		    syslog( LOG_NOTICE,
+			    "Deliver env <%s>: old message, bouncing",
 			    env_deliver->e_id );
 		    env_deliver->e_flags |= ENV_FLAG_BOUNCE;
 	    } else {
-		syslog( LOG_DEBUG, "Deliver %s: not old",
+		simta_debuglog( 1, "Deliver env <%s>: not old",
 			env_deliver->e_id );
 	    }
 	} else {
-	    syslog( LOG_DEBUG, "Deliver %s: not checking age of message",
+	    simta_debuglog( 1, "Deliver env <%s>: not checking age of message",
 		    env_deliver->e_id );
 	}
 
@@ -1258,7 +1249,7 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	 */
 	if (( env_deliver->e_flags & ENV_FLAG_BOUNCE ) ||
 		d->d_n_rcpt_failed ) {
-	    syslog( LOG_DEBUG, "Deliver %s: creating bounce",
+	    simta_debuglog( 1, "Deliver env <%s>: creating bounce",
 		    env_deliver->e_id );
 	    if ( lseek( dfile_fd, (off_t)0, SEEK_SET ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: q_deliver lseek: %m" );
@@ -1281,13 +1272,13 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 
 	    if (( env_bounce = bounce_snet( env_deliver, snet_dfile,
 		    deliver_q, NULL )) == NULL ) {
-		syslog( LOG_ERR, "Deliver %s: bounce failed",
+		syslog( LOG_ERR, "Deliver env <%s>: bounce failed",
 			env_deliver->e_id );
 		goto message_cleanup;
 	    }
 
 	} else {
-	    syslog( LOG_DEBUG, "Deliver %s: no bounces created",
+	    simta_debuglog( 2, "Deliver env <%s>: no bounces created",
 		    env_deliver->e_id );
 	}
 
@@ -1304,16 +1295,17 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    d->d_unlinked = 1;
 
 	    if ( env_deliver->e_flags & ENV_FLAG_BOUNCE ) {
-		syslog( LOG_INFO, "Deliver %s: Message Deleted: Bounced",
+		syslog( LOG_INFO, "Deliver env <%s>: Message Deleted: Bounced",
 			env_deliver->e_id );
 	    } else {
-		syslog( LOG_INFO, "Deliver %s: Message Deleted: Delivered",
+		syslog( LOG_INFO,
+			"Deliver env <%s>: Message Deleted: Delivered",
 			env_deliver->e_id );
 	    }
 
 	/* else we remove rcpts that were delivered or hard failed */
 	} else if ( n_rcpt_remove != 0 ) {
-	    syslog( LOG_DEBUG, "Deliver %s: Rewriting envelope",
+	    simta_debuglog( 1, "Deliver env <%s>: Rewriting envelope",
 		    env_deliver->e_id );
 
 	    r_sort = &(env_deliver->e_rcpt);
@@ -1327,15 +1319,14 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 		    env_deliver->e_n_rcpt--;
 
 		    if ( remove->r_status == R_FAILED ) {
-			syslog( LOG_WARNING,
-				"Deliver %s: Removing To <%s> From "
-				"<%s>: Failed",
+			syslog( LOG_WARNING, "Deliver env <%s>: "
+				"Removing To <%s> From <%s>: Failed",
 				env_deliver->e_id, remove->r_rcpt,
 				env_deliver->e_mail );
 
 		    } else {
-			syslog( LOG_INFO, "Deliver %s: Removing To <%s> From "
-				"<%s>: Delivered",
+			syslog( LOG_INFO, "Deliver env <%s>: "
+				"Removing To <%s> From <%s>: Delivered",
 				env_deliver->e_id, remove->r_rcpt,
 				env_deliver->e_mail );
 		    }
@@ -1343,7 +1334,8 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 		    rcpt_free( remove );
 
 		} else {
-		    syslog( LOG_DEBUG, "Deliver %s: Keeping To <%s> From <%s>",
+		    simta_debuglog( 2,
+			    "Deliver env <%s>: Keeping To <%s> From <%s>",
 			    env_deliver->e_id, (*r_sort)->r_rcpt,
 			    env_deliver->e_mail );
 		    r_sort = &((*r_sort)->r_next);
@@ -1351,12 +1343,12 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    }
 
 	    assert( env_deliver->e_n_rcpt > 0 );
- 
+
 	    if ( env_outfile( env_deliver ) == 0 ) {
-		syslog( LOG_INFO, "Deliver %s: Rewrote %d recipients",
+		syslog( LOG_INFO, "Deliver env <%s>: Rewrote %d recipients",
 			env_deliver->e_id, env_deliver->e_n_rcpt );
 	    } else {
-		syslog( LOG_WARNING, "Deliver %s: Rewrite failed, "
+		syslog( LOG_WARNING, "Deliver env <%s>: Rewrite failed, "
 			"double delivery will occur", env_deliver->e_id );
 		goto message_cleanup;
 	    }
@@ -1364,10 +1356,8 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    if ( env_deliver->e_dir == simta_dir_fast ) {
 		/* overwrote fast file, not created a new one */
 		simta_fast_files--;
-		if ( simta_debug > 0 ) {
-		    syslog( LOG_DEBUG, "Deliver %s: fast_files decrement %d",
-			    env_deliver->e_id, simta_fast_files );
-		}
+		simta_debuglog( 2, "Deliver env <%s>: fast_files decrement %d",
+			env_deliver->e_id, simta_fast_files );
 	    }
 
 	    assert( simta_fast_files >= 0 );
@@ -1393,7 +1383,7 @@ message_cleanup:
 		( d->d_unlinked == 0 ))  {
 	    touch = 0;
 	    env_touch( env_deliver );
-	    syslog( LOG_DEBUG, "Deliver %s: Envelope touched",
+	    simta_debuglog( 2, "Deliver env <%s>: Envelope touched",
 		    env_deliver->e_id );
 	}
 
@@ -1402,10 +1392,10 @@ message_cleanup:
 	if ( env_bounce != NULL ) {
 	    if ( env_unlink( env_bounce ) != 0 ) {
 		syslog( LOG_WARNING,
-			"Deliver %s: System error, can't unwind bounce",
+			"Deliver env <%s>: System error, can't unwind bounce",
 			env_bounce->e_id );
 	    } else {
-		syslog( LOG_WARNING, "Deliver %s: Message deleted: "
+		syslog( LOG_WARNING, "Deliver env <%s>: Message deleted: "
 			"System error, unwound bounce", env_bounce->e_id );
 	    }
 
@@ -1427,14 +1417,14 @@ message_cleanup:
 	if ( d->d_unlinked == 0 ) {
 	    if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q ) &&
 		    ( deliver_q->hq_no_punt == 0 )) {
-		syslog( LOG_INFO, "Deliver %s: queueing for punt",
+		syslog( LOG_INFO, "Deliver env <%s>: queueing for punt",
 			env_deliver->e_id );
 		env_clear_errors( env_deliver );
 		env_deliver->e_flags |= ENV_FLAG_PUNT;
 		queue_envelope( env_deliver );
 	    } else {
 		if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q )) {
-		    syslog( LOG_INFO, "Deliver %s: not puntable",
+		    syslog( LOG_INFO, "Deliver env <%s>: not puntable",
 			    env_deliver->e_id );
 		}
 		env_move( env_deliver, simta_dir_slow );
@@ -1470,7 +1460,7 @@ message_cleanup:
     }
 
     if ( d->d_snet_smtp != NULL ) {
-	syslog( LOG_DEBUG, "Queue %s: calling smtp_quit",
+	simta_debuglog( 2, "Queue %s: calling smtp_quit",
 		deliver_q->hq_hostname );
 	smtp_quit( deliver_q, d );
 	if ( snet_close( d->d_snet_smtp ) != 0 ) {
@@ -1494,7 +1484,7 @@ deliver_local( struct deliver *d )
 {
     int                         ml_error;
 
-    syslog( LOG_NOTICE, "Deliver.local %s: local delivery attempt",
+    syslog( LOG_NOTICE, "Deliver.local env <%s>: local delivery attempt",
 	    d->d_env->e_id );
 
     for ( d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
@@ -1504,7 +1494,8 @@ deliver_local( struct deliver *d )
 	if ( strncasecmp( d->d_rcpt->r_rcpt, "/dev/null@", 10 ) == 0 ) {
 	    d->d_rcpt->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
-	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> Bitbucketed",
+	    syslog( LOG_INFO,
+		    "Deliver.local env <%s>: To <%s> From <%s>: bitbucketed",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail );
 	    continue;
 	}
@@ -1529,7 +1520,8 @@ lseek_fail:
 	    /* success */
 	    d->d_rcpt->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
-	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> Accepted",
+	    syslog( LOG_INFO,
+		    "Deliver.local env <%s>: To <%s> From <%s>: accepted",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail );
 	    break;
 
@@ -1537,9 +1529,10 @@ lseek_fail:
 	case EX_TEMPFAIL:
 	    d->d_rcpt->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfailed++;
-	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> "
-		    "Tempfailed: %d", d->d_env->e_id, d->d_rcpt->r_rcpt,
-		    d->d_env->e_mail, ml_error );
+	    syslog( LOG_INFO,
+		    "Deliver.local env <%s>: To <%s> From <%s>: tempfailed: %d",
+		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
+		    ml_error );
 	    break;
 
 	case EX_DATAERR:
@@ -1547,14 +1540,16 @@ lseek_fail:
 	    /* hard failure caused by bad user data, or no local user */
 	    d->d_rcpt->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
-	    syslog( LOG_INFO, "Deliver.local %s: To <%s> From <%s> Failed: %d",
+	    syslog( LOG_INFO,
+		    "Deliver.local env <%s>: To <%s> From <%s>: failed: %d",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
 		    ml_error );
 	    break;
 	}
 
-	syslog( LOG_INFO, "Deliver.local %s: Accepted %d Tempfailed %d "
-		"Failed %d", d->d_env->e_id, d->d_n_rcpt_accepted,
+	syslog( LOG_INFO,
+		"Deliver.local env <%s>: Accepted %d Tempfailed %d Failed %d",
+		d->d_env->e_id, d->d_n_rcpt_accepted,
 		d->d_n_rcpt_tempfailed, d->d_n_rcpt_failed );
     }
 
@@ -1579,13 +1574,13 @@ deliver_remote( struct deliver *d, struct host_q *hq )
 
     switch ( hq->hq_status ) {
     case HOST_MX:
-	syslog( LOG_NOTICE, "Deliver.remote %s: host %s", d->d_env->e_id,
+	syslog( LOG_NOTICE, "Deliver.remote env <%s>: host %s", d->d_env->e_id,
 		hq->hq_hostname );
 	hq->hq_status = HOST_DOWN;
 	break;
 
     case HOST_PUNT:
-	syslog( LOG_NOTICE, "Deliver.remote %s: punt %s", d->d_env->e_id,
+	syslog( LOG_NOTICE, "Deliver.remote env <%s>: punt %s", d->d_env->e_id,
 		hq->hq_hostname );
 	hq->hq_status = HOST_PUNT_DOWN;
 	break;
@@ -1619,7 +1614,7 @@ retry:
 		continue;
 	    }
 
-	    syslog( LOG_DEBUG, "Connect.out [%s] %s: Success", d->d_ip,
+	    syslog( LOG_INFO, "Connect.out [%s] %s: Success", d->d_ip,
 		    hq->hq_hostname );
 
 	    if (( d->d_snet_smtp = snet_attach( s, 1024 * 1024 )) == NULL ) {
@@ -1677,7 +1672,7 @@ retry:
 	    env_movement = 1;
 	    simta_smtp_outbound_delivered++;
 	    simta_gettimeofday( &tv_stop );
-	    syslog( LOG_DEBUG, "Queue %s: %s Delivery activity: "
+	    simta_debuglog( 1, "Queue %s: env <%s> Delivery activity: "
 		    "%d failed %d accepted %ld milliseconds", hq->hq_hostname,
 		    d->d_env->e_id, d->d_n_rcpt_failed,
 		    d->d_delivered ? d->d_n_rcpt_accepted : 0,
@@ -1755,7 +1750,7 @@ next_dnsr_host_lookup( struct deliver *d, struct host_q *hq )
 	d->d_dnsr_result = NULL;
     }
 
-    syslog( LOG_DEBUG, "DNS %s: DNS exhausted", hq->hq_hostname );
+    syslog( LOG_INFO, "DNS %s: DNS exhausted", hq->hq_hostname );
 
     return( 1 );
 }
@@ -1819,7 +1814,7 @@ get_outbound_dns( struct deliver *d, struct host_q *hq )
 	 * and we only try remote delivery to mx entries that have a
 	 * lower mx_preference than for what was matched.
 	 */
-	syslog( LOG_DEBUG, "DNS %s: %d MX Record Entries", hq->hq_hostname,
+	syslog( LOG_INFO, "DNS %s: %d MX Record Entries", hq->hq_hostname,
 		d->d_dnsr_result->r_ancount );
 
 	for ( i = 0; i < d->d_dnsr_result->r_ancount; i++ ) {
@@ -2018,18 +2013,18 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	    /* there was no queue movement on this host, we remove it */
 	    cd = d->d_retry_cur;
 	    d->d_retry_cur = d->d_retry_cur->c_next;
-	    syslog( LOG_DEBUG, "DNS %s: removed %s from retry list",
+	    syslog( LOG_INFO, "DNS %s: removed %s from retry list",
 		    hq->hq_hostname, cd->c_ip );
 	    connection_data_free( d, cd );
 
 	    if ( d->d_retry_cur == NULL ) {
 		if ( d->d_retry_list != NULL ) {
 		    d->d_retry_cur = d->d_retry_list;
-		    syslog( LOG_DEBUG, "DNS %s: Retry list restarted",
+		    simta_debuglog( 1, "DNS %s: Retry list restarted",
 			    hq->hq_hostname );
 		} else {
 		    /* we've removed our last item from the retry list */
-		    syslog( LOG_DEBUG, "DNS %s: Retry list exhausted",
+		    syslog( LOG_INFO, "DNS %s: Retry list exhausted",
 			    hq->hq_hostname );
 		    return( 1 );
 		}
@@ -2040,7 +2035,7 @@ next_dnsr_host( struct deliver *d, struct host_q *hq )
 	    if (( d->d_retry_cur = d->d_retry_cur->c_next ) == NULL ) {
 		/* start the list over if we're at the end */
 		d->d_retry_cur = d->d_retry_list;
-		syslog( LOG_DEBUG, "DNS %s: Retry list restarted",
+		simta_debuglog( 1, "DNS %s: Retry list restarted",
 			hq->hq_hostname );
 	    }
 	}
@@ -2049,14 +2044,14 @@ retry:
 	memcpy( &(d->d_sa), &(d->d_retry_cur->c_sa),
 		sizeof( struct sockaddr_storage ));
 	memcpy( d->d_ip, d->d_retry_cur->c_ip, sizeof( d->d_ip ));
-	syslog( LOG_DEBUG, "DNS %s: Retry %s", hq->hq_hostname, d->d_ip );
+	syslog( LOG_INFO, "DNS %s: Retry %s", hq->hq_hostname, d->d_ip );
 	return( 0 );
     }
 
     /* see if we need to preserve the connection data for retry later */
     if (( simta_aggressive_delivery != 0 ) && ( d->d_queue_movement != 0 )) {
 	if (( cd = connection_data_create( d )) != NULL ) {
-	    syslog( LOG_DEBUG, "DNS %s: Added to Retry %s",
+	    syslog( LOG_INFO, "DNS %s: Added %s to Retry",
 		    hq->hq_hostname, d->d_ip );
 	}
     }
@@ -2075,7 +2070,7 @@ start:
 	    continue;
 	}
 	if ( deliver_checksockaddr( d, hq ) == 0 ) {
-	    syslog( LOG_DEBUG, "DNS %s: Entry %d: Trying additional record: %s",
+	    syslog( LOG_INFO, "DNS %s: Entry %d: Trying additional record: %s",
 		    hq->hq_hostname, d->d_cur_dnsr_result, d->d_ip );
 	    return( 0 );
 	}
@@ -2087,7 +2082,8 @@ start:
 	if ( simta_ipv6 && ( d->d_cur_dnsr_result_ip == -3 )) {
 	    if (( d->d_dnsr_result_ip6 = get_aaaa( rr->rr_mx.mx_exchange ))) {
 		if ( d->d_dnsr_result_ip6->r_ancount > 0 ) {
-		    syslog( LOG_INFO, "DNS %s: Entry %d: AAAA record found: %s",
+		    syslog( LOG_INFO,
+			    "DNS %s: Entry %d: MX AAAA record found: %s",
 			    hq->hq_hostname, d->d_cur_dnsr_result,
 			    rr->rr_mx.mx_exchange );
 		    d->d_cur_dnsr_result_ip = -1;
@@ -2096,7 +2092,7 @@ start:
 		dnsr_free_result( d->d_dnsr_result_ip6 );
 		d->d_dnsr_result_ip6 = NULL;
 	    }
-	    syslog( LOG_INFO, "DNS %s: Entry %d: AAAA record not found: %s",
+	    syslog( LOG_INFO, "DNS %s: Entry %d: MX AAAA record not found: %s",
 		    hq->hq_hostname, d->d_cur_dnsr_result,
 		    rr->rr_mx.mx_exchange );
 	}
@@ -2109,7 +2105,7 @@ start:
 
 	if (( d->d_dnsr_result_ip = get_a( rr->rr_mx.mx_exchange )) != NULL ) {
 	    if ( d->d_dnsr_result_ip->r_ancount > 0 ) {
-		syslog( LOG_INFO, "DNS %s: Entry %d: A record found: %s",
+		syslog( LOG_INFO, "DNS %s: Entry %d: MX A record found: %s",
 			hq->hq_hostname, d->d_cur_dnsr_result,
 			rr->rr_mx.mx_exchange );
 		goto start;
@@ -2117,7 +2113,7 @@ start:
 	    dnsr_free_result( d->d_dnsr_result_ip );
 	    d->d_dnsr_result_ip = NULL;
 	}
-	syslog( LOG_INFO, "DNS %s: Entry %d: A record not found: %s",
+	syslog( LOG_INFO, "DNS %s: Entry %d: MX A record not found: %s",
 		hq->hq_hostname, d->d_cur_dnsr_result, rr->rr_mx.mx_exchange );
     }
 
@@ -2140,7 +2136,7 @@ start:
 		memcpy( &(sin->sin_addr), &(rr->rr_a.a_address),
 			sizeof( struct in_addr ));
 	    } else {
-		syslog( LOG_DEBUG, "DNS %s: Entry %d.%d: "
+		simta_debuglog( 1, "DNS %s: Entry %d.%d: "
 			"uninteresting dnsr rr type %s: %d",
 			hq->hq_hostname, d->d_cur_dnsr_result,
 			d->d_cur_dnsr_result_ip, rr->rr_name, rr->rr_type );
@@ -2151,7 +2147,7 @@ start:
 		continue;
 	    }
 
-	    syslog( LOG_DEBUG,
+	    syslog( LOG_INFO,
 		    "DNS %s: Entry %d.%d: Trying address record: %s",
 		    hq->hq_hostname, d->d_cur_dnsr_result,
 		    d->d_cur_dnsr_result_ip, d->d_ip );
@@ -2179,7 +2175,7 @@ start:
 	    memcpy( &(sin6->sin6_addr), &(rr->rr_aaaa.aaaa_address),
 		    sizeof( struct in6_addr ));
 	    if ( deliver_checksockaddr( d, hq ) == 0 ) {
-		syslog( LOG_DEBUG,
+		syslog( LOG_INFO,
 			"DNS %s: Entry %d: Trying AAAA record: %s",
 			hq->hq_hostname, d->d_cur_dnsr_result, d->d_ip );
 		return( 0 );
@@ -2192,7 +2188,7 @@ start:
 	    memcpy( &(sin->sin_addr), &(rr->rr_a.a_address),
 		    sizeof( struct in_addr ));
 	    if ( deliver_checksockaddr( d, hq ) == 0 ) {
-		syslog( LOG_DEBUG,
+		syslog( LOG_INFO,
 			"DNS %s: Entry %d: Trying A record: %s",
 			hq->hq_hostname, d->d_cur_dnsr_result, d->d_ip );
 		return( 0 );
@@ -2201,7 +2197,7 @@ start:
 
 	} else if (( rr->rr_type != DNSR_TYPE_MX ) ||
 		( hq->hq_status != HOST_DOWN )) {
-	    syslog( LOG_DEBUG,
+	    simta_debuglog( 1,
 		    "DNS %s: Entry %d: uninteresting dnsr rr type %s: %d",
 		    hq->hq_hostname, d->d_cur_dnsr_result,
 		    rr->rr_name, rr->rr_type );
@@ -2231,8 +2227,7 @@ start:
 
     if ( d->d_retry_list != NULL ) {
 	d->d_retry_cur = d->d_retry_list;
-	syslog( LOG_DEBUG, "DNS %s: Retry list start",
-		hq->hq_hostname );
+	syslog( LOG_INFO, "DNS %s: Retry list start", hq->hq_hostname );
 	goto retry;
     }
 
@@ -2274,14 +2269,15 @@ deliver_checksockaddr( struct deliver *d, struct host_q *hq )
     if ( l->dll_data == NULL ) {
 	l->dll_data = "SEEN";
     } else {
-	syslog( LOG_INFO, "DNS %s: suppressing previously tried address: %s",
+	simta_debuglog( 1, "DNS %s: suppressing previously tried address: %s",
 		hq->hq_hostname, d->d_ip );
 	return( 1 );
     }
 
     /* Set the port */
     if ( d->d_sa.ss_family == AF_INET6 ) {
-	((struct sockaddr_in6 *)&(d->d_sa))->sin6_port = htons( SIMTA_SMTP_PORT );
+	((struct sockaddr_in6 *)&(d->d_sa))->sin6_port =
+		htons( SIMTA_SMTP_PORT );
     } else {
 	((struct sockaddr_in *)&(d->d_sa))->sin_port = htons( SIMTA_SMTP_PORT );
     }
@@ -2381,9 +2377,9 @@ queue_log_metrics( struct host_q *hq_schedule )
     if (( stat( linkname, &st_file ) == 0 ) && ( unlink( linkname ) != 0 )) {
 	syslog( LOG_ERR, "Syserror: queue_log_metrics unlink: %m" );
     } else if ( link( filename, linkname ) != 0 ) {
-	syslog( LOG_DEBUG, "Syserror: queue_log_metrics link: %m" );
+	syslog( LOG_ERR, "Syserror: queue_log_metrics link: %m" );
     }
-    
+
     return;
 }
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

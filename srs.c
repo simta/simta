@@ -88,7 +88,7 @@ srs_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	    free( newaddr );
 	    return( ADDRESS_SYSERROR );
 	}
-	syslog( LOG_DEBUG, "Expand.SRS %s <%s>: expanded to <%s>",
+	simta_debuglog( 1, "Expand.SRS env <%s>: <%s>: expanded to <%s>",
 		exp->exp_env->e_id, e_addr->e_addr, newaddr );
 	free( newaddr );
 	return( ADDRESS_EXCLUDE );

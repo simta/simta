@@ -357,7 +357,7 @@ address_expand( struct expand *exp )
 
 	} else {
 	    if ( strlen( e_addr->e_addr_at + 1 ) > SIMTA_MAX_HOST_NAME_LEN ) {
-		syslog( LOG_ERR, "Expand %s: <%s>: domain too long",
+		syslog( LOG_ERR, "Expand env <%s>: <%s>: domain too long",
 			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_SYSERROR );
 	    }
@@ -365,7 +365,7 @@ address_expand( struct expand *exp )
 	    /* Check to see if domain is off the local host */
 	    if ((( red = red_host_lookup( e_addr->e_addr_at + 1 )) == NULL )
 		    || ( red->red_expand == NULL )) {
-		syslog( LOG_DEBUG, "Expand %s: <%s>: expansion complete",
+		simta_debuglog( 1, "Expand env <%s>: <%s>: expansion complete",
 			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_FINAL );
 	    }
@@ -375,7 +375,7 @@ address_expand( struct expand *exp )
 #ifdef HAVE_LDAP
     case ADDRESS_TYPE_LDAP:
 	exp->exp_current_action = e_addr->e_addr_parent_action;
-	syslog( LOG_DEBUG, "Expand %s: <%s>: LDAP data", exp->exp_env->e_id,
+	simta_debuglog( 2, "Expand env <%s>: <%s>: LDAP data", exp->exp_env->e_id,
 		e_addr->e_addr );
 	goto ldap_exclusive;
 #endif /*  HAVE_LDAP */
@@ -398,13 +398,13 @@ address_expand( struct expand *exp )
 	case EXPANSION_TYPE_ALIAS:
 	    switch ( alias_expand( exp, e_addr, exp->exp_current_action )) {
 	    case ADDRESS_EXCLUDE:
-		syslog( LOG_DEBUG, "Expand.alias %s: <%s>: found in DB %s",
+		simta_debuglog( 1, "Expand.alias env <%s>: <%s>: found in DB %s",
 			exp->exp_env->e_id, e_addr->e_addr,
 				exp->exp_current_action->a_fname );
 		return( ADDRESS_EXCLUDE );
 
 	    case ADDRESS_NOT_FOUND:
-		syslog( LOG_DEBUG, "Expand.alias %s: <%s>: not in DB %s",
+		simta_debuglog( 1, "Expand.alias env <%s>: <%s>: not in DB %s",
 			exp->exp_env->e_id, e_addr->e_addr,
 			exp->exp_current_action->a_fname );
 		continue;
@@ -420,21 +420,22 @@ address_expand( struct expand *exp )
 	case EXPANSION_TYPE_PASSWORD:
 	    switch ( password_expand( exp, e_addr, exp->exp_current_action )) {
 	    case ADDRESS_EXCLUDE:
-		syslog( LOG_DEBUG,
-			"Expand.password %s: <%s>: found in file %s",
+		simta_debuglog( 1,
+			"Expand.password env <%s>: <%s>: found in file %s",
 			exp->exp_env->e_id, e_addr->e_addr,
 			exp->exp_current_action->a_fname );
 		return( ADDRESS_EXCLUDE );
 
 	    case ADDRESS_FINAL:
-		syslog( LOG_DEBUG,
-			"Expand.password %s: <%s>: terminal in file %s",
+		simta_debuglog( 1,
+			"Expand.password env <%s>: <%s>: terminal in file %s",
 			exp->exp_env->e_id, e_addr->e_addr,
 			exp->exp_current_action->a_fname );
 		return( ADDRESS_FINAL );
 
 	    case ADDRESS_NOT_FOUND:
-		syslog( LOG_DEBUG, "Expand.password %s: <%s>: not in file %s",
+		simta_debuglog( 1,
+			"Expand.password env <%s>: <%s>: not in file %s",
 			exp->exp_env->e_id, e_addr->e_addr,
 			exp->exp_current_action->a_fname );
 		continue;
@@ -450,12 +451,12 @@ address_expand( struct expand *exp )
 	case EXPANSION_TYPE_SRS:
 	    switch( srs_expand( exp, e_addr, exp->exp_current_action )) {
 	    case ADDRESS_EXCLUDE:
-		syslog( LOG_DEBUG, "Expand.SRS %s: <%s>: valid",
+		simta_debuglog( 1, "Expand.SRS env <%s>: <%s>: valid",
 			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_EXCLUDE );
 
 	    case ADDRESS_NOT_FOUND:
-		syslog( LOG_DEBUG, "Expand.SRS %s: <%s>: not valid",
+		simta_debuglog( 1, "Expand.SRS env <%s>: <%s>: not valid",
 			exp->exp_env->e_id, e_addr->e_addr );
 		continue;
 
@@ -478,17 +479,17 @@ ldap_exclusive:
 	    switch ( simta_ldap_expand( exp->exp_current_action->a_ldap,
 		    exp, e_addr )) {
 	    case ADDRESS_EXCLUDE:
-		syslog( LOG_DEBUG, "Expand.LDAP %s: <%s>: expanded",
+		simta_debuglog( 1, "Expand.LDAP env <%s>: <%s>: expanded",
 			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_EXCLUDE );
 
 	    case ADDRESS_FINAL:
-		syslog( LOG_DEBUG, "Expand.LDAP %s: <%s>: terminal",
+		simta_debuglog( 1, "Expand.LDAP env <%s>: <%s>: terminal",
 			exp->exp_env->e_id, e_addr->e_addr );
 		return( ADDRESS_FINAL );
 
 	    case ADDRESS_NOT_FOUND:
-		syslog( LOG_DEBUG, "Expand.LDAP %s: <%s>: not found",
+		simta_debuglog( 1, "Expand.LDAP env <%s>: <%s>: not found",
 			exp->exp_env->e_id, e_addr->e_addr );
 		if ( red == NULL ) {
 		    /* data is exclusively for ldap, and it didn't find it */
@@ -528,13 +529,13 @@ not_found:
 
     if ( local_postmaster ) {
 	e_addr->e_addr_type = ADDRESS_TYPE_DEAD;
-	syslog( LOG_ERR, "Expand %s: <%s>: can't resolve local "
+	syslog( LOG_ERR, "Expand env <%s>: <%s>: can't resolve local "
 		"postmaster, expanding to dead queue", exp->exp_env->e_id,
 		e_addr->e_addr );
 	return( ADDRESS_FINAL );
     }
 
-    syslog( LOG_DEBUG, "Expand %s: <%s>: not found", exp->exp_env->e_id,
+    syslog( LOG_INFO, "Expand env <%s>: <%s>: not found", exp->exp_env->e_id,
 	    e_addr->e_addr );
 
     if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, "address not found: ",
@@ -585,7 +586,8 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 
     /* Special handling for /dev/null */
     if ( strncasecmp( e_addr->e_addr, "/dev/null@", 10 ) == 0 ) {
-	syslog( LOG_DEBUG, "Expand.password %s: <%s>: expanded to /dev/null",
+	syslog( LOG_INFO,
+		"Expand.password env <%s>: <%s>: expanded to /dev/null",
 		exp->exp_env->e_id, e_addr->e_addr );
 	return( ADDRESS_FINAL );
     }
@@ -609,7 +611,8 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     /* Check .forward */
     if ( snprintf( fname, MAXPATHLEN, "%s/.forward",
 	    passwd->pw_dir ) >= MAXPATHLEN ) {
-	syslog( LOG_ERR, "Expand.password %s: <%s>: .forward path too long",
+	syslog( LOG_ERR,
+		"Expand.password env <%s>: <%s>: .forward path too long",
 		exp->exp_env->e_id, e_addr->e_addr );
 	return( ADDRESS_FINAL );
     }
@@ -620,12 +623,12 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	case ENOENT:
 	case ENOTDIR:
 	case ELOOP:
-	    syslog( LOG_DEBUG, "Expand.password %s: <%s>: no .forward",
+	    simta_debuglog( 2, "Expand.password env <%s>: <%s>: no .forward",
 		    exp->exp_env->e_id, e_addr->e_addr );
 	    return( ADDRESS_FINAL );
 
 	default:
-	    syslog( LOG_ERR, "Syserror: password_expand fopen: %s: %m", fname );
+	    syslog( LOG_ERR, "Syserror: password_expand fopen %s: %m", fname );
 	    return( ADDRESS_SYSERROR );
 	}
     }
@@ -634,7 +637,7 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	len = strlen( buf );
 	if (( buf[ len - 1 ] ) != '\n' ) {
 	    syslog( LOG_WARNING,
-		    "Expand.password %s: <%s>: .forward line too long",
+		    "Expand.password env <%s>: <%s>: .forward line too long",
 		    exp->exp_env->e_id, e_addr->e_addr );
 	    continue;
 	}
@@ -647,8 +650,8 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	    goto cleanup_forward;
 	}
 
-	syslog( LOG_DEBUG,
-		"Expand.password %s: <%s>: expanded to <%s>: .forward",
+	simta_debuglog( 1,
+		"Expand.password env <%s>: <%s>: expanded to <%s>: .forward",
 		exp->exp_env->e_id, e_addr->e_addr, buf );
 	ret = ADDRESS_EXCLUDE;
     }
@@ -690,12 +693,14 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 
     if ( e_addr->e_addr_at != NULL ) {
 	if (( e_addr->e_addr_at - e_addr->e_addr ) >= ALIAS_MAX_DOMAIN_LEN ) {
-	    syslog( LOG_WARNING, "Expand.alias %s: <%s>: address too long",
+	    syslog( LOG_WARNING,
+		    "Expand.alias env <%s>: <%s>: address too long",
 		    exp->exp_env->e_id, e_addr->e_addr );
 	    goto done;
 	}
 	if ( strlen( e_addr->e_addr_at + 1 ) >= ALIAS_MAX_DOMAIN_LEN ) {
-	    syslog( LOG_WARNING, "Expand.alias %s: <%s>: domain too long: %s",
+	    syslog( LOG_WARNING,
+		    "Expand.alias env <%s>: <%s>: domain too long: %s",
 		    exp->exp_env->e_id, e_addr->e_addr, e_addr->e_addr_at + 1 );
 	    goto done;
 	}
@@ -782,15 +787,15 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	    sprintf( owner, "%s-errors@%s", address, domain );
 	    if (( e_addr->e_addr_errors =
 		    address_bounce_create( exp )) == NULL ) {
-		syslog( LOG_ERR,
-			"Expand.alias %s: <%s>: failed creating error env: %s",
+		syslog( LOG_ERR, "Expand.alias env <%s>: <%s>: "
+			"failed creating error env: %s",
 			exp->exp_env->e_id, e_addr->e_addr, owner );
 		ret = ADDRESS_SYSERROR;
 		goto done;
 	    }
 	    if ( env_recipient( e_addr->e_addr_errors, owner ) != 0 ) {
-		syslog( LOG_ERR,
-			"Expand.alias %s: <%s>: failed setting error recip: %s",
+		syslog( LOG_ERR, "Expand.alias env <%s>: <%s>: "
+			"failed setting error recip: %s",
 			exp->exp_env->e_id, e_addr->e_addr, owner );
 		ret = ADDRESS_SYSERROR;
 		goto done;
@@ -809,7 +814,8 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	    goto done;
 
 	case 0:
-	    syslog( LOG_DEBUG, "Expand.alias %s: <%s>: bad expansion <%s>",
+	    syslog( LOG_INFO,
+		    "Expand.alias env <%s>: <%s>: bad expansion <%s>",
 		    exp->exp_env->e_id, e_addr->e_addr, alias_addr );
 	    free( alias_addr );
 	    break;
@@ -822,7 +828,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 		ret = ADDRESS_SYSERROR;
 		goto done;
 	    }
-	    syslog( LOG_DEBUG, "Expand.alias %s: <%s>: expanded to <%s>",
+	    simta_debuglog( 1, "Expand.alias env <%s>: <%s>: expanded to <%s>",
 		    exp->exp_env->e_id, e_addr->e_addr, alias_addr );
 	    free( alias_addr );
 	    break;

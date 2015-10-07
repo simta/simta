@@ -41,7 +41,7 @@ main( int ac, char *av[ ] )
 
     simta_openlog( 0, LOG_PERROR );
 
-    simta_spf_verbose = 1;
+    simta_debug = 8;
 
     if ( ac < 3 ) {
 	addrlookup = "255.255.255.255";

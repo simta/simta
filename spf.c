@@ -52,9 +52,7 @@ spf_lookup( const char *ehlo, const char *email, const struct sockaddr *addr )
 	s.s_local = yaslauto( "postmaster" );
     }
 
-    if ( simta_spf_verbose ) {
-	syslog( LOG_DEBUG, "SPF %s: localpart %s", s.s_domain, s.s_local );
-    }
+    simta_debuglog( 2, "SPF %s: localpart %s", s.s_domain, s.s_local );
 
     ret = spf_check_host( &s, s.s_domain );
 
@@ -126,15 +124,12 @@ spf_check_host( struct spf_state *s, const yastr domain )
     }
 
     if ( record == NULL ) {
-	syslog( LOG_DEBUG, "SPF %s [%s]: no SPF record found",
+	simta_debuglog( 1, "SPF %s [%s]: no SPF record found",
 		s->s_domain, domain );
 	goto cleanup;
     }
 
-    if ( simta_spf_verbose ) {
-	syslog( LOG_DEBUG, "SPF %s [%s]: record: %s",
-		s->s_domain, domain, record );
-    }
+    simta_debuglog( 2, "SPF %s [%s]: record: %s", s->s_domain, domain, record );
 
     split = yaslsplitlen( record, yasllen( record ), " ", 1, &tok_count );
 
@@ -200,19 +195,15 @@ spf_check_host( struct spf_state *s, const yastr domain )
 	    s->s_queries++;
 	    redirect = split[ i ];
 	    yaslrange( redirect, 9, -1 );
-	    if ( simta_spf_verbose ) {
-		syslog( LOG_DEBUG, "SPF %s [%s]: redirect to %s",
-			s->s_domain, domain, redirect );
-	    }
+	    simta_debuglog( 2, "SPF %s [%s]: redirect to %s",
+		    s->s_domain, domain, redirect );
 
 	/* RFC 7208 5.1 "all"
 	 * The "all" mechanism is a test that always matches.
 	 */
 	} else if ( strcasecmp( split[ i ], "all" ) == 0 ) {
-	    if ( simta_spf_verbose ) {
-		syslog( LOG_DEBUG, "SPF %s [%s]: matched all: %s",
-			s->s_domain, domain, spf_result_str( qualifier ));
-	    }
+	    simta_debuglog( 2, "SPF %s [%s]: matched all: %s",
+		    s->s_domain, domain, spf_result_str( qualifier ));
 	    ret = qualifier;
 	    goto cleanup;
 
@@ -223,10 +214,8 @@ spf_check_host( struct spf_state *s, const yastr domain )
 	} else if ( strncasecmp( split[ i ], "include:", 8 ) == 0 ) {
 	    s->s_queries++;
 	    yaslrange( split[ i ], 8, -1 );
-	    if ( simta_spf_verbose ) {
-		syslog( LOG_DEBUG, "SPF %s [%s]: include %s",
-			s->s_domain, domain, split[ i ] );
-	    }
+	    simta_debuglog( 2, "SPF %s [%s]: include %s",
+		    s->s_domain, domain, split[ i ] );
 	    rc = spf_check_host( s, split[ i ] );
 	    switch ( rc ) {
 	    case SPF_RESULT_NONE:
@@ -259,11 +248,9 @@ spf_check_host( struct spf_state *s, const yastr domain )
 
 	    switch( rc ) {
 	    case SPF_RESULT_PASS:
-		if ( simta_spf_verbose ) {
-		    syslog( LOG_DEBUG, "SPF %s [%s]: matched a %s/%ld/%ld: %s",
-			    s->s_domain, domain, domain_spec, cidr, cidr6,
-			    spf_result_str( qualifier ));
-		}
+		simta_debuglog( 2, "SPF %s [%s]: matched a %s/%ld/%ld: %s",
+			s->s_domain, domain, domain_spec, cidr, cidr6,
+			spf_result_str( qualifier ));
 		yaslfree( domain_spec );
 		ret = qualifier;
 		goto cleanup;
@@ -312,12 +299,10 @@ spf_check_host( struct spf_state *s, const yastr domain )
 			    dnsr_res_mech->r_answer[ j ].rr_mx.mx_exchange );
 		    switch( rc ) {
 		    case SPF_RESULT_PASS:
-			if ( simta_spf_verbose ) {
-			    syslog( LOG_DEBUG,
-				    "SPF %s [%s]: matched mx %s/%ld/%ld: %s",
-				    s->s_domain, domain, domain_spec, cidr,
-				    cidr6, spf_result_str( qualifier ));
-			}
+			simta_debuglog( 2,
+				"SPF %s [%s]: matched mx %s/%ld/%ld: %s",
+				s->s_domain, domain, domain_spec, cidr, cidr6,
+				spf_result_str( qualifier ));
 			ret = qualifier;
 			dnsr_free_result( dnsr_res_mech );
 			yaslfree( domain_spec );
@@ -387,13 +372,11 @@ spf_check_host( struct spf_state *s, const yastr domain )
 		    rc = strcasecmp( tmp, domain_spec );
 		    yaslfree( tmp );
 		    if ( rc == 0 ) {
-			if ( simta_spf_verbose ) {
-			    syslog( LOG_DEBUG,
-				    "SPF %s [%s]: matched ptr %s (%s): %s",
-				    s->s_domain, domain, domain_spec,
-				    dnsr_res_mech->r_answer[ j ].rr_dn.dn_name,
-				    spf_result_str( qualifier ));
-			}
+			simta_debuglog( 2,
+				"SPF %s [%s]: matched ptr %s (%s): %s",
+				s->s_domain, domain, domain_spec,
+				dnsr_res_mech->r_answer[ j ].rr_dn.dn_name,
+				spf_result_str( qualifier ));
 			ret = qualifier;
 			yaslfree( domain_spec );
 			dnsr_free_result( dnsr_res_mech );
@@ -436,11 +419,9 @@ spf_check_host( struct spf_state *s, const yastr domain )
 		ret = SPF_RESULT_PERMERROR;
 		goto cleanup;
 	    } else if ( rc == 0 ) {
-		if ( simta_spf_verbose ) {
-		    syslog( LOG_DEBUG, "SPF %s [%s]: matched ip4 %s/%ld: %s",
-			    s->s_domain, domain, split[ i ], cidr,
-			    spf_result_str( qualifier ));
-		}
+		simta_debuglog( 2, "SPF %s [%s]: matched ip4 %s/%ld: %s",
+			s->s_domain, domain, split[ i ], cidr,
+			spf_result_str( qualifier ));
 		ret = qualifier;
 		goto cleanup;
 	    }
@@ -472,11 +453,9 @@ spf_check_host( struct spf_state *s, const yastr domain )
 		ret = SPF_RESULT_PERMERROR;
 		goto cleanup;
 	    } else if ( rc == 0 ) {
-		if ( simta_spf_verbose ) {
-		    syslog( LOG_DEBUG, "SPF %s [%s]: matched ip6 %s/%ld: %s",
-			    s->s_domain, domain, split[ i ], cidr,
-			    spf_result_str( qualifier ));
-		}
+		simta_debuglog( 2, "SPF %s [%s]: matched ip6 %s/%ld: %s",
+			s->s_domain, domain, split[ i ], cidr,
+			spf_result_str( qualifier ));
 		ret = qualifier;
 		goto cleanup;
 	    }
@@ -501,11 +480,9 @@ spf_check_host( struct spf_state *s, const yastr domain )
 	    }
 
 	    if ( dnsr_res_mech->r_ancount > 0 ) {
-		if ( simta_spf_verbose ) {
-		    syslog( LOG_DEBUG, "SPF %s [%s]: matched exists %s: %s",
-			    s->s_domain, domain, domain_spec,
-			    spf_result_str( qualifier ));
-		}
+		simta_debuglog( 2, "SPF %s [%s]: matched exists %s: %s",
+			s->s_domain, domain, domain_spec,
+			spf_result_str( qualifier ));
 		dnsr_free_result( dnsr_res_mech );
 		yaslfree( domain_spec );
 		ret = qualifier;
@@ -522,7 +499,7 @@ spf_check_host( struct spf_state *s, const yastr domain )
 		/* RFC 7208 6 Modifier Definitions
 		 * Unrecognized modifiers MUST be ignored
 		 */
-		syslog( LOG_DEBUG, "SPF %s [%s]: %s unknown modifier %s",
+		simta_debuglog( 1, "SPF %s [%s]: %s unknown modifier %s",
 			s->s_domain, domain, spf_result_str( qualifier ),
 			split[ i ] );
 	    } else {
@@ -554,10 +531,8 @@ spf_check_host( struct spf_state *s, const yastr domain )
 	 * "?all" were specified as the last directive.
 	 */
 	ret = SPF_RESULT_NEUTRAL;
-	if ( simta_spf_verbose ) {
-	    syslog( LOG_DEBUG, "SPF %s [%s]: default result: %s",
-		    s->s_domain, domain, spf_result_str( ret ));
-	}
+	simta_debuglog( 2, "SPF %s [%s]: default result: %s", s->s_domain,
+		domain, spf_result_str( ret ));
     }
 
 cleanup:
@@ -822,8 +797,8 @@ spf_macro_expand( struct spf_state *s, const yastr domain, const yastr macro )
 	}
     }
 
-    if ( yaslcmp( macro, expanded ) && simta_spf_verbose ) {
-	syslog( LOG_DEBUG, "SPF %s [%s]: expanded %s to %s",
+    if ( yaslcmp( macro, expanded )) {
+	simta_debuglog( 3, "SPF %s [%s]: expanded %s to %s",
 		s->s_domain, domain, macro, expanded );
     }
 
@@ -915,7 +890,7 @@ simta_cidr_compare( long int netmask, const struct sockaddr *addr,
 	hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
 
 	if (( rc = getaddrinfo( ip, NULL, &hints, &ip_ai )) != 0 ) {
-	    syslog( LOG_DEBUG, "Syserror: simta_cidr_compare getaddrinfo: %s",
+	    syslog( LOG_INFO, "Syserror: simta_cidr_compare getaddrinfo: %s",
 		    gai_strerror( rc ));
 	    return( -1 );
 	}

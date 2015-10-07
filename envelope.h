@@ -128,7 +128,6 @@ int		env_dfile_open( struct envelope * );
 
 /* debugging  functions */
 void		env_stdout( struct envelope * );
-void		env_syslog( struct envelope * );
 
 #endif /* SIMTA_ENVELOPE_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

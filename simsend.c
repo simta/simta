@@ -363,7 +363,7 @@ done:
     }
     env->e_dinode = sbuf.st_ino;
 
-    syslog( LOG_DEBUG, "%s env %s dinode %d", argv[ 0 ], env->e_id,
+    simta_debuglog( 2, "%s env %s dinode %d", argv[ 0 ], env->e_id,
 	    (int)(env->e_dinode));
 
     /* close Dfile */

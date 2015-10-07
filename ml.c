@@ -198,7 +198,7 @@ deliver_binary( struct deliver *d )
 	}
 
 	while (( line = snet_getline( snet, NULL )) != NULL ) {
-	    syslog( LOG_INFO, "Deliver.binary %s: %d: %s",
+	    syslog( LOG_INFO, "Deliver.binary env <%s>: %d: %s",
 		    d->d_env->e_id, pid, line );
 
 	    if ( d->d_rcpt->r_err_text == NULL ) {
@@ -229,23 +229,23 @@ deliver_binary( struct deliver *d )
 
 	if ( WIFEXITED( status )) {
 	    if (( val = WEXITSTATUS( status )) == 0 ) {
-		syslog( LOG_NOTICE, "Deliver.binary %s: %d done",
+		syslog( LOG_NOTICE, "Deliver.binary env <%s>: %d done",
 			d->d_env->e_id, pid );
 
 	    } else {
-		syslog( LOG_WARNING, "Deliver.binary %s: %d exited %d",
+		syslog( LOG_WARNING, "Deliver.binary env <%s>: %d exited %d",
 			d->d_env->e_id, pid, val );
 	    }
 
 	    return( val );
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Deliver.binary %s: %d signaled to death by %d",
+	    syslog( LOG_ERR, "Deliver.binary env <%s>: %d died with signal %d",
 		    d->d_env->e_id, pid, WTERMSIG( status ));
 	    return( EX_TEMPFAIL);
 
 	} else {
-	    syslog( LOG_ERR, "Deliver.binary %s: %d died",
+	    syslog( LOG_ERR, "Deliver.binary env <%s>: %d died",
 		    d->d_env->e_id, pid );
 	    return( EX_TEMPFAIL);
 	}

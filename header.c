@@ -178,7 +178,8 @@ parse_addr_spec( const char *addr, int *l )
     buf = yaslempty( );
 
     if (( len = cfws_len( addr )) < 0 ) {
-	syslog( LOG_DEBUG, "parse_addr_spec: cfws_len failed: %s", addr );
+	syslog( LOG_INFO, "parse_addr_spec %s: cfws_len failed: %s", addr,
+		addr );
 	goto error;
     }
 
@@ -186,26 +187,29 @@ parse_addr_spec( const char *addr, int *l )
 
     if ( *start == '"' ) {
 	if (( len = quoted_string_len( start )) < 0 ) {
-	    syslog( LOG_DEBUG,
-		    "parse_addr_spec: quoted_string_len failed: %s", start );
+	    syslog( LOG_INFO,
+		    "parse_addr_spec %s: quoted_string_len failed: %s",
+		    addr, start );
 	    goto error;
 	}
     } else if (( len = dot_atom_text_len( start )) < 0 ) {
-	syslog( LOG_DEBUG, "parse_addr_spec: dot_atom_text_len failed: %s",
-	    start );
+	syslog( LOG_INFO, "parse_addr_spec %s: dot_atom_text_len failed: %s",
+		addr, start );
+	goto error;
     }
 
     buf = yaslcatlen( buf, start, len );
     start += len;
 
     if ( *start != '@' ) {
-	syslog( LOG_DEBUG, "parse_addr_spec: expected @: %s", start );
+	syslog( LOG_INFO, "parse_addr_spec %s: expected @: %s", addr, start );
 	goto error;
     }
 
     if (( len = dot_atom_text_len( start + 1 )) < 0 ) {
-	syslog( LOG_DEBUG, "parse_addr_spec: dot_atom_text_len failed: %s",
-	    start );
+	syslog( LOG_INFO, "parse_addr_spec %s: dot_atom_text_len failed: %s",
+		addr, start );
+	goto error;
     }
     buf = yaslcatlen( buf, start, len + 1 );
 
@@ -330,8 +334,10 @@ parse_mid( struct line *l )
 
     buf = header_string( l );
 
+    simta_debuglog( 2, "parse_mid: %s", buf );
+
     if (( len = cfws_len( buf )) < 0 ) {
-	syslog( LOG_DEBUG, "parse_mid: cfws_len failed: %s", buf );
+	syslog( LOG_INFO, "parse_mid: cfws_len failed: %s", buf );
 	goto error;
     }
 
@@ -345,10 +351,10 @@ parse_mid( struct line *l )
     yaslrange( buf, 1, -1 );
 
     if (( len = quoted_string_len( buf )) < 0 ) {
-	syslog( LOG_DEBUG, "parse_mid: quoted_string_len failed: %s", buf );
+	syslog( LOG_INFO, "parse_mid: quoted_string_len failed: %s", buf );
 	goto error;
     } else if (( len == 0 ) && ( len = dot_atom_text_len( buf )) < 0 ) {
-	syslog( LOG_DEBUG, "parse_mid: dot_atom_text_len failed: %s",
+	syslog( LOG_INFO, "parse_mid: dot_atom_text_len failed: %s",
 		buf );
 	goto error;
     }
@@ -364,14 +370,13 @@ parse_mid( struct line *l )
 
     if ( *c == '[' ) {
 	if (( len = domain_literal_len( c )) < 0 ) {
-	    syslog( LOG_DEBUG, "parse_mid: domain_literal_len failed: %s",
-		    c );
+	    syslog( LOG_INFO, "parse_mid: domain_literal_len failed: %s", c );
 	    goto error;
 	}
 
     } else {
 	if (( len = dot_atom_text_len( c )) < 0 ) {
-	    syslog( LOG_DEBUG, "parse_mid: dot_atom_text_len failed: %s", c );
+	    syslog( LOG_INFO, "parse_mid: dot_atom_text_len failed: %s", c );
 	    goto error;
 	}
     }
@@ -597,7 +602,7 @@ header_check( struct receive_headers *rh, int read_headers )
 	    ret++;
 	} else {
 	    if ( tok_count != 1 ) {
-		syslog( LOG_DEBUG, "header_check: parse_addr_list returned "
+		syslog( LOG_INFO, "header_check: parse_addr_list returned "
 			"an unexpected number of From addresses: %s", tmp );
 	    }
 	    rh->r_env->e_header_from = strdup( split[ 0 ] );
@@ -854,8 +859,8 @@ header_check( struct receive_headers *rh, int read_headers )
 		yaslrange( tmp, len, -1 );
 	    }
 	    len = dot_atom_text_len( tmp );
-	    if (( len == strlen( simta_seen_before_domain )) &&
-		    ( strncmp( tmp, simta_seen_before_domain, len ) == 0 )) {
+	    if (( len == yasllen( simta_seen_before_domain )) &&
+		    ( memcmp( tmp, simta_seen_before_domain, len ) == 0 )) {
 		rh->r_seen_before = strdup( tmp );
 	    }
 	    yaslfree( tmp );
@@ -1221,7 +1226,7 @@ correct_emailaddr( char **addr )
     } else if ( *at == '\0' ) {
 	len = end - start;
 	len += 3;
-	len += strlen( simta_domain );
+	len += yasllen( simta_domain );
 
 	new = calloc( 1, len );
 
@@ -1317,7 +1322,7 @@ parse_addr_list( yastr list, size_t *count, int mode )
 
     while ( *l != '\0' ) {
 	if (( len = cfws_len( l )) < 0 ) {
-	    syslog( LOG_DEBUG, "parse_addr_list: cfws_len failed: %s", l );
+	    syslog( LOG_INFO, "parse_addr_list: cfws_len failed: %s", l );
 	    goto error;
 	} else {
 	    l += len;
@@ -1327,13 +1332,13 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	    addr++;
 	    l++;
 	    if (( tmp = parse_addr_spec( l, &len )) == NULL ) {
-		syslog( LOG_DEBUG,
+		syslog( LOG_INFO,
 			"parse_addr_list: parse_addr_spec failed: %s", l );
 		goto error;
 	    }
 	    l += len;
 	    if ( *l != '>' ) {
-		syslog( LOG_DEBUG, "parse_addr_list: expected >: %s", l );
+		syslog( LOG_INFO, "parse_addr_list: expected >: %s", l );
 		goto error;
 	    }
 	    l++;
@@ -1345,7 +1350,7 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	    if ( *(l + len) == '@' ) {
 		addr++;
 		if (( tmp = parse_addr_spec( l, &len )) == NULL ) {
-		    syslog( LOG_NOTICE,
+		    syslog( LOG_INFO,
 			    "parse_addr_list: parse_addr_spec failed: %s", l );
 		    goto error;
 		}
@@ -1353,7 +1358,7 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	    l += len;
 	} else if ( *l == ',' ) {
 	    if ( addr != 1 ) {
-		syslog( LOG_DEBUG, "parse_addr_list: bad list: %s", l );
+		syslog( LOG_INFO, "parse_addr_list: bad list: %s", l );
 		goto error;
 	    }
 	    addr = 0;
@@ -1366,7 +1371,7 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	    mode = HEADER_ADDRESS_LIST;
 	    l++;
 	} else if ( *l != '\0' ) {
-	    syslog( LOG_DEBUG,
+	    syslog( LOG_INFO,
 		    "parse_addr_list: unexpected char: %s", l );
 	    goto error;
 	}

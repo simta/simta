@@ -94,7 +94,7 @@ retry:
 	    continue;
 	}
 
-	syslog( LOG_DEBUG, "[%s] %s: connect: Success", d.d_ip,
+	syslog( LOG_INFO, "[%s] %s: connect: Success", d.d_ip,
 		hq->hq_hostname );
 
 	if (( d.d_snet_smtp = snet_attach( s, 1024 * 1024 )) == NULL ) {

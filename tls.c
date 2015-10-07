@@ -28,7 +28,7 @@
 #endif /* HAVE_LIBSASL */
 
 #include "tls.h"
-    
+
 static int tls_randfile( void );
 
     static int
@@ -150,11 +150,11 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 	goto error;
     }
 
-    /* Disable SSLv2 and SSLv3, prefer server cipher ordering */ 
+    /* Disable SSLv2 and SSLv3, prefer server cipher ordering */
     SSL_CTX_set_options( ssl_ctx,
 	    SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
 	    SSL_OP_CIPHER_SERVER_PREFERENCE );
-    
+
     if ( ciphers == NULL ) {
 	SSL_CTX_set_cipher_list( ssl_ctx,
 		"EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:"
@@ -347,14 +347,14 @@ tls_client_cert( char *hostname, const SSL *ssl )
 	return( 1 );
     }
 
-    syslog( LOG_DEBUG, "TLS %s: cert subject: %s", hostname,
-	    X509_NAME_oneline(
-		X509_get_subject_name( peer ), buf, sizeof( buf )));
+    syslog( LOG_INFO, "TLS %s: cert subject: %s", hostname,
+	    X509_NAME_oneline( X509_get_subject_name( peer ),
+	    buf, sizeof( buf )));
 
     X509_free( peer );
 
     if (( rc = SSL_get_verify_result( ssl )) != X509_V_OK ) {
-	syslog( LOG_ERR, "TLS %s: verify failed: %s", hostname, 
+	syslog( LOG_ERR, "TLS %s: verify failed: %s", hostname,
 		X509_verify_cert_error_string( rc ));
 	return( 1 );
     }

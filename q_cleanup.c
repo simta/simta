@@ -139,15 +139,14 @@ q_move_to_slow( struct envelope **slow_q, struct envelope **other_q )
 
 		} else {
 		    /* file collision - message is already in the slow queue */
+		    syslog( LOG_NOTICE,
+			    "Queue %s/%s: collision with existing file in slow",
+			    move->e_dir, move->e_id );
 		    if ( simta_filesystem_cleanup ) {
-			syslog( LOG_NOTICE, "Queue %s/%s: Cleaning: Collision",
-				move->e_dir, move->e_id );
 			if ( env_unlink( move ) != 0 ) {
 			    return( 1 );
 			}
 		    } else {
-			syslog( LOG_NOTICE, "Queue %s/%s: Failed: Collision",
-				move->e_dir, move->e_id );
 			collisions++;
 		    }
 
@@ -177,13 +176,13 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
     struct file_list		*f;
 
     if (( dirp = opendir( dir )) == NULL ) {
-	syslog( LOG_ERR, "Queue Syserror: opendir %s: %m", dir );
+	syslog( LOG_ERR, "Syserror: q_dir_startup opendir %s: %m", dir );
 	return( 1 );
     }
 
     if ( action == Q_DIR_EXIST ) {
 	if ( closedir( dirp ) != 0 ) {
-	    syslog( LOG_ERR, "Queue Syserror: closedir %s: %m", dir );
+	    syslog( LOG_ERR, "Syserror: q_dir_startup closedir %s: %m", dir );
 	    return( 1 );
 	}
 	return( 0 );
@@ -210,7 +209,7 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 	}
 
 	if ( action == Q_DIR_EMPTY ) {
-	    syslog( LOG_NOTICE, "Queue %s/%s: Failed: Directory not empty",
+	    syslog( LOG_NOTICE, "Queue %s/%s: Directory not empty",
 		    dir, entry->d_name );
 	    bad_filesystem = 1;
 	    continue;
@@ -245,12 +244,11 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 	    }
 
 	} else if ( *entry->d_name == 't' ) {
+	    syslog( LOG_NOTICE, "Queue %s/%s: stranded t_file", dir,
+		    entry->d_name );
 	    if ( dir == simta_dir_local ) {
-		syslog( LOG_NOTICE, "Queue %s/%s: Check: Stranded t_file",
-			dir, entry->d_name );
+		/* Nothing. */
 	    } else if ( simta_filesystem_cleanup ) {
-		syslog( LOG_NOTICE, "Queue %s/%s: Cleaning: Stranded t_file",
-			dir, entry->d_name );
 		if ( !bad_filesystem ) {
 		    /* Keep track of stranded t files */
 		    if ( file_list_add( &f_list, INCOMPLETE_T, dir,
@@ -260,27 +258,25 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 		}
 	    } else {
 		/* illegal stranded t */
-		syslog( LOG_NOTICE, "Queue %s/%s: Failed: Stranded t_file",
-			dir, entry->d_name );
 		bad_filesystem = 1;
 	    }
 
 	} else {
 	    /* unknown file */
 	    bad_filesystem = 1;
-	    syslog( LOG_WARNING, "Queue %s/%s: Failed: Unknown file",
+	    syslog( LOG_WARNING, "Queue %s/%s: unknown file",
 		    dir, entry->d_name );
 	}
     }
 
     /* did readdir finish, or encounter an error? */
     if ( errno != 0 ) {
-	syslog( LOG_ERR, "Queue Syserror: readdir %s: %m", dir );
+	syslog( LOG_ERR, "Syserror: q_dir_startup readdir %s: %m", dir );
 	bad_filesystem = 1;
     }
 
     if ( closedir( dirp ) != 0 ) {
-	syslog( LOG_ERR, "Queue Syserror: closedir %s: %m", dir );
+	syslog( LOG_ERR, "Syserror: q_dir_startup closedir %s: %m", dir );
 	return( 1 );
     }
 
@@ -292,25 +288,20 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 	env = *env_p;
 
 	if (( env->e_flags & ENV_FLAG_DFILE ) == 0 ) {
-	    syslog( LOG_ALERT, "Queue %s/E%s: Failed: Missing Dfile",
-		    dir, env->e_id );
+	    syslog( LOG_ERR, "Queue %s/E%s: missing Dfile", dir, env->e_id );
 	    bad_filesystem = 1;
 	    *env_p = env->e_next;
 	    env_free( env );
 
 	} else if (( env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
+	    syslog( LOG_ERR, "Queue %s/D%s: missing Efile", dir, env->e_id );
 	    if ( dir == simta_dir_local ) {
-		syslog( LOG_NOTICE, "Queue %s/D%s: Check: Missing Efile",
-			dir, env->e_id );
+		/* Nada. */
 	    } else if (( simta_filesystem_cleanup ) && ( !bad_filesystem )) {
-		syslog( LOG_NOTICE, "Queue %s/D%s: Cleaning: Missing Efile",
-			dir, env->e_id );
 		if ( file_list_add( &f_list, STRANDED_D, dir, env->e_id )) {
 		    return( 1 );
 		}
 	    } else {
-		syslog( LOG_ALERT, "Queue %s/D%s: Failed: Missing Efile",
-			dir, env->e_id );
 		bad_filesystem = 1;
 	    }
 
@@ -328,10 +319,11 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 
 	if ( !bad_filesystem ) {
 	    if ( unlink( f->f_name ) != 0 ) {
-		syslog( LOG_ERR, "Queue Syserror: unlink %s: %m", f->f_name );
+		syslog( LOG_ERR, "Syserror: q_dir_startup unlink %s: %m",
+			f->f_name );
 		return( 1 );
 	    }
-	    syslog( LOG_NOTICE, "Queue %s: Unlinked", f->f_name );
+	    syslog( LOG_INFO, "Queue %s: unlinked", f->f_name );
 	}
 
 	free( f->f_name );
@@ -359,7 +351,8 @@ q_expansion_cleanup( struct envelope **fast )
 	sprintf( fname, "%s/D%s", env->e_dir, env->e_id );
 
 	if ( stat( fname, &sb ) != 0 ) {
-	    syslog( LOG_ERR, "Queue stat %s: %m", fname );
+	    syslog( LOG_ERR, "Syserror q_expansion_cleanup stat %s: %m",
+		    fname );
 	    return( 1 );
 	}
 
@@ -384,8 +377,8 @@ q_expansion_cleanup( struct envelope **fast )
 		    assert(( env->e_n_exp_level - 1 ) ==
 			    ((*i)->i_unexpanded->e_n_exp_level ));
 		    env->e_flags |= ENV_FLAG_DELETE;
-		    syslog( LOG_NOTICE, "Queue %s/%s: "
-			    "Cleaning: %s/%s expansion interrupted",
+		    syslog( LOG_INFO,
+			    "Queue %s/%s: %s/%s expansion interrupted",
 			    simta_dir_fast, env->e_id,
 			    simta_dir_fast, (*i)->i_unexpanded->e_id );
 		    continue;
@@ -414,9 +407,9 @@ q_expansion_cleanup( struct envelope **fast )
 		for ( delete = (*i)->i_expanded_list; delete != NULL;
 			delete = delete->e_expanded_next ) {
 		    delete->e_flags |= ENV_FLAG_DELETE;
-		    syslog( LOG_NOTICE, "Queue %s/%s: "
-			    "Cleaning: %s/%s expansion interrupted",
-			    simta_dir_fast, delete->e_id, 
+		    syslog( LOG_INFO,
+			    "Queue %s/%s: %s/%s expansion interrupted",
+			    simta_dir_fast, delete->e_id,
 			    simta_dir_fast, env->e_id );
 		}
 
@@ -471,7 +464,7 @@ file_list_add( struct file_list **f_list, int mode, char *dir, char *f_id )
 	break;
 
     default:
-	syslog( LOG_ERR, "file_list_add: unknown mode" );
+	syslog( LOG_ERR, "Queue: file_list_add: unknown mode" );
 	return( 1 );
     }
 
@@ -488,7 +481,7 @@ file_list_add( struct file_list **f_list, int mode, char *dir, char *f_id )
 	break;
 
     default:
-	syslog( LOG_ERR, "file_list_add: unknown mode" );
+	syslog( LOG_ERR, "Queue: file_list_add: unknown mode" );
 	return( 1 );
     }
 

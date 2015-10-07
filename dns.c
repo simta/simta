@@ -19,7 +19,6 @@
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <dirent.h>
 
 #include <denser.h>
@@ -152,7 +151,7 @@ get_mx( const char *hostname )
 	    break;
 
 	default:
-	    syslog( LOG_DEBUG, "get_mx: %s: uninteresting dnsr type: %d",
+	    simta_debuglog( 2, "get_mx: %s: uninteresting dnsr type: %d",
 		result->r_answer[ i ].rr_name,
 		result->r_answer[ i ].rr_type );
 	    break;
@@ -279,7 +278,7 @@ check_reverse( char *dn, const struct sockaddr *sa )
 		    }
 
 		} else {
-		    syslog( LOG_DEBUG,
+		    simta_debuglog( 2,
 			"DNS: check_reverse %s: uninteresting dnsr type: %d",
 			result_a->r_answer[ j ].rr_name,
 			result_a->r_answer[ j ].rr_type );
@@ -298,7 +297,7 @@ check_reverse( char *dn, const struct sockaddr *sa )
 	    dnsr_free_result( result_a );
 
 	} else {
-	    syslog( LOG_DEBUG,
+	    simta_debuglog( 2,
 		    "DNS: check_reverse %s: uninteresting dnsr type: %d",
 		    result_ptr->r_answer[ i ].rr_name,
 		    result_ptr->r_answer[ i ].rr_type );
@@ -392,11 +391,6 @@ rbl_check( struct rbl *rbls, const struct sockaddr *sa, char *text, char *host,
     }
 
     for ( rbl = rbls; rbl != NULL; rbl = rbl->rbl_next ) {
-	if (( simta_rbl_verbose_logging == 0 ) &&
-		( rbl->rbl_type == RBL_LOG_ONLY )) {
-	    continue;
-	}
-
 	if ( found != NULL ) {
 	    *found = rbl;
 	}
@@ -419,7 +413,7 @@ rbl_check( struct rbl *rbls, const struct sockaddr *sa, char *text, char *host,
 	}
 
 	if (( result = get_a( reverse_ip )) == NULL ) {
-	    syslog( LOG_DEBUG, "RBL %s: Timeout: %s", reverse_ip,
+	    simta_debuglog( 1, "RBL %s: Timeout: %s", reverse_ip,
 		    rbl->rbl_domain );
 	    free( reverse_ip );
 	    continue;
@@ -433,11 +427,9 @@ rbl_check( struct rbl *rbls, const struct sockaddr *sa, char *text, char *host,
 
 	    ip = strdup( inet_ntoa( sin.sin_addr ));
 
-	    if ( simta_rbl_verbose_logging ) {
-		syslog( LOG_DEBUG, "RBL [%s] %s: Found in %s list %s: %s",
-			sa ? sa_ip : text, host ? host : "Unknown",
-			rbl->rbl_type_text, rbl->rbl_domain, ip );
-	    }
+	    simta_debuglog( 1, "RBL [%s] %s: Found in %s list %s: %s",
+		    sa ? sa_ip : text, host ? host : "Unknown",
+		    rbl->rbl_type_text, rbl->rbl_domain, ip );
 
 	    free( reverse_ip );
 	    dnsr_free_result( result );
@@ -456,20 +448,16 @@ rbl_check( struct rbl *rbls, const struct sockaddr *sa, char *text, char *host,
 	    return( rbl->rbl_type );
 	}
 
-	if ( simta_rbl_verbose_logging ) {
-	    syslog( LOG_DEBUG, "RBL [%s] %s: Unlisted in %s list %s",
-		    sa ? sa_ip : text, host ? host : "Unknown",
-		    rbl->rbl_type_text, rbl->rbl_domain );
-	}
+	simta_debuglog( 1, "RBL [%s] %s: Unlisted in %s list %s",
+		sa ? sa_ip : text, host ? host : "Unknown",
+		rbl->rbl_type_text, rbl->rbl_domain );
 
 	free( reverse_ip );
 	dnsr_free_result( result );
     }
 
-    if ( simta_rbl_verbose_logging ) {
-	syslog( LOG_DEBUG, "RBL [%s] %s: RBL list exhausted, no matches",
-		sa ? sa_ip : text, host ? host : "Unknown" );
-    }
+    simta_debuglog( 1, "RBL [%s] %s: RBL list exhausted, no matches",
+	    sa ? sa_ip : text, host ? host : "Unknown" );
 
     if ( found != NULL ) {
 	*found = NULL;

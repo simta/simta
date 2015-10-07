@@ -68,7 +68,7 @@ static int smtp_check_banner_line( struct deliver *, char * );
 smtp_check_banner_line( struct deliver *d, char *line ) {
 
     if ( strlen( line ) < 3 ) {
-	syslog( LOG_DEBUG, "Deliver.SMTP %s: bad banner syntax: %s",
+	syslog( LOG_INFO, "Deliver.SMTP env <%s>: bad banner syntax: %s",
 		d->d_env ? d->d_env->e_id : "null", line );
 	return( SMTP_ERROR );
     }
@@ -76,7 +76,7 @@ smtp_check_banner_line( struct deliver *d, char *line ) {
     if ( !isdigit( (int)line[ 0 ] ) ||
 	    !isdigit( (int)line[ 1 ] ) ||
 	    !isdigit( (int)line[ 2 ] )) {
-	syslog( LOG_DEBUG, "Deliver.SMTP %s: bad banner syntax: %s",
+	syslog( LOG_INFO, "Deliver.SMTP env <%s>: bad banner syntax: %s",
 		d->d_env ? d->d_env->e_id : "null", line );
 	return( SMTP_ERROR );
     }
@@ -84,7 +84,7 @@ smtp_check_banner_line( struct deliver *d, char *line ) {
     if ( line[ 3 ] != '\0' &&
 	    line[ 3 ] != ' ' &&
 	    line [ 3 ] != '-' ) {
-	syslog( LOG_DEBUG, "Deliver.SMTP %s: bad banner syntax: %s",
+	syslog( LOG_INFO, "Deliver.SMTP env <%s>: bad banner syntax: %s",
 		d->d_env ? d->d_env->e_id : "null", line );
 	return( SMTP_ERROR );
     }
@@ -186,14 +186,14 @@ smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
 	if (( strncasecmp( S_8BITMIME, c, strlen( S_8BITMIME )) == 0 )) {
 	    for ( c += strlen( S_8BITMIME ); isspace( *c ) ; c++ );
 	    if ( *c == '\0' ) {
-		syslog( LOG_DEBUG, "Deliver.SMTP %s: 8BITMIME supported",
+		simta_debuglog( 1, "Deliver.SMTP env <%s>: 8BITMIME supported",
 			d->d_env->e_id );
 		d->d_esmtp_8bitmime = 1;
 	    }
 	} else if (( strncasecmp( S_SIZE, c, strlen( S_SIZE )) == 0 )) {
 	    for ( c += strlen( S_SIZE ); isspace( *c ) ; c++ );
 	    if ( *c == '\0' ) {
-		syslog( LOG_DEBUG, "Deliver.SMTP %s: SIZE supported",
+		simta_debuglog( 1, "Deliver.SMTP env <%s>: SIZE supported",
 			d->d_env->e_id );
 		d->d_esmtp_size = -1;
 	    } else {
@@ -204,11 +204,12 @@ smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
 		errno = 0;
 		size = strtol( c, NULL, 0 );
 		if (( errno == EINVAL ) || ( errno == ERANGE )) {
-		    syslog( LOG_WARNING,
-			    "Deliver.SMTP %s: error parsing SIZE parameter: %s",
+		    syslog( LOG_WARNING, "Deliver.SMTP env <%s>: "
+			    "error parsing SIZE parameter: %s",
 			    d->d_env->e_id, c );
 		} else {
-		    syslog( LOG_DEBUG, "Deliver.SMTP %s: SIZE supported: %d",
+		    simta_debuglog( 1,
+			    "Deliver.SMTP env <%s>: SIZE supported: %d",
 			    d->d_env->e_id, size );
 		    d->d_esmtp_size = size;
 		}
@@ -216,7 +217,7 @@ smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
 	} else if (( strncasecmp( S_STARTTLS, c, strlen( S_STARTTLS )) == 0 )) {
 	    for ( c += strlen( S_STARTTLS ); isspace( *c ) ; c++ );
 	    if ( *c == '\0' ) {
-		syslog( LOG_DEBUG, "Deliver.SMTP %s: STARTTLS supported",
+		simta_debuglog( 1, "Deliver.SMTP env <%s>: STARTTLS supported",
 			d->d_env->e_id );
 		d->d_esmtp_starttls = 1;
 	    }
@@ -354,30 +355,30 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    break;
 
 	case SMTP_HELO:
-	    syslog( LOG_INFO, "Deliver.SMTP %s: HELO reply: %s",
+	    syslog( LOG_INFO, "Deliver.SMTP env <%s>: HELO reply: %s",
 		    d->d_env->e_id, line );
 	    break;
 
 	case SMTP_EHLO:
-	    syslog( LOG_INFO, "Deliver.SMTP %s: EHLO reply: %s",
+	    syslog( LOG_INFO, "Deliver.SMTP env <%s>: EHLO reply: %s",
 		    d->d_env->e_id, line );
 	    return smtp_parse_ehlo_banner( d, line );
 	    break;
 
 	case SMTP_STARTTLS:
-	    syslog( LOG_INFO, "Deliver.SMTP %s: STARTTLS reply: %s",
+	    syslog( LOG_INFO, "Deliver.SMTP env <%s>: STARTTLS reply: %s",
 		    d->d_env->e_id, line );
 	    break;
 
 	case SMTP_MAIL:
 	    syslog( LOG_NOTICE,
-		    "Deliver.SMTP %s: From <%s> Accepted: %s",
+		    "Deliver.SMTP env <%s>: From <%s> Accepted: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
 	    break;
 
 	case SMTP_RCPT:
 	    syslog( LOG_NOTICE,
-		    "Deliver.SMTP %s: To <%s> From <%s> Accepted: %s",
+		    "Deliver.SMTP env <%s>: To <%s> From <%s> Accepted: %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail, line );
 	    d->d_rcpt->r_status = R_ACCEPTED;
 	    d->d_n_rcpt_accepted++;
@@ -387,15 +388,15 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
 	    syslog( LOG_NOTICE,
-		    "Deliver.SMTP %s: Message Tempfailed: [%s] %s: %s",
+		    "Deliver.SMTP env <%s>: Message Tempfailed: [%s] %s: %s",
 		    d->d_env->e_id, d->d_ip, hq->hq_smtp_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
 	    d->d_delivered = 1;
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Message Accepted [%s] %s: "
-		    "transmitted %ld/%ld: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: "
+		    "Message Accepted [%s] %s: transmitted %ld/%ld: %s",
 		    d->d_env->e_id, d->d_ip, hq->hq_smtp_hostname, d->d_sent,
 		    d->d_size, line );
 	    break;
@@ -432,7 +433,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    return( smtp_reply );
 
 	case SMTP_HELO:
-	    syslog( LOG_WARNING, "Deliver.SMTP %s: Tempfail HELO reply: %s",
+	    syslog( LOG_WARNING,
+		    "Deliver.SMTP env <%s>: Tempfail HELO reply: %s",
 		    d->d_env->e_id, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP HELO reply" )) == SMTP_OK ) {
@@ -441,7 +443,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    return( smtp_reply );
 
 	case SMTP_EHLO:
-	    syslog( LOG_WARNING, "Deliver.SMTP %s: Tempfail EHLO reply: %s",
+	    syslog( LOG_WARNING,
+		    "Deliver.SMTP env <%s>: Tempfail EHLO reply: %s",
 		    d->d_env->e_id, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP EHLO reply" )) == SMTP_OK ) {
@@ -450,7 +453,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    return( smtp_reply );
 
 	case SMTP_STARTTLS:
-	    syslog( LOG_WARNING, "Deliver.SMTP %s: Tempfail STARTTLS reply: %s",
+	    syslog( LOG_WARNING,
+		    "Deliver.SMTP env <%s>: Tempfail STARTTLS reply: %s",
 		    d->d_env->e_id, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP STARTTLS reply" )) == SMTP_OK ) {
@@ -460,7 +464,8 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_MAIL:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: From <%s> Tempfailed: %s",
+	    syslog( LOG_NOTICE,
+		    "Deliver.SMTP env <%s>: From <%s> Tempfailed: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP MAIL FROM reply" ));
@@ -469,21 +474,21 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    d->d_rcpt->r_status = R_TEMPFAIL;
 	    d->d_n_rcpt_tempfailed++;
 	    syslog( LOG_NOTICE,
-		    "Deliver.SMTP %s: To <%s> From <%s> Tempfailed: %s",
+		    "Deliver.SMTP env <%s>: To <%s> From <%s> Tempfailed: %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), d,
 		    line, "Bad SMTP RCPT TO reply" ));
 
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Tempfailed %s [%s]: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: Tempfailed %s [%s]: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, d->d_ip, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Tempfailed %s [%s]: "
+	    syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: Tempfailed %s [%s]: "
 		    "transmitted %ld/%ld: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, d->d_ip, d->d_sent,
 		    d->d_size, line );
@@ -491,7 +496,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		    line, "Bad SMTP DATA_EOF reply" ));
 
 	case SMTP_RSET:
-	    syslog( LOG_WARNING, "Deliver.SMTP %s: Tempfail RSET reply: %s",
+	    syslog( LOG_WARNING, "Deliver.SMTP env <%s>: Tempfail RSET reply: %s",
 		    d->d_env ? d->d_env->e_id : "null", line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP RSET reply" )) == SMTP_OK ) {
@@ -500,7 +505,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    return( smtp_reply );
 
 	case SMTP_QUIT:
-	    syslog( LOG_WARNING, "Deliver.SMTP %s: Tempfail QUIT reply: %s",
+	    syslog( LOG_WARNING, "Deliver.SMTP env <%s>: Tempfail QUIT reply: %s",
 		    d->d_env ? d->d_env->e_id : "null", line );
 	    return( smtp_consume_banner( NULL, d, line, NULL ));
 
@@ -519,7 +524,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 			d->d_ip, hq->hq_hostname, line );
 	    } else {
 		syslog( LOG_WARNING,
-			"Deliver.SMTP %s: punt Fail CONNECT reply: %s",
+			"Deliver.SMTP env <%s>: punt Fail CONNECT reply: %s",
 			d->d_env->e_id, line );
 	    }
 
@@ -530,7 +535,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    return( smtp_reply );
 
 	case SMTP_HELO:
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Fail HELO reply: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: Fail HELO reply: %s",
 		    d->d_env->e_id, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP HELO reply" )) == SMTP_OK ) {
@@ -539,7 +544,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    return( smtp_reply );
 
 	case SMTP_EHLO:
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Fail EHLO reply: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: Fail EHLO reply: %s",
 		    d->d_env->e_id, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP EHLO reply" )) == SMTP_OK ) {
@@ -548,7 +553,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    return( smtp_reply );
 
 	case SMTP_STARTTLS:
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Fail STARTTLS reply: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: Fail STARTTLS reply: %s",
 		    d->d_env->e_id, line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP STARTTLS reply" )) == SMTP_OK ) {
@@ -558,7 +563,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 
 	case SMTP_MAIL:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: From <%s> Failed: %s",
+	    syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: From <%s> Failed: %s",
 		    d->d_env->e_id, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP MAIL FROM reply" ));
@@ -566,21 +571,23 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	case SMTP_RCPT:
 	    d->d_rcpt->r_status = R_FAILED;
 	    d->d_n_rcpt_failed++;
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: To <%s> From <%s> Failed: %s",
+	    syslog( LOG_NOTICE,
+		    "Deliver.SMTP env <%s>: To <%s> From <%s> Failed: %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail, line );
 	    return( smtp_consume_banner( &(d->d_rcpt->r_err_text), d,
 		    line, "Bad SMTP RCPT TO reply" ));
 
 	case SMTP_DATA:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Message Failed: [%s] %s: %s",
+	    syslog( LOG_NOTICE,
+		    "Deliver.SMTP env <%s>: Message Failed: [%s] %s: %s",
 		    d->d_env->e_id, d->d_ip, hq->hq_smtp_hostname, line );
 	    return( smtp_consume_banner( &(d->d_env->e_err_text), d,
 		    line, "Bad SMTP DATA reply" ));
 
 	case SMTP_DATA_EOF:
 	    d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
-	    syslog( LOG_NOTICE, "Deliver.SMTP %s: Failed %s [%s]: "
+	    syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: Failed %s [%s]: "
 		    "transmitted %ld/%ld: %s",
 		    d->d_env->e_id, hq->hq_smtp_hostname, d->d_ip, d->d_sent,
 		    d->d_size, line );
@@ -588,7 +595,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 		    line, "Bad SMTP DATA_EOF reply" ));
 
 	case SMTP_RSET:
-	    syslog( LOG_WARNING, "Deliver.SMTP %s: Fail RSET reply: %s",
+	    syslog( LOG_WARNING, "Deliver.SMTP env <%s>: Fail RSET reply: %s",
 		    d->d_env ? d->d_env->e_id : "null", line );
 	    if (( smtp_reply = smtp_consume_banner( &(hq->hq_err_text), d,
 		    line, "Bad SMTP RSET reply" )) == SMTP_OK ) {
@@ -597,7 +604,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	    return( smtp_reply );
 
 	case SMTP_QUIT:
-	    syslog( LOG_WARNING, "Deliver.SMTP %s: Fail QUIT reply: %s",
+	    syslog( LOG_WARNING, "Deliver.SMTP env <%s>: Fail QUIT reply: %s",
 		    d->d_env ? d->d_env->e_id : "null", line );
 	    return( smtp_consume_banner( NULL, d, line, NULL ));
 
@@ -611,7 +618,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 }
 
 
-    int 
+    int
 smtp_connect( struct host_q *hq, struct deliver *d )
 {
     int				r;
@@ -643,7 +650,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 
     /* say EHLO */
     if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
-	syslog( LOG_ERR, "Deliver.SMTP %s: EHLO: snet_writef failed: %m",
+	syslog( LOG_ERR, "Deliver.SMTP env <%s>: EHLO: snet_writef failed: %m",
 		d->d_env->e_id );
 	return( SMTP_BAD_CONNECTION );
     }
@@ -702,8 +709,8 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 
 	if ( ! d->d_esmtp_starttls ) {
 	    if ( tls_required > 0 ) {
-		syslog( LOG_ERR,
-			"Deliver.SMTP %s: TLS required, STARTTLS not available",
+		syslog( LOG_ERR, "Deliver.SMTP env <%s>: "
+			"TLS required, STARTTLS not available",
 			d->d_env->e_id );
 		return( SMTP_ERROR );
 	    } else {
@@ -711,13 +718,11 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    }
 	}
 
-	if ( simta_debug != 0 ) {
-	    syslog( LOG_DEBUG, "Debug: smtp_connect snet_starttls" );
-	}
+	simta_debuglog( 3, "Deliver.SMTP: smtp_connect snet_starttls" );
 
 	if ( snet_writef( d->d_snet_smtp, "%s\r\n", S_STARTTLS ) < 0 ) {
 	    syslog( LOG_ERR,
-		    "Deliver.SMTP %s: STARTTLS: snet_writef failed: %m",
+		    "Deliver.SMTP env <%s>: STARTTLS: snet_writef failed: %m",
 		    d->d_env->e_id );
 	    return( SMTP_BAD_CONNECTION );
 	}
@@ -743,8 +748,9 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    syslog( LOG_ERR, "Liberror: smtp_connect tls_client_setup: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    if ( tls_required > 0 ) {
-		syslog( LOG_WARNING, "Deliver.SMTP %s: TLS required: %s",
-			d->d_env->e_id, "tls_client_setup error" );
+		syslog( LOG_WARNING, "Deliver.SMTP env <%s>: "
+			"TLS required, tls_client_setup error",
+			d->d_env->e_id );
 		return( SMTP_ERROR );
 	    } else {
 		return( SMTP_BAD_TLS );
@@ -792,16 +798,17 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 
 	    if ( tls_cert_required != 0 ) {
 		SSL_CTX_free( ssl_ctx );
-		syslog( LOG_WARNING, "Deliver.SMTP %s: TLS cert required: %s",
-			d->d_env->e_id, "tls_client_cert error" );
+		syslog( LOG_WARNING, "Deliver.SMTP env <%s>: "
+			"TLS cert required, tls_client_cert error",
+			d->d_env->e_id );
 		return( SMTP_ERROR );
 	    }
 	}
 
 	if (( ssl_cipher = SSL_get_current_cipher( d->d_snet_smtp->sn_ssl ))
 		!= NULL ) {
-	    syslog( LOG_INFO,
-		    "Deliver.SMTP %s: TLS established. Protocol: %s Cipher: %s",
+	    syslog( LOG_INFO, "Deliver.SMTP env <%s>: "
+		    "TLS established. Protocol: %s Cipher: %s",
 		    d->d_env->e_id,
 		    SSL_get_version( d->d_snet_smtp->sn_ssl ),
 		    SSL_CIPHER_get_name( ssl_cipher ));
@@ -826,10 +833,11 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	d->d_esmtp_size = 0;
 	d->d_esmtp_starttls = 0;
 	/* ZZZ reset state? */
-	
+
 	/* Resend EHLO */
 	if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
-	    syslog( LOG_ERR, "Deliver.SMTP %s: EHLO: snet_writef failed: %m",
+	    syslog( LOG_ERR,
+		    "Deliver.SMTP env <%s>: EHLO: snet_writef failed: %m",
 		    d->d_env->e_id );
 	    return( SMTP_BAD_CONNECTION );
 	}
@@ -842,7 +850,8 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     case SMTP_ERROR:
 #ifdef HAVE_LIBSSL
 	if ( tls_required > 0 ) {
-	    syslog( LOG_ERR, "Deliver.SMTP %s: TLS required, EHLO unsupported",
+	    syslog( LOG_ERR,
+		    "Deliver.SMTP env <%s>: TLS required, EHLO unsupported",
 		    d->d_env->e_id );
 	    return( SMTP_ERROR );
 	}
@@ -861,7 +870,8 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 
 	if ( snet_writef( d->d_snet_smtp, "HELO %s\r\n",
 		simta_hostname ) < 0 ) {
-	    syslog( LOG_ERR, "Deliver.SMTP %s: HELO: snet_writef failed: %m",
+	    syslog( LOG_ERR,
+		    "Deliver.SMTP env <%s>: HELO: snet_writef failed: %m",
 		    d->d_env->e_id );
 	    return( SMTP_BAD_CONNECTION );
 	}
@@ -887,24 +897,22 @@ smtp_send( struct host_q *hq, struct deliver *d )
 	    SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait );
 
     if (( d->d_esmtp_size > 0 ) && ( d->d_size > d->d_esmtp_size )) {
-	syslog( LOG_NOTICE, "Deliver.SMTP %s: Message is too large for %s",
+	syslog( LOG_NOTICE,
+		"Deliver.SMTP env <%s>: Message is too large for %s",
 		d->d_env->e_id, hq->hq_smtp_hostname );
 
 	/* Set the error message */
 	if ( d->d_env->e_err_text == NULL ) {
-	    if ((d->d_env->e_err_text = line_file_create()) == NULL ) {
-		syslog( LOG_ERR, "Syserror: smtp_send line_file_create: %m" );
-		return ( SMTP_ERROR );
-	    }
+	    d->d_env->e_err_text = line_file_create();
 	}
 	if ( line_append( d->d_env->e_err_text, "", COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: smtp_send line_file_create: %m" );
+	    syslog( LOG_ERR, "smtp_send line_append failed" );
 	    return ( SMTP_ERROR );
 	}
 	if ( line_append( d->d_env->e_err_text,
 		"This message exceeds the size limit for the recipient domain.",
 		COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: smtp_send line_file_create: %m" );
+	    syslog( LOG_ERR, "smtp_send line_append failed" );
 	    return ( SMTP_ERROR );
 	}
 
@@ -912,7 +920,8 @@ smtp_send( struct host_q *hq, struct deliver *d )
 	return( SMTP_OK );
     }
 
-    syslog( LOG_INFO, "Deliver.SMTP %s: Attempting remote delivery: %s (%s)",
+    syslog( LOG_INFO,
+	    "Deliver.SMTP env <%s>: Attempting remote delivery: %s (%s)",
 	    d->d_env->e_id, hq->hq_hostname, hq->hq_smtp_hostname );
 
     /* MAIL FROM: */
@@ -929,7 +938,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
      */
 
     if ( d->d_esmtp_8bitmime && ( d->d_env->e_attributes & ENV_ATTR_8BITMIME )) {
-	syslog( LOG_DEBUG, "Deliver.SMTP %s: Delivering as 8BITMIME",
+	simta_debuglog( 1, "Deliver.SMTP env <%s>: Delivering as 8BITMIME",
 		d->d_env->e_id );
 	rc = snet_writef( d->d_snet_smtp,
 		"MAIL FROM:<%s> BODY=8BITMIME\r\n", d->d_env->e_mail );
@@ -939,7 +948,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
     }
 
     if ( rc < 0 ) {
-	syslog( LOG_ERR, "Deliver.SMTP %s: MAIL: snet_writef failed: %m",
+	syslog( LOG_ERR, "Deliver.SMTP env <%s>: MAIL: snet_writef failed: %m",
 		d->d_env->e_id );
 	return( SMTP_BAD_CONNECTION );
     }
@@ -966,7 +975,8 @@ smtp_send( struct host_q *hq, struct deliver *d )
 	    rc = snet_writef( d->d_snet_smtp, "RCPT TO:<postmaster>\r\n" );
 	}
 	if ( rc < 0 ) {
-	    syslog( LOG_DEBUG, "Deliver.SMTP %s: RCPT: snet_writef failed: %m",
+	    syslog( LOG_ERR,
+		    "Deliver.SMTP env <%s>: RCPT: snet_writef failed: %m",
 		    d->d_env->e_id );
 	    return( SMTP_BAD_CONNECTION );
 	}
@@ -979,7 +989,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
 		( d->d_rcpt->r_status != R_ACCEPTED )) {
 	    /* punt hosts must accept all rcpts */
 	    syslog( LOG_WARNING,
-		    "Deliver.SMTP %s: punt host refused address %s",
+		    "Deliver.SMTP env <%s>: punt host refused address %s",
 		    d->d_env->e_id, d->d_rcpt->r_rcpt );
 	    return( SMTP_OK );
 	}
@@ -988,16 +998,16 @@ smtp_send( struct host_q *hq, struct deliver *d )
     if ( d->d_n_rcpt_accepted == 0 ) {
 	/* no rcpts succeded */
 	d->d_delivered = 1;
-	syslog( LOG_NOTICE, "Deliver.SMTP %s: no valid recipients",
+	syslog( LOG_NOTICE, "Deliver.SMTP env <%s>: no valid recipients",
 		d->d_env->e_id );
 	return( SMTP_OK );
     }
 
-    syslog( LOG_DEBUG, "Deliver.SMTP %s: Sending DATA", d->d_env->e_id );
+    simta_debuglog( 1, "Deliver.SMTP env <%s>: Sending DATA", d->d_env->e_id );
 
     /* say DATA */
     if ( snet_writef( d->d_snet_smtp, "DATA\r\n" ) < 0 ) {
-	syslog( LOG_DEBUG, "Deliver.SMTP %s: DATA: snet_writef failed: %m",
+	syslog( LOG_ERR, "Deliver.SMTP env <%s>: DATA: snet_writef failed: %m",
 		d->d_env->e_id );
 	return( SMTP_BAD_CONNECTION );
     }
@@ -1019,7 +1029,8 @@ smtp_send( struct host_q *hq, struct deliver *d )
 		"%s: %s id=%s origin=%s destination=%s smtp_destination=%s\r\n",
 		STRING_SEEN_BEFORE, simta_seen_before_domain, d->d_env->e_id,
 		simta_hostname, hq->hq_hostname, hq->hq_smtp_hostname )) < 0 ) {
-	    syslog( LOG_ERR, "Deliver.SMTP %s: seen: snet_writef failed: %m",
+	    syslog( LOG_ERR,
+		    "Deliver.SMTP env <%s>: seen: snet_writef failed: %m",
 		    d->d_env->e_id );
 	    return( SMTP_BAD_CONNECTION );
 	}
@@ -1036,7 +1047,8 @@ smtp_send( struct host_q *hq, struct deliver *d )
 			tv_now.tv_sec + simta_outbound_data_session_timer;
 	    }
 	    if ( tv_now.tv_sec >= tv_session.tv_sec ) {
-		syslog( LOG_NOTICE, "Deliver.SMTP %s: Message: Timeout %s",
+		syslog( LOG_NOTICE,
+			"Deliver.SMTP env <%s>: Message: Timeout %s",
 			d->d_env->e_id, S_DATA_SESSION );
 		return( SMTP_BAD_CONNECTION );
 	    }
@@ -1071,13 +1083,12 @@ smtp_send( struct host_q *hq, struct deliver *d )
 
 	if ( rc < 0 ) {
 	    if ( errno == ETIMEDOUT ) {
-		syslog( LOG_ERR, "Deliver.SMTP %s: Message: Timeout %s",
+		syslog( LOG_ERR, "Deliver.SMTP env <%s>: Message: Timeout %s",
 			d->d_env->e_id, timer_type );
 		return( SMTP_BAD_CONNECTION );
 	    } else {
-		syslog( LOG_ERR,
-			"Deliver.SMTP %s: Message: snet_writef failed: %m",
-			d->d_env->e_id );
+		syslog( LOG_ERR, "Deliver.SMTP env <%s>: Message: "
+			"snet_writef failed: %m", d->d_env->e_id );
 	    }
 	    return( SMTP_BAD_CONNECTION );
 	}
@@ -1087,7 +1098,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
 
     /* send SMTP EOF */
     if ( snet_writef( d->d_snet_smtp, ".\r\n", &tv_wait ) < 0 ) {
-	syslog( LOG_ERR, "Deliver.SMTP %s: EOF: snet_writef failed: %m",
+	syslog( LOG_ERR, "Deliver.SMTP env <%s>: EOF: snet_writef failed: %m",
 		d->d_env->e_id );
 	return( SMTP_BAD_CONNECTION );
     }
@@ -1112,7 +1123,7 @@ smtp_rset( struct host_q *hq, struct deliver *d )
 
     /* say RSET */
     if ( snet_writef( d->d_snet_smtp, "RSET\r\n" ) < 0 ) {
-	syslog( LOG_ERR, "Deliver.SMTP %s: RSET: snet_writef failed: %m",
+	syslog( LOG_ERR, "Deliver.SMTP env <%s>: RSET: snet_writef failed: %m",
 		d->d_env ? d->d_env->e_id : "null" );
 	return( SMTP_BAD_CONNECTION );
     }
@@ -1133,7 +1144,7 @@ smtp_quit( struct host_q *hq, struct deliver *d )
 
     /* say QUIT */
     if ( snet_writef( d->d_snet_smtp, "QUIT\r\n" ) < 0 ) {
-	syslog( LOG_ERR, "Deliver.SMTP %s: QUIT: snet_writef failed: %m",
+	syslog( LOG_ERR, "Deliver.SMTP env <%s>: QUIT: snet_writef failed: %m",
 		d->d_env ? d->d_env->e_id : "null" );
 	return;
     }
@@ -1146,10 +1157,10 @@ smtp_quit( struct host_q *hq, struct deliver *d )
     static void
 smtp_snet_eof( struct deliver *d, const char *infix ) {
     if ( snet_eof( d->d_snet_smtp )) {
-	syslog( LOG_ERR, "Deliver.SMTP %s: %s: unexpected EOF",
+	syslog( LOG_ERR, "Deliver.SMTP env <%s>: %s: unexpected EOF",
 		d->d_env ? d->d_env->e_id : "null", infix );
     } else {
-	syslog( LOG_ERR, "Deliver.SMTP %s: %s failed: %m",
+	syslog( LOG_ERR, "Deliver.SMTP env <%s>: %s failed: %m",
 		d->d_env ? d->d_env->e_id : "null", infix );
     }
 }

@@ -106,7 +106,7 @@ bounce_stdout( struct envelope *bounce_env )
     printf(  "From: <mailer-daemon@%s>\n", simta_hostname );
     for ( r = bounce_env->e_rcpt; r != NULL; r = r->r_next ) {
 	if ( *r->r_rcpt == '\0' ) {
-	    printf(  "To: <postmaster@%s>\n", simta_hostname );
+	    printf(  "To: <%s>\n", simta_postmaster );
 	} else {
 	    printf(  "To: <%s>\n", r->r_rcpt );
 	}
@@ -141,16 +141,18 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
-	syslog( LOG_ERR, "bounce_dfile_out fdopen %s: %m", dfile_fname );
+	syslog( LOG_ERR, "Syserror: bounce_dfile_out fdopen %s: %m",
+		dfile_fname );
 	if ( close( dfile_fd ) != 0 ) {
-	    syslog( LOG_ERR, "bounce_dfile_out fclose %s: %m", dfile_fname );
+	    syslog( LOG_ERR, "Syserror: bounce_dfile_out fclose %s: %m",
+		    dfile_fname );
 	}
 	return( 0 );
     }
 
     if ( message != NULL ) {
 	if ( fstat( snet_fd( message ), &sbuf ) != 0 ) {
-	    syslog( LOG_ERR, "bounce_dfile_out fstat: %m" );
+	    syslog( LOG_ERR, "Syserror: bounce_dfile_out fstat: %m" );
 	    goto cleanup;
 	}
 
@@ -201,7 +203,8 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
     }
 
     if ( fstat( dfile_fd, &sbuf ) != 0 ) {
-	syslog( LOG_ERR, "bounce_dfile_out fstat %s: %m", dfile_fname );
+	syslog( LOG_ERR, "Syserror: bounce_dfile_out fstat %s: %m",
+		dfile_fname );
 	goto cleanup;
     }
 
@@ -209,7 +212,8 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 
 cleanup:
     if ( fclose( dfile ) != 0 ) {
-	syslog( LOG_ERR, "bounce_dfile_out fclose %s: %m", dfile_fname );
+	syslog( LOG_ERR, "Syserror: bounce_dfile_out fclose %s: %m",
+		dfile_fname );
 	ret = 0;
     }
 
@@ -235,7 +239,7 @@ bounce( struct envelope *env, int body, char *err )
     if ( body == 1 ) {
 	sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 	if (( dfile_fd = open( dfile_fname, O_RDONLY, 0 )) < 0 ) {
-	    syslog( LOG_WARNING, "bounce bad Dfile: %s", dfile_fname );
+	    syslog( LOG_ERR, "Syserror: bounce open %s: %m", dfile_fname );
 	    return( NULL );
 	}
 
@@ -319,132 +323,83 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
     }
 
     if ( bounce_env->e_err_text == NULL ) {
-	if (( bounce_env->e_err_text = line_file_create()) == NULL ) {
-	    syslog( LOG_ERR, "Syserror bounce_snet: line_file_create: %m" );
-	    goto cleanup2;
-	}
+	bounce_env->e_err_text = line_file_create();
     }
-	    
-    if ( line_append( bounce_env->e_err_text, "Message delivery failed for "
+
+    line_append( bounce_env->e_err_text, "Message delivery failed for "
 	    "one or more recipients, check specific errors below\n",
-	    COPY ) == NULL ) {
-	syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-	goto cleanup2;
-    }
+	    COPY );
 
     if ( env->e_age == ENV_AGE_OLD ) {
 	sprintf( buf, "This message is old and %s.\n", old_or_jailed( env ));
-	if ( line_append( bounce_env->e_err_text, buf, COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-	    goto cleanup2;
-	}
+	line_append( bounce_env->e_err_text, buf, COPY );
     }
 
     if ( env->e_jail == ENV_JAIL_PRISONER ) {
 	/* Nothing */
     } else if ( hq == NULL ) {
 	if ( err == NULL ) {
-	    if ( line_append( bounce_env->e_err_text,
+	    line_append( bounce_env->e_err_text,
 		    "An error occurred during the expansion of "
-		    "the message recipients.\n", COPY ) == NULL ) {
-		syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-		goto cleanup2;
-	    }
+		    "the message recipients.\n", COPY );
 	} else {
 	    sprintf( buf, "%s\n", err );
-	    if ( line_append( bounce_env->e_err_text, buf, COPY ) == NULL ) {
-		syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-		goto cleanup2;
-	    }
+	    line_append( bounce_env->e_err_text, buf, COPY );
 	}
 
     } else if ( hq->hq_err_text != NULL ) {
 	sprintf( buf, "The following error occurred during delivery to "
 		"%s %s:\n", host_or_jailhost( hq ), hq->hq_hostname );
-	if ( line_append( bounce_env->e_err_text, buf, COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-	    goto cleanup2;
-	}
+	line_append( bounce_env->e_err_text, buf, COPY );
 	for ( l = hq->hq_err_text->l_first; l != NULL; l = l->line_next ) {
-	    if ( line_append( bounce_env->e_err_text, l->line_data,
-		    COPY ) == NULL ) {
-		syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-		goto cleanup2;
-	    }
+	    line_append( bounce_env->e_err_text, l->line_data, COPY );
 	}
-	if ( line_append( bounce_env->e_err_text, "", COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-	    goto cleanup2;
-	}
+	line_append( bounce_env->e_err_text, "", COPY );
 
     } else {
 	sprintf( buf, "An error occurred during delivery to %s %s.\n",
 		host_or_jailhost( hq ), hq->hq_hostname );
-	if ( line_append( bounce_env->e_err_text, buf, COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-	    goto cleanup2;
-	}
+	line_append( bounce_env->e_err_text, buf, COPY );
     }
 
     if ( env->e_err_text != NULL ) {
 	sprintf( buf, "The following error occurred during delivery of "
 		"message %s:\n", env->e_id );
-	if ( line_append( bounce_env->e_err_text, buf, COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-	    goto cleanup2;
-	}
+	line_append( bounce_env->e_err_text, buf, COPY );
 
 	if ( err != NULL ) {
 	    sprintf( buf, "%s\n", err );
-	    if ( line_append( bounce_env->e_err_text, buf, COPY ) == NULL ) {
-		syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-		goto cleanup2;
-	    }
+	    line_append( bounce_env->e_err_text, buf, COPY );
 	}
 
 	for ( l = env->e_err_text->l_first; l != NULL; l = l->line_next ) {
-	    if ( line_append( bounce_env->e_err_text, l->line_data,
-		    COPY ) == NULL ) {
-		syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-		goto cleanup2;
-	    }
+	    line_append( bounce_env->e_err_text, l->line_data, COPY );
 	}
 
-	if ( line_append( bounce_env->e_err_text, "", COPY ) == NULL ) {
-	    syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-	    goto cleanup2;
-	}
+	line_append( bounce_env->e_err_text, "", COPY );
     }
 
-    syslog( LOG_INFO, "Bounce %s: %s: To <%s> From <>", env->e_id,
+    syslog( LOG_INFO, "Bounce env <%s>: %s: To <%s> From <>", env->e_id,
 	    bounce_env->e_id, bounce_env->e_rcpt->r_rcpt );
 
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
 	if (( env->e_flags & ENV_FLAG_BOUNCE ) || ( r->r_status == R_FAILED )) {
 	    n_bounces++;
-	    syslog( LOG_INFO, "Bounce %s: %s: Bouncing <%s> From <%s>",
+	    syslog( LOG_INFO, "Bounce env <%s>: %s: Bouncing <%s> From <%s>",
 		    env->e_id, bounce_env->e_id, r->r_rcpt, env->e_mail );
 	    sprintf( buf, "address %s\n", r->r_rcpt );
-	    if ( line_append( bounce_env->e_err_text, buf, COPY ) == NULL ) {
-		syslog( LOG_ERR, "Syserror bounce_snet: line_append: %m" );
-		goto cleanup2;
-	    }
+	    line_append( bounce_env->e_err_text, buf, COPY );
 	    if ( r->r_err_text != NULL ) {
 		for ( l = r->r_err_text->l_first; l != NULL;
 			l = l->line_next ) {
-		    if ( line_append( bounce_env->e_err_text, l->line_data,
-			    COPY ) == NULL ) {
-			syslog( LOG_ERR,
-				"Syserror bounce_snet: line_append: %m" );
-			goto cleanup2;
-		    }
+		    line_append( bounce_env->e_err_text, l->line_data, COPY );
 		}
 	    }
 	}
     }
 
     if (( bounce_env->e_dinode = bounce_dfile_out( bounce_env, sn )) == 0 ) {
-	syslog( LOG_ERR, "Bounce %s: %s: bounce_dfile_out failed",
+	syslog( LOG_ERR, "Bounce env <%s>: %s: bounce_dfile_out failed",
 		env->e_id, bounce_env->e_id );
 	goto cleanup2;
     }
@@ -453,13 +408,13 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
 	goto cleanup2;
     }
 
-    syslog( LOG_INFO, "Bounce %s: %s: Bounced %d addresses", env->e_id,
+    syslog( LOG_INFO, "Bounce env <%s>: %s: Bounced %d addresses", env->e_id,
 	    bounce_env->e_id, n_bounces );
 
     return( bounce_env );
 
 cleanup2:
-    syslog( LOG_INFO, "Bounce %s: Message Deleted: System Error",
+    syslog( LOG_ERR, "Bounce env <%s>: Message Deleted: System Error",
 	    bounce_env->e_id );
 
 cleanup1:

@@ -134,15 +134,15 @@ chld( int sig )
 
 
 #ifdef HAVE_LIBSASL
-static int
-sasl_my_log(void *context __attribute__((unused)),
-	    int priority,
-	    const char *message)
+    static int
+sasl_my_log( void *context __attribute__((unused)), int priority,
+	const char *message)
 {
     const char *label;
 
-    if (! message)
+    if ( message == NULL ) {
 	return SASL_BADPARAM;
+    }
 
     switch (priority) {
     case SASL_LOG_ERR:
@@ -154,11 +154,11 @@ sasl_my_log(void *context __attribute__((unused)),
     default:
 	label = "Other";
 	break;
-  }
+    }
 
-    syslog( LOG_ERR, "SASL %s: %s\n", label, message);
+    syslog( LOG_ERR, "SASL %s: %s", label, message );
 
-  return SASL_OK;     
+    return SASL_OK;
 }
 
 static sasl_callback_t callbacks[] = {
@@ -180,14 +180,14 @@ set_rcvbuf( int s )
 	len = sizeof( simta_smtp_rcvbuf_max );
 	if ( getsockopt( s, SOL_SOCKET, SO_RCVBUF, &simta_smtp_rcvbuf_max,
 		&len ) < 0 ) {
-	    syslog( LOG_ERR, "set_rcvbuf getsockopt: %m" );
+	    syslog( LOG_ERR, "Syserror: set_rcvbuf getsockopt: %m" );
 	    return( 1 );
 	}
     }
 
     if ( setsockopt( s, SOL_SOCKET, SO_RCVBUF,
 	    (void*)&simta_smtp_rcvbuf_min, sizeof( int )) < 0 ) {
-	syslog( LOG_ERR, "set_rcvbuf setsockopt: %m" );
+	syslog( LOG_ERR, "Syserror: set_rcvbuf setsockopt: %m" );
 	return( 1 );
     }
 
@@ -327,12 +327,13 @@ main( int ac, char **av )
 	prog++;
     }
 
+    while (( c = getopt( ac, av,
 #ifdef HAVE_LIBSSL
-    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRSu:Vw:x:y:z:" ))
-#else /* HAVE_LIBSSL */
-    while (( c = getopt( ac, av, " ab:cCdD:f:i:Il:m:M:p:P:qQ:rRSu:V" ))
+	" ab:cCdD:f:i:Il:m:M:p:P:qQ:rRSu:Vw:x:y:z:"
+#else
+	" ab:cCdD:f:i:Il:m:M:p:P:qQ:rRSu:V"
 #endif /* HAVE_LIBSSL */
-	    != -1 ) {
+	)) != -1 ) {
 	switch ( c ) {
 	case ' ' :		/* Disable strict SMTP syntax checking */
 	    simta_strict_smtp_syntax = 0;
@@ -520,7 +521,7 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    simta_openlog( 0, 0 );
+    simta_openlog( 0, LOG_PERROR );
 
     if ( simta_read_config( config_fname ) < 0 ) {
 	exit( 1 );
@@ -552,7 +553,7 @@ main( int ac, char **av )
 		simta_service_smtps, simta_file_ca, simta_dir_ca, 
 		simta_file_cert, simta_file_private_key, simta_tls_ciphers ))
 		== NULL ) {
-	    syslog( LOG_ERR, "Syserror: tls_server_setup: %s",
+	    syslog( LOG_ERR, "Liberror: tls_server_setup: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
 	}
@@ -568,9 +569,7 @@ main( int ac, char **av )
 #ifdef HAVE_LIBSASL
     if ( simta_sasl == SIMTA_SASL_ON ) {
 	if (( rc = sasl_server_init( callbacks, "simta" )) != SASL_OK ) {
-	    syslog( LOG_ERR, "sasl_server_init: %s",
-		    sasl_errstring( rc, NULL, NULL ));
-	    fprintf( stderr, "sasl_server_init: %s\n",
+	    syslog( LOG_ERR, "Liberror: sasl_server_init: %s",
 		    sasl_errstring( rc, NULL, NULL ));
 	    exit( 1 );
 	}
@@ -799,7 +798,7 @@ simta_daemonize_server( void )
 	if ( simta_proc_add( PROCESS_SERVER, pid ) == NULL ) {
 	    return( 1 );
 	}
-	syslog( LOG_NOTICE, "Child Start %d.%ld: simta Server", pid,
+	syslog( LOG_NOTICE, "Child: launched daemon %d.%ld", pid,
 		simta_tv_now.tv_sec );
 	return( 0 );
     }
@@ -908,12 +907,12 @@ simta_server( void )
 
 #ifndef Q_SIMULATION
     if (( pf = fdopen( simta_pidfd, "w" )) == NULL ) {
-	syslog( LOG_ERR, "Syserror: can't fdopen simta_pidfd" );
+	syslog( LOG_ERR, "Syserror: simta_server fdopen: %m" );
 	exit( 1 );
     }
     fprintf( pf, "%d\n", (int)getpid());
     if ( fflush( pf ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: fflush: %m" );
+	syslog( LOG_ERR, "Syserror: simta_server fflush: %m" );
 	exit( 1 );
     }
 #endif /* Q_SIMULATION */
@@ -925,9 +924,9 @@ simta_server( void )
     }
 
     /* main daemon loop */
-    syslog( LOG_DEBUG, "Debug: Starting Daemon" );
+    simta_debuglog( 1, "Daemon: start" );
     for ( ; ; ) {
-	/* LOCAL RUNER */
+	/* LOCAL RUNNER */
 	/* CLEAN CHILD PROCESSES */
 	/* COMMAND DISK */
 	/* SLOW DISK */
@@ -942,14 +941,14 @@ simta_server( void )
 
 	if ( simsendmail_signal != 0 ) {
 	    if ( simta_q_runner_local < simta_q_runner_local_max ) {
-		syslog( LOG_DEBUG, "Debug: Local Runner" );
+		simta_debuglog( 2, "Daemon: launching local queue runner" );
 		simsendmail_signal = 0;
 
 		if ( simta_child_q_runner( NULL ) != 0 ) {
 		    goto error;
 		}
 	    } else {
-		syslog( LOG_WARNING, "Daemon Delay: MAX_Q_RUNNERS_LOCAL met: "
+		syslog( LOG_WARNING, "Daemon: MAX_Q_RUNNERS_LOCAL met, "
 			"local queue runner launch delayed" );
 	    }
 	}
@@ -964,16 +963,14 @@ simta_server( void )
 	if (( command_dirp.sd_dirp != NULL ) || ( command_signal != 0 )) {
 	    for ( entries = 1; ; entries++ ) {
 		if ( command_dirp.sd_dirp == NULL ) {
-		    syslog( LOG_DEBUG, "Debug: Command read start" );
+		    simta_debuglog( 2, "Daemon.command: starting read" );
 		    command_signal = 0;
 		} else {
-		    syslog( LOG_DEBUG, "Debug: Command read entry" );
+		    simta_debuglog( 3, "Daemon.command: entry read" );
 		}
-		if ( daemon_commands( &command_dirp ) != 0 ) {
-		    syslog( LOG_DEBUG, "Debug: Command read error" );
-		}
+		daemon_commands( &command_dirp );
 		if ( command_dirp.sd_dirp == NULL ) {
-		    syslog( LOG_DEBUG, "Debug: Command read end" );
+		    simta_debuglog( 2, "Daemon.command: finished read" );
 		    break;
 		}
 		if (( simta_command_read_entries > 0 ) &&
@@ -986,23 +983,17 @@ simta_server( void )
 	if ( tv_now.tv_sec >= tv_disk.tv_sec ) {
 	    for ( entries = 1; ; entries++ ) {
 		if ( slow_dirp.sd_dirp == NULL ) {
-		    if ( simta_debug > 0 ) {
-			syslog( LOG_DEBUG, "Debug: Slow Queue Read Start" );
-		    }
+		    simta_debuglog( 2, "Daemon: starting slow queue read" );
 		    simta_disk_cycle++;
 		} else {
-		    if ( simta_debug > 1 ) {
-			syslog( LOG_DEBUG, "Debug: Slow Queue Read Entry" );
-		    }
+		    simta_debuglog( 3, "Daemon: slow queue entry read" );
 		}
 		if ( q_read_dir( &slow_dirp ) != 0 ) {
 		    goto error;
 		}
 		if ( slow_dirp.sd_dirp == NULL ) {
 		    tv_disk.tv_sec = tv_now.tv_sec + simta_min_work_time;
-		    if ( simta_debug > 0 ) {
-			syslog( LOG_DEBUG, "Debug: Slow Queue Read End" );
-		    }
+		    simta_debuglog( 2, "Daemon: finished slow queue read" );
 		    break;
 		}
 		if (( simta_disk_read_entries > 0 ) &&
@@ -1014,8 +1005,8 @@ simta_server( void )
 	if ( set_sleep_time( &sleep_time, tv_disk.tv_sec - tv_now.tv_sec )
 		== 0 ) {
 	    sleep_reason = S_DISK;
-	    syslog( LOG_DEBUG, "Debug: set_sleep_time %s: %d",
-		    sleep_reason, sleep_time );
+	    simta_debuglog( 3, "Daemon: set_sleep_time %s: %d", sleep_reason,
+		    sleep_time );
 	}
 
 	/* run unexpanded queue if we have entries, and it is time */
@@ -1023,7 +1014,8 @@ simta_server( void )
 		( simta_unexpanded_q->hq_env_head != NULL )) {
 	    if ( tv_now.tv_sec >= tv_unexpanded.tv_sec ) {
 		tv_unexpanded.tv_sec = simta_unexpanded_time + tv_now.tv_sec;
-		syslog( LOG_DEBUG, "Debug: Unexpanded Runner" );
+		simta_debuglog( 2,
+		    "Daemon: launching unexpanded queue runner" );
 		if ( simta_child_q_runner( simta_unexpanded_q ) != 0 ) {
 		    goto error;
 		}
@@ -1031,7 +1023,7 @@ simta_server( void )
 	    if ( set_sleep_time( &sleep_time,
 		    tv_unexpanded.tv_sec - tv_now.tv_sec ) == 0 ) {
 		sleep_reason = S_UNEXPANDED;
-		syslog( LOG_DEBUG, "Debug: set_sleep_time %s: %d",
+		simta_debuglog( 3, "Daemon: set_sleep_time %s: %d",
 			sleep_reason, sleep_time );
 	    }
 	}
@@ -1042,21 +1034,21 @@ simta_server( void )
 		if ( set_sleep_time( &sleep_time,
 			tv_launch_limiter.tv_sec - tv_now.tv_sec ) == 0 ) {
 		    sleep_reason = S_LIMITER;
-		    syslog( LOG_DEBUG, "Debug: set_sleep_time %s: %d",
+		    simta_debuglog( 3, "Daemon: set_sleep_time %s: %d",
 			    sleep_reason, sleep_time );
 		}
 		break;
 	    }
 
 	    if ( simta_deliver_q->hq_next_launch.tv_sec > tv_now.tv_sec ) {
-		if ( set_sleep_time( &sleep_time, 
+		if ( set_sleep_time( &sleep_time,
 			simta_deliver_q->hq_next_launch.tv_sec -
 			tv_now.tv_sec ) == 0 ) {
 		    sleep_reason = S_QUEUE;
-		    syslog( LOG_DEBUG, "Debug: set_sleep_time %s: %d",
+		    simta_debuglog( 3, "Daemon: set_sleep_time %s: %d",
 			    sleep_reason, sleep_time );
 		}
-		syslog( LOG_DEBUG, "Daemon: next queue %s %d",
+		simta_debuglog( 1, "Daemon: next queue %s %d",
 			simta_deliver_q->hq_hostname,
 			(int)(simta_deliver_q->hq_next_launch.tv_sec -
 			tv_now.tv_sec) );
@@ -1066,15 +1058,14 @@ simta_server( void )
 	    if (( simta_q_runner_slow_max != 0 ) &&
 		    ( simta_q_runner_slow >= simta_q_runner_slow_max )) {
 		/* queues need to launch but process limit met */
-		syslog( LOG_NOTICE, "Daemon Delay: %ld : "
-			"Queues are not caught up and "
-			"MAX_Q_RUNNERS_SLOW has been met",
+		syslog( LOG_NOTICE, "Daemon: Queues are not caught up and "
+			"MAX_Q_RUNNERS_SLOW met, delaying %ld",
 			tv_now.tv_sec -
 			simta_deliver_q->hq_next_launch.tv_sec );
 		break;
 	    }
 
-	    syslog( LOG_DEBUG, "Debug: Queue Runner %s",
+	    simta_debuglog( 2, "Daemon: launching queue runner %s",
 		    simta_deliver_q->hq_hostname );
 	    if ( hq_launch() != 0 ) {
 		goto error;
@@ -1082,29 +1073,29 @@ simta_server( void )
 
 	    if (( simta_launch_limit > 0 ) &&
 		    (( launched % simta_launch_limit ) == 0 )) {
-		syslog( LOG_WARNING, "Daemon Delay: MAX_Q_RUNNERS_LAUNCH met: "
+		syslog( LOG_WARNING, "Daemon: MAX_Q_RUNNERS_LAUNCH met: "
 			"sleeping for 1 second" );
 		tv_launch_limiter.tv_sec = tv_now.tv_sec + 1;
 	    }
 	}
 
 	if ( command_dirp.sd_dirp != NULL ) {
-	    syslog( LOG_DEBUG, "Debug: Reading commands" );
+	    simta_debuglog( 2, "Daemon: reading commands" );
 	    sleep_time = 0;
 	    sleep_reason = "reading commands";
 	}
 
-	if (( simsendmail_signal != 0 ) && 
+	if (( simsendmail_signal != 0 ) &&
 		( simta_q_runner_local < simta_q_runner_local_max )) {
-	    syslog( LOG_DEBUG, "Debug: simsendmail signal " );
+	    simta_debuglog( 2, "Daemon: simsendmail signal" );
 	    sleep_time = 0;
-	    sleep_reason = "Simsendmail signal";
+	    sleep_reason = "simsendmail signal";
 	}
 
 	if ( simta_child_signal != 0 ) {
-	    syslog( LOG_DEBUG, "Debug: child signal" );
+	    simta_debuglog( 2, "Daemon: child signal" );
 	    sleep_time = 0;
-	    sleep_reason = "Child signal";
+	    sleep_reason = "child signal";
 	}
 
 	if ( sleep_time < 0 ) {
@@ -1113,7 +1104,7 @@ simta_server( void )
 
 	if ( simta_listen_sockets == NULL ) {
 	    if ( sleep_time > 0 ) {
-		syslog( LOG_DEBUG, "Daemon: sleeping %d: %s", sleep_time,
+		simta_debuglog( 1, "Daemon: sleeping %d: %s", sleep_time,
 			sleep_reason );
 		sleep((unsigned int)sleep_time );
 	    }
@@ -1138,8 +1129,8 @@ simta_server( void )
 	    fd_max = MAX( fd_max, ss->ss_socket );
 	}
 
-syslog( LOG_DEBUG, "Daemon: selecting %ld: %s", tv_sleep.tv_sec,
-	sleep_reason );
+	simta_debuglog( 1, "Daemon: selecting %ld: %s", tv_sleep.tv_sec,
+		sleep_reason );
 
 	if (( ready = select( fd_max + 1, &fdset, NULL, NULL, &tv_sleep ))
 		< 0 ) {
@@ -1150,14 +1141,14 @@ syslog( LOG_DEBUG, "Daemon: selecting %ld: %s", tv_sleep.tv_sec,
 	    }
 	}
 
-syslog( LOG_DEBUG, "Debug: select over" );
+	simta_debuglog( 2, "Daemon: select over" );
 
 	if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	    goto error;
 	}
 
 	for ( c = &cinfo_stab; *c != NULL; ) {
-	    if (((*c)->c_proc_total == 0 ) && ((*c)->c_tv.tv_sec + 
+	    if (((*c)->c_proc_total == 0 ) && ((*c)->c_tv.tv_sec +
 		    simta_local_throttle_sec < tv_now.tv_sec )) {
 		remove = *c;
 		*c = (*c)->c_next;
@@ -1168,20 +1159,20 @@ syslog( LOG_DEBUG, "Debug: select over" );
 	    }
 	}
 
-syslog( LOG_DEBUG, "Debug: %d sockets ready", ready );
+	simta_debuglog( 2, "Daemon: %d sockets ready", ready );
 	if ( ready <= 0 ) {
 	    continue;
 	}
 
 	for ( ss = simta_listen_sockets; ss != NULL; ss = ss->ss_next ) {
 	    if ( FD_ISSET( ss->ss_socket, &fdset )) {
-syslog( LOG_DEBUG, "Debug: Connect received" );
+		simta_debuglog( 2, "Daemon: Connect received" );
 		if ( simta_child_receive( ss ) != 0 ) {
 		    goto error;
 		}
 	    }
 	}
-syslog( LOG_DEBUG, "Debug: listen over" );
+	simta_debuglog( 2, "Daemon: done checking sockets" );
     }
 
 error:
@@ -1232,7 +1223,7 @@ simta_waitpid( int options )
 	}
 
 	if ( *p_search == NULL ) {
-	    syslog( LOG_ERR, "Child Error %d: unkown child process", pid );
+	    syslog( LOG_ERR, "Child: %d: unknown child process", pid );
 	    errors++;
 	    continue;
 	}
@@ -1264,7 +1255,7 @@ simta_waitpid( int options )
 			}
 
 		    } else {
-			syslog( LOG_DEBUG, "Queue %s: Not Found",
+			simta_debuglog( 1, "Queue %s: Not Found",
 				p_remove->p_host );
 		    }
 
@@ -1276,42 +1267,48 @@ simta_waitpid( int options )
 
 	    switch ( p_remove->p_type ) {
 	    case PROCESS_Q_LOCAL:
-		syslog( ll, "Child Exited %d.%ld: %d (%ld Local %d)",
+		syslog( ll, "Child: local runner %d.%ld exited %d "
+			"(%ld milliseconds, %d siblings remaining)",
 			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
 			*p_remove->p_limit );
 		break;
 
 	    case PROCESS_Q_SLOW:
-		syslog( ll, "Child Exited %d.%ld: %d (%ld Slow %d %s %s)",
-			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
-			*p_remove->p_limit,
+		syslog( ll, "Child: queue runner %d.%ld for %s exited %d "
+			"(%ld milliseconds, %d siblings remaining)",
+			pid, p_remove->p_tv.tv_sec,
 			*(p_remove->p_host) ? p_remove->p_host : S_UNEXPANDED,
-			activity ? "Activity" : "Unresponsive" );
+			exitstatus, milliseconds, *p_remove->p_limit );
 		break;
 
 	    case PROCESS_RECEIVE:
 		p_remove->p_ss->ss_count--;
 		p_remove->p_cinfo->c_proc_total--;
-		syslog( ll, "Child Exited %d.%ld: %d (%ld Receive %d %s %d %s)",
-			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
-			*p_remove->p_limit, p_remove->p_ss->ss_service,
-			p_remove->p_ss->ss_count, p_remove->p_host );
+
+		syslog( ll, "Child: %s receive process %d.%ld for %s exited %d "
+			"(%ld milliseconds, %d siblings remaining, %d %s)",
+			p_remove->p_ss->ss_service, pid, p_remove->p_tv.tv_sec,
+			p_remove->p_host, exitstatus, milliseconds,
+			*p_remove->p_limit, p_remove->p_ss->ss_count,
+			p_remove->p_ss->ss_service );
 		break;
 
 	    default:
 		errors++;
-		syslog( LOG_ERR, "Child Exited %d.%ld: %d (%ld Unknown)",
+		syslog( LOG_ERR, "Child: unknown process %d.%ld exited %d "
+			"(%ld milliseconds)",
 			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds );
 		break;
 	    }
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Child Died %d.%ld: %d (%ld milliseconds)", pid,
-		    p_remove->p_tv.tv_sec, WTERMSIG( status ), milliseconds );
+	    syslog( LOG_ERR, "Child: %d.%ld died with signal %d "
+		    "(%ld milliseconds)", pid, p_remove->p_tv.tv_sec,
+		    WTERMSIG( status ), milliseconds );
 	    errors++;
 
 	} else {
-	    syslog( LOG_ERR, "Child Died %d.%ld: (%ld milliseconds)", pid,
+	    syslog( LOG_ERR, "Child: %d.%ld died (%ld milliseconds)", pid,
 		    p_remove->p_tv.tv_sec, milliseconds );
 	    errors++;
 	}
@@ -1362,52 +1359,43 @@ simta_wait_for_child( int child_type )
 	switch ( child_type ) {
 	case PROCESS_CLEANUP:
 	    if ( simta_filesystem_cleanup ) {
-		p_name = "filesystem clean";
-		syslog( LOG_NOTICE, "Child Start %d.%ld: %s", pid,
-			simta_tv_now.tv_sec, p_name );
+		p_name = "filesystem cleaner";
 	    } else {
-		p_name = "filesystem check";
-		syslog( LOG_NOTICE, "Child Start %d.%ld: %s", pid,
-			simta_tv_now.tv_sec, p_name );
+		p_name = "filesystem checker";
 	    }
 	    break;
 
 	case PROCESS_Q_SLOW:
-	    p_name = "stand_alone q_runner";
-	    if ( simta_queue_filter ) {
-		syslog( LOG_NOTICE, "Child Start %d.%ld: %s: %s", pid,
-			simta_tv_now.tv_sec, p_name, simta_queue_filter );
-	    } else {
-		syslog( LOG_NOTICE, "Child Start %d.%ld: %s", pid,
-			simta_tv_now.tv_sec, p_name );
-	    }
+	    p_name = "queue runner";
 	    break;
 
 	default:
-	    syslog( LOG_ERR, "Child Error %d.%ld: start type %d out of range",
+	    syslog( LOG_ERR, "Child: %d.%ld: start type %d out of range",
 		    pid, simta_tv_now.tv_sec, child_type );
 	    return( 1 );
 	}
 
+	syslog( LOG_NOTICE, "Child: launched %s %d.%ld",
+		p_name, pid, simta_tv_now.tv_sec );
+
 	if ( waitpid( pid, &status, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "Child Error %d.%ld: wait_for_child waitpid: %m",
-		    pid, simta_tv_now.tv_sec );
+	    syslog( LOG_ERR, "Syserror: wait_for_child waitpid %d: %m", pid );
 	    return( 1  );
 	}
 
 	if ( WIFEXITED( status )) {
-	    syslog( LOG_NOTICE, "Child Exited %d.%ld: %s: %d", pid,
-		    simta_tv_now.tv_sec, p_name, WEXITSTATUS( status ));
+	    syslog( LOG_NOTICE, "Child: %s %d.%ld exited %d",
+		    p_name, pid, simta_tv_now.tv_sec, WEXITSTATUS( status ));
 	    return( WEXITSTATUS( status ));
 
 	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Child Died %d.%ld: %s: signal %d", pid,
-		    simta_tv_now.tv_sec, p_name, WTERMSIG( status ));
+	    syslog( LOG_ERR, "Child: %s %d.%ld: died with signal %d",
+		    p_name, pid, simta_tv_now.tv_sec, WTERMSIG( status ));
 	    return( 1 );
 
 	} else {
-	    syslog( LOG_ERR, "Child Died %d.%ld: %s", pid, simta_tv_now.tv_sec,
-		    p_name );
+	    syslog( LOG_ERR, "Child: %s %d.%ld died",
+		    p_name, pid, simta_tv_now.tv_sec );
 	    return( 1 );
 	}
     }
@@ -1527,7 +1515,7 @@ simta_child_receive( struct simta_socket *ss )
 	}
     }
 
-    syslog( LOG_DEBUG, "Connect.stat %s: global_total %d "
+    simta_debuglog( 1, "Connect.stat %s: global_total %d "
 	    "global_throttle %d local_total %d local_throttle %d",
 	    cinfo->c_ip, simta_global_connections,
 	    simta_global_throttle_connections, cinfo->c_proc_total,
@@ -1579,9 +1567,10 @@ simta_child_receive( struct simta_socket *ss )
 
     p->p_host = strdup( cinfo->c_ip );
 
-    syslog( LOG_NOTICE, "Child Start %d.%ld: Receive %d %s %d: %s", p->p_id,
-	    p->p_tv.tv_sec, *p->p_limit, p->p_ss->ss_service,
-	    p->p_ss->ss_count, p->p_host );
+    syslog( LOG_NOTICE, "Child: launched %s receive process %d.%ld for %s "
+	    "(%d total, %d %s)",
+	    p->p_ss->ss_service, p->p_id, p->p_tv.tv_sec, p->p_host,
+	    *p->p_limit, p->p_ss->ss_count, p->p_ss->ss_service );
 
     return( 0 );
 }
@@ -1671,23 +1660,21 @@ simta_proc_q_runner( int pid, struct host_q *hq )
 	p->p_limit = &simta_q_runner_local;
 	(*p->p_limit)++;
 
-	syslog( LOG_NOTICE, "Child Start %d.%ld: Local %d", pid, p->p_tv.tv_sec,
-		*p->p_limit );
+	syslog( LOG_NOTICE, "Child: launched local runner %d.%ld (%d total)",
+		pid, p->p_tv.tv_sec, *p->p_limit );
 
     } else {
 	p->p_limit = &simta_q_runner_slow;
 	(*p->p_limit)++;
 
-	if ( hq->hq_hostname == NULL ) {
-	    syslog( LOG_NOTICE, "Child Start %d.%ld: %s %d",
-		    pid, p->p_tv.tv_sec, S_UNEXPANDED, *p->p_limit );
-
-	} else {
+	if ( hq->hq_hostname ) {
 	    p->p_host = strdup( hq->hq_hostname );
-
-	    syslog( LOG_NOTICE, "Child Start %d.%ld: Deliver %d %s", pid,
-		    p->p_tv.tv_sec, *p->p_limit, p->p_host );
 	}
+
+	syslog( LOG_NOTICE, "Child: launched queue runner %d.%ld for %s "
+		"(%d total)", pid, p->p_tv.tv_sec,
+		hq->hq_hostname ? hq->hq_hostname : S_UNEXPANDED,
+		*p->p_limit );
     }
 
     return( 0 );
@@ -1724,7 +1711,7 @@ mid_promote( char *mid )
 	if ( simta_mail_jail ) {
 	    if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {
 		syslog( LOG_NOTICE,
-			"Command: Message %s: env_jail_status failed", mid );
+			"Command: env <%s>: env_jail_status failed", mid );
 		return( 1 );
 	    }
 	}
@@ -1735,13 +1722,13 @@ mid_promote( char *mid )
 	    if ( hq_deliver_push( e->e_hq, NULL, &tv_nowait ) != 0 ) {
 		return( 1 );
 	    }
-	    syslog( LOG_DEBUG, "Command: Message %s: promoted queue %s", mid,
+	    simta_debuglog( 3, "Command: env <%s>: promoted queue %s", mid,
 		    e->e_hq->hq_hostname );
 	} else {
-	    syslog( LOG_DEBUG, "Command: Message %s: not in a queue", mid );
+	    simta_debuglog( 2, "Command: env <%s>: not in a queue", mid );
 	}
     } else {
-	syslog( LOG_DEBUG, "Command: Message %s: not found", mid );
+	simta_debuglog( 1, "Command: env <%s>: not found", mid );
     }
 
     return( 0 );
@@ -1759,7 +1746,7 @@ sender_promote( char *sender )
 
     if (( dll = dll_lookup( simta_sender_list, sender )) != NULL ) {
 	sl = (struct sender_list*)dll->dll_data;
-	syslog( LOG_DEBUG, "Command: Sender %s: found %d messages",
+	simta_debuglog( 1, "Command: Sender %s: found %d messages",
 		sender, sl->sl_n_entries );
 	for ( dll_se = sl->sl_entries; dll_se != NULL;
 		dll_se = dll_se->dll_next ) {
@@ -1783,7 +1770,7 @@ sender_promote( char *sender )
 			    "Command: Sender %s: hq_deliver_push failed for %s",
 			    sender, se->se_env->e_hq->hq_hostname );
 		} else {
-		    syslog( LOG_DEBUG, "Command: Sender %s: promoted queue %s",
+		    simta_debuglog( 3, "Command: Sender %s: promoted queue %s",
 			    sender, se->se_env->e_hq->hq_hostname );
 		}
 	    }
@@ -1832,13 +1819,13 @@ daemon_commands( struct simta_dirp *sd )
 
     if (( entry = readdir( sd->sd_dirp )) == NULL ) {
 	if ( errno != 0 ) {
-	    syslog( LOG_ERR, "Syserror simta_read_command readdir %s: %m",
+	    syslog( LOG_ERR, "Syserror: simta_read_command readdir %s: %m",
 		    sd->sd_dir );
 	    return( 1 );
 	}
 
 	if ( closedir( sd->sd_dirp ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror simta_read_command closedir %s: %m",
+	    syslog( LOG_ERR, "Syserror: simta_read_command closedir %s: %m",
 		    sd->sd_dir );
 	    sd->sd_dirp = NULL;
 	    return( 1 );
@@ -1893,7 +1880,7 @@ daemon_commands( struct simta_dirp *sd )
 
     if (( snet = snet_open( fname, O_RDWR, 0, 1024 * 1024 )) == NULL ) {
 	if ( errno != ENOENT ) {
-	    syslog( LOG_ERR, "Syserror simta_read_command snet_open %s: %m",
+	    syslog( LOG_ERR, "Liberror: simta_read_command snet_open %s: %m",
 		    fname );
 	    return( 1 );
 	}
@@ -1903,60 +1890,60 @@ daemon_commands( struct simta_dirp *sd )
     acav = acav_alloc( );
 
     if (( line = snet_getline( snet, NULL )) == NULL ) {
-	syslog( LOG_DEBUG, "Command %s: unexpected EOF", entry->d_name );
+	simta_debuglog( 1, "Command %s: unexpected EOF", entry->d_name );
 	ret = 1;
 	goto error;
     }
 
     if (( ac = acav_parse( acav, line, &av )) < 0 ) {
-	syslog( LOG_ERR, "Syserror simta_read_command acav_parse: %m" );
+	syslog( LOG_ERR, "Syserror: simta_read_command acav_parse: %m" );
 	ret = 1;
 	goto error;
     }
 
     if ( av[ 0 ] == NULL ) {
-	syslog( LOG_DEBUG, "Command %s: line %d: NULL", entry->d_name, lineno );
+	simta_debuglog( 2, "Command %s: line %d: NULL", entry->d_name, lineno );
 
     } else if ( strcasecmp( av[ 0 ], S_MESSAGE ) == 0 ) {
 	if ( ac == 1 ) {
-	    syslog( LOG_DEBUG, "Command %s: Message", entry->d_name );
+	    simta_debuglog( 2, "Command %s: Message", entry->d_name );
 	    env_log_metrics( simta_env_list );
 
 	} else if ( ac == 2 ) {
-	    syslog( LOG_DEBUG, "Command %s: Message %s", entry->d_name,
+	    simta_debuglog( 2, "Command %s: Message %s", entry->d_name,
 		    av[ 1 ]);
 	    if ( mid_promote( av[ 1 ]) != 0 ) {
 		ret = 1;
 	    }
 
 	} else {
-	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
+	    simta_debuglog( 1, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );
 	    ret = 1;
 	}
 
     } else if ( strcasecmp( av[ 0 ], S_SENDER ) == 0 ) {
 	if ( ac == 1 ) {
-	    syslog( LOG_DEBUG, "Command %s: Sender", entry->d_name );
+	    simta_debuglog( 2, "Command %s: Sender", entry->d_name );
 	    sender_log_metrics( simta_sender_list );
 
 	} else if ( ac == 2 ) {
-	    syslog( LOG_DEBUG, "Command %s: Sender %s", entry->d_name, av[ 1 ]);
+	    simta_debuglog( 2, "Command %s: Sender %s", entry->d_name, av[ 1 ]);
 	    /* JAIL-ADD promote sender's mail */
 	    if ( sender_promote( av[ 1 ]) != 0 ) {
 		ret++;
 	    }
 	} else {
-	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
+	    simta_debuglog( 1, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );
 	}
 
     } else if ( strcasecmp( av[ 0 ], S_QUEUE ) == 0 ) {
 	if ( ac == 1 ) {
-	    syslog( LOG_DEBUG, "Command %s: Queue", entry->d_name );
+	    simta_debuglog( 2, "Command %s: Queue", entry->d_name );
 	    queue_log_metrics( simta_deliver_q );
 	} else if ( ac == 2 ) {
-	    syslog( LOG_DEBUG, "Command %s: Queue %s", entry->d_name, av[ 1 ]);
+	    simta_debuglog( 2, "Command %s: Queue %s", entry->d_name, av[ 1 ]);
 	    if (( hq = host_q_lookup( av[ 1 ])) != NULL ) {
 		hq_deliver_pop( hq );
 		/* hq->hq_priority++; */
@@ -1979,54 +1966,54 @@ daemon_commands( struct simta_dirp *sd )
 			    entry->d_name, av[ 1 ] );
 		    ret = 1;
 		} else {
-		    syslog( LOG_DEBUG, "Command %s: Queue %s: promoted",
+		    simta_debuglog( 1, "Command %s: Queue %s: promoted",
 			    entry->d_name, av[ 1 ] );
 		}
 	    } else {
-		syslog( LOG_DEBUG, "Command %s: Queue %s: not found",
+		simta_debuglog( 1, "Command %s: Queue %s: not found",
 			entry->d_name, av[ 1 ]);
 	    }
 
 	} else {
-	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
+	    simta_debuglog( 1, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );
 	}
 
     } else if ( strcasecmp( av[ 0 ], S_DEBUG ) == 0 ) {
 	if ( ac == 1 ) {
-	    syslog( LOG_DEBUG, "Command %s: Debug: %d", entry->d_name,
+	    simta_debuglog( 1, "Command %s: Debug: %d", entry->d_name,
 		    simta_debug );
 	} else if ( ac == 2 ) {
 	    int_arg = atoi( av[ 1 ]);
 	    if ( int_arg >= 0 ) {
 		simta_debug = int_arg;
-		syslog( LOG_DEBUG, "Command %s: Debug set: %d", entry->d_name,
+		simta_debuglog( 2, "Command %s: Debug set: %d", entry->d_name,
 			simta_debug );
 	    } else {
 		ret = 1;
-		syslog( LOG_DEBUG, "Command %s: Debug illegal arg: %d",
+		simta_debuglog( 1, "Command %s: Debug illegal arg: %d",
 			entry->d_name, simta_debug );
 	    }
 	} else {
 	    ret = 1;
-	    syslog( LOG_DEBUG, "Command %s: line %d: too many arguments",
+	    simta_debuglog( 1, "Command %s: line %d: too many arguments",
 		    entry->d_name, lineno );
 	}
 
     } else {
 	ret = 1;
-	syslog( LOG_DEBUG, "Command %s: line %d: Unknown command: \"%s\"",
+	simta_debuglog( 1, "Command %s: line %d: Unknown command: \"%s\"",
 		entry->d_name, lineno, av[ 0 ]);
     }
 
 error:
     if ( snet_close( snet ) < 0 ) {
-	syslog( LOG_ERR, "Syserror simta_read_command snet_close %s: %m",
+	syslog( LOG_ERR, "Syserror: simta_read_command snet_close %s: %m",
 		entry->d_name );
     }
 
     if ( unlink( fname ) != 0 ) {
-	syslog( LOG_ERR, "Syserror simta_read_command unlink %s: %m", fname );
+	syslog( LOG_ERR, "Syserror: simta_read_command unlink %s: %m", fname );
     }
 
     acav_free( acav );
@@ -2055,12 +2042,14 @@ env_log_metrics( struct dll_entry *dll_head )
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
     if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) < 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: open %s: %m", filename );
+	syslog( LOG_WARNING, "Syserror: env_log_metrics open %s: %m",
+		filename );
 	return;
     }
 
     if (( f = fdopen( fd, "w" )) == NULL ) {
-	syslog( LOG_DEBUG, "metric log file failed: fdopen %s: %m", filename );
+	syslog( LOG_WARNING, "Syserror: env_log_metrics fdopen %s: %m",
+		filename );
 	return;
     }
 
@@ -2074,9 +2063,11 @@ env_log_metrics( struct dll_entry *dll_head )
     fclose( f );
 
     if (( stat( linkname, &st_file ) == 0 ) && ( unlink( linkname ) != 0 )) {
-	syslog( LOG_DEBUG, "metric log file failed: unlink %s: %m", linkname );
+	syslog( LOG_WARNING, "Syserror: env_log_metrics unlink %s: %m",
+		linkname );
     } else if ( link( filename, linkname ) != 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: link %s: %m", linkname );
+	syslog( LOG_WARNING, "Syserror: env_log_metrics link %s %s: %m",
+		filename, linkname );
     }
 
     return;
@@ -2102,12 +2093,14 @@ sender_log_metrics( struct dll_entry *dll_head )
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
     if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) < 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: open %s: %m", filename );
+	syslog( LOG_WARNING, "Syserror: sender_log_metrics open %s: %m",
+		filename );
 	return;
     }
 
     if (( f = fdopen( fd, "w" )) == NULL ) {
-	syslog( LOG_DEBUG, "metric log file failed: fdopen %s: %m", filename );
+	syslog( LOG_WARNING, "Syserror: sender_log_metrics fdopen %s: %m",
+		filename );
 	return;
     }
 
@@ -2121,9 +2114,11 @@ sender_log_metrics( struct dll_entry *dll_head )
     fclose( f );
 
     if (( stat( linkname, &st_file ) == 0 ) && ( unlink( linkname ) != 0 )) {
-        syslog( LOG_DEBUG, "metric log file failed: unlink %s: %m", linkname );
+	syslog( LOG_WARNING, "Syserror: sender_log_metrics unlink %s: %m",
+		linkname );
     } else if ( link( filename, linkname ) != 0 ) {
-	syslog( LOG_DEBUG, "metric log file failed: link %s: %m", linkname );
+	syslog( LOG_WARNING, "Syserror: sender_log_metrics link %s %s: %m",
+		filename, linkname );
     }
 
     return;

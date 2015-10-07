@@ -9,6 +9,7 @@
 
 #include <denser.h>
 #include <snet.h>
+#include <yasl.h>
 
 #include "ll.h"
 
@@ -27,7 +28,7 @@
 #define	MESSAGE_BOUNCE			(1<<6)
 
 #define	STRING_POSTMASTER		"postmaster"
-#define	S_UNEXPANDED			"Unexpanded"
+#define	S_UNEXPANDED			"unexpanded"
 #define S_UNKNOWN_HOST                  "Unknown host"
 
 #define SIMTA_LOG_ID_LEN		80
@@ -219,7 +220,6 @@ extern int				simta_queue_policy;
 extern int				simta_smtp_rcvbuf_min;
 extern int				simta_smtp_rcvbuf_max;
 extern int				simta_smtp_port_defined;
-extern int				simta_rbl_verbose_logging;
 extern int				simta_queue_incoming_smtp_mail;
 extern int				simta_deliver_after_accept;
 extern int				simta_leaky_queue;
@@ -299,17 +299,16 @@ extern char				*simta_dir_command;
 extern char				*simta_data_url;
 extern char				*simta_libwrap_url;
 extern char				*simta_reverse_url;
-extern char				*simta_domain;
+extern yastr				simta_domain;
 extern char				*simta_mail_filter;
 extern int				simta_filter_trusted;
 extern int				simta_spf;
-extern int				simta_spf_verbose;
 extern int				simta_dmarc;
 extern char				*simta_base_dir;
 extern char                             *simta_file_pid;
-extern char				simta_hostname[];
-extern char				*simta_punt_host;
-extern char				*simta_jail_host;
+extern yastr				simta_hostname;
+extern yastr				simta_punt_host;
+extern yastr				simta_jail_host;
 extern char				*simta_jail_bounce_address;
 extern struct rbl		        *simta_rbls;
 extern struct rbl	         	*simta_user_rbls;
@@ -326,11 +325,11 @@ extern char				*simta_dir_ca;
 extern char				*simta_file_cert;
 extern char				*simta_file_private_key;
 extern char				simta_log_id[];
-char					*simta_postmaster;
+yastr					simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
-extern char				*simta_seen_before_domain;
+extern yastr				simta_seen_before_domain;
 extern struct dll_entry			*simta_publicsuffix_list;
 extern char				*simta_file_publicsuffix;
 
@@ -354,7 +353,7 @@ extern int				simta_dkim_verify;
 
 #ifdef HAVE_LIBSRS2
 extern int				simta_srs;
-extern char				*simta_srs_domain;
+extern yastr				simta_srs_domain;
 extern char				*simta_srs_secret;
 #endif /* HAVE_LIBSRS2 */
 

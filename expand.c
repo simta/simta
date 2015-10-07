@@ -104,10 +104,10 @@ cleanup_envelope_list( struct envelope **env_p )
 	if (( env->e_flags & ENV_FLAG_EFILE ) != 0 ) {
 	    queue_remove_envelope( env );
 	    if ( env_unlink( env ) == 0 ) {
-		syslog( LOG_INFO, "Expand %s: Message Deleted: "
+		syslog( LOG_INFO, "Expand env <%s>: Message Deleted: "
 			"System error, unwinding expansion", env->e_id );
 	    } else {
-		syslog( LOG_ERR, "Expand %s: "
+		syslog( LOG_ERR, "Expand env <%s>: "
 			"System error, can't unwind expansion", env->e_id );
 	    }
 	}
@@ -161,7 +161,7 @@ expand( struct envelope *unexpanded_env )
 #endif /* HAVE_LDAP */
 
     if ( unexpanded_env->e_hostname != NULL ) {
-	syslog( LOG_INFO, "Expand %s: already expanded for host %s",
+	syslog( LOG_INFO, "Expand env <%s>: already expanded for host %s",
 		unexpanded_env->e_id, unexpanded_env->e_hostname );
 	return_value = 0;
 	goto done;
@@ -184,13 +184,14 @@ expand( struct envelope *unexpanded_env )
      */
 
     if (( base_error_env = address_bounce_create( &exp )) == NULL ) {
-	syslog( LOG_ERR, "Expand %s: address_bounce_create: %m",
+	syslog( LOG_ERR, "Expand env <%s>: address_bounce_create: %m",
 		unexpanded_env->e_id );
 	goto done;
     }
 
     if ( env_recipient( base_error_env, unexpanded_env->e_mail ) != 0 ) {
-	syslog( LOG_ERR, "Expand %s: env_recipient: %m", unexpanded_env->e_id );
+	syslog( LOG_ERR, "Expand env <%s>: env_recipient: %m",
+		unexpanded_env->e_id );
 	goto done;
     }
 
@@ -233,12 +234,12 @@ expand( struct envelope *unexpanded_env )
 		( sender_is_child( memonly->el_exp_addr->e_addr_children,
 		loop_color++ ))) {
 	    if ( p != NULL ) {
-		syslog( LOG_INFO, "Expand %s: members-only group %s OK: "
+		syslog( LOG_INFO, "Expand env <%s>: members-only group %s OK: "
 			"parent %s permitted",
 			unexpanded_env->e_id, memonly->el_exp_addr->e_addr, p );
 
 	    } else {
-		syslog( LOG_INFO, "Expand %s: members-only group %s OK: "
+		syslog( LOG_INFO, "Expand env <%s>: members-only group %s OK: "
 			"sender is child",
 			unexpanded_env->e_id, memonly->el_exp_addr->e_addr );
 	    }
@@ -251,7 +252,8 @@ expand( struct envelope *unexpanded_env )
 	    }
 
 	} else {
-	    syslog( LOG_NOTICE, "Expand %s: members-only group %s suppressed",
+	    syslog( LOG_NOTICE,
+		    "Expand env <%s>: members-only group %s suppressed",
 		    unexpanded_env->e_id, memonly->el_exp_addr->e_addr );
 	    memonly->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPPRESSOR;
 	    suppress_addrs( memonly->el_exp_addr->e_addr_children,
@@ -290,13 +292,13 @@ expand( struct envelope *unexpanded_env )
 	    if (( e_addr->e_addr_env_gmailfwd->e_dinode =
 		    env_dfile_copy( e_addr->e_addr_env_gmailfwd,
 		    d_original, NULL )) == 0 ) {
-		syslog( LOG_ERR, "Expand %s: %s: env_dfile_copy failed",
+		syslog( LOG_ERR, "Expand env <%s>: %s: env_dfile_copy failed",
 			unexpanded_env->e_id,
 			e_addr->e_addr_env_gmailfwd->e_id );
 		goto cleanup3;
 	    }
 
-	    syslog( LOG_DEBUG, "Expand %s: group mail env %s dinode %d",
+	    simta_debuglog( 2, "Expand env <%s>: group mail env %s dinode %d",
 		    unexpanded_env->e_id,
 		    e_addr->e_addr_env_gmailfwd->e_id,
 		    (int)e_addr->e_addr_env_gmailfwd->e_dinode );
@@ -309,12 +311,13 @@ expand( struct envelope *unexpanded_env )
 		    rcpt = rcpt->r_next ) {
 		n_rcpts++;
 		if ( sendermatch ) {
-		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s>",
+		    syslog( LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s>",
 			    unexpanded_env->e_id,
 			    e_addr->e_addr_env_gmailfwd->e_id, rcpt->r_rcpt,
 			    e_addr->e_addr_env_gmailfwd->e_mail );
 		} else {
-		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s> (%s)",
+		    syslog( LOG_INFO,
+			    "Expand env <%s>: %s: To <%s> From <%s> (%s)",
 			    unexpanded_env->e_id,
 			    e_addr->e_addr_env_gmailfwd->e_id, rcpt->r_rcpt,
 			    e_addr->e_addr_env_gmailfwd->e_mail,
@@ -323,7 +326,7 @@ expand( struct envelope *unexpanded_env )
 
 	    }
 	    syslog( LOG_INFO,
-		    "Expand %s: %s: Expanded %d group mail forwarders",
+		    "Expand env <%s>: %s: Expanded %d group mail forwarders",
 		    unexpanded_env->e_id, e_addr->e_addr_env_gmailfwd->e_id,
 		    n_rcpts );
 
@@ -355,13 +358,13 @@ expand( struct envelope *unexpanded_env )
 	    if (( e_addr->e_addr_env_moderated->e_dinode =
 		    env_dfile_copy( e_addr->e_addr_env_moderated,
 		    d_original, NULL )) == 0 ) {
-		syslog( LOG_ERR, "Expand %s: %s: env_dfile_copy failed",
+		syslog( LOG_ERR, "Expand env <%s>: %s: env_dfile_copy failed",
 			unexpanded_env->e_id,
 			e_addr->e_addr_env_moderated->e_id );
 		goto cleanup3;
 	    }
 
-	    syslog( LOG_DEBUG, "Expand %s: %s: moderation env dinode %d",
+	    simta_debuglog( 2, "Expand env <%s>: %s: moderation env dinode %d",
 		    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
 		    (int)e_addr->e_addr_env_moderated->e_dinode );
 
@@ -373,12 +376,13 @@ expand( struct envelope *unexpanded_env )
 		    rcpt = rcpt->r_next ) {
 		n_rcpts++;
 		if ( sendermatch ) {
-		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s>",
+		    syslog( LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s>",
 			    unexpanded_env->e_id,
 			    e_addr->e_addr_env_moderated->e_id, rcpt->r_rcpt,
 			    e_addr->e_addr_env_moderated->e_mail );
 		} else {
-		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s> (%s)",
+		    syslog( LOG_INFO,
+			    "Expand env <%s>: %s: To <%s> From <%s> (%s)",
 			    unexpanded_env->e_id,
 			    e_addr->e_addr_env_moderated->e_id, rcpt->r_rcpt,
 			    e_addr->e_addr_env_moderated->e_mail,
@@ -387,7 +391,7 @@ expand( struct envelope *unexpanded_env )
 
 	    }
 	    syslog( LOG_INFO,
-		    "Expand %s: %s: Expanded %d moderators",
+		    "Expand env <%s>: %s: Expanded %d moderators",
 		    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
 		    n_rcpts );
 
@@ -455,7 +459,7 @@ expand( struct envelope *unexpanded_env )
 	switch ( e_addr->e_addr_type ) {
 	case ADDRESS_TYPE_EMAIL:
 	    if (( domain = strchr( e_addr->e_addr, '@' )) == NULL ) {
-		syslog( LOG_ERR, "Expand %s: strchr blivet",
+		syslog( LOG_ERR, "Expand env <%s>: strchr blivet",
 			unexpanded_env->e_id );
 		goto cleanup3;
 	    }
@@ -476,14 +480,14 @@ expand( struct envelope *unexpanded_env )
 	    /* Create envelope and add it to list */
 	    if (( env = env_create( domain ? simta_dir_fast : simta_dir_dead,
 		    NULL, e_addr->e_addr_from, unexpanded_env )) == NULL ) {
-		syslog( LOG_ERR, "Expand %s: env_create: %m",
+		syslog( LOG_ERR, "Expand env <%s>: env_create: %m",
 			unexpanded_env->e_id );
 		goto cleanup3;
 	    }
 
 	    env->e_dinode = unexpanded_env->e_dinode;
 
-	    syslog( LOG_DEBUG, "Expand %s: %s: expansion env dinode %d",
+	    simta_debuglog( 2, "Expand env <%s>: %s: expansion env dinode %d",
 		    unexpanded_env->e_id, env->e_id, (int)env->e_dinode );
 
 	    /* fill in env */
@@ -499,7 +503,7 @@ expand( struct envelope *unexpanded_env )
 
 	    /* Add env to host_stab */
 	    if ( eo_insert( &host_stab, env ) != 0 ) {
-		syslog( LOG_ERR, "Expand %s: eo_insert %s failed: %m",
+		syslog( LOG_ERR, "Expand env <%s>: eo_insert %s failed: %m",
 			unexpanded_env->e_id, env->e_id );
 		env_free( env );
 		goto cleanup3;
@@ -511,7 +515,7 @@ expand( struct envelope *unexpanded_env )
 	}
 
 	syslog( LOG_NOTICE,
-		"Expand %s: %s: recipient <%s> added to env for host %s",
+		"Expand env <%s>: %s: recipient <%s> added to env for host %s",
 		unexpanded_env->e_id, env->e_id, e_addr->e_addr,
 		env->e_hostname ? env->e_hostname : "NULL" );
     }
@@ -536,12 +540,13 @@ expand( struct envelope *unexpanded_env )
 		    ( hq_red->red_deliver_type == RED_DELIVER_BINARY )) {
 		if ( snprintf( header, 270,
 			"Return-Path: <%s>", env->e_mail ) >= 270 ) {
-		    syslog( LOG_ERR, "Expand %s: %s: return path is too large",
+		    syslog( LOG_ERR,
+			    "Expand env <%s>: %s: return path is too large",
 			    unexpanded_env->e_id, env->e_id );
 		}
 		if (( env->e_dinode =
 			env_dfile_copy( env, d_original, header )) == 0 ) {
-		    syslog( LOG_ERR, "Expand %s: %s: env_dfile_copy failed",
+		    syslog( LOG_ERR, "Expand env <%s>: %s: env_dfile_copy failed",
 			    unexpanded_env->e_id, env->e_id );
 		    goto cleanup4;
 		}
@@ -560,22 +565,23 @@ expand( struct envelope *unexpanded_env )
 	    for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 		n_rcpts++;
 		if ( sendermatch ) {
-		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s>",
+		    syslog( LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s>",
 			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
 			    env->e_mail );
 		} else {
-		    syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s> (%s)",
+		    syslog( LOG_INFO,
+			    "Expand env <%s>: %s: To <%s> From <%s> (%s)",
 			    unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
 			    env->e_mail, unexpanded_env->e_mail );
 		}
 	    }
 
 	    syslog( LOG_INFO,
-		    "Expand %s: %s: Expanded %d recipients",
+		    "Expand env <%s>: %s: Expanded %d recipients",
 		    unexpanded_env->e_id, env->e_id, n_rcpts );
 
 	    /* Efile: write env->e_dir/Enew_id for all recipients at host */
-	    syslog( LOG_NOTICE, "Expand %s: %s: writing Efile for %s",
+	    syslog( LOG_NOTICE, "Expand env <%s>: %s: writing Efile for %s",
 		    unexpanded_env->e_id, env->e_id,
 		    env->e_hostname ? env->e_hostname : "NULL" );
 	    if ( env_outfile( env ) != 0 ) {
@@ -596,7 +602,7 @@ expand( struct envelope *unexpanded_env )
     }
 
     if ( env_out == 0 ) {
-	syslog( LOG_NOTICE, "Expand %s: no terminal recipients, "
+	syslog( LOG_NOTICE, "Expand env <%s>: no terminal recipients, "
 		"deleting message", unexpanded_env->e_id );
     }
 
@@ -634,7 +640,7 @@ expand( struct envelope *unexpanded_env )
 		    goto cleanup5;
 		}
 
-		syslog( LOG_DEBUG, "Expand %s: %s: errors env dinode %d",
+		simta_debuglog( 2, "Expand env <%s>: %s: errors env dinode %d",
 			unexpanded_env->e_id, env->e_id, (int)env->e_dinode );
 
 		line_file_free( env->e_err_text );
@@ -658,18 +664,19 @@ expand( struct envelope *unexpanded_env )
 		for ( rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next ) {
 		    n_rcpts++;
 		    if ( sendermatch ) {
-			syslog( LOG_INFO, "Expand %s: %s: To <%s> From <%s>",
+			syslog( LOG_INFO,
+				"Expand env <%s>: %s: To <%s> From <%s>",
 				unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
 				env->e_mail );
 		    } else {
 			syslog( LOG_INFO,
-				"Expand %s: %s: To <%s> From <%s> (%s)",
+				"Expand env <%s>: %s: To <%s> From <%s> (%s)",
 				unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
 				env->e_mail, unexpanded_env->e_mail );
 		    }
 		}
 
-		syslog( LOG_NOTICE, "Expand %s: %s: Expanded %d bounces",
+		syslog( LOG_NOTICE, "Expand env <%s>: %s: Expanded %d bounces",
 			unexpanded_env->e_id, env->e_id, n_rcpts );
 
 		queue_envelope( env );
@@ -698,7 +705,7 @@ expand( struct envelope *unexpanded_env )
 	snet = NULL;
     }
 
-    syslog( LOG_INFO, "Expand %s: Metric %d entries %d levels",
+    syslog( LOG_INFO, "Expand env <%s>: Metric %d entries %d levels",
 	    unexpanded_env->e_id, exp.exp_entries, exp.exp_max_level );
 
     if ( simta_expand_debug != 0 ) {
@@ -724,11 +731,13 @@ expand( struct envelope *unexpanded_env )
 
     /* delete original message */
     if ( env_unlink( unexpanded_env ) != 0 ) {
-	syslog( LOG_ERR, "Expand %s: Expansion complete, can't delete message",
+	syslog( LOG_ERR,
+		"Expand env <%s>: Expansion complete, can't delete message",
 		unexpanded_env->e_id );
     } else {
-	syslog( LOG_INFO, "Expand %s: Expansion complete, message deleted",
-	    unexpanded_env->e_id );
+	syslog( LOG_INFO,
+		"Expand env <%s>: Expansion complete, message deleted",
+		unexpanded_env->e_id );
     }
 
     return_value = 0;
@@ -748,10 +757,10 @@ cleanup4:
 	if (( env->e_flags & ENV_FLAG_EFILE ) != 0 ) {
 	    queue_remove_envelope( env );
 	    if ( env_unlink( env ) == 0 ) {
-		syslog( LOG_WARNING, "Expand %s: Message Deleted: "
+		syslog( LOG_WARNING, "Expand env <%s>: Message Deleted: "
 			"System error, unwinding expansion", env->e_id );
 	    } else {
-		syslog( LOG_ERR, "Expand %s: "
+		syslog( LOG_ERR, "Expand env <%s>: "
 			"System error, can't unwind expansion", env->e_id );
 	    }
 	}
@@ -774,7 +783,7 @@ cleanup3:
 #endif /* HAVE_LDAP */
 
     if ( simta_fast_files != fast_file_start ) {
-	syslog( LOG_ERR, "Expand %s: could not unwind expansion",
+	syslog( LOG_ERR, "Expand env <%s>: could not unwind expansion",
 		unexpanded_env->e_id );
 	return_value = 1;
     }
@@ -823,7 +832,8 @@ cleanup1:
 
 done:
     if ( return_value != 0 ) {
-	syslog( LOG_ERR, "Expand %s: Expansion failed", unexpanded_env->e_id );
+	syslog( LOG_ERR, "Expand env <%s>: Expansion failed",
+		unexpanded_env->e_id );
     }
 
     return( return_value );

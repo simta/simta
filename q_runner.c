@@ -23,7 +23,6 @@
 #include <dirent.h>
 #include <netdb.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <sysexits.h>
 #include <utime.h>
 

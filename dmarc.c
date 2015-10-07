@@ -82,7 +82,7 @@ dmarc_lookup( struct dmarc *d, const char *domain )
     struct dnsr_result		*dnsr_result;
     yastr			orgdomain;
 
-    syslog( LOG_DEBUG, "DMARC %s: looking up policy", domain );
+    simta_debuglog( 2, "DMARC %s: looking up policy", domain );
 
     if ( d->domain != NULL ) {
 	syslog( LOG_ERR, "DMARC %s: domain already defined", domain );
@@ -107,7 +107,6 @@ dmarc_lookup( struct dmarc *d, const char *domain )
 	}
     }
 
-
     /* RFC 7489 6.6.3 Policy Discovery
      * If the set is now empty, the Mail Receiver MUST query the DNS for
      * a DMARC TXT record at the DNS domain matching the Organizational
@@ -123,14 +122,14 @@ dmarc_lookup( struct dmarc *d, const char *domain )
 	return( 1 );
     }
 
-    syslog( LOG_DEBUG, "DMARC %s: Checking Organizational Domain %s",
+    simta_debuglog( 1, "DMARC %s: Checking Organizational Domain %s",
 	    d->domain, orgdomain );
 
     dnsr_result = dmarc_lookup_record( orgdomain );
     yaslfree( orgdomain );
 
     if ( dnsr_result == NULL ) {
-	syslog( LOG_DEBUG,
+	simta_debuglog( 1,
 		"DMARC %s: dmarc_lookup_record returned NULL for orgdomain",
 		d->domain );
 	return( 1 );
@@ -348,7 +347,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
     char                        *p;
     yastr			k = NULL, v = NULL, *split;
 
-    syslog( LOG_DEBUG, "DMARC %s: record: %s", d->domain, r );
+    simta_debuglog( 2, "DMARC %s: record: %s", d->domain, r );
 
     /* RFC 7489 6.3 General Record Format
      * DMARC records follow the extensible "tag-value" syntax for DNS-based
@@ -391,14 +390,14 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	if ( yasllen( split[ i ] ) == 0 ) {
 	    /* If we're not at the end this is an error */
 	    if (( i + 1 ) != tok_count ) {
-		syslog( LOG_DEBUG, "DMARC %s: empty tag-value list member %d",
+		simta_debuglog( 1, "DMARC %s: empty tag-value list member %d",
 			d->domain, i );
 	    }
 	    continue;
 	}
 
 	if (( p = strchr( split[ i ], '=' )) == NULL ) {
-	    syslog( LOG_DEBUG, "DMARC %s: invalid tag-value list member %d: %s",
+	    simta_debuglog( 1, "DMARC %s: invalid tag-value list member %d: %s",
 		    d->domain, i, split[ i ] );
 	    continue;
 	}
@@ -417,18 +416,18 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	 */
 	if ( i == 0 ) {
 	    if ( strcmp( k, "v" ) != 0 ) {
-		syslog( LOG_DEBUG, "DMARC %s: tag 0: v expected, %s found",
+		simta_debuglog( 1, "DMARC %s: tag 0: v expected, %s found",
 			d->domain, k );
 		goto cleanup;
 	    }
 	    if ( strcmp( v, "DMARC1" ) != 0 ) {
-		syslog( LOG_DEBUG, "DMARC %s: tag 0: invalid version: %s",
+		simta_debuglog( 1, "DMARC %s: tag 0: invalid version: %s",
 			d->domain, v );
 		goto cleanup;
 	    }
 
 	} else if ( strcmp( k, "v" ) == 0 ) {
-	    syslog( LOG_DEBUG, "DMARC %s: tag %d: invalid duplicate v tag: %s",
+	    simta_debuglog( 1, "DMARC %s: tag %d: invalid duplicate v tag: %s",
 		    d->domain, i, v );
 
 	/* RFC 7489 6.3 General Record Format
@@ -445,7 +444,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	    } else if ( strcmp( v, "s" ) == 0 ) {
 		d->dkim_alignment = DMARC_ALIGNMENT_STRICT;
 	    } else {
-		syslog( LOG_DEBUG, "DMARC %s: tag %d: unknown adkim value: %s",
+		simta_debuglog( 1, "DMARC %s: tag %d: unknown adkim value: %s",
 			d->domain, i, v );
 	    }
 
@@ -463,7 +462,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	    } else if ( strcmp( v, "s" ) == 0 ) {
 		d->spf_alignment = DMARC_ALIGNMENT_STRICT;
 	    } else {
-		syslog( LOG_DEBUG, "DMARC %s: tag %d: unknown aspf value: %s",
+		simta_debuglog( 1, "DMARC %s: tag %d: unknown aspf value: %s",
 			d->domain, i, v );
 	    }
 
@@ -503,7 +502,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	    } else if ( strcmp( v, "reject" ) == 0 ) {
 		d->policy = DMARC_RESULT_REJECT;
 	    } else {
-		syslog( LOG_DEBUG, "DMARC %s: tag %d: unknown p value: %s",
+		simta_debuglog( 1, "DMARC %s: tag %d: unknown p value: %s",
 			d->domain, i, v );
 	    }
 
@@ -517,7 +516,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	    d->pct = strtol( v, &p, 10 );
 	    if (( p == v ) || ( d->pct < 0 ) || (d->pct > 100) ||
 		    ( errno == ERANGE ) || ( errno == EINVAL )) {
-		syslog( LOG_DEBUG, "DMARC %s: tag %d: invalid pct value: %s",
+		simta_debuglog( 1, "DMARC %s: tag %d: invalid pct value: %s",
 			d->domain, i, v );
 		d->pct = 100;
 	    }
@@ -567,7 +566,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	    } else if ( strcmp( v, "reject" ) == 0 ) {
 		d->subpolicy = DMARC_RESULT_REJECT;
 	    } else {
-		syslog( LOG_DEBUG, "DMARC %s: tag %d: unknown sp value: %s",
+		simta_debuglog( 1, "DMARC %s: tag %d: unknown sp value: %s",
 			d->domain, i, v );
 	    }
 
@@ -575,7 +574,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	 * Unknown tags MUST be ignored.
 	 */
 	} else {
-	    syslog( LOG_DEBUG, "DMARC %s: tag %d: unknown tag %s: %s",
+	    simta_debuglog( 1, "DMARC %s: tag %d: unknown tag %s: %s",
 		    d->domain, i, k, v );
 	}
     }

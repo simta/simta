@@ -243,38 +243,33 @@ simta_ldap_dequote( char *s )
 	return( NULL );
     }
 
-    buf = calloc( 1, strlen( s ) + 1 );
+    /* We skip the first character of the input string, so we don't need to
+     * allocate extra space for the terminating NULL.
+     */
+    buf = calloc( 1, strlen( s ));
 
     r = s + 1;
     w = buf;
 
-    for ( ; ; ) {
-	switch ( *r ) {
-	case '"':
+    for ( r = s + 1 ; *r != '\0' ; r++ ) {
+	if ( *r == '"' ) {
 	    return( buf );
+	}
 
-	case '\\':
+	if ( *r == '\\' ) {
 	    r++;
 	    if ( *r == '\0' ) {
-		syslog( LOG_ERR, "dequote can not escape EOL" );
-		free( buf );
-		return( NULL );
+		break;
 	    }
-	    break;
-
-	case '\0':
-	    syslog( LOG_ERR, "dequote unexpected end of quoted string" );
-	    free( buf );
-	    return( NULL );
-
-	default:
-	    break;
 	}
 
 	*w = *r;
 	w++;
-	r++;
     }
+
+    syslog( LOG_ERR, "LDAP: unterminated quoted string %s", s );
+    free( buf );
+    return( NULL );
 }
 
 
@@ -308,45 +303,41 @@ simta_ld_init( struct simta_ldap *ld )
     int				protocol = LDAP_VERSION3;
 
     if (( ld->ldap_ld = ldap_init( ld->ldap_host, ld->ldap_port )) == NULL ) {
-	syslog( LOG_ERR, "ldap_init: %m" );
+	syslog( LOG_ERR, "Liberror: simta_ld_init ldap_init: %m" );
 	return( 1 );
     }
 
     if ( ldapdebug ) {
 	if (( ber_set_option( NULL, LBER_OPT_DEBUG_LEVEL, &ldapdebug ))
 		!= LBER_OPT_SUCCESS ) {
-	    syslog( LOG_ERR,
-	    "simta_ld_init: Failed setting LBER_OPT_DEBUG_LEVEL=%d\n",
-	    ldapdebug );
+	    syslog( LOG_ERR, "Liberror: simta_ld_init ber_set_option "
+		    "LBER_OPT_DEBUG_LEVEL %d: failed", ldapdebug );
 	}
 	if (( ldap_set_option( NULL, LDAP_OPT_DEBUG_LEVEL, &ldapdebug ))
 		!= LDAP_OPT_SUCCESS ) {
-	    syslog( LOG_ERR,
-		    "simta_ld_init: Failed setting LDAP_OPT_DEBUG_LEVEL=%d\n",
-		    ldapdebug );
+	    syslog( LOG_ERR, "Liberror: simta_ld_init ldap_set_option "
+		    "LDAP_OPT_DEBUG_LEVEL %d: failed", ldapdebug );
 	}
     }
 
     if (( ldap_set_option( ld->ldap_ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF ))
 	    != LDAP_OPT_SUCCESS ) {
-	syslog( LOG_ERR,
-	"simta_ld_init: Failed setting LDAP_OPT_REFERRALS to LDAP_OPT_OFF");
+	syslog( LOG_ERR, "Liberror: simta_ld_init ldap_set_option "
+		"LDAP_OPT_REFERRALS LDAP_OPT_OFF: failed" );
 	return( 1 );
     }
 
     if (( ldap_set_option(ld->ldap_ld, LDAP_OPT_SIZELIMIT,
 	    (void*)&maxambiguous)) != LDAP_OPT_SUCCESS ) {
-	syslog( LOG_ERR,
-		"simta_ld_init: Failed setting LDAP_OPT_SIZELIMIT = %d\n",
-		maxambiguous);
+	syslog( LOG_ERR, "Liberror: simta_ld_init ldap_set_option "
+		"LDAP_OPT_SIZELIMIT %d: failed", maxambiguous);
 	return( 1 );
     }
 
     if (( ldap_set_option( ld->ldap_ld, LDAP_OPT_PROTOCOL_VERSION, &protocol ))
 	    != LDAP_OPT_SUCCESS ) {
-	syslog( LOG_ERR,
-	"simta_ld_init: Failed setting LDAP_OPT_PROTOCOL_VERSION = %d\n",
-		protocol );
+	syslog( LOG_ERR, "Liberror: simta_ld_init ldap_set_option "
+		"LDAP_OPT_PROTOCOL_VERSION %d: failed", protocol );
 	return( 1 );
     }
 
@@ -374,9 +365,9 @@ simta_ldap_init( struct simta_ldap *ld )
 		if (( ldaprc = ldap_set_option( NULL, LDAP_OPT_X_TLS_CACERTFILE,
 			ld->ldap_tls_cacert )) != LDAP_OPT_SUCCESS ) {
 		    syslog( LOG_ERR,
-			    "simta_ldap_init: Failed setting "
-			    "LDAP_OPT_X_TLS_CACERTFILE = %s\n",
-			    ldap_err2string( ldaprc ));
+			    "Liberror: simta_ldap_init ldap_set_option "
+			    "LDAP_OPT_X_TLS_CACERTFILE %s: %s",
+			    ld->ldap_tls_cacert, ldap_err2string( ldaprc ));
 		    return( ADDRESS_SYSERROR );
 		}
 	    }
@@ -385,9 +376,9 @@ simta_ldap_init( struct simta_ldap *ld )
 		if (( ldaprc = ldap_set_option( NULL, LDAP_OPT_X_TLS_CERTFILE,
 			ld->ldap_tls_cert )) != LDAP_OPT_SUCCESS ) {
 		    syslog( LOG_ERR,
-			    "simta_ldap_init: Failed setting "
-			    "LDAP_OPT_X_TLS_CERTFILE = %s\n",
-			    ldap_err2string( ldaprc ));
+			    "Liberror: simta_ldap_init ldap_set_option "
+			    "LDAP_OPT_X_TLS_CERTFILE %s: %s",
+			    ld->ldap_tls_cert, ldap_err2string( ldaprc ));
 		    return( ADDRESS_SYSERROR );
 		}
 	    }
@@ -396,21 +387,22 @@ simta_ldap_init( struct simta_ldap *ld )
 		if (( ldaprc = ldap_set_option(NULL, LDAP_OPT_X_TLS_KEYFILE,
 			ld->ldap_tls_key )) != LDAP_OPT_SUCCESS ) {
 		    syslog( LOG_ERR,
-			    "simta_ldap_init: Failed setting "
-			    "LDAP_OPT_X_TLS_KEYFILE = %s\n",
-			    ldap_err2string( ldaprc ));
+			    "Liberror: simta_ldap_init ldap_set_option "
+			    "LDAP_OPT_X_TLS_KEYFILE %s: %s",
+			    ld->ldap_tls_key, ldap_err2string( ldaprc ));
 		    return( ADDRESS_SYSERROR );
 		}
 	    }
 	}
-#endif
+#endif /* HAVE_LIBSSL */
     }
 
 #ifdef HAVE_LIBSSL
     if ( ld->ldap_starttls ) {
 	if (( ldaprc = ldap_start_tls_s( ld->ldap_ld, NULL, NULL ))
 		!= LDAP_SUCCESS ){
-	    syslog( LOG_ERR, "ldap_start_tls: %s", ldap_err2string( ldaprc ));
+	    syslog( LOG_ERR, "Liberror: simta_ldap_init ldap_start_tls_s: %s",
+		    ldap_err2string( ldaprc ));
 	    if ( ld->ldap_starttls == 2 ) {
 		return( ADDRESS_SYSERROR );
 	    }
@@ -436,7 +428,8 @@ simta_ldap_init( struct simta_ldap *ld )
 		ld->ldap_binddn, NULL, NULL, NULL, LDAP_SASL_QUIET,
 		simta_ldap_sasl_interact, NULL ))
 		!= LDAP_SUCCESS ) {
-	    syslog( LOG_ERR, "ldap_sasl_interactive_bind_s: %s",
+	    syslog( LOG_ERR, "Liberror: simta_ldap_init "
+		    "ldap_sasl_interactive_bind_s: %s",
 		    ldap_err2string( ldaprc ));
 	    return( ADDRESS_SYSERROR );
 	}
@@ -446,7 +439,8 @@ simta_ldap_init( struct simta_ldap *ld )
 	if (( ldaprc = ldap_sasl_interactive_bind_s( ld->ldap_ld,
 		ld->ldap_binddn, "EXTERNAL", NULL, NULL, LDAP_SASL_QUIET,
 		simta_ldap_sasl_interact, NULL )) != LDAP_SUCCESS ) {
-	    syslog( LOG_ERR, "ldap_sasl_interactive_bind_s: %s",
+	    syslog( LOG_ERR, "Liberror: simta_ldap_init "
+		    "ldap_sasl_interactive_bind_s: %s",
 		    ldap_err2string( ldaprc ));
 	    return ( ADDRESS_SYSERROR );
 	}
@@ -457,7 +451,8 @@ simta_ldap_init( struct simta_ldap *ld )
 		( ld->ldap_bind == BINDANON ))) {
 	    if (( ldaprc = ldap_bind_s( ld->ldap_ld, ld->ldap_binddn,
 		    ld->ldap_bindpw, LDAP_AUTH_SIMPLE)) != LDAP_SUCCESS ) {
-		syslog( LOG_ERR, "ldap_bind: %s", ldap_err2string( ldaprc ));
+		syslog( LOG_ERR, "Liberror: simta_ldap_init ldap_bind_s: %s",
+			ldap_err2string( ldaprc ));
 		return( ADDRESS_SYSERROR );
 	    }
 	}
@@ -929,8 +924,8 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
 			&timeout, &res );
 
 	if (( rc != LDAP_SUCCESS ) && ( rc != LDAP_SIZELIMIT_EXCEEDED )) {
-	    syslog( LOG_ERR, "simta_ldap_address_local: ldap_search_st Failed: "
-		    "%s", ldap_err2string( rc ));
+	    syslog( LOG_ERR, "Liberror: simta_ldap_address_local "
+		    "ldap_search_st: %s", ldap_err2string( rc ));
 	    ldap_msgfree( res );
 	    free( dup_name );
 	    simta_ldap_unbind( ld );
@@ -1016,7 +1011,8 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
     struct string_address	*sa;
 
     if (( dn = ldap_get_dn( ld->ldap_ld, entry )) == NULL ) {
-	syslog( LOG_ERR, "simta_ldap_expand_group: ldap_get_dn Failed" );
+	syslog( LOG_ERR,
+		"Liberror: simta_ldap_expand_group ldap_get_dn: failed" );
 	return( ADDRESS_SYSERROR );
     }
 
@@ -1065,8 +1061,9 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	}
 
 	if (( e_addr->e_addr_errors = address_bounce_create( exp )) == NULL ) {
-	    syslog( LOG_ERR, "simta_ldap_expand_group: "
-		    "failed creating error env: %s", dn);
+	    syslog( LOG_ERR,
+		    "Expand.LDAP env <%s>: <%s>: failed creating error env %s",
+		    exp->exp_env->e_id, e_addr->e_addr, dn );
 	    free( senderbuf );
 	    ldap_memfree( dn );
 	    ldap_value_free( rdns );
@@ -1081,14 +1078,15 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	}
 
 	if ( env_recipient( e_addr->e_addr_errors, senderbuf ) != 0 ) {
-	    syslog( LOG_ERR, "simta_ldap_expand_group: failed setting error "
-		    "recip: %s", dn );
+	    syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>: "
+		    "failed setting error recipient %s",
+		    exp->exp_env->e_id, e_addr->e_addr, dn );
 	    free( senderbuf );
 	    ldap_memfree( dn );
 	    ldap_value_free( rdns );
 	    return ADDRESS_SYSERROR;
 	}
-    } 
+    }
 
     ldap_value_free( rdns );
 
@@ -1247,15 +1245,16 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		    if ( simta_mbx_compare( ld->ldap_ndomain, r->r_rcpt,
 			    exp->exp_env->e_mail ) == 0 ) {
 			/* sender matches moderator in moderator env */
-			syslog( LOG_DEBUG,
-				"Expand.LDAP %s: <%s>: Moderator match %s %s",
+			syslog( LOG_INFO, "Expand.LDAP env <%s>: <%s>: "
+				"Moderator match %s %s",
 				exp->exp_env->e_id, e_addr->e_addr, r->r_rcpt,
 				exp->exp_env->e_mail );
 			break;
 		    }
 		}
 
-		syslog( LOG_DEBUG, "Expand.LDAP %s: <%s>: no moderator match",
+		syslog( LOG_INFO,
+			"Expand.LDAP env <%s>: <%s>: no moderator match",
 			exp->exp_env->e_id, e_addr->e_addr );
 
 	    } else {
@@ -1331,8 +1330,8 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 	    }
 	    if ( rc != 0 ) {
 		syslog( LOG_ERR,
-		    "simta_ldap_expand_group: %s failed adding: %s", dn,
-		    dnvals[ idx ]);
+			"Expand.LDAP env <%s>: <%s>: %s failed adding %s",
+			exp->exp_env->e_id, e_addr->e_addr, dn, dnvals[ idx ]);
 		break;
 	    }
 	}
@@ -1355,8 +1354,8 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 
 		if ( rc != 0 ) {
 		    syslog( LOG_ERR,
-			    "simta_ldap_expand_group: %s failed adding: %s",
-			    dn, attrval );
+			    "Expand.LDAP env <%s>: <%s>: %s failed adding %s",
+			    exp->exp_env->e_id, e_addr->e_addr, dn, attrval );
 		    break;
 		}
 	    }
@@ -1414,9 +1413,9 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 		    if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr,
 			    " : Group member exists but does not have an "
 			    "email address", "\n" ) != 0 ) {
-			syslog( LOG_ERR, "simta_ldap_process_entry: "
-				"Failed building bounce message: no email: %s",
-				e_addr->e_addr);
+			syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s> "
+				"Failed building bounce message: no email",
+				exp->exp_env->e_id, e_addr->e_addr );
 			return( ADDRESS_SYSERROR );
 		    }
 		}
@@ -1427,8 +1426,9 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 		attrval = values[ idx ];
 		if ( address_string_recipients( exp, attrval,
 			e_addr, e_addr->e_addr_from ) != 0 ) {
-		    syslog( LOG_ERR, "simta_ldap_process_entry: failed "
-			    "adding mailforwardingaddress: %s", addr );
+		    syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>"
+			    "failed adding mailforwardingaddress %s",
+			    exp->exp_env->e_id, e_addr->e_addr, addr );
 		    ldap_value_free( values );
 		    return( ADDRESS_SYSERROR );
 		}
@@ -1465,14 +1465,16 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 		    if ( add_address( exp, buf,
 			  e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
 			  e_addr->e_addr_from ) != 0 ) {
-			syslog( LOG_ERR, "simta_ldap_process_entry: failed "
-				"adding vacation address: %s", buf );
+			syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>:"
+				"failed adding vacation address: %s",
+				exp->exp_env->e_id, e_addr->e_addr, buf );
 		    }
 		    ldap_value_free( uid );
 
 		} else {
-		    syslog( LOG_ERR, "user without a uid on vacation (%s)",
-				 addr );
+		    syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>: user %s "
+			    "is on vacation but doesn't have a uid",
+			    exp->exp_env->e_id, e_addr->e_addr, addr );
 		}
 	    }
 
@@ -1485,8 +1487,8 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 
     } else {
 	/* Neither a group, or a person */
-	syslog( LOG_ERR,
-		"Expand.LDAP %s: <%s>: Entry is neither person or group ",
+	syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>: "
+		"Entry is neither person nor group ",
 		exp->exp_env->e_id, e_addr->e_addr);
 	bounce_text( e_addr->e_addr_errors, TEXT_ERROR, addr,
 		" : Entry exists but is neither a group or person", NULL );
@@ -1539,10 +1541,10 @@ startsearch:
 	/* if the address is illegal in LDAP, we can't find it */
 	/* (this can also happen if the container isn't there) */
 	if (( rc == LDAP_FILTER_ERROR ) || ( rc == LDAP_NO_SUCH_OBJECT )) {
-	    syslog( LOG_ERR,
-		"%s so giving up! (addr=%s: problem with base=%s or filter=%s)",
-		ldap_err2string(rc),
-		addr, lds->lds_plud->lud_dn, search_string );
+	    syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>: "
+		    "ldap_search_st %s %s failed: %s",
+		    exp->exp_env->e_id, e_addr->e_addr, lds->lds_plud->lud_dn,
+		    search_string, ldap_err2string( rc ));
 	    return( ADDRESS_NOT_FOUND );
 	}
 
@@ -1569,7 +1571,7 @@ startsearch:
 	if (( rc != LDAP_SUCCESS ) && ( rc != LDAP_SIZELIMIT_EXCEEDED ) &&
 		( rc != LDAP_TIMELIMIT_EXCEEDED )) {
 	    syslog( LOG_ERR,
-		    "simta_ldap_name_search: ldap_search_st %s error: %s",
+		    "Liberror: simta_ldap_name_search ldap_search_st %s: %s",
 		    search_string, ldap_err2string( rc ));
 	    ldap_msgfree( res );
 	    return( ADDRESS_SYSERROR );
@@ -1592,8 +1594,9 @@ startsearch:
 	return( ADDRESS_NOT_FOUND ); /* no entries found */
 
     case -1:
-	syslog( LOG_ERR, "simta_ldap_name_search:Error parsing result from "
-		"LDAP server for address: %s", e_addr->e_addr );
+	syslog( LOG_ERR,
+		"Expand.LDAP env <%s>: <%s>: Error parsing result from server",
+		exp->exp_env->e_id, e_addr->e_addr );
 	ldap_msgfree( res );
 	return( ADDRESS_SYSERROR );
 
@@ -1642,8 +1645,9 @@ startsearch:
 
 	/* trouble --  tmpres hosed? */
 	} else if ( match < 0 ) {
-	    syslog( LOG_ERR, "simta_ldap_name_search: Error parsing LDAP "
-		    "result for address: %s", e_addr->e_addr );
+	    syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>: "
+		    "Error parsing LDAP result",
+		    exp->exp_env->e_id, e_addr->e_addr );
 	    ldap_msgfree( res );
 	    ldap_msgfree( tmpres );
 	    return( ADDRESS_SYSERROR );
@@ -1662,8 +1666,9 @@ startsearch:
 	** One entry now that matches our address.
 	*/
 	if (( entry = ldap_first_entry( ld->ldap_ld, res )) == NULL ) {
-	    syslog( LOG_ERR, "simta_ldap_name_search: ldap_first_entry: %s",
-		ldap_err2string( ldap_result2error( ld->ldap_ld, res, 1 )));
+	    syslog( LOG_ERR,
+		    "Liberror: simta_ldap_name_search ldap_first_entry: %s",
+		    ldap_err2string( ldap_result2error( ld->ldap_ld, res, 1 )));
 	    return( ADDRESS_SYSERROR );
 	}
     }
@@ -1699,7 +1704,7 @@ simta_ldap_dn_expand( struct simta_ldap *ld, struct expand *exp,
 	    && rc != LDAP_TIMELIMIT_EXCEEDED
 	    && rc != LDAP_NO_SUCH_OBJECT ) {
 
-	syslog( LOG_ERR, "simta_ldap_dn_expand: ldap_search_st Failed: %s",
+	syslog( LOG_ERR, "Liberror: simta_ldap_dn_expand ldap_search_st: %s",
 		    ldap_err2string(rc ));
 	ldap_msgfree( res );
 	return( ADDRESS_SYSERROR );
@@ -1708,8 +1713,9 @@ simta_ldap_dn_expand( struct simta_ldap *ld, struct expand *exp,
     match = ldap_count_entries( ld->ldap_ld, res );
 
     if ( match == -1 ) {
-	syslog( LOG_ERR, "simta_ldap_dn_expand: Error parsing result from "
-		"LDAP server for dn: %s", search_dn );
+	syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>: "
+		"Error parsing result from server for dn: %s",
+		exp->exp_env->e_id, e_addr->e_addr, search_dn );
 	ldap_msgfree( res );
 	return( ADDRESS_SYSERROR );
     }
@@ -1719,15 +1725,16 @@ simta_ldap_dn_expand( struct simta_ldap *ld, struct expand *exp,
 
 	if ( bounce_text( e_addr->e_addr_errors, TEXT_ERROR, search_dn,
 		" : Group member does not exist" , NULL ) != 0 ) {
-	    syslog( LOG_ERR, "simta_ldap_dn_expand: Failed building bounce "
-		    "message -- no member: %s", search_dn );
+	    syslog( LOG_ERR, "Expand.LDAP env <%s>: <%s>: "
+		    "Failed building no member bounce message: %s",
+		    exp->exp_env->e_id, e_addr->e_addr, search_dn );
 	    return( ADDRESS_SYSERROR );
 	}
 	return( ADDRESS_EXCLUDE ); /* no entries found */
     }
 
     if (( entry = ldap_first_entry( ld->ldap_ld, res )) == NULL ) {
-	syslog( LOG_ERR, "simta_ldap_dn_entry: ldap_first_entry: %s",
+	syslog( LOG_ERR, "Liberror: simta_ldap_dn_entry ldap_first_entry: %s",
 		ldap_err2string( ldap_result2error( ld->ldap_ld, res, 1 )));
 	ldap_msgfree( res );
 	return( ADDRESS_SYSERROR );
@@ -1925,12 +1932,12 @@ simta_ldap_config( char *fname, char *domain )
 
     /* open fname */
     if (( fd = open( fname, O_RDONLY, 0 )) < 0 ) {
-	syslog( LOG_ERR, "simta_ldap_config open %s: %m", fname );
+	syslog( LOG_ERR, "Syserror: simta_ldap_config open %s: %m", fname );
 	goto errexit;
     }
 
     if (( snet = snet_attach( fd, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "simta_ldap_config: snet_attach: %m" );
+	syslog( LOG_ERR, "Liberror: simta_ldap_config snet_attach: %m" );
 	goto errexit;
     }
 
@@ -1956,21 +1963,23 @@ simta_ldap_config( char *fname, char *domain )
 	linecopy = strdup( line );
 
 	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
-	    syslog( LOG_ERR, "simta_ldap_config: acav_parse returned -1");
+	    syslog( LOG_ERR, "Config.LDAP %s:%d: acav_parse returned -1: %s",
+		    fname, lineno, linecopy );
 	    goto errexit;
 	}
 
 	if (( strcasecmp( av[ 0 ], "uri" ) == 0 ) ||
 		( strcasecmp( av[ 0 ], "url" ) == 0 )) {
 	    if ( ac < 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
-		syslog( LOG_ERR, "simta_ldap_config: Missing uri\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 
 	    if ( ldap_is_ldap_url( av[ 1 ] ) == 0 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
-		syslog( LOG_ERR, "uri not an ld uri\n" );
+		syslog( LOG_ERR,
+			"Config.LDAP %s:%d: URI is not an LDAP URI: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 
 	    }
@@ -1978,8 +1987,8 @@ simta_ldap_config( char *fname, char *domain )
 	    /* Parse the URL */
 	    if (( ldaprc = ldap_url_parse( av[ 1 ], &plud )) !=
 		    LDAP_URL_SUCCESS ){
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "ldap_url_parse parse error: %d\n", ldaprc );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: URI parse error %d: %s",
+			fname, lineno, ldaprc, linecopy );
 		goto errexit;
 	    }
 
@@ -1999,14 +2008,17 @@ simta_ldap_config( char *fname, char *domain )
 			search_type = LDS_USER;
 		    } else {
 			ldap_free_urldesc (plud);
-			syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
-			syslog( LOG_ERR, "Unknown Searchtype in url\n");
+			syslog( LOG_ERR, "Config.LDAP %s:%d: "
+				"Unknown searchtype in URI: %s",
+				fname, lineno, linecopy );
 			goto errexit;
 		    }
 		} else {
 		    ldap_free_urldesc( plud );
 		    syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		    syslog( LOG_ERR, "Unknown extension in url\n" );
+		    syslog( LOG_ERR,
+			    "Config.LDAP %s:%d: Unknown extension in URI: %s",
+			    fname, lineno, linecopy );
 		    goto errexit;
 		}
 		acidx++;
@@ -2022,8 +2034,8 @@ simta_ldap_config( char *fname, char *domain )
 
 	} else if ( strcasecmp( av[ 0 ], "attributes" ) == 0 ) {
 	    if ( ac < 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
-		syslog( LOG_ERR, "Missing attribute value(s)\n");
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 
@@ -2035,40 +2047,40 @@ simta_ldap_config( char *fname, char *domain )
 
 	} else if ( strcasecmp( av[ 0 ], "host" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing host value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_host = strdup ( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "port" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing port value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_port = atoi( av[ 1 ]);
 
 	} else if ( strcasecmp( av[ 0 ], "timeout" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing timeout value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_timeout = (time_t)atoi( av[ 1 ]);
 
 	} else if ( strcasecmp( av[ 0 ], "ldapdebug" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing ldapdebug value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ldapdebug = atoi(av[ 1 ]);
 
 	} else if ( strcasecmp( av[ 0 ], "ldapbind" ) == 0 ) {
 		if ( ac != 2 ) {
-		    syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		    syslog( LOG_ERR, "Missing ldapbind  value\n" );
+		    syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			    fname, lineno, linecopy );
 		    goto errexit;
 		}
 
@@ -2081,46 +2093,48 @@ simta_ldap_config( char *fname, char *domain )
 	    } else if ( strcasecmp (av[ 1 ], "ANONYMOUS") == 0 ) {
 		ld->ldap_bind = BINDANON;
 	    } else {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Invalid ldapbind value\n" );
+		syslog( LOG_ERR,
+			"Config.LDAP %s:%d: Invalid ldapbind value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 
 #ifdef HAVE_LIBSSL
 	} else if ( strcasecmp( av[ 0 ], "starttls" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing starttls value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    intval = atoi (av[ 1 ]);
 	    if (( intval < 0 ) || ( intval > 2 )) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Invalid starttls value\n" );
+		syslog( LOG_ERR,
+			"Config.LDAP %s:%d: Invalid starttls value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_starttls = intval;
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_CACERT" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing TLS_CACERT value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_tls_cacert = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_CERT" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing TLS_CERT value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_tls_cert = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "TLS_KEY" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing TLS_KEY value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_tls_key = strdup( av[ 1 ] );
@@ -2128,8 +2142,8 @@ simta_ldap_config( char *fname, char *domain )
 #endif /* HAVE_LIBSSL */
 	} else if ( strcasecmp( av[ 0 ], "domaincomponentcount" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing domaincomponentcount value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_ndomain = atoi( av[ 1 ]);
@@ -2137,16 +2151,16 @@ simta_ldap_config( char *fname, char *domain )
 	} else if (( strcasecmp( av[ 0 ], "bindpw" ) == 0 ) ||
 		   ( strcasecmp( av[ 0 ], "bindpassword" ) == 0 )) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing bindpw/bindpassword value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_bindpw = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "binddn" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing binddn/bindpassword value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    ld->ldap_binddn = strdup( av[ 1 ] );
@@ -2154,8 +2168,8 @@ simta_ldap_config( char *fname, char *domain )
 	} else if (( strcasecmp( av[ 0 ], "oc" ) == 0 ) ||
 		   ( strcasecmp( av[ 0 ], "objectclass" ) == 0 )) {
 	    if ( ac != 3 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing objectclass value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 
@@ -2164,8 +2178,8 @@ simta_ldap_config( char *fname, char *domain )
 	    } else if ( strcasecmp( av[ 1 ], "group" ) == 0 ) {
 		add = &ld->ldap_groups;
 	    } else {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Unknown objectclass type\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Unknown objectclass: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 
@@ -2177,87 +2191,93 @@ simta_ldap_config( char *fname, char *domain )
 
 	} else if ( strcasecmp( av[ 0 ], "mail" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing mail value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    if ( ld->ldap_mailattr ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Multiple mail attributes\n" );
+		syslog( LOG_ERR,
+			"Config.LDAP %s:%d: Can't set mail twice",
+			fname, lineno );
 		goto errexit;
 	    }
 	    ld->ldap_mailattr = strdup( av [ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "mailforwardingattr" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing mailforwardingattr value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    if ( ld->ldap_mailfwdattr ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Multiple mailforwarding attributes\n" );
+		syslog( LOG_ERR,
+			"Config.LDAP %s:%d: Can't set mailforwardingattr twice",
+			fname, lineno );
 		goto errexit;
 	    }
 	    ld->ldap_mailfwdattr = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "groupmailforwardingattr" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing group mailforwardingattr value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    if ( ld->ldap_gmailfwdattr ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Multiple group mailforwarding attributes\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: "
+			"Can't set groupmailfowardingattr twice",
+			fname, lineno );
 		goto errexit;
 	    }
 	    ld->ldap_gmailfwdattr = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "vacationhost" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
-		syslog( LOG_ERR, "Missing vacationhost value\n");
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    if ( ld->ldap_vacationhost ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
-		syslog( LOG_ERR, "Multiple vacationhost attributes\n");
+		syslog( LOG_ERR,
+			"Config.LDAP %s:%d: Can't set vacationhost twice",
+			fname, lineno );
 		goto errexit;
 	    }
 	    ld->ldap_vacationhost = strdup( av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "vacationattr" ) == 0 ) {
 	    if ( ac != 2 ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-		syslog( LOG_ERR, "Missing vacationattr value\n" );
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, linecopy );
 		goto errexit;
 	    }
 	    if ( ld->ldap_vacationattr ) {
-		syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy);
-		syslog( LOG_ERR, "Multiple vacationattr attributes\n");
+		syslog( LOG_ERR,
+			"Config.LDAP %s:%d: Can't set vacationattr twice",
+			fname, lineno );
 		goto errexit;
 	    }
 	    ld->ldap_vacationattr = strdup( av [ 1 ] );
 
 	} else {
-	    syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
-	    syslog( LOG_ERR, "Unknown simta/ldap config option\n" );
+	    syslog( LOG_ERR, "Config.LDAP %s:%d: Unknown config option: %s",
+		    fname, lineno, linecopy );
 	    goto errexit;
 	}
     }
     /* check to see that ldap is configured correctly */
 
     if ( ld->ldap_people == NULL ) {
-	syslog( LOG_ERR, "No ldap people objectclass specified\n" );
+	syslog( LOG_ERR, "Config.LDAP %s: No ldap people objectclass specified",
+		fname );
 	goto errexit;
     }
     if ( ld->ldap_searches == NULL ) {
-	syslog( LOG_ERR, "No ldap searches specified\n" );
+	syslog( LOG_ERR, "Config.LDAP %s: No ldap searches specified", fname );
 	goto errexit;
     }
     if ( ! ld->ldap_host) {
-	syslog( LOG_ERR, "No ldap server specified\n" );
+	syslog( LOG_ERR, "Config.LDAP %s: No ldap server specified", fname );
 	goto errexit;
     }
     if ( ld->ldap_port <= 0 ) {
@@ -2274,17 +2294,20 @@ simta_ldap_config( char *fname, char *domain )
     }
     if (( ld->ldap_tls_cert ) || ( ld->ldap_tls_key )) {
 	if ( ! ld->ldap_tls_cert ) {
-	    syslog( LOG_ERR, "missing TLS_CERT parameter" );
+	    syslog( LOG_ERR, "Config.LDAP %s: missing TLS_CERT parameter",
+		    fname );
 	    goto errexit;
 	}
 	if ( ! ld->ldap_tls_key ) {
-	    syslog( LOG_ERR, "missing TLS_KEY parameter" );
+	    syslog( LOG_ERR, "Config.LDAP %s: missing TLS_KEY parameter",
+		    fname );
 	    goto errexit;
 	}
     }
     if (( ld->ldap_starttls ) && (( ld->ldap_bind == BINDSASL ) ||
 	    ( ld->ldap_bind == BINDSIMPLE ))) {
-	syslog( LOG_ERR, "Cannot have both starttls and ldapbind configured" );
+	syslog( LOG_ERR, "Config.LDAP %s: "
+		"Cannot have both starttls and ldapbind configured", fname );
 	goto errexit;
     }
     if ( attrs == NULL ) {
@@ -2302,13 +2325,13 @@ errexit:
     }
     if ( snet ) {
 	if ( snet_close( snet ) != 0 ) {
-	    syslog( LOG_ERR, "simta_ldap_config: snet_close %m" );
+	    syslog( LOG_ERR, "Liberror: simta_ldap_config snet_close: %m" );
 	}
 	fd = 0;
     }
     if ( fd ) {
 	if ( close( fd )) {
-	    syslog( LOG_ERR, "simta_ldap_config: Config file close %m" );
+	    syslog( LOG_ERR, "Syserror: simta_ldap_config close: %m" );
 	}
     }
     return( ret );
