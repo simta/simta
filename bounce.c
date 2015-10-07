@@ -35,6 +35,7 @@
 #endif /* HAVE_LIBSASL */
 
 #include <snet.h>
+#include <yasl.h>
 
 #include "envelope.h"
 #include "header.h"
@@ -50,81 +51,38 @@
 bounce_text( struct envelope *bounce_env, int mode, char *t1, char *t2,
 	char *t3 )
 {
-    char			*text;
-    size_t			len;
+    int				ret = 0;
+    yastr			buf;
 
     if ( mode != 0 ) {
 	bounce_env->e_error = mode;
     }
 
     if ( bounce_env->e_err_text == NULL ) {
-	if (( bounce_env->e_err_text = line_file_create()) == NULL ) {
-	    syslog( LOG_ERR, "bounce_text line_file_create: %m" );
-	    return( -1 );
-	}
+	bounce_env->e_err_text = line_file_create();
     }
 
-    if ( t3 != NULL ) {
-	len = strlen( t1 ) + strlen( t2 ) + strlen( t3 ) + 1;
+    buf = yaslauto( t1 );
+    if ( t2 ) {
+	buf = yaslcat( buf, t2 );
+    }
+    if ( t3 ) {
+	buf = yaslcat( buf, t3 );
+    }
 
-	text = malloc( len );
-	sprintf( text, "%s%s%s", t1, t2, t3 );
-
-	if ( mode != 0 ) {
-	    if ( line_append( bounce_env->e_err_text, text, NO_COPY )
-		    == NULL ) {
-		syslog( LOG_ERR, "bounce_text line_append: %m" );
-		free( text );
-		return( -1 );
-	    }
-	} else {
-	    if ( line_prepend( bounce_env->e_err_text, text, NO_COPY )
-		    == NULL ) {
-		syslog( LOG_ERR, "bounce_text line_append: %m" );
-		free( text );
-		return( -1 );
-	    }
+    if ( mode != 0 ) {
+	if ( line_append( bounce_env->e_err_text, buf, COPY ) == NULL ) {
+	    ret = -1;
 	}
-
-    } else if ( t2 != NULL ) {
-	len = strlen( t1 ) + strlen( t2 ) + 1;
-
-	text = malloc( len );
-	sprintf( text, "%s%s", t1, t2 );
-
-	if ( mode != 0 ) {
-	    if ( line_append( bounce_env->e_err_text, text, NO_COPY )
-		    == NULL ) {
-		syslog( LOG_ERR, "bounce_text line_append: %m" );
-		free( text );
-		return( -1 );
-	    }
-	} else {
-	    if ( line_prepend( bounce_env->e_err_text, text, NO_COPY )
-		    == NULL ) {
-		syslog( LOG_ERR, "bounce_text line_append: %m" );
-		free( text );
-		return( -1 );
-	    }
-	}
-
     } else {
-	if ( mode != 0 ) {
-	    if ( line_append( bounce_env->e_err_text, t1, COPY )
-		    == NULL ) {
-		syslog( LOG_ERR, "bounce_text line_append: %m" );
-		return( -1 );
-	    }
-	} else {
-	    if ( line_prepend( bounce_env->e_err_text, t1, COPY )
-		    == NULL ) {
-		syslog( LOG_ERR, "bounce_text line_append: %m" );
-		return( -1 );
-	    }
+	if ( line_prepend( bounce_env->e_err_text, buf, COPY ) == NULL ) {
+	    ret = -1;
 	}
     }
 
-    return( 0 );
+    yaslfree( buf );
+
+    return( ret );
 }
 
 
