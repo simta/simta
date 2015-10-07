@@ -311,6 +311,19 @@ simta_openlog( int cl, int options )
 }
 
 
+    void
+simta_debuglog( int level, const char *format, ... )
+{
+    va_list	vl;
+
+    va_start( vl, format );
+    if ( simta_debug >= level ) {
+	vsyslog( LOG_DEBUG, format, vl );
+    }
+    va_end( vl );
+}
+
+
     char*
 simta_sender( void )
 {

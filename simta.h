@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <inttypes.h>
+#include <stdarg.h>
 
 #include <denser.h>
 #include <snet.h>
@@ -366,6 +367,7 @@ int	simta_init_hosts( void );
 int	simta_config( void );
 int     simta_read_config( char * );
 void	simta_openlog( int, int );
+void	simta_debuglog( int, const char *, ...);
 int	simta_gettimeofday( struct timeval * );
 int	simta_check_charset( const char * );
 int	simta_host_is_jailhost( char *  );
