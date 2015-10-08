@@ -965,7 +965,7 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
 		( simta_ldap_value( ld, entry, "objectClass",
 		ld->ldap_people ) == 1 )) {
 	    if (( vals = ldap_get_values( ld->ldap_ld, entry,
-		    "mailforwardingaddress" )) == NULL ) {
+		    ld->ldap_mailfwdattr )) == NULL ) {
 		rc = LDAP_NOT_LOCAL;
 	    } else {
 		ldap_value_free( vals );
