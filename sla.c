@@ -44,6 +44,10 @@ main( int argc, char *argv[] )
     char			*hold = NULL;
     char			*line;
 
+    if ( argc < 2 ) {
+	exit( 1 );
+    }
+
     if (( snet = snet_open( argv[ 1 ], O_RDONLY, 0,
 	    1024 * 1024 )) == NULL ) {
 	fprintf( stderr, "%s: snet_open %s: ", argv[ 0 ], argv[ 1 ] );

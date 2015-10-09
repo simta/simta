@@ -1190,7 +1190,7 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 	    syslog( LOG_WARNING,
 		    "Deliver.remote env <%s>: bitbucket in %d seconds",
 		    env_deliver->e_id, simta_bitbucket );
-	    sleep( simta_bitbucket );
+	    sleep( (unsigned int)simta_bitbucket );
 	    d->d_delivered = 1;
 	    d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
 	    break;

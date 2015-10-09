@@ -11,13 +11,13 @@
 #define MD_BYTE_LEN		10
 
 struct message_digest {
-    unsigned char   md_value[ EVP_MAX_MD_SIZE ];
-    char	    md_b16[ ( EVP_MAX_MD_SIZE * 2 ) + 1 ];
     EVP_MD_CTX	    md_ctx;
     int		    md_ctx_status;
     unsigned int    md_ctx_bytes;
     unsigned int    md_len;
+    unsigned char   md_value[ EVP_MAX_MD_SIZE ];
     char	    md_bytes[ MD_BYTE_LEN + 1 ];
+    char	    md_b16[ ( EVP_MAX_MD_SIZE * 2 ) + 1 ];
 };
 
 void md_init( struct message_digest * );

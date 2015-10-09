@@ -369,8 +369,8 @@ check_hostname( const char *hostname )
  */
 
     int
-rbl_check( struct rbl *rbls, const struct sockaddr *sa, char *text, char *host,
-	struct rbl **found, char **msg )
+rbl_check( struct rbl *rbls, const struct sockaddr *sa, const char *text,
+	const char *host, struct rbl **found, char **msg )
 {
     struct rbl				*rbl;
     char				*reverse_ip;
@@ -468,7 +468,7 @@ rbl_check( struct rbl *rbls, const struct sockaddr *sa, char *text, char *host,
 
 
     int
-rbl_add( struct rbl **list, int type, char *domain, char *url )
+rbl_add( struct rbl **list, int type, const char *domain, const char *url )
 {
     struct rbl			**i;
     struct rbl			*rbl;

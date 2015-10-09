@@ -262,7 +262,7 @@ dmarc_lookup_record( const char *domain )
 
     static yastr
 dmarc_orgdomain( const char *domain ) {
-    int			i;
+    size_t		i;
     struct dll_entry	*dentry, *leaf;
     size_t		tok_count;
     yastr		*split, buf, orgdomain = NULL;
@@ -402,7 +402,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	    continue;
 	}
 
-	k = yaslcpylen( k, split[ i ], ( p - split[ i ] ));
+	k = yaslcpylen( k, split[ i ], (size_t)( p - split[ i ] ));
 	v = yaslcpy( v, p + 1 );
 	yasltrim( k, " \t" );
 	yasltrim( v, " \t" );

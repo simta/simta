@@ -56,7 +56,7 @@ main( int argc, char *argv[] )
     FILE					*tff;
     char					tf[ MAXPATHLEN + 1 ];
     char					cf[ MAXPATHLEN + 1 ];
-    char					*command = NULL;
+    const char					*command = NULL;
     char					*arg1 = NULL;
 
     opterr = 0;

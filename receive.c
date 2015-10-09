@@ -129,7 +129,7 @@ struct receive_data {
     char			*r_rbl_msg;
     char			*r_hello;
     char			*r_smtp_command;
-    char			*r_remote_hostname;
+    const char			*r_remote_hostname;
     struct command 		*r_commands;
     int				r_ncommands;
     int				r_smtp_mode;
@@ -190,7 +190,7 @@ struct receive_data {
 #define SYSTEM_ERROR		2
 
 struct command {
-    char	*c_name;
+    const char	*c_name;
     int		(*c_func)( struct receive_data * );
 };
 
@@ -213,11 +213,11 @@ static int	f_help( struct receive_data * );
 static int	f_not_implemented( struct receive_data * );
 static int	f_noauth( struct receive_data * );
 static int	f_bad_sequence( struct receive_data * );
-static void	set_smtp_mode( struct receive_data *, int, char* );
+static void	set_smtp_mode( struct receive_data *, int, const char * );
 static void	tarpit_sleep( struct receive_data *, int );
 static void	log_bad_syntax( struct receive_data* );
-static int 	smtp_write_banner( struct receive_data *, int, char *,
-			char * );
+static int 	smtp_write_banner( struct receive_data *, int, const char *,
+			const char * );
 
 #ifdef HAVE_LIBSASL
 static int	f_auth( struct receive_data * );
@@ -230,7 +230,7 @@ static int	start_tls( struct receive_data *, SSL_CTX * );
 static int 	sasl_init( struct receive_data * );
 #endif /* HAVE_LIBSSL */
 
-struct command	smtp_commands[] = {
+static struct command	smtp_commands[] = {
     { "HELO",		f_helo },
     { "EHLO",		f_ehlo },
     { "MAIL",		f_mail },
@@ -248,7 +248,7 @@ struct command	smtp_commands[] = {
     { "AUTH", 		f_auth },
 };
 
-struct command	refuse_commands[] = {
+static struct command	refuse_commands[] = {
     { "HELO",		f_bad_sequence },
     { "EHLO",		f_bad_sequence },
     { "MAIL",		f_mail },
@@ -266,7 +266,7 @@ struct command	refuse_commands[] = {
     { "AUTH", 		f_bad_sequence },
 };
 
-struct command	off_commands[] = {
+static struct command	off_commands[] = {
     { "MAIL",		f_mail },
     { "RCPT",		f_rcpt },
     { "DATA",		f_data },
@@ -274,7 +274,7 @@ struct command	off_commands[] = {
 };
 
 
-char *smtp_mode_str[] = {
+static const char *smtp_mode_str[] = {
     "Normal",
     "Off",
     "Refuse",
@@ -285,12 +285,9 @@ char *smtp_mode_str[] = {
     NULL
 };
 
-#ifdef HAVE_LIBWRAP
-char string_unknown[] = STRING_UNKNOWN;
-#endif /* HAVE_LIBWRAP */
 
     static void
-set_smtp_mode( struct receive_data *r, int mode, char *msg )
+set_smtp_mode( struct receive_data *r, int mode, const char *msg )
 {
     if ( r->r_smtp_mode == mode ) {
 	if ( msg != NULL ) {
@@ -479,10 +476,10 @@ log_bad_syntax( struct receive_data *r )
 
 
     static int
-smtp_write_banner( struct receive_data *r, int reply_code, char *msg,
-	char *arg )
+smtp_write_banner( struct receive_data *r, int reply_code, const char *msg,
+	const char *arg )
 {
-    char				*boilerplate;
+    const char				*boilerplate;
     int					ret = RECEIVE_OK;
     int					hostname = 0;
 
@@ -1182,7 +1179,6 @@ f_rcpt_usage( struct receive_data *r )
     static int
 f_rcpt( struct receive_data *r )
 {
-    int				addr_len;
     int				rc;
     char			*addr;
     char			*domain;
@@ -1299,8 +1295,7 @@ f_rcpt( struct receive_data *r )
 	    if ( rc < 0 ) {
 #ifdef HAVE_LIBSSL
 		if ( simta_checksum_md != NULL ) {
-		    addr_len = strlen( addr );
-		    md_update( &r->r_md, addr, addr_len );
+		    md_update( &r->r_md, addr, strlen( addr ));
 		}
 #endif /* HAVE_LIBSSL */
 		syslog( LOG_ERR, "Receive [%s] %s: env <%s>: "
@@ -1373,8 +1368,7 @@ f_rcpt( struct receive_data *r )
 
 #ifdef HAVE_LIBSSL
 		if ( simta_checksum_md != NULL ) {
-		    addr_len = strlen( addr );
-		    md_update( &r->r_md, addr, addr_len );
+		    md_update( &r->r_md, addr, strlen( addr ));
 		}
 #endif /* HAVE_LIBSSL */
 
@@ -1485,8 +1479,7 @@ f_rcpt( struct receive_data *r )
 
 #ifdef HAVE_LIBSSL
     if ( simta_checksum_md != NULL ) {
-	addr_len = strlen( addr );
-	md_update( &r->r_md, addr, addr_len );
+	md_update( &r->r_md, addr, strlen( addr ));
     }
 #endif /* HAVE_LIBSSL */
 
@@ -1512,19 +1505,19 @@ f_data( struct receive_data *r )
     int					filter_result = MESSAGE_ACCEPT;
     int					f_result;
     int					read_err = NO_ERROR;
-    unsigned int			line_len;
+    size_t				line_len;
     char				*line;
     char				*msg;
-    char				*failure_message;
+    const char				*failure_message = NULL;
     char				*filter_message = NULL;
-    char				*system_message = NULL;
-    char				*timer_type;
-    char				*session_timer = NULL;
+    const char				*system_message = NULL;
+    const char				*timer_type = NULL;
+    const char				*session_timer = NULL;
     struct timeval			*tv_session = NULL;
     struct timeval			tv_data_start;
     struct timeval			tv_data_session;
     struct timeval			tv_wait;
-    struct timeval			*tv_timeout;
+    struct timeval			*tv_timeout = NULL;
     struct timeval			tv_line;
     struct timeval			tv_add ;
     struct timeval			tv_filter = { 0, 0 };
@@ -1846,7 +1839,7 @@ f_data( struct receive_data *r )
 			syslog( LOG_ERR, "Syserror: f_data fprintf: %m" );
 			read_err = SYSTEM_ERROR;
 		    } else {
-			data_wrote += rc;
+			data_wrote += (unsigned long)rc;
 		    }
 		}
 #ifdef HAVE_LIBOPENDKIM
@@ -3116,11 +3109,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     struct receive_data			r;
     ACAV				*acav = NULL;
     fd_set				fdset;
-    int					i;
+    int					i = 0;
     int					ret;
     int					calculate_timers;
-    char				*timer_type;
-    char				*fallback_type;
+    const char				*timer_type = NULL;
+    const char				*fallback_type = NULL;
     char				*line;
     char				hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval			tv_start;
@@ -3129,8 +3122,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     struct timeval			tv_wait;
     struct timeval			tv_line;
     struct timeval			tv_add;
-    struct timeval			*tv_timeout;
-    struct timeval			*tv_fallback;
+    struct timeval			*tv_timeout = NULL;
+    struct timeval			*tv_fallback = NULL;
 #ifdef HAVE_LIBWRAP
     char				*ctl_hostname;
 #endif /* HAVE_LIBWRAP */
@@ -3301,9 +3294,9 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		r.r_ip, r.r_remote_hostname );
 
 	if ( *hostname == '\0' ) {
-	    ctl_hostname = STRING_UNKNOWN;
+	    ctl_hostname = strdup( STRING_UNKNOWN );
 	} else {
-	    ctl_hostname = hostname;
+	    ctl_hostname = strdup( hostname );
 	}
 
 	/* first STRING_UNKNOWN should be domain name of incoming host */
@@ -3314,9 +3307,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    goto closeconnection;
 	}
 
-	if ( r.r_remote_hostname == string_unknown ) {
-	    r.r_remote_hostname = NULL;
-	}
+	free( ctl_hostname );
 #endif /* HAVE_LIBWRAP */
 
 	if ( simta_rbls != NULL ) {
@@ -3886,7 +3877,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
 		}
 	    }
 
-	    if (( key = yaslnew( addr, at - addr )) == NULL ) {
+	    if (( key = yaslnew( addr, (size_t) ( at - addr ))) == NULL ) {
 		return( LOCAL_ERROR );
 	    }
 	    rc = simta_db_get( action->a_dbh, key, &value );

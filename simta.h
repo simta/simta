@@ -166,16 +166,16 @@ struct proc_type {
 struct connection_info {
     struct connection_info	*c_next;
     struct sockaddr_storage	c_sa;
-    char			c_ip[ INET6_ADDRSTRLEN ];
     int				c_proc_total;
     int				c_proc_throttle;
     struct timeval		c_tv;
+    char			c_ip[ INET6_ADDRSTRLEN ];
 };
 
 struct simta_socket {
     struct simta_socket		*ss_next;
-    int				ss_socket;
     char			*ss_service;
+    int				ss_socket;
     int				ss_flags;
     int				ss_count;
 };
@@ -196,7 +196,7 @@ extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
 extern unsigned short			simta_smtp_port;
 extern struct action			*simta_red_action_secondary_mx;
-struct proc_type			*simta_proc_stab;
+extern struct proc_type			*simta_proc_stab;
 extern int				simta_ipv4;
 extern int				simta_ipv6;
 extern int				simta_submission_mode;
@@ -259,7 +259,7 @@ extern int				simta_smtp_outbound_attempts;
 extern int				simta_smtp_outbound_delivered;
 extern int				simta_read_before_banner;
 extern int				simta_banner_delay;
-extern int				simta_banner_punishment;
+extern unsigned int			simta_banner_punishment;
 extern int				simta_max_failed_rcpts;
 extern int				simta_dns_auto_config;
 extern int				simta_smtp_default_mode;
@@ -325,7 +325,7 @@ extern char				*simta_dir_ca;
 extern char				*simta_file_cert;
 extern char				*simta_file_private_key;
 extern char				simta_log_id[];
-yastr					simta_postmaster;
+extern yastr				simta_postmaster;
 extern DNSR				*simta_dnsr;
 extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;
@@ -359,12 +359,12 @@ extern char				*simta_srs_secret;
 
 int	q_cleanup( void );
 int	smtp_receive( int, struct connection_info *, struct simta_socket * );
-void	panic( char * );
+void	panic( const char * );
 char	*simta_sender( void );
 char	*simta_resolvconf( void );
 int	simta_init_hosts( void );
 int	simta_config( void );
-int     simta_read_config( char * );
+int     simta_read_config( const char * );
 void	simta_openlog( int, int );
 void	simta_debuglog( int, const char *, ...);
 int	simta_gettimeofday( struct timeval * );
@@ -379,12 +379,13 @@ int	simta_child_q_runner( struct host_q* );
 
 /*****     bounce.c     *****/
 
-int bounce_text( struct envelope *, int, char *, char *, char * );
+int bounce_text( struct envelope *, int, const char *, const char *,
+	const char * );
 void bounce_stdout( struct envelope * );
 ino_t bounce_dfile_out( struct envelope *, SNET * );
-struct envelope *bounce( struct envelope *, int, char * );
+struct envelope *bounce( struct envelope *, int, const char * );
 struct envelope *bounce_snet( struct envelope *, SNET *, struct host_q *,
-	char *err );
+	const char * );
 
 #endif /* SIMTA_SIMTA_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

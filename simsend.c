@@ -43,18 +43,18 @@
 #include "simta.h"
 #include "queue.h"
 
-void catch_sigint( int );
+void catch_sigint( int ) __attribute__ ((noreturn));
 
 const char	*simta_progname = "simsendmail";
 
 /* dfile vars are global to unlink dfile if SIGINT */
-int		dfile_fd = -1;
-struct envelope *env;
+static int		    dfile_fd = -1;
+static struct envelope	    *env;
 
     /* catch SIGINT */
 
     void
-catch_sigint( int sigint )
+catch_sigint( int sigint __attribute__ ((unused)) )
 {
     if ( dfile_fd ) {
 	env_dfile_unlink( env );
@@ -71,12 +71,12 @@ main( int argc, char *argv[] )
     char		*sender = NULL;
     char		*addr;
     char		daytime[ RFC822_TIMESTAMP_LEN ];
-    char		*line;
+    char		*line = NULL;
     yastr		buf;
     struct receive_headers rh;
     int			usage = 0;
     int			line_no = 0;
-    int			line_len;
+    size_t		line_len;
     int			c;
     int			ignore_dot = 0;
     int			x;
@@ -91,7 +91,7 @@ main( int argc, char *argv[] )
     uid_t		uid;
     struct recipient	*r;
     struct passwd	*passwd;
-    char		*pw_name;
+    const char		*pw_name;
     FILE		*pf;
     struct stat		sbuf;
 
@@ -111,7 +111,6 @@ main( int argc, char *argv[] )
 		    /* 501 Permission denied */
 		    printf( "501 Mode not supported\n" );
 		    exit( EX_USAGE );
-		    break;
 
 		case 'D':
 		    /* -bD Daemon mode, foreground */
@@ -125,7 +124,6 @@ main( int argc, char *argv[] )
 		    /* -bv verify names only */
 		    printf( "Mode not supported\n" );
 		    exit( EX_USAGE );
-		    break;
 
 		case 'm':
 		    /* -bm deliver mail the usual way */
@@ -160,7 +158,6 @@ main( int argc, char *argv[] )
 	case 's':
 	    /* signal server */
 	    goto signal_server;
-	    break;
 
 	case 't':
 	    /* Read message headers for recipients */

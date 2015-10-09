@@ -62,15 +62,15 @@
 
 const char	*simta_progname = "simalias";
 
-int simalias_dump( void );
-int simalias_create( void );
+static int simalias_dump( void );
+static int simalias_create( void );
 
-int		verbose = 0;
-char		*input;
-char		*output;
-char		*progname;
-FILE		*finput;
-FILE		*foutput;
+static int		verbose = 0;
+static char		*input;
+static char		*output;
+static char		*progname;
+static FILE		*finput;
+static FILE		*foutput;
 
     int
 main( int argc, char **argv )
@@ -158,7 +158,7 @@ main( int argc, char **argv )
     }
 }
 
-    int
+    static int
 simalias_dump( void )
 {
     int ret = 0;
@@ -206,7 +206,7 @@ error:
     return( ret );
 }
 
-    int
+    static int
 simalias_create( void )
 {
     int			linenum = 0, i;
@@ -263,7 +263,7 @@ simalias_create( void )
 
 	if ( state == ALIAS_WHITE ) {
 	    if (( p = strchr( line, ':' )) != NULL ) {
-		key = yaslcpylen( key, line, p - line );
+		key = yaslcpylen( key, line, (size_t) ( p - line ));
 		yaslrange( line, p - line + 1, -1 );
 
 		if ( strncmp( key, "owner-", 6 ) == 0 ) {

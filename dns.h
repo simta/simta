@@ -26,10 +26,10 @@
 
 struct rbl {
     struct rbl			*rbl_next;
-    int				rbl_type;
     char			*rbl_type_text;
     char			*rbl_domain;
     char			*rbl_url;
+    int				rbl_type;
 };
 
 struct dnsr_result *get_a( const char * );
@@ -40,9 +40,9 @@ struct dnsr_result *get_txt( const char * );
 int check_reverse( char *, const struct sockaddr * );
 int check_hostname( const char * );
 struct simta_red *host_local( char * );
-int rbl_add( struct rbl**, int, char *, char * );
-int rbl_check( struct rbl *, const struct sockaddr *, char *, char *,
-	struct rbl**, char ** );
+int rbl_add( struct rbl**, int, const char *, const char * );
+int rbl_check( struct rbl *, const struct sockaddr *, const char *,
+	const char *, struct rbl**, char ** );
 
 #endif /* SIMTA_DNS_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

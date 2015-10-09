@@ -13,9 +13,9 @@
 #define	READ_JAIL_INFO		3
 
 struct sender_list {
-    int					sl_n_entries;
     struct dll_entry			*sl_dll;
     struct dll_entry			*sl_entries;
+    int					sl_n_entries;
 };
 
 struct sender_entry {
@@ -27,8 +27,8 @@ struct sender_entry {
 struct recipient {
     struct recipient	*r_next;
     char		*r_rcpt;
-    int			r_status;
     struct line_file	*r_err_text;
+    int			r_status;
 };
 
 struct envelope {
@@ -41,26 +41,26 @@ struct envelope {
     struct recipient	*e_rcpt;
     struct sender_entry	*e_sender_entry;
     struct dll_entry	*e_env_list_entry;
+    struct host_q	*e_hq;
+    const char		*e_dir;
+    char		*e_id;
+    char		*e_hostname;
+    char		*e_mail;
+    char		*e_mail_orig;
+    char		*e_mid;
+    char		*e_header_from;
+    char		*e_subject;
+    struct line_file	*e_err_text;
+    int			e_error;
     int			e_n_rcpt;
     int			e_n_exp_level;
     int			e_cycle;
-    struct host_q	*e_hq;
-    int			e_error;
-    struct line_file	*e_err_text;
-    char		*e_dir;
-    char		*e_mail;
-    char		*e_mail_orig;
-    ino_t		e_dinode;
     int			e_age;
     int			e_flags;
-    int			e_jail;
-    struct timeval	e_etime;
-    char		*e_hostname;
-    char		*e_id;
-    char		*e_mid;
-    char		*e_subject;
-    char		*e_header_from;
     int			e_attributes;
+    int			e_jail;
+    ino_t		e_dinode;
+    struct timeval	e_etime;
 };
 
 #define ENV_AGE_UNKNOWN		0
@@ -97,7 +97,7 @@ struct envelope {
  * 1 char*	Rto_address
  */
 
-struct envelope	*env_create( char *, char *, char *, struct envelope * );
+struct envelope	*env_create( const char *, const char *, const char *, const struct envelope * );
 void		env_rcpt_free( struct envelope * );
 void		env_free( struct envelope * );
 void		rcpt_free( struct recipient * );
@@ -107,7 +107,7 @@ int		env_jail_status( struct envelope *, int );
 int		env_is_old( struct envelope *, int );
 int		env_set_id( struct envelope *, char * );
 int		env_recipient( struct envelope *, char * );
-int		env_sender( struct envelope *, char * );
+int		env_sender( struct envelope *, const char * );
 int		env_hostname( struct envelope *, char * );
 int		env_outfile( struct envelope * );
 int		env_efile( struct envelope * );

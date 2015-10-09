@@ -25,15 +25,15 @@
 struct connection_data {
     struct connection_data	*c_prev;
     struct connection_data	*c_next;
-    char			c_ip[ INET6_ADDRSTRLEN ];
     struct sockaddr_storage	c_sa;
+    char			c_ip[ INET6_ADDRSTRLEN ];
 };
 
 struct deliver {
-    int				d_deliver_argc;
-    char			**d_deliver_argv;
     struct envelope		*d_env;
     struct recipient		*d_rcpt;
+    char			**d_deliver_argv;
+    int				d_deliver_argc;
     off_t			d_size;
     off_t			d_sent;
     int				d_dfile_fd;
@@ -52,6 +52,8 @@ struct deliver {
     /* SMTP connection variables */
     int                         d_connection_msg_total;
     int				d_queue_movement;
+    SNET			*d_snet_smtp;
+    SNET			*d_snet_dfile;
     struct connection_data	*d_retry_list;
     struct connection_data	*d_retry_list_end;
     struct connection_data	*d_retry_cur;
@@ -59,11 +61,9 @@ struct deliver {
     struct dnsr_result		*d_dnsr_result_ip;
     struct dnsr_result		*d_dnsr_result_ip6;
     struct ip_info		*d_dnsr_result_additional;
+    struct dll_entry		*d_ip_list;
     struct sockaddr_storage	d_sa;
     char			d_ip[ INET6_ADDRSTRLEN ];
-    struct dll_entry		*d_ip_list;
-    SNET			*d_snet_smtp;
-    SNET			*d_snet_dfile;
     uint16_t			d_mx_preference_cutoff;
     int				d_mx_preference_set;
     int				d_cur_dnsr_result;

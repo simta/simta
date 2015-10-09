@@ -198,7 +198,7 @@ parse_addr_spec( const char *addr, int *l )
 	goto error;
     }
 
-    buf = yaslcatlen( buf, start, len );
+    buf = yaslcatlen( buf, start, (size_t)len );
     start += len;
 
     if ( *start != '@' ) {
@@ -211,7 +211,7 @@ parse_addr_spec( const char *addr, int *l )
 		addr, start );
 	goto error;
     }
-    buf = yaslcatlen( buf, start, len + 1 );
+    buf = yaslcatlen( buf, start, (size_t)( len + 1 ));
 
     *l = start + len + 1 - addr;
     return( buf );
@@ -453,7 +453,7 @@ header_text( int line_no, char *line, struct receive_headers *rh, char **msg )
 	    rh->r_state = R_HEADER_END;
 	    return( 1 );
 	}
-	key = yaslnew( line, len );
+	key = yaslnew( line, (size_t)len );
 	yasltolower( key );
 	dentry = dll_lookup_or_create( &(rh->r_headers_index), key, 1 );
 	yaslfree( key );
@@ -490,7 +490,7 @@ header_masquerade( struct line *l )
 
     inbuf = header_string( l );
     outbuf = yaslcat( yaslnew( l->line_data,
-	    strchr( l->line_data, ':' ) - l->line_data ), ": " );
+	    (size_t)( strchr( l->line_data, ':' ) - l->line_data )), ": " );
 
     split = yaslsplitlen( inbuf, yasllen( inbuf ), ",", 1, &tok_count );
     yaslfree( inbuf );
@@ -860,7 +860,8 @@ header_check( struct receive_headers *rh, int read_headers )
 	    }
 	    len = dot_atom_text_len( tmp );
 	    if (( len == yasllen( simta_seen_before_domain )) &&
-		    ( memcmp( tmp, simta_seen_before_domain, len ) == 0 )) {
+		    ( memcmp( tmp, simta_seen_before_domain,
+		    (size_t)len ) == 0 )) {
 		rh->r_seen_before = strdup( tmp );
 	    }
 	    yaslfree( tmp );
@@ -1224,7 +1225,7 @@ correct_emailaddr( char **addr )
 	}
 
     } else if ( *at == '\0' ) {
-	len = end - start;
+	len = (size_t)( end - start );
 	len += 3;
 	len += yasllen( simta_domain );
 

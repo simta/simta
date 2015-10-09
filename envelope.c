@@ -166,7 +166,8 @@ env_is_old( struct envelope *env, int dfile_fd )
 
 
     struct envelope *
-env_create( char *dir, char *id, char *e_mail, struct envelope *parent )
+env_create( const char *dir, const char *id, const char *e_mail,
+	const struct envelope *parent )
 {
     struct envelope	*env;
     struct timeval		tv_now;
@@ -301,7 +302,7 @@ env_hostname( struct envelope *env, char *hostname )
 
 
     int
-env_sender( struct envelope *env, char *e_mail )
+env_sender( struct envelope *env, const char *e_mail )
 {
     if ( env->e_mail != NULL ) {
 	syslog( LOG_ERR, "Envelope env <%s>: env already has a sender",

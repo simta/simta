@@ -51,7 +51,7 @@ main( int argc, char *argv[])
 {
     extern int          optind;
     extern char         *optarg;
-    char		c;
+    int			c;
     char		*server = NULL;
     char		*rbl_msg = NULL;
     int			rc;

@@ -60,8 +60,9 @@ tls_randfile( void )
 }
 
     SSL_CTX *
-tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
-	char *cert, char *privatekey, char *ciphers )
+tls_server_setup( int use_randfile, int authlevel, const char *caFile,
+	const char *caDir, const char *cert, const char *privatekey,
+	const char *ciphers )
 {
     SSL_CTX		*ssl_ctx;
 #ifndef OPENSSL_NO_ECDH
@@ -245,8 +246,9 @@ tls_server_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 
 
     SSL_CTX *
-tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
-	char *cert, char *privatekey, char *ciphers )
+tls_client_setup( int use_randfile, int authlevel, const char *caFile,
+	const char *caDir, const char *cert, const char *privatekey,
+	const char *ciphers )
 {
     SSL_CTX		*ssl_ctx;
     int                 ssl_mode = 0;
@@ -329,7 +331,7 @@ tls_client_setup( int use_randfile, int authlevel, char *caFile, char *caDir,
 }
 
     int
-tls_client_cert( char *hostname, const SSL *ssl )
+tls_client_cert( const char *hostname, const SSL *ssl )
 {
     char                        buf[ 1024 ];
     X509                        *peer;

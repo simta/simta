@@ -48,8 +48,8 @@
 
 
     int
-bounce_text( struct envelope *bounce_env, int mode, char *t1, char *t2,
-	char *t3 )
+bounce_text( struct envelope *bounce_env, int mode, const char *t1,
+	const char *t2, const char *t3 )
 {
     int				ret = 0;
     yastr			buf;
@@ -229,7 +229,7 @@ error:
 
 
     struct envelope *
-bounce( struct envelope *env, int body, char *err )
+bounce( struct envelope *env, int body, const char *err )
 {
     struct envelope             *env_bounce;
     char                        dfile_fname[ MAXPATHLEN ];
@@ -281,7 +281,8 @@ old_or_jailed( struct envelope *env )
 
 
     struct envelope *
-bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq, char *err )
+bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq,
+	const char *err )
 {
     struct envelope             *bounce_env;
     int                         n_bounces = 0;

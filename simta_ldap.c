@@ -527,7 +527,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 		case 's':
 		    /* if needed, resize buf to handle upcoming insert */
 		    if (( len += (2 * strlen( user ))) > buf_len ) {
-			place = d - buf;
+			place = (size_t)( d - buf );
 			buf = realloc( buf, len );
 			d = buf + place;
 			buf_len = len;
@@ -560,7 +560,7 @@ simta_ldap_string( char *filter, char *user, char *domain )
 		case 'h':
 		    /* if needed, resize buf to handle upcoming insert */
 		    if (( len += strlen( domain )) > buf_len ) {
-			place = d - buf;
+			place = (size_t)( d - buf );
 			buf = realloc( buf, len );
 			d = buf + place;
 			buf_len = len;

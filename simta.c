@@ -146,7 +146,7 @@ int			simta_sync = 0;
 int			simta_max_received_headers = 100;
 int			simta_max_bounce_size = 524288;
 int			simta_banner_delay = 0;
-int			simta_banner_punishment = 0;
+unsigned int		simta_banner_punishment = 0;
 int			simta_max_failed_rcpts = 0;
 int			simta_ignore_reverse = 0;
 int			simta_ignore_connect_in_reverse_errors = 0;
@@ -251,7 +251,7 @@ char			*simta_srs_secret = "0xdead60ff";
 #endif /* HAVE_LIBSRS2 */
 
     void
-panic( char *message )
+panic( const char *message )
 {
     syslog( LOG_CRIT, "%s", message );
     abort();
@@ -350,7 +350,7 @@ simta_sender( void )
  * virtual users - user@wcbn.org -> wcbn.user@domain
  */
     int
-simta_read_config( char *fname )
+simta_read_config( const char *fname )
 {
     int			red_code;
     int			lineno = 0;
@@ -582,7 +582,8 @@ simta_read_config( char *fname )
 		if ( strcasecmp( av[ 3 ], "DEFAULT" ) != 0 ) {
 		    /* store array */
 		    red->red_deliver_argc = ac - 3;
-		    red->red_deliver_argv = malloc( sizeof(char*) * ( ac - 2 ));
+		    red->red_deliver_argv = calloc( (size_t)( ac - 2 ),
+			    sizeof( char * ));
 
 		    for ( x = 0; x < red->red_deliver_argc; x++ ) {
 			red->red_deliver_argv[ x ] = strdup( av[ x + 3 ] );
@@ -930,7 +931,14 @@ simta_read_config( char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    simta_bounce_seconds = atoi( av[ 1 ] );
+
+	    errno = 0;
+	    simta_bounce_seconds = strtoul( av[ 1 ], NULL, 10 );
+	    if ( errno ) {
+		fprintf( stderr, "%s: line %d: invalid argument\n",
+			fname, lineno );
+		goto error;
+	    }
 	    simta_debuglog( 2, "BOUNCE_SECONDS: %d", simta_bounce_seconds );
 
 #ifdef HAVE_LIBSSL
@@ -1028,7 +1036,7 @@ simta_read_config( char *fname )
 
 	    /* store array */
 	    simta_deliver_default_argc = ac - 1;
-	    simta_deliver_default_argv = malloc( sizeof(char*) * ( ac ));
+	    simta_deliver_default_argv = calloc( (size_t)ac, sizeof( char * ));
 
 	    for ( x = 0; x < simta_deliver_default_argc; x++ ) {
 		simta_deliver_default_argv[ x ] = strdup( av[ x + 1 ] );
@@ -2526,7 +2534,9 @@ simta_read_config( char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "WRITE_BEFORE_BANNER" ) == 0 ) {
 	    if ( ac == 3 ) {
-		if (( simta_banner_punishment = atoi( av[ 2 ])) < 0 ) {
+		errno = 0;
+		simta_banner_punishment = strtoul( av[ 2 ], NULL, 10 );
+		if ( errno ) {
 		    fprintf( stderr, "%s: line %d: invalid argument\n",
 			fname, lineno );
 		    goto error;

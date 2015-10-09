@@ -44,11 +44,11 @@ main( int argc, char *argv[])
 {
     struct envelope	*env;
 
-    char   *sender	= "sender@expansion.test";
-    int    c;
-    int	   nextargc	= 1;
-    int	   exp_level    = 0;
-    int	   error	= 0;
+    const char		*sender = "sender@expansion.test";
+    int			c;
+    int			nextargc = 1;
+    int			exp_level = 0;
+    int			error = 0;
 
     extern int          optind;
     extern char         *optarg;

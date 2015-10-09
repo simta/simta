@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <ctype.h>
+#include <errno.h>
 #include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,10 +29,10 @@ struct spf_state {
 };
 
 int spf_check_host( struct spf_state *, const yastr );
-static int spf_check_a( struct spf_state *, const yastr, long int, long int, const char * );
+static int spf_check_a( struct spf_state *, const yastr, unsigned long, unsigned long, const char * );
 static yastr spf_macro_expand( struct spf_state *, const yastr, const yastr );
-static yastr spf_parse_domainspec_cidr( struct spf_state *, const yastr, yastr, long int *, long int * );
-static int simta_cidr_compare( long int, const struct sockaddr *, const struct sockaddr *, const char * );
+static yastr spf_parse_domainspec_cidr( struct spf_state *, const yastr, yastr, unsigned long *, unsigned long * );
+static int simta_cidr_compare( unsigned long, const struct sockaddr *, const struct sockaddr *, const char * );
 
     int
 spf_lookup( const char *ehlo, const char *email, const struct sockaddr *addr )
@@ -46,7 +47,7 @@ spf_lookup( const char *ehlo, const char *email, const struct sockaddr *addr )
 
     if (( p = strrchr( email, '@' )) != NULL ) {
 	s.s_domain = yaslauto( p + 1 );
-	s.s_local = yaslnew( email, p - email );
+	s.s_local = yaslnew( email, (size_t) (p - email ));
     } else {
 	s.s_domain = yaslauto( email );
 	s.s_local = yaslauto( "postmaster" );
@@ -70,10 +71,10 @@ spf_check_host( struct spf_state *s, const yastr domain )
     struct dnsr_result	    *dnsr_res, *dnsr_res_mech = NULL;
     struct dnsr_string      *txt;
     yastr		    record = NULL, redirect = NULL, domain_spec, tmp;
-    size_t		    tok_count;
+    size_t		    tok_count = 0;
     yastr		    *split = NULL;
     char		    *p;
-    long int		    cidr, cidr6;
+    unsigned long	    cidr, cidr6;
     int			    mech_queries = 0;
 
     /* RFC 7208 3.1 DNS Resource Records
@@ -399,8 +400,16 @@ spf_check_host( struct spf_state *s, const yastr domain )
 
 	    yaslrange( split[ i ], 4, -1 );
 	    if (( p = strchr( split[ i ], '/' )) != NULL ) {
-		cidr = strtol( p + 1, NULL, 10 );
-		if (( cidr < 0 ) || ( cidr > 32 )) {
+		errno = 0;
+		cidr = strtoul( p + 1, NULL, 10 );
+		if ( errno ) {
+		    syslog( LOG_WARNING,
+			    "SPF %s [%s]: failed parsing CIDR mask %s: %m",
+			    s->s_domain, domain, p + 1 );
+		    ret = SPF_RESULT_PERMERROR;
+		    goto cleanup;
+		}
+		if ( cidr > 32 ) {
 		    syslog( LOG_WARNING, "SPF %s [%s]: invalid CIDR mask: %ld",
 			    s->s_domain, domain, cidr );
 		    ret = SPF_RESULT_PERMERROR;
@@ -433,8 +442,14 @@ spf_check_host( struct spf_state *s, const yastr domain )
 
 	    yaslrange( split[ i ], 4, -1 );
 	    if (( p = strchr( split[ i ], '/' )) != NULL ) {
-		cidr = strtol( p + 1, NULL, 10 );
-		if (( cidr < 0 ) || ( cidr > 128 )) {
+		errno = 0;
+		cidr = strtoul( p + 1, NULL, 10 );
+		if ( errno ) {
+		    syslog( LOG_WARNING,
+			    "SPF %s [%s]: failed parsing CIDR mask %s: %m",
+			    s->s_domain, domain, p + 1 );
+		}
+		if ( cidr > 128 ) {
 		    syslog( LOG_WARNING, "SPF %s [%s]: invalid CIDR mask: %ld",
 			    s->s_domain, domain, cidr );
 		    ret = SPF_RESULT_PERMERROR;
@@ -545,11 +560,12 @@ cleanup:
 }
 
     static int
-spf_check_a( struct spf_state *s, const yastr domain, long int cidr, long int cidr6, const char *a )
+spf_check_a( struct spf_state *s, const yastr domain, unsigned long cidr,
+	unsigned long cidr6, const char *a )
 {
     int			    i;
     int			    rr_type = DNSR_TYPE_A;
-    int			    ecidr = cidr;
+    unsigned long	    ecidr = cidr;
     struct sockaddr_storage sa;
 
     struct dnsr_result	    *dnsr_res;
@@ -597,12 +613,13 @@ spf_check_a( struct spf_state *s, const yastr domain, long int cidr, long int ci
     static yastr
 spf_macro_expand( struct spf_state *s, const yastr domain, const yastr macro )
 {
-    int	    urlescape, dtransform, rtransform, i, j;
-    char    *p, *pp;
-    char    delim;
-    yastr   expanded, tmp, escaped;
-    yastr   *split;
-    size_t  tok_count;
+    int			urlescape, rtransform;
+    unsigned long	dtransform, i, j;
+    char		*p, *pp;
+    char		delim;
+    yastr		expanded, tmp, escaped;
+    yastr		*split;
+    size_t		tok_count;
 
     expanded = yaslempty( );
     escaped = yaslempty( );
@@ -656,7 +673,7 @@ spf_macro_expand( struct spf_state *s, const yastr domain, const yastr macro )
 			tmp = yaslgrowzero( tmp, INET_ADDRSTRLEN );
 			if ( inet_ntop( s->s_addr->sa_family,
 				&((struct sockaddr_in *)s->s_addr)->sin_addr,
-				tmp, yasllen( tmp )) == NULL ) {
+				tmp, (socklen_t)yasllen( tmp )) == NULL ) {
 			    goto error;
 			}
 			yaslupdatelen( tmp );
@@ -715,7 +732,7 @@ spf_macro_expand( struct spf_state *s, const yastr domain, const yastr macro )
 	    dtransform = 0;
 	    rtransform = 0;
 	    if ( isdigit( *p )) {
-		dtransform = strtol( p, &pp, 10 );
+		dtransform = strtoul( p, &pp, 10 );
 		p = pp;
 	    }
 
@@ -836,7 +853,7 @@ spf_result_str( const int res )
 }
 
     static yastr
-spf_parse_domainspec_cidr( struct spf_state *s, yastr domain, yastr dsc, long int *cidr, long int *cidr6 )
+spf_parse_domainspec_cidr( struct spf_state *s, yastr domain, yastr dsc, unsigned long *cidr, unsigned long *cidr6 )
 {
     char    *p;
     yastr   tmp, domain_spec;
@@ -864,9 +881,9 @@ spf_parse_domainspec_cidr( struct spf_state *s, yastr domain, yastr dsc, long in
     *cidr6 = 128;
 
     if ( dsc[ 0 ] == '/' ) {
-	*cidr = strtol( dsc + 1, &p, 10 );
+	*cidr = strtoul( dsc + 1, &p, 10 );
 	if ( *p == '/' ) {
-	    *cidr6 = strtol( p + 1, NULL, 10 );
+	    *cidr6 = strtoul( p + 1, NULL, 10 );
 	}
     }
 
@@ -874,7 +891,7 @@ spf_parse_domainspec_cidr( struct spf_state *s, yastr domain, yastr dsc, long in
 }
 
     static int
-simta_cidr_compare( long int netmask, const struct sockaddr *addr,
+simta_cidr_compare( unsigned long netmask, const struct sockaddr *addr,
 	const struct sockaddr *addr2, const char *ip )
 {
     int			rc;

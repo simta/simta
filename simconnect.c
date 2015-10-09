@@ -122,7 +122,5 @@ retry:
 
 	snet_close( d.d_snet_smtp );
     }
-
-    exit( 0 );
 }
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

@@ -12,8 +12,8 @@ struct dll_entry {
     struct dll_entry		*dll_next;
     struct dll_entry		*dll_prev;
     char			*dll_key;
-    int				dll_free_key;
     void			*dll_data;
+    int				dll_free_key;
 };
 
 struct dll_entry *dll_lookup_or_create( struct dll_entry**, char*, int );

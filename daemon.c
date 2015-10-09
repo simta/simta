@@ -66,7 +66,7 @@ struct sigaction		osahup;
 struct sigaction		osachld;
 struct sigaction		osausr1;
 struct sigaction		osausr2;
-char				*version = PACKAGE_VERSION;
+const char			*version = PACKAGE_VERSION;
 struct simta_socket		*simta_listen_sockets = NULL;
 
 
@@ -311,9 +311,9 @@ main( int ac, char **av )
     extern int		optind;
     extern char		*optarg;
     struct simta_socket	*ss;
-    char                *simta_uname = "simta";
+    const char          *simta_uname = "simta";
     struct passwd	*simta_pw;
-    char		*config_fname = SIMTA_FILE_CONFIG;
+    const char		*config_fname = SIMTA_FILE_CONFIG;
 #ifdef HAVE_LIBSASL
     int			rc;
 #endif /* HAVE_LIBSASL */
@@ -827,7 +827,7 @@ hq_launch( void )
     struct host_q		*hq;
     struct timeval		tv_now;
     int				lag;
-    u_long			waited;
+    time_t			waited;
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	return( 1 );
@@ -883,7 +883,7 @@ simta_server( void )
     struct timeval		tv_unexpanded = { 0, 0 };
     struct timeval		tv_sleep = { 0, 0 };
     struct timeval		tv_now;
-    char			*sleep_reason;
+    const char			*sleep_reason;
     char			*error_msg = NULL;
     int				entries;
     int				ready;
@@ -1328,7 +1328,7 @@ simta_wait_for_child( int child_type )
 {
     int				pid;
     int				status;
-    char			*p_name;
+    const char			*p_name;
 
     if ( simta_gettimeofday( NULL ) != 0 ) {
 	return( 1 );

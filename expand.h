@@ -54,12 +54,12 @@ struct expand {
     struct exp_addr		*exp_addr_cursor;	/* cursor */
     struct action		*exp_current_action;
     struct envelope		*exp_errors;	/* error envelope list */
-    int				exp_max_level;
-    int				exp_entries;
 #ifdef HAVE_LDAP
     struct exp_link		*exp_memonly;
     struct envelope		*exp_gmailfwding;
 #endif /* HAVE_LDAP */
+    int				exp_max_level;
+    int				exp_entries;
 };
 
 #ifdef HAVE_LDAP
@@ -71,14 +71,14 @@ struct exp_link {
 
 struct exp_addr {
     struct exp_addr		*e_addr_next;
-    int				e_addr_type;	/* address data type */
-    int				e_addr_terminal;
-    int				e_addr_max_level;
     char			*e_addr;	/* address string */
     char			*e_addr_at;	/* char the email addresses @ */
     char			*e_addr_from;
     struct envelope		*e_addr_errors;	/* address error handle */
     struct action		*e_addr_parent_action;
+    int				e_addr_type;	/* address data type */
+    int				e_addr_terminal;
+    int				e_addr_max_level;
 #ifdef HAVE_LDAP
     int				e_addr_try_ldap;
     int				e_addr_ldap_flags;
