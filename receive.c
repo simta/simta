@@ -3544,7 +3544,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    } else {
 		syslog( LOG_ERR, "Liberror: smtp_receive snet_getline: %m" );
 	    }
-	    goto syserror;
+	    goto closeconnection;
 	}
 
 	calculate_timers = 1;
