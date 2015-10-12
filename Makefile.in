@@ -21,21 +21,22 @@ DEAD_Q=${SPOOLDIR}dead
 SIMTA_ETC=${SPOOLDIR}etc
 SIMTA_COMMAND=${SPOOLDIR}command
 
-SRC=    @LDAP_SRC@ @SSL_SRC@ @LMDB_SRC@ @SRS_SRC@ \
+SRC=    @LDAP_SRC@ @SSL_SRC@ @LMDB_SRC@ \
 	daemon.c receive.c argcargv.c envelope.c \
 	simsend.c simconnect.c rcptlist.c address.c \
-	simalias.c bounce.c wildcard.c yasl.c
-COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ @LMDB_OBJ@ @YASL_OBJ@ @SRS_OBJ@ \
+	simalias.c bounce.c wildcard.c yasl.c srs.c
+COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ @LMDB_OBJ@ @YASL_OBJ@ \
 		address.o argcargv.o bounce.o dns.o envelope.o \
 		expand.o header.o line_file.o ll.o ml.o q_cleanup.o \
-		queue.o red.o simta.o smtp.o wildcard.o
-SIMTAOBJ=	${COMMONOBJ} daemon.o dmarc.o receive.o spf.o
+		queue.o red.o simta.o smtp.o srs.o spf.o wildcard.o
+SIMTAOBJ=	${COMMONOBJ} daemon.o dmarc.o receive.o
 SIMCONOBJ=	${COMMONOBJ} simconnect.o
 SIMCOBJ=	${COMMONOBJ} simc.o
 SIMDAOBJ=	simda.o
 SIMDMARCOBJ=	${COMMONOBJ} simdmarc.o dmarc.o
 SIMSENDOBJ=	${COMMONOBJ} simsend.o
-SIMSPFOBJ=	${COMMONOBJ} simspf.o spf.o
+SIMSPFOBJ=	${COMMONOBJ} simspf.o
+SIMSRSOBJ=	${COMMONOBJ} simsrs.o
 SIMLOGOBJ=	simlog.o
 EXPANDEROBJ=	${COMMONOBJ} expander.o
 SIMRBLOBJ=	${COMMONOBJ} simrbl.o
@@ -85,7 +86,7 @@ MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simta.8
 BINTARGETS=	simrbl simreverse simalias simexpander simconnect
 TARGETS=	simta simconnect simsendmail q_runner simexpander \
-                sla simc simda simspf simdmarc \
+                sla simc simda simspf simdmarc simsrs \
 		${BINTARGETS}
 
 all : ${TARGETS}
@@ -133,6 +134,10 @@ simspf : ${SIMSPFOBJ} Makefile
 simdmarc : ${SIMDMARCOBJ} Makefile
 	 ${CC} ${CFLAGS} ${LDFLAGS} -o simdmarc ${SIMDMARCOBJ} \
 	 	${SIMTALIBPATH} ${SIMTALIBS}
+
+simsrs : ${SIMSRSOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simsrs ${SIMSRSOBJ} \
+		${SIMTALIBPATH} ${SIMTALIBS}
 
 simsendmail : ${SIMSENDOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simsendmail ${SIMSENDOBJ} \
@@ -191,6 +196,7 @@ simrbl.o: config.h dns.h envelope.h ll.h simta.h
 simreverse.o: config.h dns.h envelope.h ll.h simta.h
 simsend.o: config.h envelope.h header.h line_file.h queue.h simta.h
 simspf.o: config.h spf.h simta.h
+simsrs.o: config.h srs.h simta.h
 simta.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
 simta_ldap.o: argcargv.h config.h dn.h envelope.h expand.h header.h ll.h queue.h simta.h simta_ldap.h
 sla.o: config.h envelope.h expand.h line_file.h ll.h queue.h simta.h

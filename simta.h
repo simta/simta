@@ -107,13 +107,11 @@
 #define SPF_POLICY_ON			1
 #define SPF_POLICY_STRICT		2
 
-#ifdef HAVE_LIBSRS2
 /* SRS policy */
 #define SRS_POLICY_OFF			0
 #define SRS_POLICY_ALWAYS		1
 #define SRS_POLICY_FOREIGN		2
 #define SRS_POLICY_SMART		3
-#endif /* HAVE_LIBSRS2 */
 
 /* Message checking */
 #define SUBMISSION_MODE_MTA		0
@@ -351,11 +349,10 @@ extern int				simta_outbound_ssl_connect_timer;
 extern int				simta_dkim_verify;
 #endif /* HAVE_LIBOPENDKIM */
 
-#ifdef HAVE_LIBSRS2
 extern int				simta_srs;
+extern int				simta_srs_maxage;
 extern yastr				simta_srs_domain;
-extern char				*simta_srs_secret;
-#endif /* HAVE_LIBSRS2 */
+extern yastr				simta_srs_secret;
 
 int	q_cleanup( void );
 int	smtp_receive( int, struct connection_info *, struct simta_socket * );

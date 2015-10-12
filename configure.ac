@@ -102,7 +102,6 @@ AS_IF(
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
 AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
 AX_WITH_LIBRARY([lmdb], [LMDB], [lmdb.h], [lmdb])
-AX_WITH_LIBRARY([srs2], [LIBSRS2], [srs2.h], [srs2])
 
 if test x"$ax_cv_have_LDAP" = xyes; then
     LDAP_SRC="simta_ldap.c dn.c"
@@ -117,11 +116,6 @@ fi
 if test x"$with_ssl" != xno; then
     SSL_SRC="md.c tls.c"
     SSL_OBJ="md.o tls.o"
-fi
-
-if test x"$ax_cv_have_LIBSRS2" = xyes; then
-    SRS_SRC="srs.c"
-    SRS_OBJ="srs.o"
 fi
 
 AC_CONFIG_FILES([ Makefile packaging/rpm/simta.spec ])

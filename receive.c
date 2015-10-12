@@ -65,12 +65,6 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #include <sasl/saslutil.h>	/* For sasl_decode64 and sasl_encode64 */
 #endif /* HAVE_LIBSASL */
 
-#ifdef HAVE_LIBSRS2
-#include <ifaddrs.h>
-#include <net/if.h>
-#include <srs2.h>
-#endif /* HAVE_LIBSRS2 */
-
 #include "envelope.h"
 #include "expand.h"
 #include "red.h"
@@ -80,6 +74,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #include "simta.h"
 #include "queue.h"
 #include "spf.h"
+#include "srs.h"
 #include "line_file.h"
 #include "header.h"
 
@@ -91,10 +86,6 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
-
-#ifdef HAVE_LIBSRS2
-#include "srs.h"
-#endif /* HAVE_LIBSRS2 */
 
 #ifdef HAVE_LMDB
 #include <lmdb.h>
@@ -807,10 +798,6 @@ f_mail( struct receive_data *r )
     char		*addr;
     char		*domain;
     char		*endptr;
-#ifdef HAVE_LIBSRS2
-    struct ifaddrs	*ifaddrs, *ifa;
-    int			spf_result;
-#endif /* HAVE_LIBSRS2 */
 
     r->r_mail_attempt++;
 
@@ -1091,59 +1078,20 @@ f_mail( struct receive_data *r )
 	syslog( LOG_NOTICE, "Receive [%s] %s: env <%s>: From <%s>: Accepted",
 		r->r_ip, r->r_remote_hostname, r->r_env->e_id,
 		r->r_env->e_mail );
-#ifdef HAVE_LIBSRS2
-	rc = -1;
-	switch ( simta_srs ) {
-	case SRS_POLICY_SMART:
-	    spf_result = SPF_RESULT_TEMPERROR;
-	    if ( getifaddrs( &ifaddrs ) == 0 ) {
-		for ( ifa = ifaddrs; (( ifa != NULL ) &&
-			    ( spf_result != SPF_RESULT_FAIL ) &&
-			    ( spf_result != SPF_RESULT_SOFTFAIL )) ;
-			ifa = ifa->ifa_next ) {
-		    if (( ifa->ifa_addr == NULL ) ||
-			    ( ifa->ifa_flags & IFF_LOOPBACK )) {
-			continue;
-		    }
-
-		    if (( simta_ipv4 &&
-			    ( ifa->ifa_addr->sa_family == AF_INET )) ||
-			    ( simta_ipv6 &&
-			    ( ifa->ifa_addr->sa_family == AF_INET6 ))) {
-			spf_result = spf_lookup( simta_hostname,
-				r->r_env->e_mail, ifa->ifa_addr );
-		    }
-		}
-		freeifaddrs( ifaddrs );
-	    }
-
-	    if (( spf_result != SPF_RESULT_NONE ) &&
-		    ( spf_result != SPF_RESULT_NEUTRAL ) &&
-		    ( spf_result != SPF_RESULT_PASS )) {
-		/* SPF would fail or we can't determine what the SPF result
-		 * would be
-		 */
-		rc = simta_srs_forward( r->r_env );
-	    }
-	    break;
-	case SRS_POLICY_ALWAYS:
-	case SRS_POLICY_FOREIGN:
-	    rc = simta_srs_forward( r->r_env );
-	    break;
-	default:
-	    break;
+	rc = SRS_OK;
+	if ( simta_srs != SRS_POLICY_OFF ) {
+	    rc = srs_forward( r->r_env );
 	}
 
-	if ( rc > 0 ) {
-	    syslog( LOG_ERR, "Liberror: f_mail simta_srs_forward: failed" );
+	if ( rc != SRS_OK ) {
+	    syslog( LOG_ERR, "Liberror: f_mail srs_forward: failed: %d", rc );
 	    return( smtp_write_banner( r, 451, NULL, NULL ));
-	} else if ( rc == 0 ) {
+	} else if ( r->r_env->e_mail_orig != NULL ) {
 	    syslog( LOG_NOTICE, "Receive [%s] %s: env <%s>: "
 		    "Rewrote RFC5321.MailFrom to <%s>",
 		    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
 		    r->r_env->e_mail );
 	}
-#endif /* HAVE_LIBSRS2 */
 	r->r_mail_success++;
     } else {
 	syslog( LOG_NOTICE, "Receive [%s] %s: env <%s>: From <%s>: Tarpit",
@@ -3915,7 +3863,6 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	    }
 	    break;
 
-#ifdef HAVE_LIBSRS2
 	case EXPANSION_TYPE_SRS:
 	    if (( rc = srs_valid( addr )) == ADDRESS_FINAL ) {
 		if ( action->a_flags == ACTION_SUFFICIENT ) {
@@ -3929,7 +3876,6 @@ local_address( char *addr, char *domain, struct simta_red *red )
 		return( NOT_LOCAL );
 	    }
 	    break;
-#endif /* HAVE_LIBSRS2 */
 
 #ifdef HAVE_LDAP
 	case EXPANSION_TYPE_LDAP:

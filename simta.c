@@ -244,11 +244,10 @@ int			simta_outbound_ssl_connect_timer = 300;
 int			simta_dkim_verify = 1;
 #endif /* HAVE_LIBOPENDKIM */
 
-#ifdef HAVE_LIBSRS2
 int			simta_srs = SRS_POLICY_OFF;
+int			simta_srs_maxage = 10;
 yastr			simta_srs_domain = NULL;
-char			*simta_srs_secret = "0xdead60ff";
-#endif /* HAVE_LIBSRS2 */
+char			*simta_srs_secret;
 
     void
 panic( const char *message )
@@ -687,7 +686,6 @@ simta_read_config( const char *fname )
 		a->a_next_secondary_mx = simta_red_action_secondary_mx;
 		simta_red_action_secondary_mx = a;
 
-#ifdef HAVE_LIBSRS2
 	    } else if ( strcasecmp( av[ 2 ], "SRS" ) == 0 ) {
 		if ( ac != 3 ) {
 		    fprintf( stderr, "%s: line %d: incorrect syntax\n",
@@ -697,17 +695,15 @@ simta_read_config( const char *fname )
 
 		if ( red_code & RED_CODE_r ) {
 		    red_action_add( red, RED_CODE_r, EXPANSION_TYPE_SRS,
-			    f_arg );
+			    NULL );
 		} else if ( red_code & RED_CODE_R ) {
 		    red_action_add( red, RED_CODE_R, EXPANSION_TYPE_SRS,
-			    f_arg );
+			    NULL );
 		}
-
 		if ( red_code & RED_CODE_E ) {
 		    red_action_add( red, RED_CODE_E, EXPANSION_TYPE_SRS,
-			    f_arg );
+			    NULL );
 		}
-#endif /* HAVE_LIBSRS2 */
 
 #ifdef HAVE_LIBSSL
 	    } else if ( strcasecmp( av[ 2 ], "TLS" ) == 0 ) {
@@ -2287,7 +2283,6 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
-#ifdef HAVE_LIBSRS2
 	} else if ( strcasecmp( av[ 0 ], "SRS" ) == 0 ) {
 	    if ( ac == 2 ) {
 		if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
@@ -2327,7 +2322,7 @@ simta_read_config( const char *fname )
 
 	} else if ( strcasecmp( av[ 0 ], "SRS_SECRET" ) == 0 ) {
 	    if ( ac == 2 ) {
-		if (( simta_srs_secret = strdup( av[ 1 ] )) == NULL ) {
+		if (( simta_srs_secret = yaslauto( av[ 1 ] )) == NULL ) {
 		    perror( "strdup" );
 		    goto error;
 		}
@@ -2337,7 +2332,6 @@ simta_read_config( const char *fname )
 		    fname, lineno,
 		    "SRS_SECRET <secret>" );
 	    goto error;
-#endif /* HAVE_LIBSRS2 */
 
 	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_PORT" ) == 0 ) {
 	    if ( ac == 2 ) {
@@ -2623,11 +2617,9 @@ simta_config( void )
 	simta_seen_before_domain = simta_domain;
     }
 
-#ifdef HAVE_LIBSRS2
     if ( !simta_srs_domain ) {
 	simta_srs_domain = simta_domain;
     }
-#endif /* HAVE_LIBSRS2 */
 
     simta_postmaster = yaslcatyasl( yaslauto( "postmaster@" ), simta_hostname );
 

@@ -38,10 +38,6 @@
 #include <snet.h>
 #include <yasl.h>
 
-#ifdef HAVE_LIBSRS2
-#include <srs2.h>
-#endif /* HAVE_LIBSRS2 */
-
 #include "envelope.h"
 #include "simta.h"
 #include "argcargv.h"
@@ -50,10 +46,7 @@
 #include "expand.h"
 #include "simta_ldap.h"
 #include "queue.h"
-
-#ifdef HAVE_LIBSRS2
 #include "srs.h"
-#endif /* HAVE_LIBSRS2 */
 
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
@@ -1823,17 +1816,12 @@ simta_ldapuser( int ndomain, char *buf, char **user, char **domain )
 
     *domain = NULL;
 
-#ifdef HAVE_LIBSRS2
-    if (( strncasecmp( buf, "SRS0", 3 ) == 0 ) &&
-	    ( simta_srs_reverse( buf, &p ) == SRS_SUCCESS )) {
+    if ( srs_reverse( buf, &p ) == SRS_OK ) {
 	u = yaslauto( p );
 	free( p );
     } else {
 	u = yaslauto( buf );
     }
-#else
-    u = yaslauto( buf );
-#endif /* HAVE_LIBSRS2 */
 
     /* Bounce Address Tag Validation (BATV) defines a method for including
      * tagging information in the local-part of the RFC5321.MailFrom address,
