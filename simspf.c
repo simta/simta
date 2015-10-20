@@ -25,6 +25,7 @@ main( int ac, char *av[ ] )
     struct addrinfo	*addrinfo;
     struct addrinfo	hints;
     const char		*addrlookup, *ehlo;
+    int			spf_result;
 
     if ( ac < 2 ) {
 	fprintf( stderr, "Usage:\t\t%s <email> [ip]\n", av[ 0 ] );
@@ -60,7 +61,8 @@ main( int ac, char *av[ ] )
     hints.ai_flags = AI_NUMERICSERV;
     getaddrinfo( addrlookup, NULL, &hints, &addrinfo );
 
-    spf_lookup( ehlo, av[ 1 ], addrinfo->ai_addr );
+    spf_result = spf_lookup( ehlo, av[ 1 ], addrinfo->ai_addr );
+    printf( "SPF result: %s\n", spf_result_str( spf_result ));
 
     exit( 0 );
 }
