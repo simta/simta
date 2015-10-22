@@ -349,6 +349,8 @@ deliver_accepted( struct receive_data *r, int force )
     if (( force || ( simta_queue_incoming_smtp_mail != 0 ) ||
 	    (( simta_aggressive_receipt_max > 0 ) &&
 	    ( simta_fast_files >= simta_aggressive_receipt_max )))) {
+	/* Reset the timer */
+	r->r_tv_accepted.tv_sec = 0;
 	if (( simta_q_runner_receive_max == 0 ) ||
 		(( r->r_snet == NULL ) && ( simta_proc_stab == NULL ))) {
 	    /* not allowed to have deliver children, or do not have
