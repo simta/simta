@@ -3801,7 +3801,8 @@ local_address( char *addr, char *domain, struct simta_red *red )
     struct passwd	*passwd;
     struct action	*action;
 #ifdef HAVE_LMDB
-    yastr		key, value;
+    yastr		key;
+    yastr		value = NULL;
 #endif /* HAVE_LMDB */
 
     if (( at = strchr( addr, '@' )) == NULL ) {
@@ -3833,6 +3834,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	    rc = simta_db_get( action->a_dbh, key, &value );
 	    yaslfree( key );
 	    yaslfree( value );
+	    value = NULL;
 
 	    if ( rc == 0 ) {
 		if ( action->a_flags == ACTION_SUFFICIENT ) {
