@@ -1,3 +1,14 @@
+0.13.0
+    - minor bugfixes
+    - partially moderated messages no longer break queue cleanup
+    - added AUTH parameter to MAIL command (RFC 4954 compliance)
+    - improved SASL HONEYPOT
+    - added the ability for Receive children to fork Deliver children
+    - added IPv6 support
+    - cleaned up logging
+    - fixed handling of broken connections
+    - reimplemented SRS
+
 0.12.1
     - minor bugfixes
     - fixed simsendmail header masquerading
