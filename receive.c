@@ -340,6 +340,8 @@ set_smtp_mode( struct receive_data *r, int mode, const char *msg )
 deliver_accepted( struct receive_data *r, int force )
 {
     struct envelope			*e;
+    struct timeval			tv_add;
+    struct timeval			tv_now;
 
     if (( r->r_env ) && ( r->r_env->e_flags & ENV_FLAG_EFILE )) {
 	queue_envelope( r->r_env );
@@ -349,18 +351,18 @@ deliver_accepted( struct receive_data *r, int force )
     if (( force || ( simta_queue_incoming_smtp_mail != 0 ) ||
 	    (( simta_aggressive_receipt_max > 0 ) &&
 	    ( simta_fast_files >= simta_aggressive_receipt_max )))) {
-	/* Reset the timer */
-	r->r_tv_accepted.tv_sec = 0;
 	if (( simta_q_runner_receive_max == 0 ) ||
 		(( r->r_snet == NULL ) && ( simta_proc_stab == NULL ))) {
 	    /* not allowed to have deliver children, or do not have
 	    * connection and have no outstanding children
 	    */
+	    timerclear( &r->r_tv_accepted );
 	    if ( q_runner() != 0 ) {
 		return( RECEIVE_SYSERROR );
 	    }
 
 	} else if ( simta_q_runner_slow < simta_q_runner_receive_max ) {
+	    timerclear( &r->r_tv_accepted );
 	    if ( simta_child_q_runner( simta_unexpanded_q ) != 0 ) {
 		return( RECEIVE_SYSERROR );
 	    }
@@ -379,6 +381,14 @@ deliver_accepted( struct receive_data *r, int force )
 	    syslog( LOG_NOTICE, "Receive [%s] %s: %d messages queued but "
 		    "MAX_Q_RUNNERS_RECEIVE met, deferring launch",
 		    r->r_ip, r->r_remote_hostname, simta_fast_files );
+
+	    if ( simta_inbound_accepted_message_timer >= 0 ) {
+		if ( simta_gettimeofday( &tv_now ) == 0 ) {
+		    tv_add.tv_sec = simta_inbound_accepted_message_timer;
+		    tv_add.tv_usec = 0;
+		    timeradd( &tv_now, &tv_add, &r->r_tv_accepted );
+		}
+	    }
 	}
     }
 
