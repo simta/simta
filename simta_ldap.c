@@ -100,6 +100,7 @@ struct simta_ldap {
     char				*ldap_host;
     int					ldap_port;
     time_t				ldap_timeout;
+    pid_t				ldap_pid;
     int					ldap_starttls;
     int					ldap_bind;
     char				*ldap_tls_cert;
@@ -343,11 +344,12 @@ simta_ldap_init( struct simta_ldap *ld )
 {
     int ldaprc;
 
-    if ( ld->ldap_ld == NULL ) {
+    if (( ld->ldap_ld == NULL ) || ( ld->ldap_pid != getpid( ))) {
 	if ( simta_expand_debug != 0 ) {
 	    printf( "OPENING LDAP CONNECTION\n" );
 	}
 
+	ld->ldap_pid = getpid( );
 	if ( simta_ld_init( ld ) != 0 ) {
 	    return( ADDRESS_SYSERROR );
 	}
@@ -866,7 +868,7 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
     struct timeval		timeout;
     char			**vals;
 
-    if ( ld->ldap_ld == NULL ) {
+    if (( ld->ldap_ld == NULL ) || ( ld->ldap_pid != getpid( ))) {
 	if (( rc = simta_ldap_init( ld )) != 0 ) {
 	    /* Reset so that future calls don't think everything's hunky-dory
 	     * and return incorrect results.
@@ -1763,7 +1765,7 @@ simta_ldap_expand( struct simta_ldap *ld, struct expand *exp,
     int		nametype;	/* Type of Groupname -- owner, member... */
     int		rc;		/* Universal return code */
 
-    if ( ld->ldap_ld == NULL ) {
+    if (( ld->ldap_ld == NULL ) || ( ld->ldap_pid != getpid( ))) {
 	if (( rc = simta_ldap_init( ld )) != 0 ) {
 	    return( rc );
 	}
