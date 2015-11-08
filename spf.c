@@ -614,7 +614,7 @@ spf_check_a( struct spf_state *s, const yastr domain, unsigned long cidr,
 spf_macro_expand( struct spf_state *s, const yastr domain, const yastr macro )
 {
     int			urlescape, rtransform;
-    unsigned long	dtransform, i, j;
+    long		dtransform, i, j;
     char		*p, *pp;
     char		delim;
     yastr		expanded, tmp, escaped;
