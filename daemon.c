@@ -1597,6 +1597,12 @@ simta_child_q_runner( struct host_q *hq )
 	close( simta_pidfd );
 	simta_host_q = NULL;
 
+	/* Stop using the parent's dnsr object, if it has one */
+	if ( simta_dnsr ) {
+	    dnsr_free( simta_dnsr );
+	    simta_dnsr = NULL;
+	}
+
 	if (( hq != NULL ) && ( hq == simta_unexpanded_q )) {
 	    simta_process_type = PROCESS_Q_SLOW;
 	    exit( q_runner());
