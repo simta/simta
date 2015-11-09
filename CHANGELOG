@@ -1,3 +1,10 @@
+0.13.1
+    - improved accepted message timer
+    - fixed a regression in the SPF code that caused occasional crashes
+    - fixed hangs during DNS lookups when MAX_Q_RUNNERS_RECEIVE > 0
+    - fixed crashes during LDAP lookups when MAX_Q_RUNNERS_RECEIVE > 0
+    - fixed a busy loop when when MAX_Q_RUNNERS_RECEIVE > 0
+
 0.13.0
     - minor bugfixes
     - partially moderated messages no longer break queue cleanup
