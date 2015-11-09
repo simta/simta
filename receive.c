@@ -3611,8 +3611,12 @@ closeconnection:
 			    "Syserror: smtp_receive simta_waitpid: %m" );
 		}
 	    }
+	}
 
-	} else if ( simta_proc_stab != NULL ) {
+	/* If we still have children, wait for at least one of them to change
+	 * state before looping again.
+	 */
+	if ( simta_proc_stab != NULL ) {
 	    if ( simta_waitpid( 0 ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: smtp_receive simta_waitpid: %m" );
 	    }
