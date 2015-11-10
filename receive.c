@@ -3603,20 +3603,12 @@ closeconnection:
 	    if ( deliver_accepted( &r, 1 ) != RECEIVE_OK ) {
 		return( RECEIVE_SYSERROR );
 	    }
-
-	    if ( simta_child_signal != 0 ) {
-		simta_child_signal = 0;
-		if ( simta_waitpid( WNOHANG ) != 0 ) {
-		    syslog( LOG_ERR,
-			    "Syserror: smtp_receive simta_waitpid: %m" );
-		}
-	    }
 	}
 
-	/* If we still have children, wait for at least one of them to change
-	 * state before looping again.
-	 */
 	if ( simta_proc_stab != NULL ) {
+	    /* If we still have children, wait for at least one of them to
+	     * change state before looping again.
+	     */
 	    if ( simta_waitpid( 0 ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: smtp_receive simta_waitpid: %m" );
 	    }
