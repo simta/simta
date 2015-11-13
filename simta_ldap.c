@@ -1902,14 +1902,12 @@ simta_ldap_config( char *fname, char *domain )
 
     int				lineno = 0;
     char			*line;
-    char			*linecopy	= NULL;
     char			*c;
     struct ldap_search_list 	**lds;
     struct list			*l_new;
     struct list			**add;
-    ACAV			*acav = NULL;
-    char			**av;
-    int				ac;
+    yastr			*av = NULL;
+    int				ac = 0;
     int				acidx;
     int				attridx;
     int				intval;
@@ -1931,7 +1929,6 @@ simta_ldap_config( char *fname, char *domain )
 	goto errexit;
     }
 
-    acav = acav_alloc( );
     ld = calloc( 1, sizeof( struct simta_ldap ));
     lds = &(ld->ldap_searches);
     ld->ldap_timeout = LDAP_TIMEOUT_VAL;
@@ -1946,15 +1943,14 @@ simta_ldap_config( char *fname, char *domain )
 	    continue;
 	}
 
-	if ( linecopy != NULL ) {
-	    free( linecopy );
+	if ( av ) {
+	    yaslfreesplitres( av, ac );
 	}
 
-	linecopy = strdup( line );
-
-	if (( ac = acav_parse( acav, line, &av )) < 0 ) {
-	    syslog( LOG_ERR, "Config.LDAP %s:%d: acav_parse returned -1: %s",
-		    fname, lineno, linecopy );
+	if (( av = yaslsplitargs( line, &ac )) == NULL ) {
+	    syslog( LOG_ERR,
+		    "Config.LDAP %s:%d: yaslsplitargs returned NULL: %s",
+		    fname, lineno, line );
 	    goto errexit;
 	}
 
@@ -1962,14 +1958,14 @@ simta_ldap_config( char *fname, char *domain )
 		( strcasecmp( av[ 0 ], "url" ) == 0 )) {
 	    if ( ac < 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 
 	    if ( ldap_is_ldap_url( av[ 1 ] ) == 0 ) {
 		syslog( LOG_ERR,
 			"Config.LDAP %s:%d: URI is not an LDAP URI: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 
 	    }
@@ -1978,7 +1974,7 @@ simta_ldap_config( char *fname, char *domain )
 	    if (( ldaprc = ldap_url_parse( av[ 1 ], &plud )) !=
 		    LDAP_URL_SUCCESS ){
 		syslog( LOG_ERR, "Config.LDAP %s:%d: URI parse error %d: %s",
-			fname, lineno, ldaprc, linecopy );
+			fname, lineno, ldaprc, line );
 		goto errexit;
 	    }
 
@@ -2000,15 +1996,15 @@ simta_ldap_config( char *fname, char *domain )
 			ldap_free_urldesc (plud);
 			syslog( LOG_ERR, "Config.LDAP %s:%d: "
 				"Unknown searchtype in URI: %s",
-				fname, lineno, linecopy );
+				fname, lineno, line );
 			goto errexit;
 		    }
 		} else {
 		    ldap_free_urldesc( plud );
-		    syslog( LOG_ERR, "%s:%d:%s", fname, lineno, linecopy );
+		    syslog( LOG_ERR, "%s:%d:%s", fname, lineno, line );
 		    syslog( LOG_ERR,
 			    "Config.LDAP %s:%d: Unknown extension in URI: %s",
-			    fname, lineno, linecopy );
+			    fname, lineno, line );
 		    goto errexit;
 		}
 		acidx++;
@@ -2025,7 +2021,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "attributes" ) == 0 ) {
 	    if ( ac < 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 
@@ -2038,7 +2034,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "host" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_host = strdup ( av[ 1 ] );
@@ -2046,7 +2042,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "port" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_port = atoi( av[ 1 ]);
@@ -2054,7 +2050,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "timeout" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_timeout = (time_t)atoi( av[ 1 ]);
@@ -2062,7 +2058,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "ldapdebug" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ldapdebug = atoi(av[ 1 ]);
@@ -2070,7 +2066,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "ldapbind" ) == 0 ) {
 		if ( ac != 2 ) {
 		    syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			    fname, lineno, linecopy );
+			    fname, lineno, line );
 		    goto errexit;
 		}
 
@@ -2085,7 +2081,7 @@ simta_ldap_config( char *fname, char *domain )
 	    } else {
 		syslog( LOG_ERR,
 			"Config.LDAP %s:%d: Invalid ldapbind value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 
@@ -2093,14 +2089,14 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "starttls" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    intval = atoi (av[ 1 ]);
 	    if (( intval < 0 ) || ( intval > 2 )) {
 		syslog( LOG_ERR,
 			"Config.LDAP %s:%d: Invalid starttls value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_starttls = intval;
@@ -2108,7 +2104,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "TLS_CACERT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_tls_cacert = strdup( av[ 1 ] );
@@ -2116,7 +2112,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "TLS_CERT" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_tls_cert = strdup( av[ 1 ] );
@@ -2124,7 +2120,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "TLS_KEY" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_tls_key = strdup( av[ 1 ] );
@@ -2133,7 +2129,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "domaincomponentcount" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_ndomain = atoi( av[ 1 ]);
@@ -2142,7 +2138,7 @@ simta_ldap_config( char *fname, char *domain )
 		   ( strcasecmp( av[ 0 ], "bindpassword" ) == 0 )) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_bindpw = strdup( av[ 1 ] );
@@ -2150,7 +2146,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "binddn" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    ld->ldap_binddn = strdup( av[ 1 ] );
@@ -2159,7 +2155,7 @@ simta_ldap_config( char *fname, char *domain )
 		   ( strcasecmp( av[ 0 ], "objectclass" ) == 0 )) {
 	    if ( ac != 3 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 
@@ -2169,7 +2165,7 @@ simta_ldap_config( char *fname, char *domain )
 		add = &ld->ldap_groups;
 	    } else {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Unknown objectclass: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 
@@ -2182,7 +2178,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "mail" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    if ( ld->ldap_mailattr ) {
@@ -2196,7 +2192,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "mailforwardingattr" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    if ( ld->ldap_mailfwdattr ) {
@@ -2210,7 +2206,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "groupmailforwardingattr" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    if ( ld->ldap_gmailfwdattr ) {
@@ -2224,7 +2220,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "vacationhost" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    if ( ld->ldap_vacationhost ) {
@@ -2238,7 +2234,7 @@ simta_ldap_config( char *fname, char *domain )
 	} else if ( strcasecmp( av[ 0 ], "vacationattr" ) == 0 ) {
 	    if ( ac != 2 ) {
 		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
-			fname, lineno, linecopy );
+			fname, lineno, line );
 		goto errexit;
 	    }
 	    if ( ld->ldap_vacationattr ) {
@@ -2251,7 +2247,7 @@ simta_ldap_config( char *fname, char *domain )
 
 	} else {
 	    syslog( LOG_ERR, "Config.LDAP %s:%d: Unknown config option: %s",
-		    fname, lineno, linecopy );
+		    fname, lineno, line );
 	    goto errexit;
 	}
     }
@@ -2307,11 +2303,8 @@ simta_ldap_config( char *fname, char *domain )
     ret = ld;
 
 errexit:
-    if ( linecopy ) {
-	free( linecopy );
-    }
-    if ( acav ) {
-	acav_free( acav );
+    if ( av ) {
+	yaslfreesplitres( av, ac );
     }
     if ( snet ) {
 	if ( snet_close( snet ) != 0 ) {
