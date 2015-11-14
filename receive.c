@@ -348,6 +348,10 @@ deliver_accepted( struct receive_data *r, int force )
 	r->r_env = NULL;
     }
 
+    if ( simta_unexpanded_q == NULL ) {
+	return( RECEIVE_OK );
+    }
+
     if (( force || ( simta_queue_incoming_smtp_mail != 0 ) ||
 	    (( simta_aggressive_receipt_max > 0 ) &&
 	    ( simta_fast_files >= simta_aggressive_receipt_max )))) {
