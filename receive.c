@@ -408,7 +408,8 @@ reset( struct receive_data *r )
     }
 
     if ( r->r_env != NULL ) {
-	syslog( LOG_INFO, "Receive [%s] %s: %s: Message Failed: Abandoned",
+	syslog( LOG_INFO,
+		"Receive [%s] %s: env <%s>: Message Failed: Abandoned",
 		r->r_ip, r->r_remote_hostname, r->r_env->e_id );
 	env_free( r->r_env );
 	r->r_env = NULL;
@@ -1826,7 +1827,7 @@ f_data( struct receive_data *r )
 			    yasllen( dkim_buf ));
 		    dkim_result = dkim_eoh( dkim );
 		    simta_debuglog( 1,
-			    "Receive [%s] %s: %s: verify dkim_eoh: %s",
+			    "Receive [%s] %s: env <%s>: verify dkim_eoh: %s",
 			    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
 			    dkim_getresultstr( dkim_result ));
 		}
@@ -3568,7 +3569,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		( simta_max_failed_rcpts > 0 ) &&
 		( r.r_failed_rcpts >= simta_max_failed_rcpts )) {
 	    syslog( LOG_NOTICE,
-		    "Receive [%s] %s: %s: Too many failed recipients",
+		    "Receive [%s] %s: env <%s>: Too many failed recipients",
 		    r.r_ip, r.r_remote_hostname, r.r_env->e_id );
 	    set_smtp_mode( &r, simta_smtp_punishment_mode,
 		    "Failed recipients" );
