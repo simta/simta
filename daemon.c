@@ -948,8 +948,8 @@ simta_server( void )
 		    goto error;
 		}
 	    } else {
-		syslog( LOG_WARNING, "Daemon: MAX_Q_RUNNERS_LOCAL met, "
-			"local queue runner launch delayed" );
+		syslog( LOG_WARNING, "Daemon: Received signal from simsendmail "
+			"but MAX_Q_RUNNERS_LOCAL met, deferring launch" );
 	    }
 	}
 
@@ -1058,10 +1058,9 @@ simta_server( void )
 	    if (( simta_q_runner_slow_max != 0 ) &&
 		    ( simta_q_runner_slow >= simta_q_runner_slow_max )) {
 		/* queues need to launch but process limit met */
-		syslog( LOG_NOTICE, "Daemon: Queues are not caught up and "
-			"MAX_Q_RUNNERS_SLOW met, delaying %ld",
-			tv_now.tv_sec -
-			simta_deliver_q->hq_next_launch.tv_sec );
+		syslog( LOG_NOTICE, "Daemon: Queue %s is ready but "
+			"MAX_Q_RUNNERS_SLOW met, deferring launch",
+			simta_deliver_q->hq_hostname );
 		break;
 	    }
 
