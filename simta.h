@@ -36,12 +36,8 @@
 #define	SIMTA_FILE_PID			"/var/run/simta.pid"
 #define	SIMTA_BASE_DIR			"/var/spool/simta"
 #define	SIMTA_EFILE_VERSION		5
-#define SIMTA_MAX_RUNNERS_SLOW		250
-#define SIMTA_MAX_RUNNERS_LOCAL		25
 #define	SIMTA_EXPANSION_FAILED		0
 #define	SIMTA_EXPANSION_SUCCESS		1
-#define	SIMTA_LAUNCH_LIMIT		10
-#define	SIMTA_MIN_WORK_TIME		300
 #define	SIMTA_MAX_HOST_NAME_LEN	256
 
 #define	EXIT_OK				0
@@ -183,7 +179,6 @@ struct simta_socket {
 extern const char			*simta_progname;
 extern struct dll_entry			*simta_env_list;
 extern struct dll_entry			*simta_sender_list;
-extern struct timeval			simta_jail_seconds;
 extern struct timeval			simta_global_throttle_tv;
 extern struct timeval			simta_tv_now;
 extern struct timeval			simta_log_tv;
@@ -192,7 +187,6 @@ extern struct host_q			*simta_unexpanded_q;
 extern struct host_q			*simta_punt_q;
 extern struct host_q			*simta_host_q;
 extern struct envelope			*simta_env_queue;
-extern unsigned short			simta_smtp_port;
 extern struct action			*simta_red_action_secondary_mx;
 extern struct proc_type			*simta_proc_stab;
 extern int				simta_ipv4;
@@ -212,16 +206,13 @@ extern int				simta_disk_read_entries;
 extern int				simta_domain_trailing_dot;
 extern int				simta_bitbucket;
 extern int				simta_aggressive_delivery;
-extern int				simta_aggressive_expansion_max;
+extern int				simta_aggressive_expansion;
 extern int				simta_aggressive_receipt_max;
 extern int				simta_queue_policy;
 extern int				simta_smtp_rcvbuf_min;
 extern int				simta_smtp_rcvbuf_max;
-extern int				simta_smtp_port_defined;
 extern int				simta_queue_incoming_smtp_mail;
-extern int				simta_deliver_after_accept;
 extern int				simta_leaky_queue;
-extern int				simta_use_randfile;
 extern int				simta_listen_backlog;
 extern int				simta_disk_cycle;
 extern int				simta_launch_limit;
@@ -240,7 +231,8 @@ extern int				simta_q_runner_local_max;
 extern int				simta_q_runner_slow;
 extern int				simta_q_runner_slow_max;
 extern int				simta_q_runner_receive_max;
-extern unsigned int			simta_bounce_seconds;
+extern int				simta_bounce_seconds;
+extern int				simta_jail_seconds;
 extern int				simta_exp_level_max;
 extern int				simta_process_type;
 extern int				simta_umich_imap_letters;
@@ -257,7 +249,7 @@ extern int				simta_smtp_outbound_attempts;
 extern int				simta_smtp_outbound_delivered;
 extern int				simta_read_before_banner;
 extern int				simta_banner_delay;
-extern unsigned int			simta_banner_punishment;
+extern int				simta_banner_punishment;
 extern int				simta_max_failed_rcpts;
 extern int				simta_dns_auto_config;
 extern int				simta_smtp_default_mode;
@@ -279,15 +271,18 @@ extern int				simta_tls;
 extern int				simta_sasl;
 #endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBSSL
+extern char				*simta_port_smtps;
 extern int				simta_service_smtps;
 extern const EVP_MD			*simta_checksum_md;
 extern char				*simta_checksum_algorithm;
 extern int				simta_checksum_body;
 #endif /* HAVE_LIBSSL */
+extern char				*simta_port_smtp;
+extern char				*simta_port_submission;
+extern int				simta_service_smtp;
 extern int				simta_service_submission;
 extern int				simta_smtp_extension;
-extern long int				simta_max_message_size;
-extern unsigned int			simta_max_message_size_value;
+extern int				simta_max_message_size;
 extern int                              simta_outbound_connection_msg_max;
 extern char				*simta_dir_fast;
 extern char				*simta_dir_slow;

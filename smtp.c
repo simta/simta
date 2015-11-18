@@ -743,7 +743,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	    }
 	}
 
-	if (( ssl_ctx = tls_client_setup( 0, 0, simta_file_ca, simta_dir_ca,
+	if (( ssl_ctx = tls_client_setup( 0, simta_file_ca, simta_dir_ca,
 		NULL, NULL, ciphers )) == NULL ) {
 	    syslog( LOG_ERR, "Liberror: smtp_connect tls_client_setup: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));

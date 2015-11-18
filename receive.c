@@ -2528,10 +2528,9 @@ f_starttls( struct receive_data *r )
 	return( smtp_write_banner( r, 501, NULL, "no parameters allowed" ));
     }
 
-    if (( ssl_ctx = tls_server_setup( simta_use_randfile,
-	    simta_service_smtps, simta_file_ca, simta_dir_ca,
-	    simta_file_cert, simta_file_private_key, simta_tls_ciphers ))
-	    == NULL ) {
+    if (( ssl_ctx = tls_server_setup( simta_service_smtps, simta_file_ca,
+	    simta_dir_ca, simta_file_cert, simta_file_private_key,
+	    simta_tls_ciphers )) == NULL ) {
 	syslog( LOG_ERR, "Liberror: f_starttls tls_server_setup: %s",
 		ERR_error_string( ERR_get_error(), NULL ));
 	rc = smtp_write_banner( r, 454,
@@ -3370,6 +3369,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		r.r_write_before_banner = 1;
 		syslog( LOG_INFO, "Connect.in [%s] %s: Write before banner",
 			r.r_ip, r.r_remote_hostname );
+		/* FIXME: actually punish bad behaviour */
 		sleep( simta_banner_punishment );
 	    }
 	}
@@ -3769,10 +3769,9 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 
 	simta_debuglog( 3, "Auth: start_tls" );
 
-	if (( ssl_ctx = tls_server_setup( simta_use_randfile,
-		simta_service_smtps, simta_file_ca, simta_dir_ca,
-		simta_file_cert, simta_file_private_key, simta_tls_ciphers ))
-		== NULL ) {
+	if (( ssl_ctx = tls_server_setup( simta_service_smtps, simta_file_ca,
+		simta_dir_ca, simta_file_cert, simta_file_private_key,
+		simta_tls_ciphers )) == NULL ) {
 	    syslog( LOG_ERR, "Liberror: auth_init tls_server_setup: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    smtp_write_banner( r, 554, NULL, "SSL didn't work!" );

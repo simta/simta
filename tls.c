@@ -29,38 +29,8 @@
 
 #include "tls.h"
 
-static int tls_randfile( void );
-
-    static int
-tls_randfile( void )
-{
-    char        randfile[ MAXPATHLEN ];
-
-    /* generates a default path for the random seed file */
-    if ( RAND_file_name( randfile, sizeof( randfile )) == NULL ) {
-	syslog( LOG_ERR, "Liberror: tls_randfile RAND_file_name: %s",
-		ERR_error_string( ERR_get_error(), NULL ));
-	return( -1 );
-    }
-
-    /* reads the complete randfile and adds them to the PRNG */
-    if ( RAND_load_file( randfile, -1 ) <= 0 ) {
-	syslog( LOG_ERR, "Liberror: tls_randfile RAND_load_file: %s: %s",
-		randfile, ERR_error_string( ERR_get_error(), NULL ));
-	return( -1 );
-    }
-
-    /* writes a number of random bytes (currently 1024) to randfile */
-    if ( RAND_write_file( randfile ) < 0 ) {
-	syslog( LOG_ERR, "Liberror: tls_randfile RAND_write_file: %s: %s",
-		randfile, ERR_error_string( ERR_get_error(), NULL ));
-	return( -1 );
-    }
-    return( 0 );
-}
-
     SSL_CTX *
-tls_server_setup( int use_randfile, int authlevel, const char *caFile,
+tls_server_setup( int authlevel, const char *caFile,
 	const char *caDir, const char *cert, const char *privatekey,
 	const char *ciphers )
 {
@@ -118,12 +88,6 @@ tls_server_setup( int use_randfile, int authlevel, const char *caFile,
 
     SSL_load_error_strings();
     SSL_library_init();
-
-    if ( use_randfile ) {
-	if ( tls_randfile( ) != 0 ) {
-	    return( NULL );
-	}
-    }
 
     if (( ssl_ctx = SSL_CTX_new( SSLv23_server_method())) == NULL ) {
 	syslog( LOG_ERR, "Liberror: tls_server_setup SSL_CTX_new: %s",
@@ -246,7 +210,7 @@ tls_server_setup( int use_randfile, int authlevel, const char *caFile,
 
 
     SSL_CTX *
-tls_client_setup( int use_randfile, int authlevel, const char *caFile,
+tls_client_setup( int authlevel, const char *caFile,
 	const char *caDir, const char *cert, const char *privatekey,
 	const char *ciphers )
 {
@@ -255,12 +219,6 @@ tls_client_setup( int use_randfile, int authlevel, const char *caFile,
 
     SSL_load_error_strings();
     SSL_library_init();
-
-    if ( use_randfile ) {
-	if ( tls_randfile( ) != 0 ) {
-	    return( NULL );
-	}
-    }
 
     if (( ssl_ctx = SSL_CTX_new( SSLv23_client_method())) == NULL ) {
 	syslog( LOG_ERR, "Liberror: tls_client_setup SSL_CTX_new: %s",

@@ -89,7 +89,7 @@ int		simta_server( void );
 int		simta_daemonize_server( void );
 int		simta_child_receive( struct simta_socket* );
 int		set_rcvbuf( int );
-struct simta_socket	*simta_listen( int );
+struct simta_socket	*simta_listen( const char * );
 struct proc_type	*simta_proc_add( int, int );
 int		simta_proc_q_runner( int, struct host_q* );
 int		simta_read_command( struct simta_dirp * );
@@ -196,24 +196,22 @@ set_rcvbuf( int s )
 
 
      struct simta_socket *
-simta_listen( int port )
+simta_listen( const char *port )
 {
     int				sockopt;
     int				rc;
     char			host[ NI_MAXHOST ];
     char			service[ NI_MAXSERV ];
-    char			sport[ 6 ];
     struct addrinfo		hints;
     struct addrinfo		*ai, *air;
     struct simta_socket		*ss = NULL;
 
-    sprintf( sport, "%d", port );
     memset( &hints, 0, sizeof( struct addrinfo ));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_ADDRCONFIG | AI_PASSIVE | AI_NUMERICSERV;
 
-    if (( rc = getaddrinfo( NULL, sport, &hints, &air )) != 0 ) {
+    if (( rc = getaddrinfo( NULL, port, &hints, &air )) != 0 ) {
 	syslog( LOG_ERR, "Syserror: simta_listen getaddrinfo: %s",
 		gai_strerror( rc ));
 	fprintf( stderr, "getaddrinfo: %s\n", gai_strerror( rc ));
@@ -392,13 +390,7 @@ main( int ac, char **av )
 	    break;
 
 	case 'p' :		/* TCP port */
-	    simta_smtp_port_defined = 1;
-	    if ( atoi( optarg ) < 0 ) {
-		fprintf( stderr, "simta -p [ port ] must be 0 or greater\n" );
-		exit( 1 );
-	    }
-	    simta_smtp_port = htons( atoi( optarg ));
-	    break;
+	    simta_port_smtp = optarg;
 
 #ifdef HAVE_LIBSSL
 	case 'P' :		/* ca dir */
@@ -549,10 +541,9 @@ main( int ac, char **av )
 #ifdef HAVE_LIBSSL
     if ( simta_service_smtps ) {
 	/* Test whether our SSL config is usable */
-	if (( ssl_ctx = tls_server_setup( simta_use_randfile, 
-		simta_service_smtps, simta_file_ca, simta_dir_ca, 
-		simta_file_cert, simta_file_private_key, simta_tls_ciphers ))
-		== NULL ) {
+	if (( ssl_ctx = tls_server_setup( simta_service_smtps, simta_file_ca,
+		simta_dir_ca, simta_file_cert, simta_file_private_key,
+		simta_tls_ciphers )) == NULL ) {
 	    syslog( LOG_ERR, "Liberror: tls_server_setup: %s",
 		    ERR_error_string( ERR_get_error(), NULL ));
 	    exit( 1 );
@@ -590,15 +581,15 @@ main( int ac, char **av )
     /* if we're not a q_runner or filesystem cleaner, open smtp service */
     if (( q_run == 0 ) && ( simta_filesystem_cleanup == 0 ) &&
 	    ( simta_smtp_default_mode != SMTP_MODE_OFF )) {
-	if (( simta_smtp_port_defined == 0 ) || ( simta_smtp_port != 0 )) {
-	    if ( simta_listen( 25 ) == NULL ) {
+	if ( simta_service_smtp ) {
+	    if ( simta_listen( simta_port_smtp ) == NULL ) {
 		exit( 1 );
 	    }
 	}
 
 #ifdef HAVE_LIBSSL
 	if ( simta_service_smtps ) {
-	    if (( ss = simta_listen( 465 )) == NULL ) {
+	    if (( ss = simta_listen( simta_port_smtps )) == NULL ) {
 		exit( 1 );
 	    }
 	    ss->ss_flags |= SIMTA_SOCKET_TLS;
@@ -606,7 +597,7 @@ main( int ac, char **av )
 #endif /* HAVE_LIBSSL */
 
 	if ( simta_service_submission ) {
-	    if ( simta_listen( 587 ) == NULL ) {
+	    if ( simta_listen( simta_port_submission ) == NULL ) {
 		exit( 1 );
 	    }
 	}

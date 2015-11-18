@@ -410,7 +410,7 @@ q_runner( void )
 	    if ( expand( unexpanded ) == 0 ) {
 		env_free( unexpanded );
 		expanded++;
-		if ( expanded >= simta_aggressive_expansion_max ) {
+		if ( simta_aggressive_expansion == 0 ) {
 		    /* Try delivering mail */
 		    break;
 		}
@@ -590,12 +590,12 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
     /* if we're a jail, does this queue have any active mail? */
     } else if (( simta_mail_jail != 0 ) && 
 	    ( hq->hq_entries == hq->hq_jail_envs )) {
-	wait_last.tv_sec = simta_jail_seconds.tv_sec;
+	wait_last.tv_sec = simta_jail_seconds;
 	if ( hq->hq_last_launch.tv_sec == 0 ) {
-	    next_launch.tv_sec = random() % simta_jail_seconds.tv_sec +
+	    next_launch.tv_sec = random() % simta_jail_seconds +
 		    tv_now->tv_sec;
 	} else {
-	    next_launch.tv_sec = simta_jail_seconds.tv_sec + tv_now->tv_sec;
+	    next_launch.tv_sec = tv_now->tv_sec + simta_jail_seconds;
 	}
 
     /* have we never launched this queue? */
