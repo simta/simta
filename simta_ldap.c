@@ -1818,7 +1818,7 @@ simta_ldapuser( int ndomain, char *buf, char **user, char **domain )
 
     *domain = NULL;
 
-    if ( srs_reverse( buf, &p ) == SRS_OK ) {
+    if ( srs_reverse( buf, &p, simta_srs_secret ) == SRS_OK ) {
 	u = yaslauto( p );
 	free( p );
     } else {

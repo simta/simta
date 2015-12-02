@@ -3879,7 +3879,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
 	    break;
 
 	case EXPANSION_TYPE_SRS:
-	    if (( rc = srs_valid( addr )) == ADDRESS_FINAL ) {
+	    if (( rc = srs_valid( addr, action->a_fname )) == ADDRESS_FINAL ) {
 		if ( action->a_flags == ACTION_SUFFICIENT ) {
 		    return( LOCAL_ADDRESS );
 		} else {

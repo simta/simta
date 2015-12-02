@@ -11,9 +11,9 @@
 #define SRS_SYSERROR	4
 
 int srs_forward( struct envelope * );
-int srs_reverse( const char *, char ** );
+int srs_reverse( const char *, char **, const char * );
 int srs_expand( struct expand *, struct exp_addr *, struct action * );
-int srs_valid( const char * );
+int srs_valid( const char *, const char * );
 
 #endif /* SIMTA_SRS_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

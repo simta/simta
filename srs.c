@@ -29,7 +29,7 @@
 
 static const char *b32_chars = "abcdefghijklmnopqrstuvwxyz234567";
 
-static yastr	srs_hash( const char * );
+static yastr	srs_hash( const char *, const char *, size_t );
 static yastr	srs_reforward( const char * );
 static yastr	srs_timestamp( void );
 static int	srs_timestamp_validate( const char * );
@@ -117,7 +117,7 @@ srs_forward( struct envelope *env ) {
 	newaddr = yaslcat( newaddr, "SRS1=" );
     }
 
-    if (( hash = srs_hash( localpart )) == NULL ) {
+    if (( hash = srs_hash( localpart, simta_srs_secret, 5 )) == NULL ) {
 	syslog( LOG_NOTICE, "SRS %s: srs_hash failed", env->e_mail );
 	goto error;
     }
@@ -138,7 +138,7 @@ error:
 }
 
     int
-srs_reverse( const char *addr, char **newaddr ) {
+srs_reverse( const char *addr, char **newaddr, const char *secret ) {
     int		rc = SRS_BADSYNTAX;
     int		reforwarded = 0;
     int		ret;
@@ -182,9 +182,13 @@ srs_reverse( const char *addr, char **newaddr ) {
 	goto error;
     }
     addrhash = yaslnew( a, ( p - a ));
-    hash = srs_hash( p + 1 );
+    /* Truncate the hash so lowering the hash length doesn't invalidate old
+     * addresses. This isn't configurable at the moment, but might be in the
+     * future.
+     */
+    yaslrange( addrhash, 0, 4 );
     yasltolower( addrhash );
-    yasltolower( hash );
+    hash = srs_hash( p + 1, simta_srs_secret, 5 );
     if ( yaslcmp( addrhash, hash ) != 0 ) {
 	syslog( LOG_INFO, "SRS %s: invalid hash %s should have been %s",
 		addr, addrhash, hash );
@@ -234,7 +238,8 @@ srs_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     char	*newaddr;
     int		rc;
 
-    if (( rc = srs_reverse( e_addr->e_addr, &newaddr )) == SRS_OK ) {
+    if (( rc = srs_reverse( e_addr->e_addr, &newaddr,
+	    a->a_fname )) == SRS_OK ) {
 	if ( add_address( exp, newaddr, e_addr->e_addr_errors,
 		ADDRESS_TYPE_EMAIL, e_addr->e_addr_from ) != 0 ) {
 	    free( newaddr );
@@ -254,12 +259,12 @@ srs_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 }
 
     int
-srs_valid( const char *addr )
+srs_valid( const char *addr, const char *secret )
 {
     char	*newaddr;
     int		rc;
 
-    if (( rc = srs_reverse( addr, &newaddr )) == SRS_OK ) {
+    if (( rc = srs_reverse( addr, &newaddr, secret )) == SRS_OK ) {
 	free( newaddr );
 	return( ADDRESS_FINAL );
     }
@@ -272,7 +277,7 @@ srs_valid( const char *addr )
 }
 
     static yastr
-srs_hash( const char *str )
+srs_hash( const char *str, const char *secret, size_t len )
 {
 #ifndef HAVE_LIBSSL
     return( NULL );
@@ -284,10 +289,15 @@ srs_hash( const char *str )
     yastr		lc;
     yastr		hash = NULL;
 
+    if ( secret == NULL ) {
+	syslog( LOG_NOTICE, "SRS: tried to create hash with no secret" );
+	return( NULL );
+    }
+
     lc = yaslauto( str );
     yasltolower( lc );
 
-    if ( HMAC( EVP_sha256( ), simta_srs_secret, yasllen( simta_srs_secret ),
+    if ( HMAC( EVP_sha256( ), secret, strlen( secret ),
 	    (unsigned char *)lc, yasllen( lc ), mac, &maclen ) == NULL ) {
 	syslog( LOG_ERR, "Liberror: srs_hash HMAC: failed" );
 	goto error;
@@ -303,9 +313,11 @@ srs_hash( const char *str )
     BIO_read( bmem, hash, maclen * 2 );
     yaslupdatelen( hash );
     simta_debuglog( 2, "SRS: hash: %s", hash );
-    yaslrange( hash, 0, 4 );
+    yaslrange( hash, 0, len - 1 );
     yasltolower( hash );
     simta_debuglog( 3, "SRS: squashed hash: %s", hash );
+
+    BIO_free_all( b64 );
 
 error:
     yaslfree( lc );

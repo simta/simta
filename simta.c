@@ -248,7 +248,7 @@ int			simta_dkim_verify = 1;
 int			simta_srs = SRS_POLICY_OFF;
 int			simta_srs_maxage = 10;
 yastr			simta_srs_domain = NULL;
-char			*simta_srs_secret;
+char			*simta_srs_secret = NULL;
 
     void
 panic( const char *message )
@@ -687,23 +687,27 @@ simta_read_config( const char *fname )
 		simta_red_action_secondary_mx = a;
 
 	    } else if ( strcasecmp( av[ 2 ], "SRS" ) == 0 ) {
-		if ( ac != 3 ) {
+		if ( ac == 3 ) {
+		    f_arg = simta_srs_secret;
+		} else if ( ac == 4 ) {
+		    f_arg = av[ 3 ];
+		} else {
 		    fprintf( stderr, "%s: line %d: usage: "
-			    "@domain RE SRS\n",
+			    "@domain RE SRS [secret]\n",
 			    fname, lineno );
 		    goto error;
 		}
 
 		if ( red_code & RED_CODE_r ) {
 		    red_action_add( red, RED_CODE_r, EXPANSION_TYPE_SRS,
-			    NULL );
+			    f_arg );
 		} else if ( red_code & RED_CODE_R ) {
 		    red_action_add( red, RED_CODE_R, EXPANSION_TYPE_SRS,
-			    NULL );
+			    f_arg );
 		}
 		if ( red_code & RED_CODE_E ) {
 		    red_action_add( red, RED_CODE_E, EXPANSION_TYPE_SRS,
-			    NULL );
+			    f_arg );
 		}
 
 #ifdef HAVE_LIBSSL

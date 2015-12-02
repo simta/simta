@@ -43,7 +43,7 @@ main( int ac, char *av[ ] )
     }
 
     if ( strcasecmp(( p + 1 ), simta_srs_domain ) == 0 ) {
-	if ( srs_reverse( av[ 1 ], &p ) == SRS_OK ) {
+	if ( srs_reverse( av[ 1 ], &p, simta_srs_secret ) == SRS_OK ) {
 	    printf( "%s\n", p );
 	} else {
 	    printf( "srs_reverse failed\n" );
