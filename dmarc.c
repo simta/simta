@@ -159,6 +159,7 @@ dmarc_result( struct dmarc *d )
 	if ( dmarc_alignment( d->domain, d->spf_domain,
 		d->spf_alignment ) == 0 ) {
 	    d->result = DMARC_RESULT_PASS;
+	    goto done;
 	}
     }
 
@@ -167,9 +168,11 @@ dmarc_result( struct dmarc *d )
 	if ( dmarc_alignment( d->domain, dkim_domain->dll_key,
 		d->dkim_alignment ) == 0 ) {
 	    d->result = DMARC_RESULT_PASS;
+	    goto done;
 	}
     }
 
+done:
     return( d->result );
 }
 
