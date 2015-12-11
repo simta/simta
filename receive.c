@@ -3369,8 +3369,11 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 		r.r_write_before_banner = 1;
 		syslog( LOG_INFO, "Connect.in [%s] %s: Write before banner",
 			r.r_ip, r.r_remote_hostname );
-		/* FIXME: actually punish bad behaviour */
-		sleep( simta_banner_punishment );
+		if ( simta_banner_punishment ) {
+		    set_smtp_mode( &r, simta_smtp_punishment_mode,
+			    "Write before banner" );
+		    sleep( simta_banner_delay );
+		}
 	    }
 	}
 
