@@ -630,6 +630,7 @@ header_check( struct receive_headers *rh, int read_headers )
 	    sender = NULL;
 	}
     } else {
+	syslog( LOG_INFO, "header_check: missing From header" );
 	ret++;
     }
 
@@ -703,6 +704,7 @@ header_check( struct receive_headers *rh, int read_headers )
 	    buf = yaslcatprintf( buf, "Date: %s", daytime );
 	    line_prepend( rh->r_headers, buf, COPY );
     } else {
+	syslog( LOG_INFO, "header_check: missing Date header" );
 	ret++;
     }
 
@@ -728,8 +730,6 @@ header_check( struct receive_headers *rh, int read_headers )
 	buf = yaslcatprintf( buf, "Message-ID: <%s@%s>", rh->r_env->e_id,
 		simta_hostname );
 	line_prepend( rh->r_headers, buf, COPY );
-    } else {
-	ret++;
     }
 
     /* To: */
