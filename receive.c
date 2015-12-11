@@ -131,6 +131,7 @@ struct receive_data {
     struct dmarc		*r_dmarc;
     int				r_dmarc_result;
     int				r_spf_result;
+    int				r_bad_headers;
 
 #ifdef HAVE_LIBOPENDKIM
     DKIM_LIB			*r_dkim;
@@ -1772,6 +1773,7 @@ f_data( struct receive_data *r )
 		read_err = SYSTEM_ERROR;
 	    } else {
 		header = 0;
+		r->r_bad_headers = 0;
 		/* Check and (maybe) correct headers */
 		if (( rc = header_check( rh, 0 )) < 0 ) {
 		    ret_code = RECEIVE_CLOSECONNECTION;
@@ -1780,12 +1782,13 @@ f_data( struct receive_data *r )
 		    syslog( LOG_INFO, "Receive [%s] %s: env <%s>: "
 			    "header_check failed",
 			    r->r_ip, r->r_remote_hostname, r->r_env->e_id );
-		    /* Continue reading lines, but reject the message
-		     * FIXME: make this configurable
-		    system_message = "Message is not RFC 5322 compliant";
-		    message_banner = MESSAGE_REJECT;
-		    read_err = PROTOCOL_ERROR;
-		    */
+		    if ( simta_submission_mode == SUBMISSION_MODE_MTA_STRICT ) {
+			/* Continue reading lines, but reject the message */
+			system_message = "Message is not RFC 5322 compliant";
+			message_banner = MESSAGE_REJECT;
+			read_err = PROTOCOL_ERROR;
+		    }
+		    r->r_bad_headers = 1;
 		}
 
 		if ( r->r_env->e_header_from ) {
@@ -4074,6 +4077,9 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    filter_envp[ filter_envc++ ] =
 		    env_string( "SIMTA_WRITE_BEFORE_BANNER", "0" );
 	}
+
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_BAD_HEADERS",
+	    r->r_bad_headers ? "1" : "0" );
 
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_AUTH_ID",
 		r->r_auth_id );
