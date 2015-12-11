@@ -1349,14 +1349,39 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	     * sure we care enough about that to account for it here.
 	     */
 	    if ( *(l + len) == '@' ) {
-		addr++;
 		if (( tmp = parse_addr_spec( l, &len )) == NULL ) {
 		    syslog( LOG_INFO,
 			    "parse_addr_list: parse_addr_spec failed: %s", l );
-		    goto error;
+		    /* This might just be a stupid client using an
+		     * unquoted quoted-string as the display name, so we
+		     * probably shouldn't make it a hard failure. Increment l
+		     * to skip the '@'.
+		     */
+		    l++;
+		} else {
+		    addr++;
 		}
 	    }
 	    l += len;
+	    if ( tmp ) {
+		/* This might be an unquoted address as the display part, which
+		 * is invalid but distressingly common.
+		 */
+		if (( len = cfws_len( l )) < 0 ) {
+		    syslog( LOG_INFO, "parse_addr_list: cfws_len failed: %s",
+			    l );
+		    goto error;
+		} else {
+		    l += len;
+		}
+		if (( *l != ',' ) && ( *l != '\0' )) {
+		    syslog( LOG_DEBUG, "parse_addr_list: discarding "
+			    "address-like string %s from %s", tmp, list );
+		    addr--;
+		    yaslfree( tmp );
+		    tmp = NULL;
+		}
+	    }
 	} else if ( *l == ',' ) {
 	    if ( addr != 1 ) {
 		syslog( LOG_INFO, "parse_addr_list: bad list: %s", l );
@@ -1388,11 +1413,17 @@ parse_addr_list( yastr list, size_t *count, int mode )
 	}
     }
 
+    if ( addr != 1 ) {
+	syslog( LOG_INFO, "parse_addr_list: bad list" );
+	goto error;
+    }
+
     if ( *count > 0 ) {
 	return( mboxes );
     }
 
 error:
+    syslog( LOG_INFO, "parse_addr_list: error parsing %s", list );
     if ( tmp ) {
 	yaslfree( tmp );
     }
