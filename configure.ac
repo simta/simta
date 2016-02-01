@@ -4,7 +4,7 @@ AC_INIT(simta, m4_esyscmd([sh version.sh]), simta@umich.edu)
 
 AC_PREREQ(2.63)
 AC_CONFIG_HEADER(config.h)
-AC_COPYRIGHT([Copyright (c) 1998-2015 Regents of The University of Michigan])
+AC_COPYRIGHT([Copyright (c) 1998-2016 Regents of The University of Michigan])
 
 # Set up local variables
 AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-aliasdb=DB], [default alias db]), [], with_aliasdb="/etc/alias.db" )
