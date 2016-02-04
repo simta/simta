@@ -1,0 +1,58 @@
+.Dd $Mdocdate: February 04 2016 $
+.Dt SIMC 1
+.Os umich
+.Sh NAME
+.Nm simc
+.Nd simta's control interface
+
+.Sh SYNOPSIS
+.Nm
+.Bk -words
+.Op Fl d Oo Ar level Oc
+.Op Fl D Ar base_directory
+.Op Fl f Ar config_file
+.Op Fl m Oo Ar message_id Oc
+.Op Fl s Oo Ar sender Oc
+.Op Fl q Oo Ar queue Oc
+.Ek
+
+.Sh DESCRIPTION
+.Nm
+issues a command to a
+.Nm simta
+daemon.
+
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl d
+Output current debug level to syslog.
+.It Fl d Ar level
+Set the debug level.
+.It Fl D Ar base_directory
+Specifies an alternate base directory.
+.It Fl f Ar config_file
+Specifies an alternate configuration file.
+.It Fl m
+Output a list of message IDs in
+.Pa base_directory/etc .
+.It Fl m Ar message_id
+Promote the queue containing
+.Ar message_id .
+If the message is currently in jail, parole it.
+.It Fl s
+Output a list of senders in
+.Pa base_directory/etc .
+.It Fl s Ar sender
+Promote all queues containing messages from
+.Ar sender .
+If any of the messages are currently in jail, parole them.
+.It Fl q
+Output a list of host queues in
+.Pa base_directory/etc .
+.It Fl q Ar queue
+Promote the specified queue. If any of the messages are currently in jail,
+parole them.
+.El
+
+.Sh SEE ALSO
+.Xr simta 1

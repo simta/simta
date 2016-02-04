@@ -1,166 +1,93 @@
-.TH simta "8" "October 2004" "RSUG" "User Commands"
+.Dd $Mdocdate: February 04 2016 $
+.Dt SIMTA 8
+.Os umich
+.Sh NAME
+.Nm simta
+.Nd Mail Transfer Agent
 
-.SH NAME
-.B simta 
-\- simta daemon
+.Sh SYNOPSIS
+.Nm
+.Bk -words
+.Op Fl cCdV
+.Op Fl D Ar base_directory
+.Op Fl f Ar config_file
+.Op Fl p Ar port
+.Op Fl q | Fl Q Ar filter
+.Op Fl u Ar username
+.Ek
 
-.SH SYNOPSIS
-.B simta
-[
-.B \-' '
-] [
-.B \-a
-] [
-.BI \-b\  option
-] [
-.B \-c
-] [
-.B \-C
-] [
-.BI \-D\  option
-] [
-.BI \-f\  option
-] [
-.B \-I
-] [
-.BI \-i\  reference-URL
-] [
-.BI \-m\  option
-] [
-.BI \-M\  option
-] [
-.BI \-p\  option
-] [
-.B \-q
-] [
-.BI \-Q\  option
-] [
-.B \-r
-] [
-.B \-R
-] [
-.B \-S
-] [
-.B \-V
-] [
-.BI \-w\  option
-] [
-.BI \-x\  option
-] [
-.BI \-y\  option
-] [
-.BI \-z\  option
-]
-.sp
-.SH DESCRIPTION
+.Sh DESCRIPTION
+.Nm
+is a Simple Internet Mail Transfer Agent. It is designed to have
+simple configuration with sane defaults, and to produce useful logs.
+.Pp
+.Nm
+and some of its associated commands store data in directories underneath
+.Ar base_directory
+(which defaults to
+.Pa /var/spool/simta
+):
+.Pp
+.Bl -tag -width Ds -offset indent
+.It Pa fast
+Messages that are owned by a single process and might be in an
+inconsistent state.
+.It Pa slow
+Messages that are owned by the main process and can be safely
+handled by any queue runner.
+.It Pa local
+Messages from
+.Nm simsendmail
+that are waiting to be processed.
+.It Pa dead
+Messages that could not be processed normally.
+.It Pa etc
+.Nm
+outputs informational files here when told to do so by
+.Nm simc .
+.It Pa command
+.Nm simc
+controls
+.Nm
+by creating command files in this directory.
+.El
+.Pp
+Messages are stored as pairs of files, with metadata in
+.Pa E<foo>
+and the corresponding message data in
+.Pa D<foo> .
+Messages in the fast queue might have a temporary metadata file called
+.Pa t<foo>
+in place of the normal E file.
 
-.B simta
-is a mailer daemon.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl c
+Check the configuration file for errors and exit.
+.It Fl C
+Clean the queues and exit.
+.It Fl d
+Enables debug logging.
+Multiple
+.Fl d
+options increase the verbosity.
+.It Fl D Ar base_directory
+Specifies an alternate base directory.
+.It Fl f Ar config_file
+Specifies an alternate configuration file.
+.It Fl p Ar port
+Specifies an alternate port to listen on.
+.It Fl q
+Run through the slow queue and exit.
+.It Fl Q Ar filter
+Run through the specified host queue and exit.
+.It Fl u Ar user
+Specifies a username to run as.
+.It Fl V
+Display the version information and exit.
+.El
 
-slow, local, fast, and dead queue directories.  
-
-SIMTA FILESYSTEM OVERVIEW
-
-simta uses four different directories in it's spool space as queues for
-message storage.  The four are the fast, slow, local, and dead queues.
-Email messages are stored in queues as a pair of files, an 'E' file with
-message delivery information, and a 'D' file with the actual message
-contents.  On startup simta will refuse to run if there is a file in any
-queue that does not belong to a Efile Dfile pairing.
-
-In certain instances when a simta process crashes or is killed, stray Dfiles
-and tfiles can be left behind.  These files are remnants of messages that
-were not fully accepted before the system halted.  Efiles should never
-exist alone, and no other files should be in the queus at all.  Stranded
-Dfiles and tfiles can be legitimately deleted, all other files need to
-be removed from the queue by hand before simta will run.  Check the simta
-spool directory's partition's lost+found directory to make sure that files
-are stranded because of simta stopping rather than a filesystem problem
-before using the -C option to clean the queues of stranded D and tfiles.
-
-queue use
-
-Message composition (Efile Dfile, etc.)
-Efile syntax
-unexpanded messages vs. expanded messages.
-
-
-
-
-simsendmail(1) is simta's local entry point.  
-
-A slow queue runner can be launched with -q.
-
-Simta reads simta.conf(4)
-
-.sp
-.SH OPTIONS
-.TP 19
-.B \-' '
-disallow strict SMTP syntax checking for compatability with some  non-RFC
-complient SMTP hosts.  Can be set in simta.conf with STRICT_SMTP_SYNTAX_OFF.
-.TP 19
-.B \-a
-Disable automatic configuration based on DNS
-.TP 19
-.BI \-b\  backlog
-Specify how many hosts we allow in the listen backlog
-.TP 19
-.B \-c
-Don't run, only check config files
-.TP 19
-.B \-C
-Clean simta's filesystem, don't run
-.TP 19
-.BI \-D\  path/to/directory
-Specify simta's base directory
-.TP 19
-.BI \-f\  path/to/filename
-specify simta's config file
-.TP 19
-.B \-i
-Specify URL to return on invalid reverse
-.TP 19
-.B \-I
-Ignore the fact some hosts have a bad reverse in DNS, and still talk to them
-.TP 19
-.BI \-m\  connections
-Specify the maximum number of connections simta will have at a given time
-.TP 19
-.BI \-p\  port
-Specify which port simta will listen for TCP connection on
-.TP 19
-.B \-q
-Just run a queue runner for the slow queue
-.TP 19
-.B \-Q filter
-Run the slow queues that match the filter.
-.TP 19
-.B \-r
-Uses randfile for tls communication
-.TP 19
-.B \-R
-Enable global relay
-.TP 19
-.B \-S
-Enable submission service
-.TP 19
-.B \-V
-Output version info
-.TP 19
-.BI \-w\  authlevel
-Set authlevel: 0:none, 1:serv, 2:client & serv
-.TP 19
-.BI \-x\  ca-file
-Specify which ca file to use
-.TP 19
-.BI \-y\  cert-file
-Specify which cert file to use
-.TP 19
-.BI \-z\  private_key
-Specify the private key
-.sp
-
-.SH SEE ALSO
-.BR simsendmail (1)
-.BR simta.conf (4)
+.Sh SEE ALSO
+.Xr simsendmail 1 ,
+.Xr simta.conf 4 ,
+.Xr simc 8

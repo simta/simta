@@ -83,7 +83,7 @@ SIMTALIBPATH=	${LIBPATH}
 SIMTALIBS=	${LIBS}
 
 MAN1TARGETS=	simsendmail.1
-MAN8TARGETS=	simta.8
+MAN8TARGETS=	simc.8 simta.8
 BINTARGETS=	simrbl simreverse simalias simexpander simconnect
 TARGETS=	simta simconnect simsendmail q_runner simexpander \
                 sla simc simda simspf simdmarc simsrs \

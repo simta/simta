@@ -1,85 +1,95 @@
-.TH simsendmail "1" "January 2003" "RSUG" "User Commands"
+.Dd $Mdocdate: February 04 2016 $
+.Dt SIMSENDMAIL 1
+.Os umich
+.Sh NAME
+.Nm simsendmail
+.Nd simta's sendmail interface
 
-.SH NAME
-.B simsendmail 
-\- simta's sendmail interface
+.Sh SYNOPSIS
+.Nm
+.Bk -words
+.Op Fl b Ar option
+.Op Fl f Ar sender
+.Op Fl i
+.Op Fl o Ar option
+.Op Fl s
+.Op Fl t
+.Op --
+.Op Ar to-address ...
+.Ek
 
-.SH SYNOPSIS
-.B simsendmail 
-[
-.BI \-b\  option
-] [
-.B \-i
-] [
-.BI \-o\  option
-] [[
-.I --
-] 
-.I to-address ...
-]
-.sp
-.SH DESCRIPTION
+.Sh DESCRIPTION
+.Nm
+is intended as a somewhat compatible replacement for
+.Nm sendmail .
+Most programs that currently use
+.Nm sendmail
+for communication should be able to use
+.Nm
+instead.
+.Pp
+With no flags,
+.Nm
+reads standard input until it reaches either the end of file or
+a special marker consisting only of a single dot on a line. This
+alternative end of file marker may be disabled by specifying the
+.Fl i
+option. simsendmail then queues a copy of the message in the
+.Pa local
+queue. The message's recipients will be the
+.Ar to-addresses
+listed on the command line. If
+.Fl t
+is specified, recipients in the message's headers will be parsed and
+added to any recipients specified.
+.Nm
+will not attempt to deliver a message with no recipients.
+.Pp
+After the message is queued the program attempts to signal the
+.Nm simta
+daemon so that it will process the local queueu.  When
+run with the -s flag, it only tries to signal the
+simta daemon and no message is expected.
+.Pp
+.Nm
+may reject or correct a message if it finds fault with the message's
+headers. Addresses given in the "From", "Sender", "To", "Cc", and
+"Bcc" must be qualified by a domain. Simple addresses will be appended
+with either the masquerade hostname or the machine name.
 
-.B simsendmail
-is 
-.B simta's
-.B sendmail
-interface.
-simsendmail is intended
-as a replacement for sendmail in that any program that currently
-uses sendmail for communication may use simsendmail instead.
-simsendmail's behavior, including common command line options,
-should mimic sendmail.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl b Ar option
+All
+.Fl b
+options are currently unimplemented and will either be ignored or
+return an error.
+.It Fl f Ar sender
+Set the message sender.
+.It Fl i
+Don't treat a single dot on a line as the end of message marker.
+.It Fl o
+.Fl oi
+is a synonym for
+.Fl i .
+All other
+.Fl o
+options are currently unimplemented and will be ignored.
+.It Fl r Ar sender
+Same as
+.Fl f .
+.It Fl s
+Signal
+.Nm simta
+without queueing a new message.
+.It Fl t
+Parse message headers for additional recipients.
+.It Fl -
+Stop processing command flags and treat the rest of the command line as
+.Ar to-address
+arguments.
+.El
 
-With no flags, simsendmail reads standard input until it reaches
-either the end of file or a special marker consisting only of a
-single dot on a line.  The single dot may be ignored as an end of
-file marker with the -i option.   simsendmail then queues a copy
-of the message in the LOCAL queue.  The message's recipients will
-be the to-addresses listed on the command line.  If the -t flag is
-used, recipients in the message's headers are included, as well.
-simsendmail will not attempt to deliver a message with no recipients.
-
-After simsendmail queues the message it attempts to signal the
-simta daemon so that it will start a LOCAL queue runner.  When
-simsendmail is run with the -s flag, it only tries to signal the
-simta daemon and no message is expected.  If simsendmail successfully
-signals the simta daemon, a queue runner is launched to handle all
-mail queued in the LOCAL queue.  Mail should only enter the LOCAL
-queue via. simsendmail.
-
-simsendmail reads simta.conf(4), and makes use of the masquerade
-field.
-
-simsendmail may reject or correct a message if it finds fault with
-the message's headers.  Addresses given in the "From", "Sender",
-"To", "CC", and "BCC" must be qualified by a domain.  Simple
-addresses will be appended with either the masquerade hostname (if
-it is set in simta.conf), or the machine name.
-
-.sp
-.SH OPTIONS
-.TP 19
-.BI \-b\  option
-Currently ignore all -b options.
-.TP 19
-.B \-i
-ignore a single dot on a line as an end of message marker.
-.TP 19
-.B \-oi
-ignore a single dot on a line as an end of message marker.
-.TP 19
-.B \-s
-signal simta server only.
-.TP 19
-.B \-t
-read message headers for recipients.
-.TP 19
-.B \--
-Stop processing command flags and use the rest of the arguments as
-to-addresses.
-.sp
-.SH SEE ALSO
-.BR sendmail (1)
-.BR simta (1)
-.BR simta.conf (4)
+.Sh SEE ALSO
+.Xr sendmail 1 ,
+.Xr simta 1

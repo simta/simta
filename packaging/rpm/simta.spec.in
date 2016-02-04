@@ -152,6 +152,7 @@ exit 0
 %{_bindir}/simreverse
 /usr/lib/sendmail.simta
 
+%{_mandir}/man8/simc.8.gz
 %{_mandir}/man8/simta.8.gz
 %{_mandir}/man1/simsendmail.1.gz
 
