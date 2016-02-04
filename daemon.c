@@ -325,35 +325,13 @@ main( int ac, char **av )
 	prog++;
     }
 
-    while (( c = getopt( ac, av,
-#ifdef HAVE_LIBSSL
-	" ab:cCdD:f:i:Il:m:M:p:P:qQ:rRSu:Vw:x:y:z:"
-#else
-	" ab:cCdD:f:i:Il:m:M:p:P:qQ:rRSu:V"
-#endif /* HAVE_LIBSSL */
-	)) != -1 ) {
+    while (( c = getopt( ac, av, "cCdD:f:p:qQ:u:V")) != -1 ) {
 	switch ( c ) {
-	case ' ' :		/* Disable strict SMTP syntax checking */
-	    simta_strict_smtp_syntax = 0;
-	    break;
-
-	case 'a' :		/* Automatically config with DNS */
-	    simta_dns_auto_config = 1;
-	    break;
-
-	case 'b' :		/*X listen backlog */
-	    simta_listen_backlog = atoi( optarg );
-	    break;
-
 	case 'c' :		/* check config files */
 	    dontrun++;
 	    break;
 
 	case 'C' :		/* clean up directories */
-	    if ( q_run != 0 ) {
-		fprintf( stderr, "simta -q or -Q and -C illegal\n" );
-		exit( 1 );
-	    }
 	    simta_filesystem_cleanup++;
 	    break;
 
@@ -369,133 +347,52 @@ main( int ac, char **av )
 	    config_fname = optarg;
 	    break;
 
-	case 'i':
-	    simta_reverse_url = optarg;
-	    break;
-
-	case 'I' :
-	    simta_ignore_reverse = 1;
-	    break;
-
-	case 'l' :
-	    simta_launch_limit = atoi( optarg );
-	    break;
-
-	case 'm' :		/* Max connections */
-	    if (( simta_global_connections_max = atoi( optarg )) < 0 ) {
-		err++;
-		fprintf( stderr, "%d: invalid max receive connections\n",
-			simta_global_connections_max );
-	    }
-	    break;
-
 	case 'p' :		/* TCP port */
 	    simta_port_smtp = optarg;
 
-#ifdef HAVE_LIBSSL
-	case 'P' :		/* ca dir */
-	    simta_dir_ca = optarg;
-	    break;
-#endif /* HAVE_LIBSSL */
-
 	case 'q' :
-	    if ( simta_filesystem_cleanup != 0 ) {
-		fprintf( stderr, "simta -q and -C illegal\n" );
-		exit( 1 );
-	    }
-
-	    if ( q_run != 0 ) {
-		fprintf( stderr, "simta invoke -Q or -q only once\n" );
-		exit( 1 );
-	    }
-
-	    /* q_runner option: just run slow queue */
+	    /* q_runner option: run slow queue */
 	    q_run++;
 	    break;
 
 	case 'Q' :
-	    /* q_runner option: just run specific slow queue */
-	    if ( simta_filesystem_cleanup != 0 ) {
-		fprintf( stderr, "simta -Q and -C illegal\n" );
-		exit( 1 );
-	    }
-
-	    if ( simta_queue_filter != NULL ) {
-		fprintf( stderr, "simta -Q can't be invoked twice\n" );
-		exit( 1 );
-	    }
-
-	    if ( q_run != 0 ) {
-		fprintf( stderr, "simta invoke -Q or -q only once\n" );
-		exit( 1 );
-	    }
-
+	    /* q_runner option: run specific slow queue */
 	    q_run++;
 	    simta_queue_filter = optarg;
-	    break;
-
-	case 'r' :
-	    simta_use_randfile = 1;
-	    break;
-
-	case 'R' :
-	    simta_smtp_default_mode = SMTP_MODE_GLOBAL_RELAY;
-	    break;
-
-	case 'S' :
-	    simta_service_submission = SERVICE_SUBMISSION_ON;
 	    break;
 
         case 'u' :
             simta_uname = optarg;
             break;
 
-	case 'V' :		/* virgin */
+	case 'V' :
 	    printf( "%s\n", version );
 	    exit( 0 );
-
-#ifdef HAVE_LIBSSL
-	case 'w' :              /* authlevel 0:none, 1:serv, 2:client & serv */
-	    simta_service_smtps = atoi( optarg );
-	    if (( simta_service_smtps < 0 ) || ( simta_service_smtps > 2 )) {
-		fprintf( stderr, "%s: %s: invalid authorization level\n",
-			prog, optarg );
-		exit( 1 );
-	    }
-	    break;
-
-	case 'x' :              /* ca file */
-	    simta_file_ca = optarg;
-	    break;
-
-	case 'y' :              /* cert file */
-	    simta_file_cert = optarg;
-	    break;
-
-	case 'z' :              /* private key */
-	    simta_file_private_key = optarg;
-	    break;
-#endif /* HAVE_LIBSSL */
 
 	default:
 	    err++;
 	}
     }
 
+    if ( q_run > 1 ) {
+	fprintf( stderr, "simta: only one -q or -Q option can be specified\n" );
+	exit( 1 );
+    }
+
+    if ( q_run && simta_filesystem_cleanup ) {
+	fprintf( stderr, "simta: -C and %s are mutually exclusive\n",
+	    simta_queue_filter ? "-Q" : "-q" );
+	exit( 1 );
+    }
+
     if ( err || optind != ac ) {
 	fprintf( stderr, "Usage:\t%s", prog );
-	fprintf( stderr, " [ -' 'aCcdIrVq ] [ -b backlog ]" );
+	fprintf( stderr, " [ -cCdV ]" );
 	fprintf( stderr, " [ -D base-dir ]" );
 	fprintf( stderr, " [ -f config-file ]" );
-	fprintf( stderr, " [ -i reference-URL ]" );
-	fprintf( stderr, " [ -l process_launch_limit ]" );
-	fprintf( stderr, " [ -m max-connections ] [ -p port ]" );
-	fprintf( stderr, " [ -P ca-directory ] [ -Q queue]" );
+	fprintf( stderr, " [ -p port ]" );
         fprintf( stderr, " [ -u user ]" );
-#ifdef HAVE_LIBSSL
-	fprintf( stderr, " [ -w authlevel ] [ -x ca-pem-file ]" );
-	fprintf( stderr, " [ -y cert-pem-file] [ -z key-pem-file ]" );
-#endif /* HAVE_LIBSSL */
+	fprintf( stderr, " [ -q | -Q filter ]" );
 	fprintf( stderr, "\n" );
 	exit( 1 );
     }
