@@ -49,6 +49,7 @@ main( int argc, char *argv[] )
     int						pidfd;
     int						server_pid;
     int						pid;
+    const char			*config_fname = SIMTA_FILE_CONFIG;
     FILE					*pf;
     struct timeval				tv_now;
 
@@ -61,7 +62,7 @@ main( int argc, char *argv[] )
 
     opterr = 0;
 
-    while (( c = getopt( argc, argv, "dmqs" )) != -1 ) {
+    while (( c = getopt( argc, argv, "dD:f:mqs" )) != -1 ) {
 	switch ( c ) {
 	default:
 	    usage++;
@@ -72,6 +73,14 @@ main( int argc, char *argv[] )
 		usage++;
 	    }
 	    command = S_DEBUG;
+	    break;
+
+	case 'D':
+	    simta_base_dir = strdup( optarg );
+	    break;
+
+	case 'f':
+	    config_fname = optarg;
 	    break;
 
 	case 'm':
@@ -106,11 +115,12 @@ main( int argc, char *argv[] )
     }
 
     if (( usage != 0 ) || ( command == NULL )) {
-	fprintf( stderr, "Usage: %s -d | -m | -s | -q [ arg ] \n", argv[ 0 ] );
+	fprintf( stderr, "Usage: %s [-D base_directory] [-f config_file] "
+		"[[ -d | -m | -s | -q ] [ arg ]] \n", argv[ 0 ] );
 	exit( EX_USAGE );
     }
 
-    if ( simta_read_config( SIMTA_FILE_CONFIG ) < 0 ) {
+    if ( simta_read_config( config_fname ) < 0 ) {
 	exit( EX_TEMPFAIL );
     }
 
