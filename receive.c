@@ -4065,6 +4065,9 @@ content_filter( struct receive_data *r, char **smtp_message )
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_SMTP_HELO",
 		r->r_hello );
 
+	filter_envp[ filter_envc++ ] = env_string( "SIMTA_HEADER_FROM",
+		r->r_env->e_header_from );
+
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_MID",
 		r->r_env->e_mid );
 
