@@ -147,9 +147,12 @@ exit 0
 %attr(6750,root,mail) %{_libexecdir}/simta/simda
 %{_bindir}/simalias
 %{_bindir}/simconnect
+%{_bindir}/simdmarc
 %{_bindir}/simexpander
 %{_bindir}/simrbl
 %{_bindir}/simreverse
+%{_bindir}/simspf
+%{_bindir}/simsrs
 /usr/lib/sendmail.simta
 
 %{_mandir}/man8/simc.8.gz

@@ -84,7 +84,8 @@ SIMTALIBS=	${LIBS}
 
 MAN1TARGETS=	simsendmail.1
 MAN8TARGETS=	simc.8 simta.8
-BINTARGETS=	simrbl simreverse simalias simexpander simconnect
+BINTARGETS=	simrbl simreverse simalias simexpander simconnect simspf \
+		simdmarc simsrs
 TARGETS=	simta simconnect simsendmail q_runner simexpander \
                 sla simc simda simspf simdmarc simsrs \
 		${BINTARGETS}
