@@ -79,9 +79,9 @@ deliver_binary( struct deliver *d )
 {
     int			x;
     int			fd[ 2 ];
-    int			pid;
-    int			val;
+    pid_t		pid;
     int			status;
+    pid_t		rc;
     SNET		*snet;
     char		*slash;
     char		*line;
@@ -222,22 +222,18 @@ deliver_binary( struct deliver *d )
 	    return( EX_TEMPFAIL );
 	}
 
-	if (( waitpid( pid, &status, 0 ) < 0 ) && ( errno != ECHILD )) {
-	    syslog( LOG_ERR, "Syserror: deliver_binary waitpid: %m" );
-	    return( EX_TEMPFAIL );
+	while (( rc = simta_waitpid( pid, &status, 0 )) != pid ) {
+	    if ( rc < 0 ) {
+		syslog( LOG_ERR, "Syserror: deliver_binary simta_waitpid: %m" );
+		return( EX_TEMPFAIL );
+	    }
 	}
 
 	if ( WIFEXITED( status )) {
-	    if (( val = WEXITSTATUS( status )) == 0 ) {
-		syslog( LOG_NOTICE, "Deliver.binary env <%s>: %d done",
-			d->d_env->e_id, pid );
+	    syslog( LOG_WARNING, "Deliver.binary env <%s>: %d exited %d",
+		    d->d_env->e_id, pid, WEXITSTATUS( status ));
 
-	    } else {
-		syslog( LOG_WARNING, "Deliver.binary env <%s>: %d exited %d",
-			d->d_env->e_id, pid, val );
-	    }
-
-	    return( val );
+	    return( WEXITSTATUS( status ));
 
 	} else if ( WIFSIGNALED( status )) {
 	    syslog( LOG_ERR, "Deliver.binary env <%s>: %d died with signal %d",

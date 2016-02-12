@@ -954,8 +954,7 @@ simta_server( void )
 	}
 
 	if ( simta_child_signal != 0 ) {
-	    simta_child_signal = 0;
-	    if ( simta_waitpid( WNOHANG ) != 0 ) {
+	    if ( simta_waitpid( 0, NULL, WNOHANG ) != 0 ) {
 		goto error;
 	    }
 	}
@@ -1195,134 +1194,6 @@ error:
 
 
     int
-simta_waitpid( int options )
-{
-    int			errors = 0;
-    int			ll;
-    int			pid;
-    int			activity;
-    int			status;
-    int			exitstatus;
-    long		milliseconds;
-    struct proc_type	**p_search;
-    struct proc_type	*p_remove;
-    struct timeval	tv_now;
-    struct host_q	*hq;
-
-    if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	return( 1 );
-    }
-
-    while (( pid = waitpid( 0, &status, options )) > 0 ) {
-	for ( p_search = &simta_proc_stab; *p_search != NULL;
-		p_search = &((*p_search)->p_next)) {
-	    if ((*p_search)->p_id == pid ) {
-		break;
-	    }
-	}
-
-	if ( *p_search == NULL ) {
-	    syslog( LOG_ERR, "Child: %d: unknown child process", pid );
-	    errors++;
-	    continue;
-	}
-
-	p_remove = *p_search;
-	*p_search = p_remove->p_next;
-
-	if ( p_remove->p_limit != NULL ) {
-	    (*p_remove->p_limit)--;
-	}
-
-	milliseconds = SIMTA_ELAPSED_MSEC( p_remove->p_tv, tv_now );
-	activity = 0;
-	ll = LOG_INFO;
-
-	if ( WIFEXITED( status )) {
-	    if (( exitstatus = WEXITSTATUS( status )) != EXIT_OK ) {
-		if (( p_remove->p_type == PROCESS_Q_SLOW ) &&
-			( exitstatus == SIMTA_EXIT_OK_LEAKY )) {
-		    activity = 1;
-
-		    /* remote host activity, requeue to encourage it */
-		    if (( hq = host_q_lookup( p_remove->p_host )) != NULL ) {
-			hq->hq_leaky = 1;
-			hq_deliver_pop( hq );
-
-			if ( hq_deliver_push( hq, &tv_now, NULL ) != 0 ) {
-			    return( 1 );
-			}
-
-		    } else {
-			simta_debuglog( 1, "Queue %s: Not Found",
-				p_remove->p_host );
-		    }
-
-		} else {
-		    errors++;
-		    ll = LOG_ERR;
-		}
-	    }
-
-	    switch ( p_remove->p_type ) {
-	    case PROCESS_Q_LOCAL:
-		syslog( ll, "Child: local runner %d.%ld exited %d "
-			"(%ld milliseconds, %d siblings remaining)",
-			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
-			*p_remove->p_limit );
-		break;
-
-	    case PROCESS_Q_SLOW:
-		syslog( ll, "Child: queue runner %d.%ld for %s exited %d "
-			"(%ld milliseconds, %d siblings remaining)",
-			pid, p_remove->p_tv.tv_sec,
-			*(p_remove->p_host) ? p_remove->p_host : S_UNEXPANDED,
-			exitstatus, milliseconds, *p_remove->p_limit );
-		break;
-
-	    case PROCESS_RECEIVE:
-		p_remove->p_ss->ss_count--;
-		p_remove->p_cinfo->c_proc_total--;
-
-		syslog( ll, "Child: %s receive process %d.%ld for %s exited %d "
-			"(%ld milliseconds, %d siblings remaining, %d %s)",
-			p_remove->p_ss->ss_service, pid, p_remove->p_tv.tv_sec,
-			p_remove->p_host, exitstatus, milliseconds,
-			*p_remove->p_limit, p_remove->p_ss->ss_count,
-			p_remove->p_ss->ss_service );
-		break;
-
-	    default:
-		errors++;
-		syslog( LOG_ERR, "Child: unknown process %d.%ld exited %d "
-			"(%ld milliseconds)",
-			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds );
-		break;
-	    }
-
-	} else if ( WIFSIGNALED( status )) {
-	    syslog( LOG_ERR, "Child: %d.%ld died with signal %d "
-		    "(%ld milliseconds)", pid, p_remove->p_tv.tv_sec,
-		    WTERMSIG( status ), milliseconds );
-	    errors++;
-
-	} else {
-	    syslog( LOG_ERR, "Child: %d.%ld died (%ld milliseconds)", pid,
-		    p_remove->p_tv.tv_sec, milliseconds );
-	    errors++;
-	}
-
-	if ( p_remove->p_host ) {
-	    free( p_remove->p_host );
-	}
-	free( p_remove );
-    }
-
-    return( errors );
-}
-
-
-    int
 simta_wait_for_child( int child_type )
 {
     int				pid;
@@ -1377,8 +1248,9 @@ simta_wait_for_child( int child_type )
 	syslog( LOG_NOTICE, "Child: launched %s %d.%ld",
 		p_name, pid, simta_tv_now.tv_sec );
 
-	if ( waitpid( pid, &status, 0 ) < 0 ) {
-	    syslog( LOG_ERR, "Syserror: wait_for_child waitpid %d: %m", pid );
+	if ( simta_waitpid( pid, &status, 0 ) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: wait_for_child simta_waitpid %d: %m",
+		    pid );
 	    return( 1  );
 	}
 

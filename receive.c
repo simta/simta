@@ -1697,8 +1697,7 @@ f_data( struct receive_data *r )
 
     for ( ; ; ) {
 	if ( simta_child_signal != 0 ) {
-	    simta_child_signal = 0;
-	    if ( simta_waitpid( WNOHANG ) != 0 ) {
+	    if ( simta_waitpid( 0, NULL, WNOHANG ) != 0 ) {
 		goto error;
 	    }
 	}
@@ -3405,8 +3404,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
     for ( ; ; ) {
 	if ( simta_child_signal != 0 ) {
-	    simta_child_signal = 0;
-	    if ( simta_waitpid( WNOHANG ) != 0 ) {
+	    if ( simta_waitpid( 0, NULL, WNOHANG ) != 0 ) {
 		goto syserror;
 	    }
 	}
@@ -3617,7 +3615,7 @@ closeconnection:
 	    /* If we still have children, wait for at least one of them to
 	     * change state before looping again.
 	     */
-	    if ( simta_waitpid( 0 ) != 0 ) {
+	    if ( simta_waitpid( 0, NULL, 0 ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: smtp_receive simta_waitpid: %m" );
 	    }
 	}
@@ -3963,8 +3961,9 @@ env_string( const char *left, const char *right )
 content_filter( struct receive_data *r, char **smtp_message )
 {
     int			fd[ 2 ];
-    int			pid;
+    pid_t		pid;
     int			status;
+    pid_t		rc;
     int			filter_envc = 0;
     SNET		*snet;
     char		*line;
@@ -4144,8 +4143,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 
 	    if ( errno == EINTR ) {
 		if ( simta_child_signal != 0 ) {
-		    simta_child_signal = 0;
-		    if ( simta_waitpid( WNOHANG ) != 0 ) {
+		    if ( simta_waitpid( pid, &status, WNOHANG ) != 0 ) {
 			syslog( LOG_ERR,
 				"Syserror: content_filter simta_waitpid: %m" );
 			close( fd[ 0 ] );
@@ -4162,23 +4160,9 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    return( MESSAGE_TEMPFAIL );
 	}
 
-	for ( ; ; ) {
-	    if ( waitpid( pid, &status, 0 ) < 0 ) {
-		if ( errno == EINTR ) {
-		    if ( simta_child_signal != 0 ) {
-			simta_child_signal = 0;
-			if ( simta_waitpid( WNOHANG ) != 0 ) {
-			    syslog( LOG_ERR, "Syserror: "
-				    "content_filter simta_waitpid: %m" );
-			    return( MESSAGE_TEMPFAIL );
-			}
-		    }
-		    continue;
-		} else if ( errno == ECHILD ) {
-		    break;
-		}
-
-		syslog( LOG_ERR, "Syserror: content_filter waitpid: %m" );
+	while (( rc = simta_waitpid( pid, &status, 0 )) != pid ) {
+	    if ( rc < 0 ) {
+		syslog( LOG_ERR, "Syserror: content_filter simta_waitpid: %m" );
 		return( MESSAGE_TEMPFAIL );
 	    }
 	}

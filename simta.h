@@ -155,7 +155,7 @@ struct proc_type {
     struct timeval		p_tv;
     struct simta_socket		*p_ss;
     struct connection_info	*p_cinfo;
-    int				p_id;
+    pid_t			p_id;
     int				p_type;
     char			*p_host;
     int				*p_limit;
@@ -367,7 +367,7 @@ void	simta_debuglog( int, const char *, ...);
 int	simta_gettimeofday( struct timeval * );
 int	simta_check_charset( const char * );
 int	simta_host_is_jailhost( char *  );
-int	simta_waitpid( int );
+pid_t	simta_waitpid( pid_t, int *, int );
 int	simta_child_q_runner( struct host_q* );
 
 #define SIMTA_ELAPSED_MSEC(a, b) \

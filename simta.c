@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -2785,6 +2786,148 @@ simta_read_publicsuffix ( void )
     }
 
     return( 0 );
+}
+
+    pid_t
+simta_waitpid( pid_t child, int *childstatus, int options )
+{
+    pid_t		retval = 0;
+    int			ll;
+    pid_t		pid;
+    int			status;
+    int			exitstatus;
+    int			childwaited = 0;
+    long		milliseconds;
+    struct proc_type	**p_search;
+    struct proc_type	*p_remove;
+    struct timeval	tv_now;
+    struct host_q	*hq;
+
+    if ( simta_gettimeofday( &tv_now ) != 0 ) {
+	return( 1 );
+    }
+
+    for ( ; ; ) {
+	simta_child_signal = 0;
+
+	if (( pid = waitpid( 0, &status, options )) <= 0 ) {
+	    break;
+	}
+
+	for ( p_search = &simta_proc_stab; *p_search != NULL;
+		p_search = &((*p_search)->p_next)) {
+	    if ((*p_search)->p_id == pid ) {
+		break;
+	    }
+	}
+
+	if ( *p_search == NULL ) {
+	    if ( pid == child ) {
+		if ( childstatus ) {
+		    *childstatus = status;
+		}
+		childwaited = 1;
+		continue;
+	    }
+	    syslog( LOG_ERR, "Child: %d: unknown child process", pid );
+	    retval--;
+	    continue;
+	}
+
+	p_remove = *p_search;
+	*p_search = p_remove->p_next;
+
+	if ( p_remove->p_limit != NULL ) {
+	    (*p_remove->p_limit)--;
+	}
+
+	milliseconds = SIMTA_ELAPSED_MSEC( p_remove->p_tv, tv_now );
+	ll = LOG_INFO;
+
+	if ( WIFEXITED( status )) {
+	    if (( exitstatus = WEXITSTATUS( status )) != EXIT_OK ) {
+		if (( p_remove->p_type == PROCESS_Q_SLOW ) &&
+			( exitstatus == SIMTA_EXIT_OK_LEAKY )) {
+
+		    /* remote host activity, requeue to encourage it */
+		    if (( hq = host_q_lookup( p_remove->p_host )) != NULL ) {
+			hq->hq_leaky = 1;
+			hq_deliver_pop( hq );
+
+			if ( hq_deliver_push( hq, &tv_now, NULL ) != 0 ) {
+			    retval--;
+			}
+
+		    } else {
+			simta_debuglog( 1, "Queue %s: Not Found",
+				p_remove->p_host );
+		    }
+
+		} else {
+		    retval--;
+		    ll = LOG_ERR;
+		}
+	    }
+
+	    switch ( p_remove->p_type ) {
+	    case PROCESS_Q_LOCAL:
+		syslog( ll, "Child: local runner %d.%ld exited %d "
+			"(%ld milliseconds, %d siblings remaining)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
+			*p_remove->p_limit );
+		break;
+
+	    case PROCESS_Q_SLOW:
+		syslog( ll, "Child: queue runner %d.%ld for %s exited %d "
+			"(%ld milliseconds, %d siblings remaining)",
+			pid, p_remove->p_tv.tv_sec,
+			*(p_remove->p_host) ? p_remove->p_host : S_UNEXPANDED,
+			exitstatus, milliseconds, *p_remove->p_limit );
+		break;
+
+	    case PROCESS_RECEIVE:
+		p_remove->p_ss->ss_count--;
+		p_remove->p_cinfo->c_proc_total--;
+
+		syslog( ll, "Child: %s receive process %d.%ld for %s exited %d "
+			"(%ld milliseconds, %d siblings remaining, %d %s)",
+			p_remove->p_ss->ss_service, pid, p_remove->p_tv.tv_sec,
+			p_remove->p_host, exitstatus, milliseconds,
+			*p_remove->p_limit, p_remove->p_ss->ss_count,
+			p_remove->p_ss->ss_service );
+		break;
+
+	    default:
+		retval--;
+		syslog( LOG_ERR, "Child: unknown process %d.%ld exited %d "
+			"(%ld milliseconds)",
+			pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds );
+		break;
+	    }
+
+	} else if ( WIFSIGNALED( status )) {
+	    syslog( LOG_ERR, "Child: %d.%ld died with signal %d "
+		    "(%ld milliseconds)", pid, p_remove->p_tv.tv_sec,
+		    WTERMSIG( status ), milliseconds );
+	    retval--;
+
+	} else {
+	    syslog( LOG_ERR, "Child: %d.%ld died (%ld milliseconds)", pid,
+		    p_remove->p_tv.tv_sec, milliseconds );
+	    retval--;
+	}
+
+	if ( p_remove->p_host ) {
+	    free( p_remove->p_host );
+	}
+	free( p_remove );
+    }
+
+    if (( retval == 0 ) && childwaited ) {
+	retval = child;
+    }
+
+    return( retval );
 }
 
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
