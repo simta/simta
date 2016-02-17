@@ -1,3 +1,15 @@
+1.0.0 rc1
+    - fixed crash when delivery attempt was triggered with no accepted mail
+    - more log format consistency updates
+    - improved header parsing
+    - fixed spurious tempfails after forking Deliver children
+    - improved LDAP config file parsing
+    - improved simta config file parsing, renamed some options
+    - added support for multiple secrets in SRS expansion
+    - exposed more things to the content filter
+    - cleaned up command line flags
+    - updated documentation
+
 0.13.1
     - improved accepted message timer
     - fixed a regression in the SPF code that caused occasional crashes
