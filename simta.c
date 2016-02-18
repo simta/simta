@@ -242,6 +242,10 @@ int			simta_outbound_ssl_connect_timer = 300;
 
 #ifdef HAVE_LIBOPENDKIM
 int			simta_dkim_verify = 1;
+int			simta_dkim_sign = DKIMSIGN_POLICY_OFF;
+char			*simta_dkim_key = NULL;
+char			*simta_dkim_selector = "simta";
+yastr			simta_dkim_domain = NULL;
 #endif /* HAVE_LIBOPENDKIM */
 
 int			simta_srs = SRS_POLICY_OFF;
@@ -1174,6 +1178,62 @@ simta_read_config( const char *fname )
 	    }
 
 #ifdef HAVE_LIBOPENDKIM
+	} else if ( strcasecmp( av[ 0 ], "DKIM_DOMAIN" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_dkim_domain = yaslauto( av[ 1 ] );
+		yasltolower( simta_dkim_domain );
+		simta_debuglog( 2, "DKIM_DOMAIN: %s", simta_dkim_domain );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: DKIM_DOMAIN <domain>\n",
+		    fname, lineno );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "DKIM_KEY" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_dkim_key = strdup( av[ 1 ] );
+		simta_debuglog( 2, "DKIM_KEY: %s", simta_dkim_key );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: DKIM_KEY <path>\n",
+		    fname, lineno );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "DKIM_SIGN" ) == 0 ) {
+	    if ( ac == 2 ) {
+		if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
+		    simta_dkim_sign = DKIMSIGN_POLICY_OFF;
+		    simta_debuglog( 2, "DKIM_SIGN OFF" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "ALWAYS" ) == 0 ) {
+		    simta_dkim_sign = DKIMSIGN_POLICY_ALWAYS;
+		    simta_debuglog( 2, "DKIM_SIGN ALWAYS" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "LOCAL" ) == 0 ) {
+		    simta_dkim_sign = DKIMSIGN_POLICY_LOCAL;
+		    simta_debuglog( 2, "DKIM_SIGN LOCAL" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "BOUNCES" ) == 0 ) {
+		     simta_dkim_sign = DKIMSIGN_POLICY_BOUNCES;
+		     simta_debuglog( 2, "DKIM_SIGN BOUNCES" );
+		     continue;
+		}
+	    }
+	    fprintf( stderr, "%s: line %d: usage: "
+		    "DKIM_SIGN <OFF|ALWAYS|LOCAL|BOUNCES>\n",
+		    fname, lineno );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "DKIM_SELECTOR" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_dkim_selector = strdup( av[ 1 ] );
+		simta_debuglog( 2, "DKIM_SELECTOR: %s", simta_dkim_selector );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: DKIM_SELECTOR <selector>\n",
+		    fname, lineno );
+	    goto error;
+
 	} else if (( rc = simta_config_bool( "DKIM_VERIFY", &simta_dkim_verify,
 		ac, av, fname, lineno )) != 0 ) {
 	    if ( rc < 0 ) {
@@ -2003,6 +2063,12 @@ simta_config( void )
     if ( !simta_srs_domain ) {
 	simta_srs_domain = simta_domain;
     }
+
+#ifdef HAVE_LIBOPENDKIM
+    if ( !simta_dkim_domain ) {
+	simta_dkim_domain = simta_domain;
+    }
+#endif /* HAVE_LIBOPENDKIM */
 
     simta_postmaster = yaslcatyasl( yaslauto( "postmaster@" ), simta_hostname );
 

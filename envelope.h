@@ -1,8 +1,10 @@
 #ifndef SIMTA_ENVELOPE_H
 #define SIMTA_ENVELOPE_H
 
-#include <snet.h>
 #include <sys/stat.h>
+
+#include <snet.h>
+#include <yasl.h>
 
 #define	R_TEMPFAIL	0
 #define	R_ACCEPTED	1
@@ -80,6 +82,7 @@ struct envelope {
 #define ENV_FLAG_PUNT			(1<<5)
 #define ENV_FLAG_DELETE			(1<<6)
 #define ENV_FLAG_SUPPRESS_NO_EMAIL	(1<<7)
+#define ENV_FLAG_DKIMSIGN		(1<<8)
 
 #define ENV_ATTR_ARCHIVE_ONLY		(1<<0)
 #define ENV_ATTR_8BITMIME		(1<<1)
@@ -123,6 +126,7 @@ ino_t		env_dfile_copy( struct envelope *, char *, char * );
 int		env_truncate_and_unlink( struct envelope *, SNET * );
 int		env_string_recipients( struct envelope *, char * );
 int		sender_list_add( struct envelope * );
+yastr		env_dkim_sign( struct envelope * );
 int		env_jail_set( struct envelope *, int );
 int		env_dfile_open( struct envelope * );
 

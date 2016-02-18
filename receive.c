@@ -1048,6 +1048,12 @@ f_mail( struct receive_data *r )
 	r->r_env->e_attributes |= ENV_ATTR_8BITMIME;
     }
 
+#ifdef HAVE_LIBOPENDKIM
+    if ( simta_dkim_sign == DKIMSIGN_POLICY_ALWAYS ) {
+	r->r_env->e_flags |= ENV_FLAG_DKIMSIGN;
+    }
+#endif /* HAVE_LIBOPENDKIM */
+
 #ifdef HAVE_LIBSSL
     if ( simta_checksum_md != NULL ) {
 	md_reset( &r->r_md );

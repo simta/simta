@@ -91,6 +91,11 @@
 #define PUNTING_POLICY_DISABLED		1
 #define PUNTING_POLICY_ENABLED		2
 
+#define DKIMSIGN_POLICY_OFF		0
+#define DKIMSIGN_POLICY_ALWAYS		1
+#define DKIMSIGN_POLICY_LOCAL		2
+#define DKIMSIGN_POLICY_BOUNCES		3
+
 #define DMARC_POLICY_OFF		0
 #define DMARC_POLICY_ON			1
 #define DMARC_POLICY_STRICT		2
@@ -346,6 +351,10 @@ extern int				simta_outbound_ssl_connect_timer;
 
 #ifdef HAVE_LIBOPENDKIM
 extern int				simta_dkim_verify;
+extern int				simta_dkim_sign;
+extern char				*simta_dkim_key;
+extern char				*simta_dkim_selector;
+extern yastr				simta_dkim_domain;
 #endif /* HAVE_LIBOPENDKIM */
 
 extern int				simta_srs;

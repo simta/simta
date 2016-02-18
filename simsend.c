@@ -205,6 +205,13 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
+#ifdef HAVE_LIBOPENDKIM
+    if (( simta_dkim_sign == DKIMSIGN_POLICY_ALWAYS ) ||
+	    ( simta_dkim_sign == DKIMSIGN_POLICY_LOCAL )) {
+	env->e_flags |= ENV_FLAG_DKIMSIGN;
+    }
+#endif /* HAVE_LIBOPENDKIM */
+
     if (( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) &&
 	    ( simta_local_jail == 0 )) {
 	env_jail_set( env, ENV_JAIL_NO_CHANGE );

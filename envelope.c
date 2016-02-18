@@ -34,7 +34,12 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
+#ifdef HAVE_LIBOPENDKIM
+#include <opendkim/dkim.h>
+#endif /* HAVE_LIBOPENDKIM */
+
 #include <snet.h>
+#include <yasl.h>
 
 #include "ll.h"
 #include "envelope.h"
@@ -434,15 +439,29 @@ env_recipient( struct envelope *e, char *addr )
 
 
     int
-env_outfile( struct envelope *e )
+env_outfile( struct envelope *env )
 {
-    if (( e->e_flags & ENV_FLAG_TFILE ) == 0 ) {
-	if ( env_tfile( e ) != 0 ) {
+    yastr	    headers = NULL;
+
+#ifdef HAVE_LIBOPENDKIM
+    if ( env->e_flags & ENV_FLAG_DKIMSIGN ) {
+	headers = env_dkim_sign( env );
+	env->e_flags ^= ENV_FLAG_DKIMSIGN;
+    }
+#endif /* HAVE_LIBOPENDKIM */
+
+    if ( headers ) {
+	env_dfile_copy( env, NULL, headers );
+	yaslfree( headers );
+    }
+
+    if (( env->e_flags & ENV_FLAG_TFILE ) == 0 ) {
+	if ( env_tfile( env ) != 0 ) {
 	    return( 1 );
 	}
     }
 
-    if ( env_efile( e ) != 0 ) {
+    if ( env_efile( env ) != 0 ) {
 	return( 1 );
     }
 
@@ -676,6 +695,122 @@ sender_list_add( struct envelope *e )
     return( 0 );
 }
 
+#ifdef HAVE_LIBOPENDKIM
+    yastr
+env_dkim_sign( struct envelope *env )
+{
+    char	    df[ MAXPATHLEN + 1 ];
+    DKIM_LIB	    *libhandle;
+    unsigned int    flags;
+    DKIM	    *dkim;
+    DKIM_STAT	    result;
+    yastr	    signature = NULL;
+    yastr	    key = NULL;
+    yastr	    tmp = NULL;
+    yastr	    *split = NULL;
+    size_t	    tok_count = 0;
+    char	    buf[ 1024 * 1024 ];
+    unsigned char   *dkim_header;
+    SNET	    *snet;
+    ssize_t	    chunk;
+
+    sprintf( df, "%s/D%s", env->e_dir, env->e_id );
+
+    if (( snet = snet_open( simta_dkim_key, O_RDONLY, 0,
+	    1024 * 1024 )) == NULL ) {
+	syslog( LOG_ERR, "Liberror: env_dkim_sign snet_open %s: %m",
+		simta_dkim_key );
+	return( NULL );
+    }
+    key = yaslempty();
+    while (( chunk = snet_read( snet, buf, 1024 * 1024, NULL )) > 0 ) {
+	key = yaslcatlen( key, buf, chunk );
+    }
+    snet_close( snet );
+
+    if (( libhandle = dkim_init( NULL, NULL )) == NULL ) {
+	syslog( LOG_ERR, "Liberror: env_dkim_sign dkim_init" );
+	return( NULL );
+    }
+
+    /* Data is stored in UNIX format, so tell libopendkim to fix
+     * CRLF issues.
+     */
+    flags = DKIM_LIBFLAGS_FIXCRLF;
+    dkim_options( libhandle, DKIM_OP_SETOPT, DKIM_OPTS_FLAGS, &flags,
+	    sizeof( flags ));
+
+    /* Only sign the headers recommended by RFC 6376 */
+    dkim_options( libhandle, DKIM_OP_SETOPT, DKIM_OPTS_SIGNHDRS,
+	    dkim_should_signhdrs, sizeof( unsigned char ** ));
+
+    if (( dkim = dkim_sign( libhandle, (unsigned char *)(env->e_id), NULL,
+	    (unsigned char *)key, (unsigned char *)simta_dkim_selector,
+	    (unsigned char *)simta_dkim_domain,
+	    DKIM_CANON_RELAXED, DKIM_CANON_RELAXED, DKIM_SIGN_RSASHA256,
+	    -1, &result )) == NULL ) {
+	syslog( LOG_NOTICE, "Liberror: env_dkim_sign dkim_sign: %s",
+		dkim_getresultstr( result ));
+	goto error;
+    }
+
+    if (( snet = snet_open( df, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	syslog( LOG_ERR, "Liberror: env_dkim_sign snet_open %s: %m",
+		buf );
+	goto error;
+    }
+
+    while (( chunk = snet_read( snet, buf, 1024 * 1024, NULL )) > 0 ) {
+	if (( result = dkim_chunk( dkim, (unsigned char *)buf,
+		chunk )) != 0 ) {
+	    syslog( LOG_NOTICE, "Liberror: env_dkim_sign dkim_chunk: %s: %s",
+		    dkim_getresultstr( result ),
+		    dkim_geterror( dkim ));
+	    snet_close( snet );
+	    goto error;
+	}
+    }
+
+    snet_close( snet );
+
+    if (( result = dkim_chunk( dkim, NULL, 0 )) != 0 ) {
+	syslog( LOG_NOTICE, "Liberror: env_dkim_sign dkim_chunk: %s: %s",
+		dkim_getresultstr( result ),
+		dkim_geterror( dkim ));
+	goto error;
+    }
+    if (( result = dkim_eom( dkim, NULL )) != 0 ) {
+	syslog( LOG_NOTICE, "Liberror: env_dkim_sign dkim_eom: %s: %s",
+		dkim_getresultstr( result ),
+		dkim_geterror( dkim ));
+	goto error;
+    }
+    if (( result = dkim_getsighdr_d( dkim, 16, &dkim_header, &chunk )) != 0 ) {
+	syslog( LOG_NOTICE,
+		"Liberror: env_dkim_sign dkim_getsighdr_d: %s: %s",
+		dkim_getresultstr( result ),
+		dkim_geterror( dkim ));
+	goto error;
+    }
+
+    simta_debuglog( 1, "dkim header: %s", dkim_header );
+
+    /* Get rid of carriage returns in libopendkim output */
+    split = yaslsplitlen( dkim_header, strlen( dkim_header ), "\r", 1,
+	    &tok_count );
+    tmp = yasljoinyasl( split, tok_count, "", 0 );
+    signature = yaslcatyasl( yaslauto( "DKIM-Signature: " ), tmp );
+
+error:
+    yaslfree( tmp );
+    yaslfreesplitres( split, tok_count );
+    yaslfree( key );
+    dkim_free( dkim );
+    dkim_close( libhandle );
+
+    return( signature );
+}
+#endif /* HAVE_LIBOPENDKIM */
 
     int
 env_efile( struct envelope *e )
@@ -1201,6 +1336,7 @@ env_dfile_copy( struct envelope *env, char *source, char *header )
     struct stat         sbuf;
     SNET		*snet = NULL;
     char		*line;
+    char		df[ MAXPATHLEN + 1 ];
 
     /* If the tfile has already been written it has incorrect Dinode
      * information.
@@ -1209,8 +1345,30 @@ env_dfile_copy( struct envelope *env, char *source, char *header )
 	env_tfile_unlink( env );
     }
 
-    if (( dfile_fd = env_dfile_open( env )) < 0 ) {
+    if ( source == NULL ) {
+	if ( ! ( env->e_flags & ENV_FLAG_DFILE )) {
+	    syslog( LOG_ERR, "env_dfile_copy: no source" );
+	    return( 0 );
+	}
+
+	sprintf( df, "%s/D%s", env->e_dir, env->e_id );
+	if (( snet = snet_open( df, O_RDONLY, 0, 1024 * 1024 )) != NULL ) {
+	    if ( unlink( df )) {
+		syslog( LOG_ERR, "Syserror: env_dfile_copy unlink %s: %m", df );
+		goto error;
+	    }
+	}
+    } else {
+	snet = snet_open( source, O_RDONLY, 0, 1024 * 1024 );
+    }
+
+    if ( snet == NULL ) {
+	syslog( LOG_ERR, "Liberror: env_dfile_copy snet_open: %m" );
 	return( 0 );
+    }
+
+    if (( dfile_fd = env_dfile_open( env )) < 0 ) {
+	goto error;
     }
 
     if (( dfile = fdopen( dfile_fd, "w" )) == NULL ) {
@@ -1218,11 +1376,6 @@ env_dfile_copy( struct envelope *env, char *source, char *header )
 	if ( close( dfile_fd ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror: env_dfile_copy close: %m" );
 	}
-	goto error;
-    }
-
-    if (( snet = snet_open( source, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "Liberror: env_dfile_copy snet_open: %m" );
 	goto error;
     }
 
