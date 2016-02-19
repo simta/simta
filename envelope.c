@@ -207,7 +207,7 @@ env_create( const char *dir, const char *id, const char *e_mail,
     if ( parent ) {
 	env->e_n_exp_level = parent->e_n_exp_level + 1;
 	env_jail_set( env, parent->e_jail );
-    } else if ( simta_mail_jail != 0 ) {
+    } else if ( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) {
 	env_jail_set( env, ENV_JAIL_PRISONER );
     }
 

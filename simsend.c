@@ -206,7 +206,8 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
-    if (( simta_mail_jail != 0 ) && ( simta_local_jail == 0 )) {
+    if (( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) &&
+	    ( simta_local_jail == 0 )) {
 	env_jail_set( env, ENV_JAIL_NO_CHANGE );
     }
 

@@ -1473,7 +1473,7 @@ mid_promote( char *mid )
     if (( dll = dll_lookup( simta_env_list, mid )) != NULL ) {
 	e = (struct envelope*)dll->dll_data;
 
-	if ( simta_mail_jail ) {
+	if ( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) {
 	    if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {
 		syslog( LOG_NOTICE,
 			"Command: env <%s>: env_jail_status failed", mid );
@@ -1516,7 +1516,7 @@ sender_promote( char *sender )
 	for ( dll_se = sl->sl_entries; dll_se != NULL;
 		dll_se = dll_se->dll_next ) {
 	    se = (struct sender_entry*)dll_se->dll_data;
-	    if ( simta_mail_jail ) {
+	    if ( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) {
 		/* tag env */
 		if ( env_jail_status( se->se_env, ENV_JAIL_PAROLEE ) != 0 ) {
 		    syslog( LOG_NOTICE,
@@ -1712,7 +1712,7 @@ daemon_commands( struct simta_dirp *sd )
 	    if (( hq = host_q_lookup( av[ 1 ])) != NULL ) {
 		hq_deliver_pop( hq );
 		/* hq->hq_priority++; */
-		if ( simta_mail_jail ) {
+		if ( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) {
 		    /* promote all the envs in the queue */
 		    for ( e = hq->hq_env_head; e != NULL; e = e->e_hq_next ) {
 			if ( env_jail_status( e, ENV_JAIL_PAROLEE ) != 0 ) {

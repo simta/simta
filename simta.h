@@ -99,6 +99,11 @@
 #define QUEUE_POLICY_FIFO		0
 #define QUEUE_POLICY_SHUFFLE		1
 
+#define RQUEUE_POLICY_FAST		0
+#define RQUEUE_POLICY_SLOW		1
+#define RQUEUE_POLICY_JAIL		2
+#define RQUEUE_POLICY_PUNT		3
+
 #define SPF_POLICY_OFF			0
 #define SPF_POLICY_ON			1
 #define SPF_POLICY_STRICT		2
@@ -196,7 +201,6 @@ extern int				simta_policy_tls;
 extern int				simta_policy_tls_cert;
 extern int				simta_wait_min;
 extern int				simta_wait_max;
-extern int				simta_mail_jail;
 extern int				simta_bounce_jail;
 extern int				simta_local_jail;
 extern int				simta_sender_list_enable;
@@ -209,9 +213,9 @@ extern int				simta_aggressive_delivery;
 extern int				simta_aggressive_expansion;
 extern int				simta_aggressive_receipt_max;
 extern int				simta_queue_policy;
+extern int				simta_rqueue_policy;
 extern int				simta_smtp_rcvbuf_min;
 extern int				simta_smtp_rcvbuf_max;
-extern int				simta_queue_incoming_smtp_mail;
 extern int				simta_leaky_queue;
 extern int				simta_listen_backlog;
 extern int				simta_disk_cycle;

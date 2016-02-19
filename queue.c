@@ -136,10 +136,13 @@ host_q_create_or_lookup( char *hostname )
 	}
 
 	if (( hq->hq_status == HOST_UNKNOWN ) &&
-		( simta_queue_incoming_smtp_mail != 0 ) &&
+		(( simta_rqueue_policy == RQUEUE_POLICY_SLOW ) ||
+		( simta_rqueue_policy == RQUEUE_POLICY_PUNT )) &&
 		( simta_process_type == PROCESS_RECEIVE )) {
 	    hq->hq_status = HOST_SUPPRESSED;
-	    hq->hq_no_punt |= NOPUNT_MX;
+	    if ( simta_rqueue_policy != RQUEUE_POLICY_PUNT ) {
+		hq->hq_no_punt |= NOPUNT_MX;
+	    }
 	}
 
 	/* add this host to the host_q_head */
@@ -588,7 +591,7 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
 	}
 
     /* if we're a jail, does this queue have any active mail? */
-    } else if (( simta_mail_jail != 0 ) && 
+    } else if (( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) &&
 	    ( hq->hq_entries == hq->hq_jail_envs )) {
 	wait_last.tv_sec = simta_jail_seconds;
 	if ( hq->hq_last_launch.tv_sec == 0 ) {
@@ -601,12 +604,12 @@ hq_deliver_push( struct host_q *hq, struct timeval *tv_now,
     /* have we never launched this queue? */
     } else if ( hq->hq_wait_last.tv_sec == 0 ) {
 	wait_last.tv_sec = hq->hq_wait_min;
-	if ( simta_queue_incoming_smtp_mail != 0 ) {
+	if ( simta_rqueue_policy != RQUEUE_POLICY_FAST ) {
 	    next_launch.tv_sec = tv_now->tv_sec;
 	} else {
 	    next_launch.tv_sec = random() % hq->hq_wait_min + tv_now->tv_sec;
 	}
-    
+
     /* is the queue leaky? */
     } else if ( hq->hq_leaky != 0 ) {
 	hq->hq_leaky = 0;
@@ -1126,7 +1129,7 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 
 	switch ( deliver_q->hq_status ) {
 	case HOST_LOCAL:
-	    if (( simta_mail_jail != 0 ) &&
+	    if (( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) &&
 		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
 		syslog( LOG_INFO, "Deliver.remote env <%s>: jail",
 			d->d_env->e_id );
@@ -1142,7 +1145,7 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 
 	case HOST_MX:
 	case HOST_PUNT:
-	    if (( simta_mail_jail != 0 ) &&
+	    if (( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) &&
 		    ( env_deliver->e_jail == ENV_JAIL_PRISONER )) {
 		syslog( LOG_INFO, "Deliver.remote env <%s>: jail",
 			d->d_env->e_id );

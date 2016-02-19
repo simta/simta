@@ -353,7 +353,7 @@ deliver_accepted( struct receive_data *r, int force )
 	return( RECEIVE_OK );
     }
 
-    if (( force || ( simta_queue_incoming_smtp_mail != 0 ) ||
+    if (( force || ( simta_rqueue_policy == RQUEUE_POLICY_SLOW ) ||
 	    (( simta_aggressive_receipt_max > 0 ) &&
 	    ( simta_fast_files >= simta_aggressive_receipt_max )))) {
 	if (( simta_q_runner_receive_max == 0 ) ||
@@ -2183,7 +2183,8 @@ f_data( struct receive_data *r )
 	    if ( env_hostname( r->r_env, simta_jail_host ) != 0 ) {
 		goto error;
 	    }
-	    if (( simta_mail_jail != 0 ) && ( simta_bounce_jail == 0 )) {
+	    if (( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) &&
+		    ( simta_bounce_jail == 0 )) {
 		/* bounces must be able to get out of jail */
 		env_jail_set( r->r_env, ENV_JAIL_NO_CHANGE );
 	    }

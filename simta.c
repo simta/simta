@@ -97,7 +97,6 @@ int			simta_policy_tls = TLS_POLICY_DEFAULT;
 int			simta_policy_tls_cert = TLS_POLICY_DEFAULT;
 int			simta_wait_max = 80 * 60;
 int			simta_wait_min = 5 * 60;
-int			simta_mail_jail = 0;
 int			simta_bounce_jail = 0;
 int			simta_local_jail = 0;
 int			simta_sender_list_enable = 0;
@@ -110,7 +109,7 @@ int			simta_aggressive_delivery = 1;
 int			simta_aggressive_expansion = 1;
 int			simta_aggressive_receipt_max = 50;
 int			simta_queue_policy = QUEUE_POLICY_FIFO;
-int			simta_queue_incoming_smtp_mail = 0;
+int			simta_rqueue_policy = RQUEUE_POLICY_FAST;
 int			simta_leaky_queue = 0;
 int			simta_listen_backlog = 64;
 int			simta_disk_cycle = 0;
@@ -1576,26 +1575,29 @@ simta_read_config( const char *fname )
 	    }
 
 	} else if ( strcasecmp( av[ 0 ], "RECEIVE_QUEUE_STRATEGY" ) == 0 ) {
-	    /* FIXME: This should probably use a single variable */
 	    if ( ac == 2 ) {
 		if ( strcasecmp( av[ 1 ], "FAST" ) == 0 ) {
-		    simta_queue_incoming_smtp_mail = 0;
-		    simta_mail_jail = 0;
+		    simta_rqueue_policy = RQUEUE_POLICY_FAST;
 		    simta_debuglog( 2, "RECEIVE_QUEUE_STRATEGY FAST" );
 		    continue;
 		} else if ( strcasecmp( av[ 1 ], "JAIL" ) == 0 ) {
-		    simta_mail_jail = 1;
+		    simta_rqueue_policy = RQUEUE_POLICY_JAIL;
 		    simta_debuglog( 2, "RECEIVE_QUEUE_STRATEGY JAIL" );
 		    continue;
 		} else if ( strcasecmp( av[ 1 ], "SLOW" ) == 0 ) {
-		    simta_queue_incoming_smtp_mail = 1;
+		    simta_rqueue_policy = RQUEUE_POLICY_SLOW;
 		    simta_debuglog( 2, "RECEIVE_QUEUE_STRATEGY SLOW" );
+		    continue;
+		} else if ( strcasecmp( av[ 1 ], "PUNT" ) == 0 ) {
+		    simta_rqueue_policy = RQUEUE_POLICY_PUNT;
+		    simta_debuglog( 2, "RECEIVE_QUEUE_STRATEGY PUNT" );
 		    continue;
 		}
 	    }
 	    fprintf( stderr, "%s: line %d: usage: "
-		    "RECEIVE_QUEUE_STRATEGY <FAST|SLOW|JAIL>",
+		    "RECEIVE_QUEUE_STRATEGY <FAST|SLOW|PUNT|JAIL>\n",
 		    fname, lineno );
+	    goto error;
 
 #ifdef HAVE_LIBSSL
 	} else if (( rc = simta_config_int( "RECEIVE_TLS_ACCEPT_TIMEOUT",

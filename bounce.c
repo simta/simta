@@ -296,7 +296,8 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq,
 	return( NULL );
     }
 
-    if (( simta_mail_jail != 0 ) && ( simta_bounce_jail == 0 )) {
+    if (( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) &&
+	    ( simta_bounce_jail == 0 )) {
 	/* bounces must be able to get out of jail */
 	env_jail_set( bounce_env, ENV_JAIL_NO_CHANGE );
     }
