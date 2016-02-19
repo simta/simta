@@ -441,11 +441,20 @@ env_recipient( struct envelope *e, char *addr )
     int
 env_outfile( struct envelope *env )
 {
-    yastr	    headers = NULL;
+    yastr	    headers;
+    yastr	    tmp;
+
+    headers = env->e_extra_headers;
+    env->e_extra_headers = NULL;
 
 #ifdef HAVE_LIBOPENDKIM
     if ( env->e_flags & ENV_FLAG_DKIMSIGN ) {
-	headers = env_dkim_sign( env );
+	tmp = env_dkim_sign( env );
+	if ( headers != NULL ) {
+	    tmp = yaslcatyasl( yaslcat( tmp, "\n" ), headers );
+	    yaslfree( headers );
+	}
+	headers = tmp;
 	env->e_flags ^= ENV_FLAG_DKIMSIGN;
     }
 #endif /* HAVE_LIBOPENDKIM */

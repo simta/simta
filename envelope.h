@@ -52,6 +52,7 @@ struct envelope {
     char		*e_mid;
     char		*e_header_from;
     char		*e_subject;
+    yastr		e_extra_headers;
     struct line_file	*e_err_text;
     int			e_error;
     int			e_n_rcpt;

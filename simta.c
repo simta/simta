@@ -183,6 +183,7 @@ char			*simta_mail_filter = NULL;
 int			simta_filter_trusted = 1;
 int			simta_spf = SPF_POLICY_ON;
 int			simta_dmarc = DMARC_POLICY_ON;
+int			simta_auth_results = 1;
 char			*simta_data_url = NULL;
 char			*simta_reverse_url = NULL;
 char			*simta_libwrap_url = NULL;
@@ -837,6 +838,12 @@ simta_read_config( const char *fname )
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
 		    fname, lineno, "AUTHN <ON|OFF|HONEYPOT>" );
 	    goto error;
+
+	} else if (( rc = simta_config_bool( "AUTHN_RESULTS",
+		&simta_auth_results, ac, av, fname, lineno )) != 0 ) {
+	    if ( rc < 0 ) {
+		goto error;
+	    }
 
 #ifdef HAVE_LIBSASL
 	} else if ( strcasecmp( av[ 0 ], "AUTHZ_DEFAULT" ) == 0 ) {

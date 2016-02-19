@@ -306,6 +306,7 @@ extern char				*simta_mail_filter;
 extern int				simta_filter_trusted;
 extern int				simta_spf;
 extern int				simta_dmarc;
+extern int				simta_auth_results;
 extern char				*simta_base_dir;
 extern char                             *simta_file_pid;
 extern yastr				simta_hostname;

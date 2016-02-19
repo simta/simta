@@ -185,7 +185,7 @@ dmarc_dkim_result( struct dmarc *d, char *domain )
     return( 0 );
 }
 
-    const char*
+    const char *
 dmarc_result_str( const int policy ) {
     switch( policy ) {
     case DMARC_RESULT_NORECORD:
@@ -203,6 +203,23 @@ dmarc_result_str( const int policy ) {
 	return( "syserror" );
     }
     return( "INVALID" );
+}
+
+    const char *
+dmarc_authresult_str( const int policy ) {
+    /* https://www.iana.org/assignments/email-auth/email-auth.xhtml */
+    switch( policy ) {
+    case DMARC_RESULT_NORECORD:
+    case DMARC_RESULT_ORGDOMAIN:
+	return( "none" );
+    case DMARC_RESULT_PASS:
+	return( "pass" );
+    case DMARC_RESULT_NONE:
+    case DMARC_RESULT_QUARANTINE:
+    case DMARC_RESULT_REJECT:
+	return( "fail" );
+    }
+    return( "temperror" );
 }
 
     int

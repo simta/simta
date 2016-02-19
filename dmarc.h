@@ -35,6 +35,7 @@ int dmarc_dkim_result( struct dmarc *, char * );
 int dmarc_lookup( struct dmarc *, const char * );
 int dmarc_result( struct dmarc * );
 const char *dmarc_result_str( const int );
+const char *dmarc_authresult_str( const int );
 
 #endif /* SIMTA_DMARC_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
