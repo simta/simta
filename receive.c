@@ -1015,8 +1015,9 @@ f_mail( struct receive_data *r )
 	    break;
 	}
 	if ( rc < 0 ) {
-	    syslog( LOG_ERR, "Receive [%s] %s: check_hostname %s: failed",
-		    r->r_ip, r->r_remote_hostname, domain );
+	    syslog( LOG_ERR,
+		    "Receive [%s] %s: From <%s>: check_hostname %s: failed",
+		    r->r_ip, r->r_remote_hostname, addr, domain );
 	    return( smtp_write_banner( r, 451, NULL, NULL ));
 	}
 	syslog( LOG_NOTICE, "Receive [%s] %s: From <%s>: Unknown host: %s",
