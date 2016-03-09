@@ -262,7 +262,7 @@ main( int argc, char *argv[] )
 
     rfc822_timestamp( daytime );
     buf = yaslempty( );
-    buf = yaslcatprintf( buf, "Received: BY %s (simsendmail) ID %s ;\n\t%s",
+    buf = yaslcatprintf( buf, "Received: BY %s (simsendmail) ID %s;\n\t%s",
 	    simta_hostname, env->e_id, daytime );
     header_text( line_no, buf, &rh, NULL );
 

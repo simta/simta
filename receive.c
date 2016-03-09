@@ -1636,7 +1636,7 @@ f_data( struct receive_data *r )
 	if ( simta_sasl == SIMTA_SASL_ON ) {
 	    if ( fprintf( dff,
 		    "Received: FROM %s (%s [%s])\n"
-		    "\tBy %s ID %s ;\n"
+		    "\tBy %s ID %s;\n"
 		    "\tAuthuser %s;\n"
 		    "\t%s\n",
 		    ( r->r_hello == NULL ) ? "NULL" : r->r_hello,
@@ -1650,7 +1650,7 @@ f_data( struct receive_data *r )
 #endif /* HAVE_LIBSASL */
 	    if ( fprintf( dff,
 		    "Received: FROM %s (%s [%s])\n"
-		    "\tBy %s ID %s ;\n"
+		    "\tBy %s ID %s;\n"
 		    "\t%s\n",
 		    ( r->r_hello == NULL ) ? "NULL" : r->r_hello,
 		    r->r_remote_hostname , r->r_ip, simta_hostname,
