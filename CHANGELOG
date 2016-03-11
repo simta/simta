@@ -1,4 +1,4 @@
-1.0.0 rc1
+1.0.0
     - fixed crash when delivery attempt was triggered with no accepted mail
     - more log format consistency updates
     - improved header parsing
@@ -9,6 +9,8 @@
     - exposed more things to the content filter
     - cleaned up command line flags
     - updated documentation
+    - installs more helper programs
+    - fixed spurious SRS failure messages when SRS is disabled
 
 0.13.1
     - improved accepted message timer
