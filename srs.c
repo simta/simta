@@ -188,7 +188,7 @@ srs_reverse( const char *addr, char **newaddr, const char *secret ) {
      */
     yaslrange( addrhash, 0, 4 );
     yasltolower( addrhash );
-    hash = srs_hash( p + 1, simta_srs_secret, 5 );
+    hash = srs_hash( p + 1, secret, 5 );
     if ( yaslcmp( addrhash, hash ) != 0 ) {
 	syslog( LOG_INFO, "SRS %s: invalid hash %s should have been %s",
 		addr, addrhash, hash );
