@@ -2236,7 +2236,7 @@ simta_waitpid( pid_t child, int *childstatus, int options )
     struct host_q	*hq;
 
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
-	return( 1 );
+	return( -1 );
     }
 
     for ( ; ; ) {
