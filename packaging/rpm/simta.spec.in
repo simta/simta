@@ -21,7 +21,6 @@ Provides: MTA smtpdaemon server(smtp)
 Provides: %{_sbindir}/sendmail %{_bindir}/newaliases
 BuildRequires: lmdb-devel
 BuildRequires: tcp_wrappers-devel
-BuildRequires: groff
 BuildRequires: procmail
 BuildRequires: setup
 BuildRequires: pkgconfig(denser)
