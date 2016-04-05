@@ -2228,7 +2228,6 @@ simta_waitpid( pid_t child, int *childstatus, int options )
     pid_t		pid;
     int			status;
     int			exitstatus;
-    int			childwaited = 0;
     long		milliseconds;
     struct proc_type	**p_search;
     struct proc_type	*p_remove;
@@ -2258,8 +2257,7 @@ simta_waitpid( pid_t child, int *childstatus, int options )
 		if ( childstatus ) {
 		    *childstatus = status;
 		}
-		childwaited = 1;
-		continue;
+		return( pid );
 	    }
 	    syslog( LOG_ERR, "Child: %d: unknown child process", pid );
 	    retval--;
@@ -2353,10 +2351,6 @@ simta_waitpid( pid_t child, int *childstatus, int options )
 	    free( p_remove->p_host );
 	}
 	free( p_remove );
-    }
-
-    if (( retval == 0 ) && childwaited ) {
-	retval = child;
     }
 
     return( retval );
