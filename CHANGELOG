@@ -1,3 +1,8 @@
+1.0.1
+    - removed unnecessary groff build dependency in RPM spec file
+    - added RECEIVE_QUEUE_STRATEGY PUNT
+    - cleaned up simta_waitpid() logic
+
 1.0.0
     - fixed crash when delivery attempt was triggered with no accepted mail
     - more log format consistency updates
