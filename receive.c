@@ -1489,9 +1489,7 @@ f_data( struct receive_data *r )
     struct timeval			tv_add ;
     struct timeval			tv_filter = { 0, 0 };
     struct timeval			tv_now;
-    struct stat				sbuf;
     char				daytime[ RFC822_TIMESTAMP_LEN ];
-    char				dfile_fname[ MAXPATHLEN + 1 ];
     struct receive_headers		*rh;
     unsigned int			data_wrote = 0;
     unsigned int			data_read = 0;
@@ -1578,7 +1576,7 @@ f_data( struct receive_data *r )
 	}
 
 	if (( dff = fdopen( dfile_fd, "w" )) == NULL ) {
-	    syslog( LOG_ERR, "Syserror: f_data fdopen %s: %m", dfile_fname );
+	    syslog( LOG_ERR, "Syserror: f_data fdopen: %m" );
 	    if ( close( dfile_fd ) != 0 ) {
 		syslog( LOG_ERR, "Syserror: f_data close: %m" );
 	    }
@@ -1951,14 +1949,6 @@ f_data( struct receive_data *r )
     }
 
     if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
-	/* get the Dfile's inode for the envelope structure */
-	if ( fstat( dfile_fd, &sbuf ) != 0 ) {
-	    sprintf( dfile_fname, "%s/D%s", simta_dir_fast, r->r_env->e_id );
-	    syslog( LOG_ERR, "Syserror: f_data fstat %s: %m", dfile_fname );
-	    goto error;
-	}
-	r->r_env->e_dinode = sbuf.st_ino;
-
 	if ( dff != NULL ) {
 	    f_result = fclose( dff );
 	    dff = NULL;

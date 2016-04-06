@@ -289,9 +289,8 @@ expand( struct envelope *unexpanded_env )
 
 	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_gmailfwd->e_dir,
 		    e_addr->e_addr_env_gmailfwd->e_id );
-	    if (( e_addr->e_addr_env_gmailfwd->e_dinode =
-		    env_dfile_copy( e_addr->e_addr_env_gmailfwd,
-		    d_original, NULL )) == 0 ) {
+	    if ( env_dfile_copy( e_addr->e_addr_env_gmailfwd, d_original,
+		    NULL ) == 0 ) {
 		syslog( LOG_ERR, "Expand env <%s>: %s: env_dfile_copy failed",
 			unexpanded_env->e_id,
 			e_addr->e_addr_env_gmailfwd->e_id );
@@ -355,9 +354,8 @@ expand( struct envelope *unexpanded_env )
 
 	    sprintf( d_out, "%s/D%s", e_addr->e_addr_env_moderated->e_dir,
 		    e_addr->e_addr_env_moderated->e_id );
-	    if (( e_addr->e_addr_env_moderated->e_dinode =
-		    env_dfile_copy( e_addr->e_addr_env_moderated,
-		    d_original, NULL )) == 0 ) {
+	    if ( env_dfile_copy( e_addr->e_addr_env_moderated, d_original,
+		    NULL ) == 0 ) {
 		syslog( LOG_ERR, "Expand env <%s>: %s: env_dfile_copy failed",
 			unexpanded_env->e_id,
 			e_addr->e_addr_env_moderated->e_id );
@@ -485,8 +483,6 @@ expand( struct envelope *unexpanded_env )
 		goto cleanup3;
 	    }
 
-	    env->e_dinode = unexpanded_env->e_dinode;
-
 	    simta_debuglog( 2, "Expand env <%s>: %s: expansion env dinode %d",
 		    unexpanded_env->e_id, env->e_id, (int)env->e_dinode );
 
@@ -544,8 +540,7 @@ expand( struct envelope *unexpanded_env )
 			    "Expand env <%s>: %s: return path is too large",
 			    unexpanded_env->e_id, env->e_id );
 		}
-		if (( env->e_dinode =
-			env_dfile_copy( env, d_original, header )) == 0 ) {
+		if ( env_dfile_copy( env, d_original, header ) == 0 ) {
 		    syslog( LOG_ERR, "Expand env <%s>: %s: env_dfile_copy failed",
 			    unexpanded_env->e_id, env->e_id );
 		    goto cleanup4;
@@ -628,7 +623,7 @@ expand( struct envelope *unexpanded_env )
 		}
 
 		/* write out error text, get Dfile inode */
-		if (( env->e_dinode = bounce_dfile_out( env, snet )) == 0 ) {
+		if ( bounce_dfile_out( env, snet ) == 0 ) {
 		    if ( snet != NULL ) {
 			if ( snet_close( snet ) != 0 ) {
 			    syslog( LOG_ERR,

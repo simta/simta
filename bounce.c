@@ -202,12 +202,6 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 	}
     }
 
-    if ( fstat( dfile_fd, &sbuf ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: bounce_dfile_out fstat %s: %m",
-		dfile_fname );
-	goto cleanup;
-    }
-
     ret = 1;
 
 cleanup:
@@ -219,7 +213,7 @@ cleanup:
 
 error:
     if ( ret != 0 ) {
-	return( sbuf.st_ino );
+	return( bounce_env->e_dinode );
     }
 
     env_dfile_unlink( bounce_env );
@@ -400,7 +394,7 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq,
 	}
     }
 
-    if (( bounce_env->e_dinode = bounce_dfile_out( bounce_env, sn )) == 0 ) {
+    if ( bounce_dfile_out( bounce_env, sn ) == 0 ) {
 	syslog( LOG_ERR, "Bounce env <%s>: %s: bounce_dfile_out failed",
 		env->e_id, bounce_env->e_id );
 	goto cleanup2;

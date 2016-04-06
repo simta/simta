@@ -93,7 +93,6 @@ main( int argc, char *argv[] )
     struct passwd	*passwd;
     const char		*pw_name;
     FILE		*pf;
-    struct stat		sbuf;
 
     /* ignore a good many options */
     opterr = 0;
@@ -353,13 +352,6 @@ done:
 	ret = EX_TEMPFAIL;
 	goto error;
     }
-
-    if ( fstat( dfile_fd, &sbuf ) != 0 ) {
-	perror( "fstat" );
-	fclose( dfile );
-	goto error;
-    }
-    env->e_dinode = sbuf.st_ino;
 
     simta_debuglog( 2, "%s env %s dinode %d", argv[ 0 ], env->e_id,
 	    (int)(env->e_dinode));

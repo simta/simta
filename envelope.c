@@ -205,6 +205,7 @@ env_create( const char *dir, const char *id, const char *e_mail,
     }
 
     if ( parent ) {
+	env->e_dinode = parent->e_dinode;
 	env->e_n_exp_level = parent->e_n_exp_level + 1;
 	env_jail_set( env, parent->e_jail );
     } else if ( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) {
@@ -452,8 +453,9 @@ env_outfile( struct envelope *e )
     int
 env_dfile_open( struct envelope *env )
 {
-    char				dfile_fname[ MAXPATHLEN + 1 ];
-    int					fd;
+    char		dfile_fname[ MAXPATHLEN + 1 ];
+    int			fd;
+    struct stat		sbuf;
 
     sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 
@@ -463,6 +465,17 @@ env_dfile_open( struct envelope *env )
     }
 
     env->e_flags |= ENV_FLAG_DFILE;
+
+    if ( fstat( fd, &sbuf ) != 0 ) {
+	syslog( LOG_ERR, "Syserror: env_dfile_open fstat %s: %m", dfile_fname );
+	if ( close( fd ) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: env_dfile_open close %s: %m",
+		    dfile_fname );
+	}
+	return( -1 );
+    }
+
+    env->e_dinode = sbuf.st_ino;
 
     return( fd );
 }
@@ -1188,6 +1201,13 @@ env_dfile_copy( struct envelope *env, char *source, char *header )
     struct stat         sbuf;
     SNET		*snet = NULL;
     char		*line;
+
+    /* If the tfile has already been written it has incorrect Dinode
+     * information.
+     */
+    if ( env->e_flags & ENV_FLAG_TFILE ) {
+	env_tfile_unlink( env );
+    }
 
     if (( dfile_fd = env_dfile_open( env )) < 0 ) {
 	return( 0 );
