@@ -414,7 +414,7 @@ signal_server:
     return( EX_OK );
 
 error:
-    if ( dfile_fd ) {
+    if ( env->e_flags & ENV_FLAG_DFILE ) {
 	env_dfile_unlink( env );
     }
 
