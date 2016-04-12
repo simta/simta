@@ -2351,6 +2351,13 @@ simta_waitpid( pid_t child, int *childstatus, int options )
 	    free( p_remove->p_host );
 	}
 	free( p_remove );
+
+	if ( options == 0 ) {
+	    /* We rely on the caller to loop as needed, since they might want
+	     * to do work before waiting again.
+	     */
+	    break;
+	}
     }
 
     return( retval );
