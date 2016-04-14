@@ -135,12 +135,13 @@ host_q_create_or_lookup( char *hostname )
 	    hq->hq_no_punt = NOPUNT_CONFIG;
 	}
 
-	if (( hq->hq_status == HOST_UNKNOWN ) &&
-		(( simta_rqueue_policy == RQUEUE_POLICY_SLOW ) ||
-		( simta_rqueue_policy == RQUEUE_POLICY_PUNT )) &&
-		( simta_process_type == PROCESS_RECEIVE )) {
-	    hq->hq_status = HOST_SUPPRESSED;
-	    if ( simta_rqueue_policy != RQUEUE_POLICY_PUNT ) {
+	if (( hq->hq_status == HOST_UNKNOWN )) {
+	    if (( simta_rqueue_policy == RQUEUE_POLICY_PUNT ) &&
+		    ( hq->hq_no_punt != NOPUNT_CONFIG )) {
+		hq->hq_status = HOST_SUPPRESSED;
+	    } else if (( simta_rqueue_policy == RQUEUE_POLICY_SLOW ) &&
+		    ( simta_process_type == PROCESS_RECEIVE )) {
+		hq->hq_status = HOST_SUPPRESSED;
 		hq->hq_no_punt |= NOPUNT_MX;
 	    }
 	}
