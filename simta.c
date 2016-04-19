@@ -92,6 +92,8 @@ int			simta_bounce_seconds = 259200;
 int			simta_jail_seconds = 14400;
 int			simta_ipv4 = -1;
 int			simta_ipv6 = 0;
+int			simta_proxy = 0;
+int			simta_proxy_timeout = 10;
 int			simta_submission_mode = SUBMISSION_MODE_MTA;
 int			simta_policy_tls = TLS_POLICY_DEFAULT;
 int			simta_policy_tls_cert = TLS_POLICY_DEFAULT;
@@ -1450,6 +1452,18 @@ simta_read_config( const char *fname )
 	    fprintf( stderr, "%s: line %d: usage: PID_FILE <path>\n", fname,
 		    lineno );
 	    goto error;
+
+        } else if (( rc = simta_config_bool( "PROXY",
+                &simta_proxy, ac, av, fname, lineno )) != 0 ) {
+            if ( rc < 0 ) {
+                goto error;
+            }
+
+	} else if (( rc = simta_config_int( "PROXY_TIMEOUT",
+		&simta_proxy_timeout, 0, ac, av, fname, lineno )) != 0 ) {
+	    if ( rc < 0 ) {
+		goto error;
+	    }
 
 	} else if ( strcasecmp( av[ 0 ], "PUBLICSUFFIX_FILE" ) == 0 ) {
 	    if (( ac == 2 ) && ( strlen( av[ 1 ]  ) <= MAXPATHLEN )) {

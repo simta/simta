@@ -95,6 +95,8 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #define SIMTA_EXTENSION_SIZE	    (1<<0)
 #define SIMTA_EXTENSION_8BITMIME    (1<<1)
 
+#define SIMTA_PROXY_HEADERLEN	536
+
 extern char		*version;
 
 struct receive_data {
@@ -188,6 +190,7 @@ struct command {
 
 static char 	*env_string( const char *, const char * );
 static const char	*iprev_authresult_str( struct receive_data * );
+static int	proxy_accept( struct receive_data * );
 static int	auth_init( struct receive_data *, struct simta_socket * );
 static int	content_filter( struct receive_data *, char ** );
 static int	local_address( char *, char *, struct simta_red *);
@@ -3250,6 +3253,12 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	return( 0 );
     }
 
+    if ( simta_proxy ) {
+	if ( proxy_accept( &r ) != RECEIVE_OK ) {
+	    goto syserror;
+	}
+    }
+
     tv_wait.tv_sec = simta_inbound_command_line_timer;
     tv_wait.tv_usec = 0;
     /* XXX expose SNET_WRITE_TIMEOUT in simta.conf */
@@ -3775,6 +3784,213 @@ closeconnection:
     }
 
     return( simta_fast_files );
+}
+
+    static int
+proxy_accept( struct receive_data *r )
+{
+    /* Implements the PROXY protocol as specified in
+     * proxy-protocol.txt (revised 2015-05-02) from HAProxy 1.6
+     *
+     * The PROXY protocol provides a convenient way to safely transport
+     * connection information such as a client's address across multiple layers
+     * of NAT or TCP proxies.
+     */
+    union {
+	struct {
+	    char line[ SIMTA_PROXY_HEADERLEN ];
+	} v1;
+	struct {
+	    uint8_t signature[ 12 ];
+	    uint8_t command;
+	    uint8_t family;
+	    uint16_t len;
+	    union {
+		struct {
+		    uint32_t src;
+		    uint32_t dest;
+		    uint16_t src_port;
+		    uint16_t dest_port;
+		} ipv4;
+		struct {
+		    uint8_t  src[ 16 ];
+		    uint8_t  dest[ 16 ];
+		    uint16_t src_port;
+		    uint16_t dest_port;
+		} ipv6;
+	    } addr;
+	} v2;
+    }			header;
+    struct timeval	tv_wait;
+    ssize_t		rlen;
+    int			rc;
+    yastr		*split = NULL;
+    size_t		tok_count = 0;
+    char		*p;
+    struct addrinfo     hints;
+    struct addrinfo     *ai;
+
+    /* proxy-protocol.txt 2 The PROXY protocol header
+     * The receiver may apply a short timeout and decide to abort the
+     * connection if the protocol header is not seen within a few seconds
+     * (at least 3 seconds to cover a TCP retransmit).
+     */
+    tv_wait.tv_sec = simta_proxy_timeout;
+    tv_wait.tv_usec = 0;
+    do {
+	rlen = snet_read( r->r_snet, header.v1.line, SIMTA_PROXY_HEADERLEN,
+		&tv_wait );
+    } while (( rlen == -1 ) && ( errno == EINTR ));
+
+    /* proxy-protocol.txt 2.2 Binary header format (version 2)
+     * Identifying the protocol version is easy:
+     * if the incoming byte count is 16 or above and the 13 first bytes match
+     * the protocol signature block followed by the protocol [is] version 2
+     */
+    if (( rlen >= 16 ) && ( memcmp( header.v2.signature,
+	    "\x0d\x0a\x0d\x0a\x00\x0d\x0a\x51\x55\x49\x54\x0a", 12 ) == 0 ) &&
+	    (( header.v2.command & 0xf0 ) == 0x20 )) {
+	simta_debuglog( 1, "Receive.PROXY [%s] %s: found v2 header",
+		r->r_ip, r->r_remote_hostname );
+	if ( rlen < ( header.v2.len + 16 )) {
+	    syslog( LOG_ERR, "Receive.PROXY [%s] %s: truncated v2 header",
+		    r->r_ip, r->r_remote_hostname );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+	switch ( header.v2.command & 0x0f ) {
+	case 0x00:
+	    /* LOCAL */
+	    simta_debuglog( 1,
+		    "Receive.PROXY [%s] %s: LOCAL, keeping socket address",
+		    r->r_ip, r->r_remote_hostname );
+	    return( RECEIVE_OK );
+	case 0x01:
+	    /* PROXY */
+	    break;
+	default:
+	    syslog( LOG_ERR, "Receive.PROXY [%s] %s: unknown command: %u",
+		    r->r_ip, r->r_remote_hostname, header.v2.command & 0x0f );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+	switch ( header.v2.family ) {
+	case 0x11:  /* IPv4 */
+	    r->r_sa->sa_family = AF_INET;
+	    ((struct sockaddr_in *)r->r_sa)->sin_addr.s_addr =
+		    header.v2.addr.ipv4.src;
+	    ((struct sockaddr_in *)r->r_sa)->sin_port =
+		    header.v2.addr.ipv4.src_port;
+	    break;
+
+	case 0x21:  /* IPv6 */
+	    r->r_sa->sa_family = AF_INET6;
+	    memcpy( &((struct sockaddr_in6 *)r->r_sa)->sin6_addr,
+		    header.v2.addr.ipv6.src, 16 );
+	    ((struct sockaddr_in6 *)r->r_sa)->sin6_port =
+		    header.v2.addr.ipv6.src_port;
+	    break;
+
+	default:
+	    syslog( LOG_ERR,
+		    "Receive.PROXY [%s] %s: unsupported address family: %u",
+		    r->r_ip, r->r_remote_hostname, header.v2.family );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+    /* proxy-protocol.txt 2.2 Binary header format (version 2)
+     * if the incoming byte count is 8 or above, and the 5 first characters
+     * match the ASCII representation of "PROXY" then the protocol must be
+     * parsed as version 1
+     */
+    } else if (( rlen >= 8 ) && ( memcmp( header.v1.line, "PROXY", 5 ) == 0 )) {
+	simta_debuglog( 1, "Receive.PROXY [%s] %s: found v1 header",
+		r->r_ip, r->r_remote_hostname );
+
+	p = memchr( header.v1.line, '\r', rlen - 1 );
+	if (( p == NULL ) || ( p[ 1 ] != '\n' )) {
+	    syslog( LOG_ERR,
+		    "Receive.PROXY [%s] %s: missing v1 header delimiter",
+		    r->r_ip, r->r_remote_hostname );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+	*p = '\0';
+	split = yaslsplitlen( header.v1.line, p - header.v1.line,
+		" ", 1, &tok_count );
+
+	 /* This is a very rough ABNF representation, since the original docs
+	  * are overly verbose.
+	  *
+	  * v1-header	= "PROXY" SP ( v1-tcp / v1-unknown ) CRLF
+	  * v1-tcp	= ( "TCP4" / "TCP6" ) SP source-addr SP dest-addr SP source-port SP dest-port
+	  * v1-unknown	= "UNKNOWN" *( %d0-9 / %d11-12 / %d14-127 )
+	 */
+	if (( tok_count > 1 ) && ( strcmp( split[ 1 ], "UNKNOWN" ) == 0 )) {
+	    syslog( LOG_NOTICE,
+		    "Receive.PROXY [%s] %s: v1 UNKNOWN, keeping socket address",
+		    r->r_ip, r->r_remote_hostname );
+	    yaslfreesplitres( split, tok_count );
+	    return( RECEIVE_OK );
+	}
+
+	if ( tok_count != 6 ) {
+	    syslog( LOG_ERR, "Receive.PROXY [%s] %s: malformed v1 header: %s",
+		    r->r_ip, r->r_remote_hostname, header.v1.line );
+	    yaslfreesplitres( split, tok_count );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+	memset( &hints, 0, sizeof( struct addrinfo ));
+
+	if ( strcmp( split[ 1 ], "TCP4" ) == 0 ) {
+	    hints.ai_family = AF_INET;
+	} else if ( strcmp( split[ 1 ], "TCP6" ) == 0 ) {
+	    hints.ai_family = AF_INET6;
+	} else {
+	    syslog( LOG_ERR,
+		    "Receive.PROXY [%s] %s: unsupported address family: %s",
+		    r->r_ip, r->r_remote_hostname, split[ 1 ]);
+	    yaslfreesplitres( split, tok_count );
+	    return( RECEIVE_CLOSECONNECTION );
+	}
+
+	hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
+	if (( rc = getaddrinfo( split[ 2 ], split[ 4 ], &hints, &ai )) != 0 ) {
+	    syslog( LOG_ERR, "Syserror: proxy_accept getaddrinfo: %s",
+		    gai_strerror( rc ));
+	    yaslfreesplitres( split, tok_count );
+	    return( RECEIVE_SYSERROR );
+	}
+
+	memcpy( r->r_sa, ai->ai_addr, (( ai->ai_family == AF_INET6 )
+		? sizeof( struct sockaddr_in6 )
+		: sizeof( struct sockaddr_in )));
+
+	yaslfreesplitres( split, tok_count );
+	split = NULL;
+
+    /* proxy-protocol.txt 2.2 Binary header format (version 2)
+     * otherwise the protocol is not covered by this specification and the
+     * connection must be dropped.
+     */
+    } else {
+	syslog( LOG_ERR, "Receive.PROXY [%s] %s: no header", r->r_ip,
+		r->r_remote_hostname );
+	return( RECEIVE_CLOSECONNECTION );
+    }
+
+    if (( rc = getnameinfo( r->r_sa, (( r->r_sa->sa_family == AF_INET6 )
+	    ? sizeof( struct sockaddr_in6 ) : sizeof( struct sockaddr_in )),
+	    r->r_ip, INET6_ADDRSTRLEN, NULL, 0, NI_NUMERICHOST )) != 0 ) {
+	syslog( LOG_ERR, "Syserror: proxy_accept getnameinfo: %s",
+		gai_strerror( rc ));
+	return( RECEIVE_SYSERROR );
+    }
+
+    syslog( LOG_INFO, "Receive.PROXY [%s] %s: connection info updated",
+	    r->r_ip, r->r_remote_hostname );
+
+    return( RECEIVE_OK );
 }
 
 

@@ -201,6 +201,8 @@ extern struct action			*simta_red_action_secondary_mx;
 extern struct proc_type			*simta_proc_stab;
 extern int				simta_ipv4;
 extern int				simta_ipv6;
+extern int				simta_proxy;
+extern int				simta_proxy_timeout;
 extern int				simta_submission_mode;
 extern int				simta_policy_tls;
 extern int				simta_policy_tls_cert;
