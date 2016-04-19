@@ -3604,6 +3604,38 @@ closeconnection:
 	free( r.r_hello );
     }
 
+    if ( tv_start.tv_sec != 0 ) {
+	if ( simta_gettimeofday( &tv_stop ) != 0 ) {
+	    tv_start.tv_sec = 0;
+	    tv_stop.tv_sec = 0;
+	}
+    }
+
+#ifdef HAVE_LIBSASL
+    if ( simta_sasl == SIMTA_SASL_ON ) {
+	simta_debuglog( 1,
+		"Connect.stat [%s] %s: Metrics: "
+		"milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d: "
+		"Authuser %s",
+		r.r_ip, r.r_remote_hostname,
+		SIMTA_ELAPSED_MSEC( tv_start, tv_stop ), r.r_mail_success,
+		r.r_mail_attempt,
+		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
+		r.r_data_attempt, r.r_auth_id );
+    } else {
+#endif /* HAVE_LIBSASL */
+	simta_debuglog( 1,
+		"Connect.stat [%s] %s: Metrics: "
+		"milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d",
+		r.r_ip, r.r_remote_hostname,
+		SIMTA_ELAPSED_MSEC( tv_start, tv_stop ), r.r_mail_success,
+		r.r_mail_attempt,
+		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
+		r.r_data_attempt );
+#ifdef HAVE_LIBSASL
+    }
+#endif /* HAVE_LIBSASL */
+
     if ( reset( &r ) != 0 ) {
 	return( RECEIVE_SYSERROR );
     }
@@ -3640,38 +3672,6 @@ closeconnection:
     if ( simta_dmarc ) {
 	dmarc_free( r.r_dmarc );
     }
-
-    if ( tv_start.tv_sec != 0 ) {
-	if ( simta_gettimeofday( &tv_stop ) != 0 ) {
-	    tv_start.tv_sec = 0;
-	    tv_stop.tv_sec = 0;
-	}
-    }
-
-#ifdef HAVE_LIBSASL
-    if ( simta_sasl == SIMTA_SASL_ON ) {
-	simta_debuglog( 1,
-		"Connect.stat [%s] %s: Metrics: "
-		"milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d: "
-		"Authuser %s",
-		r.r_ip, r.r_remote_hostname,
-		SIMTA_ELAPSED_MSEC( tv_start, tv_stop ), r.r_mail_success,
-		r.r_mail_attempt,
-		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
-		r.r_data_attempt, r.r_auth_id );
-    } else {
-#endif /* HAVE_LIBSASL */
-	simta_debuglog( 1,
-		"Connect.stat [%s] %s: Metrics: "
-		"milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d",
-		r.r_ip, r.r_remote_hostname,
-		SIMTA_ELAPSED_MSEC( tv_start, tv_stop ), r.r_mail_success,
-		r.r_mail_attempt,
-		r.r_rcpt_success, r.r_rcpt_attempt, r.r_data_success,
-		r.r_data_attempt );
-#ifdef HAVE_LIBSASL
-    }
-#endif /* HAVE_LIBSASL */
 
     return( simta_fast_files );
 }
