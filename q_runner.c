@@ -49,7 +49,7 @@ main( int argc, char *argv[] )
 
     if (( argc != 4 ) && ( argc != 3 )) {
         fprintf( stderr,
-                "Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW )\n",
+                "Usage: %s conf_file [ base_dir ] ( SLOW )\n",
                 argv[ 0 ]);
         exit( EX_USAGE );
     }
@@ -75,15 +75,12 @@ main( int argc, char *argv[] )
 
     simta_openlog( 0, 0 );
 
-    if ( strcasecmp( op, "LOCAL" ) == 0 ) {
-        exit( q_runner_dir( simta_dir_local ));
-
-    } else if ( strcasecmp( op, "SLOW" ) == 0 ) {
+    if ( strcasecmp( op, "SLOW" ) == 0 ) {
         exit( q_runner_dir( simta_dir_slow ));
 
     } else {
         fprintf( stderr,
-                "Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW | CLEAN )\n",
+                "Usage: %s conf_file [ base_dir ] ( SLOW | CLEAN )\n",
                 argv[ 0 ]);
         exit( EX_USAGE );
     }

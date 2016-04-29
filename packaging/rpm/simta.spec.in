@@ -165,7 +165,6 @@ exit 0
 %attr(0755,simta,mail) %dir %{spooldir}/simta/dead
 %attr(0755,simta,mail) %dir %{spooldir}/simta/etc
 %attr(0755,simta,mail) %dir %{spooldir}/simta/fast
-%attr(0755,simta,mail) %dir %{spooldir}/simta/local
 %attr(0755,simta,mail) %dir %{spooldir}/simta/slow
 
 %{_unitdir}/simta.service

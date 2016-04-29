@@ -62,7 +62,6 @@ q_cleanup( void )
 {
     struct envelope             *slow = NULL;
     struct envelope             *fast = NULL;
-    struct envelope             *local = NULL;
 
     if ( q_dir_startup( simta_dir_dead, Q_DIR_EXIST, NULL )) {
         return( 1 );
@@ -89,14 +88,6 @@ q_cleanup( void )
         if ( q_dir_startup( simta_dir_fast, Q_DIR_EMPTY, NULL )) {
             return( 1 );
         }
-    }
-
-    if ( q_dir_startup( simta_dir_local, Q_DIR_CLEAN, &local )) {
-        return( 1 );
-    }
-
-    if ( q_move_to_slow( &slow, &local ) != 0 ) {
-        return( 1 );
     }
 
     return( 0 );
@@ -242,9 +233,7 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
         } else if ( *entry->d_name == 't' ) {
             syslog( LOG_NOTICE, "Queue %s/%s: stranded t_file", dir,
                     entry->d_name );
-            if ( dir == simta_dir_local ) {
-                /* Nothing. */
-            } else if ( simta_filesystem_cleanup ) {
+            if ( simta_filesystem_cleanup ) {
                 if ( !bad_filesystem ) {
                     /* Keep track of stranded t files */
                     if ( file_list_add( &f_list, INCOMPLETE_T, dir,
@@ -291,9 +280,7 @@ q_dir_startup( char *dir, int action, struct envelope **messages )
 
         } else if (( env->e_flags & ENV_FLAG_EFILE ) == 0 ) {
             syslog( LOG_ERR, "Queue %s/D%s: missing Efile", dir, env->e_id );
-            if ( dir == simta_dir_local ) {
-                /* Nada. */
-            } else if (( simta_filesystem_cleanup ) && ( !bad_filesystem )) {
+            if (( simta_filesystem_cleanup ) && ( !bad_filesystem )) {
                 if ( file_list_add( &f_list, STRANDED_D, dir, env->e_id )) {
                     return( 1 );
                 }

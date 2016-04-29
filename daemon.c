@@ -60,7 +60,6 @@ const char                      *simta_progname = "simta";
 
 struct connection_info          *cinfo_stab = NULL;
 int                             simta_pidfd;
-int                             simsendmail_signal = 0;
 int                             command_signal = 0;
 struct sigaction                sa;
 struct sigaction                osahup;
@@ -99,9 +98,6 @@ int             set_sleep_time( int *, int );
     void
 usr1( int sig )
 {
-#ifndef Q_SIMULATION
-    simsendmail_signal = 1;
-#endif /* Q_SIMULATION */
     return;
 }
 
@@ -785,20 +781,6 @@ simta_server( void )
         sleep_time = -1;
         sleep_reason = "Unset";
 
-        if ( simsendmail_signal != 0 ) {
-            if ( simta_q_runner_local < simta_q_runner_local_max ) {
-                simta_debuglog( 2, "Daemon: launching local queue runner" );
-                simsendmail_signal = 0;
-
-                if ( simta_child_q_runner( NULL ) != 0 ) {
-                    goto error;
-                }
-            } else {
-                syslog( LOG_WARNING, "Daemon: Received signal from simsendmail "
-                        "but MAX_Q_RUNNERS_LOCAL met, deferring launch" );
-            }
-        }
-
         if ( simta_child_signal != 0 ) {
             if ( simta_waitpid( 0, NULL, WNOHANG ) != 0 ) {
                 goto error;
@@ -927,13 +909,6 @@ simta_server( void )
             simta_debuglog( 2, "Daemon: reading commands" );
             sleep_time = 0;
             sleep_reason = "reading commands";
-        }
-
-        if (( simsendmail_signal != 0 ) &&
-                ( simta_q_runner_local < simta_q_runner_local_max )) {
-            simta_debuglog( 2, "Daemon: simsendmail signal" );
-            sleep_time = 0;
-            sleep_reason = "simsendmail signal";
         }
 
         if ( simta_child_signal != 0 ) {
@@ -1331,17 +1306,11 @@ simta_child_q_runner( struct host_q *hq )
             simta_unexpanded_q->hq_entries = 0;
         }
 
-        if ( hq == NULL ) {
-            simta_process_type = PROCESS_Q_LOCAL;
-            exit( q_runner_dir( simta_dir_local ));
-
-        } else {
-            simta_host_q = hq;
-            hq->hq_next = NULL;
-            hq->hq_primary = 1;
-            simta_process_type = PROCESS_Q_SLOW;
-            exit( q_runner());
-        }
+        simta_host_q = hq;
+        hq->hq_next = NULL;
+        hq->hq_primary = 1;
+        simta_process_type = PROCESS_Q_SLOW;
+        exit( q_runner());
 
         /* if you get here there is an error */
         panic( "unreachable code" );
@@ -1367,38 +1336,22 @@ simta_child_q_runner( struct host_q *hq )
 simta_proc_q_runner( int pid, struct host_q *hq )
 {
     struct proc_type    *p;
-    int                 type;
 
-    if ( hq == NULL ) {
-        type = PROCESS_Q_LOCAL;
-    } else {
-        type = PROCESS_Q_SLOW;
-    }
-
-    if (( p = simta_proc_add( type, pid )) == NULL ) {
+    if (( p = simta_proc_add( PROCESS_Q_SLOW, pid )) == NULL ) {
         return( 1 );
     }
 
-    if ( hq == NULL ) {
-        p->p_limit = &simta_q_runner_local;
-        (*p->p_limit)++;
+    p->p_limit = &simta_q_runner_slow;
+    (*p->p_limit)++;
 
-        syslog( LOG_NOTICE, "Child: launched local runner %d.%ld (%d total)",
-                pid, p->p_tv.tv_sec, *p->p_limit );
-
-    } else {
-        p->p_limit = &simta_q_runner_slow;
-        (*p->p_limit)++;
-
-        if ( hq->hq_hostname ) {
-            p->p_host = strdup( hq->hq_hostname );
-        }
-
-        syslog( LOG_NOTICE, "Child: launched queue runner %d.%ld for %s "
-                "(%d total)", pid, p->p_tv.tv_sec,
-                hq->hq_hostname ? hq->hq_hostname : S_UNEXPANDED,
-                *p->p_limit );
+    if ( hq->hq_hostname ) {
+        p->p_host = strdup( hq->hq_hostname );
     }
+
+    syslog( LOG_NOTICE, "Child: launched queue runner %d.%ld for %s "
+            "(%d total)", pid, p->p_tv.tv_sec,
+            hq->hq_hostname ? hq->hq_hostname : S_UNEXPANDED,
+            *p->p_limit );
 
     return( 0 );
 }

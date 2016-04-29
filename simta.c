@@ -116,8 +116,6 @@ int                     simta_local_connections_max = 0;
 int                     simta_launch_limit = 10;
 int                     simta_min_work_time = 60;
 int                     simta_unexpanded_time = 60;
-int                     simta_q_runner_local_max = 25;
-int                     simta_q_runner_local = 0;
 int                     simta_q_runner_slow_max = 250;
 int                     simta_q_runner_slow = 0;
 int                     simta_q_runner_receive_max = 0;
@@ -191,7 +189,6 @@ struct dll_entry        *simta_dnsl_chains = NULL;
 int                     simta_authz_default = DNSL_ACCEPT;
 char                    *simta_queue_filter = NULL;
 char                    *simta_dir_dead = NULL;
-char                    *simta_dir_local = NULL;
 char                    *simta_dir_slow = NULL;
 char                    *simta_dir_fast = NULL;
 char                    *simta_dir_command = NULL;
@@ -1483,12 +1480,6 @@ simta_read_config( const char *fname )
                 goto error;
             }
 
-        } else if (( rc = simta_config_int( "MAX_Q_RUNNERS_LOCAL",
-                &simta_q_runner_local_max, 0, ac, av, fname, lineno )) != 0 ) {
-            if ( rc < 0 ) {
-                goto error;
-            }
-
         } else if (( rc = simta_config_int( "MAX_Q_RUNNERS_RECEIVE",
                 &simta_q_runner_receive_max, 0, ac, av, fname,
                 lineno )) != 0 ) {
@@ -2245,9 +2236,6 @@ simta_config( void )
 
     sprintf( path, "%s/%s", simta_base_dir, "dead" );
     simta_dir_dead = strdup( path );
-
-    sprintf( path, "%s/%s", simta_base_dir, "local" );
-    simta_dir_local = strdup( path );
 
     sprintf( path, "%s/%s", simta_base_dir, "command" );
     simta_dir_command = strdup( path );

@@ -75,18 +75,15 @@ main( int argc, char *argv[] )
     int                 message_size = 0;
     FILE                *dfile = NULL;
     int                 read_headers = 0;
-    int                 pidfd;
-    int                 pid;
     uid_t               uid;
     struct recipient    *r;
     struct passwd       *passwd;
     const char          *pw_name;
-    FILE                *pf;
 
     /* ignore a good many options */
     opterr = 0;
 
-    while (( c = getopt( argc, argv, "b:f:io:r:st" )) != -1 ) {
+    while (( c = getopt( argc, argv, "b:f:io:r:t" )) != -1 ) {
         switch ( c ) {
         case 'b':
             if ( strlen( optarg ) == 1 ) {
@@ -143,10 +140,6 @@ main( int argc, char *argv[] )
             }
             break;
 
-        case 's':
-            /* signal server */
-            goto signal_server;
-
         case 't':
             /* Read message headers for recipients */
             read_headers = 1;
@@ -188,7 +181,7 @@ main( int argc, char *argv[] )
     simta_openlog( 0, 0 );
 
     /* create envelope */
-    if (( env = env_create( simta_dir_local, NULL,
+    if (( env = env_create( simta_dir_fast, NULL,
             sender ? sender : simta_sender(), NULL )) == NULL ) {
         perror( "env_create" );
         exit( EX_TEMPFAIL );
@@ -264,7 +257,6 @@ main( int argc, char *argv[] )
     } else {
         pw_name = passwd->pw_name;
     }
-
 
     rfc822_timestamp( daytime );
     buf = yaslempty( );
@@ -361,7 +353,7 @@ done:
         goto error;
     }
 
-    simta_debuglog( 2, "%s env %s dinode %d", argv[ 0 ], env->e_id,
+    simta_debuglog( 2, "%s env <%s> dinode %d", argv[ 0 ], env->e_id,
             (int)(env->e_dinode));
 
     /* close Dfile */
@@ -370,46 +362,28 @@ done:
         goto error;
     }
 
-    syslog( LOG_INFO, "Local %s: From <%s>: UID %d: %s", env->e_id,
-            env->e_mail, uid, pw_name );
+    syslog( LOG_INFO, "Receive.local env <%s>: From <%s>: UID %d: %s",
+            env->e_id, env->e_mail, uid, pw_name );
+
     for ( r = env->e_rcpt; r != NULL; r = r->r_next ) {
-        syslog( LOG_INFO, "Local %s: To <%s>", env->e_id, r->r_rcpt );
+        syslog( LOG_INFO, "Receive.local env <%s>: To <%s>",
+                env->e_id, r->r_rcpt );
     }
 
     /* store Efile */
     if ( env_outfile( env ) != 0 ) {
-        syslog( LOG_INFO, "Local %s: Message Aborted", env->e_id );
+        syslog( LOG_INFO, "Receive.local env <%s>: Message Aborted",
+                env->e_id );
         perror( "env_outfile" );
         goto error;
     }
 
-    syslog( LOG_INFO, "Local %s: Message Accepted: lines %d size %d",
+    syslog( LOG_INFO,
+            "Receive.local env <%s>: Message Accepted: lines %d size %d",
             env->e_id, line_no, message_size );
 
-signal_server:
-    /* if possible, signal server */
-    if (( pidfd = open( simta_file_pid, O_RDONLY, 0 )) < 0 ) {
-        syslog( LOG_NOTICE, "open %s: %m", simta_file_pid );
-        return( EX_OK );
-    }
-
-    if (( pf = fdopen( pidfd, "r" )) == NULL ) {
-        syslog( LOG_NOTICE, "fdopen %s: %m", simta_file_pid );
-        return( EX_OK );
-    }
-
-    fscanf( pf, "%d\n", &pid );
-
-    if ( pid <= 0 ) {
-        syslog( LOG_NOTICE, "illegal pid %s: %d", simta_file_pid, pid );
-        return( EX_OK );
-    }
-
-    if ( kill( pid, SIGUSR1 ) < 0 ) {
-        syslog( LOG_NOTICE, "kill %d: %m", pid );
-        return( EX_OK );
-    }
-
+    queue_envelope( env );
+    q_runner();
     return( EX_OK );
 
 error:
