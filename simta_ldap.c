@@ -351,7 +351,7 @@ simta_ldap_init( struct simta_ldap *ld )
 
 	ld->ldap_pid = getpid( );
 	if ( simta_ld_init( ld ) != 0 ) {
-	    return( ADDRESS_SYSERROR );
+	    goto error;
 	}
 
 #ifdef HAVE_LIBSSL
@@ -363,7 +363,7 @@ simta_ldap_init( struct simta_ldap *ld )
 			    "Liberror: simta_ldap_init ldap_set_option "
 			    "LDAP_OPT_X_TLS_CACERTFILE %s: %s",
 			    ld->ldap_tls_cacert, ldap_err2string( ldaprc ));
-		    return( ADDRESS_SYSERROR );
+		    goto error;
 		}
 	    }
 
@@ -374,7 +374,7 @@ simta_ldap_init( struct simta_ldap *ld )
 			    "Liberror: simta_ldap_init ldap_set_option "
 			    "LDAP_OPT_X_TLS_CERTFILE %s: %s",
 			    ld->ldap_tls_cert, ldap_err2string( ldaprc ));
-		    return( ADDRESS_SYSERROR );
+		    goto error;
 		}
 	    }
 
@@ -385,7 +385,7 @@ simta_ldap_init( struct simta_ldap *ld )
 			    "Liberror: simta_ldap_init ldap_set_option "
 			    "LDAP_OPT_X_TLS_KEYFILE %s: %s",
 			    ld->ldap_tls_key, ldap_err2string( ldaprc ));
-		    return( ADDRESS_SYSERROR );
+		    goto error;
 		}
 	    }
 	}
@@ -399,7 +399,7 @@ simta_ldap_init( struct simta_ldap *ld )
 	    syslog( LOG_ERR, "Liberror: simta_ldap_init ldap_start_tls_s: %s",
 		    ldap_err2string( ldaprc ));
 	    if ( ld->ldap_starttls == 2 ) {
-		return( ADDRESS_SYSERROR );
+		goto error;
 	    }
 	    /*
 	    ** Start-TLS Failed -- default to anonymous binding.
@@ -411,7 +411,7 @@ simta_ldap_init( struct simta_ldap *ld )
 	    }
 
 	    if ( simta_ldap_retry( ld ) != 0 ) {
-		return( ADDRESS_SYSERROR );
+		goto error;
 	    }
 	}
     }
@@ -426,7 +426,7 @@ simta_ldap_init( struct simta_ldap *ld )
 	    syslog( LOG_ERR, "Liberror: simta_ldap_init "
 		    "ldap_sasl_interactive_bind_s: %s",
 		    ldap_err2string( ldaprc ));
-	    return( ADDRESS_SYSERROR );
+	    goto error;
 	}
 
     /* If a client-side cert specified,  then do a SASL EXTERNAL bind */
@@ -437,7 +437,7 @@ simta_ldap_init( struct simta_ldap *ld )
 	    syslog( LOG_ERR, "Liberror: simta_ldap_init "
 		    "ldap_sasl_interactive_bind_s: %s",
 		    ldap_err2string( ldaprc ));
-	    return ( ADDRESS_SYSERROR );
+	    goto error;
 	}
 
     } else {
@@ -448,7 +448,7 @@ simta_ldap_init( struct simta_ldap *ld )
 		    ld->ldap_bindpw, LDAP_AUTH_SIMPLE)) != LDAP_SUCCESS ) {
 		syslog( LOG_ERR, "Liberror: simta_ldap_init ldap_bind_s: %s",
 			ldap_err2string( ldaprc ));
-		return( ADDRESS_SYSERROR );
+		goto error;
 	    }
 	}
 
@@ -456,6 +456,10 @@ simta_ldap_init( struct simta_ldap *ld )
     }
 #endif /* HAVE_LIBSASL */
     return( 0 );
+
+error:
+    simta_ldap_unbind( ld );
+    return( ADDRESS_SYSERROR );
 }
 
 
@@ -870,10 +874,6 @@ simta_ldap_address_local( struct simta_ldap *ld, char *name, char *domain )
 
     if (( ld->ldap_ld == NULL ) || ( ld->ldap_pid != getpid( ))) {
 	if (( rc = simta_ldap_init( ld )) != 0 ) {
-	    /* Reset so that future calls don't think everything's hunky-dory
-	     * and return incorrect results.
-	     */
-	    simta_ldap_unbind( ld );
 	    return( rc );
 	}
     }
@@ -1702,6 +1702,7 @@ simta_ldap_dn_expand( struct simta_ldap *ld, struct expand *exp,
 	syslog( LOG_ERR, "Liberror: simta_ldap_dn_expand ldap_search_st: %s",
 		    ldap_err2string(rc ));
 	ldap_msgfree( res );
+	simta_ldap_unbind( ld );
 	return( ADDRESS_SYSERROR );
     }
 
