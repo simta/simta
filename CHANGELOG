@@ -1,3 +1,12 @@
+1.0.2
+    - fixed simta_waitpid() bug that caused unnecessary waiting in some cases
+    - improved RECEIVE_QUEUE_STRATEGY PUNT
+    - improved accuracy of connection statistics logging
+    - added support for DKIM signing
+    - added support for generating an Authentication-Results header
+    - fixed LDAP expansion bug that could cause spurious bounces
+    - added support for HAProxy's PROXY protocol
+
 1.0.1
     - removed unnecessary groff build dependency in RPM spec file
     - added RECEIVE_QUEUE_STRATEGY PUNT
