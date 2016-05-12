@@ -130,9 +130,9 @@ struct receive_data {
     struct timeval		r_tv_inactivity;
     struct timeval		r_tv_session;
     struct timeval		r_tv_accepted;
+    struct spf			*r_spf;
     struct dmarc		*r_dmarc;
     int				r_dmarc_result;
-    int				r_spf_result;
     int				r_bad_headers;
 
 #ifdef HAVE_LIBOPENDKIM
@@ -1069,12 +1069,13 @@ f_mail( struct receive_data *r )
 #endif /* HAVE_LIBSSL */
 
     if ( simta_spf ) {
-	r->r_spf_result = spf_lookup( r->r_hello, addr, r->r_sa );
+	spf_free( r->r_spf );
+	r->r_spf = spf_lookup( r->r_hello, addr, r->r_sa );
 	syslog( LOG_INFO,
 		"Receive [%s] %s: env <%s>: From <%s>: SPF result: %s",
 		r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-		spf_result_str( r->r_spf_result ));
-	switch( r->r_spf_result ) {
+		spf_result_str( r->r_spf->spf_result ));
+	switch( r->r_spf->spf_result ) {
 	case SPF_RESULT_TEMPERROR:
 	    if (( simta_spf == SPF_POLICY_STRICT ) ||
 		    ( simta_dmarc == DMARC_POLICY_STRICT )) {
@@ -1101,7 +1102,7 @@ f_mail( struct receive_data *r )
 	    break;
 	case SPF_RESULT_PASS:
 	    if ( simta_dmarc ) {
-		dmarc_spf_result( r->r_dmarc, domain );
+		dmarc_spf_result( r->r_dmarc, r->r_spf->spf_domain );
 	    }
 	    break;
 	}
@@ -1649,13 +1650,11 @@ f_data( struct receive_data *r )
 			";\n\tauth=pass smtp.auth=%s", r->r_auth_id );
 	    }
 
-	    if ( simta_spf && ( strlen( r->r_env->e_mail ) > 0 )) {
+	    if ( r->r_spf ) {
 		authresults = yaslcatprintf( authresults,
-			";\n\tspf=%s smtp.mailfrom=%s",
-			spf_result_str( r->r_spf_result ),
-			r->r_env->e_mail_orig
-			? r->r_env->e_mail_orig
-			: r->r_env->e_mail );
+			";\n\tspf=%s smtp.mailfrom=%s@%s",
+			spf_result_str( r->r_spf->spf_result ),
+			r->r_spf->spf_localpart, r->r_spf->spf_domain );
 	    }
 	}
 
@@ -3783,6 +3782,8 @@ closeconnection:
 	dmarc_free( r.r_dmarc );
     }
 
+    spf_free( r.r_spf );
+
     return( simta_fast_files );
 }
 
@@ -4468,8 +4469,10 @@ content_filter( struct receive_data *r, char **smtp_message )
 	sprintf( buf, "%ld", log_tv.tv_sec );
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_CID", buf );
 
-	filter_envp[ filter_envc++ ] = env_string( "SIMTA_SPF_RESULT",
-		spf_result_str( r->r_spf_result ));
+	if ( r->r_spf ) {
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_SPF_RESULT",
+		    spf_result_str( r->r_spf->spf_result ));
+	}
 
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_DMARC_RESULT",
 		dmarc_result_str( r->r_dmarc_result ));
