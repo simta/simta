@@ -1621,8 +1621,9 @@ f_data( struct receive_data *r )
 	     * this second check will typically result in at least one mapping
 	     * back to the client's IP address.
 	     */
-	    authresults = yaslcatprintf( authresults, ";\n\tiprev=%s",
-		    iprev_authresult_str( r ));
+	    authresults = yaslcatprintf( authresults,
+		    ";\n\tiprev=%s policy.iprev=%s (%s)",
+		    iprev_authresult_str( r ), r->r_ip, r->r_remote_hostname );
 
 	    /* RFC 7601 2.7.4 SMTP AUTH
 	     * SMTP AUTH (defined in [AUTH]) is represented by the "auth" method
