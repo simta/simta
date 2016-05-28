@@ -349,6 +349,7 @@ set_smtp_mode( struct receive_data *r, int mode, const char *msg )
 deliver_accepted( struct receive_data *r, int force )
 {
     struct envelope			*e;
+    struct host_q			*hq;
     struct timeval			tv_add;
     struct timeval			tv_now;
 
@@ -357,7 +358,19 @@ deliver_accepted( struct receive_data *r, int force )
 	r->r_env = NULL;
     }
 
-    if ( simta_unexpanded_q == NULL ) {
+    /* FIXME: kludge to avoid a bad interaction with aggressive receipt */
+    if ( simta_jail_host &&
+	    (( hq = host_q_lookup( simta_jail_host )) != NULL )) {
+	while (( e = hq->hq_env_head ) != NULL ) {
+	    queue_remove_envelope( e );
+	    env_move( e, simta_dir_slow );
+	    env_free( e );
+	}
+    }
+
+    /* If the queue is empty we don't need to process it. */
+    if (( simta_unexpanded_q == NULL ) ||
+	    ( simta_unexpanded_q->hq_env_head == NULL )) {
 	return( RECEIVE_OK );
     }
 
