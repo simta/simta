@@ -136,6 +136,12 @@ bounce_dfile_out( struct envelope *bounce_env, SNET *message )
 
     sprintf( dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id );
 
+#ifdef HAVE_LIBOPENDKIM
+    if ( simta_dkim_sign != DKIMSIGN_POLICY_OFF ) {
+	bounce_env->e_flags |= ENV_FLAG_DKIMSIGN;
+    }
+#endif /* HAVE_LIBOPENDKIM */
+
     if (( dfile_fd = env_dfile_open( bounce_env )) < 0 ) {
 	goto error;
     }
@@ -289,12 +295,6 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq,
 	    env_create( simta_dir_fast, NULL, "", env )) == NULL ) {
 	return( NULL );
     }
-
-#ifdef HAVE_LIBOPENDKIM
-    if ( simta_dkim_sign != DKIMSIGN_POLICY_OFF ) {
-	bounce_env->e_flags |= ENV_FLAG_DKIMSIGN;
-    }
-#endif /* HAVE_LIBOPENDKIM */
 
     if (( simta_rqueue_policy == RQUEUE_POLICY_JAIL ) &&
 	    ( simta_bounce_jail == 0 )) {
