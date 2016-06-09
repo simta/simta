@@ -119,7 +119,7 @@ host_q_create_or_lookup( char *hostname )
 
 	hq->hq_hostname = strdup( hostname );
 
-	if ( simta_bitbucket >= 0 ) {
+	if ( simta_bitbucket > 0 ) {
 	    hq->hq_status = HOST_BITBUCKET;
 
 	} else if (( hq->hq_red = red_host_lookup( hostname )) != NULL ) {
@@ -1045,8 +1045,14 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
     struct envelope		*env_deliver;
     struct envelope		*env_bounce = NULL;
     struct stat			sbuf;
+    struct timespec		ts;
 
     memset( d, 0, sizeof( struct deliver ));
+
+    if ( simta_bitbucket > 0 ) {
+	ts.tv_sec = simta_bitbucket / 1000;
+	ts.tv_nsec = ( simta_bitbucket % 1000 ) * 1000000;
+    }
 
     syslog( LOG_INFO, "Queue %s: delivering %d messages",
 	    deliver_q->hq_hostname, deliver_q->hq_entries );
@@ -1192,9 +1198,9 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
 
 	case HOST_BITBUCKET:
 	    syslog( LOG_WARNING,
-		    "Deliver.remote env <%s>: bitbucket in %d seconds",
+		    "Deliver.remote env <%s>: bitbucket in %d milliseconds",
 		    env_deliver->e_id, simta_bitbucket );
-	    sleep( (unsigned int)simta_bitbucket );
+	    nanosleep( &ts, NULL );
 	    d->d_delivered = 1;
 	    d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
 	    break;
