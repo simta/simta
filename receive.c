@@ -4528,6 +4528,7 @@ content_filter( struct receive_data *r, char **smtp_message )
 	}
 
 	for ( ; ; ) {
+	    errno = 0;
 	    if (( line = snet_getline( snet, NULL )) != NULL ) {
 		syslog( LOG_INFO, "Filter [%s] %s: %s: %s",
 			r->r_ip, r->r_remote_hostname, r->r_env->e_id, line );
@@ -4539,7 +4540,9 @@ content_filter( struct receive_data *r, char **smtp_message )
 
 	    if ( errno == EINTR ) {
 		if ( simta_child_signal != 0 ) {
-		    if ( simta_waitpid( pid, &status, WNOHANG ) != 0 ) {
+		    errno = 0;
+		    if (( simta_waitpid( pid, &status, WNOHANG ) != 0 ) &&
+			    ( errno != EINTR )) {
 			syslog( LOG_ERR,
 				"Syserror: content_filter simta_waitpid: %m" );
 			close( fd[ 0 ] );
@@ -4556,8 +4559,9 @@ content_filter( struct receive_data *r, char **smtp_message )
 	    return( MESSAGE_TEMPFAIL );
 	}
 
+	errno = 0;
 	while (( rc = simta_waitpid( pid, &status, 0 )) != pid ) {
-	    if ( rc < 0 ) {
+	    if (( rc < 0 ) && ( errno != EINTR )) {
 		syslog( LOG_ERR, "Syserror: content_filter simta_waitpid: %m" );
 		return( MESSAGE_TEMPFAIL );
 	    }
