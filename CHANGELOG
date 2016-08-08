@@ -1,3 +1,10 @@
+1.0.3
+    - added correct RFC7208.MAILFROM handling for SPF
+    - fixed crash on jailed messages when MAX_Q_RUNNERS_RECEIVE > 0
+    - fixed some bounces not receiving DKIM signature
+    - fixed spurious tempfails from content filter
+      when MAX_Q_RUNNERS_RECEIVE > 0
+
 1.0.2
     - fixed simta_waitpid() bug that caused unnecessary waiting in some cases
     - improved RECEIVE_QUEUE_STRATEGY PUNT
