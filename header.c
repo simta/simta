@@ -537,7 +537,6 @@ header_check( struct receive_headers *rh, int read_headers )
     yastr			tmp;
     yastr			*split;
     char			daytime[ RFC822_TIMESTAMP_LEN ];
-    char			*sender = NULL;
 
 /* RFC 5322 3.6 Field definitions
  *  Field           Min number      Max number      Notes
@@ -572,7 +571,6 @@ header_check( struct receive_headers *rh, int read_headers )
  */
 
     buf = yaslempty( );
-    sender = simta_sender( );
 
     /* check headers for known mail clients behaving badly */
     if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
@@ -606,13 +604,6 @@ header_check( struct receive_headers *rh, int read_headers )
 			"an unexpected number of From addresses: %s", tmp );
 	    }
 	    rh->r_env->e_header_from = strdup( split[ 0 ] );
-	    if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
-		if (( tok_count == 1 ) &&
-			( strcasecmp( sender, split[ 0 ] ) == 0 )) {
-		    /* The sender is already in from, we don't need to add it */
-		    sender = NULL;
-		}
-	    }
 	    yaslfreesplitres( split, tok_count );
 	}
 	yaslfree( tmp );
@@ -625,10 +616,6 @@ header_check( struct receive_headers *rh, int read_headers )
 	yaslclear( buf );
 	buf = yaslcatprintf( buf, "From: %s", rh->r_env->e_mail );
 	line_prepend( rh->r_headers, buf, COPY );
-	if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) &&
-		( strcasecmp( sender, rh->r_env->e_mail ) == 0 )) {
-	    sender = NULL;
-	}
     } else {
 	syslog( LOG_INFO, "header_check: missing From header" );
 	ret++;
@@ -638,52 +625,6 @@ header_check( struct receive_headers *rh, int read_headers )
     if (( dentry = dll_lookup( rh->r_headers_index, "sender" )) != NULL ) {
 	mh = dentry->dll_data;
 	ret += header_singleton( "Sender", mh );
-	if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
-	    tmp = header_string( mh->h_lines->st_data );
-	    if (( split = parse_addr_list( tmp, &tok_count,
-		    HEADER_MAILBOX_LIST )) == NULL ) {
-		sender = simta_sender( );
-	    } else {
-		if ( tok_count > 1 ) {
-		    sender = simta_sender( );
-		}
-		yaslfreesplitres( split, tok_count );
-	    }
-	    yaslfree( tmp );
-	}
-    }
-
-    if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) &&
-	    sender ) {
-	/* Generate Sender: header */
-	if ( rh->r_headers == NULL ) {
-	    rh->r_headers = line_file_create( );
-	}
-	yaslclear( buf );
-	buf = yaslcatprintf( buf, "Sender: %s", sender );
-	line_prepend( rh->r_headers, buf, COPY );
-	/* If we're replacing a user-supplied header, delete it */
-	if ( dentry ) {
-	    mh = dentry->dll_data;
-	    for ( sentry = mh->h_lines; sentry != NULL ;
-		    sentry = sentry->st_next ) {
-		/* FIXME: make this a function */
-		l = sentry->st_data;
-		if ( l->line_prev != NULL ) {
-		    lp = &(l->line_prev->line_next);
-
-		} else {
-		    lp = &(rh->r_headers->l_first);
-		}
-
-		for ( l = l->line_next; l != NULL; l = l->line_next ) {
-		    if (( *(l->line_data) != ' ' ) && ( *(l->line_data) != '\t' )) {
-			break;
-		    }
-		}
-		*lp = l;
-	    }
-	}
     }
 
     /* Date: */

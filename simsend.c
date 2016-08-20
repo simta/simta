@@ -267,10 +267,22 @@ main( int argc, char *argv[] )
 	goto error;
     }
 
+    uid = getuid();
+    if (( passwd = getpwuid( uid )) == NULL ) {
+	pw_name = "No password entry";
+    } else if ( passwd->pw_name == NULL ) {
+	pw_name = "No user name in password entry";
+    } else {
+	pw_name = passwd->pw_name;
+    }
+
+
     rfc822_timestamp( daytime );
     buf = yaslempty( );
-    buf = yaslcatprintf( buf, "Received: BY %s (simsendmail) ID %s;\n\t%s",
-	    simta_hostname, env->e_id, daytime );
+    buf = yaslcatprintf( buf,
+	    "Received: FROM %s (UID %d)\n\tBY %s (simsendmail) ID %s;\n\t%s",
+	    ( passwd ? passwd->pw_name : "unknown" ), uid, simta_hostname,
+	    env->e_id, daytime );
     header_text( line_no, buf, &rh, NULL );
 
     while (( header == 1 ) &&
@@ -367,15 +379,6 @@ done:
     if ( fclose( dfile ) != 0 ) {
 	perror( "fclose" );
 	goto error;
-    }
-
-    uid = getuid();
-    if (( passwd = getpwuid( uid )) == NULL ) {
-	pw_name = "No password entry";
-    } else if ( passwd->pw_name == NULL ) {
-	pw_name = "No user name in password entry";
-    } else {
-	pw_name = passwd->pw_name;
     }
 
     syslog( LOG_INFO, "Local %s: From <%s>: UID %d: %s", env->e_id,
