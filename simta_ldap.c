@@ -314,6 +314,14 @@ simta_ld_init( struct simta_ldap *ld )
 	}
     }
 
+    /* Tell libldap to handle EINTR instead of erroring out. */
+    if (( ldap_set_option( ld->ldap_ld, LDAP_OPT_RESTART, LDAP_OPT_ON ))
+	    != LDAP_OPT_SUCCESS ) {
+	syslog( LOG_ERR, "Liberror: simta_ld_init ldap_set_option "
+		"LDAP_OPT_RESTART LDAP_OPT_ON: failed" );
+	return( 1 );
+    }
+
     if (( ldap_set_option( ld->ldap_ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF ))
 	    != LDAP_OPT_SUCCESS ) {
 	syslog( LOG_ERR, "Liberror: simta_ld_init ldap_set_option "
