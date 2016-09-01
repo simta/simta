@@ -278,9 +278,7 @@ extern int				simta_verbose;
 extern int				simta_child_signal;
 extern int				simta_fast_files;
 extern int				simta_tls;
-#ifdef HAVE_LIBSASL
 extern int				simta_sasl;
-#endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBSSL
 extern char				*simta_port_smtps;
 extern int				simta_service_smtps;

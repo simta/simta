@@ -199,6 +199,7 @@ static int	reset( struct receive_data * );
 static int	deliver_accepted( struct receive_data *, int );
 static int	f_helo( struct receive_data * );
 static int	f_ehlo( struct receive_data * );
+static int	f_auth( struct receive_data * );
 static int	f_mail( struct receive_data * );
 static int	f_rcpt( struct receive_data * );
 static int	f_data( struct receive_data * );
@@ -220,7 +221,6 @@ static const char   *simta_dkim_authresult_str( DKIM_SIGERROR );
 #endif /* HAVE_LIBOPENDKIM */
 
 #ifdef HAVE_LIBSASL
-static int	f_auth( struct receive_data * );
 static int 	reset_sasl_conn( struct receive_data *r );
 #endif /* HAVE_LIBSASL */
 
@@ -2792,16 +2792,18 @@ start_tls( struct receive_data *r, SSL_CTX *ssl_ctx )
     int
 f_auth( struct receive_data *r )
 {
+    char		*clientin = NULL;
+    struct timeval	tv;
+#ifdef HAVE_LIBSASL
     int			rc;
     const char		*mechname;
     char		base64[ BASE64_BUF_SIZE + 1 ];
-    char		*clientin = NULL;
     unsigned int	clientinlen = 0;
     const char		*serverout;
     unsigned int	serveroutlen;
-    struct timeval	tv;
     struct rbl		*rbl;
     char		*rbl_msg = NULL;
+#endif /* HAVE_LIBSASL */
 
     if ( simta_sasl == SIMTA_SASL_OFF ) {
 	return( f_not_implemented( r ));
@@ -3184,8 +3186,8 @@ f_auth( struct receive_data *r )
     }
 
     set_smtp_mode( r, simta_smtp_default_mode, "Default" );
-    return( RECEIVE_OK );
 #endif /* HAVE_LIBSASL */
+    return( RECEIVE_OK );
 }
 
     int
