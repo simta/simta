@@ -44,7 +44,7 @@ srs_forward( struct envelope *env ) {
     int			rc = SRS_SYSERROR;
     struct ifaddrs	*ifaddrs;
     struct ifaddrs	*ifa;
-    int			spf_result;
+    struct spf		*spf = NULL;
 
     if ( strlen( env->e_mail ) == 0 ) {
 	/* Null return-path, don't need to do anything */
@@ -63,14 +63,13 @@ srs_forward( struct envelope *env ) {
     }
 
     if ( simta_srs == SRS_POLICY_SMART ) {
-	spf_result = SPF_RESULT_TEMPERROR;
 	if ( getifaddrs( &ifaddrs ) != 0 ) {
 	    syslog( LOG_ERR, "Syserror: srs_forward getifaddrs: %m" );
 	    return( SRS_SYSERROR );
 	}
-	for ( ifa = ifaddrs; (( ifa != NULL ) &&
-			( spf_result != SPF_RESULT_FAIL ) &&
-			( spf_result != SPF_RESULT_SOFTFAIL ));
+	for ( ifa = ifaddrs; (( ifa != NULL ) && ( spf != NULL ) &&
+			( spf->spf_result != SPF_RESULT_FAIL ) &&
+			( spf->spf_result != SPF_RESULT_SOFTFAIL ));
 		ifa = ifa->ifa_next ) {
 	    if (( ifa->ifa_addr == NULL ) ||
 		    ( ifa->ifa_flags & IFF_LOOPBACK )) {
@@ -78,16 +77,17 @@ srs_forward( struct envelope *env ) {
 	    }
 	    if (( simta_ipv4 && ( ifa->ifa_addr->sa_family == AF_INET )) ||
 		    ( simta_ipv6 && ( ifa->ifa_addr->sa_family == AF_INET6 ))) {
-		spf_result = spf_lookup( simta_hostname, env->e_mail,
+		spf = spf_lookup( simta_hostname, env->e_mail,
 			ifa->ifa_addr );
 	    }
 	}
 	freeifaddrs( ifaddrs );
-	if (( spf_result == SPF_RESULT_NONE ) ||
-		( spf_result == SPF_RESULT_NEUTRAL ) ||
-		( spf_result == SPF_RESULT_PASS )) {
+	if ( spf && (( spf->spf_result == SPF_RESULT_NONE ) ||
+		( spf->spf_result == SPF_RESULT_NEUTRAL ) ||
+		( spf->spf_result == SPF_RESULT_PASS ))) {
 	    /* SPF won't fail, don't need to do anything */
-	    return( SRS_OK );
+	    rc = SRS_OK;
+	    goto error;
 	}
     }
 
@@ -131,6 +131,7 @@ srs_forward( struct envelope *env ) {
     env->e_mail = strdup( newaddr );
 
 error:
+    spf_free( spf );
     yaslfree( localpart );
     yaslfree( hash );
     yaslfree( newaddr );
