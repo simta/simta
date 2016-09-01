@@ -528,7 +528,6 @@ header_check( struct receive_headers *rh, int read_headers )
     struct line			**lp;
     struct rfc822_header	*mh;
     struct dll_entry		*dentry;
-    struct stab_entry		*sentry;
     int				ret = 0;
     int				len;
     int				i;

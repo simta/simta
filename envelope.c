@@ -794,7 +794,8 @@ env_dkim_sign( struct envelope *env )
 		dkim_geterror( dkim ));
 	goto error;
     }
-    if (( result = dkim_getsighdr_d( dkim, 16, &dkim_header, &chunk )) != 0 ) {
+    if (( result = dkim_getsighdr_d( dkim, 16, &dkim_header,
+	    (size_t *)&chunk )) != 0 ) {
 	syslog( LOG_NOTICE,
 		"Liberror: env_dkim_sign dkim_getsighdr_d: %s: %s",
 		dkim_getresultstr( result ),
@@ -805,8 +806,8 @@ env_dkim_sign( struct envelope *env )
     simta_debuglog( 1, "dkim header: %s", dkim_header );
 
     /* Get rid of carriage returns in libopendkim output */
-    split = yaslsplitlen( dkim_header, strlen( dkim_header ), "\r", 1,
-	    &tok_count );
+    split = yaslsplitlen( (const char *)dkim_header,
+	    strlen( (const char *)dkim_header ), "\r", 1, &tok_count );
     tmp = yasljoinyasl( split, tok_count, "", 0 );
     signature = yaslcatyasl( yaslauto( "DKIM-Signature: " ), tmp );
 
