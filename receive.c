@@ -4278,6 +4278,7 @@ local_address( char *addr, char *domain, struct simta_red *red )
     return( NOT_LOCAL );
 }
 
+#ifdef HAVE_LIBOPENDKIM
     static const char *
 simta_dkim_authresult_str( DKIM_SIGERROR dkim_error ) {
     switch ( dkim_error ) {
@@ -4294,6 +4295,7 @@ simta_dkim_authresult_str( DKIM_SIGERROR dkim_error ) {
     }
     return( "neutral" );
 }
+#endif /* HAVE_LIBOPENDKIM */
 
     static const char *
 iprev_authresult_str( struct receive_data *r ) {
