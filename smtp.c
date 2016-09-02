@@ -13,6 +13,7 @@
 #include <sys/param.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
