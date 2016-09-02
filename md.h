@@ -1,7 +1,7 @@
 #ifndef SIMTA_MD_H
 #define SIMTA_MD_H
 
-#include <openssl/ssl.h>
+#include <openssl/evp.h>
 
 #define MDCTX_UNINITIALIZED	0
 #define MDCTX_READY		1
@@ -11,7 +11,7 @@
 #define MD_BYTE_LEN		10
 
 struct message_digest {
-    EVP_MD_CTX	    md_ctx;
+    EVP_MD_CTX	    *md_ctx;
     int		    md_ctx_status;
     unsigned int    md_ctx_bytes;
     unsigned int    md_len;

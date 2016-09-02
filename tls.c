@@ -12,6 +12,7 @@
 #ifndef OPENSSL_NO_ECDH
 #include <openssl/ecdh.h>
 #endif
+#include <openssl/bn.h>
 #include <openssl/dh.h>
 #include <openssl/err.h>
 #include <openssl/opensslv.h>
@@ -35,9 +36,6 @@ tls_server_setup( int authlevel, const char *caFile,
 	const char *ciphers )
 {
     SSL_CTX		*ssl_ctx;
-#ifndef OPENSSL_NO_ECDH
-    EC_KEY              *ecdh;
-#endif
     int                 ssl_mode = 0;
     static unsigned char dh4096_p[ ] = {
 	0x91, 0x6B, 0xA1, 0x6D, 0xC7, 0xE7, 0x1C, 0x21, 0x69, 0xCE, 0x7C, 0x3D,
@@ -86,8 +84,11 @@ tls_server_setup( int authlevel, const char *caFile,
     static unsigned char    dh4096_g[ ] = { 0x02, };
     DH			*dh = NULL;
 
+    /* OpenSSL 1.1.0 added auto-init */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
     SSL_load_error_strings();
     SSL_library_init();
+#endif /* OpenSSL < 1.1.0 */
 
     if (( ssl_ctx = SSL_CTX_new( SSLv23_server_method())) == NULL ) {
 	syslog( LOG_ERR, "Liberror: tls_server_setup SSL_CTX_new: %s",
@@ -101,6 +102,15 @@ tls_server_setup( int authlevel, const char *caFile,
 	goto error;
     }
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
+    if ( DH_set0_pqg( dh,
+	    BN_bin2bn( dh4096_p, sizeof( dh4096_p ), NULL ),
+	    NULL,
+	    BN_bin2bn( dh4096_g, sizeof( dh4096_g ), NULL )) != 1 ) {
+	syslog( LOG_ERR, "Liberror: tls_server_setup DH_set0_pqg: %s",
+		ERR_error_string( ERR_get_error(), NULL ));
+    }
+#else
     dh->p = BN_bin2bn( dh4096_p, sizeof( dh4096_p ), NULL );
     dh->g = BN_bin2bn( dh4096_g, sizeof( dh4096_g ), NULL );
     if (( dh->p == NULL ) || ( dh->g == NULL )) {
@@ -108,6 +118,7 @@ tls_server_setup( int authlevel, const char *caFile,
 		ERR_error_string( ERR_get_error(), NULL ));
         goto error;
     }
+#endif /* OpenSSL 1.1.0 */
 
     if ( SSL_CTX_set_tmp_dh( ssl_ctx, dh ) != 1 ) {
 	syslog( LOG_ERR, "Liberror: tls_server_setup SSL_CTX_set_tmp_dh: %s",
@@ -122,8 +133,8 @@ tls_server_setup( int authlevel, const char *caFile,
 
     if ( ciphers == NULL ) {
 	SSL_CTX_set_cipher_list( ssl_ctx,
-		"EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:"
-		"EECDH+3DES:RSA+3DES:DH+AES128:DH+AES256:DH+3DES:!MD5" );
+		"EECDH+CHACHA20:EECDH+AES128:RSA+AES128:EECDH+AES256:"
+		"RSA+AES256:DH+CHACHA20:DH+AES128:DH+AES256:!MD5" );
     } else {
 	SSL_CTX_set_cipher_list( ssl_ctx, ciphers );
     }
@@ -169,7 +180,7 @@ tls_server_setup( int authlevel, const char *caFile,
 
     /* Set level of security expecations */
     if ( authlevel <= 1 ) {
-	ssl_mode = SSL_VERIFY_NONE; 
+	ssl_mode = SSL_VERIFY_NONE;
     } else {
 	/* authlevel == 2 */
 	ssl_mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
@@ -180,7 +191,12 @@ tls_server_setup( int authlevel, const char *caFile,
     /* Do not reuse the same ECDH key pair */
     SSL_CTX_set_options(ssl_ctx, SSL_OP_SINGLE_ECDH_USE);
 
-#if OPENSSL_VERSION_NUMBER >= 0x10002000L
+#if defined(OPENSSL_IS_BORINGSSL) || (OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER))
+    /* OpenSSL >= 1.1.0 automatically enables automatic handling of parameter
+     * selection and makes SSL_CTX_set_ecdh_auto a noop, so we don't want
+     * to do anything.
+     */
+#elif OPENSSL_VERSION_NUMBER >= 0x10002000L
     /* OpenSSL >= 1.0.2 automatically handles parameter selection */
     SSL_CTX_set_ecdh_auto(ssl_ctx, 1);
 
@@ -188,6 +204,7 @@ tls_server_setup( int authlevel, const char *caFile,
     /* Manually select the curve. This selection is compliant with RFC 6460
      * when AES-256 cipher suites are in use, but noncompliant when AES-128
      * cipher suites are used. Oh, well. */
+    EC_KEY *ecdh;
     if (( ecdh = EC_KEY_new_by_curve_name( NID_secp384r1 )) != NULL ) {
 	SSL_CTX_set_tmp_ecdh(ssl_ctx, ecdh);
 	EC_KEY_free(ecdh);
@@ -217,8 +234,11 @@ tls_client_setup( int authlevel, const char *caFile,
     SSL_CTX		*ssl_ctx;
     int                 ssl_mode = 0;
 
+    /* OpenSSL 1.1.0 added auto-init */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
     SSL_load_error_strings();
     SSL_library_init();
+#endif /* OpenSSL < 1.1.0 */
 
     if (( ssl_ctx = SSL_CTX_new( SSLv23_client_method())) == NULL ) {
 	syslog( LOG_ERR, "Liberror: tls_client_setup SSL_CTX_new: %s",
@@ -226,13 +246,13 @@ tls_client_setup( int authlevel, const char *caFile,
 	return( NULL );
     }
 
-    /* Disable SSLv2 and SSLv3 */ 
+    /* Disable SSLv2 and SSLv3 */
     SSL_CTX_set_options( ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 );
 
     if ( ciphers == NULL ) {
 	SSL_CTX_set_cipher_list( ssl_ctx,
-		"EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:"
-		"ECDH+3DES:RSA+3DES:!MD5" );
+		"EECDH+CHACHA20:EECDH+AES128:RSA+AES128:EECDH+AES256:"
+		"RSA+AES256:!MD5" );
     } else {
         SSL_CTX_set_cipher_list( ssl_ctx, ciphers );
     }

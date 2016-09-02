@@ -939,7 +939,10 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
+	    /* OpenSSL 1.1.0 added auto-init */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 	    OpenSSL_add_all_digests();
+#endif /* OpenSSL < 1.1.0 */
 	    simta_checksum_md = EVP_get_digestbyname( (const char*)(av[ 1 ]));
 	    if ( simta_checksum_md == NULL ) {
 		fprintf( stderr, "%s: line %d: Unknown message digest: %s\n",
