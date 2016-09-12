@@ -803,8 +803,6 @@ env_dkim_sign( struct envelope *env )
 	goto error;
     }
 
-    simta_debuglog( 1, "dkim header: %s", dkim_header );
-
     /* Get rid of carriage returns in libopendkim output */
     split = yaslsplitlen( (const char *)dkim_header,
 	    strlen( (const char *)dkim_header ), "\r", 1, &tok_count );
