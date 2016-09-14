@@ -85,6 +85,7 @@ env_jail_set( struct envelope *e, int val )
 env_jail_status( struct envelope *env, int jail )
 {
     SNET			*snet_lock;
+    int				rc;
 
     if ( env == NULL ) {
 	return( 0 );
@@ -121,7 +122,13 @@ env_jail_status( struct envelope *env, int jail )
 
     env_jail_set( env, jail );
 
-    if ( env_outfile( env ) != 0 ) {
+    rc = env_outfile( env );
+
+    if ( snet_close( snet_lock ) < 0 ) {
+	syslog( LOG_ERR, "Liberror: env_jail_status snet_close: %m" );
+    }
+
+    if ( rc != 0 ) {
 	return( 1 );
     }
 
