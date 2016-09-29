@@ -667,7 +667,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     char		domain[ ALIAS_MAX_DOMAIN_LEN ];
     char		owner[ ALIAS_MAX_DOMAIN_LEN * 2 ];
     char		*alias_addr;
-    char		*addr_dash;
+    char		*paddr;
     struct simta_dbc	*dbcp = NULL, *owner_dbcp = NULL;
     yastr		key = NULL, value = NULL;
     yastr		owner_key = NULL, owner_value = NULL;
@@ -703,17 +703,17 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	    /* Canonicalise sendmail-style owner */
 	    strncpy( address, e_addr->e_addr + 6, ALIAS_MAX_DOMAIN_LEN - 8 );
 	    strcat( address, "-errors" );
-	} else if ((( addr_dash = strrchr( e_addr->e_addr, '-' )) != NULL ) &&
-		(( strcasecmp( addr_dash, "-owner" ) == 0 ) ||
-		( strcasecmp( addr_dash, "-owners" ) == 0 ) ||
-		( strcasecmp( addr_dash, "-error" ) == 0 ) ||
-		( strcasecmp( addr_dash, "-request" ) == 0 ) ||
-		( strcasecmp( addr_dash, "-requests" ) == 0 ))) {
+	} else if ((( paddr = strrchr( e_addr->e_addr, '-' )) != NULL ) &&
+		(( strcasecmp( paddr, "-owner" ) == 0 ) ||
+		( strcasecmp( paddr, "-owners" ) == 0 ) ||
+		( strcasecmp( paddr, "-error" ) == 0 ) ||
+		( strcasecmp( paddr, "-request" ) == 0 ) ||
+		( strcasecmp( paddr, "-requests" ) == 0 ))) {
 	    /* simta-style owners are all the same for ALIAS.
 	     * errors is canonical */
-	    *addr_dash = '\0';
+	    *paddr = '\0';
 	    strncpy( address, e_addr->e_addr, ALIAS_MAX_DOMAIN_LEN - 8 );
-	    *addr_dash = '-';
+	    *paddr = '-';
 	    strcat( address, "-errors" );
 	} else {
 	    strncpy( address, e_addr->e_addr, ALIAS_MAX_DOMAIN_LEN - 1 );
@@ -722,6 +722,12 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 
     } else {
 	strncpy( address, STRING_POSTMASTER, ALIAS_MAX_DOMAIN_LEN - 1 );
+    }
+
+    /* Handle subaddressing */
+    if ( simta_subaddr_separator &&
+	    (( paddr = strchr( address, simta_subaddr_separator )) != NULL )) {
+	*paddr = '\0';
     }
 
     key = yaslauto( address );

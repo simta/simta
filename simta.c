@@ -194,6 +194,7 @@ yastr			simta_jail_host = NULL;
 char			*simta_jail_bounce_address = NULL;
 yastr			simta_postmaster = NULL;
 yastr			simta_domain = NULL;
+char			simta_subaddr_separator = '\0';
 struct rbl	     	*simta_rbls = NULL;
 struct rbl     		*simta_user_rbls = NULL;
 int			simta_authz_default = RBL_ACCEPT;
@@ -1869,6 +1870,18 @@ simta_read_config( const char *fname )
 	    fprintf( stderr, "%s: line %d: usage: %s\n",
 		    fname, lineno,
 		    "SRS_SECRET <secret>" );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "SUBADDRESS_SEPARATOR" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_subaddr_separator = *av[ 1 ];
+		simta_debuglog( 2, "SUBADDRESS_SEPARATOR: %c",
+			simta_subaddr_separator );
+		continue;
+	    }
+	    fprintf( stderr,
+		    "%s: line %d: usage: SUBADDRESS_SEPARATOR <char>\n",
+		    fname, lineno );
 	    goto error;
 
 	} else if ( strcasecmp( av[ 0 ], "SUBMISSION_MODE" ) == 0 ) {

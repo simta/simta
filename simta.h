@@ -329,6 +329,7 @@ extern char				*simta_file_cert;
 extern char				*simta_file_private_key;
 extern char				simta_log_id[];
 extern yastr				simta_postmaster;
+extern char				simta_subaddr_separator;
 extern DNSR				*simta_dnsr;
 extern char				**simta_deliver_default_argv;
 extern int				simta_deliver_default_argc;

@@ -623,25 +623,32 @@ simta_ldap_string( char *filter, char *user, char *domain )
 simta_address_type( char *address )
 {
     int    addrtype;
-    char   *paddr = address;
+    char   *paddr;
 
     addrtype = LDS_USER;  /* default */
 
+    /* Strip off type indicators and record the type */
     if (( paddr = strrchr( address, '-' )) != NULL ) {
 	paddr++;
 	if (( strcasecmp( paddr, ERROR ) == 0 ) ||
 		( strcasecmp( paddr, ERRORS ) == 0 )) {
 	    addrtype = LDS_GROUP_ERRORS;
-	    *(--paddr) = '\0';
+	    *(paddr - 1) = '\0';
 	} else if (( strcasecmp( paddr, REQUEST ) == 0 ) ||
 		( strcasecmp( paddr, REQUESTS ) == 0 )) {
 	    addrtype = LDS_GROUP_REQUEST;
-	    *(--paddr) = '\0';
+	    *(paddr - 1) = '\0';
 	} else if (( strcasecmp( paddr, OWNER ) == 0 ) ||
 		( strcasecmp( paddr, OWNERS ) == 0 )) {
 	    addrtype = LDS_GROUP_OWNER;
-	    *(--paddr) = '\0';
+	    *(paddr - 1) = '\0';
 	}
+    }
+
+    /* Handle subaddressing */
+    if ( simta_subaddr_separator &&
+	    (( paddr = strchr( address, simta_subaddr_separator )) != NULL )) {
+	*paddr = '\0';
     }
 
     return( addrtype );
