@@ -1,3 +1,12 @@
+1.0.4
+    - removed Sender header injection in simsendmail
+    - fixed spurious LDAP failures from delivery child signals
+    - fixed smart SRS
+    - fixed some warnings and compilation issues
+    - added compatibility with OpenSSL 1.1.0
+    - fixed file descriptor leak in jail mode
+    - added subaddressing
+
 1.0.3
     - added correct RFC7208.MAILFROM handling for SPF
     - fixed crash on jailed messages when MAX_Q_RUNNERS_RECEIVE > 0
