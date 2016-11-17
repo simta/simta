@@ -201,8 +201,8 @@ env_create( const char *dir, const char *id, const char *e_mail,
 	    return( NULL );
 	}
 
-	snprintf( buf, 1023, "%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
-		(unsigned long)tv_now.tv_usec, pid );
+	snprintf( buf, 1023, "%lX.%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
+		(unsigned long)tv_now.tv_usec, (unsigned long)random( ), pid );
 
 	id = buf;
     }
