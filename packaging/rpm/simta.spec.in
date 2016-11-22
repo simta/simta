@@ -15,7 +15,7 @@ Release: 1%{?dist}
 License: BSD and MIT
 Group: System Environment/Daemons
 URL: http://rsug.itd.umich.edu/software/simta/
-Source0: %{name}-%{version}.tar.gz
+Source0: %{name}-%{version}.tar.xz
 Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Provides: MTA smtpdaemon server(smtp)
 Provides: %{_sbindir}/sendmail %{_bindir}/newaliases

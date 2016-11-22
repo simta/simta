@@ -213,10 +213,10 @@ DISTDIR=@PACKAGE_NAME@-@PACKAGE_VERSION@
 dist : clean
 	mkdir -p ${DESTDIR}dist/${DISTDIR}
 	tar -c -f - -X .distignore . | tar xpf - -C ${DESTDIR}dist/${DISTDIR}
-	cd ${DESTDIR}dist; tar cfz ${DISTDIR}.tar.gz ${DISTDIR}
+	cd ${DESTDIR}dist; tar cfJ ${DISTDIR}.tar.xz ${DISTDIR}
 
 rpm : dist
-	rpmbuild -ta ${DESTDIR}dist/${DISTDIR}.tar.gz
+	rpmbuild -ta ${DESTDIR}dist/${DISTDIR}.tar.xz
 
 clean :
 	rm -f a.out core* *.o *.bak *[Ee]rrs tags
