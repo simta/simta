@@ -114,6 +114,7 @@ struct receive_data {
     int				r_rcpt_success;
     int				r_rcpt_attempt;
     int				r_failed_rcpts;
+    int				r_esmtp;
     int				r_tls;
     int				r_auth;
     int				r_dns_match;
@@ -794,6 +795,7 @@ f_ehlo( struct receive_data *r )
     }
 #endif /* HAVE_LIBSSL */
 
+    r->r_esmtp = 1;
     simta_debuglog( 1, "Receive [%s] %s: %s", r->r_ip, r->r_remote_hostname,
 	    r->r_smtp_command );
 
@@ -1523,6 +1525,7 @@ f_data( struct receive_data *r )
     unsigned int			data_read = 0;
     struct envelope			*env_bounce;
     yastr				authresults = NULL;
+    yastr				with = NULL;
 #ifdef HAVE_LIBOPENDKIM
     DKIM				*dkim = NULL;
     DKIM_STAT				dkim_result;
@@ -1716,38 +1719,39 @@ f_data( struct receive_data *r )
 	 *     ( Domain FWS "(" TCP-info ")" ) /
 	 *     ( Address-literal FWS "(" TCP-info ")" )
 	 * TCP-info = Address-literal / ( Domain FWS Address-literal )
-	 *
+	 * Opt-info = [Via] [With] [ID] [For]
+	 *            [Additional-Registered-Clauses]
+	 * With = CFWS "WITH" FWS Protocol
+	 * ID = CFWS "ID" FWS ( Atom / msg-id )
+	 * Protocol = "ESMTP" / "SMTP" / Attdl-Protocol
 	 */
 
-#ifdef HAVE_LIBSASL
-	if ( simta_sasl == SIMTA_SASL_ON ) {
-	    if ( fprintf( dff,
-		    "Received: FROM %s (%s [%s])\n"
-		    "\tBy %s ID %s;\n"
-		    "\tAuthuser %s;\n"
-		    "\t%s\n",
-		    ( r->r_hello == NULL ) ? "NULL" : r->r_hello,
-		    r->r_remote_hostname , r->r_ip, simta_hostname,
-		    r->r_env->e_id, r->r_auth_id, daytime ) < 0 ) {
-		syslog( LOG_ERR, "Syserror: f_data fprintf: %m" );
-		goto error;
-	    }
+	if ( r->r_esmtp ) {
+	    with = yaslauto( "ESMTP" );
 
-	} else {
-#endif /* HAVE_LIBSASL */
-	    if ( fprintf( dff,
-		    "Received: FROM %s (%s [%s])\n"
-		    "\tBy %s ID %s;\n"
-		    "\t%s\n",
-		    ( r->r_hello == NULL ) ? "NULL" : r->r_hello,
-		    r->r_remote_hostname , r->r_ip, simta_hostname,
-		    r->r_env->e_id, daytime ) < 0 ) {
-		syslog( LOG_ERR, "Syserror: f_data fprintf: %m" );
-		goto error;
+	    if ( r->r_tls ) {
+		with = yaslcat( with, "S" );
 	    }
 #ifdef HAVE_LIBSASL
-	}
+	    if ( simta_sasl == SIMTA_SASL_ON ) {
+		with = yaslcat( with, "A" );
+	    }
 #endif /* HAVE_LIBSASL */
+	} else {
+	    with = yaslauto( "SMTP" );
+	}
+
+	if ( fprintf( dff,
+		"Received: from %s (%s [%s])\n"
+		"\tby %s with %s\n"
+		"\tid %s;\n"
+		"\t%s\n",
+		( r->r_hello == NULL ) ? "NULL" : r->r_hello,
+		r->r_remote_hostname , r->r_ip, simta_hostname, with,
+		r->r_env->e_id, daytime ) < 0 ) {
+	    syslog( LOG_ERR, "Syserror: f_data fprintf: %m" );
+	    goto error;
+	}
     }
 
     r->r_tv_inactivity.tv_sec = 0;
@@ -2439,6 +2443,7 @@ f_data( struct receive_data *r )
 error:
     receive_headers_free( rh );
     yaslfree( authresults );
+    yaslfree( with );
 
     /* if dff is still open, there was an error and we need to close it */
     if (( dff != NULL ) && ( fclose( dff ) != 0 )) {
