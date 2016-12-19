@@ -106,7 +106,7 @@ getent passwd simta >/dev/null || \
 exit 0
 
 %postun
-%systemd_postun_with_restart simta
+%systemd_postun_with_restart simta.service
 if [ "$1" -ge "1" ]; then
 	mta=`readlink %{_sysconfdir}/alternatives/mta`
 	if [ "$mta" == "%{_sbindir}/sendmail.simta" ]; then
@@ -116,7 +116,7 @@ fi
 exit 0
 
 %post
-/sbin/chkconfig --add simta
+%systemd_post simta.service
 # Set up the alternatives files for MTAs.
 %{_sbindir}/alternatives --install %{_sbindir}/sendmail mta %{_sbindir}/sendmail.simta 90 \
 	--slave %{_bindir}/newaliases mta-newaliases %{_bindir}/simalias \
