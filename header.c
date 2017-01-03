@@ -52,6 +52,7 @@ static int	domain_literal_len( const char * );
 static int	dot_atom_text_len( const char * );
 static void	header_exceptions( struct line_file * );
 static void	header_masquerade( struct line * );
+static void	header_remove( struct dll_entry *, struct receive_headers * );
 static int	header_singleton( const char *, const struct rfc822_header * );
 static yastr	header_string( struct line * );
 static int	is_dot_atom_text( int );
@@ -520,6 +521,35 @@ header_masquerade( struct line *l )
     }
 }
 
+    static void
+header_remove( struct dll_entry *dentry, struct receive_headers *rh ) {
+    struct line			*l;
+    struct line			**lp;
+    struct rfc822_header        *mh;
+
+    /* Delete the line(s) belonging to this header */
+    mh = dentry->dll_data;
+    l = mh->h_lines->st_data;
+
+    if ( l->line_prev != NULL ) {
+	lp = &(l->line_prev->line_next);
+    } else {
+	lp = &(rh->r_headers->l_first);
+    }
+
+    for ( l = l->line_next; l != NULL; l = l->line_next ) {
+	if (( *(l->line_data) != ' ' ) && ( *(l->line_data) != '\t' )) {
+	    break;
+	}
+    }
+
+    /* At this point, l is the line after the header we're deleting. */
+    *lp = l;
+
+    /* Remove the header from the index. */
+    dll_remove_entry( rh->r_headers_index, dentry );
+}
+
     int
 header_check( struct receive_headers *rh, int read_headers )
 {
@@ -649,19 +679,29 @@ header_check( struct receive_headers *rh, int read_headers )
     }
 
     /* Message-ID: */
-    if (( dentry = dll_lookup( rh->r_headers_index, "message-id" )) != NULL ) {
+    dentry = dll_lookup( rh->r_headers_index, "message-id" );
+    if ( dentry != NULL ) {
 	mh = dentry->dll_data;
 	ret += header_singleton( "Message-ID", mh );
 	tmp = parse_mid( mh->h_lines->st_data );
 	if ( tmp == NULL ) {
-	    /* FIXME: simsend and MSAs should probably regenerate it */
-	    ret++;
+	    if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
+		    ( simta_submission_mode == SUBMISSION_MODE_MSA )) {
+		/* Bad Message-ID, we should regenerate it. */
+		header_remove( dentry, rh );
+		dentry = NULL;
+	    } else {
+		ret++;
+	    }
 	} else {
 	    rh->r_env->e_mid = strdup( tmp );
 	    yaslfree( tmp );
 	}
-    } else if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
-	    ( simta_submission_mode == SUBMISSION_MODE_MSA )) {
+    }
+
+    if (( dentry == NULL ) &&
+	    (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
+	    ( simta_submission_mode == SUBMISSION_MODE_MSA ))) {
 	/* generate Message-ID: header */
 	if ( rh->r_headers == NULL ) {
 	    rh->r_headers = line_file_create( );
@@ -670,6 +710,7 @@ header_check( struct receive_headers *rh, int read_headers )
 	buf = yaslcatprintf( buf, "Message-ID: <%s@%s>", rh->r_env->e_id,
 		simta_hostname );
 	line_prepend( rh->r_headers, buf, COPY );
+	rh->r_env->e_mid = strdup( buf );
     }
 
     /* To: */
@@ -756,21 +797,7 @@ header_check( struct receive_headers *rh, int read_headers )
 	}
 
 	if ( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) {
-	    /* remove bcc lines */
-	    if ( l->line_prev != NULL ) {
-		lp = &(l->line_prev->line_next);
-
-	    } else {
-		lp = &(rh->r_headers->l_first);
-	    }
-
-	    for ( l = l->line_next; l != NULL; l = l->line_next ) {
-		if (( *(l->line_data) != ' ' ) && ( *(l->line_data) != '\t' )) {
-		    break;
-		}
-	    }
-
-	    *lp = l;
+	    header_remove( dentry, rh );
 	}
     }
 
