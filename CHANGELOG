@@ -1,3 +1,9 @@
+1.0.5
+    - added systemd support to RPM packaging
+    - improved uniqueness of envelope IDs
+    - improved generated Received headers
+    - added regeneration of broken Message-IDs for MSAs and simsendmail
+
 1.0.4
     - removed Sender header injection in simsendmail
     - fixed spurious LDAP failures from delivery child signals
