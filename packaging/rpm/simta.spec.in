@@ -88,7 +88,7 @@ rm -rf %{buildroot}
 make DESTDIR=%{buildroot} INSTALL_OPTS='' install
 install -m 755 -d %{buildroot}%{_sysconfdir} %{buildroot}%{_unitdir}
 install -p -m 644 simta.conf %{buildroot}%{_sysconfdir}/simta.conf
-install -p -m 755 packaging/rpm/simta.service %{buildroot}%{_unitdir}/simta.service
+install -p -m 644 packaging/rpm/simta.service %{buildroot}%{_unitdir}/simta.service
 touch %{buildroot}%{_sysconfdir}/aliases.db
 
 # rename files for alternative usage
