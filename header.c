@@ -547,7 +547,7 @@ header_remove( struct dll_entry *dentry, struct receive_headers *rh ) {
     *lp = l;
 
     /* Remove the header from the index. */
-    dll_remove_entry( rh->r_headers_index, dentry );
+    dll_remove_entry( &(rh->r_headers_index), dentry );
 }
 
     int
@@ -555,7 +555,6 @@ header_check( struct receive_headers *rh, int read_headers )
 {
     struct stab_entry		*s;
     struct line			*l;
-    struct line			**lp;
     struct rfc822_header	*mh;
     struct dll_entry		*dentry;
     int				ret = 0;
