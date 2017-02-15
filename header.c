@@ -1341,7 +1341,7 @@ parse_addr_list( yastr list, size_t *count, int mode )
 		    l += len;
 		}
 		if (( *l != ',' ) && ( *l != '\0' )) {
-		    syslog( LOG_DEBUG, "parse_addr_list: discarding "
+		    syslog( LOG_INFO, "parse_addr_list: discarding "
 			    "address-like string %s from %s", tmp, list );
 		    addr--;
 		    yaslfree( tmp );
