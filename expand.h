@@ -7,6 +7,7 @@
 #define EXPANSION_TYPE_LDAP             3
 #define EXPANSION_TYPE_GLOBAL_RELAY     4
 #define EXPANSION_TYPE_SRS              5
+#define EXPANSION_TYPE_TEMPFAIL         6
 
 /* return codes for expand_and_deliver(...) */
 #define EXPAND_OK                       0

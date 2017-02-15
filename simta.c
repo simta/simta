@@ -720,6 +720,18 @@ simta_read_config( const char *fname )
                             f_arg );
                 }
 
+            } else if ( strcasecmp( av[ 2 ], "TEMPFAIL" ) == 0 ) {
+                if (( ac != 4 ) || (( red_code != RED_CODE_R ) &&
+                        ( red_code != RED_CODE_r ))) {
+                    fprintf( stderr, "%s: line %d: usage: "
+                            "@domain R TEMPFAIL <passwd file>\n",
+                            fname, lineno );
+                    goto error;
+                }
+
+                red_action_add( red, red_code, EXPANSION_TYPE_TEMPFAIL,
+                        av[ 3 ] );
+
 #ifdef HAVE_LIBSSL
             } else if ( strcasecmp( av[ 2 ], "TLS" ) == 0 ) {
                 /* @DOMAIN D TLS <OPTIONAL|REQUIRED|DISABLED> */

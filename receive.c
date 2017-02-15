@@ -4004,6 +4004,20 @@ local_address( char *addr, char *domain, struct simta_red *red )
             break;
 #endif /* HAVE_LMDB */
 
+        case EXPANSION_TYPE_TEMPFAIL:
+            *at = '\0';
+            passwd = simta_getpwnam( action, addr );
+            *at = '@';
+
+            /* R should tempfail if it's found, r should tempfail if it's not. */
+            if ( passwd != NULL ) {
+                if ( action->a_flags == ACTION_SUFFICIENT ) {
+                    return( LOCAL_ERROR );
+                }
+            } else if ( action->a_flags == ACTION_REQUIRED ) {
+                return( LOCAL_ERROR );
+            }
+
         case EXPANSION_TYPE_PASSWORD:
             /* Check password file */
             *at = '\0';
