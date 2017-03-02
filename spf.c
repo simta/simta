@@ -23,6 +23,7 @@
 int spf_check_host( struct spf *, const yastr );
 static int spf_check_a( struct spf *, const yastr, unsigned long, unsigned long, const char * );
 static yastr spf_macro_expand( struct spf *, const yastr, const yastr );
+static yastr spf_parse_domainspec( struct spf *, const yastr, yastr );
 static yastr spf_parse_domainspec_cidr( struct spf *, const yastr, yastr, unsigned long *, unsigned long * );
 static int simta_cidr_compare( unsigned long, const struct sockaddr *, const struct sockaddr *, const char * );
 
@@ -225,9 +226,16 @@ spf_check_host( struct spf *s, const yastr domain )
 	} else if ( strncasecmp( split[ i ], "include:", 8 ) == 0 ) {
 	    s->spf_queries++;
 	    yaslrange( split[ i ], 8, -1 );
+	    if (( domain_spec = spf_macro_expand( s, domain,
+		    split[ i ] )) == NULL ) {
+		/* Macro expansion failed, probably a syntax problem. */
+		ret = SPF_RESULT_PERMERROR;
+		goto cleanup;
+	    }
 	    simta_debuglog( 2, "SPF %s [%s]: include %s",
-		    s->spf_domain, domain, split[ i ] );
-	    rc = spf_check_host( s, split[ i ] );
+		    s->spf_domain, domain, domain_spec );
+	    rc = spf_check_host( s, domain_spec );
+	    yaslfree( domain_spec );
 	    switch ( rc ) {
 	    case SPF_RESULT_NONE:
 		ret = SPF_RESULT_PERMERROR;
@@ -351,11 +359,12 @@ spf_check_host( struct spf *s, const yastr domain )
 		continue;
 	    }
 
-	    if ( split[ i ][ 3 ] == ':' ) {
-		domain_spec = yaslnew(( split[ i ] + 4 ),
-			( yasllen( split[ i ] ) - 4 ));
-	    } else {
-		domain_spec = yasldup( domain );
+	    yaslrange( split[ i ], 3, -1 );
+	    if (( domain_spec = spf_parse_domainspec( s, domain,
+		    split[ i ] )) == NULL ) {
+		/* Macro expansion failed, probably a syntax problem. */
+		ret = SPF_RESULT_PERMERROR;
+		goto cleanup;
 	    }
 
 	    for ( j = 0 ; j < dnsr_res_mech->r_ancount ; j++ ) {
@@ -860,6 +869,20 @@ spf_result_str( const int res )
 	return( "permerror" );
     }
     return( "INVALID" );
+}
+
+    static yastr
+spf_parse_domainspec( struct spf *s, yastr domain, yastr dsc ) {
+    yastr   domain_spec;
+
+    if ( dsc[ 0 ] == ':' ) {
+	yaslrange( dsc, 1, -1 );
+	domain_spec = spf_macro_expand( s, domain, dsc );
+    } else {
+	domain_spec = yasldup( domain );
+    }
+
+    return( domain_spec );
 }
 
     static yastr
