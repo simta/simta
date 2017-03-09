@@ -1,3 +1,6 @@
+1.0.6
+    - fixed SPF macro expansion in include: and ptr:
+
 1.0.5
     - added systemd support to RPM packaging
     - improved uniqueness of envelope IDs
