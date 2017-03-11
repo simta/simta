@@ -101,6 +101,12 @@ spf_check_host( struct spf *s, const yastr domain )
     for ( i = 0 ; i < dnsr_res->r_ancount ; i++ ) {
 	if ( dnsr_res->r_answer[ i ].rr_type == DNSR_TYPE_TXT ) {
 	    txt = dnsr_res->r_answer[ i ].rr_txt.txt_data;
+
+	    /* Malformed record */
+	    if ( txt == NULL ) {
+		continue;
+	    }
+
 	    /* RFC 7208 4.5 Selecting Records
 	     * Starting with the set of records that were returned by the
 	     * lookup, discard records that do not begin with a version section
