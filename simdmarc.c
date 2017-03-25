@@ -22,8 +22,8 @@ main( int ac, char *av[ ] )
     yastr		test_str;
     struct dmarc	*d;
 
-    if (( ac < 2 ) || ( ac > 5 )) {
-	fprintf( stderr, "Usage:\t\t%s hostname [ 5322.From domain ] [ SPF domain ] [ DKIM domain ]\n", av[ 0 ] );
+    if (( ac < 2 ) || ( ac > 4 )) {
+	fprintf( stderr, "Usage:\t\t%s 5322.From domain [ SPF domain ] [ DKIM domain ]\n", av[ 0 ] );
 	exit( 1 );
     }
 
@@ -45,21 +45,17 @@ main( int ac, char *av[ ] )
 	    dmarc_result_str( d->policy ), d->pct,
 	    dmarc_result_str( d->result ));
 
-    if ( ac > 2 ) {
-	d->domain = av[ 2 ];
-    }
-
     test_str = yaslauto( d->domain );
 
+    if ( ac > 2 ) {
+	dmarc_spf_result( d, av[ 2 ] );
+	test_str = yaslcat( test_str, "/" );
+	test_str = yaslcat( test_str, av[ 2 ] );
+    }
     if ( ac > 3 ) {
-	dmarc_spf_result( d, av[ 3 ] );
+	dmarc_dkim_result( d, av[ 3 ] );
 	test_str = yaslcat( test_str, "/" );
 	test_str = yaslcat( test_str, av[ 3 ] );
-    }
-    if ( ac > 4 ) {
-	dmarc_dkim_result( d, av[ 4 ] );
-	test_str = yaslcat( test_str, "/" );
-	test_str = yaslcat( test_str, av[ 4 ] );
     }
 
     printf( "DMARC policy result for %s: %s\n", test_str,

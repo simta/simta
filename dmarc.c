@@ -21,6 +21,7 @@ static struct dnsr_result *dmarc_lookup_record( const char * );
 static yastr dmarc_orgdomain( const char * );
 static int dmarc_parse_record( struct dmarc *, yastr );
 static int dmarc_parse_result( struct dmarc *, struct dnsr_result * );
+static void dmarc_policy_reset( struct dmarc * );
 
     int
 dmarc_init( struct dmarc **d )
@@ -28,6 +29,21 @@ dmarc_init( struct dmarc **d )
     *d = calloc( 1, sizeof( struct dmarc ));
     dmarc_reset( *d );
     return( 0 );
+}
+
+    static void
+dmarc_policy_reset( struct dmarc *d )
+{
+    if ( d ) {
+	d->policy = DMARC_RESULT_NORECORD;
+	d->subpolicy = DMARC_RESULT_NORECORD;
+	if ( d->result != DMARC_RESULT_ORGDOMAIN ) {
+	    d->result = DMARC_RESULT_NONE;
+	}
+	d->dkim_alignment = DMARC_ALIGNMENT_RELAXED;
+	d->spf_alignment = DMARC_ALIGNMENT_RELAXED;
+	d->pct = 100;
+    }
 }
 
     void
@@ -46,12 +62,7 @@ dmarc_reset( struct dmarc *d )
 	    dll_free( d->dkim_domain_list );
 	    d->dkim_domain_list = NULL;
 	}
-	d->policy = DMARC_RESULT_NORECORD;
-	d->subpolicy = DMARC_RESULT_NORECORD;
-	d->result = DMARC_RESULT_NONE;
-	d->dkim_alignment = DMARC_ALIGNMENT_RELAXED;
-	d->spf_alignment = DMARC_ALIGNMENT_RELAXED;
-	d->pct = 100;
+	dmarc_policy_reset( d );
     }
 }
 
@@ -90,6 +101,7 @@ dmarc_lookup( struct dmarc *d, const char *domain )
     }
 
     d->domain = yaslauto( domain );
+    d->result = DMARC_RESULT_NONE;
 
     /* RFC 7489 6.6.3 Policy Discovery
      * Mail Receivers MUST query the DNS for a DMARC TXT record at the DNS
@@ -158,7 +170,8 @@ dmarc_result( struct dmarc *d )
     if ( d->spf_domain != NULL ) {
 	if ( dmarc_alignment( d->domain, d->spf_domain,
 		d->spf_alignment ) == 0 ) {
-	    d->result = DMARC_RESULT_PASS;
+	    d->result = ( d->policy == DMARC_RESULT_NORECORD )
+		    ? DMARC_RESULT_BESTGUESSPASS : DMARC_RESULT_PASS;
 	    goto done;
 	}
     }
@@ -167,7 +180,8 @@ dmarc_result( struct dmarc *d )
 	    dkim_domain = dkim_domain->dll_next ) {
 	if ( dmarc_alignment( d->domain, dkim_domain->dll_key,
 		d->dkim_alignment ) == 0 ) {
-	    d->result = DMARC_RESULT_PASS;
+	    d->result = ( d->policy == DMARC_RESULT_NORECORD )
+		    ? DMARC_RESULT_BESTGUESSPASS : DMARC_RESULT_PASS;
 	    goto done;
 	}
     }
@@ -199,6 +213,8 @@ dmarc_result_str( const int policy ) {
 	return( "quarantine" );
     case DMARC_RESULT_PASS:
 	return( "pass" );
+    case DMARC_RESULT_BESTGUESSPASS:
+	return( "bestguesspass" );
     case DMARC_RESULT_SYSERROR:
 	return( "syserror" );
     }
@@ -214,6 +230,8 @@ dmarc_authresult_str( const int policy ) {
 	return( "none" );
     case DMARC_RESULT_PASS:
 	return( "pass" );
+    case DMARC_RESULT_BESTGUESSPASS:
+	return( "bestguesspass" );
     case DMARC_RESULT_NONE:
     case DMARC_RESULT_QUARANTINE:
     case DMARC_RESULT_REJECT:
@@ -363,6 +381,7 @@ dmarc_orgdomain( const char *domain ) {
 dmarc_parse_record( struct dmarc *d, yastr r )
 {
     int                         i, ret = 1;
+    struct dll_entry		*keys = NULL, *entry;
     size_t                      tok_count;
     char                        *p;
     yastr			k = NULL, v = NULL, *split;
@@ -392,9 +411,6 @@ dmarc_parse_record( struct dmarc *d, yastr r )
      * Tags MUST be interpreted in a case-sensitive manner.  Values MUST be
      * processed as case sensitive unless the specific tag description of
      * semantics specifies case insensitivity.
-     *
-     * Tags with duplicate names MUST NOT occur within a single tag-list; if
-     * a tag name does occur more than once, the entire tag-list is invalid.
      */
 
     split = yaslsplitlen( r, yasllen( r ), ";", 1, &tok_count );
@@ -412,6 +428,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	    if (( i + 1 ) != tok_count ) {
 		simta_debuglog( 1, "DMARC %s: empty tag-value list member %d",
 			d->domain, i );
+		goto cleanup;
 	    }
 	    continue;
 	}
@@ -419,13 +436,26 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	if (( p = strchr( split[ i ], '=' )) == NULL ) {
 	    simta_debuglog( 1, "DMARC %s: invalid tag-value list member %d: %s",
 		    d->domain, i, split[ i ] );
-	    continue;
+	    goto cleanup;
 	}
 
 	k = yaslcpylen( k, split[ i ], (size_t)( p - split[ i ] ));
 	v = yaslcpy( v, p + 1 );
 	yasltrim( k, " \t" );
 	yasltrim( v, " \t" );
+
+	/* RFC 6376 3.2 Tag=Value Lists
+	 * Tags with duplicate names MUST NOT occur within a single tag-list; if
+	 * a tag name does occur more than once, the entire tag-list is invalid.
+	 */
+	entry = dll_lookup_or_create( &keys, k, 1 );
+	if ( entry->dll_data == NULL ) {
+	    entry->dll_data = "MAGIC";
+	} else {
+	    simta_debuglog( 1, "DMARC %s: tag %d: invalid duplicate %s key: %s",
+		    d->domain, i, k, v );
+	    goto cleanup;
+	}
 
 	/* RFC 7489 6.3 General Record Format
 	 * v: Version (plain-text; REQUIRED). Identifies the record retrieved
@@ -445,10 +475,6 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 			d->domain, v );
 		goto cleanup;
 	    }
-
-	} else if ( strcmp( k, "v" ) == 0 ) {
-	    simta_debuglog( 1, "DMARC %s: tag %d: invalid duplicate v tag: %s",
-		    d->domain, i, v );
 
 	/* RFC 7489 6.3 General Record Format
 	 * adkim: (plain-text; OPTIONAL; default is "r".) Indicates whether
@@ -605,7 +631,9 @@ dmarc_parse_record( struct dmarc *d, yastr r )
     }
 
     if ( d->policy == DMARC_RESULT_NORECORD ) {
-	d->policy = DMARC_RESULT_NONE;
+	/* policy is mandatory, this isn't a valid record */
+	simta_debuglog( 1, "DMARC %s: missing p tag", d->domain );
+	goto cleanup;
     }
 
     d->result = d->policy;
@@ -640,6 +668,11 @@ dmarc_parse_record( struct dmarc *d, yastr r )
     ret = 0;
 
 cleanup:
+    /* Don't keep results from partially parsed records */
+    if ( ret != 0 ) {
+	dmarc_policy_reset( d );
+    }
+    dll_free( keys );
     yaslfreesplitres( split, tok_count );
     yaslfree( k );
     yaslfree( v );
@@ -684,7 +717,7 @@ dmarc_parse_result( struct dmarc *d, struct dnsr_result *dns )
      * to this message.
      */
     if ( valid_records > 1 ) {
-	dmarc_reset( d );
+	dmarc_policy_reset( d );
 	return( 0 );
     }
 
