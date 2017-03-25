@@ -4368,10 +4368,14 @@ content_filter( struct receive_data *r, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 18 ];
+    char		*filter_envp[ 21 ];
     char		fname[ MAXPATHLEN + 1 ];
     char		buf[ 256 ];
     struct timeval	log_tv;
+#ifdef HAVE_LIBOPENDKIM
+    struct dll_entry	*dkim_domain;
+    yastr		dkim_domains;
+#endif /* HAVE_LIBOPENDKIM */
 
     if (( filter_argv[ 0 ] = strrchr( simta_mail_filter, '/' )) != NULL ) {
 	filter_argv[ 0 ]++;
@@ -4492,13 +4496,37 @@ content_filter( struct receive_data *r, char **smtp_message )
 	sprintf( buf, "%ld", log_tv.tv_sec );
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_CID", buf );
 
+#ifdef HAVE_LIBOPENDKIM
+	if ( simta_dkim_verify && simta_dmarc ) {
+	    dkim_domains = yaslempty();
+	    for ( dkim_domain = r->r_dmarc->dkim_domain_list;
+		    dkim_domain != NULL; dkim_domain = dkim_domain->dll_next ) {
+		dkim_domains = yaslcat( dkim_domains, dkim_domain->dll_key );
+		if ( dkim_domain->dll_next ) {
+		    dkim_domains = yaslcat( dkim_domains, " " );
+		}
+	    }
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_DKIM_DOMAINS",
+		    dkim_domains );
+	    yaslfree( dkim_domains );
+	}
+#endif /* HAVE_LIBOPENDKIM */
+
 	if ( r->r_spf ) {
 	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_SPF_RESULT",
 		    spf_result_str( r->r_spf->spf_result ));
+
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_SPF_DOMAIN",
+		    r->r_spf->spf_domain );
 	}
 
-	filter_envp[ filter_envc++ ] = env_string( "SIMTA_DMARC_RESULT",
-		dmarc_result_str( r->r_dmarc_result ));
+	if ( simta_dmarc ) {
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_DMARC_RESULT",
+		    dmarc_result_str( r->r_dmarc_result ));
+
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_DMARC_DOMAIN",
+		    r->r_dmarc->domain );
+	}
 
 #ifdef HAVE_LIBSSL
 	if ( simta_checksum_md != NULL ) {
