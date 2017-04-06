@@ -494,7 +494,7 @@ env_dfile_open( struct envelope *env )
 
     sprintf( dfile_fname, "%s/D%s", env->e_dir, env->e_id );
 
-    if (( fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
+    if (( fd = open( dfile_fname, O_WRONLY | O_CREAT | O_EXCL, 0664 )) < 0 ) {
 	syslog( LOG_ERR, "Syserror: env_dfile_open open %s: %m", dfile_fname );
 	return( -1 );
     }
@@ -551,7 +551,7 @@ env_tfile( struct envelope *e )
     sprintf( tf, "%s/t%s", e->e_dir, e->e_id );
 
     /* make tfile */
-    if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
+    if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0664 )) < 0 ) {
 	syslog( LOG_ERR, "Syserror: env_tfile open %s: %m", tf );
 	return( -1 );
     }

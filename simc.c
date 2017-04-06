@@ -149,7 +149,7 @@ main( int argc, char *argv[] )
 	    (unsigned long)tv_now.tv_sec, (unsigned long)tv_now.tv_usec, pid );
 
     /* make tfile */
-    if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0 ) {
+    if (( fd = open( tf, O_WRONLY | O_CREAT | O_EXCL, 0664 )) < 0 ) {
 	syslog( LOG_ERR, "%s open %s: %m", argv[ 0 ], tf );
 	exit( EX_TEMPFAIL );
     }

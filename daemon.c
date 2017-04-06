@@ -403,9 +403,6 @@ main( int ac, char **av )
 	exit( 1 );
     }
 
-    /* set our umask */
-    umask( 022 );
-
     if ( simta_gettimeofday( NULL ) != 0 ) {
 	exit( 1 );
     }
@@ -1806,7 +1803,7 @@ env_log_metrics( struct dll_entry *dll_head )
     sprintf( linkname, "%s/etc/mid_list", simta_base_dir );
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
-    if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) < 0 ) {
+    if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0664 )) < 0 ) {
 	syslog( LOG_WARNING, "Syserror: env_log_metrics open %s: %m",
 		filename );
 	return;
@@ -1857,7 +1854,7 @@ sender_log_metrics( struct dll_entry *dll_head )
     sprintf( linkname, "%s/etc/sender_list", simta_base_dir );
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
-    if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) < 0 ) {
+    if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0664 )) < 0 ) {
 	syslog( LOG_WARNING, "Syserror: sender_log_metrics open %s: %m",
 		filename );
 	return;
