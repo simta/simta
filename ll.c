@@ -186,7 +186,7 @@ ll_free( struct stab_entry *stab )
 }
 
     struct dll_entry *
-dll_lookup( struct dll_entry *dll_head, char *key )
+dll_lookup( struct dll_entry *dll_head, const char *key )
 {
     struct dll_entry			*dll;
     int					c;
@@ -204,7 +204,7 @@ dll_lookup( struct dll_entry *dll_head, char *key )
 
 
     struct dll_entry *
-dll_lookup_or_create( struct dll_entry **dll_head, char *key, int free_key )
+dll_lookup_or_create( struct dll_entry **dll_head, const char *key )
 {
     struct dll_entry			*dll;
     struct dll_entry			*dll_last = NULL;
@@ -222,11 +222,7 @@ dll_lookup_or_create( struct dll_entry **dll_head, char *key, int free_key )
 
     dll_new = calloc( 1, sizeof( struct dll_entry ));
 
-    if (( dll_new->dll_free_key = free_key ) == 0 ) {
-	dll_new->dll_key = key;
-    } else {
-	dll_new->dll_key = strdup( key );
-    }
+    dll_new->dll_key = strdup( key );
 
     if ( dll_last == NULL ) {
 	/* head insert */
@@ -263,9 +259,7 @@ dll_remove_entry( struct dll_entry **head, struct dll_entry *dll )
 	*head = dll->dll_next;
     }
 
-    if ( dll->dll_free_key != 0 ) {
-	free( dll->dll_key );
-    }
+    free( dll->dll_key );
 
     free( dll );
 
@@ -278,9 +272,7 @@ dll_free( struct dll_entry *head )
     struct dll_entry	*next;
     for ( ; head != NULL ; head = next ) {
 	next = head->dll_next;
-	if ( head->dll_free_key != 0 ) {
-	    free( head->dll_key );
-	}
+	free( head->dll_key );
 	free( head );
     }
 }

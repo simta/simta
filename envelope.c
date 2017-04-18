@@ -681,7 +681,7 @@ sender_list_add( struct envelope *e )
     struct sender_entry			*entry;
 
     if (( sl_dll = dll_lookup_or_create( &simta_sender_list,
-	e->e_mail, 1 )) == NULL ) {
+	e->e_mail )) == NULL ) {
 	return( 1 );
     }
 
@@ -692,7 +692,7 @@ sender_list_add( struct envelope *e )
     }
 
     if (( se_dll = dll_lookup_or_create( &(list->sl_entries),
-	    e->e_id, 0 )) == NULL ) {
+	    e->e_id )) == NULL ) {
 	return( 1 );
     }
 
@@ -875,7 +875,7 @@ env_efile( struct envelope *e )
 
     if ( simta_mid_list_enable != 0 ) {
 	if (( e_dll = dll_lookup_or_create( &simta_env_list,
-		e->e_id, 0 )) == NULL ) {
+		e->e_id )) == NULL ) {
 	    return( 1 );
 	}
 
@@ -1323,7 +1323,7 @@ cleanup:
 
     if (( simta_mid_list_enable != 0 ) && ( ret == 0 )) {
 	if (( e_dll = dll_lookup_or_create( &simta_env_list,
-		env->e_id, 0 )) == NULL ) {
+		env->e_id )) == NULL ) {
 	    return( 1 );
 	}
 

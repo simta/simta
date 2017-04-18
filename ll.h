@@ -13,12 +13,11 @@ struct dll_entry {
     struct dll_entry		*dll_prev;
     char			*dll_key;
     void			*dll_data;
-    int				dll_free_key;
 };
 
-struct dll_entry *dll_lookup_or_create( struct dll_entry**, char*, int );
+struct dll_entry *dll_lookup_or_create( struct dll_entry **, const char * );
 void dll_remove_entry( struct dll_entry **, struct dll_entry * );
-struct dll_entry *dll_lookup( struct dll_entry *, char * );
+struct dll_entry *dll_lookup( struct dll_entry *, const char * );
 void dll_free( struct dll_entry * );
 
 void	*ll_lookup( struct stab_entry*, const char * );

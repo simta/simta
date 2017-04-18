@@ -2275,7 +2275,7 @@ deliver_checksockaddr( struct deliver *d, struct host_q *hq )
 	return( 1 );
     }
 
-    l = dll_lookup_or_create( &d->d_ip_list, d->d_ip, 1 );
+    l = dll_lookup_or_create( &d->d_ip_list, d->d_ip );
     if ( l->dll_data == NULL ) {
 	l->dll_data = "SEEN";
     } else {

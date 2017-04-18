@@ -195,7 +195,7 @@ dmarc_dkim_result( struct dmarc *d, char *domain )
 {
     struct dll_entry	*dkim_domain;
 
-    dkim_domain = dll_lookup_or_create( &d->dkim_domain_list, domain, 1 );
+    dkim_domain = dll_lookup_or_create( &d->dkim_domain_list, domain );
     return( 0 );
 }
 
@@ -448,7 +448,7 @@ dmarc_parse_record( struct dmarc *d, yastr r )
 	 * Tags with duplicate names MUST NOT occur within a single tag-list; if
 	 * a tag name does occur more than once, the entire tag-list is invalid.
 	 */
-	entry = dll_lookup_or_create( &keys, k, 1 );
+	entry = dll_lookup_or_create( &keys, k );
 	if ( entry->dll_data == NULL ) {
 	    entry->dll_data = "MAGIC";
 	} else {

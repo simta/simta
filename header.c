@@ -456,7 +456,7 @@ header_text( int line_no, char *line, struct receive_headers *rh, char **msg )
 	}
 	key = yaslnew( line, (size_t)len );
 	yasltolower( key );
-	dentry = dll_lookup_or_create( &(rh->r_headers_index), key, 1 );
+	dentry = dll_lookup_or_create( &(rh->r_headers_index), key );
 	yaslfree( key );
     }
 

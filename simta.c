@@ -2296,10 +2296,10 @@ simta_read_publicsuffix ( void )
 
 		if ( leaf == NULL ) {
 		    leaf = dll_lookup_or_create( &simta_publicsuffix_list,
-			    p, 1 );
+			    p );
 		} else {
 		    leaf = dll_lookup_or_create(
-			    (struct dll_entry **)&leaf->dll_data, p, 1 );
+			    (struct dll_entry **)&leaf->dll_data, p );
 		}
 
 		*p = '\0';
