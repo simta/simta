@@ -683,20 +683,11 @@ cleanup:
 dmarc_parse_result( struct dmarc *d, struct dnsr_result *dns )
 {
     int				i, valid_records = 0;
-    struct dnsr_string		*txt;
     yastr			r;
-
-    if (( r = yaslempty( )) == NULL ) {
-	return( 1 );
-    }
 
     for ( i = 0 ; i < dns->r_ancount ; i++ ) {
 	if ( dns->r_answer[ i ].rr_type == DNSR_TYPE_TXT ) {
-	    yaslclear( r );
-	    for ( txt = dns->r_answer[ i ].rr_txt.txt_data ;
-		    txt != NULL ; txt = txt->s_next ) {
-		r = yaslcat( r, txt->s_string );
-	    }
+	    r = simta_dnsr_str( dns->r_answer[ i ].rr_txt.txt_data );
 	    /* RFC 7489 6.6.3 Policy Discovery
 	     * Records that do not start with a "v=" tag that identifies the
 	     * current version of DMARC are discarded.
@@ -704,6 +695,7 @@ dmarc_parse_result( struct dmarc *d, struct dnsr_result *dns )
 	    if ( dmarc_parse_record( d, r ) == 0 ) {
 		valid_records++;
 	    }
+	    yaslfree( r );
 	}
     }
 

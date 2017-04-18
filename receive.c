@@ -118,9 +118,8 @@ struct receive_data {
     int				r_tls;
     int				r_auth;
     int				r_dns_match;
-    int				r_rbl_status;
-    struct rbl			*r_rbl;
-    char			*r_rbl_msg;
+    int				r_dnsl_checked;
+    struct dnsl_result		*r_dnsl_result;
     char			*r_hello;
     char			*r_smtp_command;
     const char			*r_remote_hostname;
@@ -1372,47 +1371,35 @@ f_rcpt( struct receive_data *r )
 		return( smtp_write_banner( r, 451, NULL, NULL ));
 
 	    case LOCAL_ADDRESS_RBL:
-		if ( simta_user_rbls == NULL ) {
-		    simta_debuglog( 1, "Receive [%s] %s: env <%s>: "
-			    "To <%s> From <%s>: No user RBLS",
-			    r->r_ip, r->r_remote_hostname,
-			    r->r_env->e_id, addr, r->r_env->e_mail );
-		    break;
+		if ( ! r->r_dnsl_checked ) {
+		    r->r_dnsl_result = dnsl_check( "user", r->r_sa, NULL );
+		    r->r_dnsl_checked = 1;
 		}
 
-		if ( r->r_rbl_status == RBL_UNKNOWN ) {
-		    r->r_rbl_status = rbl_check( simta_user_rbls, r->r_sa,
-			    NULL, r->r_remote_hostname, &(r->r_rbl),
-			    &(r->r_rbl_msg));
-		}
-
-		switch ( r->r_rbl_status ) {
-		case RBL_ERROR:
-		default:
-		    r->r_rbl_status = RBL_UNKNOWN;
-		    syslog( LOG_ERR, "Receive [%s] %s: env <%s>: "
-			    "To <%s> From <%s>: RBL %s: error",
-			    r->r_ip, r->r_remote_hostname,
-			    r->r_env->e_id, addr, r->r_env->e_mail,
-			    r->r_rbl->rbl_domain );
-		    if ( dnsr_errno( simta_dnsr ) !=
-			    DNSR_ERROR_TIMEOUT ) {
-			return( RECEIVE_CLOSECONNECTION );
-		    }
-		    dnsr_errclear( simta_dnsr );
-		    break;
-
-		case RBL_BLOCK:
-		    r->r_failed_rcpts++;
-		    r->r_rbl_status = RBL_BLOCK;
-		    syslog( LOG_NOTICE, "Receive [%s] %s: env <%s>: "
-			    "To <%s> From <%s>: RBL Blocked %s: %s",
+		if ( r->r_dnsl_result == NULL ) {
+		    syslog( LOG_INFO, "Receive [%s] %s: env <%s>: "
+			    "To <%s> From <%s>: "
+			    "not found on any DNS lists in the 'user' chain",
 			    r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-			    r->r_env->e_mail, r->r_rbl->rbl_domain,
-			    r->r_rbl_msg );
+			    r->r_env->e_mail );
+		    break;
+		}
+
+		switch ( r->r_dnsl_result->dnsl->dnsl_type ) {
+		case DNSL_BLOCK:
+		    r->r_failed_rcpts++;
+		    syslog( LOG_NOTICE, "Receive [%s] %s: env <%s>: "
+			    "To <%s> From <%s>: DNS list %s: Blocked: %s (%s)",
+			    r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
+			    r->r_env->e_mail,
+			    r->r_dnsl_result->dnsl->dnsl_domain,
+			    r->r_dnsl_result->dnsl_result,
+			    r->r_dnsl_result->dnsl_reason );
 		    if ( snet_writef( r->r_snet,
-			    "550 <%s> %s %s: See %s\r\n", simta_hostname,
-			    S_DENIED, r->r_ip, r->r_rbl->rbl_url ) < 0 ) {
+			    "550 <%s> %s %s: %s: %s\r\n", simta_hostname,
+			    S_DENIED, r->r_ip,
+			    r->r_dnsl_result->dnsl->dnsl_domain,
+			    r->r_dnsl_result->dnsl_reason ) < 0 ) {
 			syslog( LOG_ERR, "Receive [%s] %s: env <%s>: "
 				"f_rcpt snet_writef: %m",
 				r->r_ip, r->r_remote_hostname, r->r_env->e_id );
@@ -1420,30 +1407,15 @@ f_rcpt( struct receive_data *r )
 		    }
 		    return( RECEIVE_OK );
 
-		case RBL_TRUST:
-		    r->r_rbl_status = RBL_TRUST;
+		case DNSL_ACCEPT:
+		case DNSL_TRUST:
 		    syslog( LOG_INFO, "Receive [%s] %s: env <%s>: "
-			    "To <%s> From <%s>: RBL %s: Accepted: %s",
+			    "To <%s> From <%s>: DNS list %s: Accepted: %s (%s)",
 			    r->r_ip, r->r_remote_hostname,
 			    r->r_env->e_id, addr, r->r_env->e_mail,
-			    r->r_rbl->rbl_domain, r->r_rbl_msg );
-		    break;
-
-		case RBL_ACCEPT:
-		    r->r_rbl_status = RBL_ACCEPT;
-		    syslog( LOG_INFO, "Receive [%s] %s: env <%s>: "
-			    "To <%s> From <%s>: RBL %s: Accepted: %s",
-			    r->r_ip, r->r_remote_hostname,
-			    r->r_env->e_id, addr, r->r_env->e_mail,
-			    r->r_rbl->rbl_domain, r->r_rbl_msg );
-		    break;
-
-		case RBL_NOT_FOUND:
-		    r->r_rbl_status = RBL_NOT_FOUND;
-		    syslog( LOG_INFO, "Receive [%s] %s: env <%s>: "
-			    "To <%s> From <%s>: RBL Unlisted",
-			    r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-			    r->r_env->e_mail );
+			    r->r_dnsl_result->dnsl->dnsl_domain,
+			    r->r_dnsl_result->dnsl_result,
+			    r->r_dnsl_result->dnsl_reason );
 		    break;
 		}
 		break; /* end case LOCAL_ADDRESS_RBL */
@@ -2153,7 +2125,8 @@ f_data( struct receive_data *r )
     } else if ( simta_mail_filter == NULL ) {
 	filter_result = MESSAGE_ACCEPT;
     } else if (( simta_filter_trusted == 0 ) &&
-	    ( r->r_rbl_status == RBL_TRUST )) {
+	    r->r_dnsl_result &&
+	    ( r->r_dnsl_result->dnsl->dnsl_type == DNSL_TRUST )) {
 	syslog( LOG_INFO, "Receive [%s] %s: env <%s>: "
 		"content filter %s skipped for trusted host",
 		r->r_ip, r->r_remote_hostname, r->r_env->e_id,
@@ -2810,8 +2783,7 @@ f_auth( struct receive_data *r )
     unsigned int	clientinlen = 0;
     const char		*serverout;
     unsigned int	serveroutlen;
-    struct rbl		*rbl;
-    char		*rbl_msg = NULL;
+    struct dnsl_result	*authz_result;
 #endif /* HAVE_LIBSASL */
 
     if ( simta_sasl == SIMTA_SASL_OFF ) {
@@ -3129,33 +3101,33 @@ f_auth( struct receive_data *r )
     }
 
     /* authn was successful, now we need to check authz */
-    switch( rbl_check( simta_auth_rbls,
-	    NULL, r->r_auth_id, "authz", &rbl, &rbl_msg )) {
-    case RBL_BLOCK:
-	r->r_failedauth++;
-	syslog( LOG_INFO, "Auth [%s] %s: %s denied by DNS %s: %s",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id, rbl->rbl_domain,
-		rbl_msg );
-	free( rbl_msg );
-	rc = smtp_write_banner( r, 535, NULL, NULL );
-	return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
-    case RBL_ACCEPT:
-	syslog( LOG_INFO, "Auth [%s] %s: %s allowed by DNS %s: %s",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id, rbl->rbl_domain,
-		rbl_msg );
-	free( rbl_msg );
-	break;
-    default:
-	if ( simta_authz_default != RBL_BLOCK ) {
+    if (( authz_result = dnsl_check( "authz", NULL, r->r_auth_id )) == NULL ) {
+	if ( simta_authz_default != DNSL_BLOCK ) {
 	    syslog( LOG_INFO, "Auth [%s] %s: %s allowed by default",
 		    r->r_ip, r->r_remote_hostname, r->r_auth_id );
-	    break;
+	} else {
+	    r->r_failedauth++;
+	    syslog( LOG_INFO, "Auth [%s] %s: %s denied by default",
+		    r->r_ip, r->r_remote_hostname, r->r_auth_id );
+	    rc = smtp_write_banner( r, 535, NULL, NULL );
+	    return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
 	}
-	r->r_failedauth++;
-	syslog( LOG_INFO, "Auth [%s] %s: %s denied by default",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id );
-	rc = smtp_write_banner( r, 535, NULL, NULL );
-	return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
+    } else {
+	if ( authz_result->dnsl->dnsl_type == DNSL_BLOCK ) {
+	    r->r_failedauth++;
+	    syslog( LOG_INFO, "Auth [%s] %s: %s denied by DNS list %s: %s (%s)",
+		    r->r_ip, r->r_remote_hostname, r->r_auth_id,
+		    authz_result->dnsl->dnsl_domain, authz_result->dnsl_result,
+		    authz_result->dnsl_reason );
+	    rc = smtp_write_banner( r, 535, NULL, NULL );
+	    return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
+	} else {
+	    syslog( LOG_INFO,
+		    "Auth [%s] %s: %s allowed by DNS list %s: %s (%s)",
+		    r->r_ip, r->r_remote_hostname, r->r_auth_id,
+		    authz_result->dnsl->dnsl_domain, authz_result->dnsl_result,
+		    authz_result->dnsl_reason );
+	}
     }
 
     syslog( LOG_INFO, "Auth [%s] %s: %s authenticated via %s%s",
@@ -3229,8 +3201,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
      * auth init
      * check DNS reverse
      * TCP wrappers
-     * RBLs
-     * if not RBL_ACCEPT, local connections max
+     * DNS lists
+     * if not DNSL_ACCEPT, local connections max
      * write before banner check
      * opening banner * command line loop
      */
@@ -3244,8 +3216,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
      * auth init
      * check DNS reverse
      * TCP wrappers
-     * RBLs
-     * if not RBL_ACCEPT, local connections max
+     * DNS lists
+     * if not DNSL_ACCEPT, local connections max
      * write before banner check
      * tarpit sleep
      * opening banner
@@ -3257,7 +3229,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
     r.r_ip = c->c_ip;
     r.r_dns_match = REVERSE_UNRESOLVED;
     r.r_remote_hostname = S_UNRESOLVED;
-    r.r_rbl_status = RBL_UNKNOWN;
 #ifdef HAVE_LIBSSL
     md_init( &r.r_md );
     md_init( &r.r_md_body );
@@ -3412,55 +3383,44 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	free( ctl_hostname );
 #endif /* HAVE_LIBWRAP */
 
-	if ( simta_rbls != NULL ) {
-	    simta_debuglog( 3, "Connect.in [%s] %s: checking RBLs",
-		    r.r_ip, r.r_remote_hostname );
+	simta_debuglog( 3, "Connect.in [%s] %s: checking DNS lists",
+		r.r_ip, r.r_remote_hostname );
 
-	    switch( rbl_check( simta_rbls, r.r_sa,
-		    r.r_remote_hostname, NULL, &(r.r_rbl), &(r.r_rbl_msg))) {
-	    case RBL_BLOCK:
-		r.r_rbl_status = RBL_BLOCK;
-		syslog( LOG_INFO, "Connect.in [%s] %s: RBL Blocked %s: %s",
-			r.r_ip, r.r_remote_hostname, (r.r_rbl)->rbl_domain,
-			r.r_rbl_msg );
-		set_smtp_mode( &r, SMTP_MODE_OFF, "RBL Blocked" );
-		break;
+	r.r_dnsl_result = dnsl_check( "connect", r.r_sa, NULL );
 
-	    case RBL_TRUST:
-		r.r_rbl_status = RBL_TRUST;
-		syslog( LOG_INFO, "Connect.in [%s] %s: RBL Accepted: %s",
-			r.r_ip, r.r_remote_hostname, (r.r_rbl)->rbl_domain );
-		break;
-
-	    case RBL_ACCEPT:
-		r.r_rbl_status = RBL_ACCEPT;
-		syslog( LOG_INFO, "Connect.in [%s] %s: RBL Accepted: %s",
-			r.r_ip, r.r_remote_hostname, (r.r_rbl)->rbl_domain );
-		break;
-
-	    case RBL_NOT_FOUND:
-		/* leave as RBL_UNKNOWN so user tests happen */
-		r.r_rbl_status = RBL_UNKNOWN;
-		syslog( LOG_INFO, "Connect.in [%s] %s: RBL Unlisted",
-			r.r_ip, r.r_remote_hostname );
-		break;
-
-	    case RBL_ERROR:
-	    default:
-		r.r_rbl_status = RBL_UNKNOWN;
+	if ( r.r_dnsl_result ) {
+	    r.r_dnsl_checked = 1;
+	    switch( (r.r_dnsl_result)->dnsl->dnsl_type ) {
+	    case DNSL_BLOCK:
 		syslog( LOG_INFO,
-			"Connect.in [%s] %s: RBL Error: %s",
-			r.r_ip, r.r_remote_hostname, (r.r_rbl)->rbl_domain );
-		if ( dnsr_errno( simta_dnsr ) !=
-			DNSR_ERROR_TIMEOUT ) {
-		    goto syserror;
-		}
-		dnsr_errclear( simta_dnsr );
+			"Connect.in [%s] %s: DNS list %s: Blocked: %s (%s)",
+			r.r_ip, r.r_remote_hostname,
+			(r.r_dnsl_result)->dnsl->dnsl_domain,
+			(r.r_dnsl_result)->dnsl_result,
+			(r.r_dnsl_result)->dnsl_reason );
+		set_smtp_mode( &r, SMTP_MODE_REFUSE,
+			(r.r_dnsl_result)->dnsl_reason );
+		break;
+
+	    case DNSL_ACCEPT:
+	    case DNSL_TRUST:
+		syslog( LOG_INFO,
+			"Connect.in [%s] %s: DNS list %s: Accepted: %s (%s)",
+			r.r_ip, r.r_remote_hostname,
+			(r.r_dnsl_result)->dnsl->dnsl_domain,
+			(r.r_dnsl_result)->dnsl_result,
+			(r.r_dnsl_result)->dnsl_reason );
 		break;
 	    }
+	} else {
+	    syslog( LOG_INFO, "Connect.in [%s] %s: "
+		    "not found on any DNS lists in the 'connect' chain",
+		    r.r_ip, r.r_remote_hostname );
 	}
 
-	if ( r.r_rbl_status != RBL_ACCEPT && r.r_rbl_status != RBL_TRUST ) {
+	if (( r.r_dnsl_result == NULL ) ||
+		(( (r.r_dnsl_result)->dnsl->dnsl_type != DNSL_ACCEPT ) &&
+		( (r.r_dnsl_result)->dnsl->dnsl_type != DNSL_TRUST ))) {
 	    if (( simta_local_connections_max != 0 ) &&
 		    ( c->c_proc_total > simta_local_connections_max )) {
 		syslog( LOG_WARNING, "Connect.in [%s] %s: connection refused: "
@@ -3493,7 +3453,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	/* Write before Banner check */
 	FD_ZERO( &fdset );
 	FD_SET( snet_fd( r.r_snet ), &fdset );
-	if ( r.r_rbl_status != RBL_TRUST ) {
+	if (( r.r_dnsl_result == NULL ) ||
+		( (r.r_dnsl_result)->dnsl->dnsl_type != DNSL_TRUST )) {
 	    tv_wait.tv_sec = simta_banner_delay;
 	    tv_wait.tv_usec = 0;
 
@@ -3518,10 +3479,10 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	simta_debuglog( 3, "Connect.in [%s] %s: sending banner",
 		r.r_ip, r.r_remote_hostname );
 
-	if ( r.r_smtp_mode == SMTP_MODE_OFF ) {
+	if ( r.r_smtp_mode == SMTP_MODE_REFUSE ) {
 	    if ( snet_writef( r.r_snet,
-		    "554 <%s> %s %s: See %s\r\n", simta_hostname, S_DENIED,
-		    r.r_ip, (r.r_rbl)->rbl_url ) < 0 ) {
+		    "554 <%s> %s %s: %s\r\n", simta_hostname, S_DENIED,
+		    r.r_ip, (r.r_dnsl_result)->dnsl_reason ) < 0 ) {
 		syslog( LOG_ERR,
 			"Receive [%s] %s: smtp_receive snet_writef: %m",
 			r.r_ip, r.r_remote_hostname );
@@ -3705,7 +3666,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	}
 
 	if (( r.r_smtp_mode == SMTP_MODE_NORMAL ) &&
-		( r.r_rbl_status != RBL_TRUST ) &&
+		(( r.r_dnsl_result == NULL ) ||
+		( (r.r_dnsl_result)->dnsl->dnsl_type != DNSL_TRUST )) &&
 		( simta_max_failed_rcpts > 0 ) &&
 		( r.r_failed_rcpts >= simta_max_failed_rcpts )) {
 	    syslog( LOG_NOTICE,

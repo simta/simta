@@ -196,6 +196,19 @@ get_txt( const char *hostname )
     return( get_address( hostname, DNSR_TYPE_TXT ));
 }
 
+    yastr
+simta_dnsr_str( const struct dnsr_string *data ) {
+    yastr			    str;
+    const struct dnsr_string	    *s;
+
+    str = yaslempty( );
+    for ( s = data; s; s = s->s_next ) {
+	str = yaslcat( str, s->s_string );
+    }
+
+    return( str );
+}
+
     struct simta_red *
 host_local( char *hostname )
 {
@@ -335,49 +348,19 @@ check_hostname( const char *hostname )
     return( 1 );
 }
 
-
-/* The simplest way to get started using the ORDB to protect your mail relay
- * against theft of service by spammers, is to arrange for it to make a DNS
- * query agains relays.ordb.org whenever you receive an incoming mail message
- * from a host whose relaying status you do not know.
- *
- * The theory of operation is simple. Given a host address in its
- * dotted-quad form, reverse the octets and check for the existence of an ``A
- * RR'' at that node under the relays.ordb.org node. So if you get an SMTP
- * session from [192.89.123.5] you would check for the existence of:
- * 5.123.89.192.relays.ordb.org. IN A 127.0.0.2
- *
- * We chose to use an ``A RR'' because that's what most MTA's can use to
- * filter incoming connections. The choice of [127.0.0.2] as the target
- * address was arbitary but will not change. As it happens, we supply a bogus
- * ORDB entry for [127.0.0.2] so that mail transport developers have
- * something to test against.
- *
- * If an ``A RR'' is found by this mechanism, then there will also be a
- * ``TXT RR'' at the same DNS node. The text of this record will be suitable
- * for use as a reason text for a bounced mail notification. (Modified from
- * http://www.mail-abuse.org/rbl/usage.html)
- *
- * Please note: Someone, completely unrelated to ORDB.org, has created a
- * zone called relays.ordb.com, in which everything resolves. That is,
- * anything from hamster.relays.ordb.com to 1.0.0.127.relays.ordb.com
- * resolves. If you have accidently set up your system to use relays.ordb.com
- * instead of relays.ordb.org, your system will instantly reject any incoming
- * SMTP-connection, as it will assume that all mailservers are open relays.
- * If you are experiencing a problem like the one described, please check
- * your configuration.
- */
-
-    int
-rbl_check( struct rbl *rbls, const struct sockaddr *sa, const char *text,
-	const char *host, struct rbl **found, char **msg )
+    struct dnsl_result *
+dnsl_check( const char *chain, const struct sockaddr *sa, const char *text )
 {
-    struct rbl				*rbl;
-    char				*reverse_ip;
-    char				*ip;
-    char				sa_ip[ INET6_ADDRSTRLEN ];
-    struct dnsr_result			*result;
-    struct sockaddr_in			sin;
+    struct dll_entry		*chain_dll;
+    struct dnsl			*list;
+    char			*lookup = NULL;
+    char			sa_ip[ INET6_ADDRSTRLEN ];
+    yastr			ip = NULL;
+    yastr			reason = NULL;
+    struct dnsr_result		*result;
+    struct sockaddr_in		sin;
+    int				i;
+    struct dnsl_result		*ret = NULL;
 
     if ( sa ) {
 	if ( getnameinfo( (struct sockaddr *)sa,
@@ -385,130 +368,184 @@ rbl_check( struct rbl *rbls, const struct sockaddr *sa, const char *text,
 		? sizeof( struct sockaddr_in6 )
 		: sizeof( struct sockaddr_in )),
 		sa_ip, INET6_ADDRSTRLEN, NULL, 0, NI_NUMERICHOST ) != 0 ) {
-	    syslog( LOG_ERR, "Syserror: rbl_check getnameinfo: %m" );
+	    syslog( LOG_ERR, "Syserror: dnsl_check getnameinfo: %m" );
 	    strcpy( sa_ip, "INVALID" );
 	}
     }
 
-    for ( rbl = rbls; rbl != NULL; rbl = rbl->rbl_next ) {
-	if ( found != NULL ) {
-	    *found = rbl;
-	}
+    if (( chain_dll = dll_lookup( simta_dnsl_chains, chain )) == NULL ) {
+	syslog( LOG_INFO, "DNS List: no lists in the '%s' chain", chain );
+	return( NULL );
+    }
 
+    for ( list = (struct dnsl *)chain_dll->dll_data;
+	    list != NULL; list = list->dnsl_next ) {
 	if ( sa ) {
-	    if (( reverse_ip =
-		    dnsr_ntoptr( simta_dnsr, sa->sa_family,
+	    /* RFC 5782 2.1 IP Address DNSxL
+	     * An IPv4 address DNSxL has a structure adapted from that of the
+	     * rDNS. (The rDNS, reverse DNS, is the IN-ADDR.ARPA [RFC1034] and
+	     * IP6.ARPA [RFC3596] domains used to map IP addresses to domain
+	     * names.)  Each IPv4 address listed in the DNSxL has a
+	     * corresponding DNS entry.  The entry's name is created by
+	     * reversing the order of the octets of the text representation
+	     * of the IP address, and appending the domain name of the DNSxL.
+	     *
+	     * RFC 5782 2.4 IPv6 DNSxLs
+	     * The structure of DNSxLs based on IPv6 addresses is adapted from
+	     * that of the IP6.ARPA domain defined in [RFC3596].  Each entry's
+	     * name MUST be a 32-component hex nibble-reversed IPv6 address
+	     * suffixed by the DNSxL domain.
+	     */
+	    if (( lookup = dnsr_ntoptr( simta_dnsr, sa->sa_family,
 		    (( sa->sa_family == AF_INET )
 		    ? (void *)&(((struct sockaddr_in *)sa)->sin_addr)
 		    : (void *)&(((struct sockaddr_in6 *)sa)->sin6_addr)),
-		    rbl->rbl_domain )) == NULL ) {
-		syslog( LOG_ERR, "RBL %s: dnsr_ntoptr failed: %s",
-			sa_ip, rbl->rbl_domain );
+		    list->dnsl_domain )) == NULL ) {
+		syslog( LOG_ERR, "DNS List [%s]: dnsr_ntoptr failed: %s",
+			sa_ip, list->dnsl_domain );
 		continue;
 	    }
 	} else {
-	    reverse_ip = malloc(
-		    strlen( rbl->rbl_domain ) + strlen( text ) + 2 );
-	    sprintf( reverse_ip, "%s.%s", text, rbl->rbl_domain );
+	    /* Preformatted text lookup */
+	    lookup = malloc(
+		    strlen( list->dnsl_domain ) + strlen( text ) + 2 );
+	    sprintf( lookup, "%s.%s", text, list->dnsl_domain );
 	}
 
-	if (( result = get_a( reverse_ip )) == NULL ) {
-	    simta_debuglog( 1, "RBL %s: Timeout: %s", reverse_ip,
-		    rbl->rbl_domain );
-	    free( reverse_ip );
+	if (( result = get_a( lookup )) == NULL ) {
+	    simta_debuglog( 1, "DNS List [%s]: Timeout: %s", sa ? sa_ip : text,
+		    list->dnsl_domain );
+	    free( lookup );
 	    continue;
 	}
 
-	if ( result->r_ancount > 0 ) {
-	    memset( &sin, 0, sizeof( struct sockaddr_in ));
-	    memcpy( &(sin.sin_addr.s_addr),
-		    &(result->r_answer[0].rr_a),
-		    sizeof( struct in_addr ));
-
-	    ip = strdup( inet_ntoa( sin.sin_addr ));
-
-	    simta_debuglog( 1, "RBL [%s] %s: Found in %s list %s: %s",
-		    sa ? sa_ip : text, host ? host : "Unknown",
-		    rbl->rbl_type_text, rbl->rbl_domain, ip );
-
-	    free( reverse_ip );
-	    dnsr_free_result( result );
-
-	    if ( rbl->rbl_type == RBL_LOG_ONLY ) {
-		free( ip );
-		continue;
+	for ( i = 0 ; i < result->r_ancount; i++ ) {
+	    /* RFC 5782 2.1 IP Address DNSxL
+	     * Each entry in the DNSxL MUST have an A record. DNSBLs SHOULD
+	     * have a TXT record that describes the reason for the entry.
+	     * DNSWLs MAY have a TXT record that describes the reason for
+	     * the entry.  The contents of the A record MUST NOT be used as
+	     * an IP address.  The A record contents conventionally have the
+	     * value 127.0.0.2, but MAY have other values as described below
+	     * in Section 2.3. The TXT record describes the reason that the IP
+	     * address is listed in the DNSxL, and is often used as the text
+	     * of an SMTP error response when an SMTP client attempts to send
+	     * mail to a server using the list as a DNSBL, or as explanatory
+	     * text when the DNSBL is used in a scoring spam filter.
+	     */
+	    if (( result->r_answer[ i ].rr_type == DNSR_TYPE_A ) &&
+		    ( ip == NULL )) {
+		memset( &sin, 0, sizeof( struct sockaddr_in ));
+		memcpy( &(sin.sin_addr.s_addr),
+			&(result->r_answer[0].rr_a),
+			sizeof( struct in_addr ));
+		ip = yaslauto( inet_ntoa( sin.sin_addr ));
 	    }
-
-	    if ( msg != NULL ) {
-		*msg = ip;
-	    } else {
-		free( ip );
-	    }
-
-	    return( rbl->rbl_type );
 	}
 
-	simta_debuglog( 1, "RBL [%s] %s: Unlisted in %s list %s",
-		sa ? sa_ip : text, host ? host : "Unknown",
-		rbl->rbl_type_text, rbl->rbl_domain );
-
-	free( reverse_ip );
 	dnsr_free_result( result );
+
+	if (( result = get_txt( lookup )) == NULL ) {
+	    simta_debuglog( 1, "DNS List [%s]: Timeout: %s", sa ? sa_ip : text,
+		    list->dnsl_domain );
+	} else {
+	    for ( i = 0 ; i < result->r_ancount; i++ ) {
+		if (( result->r_answer[ i ].rr_type == DNSR_TYPE_TXT ) &&
+			( reason == NULL )) {
+		    reason = simta_dnsr_str(
+			    result->r_answer[ i ].rr_txt.txt_data );
+		}
+	    }
+	    dnsr_free_result( result );
+	}
+
+	if ( ip ) {
+	    if (( reason == NULL ) && ( list->dnsl_default_reason )) {
+		reason = yasldup( list->dnsl_default_reason );
+	    }
+
+	    simta_debuglog( 1, "DNS List [%s]: Found in %s list %s: %s / %s",
+		    sa ? sa_ip : text, list->dnsl_type_text, list->dnsl_domain,
+		    ip, reason ? reason : "Unknown" );
+
+	    if ( list->dnsl_type != DNSL_LOG_ONLY ) {
+		ret = calloc( 1, sizeof( struct dnsl_result ));
+		ret->dnsl = list;
+		ret->dnsl_reason = reason;
+		ret->dnsl_result = ip;
+	    }
+	}
+
+	simta_debuglog( 1, "DNS List [%s]: Unlisted in %s list %s",
+		sa ? sa_ip : text, list->dnsl_type_text, list->dnsl_domain );
+
+	free( lookup );
+
+	if ( ret ) {
+	    return( ret );
+	}
+
+	yaslfree( ip );
+	ip = NULL;
+	yaslfree( reason );
+	reason = NULL;
     }
 
-    simta_debuglog( 1, "RBL [%s] %s: RBL list exhausted, no matches",
-	    sa ? sa_ip : text, host ? host : "Unknown" );
+    simta_debuglog( 1, "DNS List [%s]: chain %s exhausted, no matches",
+	    sa ? sa_ip : text, chain );
 
-    if ( found != NULL ) {
-	*found = NULL;
-    }
-
-    return( RBL_NOT_FOUND );
+    return( NULL );
 }
 
 
     int
-rbl_add( struct rbl **list, int type, const char *domain, const char *url )
+dnsl_add( const char *chain, int type, const char *domain, const char *reason )
 {
-    struct rbl			**i;
-    struct rbl			*rbl;
+    struct dll_entry		*chain_dll;
+    struct dnsl			*prev;
+    struct dnsl			*dnsl;
     char			*text;
 
     switch ( type ) {
     default:
-	syslog( LOG_ERR, "rbl_add type out of range: %d", type );
+	syslog( LOG_ERR, "dnsl_add type out of range: %d", type );
 	return( 1 );
 
-    case RBL_TRUST:
+    case DNSL_TRUST:
 	text = S_TRUST;
 	break;
 
-    case RBL_ACCEPT:
+    case DNSL_ACCEPT:
 	text = S_ACCEPT;
 	break;
 
-    case RBL_LOG_ONLY:
+    case DNSL_LOG_ONLY:
 	text = S_LOG_ONLY;
 	break;
 
-    case RBL_BLOCK:
+    case DNSL_BLOCK:
 	text = S_BLOCK;
 	break;
     }
 
-    rbl = calloc( 1, sizeof( struct rbl ));
+    dnsl = calloc( 1, sizeof( struct dnsl ));
 
-    rbl->rbl_type = type;
-    rbl->rbl_type_text = text;
+    dnsl->dnsl_type = type;
+    dnsl->dnsl_type_text = text;
 
-    rbl->rbl_domain = strdup( domain );
-    rbl->rbl_url = strdup( url );
+    dnsl->dnsl_domain = yaslauto( domain );
 
-    /* add new struct to end of list */
-    for ( i = list; *i != NULL; i = &((*i)->rbl_next) )
-	    ;
+    if ( reason ) {
+	dnsl->dnsl_default_reason = yaslauto( reason );
+    }
 
-    *i = rbl;
+    chain_dll = dll_lookup_or_create( &simta_dnsl_chains, chain );
+    if (( prev = (struct dnsl *)chain_dll->dll_data ) == NULL ) {
+	chain_dll->dll_data = dnsl;
+    } else {
+	for ( ; prev->dnsl_next != NULL; prev = prev->dnsl_next );
+	prev->dnsl_next = dnsl;
+    }
 
     return( 0 );
 }

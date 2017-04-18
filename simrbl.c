@@ -53,7 +53,6 @@ main( int argc, char *argv[])
     extern char         *optarg;
     int			c;
     char		*server = NULL;
-    char		*rbl_msg = NULL;
     int			rc;
     int			err = 0;
     int			quiet = 0;
@@ -62,7 +61,7 @@ main( int argc, char *argv[])
     int			check_text = 0;
     struct addrinfo	hints;
     struct addrinfo	*ai;
-    struct rbl		*rbl_found;
+    struct dnsl_result	*list;
     struct timeval	tv_now;
 
     while(( c = getopt( argc, argv, "dil:ns:tq" )) != -1 ) {
@@ -80,7 +79,7 @@ main( int argc, char *argv[])
 	    break;
 
 	case 'l':
-	    rbl_add( &simta_rbls, RBL_BLOCK, optarg, "none" );
+	    dnsl_add( simta_progname, DNSL_BLOCK, optarg, NULL );
 	    break;
 
 	case 'n':
@@ -117,7 +116,7 @@ main( int argc, char *argv[])
     if ( err ) {
 	fprintf( stderr, "Usage: %s ", argv[ 0 ] );
 	fprintf( stderr, "[ -dq ] " );
-	fprintf( stderr, "[ -l rbl-domain ] " );
+	fprintf( stderr, "[ -l dnsl-domain ] " );
 	fprintf( stderr, "[ -s server ] " );
 	fprintf( stderr, "([ -i ] address | -t text )\n" );
 	exit( EX_USAGE );
@@ -143,8 +142,8 @@ main( int argc, char *argv[])
 	simta_openlog( 0, 0 );
     }
 
-    if ( simta_rbls == NULL ) {
-	rbl_add( &simta_rbls, RBL_BLOCK, "mx-deny.dnsbl", "none" );
+    if ( simta_dnsl_chains == NULL ) {
+	dnsl_add( simta_progname, DNSL_BLOCK, "mx-deny.dnsbl", NULL );
     }
 
     if ( check_text == 0 ) {
@@ -158,26 +157,18 @@ main( int argc, char *argv[])
 	    exit( SIMRBL_EXIT_ERROR );
 	}
 
-	if (( rc = rbl_check( simta_rbls, ai->ai_addr, NULL, NULL, &rbl_found,
-		&rbl_msg )) == RBL_ERROR ) {
-	    if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
-	    exit( SIMRBL_EXIT_ERROR );
-	}
+	list = dnsl_check( simta_progname, ai->ai_addr, NULL );
     } else {
-	if (( rc = rbl_check( simta_rbls, NULL, argv[ optind ], NULL,
-		&rbl_found, &rbl_msg )) == RBL_ERROR ) {
-	    if ( !quiet ) fprintf( stderr, "check_rbl failed\n" );
-	    exit( SIMRBL_EXIT_ERROR );
-	}
+	list = dnsl_check( simta_progname, NULL, argv[ optind ] );
     }
 
-    if ( rc == RBL_BLOCK ) {
-	if ( !quiet ) printf( "found in %s: %s\n", rbl_found->rbl_domain,
-		rbl_msg );
-	exit( SIMRBL_EXIT_BLOCKED );
-    } else {
+    if ( list == NULL ) {
 	if ( !quiet ) printf( "not found\n" );
 	exit( SIMRBL_EXIT_NOT_BLOCKED );
+    } else {
+	if ( !quiet ) printf( "found in %s: %s (%s)\n", list->dnsl->dnsl_domain,
+		list->dnsl_result, list->dnsl_reason );
+	exit( SIMRBL_EXIT_BLOCKED );
     }
 }
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

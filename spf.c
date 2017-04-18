@@ -128,15 +128,12 @@ spf_check_host( struct spf *s, const yastr domain )
 		    ret = SPF_RESULT_PERMERROR;
 		    goto cleanup;
 		}
-		record = yaslempty( );
 		/* RFC 7208 3.3 Multiple Strings in a Single DNS Record
 		 * If a published record contains multiple character-strings,
 		 * then the record MUST be treated as if those strings are
 		 * concatenated together without adding spaces.
 		 */
-		for ( ; txt != NULL ; txt = txt->s_next ) {
-		    record = yaslcat( record, txt->s_string );
-		}
+		record = simta_dnsr_str( txt );
 	    }
 	}
     }

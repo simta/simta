@@ -195,10 +195,8 @@ char			*simta_jail_bounce_address = NULL;
 yastr			simta_postmaster = NULL;
 yastr			simta_domain = NULL;
 char			simta_subaddr_separator = '\0';
-struct rbl	     	*simta_rbls = NULL;
-struct rbl     		*simta_user_rbls = NULL;
-int			simta_authz_default = RBL_ACCEPT;
-struct rbl		*simta_auth_rbls = NULL;
+struct dll_entry	*simta_dnsl_chains = NULL;
+int			simta_authz_default = DNSL_ACCEPT;
 char			*simta_queue_filter = NULL;
 char			*simta_dir_dead = NULL;
 char			*simta_dir_local = NULL;
@@ -365,6 +363,7 @@ simta_read_config( const char *fname )
     int			ac;
     int			rc;
     int			x;
+    int			dnsl_type;
     yastr		buf;
     char		hostname[ DNSR_MAX_HOSTNAME + 1 ];
     char		*f_arg;
@@ -852,11 +851,11 @@ simta_read_config( const char *fname )
 	} else if ( strcasecmp( av[ 0 ], "AUTHZ_DEFAULT" ) == 0 ) {
 	    if ( ac == 2 ) {
 		if ( strcasecmp( av[ 1 ], "ALLOW" ) == 0 ) {
-		    simta_authz_default = RBL_ACCEPT;
+		    simta_authz_default = DNSL_ACCEPT;
 		    simta_debuglog( 2, "AUTHZ_DEFAULT ALLOW" );
 		    continue;
 		} else if ( strcasecmp( av[ 1 ], "DENY" ) == 0 ) {
-		    simta_authz_default = RBL_BLOCK;
+		    simta_authz_default = DNSL_BLOCK;
 		    simta_debuglog( 2, "AUTHZ_DEFAULT DENY" );
 		    continue;
 		}
@@ -869,12 +868,12 @@ simta_read_config( const char *fname )
 	} else if ( strcasecmp( av[ 0 ], "AUTHZ_DNS" ) == 0 ) {
 	    if ( ac == 3 ) {
 		if ( strcasecmp( av[ 1 ], "ALLOW" ) == 0 ) {
-		    rbl_add( &simta_auth_rbls, RBL_ACCEPT, av[ 2 ], "" );
+		    dnsl_add( "authz", DNSL_ACCEPT, av[ 2 ], "" );
 		    simta_debuglog( 2, "AUTHZ_DNS ALLOW: %s", av[ 2 ] );
 		    continue;
 		}
 		else if ( strcasecmp( av[ 1 ], "DENY" ) == 0 ) {
-		    rbl_add( &simta_auth_rbls, RBL_BLOCK, av[ 2 ], "" );
+		    dnsl_add( "authz", DNSL_BLOCK, av[ 2 ], "" );
 		    simta_debuglog( 2, "AUTHZ_DNS DENY: %s", av[ 2 ] );
 		    continue;
 		}
@@ -1281,6 +1280,30 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
+	} else if ( strcasecmp( av[ 0 ], "DNS_LIST" ) == 0 ) {
+	    if (( ac < 4 ) || ( ac > 5 )) {
+		fprintf( stderr, "%s: line %d: usage: "
+			"DNS_LIST <chain> <action> <dns zone> [default reason]",
+			fname, lineno );
+		goto error;
+	    }
+	    if ( strcasecmp( av[ 2 ], "BLOCK" ) == 0 ) {
+		dnsl_type = DNSL_BLOCK;
+	    } else if ( strcasecmp( av[ 2 ], "ACCEPT" ) == 0 ) {
+		dnsl_type = DNSL_ACCEPT;
+	    } else if ( strcasecmp( av[ 2 ], "TRUST" ) == 0 ) {
+		dnsl_type = DNSL_TRUST;
+	    } else if ( strcasecmp( av[ 2 ], "LOG_ONLY" ) == 0 ) {
+		dnsl_type = DNSL_LOG_ONLY;
+	    } else {
+		fprintf( stderr, "%s: line %d: unknown DNS list type: %s",
+			fname, lineno, av[ 2 ] );
+		goto error;
+	    }
+	    dnsl_add( av[ 1 ], dnsl_type, av[ 3 ], (ac == 5) ? av[ 4 ] : NULL );
+	    simta_debuglog( 2, "DNS_LIST: %s added to %s as %s",
+		    av[ 3 ], av[ 1 ], av[ 2 ] );
+
 	} else if (( rc = simta_config_bool( "SENDER_LIST",
 		&simta_sender_list_enable, ac, av, fname, lineno )) != 0 ) {
 	    if ( rc < 0 ) {
@@ -1547,19 +1570,24 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
-	    rbl_add( &simta_rbls, RBL_ACCEPT, av[ 1 ], "" );
+	    dnsl_add( "connect", DNSL_ACCEPT, av[ 1 ], "" );
 	    simta_debuglog( 2, "RBL_ACCEPT: %s", av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_BLOCK" ) == 0 ) {
-	    if ( ac != 3 ) {
+	    if (( ac < 2 ) || ( ac > 3 )) {
 		fprintf( stderr, "%s: line %d: usage: "
-			"RBL_BLOCK <dns zone> <url>\n",
+			"RBL_BLOCK <dns zone> [reason]\n",
 			fname, lineno );
 		goto error;
 	    }
-
-	    rbl_add( &simta_rbls, RBL_BLOCK, av[ 1 ], av[ 2 ] );
-	    simta_debuglog( 2, "RBL_BLOCK: %s\tURL: %s", av[ 1 ], av[ 2 ] );
+	    if ( ac == 3 ) {
+		dnsl_add( "connect", DNSL_BLOCK, av[ 1 ], av[ 2 ]  );
+		simta_debuglog( 2, "RBL_BLOCK: %s\tREASON: %s", av[ 1 ],
+			av[ 2 ] );
+	    } else {
+		dnsl_add( "connect", DNSL_BLOCK, av[ 1 ], NULL );
+		simta_debuglog( 2, "RBL_BLOCK: %s", av[ 1 ] );
+	    }
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_LOG_ONLY" ) == 0 ) {
 	    if ( ac != 2 ) {
@@ -1569,7 +1597,7 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
-	    rbl_add( &simta_rbls, RBL_LOG_ONLY, av[ 1 ], "" );
+	    dnsl_add( "connect", DNSL_LOG_ONLY, av[ 1 ], "" );
 	    simta_debuglog( 2, "RBL_LOG_ONLY: %s", av[ 1 ] );
 
 	} else if ( strcasecmp( av[ 0 ], "RBL_TRUST" ) == 0 ) {
@@ -1579,7 +1607,7 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
-	    rbl_add( &simta_rbls, RBL_TRUST, av[ 1 ], "" );
+	    dnsl_add( "connect", DNSL_TRUST, av[ 1 ], "" );
 	    simta_debuglog( 2, "RBL_TRUST: %s", av[ 1 ]);
 
 	} else if ( strcasecmp( av[ 0 ], "RDNS_CHECK" ) == 0 ) {
@@ -1989,7 +2017,7 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
-	    rbl_add( &simta_user_rbls, RBL_ACCEPT, av[ 1 ], "" );
+	    dnsl_add( "user", DNSL_ACCEPT, av[ 1 ], "" );
 
 	    simta_debuglog( 2, "USER_RBL_ACCEPT: %s\n", av[ 1 ]);
 
@@ -2001,7 +2029,7 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
-	    rbl_add( &simta_user_rbls, RBL_BLOCK, av[ 1 ], av[ 2 ] );
+	    dnsl_add( "user", DNSL_BLOCK, av[ 1 ], av[ 2 ] );
 
 	    simta_debuglog( 2, "USER_RBL_BLOCK: %s\tURL: %s", av[ 1 ], av[ 2 ]);
 
@@ -2013,7 +2041,7 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
-	    rbl_add( &simta_user_rbls, RBL_LOG_ONLY, av[ 1 ], "" );
+	    dnsl_add( "user", DNSL_LOG_ONLY, av[ 1 ], "" );
 
 	    simta_debuglog( 2, "USER_RBL_LOG_ONLY: %s", av[ 1 ]);
 
@@ -2025,7 +2053,7 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 
-	    rbl_add( &simta_user_rbls, RBL_TRUST, av[ 1 ], "" );
+	    dnsl_add( "user", DNSL_TRUST, av[ 1 ], "" );
 
 	    simta_debuglog( 2, "USER_RBL_TRUST: %s", av[ 1 ]);
 

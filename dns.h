@@ -2,14 +2,13 @@
 #define SIMTA_DNS_H
 
 #include <netinet/in.h>
+#include <denser.h>
+#include <yasl.h>
 
-#define	RBL_UNKNOWN		0
-#define	RBL_ERROR		1
-#define	RBL_NOT_FOUND		2
-#define	RBL_BLOCK		3
-#define	RBL_ACCEPT		4
-#define	RBL_LOG_ONLY		5
-#define	RBL_TRUST		6
+#define	DNSL_BLOCK		0
+#define	DNSL_ACCEPT		1
+#define	DNSL_LOG_ONLY		2
+#define	DNSL_TRUST		3
 
 #define	S_MISMATCH	"Mismatch"
 #define	S_ACCEPT	"Accept"
@@ -24,12 +23,18 @@
 #define REVERSE_UNRESOLVED	4
 
 
-struct rbl {
-    struct rbl			*rbl_next;
-    char			*rbl_type_text;
-    char			*rbl_domain;
-    char			*rbl_url;
-    int				rbl_type;
+struct dnsl {
+    struct dnsl			*dnsl_next;
+    const char			*dnsl_type_text;
+    yastr			dnsl_domain;
+    yastr			dnsl_default_reason;
+    int				dnsl_type;
+};
+
+struct dnsl_result {
+    struct dnsl			*dnsl;
+    yastr			dnsl_reason;
+    yastr			dnsl_result;
 };
 
 struct dnsr_result *get_a( const char * );
@@ -37,12 +42,13 @@ struct dnsr_result *get_aaaa( const char * );
 struct dnsr_result *get_mx( const char * );
 struct dnsr_result *get_ptr( const struct sockaddr * );
 struct dnsr_result *get_txt( const char * );
+yastr simta_dnsr_str( const struct dnsr_string * );
 int check_reverse( char *, const struct sockaddr * );
 int check_hostname( const char * );
 struct simta_red *host_local( char * );
-int rbl_add( struct rbl**, int, const char *, const char * );
-int rbl_check( struct rbl *, const struct sockaddr *, const char *,
-	const char *, struct rbl**, char ** );
+int dnsl_add( const char *, int, const char *, const char * );
+struct dnsl_result *dnsl_check( const char *, const struct sockaddr *,
+	const char * );
 
 #endif /* SIMTA_DNS_H */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
