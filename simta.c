@@ -2147,13 +2147,11 @@ simta_config( void )
 simta_check_charset( const char *str )
 {
     const unsigned char	    *c;
-    size_t		    len, charlen;
+    size_t		    charlen;
     int			    i;
     uint32_t		    u;
     uint8_t		    mask;
     int			    ret = SIMTA_CHARSET_ASCII;
-
-    len = strlen( str );
 
     for ( c = (unsigned char *)str; *c != '\0'; c++ ) {
 	if ( *c < 0x80 ) {
