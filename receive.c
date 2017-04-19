@@ -1534,6 +1534,7 @@ f_data( struct receive_data *r )
     struct line				*l;
     yastr				dkim_buf = NULL;
     char				*dkim_domain = NULL;
+    char				*dkim_selector = NULL;
     int					dkim_body_started = 0;
 #endif /* HAVE_LIBOPENDKIM */
 
@@ -2079,15 +2080,17 @@ f_data( struct receive_data *r )
 	}
 	for ( i = 0 ; i < rc ; i++ ) {
 	    dkim_domain = (char *)dkim_sig_getdomain( dkim_sigs[ i ] );
+	    dkim_selector = (char *)dkim_sig_getselector( dkim_sigs[ i ] );
 	    if ( simta_auth_results ) {
 		authresults = yaslcat( authresults, ";\n\tdkim=" );
 	    }
 	    if (( dkim_sig_getflags( dkim_sigs[ i ] ) & DKIM_SIGFLAG_PASSED ) &&
 		    ( dkim_sig_getbh( dkim_sigs[ i ] ) == DKIM_SIGBH_MATCH )) {
 		syslog( LOG_INFO,
-			"Receive [%s] %s: env <%s>: valid DKIM signature: %s",
+			"Receive [%s] %s: env <%s>: valid DKIM signature: "
+			"dkim_domain=%s dkim_selector=%s",
 			r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-			dkim_domain );
+			dkim_domain, dkim_selector );
 		if ( simta_dmarc ) {
 		    dmarc_dkim_result( r->r_dmarc, dkim_domain );
 		}
@@ -2097,10 +2100,11 @@ f_data( struct receive_data *r )
 	    } else {
 		dkim_error = dkim_sig_geterror( dkim_sigs[ i ] );
 		syslog( LOG_INFO,
-			"Receive [%s] %s: env <%s>: "
-			"invalid DKIM signature: %s (%s)",
+			"Receive [%s] %s: env <%s>: invalid DKIM signature: "
+			"dkim_domain=%s dkim_selector=%s dkim_error='%s'",
 			r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-			dkim_domain, dkim_sig_geterrorstr( dkim_error ));
+			dkim_domain, dkim_selector,
+			dkim_sig_geterrorstr( dkim_error ));
 		if ( simta_auth_results ) {
 		    authresults = yaslcatprintf( authresults,
 			    "%s reason=\"%s\" ",
