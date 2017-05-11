@@ -3,8 +3,8 @@
  * Copyright (c) 2006-2014, Salvatore Sanfilippo <antirez at gmail dot com>
  * Copyright (c) 2014-2015, The yasl developers
  *
- * This file is under the 2-clause BSD license. See the COPYING.yasl file for
- * the full license text
+ * This file is under the 2-clause BSD license. See COPYING.yasl for the
+ * full license text
  */
 
 #include <assert.h>
@@ -234,6 +234,32 @@ yaslrange(yastr str, ptrdiff_t start, ptrdiff_t end) {
 	}
 	if (start && newlen) { memmove(hdr->buf, hdr->buf + start, newlen); }
 	hdr->buf[newlen] = 0;
+	hdr->free = hdr->free + (hdr->len - newlen);
+	hdr->len = newlen;
+}
+
+/* Remove all matching characters from the string */
+void
+yaslstrip(yastr str, const char * cset) {
+	if (!str || !cset) { return; }
+
+	struct yastrhdr * hdr = yaslheader(str);
+	size_t i = 0, newlen = 0, len = yasllen(str);
+
+	if (len == 0) { return; }
+
+	while (i <= len) {
+		while (strchr(cset, str[i]) && i <= len) {
+			i++;
+		}
+		if (i <= len) {
+			str[newlen] = str[i];
+			i++;
+			newlen++;
+		}
+	}
+
+	hdr->buf[newlen] = '\0';
 	hdr->free = hdr->free + (hdr->len - newlen);
 	hdr->len = newlen;
 }

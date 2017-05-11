@@ -3,8 +3,8 @@
  * Copyright (c) 2006-2014, Salvatore Sanfilippo <antirez at gmail dot com>
  * Copyright (c) 2014-2015, The yasl developers
  *
- * This file is under the 2-clause BSD license. See the COPYING.yasl file for
- * the full license text
+ * This file is under the 2-clause BSD license. See COPYING.yasl for the
+ * full license text
  */
 
 #ifndef YASL_H
@@ -87,6 +87,9 @@ yaslmapchars(yastr str, const char * from, const char * to, size_t setlen);
 
 void
 yaslrange(yastr str, ptrdiff_t start, ptrdiff_t end);
+
+void
+yaslstrip(yastr str, const char * cset);
 
 void
 yasltolower(yastr str);
