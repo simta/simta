@@ -4334,7 +4334,7 @@ content_filter( struct receive_data *r, char **smtp_message )
     SNET		*snet;
     char		*line;
     char		*filter_argv[] = { 0, 0 };
-    char		*filter_envp[ 21 ];
+    char		*filter_envp[ 22 ];
     char		fname[ MAXPATHLEN + 1 ];
     char		buf[ 256 ];
     struct timeval	log_tv;
@@ -4421,6 +4421,11 @@ content_filter( struct receive_data *r, char **smtp_message )
 	sprintf( buf, "%d", r->r_dns_match );
 	filter_envp[ filter_envc++ ] = env_string( "SIMTA_REVERSE_LOOKUP",
 		buf );
+
+	if ( r->r_dnsl_result ) {
+	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_DNSL_RESULT",
+		    r->r_dnsl_result->dnsl->dnsl_type_text );
+	}
 
 	if ( r->r_env->e_mail_orig ) {
 	    filter_envp[ filter_envc++ ] = env_string( "SIMTA_SMTP_MAIL_FROM",
