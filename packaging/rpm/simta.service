@@ -6,7 +6,7 @@ After=network.target
 [Service]
 Type=forking
 PIDFile=/run/simta.pid
-ExecStartPre=/usr/bin/newaliases
+ExecStartPre=/usr/bin/simalias
 ExecStartPre=/usr/sbin/simta -C
 ExecStart=/usr/sbin/simta
 

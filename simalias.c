@@ -62,15 +62,11 @@
 
 const char	*simta_progname = "simalias";
 
-static int simalias_dump( void );
-static int simalias_create( void );
+static int simalias_dump( const char * );
+static int simalias_create( const char *, const char * );
 
 static int		verbose = 0;
-static char		*input;
-static char		*output;
 static char		*progname;
-static FILE		*finput;
-static FILE		*foutput;
 
     int
 main( int argc, char **argv )
@@ -78,6 +74,12 @@ main( int argc, char **argv )
     int			c, err = 0;
     int			dump = 0;
     extern char		*optarg;
+    yastr		input = NULL;
+    char		*output = NULL;
+    struct dll_entry	*processed = NULL;
+    struct simta_red	*red;
+    struct action	*a;
+
 
     if (( progname = strrchr( argv[ 0 ], '/' )) == NULL ) {
 	progname = argv[ 0 ];
@@ -127,39 +129,43 @@ main( int argc, char **argv )
 	if ( input == NULL ) {
 	    input = simta_default_alias_db;
 	}
-	if ( output == NULL ) {
-	    foutput = stdout;
-	} else {
-	    if (( foutput = fopen( output, "r" )) == NULL ) {
-		perror( output );
-		exit( 1 );
-	    }
-	}
-	exit( simalias_dump( ));
+	exit( simalias_dump( input ));
+    }
 
-    } else {
-	/* not dump */
-	if (( input == NULL ) && ( strcmp( progname, "newaliases" ) == 0 )) {
-	    input = simta_default_alias_file;
-	}
-
+    /* not dump */
+    if ( input || output ) {
 	if ( input == NULL ) {
-	    finput = stdin;
-	} else {
-	    if (( finput = fopen( input, "r" )) == NULL ) {
-		perror( input );
-		exit( 1 );
-	    }
+	    input = simta_default_alias_file;
 	}
 	if ( output == NULL ) {
 	    output = simta_default_alias_db;
 	}
-	exit( simalias_create( ));
+	exit( simalias_create( input, output ));
     }
+
+    for ( red = simta_red_hosts; red; red = red->red_next ) {
+	for ( a = red->red_receive; a; a = a->a_next ) {
+	    if (( a->a_action == EXPANSION_TYPE_ALIAS ) &&
+		    ( dll_lookup( processed, a->a_fname ) == NULL )) {
+		if ( strcmp( a->a_fname, simta_default_alias_db ) == 0 ) {
+		    input = yaslauto( simta_default_alias_file );
+		} else {
+		    input = yaslauto( a->a_fname );
+		    /* Trim off .db */
+		    yaslrange( input, 0, -4 );
+		}
+		err += simalias_create( input, a->a_fname );
+		dll_lookup_or_create( &processed, a->a_fname );
+		yaslfree( input );
+	    }
+	}
+    }
+
+    exit( err ? 1 : 0 );
 }
 
     static int
-simalias_dump( void )
+simalias_dump( const char *db )
 {
     int ret = 0;
 #ifdef HAVE_LMDB
@@ -170,8 +176,8 @@ simalias_dump( void )
 
     ret = 1;
 
-    if (( rc = simta_db_open_r( &dbh, input )) != 0 ) {
-	fprintf( stderr, "simta_db_open_r: %s: %s\n", input,
+    if (( rc = simta_db_open_r( &dbh, db )) != 0 ) {
+	fprintf( stderr, "simta_db_open_r: %s: %s\n", db,
 		simta_db_strerror( rc ));
 	goto error;
     }
@@ -180,7 +186,7 @@ simalias_dump( void )
     value = yaslempty( );
 
     if (( rc = simta_db_cursor_open( dbh, &dbc )) != 0 ) {
-	fprintf( stderr, "simta_db_cursor_open: %s: %s\n", input,
+	fprintf( stderr, "simta_db_cursor_open: %s: %s\n", db,
 	    simta_db_strerror( rc ));
 	goto error;
     }
@@ -189,7 +195,7 @@ simalias_dump( void )
 	printf( "%s:\t\t%s\n", key, value );
     }
     if ( rc != SIMTA_DB_NOTFOUND ) {
-	fprintf( stderr, "simta_db_cursor_get: %s: %s\n", input,
+	fprintf( stderr, "simta_db_cursor_get: %s: %s\n", db,
 		simta_db_strerror( rc ));
 	goto error;
     }
@@ -207,23 +213,31 @@ error:
 }
 
     static int
-simalias_create( void )
+simalias_create( const char *aliases, const char *db )
 {
     int			linenum = 0, i;
+    int			count = 0;
     int			state = ALIAS_WHITE;
     char		rawline[ MAXPATHLEN ];
     yastr		line, key, value;
     char		*p;
+    FILE		*finput;
 #ifdef HAVE_LMDB
     int			rc;
     struct simta_dbh	*dbh = NULL;
 #endif /* HAVE_LMDB */
 
-    unlink( output );    
+    unlink( db );
+
+    if (( finput = fopen( aliases, "r" )) == NULL ) {
+	perror( aliases );
+	return( 1 );
+    }
 
 #ifdef HAVE_LMDB
-    if (( rc = simta_db_new( &dbh, output )) != 0 ) {
-	fprintf( stderr, "simta_db_new: %s: %s\n", output,
+
+    if (( rc = simta_db_new( &dbh, db )) != 0 ) {
+	fprintf( stderr, "simta_db_new: %s: %s\n", db,
 		simta_db_strerror( rc ));
 	return( 1 );
     }
@@ -252,12 +266,12 @@ simalias_create( void )
 	    if ( state == ALIAS_WHITE ) {
 		/* How unexpected. */
 		fprintf( stderr, "%s line %d: Unexpected continuation line.\n",
-			input, linenum );
+			aliases, linenum );
 		state = ALIAS_CONT;
 	    }
 	} else if ( state == ALIAS_CONT ) {
 	    fprintf( stderr, "%s line %d: Expected a continuation line.\n",
-		    input, linenum );
+		    aliases, linenum );
 	    state = ALIAS_WHITE;
 	}
 
@@ -271,7 +285,7 @@ simalias_create( void )
 		    if ( verbose ) {
 			fprintf ( stderr, "%s line %d: noncanonical owner %s "
 				"will be made canonical\n",
-				input, linenum, key );
+				aliases, linenum, key );
 		    }
 		    yaslrange( key, 6, -1 );
 		    key = yaslcat( key, "-errors" );
@@ -285,7 +299,7 @@ simalias_create( void )
 		    if ( verbose ) {
 			fprintf ( stderr, "%s line %d: noncanonical owner %s "
 				"will be made canonical\n",
-				input, linenum, key );
+				aliases, linenum, key );
 		    }
 		    yaslrange( key, 0, p - key );
 		    key = yaslcat( key, "-errors" );
@@ -293,7 +307,7 @@ simalias_create( void )
 	    } else {
 		fprintf( stderr,
 			"%s line %d: Expected a colon somewhere. Skipping.\n",
-			input, linenum );
+			aliases, linenum );
 		continue;
 	    }
 	} else {
@@ -310,11 +324,11 @@ simalias_create( void )
 		    state = ALIAS_WHITE;
 		    if ( *value == '\0' ) {
 			fprintf( stderr, "%s line %d: Empty quoted value.\n",
-				input, linenum );
+				aliases, linenum );
 		    }
 		} else if ( state == ALIAS_WORD ) {
 		    fprintf( stderr, "%s line %d: Unexpected quote.\n",
-			input, linenum );
+			aliases, linenum );
 		} else {
 		    state = ALIAS_QUOTE;
 		}
@@ -325,7 +339,7 @@ simalias_create( void )
 		    break;
 		case ALIAS_CONT:
 		    fprintf( stderr, "%s line %d: Empty list element.\n",
-			    input, linenum );
+			    aliases, linenum );
 		    break;
 		default :
 		    state = ALIAS_CONT;
@@ -357,23 +371,27 @@ simalias_create( void )
 		    if ( strcmp( value, "/dev/null" ) != 0 ) {
 			fprintf( stderr,
 				"%s line %d: Unsupported: delivery to file\n",
-				input, linenum );
+				aliases, linenum );
 		    }
 		} else if ( *value == '|' ) {
-		    fprintf( stderr, "%s line %d: Unsupported: delivery to pipe\n",
-			    input, linenum );
+		    fprintf( stderr,
+			    "%s line %d: Unsupported: delivery to pipe\n",
+			    aliases, linenum );
 		} else if ( strncmp( value, ":include:", 9 ) == 0 ) {
 		    fprintf( stderr, "%s line %d: Unsupported: file include\n",
-			    input, linenum );
+			    aliases, linenum );
 #ifdef HAVE_LMDB
 		} else if (( rc = simta_db_put( dbh, key, value )) != 0 ) {
-		    fprintf( stderr, "simta_db_put: %s: %s\n", input,
+		    fprintf( stderr, "simta_db_put: %s: %s\n", aliases,
 			    simta_db_strerror( rc ));
 		    return( 1 );
 #endif /* HAVE_LMDB */
-		} else if ( verbose ) {
-		    printf( "%s line %d: Added %s -> %s\n",
-			    input, linenum, key, value );
+		} else {
+		    if ( verbose ) {
+			printf( "%s line %d: Added %s -> %s\n",
+				aliases, linenum, key, value );
+		    }
+		    count++;
 		}
 
 		yaslclear( value );
@@ -384,11 +402,15 @@ simalias_create( void )
 
 #ifdef HAVE_LMDB
     simta_db_close( dbh );
-    if ( verbose ) printf( "%s: created\n", output );
+    if ( verbose ) printf( "%s: created\n", db );
 #else /* HAVE_LMDB */
-    if ( verbose ) printf( "%s: not created\n", output );
+    if ( verbose ) printf( "%s: not created\n", db );
 #endif /* HAVE_LMDB */
+    printf( "%s: %d aliases\n", db, count );
 
+    if ( fclose( finput ) != 0 ) {
+	perror( "fclose" );
+    }
     yaslfree( line );
     yaslfree( key );
     yaslfree( value );
