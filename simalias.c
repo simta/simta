@@ -122,6 +122,10 @@ main( int argc, char **argv )
 	exit( 1 );
     }
 
+    if ( simta_config( ) != 0 ) {
+	exit( 1 );
+    }
+
     /* Make sure error and verbose output are nicely synced */
     setbuf( stdout, NULL );
 
