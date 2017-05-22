@@ -20,9 +20,9 @@ struct simta_dbc {
 
 char *simta_db_strerror( int );
 
-int simta_db_new( struct simta_dbh **, char * );
-int simta_db_open_rw( struct simta_dbh **, char * );
-int simta_db_open_r( struct simta_dbh **, char * );
+int simta_db_new( struct simta_dbh **, const char * );
+int simta_db_open_rw( struct simta_dbh **, const char * );
+int simta_db_open_r( struct simta_dbh **, const char * );
 
 int simta_db_put( struct simta_dbh *, yastr, yastr );
 int simta_db_get( struct simta_dbh *, yastr, yastr * );

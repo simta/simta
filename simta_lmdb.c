@@ -11,10 +11,10 @@
 
 #include "simta_lmdb.h"
 
-static int simta_db_open( struct simta_dbh **, char *, uint32_t, int );
+static int simta_db_open( struct simta_dbh **, const char *, uint32_t, int );
 
     static int
-simta_db_open( struct simta_dbh **dbh, char *file, uint32_t flags, int mode )
+simta_db_open( struct simta_dbh **dbh, const char *file, uint32_t flags, int mode )
 {
     int		ret;
     MDB_env	*dbp;
@@ -51,20 +51,20 @@ simta_db_strerror( int err ) {
 }
 
     int
-simta_db_open_rw( struct simta_dbh **dbh, char *file )
+simta_db_open_rw( struct simta_dbh **dbh, const char *file )
 {
     return( simta_db_open( dbh, file, MDB_NOSUBDIR | MDB_NOLOCK, 0664 ));
 }
 
     int
-simta_db_open_r( struct simta_dbh **dbh, char *file )
+simta_db_open_r( struct simta_dbh **dbh, const char *file )
 {
     return( simta_db_open( dbh, file,
 	    MDB_NOSUBDIR | MDB_NOLOCK | MDB_RDONLY, 0664 ));
 }
 
-    int 
-simta_db_new( struct simta_dbh **dbh, char *file )
+    int
+simta_db_new( struct simta_dbh **dbh, const char *file )
 {
     int		ret;
     MDB_txn	*txn;
@@ -77,7 +77,7 @@ simta_db_new( struct simta_dbh **dbh, char *file )
     if (( ret = mdb_txn_begin( (*dbh)->h_env, NULL, 0, &txn )) != 0 ) {
 	goto cleanup;
     }
-    
+
     if (( ret =
 	    mdb_dbi_open( txn, NULL, MDB_CREATE | MDB_DUPSORT, &dbi )) != 0 ) {
 	goto cleanup;
@@ -176,7 +176,7 @@ simta_db_cursor_open( struct simta_dbh *dbh, struct simta_dbc **dbc )
     if (( ret = mdb_txn_begin( dbh->h_env, NULL, MDB_RDONLY, &txn )) != 0 ) {
 	return( ret );
     }
-    
+
     if (( ret = mdb_dbi_open( txn, NULL, MDB_DUPSORT, &dbi )) != 0 ) {
 	goto cleanup;
     }
