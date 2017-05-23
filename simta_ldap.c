@@ -1951,8 +1951,6 @@ simta_ldap_config( char *fname, char *domain )
     ld->ldap_timeout = LDAP_TIMEOUT_VAL;
     ld->ldap_ndomain = 2;
 
-    ld->ldap_associated_domain = strdup( domain );
-
     while (( line = snet_getline( snet, NULL )) != NULL ) {
 	lineno++;
 
@@ -2262,6 +2260,19 @@ simta_ldap_config( char *fname, char *domain )
 	    }
 	    ld->ldap_vacationattr = strdup( av [ 1 ] );
 
+	} else if ( strcasecmp( av[ 0 ], "associateddomain" ) == 0 ) {
+	    if ( ac != 2 ) {
+		syslog( LOG_ERR, "Config.LDAP %s:%d: Missing value: %s",
+			fname, lineno, line );
+		goto errexit;
+	    }
+	    if ( ld->ldap_associated_domain ) {
+		syslog( LOG_ERR,
+			"Config.LDAP %s:%d: Can't set associateddomain twice",
+			fname, lineno );
+		goto errexit;
+	    }
+	    ld->ldap_associated_domain = strdup( av[ 1 ] );
 	} else {
 	    syslog( LOG_ERR, "Config.LDAP %s:%d: Unknown config option: %s",
 		    fname, lineno, line );
@@ -2313,6 +2324,11 @@ simta_ldap_config( char *fname, char *domain )
 		"Cannot have both starttls and ldapbind configured", fname );
 	goto errexit;
     }
+
+    if ( ld->ldap_associated_domain == NULL ) {
+	ld->ldap_associated_domain = strdup( domain );
+    }
+
     if ( attrs == NULL ) {
 	attrs = allattrs;
     }
