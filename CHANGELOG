@@ -1,3 +1,14 @@
+1.1.0
+    - fixed SPF crash on malformed record
+    - improved DMARC spec conformance
+    - added distinct DMARC best-guess result
+    - exposed SPF, DKIM, and DMARC domains to the content filter
+    - removed hardcoded umask override
+    - improved DKIM logging
+    - improved simalias automagic database rebuilds
+    - added support for overriding associateddomain in the LDAP config
+    - revamped DNS list implementation
+
 1.0.6
     - fixed SPF macro expansion in include: and ptr:
 
