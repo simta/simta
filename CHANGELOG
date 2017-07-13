@@ -1,4 +1,4 @@
-1.1.0
+1.1.0 (2017-07-13)
     - fixed SPF crash on malformed record
     - improved DMARC spec conformance
     - added distinct DMARC best-guess result
@@ -9,16 +9,16 @@
     - added support for overriding associateddomain in the LDAP config
     - revamped DNS list implementation
 
-1.0.6
+1.0.6 (2017-03-09)
     - fixed SPF macro expansion in include: and ptr:
 
-1.0.5
+1.0.5 (2017-01-19)
     - added systemd support to RPM packaging
     - improved uniqueness of envelope IDs
     - improved generated Received headers
     - added regeneration of broken Message-IDs for MSAs and simsendmail
 
-1.0.4
+1.0.4 (2016-10-18)
     - removed Sender header injection in simsendmail
     - fixed spurious LDAP failures from delivery child signals
     - fixed smart SRS
@@ -27,14 +27,14 @@
     - fixed file descriptor leak in jail mode
     - added subaddressing
 
-1.0.3
+1.0.3 (2016-08-08)
     - added correct RFC7208.MAILFROM handling for SPF
     - fixed crash on jailed messages when MAX_Q_RUNNERS_RECEIVE > 0
     - fixed some bounces not receiving DKIM signature
     - fixed spurious tempfails from content filter
       when MAX_Q_RUNNERS_RECEIVE > 0
 
-1.0.2
+1.0.2 (2016-05-06)
     - fixed simta_waitpid() bug that caused unnecessary waiting in some cases
     - improved RECEIVE_QUEUE_STRATEGY PUNT
     - improved accuracy of connection statistics logging
@@ -43,12 +43,12 @@
     - fixed LDAP expansion bug that could cause spurious bounces
     - added support for HAProxy's PROXY protocol
 
-1.0.1
+1.0.1 (2016-04-05)
     - removed unnecessary groff build dependency in RPM spec file
     - added RECEIVE_QUEUE_STRATEGY PUNT
     - cleaned up simta_waitpid() logic
 
-1.0.0
+1.0.0 (2016-03-11)
     - fixed crash when delivery attempt was triggered with no accepted mail
     - more log format consistency updates
     - improved header parsing
@@ -62,14 +62,14 @@
     - installs more helper programs
     - fixed spurious SRS failure messages when SRS is disabled
 
-0.13.1
+0.13.1 (2015-11-09)
     - improved accepted message timer
     - fixed a regression in the SPF code that caused occasional crashes
     - fixed hangs during DNS lookups when MAX_Q_RUNNERS_RECEIVE > 0
     - fixed crashes during LDAP lookups when MAX_Q_RUNNERS_RECEIVE > 0
     - fixed a busy loop when when MAX_Q_RUNNERS_RECEIVE > 0
 
-0.13.0
+0.13.0 (2015-10-30)
     - minor bugfixes
     - partially moderated messages no longer break queue cleanup
     - added AUTH parameter to MAIL command (RFC 4954 compliance)
@@ -80,7 +80,7 @@
     - fixed handling of broken connections
     - reimplemented SRS
 
-0.12.1
+0.12.1 (2015-09-11)
     - minor bugfixes
     - fixed simsendmail header masquerading
     - added SPF query limits to prevent loops and other abuse
@@ -91,7 +91,7 @@
     - added AGGRESSIVE_EXPANSION configuration variable
     - simrbl can now check multiple DNSBLs in one invocation
 
-0.12.0
+0.12.0 (2015-08-05)
     - lots of minor code and file cleanup
     - cleaned up logging, made some of it more consistent
     - fixed setting basedir via config
@@ -113,11 +113,11 @@
     - fixed using simc for queue control on non-jail hosts
     - fixed moderated/members-only groups and BATV
 
-0.11.3
+0.11.3 (2015-05-18)
     - defaulted NO_SYNC and CHECKSUM_BODY to ON
     - removed some annoying log lines
 
-0.11.2
+0.11.2 (2015-04-10)
     - fixed a bug that broke delivery to ancient hosts when TLS was disabled
     - fixed a bug that could cause simta to take spurious filter actions
         during message receipt
@@ -127,7 +127,7 @@
     - made generated timestamp format consistent and correct
     - added config variable to control whether bounces contain message bodies
 
-0.11.1
+0.11.1 (2015-03-05)
     - improved default TLS configuration
     - added TLS_CIPHERS to control server cipher suites
     - renamed some config variables
@@ -135,7 +135,7 @@
     - fixed handling of dropped connections
     - increased precision of logged metrics
 
-0.11.0
+0.11.0 (2015-02-06)
     - reworked build system and added RPM packaging
     - added message body checksum calculation
     - fixed message corruption due to snet buffering bug
@@ -148,7 +148,7 @@
     - fixed ESMTP SIZE advertisement
     - added basic ESMTP SIZE support during delivery
 
-0.10.10
+0.10.10 (2014-11-20)
     - Disabled message rejection due to header parsing issues
     - Fixed crash in header parsing
     - Improved error handling and logging in header parsing
@@ -156,18 +156,18 @@
     - Improved SMTP receive session responsiveness
     - Fixed header caching bug
 
-0.10.9
+0.10.9 (2014-08-29)
     - SUBMISSION_MODE for MSAs, strict MTAs
     - BOUNCE_LINES now does something
 
-0.10.8
+0.10.8 (2014-05-30)
     - immediately run new queues when QUEUE_INCOMING_SMTP_MAIL is set
     - better TLS logging
     - fall back to plaintext when optional STARTTLS failed
     - reworked inbound TLS, improved error handling
     - new RBL type: TRUST
 
-0.10.7
+0.10.7 (2014-04-16)
     - QUEUE_POLICY instead of SHUFFLE_QUEUES
     - new R rule: ACCEPT
     - better TLS logging
@@ -175,7 +175,7 @@
     - loopback connection bugfixes
     - more flexible TLS configuration
 
-0.10.6
+0.10.6 (2014-04-03)
     - LDAP bind failure bugfix
     - better TLS logging
     - always make a delivery attempt before punting, even when
@@ -188,7 +188,7 @@
     - stop sending STARTTLS when it wasn't advertised
     - use non-blocking SSL calls, for working SSL timeouts
 
-0.10.5
+0.10.5 (2014-01-15)
     - removed unused queue priority logic
     - red API cleaned up
     - DNS auto configure syntax changed, default is OFF, code cleaned up
@@ -197,7 +197,13 @@
     - RED rules for TLS policy
     - TLS global and RED policy rules
 
-0.10.1
+0.10.4 (2013-08-02)
+
+0.10.3 (2013-07-11)
+
+0.10.2 (2013-04-12)
+
+0.10.1 (2013-02-22)
     - E file format change for jail directive
     - additional logging for host deliver ordering
     - delivery activity logs in all cases
