@@ -712,9 +712,6 @@ env_dkim_sign( struct envelope *env )
     DKIM_STAT	    result;
     yastr	    signature = NULL;
     yastr	    key = NULL;
-    yastr	    tmp = NULL;
-    yastr	    *split = NULL;
-    size_t	    tok_count = 0;
     char	    buf[ 1024 * 1024 ];
     unsigned char   *dkim_header;
     SNET	    *snet;
@@ -722,20 +719,13 @@ env_dkim_sign( struct envelope *env )
 
     sprintf( df, "%s/D%s", env->e_dir, env->e_id );
 
-    if (( snet = snet_open( simta_dkim_key, O_RDONLY, 0,
-	    1024 * 1024 )) == NULL ) {
-	syslog( LOG_ERR, "Liberror: env_dkim_sign snet_open %s: %m",
-		simta_dkim_key );
+    if (( key = simta_slurp( simta_dkim_key )) == NULL ) {
 	return( NULL );
     }
-    key = yaslempty();
-    while (( chunk = snet_read( snet, buf, 1024 * 1024, NULL )) > 0 ) {
-	key = yaslcatlen( key, buf, chunk );
-    }
-    snet_close( snet );
 
     if (( libhandle = dkim_init( NULL, NULL )) == NULL ) {
 	syslog( LOG_ERR, "Liberror: env_dkim_sign dkim_init" );
+	yaslfree( key );
 	return( NULL );
     }
 
@@ -743,12 +733,19 @@ env_dkim_sign( struct envelope *env )
      * CRLF issues.
      */
     flags = DKIM_LIBFLAGS_FIXCRLF;
-    dkim_options( libhandle, DKIM_OP_SETOPT, DKIM_OPTS_FLAGS, &flags,
-	    sizeof( flags ));
+    if ( dkim_options( libhandle, DKIM_OP_SETOPT, DKIM_OPTS_FLAGS, &flags,
+	    sizeof( flags )) != DKIM_STAT_OK ) {
+	syslog( LOG_ERR, "Liberror: env_dkim_sign dkim_options flags" );
+	goto error;
+    }
 
     /* Only sign the headers recommended by RFC 6376 */
-    dkim_options( libhandle, DKIM_OP_SETOPT, DKIM_OPTS_SIGNHDRS,
-	    dkim_should_signhdrs, sizeof( unsigned char ** ));
+    if ( dkim_options( libhandle, DKIM_OP_SETOPT, DKIM_OPTS_SIGNHDRS,
+	    dkim_should_signhdrs,
+	    sizeof( unsigned char ** )) != DKIM_STAT_OK ) {
+	syslog( LOG_ERR, "Liberror: env_dkim_sign dkim_options signhdrs" );
+	goto error;
+    }
 
     if (( dkim = dkim_sign( libhandle, (unsigned char *)(env->e_id), NULL,
 	    (unsigned char *)key, (unsigned char *)simta_dkim_selector,
@@ -801,14 +798,11 @@ env_dkim_sign( struct envelope *env )
     }
 
     /* Get rid of carriage returns in libopendkim output */
-    split = yaslsplitlen( (const char *)dkim_header,
-	    strlen( (const char *)dkim_header ), "\r", 1, &tok_count );
-    tmp = yasljoinyasl( split, tok_count, "", 0 );
-    signature = yaslcatyasl( yaslauto( "DKIM-Signature: " ), tmp );
+    signature = yaslcat( yaslauto( "DKIM-Signature: " ),
+	    (const char *)dkim_header );
+    yaslstrip( signature, "\r" );
 
 error:
-    yaslfree( tmp );
-    yaslfreesplitres( split, tok_count );
     yaslfree( key );
     dkim_free( dkim );
     dkim_close( libhandle );

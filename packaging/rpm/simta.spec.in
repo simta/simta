@@ -4,6 +4,7 @@
 %define with_libidn     yes
 %define with_ldap	yes
 %define with_dkim       yes
+%define with_arc        yes
 
 %define smshell /sbin/nologin
 %define spooldir %{_localstatedir}/spool
@@ -44,6 +45,9 @@ BuildRequires: openldap-devel
 %if "%{with_dkim}" == "yes"
 BuildRequires: pkgconfig(opendkim)
 %endif
+%if "%{with_arc}" == "yes"
+BuildRequires: pkgconfig(openarc)
+%endif
 Requires(pre): shadow-utils
 Requires(preun): %{_sbindir}/alternatives chkconfig
 Requires(post): %{_sbindir}/alternatives chkconfig coreutils
@@ -76,6 +80,9 @@ export JEMALLOC_CFLAGS=-I/usr/include
 %endif
 %if "%{with_dkim}" != "yes"
         --with-dkim=no \
+%endif
+%if "%{with_arc}" == "yes"
+        --with-arc \
 %endif
         --with-group=mail \
         --with-aliasdb=%{_sysconfdir}/aliases.db \

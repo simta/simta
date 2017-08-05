@@ -22,6 +22,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef HAVE_LIBOPENARC
+#include <openarc/arc.h>
+#endif /* HAVE_LIBOPENARC */
+
 #ifdef HAVE_LIBOPENDKIM
 #include <opendkim/dkim.h>
 #endif /* HAVE_LIBOPENDKIM */
@@ -117,6 +121,10 @@ struct receive_data {
     struct dmarc		*r_dmarc;
     int				r_dmarc_result;
     int				r_bad_headers;
+
+#ifdef HAVE_LIBOPENARC
+    ARC_LIB			*r_arc;
+#endif /* HAVE_LIBOPENARC */
 
 #ifdef HAVE_LIBOPENDKIM
     DKIM_LIB			*r_dkim;
@@ -1469,17 +1477,26 @@ f_data( struct receive_data *r )
     unsigned int			data_read = 0;
     struct envelope			*env_bounce;
     yastr				authresults = NULL;
+    yastr				authresults_tmp = NULL;
+    int					authresults_plain = !simta_arc;
     yastr				with = NULL;
+    struct line				*l;
+    yastr				dkim_buf = NULL;
+    int					dkim_body_started = 0;
+#ifdef HAVE_LIBOPENARC
+    ARC_MESSAGE				*arc = NULL;
+    ARC_STAT				arc_result;
+    ARC_HDRFIELD			*arc_seal = NULL;
+    yastr				arc_key = NULL;
+    const unsigned char			*arc_err;
+#endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
     DKIM				*dkim = NULL;
     DKIM_STAT				dkim_result;
     DKIM_SIGINFO			**dkim_sigs;
     DKIM_SIGERROR			dkim_error;
-    struct line				*l;
-    yastr				dkim_buf = NULL;
     char				*dkim_domain = NULL;
     char				*dkim_selector = NULL;
-    int					dkim_body_started = 0;
 #endif /* HAVE_LIBOPENDKIM */
 
     r->r_data_attempt++;
@@ -1561,14 +1578,6 @@ f_data( struct receive_data *r )
 	rh->r_env = r->r_env;
 
 	if ( simta_auth_results ) {
-	    /* RFC 7601 2.2 Formal Definition
-	     * authres-header = "Authentication-Results:" [CFWS] authserv-id
-	     *			[ CFWS authres-version ]
-	     *			( no-result / 1*resinfo ) [CFWS] CRLF
-	     */
-	    authresults = yaslcatyasl( yaslauto( "Authentication-Results: " ),
-		    simta_domain );
-
 	    /* RFC 7601 3 The "iprev" Authentication Method
 	     * "iprev" is an attempt to verify that a client appears to be valid
 	     * based on some DNS queries, which is to say that the IP address is
@@ -1582,8 +1591,8 @@ f_data( struct receive_data *r )
 	     * this second check will typically result in at least one mapping
 	     * back to the client's IP address.
 	     */
-	    authresults = yaslcatprintf( authresults,
-		    ";\n\tiprev=%s policy.iprev=%s (%s)",
+	    authresults = yaslcatprintf( yaslempty( ),
+		    "\n\tiprev=%s policy.iprev=%s (%s)",
 		    iprev_authresult_str( r ), r->r_ip, r->r_remote_hostname );
 
 	    /* RFC 7601 2.7.4 SMTP AUTH
@@ -1620,8 +1629,21 @@ f_data( struct receive_data *r )
 	    }
 	}
 
+	if ( simta_dkim_verify || simta_arc ) {
+	    dkim_buf = yaslempty( );
+	}
+
+#ifdef HAVE_LIBOPENARC
+	if ( simta_arc ) {
+	    if (( arc = arc_message( r->r_arc, ARC_CANON_RELAXED,
+		    ARC_CANON_RELAXED, ARC_SIGN_RSASHA256,
+		    ARC_MODE_SIGN | ARC_MODE_VERIFY, &arc_err )) == NULL ) {
+		syslog( LOG_ERR, "Liberror: f_data arc_message: %s", arc_err );
+	    }
+	}
+#endif /* HAVE_LIBOPENARC */
+
 #ifdef HAVE_LIBOPENDKIM
-	dkim_buf = yaslempty( );
 	if ( simta_dkim_verify ) {
 	    if (( dkim = dkim_verify( r->r_dkim,
 		    (unsigned char *)( r->r_env->e_id ),
@@ -1846,15 +1868,26 @@ f_data( struct receive_data *r )
 			data_wrote += (unsigned long)rc;
 		    }
 		}
-#ifdef HAVE_LIBOPENDKIM
-		if ( simta_dkim_verify && ( rh->r_headers != NULL )) {
+		if (( simta_dkim_verify || simta_arc ) &&
+			( rh->r_headers != NULL )) {
 		    yaslclear( dkim_buf );
 		    for ( l = rh->r_headers->l_first; l != NULL;
 			    l = l->line_next ) {
 			if (( *l->line_data != ' ' && *l->line_data != '\t' ) &&
 				( yasllen( dkim_buf ) > 0 )) {
-			    dkim_header( dkim, (unsigned char *)dkim_buf,
-				    yasllen( dkim_buf ));
+#ifdef HAVE_LIBOPENARC
+			    if ( simta_arc ) {
+				arc_header_field( arc,
+					(unsigned char *)dkim_buf,
+					yasllen( dkim_buf ));
+			    }
+#endif /* HAVE_LIBOPENARC */
+#ifdef HAVE_LIBOPENDKIM
+			    if ( simta_dkim_verify ) {
+				dkim_header( dkim, (unsigned char *)dkim_buf,
+					yasllen( dkim_buf ));
+			    }
+#endif /* HAVE_LIBOPENDKIM */
 			    yaslclear( dkim_buf );
 			}
 			if ( yasllen( dkim_buf )) {
@@ -1862,20 +1895,32 @@ f_data( struct receive_data *r )
 			}
 			dkim_buf = yaslcat( dkim_buf, l->line_data );
 		    }
-		    dkim_header( dkim, (unsigned char *)dkim_buf,
-			    yasllen( dkim_buf ));
-		    dkim_result = dkim_eoh( dkim );
-		    simta_debuglog( 1,
-			    "Receive [%s] %s: env <%s>: verify dkim_eoh: %s",
-			    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-			    dkim_getresultstr( dkim_result ));
-		}
+#ifdef HAVE_LIBOPENARC
+		    if ( simta_arc ) {
+			arc_header_field( arc, (unsigned char *)dkim_buf,
+				yasllen( dkim_buf ));
+			arc_result = arc_eoh( arc );
+			simta_debuglog( 1,
+				"Receive [%s] %s: env <%s>: arc_eoh: %d",
+				r->r_ip, r->r_remote_hostname, r->r_env->e_id,
+				arc_result );
+		    }
+#endif /* HAVE_LIBOPENARC */
+#ifdef HAVE_LIBOPENDKIM
+		    if ( simta_dkim_verify ) {
+			dkim_header( dkim, (unsigned char *)dkim_buf,
+				yasllen( dkim_buf ));
+			dkim_result = dkim_eoh( dkim );
+			simta_debuglog( 1,
+				"Receive [%s] %s: env <%s>: dkim_eoh: %s",
+				r->r_ip, r->r_remote_hostname, r->r_env->e_id,
+				dkim_getresultstr( dkim_result ));
+		    }
 #endif /* HAVE_LIBOPENDKIM */
+		}
 
 		if ( *line != '\0' ) {
-#ifdef HAVE_LIBOPENDKIM
 		    dkim_body_started = 1;
-#endif /* HAVE_LIBOPENDKIM */
 		    if (( fprintf( dff, "\n" )) < 0 ) {
 			syslog( LOG_ERR, "Syserror: f_data fprintf: %m" );
 			read_err = SYSTEM_ERROR;
@@ -1936,8 +1981,8 @@ f_data( struct receive_data *r )
 	    }
 	}
 
-#ifdef HAVE_LIBOPENDKIM
-	if (( read_err == NO_ERROR ) && ( header == 0 ) && simta_dkim_verify ) {
+	if (( read_err == NO_ERROR ) && ( header == 0 ) &&
+		( simta_dkim_verify || simta_arc )) {
 	    if ( dkim_body_started == 0 ) {
 		/* We are on the blank line between the headers and the body,
 		 * which isn't part of the body. */
@@ -1945,11 +1990,20 @@ f_data( struct receive_data *r )
 	    } else {
 		dkim_buf = yaslcpylen( dkim_buf, line, line_len );
 		dkim_buf = yaslcatlen( dkim_buf, "\r\n", 2 );
-		dkim_body( dkim, (unsigned char *)dkim_buf,
-			yasllen( dkim_buf ));
+#ifdef HAVE_LIBOPENARC
+		if ( simta_arc ) {
+		    arc_body( arc, (unsigned char *)dkim_buf,
+			    yasllen( dkim_buf ));
+		}
+#endif /* HAVE_LIBOPENARC */
+#ifdef HAVE_LIBOPENDKIM
+		if ( simta_dkim_verify ) {
+		    dkim_body( dkim, (unsigned char *)dkim_buf,
+			    yasllen( dkim_buf ));
+		}
+#endif /* HAVE_LIBOPENDKIM */
 	    }
 	}
-#endif /* HAVE_LIBOPENDKIM */
 
 	if (( read_err != NO_ERROR ) && ( dff != NULL )) {
 	    if ( fclose( dff ) != 0 ) {
@@ -2080,6 +2134,61 @@ f_data( struct receive_data *r )
 		    dmarc_authresult_str( r->r_dmarc_result ),
 		    r->r_env->e_header_from );
 	}
+    }
+
+#ifdef HAVE_LIBOPENARC
+    if ( simta_arc ) {
+	arc_result = arc_eom( arc );
+	simta_debuglog( 1,
+		"Receive [%s] %s: env <%s>: ARC verify result: %s (%d)",
+		r->r_ip, r->r_remote_hostname, r->r_env->e_id,
+		arc_chain_str( arc ), arc_result );
+	if ( simta_auth_results ) {
+	    authresults = yaslcatprintf( authresults,
+		    ";\n\tarc=%s", arc_chain_str( arc ));
+	}
+    }
+
+    if ( simta_auth_results && simta_arc ) {
+	if (( arc_key = simta_slurp( simta_arc_key )) == NULL ) {
+	    goto error;
+	}
+	arc_result = arc_getseal( arc, &arc_seal, simta_authres_domain,
+		simta_arc_selector, simta_arc_domain, (unsigned char *)arc_key,
+		yasllen( arc_key ), (unsigned char *)authresults );
+	simta_debuglog( 1, "Receive [%s] %s: env <%s>: ARC sign result: %d",
+		r->r_ip, r->r_remote_hostname, r->r_env->e_id, arc_result );
+	if ( arc_result == ARC_STAT_OK ) {
+	    yaslclear( authresults );
+	    for ( ; arc_seal; arc_seal = arc_hdr_next( arc_seal )) {
+		if ( yasllen( authresults ) > 0 ) {
+		    authresults = yaslcat( authresults, "\n" );
+		}
+		/* Despite the name, arc_hdr_name returns the entire header. */
+		authresults = yaslcat( authresults, (char *)arc_hdr_name(
+			arc_seal, NULL ));
+	    }
+	    yaslstrip( authresults, "\r" );
+	} else {
+	    /* Fall back to adding Authentication-Results. */
+	    authresults_plain = 1;
+	}
+    }
+#endif /* HAVE_LIBOPENARC */
+
+    if ( simta_auth_results && authresults_plain ) {
+	/* RFC 7601 2.2 Formal Definition
+	* authres-header = "Authentication-Results:" [CFWS] authserv-id
+	*			[ CFWS authres-version ]
+	*			( no-result / 1*resinfo ) [CFWS] CRLF
+	*/
+
+	authresults_tmp = yaslcatprintf( yaslempty( ),
+		"Authentication-Results: %s; %s", simta_authres_domain,
+		authresults );
+	yaslfree( authresults );
+	authresults = authresults_tmp;
+	authresults_tmp = NULL;
     }
 
     if ( simta_auth_results ) {
@@ -2434,8 +2543,15 @@ error:
 	free( filter_message );
     }
 
-#ifdef HAVE_LIBOPENDKIM
+
     yaslfree( dkim_buf );
+#ifdef HAVE_LIBOPENARC
+    yaslfree( arc_key );
+    if ( arc ) {
+	arc_free( arc );
+    }
+#endif /* HAVE_LIBOPENARC */
+#ifdef HAVE_LIBOPENDKIM
     if ( dkim != NULL ) {
 	dkim_free( dkim );
     }
@@ -3204,13 +3320,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	    }
 	}
 
-#ifdef HAVE_LIBOPENDKIM
-	if (( r.r_dkim = dkim_init( NULL, NULL )) == NULL ) {
-	    syslog( LOG_ERR, "Liberror: smtp_receive dkim_init: failed" );
-	    goto syserror;
-	}
-#endif /* HAVE_LIBOPENDKIM */
-
 	simta_debuglog( 3, "Connect.in [%s] %s: write before banner check",
 		r.r_ip, r.r_remote_hostname );
 
@@ -3262,6 +3371,33 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 	syslog( LOG_INFO, "Connect.in [%s] %s: Accepted", r.r_ip,
 		r.r_remote_hostname );
     }
+
+#ifdef HAVE_LIBOPENARC
+	if ( simta_arc ) {
+	    if (( r.r_arc = arc_init( )) == NULL ) {
+		syslog( LOG_ERR, "Liberror: smtp_receive arc_init: failed" );
+		goto syserror;
+	    }
+#ifdef HAVE_LIBOPENDKIM
+	    /* Only sign the headers recommended by RFC 6376 plus the headers
+	     * required by draft-ietf-dmarc-arc-protocol.
+	     */
+	    if ( arc_options( r.r_arc, ARC_OP_SETOPT, ARC_OPTS_SIGNHDRS,
+		    dkim_should_signhdrs,
+		    sizeof( unsigned char ** )) != ARC_STAT_OK ) {
+		syslog( LOG_ERR, "Liberror: smtp_receive arc_options" );
+		goto syserror;
+	    }
+#endif /* HAVE_LIBOPENDKIM */
+	}
+#endif /* HAVE_LIBOPENARC */
+
+#ifdef HAVE_LIBOPENDKIM
+	if (( r.r_dkim = dkim_init( NULL, NULL )) == NULL ) {
+	    syslog( LOG_ERR, "Liberror: smtp_receive dkim_init: failed" );
+	    goto syserror;
+	}
+#endif /* HAVE_LIBOPENDKIM */
 
     tv_add.tv_usec = 0;
     calculate_timers = 1;
@@ -3518,6 +3654,12 @@ closeconnection:
     md_cleanup( &r.r_md );
     md_cleanup( &r.r_md_body );
 #endif /* HAVE_LIBSSL */
+
+#ifdef HAVE_LIBOPENARC
+    if ( r.r_arc ) {
+	arc_close( r.r_arc );
+    }
+#endif /* HAVE_LIBOPENARC */
 
 #ifdef HAVE_LIBOPENDKIM
     if ( r.r_dkim != NULL ) {

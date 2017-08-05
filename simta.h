@@ -352,8 +352,16 @@ extern int				simta_outbound_data_line_timer;
 extern int				simta_outbound_data_session_timer;
 extern int				simta_outbound_ssl_connect_timer;
 
-#ifdef HAVE_LIBOPENDKIM
+extern int				simta_arc;
+extern yastr				simta_authres_domain;
+#ifdef HAVE_LIBOPENARC
+extern char				*simta_arc_key;
+extern char				*simta_arc_selector;
+extern yastr				simta_arc_domain;
+#endif /* HAVE_LIBOPENARC */
+
 extern int				simta_dkim_verify;
+#ifdef HAVE_LIBOPENDKIM
 extern int				simta_dkim_sign;
 extern char				*simta_dkim_key;
 extern char				*simta_dkim_selector;
@@ -379,6 +387,7 @@ int	simta_gettimeofday( struct timeval * );
 int	simta_check_charset( const char * );
 int	simta_host_is_jailhost( char *  );
 pid_t	simta_waitpid( pid_t, int *, int );
+yastr	simta_slurp( char * );
 int	simta_child_q_runner( struct host_q* );
 
 #define SIMTA_ELAPSED_MSEC(a, b) \

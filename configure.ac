@@ -72,6 +72,11 @@ AS_IF(
     [test "x$with_dkim" != "xno"],
     [PKG_CHECK_MODULES([OPENDKIM], [opendkim],  [AC_DEFINE([HAVE_LIBOPENDKIM], [1], [Define to 1 if OPENDKIM is available])])])
 
+AC_ARG_WITH([arc], AC_HELP_STRING([--with-arc], [Build with ARC support]))
+AS_IF(
+    [test "x$with_arc" = "xyes"],
+    [PKG_CHECK_MODULES([OPENARC], [openarc],  [AC_DEFINE([HAVE_LIBOPENARC], [1], [Define to 1 if OPENARC is available])])])
+
 AC_ARG_WITH([sasl], AC_HELP_STRING([--with-sasl], [Build with SASL support]))
 AS_IF(
     [test "x$with_sasl" != "xno"],

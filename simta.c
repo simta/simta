@@ -234,12 +234,22 @@ int			simta_outbound_data_session_timer = 0;
 int			simta_outbound_ssl_connect_timer = 300;
 #endif /* HAVE_LIBSSL */
 
+yastr			simta_authres_domain = NULL;
+int			simta_arc = 0;
+#ifdef HAVE_LIBOPENARC
+yastr			simta_arc_domain = NULL;
+char                    *simta_arc_key = NULL;
+char                    *simta_arc_selector = "simta-arc";
+#endif /* HAVE_LIBOPENARC */
+
 #ifdef HAVE_LIBOPENDKIM
 int			simta_dkim_verify = 1;
 int			simta_dkim_sign = DKIMSIGN_POLICY_OFF;
 char			*simta_dkim_key = NULL;
 char			*simta_dkim_selector = "simta";
 yastr			simta_dkim_domain = NULL;
+#else /* HAVE_LIBOPENDKIM */
+int                     simta_dkim_verify = 0;
 #endif /* HAVE_LIBOPENDKIM */
 
 int			simta_srs = SRS_POLICY_OFF;
@@ -812,6 +822,46 @@ simta_read_config( const char *fname )
 	    }
 #endif /* HAVE_LMDB */
 
+#ifdef HAVE_LIBOPENARC
+	} else if (( rc = simta_config_bool( "ARC", &simta_arc, ac, av, fname,
+		lineno )) != 0 ) {
+	    if ( rc < 0 ) {
+		goto error;
+	}
+
+	} else if ( strcasecmp( av[ 0 ], "ARC_DOMAIN" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_arc_domain = yaslauto( av[ 1 ] );
+		yasltolower( simta_arc_domain );
+		simta_debuglog( 2, "ARC_DOMAIN: %s",
+			simta_authres_domain );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: ARC_DOMAIN <domain>\n",
+		    fname, lineno );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "ARC_KEY" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_arc_key = strdup( av[ 1 ] );
+		simta_debuglog( 2, "ARC_KEY: %s", simta_arc_key );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: ARC_KEY <path>\n",
+		    fname, lineno );
+	    goto error;
+
+	} else if ( strcasecmp( av[ 0 ], "ARC_SELECTOR" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_arc_selector = strdup( av[ 1 ] );
+		simta_debuglog( 2, "DKIM_SELECTOR: %s", simta_arc_selector );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: ARC_SELECTOR <selector>\n",
+		    fname, lineno );
+	    goto error;
+#endif /* HAVE_LIBOPENARC */
+
 	} else if ( strcasecmp( av[ 0 ], "AUTHN" ) == 0 ) {
 	    if ( ac == 2 ) {
 		if ( strcasecmp( av[ 1 ], "OFF" ) == 0 ) {
@@ -840,6 +890,19 @@ simta_read_config( const char *fname )
 	    if ( rc < 0 ) {
 		goto error;
 	    }
+
+	} else if ( strcasecmp( av[ 0 ], "AUTHN_RESULTS_DOMAIN" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_authres_domain = yaslauto( av[ 1 ] );
+		yasltolower( simta_authres_domain );
+		simta_debuglog( 2, "AUTHN_RESULTS_DOMAIN: %s",
+			simta_authres_domain );
+		continue;
+	    }
+	    fprintf( stderr,
+		    "%s: line %d: usage: AUTHN_RESULTS_DOMAIN <domain>\n",
+		    fname, lineno );
+	    goto error;
 
 #ifdef HAVE_LIBSASL
 	} else if ( strcasecmp( av[ 0 ], "AUTHZ_DEFAULT" ) == 0 ) {
@@ -2136,11 +2199,25 @@ simta_config( void )
 	simta_srs_domain = simta_domain;
     }
 
+    if ( !simta_authres_domain ) {
+	simta_authres_domain = simta_domain;
+    }
+
 #ifdef HAVE_LIBOPENDKIM
     if ( !simta_dkim_domain ) {
 	simta_dkim_domain = simta_domain;
     }
 #endif /* HAVE_LIBOPENDKIM */
+
+#ifdef HAVE_LIBOPENARC
+    if ( !simta_arc_domain ) {
+#ifdef HAVE_LIBOPENDKIM
+	simta_arc_domain = simta_dkim_domain;
+#else /* HAVE_LIBOPENDKIM */
+	simta_arc_domain = simta_domain;
+#endif /* HAVE_LIBOPENDKIM */
+    }
+#endif /* HAVE_LIBOPENARC */
 
     simta_postmaster = yaslcatyasl( yaslauto( "postmaster@" ), simta_hostname );
 
@@ -2497,6 +2574,28 @@ simta_waitpid( pid_t child, int *childstatus, int options )
     }
 
     return( retval );
+}
+
+    yastr
+simta_slurp( char *path )
+{
+    SNET		*snet;
+    yastr		contents;
+    ssize_t		chunk;
+    char		buf[ 1024 * 1024 ];
+
+    if (( snet = snet_open( path, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	syslog( LOG_ERR, "Liberror: simta_slurp snet_open %s: %m", path );
+	return( NULL );
+    }
+
+    contents = yaslempty( );
+    while (( chunk = snet_read( snet, buf, 1024 * 1024, NULL )) > 0 ) {
+	contents = yaslcatlen( contents, buf, chunk );
+    }
+
+    snet_close( snet );
+    return( contents );
 }
 
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/

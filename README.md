@@ -34,6 +34,7 @@ decreasing order of importance):
 * [LMDB](https://symas.com/lightning-memory-mapped-database/)
 * [OpenLDAP](https://www.openldap.org/)
 * [OpenDKIM](http://www.opendkim.org/)
+* [OpenARC](https://github.com/mskucherawy/OpenARC)
 * [Libidn](https://www.gnu.org/software/libidn/)
 * [Cyrus SASL](https://www.cyrusimap.org/sasl/)
 * tcp_wrappers
