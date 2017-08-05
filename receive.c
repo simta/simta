@@ -2097,9 +2097,11 @@ f_data( struct receive_data *r )
 
     if ( simta_dmarc ) {
 	r->r_dmarc_result = dmarc_result( r->r_dmarc );
-	syslog( LOG_INFO, "Receive [%s] %s: env <%s>: DMARC result: %s (%s)",
+	syslog( LOG_INFO, "Receive [%s] %s: env <%s>: dmarc_result=%s "
+		"dmarc_domain=%s dmarc_policy=%s",
 		r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-		dmarc_result_str( r->r_dmarc_result ), r->r_dmarc->domain );
+		dmarc_result_str( r->r_dmarc_result ), r->r_dmarc->domain,
+		dmarc_result_str( r->r_dmarc->policy ));
 	if ( simta_auth_results ) {
 	    authresults = yaslcatprintf( authresults,
 		    ";\n\tdmarc=%s header.from=%s",
