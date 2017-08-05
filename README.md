@@ -18,7 +18,7 @@ avoid gratuitous incompatibility with other Unix-like systems.
 In order to build simta, you will need the following:
 
 * A C compiler. Compilation has been tested with [GCC](https://gcc.gnu.org/)
-  and [clang](http://clang.llvm.org/), and other modern compilers should
+  and [clang](https://clang.llvm.org/), and other modern compilers should
   also work.
 * make
 * pkg-config or a compatible replacement.
@@ -28,14 +28,14 @@ In order to build simta, you will need the following:
 There are also a number of optional dependencies (listed more-or-less in
 decreasing order of importance):
 
-* [jemalloc](http://www.canonware.com/jemalloc/)
+* [jemalloc](http://jemalloc.net/)
 * [OpenSSL](https://openssl.org/) or a compatible replacement such as
-  [LibreSSL](http://www.libressl.org/)
-* [LMDB](http://symas.com/mdb/)
-* [OpenLDAP](http://www.openldap.org/)
+  [LibreSSL](https://www.libressl.org/)
+* [LMDB](https://symas.com/lightning-memory-mapped-database/)
+* [OpenLDAP](https://www.openldap.org/)
 * [OpenDKIM](http://www.opendkim.org/)
-* [Libidn](http://www.gnu.org/software/libidn/)
-* [Cyrus SASL](http://asg.web.cmu.edu/sasl/)
+* [Libidn](https://www.gnu.org/software/libidn/)
+* [Cyrus SASL](https://www.cyrusimap.org/sasl/)
 * tcp_wrappers
 
 
