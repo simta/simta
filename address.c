@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -542,26 +543,110 @@ not_found:
     struct passwd *
 simta_getpwnam( struct action *a, char *user )
 {
-    struct passwd		*p;
-    FILE			*f;
+    static struct passwd	pwent;
+    static yastr		buf = NULL;
+    SNET			*snet;
+    char			*line;
+    char			*c;
+    size_t			userlen;
 
-    if (( f = fopen( a->a_fname, "r" )) == NULL ) {
+    if ( strcmp( a->a_fname, "/etc/passwd" ) == 0 ) {
+	/* Use the system password database, which may or may not just read
+	 * from /etc/passwd.
+	 */
+	return getpwnam( user );
+    }
+
+    /* Otherwise, read and parse the passwd-like file ourselves. */
+    if (( snet = snet_open( a->a_fname, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+	syslog( LOG_ERR, "Liberror: simta_getpwnam snet_open %s: %m",
+		a->a_fname );
 	return( NULL );
     }
 
-    /* FIXME: fgetpwent() is not portable */
-    while (( p = fgetpwent( f )) != NULL ) {
-	if ( strcasecmp( user, p->pw_name ) == 0 ) {
-	    break;
+    userlen = strlen( user );
+    while (( line = snet_getline( snet, NULL )) != NULL ) {
+	while (( line[ 0 ] == ' ' ) || ( line[ 0 ] == '\t' )) {
+	    /* leading whitespace */
+	    line++;
 	}
+
+	if (( line[ 0 ] == '#' ) || ( line[ 0 ] == '\0')) {
+	    /* comment or blank line */
+	    continue;
+	}
+
+	/* Match against the username */
+	if (( strlen( line ) <= userlen ) ||
+		( line[ userlen ] != ':' ) ||
+		( strncasecmp( user, line, userlen ) != 0 )) {
+	    continue;
+	}
+
+	/* Ve haf match */
+	if ( buf == NULL ) {
+	    buf = yaslauto( line );
+	} else {
+	    yaslclear( buf );
+	    buf = yaslcat( buf, line );
+	}
+	c = buf;
+
+	/* username */
+	pwent.pw_name = c;
+	if (( c = strchr( c, ':' )) == NULL ) {
+	    continue;
+	}
+	*c++ = '\0';
+
+	/* password */
+	if (( c = strchr( c, ':' )) == NULL ) {
+	    continue;
+	}
+	c++;
+
+	/* uid */
+	if (( c = strchr( c, ':' )) == NULL ) {
+	    continue;
+	}
+	c++;
+
+	/* gid */
+	if (( c = strchr( c, ':' )) == NULL ) {
+	    continue;
+	}
+	c++;
+
+	/* GECOS */
+	pwent.pw_gecos = c;
+	if (( c = strchr( c, ':' )) == NULL ) {
+	    continue;
+	}
+	*c++ = '\0';
+
+	/* home */
+	pwent.pw_dir = c;
+	if (( c = strchr( c, ':' )) == NULL ) {
+	    continue;
+	}
+	*c++ = '\0';
+
+	/* shell */
+	pwent.pw_shell = c;
+
+	/* If we made it here we have a matching, valid line */
+	break;
     }
 
-    if ( fclose( f ) != 0 ) {
-	syslog( LOG_ERR, "Syserror: simta_getpwnam fclose %s: %m", a->a_fname );
-	return( NULL );
+    if ( snet_close( snet ) != 0 ) {
+	syslog( LOG_ERR, "Liberror: simta_getpwnam snet_close: %m" );
     }
 
-    return( p );
+    if ( line ) {
+	return( &pwent );
+    }
+
+    return ( NULL );
 }
 
 
