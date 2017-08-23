@@ -2709,9 +2709,10 @@ sasl_init( struct receive_data *r )
 	}
 
 	r->r_secprops.security_flags |= SASL_SEC_NOANONYMOUS;
+#ifdef SNET_HAVE_LIBSASL
 	r->r_secprops.maxbufsize = 4096;
-	r->r_secprops.min_ssf = 0;
 	r->r_secprops.max_ssf = 256;
+#endif /* SNET_HAVE_LIBSASL */
 
 	simta_debuglog( 3, "Auth: init sasl_setprop 2" );
 
@@ -3141,6 +3142,8 @@ f_auth( struct receive_data *r )
     }
 
     r->r_auth = 1;
+
+#ifdef SNET_HAVE_LIBSASL
     snet_setsasl( r->r_snet, r->r_conn );
 
     /* RFC 4954 4 The AUTH Command
@@ -3167,6 +3170,7 @@ f_auth( struct receive_data *r )
 	    r->r_hello = NULL;
 	}
     }
+#endif /* SNET_HAVE_LIBSASL */
 
     set_smtp_mode( r, simta_smtp_default_mode, "Default" );
 #endif /* HAVE_LIBSASL */
@@ -4044,9 +4048,10 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 	simta_debuglog( 3, "Auth: sasl_setprop 1" );
 
 	memset( &secprops, 0, sizeof( secprops ));
+#ifdef SNET_HAVE_LIBSASL
 	secprops.maxbufsize = 4096;
-	/* min_ssf set to zero with memset */
 	secprops.max_ssf = 256;
+#endif /* SNET_HAVE_LIBSASL */
 	secprops.security_flags |= SASL_SEC_NOPLAINTEXT;
 	secprops.security_flags |= SASL_SEC_NOANONYMOUS;
 	if (( ret = sasl_setprop( r->r_conn, SASL_SEC_PROPS, &secprops))
