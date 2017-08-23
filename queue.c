@@ -135,7 +135,7 @@ host_q_create_or_lookup( char *hostname )
 	    hq->hq_no_punt = NOPUNT_CONFIG;
 	}
 
-	if (( hq->hq_status == HOST_UNKNOWN )) {
+	if ( hq->hq_status == HOST_UNKNOWN ) {
 	    if (( simta_rqueue_policy == RQUEUE_POLICY_PUNT ) &&
 		    ( hq->hq_no_punt != NOPUNT_CONFIG )) {
 		hq->hq_status = HOST_SUPPRESSED;
