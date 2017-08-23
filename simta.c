@@ -375,8 +375,10 @@ simta_read_config( const char *fname )
     SNET		*snet;
     char		*domain;
     struct simta_red	*red;
+#ifdef HAVE_LDAP
     struct action	*a;
     struct simta_ldap	*ld;
+#endif /* HAVE_LDAP */
 
     simta_debuglog( 2, "simta_config: %s", fname );
 
