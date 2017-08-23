@@ -5,46 +5,23 @@
 
 #include "config.h"
 
+#include <sys/param.h>
+
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <sys/param.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
-
-#include <ctype.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <assert.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <pwd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <syslog.h>
-#include <stdio.h>
-#include <dirent.h>
-
-#include <yasl.h>
-
-#include "expand.h"
-#include "red.h"
-#include "envelope.h"
-#include "simta.h"
-#include "dns.h"
-#include "simta_ldap.h"
-#include "queue.h"
-#include "ml.h"
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -54,6 +31,9 @@
 #ifdef HAVE_LMDB
 #include "simta_lmdb.h"
 #endif /* HAVE_LMDB */
+
+#include "queue.h"
+#include "red.h"
 
 #define	    ALIAS_WHITE	0
 #define	    ALIAS_CONT	1

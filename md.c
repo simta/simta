@@ -5,6 +5,9 @@
 
 #include "config.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
 

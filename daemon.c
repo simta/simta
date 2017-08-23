@@ -5,33 +5,38 @@
 
 #include "config.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <sys/time.h>
-#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/file.h>
 #include <sys/param.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #include <assert.h>
-#include <grp.h>
-#include <syslog.h>
-#include <string.h>
-#include <strings.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <signal.h>
+#include <grp.h>
 #include <netdb.h>
+#include <pwd.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <syslog.h>
 #include <unistd.h>
-#include <pwd.h>
-#include <dirent.h>
 
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif /* __linux__ */
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -39,17 +44,13 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
 #include <snet.h>
 
 #include "argcargv.h"
-#include "ll.h"
-#include "simta.h"
-#include "queue.h"
 #include "envelope.h"
+#include "ll.h"
+#include "queue.h"
+#include "simta.h"
 
 #ifdef HAVE_LIBSSL
 #include "tls.h"

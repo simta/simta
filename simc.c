@@ -5,10 +5,22 @@
 
 #include "config.h"
 
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+
+#include <fcntl.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sysexits.h>
+#include <syslog.h>
+#include <unistd.h>
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -16,28 +28,7 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <netdb.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <pwd.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <sysexits.h>
-#include <syslog.h>
-#include <time.h>
-#include <dirent.h>
-
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
-#include "envelope.h"
-#include "header.h"
 #include "simta.h"
-#include "queue.h"
 
 const char	*simta_progname = "simc";
 

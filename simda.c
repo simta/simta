@@ -3,11 +3,12 @@
  * See COPYING.
  */
 
+#include <sys/types.h>
+
 #include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sysexits.h>
 #include <unistd.h>
 
@@ -19,7 +20,7 @@
 #ifndef SIMTA_MAIL_LOCAL
 #define SIMTA_MAIL_LOCAL ""
 #endif
- 
+
 int main( int argc, char **argv )
 {
     struct passwd       *simta_pw;

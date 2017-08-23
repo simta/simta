@@ -8,9 +8,6 @@
 #include <stdio.h>
 #include <syslog.h>
 
-#include <denser.h>
-#include <yasl.h>
-
 #include "dmarc.h"
 #include "simta.h"
 

@@ -5,11 +5,18 @@
 
 #include "config.h"
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/param.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -17,31 +24,9 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
-#include <time.h>
-
-#include <errno.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <string.h>
-#include <netdb.h>
-#include <pwd.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <syslog.h>
-#include <dirent.h>
-
-#include <yasl.h>
-
-#include "header.h"
 #include "envelope.h"
-#include "line_file.h"
-#include "ll.h"
+#include "header.h"
 #include "queue.h"
-#include "simta.h"
 
 #define HEADER_MAILBOX_LIST		0
 #define HEADER_ADDRESS_LIST		1

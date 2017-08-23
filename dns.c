@@ -5,39 +5,31 @@
 
 #include "config.h"
 
-#include <sys/types.h>
-#include <sys/param.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
-#include <inttypes.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <syslog.h>
-#include <unistd.h>
-#include <dirent.h>
 
-#include <denser.h>
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
-#include "envelope.h"
-#include "expand.h"
-#include "red.h"
 #include "dns.h"
+#include "red.h"
 #include "simta.h"
-#include "queue.h"
 
 static struct dnsr_result *get_address( const char *, int );
 

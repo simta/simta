@@ -4,16 +4,19 @@
  */
 
 #include <arpa/inet.h>
-#include <sys/types.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <ctype.h>
 #include <errno.h>
 #include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <syslog.h>
 
-#include <denser.h>
 #include <yasl.h>
 
 #include "spf.h"

@@ -5,35 +5,31 @@
 
 #include "config.h"
 
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <assert.h>
+#include <dirent.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
+#include <unistd.h>
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-
-#include <assert.h>
-#include <syslog.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <netdb.h>
-#include <string.h>
-#include <errno.h>
-#include <dirent.h>
-
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
 #include "envelope.h"
 #include "simta.h"
-#include "queue.h"
 
 #define	INCOMPLETE_T		1
 #define	STRANDED_D		2

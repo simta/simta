@@ -5,29 +5,13 @@
 
 #include "config.h"
 
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/param.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <sys/types.h>
 
-#include <time.h>
-#include <inttypes.h>
-#include <pwd.h>
 #include <fcntl.h>
-#include <netdb.h>
-#include <string.h>
-#include <syslog.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
-
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+#include <string.h>
 
 #include <snet.h>
 

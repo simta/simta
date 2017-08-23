@@ -5,47 +5,37 @@
 
 #include "config.h"
 
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <syslog.h>
+#include <unistd.h>
+#include <utime.h>
+
+#ifdef HAVE_LIBOPENDKIM
+#include <opendkim/dkim.h>
+#endif /* HAVE_LIBOPENDKIM */
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-
-#include <dirent.h>
-#include <assert.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <errno.h>
-#include <syslog.h>
-#include <time.h>
-#include <utime.h>
-#include <unistd.h>
-
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
-#ifdef HAVE_LIBOPENDKIM
-#include <opendkim/dkim.h>
-#endif /* HAVE_LIBOPENDKIM */
-
-#include <snet.h>
-#include <yasl.h>
-
-#include "ll.h"
 #include "envelope.h"
-#include "line_file.h"
 #include "header.h"
-#include "simta.h"
 #include "queue.h"
 
 

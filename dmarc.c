@@ -6,14 +6,11 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <syslog.h>
-
-#include <denser.h>
-#include <yasl.h>
 
 #include "dmarc.h"
 #include "dns.h"
-#include "ll.h"
 #include "simta.h"
 
 static int dmarc_alignment( char *, char *, int );

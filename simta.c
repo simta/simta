@@ -10,12 +10,10 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <assert.h>
+
 #include <ctype.h>
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -24,10 +22,6 @@
 #include <strings.h>
 #include <syslog.h>
 #include <unistd.h>
-
-#include <denser.h>
-#include <snet.h>
-#include <yasl.h>
 
 #ifdef HAVE_JEMALLOC
 #include <jemalloc/jemalloc.h>
@@ -52,16 +46,11 @@
 #include <openssl/evp.h>
 #endif /* HAVE_LIBSSL */
 
-#include "ll.h"
-#include "expand.h"
-#include "red.h"
-#include "envelope.h"
-#include "simta.h"
 #include "argcargv.h"
 #include "dns.h"
-#include "simta_ldap.h"
-#include "queue.h"
 #include "ml.h"
+#include "red.h"
+#include "simta_ldap.h"
 
 static int simta_config_bool( const char *, int *, int, char **, const char *,
 	int );

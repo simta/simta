@@ -5,22 +5,15 @@
 
 #include "config.h"
 
-#include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/param.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <dirent.h>
-#include <netdb.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
-
-#include <denser.h>
-#include <snet.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -33,8 +26,6 @@
 #endif /* HAVE_LIBSSL */
 
 #include "envelope.h"
-#include "expand.h"
-#include "simta.h"
 #include "queue.h"
 #include "red.h"
 #include "smtp.h"

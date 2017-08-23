@@ -5,10 +5,9 @@
 
 #include "config.h"
 
-#include <syslog.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 
 #include "line_file.h"
 

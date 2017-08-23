@@ -5,33 +5,36 @@
 
 #include "config.h"
 
-#include <sys/types.h>
+#include <sys/param.h>
 #include <sys/socket.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/param.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
-#include <time.h>
-#include <inttypes.h>
-#include <pwd.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <netdb.h>
-#include <string.h>
-#include <syslog.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <string.h>
+#include <strings.h>
+#include <syslog.h>
 #include <time.h>
-#include <dirent.h>
+#include <unistd.h>
 
-#include <denser.h>
-#include <snet.h>
-#include <yasl.h>
+#ifdef HAVE_LIBOPENDKIM
+#include <opendkim/dkim.h>
+#endif /* HAVE_LIBOPENDKIM */
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#include <sasl/saslutil.h>	/* For sasl_decode64 and sasl_encode64 */
+#endif /* HAVE_LIBSASL */
+
+#ifdef HAVE_LIBSSL
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBWRAP
 #include <tcpd.h>
@@ -51,41 +54,22 @@ int allow_severity = LIBWRAP_ALLOW_FACILITY|LIBWRAP_ALLOW_SEVERITY;
 int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #endif /* HAVE_LIBWRAP */
 
-#ifdef HAVE_LIBSSL 
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#endif /* HAVE_LIBSSL */
-
-#ifdef HAVE_LIBOPENDKIM
-#include <opendkim/dkim.h>
-#endif /* HAVE_LIBOPENDKIM */
-
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#include <sasl/saslutil.h>	/* For sasl_decode64 and sasl_encode64 */
-#endif /* HAVE_LIBSASL */
-
-#include "envelope.h"
-#include "expand.h"
-#include "red.h"
 #include "argcargv.h"
 #include "dmarc.h"
 #include "dns.h"
-#include "simta.h"
+#include "header.h"
 #include "queue.h"
 #include "spf.h"
 #include "srs.h"
-#include "line_file.h"
-#include "header.h"
+
+#ifdef HAVE_LDAP
+#include "simta_ldap.h"
+#endif /* HAVE_LDAP */
 
 #ifdef HAVE_LIBSSL
 #include "md.h"
 #include "tls.h"
 #endif /* HAVE_LIBSSL */
-
-#ifdef HAVE_LDAP
-#include "simta_ldap.h"
-#endif /* HAVE_LDAP */
 
 #ifdef HAVE_LMDB
 #include <lmdb.h>

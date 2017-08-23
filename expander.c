@@ -5,37 +5,25 @@
 
 #include "config.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sysexits.h>
+#include <unistd.h>
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <string.h>
-#include <errno.h>
-#include <dirent.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <sysexits.h>
-#include <utime.h>
-
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
 #include "envelope.h"
 #include "expand.h"
 #include "simta.h"
-#include "queue.h"
-#include "ml.h"
-#include "smtp.h"
 
 const char	    *simta_progname = "simexpander";
 

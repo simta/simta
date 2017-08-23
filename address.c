@@ -5,20 +5,25 @@
 
 #include "config.h"
 
-#include <sys/types.h>
 #include <sys/param.h>
+#include <sys/types.h>
+
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <strings.h>
-#include <string.h>
-#include <syslog.h>
-#include <time.h>
 #include <pwd.h>
-#include <unistd.h>
-#include <dirent.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <syslog.h>
+
+#ifdef HAVE_LDAP
+#include <ldap.h>
+#endif /* HAVE_LDAP */
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -26,27 +31,18 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
-#include "dns.h"
-#include "envelope.h"
-#include "expand.h"
-#include "red.h"
 #include "header.h"
 #include "simta.h"
-#include "queue.h"
 #include "srs.h"
 
 #ifdef HAVE_LDAP
-#include <ldap.h>
 #include "simta_ldap.h"
-#endif /* HAVE_LDAP */
+#endif
 
 #ifdef HAVE_LMDB
 #include "simta_lmdb.h"
 #endif /* HAVE_LMDB */
+
 
     struct envelope *
 address_bounce_create( struct expand *exp )

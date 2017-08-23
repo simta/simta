@@ -5,29 +5,25 @@
 
 #include "config.h"
 
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/param.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <assert.h>
-#include <sysexits.h>
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netdb.h>
-#include <errno.h>
-#include <dirent.h>
-#include <unistd.h>
+#include <sysexits.h>
 #include <syslog.h>
-#include <fcntl.h>
-#include <utime.h>
-
-#include <denser.h>
-#include <snet.h>
+#include <time.h>
+#include <unistd.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -39,16 +35,13 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include "simta.h"
-#include "wildcard.h"
-#include "envelope.h"
-#include "queue.h"
-#include "ml.h"
-#include "line_file.h"
-#include "smtp.h"
-#include "expand.h"
-#include "red.h"
 #include "dns.h"
+#include "envelope.h"
+#include "line_file.h"
+#include "ml.h"
+#include "red.h"
+#include "smtp.h"
+#include "wildcard.h"
 
 static int	deliver_checksockaddr( struct deliver *, struct host_q * );
 static void	real_q_deliver( struct deliver *, struct host_q * );

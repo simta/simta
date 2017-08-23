@@ -5,56 +5,45 @@
 
 #include "config.h"
 
+/* FIXME: nurrr */
+#define LDAP_DEPRECATED		1
+
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <fcntl.h>
+#include <ldap.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <syslog.h>
+#include <unistd.h>
+
+#ifdef HAVE_LIBSASL
+#include <sasl/sasl.h>
+#endif /* HAVE_LIBSASL */
+
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/param.h>
-
-#define LDAP_DEPRECATED		1
-
-#include <sys/time.h>		/* struct timeval */
-#include <stdio.h>
-#include <syslog.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <string.h>
-#include <stdlib.h>
-#include <ldap.h>
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-#include <unistd.h>
-#include <errno.h>
-#include <netdb.h>
-#include <time.h>
-#include <dirent.h>
-
-#include <snet.h>
-#include <yasl.h>
-
-#include "envelope.h"
-#include "simta.h"
-#include "argcargv.h"
 #include "dn.h"
 #include "header.h"
-#include "expand.h"
+#include "simta.h"
 #include "simta_ldap.h"
-#include "queue.h"
 #include "srs.h"
-
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
+/* FIXME: bruh. */
 #ifndef TRUE
 #define TRUE 1
 #define FALSE 0
 #endif
+
 #define MAXRETRIES		5
 
 #define MAXAMBIGUOUS		10

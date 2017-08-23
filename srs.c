@@ -5,9 +5,10 @@
 
 #include "config.h"
 
+#include <net/if.h>
+
 #include <ctype.h>
 #include <ifaddrs.h>
-#include <net/if.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -16,8 +17,6 @@
 
 #include <yasl.h>
 
-#include "envelope.h"
-#include "expand.h"
 #include "spf.h"
 #include "srs.h"
 #include "simta.h"

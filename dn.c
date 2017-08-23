@@ -14,8 +14,9 @@
  * Copied from UM-LDAP
  */
 
-#include <stdio.h>
 #include <ctype.h>
+#include <stdio.h>
+
 #include "dn.h"
 
 #define B4TYPE		0

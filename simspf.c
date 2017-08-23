@@ -5,17 +5,18 @@
 
 #include "config.h"
 
-#include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <netdb.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <syslog.h>
 
-#include <denser.h>
-#include <yasl.h>
-
-#include "spf.h"
 #include "simta.h"
+#include "spf.h"
 
 const char	*simta_progname = "simspf";
 

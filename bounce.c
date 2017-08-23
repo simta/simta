@@ -5,11 +5,14 @@
 
 #include "config.h"
 
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/stat.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+
+#include <fcntl.h>
+#include <stdio.h>
+#include <syslog.h>
+#include <unistd.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -17,34 +20,13 @@
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
 
-#include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sysexits.h>
-#include <syslog.h>
-#include <time.h>
-#include <unistd.h>
-#include <utime.h>
-
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
-#include <snet.h>
-#include <yasl.h>
-
 #include "envelope.h"
 #include "header.h"
-#include "line_file.h"
-#include "expand.h"
-#include "simta.h"
 #include "queue.h"
-#include "smtp.h"
-#include "ml.h"
 
 
     int

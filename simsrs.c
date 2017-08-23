@@ -6,10 +6,10 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 #include <syslog.h>
-
-#include <denser.h>
-#include <yasl.h>
 
 #include "srs.h"
 #include "simta.h"

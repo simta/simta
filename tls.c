@@ -5,9 +5,8 @@
 
 #include "config.h"
 
-#include <sys/types.h>
-#include <sys/param.h>
-#include <sys/time.h>
+#include <syslog.h>
+
 #include <openssl/opensslconf.h>
 #ifndef OPENSSL_NO_ECDH
 #include <openssl/ecdh.h>
@@ -20,9 +19,6 @@
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 #include <openssl/x509_vfy.h>
-
-#include <string.h>
-#include <syslog.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
