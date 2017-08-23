@@ -1492,7 +1492,7 @@ f_data( struct receive_data *r )
     struct timeval			tv_filter = { 0, 0 };
     struct timeval			tv_now;
     char				daytime[ RFC822_TIMESTAMP_LEN ];
-    struct receive_headers		*rh;
+    struct receive_headers		*rh = NULL;
     unsigned int			data_wrote = 0;
     unsigned int			data_read = 0;
     struct envelope			*env_bounce;
