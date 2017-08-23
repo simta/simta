@@ -624,8 +624,8 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 {
     int				r;
     struct timeval		tv_wait;
-    int				rc;
 #ifdef HAVE_LIBSSL
+    int				rc;
     int				tls_required = 0;
     int				tls_cert_required = 0;
     char			*ciphers;

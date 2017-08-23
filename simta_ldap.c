@@ -1927,7 +1927,9 @@ simta_ldap_config( char *fname, char *domain )
     int				ac = 0;
     int				acidx;
     int				attridx;
+#ifdef HAVE_LIBSSL
     int				intval;
+#endif /* HAVE_LIBSSL */
     LDAPURLDesc			*plud;		/* a parsed ldapurl */
     int				rdnpref;
     int				search_type;
