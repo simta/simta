@@ -3588,10 +3588,6 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
 	r.r_smtp_command = strdup( line );
 
-	/*
-	 * FIXME: This routine needs to be revised to take RFC 5321 quoting into
-	 * account.  E.g.  MAIL FROM:<"foo \: bar"@umich.edu>
-	 */
 	if (( r.r_ac = acav_parse2821( acav, line, &(r.r_av))) < 0 ) {
 	    syslog( LOG_ERR, "Receive [%s] %s: acav_parse2821 failed: %m",
 		    r.r_ip, r.r_remote_hostname );
