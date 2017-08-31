@@ -438,7 +438,7 @@ q_expansion_cleanup( struct envelope **fast )
 	}
     }
 
-    /* XXX mem free */
+    /* FIXME: mem free */
 
     return( 0 );
 }

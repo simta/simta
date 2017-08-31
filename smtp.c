@@ -811,7 +811,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	d->d_esmtp_8bitmime = 0;
 	d->d_esmtp_size = 0;
 	d->d_esmtp_starttls = 0;
-	/* ZZZ reset state? */
+	/* FIXME: reset state? (???) */
 
 	/* Resend EHLO */
 	if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {

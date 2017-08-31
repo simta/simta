@@ -103,7 +103,7 @@ get_mx( const char *hostname )
      * actual host name and is highest preference MX.  Others must be
      * configured by hand.
      */
-    /* XXX is this broken?  no check for preference as comments suggest */
+    /* FIXME: is this broken?  no check for preference as comments suggest */
     for ( i = 0; i < result->r_ancount; i++ ) {
 	switch( result->r_answer[ i ].rr_type ) {
 	case DNSR_TYPE_CNAME:

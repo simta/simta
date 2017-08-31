@@ -3246,7 +3246,7 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
     tv_wait.tv_sec = simta_inbound_command_line_timer;
     tv_wait.tv_usec = 0;
-    /* XXX expose SNET_WRITE_TIMEOUT in simta.conf */
+    /* FIXME: expose SNET_WRITE_TIMEOUT in simta.conf */
     snet_timeout( r.r_snet, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait );
 
     if ( reset( &r ) != RECEIVE_OK ) {

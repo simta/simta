@@ -64,7 +64,7 @@ host_q_lookup( char *hostname )
 {
     struct host_q		*hq;
 
-    /* XXX sort this list */
+    /* FIXME: sort this list */
     for ( hq = simta_host_q; hq != NULL; hq = hq->hq_next ) {
 	if ( strcasecmp( hq->hq_hostname, hostname ) == 0 ) {
 	    break;

@@ -1154,7 +1154,8 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
 		    /* no valid email addresses */
 		    env_free( e_addr->e_addr_env_gmailfwd );
 		    e_addr->e_addr_env_gmailfwd = NULL;
-		    bounce_text( e_addr->e_addr_errors, TEXT_ERROR,	/* XXX addr? */
+		    bounce_text( e_addr->e_addr_errors, TEXT_ERROR,
+			    /* FIXME: addr? (???) */
 			    "bad group mail forwarding: ", dn, NULL );
 		}
 		e_addr->e_addr_env_gmailfwd->e_next = exp->exp_gmailfwding;
@@ -1448,7 +1449,7 @@ simta_ldap_process_entry( struct simta_ldap *ld, struct expand *exp,
 	    * If the user is on vacation, send a copy of the mail to
 	    * the vacation server.  The address is constructed from
 	    * the vacationhost (specified in the config file) and
-	    * the uid (XXX this this attr should be configurable XXX).
+	    * the uid. FIXME: this this attr should be configurable
 	    */
 	    onvacation = NULL;
 	    if (( ld->ldap_vacationhost != NULL ) &&
@@ -1620,7 +1621,7 @@ startsearch:
 	    dn = ldap_get_dn( ld->ldap_ld, entry );
 	    xdn = ldap_explode_dn( dn, 1 );
 
-	    /* XXX bad, but how else can we do it? XXX */
+	    /* FIXME: bad (why?), but how else can we do it? */
 	    if ( strcasecmp( xdn[0], addr ) == 0 ) {
 		ldap_delete_result_entry( &res, entry );
 		ldap_add_result_entry( &tmpres, entry );

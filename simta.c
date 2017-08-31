@@ -338,7 +338,7 @@ simta_sender( void )
 }
 
 
-/* XXX - need to add support for:
+/* FIXME: need to add support for:
  * include files/dirs
  *   in dirs, only read .conf files, have depth limit and exit on duplicate
  * virtual users - user@wcbn.org -> wcbn.user@domain
@@ -434,7 +434,7 @@ simta_read_config( const char *fname )
 			fname, lineno );
 		goto error;
 	    }
-	    /* XXX - need to lower-case domain */
+	    /* FIXME: need to lower-case domain */
 
 	    if ( ac <= 2 ) {
 		fprintf( stderr,

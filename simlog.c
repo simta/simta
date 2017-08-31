@@ -47,7 +47,7 @@ main( int argc, char *argv[] )
 	return( 1 );
     }
 
-    /* XXX hard path */
+    /* FIXME: hard path */
     sprintf( path, "%s/%ld.%ld", "/var/simta/log", tv.tv_sec, tv.tv_usec );
 
     if (( in = snet_attach( 0, 1024 * 1024 )) == NULL ) {
