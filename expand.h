@@ -19,9 +19,6 @@
 #define	ADDRESS_FINAL			3
 #define	ADDRESS_EXCLUDE			4
 
-/* for alias_expand */
-#define	ALIAS_MAX_DOMAIN_LEN		1024
-
 /* address types */
 #define	ADDRESS_TYPE_EMAIL		1
 #define	ADDRESS_TYPE_DEAD		2

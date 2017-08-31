@@ -743,15 +743,14 @@ cleanup_forward:
 alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 {
     int			ret = ADDRESS_NOT_FOUND;
-    /* FIXME: this should use SIMTA_MAX_HOST_NAME_LEN */
-    char		address[ ALIAS_MAX_DOMAIN_LEN ];
-    char		domain[ ALIAS_MAX_DOMAIN_LEN ];
-    char		owner[ ALIAS_MAX_DOMAIN_LEN * 2 ];
+    yastr		address = NULL;
+    yastr		domain = NULL;
+    yastr		owner = NULL;
+    yastr		owner_value = NULL;
+    yastr		value = NULL;
     char		*alias_addr;
     char		*paddr;
     struct simta_dbc	*dbcp = NULL, *owner_dbcp = NULL;
-    yastr		key = NULL, value = NULL;
-    yastr		owner_key = NULL, owner_value = NULL;
 
     if ( a->a_dbh == NULL ) {
 	if (( ret = simta_db_open_r( &(a->a_dbh), a->a_fname )) != 0 ) {
@@ -764,27 +763,20 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     }
 
     if ( e_addr->e_addr_at != NULL ) {
-	if (( e_addr->e_addr_at - e_addr->e_addr ) >= ALIAS_MAX_DOMAIN_LEN ) {
-	    syslog( LOG_WARNING,
-		    "Expand.alias env <%s>: <%s>: address too long",
-		    exp->exp_env->e_id, e_addr->e_addr );
-	    goto done;
-	}
-	if ( strlen( e_addr->e_addr_at + 1 ) >= ALIAS_MAX_DOMAIN_LEN ) {
+	domain = yaslauto( e_addr->e_addr_at + 1 );
+	if ( yasllen( domain ) >= SIMTA_MAX_HOST_NAME_LEN) {
 	    syslog( LOG_WARNING,
 		    "Expand.alias env <%s>: <%s>: domain too long: %s",
 		    exp->exp_env->e_id, e_addr->e_addr, e_addr->e_addr_at + 1 );
 	    goto done;
 	}
 
-	strncpy( domain, e_addr->e_addr_at + 1, ALIAS_MAX_DOMAIN_LEN - 1 );
-
-	*e_addr->e_addr_at = '\0';
-	if ( strncasecmp( e_addr->e_addr, "owner-", 6 ) == 0 ) {
+	address = yaslnew( e_addr->e_addr, e_addr->e_addr_at - e_addr->e_addr );
+	if ( strncasecmp( address, "owner-", 6 ) == 0 ) {
 	    /* Canonicalise sendmail-style owner */
-	    strncpy( address, e_addr->e_addr + 6, ALIAS_MAX_DOMAIN_LEN - 8 );
-	    strcat( address, "-errors" );
-	} else if ((( paddr = strrchr( e_addr->e_addr, '-' )) != NULL ) &&
+	    yaslrange( address, 6, -1 );
+	    address = yaslcat( address, "-errors" );
+	} else if ((( paddr = strrchr( address, '-' )) != NULL ) &&
 		(( strcasecmp( paddr, "-owner" ) == 0 ) ||
 		( strcasecmp( paddr, "-owners" ) == 0 ) ||
 		( strcasecmp( paddr, "-error" ) == 0 ) ||
@@ -792,26 +784,18 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 		( strcasecmp( paddr, "-requests" ) == 0 ))) {
 	    /* simta-style owners are all the same for ALIAS.
 	     * errors is canonical */
-	    *paddr = '\0';
-	    strncpy( address, e_addr->e_addr, ALIAS_MAX_DOMAIN_LEN - 8 );
-	    *paddr = '-';
-	    strcat( address, "-errors" );
-	} else {
-	    strncpy( address, e_addr->e_addr, ALIAS_MAX_DOMAIN_LEN - 1 );
+	    yaslrange( address, 0, paddr - address );
+	    address = yaslcat( address, "errors" );
 	}
-	*e_addr->e_addr_at = '@';
-
     } else {
-	strncpy( address, STRING_POSTMASTER, ALIAS_MAX_DOMAIN_LEN - 1 );
+	address = yaslauto( STRING_POSTMASTER );
     }
 
     /* Handle subaddressing */
     if ( simta_subaddr_separator &&
 	    (( paddr = strchr( address, simta_subaddr_separator )) != NULL )) {
-	*paddr = '\0';
+	yaslrange( address, 0, paddr - address - 1 );
     }
-
-    key = yaslauto( address );
 
     if (( ret = simta_db_cursor_open( a->a_dbh, &dbcp )) != 0 ) {
 	syslog( LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
@@ -820,7 +804,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	goto done;
     }
 
-    if (( ret = simta_db_cursor_get( dbcp, &key, &value )) != 0 ) {
+    if (( ret = simta_db_cursor_get( dbcp, &address, &value )) != 0 ) {
 	if ( ret == SIMTA_DB_NOTFOUND ) {
 	    ret = ADDRESS_NOT_FOUND;
 	} else {
@@ -832,27 +816,15 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
     }
 
     if ( strcmp( address, STRING_POSTMASTER ) != 0 ) {
-	if ( owner_key == NULL ) {
-	    if (( owner_key = yaslempty( )) == NULL ) {
-		ret = ADDRESS_SYSERROR;
-		goto done;
-	    }
-	}
-	if (( owner_key = yaslcpy( owner_key, address )) == NULL ) {
-	    ret = ADDRESS_SYSERROR;
-	    goto done;
-	}
-	if (( owner_key = yaslcat( owner_key, "-errors" )) == NULL ) {
-	    ret = ADDRESS_SYSERROR;
-	    goto done;
-	}
+	owner = yasldup( address );
+	owner = yaslcat( owner, "-errors" );
 	if (( ret = simta_db_cursor_open( a->a_dbh, &owner_dbcp )) != 0 ) {
 	    syslog( LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
 		    simta_db_strerror( ret ));
 	    ret = ADDRESS_SYSERROR;
 	    goto done;
 	}
-	if (( ret = simta_db_cursor_get( owner_dbcp, &owner_key,
+	if (( ret = simta_db_cursor_get( owner_dbcp, &owner,
 		&owner_value )) != 0 ) {
 	    if ( ret != SIMTA_DB_NOTFOUND ) {
 		syslog( LOG_ERR,
@@ -862,7 +834,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 		goto done;
 	    }
 	} else {
-	    sprintf( owner, "%s-errors@%s", address, domain );
+	    owner = yaslcatprintf( owner, "@%s", domain );
 	    if (( e_addr->e_addr_errors =
 		    address_bounce_create( exp )) == NULL ) {
 		syslog( LOG_ERR, "Expand.alias env <%s>: <%s>: "
@@ -916,24 +888,24 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, struct action *a )
 	}
 
 	/* Get next db result, if any */
-	if (( ret = simta_db_cursor_get( dbcp, &key, &value )) != 0 ) {
+	if (( ret = simta_db_cursor_get( dbcp, &address, &value )) != 0 ) {
 	    if ( ret != SIMTA_DB_NOTFOUND ) {
 		syslog( LOG_ERR, "Liberror: alias_expand db_cursor_get: %s",
 		    simta_db_strerror( ret ));
 		ret = ADDRESS_SYSERROR;
-		goto done;
 	    } else {
 		/* one or more addresses found in alias db */
 		ret = ADDRESS_EXCLUDE;
-		goto done;
 	    }
+	    goto done;
 	}
     }
 
 done:
-    yaslfree( key );
+    yaslfree( address );
+    yaslfree( domain );
+    yaslfree( owner );
     yaslfree( value );
-    yaslfree( owner_key );
     yaslfree( owner_value );
     simta_db_cursor_close( dbcp );
     simta_db_cursor_close( owner_dbcp );
