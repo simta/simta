@@ -32,12 +32,6 @@
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
 
-/* FIXME: nah, mate. */
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
-#endif
-
 struct simta_red *red_host_lookup_( char*, struct simta_red** );
 
 

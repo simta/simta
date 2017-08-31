@@ -38,12 +38,6 @@
 
 #define	SIMTA_LDAP_CONF		"./simta_ldap.conf"
 
-/* FIXME: bruh. */
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
-#endif
-
 #define MAXRETRIES		5
 
 #define MAXAMBIGUOUS		10
@@ -1985,12 +1979,12 @@ simta_ldap_config( char *fname, char *domain )
 		goto errexit;
 	    }
 
-	    rdnpref = FALSE;
+	    rdnpref = 0;
 	    search_type = 0;
 	    acidx = 2;
 	    while ( acidx < ac ) {
 		if ( strcasecmp( av[acidx], "rdnpref") == 0 ) {
-		    rdnpref = TRUE;
+		    rdnpref = 1;
 		} else if ( strncasecmp( av[acidx], "searchtype=", 11) == 0 ) {
 		    c = &av[acidx][11];
 		    if ( strcasecmp( c, "ALL") == 0 ) {
