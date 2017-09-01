@@ -34,10 +34,6 @@
 #include <sys/prctl.h>
 #endif /* __linux__ */
 
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -51,6 +47,10 @@
 #include "ll.h"
 #include "queue.h"
 #include "simta.h"
+
+#ifdef HAVE_LIBSASL
+#include "simta_sasl.h"
+#endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
 #include "tls.h"
@@ -132,44 +132,6 @@ chld( int sig )
 #endif /* Q_SIMULATION */
     return;
 }
-
-
-#ifdef HAVE_LIBSASL
-    static int
-sasl_my_log( void *context __attribute__((unused)), int priority,
-	const char *message)
-{
-    const char *label;
-
-    if ( message == NULL ) {
-	return SASL_BADPARAM;
-    }
-
-    switch (priority) {
-    case SASL_LOG_ERR:
-	label = "Error";
-	break;
-    case SASL_LOG_NOTE:
-	label = "Info";
-	break;
-    default:
-	label = "Other";
-	break;
-    }
-
-    syslog( LOG_ERR, "SASL %s: %s", label, message );
-
-    return SASL_OK;
-}
-
-static sasl_callback_t callbacks[] = {
-  {
-    SASL_CB_LOG, &sasl_my_log, NULL
-  }, {
-    SASL_CB_LIST_END, NULL, NULL
-  }
-};
-#endif /* HAVE_LIBSASL */
 
 
     int
@@ -454,9 +416,7 @@ main( int ac, char **av )
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl == SIMTA_SASL_ON ) {
-	if (( rc = sasl_server_init( callbacks, "simta" )) != SASL_OK ) {
-	    syslog( LOG_ERR, "Liberror: sasl_server_init: %s",
-		    sasl_errstring( rc, NULL, NULL ));
+	if (( rc = simta_sasl_init()) != 0 ) {
 	    exit( 1 );
 	}
     }

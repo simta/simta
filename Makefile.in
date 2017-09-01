@@ -24,11 +24,13 @@ SIMTA_COMMAND=${SPOOLDIR}command
 SRC=    @LDAP_SRC@ @SSL_SRC@ @LMDB_SRC@ \
 	daemon.c receive.c argcargv.c envelope.c \
 	simsend.c simconnect.c rcptlist.c address.c \
-	simalias.c bounce.c wildcard.c yasl.c srs.c
+	simalias.c bounce.c wildcard.c yasl.c srs.c \
+	simta_sasl.c
 COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ @LMDB_OBJ@ @YASL_OBJ@ \
 		address.o argcargv.o bounce.o dns.o envelope.o \
 		expand.o header.o line_file.o ll.o ml.o q_cleanup.o \
-		queue.o red.o simta.o smtp.o srs.o spf.o wildcard.o
+		queue.o red.o simta.o simta_sasl.o smtp.o srs.o spf.o \
+		wildcard.o
 SIMTAOBJ=	${COMMONOBJ} daemon.o dmarc.o receive.o
 SIMCONOBJ=	${COMMONOBJ} simconnect.o
 SIMCOBJ=	${COMMONOBJ} simc.o

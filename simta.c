@@ -157,6 +157,9 @@ int			simta_child_signal = 0;
 int			simta_tls = 0;
 #endif /* HAVE_LIBSSL */
 int			simta_sasl = SIMTA_SASL_OFF;
+#ifdef HAVE_LIBSASL
+yastr			simta_sasl_domain = NULL;
+#endif /* HAVE_LIBSASL */
 char			*simta_port_smtp = "25";
 char			*simta_port_submission = "587";
 int			simta_service_smtp = 1;
@@ -1711,6 +1714,19 @@ simta_read_config( const char *fname )
 		goto error;
 	    }
 #endif /* HAVE_LIBSSL */
+
+#ifdef HAVE_LIBSASL
+	} else if ( strcasecmp( av[ 0 ], "SASL_DOMAIN" ) == 0 ) {
+	    if ( ac == 2 ) {
+		simta_sasl_domain = yaslauto( av[ 1 ] );
+		yasltolower( simta_sasl_domain );
+		simta_debuglog( 2, "SASL_DOMAIN: %s", simta_sasl_domain );
+		continue;
+	    }
+	    fprintf( stderr, "%s: line %d: usage: SASL_DOMAIN <domain>\n",
+		    fname, lineno );
+	    goto error;
+#endif /* HAVE_LIBSASL */
 
 	} else if ( strcasecmp( av[ 0 ], "SEEN_BEFORE_DOMAIN" ) == 0 ) {
 	    if ( ac != 2 ) {

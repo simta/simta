@@ -26,11 +26,6 @@
 #include <opendkim/dkim.h>
 #endif /* HAVE_LIBOPENDKIM */
 
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#include <sasl/saslutil.h>	/* For sasl_decode64 and sasl_encode64 */
-#endif /* HAVE_LIBSASL */
-
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -65,6 +60,10 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
 #endif /* HAVE_LDAP */
+
+#ifdef HAVE_LIBSASL
+#include "simta_sasl.h"
+#endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
 #include "md.h"
@@ -110,7 +109,7 @@ struct receive_data {
     struct command 		*r_commands;
     int				r_ncommands;
     int				r_smtp_mode;
-    char			*r_auth_id;
+    const char			*r_auth_id;
     struct timeval		r_tv_inactivity;
     struct timeval		r_tv_session;
     struct timeval		r_tv_accepted;
@@ -129,10 +128,7 @@ struct receive_data {
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
-    sasl_conn_t			*r_conn;
-    /* external security strength factor zero = NONE */
-    sasl_ssf_t			r_ext_ssf;
-    sasl_security_properties_t	r_secprops;
+    struct simta_sasl		*r_sasl;
     int				r_failedauth;
 #endif /* HAVE_LIBSASL */
 };
@@ -204,14 +200,9 @@ static int 	smtp_write_banner( struct receive_data *, int, const char *,
 static const char   *simta_dkim_authresult_str( DKIM_SIGERROR );
 #endif /* HAVE_LIBOPENDKIM */
 
-#ifdef HAVE_LIBSASL
-static int 	reset_sasl_conn( struct receive_data *r );
-#endif /* HAVE_LIBSASL */
-
 #ifdef HAVE_LIBSSL
 static int	f_starttls( struct receive_data * );
 static int	start_tls( struct receive_data *, SSL_CTX * );
-static int 	sasl_init( struct receive_data * );
 #endif /* HAVE_LIBSSL */
 
 static struct command	smtp_commands[] = {
@@ -741,10 +732,7 @@ f_ehlo( struct receive_data *r )
 
 #ifdef HAVE_LIBSASL
     if ( simta_sasl == SIMTA_SASL_ON ) {
-	if ( sasl_listmech( r->r_conn, NULL, "", " ", "", &mechlist, NULL,
-		NULL ) != SASL_OK ) {
-	    syslog( LOG_ERR, "Liberror: f_ehlo sasl_listmech: %s",
-		    sasl_errdetail( r->r_conn ));
+	if ( simta_sasl_mechlist( r->r_sasl, &mechlist ) != 0 ) {
 	    return( RECEIVE_SYSERROR );
 	}
 	if ( snet_writef( r->r_snet, "250%sAUTH %s\r\n",
@@ -2671,43 +2659,14 @@ f_starttls( struct receive_data *r )
 	r->r_hello = NULL;
     }
 
-    return( sasl_init( r ));
-}
-
-    int
-sasl_init( struct receive_data *r )
-{
 #ifdef HAVE_LIBSASL
-    int		rc;
-
     if ( simta_sasl == SIMTA_SASL_ON ) {
-	simta_debuglog( 3, "Auth: init sasl_setprop 1" );
-
-	/* Get cipher_bits and set SSF_EXTERNAL */
-	memset( &r->r_secprops, 0, sizeof( sasl_security_properties_t ));
-	if (( rc = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
-		&r->r_ext_ssf )) != SASL_OK ) {
-	    syslog( LOG_ERR, "Liberror: sasl_init sasl_setprop 1: %s",
-		    sasl_errdetail( r->r_conn ));
-	    return( RECEIVE_SYSERROR );
-	}
-
-	r->r_secprops.security_flags |= SASL_SEC_NOANONYMOUS;
-#ifdef SNET_HAVE_LIBSASL
-	r->r_secprops.maxbufsize = 4096;
-	r->r_secprops.max_ssf = 256;
-#endif /* SNET_HAVE_LIBSASL */
-
-	simta_debuglog( 3, "Auth: init sasl_setprop 2" );
-
-	if (( rc = sasl_setprop( r->r_conn, SASL_SEC_PROPS, &r->r_secprops))
-		!= SASL_OK ) {
-	    syslog( LOG_ERR, "Liberror: sasl_init sasl_setprop 2: %s",
-		    sasl_errdetail( r->r_conn ));
+	if ( simta_sasl_reset( r->r_sasl, r->r_tls ) != 0 ) {
 	    return( RECEIVE_SYSERROR );
 	}
     }
 #endif /* HAVE_LIBSASL */
+
     return( RECEIVE_OK );
 }
 
@@ -2738,6 +2697,9 @@ start_tls( struct receive_data *r, SSL_CTX *ssl_ctx )
 		r->r_ip, r->r_remote_hostname,
 		SSL_get_version( r->r_snet->sn_ssl ),
 		SSL_CIPHER_get_name( ssl_cipher ));
+	r->r_tls = SSL_CIPHER_get_bits( ssl_cipher, NULL );
+    } else {
+	return( RECEIVE_CLOSECONNECTION );
     }
 
     if ( simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER ) {
@@ -2747,7 +2709,6 @@ start_tls( struct receive_data *r, SSL_CTX *ssl_ctx )
 	}
     }
 
-    r->r_tls = 1;
     simta_smtp_extension--;
 
     /* CVE-2011-0411: discard pending data from libsnet */
@@ -2765,11 +2726,6 @@ f_auth( struct receive_data *r )
     struct timeval	tv;
 #ifdef HAVE_LIBSASL
     int			rc;
-    const char		*mechname;
-    char		base64[ BASE64_BUF_SIZE + 1 ];
-    unsigned int	clientinlen = 0;
-    const char		*serverout;
-    unsigned int	serveroutlen;
     struct dnsl_result	*authz_result;
 #endif /* HAVE_LIBSASL */
 
@@ -2878,45 +2834,12 @@ f_auth( struct receive_data *r )
 	return( f_bad_sequence( r ));
     }
 
-    /* Initial response */
-    if ( r->r_ac == 3 ) {
-	clientin = base64;
-	if ( strcmp( r->r_av[ 2 ], "=" ) == 0 ) {
-	    /* Zero-length initial response */
-	    base64[ 0 ] = '\0';
-	} else {
-	    if ( sasl_decode64( r->r_av[ 2 ], strlen( r->r_av[ 2 ]), clientin,
-		    BASE64_BUF_SIZE, & clientinlen ) != SASL_OK ) {
-		syslog( LOG_ERR, "Auth [%s] %s: %s: "
-			"unable to BASE64 decode argument: %s",
-			r->r_ip, r->r_remote_hostname, r->r_auth_id,
-			r->r_av[ 2 ]);
-		return( smtp_write_banner( r, 501, NULL,
-			"unable to BASE64 decode argument" ));
-	    }
-	}
-    }
+    rc = simta_sasl_server_auth( r->r_sasl, r->r_av[ 1 ],
+	    ( r->r_ac == 3 ) ? r->r_av[ 2 ] : NULL );
 
-    rc = sasl_server_start( r->r_conn, r->r_av[ 1 ], clientin, clientinlen,
-	&serverout, &serveroutlen );
-
-    while ( rc == SASL_CONTINUE ) {
-	/* send the challenge to the client */
-	if ( serveroutlen ) {
-	    if ( sasl_encode64( serverout, serveroutlen, base64,
-		    BASE64_BUF_SIZE, NULL ) != SASL_OK ) {
-		syslog( LOG_ERR, "Auth [%s] %s: %s: "
-			"unable to BASE64 encode argument",
-			r->r_ip, r->r_remote_hostname, r->r_auth_id );
-		return( RECEIVE_CLOSECONNECTION );
-	    }
-	    serverout = base64;
-	} else {
-	    serverout = "";
-	}
-
-	if ( smtp_write_banner( r, 334, (char*)serverout, NULL )
-		!= RECEIVE_OK ) {
+    while ( rc == 334 ) {
+	if ( smtp_write_banner( r, rc, r->r_sasl->s_response,
+		NULL ) != RECEIVE_OK ) {
 	    return( RECEIVE_CLOSECONNECTION );
 	}
 
@@ -2926,7 +2849,7 @@ f_auth( struct receive_data *r )
 	if (( clientin = snet_getline( r->r_snet, &tv )) == NULL ) {
 	    if ( snet_eof( r->r_snet )) {
 		syslog( LOG_ERR, "Auth [%s] %s: %s: unexpected EOF",
-			r->r_ip, r->r_remote_hostname, r->r_auth_id );
+			r->r_ip, r->r_remote_hostname, r->r_sasl->s_auth_id );
 	    } else {
 		syslog( LOG_ERR, "Liberror: f_auth snet_getline: %m" );
 	    }
@@ -2938,154 +2861,34 @@ f_auth( struct receive_data *r )
 	 * issues a line with a single "*". If the server receives such a
 	 * response, it MUST reject the AUTH command by sending a 501 reply.
 	 */
-	if ( clientin[ 0 ] == '*' && clientin[ 1 ] == '\0' ) {
+	if ( strcmp( clientin, "*" ) == 0 ) {
 	    syslog( LOG_ERR, "Auth [%s] %s: %s: "
 		    "client canceled authentication",
-		    r->r_ip, r->r_remote_hostname, r->r_auth_id );
-	    if ( reset_sasl_conn( r ) != SASL_OK ) {
+		    r->r_ip, r->r_remote_hostname, r->r_sasl->s_auth_id );
+
+	    simta_sasl_free( r->r_sasl );
+	    if (( r->r_sasl = simta_sasl_server_new( r->r_tls )) == NULL ) {
 		return( RECEIVE_CLOSECONNECTION );
 	    }
 	    return( smtp_write_banner( r, 501, NULL,
 		    "client canceled authentication" ));
 	}
 
-	/* decode response */
-	if ( sasl_decode64( clientin, strlen( clientin ), clientin,
-		BASE64_BUF_SIZE, &clientinlen ) != SASL_OK ) {
-	    syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		    "sasl_decode64: unable to BASE64 decode argument: %s",
-		    r->r_ip, r->r_remote_hostname, r->r_auth_id, clientin );
-	    return( smtp_write_banner( r, 501, NULL,
-		    "unable to BASE64 decode argument" ));
-	}
-
-	/* do next step */
-	rc = sasl_server_step( r->r_conn, clientin, clientinlen, &serverout,
-		&serveroutlen );
+	rc = simta_sasl_server_auth( r->r_sasl, NULL, clientin );
     }
 
-    sasl_getprop( r->r_conn, SASL_USERNAME, (const void **) &r->r_auth_id );
-
-    switch( rc ) {
-    case SASL_OK:
-	break;
-
-    /* RFC 4954 4 The AUTH Command
-     * If the requested authentication mechanism is invalid (e.g., is not
-     * supported or requires an encryption layer), the server rejects the AUTH
-     * command with a 504 reply.
-     */
-    case SASL_NOMECH:
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"Unrecognized authentication type: %s",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id, r->r_av[ 1 ] );
-	return( smtp_write_banner( r, 504, NULL, NULL ));
-
-    case SASL_ENCRYPT:
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"Encryption required for mechanism %s",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id, r->r_av[ 1 ] );
-	return( smtp_write_banner( r, 504, NULL, NULL ));
-
-    case SASL_BADPROT:
-	/* RFC 4954 4 The AUTH Command
-	 * If the client uses an initial-response argument to the AUTH command
-	 * with a SASL mechanism in which the client does not begin the
-	 * authentication exchange, the server MUST reject the AUTH command
-	 * with a 501 reply.
-	 */
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"Invalid initial-response argument for mechanism %s",
-	r->r_ip, r->r_remote_hostname, r->r_auth_id, r->r_av[ 1 ] );
-	return( smtp_write_banner( r, 501, NULL, NULL ));
-
-    case SASL_TOOWEAK:
-	/* RFC 4954 6 Status Codes
-	 * 534 5.7.9 Authentication mechanism is too weak
-	 * This response to the AUTH command indicates that the selected
-	 * authentication mechanism is weaker than server policy permits for
-	 * that user.
-	 */
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"Authentication mechanism is too weak",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id );
-	return( smtp_write_banner( r, 534, NULL, NULL ));
-
-    case SASL_TRANS:
-	/* RFC 4954 6 Status Codes
-	 * 432 4.7.12  A password transition is needed
-	 * This response to the AUTH command indicates that the user needs to
-	 * transition to the selected authentication mechanism.  This is
-	 * typically done by authenticating once using the [PLAIN]
-	 * authentication mechanism.  The selected mechanism SHOULD then work
-	 * for authentications in subsequent sessions.
-	 */
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"A password transition is needed",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id );
-	return( smtp_write_banner( r, 432, NULL, NULL ));
-
-    case SASL_FAIL:
-    case SASL_NOMEM:
-    case SASL_BUFOVER:
-    case SASL_TRYAGAIN:
-    case SASL_BADMAC:
-    case SASL_NOTINIT:
-	/* RFC 4954 6 Status Codes
-	 * 454 4.7.0  Temporary authentication failure
-	 * This response to the AUTH command indicates that the authentication
-	 * failed due to a temporary server failure.  The client SHOULD NOT
-	 * prompt the user for another password in this case, and should
-	 * instead notify the user of server failure.
-	 */
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"sasl_start_server: %s", r->r_ip, r->r_remote_hostname,
-		r->r_auth_id, sasl_errdetail( r->r_conn ));
-	return( smtp_write_banner( r, 454, NULL, NULL ));
-
-    default:
-	/* RFC 4954 4 The AUTH Command
-	 * If the server is unable to authenticate the client, it SHOULD reject
-	 * the AUTH command with a 535 reply unless a more specific error code
-	 * is appropriate.
-	 *
-	 * RFC 4954 6 Status Codes
-	 * 535 5.7.8  Authentication credentials invalid
-	 * This response to the AUTH command indicates that the authentication
-	 * failed due to invalid or insufficient authentication credentials.
-	 *
-	 * RFC 4954 4 The AUTH Command
-	 * Servers MAY implement a policy whereby the connection is dropped
-	 * after a number of failed authentication attempts. If they do so,
-	 * they SHOULD NOT drop the connection until at least 3 attempts to
-	 * authenticate have failed.
-	 */
-	r->r_failedauth++;
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"sasl_start_server: %s",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id,
-		sasl_errdetail( r->r_conn ));
-	rc = smtp_write_banner( r, 535, NULL, NULL );
+    /* Handle failed authn */
+    if ( rc != 235 ) {
+	if ( rc == 535 ) {
+	    r->r_failedauth++;
+	}
+	rc = smtp_write_banner( r, rc,
+		yasllen( r->r_sasl->s_response ) ? r->r_sasl->s_response : NULL,
+		NULL );
 	return(( r->r_failedauth < 3 ) ? rc : RECEIVE_CLOSECONNECTION );
     }
 
-    if ( sasl_getprop( r->r_conn, SASL_USERNAME,
-	    (const void **) &r->r_auth_id ) != SASL_OK ) {
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"sasl_getprop: %s",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id,
-		sasl_errdetail( r->r_conn ));
-	return( smtp_write_banner( r, 454, NULL, NULL ));
-    }
-
-    if ( sasl_getprop( r->r_conn, SASL_MECHNAME,
-	    (const void **) &mechname ) != SASL_OK ) {
-	syslog( LOG_ERR, "Auth [%s] %s: %s: "
-		"sasl_getprop: %s",
-		r->r_ip, r->r_remote_hostname, r->r_auth_id,
-		sasl_errdetail( r->r_conn ));
-	return( smtp_write_banner( r, 454, NULL, NULL ));
-    }
+    r->r_auth_id = r->r_sasl->s_auth_id;
 
     /* authn was successful, now we need to check authz */
     if (( authz_result = dnsl_check( "authz", NULL, r->r_auth_id )) == NULL ) {
@@ -3118,7 +2921,7 @@ f_auth( struct receive_data *r )
     }
 
     syslog( LOG_INFO, "Auth [%s] %s: %s authenticated via %s%s",
-	    r->r_ip, r->r_remote_hostname, r->r_auth_id, mechname,
+	    r->r_ip, r->r_remote_hostname, r->r_auth_id, r->r_sasl->s_mech,
 	    r->r_tls ? "+TLS" : "" );
 
     if ( smtp_write_banner( r, 235, NULL, NULL ) != RECEIVE_OK ) {
@@ -3126,35 +2929,6 @@ f_auth( struct receive_data *r )
     }
 
     r->r_auth = 1;
-
-#ifdef SNET_HAVE_LIBSASL
-    snet_setsasl( r->r_snet, r->r_conn );
-
-    /* RFC 4954 4 The AUTH Command
-     * If a security layer is negotiated during the SASL exchange, it takes
-     * effect for the client on the octet immediately following the CRLF
-     * that concludes the last response generated by the client.  For the
-     * server, it takes effect immediately following the CRLF of its success
-     * reply.
-     *
-     * When a security layer takes effect, the SMTP protocol is reset to the
-     * initial state (the state in SMTP after a server issues a 220 service
-     * ready greeting).  The server MUST discard any knowledge obtained from
-     * the client, such as the EHLO argument, which was not obtained from
-     * the SASL negotiation itself.
-     */
-     if ( snet_saslssf( r->r_snet )) {
-	if ( reset( r ) != 0 ) {
-	    return( RECEIVE_SYSERROR );
-	}
-	/* Some (all?) clients don't resend EHLO. If the previous value was
-	 * obtained under TLS, hang on to it. */
-	if ( r->r_hello && ( r->r_tls != 1 )) {
-	    free( r->r_hello );
-	    r->r_hello = NULL;
-	}
-    }
-#endif /* SNET_HAVE_LIBSASL */
 
     set_smtp_mode( r, simta_smtp_default_mode, "Default" );
 #endif /* HAVE_LIBSASL */
@@ -3971,101 +3745,12 @@ proxy_accept( struct receive_data *r )
     int
 auth_init( struct receive_data *r, struct simta_socket *ss )
 {
-    int					ret;
-#ifdef HAVE_LIBSASL
-    sasl_security_properties_t		secprops;
-#endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBSSL
     SSL_CTX				*ssl_ctx;
 #endif /* HAVE_LIBSSL */
 
-#ifdef HAVE_LIBSASL
-    if ( simta_sasl == SIMTA_SASL_ON ) {
-	set_smtp_mode( r, SMTP_MODE_NOAUTH, "Authentication" );
-	if (( ret = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
-		0, &(r->r_conn) )) != SASL_OK ) {
-	    syslog( LOG_ERR, "Liberror: auth_init sasl_server_new: %s",
-		    sasl_errstring( ret, NULL, NULL ));
-	    return( -1 );
-	}
-
-	/* Init defaults... */
-	memset( &secprops, 0, sizeof( secprops ));
-
-	/* maxbufsize = maximum security layer receive buffer size.
-	 * 0=security layer not supported
-	 *
-	 * security strength factor
-	 * min_ssf      = minimum acceptable final level
-	 * max_ssf      = maximum acceptable final level
-	 *
-	 * security_flags = bitfield for attacks to protect against
-	 *
-	 * NULL terminated array of additional property names, values
-	 * const char **property_names;
-	 * const char **property_values;
-	 */
-
-	/* These are the various security flags apps can specify. */
-	/* NOPLAINTEXT      -- don't permit mechanisms susceptible to simple
-	 *                     passive attack (e.g., PLAIN, LOGIN)
-	 * NOACTIVE         -- protection from active (non-dictionary) attacks
-	 *                     during authentication exchange.
-	 *                     Authenticates server.
-	 * NODICTIONARY     -- don't permit mechanisms susceptible to passive
-	 *                     dictionary attack
-	 * FORWARD_SECRECY  -- require forward secrecy between sessions
-	 *                     (breaking one won't help break next)
-	 * NOANONYMOUS      -- don't permit mechanisms that allow anonymous
-	 *		       login
-	 * PASS_CREDENTIALS -- require mechanisms which pass client
-	 *                     credentials, and allow mechanisms which can pass
-	 *                     credentials to do so
-	 * MUTUAL_AUTH      -- require mechanisms which provide mutual
-	 *                     authentication
-	 */
-
-	simta_debuglog( 3, "Auth: sasl_setprop 1" );
-
-	memset( &secprops, 0, sizeof( secprops ));
-#ifdef SNET_HAVE_LIBSASL
-	secprops.maxbufsize = 4096;
-	secprops.max_ssf = 256;
-#endif /* SNET_HAVE_LIBSASL */
-	secprops.security_flags |= SASL_SEC_NOPLAINTEXT;
-	secprops.security_flags |= SASL_SEC_NOANONYMOUS;
-	if (( ret = sasl_setprop( r->r_conn, SASL_SEC_PROPS, &secprops))
-		!= SASL_OK ) {
-	    syslog( LOG_ERR, "Liberror: auth_init sasl_setprop 1: %s",
-		    sasl_errdetail( r->r_conn ));
-	    return( -1 );
-	}
-
-	simta_debuglog( 3, "Auth: sasl_setprop 2" );
-
-	if (( ret = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
-		&(r->r_ext_ssf))) != SASL_OK ) {
-	    syslog( LOG_ERR, "Liberror: auth_init sasl_setprop 2: %s",
-		    sasl_errdetail( r->r_conn ));
-	    return( -1 );
-	}
-
-	simta_debuglog( 3, "Auth: sasl_setprop 3" );
-
-	if (( ret = sasl_setprop( r->r_conn, SASL_AUTH_EXTERNAL, r->r_auth_id ))
-		!= SASL_OK ) {
-	    syslog( LOG_ERR, "Liberror: auth_init sasl_setprop 3: %s",
-		    sasl_errdetail( r->r_conn ));
-	    return( -1 );
-	}
-    }
-#endif /* HAVE_LIBSASL */
-
 #ifdef HAVE_LIBSSL
     if ( ss->ss_flags & SIMTA_SOCKET_TLS ) {
-
-	simta_debuglog( 3, "Auth: start_tls" );
-
 	if (( ssl_ctx = tls_server_setup( simta_service_smtps, simta_file_ca,
 		simta_dir_ca, simta_file_cert, simta_file_private_key,
 		simta_tls_ciphers )) == NULL ) {
@@ -4083,16 +3768,19 @@ auth_init( struct receive_data *r, struct simta_socket *ss )
 
 	SSL_CTX_free( ssl_ctx );
 
-	simta_debuglog( 3, "Auth: sasl_init" );
-
-	if (( ret = sasl_init( r )) != RECEIVE_OK ) {
-	    return( -1 );
-	}
-
 	syslog( LOG_INFO, "Connect.in [%s] %s: SMTS", r->r_ip,
 		r->r_remote_hostname );
     }
 #endif /* HAVE_LIBSSL */
+
+#ifdef HAVE_LIBSASL
+    if ( simta_sasl == SIMTA_SASL_ON ) {
+	set_smtp_mode( r, SMTP_MODE_NOAUTH, "Authentication" );
+	if (( r->r_sasl = simta_sasl_server_new( r->r_tls )) == NULL ) {
+	    return( -1 );
+	}
+    }
+#endif /* HAVE_LIBSASL */
 
     simta_debuglog( 3, "Auth: init finished" );
 
@@ -4577,37 +4265,4 @@ content_filter( struct receive_data *r, char **smtp_message )
     }
 }
 
-#ifdef HAVE_LIBSASL
-    int
-reset_sasl_conn( struct receive_data *r )
-{
-
-    int         rc;
-
-    sasl_dispose( &r->r_conn );
-
-    if (( rc = sasl_server_new( "smtp", NULL, NULL, NULL, NULL, NULL,
-	    0, &r->r_conn )) != SASL_OK ) {
-	syslog( LOG_ERR, "Liberror: reset_sasl_conn sasl_server_new: %s",
-		sasl_errdetail( r->r_conn ));
-	return( rc );
-    }
-
-    if (( rc = sasl_setprop( r->r_conn, SASL_SSF_EXTERNAL,
-	    &r->r_ext_ssf )) != SASL_OK) {
-	syslog( LOG_ERR, "Liberror: reset_sasl_conn sasl_setprop 1: %s",
-		sasl_errdetail( r->r_conn ));
-	return( rc );
-    }
-
-    if (( rc = sasl_setprop( r->r_conn, SASL_AUTH_EXTERNAL,
-	    &r->r_ext_ssf )) != SASL_OK) {
-	syslog( LOG_ERR, "Liberror: reset_sasl_conn sasl_setprop 2: %s",
-		sasl_errdetail( r->r_conn ));
-	return( rc );
-    }
-
-    return( SASL_OK );
-}
-#endif /* HAVE_LIBSASL */
 /* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
