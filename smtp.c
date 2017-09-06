@@ -46,6 +46,7 @@ void	(*smtp_logger)(char *) = NULL;
 
 static void smtp_snet_eof( struct deliver *, const char * );
 static int smtp_check_banner_line( struct deliver *, char * );
+static int smtp_ehlo( struct host_q *, struct deliver * );
 
     int
 smtp_check_banner_line( struct deliver *d, char *line ) {
@@ -600,6 +601,24 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
     abort();
 }
 
+    int
+smtp_ehlo( struct host_q *hq, struct deliver *d )
+{
+    /* Reset state */
+    d->d_esmtp_8bitmime = 0;
+    d->d_esmtp_size = 0;
+    d->d_esmtp_starttls = 0;
+
+    /* (Re)send EHLO */
+    if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
+	syslog( LOG_ERR,
+		"Deliver.SMTP env <%s>: EHLO: snet_writef failed: %m",
+		d->d_env->e_id );
+	return( SMTP_BAD_CONNECTION );
+    }
+
+    return smtp_reply( SMTP_EHLO, hq, d );
+}
 
     int
 smtp_connect( struct host_q *hq, struct deliver *d )
@@ -629,13 +648,6 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 
     if (( r = smtp_reply( SMTP_CONNECT, hq, d )) != SMTP_OK ) {
 	return( r );
-    }
-
-    /* say EHLO */
-    if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
-	syslog( LOG_ERR, "Deliver.SMTP env <%s>: EHLO: snet_writef failed: %m",
-		d->d_env->e_id );
-	return( SMTP_BAD_CONNECTION );
     }
 
 #ifdef HAVE_LIBSSL
@@ -675,7 +687,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
     }
 #endif /* HAVE_LIBSSL */
 
-    r = smtp_reply( SMTP_EHLO, hq, d );
+    r = smtp_ehlo( hq, d );
 
     switch ( r ) {
     default:
@@ -808,21 +820,9 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 	 * first command after a successful TLS negotiation.
 	 */
 
-	d->d_esmtp_8bitmime = 0;
-	d->d_esmtp_size = 0;
-	d->d_esmtp_starttls = 0;
-	/* FIXME: reset state? (???) */
-
-	/* Resend EHLO */
-	if ( snet_writef( d->d_snet_smtp, "EHLO %s\r\n", simta_hostname ) < 0 ) {
-	    syslog( LOG_ERR,
-		    "Deliver.SMTP env <%s>: EHLO: snet_writef failed: %m",
-		    d->d_env->e_id );
-	    return( SMTP_BAD_CONNECTION );
+	if (( r = smtp_ehlo( hq, d )) != SMTP_OK ) {
+	    return( r );
 	}
-
-	r = smtp_reply( SMTP_EHLO, hq, d );
-
 #endif /* HAVE_LIBSSL */
 	break;
 
