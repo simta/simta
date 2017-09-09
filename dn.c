@@ -76,7 +76,7 @@ dn_normalize( char *dn )
 	    if ( *s == '"' ) {
 		state = INQUOTEDVALUE;
 		*d++ = *s;
-	    } else if ( ! SPACE( *s ) ) { 
+	    } else if ( ! SPACE( *s ) ) {
 		state = INVALUE;
 		*d++ = *s;
 	    }
@@ -116,7 +116,7 @@ dn_normalize( char *dn )
 	    }
 	    break;
 	default:
-	    fprintf (stderr, "dn_normalize - unknown state %d dn:%s \n", 
+	    fprintf (stderr, "dn_normalize - unknown state %d dn:%s \n",
 		    state, dn );
 	    break;
 	}

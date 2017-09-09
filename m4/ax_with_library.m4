@@ -13,7 +13,7 @@ AC_DEFUN([AX_WITH_LIBRARY],
 #ifndef ${CONFIG_PREFIX}HAVE_$2
 #define ${CONFIG_PREFIX}HAVE_$2
 #endif"
-             ], 
+             ],
             [AC_MSG_RESULT([no])]
         )],
         [AC_MSG_RESULT([disabled])]

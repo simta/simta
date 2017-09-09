@@ -1,5 +1,5 @@
 #ifndef SIMTA_ARGCARGV_H
-#define SIMTA_ARGCARGV_H 
+#define SIMTA_ARGCARGV_H
 
 #define argcargv(X, Y) (acav_parse( NULL, X, Y ))
 

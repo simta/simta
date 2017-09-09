@@ -1038,7 +1038,7 @@ env_read( int mode, struct envelope *env, SNET **s_lock )
     if ( version >= 2 ) {
 	/* Emessage-id */
 	line_no++;
-	if ((( line = snet_getline( snet, NULL )) == NULL ) || 
+	if ((( line = snet_getline( snet, NULL )) == NULL ) ||
 		( *line != 'E' )) {
 	    syslog( LOG_ERR,
 		    "Envelope.read %s %d: expected Equeue-id syntax",

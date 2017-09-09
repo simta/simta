@@ -677,8 +677,8 @@
  - Bug fix: Moderator string error checking & bounces
  - Bug fix: MO Moderator value can be other than "TRUE"
  - Bug fix: Moderators can always send to a MO group
- - Bug fix: auto-dns works 
- - Bug fix: simreverse core dump 
+ - Bug fix: auto-dns works
+ - Bug fix: simreverse core dump
  - Bug fix: logging for PM RBL
 
 0.4.8

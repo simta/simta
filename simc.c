@@ -133,10 +133,10 @@ main( int argc, char *argv[] )
 	exit( EX_TEMPFAIL );
     }
 
-    snprintf( tf, MAXPATHLEN, "%s/c%lX.%lX.%d", simta_dir_command, 
+    snprintf( tf, MAXPATHLEN, "%s/c%lX.%lX.%d", simta_dir_command,
 	    (unsigned long)tv_now.tv_sec, (unsigned long)tv_now.tv_usec, pid );
 
-    snprintf( cf, MAXPATHLEN, "%s/C%lX.%lX.%d", simta_dir_command, 
+    snprintf( cf, MAXPATHLEN, "%s/C%lX.%lX.%d", simta_dir_command,
 	    (unsigned long)tv_now.tv_sec, (unsigned long)tv_now.tv_usec, pid );
 
     /* make tfile */

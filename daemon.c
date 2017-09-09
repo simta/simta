@@ -996,7 +996,7 @@ simta_server( void )
 		goto error;
 	    }
 	    continue;
-	} 
+	}
 
 	if ( sleep_time > 0 ) {
 	    tv_sleep.tv_sec = sleep_time;

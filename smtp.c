@@ -108,7 +108,7 @@ smtp_consume_banner( struct line_file **err_text, struct deliver *d,
 	}
     }
 
-    if (( err_text != NULL )) { 
+    if (( err_text != NULL )) {
 	while (*(line + 3) == '-' ) {
 	    if (( line = snet_getline( d->d_snet_smtp, NULL )) == NULL ) {
 		smtp_snet_eof( d, "smtp_consume_banner: snet_getline" );
@@ -241,7 +241,7 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
     case '2':
 	switch ( smtp_command ) {
 	case SMTP_CONNECT:
-	    /* Loop detection 
+	    /* Loop detection
 	     * RFC 5321 4.2 SMTP Replies
 	     * Greeting = "220 " ( Domain / address-literal )
 	     *            [ SP textstring ] CRLF /
@@ -249,10 +249,10 @@ smtp_reply( int smtp_command, struct host_q *hq, struct deliver *d )
 	     *            [ SP textstring ] CRLF
 	     *            *( "220-" [ textstring ] CRLF )
 	     *            "220" [ SP textstring ] CRLF )
-	     * 
+	     *
 	     * "Greeting" appears only in the 220 response that announces that
 	     * the server is opening its part of the connection.
-	     * 
+	     *
 	     * RFC 5321 4.3.1 Sequencing Overview
 	     * Note: all the greeting-type replies have the official name (the
 	     * fully-qualified primary domain name) of the server host as the
@@ -913,7 +913,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
      *  sent.  The syntax of the value is as follows, using the ABNF
      *  notation of [RFC5234]:
      *
-     *  body-value = "7BIT" / "8BITMIME"	
+     *  body-value = "7BIT" / "8BITMIME"
      */
 
     if ( d->d_esmtp_8bitmime && ( d->d_env->e_attributes & ENV_ATTR_8BITMIME )) {
