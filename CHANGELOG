@@ -1,3 +1,11 @@
+1.1.1 (2017-09-12)
+    - simplified TLS config logic
+    - improved DMARC logging
+    - fixed last known portability issue with building on *BSD
+    - fixed some warnings and compilation issues
+    - refactored SASL authentication code
+    - added OpenARC support
+
 1.1.0 (2017-07-13)
     - fixed SPF crash on malformed record
     - improved DMARC spec conformance
