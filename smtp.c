@@ -170,14 +170,14 @@ smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
 	if (( strncasecmp( S_8BITMIME, c, strlen( S_8BITMIME )) == 0 )) {
 	    for ( c += strlen( S_8BITMIME ); isspace( *c ) ; c++ );
 	    if ( *c == '\0' ) {
-		simta_debuglog( 1, "Deliver.SMTP env <%s>: 8BITMIME supported",
+		simta_debuglog( 2, "Deliver.SMTP env <%s>: 8BITMIME supported",
 			d->d_env->e_id );
 		d->d_esmtp_8bitmime = 1;
 	    }
 	} else if (( strncasecmp( S_SIZE, c, strlen( S_SIZE )) == 0 )) {
 	    for ( c += strlen( S_SIZE ); isspace( *c ) ; c++ );
 	    if ( *c == '\0' ) {
-		simta_debuglog( 1, "Deliver.SMTP env <%s>: SIZE supported",
+		simta_debuglog( 2, "Deliver.SMTP env <%s>: SIZE supported",
 			d->d_env->e_id );
 		d->d_esmtp_size = -1;
 	    } else {
@@ -192,7 +192,7 @@ smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
 			    "error parsing SIZE parameter: %s",
 			    d->d_env->e_id, c );
 		} else {
-		    simta_debuglog( 1,
+		    simta_debuglog( 2,
 			    "Deliver.SMTP env <%s>: SIZE supported: %d",
 			    d->d_env->e_id, size );
 		    d->d_esmtp_size = size;
@@ -201,7 +201,7 @@ smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
 	} else if (( strncasecmp( S_STARTTLS, c, strlen( S_STARTTLS )) == 0 )) {
 	    for ( c += strlen( S_STARTTLS ); isspace( *c ) ; c++ );
 	    if ( *c == '\0' ) {
-		simta_debuglog( 1, "Deliver.SMTP env <%s>: STARTTLS supported",
+		simta_debuglog( 2, "Deliver.SMTP env <%s>: STARTTLS supported",
 			d->d_env->e_id );
 		d->d_esmtp_starttls = 1;
 	    }
