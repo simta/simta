@@ -1838,7 +1838,8 @@ f_data( struct receive_data *r )
 		}
 	    } else if ( f_result < 0 ) {
 		read_err = SYSTEM_ERROR;
-	    } else if ( line_no == 1 ) {
+	    } else if (( line_no == 1 ) &&
+		    ( simta_submission_mode != SUBMISSION_MODE_MSA )) {
 		/* Continue reading lines, but reject the message */
 		syslog( LOG_INFO,
 			"Receive [%s] %s: env <%s>: no message headers",
