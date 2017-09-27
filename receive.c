@@ -2166,58 +2166,7 @@ f_data( struct receive_data *r )
 		    ";\n\tarc=%s", arc_chain_str( arc ));
 	}
     }
-
-    if ( simta_auth_results && simta_arc ) {
-	if (( arc_key = simta_slurp( simta_arc_key )) == NULL ) {
-	    goto error;
-	}
-	arc_result = arc_getseal( arc, &arc_seal, simta_authres_domain,
-		simta_arc_selector, simta_arc_domain, (unsigned char *)arc_key,
-		yasllen( arc_key ), (unsigned char *)authresults );
-	simta_debuglog( 1, "Receive [%s] %s: env <%s>: ARC sign result: %d",
-		r->r_ip, r->r_remote_hostname, r->r_env->e_id, arc_result );
-	if ( arc_result == ARC_STAT_OK ) {
-	    yaslclear( authresults );
-	    for ( ; arc_seal; arc_seal = arc_hdr_next( arc_seal )) {
-		if ( yasllen( authresults ) > 0 ) {
-		    authresults = yaslcat( authresults, "\n" );
-		}
-		/* Despite the name, arc_hdr_name returns the entire header. */
-		authresults = yaslcat( authresults, (char *)arc_hdr_name(
-			arc_seal, NULL ));
-	    }
-	    yaslstrip( authresults, "\r" );
-	} else {
-	    /* Fall back to adding Authentication-Results. */
-	    authresults_plain = 1;
-	}
-    }
 #endif /* HAVE_LIBOPENARC */
-
-    if ( simta_auth_results && authresults_plain ) {
-	/* RFC 7601 2.2 Formal Definition
-	* authres-header = "Authentication-Results:" [CFWS] authserv-id
-	*			[ CFWS authres-version ]
-	*			( no-result / 1*resinfo ) [CFWS] CRLF
-	*/
-
-	authresults_tmp = yaslcatprintf( yaslempty( ),
-		"Authentication-Results: %s; %s", simta_authres_domain,
-		authresults );
-	yaslfree( authresults );
-	authresults = authresults_tmp;
-	authresults_tmp = NULL;
-    }
-
-    if ( simta_auth_results ) {
-	if ( r->r_env->e_extra_headers != NULL ) {
-	    authresults = yaslcatyasl( yaslcat( authresults, "\n" ),
-		    r->r_env->e_extra_headers );
-	    yaslfree( r->r_env->e_extra_headers );
-	}
-	r->r_env->e_extra_headers = authresults;
-	authresults = NULL;
-    }
 
     if (( simta_dmarc == DMARC_POLICY_STRICT ) &&
 	    ( r->r_dmarc_result == DMARC_RESULT_REJECT )) {
@@ -2418,6 +2367,60 @@ done:
     }
 
     if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
+#ifdef HAVE_LIBOPENARC
+	if ( simta_auth_results && simta_arc ) {
+	    if (( arc_key = simta_slurp( simta_arc_key )) == NULL ) {
+		goto error;
+	    }
+	    arc_result = arc_getseal( arc, &arc_seal, simta_authres_domain,
+		    simta_arc_selector, simta_arc_domain,
+		    (unsigned char *)arc_key, yasllen( arc_key ),
+		    (unsigned char *)authresults );
+	    simta_debuglog( 1, "Receive [%s] %s: env <%s>: ARC sign result: %d",
+		    r->r_ip, r->r_remote_hostname, r->r_env->e_id, arc_result );
+	    if ( arc_result == ARC_STAT_OK ) {
+		yaslclear( authresults );
+		for ( ; arc_seal; arc_seal = arc_hdr_next( arc_seal )) {
+		    if ( yasllen( authresults ) > 0 ) {
+			authresults = yaslcat( authresults, "\n" );
+		    }
+		    /* Despite the name, arc_hdr_name returns the entire header. */
+		    authresults = yaslcat( authresults, (char *)arc_hdr_name(
+			    arc_seal, NULL ));
+		}
+		yaslstrip( authresults, "\r" );
+	    } else {
+		/* Fall back to adding Authentication-Results. */
+		authresults_plain = 1;
+	    }
+	}
+#endif /* HAVE_LIBOPENARC */
+
+	if ( simta_auth_results && authresults_plain ) {
+	    /* RFC 7601 2.2 Formal Definition
+	    * authres-header = "Authentication-Results:" [CFWS] authserv-id
+	    *			[ CFWS authres-version ]
+	    *			( no-result / 1*resinfo ) [CFWS] CRLF
+	    */
+
+	    authresults_tmp = yaslcatprintf( yaslempty( ),
+		    "Authentication-Results: %s; %s", simta_authres_domain,
+		    authresults );
+	    yaslfree( authresults );
+	    authresults = authresults_tmp;
+	    authresults_tmp = NULL;
+	}
+
+	if ( simta_auth_results ) {
+	    if ( r->r_env->e_extra_headers != NULL ) {
+		authresults = yaslcatyasl( yaslcat( authresults, "\n" ),
+			r->r_env->e_extra_headers );
+		yaslfree( r->r_env->e_extra_headers );
+	    }
+	    r->r_env->e_extra_headers = authresults;
+	    authresults = NULL;
+	}
+
 	if ( env_outfile( r->r_env ) != 0 ) {
 	    goto error;
 	}
