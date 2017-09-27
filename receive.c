@@ -1811,6 +1811,15 @@ f_data( struct receive_data *r )
 	if ( *line == '.' ) {
 	    if ( strcmp( line, "." ) == 0 ) {
 		if (( read_err == NO_ERROR ) && ( header == 1 )) {
+		    if ( line_no == 1 ) {
+			syslog( LOG_INFO,
+				"Receive [%s] %s: env <%s>: empty message",
+				r->r_ip, r->r_remote_hostname, r->r_env->e_id );
+			system_message = "No mail data";
+			message_banner = MESSAGE_REJECT;
+			read_err = PROTOCOL_ERROR;
+			break;
+		    }
 		    header_only = 1;
 		} else {
 		    break;
@@ -1829,6 +1838,15 @@ f_data( struct receive_data *r )
 		}
 	    } else if ( f_result < 0 ) {
 		read_err = SYSTEM_ERROR;
+	    } else if ( line_no == 1 ) {
+		/* Continue reading lines, but reject the message */
+		syslog( LOG_INFO,
+			"Receive [%s] %s: env <%s>: no message headers",
+			r->r_ip, r->r_remote_hostname, r->r_env->e_id );
+		system_message = "Message is not RFC 5322 compliant";
+		message_banner = MESSAGE_REJECT;
+		read_err = PROTOCOL_ERROR;
+		header = 0;
 	    } else {
 		header = 0;
 		r->r_bad_headers = 0;
@@ -1972,8 +1990,7 @@ f_data( struct receive_data *r )
 	}
 
 	if ( read_err == NO_ERROR ) {
-	    if (( dff != NULL ) && ( header == 0 ) &&
-		    ( fprintf( dff, "%s\n", line ) < 0 )) {
+	    if (( header == 0 ) && ( fprintf( dff, "%s\n", line ) < 0 )) {
 		syslog( LOG_ERR, "Syserror: f_data fprintf: %m" );
 		read_err = SYSTEM_ERROR;
 	    } else {
@@ -2005,19 +2022,8 @@ f_data( struct receive_data *r )
 	    }
 	}
 
-	if (( read_err != NO_ERROR ) && ( dff != NULL )) {
-	    if ( fclose( dff ) != 0 ) {
-		syslog( LOG_ERR, "Syserror: f_data fclose 1: %m" );
-		read_err = SYSTEM_ERROR;
-	    }
-	    dff = NULL;
-	    if ( env_dfile_unlink( r->r_env ) != 0 ) {
-		read_err = SYSTEM_ERROR;
-	    }
-	}
-
 #ifdef HAVE_LIBSSL
-	if (( dff != NULL ) && ( simta_checksum_md != NULL )) {
+	if (( read_err == NO_ERROR ) && ( simta_checksum_md != NULL )) {
 	    /* Only add basic RFC5322 headers to the checksum. */
 	    if (( header == 0 ) ||
 		    ( strncasecmp( line, "Date:", 5 ) == 0 ) ||
@@ -2050,7 +2056,21 @@ f_data( struct receive_data *r )
 	    }
 	}
 
+	if ( read_err == NO_ERROR ) {
+	    message_banner = MESSAGE_ACCEPT;
+	} else {
+	    if ( env_dfile_unlink( r->r_env ) != 0 ) {
+		read_err = SYSTEM_ERROR;
+	    }
+	}
+    }
+
+    if ( read_err != NO_ERROR ) {
+	goto done;
+    }
+
 #ifdef HAVE_LIBSSL
+    if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
 	if ( simta_checksum_md != NULL ) {
 	    md_finalize( &r->r_md );
 	    md_finalize( &r->r_md_body );
@@ -2059,10 +2079,8 @@ f_data( struct receive_data *r )
 		    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
 		    r->r_md.md_b16, r->r_md_body.md_b16 );
 	}
-#endif /* HAVE_LIBSSL */
-
-	message_banner = MESSAGE_ACCEPT;
     }
+#endif /* HAVE_LIBSSL */
 
     syslog( LOG_INFO, "Receive [%s] %s: env <%s>: Subject: %s", r->r_ip,
 	    r->r_remote_hostname, r->r_env->e_id, r->r_env->e_subject );
@@ -2296,6 +2314,7 @@ f_data( struct receive_data *r )
 	}
     }
 
+done:
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
 	goto error;
     }
