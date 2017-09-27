@@ -1,3 +1,7 @@
+1.1.2 (2017-09-27)
+    - fixed rare crash in libopenarc by rejecting extremely malformed messages
+    - updated RPM spec to remove some outdated practises
+
 1.1.1 (2017-09-12)
     - simplified TLS config logic
     - improved DMARC logging
