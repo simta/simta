@@ -52,6 +52,9 @@ md_update( struct message_digest *md, const void *d, size_t cnt )
 md_finalize( struct message_digest *md )
 {
     int		i;
+    if ( md->md_ctx_status != MDCTX_READY ) {
+	return;
+    }
     EVP_DigestFinal_ex( md->md_ctx, md->md_value, &md->md_len );
     memset( md->md_b16, 0, ( EVP_MAX_MD_SIZE * 2 ) + 1 );
     for ( i = 0 ; i < md->md_len ; i++ ) {
