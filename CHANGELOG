@@ -1,3 +1,7 @@
+1.1.3 (2017-09-28)
+    - fixed checksum generation
+    - reduced ARC overhead by changing the timing of signature generation
+
 1.1.2 (2017-09-27)
     - fixed rare crash in libopenarc by rejecting extremely malformed messages
     - updated RPM spec to remove some outdated practises
