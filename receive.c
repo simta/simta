@@ -1485,7 +1485,7 @@ f_data( struct receive_data *r )
     int					dkim_body_started = 0;
 #ifdef HAVE_LIBOPENARC
     ARC_MESSAGE				*arc = NULL;
-    ARC_STAT				arc_result;
+    ARC_STAT				arc_result = ARC_STAT_INTERNAL;
     ARC_HDRFIELD			*arc_seal = NULL;
     yastr				arc_key = NULL;
     const unsigned char			*arc_err;
@@ -2155,7 +2155,7 @@ f_data( struct receive_data *r )
     }
 
 #ifdef HAVE_LIBOPENARC
-    if ( simta_arc ) {
+    if ( simta_arc && ( arc_result == ARC_STAT_OK )) {
 	arc_result = arc_eom( arc );
 	simta_debuglog( 1,
 		"Receive [%s] %s: env <%s>: ARC verify result: %s (%d)",
@@ -2369,15 +2369,20 @@ done:
     if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
 #ifdef HAVE_LIBOPENARC
 	if ( simta_auth_results && simta_arc ) {
-	    if (( arc_key = simta_slurp( simta_arc_key )) == NULL ) {
-		goto error;
+	    if ( arc_result == ARC_STAT_OK ) {
+		if (( arc_key = simta_slurp( simta_arc_key )) == NULL ) {
+		    goto error;
+		}
+		arc_result = arc_getseal( arc, &arc_seal, simta_authres_domain,
+			simta_arc_selector, simta_arc_domain,
+			(unsigned char *)arc_key, yasllen( arc_key ),
+			(unsigned char *)authresults );
+		simta_debuglog( 1,
+			"Receive [%s] %s: env <%s>: ARC sign result: %d",
+			r->r_ip, r->r_remote_hostname, r->r_env->e_id,
+			arc_result );
 	    }
-	    arc_result = arc_getseal( arc, &arc_seal, simta_authres_domain,
-		    simta_arc_selector, simta_arc_domain,
-		    (unsigned char *)arc_key, yasllen( arc_key ),
-		    (unsigned char *)authresults );
-	    simta_debuglog( 1, "Receive [%s] %s: env <%s>: ARC sign result: %d",
-		    r->r_ip, r->r_remote_hostname, r->r_env->e_id, arc_result );
+
 	    if ( arc_result == ARC_STAT_OK ) {
 		yaslclear( authresults );
 		for ( ; arc_seal; arc_seal = arc_hdr_next( arc_seal )) {
