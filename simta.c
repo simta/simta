@@ -2582,15 +2582,15 @@ simta_slurp( char *path )
     SNET		*snet;
     yastr		contents;
     ssize_t		chunk;
-    char		buf[ 1024 * 1024 ];
+    char		buf[ 16384 ];
 
-    if (( snet = snet_open( path, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
+    if (( snet = snet_open( path, O_RDONLY, 0, 16384 )) == NULL ) {
 	syslog( LOG_ERR, "Liberror: simta_slurp snet_open %s: %m", path );
 	return( NULL );
     }
 
     contents = yaslempty( );
-    while (( chunk = snet_read( snet, buf, 1024 * 1024, NULL )) > 0 ) {
+    while (( chunk = snet_read( snet, buf, 16384, NULL )) > 0 ) {
 	contents = yaslcatlen( contents, buf, chunk );
     }
 
