@@ -2584,7 +2584,7 @@ simta_slurp( char *path )
     ssize_t		chunk;
     char		buf[ 16384 ];
 
-    if (( snet = snet_open( path, O_RDONLY, 0, 16384 )) == NULL ) {
+    if (( snet = snet_open( path, O_RDONLY, 0, 1024 * 1024 )) == NULL ) {
 	syslog( LOG_ERR, "Liberror: simta_slurp snet_open %s: %m", path );
 	return( NULL );
     }

@@ -712,7 +712,7 @@ env_dkim_sign( struct envelope *env )
     DKIM_STAT	    result;
     yastr	    signature = NULL;
     yastr	    key = NULL;
-    char	    buf[ 1024 * 1024 ];
+    char	    buf[ 16384 ];
     unsigned char   *dkim_header;
     SNET	    *snet;
     ssize_t	    chunk;
@@ -763,7 +763,7 @@ env_dkim_sign( struct envelope *env )
 	goto error;
     }
 
-    while (( chunk = snet_read( snet, buf, 1024 * 1024, NULL )) > 0 ) {
+    while (( chunk = snet_read( snet, buf, 16384, NULL )) > 0 ) {
 	if (( result = dkim_chunk( dkim, (unsigned char *)buf,
 		chunk )) != 0 ) {
 	    syslog( LOG_NOTICE, "Liberror: env_dkim_sign dkim_chunk: %s: %s",
