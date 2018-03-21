@@ -468,14 +468,14 @@ dnsl_check( const char *chain, const struct sockaddr *sa, const char *text )
             }
         }
 
-        simta_debuglog( 1, "DNS List [%s]: Unlisted in %s list %s",
-                sa ? sa_ip : text, list->dnsl_type_text, list->dnsl_domain );
-
         free( lookup );
 
         if ( ret ) {
             return( ret );
         }
+
+        simta_debuglog( 1, "DNS List [%s]: Unlisted in %s list %s",
+                sa ? sa_ip : text, list->dnsl_type_text, list->dnsl_domain );
 
         yaslfree( ip );
         ip = NULL;
