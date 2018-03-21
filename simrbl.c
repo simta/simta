@@ -50,7 +50,7 @@ main( int argc, char *argv[])
     int                 check_text = 0;
     struct addrinfo     hints;
     struct addrinfo     *ai;
-    struct dnsl_result  *list;
+    struct dnsl_result  *list = NULL;
     struct timeval      tv_now;
 
     while(( c = getopt( argc, argv, "dil:ns:tq" )) != -1 ) {
@@ -98,7 +98,7 @@ main( int argc, char *argv[])
         }
     }
 
-    if (( argc - optind ) != 1 ) {
+    if (( argc - optind ) < 1 ) {
         err++;
     }
 
@@ -107,7 +107,7 @@ main( int argc, char *argv[])
         fprintf( stderr, "[ -dq ] " );
         fprintf( stderr, "[ -l dnsl-domain ] " );
         fprintf( stderr, "[ -s server ] " );
-        fprintf( stderr, "([ -i ] address | -t text )\n" );
+        fprintf( stderr, "([ -i ] address | -t text ) [...]\n" );
         exit( EX_USAGE );
     }
 
@@ -135,28 +135,33 @@ main( int argc, char *argv[])
         dnsl_add( simta_progname, DNSL_BLOCK, "mx-deny.dnsbl", NULL );
     }
 
-    if ( check_text == 0 ) {
-        memset( &hints, 0, sizeof( struct addrinfo ));
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_flags = AI_NUMERICHOST;
+    while (( optind < argc ) && ( list == NULL )) {
+        if ( check_text == 0 ) {
+            memset( &hints, 0, sizeof( struct addrinfo ));
+            hints.ai_family = AF_UNSPEC;
+            hints.ai_socktype = SOCK_STREAM;
+            hints.ai_flags = AI_NUMERICHOST;
 
-        if (( rc = getaddrinfo( argv[ optind ], NULL, &hints, &ai )) != 0 ) {
-            fprintf( stderr, "Syserror: getaddrinfo: %s\n", gai_strerror( rc ));
-            exit( SIMRBL_EXIT_ERROR );
+            if (( rc = getaddrinfo( argv[ optind ], NULL, &hints, &ai )) != 0 ) {
+                fprintf( stderr, "Syserror: getaddrinfo: %s\n", gai_strerror( rc ));
+                exit( SIMRBL_EXIT_ERROR );
+            }
+
+            list = dnsl_check( simta_progname, ai->ai_addr, NULL );
+        } else {
+            list = dnsl_check( simta_progname, NULL, argv[ optind ] );
         }
-
-        list = dnsl_check( simta_progname, ai->ai_addr, NULL );
-    } else {
-        list = dnsl_check( simta_progname, NULL, argv[ optind ] );
+        if ( list == NULL ) {
+            optind++;
+        }
     }
 
     if ( list == NULL ) {
         if ( !quiet ) printf( "not found\n" );
         exit( SIMRBL_EXIT_NOT_BLOCKED );
     } else {
-        if ( !quiet ) printf( "found in %s: %s (%s)\n", list->dnsl->dnsl_domain,
-                list->dnsl_result, list->dnsl_reason );
+        if ( !quiet ) printf( "%s found in %s: %s (%s)\n", argv[ optind ],
+                list->dnsl->dnsl_domain, list->dnsl_result, list->dnsl_reason );
         exit( SIMRBL_EXIT_BLOCKED );
     }
 }
