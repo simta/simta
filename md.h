@@ -21,7 +21,7 @@ struct message_digest {
 };
 
 void md_init( struct message_digest * );
-void md_reset( struct message_digest * );
+void md_reset( struct message_digest *, const char * );
 void md_update( struct message_digest *, const void *, size_t );
 void md_finalize( struct message_digest * );
 void md_cleanup( struct message_digest * );

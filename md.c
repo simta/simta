@@ -21,7 +21,7 @@ md_init( struct message_digest *md )
 }
 
     void
-md_reset( struct message_digest *md )
+md_reset( struct message_digest *md, const char *digest )
 {
     if ( md->md_ctx_status != MDCTX_READY ) {
         if ( md->md_ctx_status == MDCTX_UNINITIALIZED ) {
@@ -34,7 +34,7 @@ md_reset( struct message_digest *md )
             EVP_DigestFinal_ex( md->md_ctx, md->md_value, &md->md_len );
         }
 
-        EVP_DigestInit_ex( md->md_ctx, simta_checksum_md, NULL );
+        EVP_DigestInit_ex( md->md_ctx, EVP_get_digestbyname( digest ), NULL );
         md->md_ctx_status = MDCTX_READY;
         md->md_ctx_bytes = 0;
     }

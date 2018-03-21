@@ -1045,8 +1045,8 @@ f_mail( struct receive_data *r )
 #endif /* HAVE_LIBOPENDKIM */
 
 #ifdef HAVE_LIBSSL
-    if ( simta_checksum_md != NULL ) {
-        md_reset( &r->r_md );
+    if ( simta_checksum_algorithm != NULL ) {
+        md_reset( &r->r_md, simta_checksum_algorithm );
     }
 #endif /* HAVE_LIBSSL */
 
@@ -1258,7 +1258,7 @@ f_rcpt( struct receive_data *r )
             r->r_failed_rcpts++;
             if ( rc < 0 ) {
 #ifdef HAVE_LIBSSL
-                if ( simta_checksum_md != NULL ) {
+                if ( simta_checksum_algorithm != NULL ) {
                     md_update( &r->r_md, addr, strlen( addr ));
                 }
 #endif /* HAVE_LIBSSL */
@@ -1331,7 +1331,7 @@ f_rcpt( struct receive_data *r )
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr );
 
 #ifdef HAVE_LIBSSL
-                if ( simta_checksum_md != NULL ) {
+                if ( simta_checksum_algorithm != NULL ) {
                     md_update( &r->r_md, addr, strlen( addr ));
                 }
 #endif /* HAVE_LIBSSL */
@@ -1415,7 +1415,7 @@ f_rcpt( struct receive_data *r )
     }
 
 #ifdef HAVE_LIBSSL
-    if ( simta_checksum_md != NULL ) {
+    if ( simta_checksum_algorithm != NULL ) {
         md_update( &r->r_md, addr, strlen( addr ));
     }
 #endif /* HAVE_LIBSSL */
@@ -1937,8 +1937,8 @@ f_data( struct receive_data *r )
                 }
 
 #ifdef HAVE_LIBSSL
-                if ( simta_checksum_md != NULL ) {
-                    md_reset( &r->r_md_body );
+                if ( simta_checksum_algorithm != NULL ) {
+                    md_reset( &r->r_md_body, simta_checksum_algorithm );
                 }
 #endif /* HAVE_LIBSSL */
 
@@ -2012,7 +2012,7 @@ f_data( struct receive_data *r )
         }
 
 #ifdef HAVE_LIBSSL
-        if (( read_err == NO_ERROR ) && ( simta_checksum_md != NULL )) {
+        if (( read_err == NO_ERROR ) && ( simta_checksum_algorithm != NULL )) {
             /* Only add basic RFC5322 headers to the checksum. */
             if (( header == 0 ) ||
                     ( strncasecmp( line, "Date:", 5 ) == 0 ) ||
@@ -2060,7 +2060,7 @@ f_data( struct receive_data *r )
 
 #ifdef HAVE_LIBSSL
     if ( r->r_env->e_flags & ENV_FLAG_DFILE ) {
-        if ( simta_checksum_md != NULL ) {
+        if ( simta_checksum_algorithm != NULL ) {
             md_finalize( &r->r_md );
             md_finalize( &r->r_md_body );
             syslog( LOG_INFO,
@@ -4333,7 +4333,7 @@ content_filter( struct receive_data *r, char **smtp_message )
         }
 
 #ifdef HAVE_LIBSSL
-        if ( simta_checksum_md != NULL ) {
+        if ( simta_checksum_algorithm != NULL ) {
             filter_envp[ filter_envc++ ] =
                     env_string( "SIMTA_CHECKSUM_SIZE", r->r_md.md_bytes );
 

@@ -285,7 +285,6 @@ extern yastr                            simta_sasl_domain;
 #ifdef HAVE_LIBSSL
 extern char                             *simta_port_smtps;
 extern int                              simta_service_smtps;
-extern const EVP_MD                     *simta_checksum_md;
 extern char                             *simta_checksum_algorithm;
 extern int                              simta_checksum_body;
 #endif /* HAVE_LIBSSL */

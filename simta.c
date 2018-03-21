@@ -167,8 +167,7 @@ int                     simta_service_submission = 0;
 #ifdef HAVE_LIBSSL
 char                    *simta_port_smtps = "465";
 int                     simta_service_smtps = 0;
-const EVP_MD            *simta_checksum_md = NULL;
-char                    *simta_checksum_algorithm;
+char                    *simta_checksum_algorithm = NULL;
 int                     simta_checksum_body = 1;
 #endif /* HAVE_LIBSSL */
 int                     simta_max_message_size = -1;
@@ -381,6 +380,9 @@ simta_read_config( const char *fname )
     struct action       *a;
     struct simta_ldap   *ld;
 #endif /* HAVE_LDAP */
+#ifdef HAVE_LIBSSL
+    const EVP_MD        *testdigest = NULL;
+#endif /* HAVE_LIBSSL */
 
     simta_debuglog( 2, "simta_config: %s", fname );
 
@@ -1000,8 +1002,8 @@ simta_read_config( const char *fname )
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
             OpenSSL_add_all_digests();
 #endif /* OpenSSL < 1.1.0 */
-            simta_checksum_md = EVP_get_digestbyname( (const char*)(av[ 1 ]));
-            if ( simta_checksum_md == NULL ) {
+            testdigest = EVP_get_digestbyname( (const char*)(av[ 1 ]));
+            if ( testdigest == NULL ) {
                 fprintf( stderr, "%s: line %d: Unknown message digest: %s\n",
                         fname, lineno, av[ 1 ]);
                 goto error;

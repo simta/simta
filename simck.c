@@ -17,9 +17,6 @@
 
 #include "md.h"
 
-extern const EVP_MD *simta_checksum_md;
-const EVP_MD        *simta_checksum_md = NULL;
-
     int
 main( int argc, char *argv[])
 {
@@ -27,6 +24,7 @@ main( int argc, char *argv[])
     SNET                        *snet;
     char                        *line;
     u_int                       line_len;
+    const EVP_MD                *testdigest;
     struct message_digest       md;
 
     if ( argc != 3 ) {
@@ -38,15 +36,15 @@ main( int argc, char *argv[])
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
     OpenSSL_add_all_digests();
 #endif /* OpenSSL < 1.1.0 */
-    simta_checksum_md = EVP_get_digestbyname((const char*)(argv[ 1 ]));
+    testdigest = EVP_get_digestbyname((const char*)(argv[ 1 ]));
 
-    if ( simta_checksum_md == NULL ) {
+    if ( testdigest == NULL ) {
         fprintf( stderr, "%s: unknown checksum algorithm\n", argv[ 1 ]);
         return( 1 );
     }
 
     md_init( &md );
-    md_reset( &md );
+    md_reset( &md, argv[ 1 ] );
 
     if (( fd = open( argv[ 2 ], O_RDONLY, 0 )) < 0 ) {
         perror( "open" );
