@@ -337,6 +337,15 @@ check_hostname( const char *hostname )
     }
     dnsr_free_result( result );
 
+    if (( result = get_aaaa( hostname )) == NULL ) {
+        return( -1 );
+    }
+    if ( result->r_ancount > 0 ) {
+        dnsr_free_result( result );
+        return( 0 );
+    }
+    dnsr_free_result( result );
+
     return( 1 );
 }
 
