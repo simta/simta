@@ -13,7 +13,7 @@
 #include "dns.h"
 #include "simta.h"
 
-static int dmarc_alignment( char *, char *, int );
+static int dmarc_alignment( const char *, const char *, int );
 static struct dnsr_result *dmarc_lookup_record( const char * );
 static yastr dmarc_orgdomain( const char * );
 static int dmarc_parse_record( struct dmarc *, yastr );
@@ -126,7 +126,7 @@ dmarc_lookup( struct dmarc *d, const char *domain )
      */
     d->result = DMARC_RESULT_ORGDOMAIN;
     orgdomain = dmarc_orgdomain( d->domain );
-    if ( yaslcmp( orgdomain, d->domain ) == 0 ) {
+    if (( orgdomain == NULL ) || ( yaslcmp( orgdomain, d->domain ) == 0 )) {
         yaslfree( orgdomain );
         return( 1 );
     }
@@ -250,7 +250,7 @@ dmarc_spf_result( struct dmarc *d, char *domain )
 }
 
     static int
-dmarc_alignment( char *domain1, char *domain2, int apolicy )
+dmarc_alignment( const char *domain1, const char *domain2, int apolicy )
 {
     yastr   orgdomain1, orgdomain2;
     int     a;
@@ -265,7 +265,7 @@ dmarc_alignment( char *domain1, char *domain2, int apolicy )
 
     orgdomain1 = dmarc_orgdomain( domain1 );
     orgdomain2 = dmarc_orgdomain( domain2 );
-    a = yaslcmp( orgdomain1, orgdomain2 );
+    a = strcasecmp( orgdomain1 ? orgdomain1 : domain1, orgdomain2 ? orgdomain2 : domain2 );
     yaslfree( orgdomain1 );
     yaslfree( orgdomain2 );
 
@@ -334,10 +334,10 @@ dmarc_orgdomain( const char *domain ) {
      */
 
     if ( simta_publicsuffix_list == NULL ) {
-        /* We can't reliably guess the organizational domain. Return the
-         * original domain.
+        /* We can't reliably guess the organizational domain, so we're not
+         * even going to try.
          */
-        return( yaslauto( domain ));
+        return( NULL );
     }
 
     split = yaslsplitlen( domain, strlen( domain ), ".", 1, &tok_count );
@@ -365,9 +365,8 @@ dmarc_orgdomain( const char *domain ) {
 
     if ( i > 0 ) {
         i--;
+        orgdomain = yasljoinyasl( split + i, tok_count - i, ".", 1 );
     }
-
-    orgdomain = yasljoinyasl( split + i, tok_count - i, ".", 1 );
 
     yaslfreesplitres( split, tok_count );
     yaslfree( buf );
