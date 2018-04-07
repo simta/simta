@@ -2383,7 +2383,7 @@ simta_read_publicsuffix ( void )
             /* Each line is only read up to the first whitespace; entire
              * lines can also be commented using //.
              */
-            if (( *line == '\0' ) || ( *line == ' ' ) || ( *line == '\t' ) ||
+            if (( *line == '\0' ) || isspace( *line ) ||
                     ( strncmp( line, "//", 2 ) == 0 )) {
                 continue;
             }
@@ -2418,6 +2418,11 @@ simta_read_publicsuffix ( void )
 
                 *p = '\0';
             }
+
+            /* Formal algorithm from https://publicsuffix.org/list/
+             * If no rules match, the prevailing rule is "*".
+             */
+            leaf = dll_lookup_or_create( &simta_publicsuffix_list, "*" );
 
 #ifdef HAVE_LIBIDN
             if ( idna ) {
