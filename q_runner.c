@@ -37,55 +37,55 @@
 #include "smtp.h"
 #include "ml.h"
 
-const char	*simta_progname = "q_runner";
+const char      *simta_progname = "q_runner";
 
     int
 main( int argc, char *argv[] )
 {
-    char			*conf_file = NULL;
-    char			*op;
+    char                        *conf_file = NULL;
+    char                        *op;
 
     simta_debug = 1;
 
     if (( argc != 4 ) && ( argc != 3 )) {
-	fprintf( stderr,
-		"Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW )\n",
-		argv[ 0 ]);
-	exit( EX_USAGE );
+        fprintf( stderr,
+                "Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW )\n",
+                argv[ 0 ]);
+        exit( EX_USAGE );
     }
 
     if ( argc == 4 ) {
-	conf_file = argv[ 2 ];
-	op = argv[ 3 ];
+        conf_file = argv[ 2 ];
+        op = argv[ 3 ];
     } else {
-	op = argv[ 2 ];
+        op = argv[ 2 ];
     }
 
     if ( simta_read_config( conf_file ) < 0 ) {
-	fprintf( stderr, "simta_read_config error\n" );
-	exit( EX_DATAERR );
+        fprintf( stderr, "simta_read_config error\n" );
+        exit( EX_DATAERR );
     }
 
     simta_base_dir = argv[ 1 ];
     /* init simta config / defaults */
     if ( simta_config( ) != 0 ) {
-	fprintf( stderr, "simta_config error\n" );
-	exit( EX_DATAERR );
+        fprintf( stderr, "simta_config error\n" );
+        exit( EX_DATAERR );
     }
 
     simta_openlog( 0, 0 );
 
     if ( strcasecmp( op, "LOCAL" ) == 0 ) {
-	exit( q_runner_dir( simta_dir_local ));
+        exit( q_runner_dir( simta_dir_local ));
 
     } else if ( strcasecmp( op, "SLOW" ) == 0 ) {
-	exit( q_runner_dir( simta_dir_slow ));
+        exit( q_runner_dir( simta_dir_slow ));
 
     } else {
-	fprintf( stderr,
-		"Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW | CLEAN )\n",
-		argv[ 0 ]);
-	exit( EX_USAGE );
+        fprintf( stderr,
+                "Usage: %s conf_file [ base_dir ] ( LOCAL | SLOW | CLEAN )\n",
+                argv[ 0 ]);
+        exit( EX_USAGE );
     }
 }
-/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
+/* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

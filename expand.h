@@ -2,96 +2,96 @@
 #define SIMTA_EXPAND_H
 
 /* expansion types */
-#define	EXPANSION_TYPE_PASSWORD		1
-#define	EXPANSION_TYPE_ALIAS		2
-#define	EXPANSION_TYPE_LDAP		3
-#define	EXPANSION_TYPE_GLOBAL_RELAY	4
-#define	EXPANSION_TYPE_SRS		5
+#define EXPANSION_TYPE_PASSWORD         1
+#define EXPANSION_TYPE_ALIAS            2
+#define EXPANSION_TYPE_LDAP             3
+#define EXPANSION_TYPE_GLOBAL_RELAY     4
+#define EXPANSION_TYPE_SRS              5
 
 /* return codes for expand_and_deliver(...) */
-#define	EXPAND_OK			0
-#define	EXPAND_SYSERROR			1
-#define	EXPAND_FATAL			2
+#define EXPAND_OK                       0
+#define EXPAND_SYSERROR                 1
+#define EXPAND_FATAL                    2
 
 /* return codes for address expansion */
-#define	ADDRESS_SYSERROR		1
-#define	ADDRESS_NOT_FOUND		2
-#define	ADDRESS_FINAL			3
-#define	ADDRESS_EXCLUDE			4
+#define ADDRESS_SYSERROR                1
+#define ADDRESS_NOT_FOUND               2
+#define ADDRESS_FINAL                   3
+#define ADDRESS_EXCLUDE                 4
 
 /* address types */
-#define	ADDRESS_TYPE_EMAIL		1
-#define	ADDRESS_TYPE_DEAD		2
+#define ADDRESS_TYPE_EMAIL              1
+#define ADDRESS_TYPE_DEAD               2
 #ifdef HAVE_LDAP
-#define	ADDRESS_TYPE_LDAP		3
+#define ADDRESS_TYPE_LDAP               3
 #endif /* HAVE_LDAP */
 
 #ifdef HAVE_LDAP
-#define	STATUS_LDAP_MEMONLY		(1<<0)
-#define	STATUS_LDAP_PRIVATE		(1<<1)
-#define	STATUS_LDAP_SUPPRESSOR		(1<<2)
-#define	STATUS_LDAP_SUPPRESSED		(1<<3)
-#define	STATUS_EMAIL_SENDER		(1<<4)
-#define	STATUS_NO_EMAIL_SENDER		(1<<5)
-#define	STATUS_ROOT_PATH		(1<<6)
-#define	STATUS_NO_ROOT_PATH		(1<<7)
+#define STATUS_LDAP_MEMONLY             (1<<0)
+#define STATUS_LDAP_PRIVATE             (1<<1)
+#define STATUS_LDAP_SUPPRESSOR          (1<<2)
+#define STATUS_LDAP_SUPPRESSED          (1<<3)
+#define STATUS_EMAIL_SENDER             (1<<4)
+#define STATUS_NO_EMAIL_SENDER          (1<<5)
+#define STATUS_ROOT_PATH                (1<<6)
+#define STATUS_NO_ROOT_PATH             (1<<7)
 #endif /* HAVE_LDAP */
 
 struct expand_output {
-    char			*eo_from;
-    char			*eo_hostname;
-    struct envelope		*eo_env;
-    struct expand_output	*eo_next;
+    char                        *eo_from;
+    char                        *eo_hostname;
+    struct envelope             *eo_env;
+    struct expand_output        *eo_next;
 };
 
 struct expand {
-    struct envelope		*exp_env;	/* original envelope */
-    struct exp_addr		*exp_addr_head;	/* list of expanded addresses */
-    struct exp_addr		*exp_addr_tail;
-    struct exp_addr		*exp_addr_cursor;	/* cursor */
-    struct action		*exp_current_action;
-    struct envelope		*exp_errors;	/* error envelope list */
+    struct envelope             *exp_env;       /* original envelope */
+    struct exp_addr             *exp_addr_head; /* list of expanded addresses */
+    struct exp_addr             *exp_addr_tail;
+    struct exp_addr             *exp_addr_cursor;       /* cursor */
+    struct action               *exp_current_action;
+    struct envelope             *exp_errors;    /* error envelope list */
 #ifdef HAVE_LDAP
-    struct exp_link		*exp_memonly;
-    struct envelope		*exp_gmailfwding;
+    struct exp_link             *exp_memonly;
+    struct envelope             *exp_gmailfwding;
 #endif /* HAVE_LDAP */
-    int				exp_max_level;
-    int				exp_entries;
+    int                         exp_max_level;
+    int                         exp_entries;
 };
 
 #ifdef HAVE_LDAP
 struct exp_link {
-    struct exp_link		*el_next;
-    struct exp_addr		*el_exp_addr;
+    struct exp_link             *el_next;
+    struct exp_addr             *el_exp_addr;
 };
 #endif /* HAVE_LDAP */
 
 struct exp_addr {
-    struct exp_addr		*e_addr_next;
-    char			*e_addr;	/* address string */
-    char			*e_addr_at;	/* char the email addresses @ */
-    char			*e_addr_from;
-    struct envelope		*e_addr_errors;	/* address error handle */
-    struct action		*e_addr_parent_action;
-    int				e_addr_type;	/* address data type */
-    int				e_addr_terminal;
-    int				e_addr_max_level;
+    struct exp_addr             *e_addr_next;
+    char                        *e_addr;        /* address string */
+    char                        *e_addr_at;     /* char the email addresses @ */
+    char                        *e_addr_from;
+    struct envelope             *e_addr_errors; /* address error handle */
+    struct action               *e_addr_parent_action;
+    int                         e_addr_type;    /* address data type */
+    int                         e_addr_terminal;
+    int                         e_addr_max_level;
 #ifdef HAVE_LDAP
-    int				e_addr_try_ldap;
-    int				e_addr_ldap_flags;
-    int				e_addr_anti_loop;
-    char			*e_addr_dn;
-    char			*e_addr_owner;
-    struct stab_entry		*e_addr_ok;
-    struct envelope		*e_addr_env_moderated;
-    struct envelope		*e_addr_env_gmailfwd;
-    struct exp_link		*e_addr_parents;
-    struct exp_link		*e_addr_children;
+    int                         e_addr_try_ldap;
+    int                         e_addr_ldap_flags;
+    int                         e_addr_anti_loop;
+    char                        *e_addr_dn;
+    char                        *e_addr_owner;
+    struct stab_entry           *e_addr_ok;
+    struct envelope             *e_addr_env_moderated;
+    struct envelope             *e_addr_env_gmailfwd;
+    struct exp_link             *e_addr_parents;
+    struct exp_link             *e_addr_children;
 #endif /* HAVE_LDAP */
 };
 
 /* expand.c */
-int	expand( struct envelope * );
+int     expand( struct envelope * );
 struct envelope *eo_lookup( struct expand_output *, char *, char * );
 int eo_insert( struct expand_output **, struct envelope * );
 
@@ -104,7 +104,7 @@ struct envelope *address_bounce_create( struct expand* );
 int address_expand( struct expand * );
 void expand_tree_stdout( struct exp_addr *, int );
 int address_string_recipients( struct expand *, char *, struct exp_addr *,
-	char * );
+        char * );
 
 #ifdef HAVE_LDAP
 int exp_addr_link( struct exp_link **, struct exp_addr * );
@@ -119,4 +119,4 @@ char *parent_permitted( struct exp_addr * );
 #endif /* HAVE_LDAP */
 
 #endif /* SIMTA_EXPAND_H */
-/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
+/* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

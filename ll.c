@@ -22,10 +22,10 @@
 ll_lookup( struct stab_entry *st, const char *key )
 {
     for( ; st != NULL; st = st->st_next ) {
-	if ( strcasecmp( st->st_key, key ) == 0 ) {
-	    /* match found */
-	    return( st->st_data );
-	}
+        if ( strcasecmp( st->st_key, key ) == 0 ) {
+            /* match found */
+            return( st->st_data );
+        }
     }
     /* no match found */
     return( NULL );
@@ -44,13 +44,13 @@ ll_default_compare( char *a, char *b )
 
     int
 ll_insert( struct stab_entry **stab, char *key, void *data,
-	int (*ll_compare)( char *, char * ))
+        int (*ll_compare)( char *, char * ))
 {
-    struct stab_entry	*st;
-    struct stab_entry	**i;
+    struct stab_entry   *st;
+    struct stab_entry   **i;
 
     if ( ll_compare == NULL ) {
-	ll_compare = ll_default_compare;
+        ll_compare = ll_default_compare;
     }
 
     st = calloc( 1, sizeof( struct stab_entry ));
@@ -59,9 +59,9 @@ ll_insert( struct stab_entry **stab, char *key, void *data,
     st->st_data = data;
 
     for ( i = stab; *i != NULL; i = &((*i)->st_next) ) {
-	if ( ll_compare( st->st_key, (*i)->st_key ) < 0 ) {
-	    break;
-	}
+        if ( ll_compare( st->st_key, (*i)->st_key ) < 0 ) {
+            break;
+        }
     }
 
     st->st_next = *i;
@@ -77,8 +77,8 @@ ll_insert( struct stab_entry **stab, char *key, void *data,
     int
 ll_insert_tail( struct stab_entry **stab, char *key, void *data )
 {
-    struct stab_entry	*st;
-    struct stab_entry	**i;
+    struct stab_entry   *st;
+    struct stab_entry   **i;
 
     st = calloc( 1, sizeof( struct stab_entry ));
 
@@ -102,18 +102,18 @@ ll_insert_tail( struct stab_entry **stab, char *key, void *data )
     void *
 ll_remove( struct stab_entry **stab, char *key )
 {
-    struct stab_entry	*st;
-    struct stab_entry	**i;
-    void		*data;
+    struct stab_entry   *st;
+    struct stab_entry   **i;
+    void                *data;
 
     for ( i = stab; *i != NULL; i = &((*i)->st_next) ) {
-	if ( strcmp( key, (*i)->st_key ) == 0 ) {
-	    break;
-	}
+        if ( strcmp( key, (*i)->st_key ) == 0 ) {
+            break;
+        }
     }
 
     if (( st = *i ) == NULL ) {
-	return( NULL );
+        return( NULL );
     }
 
     data = st->st_data;
@@ -130,20 +130,20 @@ ll_remove( struct stab_entry **stab, char *key )
 ll_walk( struct stab_entry *st, void (*ll_func)( void * ))
 {
     for ( ; st != NULL; st = st->st_next ) {
-	ll_func( st->st_data );
+        ll_func( st->st_data );
     }
 }
 
 
     void*
 ll_nokey_lookup( struct stab_entry *st, void *data,
-	int (*ll_compare)( void *, void * ))
+        int (*ll_compare)( void *, void * ))
 {
     for( ; st != NULL; st = st->st_next ) {
-	if ( ll_compare( st->st_data, data ) == 0 ) {
-	    /* match found */
-	    return( st->st_data );
-	}
+        if ( ll_compare( st->st_data, data ) == 0 ) {
+            /* match found */
+            return( st->st_data );
+        }
     }
     /* no match found */
     return( NULL );
@@ -152,20 +152,20 @@ ll_nokey_lookup( struct stab_entry *st, void *data,
 
     int
 ll_nokey_insert( struct stab_entry **stab, void *data,
-	int (*ll_compare)( void *, void * ))
+        int (*ll_compare)( void *, void * ))
 {
-    struct stab_entry	*st;
-    struct stab_entry	**i;
+    struct stab_entry   *st;
+    struct stab_entry   **i;
 
     st = calloc( 1, sizeof( struct stab_entry ));
 
     st->st_data = data;
 
     for ( i = stab; *i != NULL; i = &((*i)->st_next) ) {
-	if (( ll_compare != NULL ) &&
-		( ll_compare( data, (*i)->st_data ) < 0 )) {
-	    break;
-	}
+        if (( ll_compare != NULL ) &&
+                ( ll_compare( data, (*i)->st_data ) < 0 )) {
+            break;
+        }
     }
 
     st->st_next = *i;
@@ -177,26 +177,26 @@ ll_nokey_insert( struct stab_entry **stab, void *data,
     void
 ll_free( struct stab_entry *stab )
 {
-    struct stab_entry	*next;
+    struct stab_entry   *next;
 
     for ( ; stab != NULL ; stab = next ) {
-	next = stab->st_next;
-	free( stab );
+        next = stab->st_next;
+        free( stab );
     }
 }
 
     struct dll_entry *
 dll_lookup( struct dll_entry *dll_head, const char *key )
 {
-    struct dll_entry			*dll;
-    int					c;
+    struct dll_entry                    *dll;
+    int                                 c;
 
     for ( dll = dll_head; dll != NULL; dll = dll->dll_next ) {
-	if (( c = strcasecmp( key, dll->dll_key )) == 0 ) {
-	    return( dll );
-	} else if ( c < 0 ) {
-	    return( NULL );
-	}
+        if (( c = strcasecmp( key, dll->dll_key )) == 0 ) {
+            return( dll );
+        } else if ( c < 0 ) {
+            return( NULL );
+        }
     }
 
     return( NULL );
@@ -206,18 +206,18 @@ dll_lookup( struct dll_entry *dll_head, const char *key )
     struct dll_entry *
 dll_lookup_or_create( struct dll_entry **dll_head, const char *key )
 {
-    struct dll_entry			*dll;
-    struct dll_entry			*dll_last = NULL;
-    struct dll_entry			*dll_new;
-    int					c;
+    struct dll_entry                    *dll;
+    struct dll_entry                    *dll_last = NULL;
+    struct dll_entry                    *dll_new;
+    int                                 c;
 
     for ( dll = *dll_head; dll != NULL; dll = dll->dll_next ) {
-	if (( c = strcasecmp( key, dll->dll_key )) == 0 ) {
-	    return( dll );
-	} else if ( c < 0 ) {
-	    break;
-	}
-	dll_last = dll;
+        if (( c = strcasecmp( key, dll->dll_key )) == 0 ) {
+            return( dll );
+        } else if ( c < 0 ) {
+            break;
+        }
+        dll_last = dll;
     }
 
     dll_new = calloc( 1, sizeof( struct dll_entry ));
@@ -225,21 +225,21 @@ dll_lookup_or_create( struct dll_entry **dll_head, const char *key )
     dll_new->dll_key = strdup( key );
 
     if ( dll_last == NULL ) {
-	/* head insert */
-	dll_new->dll_next = *dll_head;
-	*dll_head = dll_new;
-	if ( dll_new->dll_next != NULL ) {
-	    dll_new->dll_next->dll_prev = dll_new;
-	}
+        /* head insert */
+        dll_new->dll_next = *dll_head;
+        *dll_head = dll_new;
+        if ( dll_new->dll_next != NULL ) {
+            dll_new->dll_next->dll_prev = dll_new;
+        }
     } else if ( dll == NULL ) {
-	/* tail insert */
-	dll_new->dll_prev = dll_last;
-	dll_last->dll_next = dll_new;
+        /* tail insert */
+        dll_new->dll_prev = dll_last;
+        dll_last->dll_next = dll_new;
     } else {
-	dll_new->dll_next = dll;
-	dll_new->dll_prev = dll->dll_prev;
-	dll->dll_prev->dll_next = dll_new;
-	dll->dll_prev = dll_new;
+        dll_new->dll_next = dll;
+        dll_new->dll_prev = dll->dll_prev;
+        dll->dll_prev->dll_next = dll_new;
+        dll->dll_prev = dll_new;
     }
 
     return( dll_new );
@@ -250,13 +250,13 @@ dll_lookup_or_create( struct dll_entry **dll_head, const char *key )
 dll_remove_entry( struct dll_entry **head, struct dll_entry *dll )
 {
     if ( dll->dll_next != NULL ) {
-	dll->dll_next->dll_prev = dll->dll_prev;
+        dll->dll_next->dll_prev = dll->dll_prev;
     }
 
     if ( dll->dll_prev != NULL ) {
-	dll->dll_prev->dll_next = dll->dll_next;
+        dll->dll_prev->dll_next = dll->dll_next;
     } else {
-	*head = dll->dll_next;
+        *head = dll->dll_next;
     }
 
     free( dll->dll_key );
@@ -269,12 +269,12 @@ dll_remove_entry( struct dll_entry **head, struct dll_entry *dll )
     void
 dll_free( struct dll_entry *head )
 {
-    struct dll_entry	*next;
+    struct dll_entry    *next;
     for ( ; head != NULL ; head = next ) {
-	next = head->dll_next;
-	free( head->dll_key );
-	free( head );
+        next = head->dll_next;
+        free( head->dll_key );
+        free( head );
     }
 }
 
-/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
+/* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
