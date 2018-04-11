@@ -7,4 +7,4 @@ int set_local_mailer( void );
 int deliver_binary( struct deliver * );
 
 #endif /* SIMTA_MD_H */
-/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
+/* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

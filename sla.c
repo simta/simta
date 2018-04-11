@@ -40,33 +40,33 @@
     int
 main( int argc, char *argv[] )
 {
-    SNET			*snet;
-    char			*hold = NULL;
-    char			*line;
+    SNET                        *snet;
+    char                        *hold = NULL;
+    char                        *line;
 
     if ( argc < 2 ) {
-	exit( 1 );
+        exit( 1 );
     }
 
     if (( snet = snet_open( argv[ 1 ], O_RDONLY, 0,
-	    1024 * 1024 )) == NULL ) {
-	fprintf( stderr, "%s: snet_open %s: ", argv[ 0 ], argv[ 1 ] );
-	perror( NULL );
+            1024 * 1024 )) == NULL ) {
+        fprintf( stderr, "%s: snet_open %s: ", argv[ 0 ], argv[ 1 ] );
+        perror( NULL );
     }
 
     while (( line = snet_getline( snet, NULL )) != NULL ) {
-	if (( hold != NULL ) && ( strncmp( hold, line, 16 ) != 0 )) {
-	    if ( strcmp( hold, line ) != 0 ) {
-		printf( "%s\n", hold );
-	    }
+        if (( hold != NULL ) && ( strncmp( hold, line, 16 ) != 0 )) {
+            if ( strcmp( hold, line ) != 0 ) {
+                printf( "%s\n", hold );
+            }
 
-	    printf( "%s\n", line );
-	}
+            printf( "%s\n", line );
+        }
 
-	free( hold );
-	hold = strdup( line );
+        free( hold );
+        hold = strdup( line );
     }
 
     exit( 0 );
 }
-/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
+/* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

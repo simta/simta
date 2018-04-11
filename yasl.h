@@ -11,8 +11,8 @@
 #define YASL_H
 
 #ifndef __GNUC__
-	#undef __attribute__
-	#define __attribute__(x) /* nothing */
+        #undef __attribute__
+        #define __attribute__(x) /* nothing */
 #endif
 
 #define YASL_MAX_PREALLOC (1024*1024)
@@ -25,9 +25,9 @@
 typedef char *yastr;
 
 struct yastrhdr {
-	size_t len;
-	size_t free;
-	char buf[];
+        size_t len;
+        size_t free;
+        char buf[];
 };
 
 
@@ -168,27 +168,27 @@ hex_digit_to_int(char c);
  */
 
 static inline struct yastrhdr *yaslheader(const yastr str) {
-	if (!str) { return NULL; }
+        if (!str) { return NULL; }
 
-	/* The yastrhdr pointer has a different alignment than the original char
-	 * pointer, so cast it through a void pointer to silence the warning. */
-	return (void *)(str - offsetof(struct yastrhdr, buf));
+        /* The yastrhdr pointer has a different alignment than the original char
+         * pointer, so cast it through a void pointer to silence the warning. */
+        return (void *)(str - offsetof(struct yastrhdr, buf));
 }
 
 static inline yastr yaslauto(const char * str) {
-	return yaslnew(str, str ? strlen(str) : 0);
+        return yaslnew(str, str ? strlen(str) : 0);
 }
 
 static inline size_t yaslavail(const yastr str) {
-	if (!str) { return 0; }
+        if (!str) { return 0; }
 
-	return yaslheader(str)->free;
+        return yaslheader(str)->free;
 }
 
 static inline size_t yasllen(const yastr str) {
-	if (!str) { return 0; }
+        if (!str) { return 0; }
 
-	return yaslheader(str)->len;
+        return yaslheader(str)->len;
 }
 
 

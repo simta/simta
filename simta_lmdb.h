@@ -4,18 +4,18 @@
 #include <lmdb.h>
 #include <yasl.h>
 
-#define SIMTA_DB_OK	    0
+#define SIMTA_DB_OK         0
 #define SIMTA_DB_SYSERROR   1
 #define SIMTA_DB_NOTFOUND   2
 
 struct simta_dbh {
-    MDB_env	*h_env;
+    MDB_env     *h_env;
 };
 
 struct simta_dbc {
-    MDB_cursor	*c_cursor;
-    int		c_init;
-    int		c_keyed;
+    MDB_cursor  *c_cursor;
+    int         c_init;
+    int         c_keyed;
 };
 
 char *simta_db_strerror( int );
@@ -34,4 +34,4 @@ void simta_db_cursor_close( struct simta_dbc * );
 void simta_db_close( struct simta_dbh * );
 
 #endif /* SIMTA_SIMTA_LMDB_H */
-/* vim: set softtabstop=4 shiftwidth=4 noexpandtab :*/
+/* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
