@@ -2149,10 +2149,10 @@ f_data( struct receive_data *r )
         simta_debuglog( 1,
                 "Receive [%s] %s: env <%s>: ARC verify result: %s (%d)",
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                arc_chain_str( arc ), arc_result );
+                arc_chain_status_str( arc ), arc_result );
         if ( simta_auth_results ) {
             authresults = yaslcatprintf( authresults,
-                    ";\n\tarc=%s", arc_chain_str( arc ));
+                    ";\n\tarc=%s", arc_chain_status_str( arc ));
         }
     }
 #endif /* HAVE_LIBOPENARC */
