@@ -30,10 +30,6 @@ main(int ac, char *av[]) {
         exit(1);
     }
 
-    if (simta_config() != 0) {
-        exit(1);
-    }
-
     simta_openlog(0, LOG_PERROR);
 
     if ((p = strrchr(av[ 1 ], '@')) == NULL) {

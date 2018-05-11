@@ -181,7 +181,7 @@ static const char *iprev_authresult_str(struct receive_data *);
 static int         proxy_accept(struct receive_data *);
 static int         auth_init(struct receive_data *, struct simta_socket *);
 static int         content_filter(struct receive_data *, char **);
-static int         local_address(char *, char *, struct simta_red *);
+static int         local_address(char *, char *, const ucl_object_t *);
 static int         hello(struct receive_data *, char *);
 static int         reset(struct receive_data *);
 static int         deliver_accepted(struct receive_data *, int);
@@ -724,7 +724,7 @@ f_ehlo(struct receive_data *r) {
         syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
         return (RECEIVE_CLOSECONNECTION);
     }
-    if (simta_max_message_size >= 0) {
+    if (simta_max_message_size > 0) {
         if (snet_writef(r->r_snet, "%d%sSIZE %d\r\n", 250,
                     extension_count-- ? "-" : " ",
                     simta_max_message_size) < 0) {
@@ -1032,7 +1032,7 @@ f_mail(struct receive_data *r) {
             break;
         }
 
-        if (simta_from_checking == 0) {
+        if (simta_submission_mode == SUBMISSION_MODE_MSA) {
             break;
         }
 
@@ -1177,10 +1177,10 @@ f_rcpt_usage(struct receive_data *r) {
 
 static int
 f_rcpt(struct receive_data *r) {
-    int               rc;
-    char *            addr;
-    char *            domain;
-    struct simta_red *red;
+    int                 rc;
+    char *              addr;
+    char *              domain;
+    const ucl_object_t *red;
 
     r->r_rcpt_attempt++;
 
@@ -1312,8 +1312,8 @@ f_rcpt(struct receive_data *r) {
             return (smtp_write_banner(r, 550, S_UNKNOWN_HOST, domain));
         }
 
-        if (((red = host_local(domain)) == NULL) ||
-                (red->red_receive == NULL)) {
+        if (((red = red_host_lookup(domain, false)) == NULL) ||
+                (!red_does_expansion(red))) {
             if (r->r_smtp_mode == SMTP_MODE_NORMAL) {
                 syslog(LOG_INFO,
                         "Receive [%s] %s: env <%s>: "
@@ -1358,8 +1358,8 @@ f_rcpt(struct receive_data *r) {
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
                         r->r_env->e_mail);
                 return (smtp_write_banner(r, 550, NULL,
-                        red->red_not_found ? red->red_not_found
-                                           : "User not found"));
+                        ucl_object_tostring(ucl_object_lookup_path(
+                                red, "receive.user_not_found"))));
 
             case LOCAL_ERROR:
                 syslog(LOG_ERR,
@@ -4046,15 +4046,19 @@ auth_init(struct receive_data *r, struct simta_socket *ss) {
 
 
 static int
-local_address(char *addr, char *domain, struct simta_red *red) {
-    int            n_required_found = 0;
-    int            rc;
-    char *         at;
-    struct passwd *passwd;
-    struct action *action;
+local_address(char *addr, char *domain, const ucl_object_t *red) {
+    int                 n_required_found = 0;
+    int                 rc;
+    char *              at;
+    struct passwd *     passwd;
+    ucl_object_iter_t   iter = NULL;
+    const ucl_object_t *rule = NULL;
+    const char *        type = NULL;
 #ifdef HAVE_LMDB
-    yastr key;
-    yastr value = NULL;
+    yastr             key;
+    yastr             value = NULL;
+    struct simta_dbh *dbh = NULL;
+    const char *      fname = NULL;
 #endif /* HAVE_LMDB */
 
     if ((at = strchr(addr, '@')) == NULL) {
@@ -4062,82 +4066,93 @@ local_address(char *addr, char *domain, struct simta_red *red) {
     }
 
     /* Search for user using expansion table */
-    for (action = red->red_receive; action != NULL; action = action->a_next) {
-        switch (action->a_action) {
-        case EXPANSION_TYPE_GLOBAL_RELAY:
+    iter = ucl_object_iterate_new(ucl_object_lookup(red, "rule"));
+    while ((rule = ucl_object_iterate_safe(iter, false)) != NULL) {
+        if (!ucl_object_toboolean(
+                    ucl_object_lookup_path(rule, "receive.enabled"))) {
+            continue;
+        }
+
+        type = ucl_object_tostring(ucl_object_lookup(rule, "type"));
+
+        if (strcasecmp(type, "accept") == 0) {
             return (LOCAL_ADDRESS);
 
 #ifdef HAVE_LMDB
-        case EXPANSION_TYPE_ALIAS:
-            if (action->a_dbh == NULL) {
-                if ((rc = simta_db_open_r(&(action->a_dbh), action->a_fname)) !=
-                        0) {
-                    action->a_dbh = NULL;
-                    syslog(LOG_ERR,
-                            "Liberror: local_address simta_db_open_r %s: %s",
-                            action->a_fname, simta_db_strerror(rc));
-                    break;
-                }
+        } else if (strcasecmp(type, "alias") == 0) {
+            fname = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+            if ((rc = simta_db_open_r(&dbh, fname)) != 0) {
+                dbh = NULL;
+                syslog(LOG_ERR,
+                        "Liberror: local_address simta_db_open_r %s: %s", fname,
+                        simta_db_strerror(rc));
+                break;
             }
 
             if ((key = yaslnew(addr, (size_t)(at - addr))) == NULL) {
                 return (LOCAL_ERROR);
             }
-            rc = simta_db_get(action->a_dbh, key, &value);
+            rc = simta_db_get(dbh, key, &value);
             yaslfree(key);
             yaslfree(value);
             value = NULL;
+            simta_db_close(dbh);
 
             if (rc == 0) {
-                if (action->a_flags == ACTION_SUFFICIENT) {
+                if (ucl_object_toboolean(ucl_object_lookup_path(
+                            rule, "receive.sufficient"))) {
                     return (LOCAL_ADDRESS);
                 } else {
                     n_required_found++;
                 }
             } else if (rc == 1) {
                 return (LOCAL_ERROR);
-            } else if (action->a_flags == ACTION_REQUIRED) {
+            } else if (ucl_object_toboolean(ucl_object_lookup_path(
+                               rule, "receive.required"))) {
                 return (NOT_LOCAL);
             }
-            break;
 #endif /* HAVE_LMDB */
 
-        case EXPANSION_TYPE_PASSWORD:
+        } else if (strcasecmp(type, "password") == 0) {
             /* Check password file */
             *at = '\0';
-            passwd = simta_getpwnam(action, addr);
+            passwd = simta_getpwnam(rule, addr);
             *at = '@';
 
             if (passwd != NULL) {
-                if (action->a_flags == ACTION_SUFFICIENT) {
+                if (ucl_object_toboolean(ucl_object_lookup_path(
+                            rule, "receive.sufficient"))) {
                     return (LOCAL_ADDRESS);
                 } else {
                     n_required_found++;
                 }
-            } else if (action->a_flags == ACTION_REQUIRED) {
+            } else if (ucl_object_toboolean(ucl_object_lookup_path(
+                               rule, "receive.required"))) {
                 return (NOT_LOCAL);
             }
-            break;
 
-        case EXPANSION_TYPE_SRS:
-            if ((rc = srs_valid(addr, action->a_fname)) == ADDRESS_FINAL) {
-                if (action->a_flags == ACTION_SUFFICIENT) {
+        } else if (strcasecmp(type, "srs") == 0) {
+            if ((rc = srs_valid(addr, ucl_object_tostring(ucl_object_lookup(
+                                              rule, "secret")))) ==
+                    ADDRESS_FINAL) {
+                if (ucl_object_toboolean(ucl_object_lookup_path(
+                            rule, "receive.sufficient"))) {
                     return (LOCAL_ADDRESS);
                 } else {
                     n_required_found++;
                 }
             } else if (rc == ADDRESS_SYSERROR) {
                 return (LOCAL_ERROR);
-            } else if (action->a_flags == ACTION_REQUIRED) {
+            } else if (ucl_object_toboolean(ucl_object_lookup_path(
+                               rule, "receive.required"))) {
                 return (NOT_LOCAL);
             }
-            break;
 
 #ifdef HAVE_LDAP
-        case EXPANSION_TYPE_LDAP:
+        } else if (strcasecmp(type, "ldap") == 0) {
             /* Check LDAP */
             *at = '\0';
-            rc = simta_ldap_address_local(action->a_ldap, addr, domain);
+            rc = simta_ldap_address_local(rule, addr, domain);
             *at = '@';
 
             switch (rc) {
@@ -4149,13 +4164,15 @@ local_address(char *addr, char *domain, struct simta_red *red) {
                 return (LOCAL_ERROR);
 
             case LDAP_NOT_LOCAL:
-                if (action->a_flags == ACTION_REQUIRED) {
+                if (ucl_object_toboolean(
+                            ucl_object_lookup_path(rule, "receive.required"))) {
                     return (NOT_LOCAL);
                 }
                 continue;
 
             case LDAP_LOCAL:
-                if (action->a_flags == ACTION_SUFFICIENT) {
+                if (ucl_object_toboolean(ucl_object_lookup_path(
+                            rule, "receive.sufficient"))) {
                     return (LOCAL_ADDRESS);
                 } else {
                     n_required_found++;
@@ -4165,12 +4182,11 @@ local_address(char *addr, char *domain, struct simta_red *red) {
             case LDAP_LOCAL_RBL:
                 return (LOCAL_ADDRESS_RBL);
             }
-            break;
 #endif /* HAVE_LDAP */
 
-        default:
-            /* unknown lookup */
-            panic("local_address: expansion type out of range");
+        } else {
+            syslog(LOG_ERR, "local_address: unknown expansion type %s", type);
+            return (LOCAL_ERROR);
         }
     }
 

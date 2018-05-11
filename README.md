@@ -24,6 +24,7 @@ In order to build simta, you will need the following:
 * pkg-config or a compatible replacement.
 * [denser](https://github.com/simta/denser)
 * [libsnet](https://github.com/simta/libsnet)
+* [libucl](https://github.com/vstakhov/libucl)
 
 There are also a number of optional dependencies (listed more-or-less in
 decreasing order of importance):

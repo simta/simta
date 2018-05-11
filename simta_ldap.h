@@ -3,11 +3,6 @@
 
 #include "expand.h"
 
-struct list {
-    char *       l_string;
-    struct list *l_next;
-};
-
 /* lds search types */
 #define LDS_USER 0x01
 #define LDS_GROUP_ERRORS 0x02
@@ -35,10 +30,11 @@ struct list {
 #define SUPPRESSNOEMAILERROR (1 << 0)
 
 /* Public functions */
-struct simta_ldap *simta_ldap_config(char *, char *);
-int  simta_ldap_expand(struct simta_ldap *, struct expand *, struct exp_addr *);
-int  simta_ldap_address_local(struct simta_ldap *, char *, char *);
-int  simta_mbx_compare(int, char *, char *);
+struct simta_ldap *simta_ldap_config(const ucl_object_t *);
+void               simta_ldap_reset(void);
+int simta_ldap_expand(const ucl_object_t *, struct expand *, struct exp_addr *);
+int simta_ldap_address_local(const ucl_object_t *, char *, char *);
+int simta_mbx_compare(int, char *, char *);
 void simta_ldap_unbind(struct simta_ldap *);
 
 #endif /* SIMTA_SIMTA_LDAP_H */

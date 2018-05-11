@@ -30,10 +30,8 @@
 
 
 int
-bounce_text(struct envelope *bounce_env, int mode, const char *t1,
-        const char *t2, const char *t3) {
-    int   ret = 0;
-    yastr buf;
+bounce_yastr(struct envelope *bounce_env, int mode, const yastr text) {
+    int ret = 0;
 
     if (mode != 0) {
         bounce_env->e_error = mode;
@@ -43,6 +41,25 @@ bounce_text(struct envelope *bounce_env, int mode, const char *t1,
         bounce_env->e_err_text = line_file_create();
     }
 
+    if (mode != 0) {
+        if (line_append(bounce_env->e_err_text, text, COPY) == NULL) {
+            ret = -1;
+        }
+    } else {
+        if (line_prepend(bounce_env->e_err_text, text, COPY) == NULL) {
+            ret = -1;
+        }
+    }
+
+    return (ret);
+}
+
+int
+bounce_text(struct envelope *bounce_env, int mode, const char *t1,
+        const char *t2, const char *t3) {
+    int   ret;
+    yastr buf;
+
     buf = yaslauto(t1);
     if (t2) {
         buf = yaslcat(buf, t2);
@@ -51,18 +68,8 @@ bounce_text(struct envelope *bounce_env, int mode, const char *t1,
         buf = yaslcat(buf, t3);
     }
 
-    if (mode != 0) {
-        if (line_append(bounce_env->e_err_text, buf, COPY) == NULL) {
-            ret = -1;
-        }
-    } else {
-        if (line_prepend(bounce_env->e_err_text, buf, COPY) == NULL) {
-            ret = -1;
-        }
-    }
-
+    ret = bounce_yastr(bounce_env, mode, buf);
     yaslfree(buf);
-
     return (ret);
 }
 
@@ -241,12 +248,6 @@ bounce(struct envelope *env, int body, const char *err) {
 }
 
 static char *
-host_or_jailhost(struct host_q *hq) {
-    return (simta_host_is_jailhost(hq->hq_hostname) ? "quarantine host"
-                                                    : "host");
-}
-
-static char *
 old_or_jailed(struct envelope *env) {
     if (env->e_jail == ENV_JAIL_PRISONER) {
         return ("quarantined");
@@ -326,8 +327,8 @@ bounce_snet(
     } else if (hq->hq_err_text != NULL) {
         sprintf(buf,
                 "The following error occurred during delivery to "
-                "%s %s:\n",
-                host_or_jailhost(hq), hq->hq_hostname);
+                "host %s:\n",
+                hq->hq_hostname);
         line_append(bounce_env->e_err_text, buf, COPY);
         for (l = hq->hq_err_text->l_first; l != NULL; l = l->line_next) {
             line_append(bounce_env->e_err_text, l->line_data, COPY);
@@ -335,8 +336,8 @@ bounce_snet(
         line_append(bounce_env->e_err_text, "", COPY);
 
     } else {
-        sprintf(buf, "An error occurred during delivery to %s %s.\n",
-                host_or_jailhost(hq), hq->hq_hostname);
+        sprintf(buf, "An error occurred during delivery to host %s.\n",
+                hq->hq_hostname);
         line_append(bounce_env->e_err_text, buf, COPY);
     }
 

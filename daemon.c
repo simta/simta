@@ -157,6 +157,8 @@ struct simta_socket *
 simta_listen(const char *port) {
     int                  sockopt;
     int                  rc;
+    bool                 found_ipv4 = false;
+    bool                 found_ipv6 = false;
     char                 host[ NI_MAXHOST ];
     char                 service[ NI_MAXSERV ];
     struct addrinfo      hints;
@@ -177,15 +179,18 @@ simta_listen(const char *port) {
 
     for (ai = air; ai != NULL; ai = ai->ai_next) {
         if (ai->ai_family == AF_INET6) {
-            if (simta_ipv6 == 0) {
+            if (!ucl_object_toboolean(
+                        ucl_object_lookup_path(simta_config, "receive.ipv6"))) {
                 continue;
             }
-            simta_ipv6 = 1;
+            found_ipv6 = true;
+
         } else {
-            if (simta_ipv4 == 0) {
+            if (!ucl_object_toboolean(
+                        ucl_object_lookup_path(simta_config, "receive.ipv4"))) {
                 continue;
             }
-            simta_ipv4 = 1;
+            found_ipv4 = true;
         }
 
         ss = calloc(1, sizeof(struct simta_socket));
@@ -249,6 +254,18 @@ simta_listen(const char *port) {
             return (NULL);
         }
     }
+
+    ucl_object_replace_key(ucl_object_lookup_path(simta_config, "receive"),
+            ucl_object_frombool(found_ipv4), "ipv4", 0, false);
+    ucl_object_replace_key(
+            ucl_object_lookup_path(simta_config, "red_defaults.deliver"),
+            ucl_object_frombool(found_ipv4), "ipv4", 0, false);
+
+    ucl_object_replace_key(ucl_object_lookup_path(simta_config, "receive"),
+            ucl_object_frombool(found_ipv6), "ipv6", 0, false);
+    ucl_object_replace_key(
+            ucl_object_lookup_path(simta_config, "red_defaults.deliver"),
+            ucl_object_frombool(found_ipv6), "ipv6", 0, false);
 
     freeaddrinfo(air);
     return (ss);
@@ -381,11 +398,6 @@ main(int ac, char **av) {
         exit(1);
     }
 
-    /* init simta config / defaults */
-    if (simta_config() != 0) {
-        exit(1);
-    }
-
 #ifndef Q_SIMULATION
 #ifdef HAVE_LIBSSL
     if (simta_service_smtps) {
@@ -417,7 +429,7 @@ main(int ac, char **av) {
         simta_smtp_extension++;
     }
 
-    if (simta_max_message_size >= 0) {
+    if (simta_max_message_size > 0) {
         simta_smtp_extension++;
     }
 
@@ -1306,6 +1318,9 @@ simta_child_q_runner(struct host_q *hq) {
             dnsr_free(simta_dnsr);
             simta_dnsr = NULL;
         }
+
+        /* Close open LDAP connections */
+        simta_ldap_reset();
 
         if ((hq != NULL) && (hq == simta_unexpanded_q)) {
             simta_process_type = PROCESS_Q_SLOW;

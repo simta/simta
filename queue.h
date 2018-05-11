@@ -32,8 +32,7 @@ struct connection_data {
 struct deliver {
     struct envelope * d_env;
     struct recipient *d_rcpt;
-    char **           d_deliver_argv;
-    int               d_deliver_argc;
+    const char *      d_deliver_agent;
     off_t             d_size;
     off_t             d_sent;
     int               d_dfile_fd;
@@ -78,12 +77,12 @@ struct host_q {
     int               hq_entries_new;
     int               hq_entries_removed;
     int               hq_jail_envs;
-    struct simta_red *hq_red;
+    ucl_object_t *    hq_red;
     struct host_q *   hq_deliver;
     struct host_q *   hq_next;
     struct host_q *   hq_deliver_prev;
     struct host_q *   hq_deliver_next;
-    char *            hq_hostname;
+    yastr             hq_hostname;
     char *            hq_smtp_hostname;
     int               hq_primary;
     int               hq_status;

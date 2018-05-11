@@ -6,6 +6,7 @@ COMMON_LIBS = \
 	@LIBIDN2_LIBS@ \
 	@LIBSASL_LIBS@ \
 	@LIBSSL_LIBS@ \
+	@LIBUCL_LIBS@ \
 	@OPENARC_LIBS@ \
 	@OPENDKIM_LIBS@ \
 	@SNET_LIBS@ \
@@ -18,6 +19,7 @@ AM_CPPFLAGS = \
 	@LIBIDN2_CFLAGS@ \
 	@LIBSASL_CFLAGS@ \
 	@LIBSSL_CFLAGS@ \
+	@LIBUCL_CFLAGS@ \
 	@LIBWRAP_CPPFLAGS@ \
 	@OPENARC_CFLAGS@ \
 	@OPENDKIM_CFLAGS@ \
@@ -38,6 +40,8 @@ sbin_PROGRAMS = \
 	simsendmail \
 	simta
 
+noinst_PROGRAMS = genimbed
+
 pkglibexec_PROGRAMS = simda
 
 COMMON_FILES = \
@@ -45,6 +49,7 @@ COMMON_FILES = \
 	argcargv.c argcargv.h \
 	bounce.c \
 	dns.c dns.h \
+	embedded_config.h embedded_schema.h \
 	envelope.c envelope.h \
 	expand.c expand.h \
 	header.c header.h \
@@ -56,6 +61,7 @@ COMMON_FILES = \
 	red.c red.h \
 	simta.c simta.h \
 	simta_sasl.c simta_sasl.h \
+	simta_ucl.c simta_ucl.h \
 	smtp.c smtp.h \
 	srs.c srs.h \
 	spf.c spf.h \
@@ -72,11 +78,14 @@ endif
 
 if BUILD_SSL
 COMMON_FILES += md.c md.h tls.c tls.h
-noinst_PROGRAMS = simck
+noinst_PROGRAMS += simck
 simck_SOURCES = simck.c md.c md.h
 simck_LDADD = $(COMMON_LIBS)
 endif
 
+BUILT_SOURCES = embedded_config.h embedded_schema.h
+
+genimbed_SOURCES = genimbed.c
 simalias_SOURCES = simalias.c $(COMMON_FILES)
 simalias_LDADD = $(COMMON_LIBS)
 simc_SOURCES = simc.c $(COMMON_FILES)
@@ -109,7 +118,14 @@ EXTRA_DIST = \
 	VERSION \
 	packaging/rpm/simta.service \
 	packaging/rpm/simta.spec \
-	simta.conf
+	simta.conf \
+	simta.conf.schema
+
+embedded_config.h: genimbed$(EXEEXT) simta.conf Makefile
+	./genimbed$(EXEEXT) simta.conf CONFIG_BASE > embedded_config.h
+
+embedded_schema.h: genimbed$(EXEEXT) simta.conf.schema Makefile
+	./genimbed$(EXEEXT) simta.conf.schema CONFIG_SCHEMA > embedded_schema.h
 
 install-data-local:
 	${INSTALL} -m 0750 -d \

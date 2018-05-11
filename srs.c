@@ -73,8 +73,12 @@ srs_forward(struct envelope *env) {
             if ((ifa->ifa_addr == NULL) || (ifa->ifa_flags & IFF_LOOPBACK)) {
                 continue;
             }
-            if ((simta_ipv4 && (ifa->ifa_addr->sa_family == AF_INET)) ||
-                    (simta_ipv6 && (ifa->ifa_addr->sa_family == AF_INET6))) {
+            if ((ucl_object_toboolean(ucl_object_lookup_path(
+                         simta_config, "red_defaults.deliver.ipv4")) &&
+                        (ifa->ifa_addr->sa_family == AF_INET)) ||
+                    (ucl_object_toboolean(ucl_object_lookup_path(
+                             simta_config, "red_defaults.deliver..ipv6")) &&
+                            (ifa->ifa_addr->sa_family == AF_INET6))) {
                 spf = spf_lookup(simta_hostname, env->e_mail, ifa->ifa_addr);
             }
         }
@@ -230,11 +234,14 @@ error:
 }
 
 int
-srs_expand(struct expand *exp, struct exp_addr *e_addr, struct action *a) {
+srs_expand(
+        struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
     char *newaddr;
     int   rc;
 
-    if ((rc = srs_reverse(e_addr->e_addr, &newaddr, a->a_fname)) == SRS_OK) {
+    if ((rc = srs_reverse(e_addr->e_addr, &newaddr,
+                 ucl_object_tostring(ucl_object_lookup(rule, "secret")))) ==
+            SRS_OK) {
         if (add_address(exp, newaddr, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
                     e_addr->e_addr_from) != 0) {
             free(newaddr);

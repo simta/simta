@@ -653,39 +653,16 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
     }
 
 #ifdef HAVE_LIBSSL
-    switch (simta_policy_tls) {
-    default:
-        /* no change */
-        break;
-
-    case TLS_POLICY_REQUIRED:
-        tls_required = 1;
-        break;
-
-    case TLS_POLICY_DISABLED:
-        tls_required = -1;
-        break;
-    }
-
-    if (hq->hq_red != NULL) {
-        switch (hq->hq_red->red_policy_tls) {
-        default:
-        case TLS_POLICY_DEFAULT:
-            /* no change */
-            break;
-
-        case TLS_POLICY_OPTIONAL:
-            tls_required = 0;
-            break;
-
-        case TLS_POLICY_REQUIRED:
+    if (ucl_object_toboolean(
+                ucl_object_lookup_path(hq->hq_red, "deliver.tls.enabled"))) {
+        if (ucl_object_toboolean(ucl_object_lookup_path(
+                    hq->hq_red, "deliver.tls.required"))) {
             tls_required = 1;
-            break;
-
-        case TLS_POLICY_DISABLED:
-            tls_required = -1;
-            break;
+        } else {
+            tls_required = 0;
         }
+    } else {
+        tls_required = -1;
     }
 #endif /* HAVE_LIBSSL */
 
@@ -729,13 +706,8 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
             return (rc);
         }
 
-        ciphers = simta_tls_ciphers_outbound;
-
-        if (hq->hq_red != NULL) {
-            if (hq->hq_red->red_tls_ciphers != NULL) {
-                ciphers = hq->hq_red->red_tls_ciphers;
-            }
-        }
+        ciphers = ucl_object_tostring(
+                ucl_object_lookup_path(hq->hq_red, "deliver.tls.ciphers"));
 
         if ((ssl_ctx = tls_client_setup(0, simta_file_ca, simta_dir_ca, NULL,
                      NULL, ciphers)) == NULL) {
@@ -762,36 +734,8 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
             }
 
         } else if (tls_client_cert(hq->hq_hostname, d->d_snet_smtp->sn_ssl)) {
-            switch (simta_policy_tls_cert) {
-            default:
-            case TLS_POLICY_DEFAULT:
-            case TLS_POLICY_OPTIONAL:
-                tls_cert_required = 0;
-                break;
-
-            case TLS_POLICY_REQUIRED:
-                tls_cert_required = 1;
-                break;
-            }
-
-            if (hq->hq_red != NULL) {
-                switch (hq->hq_red->red_policy_tls_cert) {
-                default:
-                case TLS_POLICY_DEFAULT:
-                    /* no change */
-                    break;
-
-                case TLS_POLICY_OPTIONAL:
-                    tls_cert_required = 0;
-                    break;
-
-                case TLS_POLICY_REQUIRED:
-                    tls_cert_required = 1;
-                    break;
-                }
-            }
-
-            if (tls_cert_required != 0) {
+            if (ucl_object_toboolean(ucl_object_lookup_path(
+                        hq->hq_red, "deliver.tls.verify"))) {
                 SSL_CTX_free(ssl_ctx);
                 syslog(LOG_WARNING,
                         "Deliver.SMTP env <%s>: "
@@ -867,6 +811,7 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
 int
 smtp_send(struct host_q *hq, struct deliver *d) {
     int            smtp_result, rc;
+    int            max_rcpts = 0;
     int            rcpts_attempted = 0;
     char *         line;
     char *         timer_type;
@@ -949,24 +894,26 @@ smtp_send(struct host_q *hq, struct deliver *d) {
     /* RCPT TOs: */
     assert(d->d_env->e_rcpt != NULL);
 
+    if (hq->hq_red != NULL) {
+        max_rcpts = ucl_object_toint(ucl_object_lookup_path(
+                hq->hq_red, "deliver.connection.max_rcpts"));
+    }
+
     for (d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
             d->d_rcpt = d->d_rcpt->r_next) {
         /* If we've already tried the maximum number of message recipients for
          * this domain, skip trying this recipient.
          */
-        if (hq->hq_red != NULL) {
-            if ((hq->hq_red->red_max_rcpts > 0) &&
-                    (rcpts_attempted >= hq->hq_red->red_max_rcpts)) {
-                d->d_rcpt->r_status = R_TEMPFAIL;
-                d->d_n_rcpt_tempfailed++;
-                syslog(LOG_INFO,
-                        "Deliver.SMTP env <%s>: To <%s> From <%s> Skipped: "
-                        "reached max recipients: %d",
-                        d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
-                        hq->hq_red->red_max_rcpts);
+        if ((max_rcpts > 0) && (rcpts_attempted >= max_rcpts)) {
+            d->d_rcpt->r_status = R_TEMPFAIL;
+            d->d_n_rcpt_tempfailed++;
+            syslog(LOG_INFO,
+                    "Deliver.SMTP env <%s>: To <%s> From <%s> Skipped: "
+                    "reached max recipients: %d",
+                    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
+                    max_rcpts);
 
-                continue;
-            }
+            continue;
         }
         rcpts_attempted++;
 

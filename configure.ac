@@ -29,12 +29,6 @@ AC_PROG_LN_S
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 
-# Find local mailers
-SET_LOCALDELIVERY
-PROG_MAIL_LOCAL
-PROG_PROCMAIL
-WARN_LOCALDELIVERY
-
 if test x_$GCC = x_yes; then
     OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes"}
 fi
@@ -47,8 +41,6 @@ AC_SUBST(LDAP_SRC, [])
 AC_SUBST(LMDB_SRC, [])
 AC_SUBST(SSL_SRC, [])
 
-AC_DEFINE([LIBEXECDIR], ["${libexecdir}/simta"], [Install location for support binaries])
-
 # Check for libraries
 AC_CHECK_LIB([nsl], [inet_ntoa])
 AC_CHECK_LIB([socket], [socket])
@@ -57,6 +49,7 @@ AC_CHECK_LIB([crypt], [crypt])
 # Required packages
 PKG_CHECK_MODULES([DENSER], [denser])
 PKG_CHECK_MODULES([SNET], [libsnet])
+PKG_CHECK_MODULES([LIBUCL], [libucl >= 0.8.1])
 
 # Optional packages
 AC_ARG_WITH([dkim], AC_HELP_STRING([--with-dkim], [Build with DKIM support]))

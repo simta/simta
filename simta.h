@@ -9,9 +9,11 @@
 
 #include <denser.h>
 #include <snet.h>
+#include <ucl.h>
 #include <yasl.h>
 
 #include "ll.h"
+#include "simta_ucl.h"
 
 #define EMAIL_ADDRESS_NORMAL 0x0000
 #define RFC_821_MAIL_FROM 0x0001
@@ -186,6 +188,7 @@ struct simta_socket {
 /* global variables */
 
 extern const char *      simta_progname;
+extern ucl_object_t *    simta_config;
 extern struct dll_entry *simta_env_list;
 extern struct dll_entry *simta_sender_list;
 extern struct timeval    simta_global_throttle_tv;
@@ -197,8 +200,6 @@ extern struct host_q *   simta_punt_q;
 extern struct host_q *   simta_host_q;
 extern struct envelope * simta_env_queue;
 extern struct proc_type *simta_proc_stab;
-extern int               simta_ipv4;
-extern int               simta_ipv6;
 extern int               simta_proxy;
 extern int               simta_proxy_timeout;
 extern int               simta_submission_mode;
@@ -212,7 +213,6 @@ extern int               simta_sender_list_enable;
 extern int               simta_mid_list_enable;
 extern int               simta_command_read_entries;
 extern int               simta_disk_read_entries;
-extern int               simta_domain_trailing_dot;
 extern int               simta_bitbucket;
 extern int               simta_aggressive_delivery;
 extern int               simta_aggressive_expansion;
@@ -331,8 +331,6 @@ extern char              simta_log_id[];
 extern yastr             simta_postmaster;
 extern char              simta_subaddr_separator;
 extern DNSR *            simta_dnsr;
-extern char **           simta_deliver_default_argv;
-extern int               simta_deliver_default_argc;
 extern yastr             simta_seen_before_domain;
 extern struct dll_entry *simta_publicsuffix_list;
 extern char *            simta_file_publicsuffix;
@@ -378,13 +376,11 @@ void  panic(const char *);
 char *simta_sender(void);
 char *simta_resolvconf(void);
 int   simta_init_hosts(void);
-int   simta_config(void);
 int   simta_read_config(const char *);
 void  simta_openlog(int, int);
 void  simta_debuglog(int, const char *, ...);
 int   simta_gettimeofday(struct timeval *);
 int   simta_check_charset(const char *);
-int   simta_host_is_jailhost(char *);
 pid_t simta_waitpid(pid_t, int *, int);
 yastr simta_slurp(char *);
 int   simta_child_q_runner(struct host_q *);
@@ -395,6 +391,7 @@ int   simta_child_q_runner(struct host_q *);
 
 /*****     bounce.c     *****/
 
+int bounce_yastr(struct envelope *, int, const yastr);
 int bounce_text(
         struct envelope *, int, const char *, const char *, const char *);
 void             bounce_stdout(struct envelope *);

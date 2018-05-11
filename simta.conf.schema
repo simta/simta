@@ -1,0 +1,123 @@
+definitions {
+    red_rule {
+        type: object
+        properties {
+            type { type: string }
+        }
+        required [ type ]
+    }
+}
+
+type: object
+
+properties {
+    core {
+        type: object
+        properties {
+            base_dir { type: string }
+            debug_level { type: integer, minimum: 0, maximum: 8 }
+            pid_file { type: string }
+        }
+        required [ base_dir, debug_level, pid_file ]
+    }
+    red_defaults {
+        type: object
+        properties {
+            alias {
+                type: object
+                properties {
+                    path { type: string }
+                    required [ path ]
+                }
+            }
+
+            ldap {
+                type: object
+                properties {
+                    associated_domain {
+                        type: string
+                        description: sets the domain for group return paths
+                    }
+                    attributes {
+                        type: object
+                        properties {
+                            forwarding { type: string }
+                            group_forwarding { type: string }
+                            mail { type: string }
+                            request { type: array, items: { type: string }}
+                            vacation { type: string }
+                        }
+                        required [ forwarding, mail ]
+                    }
+                    bind {
+                        type: object
+                        properties {
+                            dn { type: string }
+                            method {
+                                type: string
+                                enum [ sasl, simple ]
+                            }
+                            password { type: string }
+                        }
+                        required [ method ]
+                    }
+                    debug { type: boolean }
+                    host { type: string }
+                    objectclasses {
+                        type: object
+                        properties {
+                            group { type: array, items: { type: string }}
+                            person { type: array, items: { type: string }}
+                        }
+                        required [ group, person ]
+                    }
+                    port { type: integer }
+                    search {
+                        type: list
+                        items {
+                            type: object
+                            properties {
+                                rdnpref { type: boolean }
+                                type { type: string, enum [ all, group, user ] }
+                                uri { type: string }
+                            }
+                            required [ type, uri ]
+                        }
+                    }
+                    significant_domain_components {
+                        type: integer
+                        description: allow subdomain match for group membership
+                        minimum: 2
+                    }
+                    timeout { type: integer }
+                    tls {
+                        type: object
+                        properties {
+                            ca { type: string }
+                            enabled { type: boolean }
+                            required { type: boolean }
+                        }
+                        required [ enabled, required ]
+                    }
+                    uri { type: string }
+                    vacation {
+                        type: object
+                        properties {
+                            host { type: string }
+                        }
+                    }
+                }
+                required [ attributes, bind ]
+            }
+
+            password {
+                type: object
+                properties {
+                    path { type: string }
+                    required [ path ]
+                }
+            }
+        }
+        required [ alias, ldap, password ]
+    }
+}

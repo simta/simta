@@ -50,10 +50,6 @@ main(int ac, char *av[]) {
         exit(1);
     }
 
-    if (simta_config() != 0) {
-        exit(1);
-    }
-
     simta_openlog(0, LOG_PERROR);
 
     hostname = av[ 1 ];
@@ -96,11 +92,8 @@ main(int ac, char *av[]) {
         r = smtp_connect(hq, &d);
         if (r == SMTP_BAD_TLS) {
             snet_close(d.d_snet_smtp);
-            if (hq->hq_red == NULL) {
-                hq->hq_red = red_host_add(hq->hq_hostname);
-            }
             syslog(LOG_INFO, "[%s] %s: disabling TLS", d.d_ip, hq->hq_hostname);
-            hq->hq_red->red_policy_tls = TLS_POLICY_DISABLED;
+            simta_ucl_toggle(hq->hq_red, "deliver.tls", "enabled", false);
             goto retry;
         }
 

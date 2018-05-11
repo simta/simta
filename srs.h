@@ -12,7 +12,7 @@
 
 int srs_forward(struct envelope *);
 int srs_reverse(const char *, char **, const char *);
-int srs_expand(struct expand *, struct exp_addr *, struct action *);
+int srs_expand(struct expand *, struct exp_addr *, const ucl_object_t *);
 int srs_valid(const char *, const char *);
 
 #endif /* SIMTA_SRS_H */

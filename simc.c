@@ -116,11 +116,6 @@ main(int argc, char *argv[]) {
         exit(EX_TEMPFAIL);
     }
 
-    /* init simta config / defaults */
-    if (simta_config() != 0) {
-        exit(EX_TEMPFAIL);
-    }
-
     simta_openlog(0, 0);
 
     if ((pid = getpid()) < 0) {

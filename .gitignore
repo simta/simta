@@ -27,6 +27,8 @@ configure
 denser/dense
 depcomp
 dist
+embedded_config.h
+embedded_schema.h
 errors
 genimbed
 install-sh

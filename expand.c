@@ -126,7 +126,7 @@ expand(struct envelope *unexpanded_env) {
     struct expand_output *eo_free;
     struct exp_addr *     e_addr;
     struct exp_addr *     next_e_addr;
-    struct simta_red *    hq_red;
+    ucl_object_t *        hq_red;
     char *                domain;
     SNET *                snet = NULL;
     int                   n_rcpts;
@@ -218,7 +218,7 @@ expand(struct envelope *unexpanded_env) {
     /* Members-only processing */
     for (memonly = exp.exp_memonly; memonly != NULL;
             memonly = memonly->el_next) {
-        if (((p = parent_permitted(memonly->el_exp_addr)) != NULL) ||
+        if (((p = exp_addr_parent_permitted(memonly->el_exp_addr)) != NULL) ||
                 (sender_is_child(
                         memonly->el_exp_addr->e_addr_children, loop_color++))) {
             if (p != NULL) {
@@ -517,8 +517,9 @@ expand(struct envelope *unexpanded_env) {
              * Here, final delivery means the message has left the SMTP
              * environment.
              */
-            if (((hq_red = red_host_lookup(eo->eo_hostname)) != NULL) &&
-                    (hq_red->red_deliver_type == RED_DELIVER_BINARY)) {
+            if (((hq_red = red_host_lookup(eo->eo_hostname, false)) != NULL) &&
+                    (ucl_object_toboolean(ucl_object_lookup_path(
+                            hq_red, "deliver.local.enabled")))) {
                 if (snprintf(header, 270, "Return-Path: <%s>", env->e_mail) >=
                         270) {
                     syslog(LOG_ERR,
@@ -793,7 +794,7 @@ cleanup1:
 #ifdef HAVE_LDAP
         exp_addr_link_free(e_addr->e_addr_parents);
         exp_addr_link_free(e_addr->e_addr_children);
-        permitted_destroy(e_addr);
+        exp_addr_permitted_destroy(e_addr);
         if ((e_addr->e_addr_env_moderated != NULL) &&
                 ((e_addr->e_addr_env_moderated->e_flags & ENV_FLAG_EFILE) ==
                         0)) {
@@ -801,7 +802,7 @@ cleanup1:
         }
 
         if (e_addr->e_addr_owner) {
-            free(e_addr->e_addr_owner);
+            yaslfree(e_addr->e_addr_owner);
         }
 
         if (e_addr->e_addr_dn) {
@@ -917,24 +918,9 @@ unblocked_path_to_root(struct exp_addr *e, int color) {
 
 
 int
-permitted_create(struct exp_addr *e_addr, char **permitted) {
-    int   idx;
-    char *namedup;
-
-    if ((permitted != NULL) && ((*permitted) != NULL)) {
-        /*
-        ** Normalize the permitted group list
-        ** normalization happens "in-place"
-        */
-        for (idx = 0; permitted[ idx ] != NULL; idx++) {
-            dn_normalize_case(permitted[ idx ]);
-
-            namedup = strdup(permitted[ idx ]);
-
-            if (ll_insert(&e_addr->e_addr_ok, namedup, namedup, NULL) != 0) {
-                return (1);
-            }
-        }
+exp_addr_permitted_add(struct exp_addr *e_addr, char *permitted) {
+    if (ll_insert(&e_addr->e_addr_ok, permitted, permitted, NULL) != 0) {
+        return (1);
     }
 
     return (0);
@@ -942,8 +928,7 @@ permitted_create(struct exp_addr *e_addr, char **permitted) {
 
 
 void
-permitted_destroy(struct exp_addr *e_addr) {
-
+exp_addr_permitted_destroy(struct exp_addr *e_addr) {
     struct stab_entry *pstab;
     struct stab_entry *nstab;
 
@@ -951,9 +936,7 @@ permitted_destroy(struct exp_addr *e_addr) {
     while (pstab != NULL) {
         nstab = pstab;
         pstab = pstab->st_next;
-        if (nstab->st_key != NULL) {
-            free(nstab->st_key);
-        }
+        yaslfree(nstab->st_key);
         free(nstab);
     }
     return;
@@ -961,7 +944,7 @@ permitted_destroy(struct exp_addr *e_addr) {
 
 
 char *
-parent_permitted(struct exp_addr *memonly) {
+exp_addr_parent_permitted(struct exp_addr *memonly) {
     struct exp_link *  parent;
     struct stab_entry *ok;
 

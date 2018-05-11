@@ -192,8 +192,7 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
     int              insert_head = 0;
     char *           at;
 #ifdef HAVE_LDAP
-    struct simta_red *red;
-    struct action *   a;
+    const ucl_object_t *red;
 #endif /* HAVE_LDAP */
 
     for (e = exp->exp_addr_head; e != NULL; e = e->e_addr_next) {
@@ -207,7 +206,7 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
 
         e->e_addr_errors = error_env;
         e->e_addr_type = addr_type;
-        e->e_addr_parent_action = exp->exp_current_action;
+        e->e_addr_parent_rule = exp->exp_current_rule;
         exp->exp_entries++;
 
         e->e_addr = strdup(addr);
@@ -251,13 +250,11 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
 #ifdef HAVE_LDAP
             if (e->e_addr_at != NULL) {
                 /* check to see if we might need LDAP for this domain */
-                if ((red = red_host_lookup(e->e_addr_at + 1)) != NULL) {
-                    for (a = red->red_expand; a != NULL; a = a->a_next) {
-                        if (a->a_action == EXPANSION_TYPE_LDAP) {
-                            insert_head = 1;
-                            e->e_addr_try_ldap = 1;
-                            break;
-                        }
+                if ((red = red_host_lookup(e->e_addr_at + 1, false)) != NULL) {
+                    /* FIXME: this used to just be for LDAP. Why? Does it still need to be? */
+                    if (red_does_expansion(red)) {
+                        insert_head = 1;
+                        break;
                     }
                 }
 
@@ -277,7 +274,6 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
 #ifdef HAVE_LDAP
         case ADDRESS_TYPE_LDAP:
             insert_head = 1;
-            e->e_addr_try_ldap = 1;
             break;
 #endif /* HAVE LDAP */
 
@@ -332,9 +328,13 @@ error:
 
 int
 address_expand(struct expand *exp) {
-    struct exp_addr * e_addr;
-    struct simta_red *red = NULL;
-    int               local_postmaster = 0;
+    struct exp_addr *   e_addr;
+    const ucl_object_t *red = NULL;
+    ucl_object_iter_t   iter = NULL;
+    const ucl_object_t *rule = NULL;
+    const char *        type = NULL;
+    const char *        path = NULL;
+    int                 local_postmaster = 0;
 
     e_addr = exp->exp_addr_cursor;
 
@@ -342,7 +342,6 @@ address_expand(struct expand *exp) {
     case ADDRESS_TYPE_EMAIL:
         if (e_addr->e_addr_at == NULL) {
             red = simta_red_host_default;
-
         } else {
             if (strlen(e_addr->e_addr_at + 1) > SIMTA_MAX_HOST_NAME_LEN) {
                 syslog(LOG_ERR, "Expand env <%s>: <%s>: domain too long",
@@ -351,8 +350,9 @@ address_expand(struct expand *exp) {
             }
 
             /* Check to see if domain is off the local host */
-            if (((red = red_host_lookup(e_addr->e_addr_at + 1)) == NULL) ||
-                    (red->red_expand == NULL)) {
+            red = red_host_lookup(e_addr->e_addr_at + 1, false);
+
+            if ((red == NULL) || !red_does_expansion(red)) {
                 simta_debuglog(1, "Expand env <%s>: <%s>: expansion complete",
                         exp->exp_env->e_id, e_addr->e_addr);
                 return (ADDRESS_FINAL);
@@ -362,10 +362,33 @@ address_expand(struct expand *exp) {
 
 #ifdef HAVE_LDAP
     case ADDRESS_TYPE_LDAP:
-        exp->exp_current_action = e_addr->e_addr_parent_action;
+        rule = e_addr->e_addr_parent_rule;
+        ;
         simta_debuglog(2, "Expand env <%s>: <%s>: LDAP data",
                 exp->exp_env->e_id, e_addr->e_addr);
-        goto ldap_exclusive;
+        switch (simta_ldap_expand(rule, exp, e_addr)) {
+        case ADDRESS_EXCLUDE:
+            simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: expanded",
+                    exp->exp_env->e_id, e_addr->e_addr);
+            return (ADDRESS_EXCLUDE);
+
+        case ADDRESS_FINAL:
+            simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: terminal",
+                    exp->exp_env->e_id, e_addr->e_addr);
+            return (ADDRESS_FINAL);
+
+        case ADDRESS_NOT_FOUND:
+            simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: not found",
+                    exp->exp_env->e_id, e_addr->e_addr);
+            goto not_found;
+
+        case ADDRESS_SYSERROR:
+            return (ADDRESS_SYSERROR);
+
+        default:
+            panic("address_expand ldap_expand out of range");
+        }
+
 #endif /*  HAVE_LDAP */
 
     default:
@@ -377,24 +400,34 @@ address_expand(struct expand *exp) {
      */
 
     /* Expand user using expansion table for domain */
-    for (exp->exp_current_action = red->red_expand;
-            exp->exp_current_action != NULL;
-            exp->exp_current_action = exp->exp_current_action->a_next) {
-        switch (exp->exp_current_action->a_action) {
-            /* Other types might include files, pipes, etc */
+    iter = ucl_object_iterate_new(ucl_object_lookup(red, "rule"));
+    while ((rule = ucl_object_iterate_safe(iter, false)) != NULL) {
+        /* FIXME: we might be able to do away with this */
+        exp->exp_current_rule = rule;
+
+        if (!ucl_object_toboolean(
+                    ucl_object_lookup_path(rule, "expand.enabled"))) {
+            simta_debuglog(3,
+                    "Expand env <%s>: <%s>: skipping non-expand rule %s",
+                    exp->exp_env->e_id, e_addr->e_addr,
+                    ucl_object_tostring_forced(rule));
+            continue;
+        }
+
+        type = ucl_object_tostring(ucl_object_lookup(rule, "type"));
+
 #ifdef HAVE_LMDB
-        case EXPANSION_TYPE_ALIAS:
-            switch (alias_expand(exp, e_addr, exp->exp_current_action)) {
+        if (strcasecmp(type, "alias") == 0) {
+            path = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+            switch (alias_expand(exp, e_addr, rule)) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog(1, "Expand.alias env <%s>: <%s>: found in DB %s",
-                        exp->exp_env->e_id, e_addr->e_addr,
-                        exp->exp_current_action->a_fname);
+                        exp->exp_env->e_id, e_addr->e_addr, path);
                 return (ADDRESS_EXCLUDE);
 
             case ADDRESS_NOT_FOUND:
                 simta_debuglog(1, "Expand.alias env <%s>: <%s>: not in DB %s",
-                        exp->exp_env->e_id, e_addr->e_addr,
-                        exp->exp_current_action->a_fname);
+                        exp->exp_env->e_id, e_addr->e_addr, path);
                 continue;
 
             case ADDRESS_SYSERROR:
@@ -403,29 +436,28 @@ address_expand(struct expand *exp) {
             default:
                 panic("address_expand default alias switch");
             }
+        }
 #endif /* HAVE_LMDB */
 
-        case EXPANSION_TYPE_PASSWORD:
-            switch (password_expand(exp, e_addr, exp->exp_current_action)) {
+        if (strcasecmp(type, "password") == 0) {
+            path = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+            switch (password_expand(exp, e_addr, rule)) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog(1,
                         "Expand.password env <%s>: <%s>: found in file %s",
-                        exp->exp_env->e_id, e_addr->e_addr,
-                        exp->exp_current_action->a_fname);
+                        exp->exp_env->e_id, e_addr->e_addr, path);
                 return (ADDRESS_EXCLUDE);
 
             case ADDRESS_FINAL:
                 simta_debuglog(1,
                         "Expand.password env <%s>: <%s>: terminal in file %s",
-                        exp->exp_env->e_id, e_addr->e_addr,
-                        exp->exp_current_action->a_fname);
+                        exp->exp_env->e_id, e_addr->e_addr, path);
                 return (ADDRESS_FINAL);
 
             case ADDRESS_NOT_FOUND:
                 simta_debuglog(1,
                         "Expand.password env <%s>: <%s>: not in file %s",
-                        exp->exp_env->e_id, e_addr->e_addr,
-                        exp->exp_current_action->a_fname);
+                        exp->exp_env->e_id, e_addr->e_addr, path);
                 continue;
 
             case ADDRESS_SYSERROR:
@@ -434,9 +466,10 @@ address_expand(struct expand *exp) {
             default:
                 panic("address_expand default password switch");
             }
+        }
 
-        case EXPANSION_TYPE_SRS:
-            switch (srs_expand(exp, e_addr, exp->exp_current_action)) {
+        if (strcasecmp(type, "srs") == 0) {
+            switch (srs_expand(exp, e_addr, rule)) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog(1, "Expand.SRS env <%s>: <%s>: valid",
                         exp->exp_env->e_id, e_addr->e_addr);
@@ -453,17 +486,14 @@ address_expand(struct expand *exp) {
             default:
                 panic("address_expand srs_expand out of range");
             }
+        }
 
 #ifdef HAVE_LDAP
-        case EXPANSION_TYPE_LDAP:
+        if (strcasecmp(type, "ldap") == 0) {
             if (e_addr->e_addr_at == NULL) {
                 continue;
             }
-            exp->exp_current_action = exp->exp_current_action;
-
-        ldap_exclusive:
-            switch (simta_ldap_expand(
-                    exp->exp_current_action->a_ldap, exp, e_addr)) {
+            switch (simta_ldap_expand(rule, exp, e_addr)) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: expanded",
                         exp->exp_env->e_id, e_addr->e_addr);
@@ -477,10 +507,6 @@ address_expand(struct expand *exp) {
             case ADDRESS_NOT_FOUND:
                 simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: not found",
                         exp->exp_env->e_id, e_addr->e_addr);
-                if (red == NULL) {
-                    /* data is exclusively for ldap, and it didn't find it */
-                    goto not_found;
-                }
                 continue;
 
             case ADDRESS_SYSERROR:
@@ -489,11 +515,8 @@ address_expand(struct expand *exp) {
             default:
                 panic("address_expand ldap_expand out of range");
             }
-#endif /* HAVE_LDAP */
-
-        default:
-            panic("address_expand expansion type out of range");
         }
+#endif /* HAVE_LDAP */
     }
 
 #ifdef HAVE_LDAP
@@ -536,15 +559,18 @@ not_found:
 
 
 struct passwd *
-simta_getpwnam(struct action *a, char *user) {
+simta_getpwnam(const ucl_object_t *rule, const char *user) {
     static struct passwd pwent;
     static yastr         buf = NULL;
     SNET *               snet;
+    const char *         fname;
     char *               line;
     char *               c;
     size_t               userlen;
 
-    if (strcmp(a->a_fname, "/etc/passwd") == 0) {
+    fname = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+
+    if (strcmp(fname, "/etc/passwd") == 0) {
         /* Use the system password database, which may or may not just read
          * from /etc/passwd.
          */
@@ -552,9 +578,8 @@ simta_getpwnam(struct action *a, char *user) {
     }
 
     /* Otherwise, read and parse the passwd-like file ourselves. */
-    if ((snet = snet_open(a->a_fname, O_RDONLY, 0, 1024 * 1024)) == NULL) {
-        syslog(LOG_ERR, "Liberror: simta_getpwnam snet_open %s: %m",
-                a->a_fname);
+    if ((snet = snet_open(fname, O_RDONLY, 0, 1024 * 1024)) == NULL) {
+        syslog(LOG_ERR, "Liberror: simta_getpwnam snet_open %s: %m", fname);
         return (NULL);
     }
 
@@ -644,7 +669,8 @@ simta_getpwnam(struct action *a, char *user) {
 
 
 int
-password_expand(struct expand *exp, struct exp_addr *e_addr, struct action *a) {
+password_expand(
+        struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
     int            ret;
     int            len;
     FILE *         f;
@@ -663,10 +689,10 @@ password_expand(struct expand *exp, struct exp_addr *e_addr, struct action *a) {
     /* Check password file */
     if (e_addr->e_addr_at != NULL) {
         *e_addr->e_addr_at = '\0';
-        passwd = simta_getpwnam(a, e_addr->e_addr);
+        passwd = simta_getpwnam(rule, e_addr->e_addr);
         *e_addr->e_addr_at = '@';
     } else {
-        passwd = simta_getpwnam(a, STRING_POSTMASTER);
+        passwd = simta_getpwnam(rule, STRING_POSTMASTER);
     }
 
     if (passwd == NULL) {
@@ -736,7 +762,8 @@ cleanup_forward:
 
 #ifdef HAVE_LMDB
 int
-alias_expand(struct expand *exp, struct exp_addr *e_addr, struct action *a) {
+alias_expand(
+        struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
     int               ret = ADDRESS_NOT_FOUND;
     yastr             address = NULL;
     yastr             domain = NULL;
@@ -745,16 +772,16 @@ alias_expand(struct expand *exp, struct exp_addr *e_addr, struct action *a) {
     yastr             value = NULL;
     char *            alias_addr;
     char *            paddr;
+    const char *      db_path;
     struct simta_dbc *dbcp = NULL, *owner_dbcp = NULL;
+    struct simta_dbh *dbh = NULL;
 
-    if (a->a_dbh == NULL) {
-        if ((ret = simta_db_open_r(&(a->a_dbh), a->a_fname)) != 0) {
-            syslog(LOG_ERR, "Liberror: alias_expand simta_db_open_r %s: %s",
-                    a->a_fname, simta_db_strerror(ret));
-            a->a_dbh = NULL;
-            ret = ADDRESS_NOT_FOUND;
-            goto done;
-        }
+    db_path = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+    if ((ret = simta_db_open_r(&dbh, db_path)) != 0) {
+        syslog(LOG_ERR, "Liberror: alias_expand simta_db_open_r %s: %s",
+                db_path, simta_db_strerror(ret));
+        ret = ADDRESS_NOT_FOUND;
+        goto done;
     }
 
     if (e_addr->e_addr_at != NULL) {
@@ -792,7 +819,7 @@ alias_expand(struct expand *exp, struct exp_addr *e_addr, struct action *a) {
         yaslrange(address, 0, paddr - address - 1);
     }
 
-    if ((ret = simta_db_cursor_open(a->a_dbh, &dbcp)) != 0) {
+    if ((ret = simta_db_cursor_open(dbh, &dbcp)) != 0) {
         syslog(LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
                 simta_db_strerror(ret));
         ret = ADDRESS_SYSERROR;
@@ -813,7 +840,7 @@ alias_expand(struct expand *exp, struct exp_addr *e_addr, struct action *a) {
     if (strcmp(address, STRING_POSTMASTER) != 0) {
         owner = yasldup(address);
         owner = yaslcat(owner, "-errors");
-        if ((ret = simta_db_cursor_open(a->a_dbh, &owner_dbcp)) != 0) {
+        if ((ret = simta_db_cursor_open(dbh, &owner_dbcp)) != 0) {
             syslog(LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
                     simta_db_strerror(ret));
             ret = ADDRESS_SYSERROR;
@@ -903,6 +930,7 @@ done:
     yaslfree(owner_value);
     simta_db_cursor_close(dbcp);
     simta_db_cursor_close(owner_dbcp);
+    simta_db_close(dbh);
     return (ret);
 }
 #endif /* HAVE_LMDB */

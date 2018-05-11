@@ -114,71 +114,9 @@ get_aaaa(const char *hostname) {
 
 struct dnsr_result *
 get_mx(const char *hostname) {
-    int                 i;
     struct dnsr_result *result = NULL;
-    struct simta_red *  red;
 
     result = get_address(hostname, DNSR_TYPE_MX);
-
-    if (simta_dns_auto_config == 0) {
-        return (result);
-    }
-
-    if (result->r_ancount == 0) {
-        return (result);
-    }
-
-    /* Check to see if hostname is mx'ed to us
-     * Only do dynamic configuration when exchange matches our
-     * actual host name and is highest preference MX.  Others must be
-     * configured by hand.
-     */
-    /* FIXME: is this broken?  no check for preference as comments suggest */
-    for (i = 0; i < result->r_ancount; i++) {
-        switch (result->r_answer[ i ].rr_type) {
-        case DNSR_TYPE_CNAME:
-            if (strcasecmp(simta_hostname,
-                        result->r_answer[ i ].rr_cname.cn_name) == 0) {
-                if ((red = red_host_lookup(
-                             result->r_answer[ i ].rr_cname.cn_name)) == NULL) {
-                    if ((red = red_host_add(result->r_answer[ i ].rr_name)) ==
-                            NULL) {
-                        dnsr_free_result(result);
-                        return (NULL);
-                    }
-                    if (red_action_default(red) != 0) {
-                        return (NULL);
-                    }
-                }
-            }
-            break;
-
-        case DNSR_TYPE_MX:
-            if ((strcasecmp(simta_hostname,
-                         result->r_answer[ i ].rr_mx.mx_exchange) == 0) &&
-                    (result->r_answer[ i ].rr_mx.mx_preference <=
-                            result->r_answer[ 0 ].rr_mx.mx_preference)) {
-                if ((red = red_host_lookup(result->r_answer[ i ].rr_name)) ==
-                        NULL) {
-                    if ((red = red_host_add(result->r_answer[ i ].rr_name)) ==
-                            NULL) {
-                        dnsr_free_result(result);
-                        return (NULL);
-                    }
-                    if (red_action_default(red) != 0) {
-                        return (NULL);
-                    }
-                }
-            }
-            break;
-
-        default:
-            simta_debuglog(2, "get_mx: %s: uninteresting dnsr type: %d",
-                    result->r_answer[ i ].rr_name,
-                    result->r_answer[ i ].rr_type);
-            break;
-        }
-    }
 
     return (result);
 }
@@ -229,41 +167,6 @@ simta_dnsr_str(const struct dnsr_string *data) {
     }
 
     return (str);
-}
-
-struct simta_red *
-host_local(char *hostname) {
-    struct simta_red *  red;
-    struct dnsr_result *result;
-
-    /* Check for hostname in host table */
-    if ((red = red_host_lookup(hostname)) != NULL) {
-        return (red);
-    }
-
-    if (simta_dns_auto_config == 0) {
-        return (NULL);
-    }
-
-    if ((result = get_mx(hostname)) == NULL) {
-        return (NULL);
-    }
-
-    /* Check for an answer */
-    if (result->r_ancount == 0) {
-        dnsr_free_result(result);
-        return (NULL);
-    }
-
-    /* Check to see if host has been added to host table */
-    if ((red = red_host_lookup(hostname)) != NULL) {
-        dnsr_free_result(result);
-        return (red);
-    }
-
-    dnsr_free_result(result);
-
-    return (NULL);
 }
 
 int

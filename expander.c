@@ -76,12 +76,6 @@ main(int argc, char *argv[]) {
         exit(EX_DATAERR);
     }
 
-    /* init simta config / defaults */
-    if (simta_config() != 0) {
-        fprintf(stderr, "simta_config error\n");
-        exit(EX_DATAERR);
-    }
-
     simta_openlog(0, 0);
 
     env = env_create(NULL, "DEAD60FF", sender, NULL);

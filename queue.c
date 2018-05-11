@@ -104,36 +104,30 @@ host_q_create_or_lookup(char *hostname) {
 
     if ((hq = host_q_lookup(hostname)) == NULL) {
         hq = calloc(1, sizeof(struct host_q));
+        hq->hq_hostname = yaslauto(hostname);
+        yasltolower(hq->hq_hostname);
 
-        hq->hq_wait_max = simta_wait_max;
-        hq->hq_wait_min = simta_wait_min;
+        hq->hq_red = red_host_lookup(hostname, true);
 
-        hq->hq_hostname = strdup(hostname);
-
-        if (simta_bitbucket > 0) {
+        if (ucl_object_toboolean(ucl_object_lookup_path(
+                    hq->hq_red, "deliver.bitbucket.enabled"))) {
             hq->hq_status = HOST_BITBUCKET;
-
-        } else if ((hq->hq_red = red_host_lookup(hostname)) != NULL) {
-            if (hq->hq_red->red_deliver_type == RED_DELIVER_BINARY) {
-                hq->hq_status = HOST_LOCAL;
-            }
-            if (hq->hq_red->red_wait_set != 0) {
-                hq->hq_wait_min = hq->hq_red->red_wait_min;
-                hq->hq_wait_max = hq->hq_red->red_wait_max;
-            }
-        } else if ((simta_jail_host != NULL) &&
-                   (strcasecmp(simta_jail_host, hostname)) == 0) {
-            hq->hq_no_punt = NOPUNT_CONFIG;
+        } else if (ucl_object_toboolean(ucl_object_lookup_path(
+                           hq->hq_red, "deliver.local.enabled"))) {
+            hq->hq_status = HOST_LOCAL;
         }
 
         if (hq->hq_status == HOST_UNKNOWN) {
-            if ((simta_punt_policy == PUNT_POLICY_ALL) &&
-                    (hq->hq_no_punt != NOPUNT_CONFIG)) {
+            if (ucl_object_toboolean(ucl_object_lookup_path(
+                        hq->hq_red, "deliver.punt.always")) &&
+                    ucl_object_toboolean(ucl_object_lookup_path(
+                            hq->hq_red, "deliver.punt.enabled"))) {
                 hq->hq_status = HOST_SUPPRESSED;
             } else if ((simta_rqueue_policy == RQUEUE_POLICY_SLOW) &&
                        (simta_process_type == PROCESS_RECEIVE)) {
                 hq->hq_status = HOST_SUPPRESSED;
-                hq->hq_no_punt |= NOPUNT_MX;
+                /* Suppress punting so that it will go to the slow queue */
+                simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
             }
         }
 
@@ -681,7 +675,7 @@ void
 hq_free(struct host_q *hq_free) {
     if (hq_free) {
         hq_deliver_pop(hq_free);
-        free(hq_free->hq_hostname);
+        yaslfree(hq_free->hq_hostname);
         free(hq_free);
     }
 
@@ -1005,7 +999,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
     SNET *             snet_dfile = NULL;
     SNET *             snet_lock;
     char               dfile_fname[ MAXPATHLEN ];
-    struct simta_red * red;
+    ucl_object_t *     red;
     struct recipient **r_sort;
     struct recipient * remove;
     struct envelope *  env_deliver;
@@ -1027,14 +1021,15 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
      * remote host if we have not done so already.
      */
     if (deliver_q->hq_status == HOST_UNKNOWN) {
-        if (((red = host_local(deliver_q->hq_hostname)) == NULL) ||
-                (red->red_deliver_type == RED_DELIVER_SMTP_DEFAULT) ||
-                (red->red_deliver_type == RED_DELIVER_SMTP)) {
-            deliver_q->hq_status = HOST_MX;
-        } else if (red->red_deliver_type == RED_DELIVER_BINARY) {
+        if (ucl_object_toboolean(ucl_object_lookup_path(
+                    deliver_q->hq_red, "deliver.local.enabled"))) {
             deliver_q->hq_status = HOST_LOCAL;
-        } else {
+        } else if (ucl_object_toboolean(ucl_object_lookup_path(
+                           deliver_q->hq_red, "deliver.secondary_mx"))) {
+            /* FIXME: is this logic actually right? */
             deliver_q->hq_status = HOST_DOWN;
+        } else {
+            deliver_q->hq_status = HOST_MX;
         }
     }
 
@@ -1106,10 +1101,10 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                         d->d_env->e_id);
                 break;
             }
-            if ((deliver_q->hq_red != NULL) &&
-                    (deliver_q->hq_red->red_deliver_argv != NULL)) {
-                d->d_deliver_argc = deliver_q->hq_red->red_deliver_argc;
-                d->d_deliver_argv = deliver_q->hq_red->red_deliver_argv;
+            if (ucl_object_toboolean(ucl_object_lookup_path(
+                        deliver_q->hq_red, "deliver.local.enabled"))) {
+                d->d_deliver_agent = ucl_object_tostring(ucl_object_lookup_path(
+                        deliver_q->hq_red, "deliver.local.agent"));
             }
             deliver_local(d);
             break;
@@ -1376,16 +1371,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
             env_bounce = NULL;
         }
 
-        /* per-host punting */
-        if (deliver_q->hq_red != NULL) {
-            if (deliver_q->hq_red->red_policy_punting == RED_PUNTING_ENABLED) {
-                deliver_q->hq_no_punt &= ~NOPUNT_MX;
-            } else if (deliver_q->hq_red->red_policy_punting ==
-                       RED_PUNTING_DISABLED) {
-                deliver_q->hq_no_punt |= NOPUNT_MX;
-            }
-        }
-
         if (d->d_unlinked == 0) {
             if ((simta_punt_q != NULL) && (deliver_q != simta_punt_q) &&
                     (deliver_q->hq_no_punt == 0)) {
@@ -1485,11 +1470,6 @@ deliver_local(struct deliver *d) {
         if (lseek(d->d_dfile_fd, (off_t)0, SEEK_SET) != 0) {
             syslog(LOG_ERR, "Syserror: deliver_local lseek: %m");
             goto lseek_fail;
-        }
-
-        if (d->d_deliver_argc == 0) {
-            d->d_deliver_argc = simta_deliver_default_argc;
-            d->d_deliver_argv = simta_deliver_default_argv;
         }
 
         ml_error = deliver_binary(d);
@@ -1608,13 +1588,12 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
             if ((r_smtp = smtp_connect(hq, d)) == SMTP_BAD_TLS) {
                 snet_close(d->d_snet_smtp);
                 d->d_snet_smtp = NULL;
-                if (hq->hq_red == NULL) {
-                    hq->hq_red = red_host_add(hq->hq_hostname);
-                }
                 syslog(LOG_INFO,
                         "Deliver.remote %s: disabling TLS and retrying",
                         hq->hq_hostname);
-                hq->hq_red->red_policy_tls = TLS_POLICY_DISABLED;
+                ucl_object_replace_key(
+                        ucl_object_lookup_path(hq->hq_red, "deliver.tls"),
+                        ucl_object_frombool(false), "enabled", 0, false);
                 goto retry;
             } else if (r_smtp != SMTP_OK) {
                 goto smtp_cleanup;
@@ -1737,8 +1716,8 @@ next_dnsr_host_lookup(struct deliver *d, struct host_q *hq) {
 
 int
 get_outbound_dns(struct deliver *d, struct host_q *hq) {
-    int               i;
-    struct simta_red *red;
+    int           i;
+    ucl_object_t *red;
 
     /*
      * RFC 5321 5.1 Locating the Target Host
@@ -1775,7 +1754,7 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
      * name.
      */
     if ((d->d_dnsr_result = get_mx(hq->hq_hostname)) == NULL) {
-        hq->hq_no_punt |= NOPUNT_MX;
+        simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
         syslog(LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
                 hq->hq_hostname);
         return (1);
@@ -1809,7 +1788,7 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
             if ((strcasecmp(simta_hostname,
                         d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange)) ==
                     0) {
-                hq->hq_no_punt |= NOPUNT_MX;
+                simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
                 d->d_mx_preference_set = 1;
                 d->d_mx_preference_cutoff =
                         d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
@@ -1822,9 +1801,10 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
 
             /* set mx pref cutoff if we are listed under a secondary name */
             red = red_host_lookup(
-                    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange);
-            if (red && red->red_deliver_type == RED_DELIVER_SECONDARY) {
-                hq->hq_no_punt |= NOPUNT_MX;
+                    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange, false);
+            if (red && ucl_object_toboolean(ucl_object_lookup_path(
+                               red, "deliver.secondary_mx"))) {
+                simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
                 d->d_mx_preference_set = 1;
                 d->d_mx_preference_cutoff =
                         d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
@@ -1832,7 +1812,8 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
                         "DNS %s: Entry %d: MX Record lists "
                         "secondary MX %s at precedence %d, "
                         "Punting disabled",
-                        hq->hq_hostname, i, red->red_host_name,
+                        hq->hq_hostname, i,
+                        d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange,
                         d->d_mx_preference_cutoff);
                 break;
             }
@@ -1859,11 +1840,12 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
         }
         dnsr_free_result(d->d_dnsr_result);
 
-        if (simta_ipv6) {
+        if (ucl_object_toboolean(ucl_object_lookup_path(hq->hq_red, "ipv6"))) {
             if ((d->d_dnsr_result = get_aaaa(hq->hq_hostname)) == NULL) {
                 syslog(LOG_INFO, "DNS %s: AAAA record lookup failed",
                         hq->hq_hostname);
-                if (simta_ipv4 == 0) {
+                if (!ucl_object_toboolean(
+                            ucl_object_lookup_path(hq->hq_red, "ipv4"))) {
                     return (1);
                 }
             }
@@ -1876,7 +1858,7 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
             d->d_dnsr_result = NULL;
         }
 
-        if (simta_ipv4) {
+        if (ucl_object_toboolean(ucl_object_lookup_path(hq->hq_red, "ipv4"))) {
             if ((d->d_dnsr_result = get_a(hq->hq_hostname)) == NULL) {
                 syslog(LOG_INFO, "DNS %s: A record lookup failed",
                         hq->hq_hostname);
@@ -1925,7 +1907,6 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
     struct sockaddr_in6 *   sin6;
 
     if (d->d_dnsr_result == NULL) {
-        hq->hq_no_punt &= ~NOPUNT_MX;
         d->d_mx_preference_set = 0;
         d->d_cur_dnsr_result = 0;
 
@@ -1943,12 +1924,14 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
             break; /* case HOST_DOWN */
 
         case HOST_PUNT_DOWN:
-            if (simta_ipv6) {
+            if (ucl_object_toboolean(
+                        ucl_object_lookup_path(hq->hq_red, "ipv6"))) {
                 if ((d->d_dnsr_result = get_aaaa(simta_punt_host)) == NULL) {
                     syslog(LOG_WARNING,
                             "DNS %s: punt host AAAA record lookup failed",
                             simta_punt_host);
-                    if (simta_ipv4 == 0) {
+                    if (!ucl_object_toboolean(
+                                ucl_object_lookup_path(hq->hq_red, "ipv4"))) {
                         return (1);
                     }
                 } else if (d->d_dnsr_result->r_ancount == 0) {
@@ -1957,7 +1940,9 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
                 }
             }
 
-            if (simta_ipv4 && (d->d_dnsr_result == NULL)) {
+            if (ucl_object_toboolean(
+                        ucl_object_lookup_path(hq->hq_red, "ipv4")) &&
+                    (d->d_dnsr_result == NULL)) {
                 if ((d->d_dnsr_result = get_a(simta_punt_host)) == NULL) {
                     syslog(LOG_WARNING,
                             "DNS %s: punt host A record lookup failed",
@@ -2043,9 +2028,13 @@ start:
         memcpy(&(d->d_sa), &(d->d_dnsr_result_additional->ip_sa),
                 sizeof(struct sockaddr_storage));
         d->d_dnsr_result_additional = d->d_dnsr_result_additional->ip_next;
-        if ((simta_ipv6 == 0) && (d->d_sa.ss_family == AF_INET6)) {
+        if ((!ucl_object_toboolean(
+                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv6"))) &&
+                (d->d_sa.ss_family == AF_INET6)) {
             continue;
-        } else if ((simta_ipv4 == 0) && (d->d_sa.ss_family == AF_INET)) {
+        } else if ((!ucl_object_toboolean(ucl_object_lookup_path(
+                           hq->hq_red, "deliver.ipv4"))) &&
+                   (d->d_sa.ss_family == AF_INET)) {
             continue;
         }
         if (deliver_checksockaddr(d, hq) == 0) {
@@ -2058,7 +2047,9 @@ start:
     if (d->d_cur_dnsr_result_ip < -1) {
         rr = d->d_dnsr_result->r_answer + d->d_cur_dnsr_result;
 
-        if (simta_ipv6 && (d->d_cur_dnsr_result_ip == -3)) {
+        if (ucl_object_toboolean(
+                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv6")) &&
+                (d->d_cur_dnsr_result_ip == -3)) {
             if ((d->d_dnsr_result_ip6 = get_aaaa(rr->rr_mx.mx_exchange))) {
                 if (d->d_dnsr_result_ip6->r_ancount > 0) {
                     syslog(LOG_INFO,
@@ -2078,7 +2069,8 @@ start:
 
         d->d_cur_dnsr_result_ip = -1;
 
-        if (simta_ipv4 == 0) {
+        if (!ucl_object_toboolean(
+                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv4"))) {
             goto start;
         }
 
@@ -2148,7 +2140,9 @@ start:
             d->d_cur_dnsr_result++) {
         rr = d->d_dnsr_result->r_answer + d->d_cur_dnsr_result;
         /* if the entry is an address record, use the associated IP info */
-        if (simta_ipv6 && (rr->rr_type == DNSR_TYPE_AAAA)) {
+        if (ucl_object_toboolean(
+                    ucl_object_lookup(hq->hq_red, "deliver.ipv6")) &&
+                (rr->rr_type == DNSR_TYPE_AAAA)) {
             sin6 = (struct sockaddr_in6 *)&(d->d_sa);
             sin6->sin6_family = AF_INET6;
             memcpy(&(sin6->sin6_addr), &(rr->rr_aaaa.aaaa_address),
@@ -2160,7 +2154,9 @@ start:
             }
             continue;
 
-        } else if (simta_ipv4 && (rr->rr_type == DNSR_TYPE_A)) {
+        } else if (ucl_object_toboolean(
+                           ucl_object_lookup(hq->hq_red, "deliver.ipv4")) &&
+                   (rr->rr_type == DNSR_TYPE_A)) {
             sin = (struct sockaddr_in *)&(d->d_sa);
             sin->sin_family = AF_INET;
             memcpy(&(sin->sin_addr), &(rr->rr_a.a_address),

@@ -3,7 +3,6 @@
 
 #include "queue.h"
 
-int set_local_mailer(void);
 int deliver_binary(struct deliver *);
 
 #endif /* SIMTA_MD_H */

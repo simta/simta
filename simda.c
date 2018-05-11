@@ -7,6 +7,7 @@
 
 #include <grp.h>
 #include <pwd.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sysexits.h>
@@ -14,16 +15,12 @@
 
 /* #include "config.h" */
 
-#ifndef SIMTA_PROCMAIL
-#define SIMTA_PROCMAIL "/usr/bin/procmail"
-#endif
-#ifndef SIMTA_MAIL_LOCAL
-#define SIMTA_MAIL_LOCAL ""
-#endif
-
 int
 main(int argc, char **argv) {
     struct passwd *simta_pw;
+    char *         p;
+    ssize_t        path_len;
+    bool           ok = false;
 
     if (argc < 3) {
         fprintf(stderr, "Usage: %s <user> <program> [args]\n", argv[ 0 ]);
@@ -35,8 +32,21 @@ main(int argc, char **argv) {
         return (1);
     }
 
-    if ((strcmp(argv[ 2 ], SIMTA_PROCMAIL) == 0) ||
-            (strcmp(argv[ 2 ], SIMTA_MAIL_LOCAL) == 0)) {
+    if ((p = strrchr(argv[ 2 ], '/')) != NULL) {
+        path_len = p - argv[ 2 ];
+        if ((strncmp(argv[ 2 ], "/bin", path_len) == 0) ||
+                (strncmp(argv[ 2 ], "/sbin", path_len) == 0) ||
+                (strncmp(argv[ 2 ], "/usr/bin", path_len) == 0) ||
+                (strncmp(argv[ 2 ], "/usr/sbin", path_len) == 0) ||
+                (strncmp(argv[ 2 ], "/usr/local/bin", path_len) == 0) ||
+                (strncmp(argv[ 2 ], "/usr/local/sbin", path_len) == 0)) {
+            if (strcmp(p + 1, "procmail") == 0) {
+                ok = true;
+            }
+        }
+    }
+
+    if (ok) {
         /* The program is allowed, drop root privileges. */
         if (initgroups(simta_pw->pw_name, 0) != 0) {
             perror("initgroups");

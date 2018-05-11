@@ -24,36 +24,10 @@
 #include <openssl/ssl.h>
 #endif /* HAVE_LIBSSL */
 
+#include "argcargv.h"
 #include "envelope.h"
 #include "line_file.h"
 #include "ml.h"
-
-
-char *maillocal_argv[] = {SIMTA_MAIL_LOCAL, "-f", "$S", "--", "$R", 0};
-char *procmail_argv[] = {
-        LIBEXECDIR "/simda", "$R", SIMTA_PROCMAIL, "-f", "$S", 0};
-
-int
-set_local_mailer(void) {
-    if (simta_deliver_default_argc != 0) {
-        return (0);
-    }
-
-    if ((procmail_argv[ 2 ] != NULL) && (*(procmail_argv[ 2 ]) != '\0')) {
-        simta_deliver_default_argv = procmail_argv;
-        simta_deliver_default_argc = 5;
-        return (0);
-    }
-
-    if ((maillocal_argv[ 0 ] != NULL) && (*(maillocal_argv[ 0 ]) != '\0')) {
-        simta_deliver_default_argv = maillocal_argv;
-        simta_deliver_default_argc = 5;
-        return (0);
-    }
-
-    syslog(LOG_ERR, "no local mailer defined");
-    return (1);
-}
 
 
 /* return 0 on success
@@ -65,18 +39,22 @@ set_local_mailer(void) {
 
 int
 deliver_binary(struct deliver *d) {
-    int   x;
-    int   fd[ 2 ];
-    pid_t pid;
-    int   status;
-    pid_t rc;
-    SNET *snet;
-    char *slash;
-    char *line;
-    char *recipient;
-    char *at;
-    char *binary;
-    char *domain = "NULL";
+    int    x;
+    int    fd[ 2 ];
+    pid_t  pid;
+    int    status;
+    pid_t  rc;
+    SNET * snet;
+    char * slash;
+    char * line;
+    char * recipient;
+    char * at;
+    char * binary;
+    char * domain = "NULL";
+    ACAV * acav;
+    char * agent;
+    char **deliver_argv;
+    int    deliver_argc;
 
     if (pipe(fd) < 0) {
         syslog(LOG_ERR, "Syserror: deliver_binary pipe: %m");
@@ -121,6 +99,13 @@ deliver_binary(struct deliver *d) {
             exit(EX_TEMPFAIL);
         }
 
+        acav = acav_alloc();
+        /* FIXME: if we use something other than acav_parse() we might could
+         * do less copying.
+         */
+        agent = strdup(d->d_deliver_agent);
+        deliver_argc = acav_parse(acav, agent, &deliver_argv);
+
         recipient = d->d_rcpt->r_rcpt;
 
         if ((at = strchr(recipient, '@')) != NULL) {
@@ -131,33 +116,33 @@ deliver_binary(struct deliver *d) {
             domain = at + 1;
         }
 
-        binary = d->d_deliver_argv[ 0 ];
+        binary = deliver_argv[ 0 ];
         if ((slash = strrchr(binary, '/')) != NULL) {
-            d->d_deliver_argv[ 0 ] = slash;
+            deliver_argv[ 0 ] = slash;
         }
 
         /* variable replacement on the args */
-        for (x = 1; x < d->d_deliver_argc; x++) {
-            if (*(d->d_deliver_argv[ x ]) == '$') {
-                switch (*(d->d_deliver_argv[ x ] + 1)) {
+        for (x = 1; x < deliver_argc; x++) {
+            if (*(deliver_argv[ x ]) == '$') {
+                switch (*(deliver_argv[ x ] + 1)) {
                 /* $S Sender */
                 case 'S':
-                    if (*(d->d_deliver_argv[ x ] + 2) == '\0') {
-                        d->d_deliver_argv[ x ] = d->d_env->e_mail;
+                    if (*(deliver_argv[ x ] + 2) == '\0') {
+                        deliver_argv[ x ] = d->d_env->e_mail;
                     }
                     break;
 
                 /* $R Recipient */
                 case 'R':
-                    if (*(d->d_deliver_argv[ x ] + 2) == '\0') {
-                        d->d_deliver_argv[ x ] = recipient;
+                    if (*(deliver_argv[ x ] + 2) == '\0') {
+                        deliver_argv[ x ] = recipient;
                     }
                     break;
 
                 /* $D Domain */
                 case 'D':
-                    if (*(d->d_deliver_argv[ x ] + 2) == '\0') {
-                        d->d_deliver_argv[ x ] = domain;
+                    if (*(deliver_argv[ x ] + 2) == '\0') {
+                        deliver_argv[ x ] = domain;
                     }
                     break;
 
@@ -168,7 +153,7 @@ deliver_binary(struct deliver *d) {
             }
         }
 
-        execv(binary, d->d_deliver_argv);
+        execv(binary, deliver_argv);
         /* if we are here, there is an error */
         syslog(LOG_ERR, "Syserror: deliver_binary execv: %m");
         exit(EX_TEMPFAIL);

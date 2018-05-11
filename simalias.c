@@ -50,15 +50,16 @@ static char *progname;
 
 int
 main(int argc, char **argv) {
-    int               c, err = 0;
-    int               dump = 0;
-    extern char *     optarg;
-    yastr             input = NULL;
-    char *            output = NULL;
-    struct dll_entry *processed = NULL;
-    struct simta_red *red;
-    struct action *   a;
-
+    int                 c, err = 0;
+    int                 dump = 0;
+    extern char *       optarg;
+    yastr               input = NULL;
+    char *              output = NULL;
+    const char *        fname;
+    struct dll_entry *  processed = NULL;
+    const ucl_object_t *domain = NULL;
+    const ucl_object_t *rule = NULL;
+    ucl_object_iter_t   i, j;
 
     if ((progname = strrchr(argv[ 0 ], '/')) == NULL) {
         progname = argv[ 0 ];
@@ -101,10 +102,6 @@ main(int argc, char **argv) {
         exit(1);
     }
 
-    if (simta_config() != 0) {
-        exit(1);
-    }
-
     /* Make sure error and verbose output are nicely synced */
     setbuf(stdout, NULL);
 
@@ -126,20 +123,25 @@ main(int argc, char **argv) {
         exit(simalias_create(input, output));
     }
 
-    for (red = simta_red_hosts; red; red = red->red_next) {
-        for (a = red->red_receive; a; a = a->a_next) {
-            if ((a->a_action == EXPANSION_TYPE_ALIAS) &&
-                    (dll_lookup(processed, a->a_fname) == NULL)) {
-                if (strcmp(a->a_fname, simta_default_alias_db) == 0) {
-                    input = yaslauto(simta_default_alias_file);
-                } else {
-                    input = yaslauto(a->a_fname);
-                    /* Trim off .db */
-                    yaslrange(input, 0, -4);
+    i = ucl_object_iterate_new(ucl_object_lookup(simta_config, "domain"));
+    while ((domain = ucl_object_iterate_safe(i, false)) != NULL) {
+        j = ucl_object_iterate_new(ucl_object_lookup(domain, "rule"));
+        while ((rule = ucl_object_iterate_safe(j, false)) != NULL) {
+            if (strcasecmp(ucl_object_tostring(ucl_object_lookup(rule, "type")),
+                        "alias") == 0) {
+                fname = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+                if (dll_lookup(processed, fname) == NULL) {
+                    if (strcmp(fname, simta_default_alias_db) == 0) {
+                        input = yaslauto(simta_default_alias_file);
+                    } else {
+                        input = yaslauto(fname);
+                        /* Trim off .db */
+                        yaslrange(input, 0, -4);
+                    }
+                    err += simalias_create(input, fname);
+                    dll_lookup_or_create(&processed, fname);
+                    yaslfree(input);
                 }
-                err += simalias_create(input, a->a_fname);
-                dll_lookup_or_create(&processed, a->a_fname);
-                yaslfree(input);
             }
         }
     }

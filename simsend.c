@@ -180,11 +180,6 @@ main(int argc, char *argv[]) {
 
     simta_submission_mode = SUBMISSION_MODE_SIMSEND;
 
-    /* init simta config / defaults */
-    if (simta_config() != 0) {
-        exit(EX_TEMPFAIL);
-    }
-
     simta_openlog(0, 0);
 
     /* create envelope */

@@ -1,6 +1,8 @@
 #ifndef SIMTA_EXPAND_H
 #define SIMTA_EXPAND_H
 
+#include <ucl.h>
+
 /* expansion types */
 #define EXPANSION_TYPE_PASSWORD 1
 #define EXPANSION_TYPE_ALIAS 2
@@ -49,14 +51,14 @@ struct expand {
     struct exp_addr *exp_addr_head; /* list of expanded addresses */
     struct exp_addr *exp_addr_tail;
     struct exp_addr *exp_addr_cursor; /* cursor */
-    struct action *  exp_current_action;
-    struct envelope *exp_errors; /* error envelope list */
+    struct envelope *exp_errors;      /* error envelope list */
 #ifdef HAVE_LDAP
     struct exp_link *exp_memonly;
     struct envelope *exp_gmailfwding;
 #endif /* HAVE_LDAP */
-    int exp_max_level;
-    int exp_entries;
+    ucl_object_t *exp_current_rule;
+    int           exp_max_level;
+    int           exp_entries;
 };
 
 #ifdef HAVE_LDAP
@@ -67,21 +69,20 @@ struct exp_link {
 #endif /* HAVE_LDAP */
 
 struct exp_addr {
-    struct exp_addr *e_addr_next;
-    char *           e_addr;    /* address string */
-    char *           e_addr_at; /* char the email addresses @ */
-    char *           e_addr_from;
-    struct envelope *e_addr_errors; /* address error handle */
-    struct action *  e_addr_parent_action;
-    int              e_addr_type; /* address data type */
-    int              e_addr_terminal;
-    int              e_addr_max_level;
+    struct exp_addr *   e_addr_next;
+    char *              e_addr;    /* address string */
+    char *              e_addr_at; /* char the email addresses @ */
+    char *              e_addr_from;
+    struct envelope *   e_addr_errors; /* address error handle */
+    const ucl_object_t *e_addr_parent_rule;
+    int                 e_addr_type; /* address data type */
+    int                 e_addr_terminal;
+    int                 e_addr_max_level;
 #ifdef HAVE_LDAP
-    int                e_addr_try_ldap;
     int                e_addr_ldap_flags;
     int                e_addr_anti_loop;
     char *             e_addr_dn;
-    char *             e_addr_owner;
+    yastr              e_addr_owner;
     struct stab_entry *e_addr_ok;
     struct envelope *  e_addr_env_moderated;
     struct envelope *  e_addr_env_gmailfwd;
@@ -96,7 +97,7 @@ struct envelope *eo_lookup(struct expand_output *, char *, char *);
 int              eo_insert(struct expand_output **, struct envelope *);
 
 /* address.c */
-struct passwd *simta_getpwnam(struct action *, char *);
+struct passwd *simta_getpwnam(const ucl_object_t *, const char *);
 int            address_error(struct envelope *, char *, char *, char *);
 void           expansion_stab_stdout(void *);
 int add_address(struct expand *, char *, struct envelope *, int, char *);
@@ -113,9 +114,9 @@ int   unblocked_path_to_root(struct exp_addr *, int);
 int   sender_is_child(struct exp_link *, int);
 int   sender_is_moderator(char *, struct exp_addr *);
 void  suppress_addrs(struct exp_link *, int);
-int   permitted_create(struct exp_addr *, char **);
-void  permitted_destroy(struct exp_addr *);
-char *parent_permitted(struct exp_addr *);
+int   exp_addr_permitted_add(struct exp_addr *, char *);
+void  exp_addr_permitted_destroy(struct exp_addr *);
+char *exp_addr_parent_permitted(struct exp_addr *);
 #endif /* HAVE_LDAP */
 
 #endif /* SIMTA_EXPAND_H */
