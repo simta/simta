@@ -1971,7 +1971,7 @@ f_data( struct receive_data *r )
             read_err = PROTOCOL_ERROR;
         }
 
-        if ( rh->r_seen_before ) {
+        if (( read_err == NO_ERROR ) && rh->r_seen_before ) {
             system_message = "Seen Before";
             filter_message = strdup( rh->r_seen_before );
             message_banner = MESSAGE_DELETE;
