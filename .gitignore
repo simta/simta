@@ -23,6 +23,7 @@ config.sub
 configure
 denser/dense
 dist
+embedded_config.h
 errors
 lib*.a
 libtool

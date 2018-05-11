@@ -25,15 +25,16 @@ SRC=    @LDAP_SRC@ @SSL_SRC@ @LMDB_SRC@ \
 	daemon.c receive.c argcargv.c envelope.c \
 	simsend.c simconnect.c rcptlist.c address.c \
 	simalias.c bounce.c wildcard.c yasl.c srs.c \
-	simta_sasl.c
+	simta_sasl.c simta_ucl.c
 COMMONOBJ=	@LDAP_OBJ@ @SSL_OBJ@ @LMDB_OBJ@ @YASL_OBJ@ \
 		address.o argcargv.o bounce.o dns.o envelope.o \
 		expand.o header.o line_file.o ll.o ml.o q_cleanup.o \
-		queue.o red.o simta.o simta_sasl.o smtp.o srs.o spf.o \
-		wildcard.o
+		queue.o red.o simta.o simta_sasl.o simta_ucl.o smtp.o srs.o \
+		spf.o wildcard.o
 SIMTAOBJ=	${COMMONOBJ} daemon.o dmarc.o receive.o
 SIMCONOBJ=	${COMMONOBJ} simconnect.o
 SIMCOBJ=	${COMMONOBJ} simc.o
+SIMCONFIGOBJ=	${COMMONOBJ} simta-config.o
 SIMDAOBJ=	simda.o
 SIMDMARCOBJ=	${COMMONOBJ} simdmarc.o dmarc.o
 SIMSENDOBJ=	${COMMONOBJ} simsend.o
@@ -62,6 +63,7 @@ INCPATH +=	@LDAP_CPPFLAGS@
 INCPATH +=	@LIBIDN2_CFLAGS@
 INCPATH +=	@LIBSASL_CFLAGS@
 INCPATH +=	@LIBSSL_CFLAGS@
+INCPATH +=      @LIBUCL_CFLAGS@
 INCPATH +=	@LIBWRAP_CPPFLAGS@
 INCPATH +=	@OPENDKIM_CFLAGS@
 INCPATH +=	@OPENARC_CFLAGS@
@@ -77,6 +79,7 @@ LIBS +=		@YASL_LIBS@
 LIBS +=		@LIBIDN2_LIBS@
 LIBS +=		@LIBSASL_LIBS@
 LIBS +=		@LIBSSL_LIBS@
+LIBS +=		@LIBUCL_LIBS@
 LIBS +=		@OPENDKIM_LIBS@
 LIBS +=		@OPENARC_LIBS@
 LIBS +=		@EXTRALIBS@
@@ -116,6 +119,10 @@ install : all FRC
 
 simta : ${SIMTAOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simta ${SIMTAOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
+genimbed: genimbed.o Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o genimbed genimbed.o \
+		${SIMTALIBPATH} @LIBUCL_LIBS@
 
 simck : ${SIMCKOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simck ${SIMCKOBJ} \
@@ -167,11 +174,20 @@ simreverse : ${SIMREVERSEOBJ} Makefile
 simconnect : ${SIMCONOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o simconnect ${SIMCONOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
+simta-config : ${SIMCONFIGOBJ} Makefile
+	${CC} ${CFLAGS} ${LDFLAGS} -o simta-config ${SIMCONFIGOBJ} ${SIMTALIBPATH} ${SIMTALIBS}
+
 q_runner : ${QRUNNEROBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_runner ${QRUNNEROBJ} ${SIMTALIBPATH} ${SIMTALIBS}
 
 q_cleanup : ${QCLEANUPOBJ} Makefile
 	${CC} ${CFLAGS} ${LDFLAGS} -o q_cleanup ${QCLEANUPOBJ} ${LIBPATH} ${LIBS}
+
+embedded_config.h: genimbed simta.conf
+	./genimbed simta.conf CONFIG_BASE > embedded_config.h
+
+embedded_schema.h: genimbed simta.conf.schema
+	./genimbed simta.conf.schema CONFIG_SCHEMA > embedded_schema.h
 
 address.o: config.h dns.h envelope.h expand.h header.h line_file.h ll.h queue.h red.h simta.h simta_ldap.h
 argcargv.o: argcargv.h config.h
@@ -202,7 +218,8 @@ simreverse.o: config.h dns.h envelope.h ll.h simta.h
 simsend.o: config.h envelope.h header.h line_file.h queue.h simta.h
 simspf.o: config.h spf.h simta.h
 simsrs.o: config.h srs.h simta.h
-simta.o: argcargv.h config.h dns.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
+simta.o: argcargv.h config.h dns.h embedded_config.h embedded_schema.h envelope.h expand.h ll.h ml.h queue.h red.h simta.h simta_ldap.h
+simta-config.o: config.h simta.h
 simta_ldap.o: argcargv.h config.h dn.h envelope.h expand.h header.h ll.h queue.h simta.h simta_ldap.h
 sla.o: config.h envelope.h expand.h line_file.h ll.h queue.h simta.h
 smtp.o: argcargv.h config.h dns.h envelope.h header.h line_file.h queue.h simta.h smtp.h

@@ -31,12 +31,6 @@ AC_PROG_INSTALL
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 
-# Find local mailers
-SET_LOCALDELIVERY
-PROG_MAIL_LOCAL
-PROG_PROCMAIL
-WARN_LOCALDELIVERY
-
 if test x_$GCC = x_yes; then
     OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes"}
 fi
@@ -65,6 +59,7 @@ AC_CHECK_LIB([crypt], [crypt])
 # Required packages
 PKG_CHECK_MODULES([DENSER], [denser])
 PKG_CHECK_MODULES([SNET], [libsnet])
+PKG_CHECK_MODULES([LIBUCL], [libucl >= 0.8.1])
 
 # Optional packages
 AC_ARG_WITH([dkim], AC_HELP_STRING([--with-dkim], [Build with DKIM support]))
