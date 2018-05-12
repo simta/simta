@@ -806,6 +806,7 @@ f_mail( struct receive_data *r )
     char                *addr;
     char                *domain;
     char                *endptr;
+    struct dnsl_result  *dnsl_result;
 
     r->r_mail_attempt++;
 
@@ -995,12 +996,33 @@ f_mail( struct receive_data *r )
 
     case SMTP_MODE_GLOBAL_RELAY:
     case SMTP_MODE_NORMAL:
-        if ( simta_from_checking == 0 ) {
-            break;
+        if ( *addr != '\0' ) {
+            if (( dnsl_result = dnsl_check( "email", NULL, addr )) != NULL ) {
+                if ( dnsl_result->dnsl->dnsl_type == DNSL_BLOCK ) {
+                    /* FIXME r->r_failed_senders++ */
+                    syslog( LOG_NOTICE, "Receive [%s] %s: From <%s>: "
+                            "DNS list %s: Blocked: %s (%s)",
+                            r->r_ip, r->r_remote_hostname, addr,
+                            dnsl_result->dnsl->dnsl_domain,
+                            dnsl_result->dnsl_result,
+                            dnsl_result->dnsl_reason );
+                    rc = smtp_write_banner( r, 550,
+                            dnsl_result->dnsl_reason, addr );
+                    dnsl_result_free( dnsl_result );
+                    return( rc );
+                }
+                dnsl_result_free( dnsl_result );
+            }
         }
+
         if ( domain == NULL ) {
             break;
         }
+
+        if ( simta_from_checking == 0 ) {
+            break;
+        }
+
         if (( rc = check_hostname( domain )) == 0 ) {
             break;
         }
@@ -1464,6 +1486,7 @@ f_data( struct receive_data *r )
     unsigned int                        data_wrote = 0;
     unsigned int                        data_read = 0;
     struct envelope                     *env_bounce;
+    struct dnsl_result                  *dnsl_result = NULL;
     yastr                               authresults = NULL;
     yastr                               authresults_tmp = NULL;
     int                                 authresults_plain = !simta_arc;
@@ -1864,6 +1887,27 @@ f_data( struct receive_data *r )
                     if ( simta_dmarc ) {
                         dmarc_lookup( r->r_dmarc,
                                 strrchr( r->r_env->e_header_from, '@' ) + 1 );
+                    }
+                    if (( read_err == NO_ERROR ) && ( strcasecmp(
+                            r->r_env->e_header_from, r->r_env->e_mail_orig
+                            ? r->r_env->e_mail_orig
+                            : r->r_env->e_mail) != 0 )) {
+                        if (( dnsl_result = dnsl_check( "email", NULL,
+                                r->r_env->e_header_from )) != NULL ) {
+                            if ( dnsl_result->dnsl->dnsl_type == DNSL_BLOCK ) {
+                                syslog( LOG_NOTICE,
+                                        "Receive [%s] %s: env <%s>: "
+                                        "DNS list %s: Blocked: %s (%s)",
+                                        r->r_ip, r->r_remote_hostname,
+                                        r->r_env->e_id,
+                                        dnsl_result->dnsl->dnsl_domain,
+                                        dnsl_result->dnsl_result,
+                                        dnsl_result->dnsl_reason );
+                                system_message = dnsl_result->dnsl_reason;
+                                message_banner = MESSAGE_REJECT;
+                                read_err = PROTOCOL_ERROR;
+                            }
+                        }
                     }
                 }
 
@@ -2520,6 +2564,7 @@ error:
     receive_headers_free( rh );
     yaslfree( authresults );
     yaslfree( with );
+    dnsl_result_free( dnsl_result );
 
     /* if dff is still open, there was an error and we need to close it */
     if (( dff != NULL ) && ( fclose( dff ) != 0 )) {

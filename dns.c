@@ -31,6 +31,10 @@
 #include "red.h"
 #include "simta.h"
 
+#ifdef HAVE_LIBSSL
+#include "md.h"
+#endif /* HAVE_LIBSSL */
+
 static struct dnsr_result *get_address( const char *, int );
 
 
@@ -354,10 +358,14 @@ dnsl_check( const char *chain, const struct sockaddr *sa, const char *text )
 {
     struct dll_entry            *chain_dll;
     struct dnsl                 *list;
+#ifdef HAVE_LIBSSL
+    struct message_digest       md;
+#endif /* HAVE_LIBSSL */
     char                        *lookup = NULL;
     char                        sa_ip[ INET6_ADDRSTRLEN ];
     yastr                       ip = NULL;
     yastr                       reason = NULL;
+    yastr                       mangled = NULL;
     struct dnsr_result          *result;
     struct sockaddr_in          sin;
     int                         i;
@@ -378,6 +386,10 @@ dnsl_check( const char *chain, const struct sockaddr *sa, const char *text )
         syslog( LOG_INFO, "DNS List: no lists in the '%s' chain", chain );
         return( NULL );
     }
+
+#ifdef HAVE_LIBSSL
+    md_init( &md );
+#endif /* HAVE_LIBSSL */
 
     for ( list = (struct dnsl *)chain_dll->dll_data;
             list != NULL; list = list->dnsl_next ) {
@@ -406,6 +418,38 @@ dnsl_check( const char *chain, const struct sockaddr *sa, const char *text )
                         sa_ip, list->dnsl_domain );
                 continue;
             }
+
+#ifdef HAVE_LIBSSL
+        } else if ( strcmp( chain, "email" ) == 0 ) {
+            mangled = yaslauto( text );
+            if ( list->dnsl_flags & DNSL_FLAG_DOMAIN ) {
+                yaslrange( mangled, strrchr( mangled, '@') - mangled + 1, -1 );
+            }
+            yasltolower( mangled );
+            /* Hashed address lookup */
+            if ( list->dnsl_flags & DNSL_FLAG_HASHED )  {
+                if ( list->dnsl_flags & DNSL_FLAG_SHA256 ) {
+                    md_reset( &md, "sha256" );
+                } else {
+                    md_reset( &md, "sha1" );
+                }
+                md_update( &md, mangled, yasllen( mangled ));
+                md_finalize( &md );
+                lookup = malloc(
+                        strlen( list->dnsl_domain ) + strlen( md.md_b16 ) + 2 );
+                sprintf( lookup, "%s.%s", md.md_b16, list->dnsl_domain );
+            } else if ( list->dnsl_flags & DNSL_FLAG_DOMAIN ) {
+                lookup = malloc(
+                        strlen( list->dnsl_domain ) + strlen( mangled ) + 2 );
+                sprintf( lookup, "%s.%s", mangled, list->dnsl_domain );
+            } else {
+                syslog( LOG_INFO,
+                        "DNS List [%s]: refusing to do unhashed lookup on %s",
+                        text, list->dnsl_domain );
+            }
+            yaslfree( mangled );
+#endif /* HAVE_LIBSSL */
+
         } else {
             /* Preformatted text lookup */
             lookup = malloc(
@@ -480,6 +524,9 @@ dnsl_check( const char *chain, const struct sockaddr *sa, const char *text )
         free( lookup );
 
         if ( ret ) {
+#ifdef HAVE_LIBSSL
+            md_cleanup( &md );
+#endif /* HAVE_LIBSSL */
             return( ret );
         }
 
@@ -495,9 +542,22 @@ dnsl_check( const char *chain, const struct sockaddr *sa, const char *text )
     simta_debuglog( 1, "DNS List [%s]: chain %s exhausted, no matches",
             sa ? sa_ip : text, chain );
 
+#ifdef HAVE_LIBSSL
+    md_cleanup( &md );
+#endif /* HAVE_LIBSSL */
+
     return( NULL );
 }
 
+    void
+dnsl_result_free( struct dnsl_result *res )
+{
+    if ( res ) {
+        yaslfree( res->dnsl_reason );
+        yaslfree( res->dnsl_result );
+        free( res );
+    }
+}
 
     int
 dnsl_add( const char *chain, int type, const char *domain, const char *reason )
@@ -506,6 +566,11 @@ dnsl_add( const char *chain, int type, const char *domain, const char *reason )
     struct dnsl                 *prev;
     struct dnsl                 *dnsl;
     char                        *text;
+    yastr                       chainflags = NULL;
+    yastr                       *split;
+    size_t                      tok_count;
+    char                        *flags;
+    int                         i;
 
     switch ( type ) {
     default:
@@ -540,7 +605,24 @@ dnsl_add( const char *chain, int type, const char *domain, const char *reason )
         dnsl->dnsl_default_reason = yaslauto( reason );
     }
 
-    chain_dll = dll_lookup_or_create( &simta_dnsl_chains, chain );
+    chainflags = yaslauto( chain );
+    if (( flags = strchr( chainflags, '/' )) != NULL ) {
+        *flags = '\0';
+        flags++;
+        split = yaslsplitlen( flags, strlen( flags ), "/", 1, &tok_count );
+        for ( i = 0 ; i < tok_count ; i++ ) {
+            if ( strcasecmp( split[ i ], "DOMAIN" ) == 0 ) {
+                dnsl->dnsl_flags |= DNSL_FLAG_DOMAIN;
+            } else if ( strcasecmp( split[ i ], "SHA1" ) == 0 ) {
+                dnsl->dnsl_flags |= DNSL_FLAG_HASHED | DNSL_FLAG_SHA1;
+            } else if ( strcasecmp( split[ i ], "SHA256" ) == 0 ) {
+                dnsl->dnsl_flags |= DNSL_FLAG_HASHED | DNSL_FLAG_SHA256;
+            }
+        }
+        yaslfreesplitres( split, tok_count );
+    }
+
+    chain_dll = dll_lookup_or_create( &simta_dnsl_chains, chainflags );
     if (( prev = (struct dnsl *)chain_dll->dll_data ) == NULL ) {
         chain_dll->dll_data = dnsl;
     } else {
@@ -548,6 +630,7 @@ dnsl_add( const char *chain, int type, const char *domain, const char *reason )
         prev->dnsl_next = dnsl;
     }
 
+    yaslfree( chainflags );
     return( 0 );
 }
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

@@ -10,6 +10,11 @@
 #define DNSL_LOG_ONLY           2
 #define DNSL_TRUST              3
 
+#define DNSL_FLAG_DOMAIN        (1<<0)
+#define DNSL_FLAG_HASHED        (1<<1)
+#define DNSL_FLAG_SHA1          (1<<2)
+#define DNSL_FLAG_SHA256        (1<<3)
+
 #define S_MISMATCH      "Mismatch"
 #define S_ACCEPT        "Accept"
 #define S_BLOCK         "Block"
@@ -29,6 +34,7 @@ struct dnsl {
     yastr                       dnsl_domain;
     yastr                       dnsl_default_reason;
     int                         dnsl_type;
+    int                         dnsl_flags;
 };
 
 struct dnsl_result {
@@ -49,6 +55,7 @@ struct simta_red *host_local( char * );
 int dnsl_add( const char *, int, const char *, const char * );
 struct dnsl_result *dnsl_check( const char *, const struct sockaddr *,
         const char * );
+void dnsl_result_free( struct dnsl_result * );
 
 #endif /* SIMTA_DNS_H */
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
