@@ -233,9 +233,7 @@ bounce( struct envelope *env, int body, const char *err )
 
     env->e_flags |= ENV_FLAG_BOUNCE;
 
-    if (( env_bounce = bounce_snet( env, sn, NULL, err )) == NULL ) {
-        return( NULL );
-    }
+    env_bounce = bounce_snet( env, sn, NULL, err );
 
     if ( sn != NULL ) {
         snet_close( sn );
@@ -272,6 +270,11 @@ bounce_snet( struct envelope *env, SNET *sn, struct host_q *hq,
     struct line                 *l;
     char                        buf[ 1024 ];
     char                        *return_address;
+
+    if (( simta_bounce_suppress_double == 1 ) && ( env->e_mail == NULL )) {
+        syslog( LOG_ERR, "Bounce env <%s>: suppressed double bounce", env->e_id);
+        return( NULL );
+    }
 
     if (( bounce_env =
             env_create( simta_dir_fast, NULL, "", env )) == NULL ) {

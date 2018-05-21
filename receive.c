@@ -2274,26 +2274,28 @@ done:
     }
 
     if ( filter_result & MESSAGE_BOUNCE ) {
-        if (( env_bounce = bounce( r->r_env,
+        if ((( env_bounce = bounce( r->r_env,
                 (( r->r_env->e_flags & ENV_FLAG_DFILE ) &&
                 (( filter_result & MESSAGE_DELETE ) == 0 )),
                 filter_message ? filter_message :
                 "This message was rejected based on local content policies"
-                )) == NULL ) {
+                )) == NULL ) && r->r_env->e_mail ) {
             goto error;
         }
-        queue_envelope( env_bounce );
-        syslog( LOG_NOTICE, "Receive [%s] %s: env <%s>: Message Bounced: "
-                "MID <%s> From <%s>: size %d: %s, %s: Bounce_ID: %s",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                r->r_env->e_mid ? r->r_env->e_mid : "NULL",
-                r->r_env->e_mail, data_read,
-                system_message ? system_message : "no system message",
-                filter_message ? filter_message : "no filter message",
-                env_bounce->e_id );
-        if ( simta_inbound_accepted_message_timer >= 0 ) {
-            tv_add.tv_sec = simta_inbound_accepted_message_timer;
-            timeradd( &tv_add, &tv_now, &r->r_tv_accepted );
+        if ( env_bounce ) {
+            queue_envelope( env_bounce );
+            syslog( LOG_NOTICE, "Receive [%s] %s: env <%s>: Message Bounced: "
+                    "MID <%s> From <%s>: size %d: %s, %s: Bounce_ID: %s",
+                    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
+                    r->r_env->e_mid ? r->r_env->e_mid : "NULL",
+                    r->r_env->e_mail, data_read,
+                    system_message ? system_message : "no system message",
+                    filter_message ? filter_message : "no filter message",
+                    env_bounce->e_id );
+            if ( simta_inbound_accepted_message_timer >= 0 ) {
+                tv_add.tv_sec = simta_inbound_accepted_message_timer;
+                timeradd( &tv_add, &tv_now, &r->r_tv_accepted );
+            }
         }
     }
 

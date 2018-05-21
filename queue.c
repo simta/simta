@@ -439,19 +439,21 @@ q_runner( void )
                         goto unexpanded_clean_up;
                     }
 
-                    if (( env_bounce = bounce_snet( unexpanded, snet_dfile,
-                            NULL, NULL )) == NULL ) {
+                    if ((( env_bounce = bounce_snet( unexpanded, snet_dfile,
+                            NULL, NULL )) == NULL ) && unexpanded->e_mail ) {
                         snet_close( snet_dfile );
                         goto unexpanded_clean_up;
                     }
 
                     if ( env_unlink( unexpanded ) == 0 ) {
-                        queue_envelope( env_bounce );
+                        if ( env_bounce ) {
+                            queue_envelope( env_bounce );
+                        }
                         syslog( LOG_INFO,
                                 "Deliver env <%s>: Message Deleted: Bounced",
                                 unexpanded->e_id );
 
-                    } else {
+                    } else if ( env_bounce ) {
                         if ( env_unlink( env_bounce ) != 0 ) {
                             syslog( LOG_INFO, "Deliver env <%s>: System Error: "
                                     "Can't unwind bounce",
@@ -1273,8 +1275,8 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
                 }
             }
 
-            if (( env_bounce = bounce_snet( env_deliver, snet_dfile,
-                    deliver_q, NULL )) == NULL ) {
+            if ((( env_bounce = bounce_snet( env_deliver, snet_dfile,
+                    deliver_q, NULL )) == NULL ) && env->e_mail ) {
                 syslog( LOG_ERR, "Deliver env <%s>: bounce failed",
                         env_deliver->e_id );
                 goto message_cleanup;

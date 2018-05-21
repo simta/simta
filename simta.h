@@ -243,6 +243,7 @@ extern int                              simta_q_runner_slow;
 extern int                              simta_q_runner_slow_max;
 extern int                              simta_q_runner_receive_max;
 extern int                              simta_bounce_seconds;
+extern int                              simta_bounce_suppress_double;
 extern int                              simta_jail_seconds;
 extern int                              simta_exp_level_max;
 extern int                              simta_process_type;

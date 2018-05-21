@@ -78,6 +78,7 @@ struct simta_red        *simta_red_hosts = NULL;
 struct action           *simta_red_action_secondary_mx = NULL;
 struct proc_type        *simta_proc_stab = NULL;
 int                     simta_bounce_seconds = 259200;
+int                     simta_bounce_suppress_double = 0;
 int                     simta_jail_seconds = 14400;
 int                     simta_ipv4 = -1;
 int                     simta_ipv6 = 0;
@@ -985,6 +986,12 @@ simta_read_config( const char *fname )
 
         } else if (( rc = simta_config_int( "BOUNCE_SECONDS",
                 &simta_bounce_seconds, 0, ac, av, fname, lineno )) != 0 ) {
+            if ( rc < 0 ) {
+                goto error;
+            }
+
+        } else if (( rc = simta_config_bool( "BOUNCE_SUPPRESS_DOUBLE",
+                &simta_bounce_suppress_double, ac, av, fname, lineno )) != 0 ) {
             if ( rc < 0 ) {
                 goto error;
             }
