@@ -199,7 +199,7 @@ error:
     static int
 simalias_create( const char *aliases, const char *db )
 {
-    int                 linenum = 0, i;
+    int                 linenum = 0;
     int                 count = 0;
     int                 state = ALIAS_WHITE;
     char                rawline[ MAXPATHLEN ];
@@ -298,13 +298,10 @@ simalias_create( const char *aliases, const char *db )
             state = ALIAS_WHITE;
         }
 
-        i = 0;
         yaslclear( value );
         for ( p = line ; *p != '\0' ; p++ ) {
             if ( *p == '"' ) {
-                if ( i > 0 && ( value[ i - 1 ] == '\\' )) {
-                    value[ i - 1 ] = '"';
-                } else if ( state == ALIAS_QUOTE ) {
+                if ( state == ALIAS_QUOTE ) {
                     state = ALIAS_WHITE;
                     if ( *value == '\0' ) {
                         fprintf( stderr, "%s line %d: Empty quoted value.\n",
@@ -346,7 +343,7 @@ simalias_create( const char *aliases, const char *db )
                 value = yaslcatlen( value, p, 1 );
             }
 
-            if ( *value != '\0' &&
+            if ( yasllen( value ) > 0 &&
                     ( state == ALIAS_WHITE || state == ALIAS_CONT )) {
 
                 /* Check for known but unsupported syntax */
@@ -356,30 +353,34 @@ simalias_create( const char *aliases, const char *db )
                         fprintf( stderr,
                                 "%s line %d: Unsupported: delivery to file\n",
                                 aliases, linenum );
+                        yaslclear( value );
                     }
                 } else if ( *value == '|' ) {
                     fprintf( stderr,
                             "%s line %d: Unsupported: delivery to pipe\n",
                             aliases, linenum );
+                    yaslclear( value );
                 } else if ( strncmp( value, ":include:", 9 ) == 0 ) {
                     fprintf( stderr, "%s line %d: Unsupported: file include\n",
                             aliases, linenum );
+                    yaslclear( value );
+                }
+
+                if ( yasllen( value ) > 0 ) {
 #ifdef HAVE_LMDB
-                } else if (( rc = simta_db_put( dbh, key, value )) != 0 ) {
-                    fprintf( stderr, "simta_db_put: %s: %s\n", aliases,
-                            simta_db_strerror( rc ));
-                    return( 1 );
+                    if (( rc = simta_db_put( dbh, key, value )) != 0 ) {
+                        fprintf( stderr, "simta_db_put: %s: %s\n", aliases,
+                                simta_db_strerror( rc ));
+                        return( 1 );
+                    }
 #endif /* HAVE_LMDB */
-                } else {
                     if ( verbose ) {
                         printf( "%s line %d: Added %s -> %s\n",
                                 aliases, linenum, key, value );
                     }
                     count++;
+                    yaslclear( value );
                 }
-
-                yaslclear( value );
-                i = 0;
             }
         }
     }
