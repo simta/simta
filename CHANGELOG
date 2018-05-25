@@ -1,3 +1,15 @@
+1.2.0 (2018-05-25)
+    - added support for email address DNS lists
+    - fixed libopenarc assert crash
+    - reduced some buffer allocation sizes
+    - allowed another form of malformed message in MSA handling
+    - fixed DNS list logging unlisted all the time
+    - fixed hostname checks for IPv6-only hostnames
+    - improved DMARC organizational domain heuristic
+    - updated OpenARC integration to match latest API changes
+    - fixed a memory leak in SIMTA-Seen-Before processing
+    - fixed specifying /dev/null as a destination in alias files
+
 1.1.3 (2017-09-28)
     - fixed checksum generation
     - reduced ARC overhead by changing the timing of signature generation
