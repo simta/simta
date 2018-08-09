@@ -1845,6 +1845,14 @@ simta_ldapuser( int ndomain, char *buf, char **user, char **domain )
         yaslrange( u, p - u + 1, -1 );
     }
 
+    /* Barracuda do their own special version of BATV, which is incompatible
+     * with the BATV draft because it uses '==' as the delimiter.
+     */
+    if (( strncasecmp( u, "btv1==", 6 ) == 0 ) &&
+            (( p = strstr( u + 6, "==" )) != NULL )) {
+        yaslrange( u, p - u + 2, -1 );
+    }
+
     if (( p = strrchr( u, '@' )) != NULL ) {
         p++;
         simta_ldapdomain( ndomain, p, domain );
