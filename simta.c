@@ -363,6 +363,7 @@ simta_read_config( const char *fname )
     int                 ac;
     int                 rc;
     int                 x;
+    int                 i;
     int                 dnsl_type;
     yastr               buf;
     char                hostname[ DNSR_MAX_HOSTNAME + 1 ];
@@ -500,7 +501,21 @@ simta_read_config( const char *fname )
 
             red = red_host_add( domain );
 
-            if ( strcasecmp( av[ 2 ], "ACCEPT" ) == 0 ) {
+            if ( strcasecmp( av[ 2 ], "NOT_FOUND" ) == 0 ) {
+                if (( ac < 4 ) || ( red_code != RED_CODE_R )) {
+                    fprintf( stderr,
+                            "%s: line %d: usage: @domain R NOT_FOUND message\n",
+                            fname, lineno );
+                    goto error;
+                }
+                buf = yaslauto( av[ 3 ] );
+                for ( i = 4 ; i < ac ; i++ ) {
+                    buf = yaslcatprintf( buf, " %s", av[ i ] );
+                }
+                red->red_not_found = buf;
+                buf = NULL;
+
+            } else if ( strcasecmp( av[ 2 ], "ACCEPT" ) == 0 ) {
                 /* @DOMAIN R ACCEPT */
                 if (( ac != 3 ) || ( red_code != RED_CODE_R )) {
                     fprintf( stderr, "%s: line %d: usage: @domain R ACCEPT\n",

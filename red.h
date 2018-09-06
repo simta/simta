@@ -1,6 +1,8 @@
 #ifndef SIMTA_RED_H
 #define SIMTA_RED_H
 
+#include <yasl.h>
+
 #include "expand.h"
 
 #ifdef HAVE_LMDB
@@ -28,6 +30,7 @@ struct simta_red {
     int                         red_deliver_type;
     int                         red_deliver_argc;
     char                        **red_deliver_argv;
+    yastr                       red_not_found;
     int                         red_wait_set;
     int                         red_wait_min;
     int                         red_wait_max;
