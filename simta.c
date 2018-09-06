@@ -75,7 +75,6 @@ struct host_q           *simta_unexpanded_q = NULL;
 struct host_q           *simta_punt_q = NULL;
 struct simta_red        *simta_red_host_default = NULL;
 struct simta_red        *simta_red_hosts = NULL;
-struct action           *simta_red_action_secondary_mx = NULL;
 struct proc_type        *simta_proc_stab = NULL;
 int                     simta_bounce_seconds = 259200;
 int                     simta_jail_seconds = 14400;
@@ -675,28 +674,15 @@ simta_read_config( const char *fname )
                 goto error;
 
             } else if ( strcasecmp( av[ 2 ], "SECONDARY_MX" ) == 0 ) {
-                struct action                   *a;
-
-                /* @DOMAIN R SECONDARY_MX MX_EXCHANGE */
-                if (( ac != 4 ) || ( red_code != RED_CODE_R )) {
+                /* @DOMAIN D SECONDARY_MX */
+                if (( ac != 3 ) || ( red_code != RED_CODE_D )) {
                     fprintf( stderr, "%s: line %d: usage: %s\n",
                             fname, lineno,
-                            "@domain R SECONDARY_MX <secondary MX name>" );
+                            "@domain D SECONDARY_MX" );
                     goto error;
                 }
 
-                if ( strcasecmp( simta_hostname, domain ) == 0 ) {
-                    fprintf( stderr, "%s: line %d: "
-                            "secondary MX name can't be local host\n",
-                            fname, lineno );
-                    goto error;
-                }
-
-                a = red_action_add( red, RED_CODE_R,
-                        EXPANSION_TYPE_GLOBAL_RELAY, av[ 3 ] );
-
-                a->a_next_secondary_mx = simta_red_action_secondary_mx;
-                simta_red_action_secondary_mx = a;
+                red->red_deliver_type = RED_DELIVER_SECONDARY;
 
             } else if ( strcasecmp( av[ 2 ], "SRS" ) == 0 ) {
                 if ( ac == 3 ) {

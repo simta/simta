@@ -1763,6 +1763,7 @@ next_dnsr_host_lookup( struct deliver *d, struct host_q *hq )
 get_outbound_dns( struct deliver *d, struct host_q *hq )
 {
     int                         i;
+    struct simta_red            *red;
 
     /*
      * RFC 5321 5.1 Locating the Target Host
@@ -1821,7 +1822,6 @@ get_outbound_dns( struct deliver *d, struct host_q *hq )
                 d->d_dnsr_result->r_ancount );
 
         for ( i = 0; i < d->d_dnsr_result->r_ancount; i++ ) {
-            struct action                       *a;
             /* If one or more MX RRs are found for a given name, SMTP
              * systems MUST NOT utilize any address RRs associated with
              * that name unless they are located using the MX RRs;
@@ -1843,23 +1843,20 @@ get_outbound_dns( struct deliver *d, struct host_q *hq )
                 break;
             }
 
-            /* set mx pref cutoff if our secondary MX exchange is listed */
-            for ( a = simta_red_action_secondary_mx;
-                    a != NULL; a = a->a_next_secondary_mx ) {
-                if ( strcasecmp( a->a_fname,
-                        d->d_dnsr_result->r_answer[i].rr_mx.mx_exchange )
-                        == 0 ) {
-                    hq->hq_no_punt |= NOPUNT_MX;
-                    d->d_mx_preference_set = 1;
-                    d->d_mx_preference_cutoff =
-                            d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
-                    syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
-                            "secondary MX %s at precedence %d, "
-                            "Punting disabled",
-                            hq->hq_hostname, i, a->a_fname,
-                            d->d_mx_preference_cutoff );
-                    break;
-                }
+            /* set mx pref cutoff if we are listed under a secondary name */
+            red = red_host_lookup(
+                    d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange );
+            if ( red && red->red_deliver_type == RED_DELIVER_SECONDARY ) {
+                hq->hq_no_punt |= NOPUNT_MX;
+                d->d_mx_preference_set = 1;
+                d->d_mx_preference_cutoff =
+                        d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
+                syslog( LOG_ERR, "DNS %s: Entry %d: MX Record lists "
+                        "secondary MX %s at precedence %d, "
+                        "Punting disabled",
+                        hq->hq_hostname, i, red->red_host_name,
+                        d->d_mx_preference_cutoff );
+                break;
             }
         }
 

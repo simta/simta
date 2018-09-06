@@ -197,7 +197,6 @@ extern struct host_q                    *simta_unexpanded_q;
 extern struct host_q                    *simta_punt_q;
 extern struct host_q                    *simta_host_q;
 extern struct envelope                  *simta_env_queue;
-extern struct action                    *simta_red_action_secondary_mx;
 extern struct proc_type                 *simta_proc_stab;
 extern int                              simta_ipv4;
 extern int                              simta_ipv6;

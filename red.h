@@ -15,7 +15,6 @@ struct action {
     struct simta_dbh            *a_dbh;
 #endif /* HAVE_LMDB */
     struct action               *a_next;
-    struct action               *a_next_secondary_mx;
 #ifdef HAVE_LDAP
     struct simta_ldap           *a_ldap;
 #endif /* HAVE_LDAP */
@@ -42,6 +41,7 @@ struct simta_red {
 #define RED_DELIVER_SMTP_DEFAULT        0
 #define RED_DELIVER_SMTP                1
 #define RED_DELIVER_BINARY              2
+#define RED_DELIVER_SECONDARY           3
 
 /* struct red_action->a_flags */
 #define ACTION_REQUIRED                 1
