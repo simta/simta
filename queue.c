@@ -2211,7 +2211,7 @@ start:
          * the mx record and we've reached its preference level.
          */
         if (( d->d_mx_preference_set != 0 ) &&
-                ( d->d_mx_preference_cutoff == rr->rr_mx.mx_preference )) {
+                ( rr->rr_mx.mx_preference >= d->d_mx_preference_cutoff )) {
             syslog( LOG_INFO,
                     "DNS %s: Entry %d: MX preference %d: cutoff",
                     hq->hq_hostname, d->d_cur_dnsr_result,
