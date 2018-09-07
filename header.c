@@ -1089,7 +1089,7 @@ parse_emailaddr( int mode, char *addr, char **user, char **domain )
         }
 
     } else {
-        if (( end = token_dot_atom( d )) == NULL ) {
+        if (( end = token_domain( d )) == NULL ) {
             return( 1 );
         }
     }
@@ -1507,6 +1507,10 @@ token_domain( char *i )
     }
 
     for ( ; ; ) {
+        if (( *i == '.' ) && (*( i + 1 ) == '.' )) {
+            return( NULL );
+        }
+
         if (( isalpha(*( i + 1 )) == 0 ) && ( isdigit(*( i + 1 )) == 0 ) &&
                 (*( i + 1 ) != '.' ) && (*( i + 1 ) != '-' )) {
             return( i );
