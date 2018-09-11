@@ -100,7 +100,6 @@ struct receive_data {
     int                         r_mail_attempt;
     int                         r_rcpt_success;
     int                         r_rcpt_attempt;
-    int                         r_failed_rcpts;
     int                         r_esmtp;
     int                         r_tls;
     int                         r_auth;
@@ -999,7 +998,6 @@ f_mail( struct receive_data *r )
         if ( *addr != '\0' ) {
             if (( dnsl_result = dnsl_check( "email", NULL, addr )) != NULL ) {
                 if ( dnsl_result->dnsl->dnsl_type == DNSL_BLOCK ) {
-                    /* FIXME r->r_failed_senders++ */
                     syslog( LOG_NOTICE, "Receive [%s] %s: From <%s>: "
                             "DNS list %s: Blocked: %s (%s)",
                             r->r_ip, r->r_remote_hostname, addr,
@@ -1277,7 +1275,6 @@ f_rcpt( struct receive_data *r )
          * client generates the bounce.
          */
         if (( rc = check_hostname( domain )) != 0 ) {
-            r->r_failed_rcpts++;
             if ( rc < 0 ) {
 #ifdef HAVE_LIBSSL
                 if ( simta_checksum_algorithm != NULL ) {
@@ -1303,7 +1300,6 @@ f_rcpt( struct receive_data *r )
         if ((( red = host_local( domain )) == NULL ) ||
                 ( red->red_receive == NULL )) {
             if ( r->r_smtp_mode == SMTP_MODE_NORMAL ) {
-                r->r_failed_rcpts++;
                 syslog( LOG_INFO, "Receive [%s] %s: env <%s>: "
                         "To <%s> From <%s>: Failed: Domain not local",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
@@ -1340,7 +1336,6 @@ f_rcpt( struct receive_data *r )
 
             switch( local_address( addr, domain, red )) {
             case NOT_LOCAL:
-                r->r_failed_rcpts++;
                 syslog( LOG_INFO, "Receive [%s] %s: env <%s>: "
                         "To <%s> From <%s>: Failed: User not local",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
@@ -1379,7 +1374,6 @@ f_rcpt( struct receive_data *r )
 
                 switch ( r->r_dnsl_result->dnsl->dnsl_type ) {
                 case DNSL_BLOCK:
-                    r->r_failed_rcpts++;
                     syslog( LOG_NOTICE, "Receive [%s] %s: env <%s>: "
                             "To <%s> From <%s>: DNS list %s: Blocked: %s (%s)",
                             r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
@@ -3626,14 +3620,25 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
 
         if (( r.r_smtp_mode == SMTP_MODE_NORMAL ) &&
                 (( r.r_dnsl_result == NULL ) ||
-                ( (r.r_dnsl_result)->dnsl->dnsl_type != DNSL_TRUST )) &&
-                ( simta_max_failed_rcpts > 0 ) &&
-                ( r.r_failed_rcpts >= simta_max_failed_rcpts )) {
-            syslog( LOG_NOTICE,
-                    "Receive [%s] %s: env <%s>: Too many failed recipients",
-                    r.r_ip, r.r_remote_hostname, r.r_env->e_id );
-            set_smtp_mode( &r, simta_smtp_punishment_mode,
-                    "Failed recipients" );
+                ( (r.r_dnsl_result)->dnsl->dnsl_type != DNSL_TRUST ))) {
+            if (( simta_max_failed_rcpts > 0 ) &&
+                    (( r.r_rcpt_attempt - r.r_rcpt_success) >=
+                    simta_max_failed_rcpts )) {
+                syslog( LOG_NOTICE,
+                        "Receive [%s] %s: env <%s>: Too many failed recipients",
+                        r.r_ip, r.r_remote_hostname, r.r_env->e_id );
+                set_smtp_mode( &r, simta_smtp_punishment_mode,
+                        "Failed recipients" );
+            }
+            if (( simta_max_failed_senders > 0 ) &&
+                    (( r.r_mail_attempt - r.r_mail_success ) >=
+                    simta_max_failed_senders )) {
+                syslog( LOG_NOTICE,
+                        "Receive [%s] %s: Too many failed senders",
+                        r.r_ip, r.r_remote_hostname );
+                set_smtp_mode( &r, simta_smtp_punishment_mode,
+                        "failed senders" );
+            }
         }
     }
 

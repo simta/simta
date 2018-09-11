@@ -134,6 +134,7 @@ int                     simta_max_bounce_size = 524288;
 int                     simta_banner_delay = 0;
 int                     simta_banner_punishment = 0;
 int                     simta_max_failed_rcpts = 0;
+int                     simta_max_failed_senders = 0;
 int                     simta_ignore_reverse = 0;
 int                     simta_ignore_connect_in_reverse_errors = 0;
 int                     simta_message_count = 0;
@@ -1476,6 +1477,12 @@ simta_read_config( const char *fname )
 
         } else if (( rc = simta_config_int( "MAX_FAILED_RCPTS",
                 &simta_max_failed_rcpts, 0, ac, av, fname, lineno )) != 0 ) {
+            if ( rc < 0 ) {
+                goto error;
+            }
+
+        } else if (( rc = simta_config_int( "MAX_FAILED_SENDERS",
+                &simta_max_failed_senders, 0, ac, av, fname, lineno )) != 0 ) {
             if ( rc < 0 ) {
                 goto error;
             }

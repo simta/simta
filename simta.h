@@ -261,6 +261,7 @@ extern int                              simta_read_before_banner;
 extern int                              simta_banner_delay;
 extern int                              simta_banner_punishment;
 extern int                              simta_max_failed_rcpts;
+extern int                              simta_max_failed_senders;
 extern int                              simta_dns_auto_config;
 extern int                              simta_smtp_default_mode;
 extern int                              simta_smtp_punishment_mode;
