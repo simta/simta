@@ -69,6 +69,7 @@
 #define SMTP_MODE_TEMPFAIL              4
 #define SMTP_MODE_TARPIT                5
 #define SMTP_MODE_NOAUTH                6
+#define SMTP_MODE_INSECURE              7
 
 #define SIMTA_SASL_OFF                  0
 #define SIMTA_SASL_ON                   1

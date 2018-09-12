@@ -197,6 +197,7 @@ static int      f_help( struct receive_data * );
 static int      f_not_implemented( struct receive_data * );
 static int      f_noauth( struct receive_data * );
 static int      f_bad_sequence( struct receive_data * );
+static int      f_insecure( struct receive_data * );
 static void     set_smtp_mode( struct receive_data *, int, const char * );
 static void     tarpit_sleep( struct receive_data *, int );
 static void     log_bad_syntax( struct receive_data* );
@@ -228,6 +229,22 @@ static struct command   smtp_commands[] = {
     { "STARTTLS",       f_starttls },
 #endif /* HAVE_LIBSSL */
     { "AUTH",           f_auth },
+};
+
+static struct command   insecure_commands[] = {
+    { "HELO",           f_insecure },
+    { "EHLO",           f_insecure },
+    { "MAIL",           f_insecure },
+    { "RCPT",           f_insecure },
+    { "DATA",           f_insecure },
+    { "RSET",           f_insecure },
+    { "NOOP",           f_insecure },
+    { "QUIT",           f_quit },
+    { "HELP",           f_insecure },
+    { "VRFY",           f_insecure },
+    { "EXPN",           f_insecure },
+    { "STARTTLS",       f_bad_sequence },
+    { "AUTH",           f_insecure },
 };
 
 static struct command   refuse_commands[] = {
@@ -264,6 +281,7 @@ static const char *smtp_mode_str[] = {
     "Tempfail",
     "Tarpit",
     "NoAuth",
+    "NoSecurity",
     NULL
 };
 
@@ -322,6 +340,12 @@ set_smtp_mode( struct receive_data *r, int mode, const char *msg )
         r->r_commands = refuse_commands;
         r->r_ncommands = sizeof( refuse_commands ) /
                 sizeof( refuse_commands[ 0 ] );
+        return;
+
+    case SMTP_MODE_INSECURE:
+        r->r_commands = insecure_commands;
+        r->r_ncommands = sizeof( insecure_commands ) /
+                sizeof( insecure_commands[ 0 ] );
         return;
     }
 }
@@ -2747,6 +2771,15 @@ f_noauth( struct receive_data *r )
     return( smtp_write_banner( r, 530, NULL, NULL ));
 }
 
+    static int
+f_insecure( struct receive_data *r )
+{
+    tarpit_sleep( r, 0 );
+
+    simta_debuglog( 1, "Receive [%s] %s: Insecure connection: %s",
+            r->r_ip, r->r_remote_hostname, r->r_smtp_command );
+    return( smtp_write_banner( r, 554, "Refused due to lack of security", NULL ));
+}
 
 #ifdef HAVE_LIBSSL
     static int
@@ -2792,10 +2825,8 @@ f_starttls( struct receive_data *r )
         return( RECEIVE_CLOSECONNECTION );
     }
 
-    if ( start_tls( r, ssl_ctx ) == RECEIVE_CLOSECONNECTION ) {
-        /* FIXME: Disconnecting is wrong.
-         *
-         * RFC 3207 4.1 After the STARTTLS Command
+    if ( start_tls( r, ssl_ctx ) != RECEIVE_OK ) {
+        /* RFC 3207 4.1 After the STARTTLS Command
          * If the SMTP server decides that the level of authentication or
          * privacy is not high enough for it to continue, it SHOULD reply to
          * every SMTP command from the client (other than a QUIT command) with
@@ -2803,7 +2834,8 @@ f_starttls( struct receive_data *r )
          * refused due to lack of security").
          */
         SSL_CTX_free( ssl_ctx );
-        return( RECEIVE_CLOSECONNECTION );
+        set_smtp_mode( r, SMTP_MODE_INSECURE, "TLS negotiation failed" );
+        return( RECEIVE_OK );
     }
 
     SSL_CTX_free( ssl_ctx );
