@@ -1,3 +1,8 @@
+1.3.1 (2018-09-14)
+    - fixed address parsing to disallow empty domain labels
+    - added MAX_FAILED_SENDERS
+    - improved behaviour after failed STARTTLS
+
 1.3.0 (2018-09-07)
     - added support for Barracuda BBATV
     - moved secondary MX configuration from R to D
