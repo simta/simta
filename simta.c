@@ -2309,7 +2309,7 @@ simta_check_charset( const char *str )
 
         /* Check that the codepoint used the shortest representation */
         if (( u < 0x80 ) || (( u < 0x800 ) && ( charlen > 2 )) ||
-                (( u < 0x10000 ) && ( charlen > 4 ))) {
+                (( u < 0x10000 ) && ( charlen > 3 ))) {
             return( SIMTA_CHARSET_INVALID );
         }
 
