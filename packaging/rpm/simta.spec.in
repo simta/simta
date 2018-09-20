@@ -35,7 +35,7 @@ BuildRequires: pkgconfig(openssl)
 BuildRequires: pkgconfig(libsasl2)
 %endif
 %if "%{with_libidn}" == "yes"
-BuildRequires: pkgconfig(libidn)
+BuildRequires: pkgconfig(libidn2)
 %endif
 %if "%{with_ldap}" == "yes"
 BuildRequires: openldap-devel
@@ -71,7 +71,7 @@ export JEMALLOC_CFLAGS=-I/usr/include
 	--with-sasl=no \
 %endif
 %if "%{with_libidn}" != "yes"
-        --with-libidn=no
+        --with-libidn2=no
 %endif
 %if "%{with_ldap}" != "yes"
 	--with-ldap=no \

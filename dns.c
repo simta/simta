@@ -18,6 +18,10 @@
 #include <strings.h>
 #include <syslog.h>
 
+#ifdef HAVE_LIBIDN2
+#include <idn2.h>
+#endif /* HAVE_LIBIDN2 */
+
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
@@ -42,6 +46,14 @@ static struct dnsr_result *get_address( const char *, int );
 get_address( const char *hostname, int qtype )
 {
     struct dnsr_result  *result;
+    const char          *lookup_hostname;
+    int                 rc;
+
+#ifdef HAVE_LIBIDN2
+    char                *idna = NULL;
+#endif /* HAVE_LIBIDN2 */
+
+    lookup_hostname = hostname;
 
     if ( simta_dnsr == NULL ) {
         if (( simta_dnsr = dnsr_new( )) == NULL ) {
@@ -50,7 +62,25 @@ get_address( const char *hostname, int qtype )
         }
     }
 
-    if (( dnsr_query( simta_dnsr, qtype, DNSR_CLASS_IN, hostname )) < 0 ) {
+#ifdef HAVE_LIBIDN2
+    if ( simta_check_charset( hostname ) == SIMTA_CHARSET_UTF8 ) {
+        if (( rc = idn2_to_ascii_8z( hostname, &idna,
+                IDN2_NONTRANSITIONAL | IDN2_NFC_INPUT )) != IDN2_OK ) {
+            syslog( LOG_ERR, "Liberror: get_address idn2_to_ascii_8z: %s",
+                    idn2_strerror( rc ));
+            return( NULL );
+        }
+        lookup_hostname = idna;
+    }
+#endif /* HAVE_LIBIDN2 */
+
+    rc = dnsr_query( simta_dnsr, qtype, DNSR_CLASS_IN, lookup_hostname );
+
+#ifdef HAVE_LIBIDN2
+    free( idna );
+#endif /* HAVE_LIBIDN2 */
+
+    if ( rc < 0 ) {
         syslog( LOG_ERR, "Liberror: get_address dnsr_query: %d %s: %s",
                 qtype, hostname, dnsr_err2string( dnsr_errno( simta_dnsr )));
         return( NULL );

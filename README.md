@@ -35,7 +35,7 @@ decreasing order of importance):
 * [OpenLDAP](https://www.openldap.org/)
 * [OpenDKIM](http://www.opendkim.org/)
 * [OpenARC](https://github.com/trusteddomainproject/OpenARC)
-* [Libidn](https://www.gnu.org/software/libidn/)
+* [Libidn2](https://gitlab.com/libidn/libidn2)
 * [Cyrus SASL](https://www.cyrusimap.org/sasl/)
 * tcp_wrappers
 

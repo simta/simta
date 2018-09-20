@@ -31,9 +31,9 @@
 #include <ldap.h>
 #endif /* HAVE_LDAP */
 
-#ifdef HAVE_LIBIDN
-#include <idna.h>
-#endif /* HAVE_LIBIDN */
+#ifdef HAVE_LIBIDN2
+#include <idn2.h>
+#endif /* HAVE_LIBIDN2 */
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -2375,9 +2375,9 @@ simta_read_publicsuffix ( void )
     SNET                *snet = NULL;
     char                *line, *p;
     struct dll_entry    *leaf;
-#ifdef HAVE_LIBIDN
+#ifdef HAVE_LIBIDN2
     char                *idna = NULL;
-#endif /* HAVE_LIBIDN */
+#endif /* HAVE_LIBIDN2 */
 
     /* Set up public suffix list */
     if ( simta_file_publicsuffix != NULL ) {
@@ -2400,13 +2400,14 @@ simta_read_publicsuffix ( void )
             leaf = NULL;
 
 
-#ifdef HAVE_LIBIDN
+#ifdef HAVE_LIBIDN2
             if ( simta_check_charset( line ) == SIMTA_CHARSET_UTF8 ) {
-                if ( idna_to_ascii_8z( line, &idna, 0 ) == IDNA_SUCCESS ) {
+                if ( idn2_to_ascii_8z( line, &idna,
+                        IDN2_NONTRANSITIONAL | IDN2_NFC_INPUT ) == IDN2_OK ) {
                     line = idna;
                 }
             }
-#endif /* HAVE_LIBIDN */
+#endif /* HAVE_LIBIDN2 */
 
             while ( *line != '\0' ) {
                 if (( p = strrchr( line, '.' )) == NULL ) {
@@ -2432,12 +2433,12 @@ simta_read_publicsuffix ( void )
              */
             leaf = dll_lookup_or_create( &simta_publicsuffix_list, "*" );
 
-#ifdef HAVE_LIBIDN
+#ifdef HAVE_LIBIDN2
             if ( idna ) {
                 free( idna );
                 idna = NULL;
             }
-#endif /* HAVE_LIBIDN */
+#endif /* HAVE_LIBIDN2 */
         }
         if ( snet_close( snet ) != 0 ) {
             perror( "snet_close" );

@@ -87,10 +87,10 @@ AS_IF(
     [test "x$with_ssl" != "xno"],
     [PKG_CHECK_MODULES([LIBSSL], [openssl], [AC_DEFINE([HAVE_LIBSSL], [1], [Define to 1 if LIBSSL is found])])])
 
-AC_ARG_WITH([libidn], AC_HELP_STRING([--with-libidn], [Build with IDNA support]))
+AC_ARG_WITH([libidn], AC_HELP_STRING([--with-libidn2], [Build with IDNA support]))
 AS_IF(
-    [test "x$with_libidn" != "xno"],
-    [PKG_CHECK_MODULES([LIBIDN], [libidn],  [AC_DEFINE([HAVE_LIBIDN], [1], [Define to 1 if LIBIDN is available])])])
+    [test "x$with_libidn2" != "xno"],
+    [PKG_CHECK_MODULES([LIBIDN2], [libidn2],  [AC_DEFINE([HAVE_LIBIDN2], [1], [Define to 1 if LIBIDN2 is available])])])
 
 AC_ARG_WITH([jemalloc], AC_HELP_STRING([--with-jemalloc], [Use the jemalloc allocator]))
 AS_IF(
