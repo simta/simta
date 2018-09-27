@@ -3657,8 +3657,8 @@ smtp_receive( int fd, struct connection_info *c, struct simta_socket *ss )
                     (( r.r_rcpt_attempt - r.r_rcpt_success) >=
                     simta_max_failed_rcpts )) {
                 syslog( LOG_NOTICE,
-                        "Receive [%s] %s: env <%s>: Too many failed recipients",
-                        r.r_ip, r.r_remote_hostname, r.r_env->e_id );
+                        "Receive [%s] %s: Too many failed recipients",
+                        r.r_ip, r.r_remote_hostname );
                 set_smtp_mode( &r, simta_smtp_punishment_mode,
                         "Failed recipients" );
             }
