@@ -219,6 +219,12 @@ add_address( struct expand *exp, char *addr, struct envelope *error_env,
         /* do syntax checking and special processing */
         switch ( addr_type ) {
         case ADDRESS_TYPE_EMAIL:
+            if ( simta_check_charset( e->e_addr ) == SIMTA_CHARSET_INVALID ) {
+                syslog( LOG_ERR, "add_address <%s>: bad address: bad charset",
+                    e->e_addr );
+                goto error;
+            }
+
             if (( *(e->e_addr) != '\0' ) &&
                     ( strcasecmp( STRING_POSTMASTER, e->e_addr ) != 0 )) {
                 if ( *(e->e_addr) == '"' ) {

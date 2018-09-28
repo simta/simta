@@ -36,6 +36,7 @@
 
 #define S_8BITMIME  "8BITMIME"
 #define S_SIZE      "SIZE"
+#define S_SMTPUTF8  "SMTPUTF8"
 #define S_STARTTLS  "STARTTLS"
 
 #ifdef DEBUG
@@ -204,6 +205,28 @@ smtp_parse_ehlo_banner( struct deliver *d, char *line ) {
                 simta_debuglog( 2, "Deliver.SMTP env <%s>: STARTTLS supported",
                         d->d_env->e_id );
                 d->d_esmtp_starttls = 1;
+            }
+
+        /* RFC 6531 3.1.  Framework for the Internationalization Extension
+         *
+         * The EHLO keyword value associated with this extension is
+         * "SMTPUTF8".
+         *
+         * No parameter values are defined for this EHLO keyword value.  In
+         * order to permit future (although unanticipated) extensions, the EHLO
+         * response MUST NOT contain any parameters for this keyword. The
+         * SMTPUTF8-aware SMTP client MUST ignore any parameters if they appear
+         * for this keyword; that is, the SMTPUTF8-aware SMTP client MUST
+         * behave as if the parameters do not appear. If an SMTP server
+         * includes SMTPUTF8 in its EHLO response, it MUST be fully compliant
+         * with this version of this specification.
+         */
+        } else if (( strncasecmp( S_SMTPUTF8, c, strlen( S_SMTPUTF8 )) == 0 )) {
+            c += strlen( S_SMTPUTF8 );
+            if ( isspace( *c ) || ( *c == '\0' )) {
+                simta_debuglog( 2, "Deliver.SMTP env <%s>: SMTPUTF8 supported",
+                        d->d_env->e_id );
+                d->d_esmtp_smtputf8 = 1;
             }
         }
     }
@@ -807,6 +830,7 @@ smtp_connect( struct host_q *hq, struct deliver *d )
 smtp_send( struct host_q *hq, struct deliver *d )
 {
     int                 smtp_result, rc;
+    yastr               cmd_buf = NULL;
     char                *line;
     char                *timer_type;
     struct timeval      tv_session = { 0, 0 };
@@ -848,6 +872,7 @@ smtp_send( struct host_q *hq, struct deliver *d )
 
     /* MAIL FROM: */
     /* RFC 6152 2 Framework for the 8-bit MIME Transport Extension
+     *
      *  one optional parameter using the keyword BODY is added to the
      *  MAIL command.  The value associated with this parameter is a
      *  keyword indicating whether a 7-bit message (in strict compliance
@@ -859,15 +884,45 @@ smtp_send( struct host_q *hq, struct deliver *d )
      *  body-value = "7BIT" / "8BITMIME"
      */
 
-    if ( d->d_esmtp_8bitmime && ( d->d_env->e_attributes & ENV_ATTR_8BITMIME )) {
+    /* RFC 6531 3.1 Framework for the Internationalization Extension
+     *
+     * One OPTIONAL parameter, SMTPUTF8, is added to the MAIL command.
+     * The parameter does not accept a value.  If this parameter is set
+     * in the MAIL command, it indicates that the SMTP client is
+     * SMTPUTF8-aware. Its presence also asserts that the envelope
+     * includes the non-ASCII address, the message being sent is an
+     * internationalized message, or the message being sent needs the
+     * SMTPUTF8 support.
+     */
+
+    cmd_buf = yaslcatprintf( yaslempty( ), "MAIL FROM:<%s>", d->d_env->e_mail );
+    if ( d->d_env->e_attributes & ENV_ATTR_SMTPUTF8 ) {
+        if ( ! d->d_esmtp_8bitmime || ! d->d_esmtp_smtputf8 ) {
+            syslog( LOG_INFO, "Deliver.SMTP env <%s>: "
+                    "destination lacks required SMTPUTF8 support" );
+            if ( line_append( d->d_env->e_err_text,
+                    "Delivery of this message requires internationalized email "
+                    "features which are not provided by the recipient domain.",
+                    COPY ) == NULL ) {
+                syslog( LOG_ERR, "smtp_send line_append failed" );
+                return( SMTP_ERROR );
+            }
+            d->d_env->e_flags |= ENV_FLAG_BOUNCE;
+            return( SMTP_OK );
+        }
+        simta_debuglog( 1, "Deliver.SMTP env <%s>: Delivering using SMTPUTF8",
+                d->d_env->e_id );
+        cmd_buf = yaslcat( cmd_buf, " SMTPUTF8 BODY=8BITMIME" );
+    } else if ( d->d_esmtp_8bitmime &&
+            ( d->d_env->e_attributes & ENV_ATTR_8BITMIME )) {
         simta_debuglog( 1, "Deliver.SMTP env <%s>: Delivering as 8BITMIME",
                 d->d_env->e_id );
-        rc = snet_writef( d->d_snet_smtp,
-                "MAIL FROM:<%s> BODY=8BITMIME\r\n", d->d_env->e_mail );
-    } else {
-        rc = snet_writef( d->d_snet_smtp, "MAIL FROM:<%s>\r\n",
-                d->d_env->e_mail );
+        cmd_buf = yaslcat( cmd_buf, " BODY=8BITMIME" );
     }
+
+    rc = snet_writef( d->d_snet_smtp, "%s\r\n", cmd_buf );
+    yaslfree( cmd_buf );
+    cmd_buf = NULL;
 
     if ( rc < 0 ) {
         syslog( LOG_ERR, "Deliver.SMTP env <%s>: MAIL: snet_writef failed: %m",

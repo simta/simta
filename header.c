@@ -40,7 +40,7 @@ static void     header_masquerade( struct line * );
 static void     header_remove( struct dll_entry *, struct receive_headers * );
 static int      header_singleton( const char *, const struct rfc822_header * );
 static yastr    header_string( struct line * );
-static int      is_dot_atom_text( int );
+static int      is_dot_atom_text( unsigned char );
 static yastr    parse_addr_spec( const char *, int * );
 static yastr    *parse_addr_list( yastr, size_t *, int );
 static yastr    parse_mid( struct line * );
@@ -1455,8 +1455,13 @@ token_domain_literal( char *i )
 
 
     static int
-is_dot_atom_text( int c )
+is_dot_atom_text( unsigned char c )
 {
+    /* FIXME: I don't like this parsing */
+    if ( c > 127 ) {
+        return( 1 );
+    }
+
     if ( isalpha( c ) != 0 ) {
         return( 1 );
     }

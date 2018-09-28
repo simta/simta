@@ -81,6 +81,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY|LIBWRAP_DENY_SEVERITY;
 
 #define SIMTA_EXTENSION_SIZE        (1<<0)
 #define SIMTA_EXTENSION_8BITMIME    (1<<1)
+#define SIMTA_EXTENSION_SMTPUTF8    (1<<2)
 
 #define SIMTA_PROXY_HEADERLEN   536
 
@@ -753,6 +754,11 @@ f_ehlo( struct receive_data *r )
         syslog( LOG_ERR, "Liberror: f_ehlo snet_writef: %m" );
         return( RECEIVE_CLOSECONNECTION );
     }
+    if ( snet_writef( r->r_snet, "%d%sSMTPUTF8\r\n", 250,
+            extension_count-- ? "-" : " " ) < 0 ) {
+        syslog( LOG_ERR, "Liberror: f_ehlo snet_writef: %m" );
+        return( RECEIVE_CLOSECONNECTION );
+    }
     if ( simta_max_message_size > 0 ) {
         if ( snet_writef( r->r_snet, "%d%sSIZE %d\r\n", 250,
                 extension_count-- ? "-" : " ",
@@ -840,6 +846,7 @@ f_mail( struct receive_data *r )
     int                 parameters;
     int                 seen_extensions = 0;
     int                 eightbit = 0;
+    int                 utf8 = 0;
     long int            message_size;
     char                *addr;
     char                *domain;
@@ -985,6 +992,20 @@ f_mail( struct receive_data *r )
                         r->r_av[ i ] + strlen( "BODY=" )));
             }
 
+        /* RFC 6531 3.1 Framework for the Internationalization Extension
+         *
+         * One OPTIONAL parameter, SMTPUTF8, is added to the MAIL command.
+         * The parameter does not accept a value.  If this parameter is set
+         * in the MAIL command, it indicates that the SMTP client is
+         * SMTPUTF8-aware. Its presence also asserts that the envelope
+         * includes the non-ASCII address, the message being sent is an
+         * internationalized message, or the message being sent needs the
+         * SMTPUTF8 support.
+         */
+        } else if ( strcasecmp( r->r_av[ i ], "SMTPUTF8" ) == 0 ) {
+            /* FIXME: can this whole area be reworked? */
+            utf8 = 1;
+
         } else {
             syslog( LOG_INFO, "Receive [%s] %s: "
                     "unsupported SMTP extension: %s",
@@ -1057,6 +1078,10 @@ f_mail( struct receive_data *r )
 
     if ( eightbit ) {
         r->r_env->e_attributes |= ENV_ATTR_8BITMIME;
+    }
+
+    if ( utf8 ) {
+        r->r_env->e_attributes |= ENV_ATTR_SMTPUTF8;
     }
 
 #ifdef HAVE_LIBOPENDKIM

@@ -87,6 +87,7 @@ struct envelope {
 
 #define ENV_ATTR_ARCHIVE_ONLY           (1<<0)
 #define ENV_ATTR_8BITMIME               (1<<1)
+#define ENV_ATTR_SMTPUTF8               (1<<2)
 
 /* Efile syntax, by minimum version number:
  *

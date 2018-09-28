@@ -115,7 +115,7 @@ int                     simta_q_runner_receive_max = 0;
 int                     simta_exp_level_max = 5;
 int                     simta_process_type = 0;
 int                     simta_filesystem_cleanup = 0;
-int                     simta_smtp_extension = 0;
+int                     simta_smtp_extension = 1;
 int                     simta_smtp_rcvbuf_min = 0;
 int                     simta_smtp_rcvbuf_max;
 int                     simta_strict_smtp_syntax = 0;

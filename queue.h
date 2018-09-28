@@ -69,6 +69,7 @@ struct deliver {
     int                         d_cur_dnsr_result_ip;
     int                         d_esmtp_8bitmime;
     int                         d_esmtp_size;
+    int                         d_esmtp_smtputf8;
     int                         d_esmtp_starttls;
 };
 
