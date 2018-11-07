@@ -1,3 +1,9 @@
+1.4.0 (2018-10-07)
+    - fixed a crash in MAX_FAILED_SENDERS
+    - fixed charset detection for some UTF-8 codepoints
+    - switched from libidn to libidn2 for IDNA handling
+    - added PUNT_STRATEGY
+
 1.3.1 (2018-09-14)
     - fixed address parsing to disallow empty domain labels
     - added MAX_FAILED_SENDERS
