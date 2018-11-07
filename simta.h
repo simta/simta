@@ -88,9 +88,8 @@
 #define TLS_POLICY_DISABLED             3
 
 /* Punting Policy */
-#define PUNTING_POLICY_DEFAULT          0
-#define PUNTING_POLICY_DISABLED         1
-#define PUNTING_POLICY_ENABLED          2
+#define PUNT_POLICY_NORMAL              0
+#define PUNT_POLICY_ALL                 1
 
 #define DKIMSIGN_POLICY_OFF             0
 #define DKIMSIGN_POLICY_ALWAYS          1
@@ -108,7 +107,6 @@
 #define RQUEUE_POLICY_FAST              0
 #define RQUEUE_POLICY_SLOW              1
 #define RQUEUE_POLICY_JAIL              2
-#define RQUEUE_POLICY_PUNT              3
 
 #define SPF_POLICY_OFF                  0
 #define SPF_POLICY_ON                   1
@@ -221,6 +219,7 @@ extern int                              simta_aggressive_expansion;
 extern int                              simta_aggressive_receipt_max;
 extern int                              simta_queue_policy;
 extern int                              simta_rqueue_policy;
+extern int                              simta_punt_policy;
 extern int                              simta_smtp_rcvbuf_min;
 extern int                              simta_smtp_rcvbuf_max;
 extern int                              simta_leaky_queue;

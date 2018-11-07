@@ -100,6 +100,7 @@ int                     simta_aggressive_expansion = 1;
 int                     simta_aggressive_receipt_max = 50;
 int                     simta_queue_policy = QUEUE_POLICY_FIFO;
 int                     simta_rqueue_policy = RQUEUE_POLICY_FAST;
+int                     simta_punt_policy = PUNT_POLICY_NORMAL;
 int                     simta_leaky_queue = 0;
 int                     simta_listen_backlog = 64;
 int                     simta_disk_cycle = 0;
@@ -1618,6 +1619,25 @@ simta_read_config( const char *fname )
                     fname, lineno );
             goto error;
 
+        } else if ( strcasecmp( av[ 0 ], "PUNT_STRATEGY" ) == 0 ) {
+            if ( ac == 2 ) {
+                if ( strcasecmp( av[ 1 ], "NORMAL" ) == 0 ) {
+                    simta_punt_policy = PUNT_POLICY_NORMAL;
+                    simta_debuglog( 2, "PUNT_STRATEGY: NORMAL" );
+                    continue;
+                }
+                if ( strcasecmp( av[ 1 ], "ALL" ) == 0 ) {
+                    simta_punt_policy = PUNT_POLICY_ALL;
+                    simta_debuglog( 2, "PUNT_STRATEGY: ALL" );
+                    continue;
+                }
+            }
+
+            fprintf( stderr, "%s: line %d: usage: "
+                    "PUNT_STRATEGY <NORMAL|ALL>\n",
+                    fname, lineno );
+            goto error;
+
         } else if (( rc = simta_config_int( "QUEUE_WAIT_MAX", &simta_wait_max,
                 0, ac, av, fname, lineno )) != 0 ) {
             if ( rc < 0 ) {
@@ -1769,13 +1789,15 @@ simta_read_config( const char *fname )
                     simta_debuglog( 2, "RECEIVE_QUEUE_STRATEGY SLOW" );
                     continue;
                 } else if ( strcasecmp( av[ 1 ], "PUNT" ) == 0 ) {
-                    simta_rqueue_policy = RQUEUE_POLICY_PUNT;
-                    simta_debuglog( 2, "RECEIVE_QUEUE_STRATEGY PUNT" );
+                    simta_punt_policy = PUNT_POLICY_ALL;
+                    syslog( LOG_NOTICE, "Config: RECEIVE_QUEUE_STRATEGY PUNT "
+                            "is deprecated. Use PUNT_STRATEGY ALL instead." );
+                    simta_debuglog( 2, "PUNT_STRATEGY ALL" );
                     continue;
                 }
             }
             fprintf( stderr, "%s: line %d: usage: "
-                    "RECEIVE_QUEUE_STRATEGY <FAST|SLOW|PUNT|JAIL>\n",
+                    "RECEIVE_QUEUE_STRATEGY <FAST|SLOW|JAIL>\n",
                     fname, lineno );
             goto error;
 

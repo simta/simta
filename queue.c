@@ -129,7 +129,7 @@ host_q_create_or_lookup( char *hostname )
         }
 
         if ( hq->hq_status == HOST_UNKNOWN ) {
-            if (( simta_rqueue_policy == RQUEUE_POLICY_PUNT ) &&
+            if (( simta_punt_policy == PUNT_POLICY_ALL ) &&
                     ( hq->hq_no_punt != NOPUNT_CONFIG )) {
                 hq->hq_status = HOST_SUPPRESSED;
             } else if (( simta_rqueue_policy == RQUEUE_POLICY_SLOW ) &&
