@@ -1788,12 +1788,6 @@ simta_read_config( const char *fname )
                     simta_rqueue_policy = RQUEUE_POLICY_SLOW;
                     simta_debuglog( 2, "RECEIVE_QUEUE_STRATEGY SLOW" );
                     continue;
-                } else if ( strcasecmp( av[ 1 ], "PUNT" ) == 0 ) {
-                    simta_punt_policy = PUNT_POLICY_ALL;
-                    syslog( LOG_NOTICE, "Config: RECEIVE_QUEUE_STRATEGY PUNT "
-                            "is deprecated. Use PUNT_STRATEGY ALL instead." );
-                    simta_debuglog( 2, "PUNT_STRATEGY ALL" );
-                    continue;
                 }
             }
             fprintf( stderr, "%s: line %d: usage: "
