@@ -1373,6 +1373,9 @@ parse_addr_list( yastr list, size_t *count, int mode )
         return( mboxes );
     }
 
+    free( mboxes );
+    return( NULL );
+
 error:
     syslog( LOG_INFO, "parse_addr_list: error parsing %s", list );
     if ( tmp ) {
