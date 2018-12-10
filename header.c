@@ -609,29 +609,42 @@ header_check( struct receive_headers *rh, int read_headers )
             split = parse_addr_list( tmp, &tok_count, HEADER_MAILBOX_LIST );
         }
 
+        if ( tok_count != 1 ) {
+            syslog( LOG_INFO, "header_check: parse_addr_list returned "
+                    "an unexpected number of From addresses: %s", tmp );
+        }
+
         if ( split == NULL ) {
-            ret++;
-        } else {
-            if ( tok_count != 1 ) {
-                syslog( LOG_INFO, "header_check: parse_addr_list returned "
-                        "an unexpected number of From addresses: %s", tmp );
+            if (( simta_submission_mode == SUBMISSION_MODE_MSA ) &&
+                    strlen( rh->r_env->e_mail )) {
+                /* Bad From:, we should regenerate it. */
+                header_remove( dentry, rh );
+                dentry = NULL;
+            } else {
+                ret++;
             }
+        } else {
             rh->r_env->e_header_from = strdup( split[ 0 ] );
             yaslfreesplitres( split, tok_count );
         }
+
         yaslfree( tmp );
-    } else if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
-            ( simta_submission_mode == SUBMISSION_MODE_MSA )) {
-        /* generate From: header */
-        if ( rh->r_headers == NULL ) {
-            rh->r_headers = line_file_create( );
+    }
+
+    if ( dentry == NULL ) {
+        if (( simta_submission_mode == SUBMISSION_MODE_SIMSEND ) ||
+                ( simta_submission_mode == SUBMISSION_MODE_MSA )) {
+            syslog( LOG_INFO, "header_check: generating new From header using RFC5321.MailFrom" );
+            if ( rh->r_headers == NULL ) {
+                rh->r_headers = line_file_create( );
+            }
+            yaslclear( buf );
+            buf = yaslcatprintf( buf, "From: %s", rh->r_env->e_mail );
+            line_prepend( rh->r_headers, buf, COPY );
+        } else {
+            syslog( LOG_INFO, "header_check: missing From header" );
+            ret++;
         }
-        yaslclear( buf );
-        buf = yaslcatprintf( buf, "From: %s", rh->r_env->e_mail );
-        line_prepend( rh->r_headers, buf, COPY );
-    } else {
-        syslog( LOG_INFO, "header_check: missing From header" );
-        ret++;
     }
 
     /* Sender: */
