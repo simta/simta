@@ -1,6 +1,11 @@
 #ifndef SIMTA_DMARC_H
 #define SIMTA_DMARC_H
 
+#include <yasl.h>
+
+#include "ll.h"
+
+
 #define DMARC_RESULT_NORECORD           0
 #define DMARC_RESULT_ORGDOMAIN          1
 #define DMARC_RESULT_NONE               2
@@ -13,9 +18,6 @@
 #define DMARC_ALIGNMENT_RELAXED         0
 #define DMARC_ALIGNMENT_STRICT          1
 
-#include "ll.h"
-
-
 struct dmarc {
     int                 policy;
     int                 subpolicy;
@@ -27,6 +29,8 @@ struct dmarc {
     char                *spf_domain;
     struct dll_entry    *dkim_domain_list;
 };
+
+yastr dmarc_orgdomain( const char * );
 
 int dmarc_init( struct dmarc ** );
 void dmarc_free( struct dmarc * );

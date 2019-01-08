@@ -1,3 +1,14 @@
+2.0.0 (2019-??-??)
+    - brand new UCL configuration system
+    - added -U flag to specify arbitrary configuration on the command line
+    - updated build system
+    - updated LDAP code to use non-deprecated APIs
+    - added most global delivery settings as per-domain settings
+    - added associated domain support to alias expansion
+    - removed compile-time procmail dependency
+    - added support for DNS lists with multiple entry types
+    - improved CLI tool interface consistency
+
 1.4.0 (2018-10-07)
     - fixed a crash in MAX_FAILED_SENDERS
     - fixed charset detection for some UTF-8 codepoints

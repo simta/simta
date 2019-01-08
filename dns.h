@@ -2,6 +2,7 @@
 #define SIMTA_DNS_H
 
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <denser.h>
 #include <yasl.h>
 
@@ -28,21 +29,14 @@
 #define REVERSE_UNRESOLVED      4
 
 
-struct dnsl {
-    struct dnsl                 *dnsl_next;
-    const char                  *dnsl_type_text;
-    yastr                       dnsl_domain;
-    yastr                       dnsl_default_reason;
-    int                         dnsl_type;
-    int                         dnsl_flags;
-};
-
 struct dnsl_result {
-    struct dnsl                 *dnsl;
+    yastr                       dnsl_list;
+    yastr                       dnsl_action;
     yastr                       dnsl_reason;
     yastr                       dnsl_result;
 };
 
+bool simta_dnsr_init( void );
 struct dnsr_result *get_a( const char * );
 struct dnsr_result *get_aaaa( const char * );
 struct dnsr_result *get_mx( const char * );
@@ -51,7 +45,6 @@ struct dnsr_result *get_txt( const char * );
 yastr simta_dnsr_str( const struct dnsr_string * );
 int check_reverse( char *, const struct sockaddr * );
 int check_hostname( const char * );
-int dnsl_add( const char *, int, const char *, const char * );
 struct dnsl_result *dnsl_check( const char *, const struct sockaddr *,
         const char * );
 void dnsl_result_free( struct dnsl_result * );

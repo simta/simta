@@ -126,7 +126,7 @@ expand( struct envelope *unexpanded_env )
     struct expand_output        *eo_free;
     struct exp_addr             *e_addr;
     struct exp_addr             *next_e_addr;
-    ucl_object_t                *hq_red;
+    const ucl_object_t          *hq_red;
     char                        *domain;
     SNET                        *snet = NULL;
     int                         n_rcpts;

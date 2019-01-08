@@ -1,5 +1,7 @@
 ACLOCAL_AMFLAGS = -I m4
 
+SUBDIRS = . test
+
 AM_LDFLAGS = \
 	@DENSER_LIBS@ \
 	@JEMALLOC_LIBS@ \

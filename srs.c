@@ -75,10 +75,10 @@ srs_forward( struct envelope *env ) {
                 continue;
             }
             if (( ucl_object_toboolean( ucl_object_lookup_path(
-                    simta_config, "red_defaults.deliver.ipv4" )) &&
+                    simta_config, "defaults.red.deliver.ipv4" )) &&
                     ( ifa->ifa_addr->sa_family == AF_INET )) ||
                     ( ucl_object_toboolean( ucl_object_lookup_path(
-                    simta_config, "red_defaults.deliver..ipv6" )) &&
+                    simta_config, "defaults.red.deliver.ipv6" )) &&
                     ( ifa->ifa_addr->sa_family == AF_INET6 ))) {
                 spf = spf_lookup( simta_hostname, env->e_mail,
                         ifa->ifa_addr );

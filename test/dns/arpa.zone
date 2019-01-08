@@ -1,0 +1,14 @@
+$TTL    300
+$ORIGIN arpa.
+
+@               IN  SOA localhost.test.     simta.test. (
+                            1
+                            300
+                            300
+                            6000
+                            30
+                            )
+                    NS  localhost.test.
+
+$ORIGIN in-addr.arpa.
+1.0.0.127   PTR localhost.test.

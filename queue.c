@@ -109,7 +109,7 @@ host_q_create_or_lookup( char *hostname )
         hq->hq_hostname = yaslauto( hostname );
         yasltolower( hq->hq_hostname );
 
-        hq->hq_red = red_host_lookup( hostname, true );
+        hq->hq_red = ucl_object_ref( red_host_lookup( hostname, true ));
 
         if ( ucl_object_toboolean( ucl_object_lookup_path( hq->hq_red,
                 "deliver.bitbucket.enabled" ))) {
@@ -690,6 +690,7 @@ hq_free( struct host_q *hq_free )
 {
     if ( hq_free ) {
         hq_deliver_pop( hq_free );
+        ucl_object_unref( hq_free->hq_red );
         yaslfree( hq_free->hq_hostname );
         free( hq_free );
     }
@@ -1026,7 +1027,6 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
     SNET                        *snet_dfile = NULL;
     SNET                        *snet_lock;
     char                        dfile_fname[ MAXPATHLEN ];
-    ucl_object_t                *red;
     struct recipient            **r_sort;
     struct recipient            *remove;
     struct envelope             *env_deliver;
@@ -1035,11 +1035,6 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
     struct timespec             ts;
 
     memset( d, 0, sizeof( struct deliver ));
-
-    if ( simta_bitbucket > 0 ) {
-        ts.tv_sec = simta_bitbucket / 1000;
-        ts.tv_nsec = ( simta_bitbucket % 1000 ) * 1000000;
-    }
 
     syslog( LOG_INFO, "Queue %s: delivering %d messages",
             deliver_q->hq_hostname, deliver_q->hq_entries );
@@ -1186,9 +1181,11 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
             break;
 
         case HOST_BITBUCKET:
+            simta_ucl_object_totimespec( ucl_object_lookup_path(
+                    deliver_q->hq_red, "deliver.bitbucket.delay" ), &ts );
             syslog( LOG_WARNING,
-                    "Deliver.remote env <%s>: bitbucket in %d milliseconds",
-                    env_deliver->e_id, simta_bitbucket );
+                    "Deliver.remote env <%s>: bitbucket in %d.%06d seconds",
+                    env_deliver->e_id, ts.tv_sec, ts.tv_nsec / 1000 );
             nanosleep( &ts, NULL );
             d->d_delivered = 1;
             d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
@@ -1615,9 +1612,7 @@ retry:
                 syslog( LOG_INFO,
                         "Deliver.remote %s: disabling TLS and retrying",
                         hq->hq_hostname );
-                ucl_object_replace_key(
-                        ucl_object_lookup_path( hq->hq_red, "deliver.tls" ),
-                        ucl_object_frombool( false ), "enabled", 0, false );
+                simta_ucl_toggle( hq->hq_red, "deliver.tls", "enabled", false );
                 goto retry;
             } else if ( r_smtp != SMTP_OK ) {
                 goto smtp_cleanup;
@@ -1741,8 +1736,8 @@ next_dnsr_host_lookup( struct deliver *d, struct host_q *hq )
     int
 get_outbound_dns( struct deliver *d, struct host_q *hq )
 {
-    int                         i;
-    ucl_object_t                *red;
+    int                     i;
+    const ucl_object_t      *red;
 
     /*
      * RFC 5321 5.1 Locating the Target Host
@@ -2335,7 +2330,8 @@ queue_log_metrics( struct host_q *hq_schedule )
         return;
     }
 
-    sprintf( linkname, "%s/etc/queue_schedule", simta_base_dir );
+    sprintf( linkname, "%s/etc/queue_schedule", ucl_object_tostring(
+            ucl_object_lookup_path( simta_config, "core.base_dir" )));
     sprintf( filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec );
 
     if (( fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0664 )) < 0 ) {

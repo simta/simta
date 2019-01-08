@@ -15,7 +15,6 @@
 
 static int dmarc_alignment( const char *, const char *, int );
 static struct dnsr_result *dmarc_lookup_record( const char * );
-static yastr dmarc_orgdomain( const char * );
 static int dmarc_parse_record( struct dmarc *, yastr );
 static int dmarc_parse_result( struct dmarc *, struct dnsr_result * );
 static void dmarc_policy_reset( struct dmarc * );
@@ -193,6 +192,8 @@ dmarc_dkim_result( struct dmarc *d, char *domain )
     struct dll_entry    *dkim_domain;
 
     dkim_domain = dll_lookup_or_create( &d->dkim_domain_list, domain );
+    /* This is really just to avoid a warning about unused-but-set-variable */
+    d->dkim_domain_list = dkim_domain;
     return( 0 );
 }
 
@@ -295,7 +296,7 @@ dmarc_lookup_record( const char *domain )
     return( res );
 }
 
-    static yastr
+    yastr
 dmarc_orgdomain( const char *domain ) {
     size_t              i;
     struct dll_entry    *dentry, *leaf;

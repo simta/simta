@@ -1107,7 +1107,7 @@ simta_ldap_expand_group( struct simta_ldap *ld, struct expand *exp,
             goto error;
         }
 
-        if ( is_emailaddr( senderbuf ) == 0 ) {
+        if ( !is_emailaddr( senderbuf )) {
             yaslclear( senderbuf );
             bounce_text( e_addr->e_addr_errors, TEXT_WARNING,
                     "Illegal email group name: ", group_name, NULL );
@@ -1948,10 +1948,10 @@ simta_ldap_config( const ucl_object_t *rule )
 
     ld = calloc( 1, sizeof( struct simta_ldap ));
     lds = &(ld->ldap_searches);
-    ld->ldap_rule = ucl_object_ref( rule );
+    ld->ldap_rule = ucl_object_ref( ucl_object_lookup( rule, "ldap" ));
 
     ld->ldap_associated_domain = ucl_object_tostring(
-            ucl_object_lookup( ld->ldap_rule, "associated_domain" ));
+            ucl_object_lookup( rule, "associated_domain" ));
 
     iter = ucl_object_iterate_new( ucl_object_lookup( ld->ldap_rule, "search" ));
     while (( obj = ucl_object_iterate_safe( iter, false )) != NULL ) {

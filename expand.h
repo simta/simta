@@ -56,7 +56,7 @@ struct expand {
     struct exp_link             *exp_memonly;
     struct envelope             *exp_gmailfwding;
 #endif /* HAVE_LDAP */
-    ucl_object_t                *exp_current_rule;
+    const ucl_object_t          *exp_current_rule;
     int                         exp_max_level;
     int                         exp_entries;
 };
@@ -97,7 +97,7 @@ struct envelope *eo_lookup( struct expand_output *, char *, char * );
 int eo_insert( struct expand_output **, struct envelope * );
 
 /* address.c */
-struct passwd *simta_getpwnam( const ucl_object_t *, const char * );
+struct passwd *simta_getpwnam( const char *, const char * );
 int address_error( struct envelope *, char *, char *, char * );
 void expansion_stab_stdout( void * );
 int add_address( struct expand *, char *, struct envelope *, int, char * );

@@ -1,12 +1,15 @@
 *,v
 *.la
 *.lo
+*.log
 *.o
+*.trs
 *.xz
 *~
 ,*
 .cproject
 .deps
+.dirstamp
 .gdbinit
 .libs
 .project
@@ -56,3 +59,4 @@ simvacation/simvacation
 simvacation/simvacreport
 sla
 stamp-*
+test-driver

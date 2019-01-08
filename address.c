@@ -100,7 +100,7 @@ address_string_recipients( struct expand *exp, char *line,
                 swap = *end;
                 *end = '\0';
 
-                if ( is_emailaddr( email_start ) != 0 ) {
+                if ( is_emailaddr( email_start )) {
                     if ( add_address( exp, email_start, e_addr->e_addr_errors,
                             ADDRESS_TYPE_EMAIL, from ) != 0 ) {
                         *end = swap;
@@ -156,7 +156,7 @@ address_string_recipients( struct expand *exp, char *line,
 
         *end = '\0';
 
-        if ( is_emailaddr( email_start ) != 0 ) {
+        if ( is_emailaddr( email_start )) {
             if ( add_address( exp, email_start, e_addr->e_addr_errors,
                     ADDRESS_TYPE_EMAIL, from ) != 0 ) {
                 *end = '>';
@@ -403,7 +403,6 @@ address_expand( struct expand *exp )
     /* Expand user using expansion table for domain */
     iter = ucl_object_iterate_new( ucl_object_lookup( red, "rule" ));
     while (( rule = ucl_object_iterate_safe( iter, false )) != NULL ) {
-        /* FIXME: we might be able to do away with this */
         exp->exp_current_rule = rule;
 
         if ( ! ucl_object_toboolean( ucl_object_lookup_path( rule,
@@ -419,7 +418,8 @@ address_expand( struct expand *exp )
 
 #ifdef HAVE_LMDB
         if ( strcasecmp( type, "alias" ) == 0 ) {
-            path = ucl_object_tostring( ucl_object_lookup( rule, "path" ));
+            path = ucl_object_tostring( ucl_object_lookup_path( rule,
+                    "alias.path" ));
             switch ( alias_expand( exp, e_addr, rule )) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog( 1, "Expand.alias env <%s>: <%s>: found in DB %s",
@@ -441,7 +441,8 @@ address_expand( struct expand *exp )
 #endif /* HAVE_LMDB */
 
         if ( strcasecmp( type, "password" ) == 0 ) {
-            path = ucl_object_tostring( ucl_object_lookup( rule, "path" ));
+            path = ucl_object_tostring( ucl_object_lookup( rule,
+                    "password.path" ));
             switch ( password_expand( exp, e_addr, rule )) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog( 1,
@@ -559,17 +560,14 @@ not_found:
 
 
     struct passwd *
-simta_getpwnam( const ucl_object_t *rule, const char *user )
+simta_getpwnam( const char *fname, const char *user )
 {
     static struct passwd        pwent;
     static yastr                buf = NULL;
     SNET                        *snet;
-    const char                  *fname;
     char                        *line;
     char                        *c;
     size_t                      userlen;
-
-    fname = ucl_object_tostring( ucl_object_lookup( rule, "path" ));
 
     if ( strcmp( fname, "/etc/passwd" ) == 0 ) {
         /* Use the system password database, which may or may not just read
@@ -692,10 +690,14 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t
     /* Check password file */
     if ( e_addr->e_addr_at != NULL ) {
         *e_addr->e_addr_at = '\0';
-        passwd = simta_getpwnam( rule, e_addr->e_addr );
+        passwd = simta_getpwnam( ucl_object_tostring(
+                ucl_object_lookup_path( rule, "password.path" )),
+                e_addr->e_addr );
         *e_addr->e_addr_at = '@';
     } else {
-        passwd = simta_getpwnam( rule, STRING_POSTMASTER );
+        passwd = simta_getpwnam( ucl_object_tostring(
+                ucl_object_lookup( rule, "password.path" )),
+                STRING_POSTMASTER );
     }
 
     if ( passwd == NULL ) {
@@ -769,7 +771,6 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *r
 {
     int                 ret = ADDRESS_NOT_FOUND;
     yastr               address = NULL;
-    yastr               domain = NULL;
     yastr               owner = NULL;
     yastr               owner_value = NULL;
     yastr               value = NULL;
@@ -779,7 +780,7 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *r
     struct simta_dbc    *dbcp = NULL, *owner_dbcp = NULL;
     struct simta_dbh    *dbh = NULL;
 
-    db_path = ucl_object_tostring( ucl_object_lookup( rule, "path"));
+    db_path = ucl_object_tostring( ucl_object_lookup_path( rule, "alias.path" ));
     if (( ret = simta_db_open_r( &dbh, db_path )) != 0 ) {
         syslog( LOG_ERR, "Liberror: alias_expand simta_db_open_r %s: %s",
                 db_path, simta_db_strerror( ret ));
@@ -788,14 +789,6 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *r
     }
 
     if ( e_addr->e_addr_at != NULL ) {
-        domain = yaslauto( e_addr->e_addr_at + 1 );
-        if ( yasllen( domain ) >= SIMTA_MAX_HOST_NAME_LEN) {
-            syslog( LOG_WARNING,
-                    "Expand.alias env <%s>: <%s>: domain too long: %s",
-                    exp->exp_env->e_id, e_addr->e_addr, e_addr->e_addr_at + 1 );
-            goto done;
-        }
-
         address = yaslnew( e_addr->e_addr, e_addr->e_addr_at - e_addr->e_addr );
         if ( strncasecmp( address, "owner-", 6 ) == 0 ) {
             /* Canonicalise sendmail-style owner */
@@ -859,7 +852,8 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *r
                 goto done;
             }
         } else {
-            owner = yaslcatprintf( owner, "@%s", domain );
+            owner = yaslcatprintf( owner, "@%s", ucl_object_tostring(
+                    ucl_object_lookup( rule, "associated_domain" )));
             if (( e_addr->e_addr_errors =
                     address_bounce_create( exp )) == NULL ) {
                 syslog( LOG_ERR, "Expand.alias env <%s>: <%s>: "
@@ -928,7 +922,6 @@ alias_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *r
 
 done:
     yaslfree( address );
-    yaslfree( domain );
     yaslfree( owner );
     yaslfree( value );
     yaslfree( owner_value );

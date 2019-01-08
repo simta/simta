@@ -382,35 +382,24 @@ env_free( struct envelope *env )
     void
 env_stdout( struct envelope *e )
 {
-    struct recipient            *r;
+    struct recipient    *r;
+    ucl_object_t        *repr;
+    ucl_object_t        *rcpts;
 
-    if ( e->e_id == NULL ) {
-        printf( "Message-Id NULL\n" );
-    } else {
-        printf( "Message-Id:\t%s\n", e->e_id );
-    }
+    /* Build the output object */
+    repr = ucl_object_new( );
+    ucl_object_insert_key( repr, ucl_object_fromstring( e->e_id ), "envelope_id", 0, false );
+    ucl_object_insert_key( repr, ucl_object_fromstring( e->e_hostname ), "hostname", 0 , false );
+    ucl_object_insert_key( repr, ucl_object_fromstring( e->e_mail ), "sender", 0, false );
+    ucl_object_insert_key( repr, ucl_object_fromstring( e->e_dir ), "directory", 0, false );
 
-    if ( e->e_hostname == NULL ) {
-        printf( "expanded NULL\n" );
-    } else {
-        printf( "expanded %s\n", e->e_hostname );
-    }
-
-    if ( e->e_mail != NULL ) {
-        printf( "mail:\t%s\n", e->e_mail );
-    } else {
-        printf( "mail NULL\n" );
-    }
-
-    if ( e->e_dir != NULL ) {
-        printf( "dir:\t%s\n", e->e_dir );
-    } else {
-        printf( "dir NULL\n" );
-    }
-
+    rcpts = ucl_object_typed_new( UCL_ARRAY );
+    ucl_object_insert_key( repr, rcpts, "recipients", 0, false );
     for ( r = e->e_rcpt; r != NULL; r = r->r_next ) {
-        printf( "rcpt:\t%s\n", r->r_rcpt );
+        ucl_array_append( rcpts, ucl_object_fromstring( r->r_rcpt ));
     }
+
+    printf( "%s\n", ucl_object_emit( repr, UCL_EMIT_JSON ));
 }
 
 

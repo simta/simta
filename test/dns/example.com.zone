@@ -1,0 +1,13 @@
+$TTL    300
+$ORIGIN example.com.
+
+@               IN  SOA localhost.test.     simta.test. (
+                            1
+                            300
+                            300
+                            6000
+                            30
+                            )
+                    NS  localhost.test.
+
+                    A   127.0.0.1
