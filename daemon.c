@@ -23,6 +23,7 @@
 #include <netdb.h>
 #include <pwd.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,6 +48,10 @@
 #include "ll.h"
 #include "queue.h"
 #include "simta.h"
+
+#ifdef HAVE_LDAP
+#include "simta_ldap.h"
+#endif /* HAVE_LDAP */
 
 #ifdef HAVE_LIBSASL
 #include "simta_sasl.h"
@@ -86,11 +91,12 @@ void                 chld(int);
 int                  main(int, char *av[]);
 int                  simta_wait_for_child(int);
 int                  simta_sigaction_reset(int);
-int                  simta_server(void);
+int                  simta_server(bool);
 int                  simta_daemonize_server(void);
 int                  simta_child_receive(struct simta_socket *);
 int                  set_rcvbuf(int);
-struct simta_socket *simta_listen(const char *);
+struct simta_socket *simta_listen_port(const char *);
+int                  simta_listen(void);
 struct proc_type *   simta_proc_add(int, int);
 int                  simta_proc_q_runner(int, struct host_q *);
 int                  simta_read_command(struct simta_dirp *);
@@ -152,9 +158,46 @@ set_rcvbuf(int s) {
     return (0);
 }
 
+int
+simta_listen(void) {
+    int                 retval = 1;
+    ucl_object_iter_t   iter;
+    const ucl_object_t *obj;
+#ifdef HAVE_LIBSSL
+    struct simta_socket *ss;
+#endif /* HAVE_LIBSSL */
+
+    iter = ucl_object_iterate_new(simta_config_obj("receive.ports"));
+
+    while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+        if (simta_listen_port(ucl_object_tostring_forced(obj)) == NULL) {
+            goto error;
+        }
+    }
+
+#ifdef HAVE_LIBSSL
+    if (simta_config_bool("receive.tls.enabled")) {
+        ucl_object_iterate_reset(iter, simta_config_obj("receive.tls.ports"));
+
+        while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+            if ((ss = simta_listen_port(ucl_object_tostring_forced(obj))) ==
+                    NULL) {
+                goto error;
+            }
+            ss->ss_flags |= SIMTA_SOCKET_TLS;
+        }
+    }
+#endif /* HAVE_LIBSSL */
+
+    retval = 0;
+
+error:
+    ucl_object_iterate_free(iter);
+    return (retval);
+}
 
 struct simta_socket *
-simta_listen(const char *port) {
+simta_listen_port(const char *port) {
     int                  sockopt;
     int                  rc;
     bool                 found_ipv4 = false;
@@ -164,6 +207,7 @@ simta_listen(const char *port) {
     struct addrinfo      hints;
     struct addrinfo *    ai, *air;
     struct simta_socket *ss = NULL;
+    ucl_object_t *       obj;
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
@@ -179,15 +223,13 @@ simta_listen(const char *port) {
 
     for (ai = air; ai != NULL; ai = ai->ai_next) {
         if (ai->ai_family == AF_INET6) {
-            if (!ucl_object_toboolean(
-                        ucl_object_lookup_path(simta_config, "receive.ipv6"))) {
+            if (!simta_config_bool("receive.ipv6")) {
                 continue;
             }
             found_ipv6 = true;
 
         } else {
-            if (!ucl_object_toboolean(
-                        ucl_object_lookup_path(simta_config, "receive.ipv4"))) {
+            if (!simta_config_bool("receive.ipv4")) {
                 continue;
             }
             found_ipv4 = true;
@@ -255,17 +297,21 @@ simta_listen(const char *port) {
         }
     }
 
-    ucl_object_replace_key(ucl_object_lookup_path(simta_config, "receive"),
-            ucl_object_frombool(found_ipv4), "ipv4", 0, false);
+    /* Update receive settings */
+    obj = ucl_object_ref(simta_config_obj("receive"));
     ucl_object_replace_key(
-            ucl_object_lookup_path(simta_config, "red_defaults.deliver"),
-            ucl_object_frombool(found_ipv4), "ipv4", 0, false);
+            obj, ucl_object_frombool(found_ipv4), "ipv4", 0, false);
+    ucl_object_replace_key(
+            obj, ucl_object_frombool(found_ipv6), "ipv6", 0, false);
+    ucl_object_unref(obj);
 
-    ucl_object_replace_key(ucl_object_lookup_path(simta_config, "receive"),
-            ucl_object_frombool(found_ipv6), "ipv6", 0, false);
+    /* Update default deliver settings */
+    obj = ucl_object_ref(simta_config_obj("defaults.red.deliver"));
     ucl_object_replace_key(
-            ucl_object_lookup_path(simta_config, "red_defaults.deliver"),
-            ucl_object_frombool(found_ipv6), "ipv6", 0, false);
+            obj, ucl_object_frombool(found_ipv4), "ipv4", 0, false);
+    ucl_object_replace_key(
+            obj, ucl_object_frombool(found_ipv6), "ipv6", 0, false);
+    ucl_object_unref(obj);
 
     freeaddrinfo(air);
     return (ss);
@@ -275,15 +321,19 @@ simta_listen(const char *port) {
 int
 main(int ac, char **av) {
     int                  c, err = 0;
-    int                  dontrun = 0;
+    bool                 dontrun = false;
+    bool                 daemonize = true;
     int                  q_run = 0;
     char *               prog;
     extern int           optind;
     extern char *        optarg;
     struct simta_socket *ss;
-    const char *         simta_uname = "simta";
+    const char *         simta_uname = NULL;
     struct passwd *      simta_pw;
-    const char *         config_fname = SIMTA_FILE_CONFIG;
+    const char *         config_fname = NULL;
+    const char *         config_extra = NULL;
+    const char *         simta_pwd;
+    const char *         simta_file_pid;
 #ifdef HAVE_LIBSASL
     int rc;
 #endif /* HAVE_LIBSASL */
@@ -297,30 +347,23 @@ main(int ac, char **av) {
         prog++;
     }
 
-    while ((c = getopt(ac, av, "cCdD:f:p:qQ:u:V")) != -1) {
+    while ((c = getopt(ac, av, "cCDf:qQ:u:U:V")) != -1) {
         switch (c) {
         case 'c': /* check config files */
-            dontrun++;
+            dontrun = true;
             break;
 
         case 'C': /* clean up directories */
             simta_filesystem_cleanup++;
             break;
 
-        case 'd':
-            simta_debug++;
-            break;
-
         case 'D':
-            simta_base_dir = strdup(optarg);
+            daemonize = false;
             break;
 
         case 'f':
             config_fname = optarg;
             break;
-
-        case 'p': /* TCP port */
-            simta_port_smtp = optarg;
 
         case 'q':
             /* q_runner option: run slow queue */
@@ -335,6 +378,10 @@ main(int ac, char **av) {
 
         case 'u':
             simta_uname = optarg;
+            break;
+
+        case 'U':
+            config_extra = optarg;
             break;
 
         case 'V':
@@ -360,18 +407,11 @@ main(int ac, char **av) {
     if (err || optind != ac) {
         fprintf(stderr, "Usage:\t%s", prog);
         fprintf(stderr, " [ -cCdV ]");
-        fprintf(stderr, " [ -D base-dir ]");
         fprintf(stderr, " [ -f config-file ]");
-        fprintf(stderr, " [ -p port ]");
         fprintf(stderr, " [ -u user ]");
+        fprintf(stderr, " [ -U ucl-config-string ]");
         fprintf(stderr, " [ -q | -Q filter ]");
         fprintf(stderr, "\n");
-        exit(1);
-    }
-
-    /* get our user info from /etc/passwd */
-    if ((simta_pw = getpwnam(simta_uname)) == NULL) {
-        fprintf(stderr, "getpwnam %s: user not found\n", simta_uname);
         exit(1);
     }
 
@@ -381,7 +421,7 @@ main(int ac, char **av) {
 
     simta_openlog(0, LOG_PERROR);
 
-    if (simta_read_config(config_fname) < 0) {
+    if (simta_read_config(config_fname, config_extra) < 0) {
         exit(1);
     }
 
@@ -393,17 +433,18 @@ main(int ac, char **av) {
         exit(1);
     }
 
-    if (chdir(simta_base_dir) < 0) {
-        perror(simta_base_dir);
+    simta_pwd = simta_config_str("core.base_dir");
+    if (chdir(simta_pwd) < 0) {
+        perror(simta_pwd);
         exit(1);
     }
 
 #ifndef Q_SIMULATION
 #ifdef HAVE_LIBSSL
-    if (simta_service_smtps) {
+    if (simta_config_bool("receive.tls.enabled")) {
         /* Test whether our SSL config is usable */
-        if ((ssl_ctx = tls_server_setup(simta_service_smtps, simta_file_ca,
-                     simta_dir_ca, simta_file_cert, simta_file_private_key,
+        if ((ssl_ctx = tls_server_setup(0, simta_file_ca, simta_dir_ca,
+                     simta_file_cert, simta_file_private_key,
                      simta_tls_ciphers)) == NULL) {
             syslog(LOG_ERR, "Liberror: tls_server_setup: %s",
                     ERR_error_string(ERR_get_error(), NULL));
@@ -418,14 +459,17 @@ main(int ac, char **av) {
     }
 #endif /* HAVE_LIBSSL */
 
+    if (simta_config_bool("receive.auth.authn.enabled")) {
+        if (!simta_config_bool("receive.auth.authn.honeypot")) {
 #ifdef HAVE_LIBSASL
-    if (simta_sasl == SIMTA_SASL_ON) {
-        if ((rc = simta_sasl_init()) != 0) {
+            if ((rc = simta_sasl_init()) != 0) {
+                exit(1);
+            }
+#else
+            syslog(LOG_ERR, "Liberror: SASL auth support not available");
             exit(1);
-        }
-    }
 #endif /* HAVE_LIBSASL */
-    if (simta_sasl != SIMTA_SASL_OFF) {
+        }
         simta_smtp_extension++;
     }
 
@@ -434,35 +478,19 @@ main(int ac, char **av) {
     }
 
     if (dontrun) {
+        simta_dump_config();
         exit(0);
     }
 
     /* if we're not a q_runner or filesystem cleaner, open smtp service */
-    if ((q_run == 0) && (simta_filesystem_cleanup == 0) &&
-            (simta_smtp_default_mode != SMTP_MODE_OFF)) {
-        if (simta_service_smtp) {
-            if (simta_listen(simta_port_smtp) == NULL) {
-                exit(1);
-            }
-        }
-
-#ifdef HAVE_LIBSSL
-        if (simta_service_smtps) {
-            if ((ss = simta_listen(simta_port_smtps)) == NULL) {
-                exit(1);
-            }
-            ss->ss_flags |= SIMTA_SOCKET_TLS;
-        }
-#endif /* HAVE_LIBSSL */
-
-        if (simta_service_submission) {
-            if (simta_listen(simta_port_submission) == NULL) {
-                exit(1);
-            }
+    if ((q_run == 0) && (simta_filesystem_cleanup == 0)) {
+        if (simta_listen() != 0) {
+            exit(1);
         }
     }
 
-    if (q_run == 0) {
+    if (q_run == 0 && daemonize) {
+        simta_file_pid = simta_config_str("core.pid_file");
         /* open and truncate the pid file */
         if ((simta_pidfd = open(simta_file_pid, O_CREAT | O_WRONLY, 0644)) <
                 0) {
@@ -493,31 +521,44 @@ main(int ac, char **av) {
     }
 #endif /* Q_SIMULATION */
 
-    /* set our initgroups */
-    if (initgroups(simta_pw->pw_name, 0) != 0) {
-        perror("setuid");
-        exit(1);
+    if (simta_uname == NULL) {
+        simta_uname = simta_config_str("core.user");
     }
 
-    /* set our gid */
-    if (setgid(simta_pw->pw_gid) != 0) {
-        perror("setgid");
-        exit(1);
-    }
+    if (simta_uname && (strlen(simta_uname) > 0)) {
+        /* get our user info from /etc/passwd */
+        if ((simta_pw = getpwnam(simta_uname)) == NULL) {
+            fprintf(stderr, "getpwnam %s: user not found\n", simta_uname);
+            exit(1);
+        }
 
-    /* set our uid */
-    if (setuid(simta_pw->pw_uid) != 0) {
-        perror("setuid");
-        exit(1);
-    }
+
+        /* set our initgroups */
+        if (initgroups(simta_pw->pw_name, 0) != 0) {
+            perror("setuid");
+            exit(1);
+        }
+
+        /* set our gid */
+        if (setgid(simta_pw->pw_gid) != 0) {
+            perror("setgid");
+            exit(1);
+        }
+
+        /* set our uid */
+        if (setuid(simta_pw->pw_uid) != 0) {
+            perror("setuid");
+            exit(1);
+        }
 
 #ifdef __linux__
-    /* we're debugging under linux */
-    if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) != 0) {
-        perror("prctl");
-        exit(1);
-    }
+        /* we're debugging under linux */
+        if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) != 0) {
+            perror("prctl");
+            exit(1);
+        }
 #endif /* __linux__ */
+    }
 
 #ifndef Q_SIMULATION
     if (q_run) {
@@ -530,14 +571,12 @@ main(int ac, char **av) {
     }
 #endif /* Q_SIMULATION */
 
-    /* close the log fd gracefully before we daemonize */
-    closelog();
-
     /*
      * Disassociate from controlling tty.
      */
-    if (simta_debug < 8) {
-        int i, dt;
+    if (daemonize) {
+        closelog();
+
         switch (fork()) {
         case 0:
             if (setsid() < 0) {
@@ -545,7 +584,7 @@ main(int ac, char **av) {
                 exit(1);
             }
 #ifndef Q_SIMULATION
-            dt = getdtablesize();
+            int i, dt = getdtablesize();
             for (i = 0; i < dt; i++) {
                 /* keep sockets & simta_pidfd open */
                 for (ss = simta_listen_sockets; ss != NULL; ss = ss->ss_next) {
@@ -580,7 +619,9 @@ main(int ac, char **av) {
         exit(1);
     }
 
-    simta_openlog(0, 0);
+    if (daemonize) {
+        simta_openlog(0, 0);
+    }
 
     /* catch SIGHUP */
     memset(&sa, 0, sizeof(struct sigaction));
@@ -618,9 +659,12 @@ main(int ac, char **av) {
         exit(1);
     }
 
-    syslog(LOG_NOTICE, "Restart: %s", version);
-
-    exit(simta_daemonize_server());
+    if (daemonize) {
+        syslog(LOG_NOTICE, "Restart: %s", version);
+        exit(simta_daemonize_server());
+    } else {
+        exit(simta_server(false));
+    }
 }
 
 
@@ -636,7 +680,7 @@ simta_daemonize_server(void) {
     case 0:
         /* Fall through */
         simta_openlog(1, 0);
-        return (simta_server());
+        return (simta_server(true));
 
     case -1:
         syslog(LOG_ERR, "Syserror: simta_child_queue_scheduler fork: %m");
@@ -723,7 +767,7 @@ hq_launch(void) {
 
 
 int
-simta_server(void) {
+simta_server(bool daemon) {
     struct timeval           tv_launch_limiter = {0, 0};
     struct timeval           tv_disk = {0, 0};
     struct timeval           tv_unexpanded = {0, 0};
@@ -752,14 +796,16 @@ simta_server(void) {
     slow_dirp.sd_dir = simta_dir_slow;
 
 #ifndef Q_SIMULATION
-    if ((pf = fdopen(simta_pidfd, "w")) == NULL) {
-        syslog(LOG_ERR, "Syserror: simta_server fdopen: %m");
-        exit(1);
-    }
-    fprintf(pf, "%d\n", (int)getpid());
-    if (fflush(pf) != 0) {
-        syslog(LOG_ERR, "Syserror: simta_server fflush: %m");
-        exit(1);
+    if (daemon) {
+        if ((pf = fdopen(simta_pidfd, "w")) == NULL) {
+            syslog(LOG_ERR, "Syserror: simta_server fdopen: %m");
+            exit(1);
+        }
+        fprintf(pf, "%d\n", (int)getpid());
+        if (fflush(pf) != 0) {
+            syslog(LOG_ERR, "Syserror: simta_server fflush: %m");
+            exit(1);
+        }
     }
 #endif /* Q_SIMULATION */
 
@@ -1319,8 +1365,10 @@ simta_child_q_runner(struct host_q *hq) {
             simta_dnsr = NULL;
         }
 
+#ifdef HAVE_LDAP
         /* Close open LDAP connections */
         simta_ldap_reset();
+#endif /* HAVE_LDAP */
 
         if ((hq != NULL) && (hq == simta_unexpanded_q)) {
             simta_process_type = PROCESS_Q_SLOW;
@@ -1431,12 +1479,10 @@ mid_promote(char *mid) {
     if ((dll = dll_lookup(simta_env_list, mid)) != NULL) {
         e = (struct envelope *)dll->dll_data;
 
-        if (simta_rqueue_policy == RQUEUE_POLICY_JAIL) {
-            if (env_jail_status(e, ENV_JAIL_PAROLEE) != 0) {
-                syslog(LOG_NOTICE, "Command: env <%s>: env_jail_status failed",
-                        mid);
-                return (1);
-            }
+        if (!env_jail_status(e, ENV_JAIL_FREE)) {
+            syslog(LOG_NOTICE, "Command: env <%s>: env_jail_status failed",
+                    mid);
+            return (1);
         }
 
         if (e->e_hq != NULL) {
@@ -1473,13 +1519,10 @@ sender_promote(char *sender) {
         for (dll_se = sl->sl_entries; dll_se != NULL;
                 dll_se = dll_se->dll_next) {
             se = (struct sender_entry *)dll_se->dll_data;
-            if (simta_rqueue_policy == RQUEUE_POLICY_JAIL) {
-                /* tag env */
-                if (env_jail_status(se->se_env, ENV_JAIL_PAROLEE) != 0) {
-                    syslog(LOG_NOTICE,
-                            "Command: Sender %s: env_jail_status failed for %s",
-                            sender, se->se_env->e_id);
-                }
+            if (!env_jail_status(se->se_env, ENV_JAIL_FREE)) {
+                syslog(LOG_NOTICE,
+                        "Command: Sender %s: env_jail_status failed for %s",
+                        sender, se->se_env->e_id);
             }
 
             /* re-queue queue */
@@ -1666,16 +1709,14 @@ daemon_commands(struct simta_dirp *sd) {
             if ((hq = host_q_lookup(av[ 1 ])) != NULL) {
                 hq_deliver_pop(hq);
                 /* hq->hq_priority++; */
-                if (simta_rqueue_policy == RQUEUE_POLICY_JAIL) {
-                    /* promote all the envs in the queue */
-                    for (e = hq->hq_env_head; e != NULL; e = e->e_hq_next) {
-                        if (env_jail_status(e, ENV_JAIL_PAROLEE) != 0) {
-                            ret++;
-                            syslog(LOG_NOTICE,
-                                    "Command %s: Queue %s: "
-                                    "env_jail_status failed for %s",
-                                    entry->d_name, av[ 1 ], e->e_id);
-                        }
+                /* promote all the envs in the queue */
+                for (e = hq->hq_env_head; e != NULL; e = e->e_hq_next) {
+                    if (!env_jail_status(e, ENV_JAIL_FREE)) {
+                        ret++;
+                        syslog(LOG_NOTICE,
+                                "Command %s: Queue %s: "
+                                "env_jail_status failed for %s",
+                                entry->d_name, av[ 1 ], e->e_id);
                     }
                 }
 
@@ -1756,7 +1797,7 @@ env_log_metrics(struct dll_entry *dll_head) {
         return;
     }
 
-    sprintf(linkname, "%s/etc/mid_list", simta_base_dir);
+    sprintf(linkname, "%s/etc/mid_list", simta_config_str("core.base_dir"));
     sprintf(filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec);
 
     if ((fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664)) < 0) {
@@ -1805,7 +1846,7 @@ sender_log_metrics(struct dll_entry *dll_head) {
         return;
     }
 
-    sprintf(linkname, "%s/etc/sender_list", simta_base_dir);
+    sprintf(linkname, "%s/etc/sender_list", simta_config_str("core.base_dir"));
     sprintf(filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec);
 
     if ((fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664)) < 0) {

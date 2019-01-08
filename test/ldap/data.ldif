@@ -1,0 +1,163 @@
+dn: dc=example,dc=com
+objectclass: dcObject
+objectclass: organization
+o: simta testing
+dc: example
+
+dn: cn=Manager,dc=example,dc=com
+objectClass: organizationalRole
+cn: Manager
+
+dn: ou=Groups,dc=example,dc=com
+ou: Groups
+objectClass: organizationalUnit
+
+dn: ou=People,dc=example,dc=com
+ou: People
+objectClass: organizationalUnit
+
+dn: uid=flowerysong,ou=People,dc=example,dc=com
+cn: flowerysong
+cn: a flowery song
+sn: marwnad
+mail: flowerysong@example.com
+uid: flowerysong
+objectClass: umichPerson
+entityID: 1
+
+dn: uid=testuser,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: testuser
+mail: testuser@ldap.example.com
+mailForwardingAddress: testuser@forwarded.example.com
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=simexpand,ou=People,dc=example,dc=com
+cn: simta expander
+sn: expander
+uid: simexpand
+mail: simexpand@ldap.example.com
+mailForwardingAddress: simexpand@forwarded.example.com
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=testerrorsto,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: testerrorsto
+mail: testerrorsto@example.com
+mailForwardingAddress: errorsto@forwarded.example.com
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=testrequeststo,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: testrequeststo
+mail: testrequeststo@example.com
+mailForwardingAddress: requeststo@forwarded.example.com
+objectClass: umichPerson
+entityID: 9001
+
+dn: cn=testgroup,ou=Groups,dc=example,dc=com
+cn: testgroup
+cn: testgroup alias
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=testgroup nonowner,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+errorsto: uid=testerrorsto,ou=People,dc=example,dc=com
+rfc822errorsto: errorsto@example.edu
+requeststo: uid=testrequeststo,ou=People,dc=example,dc=com
+rfc822requeststo: requeststo@example.edu
+
+dn: cn=membersonly succeed,ou=Groups,dc=example,dc=com
+member: uid=simexpand,ou=People,dc=example,dc=com
+membersonly: TRUE
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=membersonly fail,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+membersonly: TRUE
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=membersonly subgroup,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+membersonly: TRUE
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+permittedGroup: cn=public supergroup,ou=Groups,dc=example,dc=com
+permittedGroup: cn=membersonly supergroup,ou=Groups,dc=example,dc=com
+
+dn: cn=public supergroup,ou=Groups,dc=example,dc=com
+member: cn=membersonly subgroup,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=membersonly supergroup,ou=Groups,dc=example,dc=com
+member: cn=membersonly subgroup,ou=Groups,dc=example,dc=com
+member: uid=simexpand,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=membersonly subgroup nopermit,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+membersonly: TRUE
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=nopermit supergroup,ou=Groups,dc=example,dc=com
+member: cn=membersonly subgroup nopermit,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=nested group 1,ou=Groups,dc=example,dc=com
+member: cn=nested group 2,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=simexpand,ou=People,dc=example,dc=com
+
+dn: cn=nested group 2,ou=Groups,dc=example,dc=com
+member: cn=nested group 3,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=simexpand,ou=People,dc=example,dc=com
+
+dn: cn=nested group 3,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=simexpand,ou=People,dc=example,dc=com
+
+dn: cn=loop group 1,ou=Groups,dc=example,dc=com
+member: cn=loop group 2,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=loop group 2,ou=Groups,dc=example,dc=com
+member: cn=loop group 1,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=moderated group,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+moderator: simexpand@ldap.example.com
+
+dn: cn=mo moderated group,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+moderator: simexpand@ldap.example.com
+membersonly: TRUE

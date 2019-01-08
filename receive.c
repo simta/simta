@@ -58,6 +58,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY | LIBWRAP_DENY_SEVERITY;
 #include "dns.h"
 #include "header.h"
 #include "queue.h"
+#include "simta_statsd.h"
 #include "spf.h"
 #include "srs.h"
 
@@ -87,39 +88,39 @@ int deny_severity = LIBWRAP_DENY_FACILITY | LIBWRAP_DENY_SEVERITY;
 extern char *version;
 
 struct receive_data {
-    SNET *              r_snet;
-    struct envelope *   r_env;
-    int                 r_ac;
-    char **             r_av;
-    struct sockaddr *   r_sa;
-    char *              r_ip;
-    int                 r_write_before_banner;
-    int                 r_data_success;
-    int                 r_data_attempt;
-    int                 r_mail_success;
-    int                 r_mail_attempt;
-    int                 r_rcpt_success;
-    int                 r_rcpt_attempt;
-    int                 r_esmtp;
-    int                 r_tls;
-    int                 r_auth;
-    int                 r_dns_match;
-    int                 r_dnsl_checked;
-    struct dnsl_result *r_dnsl_result;
-    char *              r_hello;
-    char *              r_smtp_command;
-    const char *        r_remote_hostname;
-    struct command *    r_commands;
-    int                 r_ncommands;
-    int                 r_smtp_mode;
-    const char *        r_auth_id;
-    struct timeval      r_tv_inactivity;
-    struct timeval      r_tv_session;
-    struct timeval      r_tv_accepted;
-    struct spf *        r_spf;
-    struct dmarc *      r_dmarc;
-    int                 r_dmarc_result;
-    int                 r_bad_headers;
+    SNET *                  r_snet;
+    struct envelope *       r_env;
+    int                     r_ac;
+    char **                 r_av;
+    struct sockaddr *       r_sa;
+    char *                  r_ip;
+    int                     r_write_before_banner;
+    int                     r_data_success;
+    int                     r_data_attempt;
+    int                     r_mail_success;
+    int                     r_mail_attempt;
+    int                     r_rcpt_success;
+    int                     r_rcpt_attempt;
+    int                     r_esmtp;
+    int                     r_tls;
+    int                     r_auth;
+    int                     r_dns_match;
+    int                     r_dnsl_checked;
+    struct dnsl_result *    r_dnsl_result;
+    char *                  r_hello;
+    char *                  r_smtp_command;
+    const char *            r_remote_hostname;
+    struct command *        r_commands;
+    int                     r_ncommands;
+    yastr                   r_smtp_mode;
+    const char *            r_auth_id;
+    struct timeval          r_tv_inactivity;
+    struct timeval          r_tv_session;
+    struct timeval          r_tv_accepted;
+    struct spf *            r_spf;
+    struct dmarc *          r_dmarc;
+    enum simta_dmarc_result r_dmarc_result;
+    int                     r_bad_headers;
 
 #ifdef HAVE_LIBOPENARC
     ARC_LIB *r_arc;
@@ -176,34 +177,34 @@ struct command {
     int (*c_func)(struct receive_data *);
 };
 
-static char *      env_string(const char *, const char *);
+static yastr       env_string(const char *, const char *);
 static const char *iprev_authresult_str(struct receive_data *);
 static int         proxy_accept(struct receive_data *);
 static int         auth_init(struct receive_data *, struct simta_socket *);
-static int         content_filter(struct receive_data *, char **);
-static int         local_address(char *, char *, const ucl_object_t *);
-static int         hello(struct receive_data *, char *);
-static int         reset(struct receive_data *);
-static int         deliver_accepted(struct receive_data *, int);
-static int         f_helo(struct receive_data *);
-static int         f_ehlo(struct receive_data *);
-static int         f_auth(struct receive_data *);
-static int         f_mail(struct receive_data *);
-static int         f_rcpt(struct receive_data *);
-static int         f_data(struct receive_data *);
-static int         f_rset(struct receive_data *);
-static int         f_noop(struct receive_data *);
-static int         f_quit(struct receive_data *);
-static int         f_help(struct receive_data *);
-static int         f_not_implemented(struct receive_data *);
-static int         f_noauth(struct receive_data *);
-static int         f_bad_sequence(struct receive_data *);
-static int         f_insecure(struct receive_data *);
-static void        set_smtp_mode(struct receive_data *, int, const char *);
-static void        tarpit_sleep(struct receive_data *, int);
-static void        log_bad_syntax(struct receive_data *);
-static int         smtp_write_banner(
-                struct receive_data *, int, const char *, const char *);
+static int  content_filter(struct receive_data *, char **, struct timeval *);
+static int  run_content_filter(struct receive_data *, char **);
+static int  local_address(char *, char *, const ucl_object_t *);
+static int  hello(struct receive_data *, char *);
+static int  reset(struct receive_data *);
+static int  deliver_accepted(struct receive_data *, int);
+static int  f_helo(struct receive_data *);
+static int  f_ehlo(struct receive_data *);
+static int  f_auth(struct receive_data *);
+static int  f_mail(struct receive_data *);
+static int  f_rcpt(struct receive_data *);
+static int  f_data(struct receive_data *);
+static int  f_rset(struct receive_data *);
+static int  f_noop(struct receive_data *);
+static int  f_quit(struct receive_data *);
+static int  f_help(struct receive_data *);
+static int  f_not_implemented(struct receive_data *);
+static int  f_bad_sequence(struct receive_data *);
+static int  f_off(struct receive_data *);
+static void set_smtp_mode(struct receive_data *, const char *, const char *);
+static void tarpit_sleep(struct receive_data *);
+static void log_bad_syntax(struct receive_data *);
+static int  smtp_write_banner(
+         struct receive_data *, int, const char *, const char *);
 
 #ifdef HAVE_LIBOPENDKIM
 static const char *simta_dkim_authresult_str(DKIM_SIGERROR);
@@ -232,111 +233,134 @@ static struct command smtp_commands[] = {
         {"AUTH", f_auth},
 };
 
-static struct command insecure_commands[] = {
-        {"HELO", f_insecure},
-        {"EHLO", f_insecure},
-        {"MAIL", f_insecure},
-        {"RCPT", f_insecure},
-        {"DATA", f_insecure},
-        {"RSET", f_insecure},
-        {"NOOP", f_insecure},
-        {"QUIT", f_quit},
-        {"HELP", f_insecure},
-        {"VRFY", f_insecure},
-        {"EXPN", f_insecure},
-        {"STARTTLS", f_bad_sequence},
-        {"AUTH", f_insecure},
-};
-
-static struct command refuse_commands[] = {
-        {"HELO", f_bad_sequence},
-        {"EHLO", f_bad_sequence},
+static struct command tarpit_commands[] = {
+        {"HELO", f_helo},
+        {"EHLO", f_ehlo},
         {"MAIL", f_mail},
         {"RCPT", f_rcpt},
         {"DATA", f_data},
-        {"RSET", f_bad_sequence},
-        {"NOOP", f_bad_sequence},
+        {"RSET", f_rset},
+        {"NOOP", f_off},
         {"QUIT", f_quit},
-        {"HELP", f_bad_sequence},
-        {"VRFY", f_bad_sequence},
-        {"EXPN", f_bad_sequence},
+        {"HELP", f_off},
+        {"VRFY", f_off},
+        {"EXPN", f_off},
 #ifdef HAVE_LIBSSL
-        {"STARTTLS", f_bad_sequence},
+        {"STARTTLS", f_starttls},
 #endif /* HAVE_LIBSSL */
-        {"AUTH", f_bad_sequence},
+        {"AUTH", f_off},
+};
+
+static struct command tempfail_commands[] = {
+        {"HELO", f_helo},
+        {"EHLO", f_ehlo},
+        {"MAIL", f_off},
+        {"RCPT", f_off},
+        {"DATA", f_data},
+        {"RSET", f_rset},
+        {"NOOP", f_noop},
+        {"QUIT", f_quit},
+        {"HELP", f_off},
+        {"VRFY", f_off},
+        {"EXPN", f_off},
+#ifdef HAVE_LIBSSL
+        {"STARTTLS", f_starttls},
+#endif /* HAVE_LIBSSL */
+        {"AUTH", f_off},
+};
+
+static struct command insecure_commands[] = {
+        {"HELO", f_off},
+        {"EHLO", f_off},
+        {"MAIL", f_off},
+        {"RCPT", f_off},
+        {"DATA", f_off},
+        {"RSET", f_off},
+        {"NOOP", f_off},
+        {"QUIT", f_quit},
+        {"HELP", f_off},
+        {"VRFY", f_off},
+        {"EXPN", f_off},
+        {"STARTTLS", f_bad_sequence},
+        {"AUTH", f_off},
 };
 
 static struct command off_commands[] = {
-        {"MAIL", f_mail},
-        {"RCPT", f_rcpt},
-        {"DATA", f_data},
+        {"HELO", f_off},
+        {"EHLO", f_off},
+        {"MAIL", f_off},
+        {"RCPT", f_off},
+        {"DATA", f_off},
+        {"RSET", f_off},
+        {"NOOP", f_off},
         {"QUIT", f_quit},
+        {"HELP", f_off},
+        {"VRFY", f_off},
+        {"EXPN", f_off},
+#ifdef HAVE_LIBSSL
+        {"STARTTLS", f_off},
+#endif /* HAVE_LIBSSL */
+        {"AUTH", f_off},
+};
+
+static struct command unauth_commands[] = {
+        {"HELO", f_helo},
+        {"EHLO", f_ehlo},
+        {"MAIL", f_off},
+        {"RCPT", f_bad_sequence},
+        {"DATA", f_bad_sequence},
+        {"RSET", f_rset},
+        {"NOOP", f_noop},
+        {"QUIT", f_quit},
+        {"HELP", f_help},
+        {"VRFY", f_not_implemented},
+        {"EXPN", f_not_implemented},
+#ifdef HAVE_LIBSSL
+        {"STARTTLS", f_starttls},
+#endif /* HAVE_LIBSSL */
+        {"AUTH", f_auth},
 };
 
 
-static const char *smtp_mode_str[] = {"Normal", "Off", "Refuse", "Global_Relay",
-        "Tempfail", "Tarpit", "NoAuth", "NoSecurity", NULL};
-
-
 static void
-set_smtp_mode(struct receive_data *r, int mode, const char *msg) {
-    if (r->r_smtp_mode == mode) {
-        if (msg != NULL) {
-            syslog(LOG_INFO, "Receive [%s] %s: SMTP mode %s: %s", r->r_ip,
-                    r->r_remote_hostname, smtp_mode_str[ mode ], msg);
-        } else {
-            syslog(LOG_INFO, "Receive [%s] %s: SMTP mode %s", r->r_ip,
-                    r->r_remote_hostname, smtp_mode_str[ mode ]);
-        }
-    } else {
-        if (msg != NULL) {
-            syslog(LOG_NOTICE,
-                    "Receive [%s] %s: "
-                    "switching SMTP mode from %s to %s: %s",
-                    r->r_ip, r->r_remote_hostname,
-                    smtp_mode_str[ r->r_smtp_mode ], smtp_mode_str[ mode ],
-                    msg);
-        } else {
-            syslog(LOG_NOTICE,
-                    "Receive [%s] %s: "
-                    "switching SMTP mode from %s to %s",
-                    r->r_ip, r->r_remote_hostname,
-                    smtp_mode_str[ r->r_smtp_mode ], smtp_mode_str[ mode ]);
-        }
-    }
-
-    r->r_smtp_mode = mode;
-
-    switch (mode) {
-    default:
-        syslog(LOG_WARNING, "Receive [%s] %s: SMTP mode out of range: %d",
-                r->r_ip, r->r_remote_hostname, mode);
-        r->r_smtp_mode = SMTP_MODE_OFF;
-        /* fall through to case SMTP_MODE_OFF */
-    case SMTP_MODE_OFF:
-        r->r_commands = off_commands;
-        r->r_ncommands = sizeof(off_commands) / sizeof(off_commands[ 0 ]);
-        return;
-
-    case SMTP_MODE_TEMPFAIL:
-    case SMTP_MODE_GLOBAL_RELAY:
-    case SMTP_MODE_TARPIT:
-    case SMTP_MODE_NORMAL:
-    case SMTP_MODE_NOAUTH:
+set_smtp_mode(struct receive_data *r, const char *mode, const char *msg) {
+    /* Do initial setup if this is the first call */
+    if (r->r_commands == NULL) {
         r->r_commands = smtp_commands;
         r->r_ncommands = sizeof(smtp_commands) / sizeof(smtp_commands[ 0 ]);
-        return;
+    }
 
-    case SMTP_MODE_REFUSE:
-        r->r_commands = refuse_commands;
-        r->r_ncommands = sizeof(refuse_commands) / sizeof(refuse_commands[ 0 ]);
+    if (r->r_smtp_mode && strcmp(r->r_smtp_mode, mode) == 0) {
+        syslog(LOG_INFO, "Receive [%s] %s: SMTP mode %s: %s", r->r_ip,
+                r->r_remote_hostname, mode, msg);
         return;
+    }
 
-    case SMTP_MODE_INSECURE:
+    syslog(LOG_NOTICE,
+            "Receive [%s] %s: "
+            "switching SMTP mode from %s to %s: %s",
+            r->r_ip, r->r_remote_hostname, r->r_smtp_mode, mode, msg);
+
+    yaslfree(r->r_smtp_mode);
+    r->r_smtp_mode = yaslauto(mode);
+
+    if (strcmp(mode, "disabled") == 0) {
+        r->r_commands = off_commands;
+        r->r_ncommands = sizeof(off_commands) / sizeof(off_commands[ 0 ]);
+    } else if (strcmp(mode, "insecure") == 0) {
         r->r_commands = insecure_commands;
         r->r_ncommands =
                 sizeof(insecure_commands) / sizeof(insecure_commands[ 0 ]);
-        return;
+    } else if (strcmp(mode, "tarpit") == 0) {
+        r->r_commands = tarpit_commands;
+        r->r_ncommands = sizeof(tarpit_commands) / sizeof(tarpit_commands[ 0 ]);
+    } else if (strcmp(mode, "tempfail") == 0) {
+        r->r_commands = tempfail_commands;
+        r->r_ncommands =
+                sizeof(tempfail_commands) / sizeof(tempfail_commands[ 0 ]);
+    } else if (strcmp(mode, "unauthenticated") == 0) {
+        r->r_commands = unauth_commands;
+        r->r_ncommands = sizeof(unauth_commands) / sizeof(unauth_commands[ 0 ]);
     }
 }
 
@@ -368,9 +392,11 @@ deliver_accepted(struct receive_data *r, int force) {
         return (RECEIVE_OK);
     }
 
-    if ((force || (simta_rqueue_policy == RQUEUE_POLICY_SLOW) ||
-                ((simta_aggressive_receipt_max > 0) &&
-                        (simta_fast_files >= simta_aggressive_receipt_max)))) {
+    if (force ||
+            (strcasecmp(simta_config_str("receive.queue.strategy"), "slow") ==
+                    0) ||
+            ((simta_aggressive_receipt_max > 0) &&
+                    (simta_fast_files >= simta_aggressive_receipt_max))) {
         if ((simta_q_runner_receive_max == 0) ||
                 ((r->r_snet == NULL) && (simta_proc_stab == NULL))) {
             /* not allowed to have deliver children, or do not have
@@ -426,11 +452,12 @@ reset(struct receive_data *r) {
     if (r->r_env != NULL) {
         syslog(LOG_INFO, "Receive [%s] %s: env <%s>: Message Failed: Abandoned",
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id);
+        statsd_counter("receive.messages", "abandoned", 1);
         env_free(r->r_env);
         r->r_env = NULL;
     }
 
-    if (simta_dmarc) {
+    if (r->r_dmarc) {
         dmarc_reset(r->r_dmarc);
     }
 
@@ -463,19 +490,15 @@ hello(struct receive_data *r, char *hostname) {
 
 
 static void
-tarpit_sleep(struct receive_data *r, int seconds) {
+tarpit_sleep(struct receive_data *r) {
     struct timespec t;
 
-    if (r->r_smtp_mode != SMTP_MODE_TARPIT) {
+    if ((strcmp(r->r_smtp_mode, "tarpit") != 0) &&
+            (strcmp(r->r_smtp_mode, "tempfail") != 0)) {
         return;
     }
 
-    if (seconds > 0) {
-        t.tv_sec = seconds;
-    } else {
-        t.tv_sec = simta_smtp_tarpit_default;
-    }
-    t.tv_nsec = 0;
+    simta_ucl_object_totimespec(simta_config_obj("receive.smtp.tarpit"), &t);
 
     if (nanosleep(&t, NULL) != 0) {
         syslog(LOG_ERR, "Syserror: tarpit_sleep nanosleep: %m");
@@ -489,6 +512,7 @@ tarpit_sleep(struct receive_data *r, int seconds) {
 
 static void
 log_bad_syntax(struct receive_data *r) {
+    statsd_counter("receive.smtp_commands", "badsyntax", 1);
     simta_debuglog(1, "Receive [%s] %s: Bad syntax: %s", r->r_ip,
             r->r_remote_hostname, r->r_smtp_command);
     return;
@@ -647,7 +671,7 @@ smtp_write_banner(struct receive_data *r, int reply_code, const char *msg,
 
 static int
 f_helo(struct receive_data *r) {
-    tarpit_sleep(r, 0);
+    tarpit_sleep(r);
 
     if (r->r_ac != 2) {
         log_bad_syntax(r);
@@ -676,7 +700,7 @@ f_ehlo(struct receive_data *r) {
 
     extension_count = simta_smtp_extension;
 
-    tarpit_sleep(r, 0);
+    tarpit_sleep(r);
 
     /* RFC 5321 4.1.4 Order of Commands
      * A session that will contain mail transactions MUST first be
@@ -733,25 +757,25 @@ f_ehlo(struct receive_data *r) {
         }
     }
 
+    if (simta_config_bool("receive.auth.authn.enabled")) {
+        if (simta_config_bool("receive.auth.authn.honeypot")) {
+            /* Falsely advertise auth support */
+            if (snet_writef(r->r_snet, "250%sAUTH LOGIN PLAIN\r\n",
+                        extension_count-- ? "-" : " ") < 0) {
+                syslog(LOG_ERR, "Syserror: f_ehlo snet_writef: %m");
+                return (RECEIVE_CLOSECONNECTION);
+            }
+        } else {
 #ifdef HAVE_LIBSASL
-    if (simta_sasl == SIMTA_SASL_ON) {
-        if (simta_sasl_mechlist(r->r_sasl, &mechlist) != 0) {
-            return (RECEIVE_SYSERROR);
-        }
-        if (snet_writef(r->r_snet, "250%sAUTH %s\r\n",
-                    extension_count-- ? "-" : " ", mechlist) < 0) {
-            syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
-            return (RECEIVE_CLOSECONNECTION);
-        }
-    }
+            if (simta_sasl_mechlist(r->r_sasl, &mechlist) != 0) {
+                return (RECEIVE_SYSERROR);
+            }
+            if (snet_writef(r->r_snet, "250%sAUTH %s\r\n",
+                        extension_count-- ? "-" : " ", mechlist) < 0) {
+                syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
+                return (RECEIVE_CLOSECONNECTION);
+            }
 #endif /* HAVE_LIBSASL */
-
-    if (simta_sasl == SIMTA_SASL_HONEYPOT) {
-        /* Falsely advertise auth support */
-        if (snet_writef(r->r_snet, "250%sAUTH LOGIN PLAIN\r\n",
-                    extension_count-- ? "-" : " ") < 0) {
-            syslog(LOG_ERR, "Syserror: f_ehlo snet_writef: %m");
-            return (RECEIVE_CLOSECONNECTION);
         }
     }
 
@@ -818,13 +842,7 @@ f_mail(struct receive_data *r) {
     syslog(LOG_INFO, "Receive [%s] %s: start of mail transaction", r->r_ip,
             r->r_remote_hostname);
 
-    if (r->r_smtp_mode == SMTP_MODE_OFF) {
-        syslog(LOG_INFO, "Receive [%s] %s: SMTP_Off: %s", r->r_ip,
-                r->r_remote_hostname, r->r_smtp_command);
-        return (smtp_write_banner(r, 421, S_421_DECLINE, NULL));
-    }
-
-    tarpit_sleep(r, simta_smtp_tarpit_mail);
+    tarpit_sleep(r);
 
     if (r->r_ac < 2) {
         return (f_mail_usage(r));
@@ -978,76 +996,41 @@ f_mail(struct receive_data *r) {
 
     /* We have a maximum of 5 minutes (RFC 5321 4.5.3.2.2) before we must
      * return something to a "MAIL" command.  Soft failures can either be
-     * accepted (trusted) or the soft failures can be passe along. "451"
+     * accepted (trusted) or the soft failures can be passed along. "451"
      * is probably the correct error.
      */
 
-    switch (r->r_smtp_mode) {
-    default:
-        syslog(LOG_ERR,
-                "Receive [%s] %s: From <%s>: "
-                "smtp_mode out of range: %d",
-                r->r_ip, r->r_remote_hostname, addr, r->r_smtp_mode);
-        return (RECEIVE_SYSERROR);
-
-    case SMTP_MODE_TEMPFAIL:
-        syslog(LOG_INFO, "Receive [%s] %s: From <%s>: Tempfail", r->r_ip,
-                r->r_remote_hostname, addr);
-        return (smtp_write_banner(r, 451, S_451_DECLINE, NULL));
-
-    case SMTP_MODE_NOAUTH:
-        syslog(LOG_INFO, "Receive [%s] %s: From <%s>: NoAuth", r->r_ip,
-                r->r_remote_hostname, addr);
-        return (smtp_write_banner(r, 530, NULL, NULL));
-
-    case SMTP_MODE_REFUSE:
-        syslog(LOG_INFO, "Receive [%s] %s: From <%s>: Refused", r->r_ip,
-                r->r_remote_hostname, addr);
-        return (smtp_write_banner(r, 503, NULL, NULL));
-
-    case SMTP_MODE_TARPIT:
-        break;
-
-    case SMTP_MODE_GLOBAL_RELAY:
-    case SMTP_MODE_NORMAL:
-        if (*addr != '\0') {
-            if ((dnsl_result = dnsl_check("email", NULL, addr)) != NULL) {
-                if (dnsl_result->dnsl->dnsl_type == DNSL_BLOCK) {
-                    syslog(LOG_NOTICE,
-                            "Receive [%s] %s: From <%s>: "
-                            "DNS list %s: Blocked: %s (%s)",
-                            r->r_ip, r->r_remote_hostname, addr,
-                            dnsl_result->dnsl->dnsl_domain,
-                            dnsl_result->dnsl_result, dnsl_result->dnsl_reason);
-                    rc = smtp_write_banner(
-                            r, 550, dnsl_result->dnsl_reason, addr);
-                    dnsl_result_free(dnsl_result);
-                    return (rc);
-                }
+    if (*addr != '\0') {
+        if ((dnsl_result = dnsl_check(
+                     "receive.mail_from.dns_lists", NULL, addr)) != NULL) {
+            if (strcmp(dnsl_result->dnsl_action, "block") == 0) {
+                syslog(LOG_NOTICE,
+                        "Receive [%s] %s: From <%s>: "
+                        "DNS list %s: Blocked: %s (%s)",
+                        r->r_ip, r->r_remote_hostname, addr,
+                        dnsl_result->dnsl_list, dnsl_result->dnsl_result,
+                        dnsl_result->dnsl_reason);
+                rc = smtp_write_banner(r, 550, dnsl_result->dnsl_reason, addr);
                 dnsl_result_free(dnsl_result);
+                return (rc);
             }
+            dnsl_result_free(dnsl_result);
         }
+    }
 
-        if (domain == NULL) {
-            break;
-        }
+    if ((domain != NULL) && (simta_submission_mode != SUBMISSION_MODE_MSA)) {
+        rc = check_hostname(domain);
 
-        if (simta_submission_mode == SUBMISSION_MODE_MSA) {
-            break;
-        }
-
-        if ((rc = check_hostname(domain)) == 0) {
-            break;
-        }
         if (rc < 0) {
             syslog(LOG_ERR,
                     "Receive [%s] %s: From <%s>: check_hostname %s: failed",
                     r->r_ip, r->r_remote_hostname, addr, domain);
             return (smtp_write_banner(r, 451, NULL, NULL));
+        } else if (rc > 0) {
+            syslog(LOG_NOTICE, "Receive [%s] %s: From <%s>: Unknown host: %s",
+                    r->r_ip, r->r_remote_hostname, addr, domain);
+            return (smtp_write_banner(r, 550, S_UNKNOWN_HOST, domain));
         }
-        syslog(LOG_NOTICE, "Receive [%s] %s: From <%s>: Unknown host: %s",
-                r->r_ip, r->r_remote_hostname, addr, domain);
-        return (smtp_write_banner(r, 550, S_UNKNOWN_HOST, domain));
     }
 
     /*
@@ -1074,7 +1057,8 @@ f_mail(struct receive_data *r) {
     }
 
 #ifdef HAVE_LIBOPENDKIM
-    if (simta_dkim_sign == DKIMSIGN_POLICY_ALWAYS) {
+    if (simta_config_bool("deliver.dkim.enabled") &&
+            simta_config_bool("receive.dkim.sign")) {
         r->r_env->e_flags |= ENV_FLAG_DKIMSIGN;
     }
 #endif /* HAVE_LIBOPENDKIM */
@@ -1085,7 +1069,7 @@ f_mail(struct receive_data *r) {
     }
 #endif /* HAVE_LIBSSL */
 
-    if (simta_spf) {
+    if (simta_config_bool("receive.spf.enabled")) {
         spf_free(r->r_spf);
         r->r_spf = spf_lookup(r->r_hello, addr, r->r_sa);
         syslog(LOG_INFO, "Receive [%s] %s: env <%s>: From <%s>: SPF result: %s",
@@ -1093,8 +1077,8 @@ f_mail(struct receive_data *r) {
                 spf_result_str(r->r_spf->spf_result));
         switch (r->r_spf->spf_result) {
         case SPF_RESULT_TEMPERROR:
-            if ((simta_spf == SPF_POLICY_STRICT) ||
-                    (simta_dmarc == DMARC_POLICY_STRICT)) {
+            if (simta_config_bool("receive.spf.strict") ||
+                    simta_config_bool("receive.dmarc.strict")) {
                 syslog(LOG_ERR,
                         "Receive [%s] %s: env <%s>: From <%s>: "
                         "SPF Tempfailed: transient SPF lookup failure",
@@ -1106,7 +1090,7 @@ f_mail(struct receive_data *r) {
             }
             break;
         case SPF_RESULT_FAIL:
-            if (simta_spf == SPF_POLICY_STRICT) {
+            if (simta_config_bool("receive.spf.strict")) {
                 syslog(LOG_ERR,
                         "Receive [%s] %s: env <%s>: From <%s>: SPF reject",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr);
@@ -1118,38 +1102,27 @@ f_mail(struct receive_data *r) {
             }
             break;
         case SPF_RESULT_PASS:
-            if (simta_dmarc) {
+            if (r->r_dmarc) {
                 dmarc_spf_result(r->r_dmarc, r->r_spf->spf_domain);
             }
             break;
         }
     }
 
-    if (r->r_smtp_mode != SMTP_MODE_TARPIT) {
-        syslog(LOG_NOTICE, "Receive [%s] %s: env <%s>: From <%s>: Accepted",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                r->r_env->e_mail);
-        rc = SRS_OK;
-        if (simta_srs != SRS_POLICY_OFF) {
-            rc = srs_forward(r->r_env);
-        }
+    syslog(LOG_NOTICE, "Receive [%s] %s: env <%s>: From <%s>: Accepted",
+            r->r_ip, r->r_remote_hostname, r->r_env->e_id, r->r_env->e_mail);
 
-        if (rc != SRS_OK) {
-            syslog(LOG_ERR, "Liberror: f_mail srs_forward: failed: %d", rc);
-            return (smtp_write_banner(r, 451, NULL, NULL));
-        } else if (r->r_env->e_mail_orig != NULL) {
-            syslog(LOG_NOTICE,
-                    "Receive [%s] %s: env <%s>: "
-                    "Rewrote RFC5321.MailFrom to <%s>",
-                    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                    r->r_env->e_mail);
-        }
-        r->r_mail_success++;
-    } else {
-        syslog(LOG_NOTICE, "Receive [%s] %s: env <%s>: From <%s>: Tarpit",
+    if ((rc = srs_forward(r->r_env)) != SRS_OK) {
+        syslog(LOG_ERR, "Liberror: f_mail srs_forward: failed: %d", rc);
+        return (smtp_write_banner(r, 451, NULL, NULL));
+    } else if (r->r_env->e_mail_orig != NULL) {
+        syslog(LOG_NOTICE,
+                "Receive [%s] %s: env <%s>: "
+                "Rewrote RFC5321.MailFrom to <%s>",
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                 r->r_env->e_mail);
     }
+    r->r_mail_success++;
 
     r->r_tv_inactivity.tv_sec = 0;
     return (smtp_write_banner(r, 250, NULL, NULL));
@@ -1184,13 +1157,7 @@ f_rcpt(struct receive_data *r) {
 
     r->r_rcpt_attempt++;
 
-    if (r->r_smtp_mode == SMTP_MODE_OFF) {
-        syslog(LOG_INFO, "Receive [%s] %s: SMTP_Off: %s", r->r_ip,
-                r->r_remote_hostname, r->r_smtp_command);
-        return (smtp_write_banner(r, 421, S_421_DECLINE, NULL));
-    }
-
-    tarpit_sleep(r, simta_smtp_tarpit_rcpt);
+    tarpit_sleep(r);
 
     /* Must already have "MAIL FROM:", and no valid message */
     if ((r->r_env == NULL) || ((r->r_env->e_flags & ENV_FLAG_EFILE) != 0)) {
@@ -1238,49 +1205,10 @@ f_rcpt(struct receive_data *r) {
      * Again, soft failures can either be accepted (trusted) or the soft
      * failures can be passed along.  "451" is probably the correct soft
      * error.
-     *
-     * If we're using DNS MX records to configure ourselves, then we should
-     * probably preserve the results of our DNS check.
      */
 
-    switch (r->r_smtp_mode) {
-    default:
-        syslog(LOG_ERR,
-                "Receive [%s] %s: env <%s>: To <%s> From <%s>: "
-                "smtp mode out of range: %d",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-                r->r_env->e_mail, r->r_smtp_mode);
-        return (RECEIVE_SYSERROR);
 
-    case SMTP_MODE_TEMPFAIL:
-        syslog(LOG_INFO,
-                "Receive [%s] %s: env <%s>: To <%s> From <%s>: Tempfail",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-                r->r_env->e_mail);
-        return (smtp_write_banner(r, 451, S_451_DECLINE, NULL));
-
-    case SMTP_MODE_NOAUTH:
-        syslog(LOG_INFO, "Receive [%s] %s: env <%s>: To <%s> From <%s>: NoAuth",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-                r->r_env->e_mail);
-        return (smtp_write_banner(r, 530, NULL, NULL));
-
-    case SMTP_MODE_REFUSE:
-        syslog(LOG_INFO,
-                "Receive [%s] %s: env <%s>: To <%s> From <%s>: Refused",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-                r->r_env->e_mail);
-        return (smtp_write_banner(r, 503, NULL, NULL));
-
-    case SMTP_MODE_TARPIT:
-    case SMTP_MODE_GLOBAL_RELAY:
-        break;
-
-    case SMTP_MODE_NORMAL:
-        if (domain == NULL) {
-            break;
-        }
-
+    if (domain && (strcmp(r->r_smtp_mode, "normal") == 0)) {
         /*
          * Here we do an initial lookup in our domain table.  This is
          * our best opportunity to decline recipients that are not
@@ -1314,7 +1242,7 @@ f_rcpt(struct receive_data *r) {
 
         if (((red = red_host_lookup(domain, false)) == NULL) ||
                 (!red_does_expansion(red))) {
-            if (r->r_smtp_mode == SMTP_MODE_NORMAL) {
+            if (strcmp(r->r_smtp_mode, "normal") == 0) {
                 syslog(LOG_INFO,
                         "Receive [%s] %s: env <%s>: "
                         "To <%s> From <%s>: Failed: Domain not local",
@@ -1376,7 +1304,8 @@ f_rcpt(struct receive_data *r) {
 
             case LOCAL_ADDRESS_RBL:
                 if (!r->r_dnsl_checked) {
-                    r->r_dnsl_result = dnsl_check("user", r->r_sa, NULL);
+                    r->r_dnsl_result = dnsl_check(
+                            "receive.rcpt_to.dns_lists", r->r_sa, NULL);
                     r->r_dnsl_checked = 1;
                 }
 
@@ -1390,19 +1319,17 @@ f_rcpt(struct receive_data *r) {
                     break;
                 }
 
-                switch (r->r_dnsl_result->dnsl->dnsl_type) {
-                case DNSL_BLOCK:
+                if (strcmp(r->r_dnsl_result->dnsl_action, "block") == 0) {
                     syslog(LOG_NOTICE,
                             "Receive [%s] %s: env <%s>: "
                             "To <%s> From <%s>: DNS list %s: Blocked: %s (%s)",
                             r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-                            r->r_env->e_mail,
-                            r->r_dnsl_result->dnsl->dnsl_domain,
+                            r->r_env->e_mail, r->r_dnsl_result->dnsl_list,
                             r->r_dnsl_result->dnsl_result,
                             r->r_dnsl_result->dnsl_reason);
                     if (snet_writef(r->r_snet, "550 <%s> %s %s: %s: %s\r\n",
                                 simta_hostname, S_DENIED, r->r_ip,
-                                r->r_dnsl_result->dnsl->dnsl_domain,
+                                r->r_dnsl_result->dnsl_list,
                                 r->r_dnsl_result->dnsl_reason) < 0) {
                         syslog(LOG_ERR,
                                 "Receive [%s] %s: env <%s>: "
@@ -1411,15 +1338,15 @@ f_rcpt(struct receive_data *r) {
                         return (RECEIVE_CLOSECONNECTION);
                     }
                     return (RECEIVE_OK);
-
-                case DNSL_ACCEPT:
-                case DNSL_TRUST:
+                } else if ((strcmp(r->r_dnsl_result->dnsl_action, "accept") ==
+                                   0) ||
+                           (strcmp(r->r_dnsl_result->dnsl_action, "trust") ==
+                                   0)) {
                     syslog(LOG_INFO,
                             "Receive [%s] %s: env <%s>: "
                             "To <%s> From <%s>: DNS list %s: Accepted: %s (%s)",
                             r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-                            r->r_env->e_mail,
-                            r->r_dnsl_result->dnsl->dnsl_domain,
+                            r->r_env->e_mail, r->r_dnsl_result->dnsl_list,
                             r->r_dnsl_result->dnsl_result,
                             r->r_dnsl_result->dnsl_reason);
                     break;
@@ -1439,18 +1366,10 @@ f_rcpt(struct receive_data *r) {
         return (RECEIVE_SYSERROR);
     }
 
-    if (r->r_smtp_mode != SMTP_MODE_TARPIT) {
-        r->r_rcpt_success++;
-        syslog(LOG_NOTICE,
-                "Receive [%s] %s: env <%s>: To <%s> From <%s>: Accepted",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail);
-    } else {
-        syslog(LOG_NOTICE,
-                "Receive [%s] %s: env <%s>: To <%s> From <%s>: Tarpit", r->r_ip,
-                r->r_remote_hostname, r->r_env->e_id, r->r_env->e_rcpt->r_rcpt,
-                r->r_env->e_mail);
-    }
+    r->r_rcpt_success++;
+    syslog(LOG_NOTICE, "Receive [%s] %s: env <%s>: To <%s> From <%s>: Accepted",
+            r->r_ip, r->r_remote_hostname, r->r_env->e_id,
+            r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail);
 
 #ifdef HAVE_LIBSSL
     if (simta_checksum_algorithm != NULL) {
@@ -1504,11 +1423,11 @@ f_data(struct receive_data *r) {
     struct dnsl_result *    dnsl_result = NULL;
     yastr                   authresults = NULL;
     yastr                   authresults_tmp = NULL;
-    int                     authresults_plain = !simta_arc;
-    yastr                   with = NULL;
-    struct line *           l;
-    yastr                   dkim_buf = NULL;
-    int                     dkim_body_started = 0;
+    int          authresults_plain = !simta_config_bool("receive.arc.enabled");
+    yastr        with = NULL;
+    struct line *l;
+    yastr        dkim_buf = NULL;
+    int          dkim_body_started = 0;
 #ifdef HAVE_LIBOPENARC
     ARC_MESSAGE *        arc = NULL;
     ARC_STAT             arc_result = ARC_STAT_INTERNAL;
@@ -1527,13 +1446,7 @@ f_data(struct receive_data *r) {
 
     r->r_data_attempt++;
 
-    if (r->r_smtp_mode == SMTP_MODE_OFF) {
-        syslog(LOG_INFO, "Receive [%s] %s: SMTP_Off: %s", r->r_ip,
-                r->r_remote_hostname, r->r_smtp_command);
-        return (smtp_write_banner(r, 421, S_421_DECLINE, NULL));
-    }
-
-    tarpit_sleep(r, simta_smtp_tarpit_data);
+    tarpit_sleep(r);
 
     /* RFC 5321 4.1.1 Command Semantics and Syntax
      * Several commands (RSET, DATA, QUIT) are specified as not permitting
@@ -1561,34 +1474,15 @@ f_data(struct receive_data *r) {
         return (f_bad_sequence(r));
     }
 
-    if (r->r_env->e_rcpt == NULL) {
-        return (smtp_write_banner(r, 554, NULL, "No valid recipients"));
-    }
+    if ((strcmp(r->r_smtp_mode, "tempfail") == 0) ||
+            (strcmp(r->r_smtp_mode, "tarpit") == 0)) {
+        /* Read the data and discard it */
+        read_err = PROTOCOL_ERROR;
+    } else {
+        if (r->r_env->e_rcpt == NULL) {
+            return (smtp_write_banner(r, 554, NULL, "No valid recipients"));
+        }
 
-    switch (r->r_smtp_mode) {
-    default:
-        syslog(LOG_ERR,
-                "Receive [%s] %s: env <%s>: Data: "
-                "smtp mode out of range: %d",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id, r->r_smtp_mode);
-        return (RECEIVE_SYSERROR);
-
-    case SMTP_MODE_TEMPFAIL:
-        syslog(LOG_INFO, "Receive [%s] %s: Tempfail: %s", r->r_ip,
-                r->r_remote_hostname, r->r_smtp_command);
-        return (smtp_write_banner(r, 451, S_451_DECLINE, NULL));
-
-    case SMTP_MODE_NOAUTH:
-        return (f_noauth(r));
-
-    case SMTP_MODE_REFUSE:
-        return (f_bad_sequence(r));
-
-    case SMTP_MODE_TARPIT:
-        break;
-
-    case SMTP_MODE_GLOBAL_RELAY:
-    case SMTP_MODE_NORMAL:
         if ((dfile_fd = env_dfile_open(r->r_env)) < 0) {
             return (-1);
         }
@@ -1603,7 +1497,7 @@ f_data(struct receive_data *r) {
         rh = calloc(1, sizeof(struct receive_headers));
         rh->r_env = r->r_env;
 
-        if (simta_auth_results) {
+        if (simta_config_bool("receive.auth.results.enabled")) {
             /* RFC 7601 3 The "iprev" Authentication Method
              * "iprev" is an attempt to verify that a client appears to be valid
              * based on some DNS queries, which is to say that the IP address is
@@ -1655,12 +1549,13 @@ f_data(struct receive_data *r) {
             }
         }
 
-        if (simta_dkim_verify || simta_arc) {
+        if (simta_config_bool("receive.dkim.enabled") ||
+                simta_config_bool("receive.arc.enabled")) {
             dkim_buf = yaslempty();
         }
 
 #ifdef HAVE_LIBOPENARC
-        if (simta_arc) {
+        if (simta_config_bool("receive.arc.enabled")) {
             if ((arc = arc_message(r->r_arc, ARC_CANON_RELAXED,
                          ARC_CANON_RELAXED, ARC_SIGN_RSASHA256,
                          ARC_MODE_SIGN | ARC_MODE_VERIFY, &arc_err)) == NULL) {
@@ -1670,7 +1565,7 @@ f_data(struct receive_data *r) {
 #endif /* HAVE_LIBOPENARC */
 
 #ifdef HAVE_LIBOPENDKIM
-        if (simta_dkim_verify) {
+        if (simta_config_bool("receive.dkim.enabled")) {
             if ((dkim = dkim_verify(r->r_dkim,
                          (unsigned char *)(r->r_env->e_id), NULL,
                          &dkim_result)) == NULL) {
@@ -1726,11 +1621,9 @@ f_data(struct receive_data *r) {
             if (r->r_tls) {
                 with = yaslcat(with, "S");
             }
-#ifdef HAVE_LIBSASL
-            if (simta_sasl == SIMTA_SASL_ON) {
+            if (r->r_auth) {
                 with = yaslcat(with, "A");
             }
-#endif /* HAVE_LIBSASL */
         } else {
             with = yaslauto("SMTP");
         }
@@ -1901,7 +1794,7 @@ f_data(struct receive_data *r) {
                             "Receive [%s] %s: env <%s>: RFC5322.From: %s",
                             r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                             r->r_env->e_header_from);
-                    if (simta_dmarc) {
+                    if (r->r_dmarc) {
                         dmarc_lookup(r->r_dmarc,
                                 strrchr(r->r_env->e_header_from, '@') + 1);
                     }
@@ -1910,15 +1803,16 @@ f_data(struct receive_data *r) {
                                      r->r_env->e_mail_orig
                                              ? r->r_env->e_mail_orig
                                              : r->r_env->e_mail) != 0)) {
-                        if ((dnsl_result = dnsl_check("email", NULL,
+                        if ((dnsl_result = dnsl_check(
+                                     "receive.mail_from.dns_lists", NULL,
                                      r->r_env->e_header_from)) != NULL) {
-                            if (dnsl_result->dnsl->dnsl_type == DNSL_BLOCK) {
+                            if (strcmp(dnsl_result->dnsl_action, "block") ==
+                                    0) {
                                 syslog(LOG_NOTICE,
                                         "Receive [%s] %s: env <%s>: "
                                         "DNS list %s: Blocked: %s (%s)",
                                         r->r_ip, r->r_remote_hostname,
-                                        r->r_env->e_id,
-                                        dnsl_result->dnsl->dnsl_domain,
+                                        r->r_env->e_id, dnsl_result->dnsl_list,
                                         dnsl_result->dnsl_result,
                                         dnsl_result->dnsl_reason);
                                 system_message = dnsl_result->dnsl_reason;
@@ -1937,21 +1831,20 @@ f_data(struct receive_data *r) {
                         data_wrote += (unsigned long)rc;
                     }
                 }
-                if ((simta_dkim_verify || simta_arc) &&
-                        (rh->r_headers != NULL)) {
+                if (dkim_buf && (rh->r_headers != NULL)) {
                     yaslclear(dkim_buf);
                     for (l = rh->r_headers->l_first; l != NULL;
                             l = l->line_next) {
                         if ((*l->line_data != ' ' && *l->line_data != '\t') &&
                                 (yasllen(dkim_buf) > 0)) {
 #ifdef HAVE_LIBOPENARC
-                            if (simta_arc) {
+                            if (simta_config_bool("receive.arc.enabled")) {
                                 arc_header_field(arc, (unsigned char *)dkim_buf,
                                         yasllen(dkim_buf));
                             }
 #endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
-                            if (simta_dkim_verify) {
+                            if (simta_config_bool("receive.dkim.enabled")) {
                                 dkim_header(dkim, (unsigned char *)dkim_buf,
                                         yasllen(dkim_buf));
                             }
@@ -1964,7 +1857,7 @@ f_data(struct receive_data *r) {
                         dkim_buf = yaslcat(dkim_buf, l->line_data);
                     }
 #ifdef HAVE_LIBOPENARC
-                    if (simta_arc) {
+                    if (simta_config_bool("receive.arc.enabled")) {
                         arc_header_field(arc, (unsigned char *)dkim_buf,
                                 yasllen(dkim_buf));
                         arc_result = arc_eoh(arc);
@@ -1975,7 +1868,7 @@ f_data(struct receive_data *r) {
                     }
 #endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
-                    if (simta_dkim_verify) {
+                    if (simta_config_bool("receive.dkim.enabled")) {
                         dkim_header(dkim, (unsigned char *)dkim_buf,
                                 yasllen(dkim_buf));
                         dkim_result = dkim_eoh(dkim);
@@ -2050,8 +1943,7 @@ f_data(struct receive_data *r) {
             }
         }
 
-        if ((read_err == NO_ERROR) && (header == 0) &&
-                (simta_dkim_verify || simta_arc)) {
+        if ((read_err == NO_ERROR) && (header == 0) && dkim_buf) {
             if (dkim_body_started == 0) {
                 /* We are on the blank line between the headers and the body,
                  * which isn't part of the body. */
@@ -2060,12 +1952,12 @@ f_data(struct receive_data *r) {
                 dkim_buf = yaslcpylen(dkim_buf, line, line_len);
                 dkim_buf = yaslcatlen(dkim_buf, "\r\n", 2);
 #ifdef HAVE_LIBOPENARC
-                if (simta_arc) {
+                if (simta_config_bool("receive.arc.enabled")) {
                     arc_body(arc, (unsigned char *)dkim_buf, yasllen(dkim_buf));
                 }
 #endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
-                if (simta_dkim_verify) {
+                if (simta_config_bool("receive.dkim.enabled")) {
                     dkim_body(
                             dkim, (unsigned char *)dkim_buf, yasllen(dkim_buf));
                 }
@@ -2136,7 +2028,7 @@ f_data(struct receive_data *r) {
             r->r_remote_hostname, r->r_env->e_id, r->r_env->e_subject);
 
 #ifdef HAVE_LIBOPENDKIM
-    if (simta_dkim_verify) {
+    if (simta_config_bool("receive.dkim.enabled")) {
         dkim_result = dkim_eom(dkim, NULL);
         syslog(LOG_INFO, "Receive [%s] %s: env <%s>: DKIM verify result: %s",
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id,
@@ -2147,7 +2039,7 @@ f_data(struct receive_data *r) {
         for (i = 0; i < rc; i++) {
             dkim_domain = (char *)dkim_sig_getdomain(dkim_sigs[ i ]);
             dkim_selector = (char *)dkim_sig_getselector(dkim_sigs[ i ]);
-            if (simta_auth_results) {
+            if (authresults) {
                 authresults = yaslcat(authresults, ";\n\tdkim=");
             }
             if ((dkim_sig_getflags(dkim_sigs[ i ]) & DKIM_SIGFLAG_PASSED) &&
@@ -2157,10 +2049,10 @@ f_data(struct receive_data *r) {
                         "dkim_domain=%s dkim_selector=%s",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                         dkim_domain, dkim_selector);
-                if (simta_dmarc) {
+                if (r->r_dmarc) {
                     dmarc_dkim_result(r->r_dmarc, dkim_domain);
                 }
-                if (simta_auth_results) {
+                if (authresults) {
                     authresults = yaslcat(authresults, "pass ");
                 }
             } else {
@@ -2171,25 +2063,25 @@ f_data(struct receive_data *r) {
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                         dkim_domain, dkim_selector,
                         dkim_sig_geterrorstr(dkim_error));
-                if (simta_auth_results) {
+                if (authresults) {
                     authresults =
                             yaslcatprintf(authresults, "%s reason=\"%s\" ",
                                     simta_dkim_authresult_str(dkim_error),
                                     dkim_sig_geterrorstr(dkim_error));
                 }
             }
-            if (simta_auth_results) {
+            if (authresults) {
                 authresults =
                         yaslcatprintf(authresults, "header.d=@%s", dkim_domain);
             }
         }
-        if (simta_auth_results && (rc == 0)) {
+        if (authresults && (rc == 0)) {
             authresults = yaslcat(authresults, ";\n\tdkim=none");
         }
     }
 #endif /* HAVE_LIBOPENDKIM */
 
-    if (simta_dmarc) {
+    if (r->r_dmarc) {
         r->r_dmarc_result = dmarc_result(r->r_dmarc);
         syslog(LOG_INFO,
                 "Receive [%s] %s: env <%s>: dmarc_result=%s "
@@ -2197,7 +2089,7 @@ f_data(struct receive_data *r) {
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                 dmarc_result_str(r->r_dmarc_result), r->r_dmarc->domain,
                 dmarc_result_str(r->r_dmarc->policy));
-        if (simta_auth_results) {
+        if (authresults) {
             authresults =
                     yaslcatprintf(authresults, ";\n\tdmarc=%s header.from=%s",
                             dmarc_authresult_str(r->r_dmarc_result),
@@ -2206,7 +2098,8 @@ f_data(struct receive_data *r) {
     }
 
 #ifdef HAVE_LIBOPENARC
-    if (simta_arc && (arc_result == ARC_STAT_OK)) {
+    if (simta_config_bool("receive.arc.enabled") &&
+            (arc_result == ARC_STAT_OK)) {
         arc_result = arc_eom(arc);
         arc_err = arc_geterror(arc);
         simta_debuglog(1,
@@ -2214,118 +2107,21 @@ f_data(struct receive_data *r) {
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                 arc_chain_status_str(arc), arc_result,
                 arc_err ? arc_err : "no error");
-        if (simta_auth_results) {
+        if (authresults) {
             authresults = yaslcatprintf(
                     authresults, ";\n\tarc=%s", arc_chain_status_str(arc));
         }
     }
 #endif /* HAVE_LIBOPENARC */
 
-    if ((simta_dmarc == DMARC_POLICY_STRICT) &&
-            (r->r_dmarc_result == DMARC_RESULT_REJECT)) {
+    if ((r->r_dmarc_result == DMARC_RESULT_REJECT) &&
+            simta_config_bool("receive.dmarc.strict")) {
         message_banner = MESSAGE_REJECT;
         system_message = "rejected by DMARC policy";
-    } else if (simta_mail_filter == NULL) {
-        filter_result = MESSAGE_ACCEPT;
-    } else if ((simta_filter_trusted == 0) && r->r_dnsl_result &&
-               (r->r_dnsl_result->dnsl->dnsl_type == DNSL_TRUST)) {
-        syslog(LOG_INFO,
-                "Receive [%s] %s: env <%s>: "
-                "content filter %s skipped for trusted host",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                simta_mail_filter);
-        filter_result = MESSAGE_ACCEPT;
-    } else if (r->r_smtp_mode == SMTP_MODE_TARPIT) {
-        simta_debuglog(1,
-                "Receive [%s] %s: env <%s>: "
-                "content filter %s not run because tarpit",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                simta_mail_filter);
-        filter_result = MESSAGE_ACCEPT;
-    } else if (r->r_env->e_flags & ENV_FLAG_DFILE) {
-        if (simta_gettimeofday(&tv_filter) != 0) {
-            goto error;
-        }
+    }
 
-        if (env_tfile(r->r_env) != 0) {
-            goto error;
-        }
-
-        filter_result = content_filter(r, &filter_message);
-
-        syslog(LOG_INFO,
-                "Receive [%s] %s: env <%s>: "
-                "content filter %s exited %d: %s",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                simta_mail_filter, filter_result,
-                filter_message ? filter_message : "no filter message");
-
-        /* TEMPFAIL has precedence over REJECT */
-        if (message_banner == MESSAGE_TEMPFAIL) {
-            if (filter_result & MESSAGE_TEMPFAIL) {
-                if (filter_result & MESSAGE_REJECT) {
-                    syslog(LOG_WARNING,
-                            "Receive [%s] %s: env <%s>: "
-                            "Message Tempfail: Filter Error: Tempfail and "
-                            "Reject",
-                            r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-                }
-            } else if (filter_result & MESSAGE_REJECT) {
-                syslog(LOG_NOTICE,
-                        "Receive [%s] %s: env <%s>: "
-                        "Message Tempfail: Filter Reject overridden",
-                        r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-            } else {
-                syslog(LOG_NOTICE,
-                        "Receive [%s] %s: env <%s>: "
-                        "Message Tempfail: Filter Accept overridden",
-                        r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-            }
-
-        } else if (message_banner == MESSAGE_REJECT) {
-            if (filter_result & MESSAGE_REJECT) {
-                if (filter_result & MESSAGE_TEMPFAIL) {
-                    syslog(LOG_WARNING,
-                            "Receive [%s] %s: env <%s>: "
-                            "Message Reject: Filter Error: Tempfail and Reject",
-                            r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-                }
-            } else if (filter_result & MESSAGE_TEMPFAIL) {
-                syslog(LOG_NOTICE,
-                        "Receive [%s] %s: env <%s>: "
-                        "Message Reject: Filter Tempfail overridden",
-                        r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-            } else {
-                syslog(LOG_NOTICE,
-                        "Receive [%s] %s: env <%s>: "
-                        "Message Reject: Filter Accept overridden",
-                        r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-            }
-
-        } else {
-            /* Message Accept, content filter can do whatever it wants */
-            if (filter_result & MESSAGE_TEMPFAIL) {
-                if (filter_result & MESSAGE_REJECT) {
-                    syslog(LOG_WARNING,
-                            "Receive [%s] %s: env <%s>: "
-                            "Message Tempfail: "
-                            "Filter Error: Tempfail and Reject",
-                            r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-                } else {
-                    syslog(LOG_INFO,
-                            "Receive [%s] %s: env <%s>: "
-                            "Message Tempfail: Filter",
-                            r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-                }
-                message_banner = MESSAGE_TEMPFAIL;
-            } else if (filter_result & MESSAGE_REJECT) {
-                message_banner = MESSAGE_REJECT;
-                syslog(LOG_INFO,
-                        "Receive [%s] %s: env <%s>: "
-                        "Message Reject: Filter",
-                        r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-            }
-        }
+    if (message_banner == MESSAGE_ACCEPT) {
+        filter_result = content_filter(r, &filter_message, &tv_filter);
     }
 
 done:
@@ -2333,29 +2129,17 @@ done:
         goto error;
     }
 
-    if (tv_filter.tv_sec == 0) {
-        simta_debuglog(1,
-                "Receive [%s] %s: env <%s>: "
-                "Data Metric: Read %d write %d bytes in %ld milliseconds",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id, (int)data_read,
-                (int)data_wrote, SIMTA_ELAPSED_MSEC(tv_data_start, tv_now));
-    } else {
-        simta_debuglog(1,
-                "Receive [%s] %s: env <%s>: "
-                "Data Metric: Read %d write %d bytes in %ld milliseconds, "
-                "filter %ld milliseconds",
-                r->r_ip, r->r_remote_hostname, r->r_env->e_id, (int)data_read,
-                (int)data_wrote, SIMTA_ELAPSED_MSEC(tv_data_start, tv_now),
+    if (tv_filter.tv_sec > 0) {
+        statsd_timer("receive", "content_filter",
                 SIMTA_ELAPSED_MSEC(tv_filter, tv_now));
     }
+    statsd_counter("receive", "message_data", data_read);
 
     if (filter_result & MESSAGE_BOUNCE) {
         if ((env_bounce = bounce(r->r_env,
                      ((r->r_env->e_flags & ENV_FLAG_DFILE) &&
                              ((filter_result & MESSAGE_DELETE) == 0)),
-                     filter_message ? filter_message
-                                    : "This message was rejected based on "
-                                      "local content policies")) == NULL) {
+                     filter_message)) == NULL) {
             goto error;
         }
         queue_envelope(env_bounce);
@@ -2366,8 +2150,7 @@ done:
                 r->r_env->e_mid ? r->r_env->e_mid : "NULL", r->r_env->e_mail,
                 data_read,
                 system_message ? system_message : "no system message",
-                filter_message ? filter_message : "no filter message",
-                env_bounce->e_id);
+                filter_message, env_bounce->e_id);
         if (simta_inbound_accepted_message_timer >= 0) {
             tv_add.tv_sec = simta_inbound_accepted_message_timer;
             timeradd(&tv_add, &tv_now, &r->r_tv_accepted);
@@ -2398,11 +2181,12 @@ done:
             if (env_hostname(r->r_env, simta_jail_host) != 0) {
                 goto error;
             }
-            if ((simta_rqueue_policy == RQUEUE_POLICY_JAIL) &&
-                    (simta_bounce_jail == 0)) {
-                /* bounces must be able to get out of jail */
-                env_jail_set(r->r_env, ENV_JAIL_NO_CHANGE);
-            }
+
+            /* Somewhat perversely, a message jailed by the content filter
+             * should be free so that it can be delivered to the next jail.
+             */
+            env_jail_set(r->r_env, ENV_JAIL_FREE);
+
             syslog(LOG_NOTICE,
                     "Receive [%s] %s: env <%s>: "
                     "sending to JAIL_HOST %s",
@@ -2436,13 +2220,17 @@ done:
 
     if (r->r_env->e_flags & ENV_FLAG_DFILE) {
 #ifdef HAVE_LIBOPENARC
-        if (simta_auth_results && simta_arc) {
+        if (simta_config_bool("receive.auth.results.enabled") &&
+                simta_config_bool("receive.arc.enabled")) {
             if (arc_result == ARC_STAT_OK) {
-                if ((arc_key = simta_slurp(simta_arc_key)) == NULL) {
+                if ((arc_key = simta_slurp(
+                             simta_config_str("receive.arc.key"))) == NULL) {
                     goto error;
                 }
-                arc_result = arc_getseal(arc, &arc_seal, simta_authres_domain,
-                        simta_arc_selector, simta_arc_domain,
+                arc_result = arc_getseal(arc, &arc_seal,
+                        simta_config_str("receive.auth.results.domain"),
+                        simta_config_str("receive.arc.selector"),
+                        simta_config_str("receive.arc.domain"),
                         (unsigned char *)arc_key, yasllen(arc_key),
                         (unsigned char *)authresults);
                 simta_debuglog(1,
@@ -2479,7 +2267,7 @@ done:
         }
 #endif /* HAVE_LIBOPENARC */
 
-        if (simta_auth_results && authresults_plain) {
+        if (authresults_plain && authresults) {
             /* RFC 7601 2.2 Formal Definition
             * authres-header = "Authentication-Results:" [CFWS] authserv-id
             *                   [ CFWS authres-version ]
@@ -2487,14 +2275,15 @@ done:
             */
 
             authresults_tmp =
-                    yaslcatprintf(yaslempty(), "Authentication-Results: %s; %s",
-                            simta_authres_domain, authresults);
+                    yaslcatprintf(yaslempty(), "Authentication-Results: %s; ",
+                            simta_config_str("receive.auth.results.domain"));
+            authresults_tmp = yaslcatyasl(authresults_tmp, authresults);
             yaslfree(authresults);
             authresults = authresults_tmp;
             authresults_tmp = NULL;
         }
 
-        if (simta_auth_results) {
+        if (authresults) {
             if (r->r_env->e_extra_headers != NULL) {
                 authresults = yaslcatyasl(
                         yaslcat(authresults, "\n"), r->r_env->e_extra_headers);
@@ -2526,18 +2315,20 @@ done:
     }
 
     if (filter_result & MESSAGE_DISCONNECT) {
-        set_smtp_mode(r, SMTP_MODE_OFF, simta_mail_filter);
+        set_smtp_mode(r, "disabled", "filter");
     } else if (filter_result & MESSAGE_TARPIT) {
-        set_smtp_mode(r, SMTP_MODE_TARPIT, simta_mail_filter);
+        set_smtp_mode(r, "tarpit", "filter");
     }
 
-    tarpit_sleep(r, simta_smtp_tarpit_data_eof);
+    tarpit_sleep(r);
 
+    /* FIXME: rationalize filter_message, right now it's always set */
     if (filter_message) {
         failure_message = filter_message;
     } else if (system_message) {
         failure_message = system_message;
-    } else if (r->r_smtp_mode == SMTP_MODE_TARPIT) {
+    } else if ((strcmp(r->r_smtp_mode, "tarpit") == 0) ||
+               (strcmp(r->r_smtp_mode, "tempfail") == 0)) {
         failure_message = NULL;
     } else if (simta_data_url) {
         failure_message = simta_data_url;
@@ -2668,7 +2459,7 @@ error:
      * delay the syserror banner
      */
     if ((banner != 0) && (ret_code == RECEIVE_SYSERROR)) {
-        set_smtp_mode(r, SMTP_MODE_OFF, "Syserror");
+        set_smtp_mode(r, "disabled", "Syserror");
         return (RECEIVE_OK);
     }
 
@@ -2681,7 +2472,7 @@ f_quit(struct receive_data *r) {
     simta_debuglog(1, "Receive [%s] %s: %s", r->r_ip, r->r_remote_hostname,
             r->r_smtp_command);
 
-    tarpit_sleep(r, 0);
+    tarpit_sleep(r);
 
     return (smtp_write_banner(r, 221, NULL, NULL));
 }
@@ -2702,7 +2493,7 @@ f_rset(struct receive_data *r) {
         return (RECEIVE_SYSERROR);
     }
 
-    tarpit_sleep(r, 0);
+    tarpit_sleep(r);
 
     return (smtp_write_banner(r, 250, NULL, NULL));
 }
@@ -2712,8 +2503,6 @@ static int
 f_noop(struct receive_data *r) {
     simta_debuglog(1, "Receive [%s] %s: %s", r->r_ip, r->r_remote_hostname,
             r->r_smtp_command);
-
-    tarpit_sleep(r, 0);
 
     return (smtp_write_banner(r, 250, "simta", version));
 }
@@ -2727,8 +2516,6 @@ f_help(struct receive_data *r) {
     if (deliver_accepted(r, 1) != RECEIVE_OK) {
         return (RECEIVE_SYSERROR);
     }
-
-    tarpit_sleep(r, 0);
 
     return (smtp_write_banner(r, 211, NULL, version));
 }
@@ -2766,7 +2553,7 @@ f_not_implemented(struct receive_data *r) {
         return (RECEIVE_SYSERROR);
     }
 
-    tarpit_sleep(r, 0);
+    tarpit_sleep(r);
 
     return (smtp_write_banner(r, 502, NULL, NULL));
 }
@@ -2782,21 +2569,21 @@ f_bad_sequence(struct receive_data *r) {
 
 
 static int
-f_noauth(struct receive_data *r) {
-    tarpit_sleep(r, 0);
+f_off(struct receive_data *r) {
+    simta_debuglog(1, "Receive [%s] %s: SMTP mode %s: %s", r->r_ip,
+            r->r_remote_hostname, r->r_smtp_mode, r->r_smtp_command);
 
-    simta_debuglog(1, "Receive [%s] %s: NoAuth: %s", r->r_ip,
-            r->r_remote_hostname, r->r_smtp_command);
-    return (smtp_write_banner(r, 530, NULL, NULL));
-}
+    tarpit_sleep(r);
+    if (strcmp(r->r_smtp_mode, "unauthenticated") == 0) {
+        return (smtp_write_banner(r, 451, S_451_DECLINE, NULL));
+    } else if (strcmp(r->r_smtp_mode, "insecure") == 0) {
+        return (smtp_write_banner(
+                r, 554, "Refused due to lack of security", NULL));
+    } else if (strcmp(r->r_smtp_mode, "disabled") == 0) {
+        return (smtp_write_banner(r, 421, S_421_DECLINE, NULL));
+    }
 
-static int
-f_insecure(struct receive_data *r) {
-    tarpit_sleep(r, 0);
-
-    simta_debuglog(1, "Receive [%s] %s: Insecure connection: %s", r->r_ip,
-            r->r_remote_hostname, r->r_smtp_command);
-    return (smtp_write_banner(r, 554, "Refused due to lack of security", NULL));
+    return (smtp_write_banner(r, 451, S_451_DECLINE, NULL));
 }
 
 #ifdef HAVE_LIBSSL
@@ -2809,7 +2596,7 @@ f_starttls(struct receive_data *r) {
         return (f_not_implemented(r));
     }
 
-    tarpit_sleep(r, 0);
+    tarpit_sleep(r);
 
     /*
      * Client MUST NOT attempt to start a TLS session if a TLS
@@ -2826,9 +2613,9 @@ f_starttls(struct receive_data *r) {
         return (smtp_write_banner(r, 501, NULL, "no parameters allowed"));
     }
 
-    if ((ssl_ctx = tls_server_setup(simta_service_smtps, simta_file_ca,
-                 simta_dir_ca, simta_file_cert, simta_file_private_key,
-                 simta_tls_ciphers)) == NULL) {
+    if ((ssl_ctx = tls_server_setup(0, simta_file_ca, simta_dir_ca,
+                 simta_file_cert, simta_file_private_key, simta_tls_ciphers)) ==
+            NULL) {
         syslog(LOG_ERR, "Liberror: f_starttls tls_server_setup: %s",
                 ERR_error_string(ERR_get_error(), NULL));
         rc = smtp_write_banner(
@@ -2851,7 +2638,7 @@ f_starttls(struct receive_data *r) {
          * refused due to lack of security").
          */
         SSL_CTX_free(ssl_ctx);
-        set_smtp_mode(r, SMTP_MODE_INSECURE, "TLS negotiation failed");
+        set_smtp_mode(r, "insecure", "TLS negotiation failed");
         return (RECEIVE_OK);
     }
 
@@ -2882,7 +2669,8 @@ f_starttls(struct receive_data *r) {
     }
 
 #ifdef HAVE_LIBSASL
-    if (simta_sasl == SIMTA_SASL_ON) {
+    if (simta_config_bool("receive.auth.authn.enabled") &&
+            !simta_config_bool("receive.auth.authn.honeypot")) {
         if (simta_sasl_reset(r->r_sasl, r->r_tls) != 0) {
             return (RECEIVE_SYSERROR);
         }
@@ -2923,7 +2711,7 @@ start_tls(struct receive_data *r, SSL_CTX *ssl_ctx) {
         return (RECEIVE_CLOSECONNECTION);
     }
 
-    if (simta_service_smtps == SERVICE_SMTPS_CLIENT_SERVER) {
+    if (simta_config_bool("receive.tls.client_cert")) {
         simta_debuglog(3, "TLS: start_tls SSL_get_peer_certificate");
         if (tls_client_cert(r->r_remote_hostname, r->r_snet->sn_ssl) != 0) {
             return (RECEIVE_CLOSECONNECTION);
@@ -2949,11 +2737,11 @@ f_auth(struct receive_data *r) {
     struct dnsl_result *authz_result;
 #endif /* HAVE_LIBSASL */
 
-    if (simta_sasl == SIMTA_SASL_OFF) {
+    if (!simta_config_bool("receive.auth.authn.enabled")) {
         return (f_not_implemented(r));
     }
 
-    tarpit_sleep(r, 0);
+    tarpit_sleep(r);
 
     /* RFC 4954 4 The AUTH Command
      * Note that these BASE64 strings can be much longer than normal SMTP
@@ -2970,7 +2758,7 @@ f_auth(struct receive_data *r) {
                 "RFC 4954 section 4 AUTH mechanism [initial-response]"));
     }
 
-    if (simta_sasl == SIMTA_SASL_HONEYPOT) {
+    if (simta_config_bool("receive.auth.authn.honeypot")) {
         if (strcasecmp(r->r_av[ 1 ], "PLAIN") == 0) {
             simta_debuglog(1, "Auth.fake [%s] %s: starting PLAIN auth", r->r_ip,
                     r->r_remote_hostname);
@@ -3032,7 +2820,8 @@ f_auth(struct receive_data *r) {
                 return (RECEIVE_CLOSECONNECTION);
             }
         }
-        set_smtp_mode(r, simta_smtp_punishment_mode, "Honeypot AUTH");
+        set_smtp_mode(
+                r, simta_config_str("receive.punishment"), "Honeypot AUTH");
         return (RECEIVE_OK);
     }
 
@@ -3114,7 +2903,8 @@ f_auth(struct receive_data *r) {
     r->r_auth_id = r->r_sasl->s_auth_id;
 
     /* authn was successful, now we need to check authz */
-    if ((authz_result = dnsl_check("authz", NULL, r->r_auth_id)) == NULL) {
+    if ((authz_result = dnsl_check(
+                 "receive.auth.authz.dns_lists", NULL, r->r_auth_id)) == NULL) {
         if (simta_authz_default != DNSL_BLOCK) {
             syslog(LOG_INFO, "Auth [%s] %s: %s allowed by default", r->r_ip,
                     r->r_remote_hostname, r->r_auth_id);
@@ -3126,18 +2916,18 @@ f_auth(struct receive_data *r) {
             return ((r->r_failedauth < 3) ? rc : RECEIVE_CLOSECONNECTION);
         }
     } else {
-        if (authz_result->dnsl->dnsl_type == DNSL_BLOCK) {
+        if (strcmp(authz_result->dnsl_action, "block") == 0) {
             r->r_failedauth++;
             syslog(LOG_INFO, "Auth [%s] %s: %s denied by DNS list %s: %s (%s)",
                     r->r_ip, r->r_remote_hostname, r->r_auth_id,
-                    authz_result->dnsl->dnsl_domain, authz_result->dnsl_result,
+                    authz_result->dnsl_list, authz_result->dnsl_result,
                     authz_result->dnsl_reason);
             rc = smtp_write_banner(r, 535, NULL, NULL);
             return ((r->r_failedauth < 3) ? rc : RECEIVE_CLOSECONNECTION);
         } else {
             syslog(LOG_INFO, "Auth [%s] %s: %s allowed by DNS list %s: %s (%s)",
                     r->r_ip, r->r_remote_hostname, r->r_auth_id,
-                    authz_result->dnsl->dnsl_domain, authz_result->dnsl_result,
+                    authz_result->dnsl_list, authz_result->dnsl_result,
                     authz_result->dnsl_reason);
         }
     }
@@ -3152,7 +2942,7 @@ f_auth(struct receive_data *r) {
 
     r->r_auth = 1;
 
-    set_smtp_mode(r, simta_smtp_default_mode, "Default");
+    set_smtp_mode(r, simta_config_str("receive.mode"), "Default");
 #endif /* HAVE_LIBSASL */
     return (RECEIVE_OK);
 }
@@ -3175,6 +2965,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     struct timeval      tv_wait;
     struct timeval      tv_line;
     struct timeval      tv_add;
+    struct timeval      tv_command_start;
+    struct timeval      tv_command_now;
     struct timeval *    tv_timeout = NULL;
     struct timeval *    tv_fallback = NULL;
 #ifdef HAVE_LIBWRAP
@@ -3218,9 +3010,9 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     md_init(&r.r_md);
     md_init(&r.r_md_body);
 #endif /* HAVE_LIBSSL */
-    set_smtp_mode(&r, simta_smtp_default_mode, "Default");
+    set_smtp_mode(&r, simta_config_str("receive.mode"), "Default");
 
-    if (simta_dmarc) {
+    if (simta_config_bool("receive.dmarc.enabled")) {
         dmarc_init(&r.r_dmarc);
     }
 
@@ -3233,7 +3025,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         return (0);
     }
 
-    if (simta_proxy) {
+    if (simta_config_bool("receive.connection.proxy.enabled")) {
         if (proxy_accept(&r) != RECEIVE_OK) {
             goto syserror;
         }
@@ -3270,7 +3062,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         goto closeconnection;
     }
 
-    if (r.r_smtp_mode == SMTP_MODE_REFUSE) {
+    if (strcmp(r.r_smtp_mode, "disabled") == 0) {
         /* RFC 5321 3.1 Session Initiation
          * The SMTP protocol allows a server to formally reject a transaction
          * while still allowing the initial connection as follows: a 554
@@ -3287,7 +3079,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         syslog(LOG_INFO,
                 "Connect.in [%s] %s: connection refused: inbound smtp disabled",
                 r.r_ip, r.r_remote_hostname);
-        if (smtp_write_banner(&r, 554, "No SMTP Service here", NULL) !=
+        if (smtp_write_banner(&r, 554, "No SMTP service here", NULL) !=
                 RECEIVE_OK) {
             goto closeconnection;
         }
@@ -3297,11 +3089,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             goto syserror;
         }
 
-        if (simta_dnsr == NULL) {
-            if ((simta_dnsr = dnsr_new()) == NULL) {
-                syslog(LOG_ERR, "Liberror: smtp_receive dnsr_new: NULL");
-                goto syserror;
-            }
+        if (!simta_dnsr_init()) {
+            goto syserror;
         }
 
         simta_debuglog(3, "Connect.in [%s]: checking reverse", r.r_ip);
@@ -3318,8 +3107,10 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             syslog(LOG_INFO, "Connect.in [%s] %s: reverse address error: %s",
                     r.r_ip, r.r_remote_hostname,
                     dnsr_err2string(dnsr_errno(simta_dnsr)));
-            if (simta_ignore_connect_in_reverse_errors == 0) {
-                smtp_write_banner(&r, 421, S_421_DECLINE, NULL);
+            if (strcmp(simta_config_str("receive.connection.rdns.check"),
+                        "chillaxed") != 0) {
+                smtp_write_banner(&r, 421, S_421_DECLINE,
+                        simta_config_str("receive.connection.rdns.message"));
                 goto closeconnection;
             }
             break;
@@ -3339,8 +3130,10 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
             syslog(LOG_INFO, "Connect.in [%s] %s: invalid reverse", r.r_ip,
                     r.r_remote_hostname);
-            if (simta_ignore_reverse == 0) {
-                smtp_write_banner(&r, 421, S_421_DECLINE, simta_reverse_url);
+            if (strcmp(simta_config_str("receive.connection.rdns.check"),
+                        "strict") == 0) {
+                smtp_write_banner(&r, 421, S_421_DECLINE,
+                        simta_config_str("receive.connection.rdns.message"));
                 goto closeconnection;
             }
             break;
@@ -3370,42 +3163,26 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         simta_debuglog(3, "Connect.in [%s] %s: checking DNS lists", r.r_ip,
                 r.r_remote_hostname);
 
-        r.r_dnsl_result = dnsl_check("connect", r.r_sa, NULL);
+        r.r_dnsl_result =
+                dnsl_check("receive.connection.dns_lists", r.r_sa, NULL);
 
         if (r.r_dnsl_result) {
             r.r_dnsl_checked = 1;
-            switch ((r.r_dnsl_result)->dnsl->dnsl_type) {
-            case DNSL_BLOCK:
+            if (strcmp((r.r_dnsl_result)->dnsl_action, "block") == 0) {
                 syslog(LOG_INFO,
                         "Connect.in [%s] %s: DNS list %s: Blocked: %s (%s)",
                         r.r_ip, r.r_remote_hostname,
-                        (r.r_dnsl_result)->dnsl->dnsl_domain,
+                        (r.r_dnsl_result)->dnsl_list,
                         (r.r_dnsl_result)->dnsl_result,
                         (r.r_dnsl_result)->dnsl_reason);
-                set_smtp_mode(
-                        &r, SMTP_MODE_REFUSE, (r.r_dnsl_result)->dnsl_reason);
-                break;
-
-            case DNSL_ACCEPT:
-            case DNSL_TRUST:
-                syslog(LOG_INFO,
-                        "Connect.in [%s] %s: DNS list %s: Accepted: %s (%s)",
-                        r.r_ip, r.r_remote_hostname,
-                        (r.r_dnsl_result)->dnsl->dnsl_domain,
-                        (r.r_dnsl_result)->dnsl_result,
-                        (r.r_dnsl_result)->dnsl_reason);
-                break;
+                set_smtp_mode(&r, "refuse", (r.r_dnsl_result)->dnsl_reason);
             }
-        } else {
-            syslog(LOG_INFO,
-                    "Connect.in [%s] %s: "
-                    "not found on any DNS lists in the 'connect' chain",
-                    r.r_ip, r.r_remote_hostname);
         }
 
         if ((r.r_dnsl_result == NULL) ||
-                (((r.r_dnsl_result)->dnsl->dnsl_type != DNSL_ACCEPT) &&
-                        ((r.r_dnsl_result)->dnsl->dnsl_type != DNSL_TRUST))) {
+                ((strcmp((r.r_dnsl_result)->dnsl_action, "accept") != 0) &&
+                        (strcmp((r.r_dnsl_result)->dnsl_action, "trust") !=
+                                0))) {
             if ((simta_local_connections_max != 0) &&
                     (c->c_proc_total > simta_local_connections_max)) {
                 syslog(LOG_WARNING,
@@ -3434,9 +3211,10 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         FD_ZERO(&fdset);
         FD_SET(snet_fd(r.r_snet), &fdset);
         if ((r.r_dnsl_result == NULL) ||
-                ((r.r_dnsl_result)->dnsl->dnsl_type != DNSL_TRUST)) {
-            tv_wait.tv_sec = simta_banner_delay;
-            tv_wait.tv_usec = 0;
+                (strcmp((r.r_dnsl_result)->dnsl_action, "trust") != 0)) {
+            simta_ucl_object_totimeval(
+                    simta_config_obj("receive.connection.banner.delay"),
+                    &tv_wait);
 
             if ((ret = select(snet_fd(r.r_snet) + 1, &fdset, NULL, NULL,
                          &tv_wait)) < 0) {
@@ -3446,20 +3224,21 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                 r.r_write_before_banner = 1;
                 syslog(LOG_INFO, "Connect.in [%s] %s: Write before banner",
                         r.r_ip, r.r_remote_hostname);
-                if (simta_banner_punishment) {
-                    set_smtp_mode(&r, simta_smtp_punishment_mode,
+                if (simta_config_bool(
+                            "receive.connection.banner.punish_writes")) {
+                    set_smtp_mode(&r, simta_config_str("receive.punishment"),
                             "Write before banner");
-                    sleep(simta_banner_delay);
+                    sleep(1);
                 }
             }
         }
 
-        tarpit_sleep(&r, simta_smtp_tarpit_connect);
+        tarpit_sleep(&r);
 
         simta_debuglog(3, "Connect.in [%s] %s: sending banner", r.r_ip,
                 r.r_remote_hostname);
 
-        if (r.r_smtp_mode == SMTP_MODE_REFUSE) {
+        if (strcmp(r.r_smtp_mode, "refuse") == 0) {
             if (snet_writef(r.r_snet, "554 <%s> %s %s: %s\r\n", simta_hostname,
                         S_DENIED, r.r_ip, (r.r_dnsl_result)->dnsl_reason) < 0) {
                 syslog(LOG_ERR, "Receive [%s] %s: smtp_receive snet_writef: %m",
@@ -3604,6 +3383,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         }
 
         r.r_smtp_command = strdup(line);
+        statsd_counter("receive.smtp_command", "total", 1);
 
         if ((r.r_ac = acav_parse2821(acav, line, &(r.r_av))) < 0) {
             syslog(LOG_ERR, "Receive [%s] %s: acav_parse2821 failed: %m",
@@ -3627,22 +3407,22 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         }
 
         if ((r.r_ac == 0) || (i >= r.r_ncommands)) {
-            if (r.r_smtp_mode == SMTP_MODE_OFF) {
-                syslog(LOG_INFO, "Receive [%s] %s: SMTP_Off: %s", r.r_ip,
-                        r.r_remote_hostname, r.r_smtp_command);
-                smtp_write_banner(&r, 421, S_421_DECLINE, NULL);
+            if (strcmp(r.r_smtp_mode, "disabled") == 0) {
+                f_off(&r);
                 goto closeconnection;
             }
 
             if (r.r_ac == 0) {
                 syslog(LOG_NOTICE, "Receive [%s] %s: No Command", r.r_ip,
                         r.r_remote_hostname);
+                statsd_counter("receive.smtp_command", "null", 1);
             } else {
                 syslog(LOG_NOTICE, "Receive [%s] %s: Command unrecognized: %s",
                         r.r_ip, r.r_remote_hostname, r.r_smtp_command);
+                statsd_counter("receive.smtp_command", "unknown", 1);
             }
 
-            tarpit_sleep(&r, 0);
+            tarpit_sleep(&r);
 
             if (smtp_write_banner(&r, 500, NULL, NULL) != RECEIVE_OK) {
                 goto closeconnection;
@@ -3650,7 +3430,20 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             continue;
         }
 
-        switch ((*(r.r_commands[ i ].c_func))(&r)) {
+        if (simta_gettimeofday(&tv_command_start) != 0) {
+            goto syserror;
+        }
+
+        ret = (*(r.r_commands[ i ].c_func))(&r);
+
+        if (simta_gettimeofday(&tv_command_now) != 0) {
+            goto syserror;
+        }
+
+        statsd_timer("receive.smtp_command", r.r_commands[ i ].c_name,
+                SIMTA_ELAPSED_MSEC(tv_command_start, tv_command_now));
+
+        switch (ret) {
         case RECEIVE_OK:
             break;
 
@@ -3667,24 +3460,27 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             goto syserror;
         }
 
-        if ((r.r_smtp_mode == SMTP_MODE_NORMAL) &&
+        if ((strcmp(r.r_smtp_mode, "normal") == 0) &&
                 ((r.r_dnsl_result == NULL) ||
-                        ((r.r_dnsl_result)->dnsl->dnsl_type != DNSL_TRUST))) {
-            if ((simta_max_failed_rcpts > 0) &&
+                        (strcmp((r.r_dnsl_result)->dnsl_action, "trust") !=
+                                0))) {
+            if ((simta_config_int("receive.rcpt_to.max_failures") > 0) &&
                     ((r.r_rcpt_attempt - r.r_rcpt_success) >=
-                            simta_max_failed_rcpts)) {
+                            simta_config_int("receive.rcpt_to.max_failures"))) {
                 syslog(LOG_NOTICE,
                         "Receive [%s] %s: Too many failed recipients", r.r_ip,
                         r.r_remote_hostname);
-                set_smtp_mode(
-                        &r, simta_smtp_punishment_mode, "Failed recipients");
+                set_smtp_mode(&r, simta_config_str("receive.punishment"),
+                        "Failed recipients");
             }
-            if ((simta_max_failed_senders > 0) &&
+            if ((simta_config_int("receive.mail_from.max_failures") > 0) &&
                     ((r.r_mail_attempt - r.r_mail_success) >=
-                            simta_max_failed_senders)) {
+                            simta_config_int(
+                                    "receive.mail_from.max_failures"))) {
                 syslog(LOG_NOTICE, "Receive [%s] %s: Too many failed senders",
                         r.r_ip, r.r_remote_hostname);
-                set_smtp_mode(&r, simta_smtp_punishment_mode, "failed senders");
+                set_smtp_mode(&r, simta_config_str("receive.punishment"),
+                        "failed senders");
             }
         }
     }
@@ -3718,8 +3514,7 @@ closeconnection:
         }
     }
 
-#ifdef HAVE_LIBSASL
-    if (simta_sasl == SIMTA_SASL_ON) {
+    if (r.r_auth) {
         simta_debuglog(1,
                 "Connect.stat [%s] %s: Metrics: "
                 "milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d: "
@@ -3729,7 +3524,6 @@ closeconnection:
                 r.r_mail_attempt, r.r_rcpt_success, r.r_rcpt_attempt,
                 r.r_data_success, r.r_data_attempt, r.r_auth_id);
     } else {
-#endif /* HAVE_LIBSASL */
         simta_debuglog(1,
                 "Connect.stat [%s] %s: Metrics: "
                 "milliseconds %ld, mail from %d/%d, rcpt to %d/%d, data %d/%d",
@@ -3737,9 +3531,7 @@ closeconnection:
                 SIMTA_ELAPSED_MSEC(tv_start, tv_stop), r.r_mail_success,
                 r.r_mail_attempt, r.r_rcpt_success, r.r_rcpt_attempt,
                 r.r_data_success, r.r_data_attempt);
-#ifdef HAVE_LIBSASL
     }
-#endif /* HAVE_LIBSASL */
 
     if (reset(&r) != 0) {
         return (RECEIVE_SYSERROR);
@@ -3780,7 +3572,7 @@ closeconnection:
     }
 #endif /* HAVE_LIBOPENDKIM */
 
-    if (simta_dmarc) {
+    if (r.r_dmarc) {
         dmarc_free(r.r_dmarc);
     }
 
@@ -3837,8 +3629,8 @@ proxy_accept(struct receive_data *r) {
      * connection if the protocol header is not seen within a few seconds
      * (at least 3 seconds to cover a TCP retransmit).
      */
-    tv_wait.tv_sec = simta_proxy_timeout;
-    tv_wait.tv_usec = 0;
+    simta_ucl_object_totimeval(
+            simta_config_obj("receive.connection.proxy.timeout"), &tv_wait);
     do {
         rlen = snet_read(
                 r->r_snet, header.v1.line, SIMTA_PROXY_HEADERLEN, &tv_wait);
@@ -4008,8 +3800,8 @@ auth_init(struct receive_data *r, struct simta_socket *ss) {
 
 #ifdef HAVE_LIBSSL
     if (ss->ss_flags & SIMTA_SOCKET_TLS) {
-        if ((ssl_ctx = tls_server_setup(simta_service_smtps, simta_file_ca,
-                     simta_dir_ca, simta_file_cert, simta_file_private_key,
+        if ((ssl_ctx = tls_server_setup(0, simta_file_ca, simta_dir_ca,
+                     simta_file_cert, simta_file_private_key,
                      simta_tls_ciphers)) == NULL) {
             syslog(LOG_ERR, "Liberror: auth_init tls_server_setup: %s",
                     ERR_error_string(ERR_get_error(), NULL));
@@ -4031,8 +3823,9 @@ auth_init(struct receive_data *r, struct simta_socket *ss) {
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
-    if (simta_sasl == SIMTA_SASL_ON) {
-        set_smtp_mode(r, SMTP_MODE_NOAUTH, "Authentication");
+    if (simta_config_bool("receive.auth.authn.enabled") &&
+            !simta_config_bool("receive.auth.authn.honeypot")) {
+        set_smtp_mode(r, "unauthenticated", "Authentication");
         if ((r->r_sasl = simta_sasl_server_new(r->r_tls)) == NULL) {
             return (-1);
         }
@@ -4116,7 +3909,9 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
         } else if (strcasecmp(type, "password") == 0) {
             /* Check password file */
             *at = '\0';
-            passwd = simta_getpwnam(rule, addr);
+            passwd = simta_getpwnam(ucl_object_tostring(ucl_object_lookup_path(
+                                            rule, "password.path")),
+                    addr);
             *at = '@';
 
             if (passwd != NULL) {
@@ -4255,29 +4050,86 @@ iprev_authresult_str(struct receive_data *r) {
     return ("INVALID");
 }
 
-char *
+yastr
 env_string(const char *left, const char *right) {
-    char *buf;
+    yastr buf;
 
-    if ((right == NULL) || (*right == '\0')) {
-        buf = malloc(strlen(left) + 2);
-        sprintf(buf, "%s=", left);
-    } else {
-        buf = malloc(strlen(left) + strlen(right) + 2);
-        sprintf(buf, "%s=%s", left, right);
+    buf = yaslauto(left);
+    buf = yaslcatlen(buf, "=", 1);
+    if (right && (*right != '\0')) {
+        buf = yaslcat(buf, right);
     }
 
     return (buf);
 }
 
-int
-content_filter(struct receive_data *r, char **smtp_message) {
+static int
+content_filter(
+        struct receive_data *r, char **smtp_message, struct timeval *tv) {
+    int retval = MESSAGE_ACCEPT;
+
+    if (!simta_config_bool("receive.data.content_filter.enabled")) {
+        return (MESSAGE_ACCEPT);
+    }
+
+    if ((strcmp(r->r_smtp_mode, "tarpit") == 0) ||
+            (strcmp(r->r_smtp_mode, "tempfail") == 0)) {
+        return (MESSAGE_ACCEPT);
+    }
+
+    if (r->r_dnsl_result &&
+            (strcmp(r->r_dnsl_result->dnsl_action, "trust") == 0)) {
+        if (strcmp(simta_config_str("receive.data.content_filter.when"),
+                    "untrusted") == 0) {
+            syslog(LOG_INFO,
+                    "Receive [%s] %s: env <%s>: "
+                    "content filter skipped for trusted host",
+                    r->r_ip, r->r_remote_hostname, r->r_env->e_id);
+            return (MESSAGE_ACCEPT);
+        }
+    }
+
+    if (r->r_env->e_flags & ENV_FLAG_DFILE) {
+        if (env_tfile(r->r_env) != 0) {
+            return (MESSAGE_TEMPFAIL);
+        }
+
+        if (simta_gettimeofday(tv) != 0) {
+            return (MESSAGE_TEMPFAIL);
+        }
+
+        retval = run_content_filter(r, smtp_message);
+
+        /* Filter out bad combinations */
+        if (retval & MESSAGE_TEMPFAIL) {
+            if (retval & MESSAGE_REJECT) {
+                simta_debuglog(2,
+                        "content_filter: "
+                        "overriding TEMPFAIL && REJECT to just TEMPFAIL");
+                /* Tempfail has priority */
+                retval &= ~MESSAGE_REJECT;
+            }
+        }
+
+        /* Set the default message */
+        if (*smtp_message == NULL) {
+            *smtp_message = strdup(
+                    simta_config_str("receive.data.content_filter.message"));
+        }
+    }
+
+    return (retval);
+}
+
+static int
+run_content_filter(struct receive_data *r, char **smtp_message) {
     int            fd[ 2 ];
     pid_t          pid;
     int            status;
     pid_t          rc;
     int            filter_envc = 0;
     SNET *         snet;
+    const char *   mail_filter = NULL;
     char *         line;
     char *         filter_argv[] = {0, 0};
     char *         filter_envp[ 22 ];
@@ -4289,16 +4141,12 @@ content_filter(struct receive_data *r, char **smtp_message) {
     yastr             dkim_domains;
 #endif /* HAVE_LIBOPENDKIM */
 
-    if ((filter_argv[ 0 ] = strrchr(simta_mail_filter, '/')) != NULL) {
-        filter_argv[ 0 ]++;
-    } else {
-        filter_argv[ 0 ] = simta_mail_filter;
-    }
-
     if (pipe(fd) < 0) {
         syslog(LOG_ERR, "Syserror: content_filter pipe: %m");
         return (MESSAGE_TEMPFAIL);
     }
+
+    mail_filter = simta_config_str("receive.data.content_filter.path");
 
     simta_gettimeofday(NULL);
 
@@ -4341,6 +4189,11 @@ content_filter(struct receive_data *r, char **smtp_message) {
             exit(MESSAGE_TEMPFAIL);
         }
 
+        filter_argv[ 0 ] = strdup(mail_filter);
+        if (strrchr(mail_filter, '/')) {
+            filter_argv[ 0 ] = strrchr(filter_argv[ 0 ], '/') + 1;
+        }
+
         if (r->r_env->e_flags & ENV_FLAG_DFILE) {
             snprintf(fname, MAXPATHLEN, "%s/D%s", r->r_env->e_dir,
                     r->r_env->e_id);
@@ -4368,8 +4221,8 @@ content_filter(struct receive_data *r, char **smtp_message) {
         filter_envp[ filter_envc++ ] = env_string("SIMTA_REVERSE_LOOKUP", buf);
 
         if (r->r_dnsl_result) {
-            filter_envp[ filter_envc++ ] = env_string("SIMTA_DNSL_RESULT",
-                    r->r_dnsl_result->dnsl->dnsl_type_text);
+            filter_envp[ filter_envc++ ] = env_string(
+                    "SIMTA_DNSL_RESULT", r->r_dnsl_result->dnsl_action);
         }
 
         if (r->r_env->e_mail_orig) {
@@ -4411,7 +4264,7 @@ content_filter(struct receive_data *r, char **smtp_message) {
         filter_envp[ filter_envc++ ] = env_string("SIMTA_CID", buf);
 
 #ifdef HAVE_LIBOPENDKIM
-        if (simta_dkim_verify && simta_dmarc) {
+        if (r->r_dmarc) {
             dkim_domains = yaslempty();
             for (dkim_domain = r->r_dmarc->dkim_domain_list;
                     dkim_domain != NULL; dkim_domain = dkim_domain->dll_next) {
@@ -4434,7 +4287,7 @@ content_filter(struct receive_data *r, char **smtp_message) {
                     env_string("SIMTA_SPF_DOMAIN", r->r_spf->spf_domain);
         }
 
-        if (simta_dmarc) {
+        if (r->r_dmarc) {
             filter_envp[ filter_envc++ ] = env_string(
                     "SIMTA_DMARC_RESULT", dmarc_result_str(r->r_dmarc_result));
 
@@ -4460,7 +4313,7 @@ content_filter(struct receive_data *r, char **smtp_message) {
 
         filter_envp[ filter_envc ] = NULL;
 
-        execve(simta_mail_filter, filter_argv, filter_envp);
+        execve(mail_filter, filter_argv, filter_envp);
         /* if we are here, there is an error */
         syslog(LOG_ERR, "Syserror: content_filter execve: %m");
         exit(MESSAGE_TEMPFAIL);
@@ -4519,6 +4372,13 @@ content_filter(struct receive_data *r, char **smtp_message) {
         }
 
         if (WIFEXITED(status)) {
+            syslog(LOG_INFO,
+                    "Receive [%s] %s: env <%s>: "
+                    "content filter %s exited %d: %s",
+                    r->r_ip, r->r_remote_hostname, r->r_env->e_id, mail_filter,
+                    WEXITSTATUS(status),
+                    *smtp_message ? *smtp_message : "no filter message");
+
             return (WEXITSTATUS(status));
 
         } else if (WIFSIGNALED(status)) {

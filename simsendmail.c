@@ -73,13 +73,10 @@ main(int argc, char *argv[]) {
     int                    message_size = 0;
     FILE *                 dfile = NULL;
     int                    read_headers = 0;
-    int                    pidfd;
-    int                    pid;
     uid_t                  uid;
     struct recipient *     r;
     struct passwd *        passwd;
     const char *           pw_name;
-    FILE *                 pf;
 
     /* ignore a good many options */
     opterr = 0;
@@ -174,7 +171,7 @@ main(int argc, char *argv[]) {
         exit(EX_USAGE);
     }
 
-    if (simta_read_config(SIMTA_FILE_CONFIG) < 0) {
+    if (simta_read_config(NULL, NULL) < 0) {
         exit(EX_TEMPFAIL);
     }
 
@@ -182,24 +179,34 @@ main(int argc, char *argv[]) {
 
     simta_openlog(0, 0);
 
+    uid = getuid();
+    if ((passwd = getpwuid(uid)) == NULL) {
+        pw_name = "No password entry";
+    } else if (passwd->pw_name == NULL) {
+        pw_name = "No user name in password entry";
+    } else {
+        pw_name = passwd->pw_name;
+    }
+
+    if (passwd && sender == NULL) {
+        sender = yaslcatprintf(yaslempty(), "%s@%s", passwd->pw_name,
+                simta_config_str("core.masquerade"));
+    }
+
     /* create envelope */
-    if ((env = env_create(simta_dir_local, NULL,
-                 sender ? sender : simta_sender(), NULL)) == NULL) {
+    if ((env = env_create(simta_dir_local, NULL, sender, NULL)) == NULL) {
         perror("env_create");
         exit(EX_TEMPFAIL);
     }
 
 #ifdef HAVE_LIBOPENDKIM
-    if ((simta_dkim_sign == DKIMSIGN_POLICY_ALWAYS) ||
-            (simta_dkim_sign == DKIMSIGN_POLICY_LOCAL)) {
+    if (simta_config_bool("deliver.dkim.enabled")) {
         env->e_flags |= ENV_FLAG_DKIMSIGN;
     }
 #endif /* HAVE_LIBOPENDKIM */
 
-    if ((simta_rqueue_policy == RQUEUE_POLICY_JAIL) &&
-            (simta_local_jail == 0)) {
-        env_jail_set(env, ENV_JAIL_NO_CHANGE);
-    }
+    /* Local messages should never be jailed. */
+    env_jail_set(env, ENV_JAIL_FREE);
 
     memset(&rh, 0, sizeof(struct receive_headers));
     rh.r_env = env;
@@ -250,16 +257,6 @@ main(int argc, char *argv[]) {
         perror("fdopen");
         goto error;
     }
-
-    uid = getuid();
-    if ((passwd = getpwuid(uid)) == NULL) {
-        pw_name = "No password entry";
-    } else if (passwd->pw_name == NULL) {
-        pw_name = "No user name in password entry";
-    } else {
-        pw_name = passwd->pw_name;
-    }
-
 
     rfc822_timestamp(daytime);
     buf = yaslempty();
@@ -380,27 +377,7 @@ done:
 
 signal_server:
     /* if possible, signal server */
-    if ((pidfd = open(simta_file_pid, O_RDONLY, 0)) < 0) {
-        syslog(LOG_NOTICE, "open %s: %m", simta_file_pid);
-        return (EX_OK);
-    }
-
-    if ((pf = fdopen(pidfd, "r")) == NULL) {
-        syslog(LOG_NOTICE, "fdopen %s: %m", simta_file_pid);
-        return (EX_OK);
-    }
-
-    fscanf(pf, "%d\n", &pid);
-
-    if (pid <= 0) {
-        syslog(LOG_NOTICE, "illegal pid %s: %d", simta_file_pid, pid);
-        return (EX_OK);
-    }
-
-    if (kill(pid, SIGUSR1) < 0) {
-        syslog(LOG_NOTICE, "kill %d: %m", pid);
-        return (EX_OK);
-    }
+    simta_signal_server(SIGUSR1);
 
     return (EX_OK);
 

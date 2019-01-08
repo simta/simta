@@ -8,9 +8,11 @@
 #include <sys/param.h>
 
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #ifdef HAVE_LIBSSL
@@ -51,11 +53,13 @@ static char *progname;
 int
 main(int argc, char **argv) {
     int                 c, err = 0;
-    int                 dump = 0;
+    bool                dump = false;
     extern char *       optarg;
     yastr               input = NULL;
     char *              output = NULL;
     const char *        fname;
+    const char *        conf_file = NULL;
+    const char *        extra_conf = NULL;
     struct dll_entry *  processed = NULL;
     const ucl_object_t *domain = NULL;
     const ucl_object_t *rule = NULL;
@@ -67,10 +71,14 @@ main(int argc, char **argv) {
         progname++;
     }
 
-    while ((c = getopt(argc, argv, "di:o:v")) != -1) {
+    while ((c = getopt(argc, argv, "df:i:o:U:v")) != -1) {
         switch (c) {
         case 'd':
-            dump++;
+            dump = true;
+            break;
+
+        case 'f':
+            conf_file = optarg;
             break;
 
         case 'i':
@@ -79,6 +87,10 @@ main(int argc, char **argv) {
 
         case 'o':
             output = optarg;
+            break;
+
+        case 'U':
+            extra_conf = optarg;
             break;
 
         case 'v':
@@ -92,13 +104,16 @@ main(int argc, char **argv) {
 
     if (err) {
         fprintf(stderr, "usage: %s ", progname);
-        fprintf(stderr, "[ -d ] [ -i input-file ] [ -o output-file ]");
+        fprintf(stderr,
+                "[ -d ] [ -f config_file ] [ -i input-file ] [ -o output-file "
+                "]");
         fprintf(stderr, "\n");
         exit(1);
     }
 
-    if (simta_read_config(SIMTA_FILE_CONFIG) < 0) {
-        fprintf(stderr, "simta_read_config error: %s\n", SIMTA_FILE_CONFIG);
+    simta_openlog(0, LOG_PERROR);
+
+    if (simta_read_config(conf_file, extra_conf) < 0) {
         exit(1);
     }
 
@@ -123,13 +138,14 @@ main(int argc, char **argv) {
         exit(simalias_create(input, output));
     }
 
-    i = ucl_object_iterate_new(ucl_object_lookup(simta_config, "domain"));
+    i = ucl_object_iterate_new(simta_config_obj("domain"));
     while ((domain = ucl_object_iterate_safe(i, false)) != NULL) {
         j = ucl_object_iterate_new(ucl_object_lookup(domain, "rule"));
         while ((rule = ucl_object_iterate_safe(j, false)) != NULL) {
             if (strcasecmp(ucl_object_tostring(ucl_object_lookup(rule, "type")),
                         "alias") == 0) {
-                fname = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+                fname = ucl_object_tostring(
+                        ucl_object_lookup_path(rule, "alias.path"));
                 if (dll_lookup(processed, fname) == NULL) {
                     if (strcmp(fname, simta_default_alias_db) == 0) {
                         input = yaslauto(simta_default_alias_file);

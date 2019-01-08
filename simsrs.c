@@ -26,7 +26,7 @@ main(int ac, char *av[]) {
         exit(1);
     }
 
-    if (simta_read_config(SIMTA_FILE_CONFIG) < 0) {
+    if (simta_read_config(NULL, NULL) < 0) {
         exit(1);
     }
 
@@ -37,8 +37,9 @@ main(int ac, char *av[]) {
         exit(1);
     }
 
-    if (strcasecmp((p + 1), simta_srs_domain) == 0) {
-        if (srs_reverse(av[ 1 ], &p, simta_srs_secret) == SRS_OK) {
+    if (strcasecmp((p + 1), simta_config_str("receive.srs.domain")) == 0) {
+        if (srs_reverse(av[ 1 ], &p, simta_config_str("receive.srs.secret")) ==
+                SRS_OK) {
             printf("%s\n", p);
         } else {
             printf("srs_reverse failed\n");

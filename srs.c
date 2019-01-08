@@ -5,10 +5,9 @@
 
 #include "config.h"
 
-#include <net/if.h>
-
 #include <ctype.h>
 #include <ifaddrs.h>
+#include <net/if.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -33,8 +32,10 @@ static yastr srs_reforward(const char *);
 static yastr srs_timestamp(void);
 static int   srs_timestamp_validate(const char *);
 
-int
+enum simta_srs_result
 srs_forward(struct envelope *env) {
+    const char *    srs_mode = NULL;
+    const char *    srs_domain = NULL;
     yastr           newaddr = NULL;
     yastr           localpart = NULL;
     yastr           hash = NULL;
@@ -55,13 +56,21 @@ srs_forward(struct envelope *env) {
         return (SRS_BADSYNTAX);
     }
 
-    if ((simta_srs != SRS_POLICY_ALWAYS) &&
-            (strcasecmp(p + 1, simta_srs_domain) == 0)) {
+    if (!simta_config_bool("receive.srs.enabled")) {
+        return (SRS_OK);
+    }
+
+    srs_mode = simta_config_str("receive.srs.rewrite");
+    srs_domain = simta_config_str("receive.srs.domain");
+
+
+    if ((strcasecmp(srs_mode, "always") != 0) &&
+            (strcasecmp(p + 1, srs_domain) == 0)) {
         /* Already from the correct domain, don't need to do anything */
         return (SRS_OK);
     }
 
-    if (simta_srs == SRS_POLICY_SMART) {
+    if (strcasecmp(srs_mode, "smart") == 0) {
         if (getifaddrs(&ifaddrs) != 0) {
             syslog(LOG_ERR, "Syserror: srs_forward getifaddrs: %m");
             return (SRS_SYSERROR);
@@ -73,11 +82,9 @@ srs_forward(struct envelope *env) {
             if ((ifa->ifa_addr == NULL) || (ifa->ifa_flags & IFF_LOOPBACK)) {
                 continue;
             }
-            if ((ucl_object_toboolean(ucl_object_lookup_path(
-                         simta_config, "red_defaults.deliver.ipv4")) &&
+            if ((simta_config_bool("defaults.red.deliver.ipv4") &&
                         (ifa->ifa_addr->sa_family == AF_INET)) ||
-                    (ucl_object_toboolean(ucl_object_lookup_path(
-                             simta_config, "red_defaults.deliver..ipv6")) &&
+                    (simta_config_bool("defaults.red.deliver.ipv6") &&
                             (ifa->ifa_addr->sa_family == AF_INET6))) {
                 spf = spf_lookup(simta_hostname, env->e_mail, ifa->ifa_addr);
             }
@@ -117,13 +124,13 @@ srs_forward(struct envelope *env) {
         newaddr = yaslcat(newaddr, "SRS1=");
     }
 
-    if ((hash = srs_hash(localpart, simta_srs_secret, 5)) == NULL) {
+    if ((hash = srs_hash(localpart, simta_config_str("receive.srs.secret"),
+                 5)) == NULL) {
         syslog(LOG_NOTICE, "SRS %s: srs_hash failed", env->e_mail);
         goto error;
     }
 
-    newaddr = yaslcatprintf(
-            newaddr, "%s=%s@%s", hash, localpart, simta_srs_domain);
+    newaddr = yaslcatprintf(newaddr, "%s=%s@%s", hash, localpart, srs_domain);
 
     rc = SRS_OK;
 
@@ -138,7 +145,7 @@ error:
     return (rc);
 }
 
-int
+enum simta_srs_result
 srs_reverse(const char *addr, char **newaddr, const char *secret) {
     int   rc = SRS_BADSYNTAX;
     int   reforwarded = 0;
@@ -148,6 +155,10 @@ srs_reverse(const char *addr, char **newaddr, const char *secret) {
     yastr hash = NULL;
     yastr n;
     char *p;
+
+    if (secret == NULL) {
+        return (SRS_INVALID);
+    }
 
     a = yaslauto(addr);
 
@@ -398,7 +409,7 @@ srs_timestamp_validate(const char *timestamp) {
     for (now %= 1024; now < then; now += 1024)
         ;
 
-    if (now > (then + simta_srs_maxage)) {
+    if (now > (then + 10)) {
         return (SRS_EXPIRED);
     }
 

@@ -1,3 +1,16 @@
+2.0.0 (2021-??-??)
+    - brand new UCL configuration system
+    - added -U flag to specify arbitrary configuration on the command line
+    - added support for statsd metric gathering
+    - updated build system
+    - updated LDAP code to use non-deprecated APIs
+    - added most global delivery settings as per-domain settings
+    - added associated domain support to alias expansion
+    - removed compile-time procmail dependency
+    - added support for DNS lists with multiple entry types
+    - improved CLI tool interface consistency
+    - added support for multiple subaddress separators
+
 1.5.0 (2020-11-30)
     - fixed crash from bad bugfix
     - added per-domain limits on recipients per message delivery attempt
@@ -14,7 +27,7 @@
     - added authenticated user canonicalization
 
 1.4.3 (2020-02-06)
-    - fixed lack of aggression on initial delivery of messages with many recpients
+    - fixed lack of aggression on initial delivery of messages with many recipients
     - improved authentication failure logging
 
 1.4.2 (2019-10-24)

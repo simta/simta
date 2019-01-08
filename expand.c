@@ -126,7 +126,7 @@ expand(struct envelope *unexpanded_env) {
     struct expand_output *eo_free;
     struct exp_addr *     e_addr;
     struct exp_addr *     next_e_addr;
-    ucl_object_t *        hq_red;
+    const ucl_object_t *  hq_red;
     char *                domain;
     SNET *                snet = NULL;
     int                   n_rcpts;
@@ -218,31 +218,33 @@ expand(struct envelope *unexpanded_env) {
     /* Members-only processing */
     for (memonly = exp.exp_memonly; memonly != NULL;
             memonly = memonly->el_next) {
-        if (((p = exp_addr_parent_permitted(memonly->el_exp_addr)) != NULL) ||
-                (sender_is_child(
-                        memonly->el_exp_addr->e_addr_children, loop_color++))) {
-            if (p != NULL) {
-                syslog(LOG_INFO,
-                        "Expand env <%s>: members-only group %s OK: "
-                        "parent %s permitted",
-                        unexpanded_env->e_id, memonly->el_exp_addr->e_addr, p);
+        bool permitted = false;
 
-            } else {
-                syslog(LOG_INFO,
-                        "Expand env <%s>: members-only group %s OK: "
-                        "sender is child",
-                        unexpanded_env->e_id, memonly->el_exp_addr->e_addr);
-            }
-            memonly->el_exp_addr->e_addr_ldap_flags =
-                    (memonly->el_exp_addr->e_addr_ldap_flags &
-                            (~STATUS_LDAP_MEMONLY));
+        if ((p = exp_addr_parent_permitted(memonly->el_exp_addr)) != NULL) {
+            permitted = true;
+
+            simta_debuglog(1,
+                    "Expand env <%s>: members-only group %s OK: "
+                    "parent %s permitted",
+                    unexpanded_env->e_id, memonly->el_exp_addr->e_addr, p);
+        } else if (sender_is_child(memonly->el_exp_addr->e_addr_children,
+                           loop_color++)) {
+            permitted = true;
+            simta_debuglog(1,
+                    "Expand env <%s>: members-only group %s OK: "
+                    "sender is child",
+                    unexpanded_env->e_id, memonly->el_exp_addr->e_addr);
+        }
+
+        if (permitted) {
+            memonly->el_exp_addr->e_addr_ldap_flags &= (~STATUS_LDAP_MEMONLY);
             if (memonly->el_exp_addr->e_addr_env_moderated != NULL) {
                 env_free(memonly->el_exp_addr->e_addr_env_moderated);
                 memonly->el_exp_addr->e_addr_env_moderated = NULL;
             }
 
         } else {
-            syslog(LOG_NOTICE,
+            syslog(LOG_INFO,
                     "Expand env <%s>: members-only group %s suppressed",
                     unexpanded_env->e_id, memonly->el_exp_addr->e_addr);
             memonly->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPPRESSOR;
@@ -918,7 +920,7 @@ unblocked_path_to_root(struct exp_addr *e, int color) {
 
 
 int
-exp_addr_permitted_add(struct exp_addr *e_addr, char *permitted) {
+exp_addr_permitted_add(struct exp_addr *e_addr, yastr permitted) {
     if (ll_insert(&e_addr->e_addr_ok, permitted, permitted, NULL) != 0) {
         return (1);
     }

@@ -123,7 +123,7 @@ bounce_dfile_out(struct envelope *bounce_env, SNET *message) {
     sprintf(dfile_fname, "%s/D%s", bounce_env->e_dir, bounce_env->e_id);
 
 #ifdef HAVE_LIBOPENDKIM
-    if (simta_dkim_sign != DKIMSIGN_POLICY_OFF) {
+    if (simta_config_bool("deliver.dkim.enabled")) {
         bounce_env->e_flags |= ENV_FLAG_DKIMSIGN;
     }
 #endif /* HAVE_LIBOPENDKIM */
@@ -264,17 +264,14 @@ bounce_snet(
     struct recipient *r;
     struct line *     l;
     char              buf[ 1024 ];
-    char *            return_address;
+    const char *      return_address = NULL;
 
     if ((bounce_env = env_create(simta_dir_fast, NULL, "", env)) == NULL) {
         return (NULL);
     }
 
-    if ((simta_rqueue_policy == RQUEUE_POLICY_JAIL) &&
-            (simta_bounce_jail == 0)) {
-        /* bounces must be able to get out of jail */
-        env_jail_set(bounce_env, ENV_JAIL_NO_CHANGE);
-    }
+    /* bounces must be able to get out of jail */
+    env_jail_set(bounce_env, ENV_JAIL_FREE);
 
     /* if the postmaster is a failed recipient,
      * we need to put the bounce in the dead queue.
@@ -288,11 +285,14 @@ bounce_snet(
         }
     }
 
-    return_address = env->e_mail;
-    if ((env->e_jail == ENV_JAIL_PRISONER) &&
-            (simta_jail_bounce_address != NULL)) {
-        return_address = simta_jail_bounce_address;
+    if (env->e_jail == ENV_JAIL_PRISONER) {
+        return_address = simta_config_str("deliver.queue.parole_officer");
     }
+
+    if (return_address == NULL) {
+        return_address = env->e_mail;
+    }
+
     if (env_recipient(bounce_env, return_address) != 0) {
         goto cleanup1;
     }

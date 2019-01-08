@@ -54,19 +54,17 @@ red_host_lookup(const char *hostname, bool create) {
     yasltolower(key);
     yasltrim(key, ".");
 
-    res = ucl_object_lookup(ucl_object_lookup(simta_config, "domain"), key);
+    res = ucl_object_ref(ucl_object_lookup(simta_config_obj("domain"), key));
 
     if ((res == NULL) && create) {
         res = ucl_object_new();
         ucl_object_insert_key(res,
-                ucl_object_copy(ucl_object_lookup_path(
-                        simta_config, "red_defaults.deliver")),
+                ucl_object_copy(simta_config_obj("defaults.red.deliver")),
                 "deliver", 0, false);
         ucl_object_insert_key(res,
-                ucl_object_copy(ucl_object_lookup_path(
-                        simta_config, "red_defaults.receive")),
+                ucl_object_copy(simta_config_obj("defaults.red.receive")),
                 "receive", 0, false);
-        domains = ucl_object_ref(ucl_object_lookup(simta_config, "domain"));
+        domains = ucl_object_ref(simta_config_obj("domain"));
         ucl_object_insert_key(domains, res, key, 0, true);
         ucl_object_unref(domains);
     }
@@ -74,7 +72,7 @@ red_host_lookup(const char *hostname, bool create) {
     if (res) {
         buf = ucl_object_tostring(
                 ucl_object_lookup_path(res, "deliver.jail.host"));
-        if ((strlen(buf) > 0) && (strcasecmp(buf, hostname) != 0)) {
+        if (buf && (strlen(buf) > 0) && (strcasecmp(buf, hostname) != 0)) {
             jail = red_host_lookup(buf, true);
             if (simta_ucl_toggle(jail, "deliver.punt", "enabled", false)) {
                 simta_debuglog(1, "Config: disabled punting for jail host %s",

@@ -10,11 +10,14 @@
 #include <sys/types.h>
 
 #include <netdb.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
 #include <unistd.h>
+
+#include <ucl.h>
 
 #ifdef HAVE_LIBSASL
 #include <sasl/sasl.h>
@@ -40,19 +43,27 @@ main(int argc, char *argv[]) {
     extern int          optind;
     extern char *       optarg;
     int                 c;
-    char *              server = NULL;
+    const char *        server = NULL;
+    const char *        port = "53";
     int                 rc;
     int                 err = 0;
-    int                 quiet = 0;
-    int                 nolog = 0;
+    bool                quiet = false;
+    bool                log = true;
     int                 exclusive = 0;
     int                 check_text = 0;
+    ucl_object_t *      config;
+    ucl_object_t *      list_config;
     struct addrinfo     hints;
     struct addrinfo *   ai;
     struct dnsl_result *list = NULL;
     struct timeval      tv_now;
 
-    while ((c = getopt(argc, argv, "dil:ns:tq")) != -1) {
+    /* Skip normal config parsing, we're just knocking up a list. */
+    simta_config = ucl_object_new();
+    config = ucl_object_typed_new(UCL_ARRAY);
+    ucl_object_insert_key(simta_config, config, simta_progname, 0, false);
+
+    while ((c = getopt(argc, argv, "dil:np:s:tq")) != -1) {
         switch (c) {
         case 'd':
             simta_debug++;
@@ -67,15 +78,24 @@ main(int argc, char *argv[]) {
             break;
 
         case 'l':
-            dnsl_add(simta_progname, DNSL_BLOCK, optarg, NULL);
+            list_config = ucl_object_new();
+            ucl_object_insert_key(list_config, ucl_object_fromstring(optarg),
+                    "list", 0, false);
+            ucl_object_insert_key(list_config, ucl_object_fromstring("report"),
+                    "action", 0, false);
+            ucl_array_append(config, list_config);
             break;
 
         case 'n':
-            nolog = 1;
+            log = false;
+            break;
+
+        case 'p':
+            port = optarg;
             break;
 
         case 'q':
-            quiet++;
+            quiet = true;
             break;
 
         case 's':
@@ -105,7 +125,7 @@ main(int argc, char *argv[]) {
         fprintf(stderr, "Usage: %s ", argv[ 0 ]);
         fprintf(stderr, "[ -dq ] ");
         fprintf(stderr, "[ -l dnsl-domain ] ");
-        fprintf(stderr, "[ -s server ] ");
+        fprintf(stderr, "[ -s server ] [ -p port ] ");
         fprintf(stderr, "([ -i ] address | -t text ) [...]\n");
         exit(EX_USAGE);
     }
@@ -115,23 +135,28 @@ main(int argc, char *argv[]) {
             perror("dnsr_new");
             exit(SIMRBL_EXIT_ERROR);
         }
-        if ((rc = dnsr_nameserver(simta_dnsr, server)) != 0) {
+        if ((rc = dnsr_nameserver_port(simta_dnsr, server, port)) != 0) {
             dnsr_perror(simta_dnsr, "dnsr_nameserver");
             exit(SIMRBL_EXIT_ERROR);
         }
         if (simta_debug > 1) {
-            fprintf(stderr, "using nameserver: %s\n", server);
+            fprintf(stderr, "using nameserver: %s:%s\n", server, port);
         }
     }
 
-    if (nolog == 0) {
+    if (log) {
         /* call simta_gettimeofday() to initialize simta_tv_now */
         simta_gettimeofday(&tv_now);
         simta_openlog(0, 0);
     }
 
-    if (simta_dnsl_chains == NULL) {
-        dnsl_add(simta_progname, DNSL_BLOCK, "mx-deny.dnsbl", NULL);
+    if (ucl_array_size(config) == 0) {
+        list_config = ucl_object_new();
+        ucl_object_insert_key(list_config,
+                ucl_object_fromstring("mx-deny.dnsbl"), "list", 0, false);
+        ucl_object_insert_key(list_config, ucl_object_fromstring("report"),
+                "action", 0, false);
+        ucl_array_append(config, list_config);
     }
 
     while ((optind < argc) && (list == NULL)) {
@@ -162,9 +187,8 @@ main(int argc, char *argv[]) {
         exit(SIMRBL_EXIT_NOT_BLOCKED);
     } else {
         if (!quiet)
-            printf("%s found in %s: %s (%s)\n", argv[ optind ],
-                    list->dnsl->dnsl_domain, list->dnsl_result,
-                    list->dnsl_reason);
+            printf("%s found in %s: %s (%s)\n", argv[ optind ], list->dnsl_list,
+                    list->dnsl_result, list->dnsl_reason);
         exit(SIMRBL_EXIT_BLOCKED);
     }
 }

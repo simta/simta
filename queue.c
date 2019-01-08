@@ -107,7 +107,7 @@ host_q_create_or_lookup(char *hostname) {
         hq->hq_hostname = yaslauto(hostname);
         yasltolower(hq->hq_hostname);
 
-        hq->hq_red = red_host_lookup(hostname, true);
+        hq->hq_red = ucl_object_ref(red_host_lookup(hostname, true));
 
         if (ucl_object_toboolean(ucl_object_lookup_path(
                     hq->hq_red, "deliver.bitbucket.enabled"))) {
@@ -123,7 +123,8 @@ host_q_create_or_lookup(char *hostname) {
                     ucl_object_toboolean(ucl_object_lookup_path(
                             hq->hq_red, "deliver.punt.enabled"))) {
                 hq->hq_status = HOST_SUPPRESSED;
-            } else if ((simta_rqueue_policy == RQUEUE_POLICY_SLOW) &&
+            } else if ((strcasecmp(simta_config_str("receive.queue.strategy"),
+                                "slow") == 0) &&
                        (simta_process_type == PROCESS_RECEIVE)) {
                 hq->hq_status = HOST_SUPPRESSED;
                 /* Suppress punting so that it will go to the slow queue */
@@ -569,7 +570,8 @@ hq_deliver_push(
         }
 
         /* if we're a jail, does this queue have any active mail? */
-    } else if ((simta_rqueue_policy == RQUEUE_POLICY_JAIL) &&
+    } else if ((strcasecmp(simta_config_str("receive.queue.strategy"),
+                        "jail") == 0) &&
                (hq->hq_entries == hq->hq_jail_envs)) {
         wait_last.tv_sec = simta_jail_seconds;
         if (hq->hq_last_launch.tv_sec == 0) {
@@ -581,10 +583,11 @@ hq_deliver_push(
         /* have we never launched this queue? */
     } else if (hq->hq_wait_last.tv_sec == 0) {
         wait_last.tv_sec = hq->hq_wait_min;
-        if (simta_rqueue_policy != RQUEUE_POLICY_FAST) {
-            next_launch.tv_sec = tv_now->tv_sec;
-        } else {
+        if (strcasecmp(simta_config_str("receive.queue.strategy"), "fast") ==
+                0) {
             next_launch.tv_sec = random() % hq->hq_wait_min + tv_now->tv_sec;
+        } else {
+            next_launch.tv_sec = tv_now->tv_sec;
         }
 
         /* is the queue leaky? */
@@ -675,6 +678,7 @@ void
 hq_free(struct host_q *hq_free) {
     if (hq_free) {
         hq_deliver_pop(hq_free);
+        ucl_object_unref(hq_free->hq_red);
         yaslfree(hq_free->hq_hostname);
         free(hq_free);
     }
@@ -999,7 +1003,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
     SNET *             snet_dfile = NULL;
     SNET *             snet_lock;
     char               dfile_fname[ MAXPATHLEN ];
-    ucl_object_t *     red;
     struct recipient **r_sort;
     struct recipient * remove;
     struct envelope *  env_deliver;
@@ -1008,11 +1011,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
     struct timespec    ts;
 
     memset(d, 0, sizeof(struct deliver));
-
-    if (simta_bitbucket > 0) {
-        ts.tv_sec = simta_bitbucket / 1000;
-        ts.tv_nsec = (simta_bitbucket % 1000) * 1000000;
-    }
 
     syslog(LOG_INFO, "Queue %s: delivering %d messages", deliver_q->hq_hostname,
             deliver_q->hq_entries);
@@ -1042,7 +1040,9 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
     while (deliver_q->hq_env_head != NULL) {
         env_deliver = deliver_q->hq_env_head;
 
-        if (simta_queue_policy == QUEUE_POLICY_SHUFFLE) {
+        if (strcasecmp(ucl_object_tostring(ucl_object_lookup_path(
+                               deliver_q->hq_red, "deliver.queue.strategy")),
+                    "shuffle") == 0) {
             for (shuffle = (random() % deliver_q->hq_entries); shuffle > 0;
                     shuffle--) {
                 env_deliver = env_deliver->e_hq_next;
@@ -1095,8 +1095,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
 
         switch (deliver_q->hq_status) {
         case HOST_LOCAL:
-            if ((simta_rqueue_policy == RQUEUE_POLICY_JAIL) &&
-                    (env_deliver->e_jail == ENV_JAIL_PRISONER)) {
+            if (env_deliver->e_jail == ENV_JAIL_PRISONER) {
                 syslog(LOG_INFO, "Deliver.remote env <%s>: jail",
                         d->d_env->e_id);
                 break;
@@ -1111,8 +1110,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
 
         case HOST_MX:
         case HOST_PUNT:
-            if ((simta_rqueue_policy == RQUEUE_POLICY_JAIL) &&
-                    (env_deliver->e_jail == ENV_JAIL_PRISONER)) {
+            if (env_deliver->e_jail == ENV_JAIL_PRISONER) {
                 syslog(LOG_INFO, "Deliver.remote env <%s>: jail",
                         d->d_env->e_id);
                 break;
@@ -1155,9 +1153,13 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
             break;
 
         case HOST_BITBUCKET:
+            simta_ucl_object_totimespec(
+                    ucl_object_lookup_path(
+                            deliver_q->hq_red, "deliver.bitbucket.delay"),
+                    &ts);
             syslog(LOG_WARNING,
-                    "Deliver.remote env <%s>: bitbucket in %d milliseconds",
-                    env_deliver->e_id, simta_bitbucket);
+                    "Deliver.remote env <%s>: bitbucket in %d.%06d seconds",
+                    env_deliver->e_id, ts.tv_sec, ts.tv_nsec / 1000);
             nanosleep(&ts, NULL);
             d->d_delivered = 1;
             d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
@@ -1591,9 +1593,7 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
                 syslog(LOG_INFO,
                         "Deliver.remote %s: disabling TLS and retrying",
                         hq->hq_hostname);
-                ucl_object_replace_key(
-                        ucl_object_lookup_path(hq->hq_red, "deliver.tls"),
-                        ucl_object_frombool(false), "enabled", 0, false);
+                simta_ucl_toggle(hq->hq_red, "deliver.tls", "enabled", false);
                 goto retry;
             } else if (r_smtp != SMTP_OK) {
                 goto smtp_cleanup;
@@ -1716,8 +1716,8 @@ next_dnsr_host_lookup(struct deliver *d, struct host_q *hq) {
 
 int
 get_outbound_dns(struct deliver *d, struct host_q *hq) {
-    int           i;
-    ucl_object_t *red;
+    int                 i;
+    const ucl_object_t *red;
 
     /*
      * RFC 5321 5.1 Locating the Target Host
@@ -2309,7 +2309,8 @@ queue_log_metrics(struct host_q *hq_schedule) {
         return;
     }
 
-    sprintf(linkname, "%s/etc/queue_schedule", simta_base_dir);
+    sprintf(linkname, "%s/etc/queue_schedule",
+            simta_config_str("core.base_dir"));
     sprintf(filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec);
 
     if ((fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664)) < 0) {

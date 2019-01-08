@@ -630,8 +630,7 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
 #ifdef HAVE_LIBSSL
     int               rc;
     int               tls_required = 0;
-    int               tls_cert_required = 0;
-    char *            ciphers;
+    const char *      ciphers;
     SSL_CTX *         ssl_ctx = NULL;
     const SSL_CIPHER *ssl_cipher;
 #endif /* HAVE_LIBSSL */

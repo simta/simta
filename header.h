@@ -1,6 +1,7 @@
 #ifndef SIMTA_HEADER_H
 #define SIMTA_HEADER_H
 
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "line_file.h"
@@ -45,7 +46,7 @@ char *token_dot_atom(char *);
 int   header_text(int, char *, struct receive_headers *, char **);
 int   header_check(struct receive_headers *, int);
 int   header_file_out(struct line_file *, FILE *);
-int   is_emailaddr(char *);
+bool  is_emailaddr(char *);
 int   correct_emailaddr(char **);
 int   rfc822_timestamp(char *);
 struct string_address *string_address_init(char *);

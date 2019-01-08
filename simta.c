@@ -55,7 +55,7 @@
 #include "embedded_config.h"
 #include "embedded_schema.h"
 
-static int simta_read_publicsuffix(void);
+static int simta_read_publicsuffix(const char *);
 
 
 /* global variables */
@@ -63,136 +63,95 @@ static int simta_read_publicsuffix(void);
 const char *malloc_conf = "xmalloc:true";
 #endif /* HAVE_JEMALLOC */
 
-struct dll_entry *simta_sender_list = NULL;
-struct dll_entry *simta_env_list = NULL;
-struct timeval    simta_tv_now = {0, 0};
-struct timeval    simta_log_tv;
-struct envelope * simta_env_queue = NULL;
-struct host_q *   simta_host_q = NULL;
-struct host_q *   simta_deliver_q = NULL;
-struct host_q *   simta_unexpanded_q = NULL;
-struct host_q *   simta_punt_q = NULL;
-ucl_object_t *    simta_red_host_default = NULL;
-struct proc_type *simta_proc_stab = NULL;
-ucl_object_t *    simta_config = NULL;
-int               simta_bounce_seconds = 259200;
-int               simta_jail_seconds = 14400;
-int               simta_proxy = 0;
-int               simta_proxy_timeout = 10;
-int               simta_submission_mode = SUBMISSION_MODE_MTA;
-int               simta_policy_tls = TLS_POLICY_DEFAULT;
-int               simta_policy_tls_cert = TLS_POLICY_DEFAULT;
-int               simta_wait_max = 80 * 60;
-int               simta_wait_min = 5 * 60;
-int               simta_bounce_jail = 0;
-int               simta_local_jail = 0;
-int               simta_sender_list_enable = 0;
-int               simta_mid_list_enable = 0;
-int               simta_command_read_entries = 10;
-int               simta_disk_read_entries = 10;
-int               simta_bitbucket = -1;
-int               simta_aggressive_delivery = 1;
-int               simta_aggressive_expansion = 1;
-int               simta_aggressive_receipt_max = 50;
-int               simta_queue_policy = QUEUE_POLICY_FIFO;
-int               simta_rqueue_policy = RQUEUE_POLICY_FAST;
-int               simta_punt_policy = PUNT_POLICY_NORMAL;
-int               simta_leaky_queue = 0;
-int               simta_listen_backlog = 64;
-int               simta_disk_cycle = 0;
-int               simta_global_connections_max = SIMTA_MAXCONNECTIONS;
-int               simta_global_connections = 0;
-int               simta_global_throttle_max = 0;
-int               simta_global_throttle_connections = 0;
-int               simta_global_throttle_sec = 1;
-struct timeval    simta_global_throttle_tv = {0, 0};
-int               simta_local_throttle_max = 0;
-int               simta_local_throttle_sec = 1;
-int               simta_local_connections_max = 0;
-int               simta_launch_limit = 10;
-int               simta_min_work_time = 60;
-int               simta_unexpanded_time = 60;
-int               simta_q_runner_local_max = 25;
-int               simta_q_runner_local = 0;
-int               simta_q_runner_slow_max = 250;
-int               simta_q_runner_slow = 0;
-int               simta_q_runner_receive_max = 0;
-int               simta_exp_level_max = 5;
-int               simta_process_type = 0;
-int               simta_filesystem_cleanup = 0;
-int               simta_smtp_extension = 0;
-int               simta_smtp_rcvbuf_min = 0;
-int               simta_smtp_rcvbuf_max;
-int               simta_strict_smtp_syntax = 0;
-int               simta_dns_auto_config = 0;
-int               simta_sync = 1;
-int               simta_max_received_headers = 100;
-int               simta_max_bounce_size = 524288;
-int               simta_banner_delay = 0;
-int               simta_banner_punishment = 0;
-int               simta_max_failed_rcpts = 0;
-int               simta_max_failed_senders = 0;
-int               simta_ignore_reverse = 0;
-int               simta_ignore_connect_in_reverse_errors = 0;
-int               simta_message_count = 0;
-int               simta_smtp_outbound_attempts = 0;
-int               simta_smtp_outbound_delivered = 0;
-int               simta_fast_files = 0;
-int               simta_smtp_punishment_mode = SMTP_MODE_TEMPFAIL;
-int               simta_smtp_default_mode = SMTP_MODE_NORMAL;
-int               simta_from_checking = 1;
-int               simta_smtp_tarpit_default = 120;
-int               simta_smtp_tarpit_connect = 0;
-int               simta_smtp_tarpit_mail = 0;
-int               simta_smtp_tarpit_rcpt = 0;
-int               simta_smtp_tarpit_data = 0;
-int               simta_smtp_tarpit_data_eof = 0;
-int               simta_debug = 1;
-int               simta_verbose = 0;
-int               simta_child_signal = 0;
+struct dll_entry *   simta_sender_list = NULL;
+struct dll_entry *   simta_env_list = NULL;
+struct timeval       simta_tv_now = {0, 0};
+struct timeval       simta_log_tv;
+struct envelope *    simta_env_queue = NULL;
+struct host_q *      simta_host_q = NULL;
+struct host_q *      simta_deliver_q = NULL;
+struct host_q *      simta_unexpanded_q = NULL;
+struct host_q *      simta_punt_q = NULL;
+const ucl_object_t * simta_red_host_default = NULL;
+struct proc_type *   simta_proc_stab = NULL;
+ucl_object_t *       simta_config = NULL;
+int                  simta_bounce_seconds = 259200;
+int                  simta_jail_seconds = 14400;
+int                  simta_submission_mode = SUBMISSION_MODE_MTA;
+int                  simta_command_read_entries = 10;
+int                  simta_disk_read_entries = 10;
+int                  simta_aggressive_delivery = 1;
+int                  simta_aggressive_expansion = 1;
+int                  simta_aggressive_receipt_max = 50;
+int                  simta_leaky_queue = 0;
+int                  simta_listen_backlog = 64;
+int                  simta_disk_cycle = 0;
+int                  simta_global_connections_max = SIMTA_MAXCONNECTIONS;
+int                  simta_global_connections = 0;
+int                  simta_global_throttle_max = 0;
+int                  simta_global_throttle_connections = 0;
+int                  simta_global_throttle_sec = 1;
+struct timeval       simta_global_throttle_tv = {0, 0};
+int                  simta_local_throttle_max = 0;
+int                  simta_local_throttle_sec = 1;
+int                  simta_local_connections_max = 0;
+int                  simta_launch_limit = 10;
+int                  simta_min_work_time = 60;
+int                  simta_unexpanded_time = 60;
+int                  simta_q_runner_local_max = 25;
+int                  simta_q_runner_local = 0;
+int                  simta_q_runner_slow_max = 250;
+int                  simta_q_runner_slow = 0;
+int                  simta_q_runner_receive_max = 0;
+int                  simta_exp_level_max = 5;
+enum simta_proc_type simta_process_type = PROCESS_DEFAULT;
+int                  simta_filesystem_cleanup = 0;
+int                  simta_smtp_extension = 0;
+int                  simta_smtp_rcvbuf_min = 0;
+int                  simta_smtp_rcvbuf_max;
+int                  simta_strict_smtp_syntax = 0;
+int                  simta_sync = 1;
+int                  simta_max_received_headers = 100;
+int                  simta_max_bounce_size = 524288;
+int                  simta_message_count = 0;
+int                  simta_smtp_outbound_attempts = 0;
+int                  simta_smtp_outbound_delivered = 0;
+int                  simta_fast_files = 0;
+int                  simta_from_checking = 1;
+int                  simta_smtp_tarpit_default = 120;
+int                  simta_smtp_tarpit_connect = 0;
+int                  simta_smtp_tarpit_mail = 0;
+int                  simta_smtp_tarpit_rcpt = 0;
+int                  simta_smtp_tarpit_data = 0;
+int                  simta_smtp_tarpit_data_eof = 0;
+int                  simta_debug = 1;
+int                  simta_child_signal = 0;
 #ifdef HAVE_LIBSSL
 int simta_tls = 0;
 #endif /* HAVE_LIBSSL */
-int simta_sasl = SIMTA_SASL_OFF;
 #ifdef HAVE_LIBSASL
 yastr simta_sasl_domain = NULL;
 #endif /* HAVE_LIBSASL */
-char *simta_port_smtp = "25";
-char *simta_port_submission = "587";
-int   simta_service_smtp = 1;
-int   simta_service_submission = 0;
 #ifdef HAVE_LIBSSL
-char *simta_port_smtps = "465";
-int   simta_service_smtps = 0;
 char *simta_checksum_algorithm = NULL;
 int   simta_checksum_body = 1;
 #endif /* HAVE_LIBSSL */
 int               simta_max_message_size = 0;
 int               simta_outbound_connection_msg_max = 0;
-char *            simta_mail_filter = NULL;
-int               simta_filter_trusted = 1;
-int               simta_spf = SPF_POLICY_ON;
-int               simta_dmarc = DMARC_POLICY_ON;
-int               simta_auth_results = 1;
 char *            simta_data_url = NULL;
-char *            simta_reverse_url = NULL;
 char *            simta_libwrap_url = NULL;
 yastr             simta_punt_host = NULL;
 yastr             simta_jail_host = NULL;
 char *            simta_jail_bounce_address = NULL;
 yastr             simta_postmaster = NULL;
-yastr             simta_domain = NULL;
-char              simta_subaddr_separator = '\0';
 struct dll_entry *simta_dnsl_chains = NULL;
 int               simta_authz_default = DNSL_ACCEPT;
 char *            simta_queue_filter = NULL;
-char *            simta_dir_dead = NULL;
-char *            simta_dir_local = NULL;
-char *            simta_dir_slow = NULL;
-char *            simta_dir_fast = NULL;
-char *            simta_dir_command = NULL;
-char *            simta_base_dir = SIMTA_BASE_DIR;
-char *            simta_file_pid = SIMTA_FILE_PID;
+yastr             simta_dir_dead = NULL;
+yastr             simta_dir_local = NULL;
+yastr             simta_dir_slow = NULL;
+yastr             simta_dir_fast = NULL;
+yastr             simta_dir_command = NULL;
 yastr             simta_hostname;
 char              simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
 DNSR *            simta_dnsr = NULL;
@@ -209,7 +168,6 @@ char *simta_file_private_key = "cert/cert.pem";
 #endif /* HAVE_LIBSSL */
 yastr             simta_seen_before_domain = NULL;
 struct dll_entry *simta_publicsuffix_list = NULL;
-char *            simta_file_publicsuffix = NULL;
 
 /* SMTP RECEIVE & DELIVER TIMERS */
 int simta_inbound_accepted_message_timer = -1;
@@ -228,28 +186,8 @@ int simta_outbound_data_session_timer = 0;
 int simta_outbound_ssl_connect_timer = 300;
 #endif /* HAVE_LIBSSL */
 
-yastr simta_authres_domain = NULL;
-int   simta_arc = 0;
-#ifdef HAVE_LIBOPENARC
-yastr simta_arc_domain = NULL;
-char *simta_arc_key = NULL;
-char *simta_arc_selector = "simta-arc";
-#endif /* HAVE_LIBOPENARC */
+struct simta_statsd *simta_statsd_handle = NULL;
 
-#ifdef HAVE_LIBOPENDKIM
-int   simta_dkim_verify = 1;
-int   simta_dkim_sign = DKIMSIGN_POLICY_OFF;
-char *simta_dkim_key = NULL;
-char *simta_dkim_selector = "simta";
-yastr simta_dkim_domain = NULL;
-#else  /* HAVE_LIBOPENDKIM */
-int simta_dkim_verify = 0;
-#endif /* HAVE_LIBOPENDKIM */
-
-int   simta_srs = SRS_POLICY_OFF;
-int   simta_srs_maxage = 10;
-yastr simta_srs_domain = NULL;
-char *simta_srs_secret = NULL;
 
 void
 panic(const char *message) {
@@ -342,37 +280,18 @@ simta_debuglog(int level, const char *format, ...) {
 }
 
 
-char *
-simta_sender(void) {
-    static char *  sender = NULL;
-    struct passwd *pw;
-
-    if (sender == NULL) {
-        if ((pw = getpwuid(getuid())) == NULL) {
-            perror("getpwuid");
-            return (NULL);
-        }
-
-        sender = malloc(strlen(pw->pw_name) + yasllen(simta_domain) + 2);
-        sprintf(sender, "%s@%s", pw->pw_name, simta_domain);
-    }
-
-    return (sender);
-}
-
-
 int
-simta_read_config(const char *fname) {
+simta_read_config(const char *fname, const char *extra) {
     char                    hostname[ DNSR_MAX_HOSTNAME + 1 ];
     struct ucl_parser *     parser;
     ucl_object_t *          obj;
-    ucl_object_t *          i_obj;
-    ucl_object_t *          j_obj;
+    const ucl_object_t *    i_obj;
+    const ucl_object_t *    j_obj;
     ucl_object_iter_t       i, j;
     struct ucl_schema_error schema_err;
     const char *            err;
     const char *            buf;
-    char                    path[ MAXPATHLEN + 1 ];
+    yastr                   path;
     struct timeval          tv_now;
 
     /* Parse the hard-coded defaults */
@@ -383,10 +302,9 @@ simta_read_config(const char *fname) {
 
     if (!ucl_parser_add_string(parser, SIMTA_CONFIG_BASE, 0)) {
         syslog(LOG_ERR, "simta_read_config: base UCL parsing failed");
-        return (-1);
-    }
-    if ((err = ucl_parser_get_error(parser)) != NULL) {
-        syslog(LOG_ERR, "simta_read_config: libucl error: %s", err);
+        if ((err = ucl_parser_get_error(parser)) != NULL) {
+            syslog(LOG_ERR, "simta_read_config: libucl error: %s", err);
+        }
         return (-1);
     }
 
@@ -394,60 +312,95 @@ simta_read_config(const char *fname) {
 
     ucl_parser_free(parser);
 
+    /* Set dynamic defaults */
+    if (gethostname(hostname, DNSR_MAX_HOSTNAME) != 0) {
+        perror("gethostname");
+        return (-1);
+    }
+    simta_hostname = yaslauto(hostname);
+
+    obj = ucl_object_ref(simta_config_obj("core"));
+    ucl_object_insert_key(
+            obj, ucl_object_fromstring(hostname), "masquerade", 0, false);
+    ucl_object_unref(obj);
+
+    if (fname == NULL) {
+        fname = "/etc/simta.conf";
+        if (access(fname, F_OK) != 0) {
+            syslog(LOG_INFO,
+                    "Config: skipping file parsing: default config %s doesn't "
+                    "exist",
+                    fname);
+            fname = NULL;
+        }
+    }
+
     /* Parse the config file */
-    simta_debuglog(2, "simta_read_config: reading %s", fname);
-    parser = ucl_parser_new(
-            UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
+    if (fname) {
+        parser = ucl_parser_new(
+                UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
 
-    if (!ucl_parser_add_file(parser, fname)) {
-        syslog(LOG_ERR, "simta_read_config: UCL parsing failed");
-        return (-1);
-    }
-    if ((err = ucl_parser_get_error(parser)) != NULL) {
-        syslog(LOG_ERR, "simta_read_config: libucl error: %s", err);
-        return (-1);
+        ucl_parser_set_filevars(parser, fname, false);
+        if (!ucl_parser_add_file(parser, fname)) {
+            syslog(LOG_ERR, "simta_read_config: UCL parsing failed");
+            if ((err = ucl_parser_get_error(parser)) != NULL) {
+                syslog(LOG_ERR, "simta_read_config: libucl error: %s", err);
+            }
+            return (-1);
+        }
+
+        ucl_object_merge(simta_config, ucl_parser_get_object(parser), false);
+        ucl_parser_free(parser);
     }
 
-    ucl_object_merge(simta_config, ucl_parser_get_object(parser), false);
-    ucl_parser_free(parser);
+    /* Add extra config */
+    if (extra) {
+        simta_debuglog(1, "Parsing extra config from string: %s", extra);
+        parser = ucl_parser_new(
+                UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
+        if (!ucl_parser_add_string(parser, extra, 0)) {
+            syslog(LOG_ERR, "simta_read_config: extra UCL parsing failed: %s",
+                    ucl_parser_get_error(parser));
+            return (-1);
+        }
+        ucl_object_merge(simta_config, ucl_parser_get_object(parser), false);
+        ucl_parser_free(parser);
+    }
 
     /* Populate rule defaults. There's probably a more UCL-y way to do this,
      * but I don't really want to get into macros.
      */
-    i = ucl_object_iterate_new(ucl_object_lookup(simta_config, "domain"));
+    i = ucl_object_iterate_new(simta_config_obj("domain"));
     while ((i_obj = ucl_object_iterate_safe(i, false)) != NULL) {
-        /* FIXME: should probably be a loop or a function */
-        obj = ucl_object_copy(
-                ucl_object_lookup_path(simta_config, "red_defaults.deliver"));
-        ucl_object_merge(obj, ucl_object_lookup(i_obj, "deliver"), false);
-        ucl_object_replace_key(i_obj, obj, "deliver", 0, false);
-
-        obj = ucl_object_copy(
-                ucl_object_lookup_path(simta_config, "red_defaults.receive"));
-        ucl_object_merge(obj, ucl_object_lookup(i_obj, "receive"), false);
-        ucl_object_replace_key(i_obj, obj, "receive", 0, false);
+        simta_ucl_merge_defaults(i_obj, "defaults.red", "receive");
+        simta_ucl_merge_defaults(i_obj, "defaults.red", "deliver");
 
         j = ucl_object_iterate_new(ucl_object_lookup(i_obj, "rule"));
         while ((j_obj = ucl_object_iterate_safe(j, false)) != NULL) {
             if ((buf = ucl_object_tostring(ucl_object_lookup(j_obj, "type"))) !=
                     NULL) {
-                obj = ucl_object_copy(ucl_object_lookup(
-                        ucl_object_lookup(simta_config, "red_defaults"), buf));
-                ucl_object_merge(obj, j_obj, false);
-                if (ucl_object_lookup(obj, "associated_domain") == NULL) {
+                simta_ucl_merge_defaults(j_obj, "defaults.red_rule", "receive");
+                simta_ucl_merge_defaults(j_obj, "defaults.red_rule", "expand");
+                simta_ucl_merge_defaults(j_obj, "defaults.red_rule", buf);
+                if (ucl_object_lookup(j_obj, "associated_domain") == NULL) {
+                    obj = ucl_object_ref(j_obj);
                     ucl_object_insert_key(obj,
                             ucl_object_fromstring(ucl_object_key(i_obj)),
                             "associated_domain", 0, false);
+                    ucl_object_unref(obj);
                 }
-                ucl_object_unref(ucl_array_replace_index(
-                        ucl_object_lookup(i_obj, "rule"), obj,
-                        ucl_array_index_of(
-                                ucl_object_lookup(i_obj, "rule"), j_obj)));
             }
         }
         ucl_object_iterate_free(j);
     }
     ucl_object_iterate_free(i);
+
+    /* Set up simpler defaults */
+    simta_ucl_default("receive.srs.domain", "core.masquerade");
+    simta_ucl_default("receive.auth.results.domain", "core.masquerade");
+    simta_ucl_default("deliver.dkim.domain", "core.masquerade");
+    simta_ucl_default("receive.arc.domain", "deliver.dkim.domain");
+    simta_ucl_default("deliver.poison.slug", "core.masquerade");
 
     /* Validate the config */
     parser = ucl_parser_new(UCL_PARSER_DEFAULT);
@@ -472,94 +425,89 @@ simta_read_config(const char *fname) {
 
     ucl_parser_free(parser);
 
+    /* FIXME: should generate/check LDAP configs now */
+
     if (simta_gettimeofday(&tv_now) != 0) {
         return (-1);
     }
 
     srandom(tv_now.tv_usec * tv_now.tv_sec * getpid());
 
-    simta_debug = ucl_object_toint(
-            ucl_object_lookup_path(simta_config, "core.debug_level"));
-
-    /* Set up simta_hostname */
-    if (gethostname(hostname, DNSR_MAX_HOSTNAME) != 0) {
-        perror("gethostname");
-        return (-1);
-    }
-    simta_hostname = yaslauto(hostname);
-
-    if (!simta_domain) {
-        /* simta_domain defaults to simta_hostname */
-        simta_domain = simta_hostname;
-    }
-
-    if (!simta_seen_before_domain) {
-        /* simta_seen_before_domain defaults to simta_domain */
-        simta_seen_before_domain = simta_domain;
-    }
-
-    if (!simta_srs_domain) {
-        simta_srs_domain = simta_domain;
-    }
-
-    if (!simta_authres_domain) {
-        simta_authres_domain = simta_domain;
-    }
-
-#ifdef HAVE_LIBOPENDKIM
-    if (!simta_dkim_domain) {
-        simta_dkim_domain = simta_domain;
-    }
-#endif /* HAVE_LIBOPENDKIM */
-
-#ifdef HAVE_LIBOPENARC
-    if (!simta_arc_domain) {
-#ifdef HAVE_LIBOPENDKIM
-        simta_arc_domain = simta_dkim_domain;
-#else  /* HAVE_LIBOPENDKIM */
-        simta_arc_domain = simta_domain;
-#endif /* HAVE_LIBOPENDKIM */
-    }
-#endif /* HAVE_LIBOPENARC */
+    simta_debug = simta_config_int("core.debug_level");
 
     simta_postmaster = yaslcatyasl(yaslauto("postmaster@"), simta_hostname);
 
     /* FIXME: 'localhost' handling, default RED actions */
-    simta_red_host_default = red_host_lookup(simta_hostname, true);
+    simta_red_host_default = red_host_lookup(hostname, true);
 
-    /* check base_dir before using it */
-    if (simta_base_dir == NULL) {
-        fprintf(stderr, "No base directory defined.\n");
-        return (-1);
-    }
+    buf = simta_config_str("core.base_dir");
 
     /* set up data dir pathnames */
-    sprintf(path, "%s/%s", simta_base_dir, "fast");
-    simta_dir_fast = strdup(path);
+    path = yaslcatlen(yaslauto(buf), "/", 1);
 
-    sprintf(path, "%s/%s", simta_base_dir, "slow");
-    simta_dir_slow = strdup(path);
+    simta_dir_fast = yaslcat(yasldup(path), "fast");
+    simta_dir_slow = yaslcat(yasldup(path), "slow");
+    simta_dir_dead = yaslcat(yasldup(path), "dead");
+    simta_dir_local = yaslcat(yasldup(path), "local");
+    simta_dir_command = yaslcat(yasldup(path), "command");
 
-    sprintf(path, "%s/%s", simta_base_dir, "dead");
-    simta_dir_dead = strdup(path);
+    yaslfree(path);
 
-    sprintf(path, "%s/%s", simta_base_dir, "local");
-    simta_dir_local = strdup(path);
-
-    sprintf(path, "%s/%s", simta_base_dir, "command");
-    simta_dir_command = strdup(path);
+    /* Parse PSL */
+    /* FIXME: should this parse to a UCL object instead of a dll? */
+    if (simta_config_bool("receive.dmarc.enabled") &&
+            ((buf = simta_config_str("receive.dmarc.public_suffix_file")) !=
+                    NULL)) {
+        simta_read_publicsuffix(buf);
+    }
 
     return (0);
 }
 
-int
+void
+simta_dump_config(void) {
+    printf("%s\n", ucl_object_emit(simta_config, UCL_EMIT_CONFIG));
+}
+
+const ucl_object_t *
+simta_config_obj(const char *key) {
+    const ucl_object_t *val;
+
+    if ((val = ucl_object_lookup_path(simta_config, key)) == NULL) {
+        simta_debuglog(2, "Config: request for nonexistent key %s", key);
+    }
+
+    return val;
+}
+
+/* FIXME: these should probably use safe conversions */
+bool
+simta_config_bool(const char *key) {
+    return ucl_object_toboolean(simta_config_obj(key));
+}
+
+int64_t
+simta_config_int(const char *key) {
+    return ucl_object_toint(simta_config_obj(key));
+}
+
+const char *
+simta_config_str(const char *key) {
+    const ucl_object_t *val;
+    if ((val = simta_config_obj(key)) == NULL) {
+        return NULL;
+    }
+    return ucl_object_tostring_forced(val);
+}
+
+enum simta_charset
 simta_check_charset(const char *str) {
     const unsigned char *c;
     size_t               charlen;
     int                  i;
     uint32_t             u;
     uint8_t              mask;
-    int                  ret = SIMTA_CHARSET_ASCII;
+    enum simta_charset   ret = SIMTA_CHARSET_ASCII;
 
     for (c = (unsigned char *)str; *c != '\0'; c++) {
         if (*c < 0x80) {
@@ -606,7 +554,7 @@ simta_check_charset(const char *str) {
 }
 
 static int
-simta_read_publicsuffix(void) {
+simta_read_publicsuffix(const char *fname) {
     SNET *            snet = NULL;
     char *            line, *p;
     struct dll_entry *leaf;
@@ -615,70 +563,67 @@ simta_read_publicsuffix(void) {
 #endif /* HAVE_LIBIDN2 */
 
     /* Set up public suffix list */
-    if (simta_file_publicsuffix != NULL) {
-        if ((snet = snet_open(simta_file_publicsuffix, O_RDONLY, 0,
-                     1024 * 1024)) == NULL) {
-            fprintf(stderr, "simta_read_publicsuffix: open %s: %m",
-                    simta_file_publicsuffix);
-            return (1);
+    if ((snet = snet_open(fname, O_RDONLY, 0, 1024 * 1024)) == NULL) {
+        fprintf(stderr, "simta_read_publicsuffix: open %s: %s", fname,
+                strerror(errno));
+        return (1);
+    }
+    while ((line = snet_getline(snet, NULL)) != NULL) {
+        /* Each line is only read up to the first whitespace; entire
+         * lines can also be commented using //.
+         */
+        if ((*line == '\0') || isspace(*line) ||
+                (strncmp(line, "//", 2) == 0)) {
+            continue;
         }
-        while ((line = snet_getline(snet, NULL)) != NULL) {
-            /* Each line is only read up to the first whitespace; entire
-             * lines can also be commented using //.
-             */
-            if ((*line == '\0') || isspace(*line) ||
-                    (strncmp(line, "//", 2) == 0)) {
-                continue;
-            }
-            for (p = line; ((*p != '\0') && (!isspace(*p))); p++)
-                ;
-            *p = '\0';
-            leaf = NULL;
+        for (p = line; ((*p != '\0') && (!isspace(*p))); p++)
+            ;
+        *p = '\0';
+        leaf = NULL;
 
 
 #ifdef HAVE_LIBIDN2
-            if (simta_check_charset(line) == SIMTA_CHARSET_UTF8) {
-                if (idn2_to_ascii_8z(line, &idna,
-                            IDN2_NONTRANSITIONAL | IDN2_NFC_INPUT) == IDN2_OK) {
-                    line = idna;
-                }
+        if (simta_check_charset(line) == SIMTA_CHARSET_UTF8) {
+            if (idn2_to_ascii_8z(line, &idna,
+                        IDN2_NONTRANSITIONAL | IDN2_NFC_INPUT) == IDN2_OK) {
+                line = idna;
             }
+        }
 #endif /* HAVE_LIBIDN2 */
 
-            while (*line != '\0') {
-                if ((p = strrchr(line, '.')) == NULL) {
-                    p = line;
-                } else {
-                    *p = '\0';
-                    p++;
-                }
-
-                if (leaf == NULL) {
-                    leaf = dll_lookup_or_create(&simta_publicsuffix_list, p);
-                } else {
-                    leaf = dll_lookup_or_create(
-                            (struct dll_entry **)&leaf->dll_data, p);
-                }
-
+        while (*line != '\0') {
+            if ((p = strrchr(line, '.')) == NULL) {
+                p = line;
+            } else {
                 *p = '\0';
+                p++;
             }
 
-            /* Formal algorithm from https://publicsuffix.org/list/
-             * If no rules match, the prevailing rule is "*".
-             */
-            leaf = dll_lookup_or_create(&simta_publicsuffix_list, "*");
+            if (leaf == NULL) {
+                leaf = dll_lookup_or_create(&simta_publicsuffix_list, p);
+            } else {
+                leaf = dll_lookup_or_create(
+                        (struct dll_entry **)&leaf->dll_data, p);
+            }
+
+            *p = '\0';
+        }
+
+        /* Formal algorithm from https://publicsuffix.org/list/
+         * If no rules match, the prevailing rule is "*".
+         */
+        leaf = dll_lookup_or_create(&simta_publicsuffix_list, "*");
 
 #ifdef HAVE_LIBIDN2
-            if (idna) {
-                free(idna);
-                idna = NULL;
-            }
+        if (idna) {
+            free(idna);
+            idna = NULL;
+        }
 #endif /* HAVE_LIBIDN2 */
-        }
-        if (snet_close(snet) != 0) {
-            perror("snet_close");
-            return (1);
-        }
+    }
+    if (snet_close(snet) != 0) {
+        perror("snet_close");
+        return (1);
     }
 
     return (0);
@@ -831,8 +776,33 @@ simta_waitpid(pid_t child, int *childstatus, int options) {
     return (retval);
 }
 
+int
+simta_signal_server(int signal) {
+    const char *pid_file;
+    yastr       pid_string;
+    int         pid;
+
+    pid_file = ucl_object_tostring(simta_config_obj("core.pid_file"));
+    pid_string = simta_slurp(pid_file);
+    sscanf(pid_string, "%d\n", &pid);
+
+    if (pid <= 0) {
+        syslog(LOG_NOTICE, "simta_signal_server: illegal pid %d in %s", pid,
+                pid_file);
+        return (1);
+    }
+
+    if (kill(pid, signal) < 0) {
+        syslog(LOG_NOTICE, "Syserror: simta_signal_server %d %d: %m", signal,
+                pid);
+        return (1);
+    }
+
+    return (0);
+}
+
 yastr
-simta_slurp(char *path) {
+simta_slurp(const char *path) {
     SNET *  snet;
     yastr   contents;
     ssize_t chunk;

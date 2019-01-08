@@ -38,65 +38,28 @@
 #include "header.h"
 #include "queue.h"
 
-
-int
-env_jail_set(struct envelope *e, int val) {
-    char *s;
-
-    if (simta_debug > 2) {
-        switch (val) {
-        default:
-            s = "Unknown";
-            break;
-
-        case ENV_JAIL_NO_CHANGE:
-            s = "JAIL_NO_CHANGE";
-            break;
-
-        case ENV_JAIL_PAROLEE:
-            s = "JAIL_PAROLEE";
-            break;
-
-        case ENV_JAIL_PRISONER:
-            s = "JAIL_PRISONER";
-            break;
-        }
-
-        simta_debuglog(3, "Jail %s: value %d (%s)", e->e_id, val, s);
-    }
-
+/* FIXME: this should be collapsed into env_jail_status */
+void
+env_jail_set(struct envelope *e, enum simta_jail_status val) {
+    simta_debuglog(3, "Jail %s: value %d", e->e_id, val);
     e->e_jail = val;
-
-    return (0);
 }
 
-int
-env_jail_status(struct envelope *env, int jail) {
+bool
+env_jail_status(struct envelope *env, enum simta_jail_status jail) {
     SNET *snet_lock;
     int   rc;
 
     if (env == NULL) {
-        return (0);
-    }
-
-    if ((jail != ENV_JAIL_PRISONER) && (jail != ENV_JAIL_PAROLEE)) {
-        syslog(LOG_ERR, "Envelope.jail env <%s>: illegal jail code: %d",
-                env->e_id, jail);
-        return (1);
-    }
-
-    if ((env->e_jail != ENV_JAIL_PRISONER) &&
-            (env->e_jail != ENV_JAIL_PAROLEE)) {
-        syslog(LOG_ERR, "Envelope.jail env <%s>: illegal env code: %d",
-                env->e_id, env->e_jail);
-        return (1);
+        return (true);
     }
 
     if (env->e_jail == jail) {
-        return (0);
+        return (true);
     }
 
     if (env->e_hq != NULL) {
+        /* FIXME: this accounting looks hinky */
         if (jail == ENV_JAIL_PRISONER) {
             env->e_hq->hq_jail_envs--;
         } else {
@@ -105,7 +68,7 @@ env_jail_status(struct envelope *env, int jail) {
     }
 
     if (env_read(READ_JAIL_INFO, env, &snet_lock) != 0) {
-        return (0);
+        return (true);
     }
 
     env_jail_set(env, jail);
@@ -117,7 +80,7 @@ env_jail_status(struct envelope *env, int jail) {
     }
 
     if (rc != 0) {
-        return (1);
+        return (false);
     }
 
     env_rcpt_free(env);
@@ -126,7 +89,7 @@ env_jail_status(struct envelope *env, int jail) {
             (jail == ENV_JAIL_PRISONER) ? "immured in durance vile"
                                         : "paroled");
 
-    return (0);
+    return (true);
 }
 
 
@@ -205,7 +168,8 @@ env_create(const char *dir, const char *id, const char *e_mail,
         env->e_dinode = parent->e_dinode;
         env->e_n_exp_level = parent->e_n_exp_level + 1;
         env_jail_set(env, parent->e_jail);
-    } else if (simta_rqueue_policy == RQUEUE_POLICY_JAIL) {
+    } else if (strcasecmp(simta_config_str("receive.queue.strategy"), "jail") ==
+               0) {
         env_jail_set(env, ENV_JAIL_PRISONER);
     }
 
@@ -371,39 +335,32 @@ env_free(struct envelope *env) {
 void
 env_stdout(struct envelope *e) {
     struct recipient *r;
+    ucl_object_t *    repr;
+    ucl_object_t *    rcpts;
 
-    if (e->e_id == NULL) {
-        printf("Message-Id NULL\n");
-    } else {
-        printf("Message-Id:\t%s\n", e->e_id);
-    }
+    /* Build the output object */
+    repr = ucl_object_new();
+    ucl_object_insert_key(
+            repr, ucl_object_fromstring(e->e_id), "envelope_id", 0, false);
+    ucl_object_insert_key(
+            repr, ucl_object_fromstring(e->e_hostname), "hostname", 0, false);
+    ucl_object_insert_key(
+            repr, ucl_object_fromstring(e->e_mail), "sender", 0, false);
+    ucl_object_insert_key(
+            repr, ucl_object_fromstring(e->e_dir), "directory", 0, false);
 
-    if (e->e_hostname == NULL) {
-        printf("expanded NULL\n");
-    } else {
-        printf("expanded %s\n", e->e_hostname);
-    }
-
-    if (e->e_mail != NULL) {
-        printf("mail:\t%s\n", e->e_mail);
-    } else {
-        printf("mail NULL\n");
-    }
-
-    if (e->e_dir != NULL) {
-        printf("dir:\t%s\n", e->e_dir);
-    } else {
-        printf("dir NULL\n");
-    }
-
+    rcpts = ucl_object_typed_new(UCL_ARRAY);
+    ucl_object_insert_key(repr, rcpts, "recipients", 0, false);
     for (r = e->e_rcpt; r != NULL; r = r->r_next) {
-        printf("rcpt:\t%s\n", r->r_rcpt);
+        ucl_array_append(rcpts, ucl_object_fromstring(r->r_rcpt));
     }
+
+    printf("%s\n", ucl_object_emit(repr, UCL_EMIT_JSON));
 }
 
 
 int
-env_recipient(struct envelope *e, char *addr) {
+env_recipient(struct envelope *e, const char *addr) {
     struct recipient *r;
 
     r = calloc(1, sizeof(struct recipient));
@@ -699,7 +656,7 @@ env_dkim_sign(struct envelope *env) {
 
     sprintf(df, "%s/D%s", env->e_dir, env->e_id);
 
-    if ((key = simta_slurp(simta_dkim_key)) == NULL) {
+    if ((key = simta_slurp(simta_config_str("deliver.dkim.key"))) == NULL) {
         return (NULL);
     }
 
@@ -728,10 +685,11 @@ env_dkim_sign(struct envelope *env) {
     }
 
     if ((dkim = dkim_sign(libhandle, (unsigned char *)(env->e_id), NULL,
-                 (unsigned char *)key, (unsigned char *)simta_dkim_selector,
-                 (unsigned char *)simta_dkim_domain, DKIM_CANON_RELAXED,
-                 DKIM_CANON_RELAXED, DKIM_SIGN_RSASHA256, -1, &result)) ==
-            NULL) {
+                 (unsigned char *)key,
+                 (unsigned char *)simta_config_str("deliver.dkim.selector"),
+                 (unsigned char *)simta_config_str("deliver.dkim.domain"),
+                 DKIM_CANON_RELAXED, DKIM_CANON_RELAXED, DKIM_SIGN_RSASHA256,
+                 -1, &result)) == NULL) {
         syslog(LOG_NOTICE, "Liberror: env_dkim_sign dkim_sign: %s",
                 dkim_getresultstr(result));
         goto error;
@@ -829,21 +787,17 @@ env_efile(struct envelope *e) {
         env_fsync(e->e_dir);
     }
 
-    if (simta_mid_list_enable != 0) {
-        if ((e_dll = dll_lookup_or_create(&simta_env_list, e->e_id)) == NULL) {
-            return (1);
-        }
-
-        if (e_dll->dll_data == NULL) {
-            e_dll->dll_data = e;
-            e->e_env_list_entry = e_dll;
-        }
+    if ((e_dll = dll_lookup_or_create(&simta_env_list, e->e_id)) == NULL) {
+        return (1);
     }
 
-    if (simta_sender_list_enable != 0) {
-        if (sender_list_add(e) != 0) {
-            return (1);
-        }
+    if (e_dll->dll_data == NULL) {
+        e_dll->dll_data = e;
+        e->e_env_list_entry = e_dll;
+    }
+
+    if (sender_list_add(e) != 0) {
+        return (1);
     }
 
     return (0);
@@ -1130,7 +1084,9 @@ env_read(int mode, struct envelope *env, SNET **s_lock) {
             break;
 
         case READ_QUEUE_INFO:
-            env_jail_set(env, jail);
+            if (jail == ENV_JAIL_PRISONER) {
+                env_jail_set(env, ENV_JAIL_PRISONER);
+            }
             break;
         }
     }
@@ -1266,7 +1222,7 @@ env_read(int mode, struct envelope *env, SNET **s_lock) {
         }
     }
 
-    if ((simta_mid_list_enable != 0) && (ret == 0)) {
+    if (ret == 0) {
         if ((e_dll = dll_lookup_or_create(&simta_env_list, env->e_id)) ==
                 NULL) {
             return (1);
@@ -1276,9 +1232,7 @@ env_read(int mode, struct envelope *env, SNET **s_lock) {
             e_dll->dll_data = env;
             env->e_env_list_entry = e_dll;
         }
-    }
 
-    if ((simta_sender_list_enable != 0) && (ret == 0)) {
         if (sender_list_add(env) != 0) {
             return (1);
         }

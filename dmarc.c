@@ -13,18 +13,16 @@
 #include "dns.h"
 #include "simta.h"
 
-static int                 dmarc_alignment(const char *, const char *, int);
+static bool dmarc_alignment(const char *, const char *, enum simta_dmarc_align);
 static struct dnsr_result *dmarc_lookup_record(const char *);
-static yastr               dmarc_orgdomain(const char *);
-static int                 dmarc_parse_record(struct dmarc *, yastr);
-static int  dmarc_parse_result(struct dmarc *, struct dnsr_result *);
-static void dmarc_policy_reset(struct dmarc *);
+static simta_result        dmarc_parse_record(struct dmarc *, yastr);
+static simta_result dmarc_parse_result(struct dmarc *, struct dnsr_result *);
+static void         dmarc_policy_reset(struct dmarc *);
 
-int
+void
 dmarc_init(struct dmarc **d) {
     *d = calloc(1, sizeof(struct dmarc));
     dmarc_reset(*d);
-    return (0);
 }
 
 static void
@@ -79,9 +77,9 @@ dmarc_free(struct dmarc *d) {
     free(d);
 }
 
-int
+simta_result
 dmarc_lookup(struct dmarc *d, const char *domain) {
-    int                 rc;
+    simta_result        rc;
     struct dnsr_result *dnsr_result;
     yastr               orgdomain;
 
@@ -106,8 +104,8 @@ dmarc_lookup(struct dmarc *d, const char *domain) {
     } else {
         rc = dmarc_parse_result(d, dnsr_result);
         dnsr_free_result(dnsr_result);
-        if (rc == 0) {
-            return (0);
+        if (rc == SIMTA_OK) {
+            return rc;
         }
     }
 
@@ -123,7 +121,7 @@ dmarc_lookup(struct dmarc *d, const char *domain) {
     orgdomain = dmarc_orgdomain(d->domain);
     if ((orgdomain == NULL) || (yaslcmp(orgdomain, d->domain) == 0)) {
         yaslfree(orgdomain);
-        return (1);
+        return SIMTA_ERR;
     }
 
     simta_debuglog(1, "DMARC %s: Checking Organizational Domain %s", d->domain,
@@ -136,20 +134,16 @@ dmarc_lookup(struct dmarc *d, const char *domain) {
         simta_debuglog(1,
                 "DMARC %s: dmarc_lookup_record returned NULL for orgdomain",
                 d->domain);
-        return (1);
+        return SIMTA_ERR;
     }
 
     rc = dmarc_parse_result(d, dnsr_result);
     dnsr_free_result(dnsr_result);
 
-    if (rc == 0) {
-        return (0);
-    }
-
-    return (1);
+    return rc;
 }
 
-int
+enum simta_dmarc_result
 dmarc_result(struct dmarc *d) {
     struct dll_entry *dkim_domain;
 
@@ -182,16 +176,17 @@ done:
     return (d->result);
 }
 
-int
+void
 dmarc_dkim_result(struct dmarc *d, char *domain) {
     struct dll_entry *dkim_domain;
 
     dkim_domain = dll_lookup_or_create(&d->dkim_domain_list, domain);
-    return (0);
+    /* This is really just to avoid a warning about unused-but-set-variable */
+    d->dkim_domain_list = dkim_domain;
 }
 
 const char *
-dmarc_result_str(const int policy) {
+dmarc_result_str(const enum simta_dmarc_result policy) {
     switch (policy) {
     case DMARC_RESULT_NORECORD:
     case DMARC_RESULT_ORGDOMAIN:
@@ -213,7 +208,7 @@ dmarc_result_str(const int policy) {
 }
 
 const char *
-dmarc_authresult_str(const int policy) {
+dmarc_authresult_str(const enum simta_dmarc_result policy) {
     /* https://www.iana.org/assignments/email-auth/email-auth.xhtml */
     switch (policy) {
     case DMARC_RESULT_NORECORD:
@@ -231,28 +226,29 @@ dmarc_authresult_str(const int policy) {
     return ("temperror");
 }
 
-int
+simta_result
 dmarc_spf_result(struct dmarc *d, char *domain) {
     if (d->spf_domain != NULL) {
         syslog(LOG_WARNING, "DMARC: already had an SPF result");
-        return (1);
+        return (SIMTA_ERR);
     }
 
     d->spf_domain = yaslauto(domain);
-    return (0);
+    return (SIMTA_OK);
 }
 
-static int
-dmarc_alignment(const char *domain1, const char *domain2, int apolicy) {
+static bool
+dmarc_alignment(const char *domain1, const char *domain2,
+        enum simta_dmarc_align apolicy) {
     yastr orgdomain1, orgdomain2;
     int   a;
 
     if (strcasecmp(domain1, domain2) == 0) {
-        return (0);
+        return (true);
     }
 
     if (apolicy == DMARC_ALIGNMENT_STRICT) {
-        return (1);
+        return (false);
     }
 
     orgdomain1 = dmarc_orgdomain(domain1);
@@ -263,10 +259,10 @@ dmarc_alignment(const char *domain1, const char *domain2, int apolicy) {
     yaslfree(orgdomain2);
 
     if (a == 0) {
-        return (0);
+        return (true);
     }
 
-    return (1);
+    return (false);
 }
 
 static struct dnsr_result *
@@ -287,7 +283,7 @@ dmarc_lookup_record(const char *domain) {
     return (res);
 }
 
-static yastr
+yastr
 dmarc_orgdomain(const char *domain) {
     size_t            i;
     struct dll_entry *dentry, *leaf;
@@ -365,9 +361,10 @@ dmarc_orgdomain(const char *domain) {
     return (orgdomain);
 }
 
-int
+simta_result
 dmarc_parse_record(struct dmarc *d, yastr r) {
-    int               i, ret = 1;
+    int               i;
+    simta_result      ret = SIMTA_ERR;
     struct dll_entry *keys = NULL, *entry;
     size_t            tok_count;
     char *            p;
@@ -651,21 +648,21 @@ dmarc_parse_record(struct dmarc *d, yastr r) {
         }
     }
 
-    ret = 0;
+    ret = SIMTA_OK;
 
 cleanup:
     /* Don't keep results from partially parsed records */
-    if (ret != 0) {
+    if (ret != SIMTA_OK) {
         dmarc_policy_reset(d);
     }
     dll_free(keys);
     yaslfreesplitres(split, tok_count);
     yaslfree(k);
     yaslfree(v);
-    return (ret);
+    return ret;
 }
 
-static int
+static simta_result
 dmarc_parse_result(struct dmarc *d, struct dnsr_result *dns) {
     int   i, valid_records = 0;
     yastr r;
@@ -685,7 +682,7 @@ dmarc_parse_result(struct dmarc *d, struct dnsr_result *dns) {
     }
 
     if (valid_records == 1) {
-        return (0);
+        return SIMTA_OK;
     }
 
     /* RFC 7489 6.6.3 Policy Discovery
@@ -695,10 +692,10 @@ dmarc_parse_result(struct dmarc *d, struct dnsr_result *dns) {
      */
     if (valid_records > 1) {
         dmarc_policy_reset(d);
-        return (0);
+        return SIMTA_OK;
     }
 
-    return (1);
+    return SIMTA_ERR;
 }
 
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

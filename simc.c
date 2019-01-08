@@ -36,11 +36,8 @@ int
 main(int argc, char *argv[]) {
     int            usage = 0;
     int            c;
-    int            pidfd;
-    int            server_pid;
     int            pid;
-    const char *   config_fname = SIMTA_FILE_CONFIG;
-    FILE *         pf;
+    const char *   config_fname = NULL;
     struct timeval tv_now;
 
     int         fd;
@@ -52,7 +49,7 @@ main(int argc, char *argv[]) {
 
     opterr = 0;
 
-    while ((c = getopt(argc, argv, "dD:f:mqs")) != -1) {
+    while ((c = getopt(argc, argv, "df:mqs")) != -1) {
         switch (c) {
         default:
             usage++;
@@ -63,10 +60,6 @@ main(int argc, char *argv[]) {
                 usage++;
             }
             command = S_DEBUG;
-            break;
-
-        case 'D':
-            simta_base_dir = strdup(optarg);
             break;
 
         case 'f':
@@ -106,13 +99,13 @@ main(int argc, char *argv[]) {
 
     if ((usage != 0) || (command == NULL)) {
         fprintf(stderr,
-                "Usage: %s [-D base_directory] [-f config_file] "
+                "Usage: %s [-f config_file] "
                 "[[ -d | -m | -s | -q ] [ arg ]] \n",
                 argv[ 0 ]);
         exit(EX_USAGE);
     }
 
-    if (simta_read_config(config_fname) < 0) {
+    if (simta_read_config(config_fname, NULL) < 0) {
         exit(EX_TEMPFAIL);
     }
 
@@ -182,26 +175,7 @@ main(int argc, char *argv[]) {
         exit(EX_TEMPFAIL);
     }
 
-    /* signal server */
-    if ((pidfd = open(simta_file_pid, O_RDONLY, 0)) < 0) {
-        syslog(LOG_NOTICE, "open %s: %m", simta_file_pid);
-        exit(EX_TEMPFAIL);
-    }
-
-    if ((pf = fdopen(pidfd, "r")) == NULL) {
-        syslog(LOG_NOTICE, "fdopen %s: %m", simta_file_pid);
-        exit(EX_TEMPFAIL);
-    }
-
-    fscanf(pf, "%d\n", &server_pid);
-
-    if (server_pid <= 0) {
-        syslog(LOG_NOTICE, "illegal pid %s: %d", simta_file_pid, server_pid);
-        exit(EX_TEMPFAIL);
-    }
-
-    if (kill(server_pid, SIGUSR2) < 0) {
-        syslog(LOG_NOTICE, "kill %d: %m", server_pid);
+    if (simta_signal_server(SIGUSR2) != 0) {
         exit(EX_TEMPFAIL);
     }
 

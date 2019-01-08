@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_INIT(simta, m4_esyscmd([sh version.sh]), simta@umich.edu)
-AM_INIT_AUTOMAKE([foreign no-dist-gzip dist-xz])
+AM_INIT_AUTOMAKE([foreign subdir-objects no-dist-gzip dist-xz])
 
 AC_PREREQ(2.63)
 AC_CONFIG_HEADER(config.h)
@@ -47,7 +47,7 @@ AC_CHECK_LIB([socket], [socket])
 AC_CHECK_LIB([crypt], [crypt])
 
 # Required packages
-PKG_CHECK_MODULES([DENSER], [denser])
+PKG_CHECK_MODULES([DENSER], [denser >= 0.5.2])
 PKG_CHECK_MODULES([SNET], [libsnet])
 PKG_CHECK_MODULES([LIBUCL], [libucl >= 0.8.1])
 
@@ -82,15 +82,21 @@ AS_IF(
     [test "x$with_jemalloc" != "xno"],
     [PKG_CHECK_MODULES([JEMALLOC], [jemalloc], [AC_DEFINE([HAVE_JEMALLOC], [1], [Define to 1 if JEMALLOC is available])])])
 
+AC_ARG_WITH([cmocka], AC_HELP_STRING([--with-cmocka], [Build unit tests]))
+AS_IF(
+    [test "x$with_cmocka" = "xyes"],
+    [PKG_CHECK_MODULES([CMOCKA], [cmocka], [AC_DEFINE([HAVE_CMOCKA], [1], [Define to 1 if CMOCKA is available])])])
+
 # Packages without pkgconfig files
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
 AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
 AX_WITH_LIBRARY([lmdb], [LMDB], [lmdb.h], [lmdb])
 
+AM_CONDITIONAL(BUILD_CMOCKA, [test x"$with_cmocka" = xyes])
 AM_CONDITIONAL(BUILD_LDAP, [test x"$ax_cv_have_LDAP" = xyes])
 AM_CONDITIONAL(BUILD_LMDB, [test x"$ax_cv_have_LMDB" = xyes])
 AM_CONDITIONAL(BUILD_SSL, [test x"$with_ssl" != xno])
 AM_CONDITIONAL(CHOWN_FILES, [test "x$enable_chown" = "xyes"])
 
-AC_CONFIG_FILES([ Makefile packaging/rpm/simta.spec ])
+AC_CONFIG_FILES([ Makefile test/Makefile packaging/rpm/simta.spec ])
 AC_OUTPUT

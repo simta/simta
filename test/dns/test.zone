@@ -1,0 +1,22 @@
+$TTL    300
+$ORIGIN test.
+
+@               IN  SOA localhost.test.     simta.test. (
+                            1
+                            300
+                            300
+                            6000
+                            30
+                            )
+                    NS  localhost.test.
+
+localhost           A   127.0.0.1
+
+$ORIGIN dnsl.test.
+1.0.0.127.normal    A   127.0.0.2
+1.0.0.127.normal    TXT "i see you"
+313bd366191cb72fd844cafad03b0e829ddbffb0.normal A   127.0.0.2 ; baduser@example.com
+06937a49807f295464d0284341d5eca891351122.normal A   127.0.0.2 ; example.edu
+2.0.0.127.absent    A   127.0.0.2
+2.0.0.127.absent    TXT "i see you"
+1.0.0.127.differ    A   127.0.0.3

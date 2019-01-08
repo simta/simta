@@ -469,7 +469,8 @@ header_masquerade(struct line *l) {
     for (i = 0; i < tok_count; i++) {
         yasltrim(split[ i ], " \t");
         if (strchr(split[ i ], '@') == NULL) {
-            split[ i ] = yaslcatprintf(split[ i ], "@%s", simta_domain);
+            split[ i ] = yaslcatprintf(
+                    split[ i ], "@%s", simta_config_str("core.masquerade"));
         }
     }
     outbuf = yaslcat(outbuf, yasljoinyasl(split, tok_count, ", ", 2));
@@ -920,13 +921,13 @@ header_singleton(const char *name, const struct rfc822_header *h) {
      * return 1 if address was correct
      */
 
-int
+bool
 is_emailaddr(char *addr) {
     if (parse_emailaddr(EMAIL_ADDRESS_NORMAL, addr, NULL, NULL) == 0) {
-        return (1);
+        return (true);
     }
 
-    return (0);
+    return (false);
 }
 
 
@@ -1015,7 +1016,7 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
         u = end + 1;
     }
 
-    if (mode != EMAIL_ADDRESS_NORMAL) {
+    if (user) {
         *user = u;
     }
 
@@ -1052,14 +1053,11 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
 
     if (((*at == '\0') && (mode == EMAIL_ADDRESS_NORMAL)) ||
             ((*at == '>') && (mode == RFC_821_RCPT_TO))) {
-        swap = *at;
-        *at = '\0';
-        if (strcasecmp(u, STRING_POSTMASTER) != 0) {
-            *at = swap;
+        if (strncasecmp(u, STRING_POSTMASTER, strlen(STRING_POSTMASTER)) != 0) {
             return (1);
         }
 
-        if (mode == RFC_821_RCPT_TO) {
+        if (domain) {
             *domain = NULL;
         }
 
@@ -1078,7 +1076,7 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
         return (1);
     }
 
-    if (mode != EMAIL_ADDRESS_NORMAL) {
+    if (domain) {
         *domain = d;
     }
 
@@ -1127,10 +1125,7 @@ correct_emailaddr(char **addr) {
     char *end;
     char *at;
     char *eol;
-    char *new;
-    char * r;
-    char * w;
-    size_t len;
+    yastr buf;
 
     /* find start and end of local part */
 
@@ -1148,7 +1143,7 @@ correct_emailaddr(char **addr) {
     }
 
     /* next token can be '@' followed by a domain, or '\0' and we'll
-     * append simta_domain. anything else return 0.
+     * append the masquerade domain. anything else return 0.
      */
 
     at = end + 1;
@@ -1174,31 +1169,12 @@ correct_emailaddr(char **addr) {
         }
 
     } else if (*at == '\0') {
-        len = (size_t)(end - start);
-        len += 3;
-        len += yasllen(simta_domain);
-
-        new = calloc(1, len);
-
-        w = new;
-
-        for (r = start; r != end + 1; r++) {
-            *w = *r;
-            w++;
-        }
-
-        *w = '@';
-        w++;
-
-        for (r = simta_domain; *r != '\0'; r++) {
-            *w = *r;
-            w++;
-        }
-
-        *w = '\0';
+        buf = yaslnew(start, end - start + 1);
+        buf = yaslcatprintf(buf, "@%s", simta_config_str("core.masquerade"));
 
         free(*addr);
-        *addr = new;
+        *addr = strdup(buf);
+        yaslfree(buf);
 
     } else {
         return (0);
@@ -1608,7 +1584,7 @@ string_address_parse(struct string_address *sa) {
                 sa->sa_swap = 1;
                 *end = '\0';
 
-                if (is_emailaddr(email_start) == 0) {
+                if (!is_emailaddr(email_start)) {
                     return (NULL);
                 }
 
@@ -1646,7 +1622,7 @@ string_address_parse(struct string_address *sa) {
         *end = '\0';
         sa->sa_start = end + 1;
 
-        if (is_emailaddr(email_start) == 0) {
+        if (!is_emailaddr(email_start)) {
             return (NULL);
         }
 

@@ -41,12 +41,38 @@
 
 static struct dnsr_result *get_address(const char *, int);
 
+bool
+simta_dnsr_init(void) {
+    const ucl_object_t *dns_config;
+    DNSR *              ret;
+
+    if (simta_dnsr) {
+        return (true);
+    }
+
+    if ((simta_dnsr = dnsr_new()) == NULL) {
+        syslog(LOG_ERR, "Liberror: simta_dnsr_init dnsr_new: %s",
+                strerror(errno));
+        return (false);
+    }
+    if ((dns_config = simta_config_obj("core.dns")) != NULL) {
+        dnsr_nameserver_port(simta_dnsr,
+                ucl_object_tostring(ucl_object_lookup(dns_config, "host")),
+                ucl_object_tostring_forced(
+                        ucl_object_lookup(dns_config, "port")));
+    }
+
+    return (true);
+}
 
 static struct dnsr_result *
 get_address(const char *hostname, int qtype) {
     struct dnsr_result *result;
     const char *        lookup_hostname;
     int                 rc;
+    const ucl_object_t *obj;
+    struct timeval *    timeout = NULL;
+    struct timeval      tv_timeout;
 
 #ifdef HAVE_LIBIDN2
     char *idna = NULL;
@@ -54,11 +80,8 @@ get_address(const char *hostname, int qtype) {
 
     lookup_hostname = hostname;
 
-    if (simta_dnsr == NULL) {
-        if ((simta_dnsr = dnsr_new()) == NULL) {
-            syslog(LOG_ERR, "Liberror: get_address dnsr_new: %m");
-            return (NULL);
-        }
+    if (!simta_dnsr_init()) {
+        return (NULL);
     }
 
 #ifdef HAVE_LIBIDN2
@@ -85,7 +108,12 @@ get_address(const char *hostname, int qtype) {
         return (NULL);
     }
 
-    if ((result = dnsr_result(simta_dnsr, NULL)) == NULL) {
+    if ((obj = simta_config_obj("core.dns.timeout")) != NULL) {
+        timeout = &tv_timeout;
+        simta_ucl_object_totimeval(obj, timeout);
+    }
+
+    if ((result = dnsr_result(simta_dnsr, timeout)) == NULL) {
         syslog(LOG_ERR, "Liberror: get_address dnsr_result: %d %s: %s", qtype,
                 hostname, dnsr_err2string(dnsr_errno(simta_dnsr)));
         return (NULL);
@@ -126,11 +154,8 @@ get_ptr(const struct sockaddr *sa) {
     struct dnsr_result *result = NULL;
     char *              hostname;
 
-    if (simta_dnsr == NULL) {
-        if ((simta_dnsr = dnsr_new()) == NULL) {
-            syslog(LOG_ERR, "Liberror: get_ptr dnsr_new: %m");
-            return (NULL);
-        }
+    if (!simta_dnsr_init()) {
+        return (NULL);
     }
 
     if ((hostname = dnsr_ntoptr(simta_dnsr, sa->sa_family,
@@ -281,16 +306,20 @@ check_hostname(const char *hostname) {
 
 struct dnsl_result *
 dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
-    struct dll_entry *chain_dll;
-    struct dnsl *     list;
+    const ucl_object_t *chain_obj;
+    const ucl_object_t *list;
+    ucl_object_iter_t   iter;
 #ifdef HAVE_LIBSSL
     struct message_digest md;
 #endif /* HAVE_LIBSSL */
-    char *              lookup = NULL;
+    const char *        lookup_base;
+    yastr               lookup = NULL;
+    char *              ptrbuf = NULL;
+    const char *        buf;
     char                sa_ip[ INET6_ADDRSTRLEN ];
     yastr               ip = NULL;
     yastr               reason = NULL;
-    yastr               mangled = NULL;
+    const char *        dnsl_action;
     struct dnsr_result *result;
     struct sockaddr_in  sin;
     int                 i;
@@ -306,8 +335,9 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
         }
     }
 
-    if ((chain_dll = dll_lookup(simta_dnsl_chains, chain)) == NULL) {
-        syslog(LOG_INFO, "DNS List: no lists in the '%s' chain", chain);
+    if (((chain_obj = simta_config_obj(chain)) == NULL) ||
+            (ucl_array_size(chain_obj) == 0)) {
+        simta_debuglog(1, "DNS List: no lists in '%s' chain", chain);
         return (NULL);
     }
 
@@ -315,8 +345,11 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
     md_init(&md);
 #endif /* HAVE_LIBSSL */
 
-    for (list = (struct dnsl *)chain_dll->dll_data; list != NULL;
-            list = list->dnsl_next) {
+    iter = ucl_object_iterate_new(chain_obj);
+
+    while ((list = ucl_object_iterate_safe(iter, false)) != NULL) {
+        lookup_base = ucl_object_tostring(ucl_object_lookup(list, "list"));
+
         if (sa) {
             /* RFC 5782 2.1 IP Address DNSxL
              * An IPv4 address DNSxL has a structure adapted from that of the
@@ -333,59 +366,46 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
              * name MUST be a 32-component hex nibble-reversed IPv6 address
              * suffixed by the DNSxL domain.
              */
-            if ((lookup = dnsr_ntoptr(simta_dnsr, sa->sa_family,
+            if ((ptrbuf = dnsr_ntoptr(simta_dnsr, sa->sa_family,
                          ((sa->sa_family == AF_INET)
                                          ? (void *)&(((struct sockaddr_in *)sa)
                                                              ->sin_addr)
                                          : (void *)&(((struct sockaddr_in6 *)sa)
                                                              ->sin6_addr)),
-                         list->dnsl_domain)) == NULL) {
+                         lookup_base)) == NULL) {
                 syslog(LOG_ERR, "DNS List [%s]: dnsr_ntoptr failed: %s", sa_ip,
-                        list->dnsl_domain);
+                        lookup_base);
                 continue;
             }
-
-#ifdef HAVE_LIBSSL
-        } else if (strcmp(chain, "email") == 0) {
-            mangled = yaslauto(text);
-            if (list->dnsl_flags & DNSL_FLAG_DOMAIN) {
-                yaslrange(mangled, strrchr(mangled, '@') - mangled + 1, -1);
-            }
-            yasltolower(mangled);
-            /* Hashed address lookup */
-            if (list->dnsl_flags & DNSL_FLAG_HASHED) {
-                if (list->dnsl_flags & DNSL_FLAG_SHA256) {
-                    md_reset(&md, "sha256");
-                } else {
-                    md_reset(&md, "sha1");
-                }
-                md_update(&md, mangled, yasllen(mangled));
-                md_finalize(&md);
-                lookup = malloc(
-                        strlen(list->dnsl_domain) + strlen(md.md_b16) + 2);
-                sprintf(lookup, "%s.%s", md.md_b16, list->dnsl_domain);
-            } else if (list->dnsl_flags & DNSL_FLAG_DOMAIN) {
-                lookup =
-                        malloc(strlen(list->dnsl_domain) + strlen(mangled) + 2);
-                sprintf(lookup, "%s.%s", mangled, list->dnsl_domain);
-            } else {
-                syslog(LOG_INFO,
-                        "DNS List [%s]: refusing to do unhashed lookup on %s",
-                        text, list->dnsl_domain);
-            }
-            yaslfree(mangled);
-#endif /* HAVE_LIBSSL */
+            lookup = yaslauto(ptrbuf);
+            free(ptrbuf);
 
         } else {
-            /* Preformatted text lookup */
-            lookup = malloc(strlen(list->dnsl_domain) + strlen(text) + 2);
-            sprintf(lookup, "%s.%s", text, list->dnsl_domain);
+            lookup = yaslauto(text);
+            if (ucl_object_toboolean(ucl_object_lookup(list, "domain_only"))) {
+                yaslrange(lookup, strrchr(lookup, '@') - lookup + 1, -1);
+            }
+            yasltolower(lookup);
+
+#ifdef HAVE_LIBSSL
+            if ((buf = ucl_object_tostring(
+                         ucl_object_lookup(list, "algorithm"))) != NULL) {
+                md_reset(&md, buf);
+                md_update(&md, lookup, yasllen(lookup));
+                md_finalize(&md);
+                yaslclear(lookup);
+                lookup = yaslcat(lookup, md.md_b16);
+            }
+#endif /* HAVE_LIBSSL */
+
+            lookup = yaslcatlen(lookup, ".", 1);
+            lookup = yaslcat(lookup, lookup_base);
         }
 
         if ((result = get_a(lookup)) == NULL) {
             simta_debuglog(1, "DNS List [%s]: Timeout: %s", sa ? sa_ip : text,
-                    list->dnsl_domain);
-            free(lookup);
+                    lookup_base);
+            yaslfree(lookup);
             continue;
         }
 
@@ -416,7 +436,7 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
 
         if ((result = get_txt(lookup)) == NULL) {
             simta_debuglog(1, "DNS List [%s]: Timeout: %s", sa ? sa_ip : text,
-                    list->dnsl_domain);
+                    lookup_base);
         } else {
             for (i = 0; i < result->r_ancount; i++) {
                 if ((result->r_answer[ i ].rr_type == DNSR_TYPE_TXT) &&
@@ -430,36 +450,45 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
 
         if (ip) {
             if (reason == NULL) {
-                if (list->dnsl_default_reason) {
-                    reason = yasldup(list->dnsl_default_reason);
+                if ((buf = ucl_object_tostring(
+                             ucl_object_lookup(list, "message"))) != NULL) {
+                    reason = yaslauto(buf);
                 } else {
                     reason = yaslauto("local policy");
                 }
             }
 
-            simta_debuglog(1, "DNS List [%s]: Found in %s list %s: %s / %s",
-                    sa ? sa_ip : text, list->dnsl_type_text, list->dnsl_domain,
-                    ip, reason ? reason : "Unknown");
+            dnsl_action = ucl_object_tostring(ucl_object_lookup(list, ip));
+            if (!dnsl_action) {
+                dnsl_action =
+                        ucl_object_tostring(ucl_object_lookup(list, "action"));
+            }
 
-            if (list->dnsl_type != DNSL_LOG_ONLY) {
+            simta_debuglog(1, "DNS List [%s]: Found in %s list %s: %s / %s",
+                    sa ? sa_ip : text, dnsl_action, lookup_base, ip,
+                    reason ? reason : "Unknown");
+
+            if (strcasecmp(dnsl_action, "log_only") != 0) {
                 ret = calloc(1, sizeof(struct dnsl_result));
-                ret->dnsl = list;
+                ret->dnsl_list = yaslauto(lookup_base);
+                ret->dnsl_action = yaslauto(dnsl_action);
                 ret->dnsl_reason = reason;
                 ret->dnsl_result = ip;
             }
         }
 
-        free(lookup);
+        yaslfree(lookup);
 
         if (ret) {
+            ucl_object_iterate_free(iter);
 #ifdef HAVE_LIBSSL
             md_cleanup(&md);
 #endif /* HAVE_LIBSSL */
             return (ret);
         }
 
-        simta_debuglog(1, "DNS List [%s]: Unlisted in %s list %s",
-                sa ? sa_ip : text, list->dnsl_type_text, list->dnsl_domain);
+        simta_debuglog(1, "DNS List [%s]: Unlisted in list %s",
+                sa ? sa_ip : text, lookup_base);
 
         yaslfree(ip);
         ip = NULL;
@@ -470,6 +499,8 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
     simta_debuglog(1, "DNS List [%s]: chain %s exhausted, no matches",
             sa ? sa_ip : text, chain);
 
+
+    ucl_object_iterate_free(iter);
 #ifdef HAVE_LIBSSL
     md_cleanup(&md);
 #endif /* HAVE_LIBSSL */
@@ -480,84 +511,12 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
 void
 dnsl_result_free(struct dnsl_result *res) {
     if (res) {
+        yaslfree(res->dnsl_list);
+        yaslfree(res->dnsl_action);
         yaslfree(res->dnsl_reason);
         yaslfree(res->dnsl_result);
         free(res);
     }
 }
 
-int
-dnsl_add(const char *chain, int type, const char *domain, const char *reason) {
-    struct dll_entry *chain_dll;
-    struct dnsl *     prev;
-    struct dnsl *     dnsl;
-    char *            text;
-    yastr             chainflags = NULL;
-    yastr *           split;
-    size_t            tok_count;
-    char *            flags;
-    int               i;
-
-    switch (type) {
-    default:
-        syslog(LOG_ERR, "dnsl_add type out of range: %d", type);
-        return (1);
-
-    case DNSL_TRUST:
-        text = S_TRUST;
-        break;
-
-    case DNSL_ACCEPT:
-        text = S_ACCEPT;
-        break;
-
-    case DNSL_LOG_ONLY:
-        text = S_LOG_ONLY;
-        break;
-
-    case DNSL_BLOCK:
-        text = S_BLOCK;
-        break;
-    }
-
-    dnsl = calloc(1, sizeof(struct dnsl));
-
-    dnsl->dnsl_type = type;
-    dnsl->dnsl_type_text = text;
-
-    dnsl->dnsl_domain = yaslauto(domain);
-
-    if (reason) {
-        dnsl->dnsl_default_reason = yaslauto(reason);
-    }
-
-    chainflags = yaslauto(chain);
-    if ((flags = strchr(chainflags, '/')) != NULL) {
-        *flags = '\0';
-        flags++;
-        split = yaslsplitlen(flags, strlen(flags), "/", 1, &tok_count);
-        for (i = 0; i < tok_count; i++) {
-            if (strcasecmp(split[ i ], "DOMAIN") == 0) {
-                dnsl->dnsl_flags |= DNSL_FLAG_DOMAIN;
-            } else if (strcasecmp(split[ i ], "SHA1") == 0) {
-                dnsl->dnsl_flags |= DNSL_FLAG_HASHED | DNSL_FLAG_SHA1;
-            } else if (strcasecmp(split[ i ], "SHA256") == 0) {
-                dnsl->dnsl_flags |= DNSL_FLAG_HASHED | DNSL_FLAG_SHA256;
-            }
-        }
-        yaslfreesplitres(split, tok_count);
-    }
-
-    chain_dll = dll_lookup_or_create(&simta_dnsl_chains, chainflags);
-    if ((prev = (struct dnsl *)chain_dll->dll_data) == NULL) {
-        chain_dll->dll_data = dnsl;
-    } else {
-        for (; prev->dnsl_next != NULL; prev = prev->dnsl_next)
-            ;
-        prev->dnsl_next = dnsl;
-    }
-
-    yaslfree(chainflags);
-    return (0);
-}
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

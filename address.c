@@ -16,6 +16,7 @@
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -98,7 +99,7 @@ address_string_recipients(
                 swap = *end;
                 *end = '\0';
 
-                if (is_emailaddr(email_start) != 0) {
+                if (is_emailaddr(email_start)) {
                     if (add_address(exp, email_start, e_addr->e_addr_errors,
                                 ADDRESS_TYPE_EMAIL, from) != 0) {
                         *end = swap;
@@ -154,7 +155,7 @@ address_string_recipients(
 
         *end = '\0';
 
-        if (is_emailaddr(email_start) != 0) {
+        if (is_emailaddr(email_start)) {
             if (add_address(exp, email_start, e_addr->e_addr_errors,
                         ADDRESS_TYPE_EMAIL, from) != 0) {
                 *end = '>';
@@ -189,11 +190,7 @@ int
 add_address(struct expand *exp, char *addr, struct envelope *error_env,
         int addr_type, char *from) {
     struct exp_addr *e;
-    int              insert_head = 0;
     char *           at;
-#ifdef HAVE_LDAP
-    const ucl_object_t *red;
-#endif /* HAVE_LDAP */
 
     for (e = exp->exp_addr_head; e != NULL; e = e->e_addr_next) {
         if (strcasecmp(addr, e->e_addr) == 0) {
@@ -213,8 +210,7 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
         e->e_addr_from = strdup(from);
 
         /* do syntax checking and special processing */
-        switch (addr_type) {
-        case ADDRESS_TYPE_EMAIL:
+        if (addr_type == ADDRESS_TYPE_EMAIL) {
             if ((*(e->e_addr) != '\0') &&
                     (strcasecmp(STRING_POSTMASTER, e->e_addr) != 0)) {
                 if (*(e->e_addr) == '"') {
@@ -249,19 +245,10 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
 
 #ifdef HAVE_LDAP
             if (e->e_addr_at != NULL) {
-                /* check to see if we might need LDAP for this domain */
-                if ((red = red_host_lookup(e->e_addr_at + 1, false)) != NULL) {
-                    /* FIXME: this used to just be for LDAP. Why? Does it still need to be? */
-                    if (red_does_expansion(red)) {
-                        insert_head = 1;
-                        break;
-                    }
-                }
-
                 /* check to see if the address is the sender */
                 if (exp->exp_env->e_mail != NULL) {
                     /* compare the address in hand with the sender */
-                    if (simta_mbx_compare(2, e->e_addr, exp->exp_env->e_mail) ==
+                    if (simta_mbx_compare(e->e_addr, exp->exp_env->e_mail) ==
                             0) {
                         /* here we have a match */
                         e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
@@ -269,23 +256,10 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
                 }
             }
 #endif /* HAVE_LDAP */
-            break;
-
-#ifdef HAVE_LDAP
-        case ADDRESS_TYPE_LDAP:
-            insert_head = 1;
-            break;
-#endif /* HAVE LDAP */
-
-        default:
-            panic("add_address: type out of range");
         }
 
         if (exp->exp_addr_tail == NULL) {
             exp->exp_addr_head = e;
-            exp->exp_addr_tail = e;
-        } else if (insert_head == 0) {
-            exp->exp_addr_tail->e_addr_next = e;
             exp->exp_addr_tail = e;
         } else if (exp->exp_addr_cursor != NULL) {
             if ((e->e_addr_next = exp->exp_addr_cursor->e_addr_next) == NULL) {
@@ -402,7 +376,6 @@ address_expand(struct expand *exp) {
     /* Expand user using expansion table for domain */
     iter = ucl_object_iterate_new(ucl_object_lookup(red, "rule"));
     while ((rule = ucl_object_iterate_safe(iter, false)) != NULL) {
-        /* FIXME: we might be able to do away with this */
         exp->exp_current_rule = rule;
 
         if (!ucl_object_toboolean(
@@ -418,7 +391,8 @@ address_expand(struct expand *exp) {
 
 #ifdef HAVE_LMDB
         if (strcasecmp(type, "alias") == 0) {
-            path = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+            path = ucl_object_tostring(
+                    ucl_object_lookup_path(rule, "alias.path"));
             switch (alias_expand(exp, e_addr, rule)) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog(1, "Expand.alias env <%s>: <%s>: found in DB %s",
@@ -440,7 +414,8 @@ address_expand(struct expand *exp) {
 #endif /* HAVE_LMDB */
 
         if (strcasecmp(type, "password") == 0) {
-            path = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+            path = ucl_object_tostring(
+                    ucl_object_lookup(rule, "password.path"));
             switch (password_expand(exp, e_addr, rule)) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog(1,
@@ -559,16 +534,13 @@ not_found:
 
 
 struct passwd *
-simta_getpwnam(const ucl_object_t *rule, const char *user) {
+simta_getpwnam(const char *fname, const char *user) {
     static struct passwd pwent;
     static yastr         buf = NULL;
     SNET *               snet;
-    const char *         fname;
     char *               line;
     char *               c;
     size_t               userlen;
-
-    fname = ucl_object_tostring(ucl_object_lookup(rule, "path"));
 
     if (strcmp(fname, "/etc/passwd") == 0) {
         /* Use the system password database, which may or may not just read
@@ -672,11 +644,11 @@ int
 password_expand(
         struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
     int            ret;
-    int            len;
-    FILE *         f;
     struct passwd *passwd;
-    char           fname[ MAXPATHLEN ];
-    char           buf[ 1024 ];
+    yastr          fname = NULL;
+    yastr          buf;
+    size_t         tok_count;
+    yastr *        split;
 
     /* Special handling for /dev/null */
     if (strncasecmp(e_addr->e_addr, "/dev/null@", 10) == 0) {
@@ -689,10 +661,14 @@ password_expand(
     /* Check password file */
     if (e_addr->e_addr_at != NULL) {
         *e_addr->e_addr_at = '\0';
-        passwd = simta_getpwnam(rule, e_addr->e_addr);
+        passwd = simta_getpwnam(ucl_object_tostring(ucl_object_lookup_path(
+                                        rule, "password.path")),
+                e_addr->e_addr);
         *e_addr->e_addr_at = '@';
     } else {
-        passwd = simta_getpwnam(rule, STRING_POSTMASTER);
+        passwd = simta_getpwnam(
+                ucl_object_tostring(ucl_object_lookup(rule, "password.path")),
+                STRING_POSTMASTER);
     }
 
     if (passwd == NULL) {
@@ -703,42 +679,39 @@ password_expand(
     ret = ADDRESS_FINAL;
 
     /* Check .forward */
-    if (snprintf(fname, MAXPATHLEN, "%s/.forward", passwd->pw_dir) >=
-            MAXPATHLEN) {
-        syslog(LOG_ERR,
-                "Expand.password env <%s>: <%s>: .forward path too long",
+    fname = yaslcat(yaslauto(passwd->pw_dir), "/.forward");
+
+    if (access(fname, F_OK) != 0) {
+        simta_debuglog(2, "Expand.password env <%s>: <%s>: no .forward",
                 exp->exp_env->e_id, e_addr->e_addr);
         return (ADDRESS_FINAL);
     }
 
-    if ((f = fopen(fname, "r")) == NULL) {
-        switch (errno) {
-        case EACCES:
-        case ENOENT:
-        case ENOTDIR:
-        case ELOOP:
-            simta_debuglog(2, "Expand.password env <%s>: <%s>: no .forward",
-                    exp->exp_env->e_id, e_addr->e_addr);
-            return (ADDRESS_FINAL);
-
-        default:
-            syslog(LOG_ERR, "Syserror: password_expand fopen %s: %m", fname);
-            return (ADDRESS_SYSERROR);
-        }
+    buf = simta_slurp(fname);
+    yaslfree(fname);
+    if (buf == NULL) {
+        return (ADDRESS_SYSERROR);
     }
 
-    while (fgets(buf, 1024, f) != NULL) {
-        len = strlen(buf);
-        if ((buf[ len - 1 ]) != '\n') {
-            syslog(LOG_WARNING,
-                    "Expand.password env <%s>: <%s>: .forward line too long",
-                    exp->exp_env->e_id, e_addr->e_addr);
+    split = yaslsplitlen(buf, yasllen(buf), "\n", 1, &tok_count);
+    yaslfree(buf);
+    for (int i = 0; i < tok_count; i++) {
+        if (yasllen(split[ i ]) == 0) {
             continue;
         }
 
-        buf[ len - 1 ] = '\0';
-        if (address_string_recipients(exp, buf, e_addr, e_addr->e_addr_from) !=
-                0) {
+        if (((split[ i ][ 0 ] == '/') &&
+                    (strcmp(split[ i ], "/dev/null") != 0)) ||
+                (split[ i ][ 0 ] == '|')) {
+            simta_debuglog(1,
+                    "Expand.password env <%s>: <%s>: unsupported "
+                    ".forward request: %s",
+                    exp->exp_env->e_id, e_addr->e_addr, split[ i ]);
+            continue;
+        }
+
+        if (address_string_recipients(
+                    exp, split[ i ], e_addr, e_addr->e_addr_from) != 0) {
             /* add_address syslogs errors */
             ret = ADDRESS_SYSERROR;
             goto cleanup_forward;
@@ -746,16 +719,12 @@ password_expand(
 
         simta_debuglog(1,
                 "Expand.password env <%s>: <%s>: expanded to <%s>: .forward",
-                exp->exp_env->e_id, e_addr->e_addr, buf);
+                exp->exp_env->e_id, e_addr->e_addr, split[ i ]);
         ret = ADDRESS_EXCLUDE;
     }
 
 cleanup_forward:
-    if (fclose(f) != 0) {
-        syslog(LOG_ERR, "Syserror: password_expand fclose %s: %m", fname);
-        return (ADDRESS_SYSERROR);
-    }
-
+    yaslfreesplitres(split, tok_count);
     return (ret);
 }
 
@@ -766,17 +735,17 @@ alias_expand(
         struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
     int               ret = ADDRESS_NOT_FOUND;
     yastr             address = NULL;
-    yastr             domain = NULL;
     yastr             owner = NULL;
     yastr             owner_value = NULL;
     yastr             value = NULL;
     char *            alias_addr;
     char *            paddr;
+    const char *      subaddr_sep = NULL;
     const char *      db_path;
     struct simta_dbc *dbcp = NULL, *owner_dbcp = NULL;
     struct simta_dbh *dbh = NULL;
 
-    db_path = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+    db_path = ucl_object_tostring(ucl_object_lookup_path(rule, "alias.path"));
     if ((ret = simta_db_open_r(&dbh, db_path)) != 0) {
         syslog(LOG_ERR, "Liberror: alias_expand simta_db_open_r %s: %s",
                 db_path, simta_db_strerror(ret));
@@ -785,14 +754,6 @@ alias_expand(
     }
 
     if (e_addr->e_addr_at != NULL) {
-        domain = yaslauto(e_addr->e_addr_at + 1);
-        if (yasllen(domain) >= SIMTA_MAX_HOST_NAME_LEN) {
-            syslog(LOG_WARNING,
-                    "Expand.alias env <%s>: <%s>: domain too long: %s",
-                    exp->exp_env->e_id, e_addr->e_addr, e_addr->e_addr_at + 1);
-            goto done;
-        }
-
         address = yaslnew(e_addr->e_addr, e_addr->e_addr_at - e_addr->e_addr);
         if (strncasecmp(address, "owner-", 6) == 0) {
             /* Canonicalise sendmail-style owner */
@@ -814,9 +775,13 @@ alias_expand(
     }
 
     /* Handle subaddressing */
-    if (simta_subaddr_separator &&
-            ((paddr = strchr(address, simta_subaddr_separator)) != NULL)) {
-        yaslrange(address, 0, paddr - address - 1);
+    if ((subaddr_sep = ucl_object_tostring(ucl_object_lookup_path(
+                 rule, "expand.subaddress_separators"))) != NULL) {
+        for (int i = 0; i < strlen(subaddr_sep); i++) {
+            if ((paddr = strchr(address, subaddr_sep[ i ])) != NULL) {
+                yaslrange(address, 0, paddr - address - 1);
+            }
+        }
     }
 
     if ((ret = simta_db_cursor_open(dbh, &dbcp)) != 0) {
@@ -856,7 +821,9 @@ alias_expand(
                 goto done;
             }
         } else {
-            owner = yaslcatprintf(owner, "@%s", domain);
+            owner = yaslcatprintf(owner, "@%s",
+                    ucl_object_tostring(
+                            ucl_object_lookup(rule, "associated_domain")));
             if ((e_addr->e_addr_errors = address_bounce_create(exp)) == NULL) {
                 syslog(LOG_ERR,
                         "Expand.alias env <%s>: <%s>: "
@@ -924,7 +891,6 @@ alias_expand(
 
 done:
     yaslfree(address);
-    yaslfree(domain);
     yaslfree(owner);
     yaslfree(value);
     yaslfree(owner_value);

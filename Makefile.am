@@ -1,5 +1,7 @@
 ACLOCAL_AMFLAGS = -I m4
 
+SUBDIRS = . test
+
 COMMON_LIBS = \
 	@DENSER_LIBS@ \
 	@JEMALLOC_LIBS@ \
@@ -61,6 +63,7 @@ COMMON_FILES = \
 	red.c red.h \
 	simta.c simta.h \
 	simta_sasl.c simta_sasl.h \
+	simta_statsd.c simta_statsd.h \
 	simta_ucl.c simta_ucl.h \
 	smtp.c smtp.h \
 	srs.c srs.h \
