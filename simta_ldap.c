@@ -1951,9 +1951,9 @@ simta_ldap_config( const ucl_object_t *rule )
     ld->ldap_rule = ucl_object_ref( rule );
 
     ld->ldap_associated_domain = ucl_object_tostring(
-            ucl_object_lookup( rule, "associated_domain" ));
+            ucl_object_lookup( ld->ldap_rule, "associated_domain" ));
 
-    iter = ucl_object_iterate_new( ucl_object_lookup( rule, "search" ));
+    iter = ucl_object_iterate_new( ucl_object_lookup( ld->ldap_rule, "search" ));
     while (( obj = ucl_object_iterate_safe( iter, false )) != NULL ) {
         buf = ucl_object_tostring( ucl_object_lookup( obj, "uri" ));
         if ( ldap_is_ldap_url( buf ) == 0 ) {
@@ -1997,7 +1997,7 @@ simta_ldap_config( const ucl_object_t *rule )
         lds = &((*lds)->lds_next);
     }
 
-    obj = ucl_object_lookup_path( rule, "attributes.request" );
+    obj = ucl_object_lookup_path( ld->ldap_rule, "attributes.request" );
     i = 0;
     ld->ldap_attrs = calloc( ucl_array_size( obj ) + 1, sizeof( char * ));
     ucl_object_iterate_reset( iter, obj );
@@ -2006,14 +2006,18 @@ simta_ldap_config( const ucl_object_t *rule )
         ld->ldap_attrs[ i++ ] = strdup( ucl_object_tostring( obj ));
     }
 
-    ld->ldap_host = ucl_object_tostring( ucl_object_lookup( rule, "host" ));
-    ld->ldap_port = ucl_object_toint( ucl_object_lookup( rule, "port" ));
-    ld->ldap_timeout = (time_t)ucl_object_toint( ucl_object_lookup( rule,
-            "timeout" ));
+    ld->ldap_host = ucl_object_tostring( ucl_object_lookup( ld->ldap_rule,
+            "host" ));
+    ld->ldap_port = ucl_object_toint( ucl_object_lookup( ld->ldap_rule,
+            "port" ));
+    ld->ldap_timeout = (time_t)ucl_object_toint( ucl_object_lookup(
+            ld->ldap_rule, "timeout" ));
 
-    ldapdebug = ucl_object_toboolean( ucl_object_lookup( rule, "debug" ));
+    ldapdebug = ucl_object_toboolean( ucl_object_lookup( ld->ldap_rule,
+            "debug" ));
 
-    buf = ucl_object_tostring( ucl_object_lookup_path( rule, "bind.method" ));
+    buf = ucl_object_tostring( ucl_object_lookup_path( ld->ldap_rule,
+            "bind.method" ));
     if ( strcasecmp ( buf, "simple" ) == 0 ) {
         ld->ldap_bind = BINDSIMPLE;
 #ifdef HAVE_LIBSASL
@@ -2023,46 +2027,49 @@ simta_ldap_config( const ucl_object_t *rule )
     }
 
 #ifdef HAVE_LIBSSL
-    if ( ucl_object_toboolean( ucl_object_lookup_path( rule, "tls.enabled" ))) {
-        if ( ucl_object_toboolean( ucl_object_lookup_path( rule, "tls.required" ))) {
+    if ( ucl_object_toboolean( ucl_object_lookup_path( ld->ldap_rule,
+            "tls.enabled" ))) {
+        if ( ucl_object_toboolean( ucl_object_lookup_path( ld->ldap_rule,
+                "tls.required" ))) {
             ld->ldap_starttls = 2;
         } else {
             ld->ldap_starttls = 1;
         }
     }
 
-    ld->ldap_tls_cacert = ucl_object_tostring( ucl_object_lookup_path( rule,
-            "tls.ca" ));
+    ld->ldap_tls_cacert = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "tls.ca" ));
 
-    ld->ldap_tls_cert = ucl_object_tostring( ucl_object_lookup_path( rule,
-            "tls.cert" ));
+    ld->ldap_tls_cert = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "tls.cert" ));
 
-    ld->ldap_tls_key = ucl_object_tostring( ucl_object_lookup_path( rule,
-            "tls.key" ));
+    ld->ldap_tls_key = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "tls.key" ));
 #endif /* HAVE_LIBSSL */
 
-    ld->ldap_ndomain = ucl_object_toint( ucl_object_lookup( rule, "significant_domain_components" ));
+    ld->ldap_ndomain = ucl_object_toint( ucl_object_lookup( ld->ldap_rule,
+            "significant_domain_components" ));
 
-    ld->ldap_bindpw = ucl_object_tostring( ucl_object_lookup_path( rule,
-            "bind.password" ));
+    ld->ldap_bindpw = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "bind.password" ));
 
-    ld->ldap_binddn = ucl_object_tostring( ucl_object_lookup_path( rule,
-            "bind.dn" ));
+    ld->ldap_binddn = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "bind.dn" ));
 
-    ld->ldap_mailattr = ucl_object_tostring(
-            ucl_object_lookup_path( rule, "attributes.mail" ));
+    ld->ldap_mailattr = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "attributes.mail" ));
 
-    ld->ldap_mailfwdattr = ucl_object_tostring(
-            ucl_object_lookup_path( rule, "attributes.forwarding" ));
+    ld->ldap_mailfwdattr = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "attributes.forwarding" ));
 
-    ld->ldap_gmailfwdattr = ucl_object_tostring( ucl_object_lookup_path( rule,
-            "attributes.group_forwarding" ));
+    ld->ldap_gmailfwdattr = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "attributes.group_forwarding" ));
 
-    ld->ldap_vacationhost = ucl_object_tostring( ucl_object_lookup_path( rule,
-            "vacation.host" ));
+    ld->ldap_vacationhost = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "vacation.host" ));
 
-    ld->ldap_vacationattr = ucl_object_tostring( ucl_object_lookup_path( rule,
-            "attributes.vacation" ));
+    ld->ldap_vacationattr = ucl_object_tostring( ucl_object_lookup_path(
+            ld->ldap_rule, "attributes.vacation" ));
 
     /* check to see that ldap is configured correctly */
 
