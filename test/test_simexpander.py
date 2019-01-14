@@ -6,12 +6,12 @@ import pytest
 
 
 @pytest.fixture
-def expansion_config(simta_config, real_tmpdir):
-    passwd_file = os.path.join(real_tmpdir, 'passwd')
-    alias_file = os.path.join(real_tmpdir, 'alias')
-    alias_db = os.path.join(real_tmpdir, 'alias.db')
+def expansion_config(simta_config, tmp_path):
+    passwd_file = os.path.join(str(tmp_path), 'passwd')
+    alias_file = os.path.join(str(tmp_path), 'alias')
+    alias_db = os.path.join(str(tmp_path), 'alias.db')
     with open(passwd_file, 'w') as f:
-        f.write('testuser:x:1000:1000::{}:/sbin/nologin\n'.format(real_tmpdir))
+        f.write('testuser:x:1000:1000::{}:/sbin/nologin\n'.format(str(tmp_path)))
     with open(alias_file, 'w') as f:
         f.write('testuser: anotheruser\n')
         f.write('external: testuser@example.edu\n')

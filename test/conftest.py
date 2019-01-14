@@ -76,20 +76,11 @@ def openport(port):
             return( port )
 
 
-def internal_tmpdir(tmpdir):
-    return tempfile.mkdtemp(prefix='simta_test', dir=str(tmpdir))
-
-
-@pytest.fixture
-def real_tmpdir(tmpdir):
-    return tempfile.mkdtemp(prefix='simta_test', dir=str(tmpdir))
-
-
 @pytest.fixture(scope="session")
-def dnsserver():
+def dnsserver(tmp_path_factory):
     port = openport(10053)
 
-    tmpdir = tempfile.mkdtemp(prefix='simta_yadifa')
+    tmpdir = str(tmp_path_factory.mktemp('yadifa'))
     for subdir in [ 'keys', 'log', 'xfr' ]:
         os.mkdir(os.path.join(tmpdir, subdir))
 
@@ -156,7 +147,7 @@ def tool_path(scope='session'):
 
 
 @pytest.fixture
-def simta_config(request, real_tmpdir):
+def simta_config(request, tmp_path):
     # First, check for a test-specific config
     config_file = os.path.join(
         request.fspath.dirname,
@@ -175,14 +166,14 @@ def simta_config(request, real_tmpdir):
     # Third, use nothing
     if not os.path.isfile(config_file):
         # Create a blank config file, since libucl won't accept /dev/null
-        config_file = os.path.join(real_tmpdir, 'simta.conf')
+        config_file = os.path.join(str(tmp_path), 'simta.conf')
         open(config_file, 'w')
 
     return {
         'config_file': config_file,
         'config': {
             'core': {
-                'base_dir': real_tmpdir,
+                'base_dir': str(tmp_path),
                 'user': '',
             },
         },
@@ -190,11 +181,11 @@ def simta_config(request, real_tmpdir):
 
 
 @pytest.fixture
-def simta(request, dnsserver, simta_config, real_tmpdir, tool_path):
+def simta(request, dnsserver, simta_config, tmp_path, tool_path):
     port = openport(10025)
 
     for spool in [ 'command', 'dead', 'etc', 'fast', 'local', 'slow' ]:
-        os.mkdir(os.path.join(real_tmpdir, spool))
+        os.mkdir(os.path.join(str(tmp_path), spool))
 
     simta_config['config']['receive'] = {
         'ports': [ port ],
@@ -226,7 +217,7 @@ def simta(request, dnsserver, simta_config, real_tmpdir, tool_path):
                 raise
             time.sleep(0.1)
 
-    yield( { 'port': port, 'tmpdir': real_tmpdir } )
+    yield( { 'port': port, 'tmpdir': str(tmp_path) } )
 
     simta_proc.terminate()
 
