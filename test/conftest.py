@@ -130,11 +130,26 @@ def dnsserver(tmp_path_factory):
         if e.errno != errno.ENOENT:
             raise
         result['enabled'] = False
+        result['skip_reason'] = 'yadifad not found'
 
     yield(result)
 
     if dns_proc:
         dns_proc.terminate()
+
+
+@pytest.fixture(scope="session")
+def ldapserver():
+    server = os.environ.get('LDAP_SERVER')
+    if server:
+        return {
+            'enabled': True,
+            'uri': server,
+        }
+    return {
+        'enabled': False,
+        'skip_reason': 'Environment variable LDAP_SERVER is not set',
+    }
 
 
 @pytest.fixture()

@@ -928,7 +928,9 @@ simta_ldap_address_local( const ucl_object_t *rule, char *name, char *domain )
     struct simta_ldap           *ld;
 
     /* FIXME: need to cache and/or free this structure */
-    ld = simta_ldap_config( rule );
+    if (( ld = simta_ldap_config( rule )) == NULL ) {
+        return( ADDRESS_SYSERROR );
+    }
 
     if (( rc = simta_ldap_init( ld )) != 0 ) {
         return( rc );
@@ -1805,7 +1807,10 @@ simta_ldap_expand( const ucl_object_t *rule, struct expand *exp,
     struct simta_ldap *ld;
 
     /* FIXME: need to cache and/or free this structure */
-    ld = simta_ldap_config( rule );
+    if (( ld = simta_ldap_config( rule )) == NULL ) {
+        return( ADDRESS_SYSERROR );
+    }
+
     if (( rc = simta_ldap_init( ld )) != 0 ) {
         return( rc );
     }
@@ -1968,6 +1973,13 @@ simta_ldap_config( const ucl_object_t *rule )
                 LDAP_URL_SUCCESS ){
             syslog( LOG_ERR, "Config.LDAP %s: URI parse error %d: %s",
                     ld->ldap_associated_domain, ldaprc, buf );
+            goto errexit;
+        }
+
+        if ( plud->lud_filter == NULL ) {
+            syslog( LOG_ERR, "Config.LDAP %s: URI %s "
+                    "doesn't appear to contain a filter",
+                    ld->ldap_associated_domain, buf );
             goto errexit;
         }
 

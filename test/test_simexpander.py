@@ -5,8 +5,13 @@ import subprocess
 import pytest
 
 
+def skip_if_missing(dep):
+    if not dep['enabled']:
+        pytest.skip(dep['skip_reason'])
+
+
 @pytest.fixture
-def expansion_config(simta_config, tmp_path):
+def expansion_config(simta_config, tmp_path, ldapserver):
     passwd_file = os.path.join(str(tmp_path), 'passwd')
     alias_file = os.path.join(str(tmp_path), 'alias')
     alias_db = os.path.join(str(tmp_path), 'alias.db')
@@ -49,6 +54,24 @@ def expansion_config(simta_config, tmp_path):
             ]
         }
     }
+
+    if ldapserver['enabled']:
+        simta_config['config']['domain']['ldap.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'ldap': {
+                        'attributes': {
+                            'forwarding': 'mailForwardingAddress',
+                        },
+                        'search': [{
+                            'uri': 'ldap:///ou=People,dc=example,dc=com?*?sub?uid=%25s',
+                            'type': 'user',
+                        }],
+                    },
+                }
+            ]
+        }
 
     return simta_config
 
@@ -147,3 +170,9 @@ def test_expand_alias_group_errorsto(run_simexpander):
     assert res[0]['sender'] == 'group2-errors@alias.example.com'
     assert res[1]['recipients'] == [ 'groupuser@example.com' ]
     assert res[1]['sender'] == 'group2-errors@alias.example.com'
+
+def test_expand_ldap(run_simexpander, ldapserver):
+    skip_if_missing(ldapserver)
+    res = run_simexpander('testuser@ldap.example.com')
+    assert len(res) == 1
+    assert res[0]['recipients'] == [ 'testuser@forwarded.example.com' ]

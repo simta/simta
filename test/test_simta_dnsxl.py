@@ -5,7 +5,7 @@ import pytest
 
 def skip_if_missing(dep):
     if not dep['enabled']:
-        pytest.skip("optional fixture disabled")
+        pytest.skip(dep['skip_reason'])
 
 def test_dnsbl(simta, dnsserver):
     skip_if_missing(dnsserver)

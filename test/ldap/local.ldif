@@ -1,0 +1,231 @@
+# Local UMich schemata
+dn: cn=local,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: local
+olcAttributeTypes: {0}( 1.3.6.1.4.1.250.1.32 NAME ( 'krbName' 'kerberosName'
+  ) DESC 'Kerberos principal associated with object' EQUALITY caseIgnoreIA5M
+ atch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {1}( 1.3.6.1.4.1.250.1.30 NAME 'errorsTo' DESC 'DN that r
+ eceives e-mail error notices' SUP distinguishedName )
+olcAttributeTypes: {2}( 1.3.6.1.4.1.250.1.28 NAME 'joinable' DESC 'Boolean c
+ ontrol whether people can add themselves to group' EQUALITY booleanMatch SY
+ NTAX 1.3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {3}( 1.3.6.1.4.1.250.1.37 NAME 'moderator' DESC 'rfc822 e
+ mail address; the person who reviews message to group' EQUALITY caseIgnoreI
+ A5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {4}( 1.3.6.1.4.1.250.1.78 NAME 'multiLineDescription' DES
+ C 'Free-form text including line break' EQUALITY caseIgnoreMatch SYNTAX 1.3
+ .6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: {5}( 1.3.6.1.4.1.250.1.38 NAME 'notice' DESC 'Free-form t
+ ext (UTF-8) including line breaks' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.
+ 4.1.1466.115.121.1.15 )
+olcAttributeTypes: {6}( 1.3.6.1.4.1.250.1.56 NAME 'permittedGroup' DESC 'DN 
+ of group that is allowed to to to this membersonly group' SUP distinguished
+ Name )
+olcAttributeTypes: {7}( 1.3.6.1.4.1.250.1.31 NAME 'requestsTo' DESC 'DN that
+  receives administrative requests' SUP distinguishedName )
+olcAttributeTypes: {8}( 1.3.6.1.4.1.250.1.26 NAME 'rfc822ErrorsTo' DESC 'rfc
+ 822 email address; recipient recieve email errors' EQUALITY caseIgnoreIA5Ma
+ tch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {9}( 1.3.6.1.4.1.250.1.54 NAME 'rfc822mail' DESC 'rfc822 
+ email address of Non-Directory members' EQUALITY caseIgnoreIA5Match SUBSTR 
+ caseIgnoreIA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {10}( 1.3.6.1.4.1.250.1.27 NAME 'rfc822RequestsTo' DESC '
+ rfc822 email address; recipient of administrative requests' EQUALITY caseIg
+ noreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {11}( 1.3.6.1.4.1.250.1.52 NAME 'suppressNoEmailError' DE
+ SC 'Boolean controlling: EMail Error Notification' EQUALITY booleanMatch SY
+ NTAX 1.3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {12}( 1.3.6.1.4.1.250.1.53 NAME 'rfc822Private' DESC 'Boo
+ lean controlling: Group Privacy' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1
+ 466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {13}( 1.3.6.1.4.1.250.1.55 NAME 'Membersonly' DESC 'Boole
+ an controlling: Members-only writable group' EQUALITY booleanMatch SYNTAX 1
+ .3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {14}( 1.3.6.1.4.1.250.1.91 NAME 'RealtimeBlockList' DESC 
+ 'Boolean controlling: RealtimeBlockList membership' EQUALITY booleanMatch S
+ YNTAX 1.3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {15}( 1.3.6.1.4.1.250.1.1 NAME 'universityid' DESC 'Unive
+ rsityID' EQUALITY numericStringMatch SUBSTR numericStringSubstringsMatch SY
+ NTAX 1.3.6.1.4.1.1466.115.121.1.36 )
+olcAttributeTypes: {16}( 1.3.6.1.4.1.250.1.5 NAME 'classstanding' DESC 'Clas
+ s Designator Freshman/Sophmore/Junior/Senior... ' EQUALITY caseIgnoreIA5Mat
+ ch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {17}( 1.3.6.1.4.1.250.1.79 NAME 'dacid' DESC 'dacid' EQUA
+ LITY numericStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.36 )
+olcAttributeTypes: {18}( 1.3.6.1.4.1.250.1.71 NAME 'campus' DESC 'Campus Des
+ ignator  A/D/F' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121
+ .1.26 )
+olcAttributeTypes: {19}( 1.3.6.1.4.1.250.1.74 NAME 'donotpublish' DESC 'Bool
+ ean controls publishing home information' EQUALITY booleanMatch SYNTAX 1.3.
+ 6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {20}( 1.3.6.1.4.1.250.1.75 NAME 'ferpa' DESC 'Boolean con
+ trols publishing student personnal info' EQUALITY booleanMatch SYNTAX 1.3.6
+ .1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {21}( 1.3.6.1.4.1.250.1.72 NAME 'hidepersonalinfo' DESC '
+ Boolean controls publishing personal info' EQUALITY booleanMatch SYNTAX 1.3
+ .6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {22}( 1.3.6.1.4.1.250.1.73 NAME 'hideclassinfo' DESC 'Boo
+ lean controls publishing class info' EQUALITY booleanMatch SYNTAX 1.3.6.1.4
+ .1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {23}( 1.3.6.1.4.1.250.1.76 NAME 'hidecn' DESC 'Boolean co
+ ntrols publishing Common Names & Surnames' EQUALITY booleanMatch SYNTAX 1.3
+ .6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {24}( 1.3.6.1.4.1.250.1.3 NAME 'nobatchupdates' DESC 'Boo
+ lean controls updating entry from a datafeed' EQUALITY booleanMatch SYNTAX 
+ 1.3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {25}( 1.3.6.1.4.1.250.1.45 NAME 'onvacation' DESC 'Boolea
+ n controls vacmail500 processing' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.
+ 1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {26}( 1.3.6.1.4.1.250.1.77 NAME 'private' DESC 'Boolean c
+ ontrols publishing all personal info' EQUALITY booleanMatch SYNTAX 1.3.6.1.
+ 4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {27}( 1.3.6.1.4.1.250.1.35 NAME 'proxy' DESC 'authorized 
+ dn that can alter this entry' SUP distinguishedName )
+olcAttributeTypes: {28}( 1.3.6.1.4.1.250.1.69 NAME 'term' DESC 'Numeric scho
+ ol term designator' EQUALITY numericStringMatch SYNTAX 1.3.6.1.4.1.1466.115
+ .121.1.36 )
+olcAttributeTypes: {29}( 1.3.6.1.4.1.250.1.70 NAME 'termstart' DESC 'Date/Ti
+ me Start of term' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.1
+ 21.1.26 )
+olcAttributeTypes: {30}( 1.3.6.1.4.1.250.1.46 NAME 'vacationmessage' DESC 'S
+ tring echoed by vacmail500 if "onvacation" is TRUE' EQUALITY caseIgnoreIA5M
+ atch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+olcAttributeTypes: {31}( 1.3.6.1.4.1.250.1.80 NAME 'donotdelete' DESC 'Boole
+ an controls ' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 SIN
+ GLE-VALUE )
+olcAttributeTypes: {32}( 1.3.6.1.4.1.250.1.81 NAME 'donotmove' DESC 'Boolean
+  controls ' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 SINGL
+ E-VALUE )
+olcAttributeTypes: {33}( 1.3.6.1.4.1.250.1.82 NAME 'entityid' DESC 'entityid
+ ' EQUALITY numericStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.36 )
+olcAttributeTypes: {34}( 1.3.6.1.4.1.250.1.83 NAME 'expire' DESC 'expire tim
+ estring' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreIA5SubstringsMatch SY
+ NTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {35}( 1.3.6.1.4.1.250.1.84 NAME 'holduid' DESC 'Temporary
+  uid' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreIA5SubstringsMatch SYNTA
+ X 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {36}( 1.3.6.1.4.1.250.1.85 NAME 'keepnames' DESC 'Boolean
+  controls ' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 SINGL
+ E-VALUE )
+olcAttributeTypes: {37}( 1.3.6.1.4.1.250.1.86 NAME 'mailForwardingAddress' D
+ ESC 'RFC1274: RFC822 Mailbox' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnore
+ IA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256} )
+olcAttributeTypes: {38}( 1.3.6.1.4.1.250.1.87 NAME 'notregistered' DESC 'Boo
+ lean controls ' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 S
+ INGLE-VALUE )
+olcAttributeTypes: {39}( 1.3.6.1.4.1.250.1.88 NAME 'registrationstatus' DESC
+  '' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {40}( 1.3.6.1.4.1.250.1.89 NAME 'sinoa' DESC 'sinoa' EQUA
+ LITY numericStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.36 )
+olcAttributeTypes: {41}( 1.3.6.1.4.1.250.1.90 NAME 'updatesource' DESC 'Date
+  of last update & datafeed indicator' EQUALITY caseIgnoreIA5Match SYNTAX 1.
+ 3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {42}( 1.3.6.1.4.1.250.1.102 NAME 'umichLegalNameOfRecord'
+  DESC 'the persons legal name' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSu
+ bstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+olcAttributeTypes: {43}( 1.3.6.1.4.1.250.1.103 NAME 'umichPreferredNameOfRec
+ ord' DESC 'the persons preferred name' EQUALITY caseIgnoreMatch SUBSTR case
+ IgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+olcAttributeTypes: {44}( 1.3.6.1.4.1.250.1.104 NAME 'umichRemoveLegalNameOfR
+ ecord' DESC 'Boolean controls - controls addition of legal name to cn list'
+  EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {45}( 1.3.6.1.4.1.250.1.105 NAME 'disabledDomain' DESC 'd
+ omain user does no want to be associated with' EQUALITY caseIgnoreIA5Match 
+ SUBSTR caseIgnoreIA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {46}( 1.3.6.1.4.1.5923.1.1.1.1 NAME 'eduPersonAffiliation
+ ' DESC '' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: {47}( 1.3.6.1.4.1.5923.1.1.1.7 NAME 'eduPersonEntitlement
+ ' DESC '' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: {48}( 1.3.6.1.4.1.5923.1.1.1.2 NAME 'eduPersonNickname' D
+ ESC '' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: {49}( 1.3.6.1.4.1.5923.1.1.1.3 NAME 'eduPersonOrgDn' DESC
+  '' EQUALITY distinguishedNameMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.12 SI
+ NGLE-VALUE )
+olcAttributeTypes: {50}( 1.3.6.1.4.1.5923.1.1.1.4 NAME 'eduPersonOrgUnitDn' 
+ DESC '' EQUALITY distinguishedNameMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.1
+ 2 )
+olcAttributeTypes: {51}( 1.3.6.1.4.1.5923.1.1.1.5 NAME 'eduPersonPrimaryAffi
+ liation' DESC '' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1
+ .15 )
+olcAttributeTypes: {52}( 1.3.6.1.4.1.5923.1.1.1.8 NAME 'eduPersonPrimaryOrgU
+ nitDn' DESC '' EQUALITY distinguishedNameMatch SYNTAX 1.3.6.1.4.1.1466.115.
+ 121.1.12 SINGLE-VALUE )
+olcAttributeTypes: {53}( 1.3.6.1.4.1.5923.1.1.1.6 NAME 'eduPersonPrincipalna
+ me' DESC '' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 S
+ INGLE-VALUE )
+olcAttributeTypes: {54}( 1.3.6.1.4.1.250.1.92 NAME 'umichRenew' DESC 'Boolea
+ n controls ' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 SING
+ LE-VALUE )
+olcAttributeTypes: {55}( 1.3.6.1.4.1.250.1.93 NAME 'umichExpiryTimestamp' DE
+ SC 'expire timestring' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreIA5Subs
+ tringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+olcAttributeTypes: {56}( 1.3.6.1.4.1.250.1.94 NAME 'umichExpiryNoticeTimesta
+ mp' DESC 'expire notice timestring' EQUALITY caseIgnoreIA5Match SUBSTR case
+ IgnoreIA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: {57}( 1.3.6.1.4.1.250.1.95 NAME 'umichEntryDisabled' DESC
+  'Boolean controls ' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1466.115.121.
+ 1.7 SINGLE-VALUE )
+olcAttributeTypes: {58}( 1.3.6.1.4.1.250.1.96 NAME 'umichEnableAuth' DESC 's
+ tring - determines who can enabie ' EQUALITY caseIgnoreIA5Match SUBSTR case
+ IgnoreIA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE 
+ )
+olcAttributeTypes: {59}( 1.3.6.1.4.1.250.1.97 NAME 'umichEnable' DESC 'Boole
+ an controls - controls if a feed can reenable' EQUALITY booleanMatch SYNTAX
+  1.3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE )
+olcAttributeTypes: {60}( 1.3.6.1.4.1.250.1.98 NAME 'umichDisabledMessage' DE
+ SC 'why entry was disabled message' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.
+ 6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+olcAttributeTypes: {61}( 1.3.6.1.4.1.250.1.99 NAME 'umichDisabledBy' DESC 'D
+ N that disabled entry' SUP distinguishedName SINGLE-VALUE )
+olcAttributeTypes: {62}( 1.3.6.1.4.1.250.1.100 NAME 'umichDisabledTimestamp'
+  DESC 'disabled timestring' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreIA
+ 5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+olcAttributeTypes: {63}( 1.3.6.1.4.1.250.1.101 NAME 'umichPurgeTimestamp' DE
+ SC 'purge date timestring' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreIA5
+ SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+olcObjectClasses: {0}( 1.3.6.1.4.1.250.3.2 NAME 'rfc822MailGroup' DESC 'RFC8
+ 22 Mail Group' SUP top STRUCTURAL MUST ( objectclass $ owner $ cn ) MAY ( a
+ ssociateddomain $ description $ errorsto $ facsimiletelephonenumber $ joina
+ ble $ krbname $ labeleduri $ member $ Membersonly $ moderator $ multilinede
+ scription $ notice $ permittedgroup $ postaladdress $ RealtimeBlockList $ r
+ equeststo $ rfc822errorsto $ rfc822Mail $ rfc822Private $ rfc822requeststo 
+ $ seealso $ streetAddress $ suppressnoemailerror $ telephonenumber ) )
+olcObjectClasses: {1}( 1.3.6.1.4.1.250.3.1 NAME 'umichPerson' DESC 'Universi
+ ty of Michigan person ObjectClass' SUP inetorgperson STRUCTURAL MUST ( obje
+ ctclass $ sn $ cn $ entityid ) MAY ( audio $ businesscategory $ campus $ ca
+ rlicense $ classstanding $ dacid $ departmentnumber $ description $ destina
+ tionindicator $ donotdelete $ donotmove $ donotpublish $ drink $ employeenu
+ mber $ employeetype $ employeeNumber $ universityid $ expire $ facsimiletel
+ ephonenumber $ ferpa $ hideclassinfo $ hidecn $ hidepersonalinfo $ holduid 
+ $ homephone $ homepostaladdress $ initials $ internationalisdnnumber $ jane
+ tmailbox $ jpegphoto $ keepnames $ krbname $ l $ labeleduri $ mail $ mailFo
+ rwardingAddress $ mailpreferenceoption $ manager $ mobile $ multilinedescri
+ ption $ nobatchupdates $ notice $ notregistered $ onvacation $ organization
+ alstatus $ othermailbox $ ou $ pager $ personalsignature $ personaltitle $ 
+ photo $ physicaldeliveryofficename $ postaladdress $ postalcode $ postoffic
+ ebox $ preferreddeliverymethod $ preferredlanguage $ private $ proxy $ regi
+ steredaddress $ registrationstatus $ RealtimeBlockList $ roomnumber $ secre
+ tary $ seealso $ sinoa $ st $ streetaddress $ telephonenumber $ teletexterm
+ inalidentifier $ telexnumber $ term $ termstart $ textencodedoraddress $ ti
+ tle $ uid $ updatesource $ usercertificate $ userclass $ userpassword $ use
+ rpkcs12 $ usersmimecertificate $ vacationmessage $ x121address $ x500unique
+ identifier $ umichlegalnameofrecord $ umichpreferrednameofrecord $ umichrem
+ ovelegalnameofrecord $ associatedDomain $ disableddomain ) )
+olcObjectClasses: {2}( 1.3.6.1.4.1.5923.1.1.2 NAME 'eduPerson' DESC 'EduPers
+ on ObjectClass Version 1.5' SUP top AUXILIARY MAY ( eduPersonAffiliation $ 
+ eduPersonNickname $ eduPersonOrgDn $ eduPersonOrgUnitDn $ eduPersonPrimaryA
+ ffiliation $ eduPersonPrincipalName $ eduPersonEntitlement $ eduPersonPrima
+ ryOrgUnitDn ) )
+olcObjectClasses: {3}( 1.3.6.1.4.1.250.3.3 NAME 'umichSecurityObject' DESC '
+ umichsecurityobject ObjectClass -- might not be needed' SUP top AUXILIARY M
+ UST ( objectclass $ krbName ) MAY ( cn $ uid $ userpassword $ description $
+  sn $ owner ) )
+olcObjectClasses: {4}( 1.3.6.1.4.1.250.3.4 NAME 'umichExpire' DESC 'umichexp
+ ire ObjectClass -- group expiration' SUP top AUXILIARY MAY ( umichRenew $ u
+ michExpiryTimestamp $ umichExpiryNoticeTimestamp ) )
+olcObjectClasses: {5}( 1.3.6.1.4.1.250.3.5 NAME 'umichDisable' DESC 'umichdi
+ sable ObjectClass --  entry disablement' SUP top AUXILIARY MUST umichDisabl
+ edby MAY ( umichEntryDisabled $ umichEnableAuth $ umichEnable $ umichDisabl
+ edMessage $ umichDisabledBY $ umichDisabledTimestamp $ umichPurgeTimestamp 
+ ) )

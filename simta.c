@@ -447,6 +447,8 @@ simta_read_config( const char *fname, const char *extra )
 
     ucl_parser_free( parser );
 
+    /* FIXME: should generate/check LDAP configs now */
+
     if ( simta_gettimeofday( &tv_now ) != 0 ) {
         return( -1 );
     }
