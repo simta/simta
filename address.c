@@ -16,6 +16,7 @@
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -674,10 +675,11 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t
 {
     int                 ret;
     int                 len;
-    FILE                *f;
     struct passwd       *passwd;
-    char                fname[ MAXPATHLEN ];
-    char                buf[ 1024 ];
+    yastr               fname = NULL;
+    yastr               buf;
+    size_t              tok_count;
+    yastr               *split;
 
     /* Special handling for /dev/null */
     if ( strncasecmp( e_addr->e_addr, "/dev/null@", 10 ) == 0 ) {
@@ -708,41 +710,37 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t
     ret = ADDRESS_FINAL;
 
     /* Check .forward */
-    if ( snprintf( fname, MAXPATHLEN, "%s/.forward",
-            passwd->pw_dir ) >= MAXPATHLEN ) {
-        syslog( LOG_ERR,
-                "Expand.password env <%s>: <%s>: .forward path too long",
+    fname = yaslcat( yaslauto( passwd->pw_dir ), "/.forward" );
+
+    if ( access( fname, F_OK ) != 0 ) {
+        simta_debuglog( 2, "Expand.password env <%s>: <%s>: no .forward",
                 exp->exp_env->e_id, e_addr->e_addr );
         return( ADDRESS_FINAL );
     }
 
-    if (( f = fopen( fname, "r" )) == NULL ) {
-        switch( errno ) {
-        case EACCES:
-        case ENOENT:
-        case ENOTDIR:
-        case ELOOP:
-            simta_debuglog( 2, "Expand.password env <%s>: <%s>: no .forward",
-                    exp->exp_env->e_id, e_addr->e_addr );
-            return( ADDRESS_FINAL );
-
-        default:
-            syslog( LOG_ERR, "Syserror: password_expand fopen %s: %m", fname );
-            return( ADDRESS_SYSERROR );
-        }
+    buf = simta_slurp( fname );
+    yaslfree( fname );
+    if ( buf == NULL ) {
+        return( ADDRESS_SYSERROR );
     }
 
-    while ( fgets( buf, 1024, f ) != NULL ) {
-        len = strlen( buf );
-        if (( buf[ len - 1 ] ) != '\n' ) {
-            syslog( LOG_WARNING,
-                    "Expand.password env <%s>: <%s>: .forward line too long",
-                    exp->exp_env->e_id, e_addr->e_addr );
+    split = yaslsplitlen( buf, yasllen( buf ), "\n", 1, &tok_count );
+    yaslfree( buf );
+    for ( int i = 0; i < tok_count; i++ ) {
+        if ( yasllen( split[ i ] ) == 0 ) {
             continue;
         }
 
-        buf[ len - 1 ] = '\0';
-        if ( address_string_recipients( exp, buf, e_addr,
+        if ((( split[ i ][ 0 ] == '/' ) &&
+                ( strcmp( split[ i ], "/dev/null" ) != 0 )) ||
+                ( split[ i ][ 0 ] == '|')) {
+            simta_debuglog( 1, "Expand.password env <%s>: <%s>: unsupported "
+                    ".forward request: %s", exp->exp_env->e_id, e_addr->e_addr,
+                    split[ i ] );
+            continue;
+        }
+
+        if ( address_string_recipients( exp, split[ i ], e_addr,
                 e_addr->e_addr_from ) != 0 ) {
             /* add_address syslogs errors */
             ret = ADDRESS_SYSERROR;
@@ -751,16 +749,12 @@ password_expand( struct expand *exp, struct exp_addr *e_addr, const ucl_object_t
 
         simta_debuglog( 1,
                 "Expand.password env <%s>: <%s>: expanded to <%s>: .forward",
-                exp->exp_env->e_id, e_addr->e_addr, buf );
+                exp->exp_env->e_id, e_addr->e_addr, split[ i ] );
         ret = ADDRESS_EXCLUDE;
     }
 
 cleanup_forward:
-    if ( fclose( f ) != 0 ) {
-        syslog( LOG_ERR, "Syserror: password_expand fclose %s: %m", fname );
-        return( ADDRESS_SYSERROR );
-    }
-
+    yaslfreesplitres( split, tok_count );
     return( ret );
 }
 

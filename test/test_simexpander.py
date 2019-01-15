@@ -11,7 +11,13 @@ def expansion_config(simta_config, tmp_path):
     alias_file = os.path.join(str(tmp_path), 'alias')
     alias_db = os.path.join(str(tmp_path), 'alias.db')
     with open(passwd_file, 'w') as f:
-        f.write('testuser:x:1000:1000::{}:/sbin/nologin\n'.format(str(tmp_path)))
+        f.write('testuser:x:1000:1000::{}/testuser:/sbin/nologin\n'.format(str(tmp_path)))
+        f.write('forwarduser:x:1001:1001::{}:/sbin/nologin\n'.format(str(tmp_path)))
+
+    with open(os.path.join(str(tmp_path), '.forward'), 'w') as f:
+        f.write('user@example.com\n')
+        f.write('user@example.edu\n')
+
     with open(alias_file, 'w') as f:
         f.write('testuser: anotheruser\n')
         f.write('external: testuser@example.edu\n')
@@ -56,12 +62,12 @@ def run_simexpander(expansion_config, tool_path):
             '-U', json.dumps(expansion_config['config']),
         ])
 
-        return subprocess.check_output([
+        return parse_expander_output(subprocess.check_output([
             tool_path('simexpander'),
             '-f', expansion_config['config_file'],
             '-U', json.dumps(expansion_config['config']),
             addresses,
-        ])
+        ]))
     return _run_simexpander
 
 
@@ -81,45 +87,53 @@ def parse_expander_output(output):
 
 
 def test_expand_none(run_simexpander):
-    res = parse_expander_output(run_simexpander('testuser@none.example.com'))
+    res = run_simexpander('testuser@none.example.com')
     assert len(res) == 1
     assert res[0]['recipients'] == [ 'testuser@none.example.com' ]
 
 
 def test_expand_password(run_simexpander):
-    res = parse_expander_output(run_simexpander('testuser@password.example.com'))
+    res = run_simexpander('testuser@password.example.com')
     assert len(res) == 1
     assert res[0]['recipients'] == [ 'testuser@password.example.com' ]
 
 
 def test_expand_password_nonexist(run_simexpander):
-    res = parse_expander_output(run_simexpander('baduser@password.example.com'))
+    res = run_simexpander('baduser@password.example.com')
     assert len(res) == 1
     assert res[0]['recipients'] == [ 'sender@expansion.test' ]
     assert res[0]['sender'] == ''
 
+
+def test_expand_password_forward(run_simexpander):
+    res = run_simexpander('forwarduser@password.example.com')
+    assert len(res) == 2
+    assert res[0]['recipients'] == [ 'user@example.edu' ]
+    assert res[1]['recipients'] == [ 'user@example.com' ]
+
+
 def test_expand_alias(run_simexpander):
-    res = parse_expander_output(run_simexpander('testuser@alias.example.com'))
+    res = run_simexpander('testuser@alias.example.com')
     assert len(res) == 1
     assert res[0]['recipients'] == [ 'anotheruser@masquerade.example.com' ]
 
 def test_expand_alias_external(run_simexpander):
-    res = parse_expander_output(run_simexpander('external@alias.example.com'))
+    res = run_simexpander('external@alias.example.com')
     assert len(res) == 1
     assert res[0]['recipients'] == [ 'testuser@example.edu' ]
 
 def test_expand_alias_password(run_simexpander):
-    res = parse_expander_output(run_simexpander('password@alias.example.com'))
+    res = run_simexpander('password@alias.example.com')
     assert len(res) == 1
     assert res[0]['recipients'] == [ 'testuser@password.example.com' ]
 
 def test_expand_alias_chained(run_simexpander):
-    res = parse_expander_output(run_simexpander('chained@alias.example.com'))
+    res = run_simexpander('chained@alias.example.com')
     assert len(res) == 1
     assert res[0]['recipients'] == [ 'anotheruser@masquerade.example.com' ]
 
 def test_expand_alias_group(run_simexpander):
-    res = parse_expander_output(run_simexpander('group@alias.example.com'))
+    res = run_simexpander('group@alias.example.com')
     assert len(res) == 2
     assert res[0]['recipients'] == [ 'anotheruser@masquerade.example.com' ]
     assert res[0]['sender'] == 'sender@expansion.test'
@@ -127,7 +141,7 @@ def test_expand_alias_group(run_simexpander):
     assert res[1]['sender'] == 'sender@expansion.test'
 
 def test_expand_alias_group_errorsto(run_simexpander):
-    res = parse_expander_output(run_simexpander('group2@alias.example.com'))
+    res = run_simexpander('group2@alias.example.com')
     assert len(res) == 2
     assert res[0]['recipients'] == [ 'anotheruser@masquerade.example.com' ]
     assert res[0]['sender'] == 'group2-errors@alias.example.com'

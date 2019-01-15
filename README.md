@@ -61,9 +61,9 @@ Run `autoreconf -fi` to regenerate the build system, then proceed as normal.
 Testing
 -------
 
-Tests can be run with `make check`. simta's test suite
-requires [pytest](https://pytest.org); you can also install
-[cmocka](https://cmocka.org/) and pass `--with-cmocka` to the
+Tests can be run with `make check`. simta's test suite requires
+[pytest](https://pytest.org) 3.9 or greater; you may also want to
+install [cmocka](https://cmocka.org/) and pass `--with-cmocka` to the
 `configure` script to enable additional unit tests.
 
 Some tests rely on spawning [YADIFA](https://www.yadifa.eu/) to
