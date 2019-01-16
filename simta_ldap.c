@@ -1053,10 +1053,8 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
     int             rc;
     yastr           senderbuf = NULL;
     int             suppressnoemail = 0;
-    int             mo_group = 0;
     struct berval **senderlist = NULL;
     char *          permitted_addr;
-    int             permitted_sender = 0;
 
     struct recipient *     r = NULL;
     struct string_address *sa;
@@ -1208,42 +1206,8 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
             }
         }
 
-        if (simta_ldap_bool(ld, entry, "membersonly")) {
-            if (((exp->exp_env->e_mail != NULL) &&
-                        (*(exp->exp_env->e_mail) != '\0')) &&
-                    ((senderlist = ldap_get_values_len(ld->ldap_ld, entry,
-                              "permitted_sender")) != NULL)) {
-                for (int i = 0; senderlist[ i ] != NULL; i++) {
-                    yaslclear(buf);
-                    buf = yaslcatlen(buf, senderlist[ i ]->bv_val,
-                            senderlist[ i ]->bv_len);
-                    sa = string_address_init(buf);
-
-                    while ((permitted_addr = string_address_parse(sa)) !=
-                            NULL) {
-                        if (simta_mbx_compare(ld->ldap_ndomain, permitted_addr,
-                                    exp->exp_env->e_mail) == 0) {
-                            permitted_sender = 1;
-                            break;
-                        }
-                    }
-
-                    string_address_free(sa);
-
-                    if (permitted_sender != 0) {
-                        break;
-                    }
-                }
-            }
-
-            if (permitted_sender == 0) {
-                mo_group = 1;
-            }
-        }
-
-        if ((permitted_sender == 0) &&
-                ((moderator = ldap_get_values_len(
-                          ld->ldap_ld, entry, "moderator")) != NULL)) {
+        if ((moderator = ldap_get_values_len(
+                     ld->ldap_ld, entry, "moderator")) != NULL) {
             if (exp->exp_env->e_n_exp_level < simta_exp_level_max) {
                 if ((e_addr->e_addr_env_moderated = env_create(simta_dir_fast,
                              NULL, exp->exp_env->e_mail, exp->exp_env)) ==
@@ -1301,7 +1265,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
             env_free(e_addr->e_addr_env_moderated);
             e_addr->e_addr_env_moderated = NULL;
 
-        } else if ((mo_group) && (permitted_sender == 0)) {
+        } else if (simta_ldap_bool(ld, entry, "membersonly")) {
             e_addr->e_addr_ldap_flags |= STATUS_LDAP_MEMONLY;
 
             if (simta_ldap_bool(ld, entry, "rfc822private")) {
