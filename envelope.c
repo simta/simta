@@ -167,7 +167,7 @@ struct envelope *
 env_create(const char *dir, const char *id, const char *e_mail,
         const struct envelope *parent) {
     struct envelope *env;
-    struct timeval   tv_now;
+    struct timespec  ts_now;
     int              pid;
     /* way bigger than we should ever need */
     char buf[ 1024 ];
@@ -175,7 +175,7 @@ env_create(const char *dir, const char *id, const char *e_mail,
     env = calloc(1, sizeof(struct envelope));
 
     if ((id == NULL) || (*id == '\0')) {
-        if (simta_gettimeofday(&tv_now) != 0) {
+        if (clock_gettime(CLOCK_REALTIME, &ts_now) != 0) {
             env_free(env);
             return (NULL);
         }
@@ -186,8 +186,8 @@ env_create(const char *dir, const char *id, const char *e_mail,
             return (NULL);
         }
 
-        snprintf(buf, 1023, "%lX.%lX.%lX.%d", (unsigned long)tv_now.tv_sec,
-                (unsigned long)tv_now.tv_usec, (unsigned long)random(), pid);
+        snprintf(buf, 1023, "%lX.%lX.%lX.%d", (unsigned long)ts_now.tv_sec,
+                (unsigned long)ts_now.tv_nsec, (unsigned long)random(), pid);
 
         id = buf;
     }

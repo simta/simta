@@ -266,6 +266,27 @@ panic(const char *message) {
 
 int
 simta_gettimeofday(struct timeval *tv) {
+#if _POSIX_TIMERS > 0
+    struct timespec ts_now;
+#ifdef CLOCK_MONOTONIC_COARSE
+    clockid_t clock = CLOCK_MONOTONIC_COARSE;
+#elif defined(CLOCK_MONOTONIC_FAST)
+    clockid_t clock = CLOCK_MONOTONIC_FAST;
+#elif _POSIX_MONOTONIC_CLOCK > 0
+    clockid_t clock = CLOCK_MONOTONIC;
+#else
+    clockid_t clock = CLOCK_REALTIME;
+#endif /* CLOCK_MONOTONIC_COARSE */
+    if (clock_gettime(clock, &ts_now) != 0) {
+        syslog(LOG_ERR, "Syserror: simta_gettimeofday clock_gettime: %s",
+                strerror(errno));
+        return (1);
+    }
+
+    simta_tv_now.tv_sec = ts_now.tv_sec;
+    simta_tv_now.tv_usec = (ts_now.tv_nsec + 500) / 1000;
+
+#else  /* _POSIX_TIMERS */
     struct timeval tv_now;
 
     if (gettimeofday(&tv_now, NULL) != 0) {
@@ -288,10 +309,10 @@ simta_gettimeofday(struct timeval *tv) {
 
     simta_tv_now.tv_usec = tv_now.tv_usec;
     simta_tv_now.tv_sec = tv_now.tv_sec;
+#endif /* _POSIX_TIMERS */
 
-    if (tv != NULL) {
-        tv->tv_usec = tv_now.tv_usec;
-        tv->tv_sec = tv_now.tv_sec;
+    if (tv) {
+        memcpy(tv, &simta_tv_now, sizeof(struct timeval));
     }
 
     return (0);
