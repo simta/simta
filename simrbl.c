@@ -21,27 +21,26 @@
 #endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
-#include <openssl/ssl.h>
-#include <openssl/rand.h>
 #include <openssl/err.h>
+#include <openssl/rand.h>
+#include <openssl/ssl.h>
 #endif /* HAVE_LIBSSL */
 
 #include "dns.h"
 #include "simta.h"
 
 #define SIMRBL_EXIT_NOT_BLOCKED 0
-#define SIMRBL_EXIT_BLOCKED     1
-#define SIMRBL_EXIT_ERROR       2
+#define SIMRBL_EXIT_BLOCKED 1
+#define SIMRBL_EXIT_ERROR 2
 
-const char          *simta_progname = "simrbl";
+const char *simta_progname = "simrbl";
 
-    int
-main( int argc, char *argv[])
-{
+int
+main(int argc, char *argv[]) {
     extern int          optind;
-    extern char         *optarg;
+    extern char *       optarg;
     int                 c;
-    char                *server = NULL;
+    char *              server = NULL;
     int                 rc;
     int                 err = 0;
     int                 quiet = 0;
@@ -49,18 +48,18 @@ main( int argc, char *argv[])
     int                 exclusive = 0;
     int                 check_text = 0;
     struct addrinfo     hints;
-    struct addrinfo     *ai;
-    struct dnsl_result  *list = NULL;
+    struct addrinfo *   ai;
+    struct dnsl_result *list = NULL;
     struct timeval      tv_now;
 
-    while(( c = getopt( argc, argv, "dil:ns:tq" )) != -1 ) {
-        switch( c ) {
+    while ((c = getopt(argc, argv, "dil:ns:tq")) != -1) {
+        switch (c) {
         case 'd':
             simta_debug++;
             break;
 
         case 'i':
-            if ( exclusive != 0 ) {
+            if (exclusive != 0) {
                 err++;
                 break;
             }
@@ -68,7 +67,7 @@ main( int argc, char *argv[])
             break;
 
         case 'l':
-            dnsl_add( simta_progname, DNSL_BLOCK, optarg, NULL );
+            dnsl_add(simta_progname, DNSL_BLOCK, optarg, NULL);
             break;
 
         case 'n':
@@ -84,7 +83,7 @@ main( int argc, char *argv[])
             break;
 
         case 't':
-            if ( exclusive != 0 ) {
+            if (exclusive != 0) {
                 err++;
                 break;
             }
@@ -98,71 +97,75 @@ main( int argc, char *argv[])
         }
     }
 
-    if (( argc - optind ) < 1 ) {
+    if ((argc - optind) < 1) {
         err++;
     }
 
-    if ( err ) {
-        fprintf( stderr, "Usage: %s ", argv[ 0 ] );
-        fprintf( stderr, "[ -dq ] " );
-        fprintf( stderr, "[ -l dnsl-domain ] " );
-        fprintf( stderr, "[ -s server ] " );
-        fprintf( stderr, "([ -i ] address | -t text ) [...]\n" );
-        exit( EX_USAGE );
+    if (err) {
+        fprintf(stderr, "Usage: %s ", argv[ 0 ]);
+        fprintf(stderr, "[ -dq ] ");
+        fprintf(stderr, "[ -l dnsl-domain ] ");
+        fprintf(stderr, "[ -s server ] ");
+        fprintf(stderr, "([ -i ] address | -t text ) [...]\n");
+        exit(EX_USAGE);
     }
 
-    if ( server != NULL ) {
-        if (( simta_dnsr = dnsr_new( )) == NULL ) {
-            perror( "dnsr_new" );
-            exit( SIMRBL_EXIT_ERROR );
+    if (server != NULL) {
+        if ((simta_dnsr = dnsr_new()) == NULL) {
+            perror("dnsr_new");
+            exit(SIMRBL_EXIT_ERROR);
         }
-        if (( rc = dnsr_nameserver( simta_dnsr, server )) != 0 ) {
-            dnsr_perror( simta_dnsr, "dnsr_nameserver" );
-            exit( SIMRBL_EXIT_ERROR );
+        if ((rc = dnsr_nameserver(simta_dnsr, server)) != 0) {
+            dnsr_perror(simta_dnsr, "dnsr_nameserver");
+            exit(SIMRBL_EXIT_ERROR);
         }
-        if ( simta_debug > 1 ) {
-            fprintf( stderr, "using nameserver: %s\n", server );
+        if (simta_debug > 1) {
+            fprintf(stderr, "using nameserver: %s\n", server);
         }
     }
 
-    if ( nolog == 0 ) {
+    if (nolog == 0) {
         /* call simta_gettimeofday() to initialize simta_tv_now */
-        simta_gettimeofday( &tv_now );
-        simta_openlog( 0, 0 );
+        simta_gettimeofday(&tv_now);
+        simta_openlog(0, 0);
     }
 
-    if ( simta_dnsl_chains == NULL ) {
-        dnsl_add( simta_progname, DNSL_BLOCK, "mx-deny.dnsbl", NULL );
+    if (simta_dnsl_chains == NULL) {
+        dnsl_add(simta_progname, DNSL_BLOCK, "mx-deny.dnsbl", NULL);
     }
 
-    while (( optind < argc ) && ( list == NULL )) {
-        if ( check_text == 0 ) {
-            memset( &hints, 0, sizeof( struct addrinfo ));
+    while ((optind < argc) && (list == NULL)) {
+        if (check_text == 0) {
+            memset(&hints, 0, sizeof(struct addrinfo));
             hints.ai_family = AF_UNSPEC;
             hints.ai_socktype = SOCK_STREAM;
             hints.ai_flags = AI_NUMERICHOST;
 
-            if (( rc = getaddrinfo( argv[ optind ], NULL, &hints, &ai )) != 0 ) {
-                fprintf( stderr, "Syserror: getaddrinfo: %s\n", gai_strerror( rc ));
-                exit( SIMRBL_EXIT_ERROR );
+            if ((rc = getaddrinfo(argv[ optind ], NULL, &hints, &ai)) != 0) {
+                fprintf(stderr, "Syserror: getaddrinfo: %s\n",
+                        gai_strerror(rc));
+                exit(SIMRBL_EXIT_ERROR);
             }
 
-            list = dnsl_check( simta_progname, ai->ai_addr, NULL );
+            list = dnsl_check(simta_progname, ai->ai_addr, NULL);
         } else {
-            list = dnsl_check( simta_progname, NULL, argv[ optind ] );
+            list = dnsl_check(simta_progname, NULL, argv[ optind ]);
         }
-        if ( list == NULL ) {
+        if (list == NULL) {
             optind++;
         }
     }
 
-    if ( list == NULL ) {
-        if ( !quiet ) printf( "not found\n" );
-        exit( SIMRBL_EXIT_NOT_BLOCKED );
+    if (list == NULL) {
+        if (!quiet)
+            printf("not found\n");
+        exit(SIMRBL_EXIT_NOT_BLOCKED);
     } else {
-        if ( !quiet ) printf( "%s found in %s: %s (%s)\n", argv[ optind ],
-                list->dnsl->dnsl_domain, list->dnsl_result, list->dnsl_reason );
-        exit( SIMRBL_EXIT_BLOCKED );
+        if (!quiet)
+            printf("%s found in %s: %s (%s)\n", argv[ optind ],
+                    list->dnsl->dnsl_domain, list->dnsl_result,
+                    list->dnsl_reason);
+        exit(SIMRBL_EXIT_BLOCKED);
     }
 }
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

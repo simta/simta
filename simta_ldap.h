@@ -4,43 +4,42 @@
 #include "expand.h"
 
 struct list {
-    char                *l_string;
-    struct list         *l_next;
+    char *       l_string;
+    struct list *l_next;
 };
 
 /* lds search types */
-#define LDS_USER            0x01
-#define LDS_GROUP_ERRORS    0x02
-#define LDS_GROUP_REQUEST   0x04
-#define LDS_GROUP_MEMBERS   0x08
-#define LDS_GROUP_OWNER     0x10
-#define LDS_GROUP           0xfe
-#define LDS_ALL             0xff
+#define LDS_USER 0x01
+#define LDS_GROUP_ERRORS 0x02
+#define LDS_GROUP_REQUEST 0x04
+#define LDS_GROUP_MEMBERS 0x08
+#define LDS_GROUP_OWNER 0x10
+#define LDS_GROUP 0xfe
+#define LDS_ALL 0xff
 
 /* Special group mail address.  e.g. "groupname-error" */
-#define ERROR           "error"
-#define ERRORS          "errors"
-#define REQUEST         "request"
-#define REQUESTS        "requests"
-#define MEMBERS         "members"
-#define OWNER           "owner"
-#define OWNERS          "owners"
+#define ERROR "error"
+#define ERRORS "errors"
+#define REQUEST "request"
+#define REQUESTS "requests"
+#define MEMBERS "members"
+#define OWNER "owner"
+#define OWNERS "owners"
 
 /* return codes for ldap_address_local */
-#define LDAP_LOCAL              2
-#define LDAP_NOT_LOCAL          3
-#define LDAP_LOCAL_RBL          4
+#define LDAP_LOCAL 2
+#define LDAP_NOT_LOCAL 3
+#define LDAP_LOCAL_RBL 4
 
 /* Envelope e_flags bits used by ldap expansion */
-#define SUPPRESSNOEMAILERROR    (1<<0)
+#define SUPPRESSNOEMAILERROR (1 << 0)
 
 /* Public functions */
-struct  simta_ldap      *simta_ldap_config( char *, char * );
-int     simta_ldap_expand( struct simta_ldap *, struct expand *,
-        struct exp_addr * );
-int     simta_ldap_address_local( struct simta_ldap *, char *, char * );
-int     simta_mbx_compare( int, char *, char * );
-void    simta_ldap_unbind( struct simta_ldap * );
+struct simta_ldap *simta_ldap_config(char *, char *);
+int  simta_ldap_expand(struct simta_ldap *, struct expand *, struct exp_addr *);
+int  simta_ldap_address_local(struct simta_ldap *, char *, char *);
+int  simta_mbx_compare(int, char *, char *);
+void simta_ldap_unbind(struct simta_ldap *);
 
 #endif /* SIMTA_SIMTA_LDAP_H */
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

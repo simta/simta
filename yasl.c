@@ -1,3 +1,4 @@
+/* clang-format off */
 /* yasl, Yet Another String Library for C
  *
  * Copyright (c) 2006-2014, Salvatore Sanfilippo <antirez at gmail dot com>

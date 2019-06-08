@@ -11,49 +11,48 @@
 #include <strings.h>
 #include <syslog.h>
 
-#include "srs.h"
 #include "simta.h"
+#include "srs.h"
 
-const char      *simta_progname = "simsrs";
+const char *simta_progname = "simsrs";
 
-    int
-main( int ac, char *av[ ] )
-{
-    struct  envelope    *env;
-    char                *p;
+int
+main(int ac, char *av[]) {
+    struct envelope *env;
+    char *           p;
 
-    if ( ac != 2 ) {
-        fprintf( stderr, "Usage:\t\t%s address\n", av[ 0 ] );
-        exit( 1 );
+    if (ac != 2) {
+        fprintf(stderr, "Usage:\t\t%s address\n", av[ 0 ]);
+        exit(1);
     }
 
-    if ( simta_read_config( SIMTA_FILE_CONFIG ) < 0 ) {
-        exit( 1 );
+    if (simta_read_config(SIMTA_FILE_CONFIG) < 0) {
+        exit(1);
     }
 
-    if ( simta_config( ) != 0 ) {
-        exit( 1 );
+    if (simta_config() != 0) {
+        exit(1);
     }
 
-    simta_openlog( 0, LOG_PERROR );
+    simta_openlog(0, LOG_PERROR);
 
-    if (( p = strrchr( av[ 1 ], '@' )) == NULL ) {
-        fprintf( stderr, "Bad address\n" );
-        exit( 1 );
+    if ((p = strrchr(av[ 1 ], '@')) == NULL) {
+        fprintf(stderr, "Bad address\n");
+        exit(1);
     }
 
-    if ( strcasecmp(( p + 1 ), simta_srs_domain ) == 0 ) {
-        if ( srs_reverse( av[ 1 ], &p, simta_srs_secret ) == SRS_OK ) {
-            printf( "%s\n", p );
+    if (strcasecmp((p + 1), simta_srs_domain) == 0) {
+        if (srs_reverse(av[ 1 ], &p, simta_srs_secret) == SRS_OK) {
+            printf("%s\n", p);
         } else {
-            printf( "srs_reverse failed\n" );
+            printf("srs_reverse failed\n");
         }
     } else {
-        env = env_create( NULL, "srs", av[ 1 ], NULL );
-        srs_forward( env );
-        printf( "%s\n", env->e_mail );
+        env = env_create(NULL, "srs", av[ 1 ], NULL);
+        srs_forward(env);
+        printf("%s\n", env->e_mail);
     }
 
-    exit( 0 );
+    exit(0);
 }
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
