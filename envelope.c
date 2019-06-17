@@ -158,10 +158,7 @@ env_create(const char *dir, const char *id, const char *e_mail,
     env->e_id = strdup(id);
 
     if (e_mail != NULL) {
-        if (env_sender(env, e_mail) != 0) {
-            env_free(env);
-            return (NULL);
-        }
+        env_sender(env, e_mail);
     }
 
     if (parent) {
@@ -645,7 +642,7 @@ env_dkim_sign(struct envelope *env) {
     char           df[ MAXPATHLEN + 1 ];
     DKIM_LIB *     libhandle;
     unsigned int   flags;
-    DKIM *         dkim;
+    DKIM *         dkim = NULL;
     DKIM_STAT      result;
     yastr          signature = NULL;
     yastr          key = NULL;

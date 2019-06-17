@@ -38,9 +38,15 @@
 #define SIMTA_MAX_HOST_NAME_LEN 256
 
 #define EXIT_OK 0
-#define SIMTA_EXIT_OK 0
-#define SIMTA_EXIT_ERROR 1
-#define SIMTA_EXIT_OK_LEAKY 2
+
+enum simta_exit_codes {
+    SIMTA_EXIT_OK,
+    SIMTA_EXIT_ERROR,
+    SIMTA_EXIT_OK_LEAKY,    /* FIXME: can we do better IPC (e.g. structured
+                             * output from the child) instead of non-zero "OK"
+                             * statuses?
+                             */
+};
 
 typedef enum {
     SIMTA_OK,
@@ -262,7 +268,7 @@ const char *        simta_config_str(const char *);
 void                simta_dump_config(void);
 void                simta_openlog(int, int);
 void                simta_debuglog(int, const char *, ...);
-int                 simta_gettimeofday(struct timeval *);
+simta_result        simta_gettimeofday(struct timeval *);
 enum simta_charset  simta_check_charset(const char *);
 pid_t               simta_waitpid(pid_t, int *, int);
 int                 simta_signal_server(int);

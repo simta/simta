@@ -430,7 +430,7 @@ deliver_accepted(struct receive_data *r, int force) {
                     r->r_ip, r->r_remote_hostname, simta_fast_files);
 
             if (simta_inbound_accepted_message_timer >= 0) {
-                if (simta_gettimeofday(&tv_now) == 0) {
+                if (simta_gettimeofday(&tv_now) == SIMTA_OK) {
                     tv_add.tv_sec = simta_inbound_accepted_message_timer;
                     tv_add.tv_usec = 0;
                     timeradd(&tv_now, &tv_add, &r->r_tv_accepted);
@@ -1407,14 +1407,13 @@ f_data(struct receive_data *r) {
     const char *            timer_type = NULL;
     const char *            session_timer = NULL;
     struct timeval *        tv_session = NULL;
-    struct timeval          tv_data_start;
     struct timeval          tv_data_session;
     struct timeval          tv_wait;
     struct timeval *        tv_timeout = NULL;
     struct timeval          tv_line;
-    struct timeval          tv_add;
+    struct timeval          tv_add = {0, 0};
     struct timeval          tv_filter = {0, 0};
-    struct timeval          tv_now;
+    struct timeval          tv_now = {0, 0};
     char                    daytime[ RFC822_TIMESTAMP_LEN ];
     struct receive_headers *rh = NULL;
     unsigned int            data_wrote = 0;
@@ -1648,12 +1647,9 @@ f_data(struct receive_data *r) {
         goto error;
     }
 
-    if (simta_gettimeofday(&tv_now) != 0) {
+    if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
         goto error;
     }
-
-    tv_data_start.tv_sec = tv_now.tv_sec;
-    tv_data_start.tv_usec = tv_now.tv_usec;
 
     /* global smtp session timer */
     if (r->r_tv_session.tv_sec != 0) {
@@ -1681,7 +1677,7 @@ f_data(struct receive_data *r) {
             }
         }
 
-        if (simta_gettimeofday(&tv_now) != 0) {
+        if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
             read_err = SYSTEM_ERROR;
         }
 
@@ -2125,7 +2121,7 @@ f_data(struct receive_data *r) {
     }
 
 done:
-    if (simta_gettimeofday(&tv_now) != 0) {
+    if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
         goto error;
     }
 
@@ -2959,8 +2955,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     const char *        fallback_type = NULL;
     char *              line;
     char                hostname[ DNSR_MAX_NAME + 1 ];
-    struct timeval      tv_start;
-    struct timeval      tv_stop;
+    struct timeval      tv_start = {0, 0};
+    struct timeval      tv_stop = {0, 0};
     struct timeval      tv_now;
     struct timeval      tv_wait;
     struct timeval      tv_line;
@@ -3016,8 +3012,9 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         dmarc_init(&r.r_dmarc);
     }
 
-    if (simta_gettimeofday(&tv_start) != 0) {
+    if (simta_gettimeofday(&tv_start) == SIMTA_ERR) {
         tv_start.tv_sec = 0;
+        tv_start.tv_usec = 0;
     }
 
     if ((r.r_snet = snet_attach(fd, 1024 * 1024)) == NULL) {
@@ -3154,6 +3151,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             syslog(LOG_INFO, "Connect.in [%s] %s: Failed: access denied",
                     r.r_ip, r.r_remote_hostname);
             smtp_write_banner(&r, 421, S_421_DECLINE, simta_libwrap_url);
+            free(ctl_hostname);
             goto closeconnection;
         }
 
@@ -3240,7 +3238,9 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
         if (strcmp(r.r_smtp_mode, "refuse") == 0) {
             if (snet_writef(r.r_snet, "554 <%s> %s %s: %s\r\n", simta_hostname,
-                        S_DENIED, r.r_ip, (r.r_dnsl_result)->dnsl_reason) < 0) {
+                        S_DENIED, r.r_ip,
+                        r.r_dnsl_result ? (r.r_dnsl_result)->dnsl_reason
+                                        : "denied by local policy") < 0) {
                 syslog(LOG_ERR, "Receive [%s] %s: smtp_receive snet_writef: %m",
                         r.r_ip, r.r_remote_hostname);
                 goto closeconnection;
@@ -3293,7 +3293,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             }
         }
 
-        if (simta_gettimeofday(&tv_now) != 0) {
+        if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
             goto syserror;
         }
 
@@ -3430,13 +3430,13 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             continue;
         }
 
-        if (simta_gettimeofday(&tv_command_start) != 0) {
+        if (simta_gettimeofday(&tv_command_start) == SIMTA_ERR) {
             goto syserror;
         }
 
         ret = (*(r.r_commands[ i ].c_func))(&r);
 
-        if (simta_gettimeofday(&tv_command_now) != 0) {
+        if (simta_gettimeofday(&tv_command_now) == SIMTA_ERR) {
             goto syserror;
         }
 
@@ -3508,7 +3508,7 @@ closeconnection:
     }
 
     if (tv_start.tv_sec != 0) {
-        if (simta_gettimeofday(&tv_stop) != 0) {
+        if (simta_gettimeofday(&tv_stop) == SIMTA_ERR) {
             tv_start.tv_sec = 0;
             tv_stop.tv_sec = 0;
         }
@@ -4094,7 +4094,7 @@ content_filter(
             return (MESSAGE_TEMPFAIL);
         }
 
-        if (simta_gettimeofday(tv) != 0) {
+        if (simta_gettimeofday(tv) == SIMTA_ERR) {
             return (MESSAGE_TEMPFAIL);
         }
 

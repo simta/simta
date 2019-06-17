@@ -386,7 +386,7 @@ main(int ac, char **av) {
 
         case 'V':
             printf("%s\n", version);
-            exit(0);
+            exit(SIMTA_EXIT_OK);
 
         default:
             err++;
@@ -395,13 +395,13 @@ main(int ac, char **av) {
 
     if (q_run > 1) {
         fprintf(stderr, "simta: only one -q or -Q option can be specified\n");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
     if (q_run && simta_filesystem_cleanup) {
         fprintf(stderr, "simta: -C and %s are mutually exclusive\n",
                 simta_queue_filter ? "-Q" : "-q");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
     if (err || optind != ac) {
@@ -412,17 +412,17 @@ main(int ac, char **av) {
         fprintf(stderr, " [ -U ucl-config-string ]");
         fprintf(stderr, " [ -q | -Q filter ]");
         fprintf(stderr, "\n");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
-    if (simta_gettimeofday(NULL) != 0) {
-        exit(1);
+    if (simta_gettimeofday(NULL) == SIMTA_ERR) {
+        exit(SIMTA_EXIT_ERROR);
     }
 
     simta_openlog(0, LOG_PERROR);
 
     if (simta_read_config(config_fname, config_extra) < 0) {
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
     /* ignore SIGPIPE */
@@ -430,13 +430,13 @@ main(int ac, char **av) {
     sa.sa_handler = SIG_IGN;
     if (sigaction(SIGPIPE, &sa, NULL) < 0) {
         syslog(LOG_ERR, "Syserror: sigaction: %m");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
     simta_pwd = simta_config_str("core.base_dir");
     if (chdir(simta_pwd) < 0) {
         perror(simta_pwd);
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
 #ifndef Q_SIMULATION
@@ -448,7 +448,7 @@ main(int ac, char **av) {
                      simta_tls_ciphers)) == NULL) {
             syslog(LOG_ERR, "Liberror: tls_server_setup: %s",
                     ERR_error_string(ERR_get_error(), NULL));
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
         SSL_CTX_free(ssl_ctx);
         simta_tls = 1;
@@ -463,11 +463,11 @@ main(int ac, char **av) {
         if (!simta_config_bool("receive.auth.authn.honeypot")) {
 #ifdef HAVE_LIBSASL
             if ((rc = simta_sasl_init()) != 0) {
-                exit(1);
+                exit(SIMTA_EXIT_ERROR);
             }
 #else
             syslog(LOG_ERR, "Liberror: SASL auth support not available");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
 #endif /* HAVE_LIBSASL */
         }
         simta_smtp_extension++;
@@ -479,13 +479,13 @@ main(int ac, char **av) {
 
     if (dontrun) {
         simta_dump_config();
-        exit(0);
+        exit(SIMTA_EXIT_OK);
     }
 
     /* if we're not a q_runner or filesystem cleaner, open smtp service */
     if ((q_run == 0) && (simta_filesystem_cleanup == 0)) {
         if (simta_listen() != 0) {
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
     }
 
@@ -496,7 +496,7 @@ main(int ac, char **av) {
                 0) {
             fprintf(stderr, "open %s: ", simta_file_pid);
             perror(NULL);
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
 
         /* lock simta pid fd */
@@ -505,18 +505,18 @@ main(int ac, char **av) {
                 /* file locked by a diferent process */
                 fprintf(stderr, "flock %s: daemon already running\n",
                         simta_file_pid);
-                exit(1);
+                exit(SIMTA_EXIT_ERROR);
 
             } else {
                 fprintf(stderr, "flock %s:", simta_file_pid);
                 perror(NULL);
-                exit(1);
+                exit(SIMTA_EXIT_ERROR);
             }
         }
 
         if (ftruncate(simta_pidfd, (off_t)0) < 0) {
             perror("ftruncate");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
     }
 #endif /* Q_SIMULATION */
@@ -529,33 +529,33 @@ main(int ac, char **av) {
         /* get our user info from /etc/passwd */
         if ((simta_pw = getpwnam(simta_uname)) == NULL) {
             fprintf(stderr, "getpwnam %s: user not found\n", simta_uname);
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
 
 
         /* set our initgroups */
         if (initgroups(simta_pw->pw_name, 0) != 0) {
             perror("setuid");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
 
         /* set our gid */
         if (setgid(simta_pw->pw_gid) != 0) {
             perror("setgid");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
 
         /* set our uid */
         if (setuid(simta_pw->pw_uid) != 0) {
             perror("setuid");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
 
 #ifdef __linux__
         /* we're debugging under linux */
         if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) != 0) {
             perror("prctl");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
 #endif /* __linux__ */
     }
@@ -567,7 +567,7 @@ main(int ac, char **av) {
         exit(simta_wait_for_child(PROCESS_CLEANUP));
     } else if (simta_wait_for_child(PROCESS_CLEANUP) != 0) {
         fprintf(stderr, "simta cleanup error, please check the log\n");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 #endif /* Q_SIMULATION */
 
@@ -581,7 +581,7 @@ main(int ac, char **av) {
         case 0:
             if (setsid() < 0) {
                 perror("setsid");
-                exit(1);
+                exit(SIMTA_EXIT_ERROR);
             }
 #ifndef Q_SIMULATION
             int i, dt = getdtablesize();
@@ -608,15 +608,15 @@ main(int ac, char **av) {
             break;
         case -1:
             perror("fork");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         default:
-            exit(0);
+            exit(SIMTA_EXIT_OK);
         }
     }
 
     /* Start logging in daemon mode */
-    if (simta_gettimeofday(NULL) != 0) {
-        exit(1);
+    if (simta_gettimeofday(NULL) == SIMTA_ERR) {
+        exit(SIMTA_EXIT_ERROR);
     }
 
     if (daemonize) {
@@ -629,7 +629,7 @@ main(int ac, char **av) {
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGHUP, &sa, &osahup) < 0) {
         syslog(LOG_ERR, "Syserror: sigaction: %m");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
     /* catch SIGCHLD */
@@ -638,7 +638,7 @@ main(int ac, char **av) {
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGCHLD, &sa, &osachld) < 0) {
         syslog(LOG_ERR, "Syserror: sigaction: %m");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
     /* catch SIGUSR1 */
@@ -647,7 +647,7 @@ main(int ac, char **av) {
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGUSR1, &sa, &osausr1) < 0) {
         syslog(LOG_ERR, "Syserror: sigaction: %m");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
     /* catch SIGUSR2 */
@@ -656,7 +656,7 @@ main(int ac, char **av) {
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGUSR2, &sa, &osausr2) < 0) {
         syslog(LOG_ERR, "Syserror: sigaction: %m");
-        exit(1);
+        exit(SIMTA_EXIT_ERROR);
     }
 
     if (daemonize) {
@@ -672,7 +672,7 @@ int
 simta_daemonize_server(void) {
     int pid;
 
-    if (simta_gettimeofday(NULL) != 0) {
+    if (simta_gettimeofday(NULL) == SIMTA_ERR) {
         return (1);
     }
 
@@ -719,7 +719,7 @@ hq_launch(void) {
     int            lag;
     time_t         waited;
 
-    if (simta_gettimeofday(&tv_now) != 0) {
+    if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
         return (1);
     }
 
@@ -799,20 +799,20 @@ simta_server(bool daemon) {
     if (daemon) {
         if ((pf = fdopen(simta_pidfd, "w")) == NULL) {
             syslog(LOG_ERR, "Syserror: simta_server fdopen: %m");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
         fprintf(pf, "%d\n", (int)getpid());
         if (fflush(pf) != 0) {
             syslog(LOG_ERR, "Syserror: simta_server fflush: %m");
-            exit(1);
+            exit(SIMTA_EXIT_ERROR);
         }
     }
 #endif /* Q_SIMULATION */
 
     simta_process_type = PROCESS_SERVER;
 
-    if (simta_gettimeofday(&tv_now) != 0) {
-        exit(1);
+    if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
+        exit(SIMTA_EXIT_ERROR);
     }
 
     /* main daemon loop */
@@ -999,7 +999,7 @@ simta_server(bool daemon) {
                         1, "Daemon: sleeping %d: %s", sleep_time, sleep_reason);
                 sleep((unsigned int)sleep_time);
             }
-            if (simta_gettimeofday(&tv_now) != 0) {
+            if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
                 goto error;
             }
             continue;
@@ -1032,7 +1032,7 @@ simta_server(bool daemon) {
 
         simta_debuglog(2, "Daemon: select over");
 
-        if (simta_gettimeofday(&tv_now) != 0) {
+        if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
             goto error;
         }
 
@@ -1091,7 +1091,7 @@ simta_wait_for_child(int child_type) {
     int         status;
     const char *p_name;
 
-    if (simta_gettimeofday(NULL) != 0) {
+    if (simta_gettimeofday(NULL) == SIMTA_ERR) {
         return (1);
     }
 
@@ -1216,11 +1216,11 @@ simta_child_receive(struct simta_socket *ss) {
         if ((sa.ss_family == AF_INET6) &&
                 (memcmp(&(((struct sockaddr_in6 *)&sa)->sin6_addr),
                          &(((struct sockaddr_in6 *)&(cinfo->c_sa))->sin6_addr),
-                         sizeof(struct sockaddr_in6)) == 0)) {
+                         sizeof(struct in6_addr)) == 0)) {
             break;
         } else if (memcmp(&(((struct sockaddr_in *)&sa)->sin_addr),
                            &(((struct sockaddr_in *)&(cinfo->c_sa))->sin_addr),
-                           sizeof(struct sockaddr_in)) == 0) {
+                           sizeof(struct in_addr)) == 0) {
             break;
         }
     }
@@ -1245,7 +1245,7 @@ simta_child_receive(struct simta_socket *ss) {
     cinfo->c_proc_total++;
     simta_global_connections++;
 
-    if (simta_gettimeofday(NULL) != 0) {
+    if (simta_gettimeofday(NULL) == SIMTA_ERR) {
         return (1);
     }
 
@@ -1348,7 +1348,7 @@ simta_child_q_runner(struct host_q *hq) {
     return (0);
 #endif /* Q_SIMULATION */
 
-    if (simta_gettimeofday(NULL) != 0) {
+    if (simta_gettimeofday(NULL) == SIMTA_ERR) {
         return (1);
     }
 
@@ -1563,7 +1563,7 @@ daemon_commands(struct simta_dirp *sd) {
     struct envelope *e;
 
     if (sd->sd_dirp == NULL) {
-        if (simta_gettimeofday(&(sd->sd_tv_start)) != 0) {
+        if (simta_gettimeofday(&(sd->sd_tv_start)) == SIMTA_ERR) {
             return (1);
         }
 
@@ -1596,7 +1596,7 @@ daemon_commands(struct simta_dirp *sd) {
 
         sd->sd_dirp = NULL;
 
-        if (simta_gettimeofday(&tv_stop) != 0) {
+        if (simta_gettimeofday(&tv_stop) == SIMTA_ERR) {
             return (1);
         }
 
@@ -1793,7 +1793,7 @@ env_log_metrics(struct dll_entry *dll_head) {
     struct timeval    tv_now;
     struct stat       st_file;
 
-    if (simta_gettimeofday(&tv_now) != 0) {
+    if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
         return;
     }
 
@@ -1842,7 +1842,7 @@ sender_log_metrics(struct dll_entry *dll_head) {
     struct timeval      tv_now;
     struct stat         st_file;
 
-    if (simta_gettimeofday(&tv_now) != 0) {
+    if (simta_gettimeofday(&tv_now) == SIMTA_ERR) {
         return;
     }
 

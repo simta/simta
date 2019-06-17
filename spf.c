@@ -90,7 +90,7 @@ spf_check_host(struct spf *s, const yastr domain) {
     yastr *             split = NULL;
     char *              p;
     unsigned long       cidr, cidr6;
-    int                 mech_queries = 0;
+    int                 mech_queries;
 
     /* RFC 7208 3.1 DNS Resource Records
      * SPF records MUST be published as a DNS TXT (type 16) Resource Record
@@ -295,7 +295,6 @@ spf_check_host(struct spf *s, const yastr domain) {
                    (strncasecmp(split[ i ], "mx:", 3) == 0) ||
                    (strncasecmp(split[ i ], "mx/", 3) == 0)) {
             s->spf_queries++;
-            mech_queries = 0;
             yaslrange(split[ i ], 2, -1);
 
             if ((domain_spec = spf_parse_domainspec_cidr(

@@ -5,12 +5,7 @@
 
 #include "config.h"
 
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -20,6 +15,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -196,7 +196,7 @@ panic(const char *message) {
 }
 
 
-int
+simta_result
 simta_gettimeofday(struct timeval *tv) {
 #if _POSIX_TIMERS > 0
     struct timespec ts_now;
@@ -212,7 +212,7 @@ simta_gettimeofday(struct timeval *tv) {
     if (clock_gettime(clock, &ts_now) != 0) {
         syslog(LOG_ERR, "Syserror: simta_gettimeofday clock_gettime: %s",
                 strerror(errno));
-        return (1);
+        return (SIMTA_ERR);
     }
 
     simta_tv_now.tv_sec = ts_now.tv_sec;
@@ -223,7 +223,7 @@ simta_gettimeofday(struct timeval *tv) {
 
     if (gettimeofday(&tv_now, NULL) != 0) {
         syslog(LOG_ERR, "Syserror: simta_gettimeofday gettimeofday: %m");
-        return (1);
+        return (SIMTA_ERR);
     }
 
     /* did gettimeofday() return a unique timestamp not in the past? */
@@ -247,7 +247,7 @@ simta_gettimeofday(struct timeval *tv) {
         memcpy(tv, &simta_tv_now, sizeof(struct timeval));
     }
 
-    return (0);
+    return (SIMTA_OK);
 }
 
 void
@@ -675,9 +675,8 @@ simta_waitpid(pid_t child, int *childstatus, int options) {
         p_remove = *p_search;
         *p_search = p_remove->p_next;
 
-        if (p_remove->p_limit != NULL) {
-            (*p_remove->p_limit)--;
-        }
+        assert(p_remove->p_limit != NULL);
+        (*p_remove->p_limit)--;
 
         milliseconds = SIMTA_ELAPSED_MSEC(p_remove->p_tv, tv_now);
         ll = LOG_INFO;

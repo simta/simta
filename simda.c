@@ -62,7 +62,6 @@ main(int argc, char **argv) {
         }
 
         /* Execute the program as the requested user. */
-        argc -= 2;
         argv += 2;
         execv(argv[ 0 ], argv);
         perror("execv");

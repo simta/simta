@@ -67,8 +67,6 @@ simta_sasl_server_new(int tls) {
     sasl_conn_t *      conn;
     struct simta_sasl *ret = NULL;
 
-    ret = calloc(1, sizeof(struct simta_sasl));
-
     if ((rc = sasl_server_new("smtp", simta_sasl_domain, NULL, NULL, NULL, NULL,
                  0, &conn)) != SASL_OK) {
         syslog(LOG_ERR, "Liberror: sasl_server_new: %s",
@@ -82,9 +80,9 @@ simta_sasl_server_new(int tls) {
         sasl_dispose(&conn);
         free(ret);
         ret = NULL;
+    } else {
+        ret->s_response = yaslempty();
     }
-
-    ret->s_response = yaslempty();
 
 error:
     return (ret);

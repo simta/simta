@@ -680,9 +680,11 @@ expand(struct envelope *unexpanded_env) {
     if (snet != NULL) {
         if (snet_close(snet) != 0) {
             syslog(LOG_ERR, "Liberror: expand snet_close %s: %m", d_original);
-            sprintf(d_out, "%s/D%s", env->e_dir, env->e_id);
-            if (unlink(d_out) != 0) {
-                syslog(LOG_ERR, "Syserror: expand unlink %s: %m", d_out);
+            if (env) {
+                sprintf(d_out, "%s/D%s", env->e_dir, env->e_id);
+                if (unlink(d_out) != 0) {
+                    syslog(LOG_ERR, "Syserror: expand unlink %s: %m", d_out);
+                }
             }
             goto cleanup5;
         }

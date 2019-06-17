@@ -181,32 +181,6 @@ simta_ldap_dn_name(struct simta_ldap *ld, LDAPMessage *res) {
     return (retval);
 }
 
-static void
-simta_ldapdomain(int ndomain, const char *buf, char **domain) {
-    const char *pbuf;
-    int         dotcnt = 0;
-
-    pbuf = buf;
-
-    if (ndomain > 0) {
-        pbuf = buf + strlen(buf) - 1;
-
-        while (pbuf > buf) {
-            if (*pbuf == '.') {
-                if (dotcnt == (ndomain - 1)) {
-                    pbuf++;
-                    break;
-                }
-                dotcnt++;
-            }
-            pbuf--;
-        }
-    }
-    *domain = strdup(pbuf);
-    return;
-}
-
-
 char *
 simta_ldap_dequote(char *s) {
     char *buf;
@@ -222,7 +196,6 @@ simta_ldap_dequote(char *s) {
      */
     buf = calloc(1, strlen(s));
 
-    r = s + 1;
     w = buf;
 
     for (r = s + 1; *r != '\0'; r++) {
@@ -976,7 +949,6 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
     char *                   pname;
     char *                   dq;
     int                      rc;
-    int                      count = 0; /* Number of ldap entries found */
     char *                   search_string;
     struct ldap_search_list *lds;
     LDAPMessage *            res = NULL;
@@ -1111,10 +1083,8 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
     yastr           senderbuf = NULL;
     int             suppressnoemail = 0;
     struct berval **senderlist = NULL;
-    char *          permitted_addr;
 
-    struct recipient *     r = NULL;
-    struct string_address *sa;
+    struct recipient *r = NULL;
 
     if ((dn = ldap_get_dn(ld->ldap_ld, entry)) == NULL) {
         syslog(LOG_ERR,
@@ -1251,9 +1221,10 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
                     bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
                             /* FIXME: addr? (???) */
                             "bad group mail forwarding: ", dn, NULL);
+                } else {
+                    e_addr->e_addr_env_gmailfwd->e_next = exp->exp_gmailfwding;
+                    exp->exp_gmailfwding = e_addr->e_addr_env_gmailfwd;
                 }
-                e_addr->e_addr_env_gmailfwd->e_next = exp->exp_gmailfwding;
-                exp->exp_gmailfwding = e_addr->e_addr_env_gmailfwd;
             } else {
                 ldap_value_free_len(mailvals);
                 mailvals = NULL;
@@ -1548,7 +1519,7 @@ error:
 static int
 simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
         struct exp_addr *e_addr, char *addr, char *domain, int addrtype) {
-    int                      rc;
+    int                      rc = ADDRESS_NOT_FOUND;
     int                      match = 0;
     char *                   search_string;
     LDAPMessage *            res;

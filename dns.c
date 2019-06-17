@@ -44,7 +44,6 @@ static struct dnsr_result *get_address(const char *, int);
 bool
 simta_dnsr_init(void) {
     const ucl_object_t *dns_config;
-    DNSR *              ret;
 
     if (simta_dnsr) {
         return (true);

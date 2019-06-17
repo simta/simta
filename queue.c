@@ -899,7 +899,6 @@ q_read_dir(struct simta_dirp *sd) {
 
     if (env != NULL) {
         env->e_cycle = simta_disk_cycle;
-        last_read = env;
         return (0);
     }
 
@@ -947,7 +946,6 @@ q_read_dir(struct simta_dirp *sd) {
         env->e_list_prev = last_read;
         last_read->e_list_next->e_list_prev = env;
         last_read->e_list_next = env;
-        last_read = env;
     }
 
     return (0);
@@ -1158,7 +1156,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                             deliver_q->hq_red, "deliver.bitbucket.delay"),
                     &ts);
             syslog(LOG_WARNING,
-                    "Deliver.remote env <%s>: bitbucket in %d.%06d seconds",
+                    "Deliver.remote env <%s>: bitbucket in %ld.%06ld seconds",
                     env_deliver->e_id, ts.tv_sec, ts.tv_nsec / 1000);
             nanosleep(&ts, NULL);
             d->d_delivered = 1;
@@ -1848,8 +1846,7 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
                             ucl_object_lookup_path(hq->hq_red, "ipv4"))) {
                     return (1);
                 }
-            }
-            if (d->d_dnsr_result->r_ancount > 0) {
+            } else if (d->d_dnsr_result->r_ancount > 0) {
                 syslog(LOG_INFO, "DNS %s: %d AAAA record entries",
                         hq->hq_hostname, d->d_dnsr_result->r_ancount);
                 return (0);

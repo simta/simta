@@ -938,7 +938,6 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
     char *end;
     char *at;
     char *eol;
-    char  swap;
 
     /* make sure mode is in range */
     switch (mode) {
