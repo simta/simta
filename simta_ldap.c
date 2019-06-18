@@ -172,6 +172,7 @@ simta_ldap_dn_name(struct simta_ldap *ld, LDAPMessage *res) {
                 "Liberror: simta_ldap_dn_name ldap_str2dn: "
                 "failed to parse %s",
                 dn);
+        retval = yaslauto("Malformed LDAP result");
     } else {
         retval = yaslnew(
                 (*ldn[ 0 ])->la_value.bv_val, (*ldn[ 0 ])->la_value.bv_len);
