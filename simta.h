@@ -42,7 +42,7 @@
 enum simta_exit_codes {
     SIMTA_EXIT_OK,
     SIMTA_EXIT_ERROR,
-    SIMTA_EXIT_OK_LEAKY,    /* FIXME: can we do better IPC (e.g. structured
+    SIMTA_EXIT_OK_LEAKY, /* FIXME: can we do better IPC (e.g. structured
                              * output from the child) instead of non-zero "OK"
                              * statuses?
                              */

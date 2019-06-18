@@ -5,18 +5,18 @@
 
 #include "config.h"
 
-#include <sys/stat.h>
-#include <sys/types.h>
-
+#include <assert.h>
 #include <fcntl.h>
-#include <ldap.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
 
+#include <ldap.h>
 #include <yasl.h>
 
 #ifdef HAVE_LIBSASL
@@ -78,7 +78,7 @@ struct simta_ldap {
 static int               ldapdebug;
 static struct dll_entry *ldap_connections;
 
-char *       simta_ldap_dequote(char *);
+void         simta_ldap_unescape(yastr);
 int          simta_ld_init(struct simta_ldap *, struct dll_entry *);
 void         simta_ldap_unbind(struct simta_ldap *);
 static int   simta_ldap_retry(struct simta_ldap *);
@@ -181,42 +181,28 @@ simta_ldap_dn_name(struct simta_ldap *ld, LDAPMessage *res) {
     return (retval);
 }
 
-char *
-simta_ldap_dequote(char *s) {
-    char *buf;
-    char *r;
-    char *w;
+void
+simta_ldap_unescape(yastr s) {
+    char * p;
+    size_t i;
 
-    if (*s != '"') {
-        return (NULL);
-    }
-
-    /* We skip the first character of the input string, so we don't need to
-     * allocate extra space for the terminating NULL.
-     */
-    buf = calloc(1, strlen(s));
-
-    w = buf;
-
-    for (r = s + 1; *r != '\0'; r++) {
-        if (*r == '"') {
-            return (buf);
-        }
-
-        if (*r == '\\') {
-            r++;
-            if (*r == '\0') {
-                break;
+    /* Unescape quoted string */
+    if (*s == '"') {
+        yaslrange(s, 1, -1);
+        i = 0;
+        for (p = s; *p != '\0'; p++) {
+            if (*p == '\\') {
+                p++;
             }
+            s[ i ] = *p;
+            i++;
         }
-
-        *w = *r;
-        w++;
+        s[ i ] = '\0';
+        yaslupdatelen(s);
     }
 
-    syslog(LOG_ERR, "LDAP: unterminated quoted string %s", s);
-    free(buf);
-    return (NULL);
+    /* Replace space equivalent characters with spaces. */
+    yaslmapchars(s, "._", "  ", 2);
 }
 
 
@@ -568,115 +554,60 @@ simta_ldap_is_objectclass(
     return (false);
 }
 
-
-/* return a statically allocated string if all goes well, NULL if not.
-     *
-     *     - Build search string where:
-     *         + %s -> username
-     *         + %h -> hostname
-     */
-/* FIXME: this can almost certainly be yasl */
-static char *
+static yastr
 simta_ldap_string(char *filter, char *user, char *domain) {
-    size_t        len;
-    static size_t buf_len = 0;
-    static char * buf = NULL;
-    char *        c;
-    char *        d;
-    char *        insert;
-    size_t        place;
+    yastr buf = NULL;
+    char *p;
+    char *insert;
 
-    /* make sure buf is big enough search url */
-    if ((len = strlen(filter) + 1) > buf_len) {
-        buf = realloc(buf, len);
-        buf_len = len;
-    }
+    buf = yaslMakeRoomFor(yaslempty(), strlen(filter));
+    p = filter;
 
-    d = buf;
-    c = filter;
-
-    while (*c != '\0') {
-        switch (*c) {
+    /* %s -> username, %h -> hostname */
+    while (*p != '\0') {
+        switch (*p) {
         case '%':
-            switch (*(c + 1)) {
+            switch (*(p + 1)) {
             case 's':
-                /* if needed, resize buf to handle upcoming insert */
-                if ((len += (2 * strlen(user))) > buf_len) {
-                    place = (size_t)(d - buf);
-                    buf = realloc(buf, len);
-                    d = buf + place;
-                    buf_len = len;
-                }
-
-                /* insert word */
                 for (insert = user; *insert != '\0'; insert++) {
                     switch (*insert) {
-
-                    case '.':
-                    case '_':
-                        *d = ' ';
-                        break;
-
                     case '(':
                     case ')':
                     case '*':
-                        *d++ = '\\'; /*  Fall Thru */
+                        buf = yaslcatlen(buf, "\\", 1);
+                        /* Fall through */
 
                     default:
-                        *d = *insert;
+                        buf = yaslcatlen(buf, insert, 1);
                     }
-                    d++;
                 }
 
-                /* advance read cursor */
-                c += 2;
+                p += 2;
                 break;
 
             case 'h':
-                /* if needed, resize buf to handle upcoming insert */
-                if ((len += strlen(domain)) > buf_len) {
-                    place = (size_t)(d - buf);
-                    buf = realloc(buf, len);
-                    d = buf + place;
-                    buf_len = len;
-                }
-
-                /* insert word */
-                for (insert = domain; *insert != '\0'; insert++) {
-                    *d = *insert;
-                    d++;
-                }
-
-                /* advance read cursor */
-                c += 2;
+                buf = yaslcat(buf, domain);
+                p += 2;
                 break;
 
             case '%':
                 /* %% -> copy single % to data buffer */
-                *d = *c;
-                /* advance cursors */
-                c += 2;
-                d++;
+                buf = yaslcatlen(buf, "%", 1);
+                p += 2;
                 break;
 
             default:
-                c++;
+                p++;
                 break;
             }
             break;
 
         default:
-            /* raw character, copy to data buffer */
-            *d = *c;
-
-            /* advance cursors */
-            d++;
-            c++;
+            buf = yaslcatlen(buf, p, 1);
+            p++;
             break;
         }
     }
-
-    *d = '\0';
 
     return (buf);
 }
@@ -945,11 +876,9 @@ simta_ldap_retry(struct simta_ldap *ld) {
 
 int
 simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
-    char *                   dup_name;
-    char *                   pname;
-    char *                   dq;
+    yastr                    dup_name;
     int                      rc;
-    char *                   search_string;
+    yastr                    search_string;
     struct ldap_search_list *lds;
     LDAPMessage *            res = NULL;
     LDAPMessage *            entry;
@@ -965,21 +894,8 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
         return (rc);
     }
 
-    /* FIXME: this should be a yastr */
-    dup_name = strdup(name);
-
-    if ((dq = simta_ldap_dequote(dup_name)) != NULL) {
-        free(dup_name);
-        dup_name = dq;
-    }
-
-    /*
-    ** Strip . and _
-    */
-    for (pname = dup_name; *pname; pname++) {
-        if (*pname == '.' || *pname == '_')
-            *pname = ' ';
-    }
+    dup_name = yaslauto(name);
+    simta_ldap_unescape(dup_name);
 
     /*
     ** Strip off any "-owners", or "-otherstuff"
@@ -994,17 +910,15 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
     for (lds = ld->ldap_searches; lds != NULL; lds = lds->lds_next) {
         search_string =
                 simta_ldap_string(lds->lds_plud->lud_filter, dup_name, domain);
-        if (search_string == NULL) {
-            free(dup_name);
-            return (ADDRESS_SYSERROR);
-        }
 
         rc = simta_ldap_search(ld, lds->lds_plud->lud_dn,
                 lds->lds_plud->lud_scope, search_string, &res);
 
+        yaslfree(search_string);
+
         if (rc == ADDRESS_SYSERROR) {
             ldap_msgfree(res);
-            free(dup_name);
+            yaslfree(dup_name);
             simta_ldap_unbind(ld);
             return (ADDRESS_SYSERROR);
         } else if (rc == ADDRESS_FINAL) {
@@ -1015,7 +929,7 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
         res = NULL;
     }
 
-    free(dup_name);
+    yaslfree(dup_name);
 
     /* FIXME: are these values different? Why? */
     if (rc == ADDRESS_NOT_FOUND) {
@@ -1219,7 +1133,6 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
                     env_free(e_addr->e_addr_env_gmailfwd);
                     e_addr->e_addr_env_gmailfwd = NULL;
                     bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
-                            /* FIXME: addr? (???) */
                             "bad group mail forwarding: ", dn, NULL);
                 } else {
                     e_addr->e_addr_env_gmailfwd->e_next = exp->exp_gmailfwding;
@@ -1521,7 +1434,7 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
         struct exp_addr *e_addr, char *addr, char *domain, int addrtype) {
     int                      rc = ADDRESS_NOT_FOUND;
     int                      match = 0;
-    char *                   search_string;
+    yastr                    search_string;
     LDAPMessage *            res;
     LDAPMessage *            entry;
     struct ldap_search_list *lds;
@@ -1540,14 +1453,14 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
         }
 
         /* Fill in the filter string w/ these address and domain strings */
-        if ((search_string = simta_ldap_string(
-                     lds->lds_plud->lud_filter, addr, domain)) == NULL) {
-            return (ADDRESS_SYSERROR);
-        }
+        search_string =
+                simta_ldap_string(lds->lds_plud->lud_filter, addr, domain);
 
         res = NULL;
         rc = simta_ldap_search(ld, lds->lds_plud->lud_dn,
                 lds->lds_plud->lud_scope, search_string, &res);
+
+        yaslfree(search_string);
 
         if (rc == ADDRESS_FINAL) {
             break;
@@ -1593,7 +1506,6 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
                 entry = ldap_next_entry(ld->ldap_ld, entry)) {
             xdn = simta_ldap_dn_name(ld, entry);
 
-            /* FIXME: bad (why?), but how else can we do it? */
             if (strcasecmp(xdn, addr) == 0) {
                 ldap_delete_result_entry(&res, entry);
                 ldap_add_result_entry(&tmpres, entry);
@@ -1731,9 +1643,7 @@ int
 simta_ldap_expand(
         const ucl_object_t *rule, struct expand *exp, struct exp_addr *e_addr) {
     char *             domain;   /* points to domain in address */
-    char *             name;     /* clone of incoming name */
-    char *             pname;    /* pointer for traversing name */
-    char *             dq;       /* dequoted name */
+    yastr              name;     /* clone of incoming name */
     int                nametype; /* Type of Groupname -- owner, member... */
     int                rc;       /* Universal return code */
     struct simta_ldap *ld;
@@ -1752,36 +1662,20 @@ simta_ldap_expand(
         return (rc);
     }
 
-    if (e_addr->e_addr_at == NULL) {
-        panic("simta_ldap_expand: e_addr->e_addr_at is NULL");
-    }
+    assert(e_addr->e_addr_at != NULL);
 
-    *e_addr->e_addr_at = '\0';
-    name = strdup(e_addr->e_addr);
-    *e_addr->e_addr_at = '@';
-
-    if ((dq = simta_ldap_dequote(name)) != NULL) {
-        free(name);
-        name = dq;
-    }
-
+    name = yaslnew(e_addr->e_addr, e_addr->e_addr_at - e_addr->e_addr);
     domain = e_addr->e_addr_at + 1;
 
-    /*
-    ** We still want to strip . and _
-    */
-    for (pname = name; *pname; pname++) {
-        if ((*pname == '.') || (*pname == '_')) {
-            *pname = ' ';
-        }
-    }
+    simta_ldap_unescape(name);
+
     /*
     ** Strip off any "-owners", or "-otherstuff"
     ** and search again
     */
     nametype = simta_address_type(name, rule);
     rc = simta_ldap_name_search(ld, exp, e_addr, name, domain, nametype);
-    free(name);
+    yaslfree(name);
     return (rc);
 }
 

@@ -407,6 +407,7 @@ def test_expand_ldap_group_moderated_membersonly(run_simexpander, req_ldapserver
 #test_expand_ldap_group_member_nomfa
 #test_expand_ldap_group_member_nomfa_suppress
 
+#test_expand_ldap_quotedlocalpart
 #test_expand_ldap_ambiguous
 #test_expand_ldap_precedence
 #test_expand_ldap_danglingref (e.g. member: points to nonexistent entry)
