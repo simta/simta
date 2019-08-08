@@ -1094,6 +1094,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
             yaslclear(buf);
             buf = yaslcatprintf(
                     buf, "%s@%s", group_name, ld->ldap_vacationhost);
+            yaslmapchars(buf, " ", ".", 1);
             if (add_address(exp, buf, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
                         e_addr->e_addr_from) != 0) {
                 syslog(LOG_ERR,

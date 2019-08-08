@@ -82,6 +82,7 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                         'uri': ldapserver['uri'],
                         'attributes': {
                             'forwarding': 'mailForwardingAddress',
+                            'vacation': 'onVacation',
                         },
                         'search': [
                             {
@@ -94,6 +95,9 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                                 'type': 'all',
                             },
                         ],
+                        'vacation': {
+                            'host': 'vacation.mail.example.com',
+                        },
                     },
                 }
             ]
@@ -401,8 +405,20 @@ def test_expand_ldap_group_moderated_membersonly(run_simexpander, req_ldapserver
 #test_expand_ldap_group_moderated_subgroup
 #test_expand_ldap_group_moderated_nopermitsub
 
-#test_expand_ldap_user_vacation
-#test_expand_ldap_group_vacation
+
+def test_expand_ldap_user_vacation(run_simexpander, req_ldapserver):
+    res = run_simexpander('onvacation@ldap.example.com')
+    assert len(res['parsed']) == 2
+    assert res['parsed'][0]['recipients'] == [ 'onvacation@forwarded.example.com' ]
+    assert res['parsed'][1]['recipients'] == [ 'onvacation@vacation.mail.example.com' ]
+
+
+def test_expand_ldap_group_vacation(run_simexpander, req_ldapserver):
+    res = run_simexpander('vacation.group@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [ 'vacation.group@vacation.mail.example.com' ]
+    assert res['parsed'][0]['sender'] == 'sender@expansion.test'
+
 
 #test_expand_ldap_group_member_nomfa
 #test_expand_ldap_group_member_nomfa_suppress

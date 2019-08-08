@@ -34,6 +34,7 @@ mail: testuser@ldap.example.com
 mailForwardingAddress: testuser@forwarded.example.com
 objectClass: umichPerson
 entityID: 9001
+onVacation: FALSE
 
 dn: uid=simexpand,ou=People,dc=example,dc=com
 cn: simta expander
@@ -64,12 +65,24 @@ mailForwardingAddress: requeststo@forwarded.example.com
 objectClass: umichPerson
 entityID: 9001
 
+dn: uid=onvacation,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: onvacation
+mail: onvacation@example.com
+mailForwardingAddress: onvacation@forwarded.example.com
+onvacation: TRUE
+objectClass: umichPerson
+entityID: 9001
+
 dn: cn=testgroup,ou=Groups,dc=example,dc=com
 cn: testgroup
 cn: testgroup alias
 member: uid=testuser,ou=People,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
+onVacation: FALSE
 
 dn: cn=testgroup nonowner,ou=Groups,dc=example,dc=com
 member: uid=testuser,ou=People,dc=example,dc=com
@@ -161,3 +174,8 @@ objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com
 moderator: simexpand@ldap.example.com
 membersonly: TRUE
+
+dn: cn=vacation group,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+onVacation: TRUE
