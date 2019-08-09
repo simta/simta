@@ -3858,6 +3858,22 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
         return (NOT_LOCAL);
     }
 
+    /* RFC 5321 4.5.1 Minimum Implementation
+     *
+     * Any system that includes an SMTP server supporting mail relaying or
+     * delivery MUST support the reserved mailbox "postmaster" as a case-
+     * insensitive local name.  This postmaster address is not strictly
+     * necessary if the server always returns 554 on connection opening (as
+     * described in Section 3.1).  The requirement to accept mail for
+     * postmaster implies that RCPT commands that specify a mailbox for
+     * postmaster at any of the domains for which the SMTP server provides
+     * mail service, as well as the special case of "RCPT TO:<Postmaster>"
+     * (with no domain specification), MUST be supported.
+     */
+    if (strncasecmp(addr, "postmaster@", strlen("postmaster@")) == 0) {
+        return LOCAL_ADDRESS;
+    }
+
     /* Search for user using expansion table */
     iter = ucl_object_iterate_new(ucl_object_lookup(red, "rule"));
     while ((rule = ucl_object_iterate_safe(iter, false)) != NULL) {

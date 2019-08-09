@@ -13,6 +13,7 @@
 #endif /* HAVE_LMDB */
 
 
+void                red_host_insert(const char *, ucl_object_t *);
 const ucl_object_t *red_host_lookup(const char *, bool);
 bool                red_does_expansion(const ucl_object_t *);
 
@@ -26,9 +27,6 @@ int password_expand(struct expand *, struct exp_addr *, const ucl_object_t *);
 #ifdef HAVE_LDAP
 void red_close_ldap_dbs(void);
 #endif /* HAVE_LDAP */
-
-/* global variables */
-extern const ucl_object_t *simta_red_host_default;
 
 #endif /* SIMTA_RED_H */
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

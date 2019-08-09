@@ -41,11 +41,18 @@ red_close_ldap_dbs(void) {
 }
 #endif /* HAVE_LDAP */
 
+void
+red_host_insert(const char *hostname, ucl_object_t *config) {
+    ucl_object_t *obj = NULL;
+
+    obj = ucl_object_ref(simta_config_obj("domain"));
+    ucl_object_insert_key(obj, config, hostname, 0, true);
+    ucl_object_unref(obj);
+}
 
 const ucl_object_t *
 red_host_lookup(const char *hostname, bool create) {
     ucl_object_t *      res = NULL;
-    ucl_object_t *      domains = NULL;
     const ucl_object_t *jail = NULL;
     yastr               key = NULL;
     const char *        buf = NULL;
@@ -64,9 +71,7 @@ red_host_lookup(const char *hostname, bool create) {
         ucl_object_insert_key(res,
                 ucl_object_copy(simta_config_obj("defaults.red.receive")),
                 "receive", 0, false);
-        domains = ucl_object_ref(simta_config_obj("domain"));
-        ucl_object_insert_key(domains, res, key, 0, true);
-        ucl_object_unref(domains);
+        red_host_insert(key, res);
     }
 
     if (res) {

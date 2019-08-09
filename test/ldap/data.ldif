@@ -25,6 +25,15 @@ uid: flowerysong
 objectClass: umichPerson
 entityID: 1
 
+dn: uid=postmaster,ou=People,dc=example,dc=com
+cn: postmaster
+sn: master
+mail: postmaster@example.com
+uid: postmaster
+objectClass: umichPerson
+entityID: 2
+mailForwardingAddress: postmast@forwarded.example.com
+
 dn: uid=eunice,ou=People,dc=example,dc=com
 cn: Eunice Jones
 cn: Eunice M Jones
@@ -226,3 +235,8 @@ dn: cn=shadow,ou=Groups,dc=example,dc=com
 cn: shadowed alias
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=dangle,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+member: uid=notarealuser,ou=People,dc=example,dc=com

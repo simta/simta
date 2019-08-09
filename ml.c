@@ -108,13 +108,9 @@ deliver_binary(struct deliver *d) {
 
         recipient = d->d_rcpt->r_rcpt;
 
-        if ((at = strchr(recipient, '@')) != NULL) {
-            *at = '\0';
-            domain = at + 1;
-        } else {
-            recipient = STRING_POSTMASTER;
-            domain = at + 1;
-        }
+        at = strchr(recipient, '@');
+        *at = '\0';
+        domain = at + 1;
 
         binary = deliver_argv[ 0 ];
         if ((slash = strrchr(binary, '/')) != NULL) {

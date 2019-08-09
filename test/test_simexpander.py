@@ -14,6 +14,27 @@ SUBADDR_TESTS = [
     '+foo+bar',
 ]
 
+PASSWD_CONTENTS = '''
+postmaster:x:999:999::{tmp_path}/postmaster:/sbin/nologin
+testuser:x:1000:1000::{tmp_path}/testuser:/sbin/nologin
+forwarduser:x:1001:1001::{tmp_path}:/sbin/nologin
+'''
+
+FORWARD_CONTENTS = '''
+user@example.com
+user@example.edu
+'''
+
+ALIAS_CONTENTS = '''
+testuser: anotheruser
+external: testuser@example.edu
+password: testuser@password.example.com
+chained: testuser@alias.example.com
+group: testuser@alias.example.com, groupuser@example.com
+group2-errors: anotheruser
+group2: group@alias.example.com
+'''
+
 
 @pytest.fixture
 def expansion_config(simta_config, request, tmp_path, ldapserver):
@@ -21,21 +42,13 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
     alias_file = os.path.join(str(tmp_path), 'alias')
     alias_db = os.path.join(str(tmp_path), 'alias.db')
     with open(passwd_file, 'w') as f:
-        f.write('testuser:x:1000:1000::{}/testuser:/sbin/nologin\n'.format(str(tmp_path)))
-        f.write('forwarduser:x:1001:1001::{}:/sbin/nologin\n'.format(str(tmp_path)))
+        f.write(PASSWD_CONTENTS.format(tmp_path = tmp_path))
 
     with open(os.path.join(str(tmp_path), '.forward'), 'w') as f:
-        f.write('user@example.com\n')
-        f.write('user@example.edu\n')
+        f.write(FORWARD_CONTENTS)
 
     with open(alias_file, 'w') as f:
-        f.write('testuser: anotheruser\n')
-        f.write('external: testuser@example.edu\n')
-        f.write('password: testuser@password.example.com\n')
-        f.write('chained: testuser@alias.example.com\n')
-        f.write('group: testuser@alias.example.com, groupuser@example.com\n')
-        f.write('group2-errors: anotheruser\n')
-        f.write('group2: group@alias.example.com\n')
+        f.write(ALIAS_CONTENTS)
 
     config = {}
     config['domain'] = {
@@ -43,9 +56,6 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
             'rule': [
                 {
                     'type': 'password',
-                    'password': {
-                        'path': passwd_file,
-                    },
                 },
             ]
         },
@@ -53,21 +63,26 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
             'rule': [
                 {
                     'type': 'alias',
-                    'alias': {
-                        'path': alias_db,
-                    }
                 }
             ]
         }
     }
 
+    config['defaults'] = {
+        'red_rule': {
+            'alias': {
+                'path': alias_db,
+            },
+            'password': {
+                'path': passwd_file,
+            },
+        }
+    }
+
+
     if 'subaddress' in request.function.__name__:
-        config['defaults'] = {
-            'red_rule': {
-                'expand': {
-                    'subaddress_separators': '+='
-                }
-            }
+        config['defaults']['red_rule']['expand'] = {
+            'subaddress_separators': '+=',
         }
 
     if ldapserver['enabled']:
@@ -472,7 +487,13 @@ def test_expand_ldap_precedence(run_simexpander, req_ldapserver, target):
     assert res['parsed'][0]['recipients'] == [ 'shadowuser@forwarded.example.com' ]
 
 
-#test_expand_ldap_danglingref (e.g. member: points to nonexistent entry)
+def test_expand_ldap_danglingref(run_simexpander, req_ldapserver):
+    res = run_simexpander('dangle@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [ 'dangle-errors@ldap.example.com' ]
+    assert res['parsed'][0]['sender'] == ''
+    assert 'address not found' in ''.join(res['unparsed'])
+
 
 #test_expand_ldap_group_associated_domain
 

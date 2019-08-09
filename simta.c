@@ -72,7 +72,6 @@ struct host_q *      simta_host_q = NULL;
 struct host_q *      simta_deliver_q = NULL;
 struct host_q *      simta_unexpanded_q = NULL;
 struct host_q *      simta_punt_q = NULL;
-const ucl_object_t * simta_red_host_default = NULL;
 struct proc_type *   simta_proc_stab = NULL;
 ucl_object_t *       simta_config = NULL;
 int                  simta_bounce_seconds = 259200;
@@ -284,6 +283,7 @@ int
 simta_read_config(const char *fname, const char *extra) {
     char                    hostname[ DNSR_MAX_HOSTNAME + 1 ];
     struct ucl_parser *     parser;
+    ucl_object_t *          container;
     ucl_object_t *          obj;
     const ucl_object_t *    i_obj;
     const ucl_object_t *    j_obj;
@@ -318,10 +318,12 @@ simta_read_config(const char *fname, const char *extra) {
         return (-1);
     }
     simta_hostname = yaslauto(hostname);
+    yasltolower(simta_hostname);
+    yasltrim(simta_hostname, ".");
 
     obj = ucl_object_ref(simta_config_obj("core"));
     ucl_object_insert_key(
-            obj, ucl_object_fromstring(hostname), "masquerade", 0, false);
+            obj, ucl_object_fromstring(simta_hostname), "masquerade", 0, false);
     ucl_object_unref(obj);
 
     if (fname == NULL) {
@@ -365,6 +367,21 @@ simta_read_config(const char *fname, const char *extra) {
         }
         ucl_object_merge(simta_config, ucl_parser_get_object(parser), false);
         ucl_parser_free(parser);
+    }
+
+    /* Set up localhost */
+    if (red_host_lookup(simta_hostname, false) == NULL) {
+        /* No explicit config, check the placeholder */
+        container = ucl_object_ref(simta_config_obj("domain"));
+        obj = ucl_object_pop_key(container, "localhost");
+        if (obj == NULL) {
+            /* No explicit config placeholder, fall back to the default */
+            obj = ucl_object_pop_key(container, "localhost.DEFAULT");
+        } else {
+            ucl_object_delete_key(container, "localhost.DEFAULT");
+        }
+        ucl_object_unref(container);
+        red_host_insert(simta_hostname, obj);
     }
 
     /* Populate rule defaults. There's probably a more UCL-y way to do this,
@@ -436,9 +453,6 @@ simta_read_config(const char *fname, const char *extra) {
     simta_debug = simta_config_int("core.debug_level");
 
     simta_postmaster = yaslcatyasl(yaslauto("postmaster@"), simta_hostname);
-
-    /* FIXME: 'localhost' handling, default RED actions */
-    simta_red_host_default = red_host_lookup(hostname, true);
 
     buf = simta_config_str("core.base_dir");
 

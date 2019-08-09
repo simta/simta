@@ -1052,7 +1052,7 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
 
     if (((*at == '\0') && (mode == EMAIL_ADDRESS_NORMAL)) ||
             ((*at == '>') && (mode == RFC_821_RCPT_TO))) {
-        if (strncasecmp(u, STRING_POSTMASTER, strlen(STRING_POSTMASTER)) != 0) {
+        if (strncasecmp(u, "postmaster", strlen("postmaster")) != 0) {
             return (1);
         }
 

@@ -182,10 +182,6 @@ address_string_recipients(
 }
 
 
-/*
-     * return non-zero if there is a syserror
-     */
-
 int
 add_address(struct expand *exp, char *addr, struct envelope *error_env,
         int addr_type, char *from) {
@@ -206,53 +202,51 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
         e->e_addr_parent_rule = exp->exp_current_rule;
         exp->exp_entries++;
 
-        e->e_addr = strdup(addr);
+        if ((addr[ 0 ] == '\0') || (strcasecmp(addr, "postmaster") == 0)) {
+            e->e_addr = strdup(simta_postmaster);
+        } else {
+            e->e_addr = strdup(addr);
+        }
         e->e_addr_from = strdup(from);
 
         /* do syntax checking and special processing */
         if (addr_type == ADDRESS_TYPE_EMAIL) {
-            if ((*(e->e_addr) != '\0') &&
-                    (strcasecmp(STRING_POSTMASTER, e->e_addr) != 0)) {
-                if (*(e->e_addr) == '"') {
-                    if ((at = token_quoted_string(e->e_addr)) == NULL) {
-                        syslog(LOG_ERR,
-                                "add_address <%s>: bad address: "
-                                "bad quoted string",
-                                e->e_addr);
-                        goto error;
-                    }
-
-                } else {
-                    if ((at = token_dot_atom(e->e_addr)) == NULL) {
-                        syslog(LOG_ERR, "add_address <%s>: address missing",
-                                e->e_addr);
-                        goto error;
-                    }
-                }
-
-                at++;
-
-                if (*at != '@') {
+            if (*(e->e_addr) == '"') {
+                if ((at = token_quoted_string(e->e_addr)) == NULL) {
                     syslog(LOG_ERR,
                             "add_address <%s>: bad address: "
-                            "'@' expected",
+                            "bad quoted string",
                             e->e_addr);
                     goto error;
                 }
 
-                e->e_addr_at = at;
+            } else {
+                if ((at = token_dot_atom(e->e_addr)) == NULL) {
+                    syslog(LOG_ERR, "add_address <%s>: address missing",
+                            e->e_addr);
+                    goto error;
+                }
             }
 
+            at++;
+
+            if (*at != '@') {
+                syslog(LOG_ERR,
+                        "add_address <%s>: bad address: "
+                        "'@' expected",
+                        e->e_addr);
+                goto error;
+            }
+
+            e->e_addr_at = at;
+
 #ifdef HAVE_LDAP
-            if (e->e_addr_at != NULL) {
-                /* check to see if the address is the sender */
-                if (exp->exp_env->e_mail != NULL) {
-                    /* compare the address in hand with the sender */
-                    if (simta_mbx_compare(e->e_addr, exp->exp_env->e_mail) ==
-                            0) {
-                        /* here we have a match */
-                        e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
-                    }
+            /* check to see if the address is the sender */
+            if (exp->exp_env->e_mail != NULL) {
+                /* compare the address in hand with the sender */
+                if (simta_mbx_compare(e->e_addr, exp->exp_env->e_mail) == 0) {
+                    /* here we have a match */
+                    e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
                 }
             }
 #endif /* HAVE_LDAP */
@@ -308,29 +302,24 @@ address_expand(struct expand *exp) {
     const ucl_object_t *rule = NULL;
     const char *        type = NULL;
     const char *        path = NULL;
-    int                 local_postmaster = 0;
 
     e_addr = exp->exp_addr_cursor;
 
     switch (e_addr->e_addr_type) {
     case ADDRESS_TYPE_EMAIL:
-        if (e_addr->e_addr_at == NULL) {
-            red = simta_red_host_default;
-        } else {
-            if (strlen(e_addr->e_addr_at + 1) > SIMTA_MAX_HOST_NAME_LEN) {
-                syslog(LOG_ERR, "Expand env <%s>: <%s>: domain too long",
-                        exp->exp_env->e_id, e_addr->e_addr);
-                return (ADDRESS_SYSERROR);
-            }
+        if (strlen(e_addr->e_addr_at + 1) > SIMTA_MAX_HOST_NAME_LEN) {
+            syslog(LOG_ERR, "Expand env <%s>: <%s>: domain too long",
+                    exp->exp_env->e_id, e_addr->e_addr);
+            return (ADDRESS_SYSERROR);
+        }
 
-            /* Check to see if domain is off the local host */
-            red = red_host_lookup(e_addr->e_addr_at + 1, false);
+        /* Check to see if domain is off the local host */
+        red = red_host_lookup(e_addr->e_addr_at + 1, false);
 
-            if ((red == NULL) || !red_does_expansion(red)) {
-                simta_debuglog(1, "Expand env <%s>: <%s>: expansion complete",
-                        exp->exp_env->e_id, e_addr->e_addr);
-                return (ADDRESS_FINAL);
-            }
+        if ((red == NULL) || !red_does_expansion(red)) {
+            simta_debuglog(1, "Expand env <%s>: <%s>: expansion complete",
+                    exp->exp_env->e_id, e_addr->e_addr);
+            return (ADDRESS_FINAL);
         }
         break;
 
@@ -415,7 +404,7 @@ address_expand(struct expand *exp) {
 
         if (strcasecmp(type, "password") == 0) {
             path = ucl_object_tostring(
-                    ucl_object_lookup(rule, "password.path"));
+                    ucl_object_lookup_path(rule, "password.path"));
             switch (password_expand(exp, e_addr, rule)) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog(1,
@@ -465,9 +454,6 @@ address_expand(struct expand *exp) {
 
 #ifdef HAVE_LDAP
         if (strcasecmp(type, "ldap") == 0) {
-            if (e_addr->e_addr_at == NULL) {
-                continue;
-            }
             switch (simta_ldap_expand(rule, exp, e_addr)) {
             case ADDRESS_EXCLUDE:
                 simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: expanded",
@@ -498,26 +484,25 @@ address_expand(struct expand *exp) {
 not_found:
 #endif /* HAVE_LDAP */
 
-    /* If we can't resolve the local postmaster's address, expand it to
-     * the dead queue.
-     */
-    if (e_addr->e_addr_at == NULL) {
-        local_postmaster = 1;
-    } else {
-        *(e_addr->e_addr_at) = '\0';
-        if (strcasecmp(e_addr->e_addr, STRING_POSTMASTER) == 0) {
-            local_postmaster = 1;
+    /* If we can't resolve postmaster, add it to the dead queue. */
+    if (strncasecmp(e_addr->e_addr, "postmaster@", strlen("postmaster@")) ==
+            0) {
+        if (strcasecmp(e_addr->e_addr, simta_postmaster) != 0) {
+            /* Redirect to local postmaster */
+            if (add_address(exp, simta_postmaster, e_addr->e_addr_errors,
+                        ADDRESS_TYPE_EMAIL, e_addr->e_addr_from) != 0) {
+                return ADDRESS_SYSERROR;
+            }
+            return ADDRESS_EXCLUDE;
+        } else {
+            /* Send to dead queue */
+            e_addr->e_addr_type = ADDRESS_TYPE_DEAD;
+            syslog(LOG_ERR,
+                    "Expand env <%s>: <%s>: can't resolve postmaster, "
+                    "expanding to dead queue",
+                    exp->exp_env->e_id, e_addr->e_addr);
+            return (ADDRESS_FINAL);
         }
-        *(e_addr->e_addr_at) = '@';
-    }
-
-    if (local_postmaster) {
-        e_addr->e_addr_type = ADDRESS_TYPE_DEAD;
-        syslog(LOG_ERR,
-                "Expand env <%s>: <%s>: can't resolve local "
-                "postmaster, expanding to dead queue",
-                exp->exp_env->e_id, e_addr->e_addr);
-        return (ADDRESS_FINAL);
     }
 
     syslog(LOG_INFO, "Expand env <%s>: <%s>: not found", exp->exp_env->e_id,
@@ -659,17 +644,11 @@ password_expand(
     }
 
     /* Check password file */
-    if (e_addr->e_addr_at != NULL) {
-        *e_addr->e_addr_at = '\0';
-        passwd = simta_getpwnam(ucl_object_tostring(ucl_object_lookup_path(
-                                        rule, "password.path")),
-                e_addr->e_addr);
-        *e_addr->e_addr_at = '@';
-    } else {
-        passwd = simta_getpwnam(
-                ucl_object_tostring(ucl_object_lookup(rule, "password.path")),
-                STRING_POSTMASTER);
-    }
+    *e_addr->e_addr_at = '\0';
+    passwd = simta_getpwnam(
+            ucl_object_tostring(ucl_object_lookup_path(rule, "password.path")),
+            e_addr->e_addr);
+    *e_addr->e_addr_at = '@';
 
     if (passwd == NULL) {
         /* not in passwd file, try next expansion */
@@ -746,6 +725,13 @@ alias_expand(
     struct simta_dbh *dbh = NULL;
 
     db_path = ucl_object_tostring(ucl_object_lookup_path(rule, "alias.path"));
+
+    if (access(db_path, F_OK) != 0) {
+        syslog(LOG_ERR, "Liberror: alias_expand access %s: %m", db_path);
+        ret = ADDRESS_NOT_FOUND;
+        goto done;
+    }
+
     if ((ret = simta_db_open_r(&dbh, db_path)) != 0) {
         syslog(LOG_ERR, "Liberror: alias_expand simta_db_open_r %s: %s",
                 db_path, simta_db_strerror(ret));
@@ -753,25 +739,22 @@ alias_expand(
         goto done;
     }
 
-    if (e_addr->e_addr_at != NULL) {
-        address = yaslnew(e_addr->e_addr, e_addr->e_addr_at - e_addr->e_addr);
-        if (strncasecmp(address, "owner-", 6) == 0) {
-            /* Canonicalise sendmail-style owner */
-            yaslrange(address, 6, -1);
-            address = yaslcat(address, "-errors");
-        } else if (((paddr = strrchr(address, '-')) != NULL) &&
-                   ((strcasecmp(paddr, "-owner") == 0) ||
-                           (strcasecmp(paddr, "-owners") == 0) ||
-                           (strcasecmp(paddr, "-error") == 0) ||
-                           (strcasecmp(paddr, "-request") == 0) ||
-                           (strcasecmp(paddr, "-requests") == 0))) {
-            /* simta-style owners are all the same for ALIAS.
-             * errors is canonical */
-            yaslrange(address, 0, paddr - address);
-            address = yaslcat(address, "errors");
-        }
-    } else {
-        address = yaslauto(STRING_POSTMASTER);
+    address = yaslnew(e_addr->e_addr, e_addr->e_addr_at - e_addr->e_addr);
+
+    if (strncasecmp(address, "owner-", 6) == 0) {
+        /* Canonicalise sendmail-style owner */
+        yaslrange(address, 6, -1);
+        address = yaslcat(address, "-errors");
+    } else if (((paddr = strrchr(address, '-')) != NULL) &&
+               ((strcasecmp(paddr, "-owner") == 0) ||
+                       (strcasecmp(paddr, "-owners") == 0) ||
+                       (strcasecmp(paddr, "-error") == 0) ||
+                       (strcasecmp(paddr, "-request") == 0) ||
+                       (strcasecmp(paddr, "-requests") == 0))) {
+        /* simta-style owners are all the same for ALIAS.
+         * errors is canonical */
+        yaslrange(address, 0, paddr - address);
+        address = yaslcat(address, "errors");
     }
 
     /* Handle subaddressing */
@@ -802,46 +785,42 @@ alias_expand(
         goto done;
     }
 
-    if (strcmp(address, STRING_POSTMASTER) != 0) {
-        owner = yasldup(address);
-        owner = yaslcat(owner, "-errors");
-        if ((ret = simta_db_cursor_open(dbh, &owner_dbcp)) != 0) {
-            syslog(LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
+    owner = yasldup(address);
+    owner = yaslcat(owner, "-errors");
+    if ((ret = simta_db_cursor_open(dbh, &owner_dbcp)) != 0) {
+        syslog(LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
+                simta_db_strerror(ret));
+        ret = ADDRESS_SYSERROR;
+        goto done;
+    }
+    if ((ret = simta_db_cursor_get(owner_dbcp, &owner, &owner_value)) != 0) {
+        if (ret != SIMTA_DB_NOTFOUND) {
+            syslog(LOG_ERR, "Liberror: alias_expand simta_db_cursor_get: %s",
                     simta_db_strerror(ret));
             ret = ADDRESS_SYSERROR;
             goto done;
         }
-        if ((ret = simta_db_cursor_get(owner_dbcp, &owner, &owner_value)) !=
-                0) {
-            if (ret != SIMTA_DB_NOTFOUND) {
-                syslog(LOG_ERR,
-                        "Liberror: alias_expand simta_db_cursor_get: %s",
-                        simta_db_strerror(ret));
-                ret = ADDRESS_SYSERROR;
-                goto done;
-            }
-        } else {
-            owner = yaslcatprintf(owner, "@%s",
-                    ucl_object_tostring(
-                            ucl_object_lookup(rule, "associated_domain")));
-            if ((e_addr->e_addr_errors = address_bounce_create(exp)) == NULL) {
-                syslog(LOG_ERR,
-                        "Expand.alias env <%s>: <%s>: "
-                        "failed creating error env: %s",
-                        exp->exp_env->e_id, e_addr->e_addr, owner);
-                ret = ADDRESS_SYSERROR;
-                goto done;
-            }
-            if (env_recipient(e_addr->e_addr_errors, owner) != 0) {
-                syslog(LOG_ERR,
-                        "Expand.alias env <%s>: <%s>: "
-                        "failed setting error recip: %s",
-                        exp->exp_env->e_id, e_addr->e_addr, owner);
-                ret = ADDRESS_SYSERROR;
-                goto done;
-            }
-            e_addr->e_addr_from = strdup(owner);
+    } else {
+        owner = yaslcatprintf(owner, "@%s",
+                ucl_object_tostring(
+                        ucl_object_lookup(rule, "associated_domain")));
+        if ((e_addr->e_addr_errors = address_bounce_create(exp)) == NULL) {
+            syslog(LOG_ERR,
+                    "Expand.alias env <%s>: <%s>: "
+                    "failed creating error env: %s",
+                    exp->exp_env->e_id, e_addr->e_addr, owner);
+            ret = ADDRESS_SYSERROR;
+            goto done;
         }
+        if (env_recipient(e_addr->e_addr_errors, owner) != 0) {
+            syslog(LOG_ERR,
+                    "Expand.alias env <%s>: <%s>: "
+                    "failed setting error recip: %s",
+                    exp->exp_env->e_id, e_addr->e_addr, owner);
+            ret = ADDRESS_SYSERROR;
+            goto done;
+        }
+        e_addr->e_addr_from = strdup(owner);
     }
 
     for (;;) {

@@ -29,7 +29,6 @@
 #define MESSAGE_JAIL (1 << 5)
 #define MESSAGE_BOUNCE (1 << 6)
 
-#define STRING_POSTMASTER "postmaster"
 #define S_UNEXPANDED "unexpanded"
 #define S_UNKNOWN_HOST "Unknown host"
 
