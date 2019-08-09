@@ -420,8 +420,18 @@ def test_expand_ldap_group_vacation(run_simexpander, req_ldapserver):
     assert res['parsed'][0]['sender'] == 'sender@expansion.test'
 
 
-#test_expand_ldap_group_member_nomfa
-#test_expand_ldap_group_member_nomfa_suppress
+def test_expand_ldap_group_member_nomfa(run_simexpander, req_ldapserver):
+    res = run_simexpander('nomfa@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [ 'nomfa-errors@ldap.example.com' ]
+    assert res['parsed'][0]['sender'] == ''
+    assert 'Group member exists but does not have an email address' in ''.join(res['unparsed'])
+
+
+def test_expand_ldap_group_member_nomfa_suppress(run_simexpander, req_ldapserver):
+    res = run_simexpander('nomfa.suppress@ldap.example.com')
+    assert res['parsed'] == []
+
 
 #test_expand_ldap_quotedlocalpart
 #test_expand_ldap_ambiguous

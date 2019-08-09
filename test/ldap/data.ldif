@@ -179,3 +179,15 @@ dn: cn=vacation group,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com
 onVacation: TRUE
+
+dn: cn=nomfa,ou=Groups,dc=example,dc=com
+member: uid=flowerysong,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+suppressnoemailerror: FALSE
+
+dn: cn=nomfa suppress,ou=Groups,dc=example,dc=com
+member: uid=flowerysong,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+suppressnoemailerror: TRUE
