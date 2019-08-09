@@ -25,6 +25,24 @@ uid: flowerysong
 objectClass: umichPerson
 entityID: 1
 
+dn: uid=eunice,ou=People,dc=example,dc=com
+cn: Eunice Jones
+cn: Eunice M Jones
+sn: Jones
+mail: eunice@example.com
+uid: eunice
+objectClass: umichPerson
+entityID: 90001
+
+dn: uid=eunicej,ou=People,dc=example,dc=com
+cn: Eunice Jones
+cn: Eunice Q Jones
+sn: Jones
+mail: eunicej@example.com
+uid: eunicej
+objectClass: umichPerson
+entityID: 90001
+
 dn: uid=testuser,ou=People,dc=example,dc=com
 cn: Test User
 givenName: Testament
@@ -191,3 +209,20 @@ member: uid=flowerysong,ou=People,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
 suppressnoemailerror: TRUE
+
+dn: uid=shadow,ou=People,dc=example,dc=com
+cn: Test User
+cn: shadowed alias
+givenName: Testament
+sn: User
+uid: shadow
+mail: shadow@ldap.example.com
+mailForwardingAddress: shadowuser@forwarded.example.com
+objectClass: umichPerson
+entityID: 9001
+onVacation: FALSE
+
+dn: cn=shadow,ou=Groups,dc=example,dc=com
+cn: shadowed alias
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com

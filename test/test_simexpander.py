@@ -90,6 +90,10 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                                 'type': 'user',
                             },
                             {
+                                'uri': 'ldap:///ou=People,dc=example,dc=com?*?sub?cn=%25s',
+                                'type': 'user',
+                            },
+                            {
                                 'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
                                 'rdnpref': True,
                                 'type': 'all',
@@ -448,8 +452,26 @@ def test_expand_ldap_quotedlocalpart(run_simexpander, req_ldapserver, target):
     assert res['parsed'][0]['sender'] == 'testgroup-errors@ldap.example.com'
 
 
-#test_expand_ldap_ambiguous
-#test_expand_ldap_precedence
+def test_expand_ldap_ambiguous(run_simexpander, req_ldapserver):
+    res = run_simexpander('eunice.jones@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [ 'sender@expansion.test' ]
+    assert res['parsed'][0]['sender'] == ''
+    assert 'Ambiguous user' in ''.join(res['unparsed'])
+
+
+@pytest.mark.parametrize('target',
+    [
+        'shadow@ldap.example.com',
+        'shadowed.alias@ldap.example.com',
+    ]
+)
+def test_expand_ldap_precedence(run_simexpander, req_ldapserver, target):
+    res = run_simexpander(target)
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [ 'shadowuser@forwarded.example.com' ]
+
+
 #test_expand_ldap_danglingref (e.g. member: points to nonexistent entry)
 
 #test_expand_ldap_group_associated_domain
