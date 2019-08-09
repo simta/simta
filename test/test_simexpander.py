@@ -122,6 +122,28 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
             ]
         }
 
+        config['domain']['otherldap.domain.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'associated_domain': 'ldap.example.com',
+                    'ldap': {
+                        'uri': ldapserver['uri'],
+                        'attributes': {
+                            'forwarding': 'mailForwardingAddress',
+                        },
+                        'search': [
+                            {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
+                                'rdnpref': True,
+                                'type': 'all',
+                            }
+                        ],
+                    },
+                },
+            ],
+        }
+
     with open(os.path.join(str(tmp_path), 'dynamic.conf'), 'w') as f:
         f.write(json.dumps(config)[1:-1])
 
@@ -495,7 +517,12 @@ def test_expand_ldap_danglingref(run_simexpander, req_ldapserver):
     assert 'address not found' in ''.join(res['unparsed'])
 
 
-#test_expand_ldap_group_associated_domain
+def test_expand_ldap_group_associated_domain(run_simexpander, req_ldapserver):
+    res = run_simexpander('testgroup@otherldap.domain.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [ 'testuser@forwarded.example.com' ]
+    assert res['parsed'][0]['sender'] == 'testgroup-errors@ldap.example.com'
+
 
 #LDAP rfc822mail tests
 
