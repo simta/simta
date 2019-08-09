@@ -189,7 +189,7 @@ simta_ldap_unescape(yastr s) {
 
     /* Unescape quoted string */
     if (*s == '"') {
-        yaslrange(s, 1, -1);
+        yaslrange(s, 1, -2);
         i = 0;
         for (p = s; *p != '\0'; p++) {
             if (*p == '\\') {

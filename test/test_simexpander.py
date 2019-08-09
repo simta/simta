@@ -433,7 +433,21 @@ def test_expand_ldap_group_member_nomfa_suppress(run_simexpander, req_ldapserver
     assert res['parsed'] == []
 
 
-#test_expand_ldap_quotedlocalpart
+@pytest.mark.parametrize('target',
+    [
+        '"testgroup alias"@ldap.example.com',
+        '"testgroup.alias"@ldap.example.com',
+        '"testgroup"@ldap.example.com',
+        '"testgroup\ alias"@ldap.example.com',
+    ]
+)
+def test_expand_ldap_quotedlocalpart(run_simexpander, req_ldapserver, target):
+    res = run_simexpander(target)
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [ 'testuser@forwarded.example.com' ]
+    assert res['parsed'][0]['sender'] == 'testgroup-errors@ldap.example.com'
+
+
 #test_expand_ldap_ambiguous
 #test_expand_ldap_precedence
 #test_expand_ldap_danglingref (e.g. member: points to nonexistent entry)
