@@ -7,8 +7,6 @@ results may vary.
 
 ```
 yum install -y openldap-servers
-/usr/libexec/openldap/create-certdb.sh
-/usr/libexec/openldap/generate-server-cert.sh
 systemctl start slapd
 ```
 

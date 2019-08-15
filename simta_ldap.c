@@ -31,7 +31,6 @@
 
 #include "dn.h"
 #include "header.h"
-#include "ll.h"
 #include "simta.h"
 #include "simta_ldap.h"
 #include "simta_statsd.h"
@@ -75,16 +74,19 @@ struct simta_ldap {
     const char *             ldap_associated_domain;
 };
 
-static int               ldapdebug;
-static struct dll_entry *ldap_connections;
+static int ldapdebug;
 
-void         simta_ldap_unescape(yastr);
-int          simta_ld_init(struct simta_ldap *, struct dll_entry *);
-void         simta_ldap_unbind(struct simta_ldap *);
-static int   simta_ldap_retry(struct simta_ldap *);
-static yastr simta_addr_demangle(const char *);
-static int   simta_ldap_search(
-          struct simta_ldap *, char *, int, char *, LDAPMessage **);
+/* Object caches */
+static ucl_object_t *ldap_configs = NULL;
+static ucl_object_t *ldap_connections = NULL;
+
+void                simta_ldap_unescape(yastr);
+simta_result        simta_ld_init(struct simta_ldap *, const yastr);
+void                simta_ldap_unbind(struct simta_ldap *);
+static simta_result simta_ldap_retry(struct simta_ldap *);
+static yastr        simta_addr_demangle(const char *);
+static int          simta_ldap_search(
+                 struct simta_ldap *, char *, int, char *, LDAPMessage **);
 static bool simta_ldap_bool(struct simta_ldap *, LDAPMessage *, const char *);
 static bool simta_ldap_is_objectclass(
         struct simta_ldap *, LDAPMessage *, const char *);
@@ -229,8 +231,8 @@ simta_ldap_sasl_interact(
 #endif
 
 
-int
-simta_ld_init(struct simta_ldap *ld, struct dll_entry *dentry) {
+simta_result
+simta_ld_init(struct simta_ldap *ld, const yastr key) {
     int         maxambiguous = 10;
     int         protocol = LDAP_VERSION3;
     LDAP *      ldap_ld = NULL;
@@ -244,7 +246,7 @@ simta_ld_init(struct simta_ldap *ld, struct dll_entry *dentry) {
     if ((rc = ldap_initialize(&ldap_ld, uri)) != 0) {
         syslog(LOG_ERR, "Liberror: simta_ld_init ldap_initialize: %s",
                 ldap_err2string(rc));
-        return (1);
+        return SIMTA_ERR;
     }
 
     if (ldapdebug) {
@@ -270,7 +272,7 @@ simta_ld_init(struct simta_ldap *ld, struct dll_entry *dentry) {
         syslog(LOG_ERR,
                 "Liberror: simta_ld_init ldap_set_option "
                 "LDAP_OPT_RESTART LDAP_OPT_ON: failed");
-        return (1);
+        return SIMTA_ERR;
     }
 
     if ((ldap_set_option(ldap_ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF)) !=
@@ -278,7 +280,7 @@ simta_ld_init(struct simta_ldap *ld, struct dll_entry *dentry) {
         syslog(LOG_ERR,
                 "Liberror: simta_ld_init ldap_set_option "
                 "LDAP_OPT_REFERRALS LDAP_OPT_OFF: failed");
-        return (1);
+        return SIMTA_ERR;
     }
 
     if ((ldap_set_option(ldap_ld, LDAP_OPT_SIZELIMIT, (void *)&maxambiguous)) !=
@@ -287,7 +289,7 @@ simta_ld_init(struct simta_ldap *ld, struct dll_entry *dentry) {
                 "Liberror: simta_ld_init ldap_set_option "
                 "LDAP_OPT_SIZELIMIT %d: failed",
                 maxambiguous);
-        return (1);
+        return SIMTA_ERR;
     }
 
     if ((ldap_set_option(ldap_ld, LDAP_OPT_PROTOCOL_VERSION, &protocol)) !=
@@ -296,43 +298,51 @@ simta_ld_init(struct simta_ldap *ld, struct dll_entry *dentry) {
                 "Liberror: simta_ld_init ldap_set_option "
                 "LDAP_OPT_PROTOCOL_VERSION %d: failed",
                 protocol);
-        return (1);
+        return SIMTA_ERR;
     }
 
     ld->ldap_ld = ldap_ld;
-    dentry->dll_data = ldap_ld;
+    ucl_object_insert_key(ldap_connections,
+            ucl_object_new_userdata(NULL, NULL, ldap_ld), key, yasllen(key),
+            true);
 
-    return (0);
+    return SIMTA_OK;
 }
 
 void
 simta_ldap_reset(void) {
-    dll_free(ldap_connections);
-    ldap_connections = NULL;
+    ucl_object_unref(ldap_connections);
+    ucl_object_unref(ldap_configs);
+    ldap_connections = ucl_object_new();
+    ldap_configs = ucl_object_new();
 }
 
-static int
+static simta_result
 simta_ldap_init(struct simta_ldap *ld) {
-    int               retval = ADDRESS_SYSERROR;
-    int               ldaprc;
-    struct dll_entry *dentry;
-    struct berval     creds = {0};
-    yastr             key = NULL;
+    simta_result        retval = SIMTA_ERR;
+    int                 ldaprc;
+    const ucl_object_t *obj;
+    struct berval       creds = {0};
+    yastr               key = NULL;
+
+    if (ldap_connections == NULL) {
+        ldap_connections = ucl_object_new();
+    }
 
     if (ld->ldap_ld == NULL) {
         key = yaslauto(ld->ldap_host);
-        key = yaslcatprintf(key, "%i%s", ld->ldap_port,
+        key = yaslcatprintf(key, ":%i:%s", ld->ldap_port,
                 ld->ldap_binddn ? ld->ldap_binddn : "ANON");
-        dentry = dll_lookup_or_create(&ldap_connections, key);
-        yaslfree(key);
 
-        if (dentry->dll_data) {
-            ld->ldap_ld = (LDAP *)dentry->dll_data;
-            return (0);
+
+        if ((obj = ucl_object_lookup(ldap_connections, key)) != NULL) {
+            ld->ldap_ld = (LDAP *)(obj->value.ud);
+            retval = SIMTA_OK;
+            goto done;
         }
 
-        if (simta_ld_init(ld, dentry) != 0) {
-            goto error;
+        if (simta_ld_init(ld, key) != SIMTA_OK) {
+            goto done;
         }
 
 #ifdef HAVE_LIBSSL
@@ -344,7 +354,7 @@ simta_ldap_init(struct simta_ldap *ld) {
                             "Liberror: simta_ldap_init ldap_set_option "
                             "LDAP_OPT_X_TLS_CACERTFILE %s: %s",
                             ld->ldap_tls_cacert, ldap_err2string(ldaprc));
-                    goto error;
+                    goto done;
                 }
             }
 
@@ -355,7 +365,7 @@ simta_ldap_init(struct simta_ldap *ld) {
                             "Liberror: simta_ldap_init ldap_set_option "
                             "LDAP_OPT_X_TLS_CERTFILE %s: %s",
                             ld->ldap_tls_cert, ldap_err2string(ldaprc));
-                    goto error;
+                    goto done;
                 }
             }
 
@@ -366,7 +376,7 @@ simta_ldap_init(struct simta_ldap *ld) {
                             "Liberror: simta_ldap_init ldap_set_option "
                             "LDAP_OPT_X_TLS_KEYFILE %s: %s",
                             ld->ldap_tls_key, ldap_err2string(ldaprc));
-                    goto error;
+                    goto done;
                 }
             }
         }
@@ -380,14 +390,14 @@ simta_ldap_init(struct simta_ldap *ld) {
             syslog(LOG_ERR, "Liberror: simta_ldap_init ldap_start_tls_s: %s",
                     ldap_err2string(ldaprc));
             if (ld->ldap_starttls == 2) {
-                goto error;
+                goto done;
             }
             if (ld->ldap_tls_cert) {
                 ld->ldap_tls_cert = NULL;
             }
 
             if (simta_ldap_retry(ld) != 0) {
-                goto error;
+                goto done;
             }
         }
     }
@@ -402,7 +412,7 @@ simta_ldap_init(struct simta_ldap *ld) {
                     "Liberror: simta_ldap_init "
                     "ldap_sasl_interactive_bind_s: %s",
                     ldap_err2string(ldaprc));
-            goto error;
+            goto done;
         }
 
         /* If a client-side cert specified,  then do a SASL EXTERNAL bind */
@@ -414,7 +424,7 @@ simta_ldap_init(struct simta_ldap *ld) {
                     "Liberror: simta_ldap_init "
                     "ldap_sasl_interactive_bind_s: %s",
                     ldap_err2string(ldaprc));
-            goto error;
+            goto done;
         }
 
     } else {
@@ -428,23 +438,25 @@ simta_ldap_init(struct simta_ldap *ld) {
                 LDAP_SUCCESS) {
             syslog(LOG_ERR, "Liberror: simta_ldap_init ldap_sasl_bind_s: %s",
                     ldap_err2string(ldaprc));
-            goto error;
+            goto done;
         }
 #ifdef HAVE_LIBSASL
     }
 #endif /* HAVE_LIBSASL */
 
-    retval = 0;
+    retval = SIMTA_OK;
 
-error:
-    if (retval != 0) {
+done:
+    yaslfree(key);
+
+    if (retval != SIMTA_OK) {
         simta_ldap_unbind(ld);
     }
     if (creds.bv_val) {
         free(creds.bv_val);
     }
 
-    return (retval);
+    return retval;
 }
 
 static int
@@ -842,30 +854,33 @@ do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
 
 void
 simta_ldap_unbind(struct simta_ldap *ld) {
-    struct dll_entry *l;
+    ucl_object_iter_t   iter;
+    const ucl_object_t *obj;
+
     if ((ld != NULL) && (ld->ldap_ld != NULL)) {
-        for (l = ldap_connections; l != NULL; l = l->dll_next) {
-            if (ld->ldap_ld == l->dll_data) {
+        iter = ucl_object_iterate_new(ldap_connections);
+        while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+            if (obj->value.ud == ld->ldap_ld) {
                 simta_debuglog(1, "LDAP: closing connection to %s:%i",
                         ld->ldap_host, ld->ldap_port);
                 ldap_unbind_ext(ld->ldap_ld, NULL, NULL);
-                l->dll_data = NULL;
+                ucl_object_delete_key(ldap_connections, ucl_object_key(obj));
                 ld->ldap_ld = NULL;
-                return;
             }
         }
+        ucl_object_iterate_free(iter);
     }
     return;
 }
 
 
-static int
+static simta_result
 simta_ldap_retry(struct simta_ldap *ld) {
     simta_ldap_unbind(ld);
-    if (simta_ldap_init(ld) != 0) {
-        return (1);
+    if (simta_ldap_init(ld) != SIMTA_OK) {
+        return SIMTA_ERR;
     }
-    return (0);
+    return SIMTA_OK;
 }
 
 
@@ -886,7 +901,6 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
     struct berval **         vals;
     struct simta_ldap *      ld;
 
-    /* FIXME: need to cache and/or free this structure */
     if ((ld = simta_ldap_config(rule)) == NULL) {
         return (ADDRESS_SYSERROR);
     }
@@ -1650,7 +1664,6 @@ simta_ldap_expand(
     int                rc;       /* Universal return code */
     struct simta_ldap *ld;
 
-    /* FIXME: need to cache and/or free this structure */
     if ((ld = simta_ldap_config(rule)) == NULL) {
         return (ADDRESS_SYSERROR);
     }
@@ -1796,6 +1809,7 @@ simta_mbx_compare(const char *addr1, const char *addr2) {
 struct simta_ldap *
 simta_ldap_config(const ucl_object_t *rule) {
     struct ldap_search_list **lds;
+    const char *              key;
     const char *              buf;
     int                       i;
     const ucl_object_t *      obj;
@@ -1803,6 +1817,16 @@ simta_ldap_config(const ucl_object_t *rule) {
     LDAPURLDesc *             plud;   /* a parsed ldapurl */
     int                       ldaprc; /* ldap return code */
     struct simta_ldap *       ld = NULL;
+
+    if (ldap_configs == NULL) {
+        ldap_configs = ucl_object_new();
+    }
+
+    key = ucl_object_tostring_forced(rule);
+
+    if ((obj = ucl_object_lookup(ldap_configs, key)) != NULL) {
+        return obj->value.ud;
+    }
 
     ld = calloc(1, sizeof(struct simta_ldap));
     lds = &(ld->ldap_searches);
@@ -1944,6 +1968,9 @@ simta_ldap_config(const ucl_object_t *rule) {
     }
 
     ucl_object_iterate_free(iter);
+
+    ucl_object_insert_key(ldap_configs, ucl_object_new_userdata(NULL, NULL, ld),
+            key, 0, true);
     return (ld);
 
 errexit:
