@@ -285,10 +285,11 @@ dmarc_lookup_record(const char *domain) {
 
 yastr
 dmarc_orgdomain(const char *domain) {
-    size_t            i;
-    struct dll_entry *dentry, *leaf;
-    size_t            tok_count;
-    yastr *           split, buf, orgdomain = NULL;
+    size_t              i;
+    const ucl_object_t *parent;
+    const ucl_object_t *obj;
+    size_t              tok_count;
+    yastr *             split, buf, orgdomain = NULL;
 
     /* RFC 7489 3.2 Organizational Domain
      * The Organizational Domain is determined using the following
@@ -325,25 +326,25 @@ dmarc_orgdomain(const char *domain) {
         /* We can't reliably guess the organizational domain, so we're not
          * even going to try.
          */
-        return (NULL);
+        return NULL;
     }
 
     split = yaslsplitlen(domain, strlen(domain), ".", 1, &tok_count);
 
-    dentry = simta_publicsuffix_list;
+    parent = simta_publicsuffix_list;
     buf = yaslempty();
     for (i = tok_count; i > 0; i--) {
         yasltolower(split[ i - 1 ]);
-        if ((leaf = dll_lookup(dentry, split[ i - 1 ])) != NULL) {
-            dentry = leaf->dll_data;
+        if ((obj = ucl_object_lookup(parent, split[ i - 1 ])) != NULL) {
+            parent = obj;
             continue;
         }
 
         yaslclear(buf);
         buf = yaslcatprintf(buf, "!%s", split[ i - 1 ]);
-        if ((leaf = dll_lookup(dentry, buf)) == NULL) {
-            if ((leaf = dll_lookup(dentry, "*")) != NULL) {
-                dentry = leaf->dll_data;
+        if ((obj = ucl_object_lookup(parent, buf)) == NULL) {
+            if ((obj = ucl_object_lookup(parent, "*")) != NULL) {
+                parent = obj;
                 continue;
             }
         }

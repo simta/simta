@@ -55,7 +55,7 @@
 #include "embedded_config.h"
 #include "embedded_schema.h"
 
-static int simta_read_publicsuffix(const char *);
+static simta_result simta_read_publicsuffix(const char *);
 
 
 /* global variables */
@@ -165,8 +165,8 @@ char *simta_dir_ca = NULL;
 char *simta_file_cert = "cert/cert.pem";
 char *simta_file_private_key = "cert/cert.pem";
 #endif /* HAVE_LIBSSL */
-yastr             simta_seen_before_domain = NULL;
-struct dll_entry *simta_publicsuffix_list = NULL;
+yastr         simta_seen_before_domain = NULL;
+ucl_object_t *simta_publicsuffix_list = NULL;
 
 /* SMTP RECEIVE & DELIVER TIMERS */
 int simta_inbound_accepted_message_timer = -1;
@@ -468,7 +468,6 @@ simta_read_config(const char *fname, const char *extra) {
     yaslfree(path);
 
     /* Parse PSL */
-    /* FIXME: should this parse to a UCL object instead of a dll? */
     if (simta_config_bool("receive.dmarc.enabled") &&
             ((buf = simta_config_str("receive.dmarc.public_suffix_file")) !=
                     NULL)) {
@@ -567,11 +566,14 @@ simta_check_charset(const char *str) {
     return (ret);
 }
 
-static int
+static simta_result
 simta_read_publicsuffix(const char *fname) {
-    SNET *            snet = NULL;
-    char *            line, *p;
-    struct dll_entry *leaf;
+    SNET *              snet = NULL;
+    char *              line, *p;
+    const ucl_object_t *parent = NULL;
+    const ucl_object_t *obj = NULL;
+    ucl_object_t *      ref;
+    ucl_object_t *      newobj;
 #ifdef HAVE_LIBIDN2
     char *idna = NULL;
 #endif /* HAVE_LIBIDN2 */
@@ -580,8 +582,16 @@ simta_read_publicsuffix(const char *fname) {
     if ((snet = snet_open(fname, O_RDONLY, 0, 1024 * 1024)) == NULL) {
         fprintf(stderr, "simta_read_publicsuffix: open %s: %s", fname,
                 strerror(errno));
-        return (1);
+        return SIMTA_ERR;
     }
+
+    simta_publicsuffix_list = ucl_object_new();
+    /* Formal algorithm from https://publicsuffix.org/list/
+     * If no rules match, the prevailing rule is "*".
+     */
+    ucl_object_insert_key(
+            simta_publicsuffix_list, ucl_object_new(), "*", 1, true);
+
     while ((line = snet_getline(snet, NULL)) != NULL) {
         /* Each line is only read up to the first whitespace; entire
          * lines can also be commented using //.
@@ -593,7 +603,7 @@ simta_read_publicsuffix(const char *fname) {
         for (p = line; ((*p != '\0') && (!isspace(*p))); p++)
             ;
         *p = '\0';
-        leaf = NULL;
+        parent = simta_publicsuffix_list;
 
 
 #ifdef HAVE_LIBIDN2
@@ -613,20 +623,19 @@ simta_read_publicsuffix(const char *fname) {
                 p++;
             }
 
-            if (leaf == NULL) {
-                leaf = dll_lookup_or_create(&simta_publicsuffix_list, p);
+            obj = ucl_object_lookup(parent, p);
+            if (obj == NULL) {
+                newobj = ucl_object_new();
+                ref = ucl_object_ref(parent);
+                ucl_object_insert_key(ref, newobj, p, 0, true);
+                ucl_object_unref(ref);
+                parent = newobj;
             } else {
-                leaf = dll_lookup_or_create(
-                        (struct dll_entry **)&leaf->dll_data, p);
+                parent = obj;
             }
 
             *p = '\0';
         }
-
-        /* Formal algorithm from https://publicsuffix.org/list/
-         * If no rules match, the prevailing rule is "*".
-         */
-        leaf = dll_lookup_or_create(&simta_publicsuffix_list, "*");
 
 #ifdef HAVE_LIBIDN2
         if (idna) {
@@ -637,10 +646,10 @@ simta_read_publicsuffix(const char *fname) {
     }
     if (snet_close(snet) != 0) {
         perror("snet_close");
-        return (1);
+        return SIMTA_ERR;
     }
 
-    return (0);
+    return SIMTA_OK;
 }
 
 pid_t

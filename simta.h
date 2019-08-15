@@ -238,7 +238,7 @@ extern char              simta_log_id[];
 extern yastr             simta_postmaster;
 extern DNSR *            simta_dnsr;
 extern yastr             simta_seen_before_domain;
-extern struct dll_entry *simta_publicsuffix_list;
+extern ucl_object_t *    simta_publicsuffix_list;
 
 /* SMTP INBOUND & OUTBOUND TIMERS */
 extern int simta_inbound_accepted_message_timer;
