@@ -181,25 +181,25 @@ static yastr       env_string(const char *, const char *);
 static const char *iprev_authresult_str(struct receive_data *);
 static int         proxy_accept(struct receive_data *);
 static int         auth_init(struct receive_data *, struct simta_socket *);
-static int  content_filter(struct receive_data *, char **, struct timeval *);
-static int  run_content_filter(struct receive_data *, char **);
-static int  local_address(char *, char *, const ucl_object_t *);
-static int  hello(struct receive_data *, char *);
-static int  reset(struct receive_data *);
-static int  deliver_accepted(struct receive_data *, int);
-static int  f_helo(struct receive_data *);
-static int  f_ehlo(struct receive_data *);
-static int  f_auth(struct receive_data *);
-static int  f_mail(struct receive_data *);
-static int  f_rcpt(struct receive_data *);
-static int  f_data(struct receive_data *);
-static int  f_rset(struct receive_data *);
-static int  f_noop(struct receive_data *);
-static int  f_quit(struct receive_data *);
-static int  f_help(struct receive_data *);
-static int  f_not_implemented(struct receive_data *);
-static int  f_bad_sequence(struct receive_data *);
-static int  f_off(struct receive_data *);
+static int content_filter(struct receive_data *, char **, struct timeval *);
+static int run_content_filter(struct receive_data *, char **);
+static simta_address_status local_address(char *, char *, const ucl_object_t *);
+static int                  hello(struct receive_data *, char *);
+static int                  reset(struct receive_data *);
+static int                  deliver_accepted(struct receive_data *, int);
+static int                  f_helo(struct receive_data *);
+static int                  f_ehlo(struct receive_data *);
+static int                  f_auth(struct receive_data *);
+static int                  f_mail(struct receive_data *);
+static int                  f_rcpt(struct receive_data *);
+static int                  f_data(struct receive_data *);
+static int                  f_rset(struct receive_data *);
+static int                  f_noop(struct receive_data *);
+static int                  f_quit(struct receive_data *);
+static int                  f_help(struct receive_data *);
+static int                  f_not_implemented(struct receive_data *);
+static int                  f_bad_sequence(struct receive_data *);
+static int                  f_off(struct receive_data *);
 static void set_smtp_mode(struct receive_data *, const char *, const char *);
 static void tarpit_sleep(struct receive_data *);
 static void log_bad_syntax(struct receive_data *);
@@ -1279,7 +1279,7 @@ f_rcpt(struct receive_data *r) {
              */
 
             switch (local_address(addr, domain, red)) {
-            case NOT_LOCAL:
+            case ADDRESS_NOT_FOUND:
                 syslog(LOG_INFO,
                         "Receive [%s] %s: env <%s>: "
                         "To <%s> From <%s>: Failed: User not local",
@@ -1289,7 +1289,7 @@ f_rcpt(struct receive_data *r) {
                         ucl_object_tostring(ucl_object_lookup_path(
                                 red, "receive.user_not_found"))));
 
-            case LOCAL_ERROR:
+            case ADDRESS_SYSERROR:
                 syslog(LOG_ERR,
                         "Receive [%s] %s: env <%s>: local_address %s: failed",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr);
@@ -1302,7 +1302,7 @@ f_rcpt(struct receive_data *r) {
 
                 return (smtp_write_banner(r, 451, NULL, NULL));
 
-            case LOCAL_ADDRESS_RBL:
+            case ADDRESS_OK:
                 if (!r->r_dnsl_checked) {
                     r->r_dnsl_result = dnsl_check(
                             "receive.rcpt_to.dns_lists", r->r_sa, NULL);
@@ -1335,9 +1335,9 @@ f_rcpt(struct receive_data *r) {
                                 "Receive [%s] %s: env <%s>: "
                                 "f_rcpt snet_writef: %m",
                                 r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-                        return (RECEIVE_CLOSECONNECTION);
+                        return RECEIVE_CLOSECONNECTION;
                     }
-                    return (RECEIVE_OK);
+                    return RECEIVE_OK;
                 } else if ((strcmp(r->r_dnsl_result->dnsl_action, "accept") ==
                                    0) ||
                            (strcmp(r->r_dnsl_result->dnsl_action, "trust") ==
@@ -1351,9 +1351,9 @@ f_rcpt(struct receive_data *r) {
                             r->r_dnsl_result->dnsl_reason);
                     break;
                 }
-                break; /* end case LOCAL_ADDRESS_RBL */
+                break;
 
-            case LOCAL_ADDRESS:
+            case ADDRESS_OK_SPAM:
                 break;
 
             default:
@@ -3838,7 +3838,7 @@ auth_init(struct receive_data *r, struct simta_socket *ss) {
 }
 
 
-static int
+static simta_address_status
 local_address(char *addr, char *domain, const ucl_object_t *red) {
     int                 n_required_found = 0;
     int                 rc;
@@ -3855,7 +3855,7 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
 #endif /* HAVE_LMDB */
 
     if ((at = strchr(addr, '@')) == NULL) {
-        return (NOT_LOCAL);
+        return ADDRESS_NOT_FOUND;
     }
 
     /* RFC 5321 4.5.1 Minimum Implementation
@@ -3871,7 +3871,7 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
      * (with no domain specification), MUST be supported.
      */
     if (strncasecmp(addr, "postmaster@", strlen("postmaster@")) == 0) {
-        return LOCAL_ADDRESS;
+        return ADDRESS_OK;
     }
 
     /* Search for user using expansion table */
@@ -3885,7 +3885,7 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
         type = ucl_object_tostring(ucl_object_lookup(rule, "type"));
 
         if (strcasecmp(type, "accept") == 0) {
-            return (LOCAL_ADDRESS);
+            return ADDRESS_OK;
 
 #ifdef HAVE_LMDB
         } else if (strcasecmp(type, "alias") == 0) {
@@ -3899,7 +3899,7 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
             }
 
             if ((key = yaslnew(addr, (size_t)(at - addr))) == NULL) {
-                return (LOCAL_ERROR);
+                return ADDRESS_SYSERROR;
             }
             rc = simta_db_get(dbh, key, &value);
             yaslfree(key);
@@ -3910,15 +3910,15 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
             if (rc == 0) {
                 if (ucl_object_toboolean(ucl_object_lookup_path(
                             rule, "receive.sufficient"))) {
-                    return (LOCAL_ADDRESS);
+                    return ADDRESS_OK;
                 } else {
                     n_required_found++;
                 }
             } else if (rc == 1) {
-                return (LOCAL_ERROR);
+                return ADDRESS_SYSERROR;
             } else if (ucl_object_toboolean(ucl_object_lookup_path(
                                rule, "receive.required"))) {
-                return (NOT_LOCAL);
+                return ADDRESS_OK;
             }
 #endif /* HAVE_LMDB */
 
@@ -3933,30 +3933,30 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
             if (passwd != NULL) {
                 if (ucl_object_toboolean(ucl_object_lookup_path(
                             rule, "receive.sufficient"))) {
-                    return (LOCAL_ADDRESS);
+                    return ADDRESS_OK;
                 } else {
                     n_required_found++;
                 }
             } else if (ucl_object_toboolean(ucl_object_lookup_path(
                                rule, "receive.required"))) {
-                return (NOT_LOCAL);
+                return ADDRESS_NOT_FOUND;
             }
 
         } else if (strcasecmp(type, "srs") == 0) {
             if ((rc = srs_valid(addr, ucl_object_tostring(ucl_object_lookup(
                                               rule, "secret")))) ==
-                    ADDRESS_FINAL) {
+                    ADDRESS_OK) {
                 if (ucl_object_toboolean(ucl_object_lookup_path(
                             rule, "receive.sufficient"))) {
-                    return (LOCAL_ADDRESS);
+                    return ADDRESS_OK;
                 } else {
                     n_required_found++;
                 }
             } else if (rc == ADDRESS_SYSERROR) {
-                return (LOCAL_ERROR);
+                return ADDRESS_SYSERROR;
             } else if (ucl_object_toboolean(ucl_object_lookup_path(
                                rule, "receive.required"))) {
-                return (NOT_LOCAL);
+                return ADDRESS_NOT_FOUND;
             }
 
 #ifdef HAVE_LDAP
@@ -3967,45 +3967,38 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
             *at = '@';
 
             switch (rc) {
-            default:
-                syslog(LOG_ERR,
-                        "Syserror local_address: "
-                        "simta_ldap_address_local: bad value");
             case ADDRESS_SYSERROR:
-                return (LOCAL_ERROR);
+                return ADDRESS_SYSERROR;
 
-            case LDAP_NOT_LOCAL:
+            case ADDRESS_NOT_FOUND:
                 if (ucl_object_toboolean(
                             ucl_object_lookup_path(rule, "receive.required"))) {
-                    return (NOT_LOCAL);
+                    return ADDRESS_NOT_FOUND;
                 }
                 continue;
 
-            case LDAP_LOCAL:
+            default:
                 if (ucl_object_toboolean(ucl_object_lookup_path(
                             rule, "receive.sufficient"))) {
-                    return (LOCAL_ADDRESS);
+                    return rc;
                 } else {
                     n_required_found++;
                 }
                 break;
-
-            case LDAP_LOCAL_RBL:
-                return (LOCAL_ADDRESS_RBL);
             }
 #endif /* HAVE_LDAP */
 
         } else {
             syslog(LOG_ERR, "local_address: unknown expansion type %s", type);
-            return (LOCAL_ERROR);
+            return ADDRESS_SYSERROR;
         }
     }
 
     if (n_required_found != 0) {
-        return (LOCAL_ADDRESS);
+        return ADDRESS_OK;
     }
 
-    return (NOT_LOCAL);
+    return ADDRESS_NOT_FOUND;
 }
 
 #ifdef HAVE_LIBOPENDKIM

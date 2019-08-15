@@ -16,10 +16,13 @@
 #define EXPAND_FATAL 2
 
 /* return codes for address expansion */
-#define ADDRESS_SYSERROR 1
-#define ADDRESS_NOT_FOUND 2
-#define ADDRESS_FINAL 3
-#define ADDRESS_EXCLUDE 4
+typedef enum {
+    ADDRESS_OK,
+    ADDRESS_OK_SPAM,
+    ADDRESS_EXCLUDE,
+    ADDRESS_NOT_FOUND,
+    ADDRESS_SYSERROR,
+} simta_address_status;
 
 /* address types */
 #define ADDRESS_TYPE_EMAIL 1
@@ -101,11 +104,11 @@ struct passwd *simta_getpwnam(const char *, const char *);
 int            address_error(struct envelope *, char *, char *, char *);
 void           expansion_stab_stdout(void *);
 int add_address(struct expand *, char *, struct envelope *, int, char *);
-struct envelope *address_bounce_create(struct expand *);
-int              address_expand(struct expand *);
-void             expand_tree_stdout(struct exp_addr *, int);
-int              address_string_recipients(
-                     struct expand *, char *, struct exp_addr *, char *);
+struct envelope *    address_bounce_create(struct expand *);
+simta_address_status address_expand(struct expand *);
+void                 expand_tree_stdout(struct exp_addr *, int);
+int                  address_string_recipients(
+                         struct expand *, char *, struct exp_addr *, char *);
 
 #ifdef HAVE_LDAP
 int   exp_addr_link(struct exp_link **, struct exp_addr *);

@@ -202,7 +202,7 @@ expand(struct envelope *unexpanded_env) {
             /* the address is not a terminal local address */
             break;
 
-        case ADDRESS_FINAL:
+        case ADDRESS_OK:
             exp.exp_addr_cursor->e_addr_terminal = 1;
             break;
 

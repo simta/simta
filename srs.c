@@ -244,7 +244,7 @@ error:
     return (rc);
 }
 
-int
+simta_address_status
 srs_expand(
         struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
     char *newaddr;
@@ -256,36 +256,36 @@ srs_expand(
         if (add_address(exp, newaddr, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
                     e_addr->e_addr_from) != 0) {
             free(newaddr);
-            return (ADDRESS_SYSERROR);
+            return ADDRESS_SYSERROR;
         }
         simta_debuglog(1, "Expand.SRS env <%s>: <%s>: expanded to <%s>",
                 exp->exp_env->e_id, e_addr->e_addr, newaddr);
         free(newaddr);
-        return (ADDRESS_EXCLUDE);
+        return ADDRESS_EXCLUDE;
     }
 
     if (rc == SRS_SYSERROR) {
-        return (ADDRESS_SYSERROR);
+        return ADDRESS_SYSERROR;
     }
 
-    return (ADDRESS_NOT_FOUND);
+    return ADDRESS_NOT_FOUND;
 }
 
-int
+simta_address_status
 srs_valid(const char *addr, const char *secret) {
     char *newaddr;
     int   rc;
 
     if ((rc = srs_reverse(addr, &newaddr, secret)) == SRS_OK) {
         free(newaddr);
-        return (ADDRESS_FINAL);
+        return ADDRESS_OK;
     }
 
     if (rc == SRS_SYSERROR) {
-        return (ADDRESS_SYSERROR);
+        return ADDRESS_SYSERROR;
     }
 
-    return (ADDRESS_NOT_FOUND);
+    return ADDRESS_NOT_FOUND;
 }
 
 static yastr

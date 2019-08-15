@@ -21,11 +21,6 @@
 #define OWNER "owner"
 #define OWNERS "owners"
 
-/* return codes for ldap_address_local */
-#define LDAP_LOCAL 2
-#define LDAP_NOT_LOCAL 3
-#define LDAP_LOCAL_RBL 4
-
 /* Envelope e_flags bits used by ldap expansion */
 #define SUPPRESSNOEMAILERROR (1 << 0)
 
@@ -33,8 +28,9 @@
 struct simta_ldap *simta_ldap_config(const ucl_object_t *);
 void               simta_ldap_reset(void);
 int simta_ldap_expand(const ucl_object_t *, struct expand *, struct exp_addr *);
-int simta_ldap_address_local(const ucl_object_t *, char *, char *);
-int simta_mbx_compare(const char *, const char *);
+simta_address_status simta_ldap_address_local(
+        const ucl_object_t *, char *, char *);
+int  simta_mbx_compare(const char *, const char *);
 void simta_ldap_unbind(struct simta_ldap *);
 
 #endif /* SIMTA_SIMTA_LDAP_H */

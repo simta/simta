@@ -80,13 +80,13 @@ static int ldapdebug;
 static ucl_object_t *ldap_configs = NULL;
 static ucl_object_t *ldap_connections = NULL;
 
-void                simta_ldap_unescape(yastr);
-simta_result        simta_ld_init(struct simta_ldap *, const yastr);
-void                simta_ldap_unbind(struct simta_ldap *);
-static simta_result simta_ldap_retry(struct simta_ldap *);
-static yastr        simta_addr_demangle(const char *);
-static int          simta_ldap_search(
-                 struct simta_ldap *, char *, int, char *, LDAPMessage **);
+void                        simta_ldap_unescape(yastr);
+simta_result                simta_ld_init(struct simta_ldap *, const yastr);
+void                        simta_ldap_unbind(struct simta_ldap *);
+static simta_result         simta_ldap_retry(struct simta_ldap *);
+static yastr                simta_addr_demangle(const char *);
+static simta_address_status simta_ldap_search(
+        struct simta_ldap *, char *, int, char *, LDAPMessage **);
 static bool simta_ldap_bool(struct simta_ldap *, LDAPMessage *, const char *);
 static bool simta_ldap_is_objectclass(
         struct simta_ldap *, LDAPMessage *, const char *);
@@ -459,14 +459,14 @@ done:
     return retval;
 }
 
-static int
+static simta_address_status
 simta_ldap_search(struct simta_ldap *ld, char *base, int scope, char *filter,
         LDAPMessage **res) {
-    struct timeval tv_start, tv_now, tv_timeout;
-    int            rc = LDAP_SERVER_DOWN;
-    int            retries;
-    int            retval = ADDRESS_SYSERROR;
-    int            count;
+    struct timeval       tv_start, tv_now, tv_timeout;
+    int                  rc = LDAP_SERVER_DOWN;
+    int                  retries;
+    simta_address_status retval = ADDRESS_SYSERROR;
+    int                  count;
 
     simta_ucl_object_totimeval(
             ucl_object_lookup_path(ld->ldap_rule, "timeout"), &tv_timeout);
@@ -498,7 +498,7 @@ simta_ldap_search(struct simta_ldap *ld, char *base, int scope, char *filter,
     case LDAP_SUCCESS:
         statsd_counter("ldap.query_result", "success", 1);
         if ((count = ldap_count_entries(ld->ldap_ld, *res)) > 0) {
-            retval = ADDRESS_FINAL;
+            retval = ADDRESS_OK;
         } else if (count == 0) {
             retval = ADDRESS_NOT_FOUND;
         }
@@ -511,7 +511,7 @@ simta_ldap_search(struct simta_ldap *ld, char *base, int scope, char *filter,
     case LDAP_SIZELIMIT_EXCEEDED:
     case LDAP_TIMELIMIT_EXCEEDED:
         if (ldap_count_entries(ld->ldap_ld, *res) > 0) {
-            retval = ADDRESS_FINAL;
+            retval = ADDRESS_OK;
         }
     default:
         syslog(LOG_ERR, "Liberror simta_ldap_search %s: %s", filter,
@@ -884,16 +884,10 @@ simta_ldap_retry(struct simta_ldap *ld) {
 }
 
 
-/* this function should return:
-     *     ADDRESS_SYSERROR if there is an error
-     *     LDAP_LOCAL if addr is found in the db
-     *     LDAP_NOT_LOCAL if addr is not found in the db
-     */
-
-int
+simta_address_status
 simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
     yastr                    dup_name;
-    int                      rc;
+    simta_address_status     rc = ADDRESS_NOT_FOUND;
     yastr                    search_string;
     struct ldap_search_list *lds;
     LDAPMessage *            res = NULL;
@@ -902,11 +896,11 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
     struct simta_ldap *      ld;
 
     if ((ld = simta_ldap_config(rule)) == NULL) {
-        return (ADDRESS_SYSERROR);
+        return ADDRESS_SYSERROR;
     }
 
-    if ((rc = simta_ldap_init(ld)) != 0) {
-        return (rc);
+    if (simta_ldap_init(ld) != SIMTA_OK) {
+        return ADDRESS_SYSERROR;
     }
 
     dup_name = yaslauto(name);
@@ -935,8 +929,8 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
             ldap_msgfree(res);
             yaslfree(dup_name);
             simta_ldap_unbind(ld);
-            return (ADDRESS_SYSERROR);
-        } else if (rc == ADDRESS_FINAL) {
+            return ADDRESS_SYSERROR;
+        } else if (rc == ADDRESS_OK) {
             break;
         }
 
@@ -946,21 +940,18 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
 
     yaslfree(dup_name);
 
-    /* FIXME: are these values different? Why? */
-    if (rc == ADDRESS_NOT_FOUND) {
-        rc = LDAP_NOT_LOCAL;
-    } else {
-        rc = LDAP_LOCAL;
+    if (rc != ADDRESS_NOT_FOUND) {
         entry = ldap_first_entry(ld->ldap_ld, res);
 
-        if (simta_ldap_bool(ld, entry, "realtimeblocklist")) {
-            rc = LDAP_LOCAL_RBL;
+        /* FIXME: this should be configurable. */
+        if (!simta_ldap_bool(ld, entry, "realtimeblocklist")) {
+            rc = ADDRESS_OK_SPAM;
         }
 
         if (simta_ldap_is_objectclass(ld, entry, "person")) {
             if ((vals = ldap_get_values_len(
                          ld->ldap_ld, entry, ld->ldap_mailfwdattr)) == NULL) {
-                rc = LDAP_NOT_LOCAL;
+                rc = ADDRESS_NOT_FOUND;
             } else {
                 ldap_value_free_len(vals);
             }
@@ -1478,7 +1469,7 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
 
         yaslfree(search_string);
 
-        if (rc == ADDRESS_FINAL) {
+        if (rc == ADDRESS_OK) {
             break;
         }
 
@@ -1598,7 +1589,7 @@ simta_ldap_dn_expand(
     search_dn = e_addr->e_addr;
 
     if ((rc = simta_ldap_search(ld, search_dn, LDAP_SCOPE_BASE,
-                 "(objectclass=*)", &res)) != ADDRESS_FINAL) {
+                 "(objectclass=*)", &res)) != ADDRESS_OK) {
         ldap_msgfree(res);
         return (rc);
     }

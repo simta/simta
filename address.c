@@ -294,23 +294,33 @@ error:
 }
 
 
-int
+simta_address_status
 address_expand(struct expand *exp) {
-    struct exp_addr *   e_addr;
-    const ucl_object_t *red = NULL;
-    ucl_object_iter_t   iter = NULL;
-    const ucl_object_t *rule = NULL;
-    const char *        type = NULL;
-    const char *        path = NULL;
+    struct exp_addr *    e_addr;
+    const ucl_object_t * red = NULL;
+    ucl_object_iter_t    iter = NULL;
+    const ucl_object_t * rule = NULL;
+    const char *         type = NULL;
+    const char *         src = NULL;
+    const char *         status = NULL;
+    simta_address_status rc = ADDRESS_NOT_FOUND;
 
     e_addr = exp->exp_addr_cursor;
 
-    switch (e_addr->e_addr_type) {
-    case ADDRESS_TYPE_EMAIL:
+#ifdef HAVE_LDAP
+    if (e_addr->e_addr_type == ADDRESS_TYPE_LDAP) {
+        type = "ldap";
+        rule = e_addr->e_addr_parent_rule;
+        src = ucl_object_tostring(ucl_object_lookup_path(rule, "ldap.uri"));
+        rc = simta_ldap_expand(rule, exp, e_addr);
+    }
+#endif /*  HAVE_LDAP */
+
+    if (e_addr->e_addr_type == ADDRESS_TYPE_EMAIL) {
         if (strlen(e_addr->e_addr_at + 1) > SIMTA_MAX_HOST_NAME_LEN) {
             syslog(LOG_ERR, "Expand env <%s>: <%s>: domain too long",
                     exp->exp_env->e_id, e_addr->e_addr);
-            return (ADDRESS_SYSERROR);
+            return ADDRESS_SYSERROR;
         }
 
         /* Check to see if domain is off the local host */
@@ -319,170 +329,83 @@ address_expand(struct expand *exp) {
         if ((red == NULL) || !red_does_expansion(red)) {
             simta_debuglog(1, "Expand env <%s>: <%s>: expansion complete",
                     exp->exp_env->e_id, e_addr->e_addr);
-            return (ADDRESS_FINAL);
-        }
-        break;
-
-#ifdef HAVE_LDAP
-    case ADDRESS_TYPE_LDAP:
-        rule = e_addr->e_addr_parent_rule;
-        ;
-        simta_debuglog(2, "Expand env <%s>: <%s>: LDAP data",
-                exp->exp_env->e_id, e_addr->e_addr);
-        switch (simta_ldap_expand(rule, exp, e_addr)) {
-        case ADDRESS_EXCLUDE:
-            simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: expanded",
-                    exp->exp_env->e_id, e_addr->e_addr);
-            return (ADDRESS_EXCLUDE);
-
-        case ADDRESS_FINAL:
-            simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: terminal",
-                    exp->exp_env->e_id, e_addr->e_addr);
-            return (ADDRESS_FINAL);
-
-        case ADDRESS_NOT_FOUND:
-            simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: not found",
-                    exp->exp_env->e_id, e_addr->e_addr);
-            goto not_found;
-
-        case ADDRESS_SYSERROR:
-            return (ADDRESS_SYSERROR);
-
-        default:
-            panic("address_expand ldap_expand out of range");
+            return ADDRESS_OK;
         }
 
-#endif /*  HAVE_LDAP */
+        /* Expand user using expansion table for domain */
+        iter = ucl_object_iterate_new(ucl_object_lookup(red, "rule"));
+        while ((rule = ucl_object_iterate_safe(iter, false)) != NULL) {
+            exp->exp_current_rule = rule;
 
-    default:
-        panic("address_expand: address type out of range");
-    }
+            if (!ucl_object_toboolean(
+                        ucl_object_lookup_path(rule, "expand.enabled"))) {
+                simta_debuglog(3,
+                        "Expand env <%s>: <%s>: skipping non-expand rule %s",
+                        exp->exp_env->e_id, e_addr->e_addr,
+                        ucl_object_tostring_forced(rule));
+                continue;
+            }
 
-    /* At this point, we should have a valid address destined for
-     * a local domain.  Now we use the expansion table to resolve it.
-     */
-
-    /* Expand user using expansion table for domain */
-    iter = ucl_object_iterate_new(ucl_object_lookup(red, "rule"));
-    while ((rule = ucl_object_iterate_safe(iter, false)) != NULL) {
-        exp->exp_current_rule = rule;
-
-        if (!ucl_object_toboolean(
-                    ucl_object_lookup_path(rule, "expand.enabled"))) {
-            simta_debuglog(3,
-                    "Expand env <%s>: <%s>: skipping non-expand rule %s",
-                    exp->exp_env->e_id, e_addr->e_addr,
-                    ucl_object_tostring_forced(rule));
-            continue;
-        }
-
-        type = ucl_object_tostring(ucl_object_lookup(rule, "type"));
+            type = ucl_object_tostring(ucl_object_lookup(rule, "type"));
 
 #ifdef HAVE_LMDB
-        if (strcasecmp(type, "alias") == 0) {
-            path = ucl_object_tostring(
-                    ucl_object_lookup_path(rule, "alias.path"));
-            switch (alias_expand(exp, e_addr, rule)) {
-            case ADDRESS_EXCLUDE:
-                simta_debuglog(1, "Expand.alias env <%s>: <%s>: found in DB %s",
-                        exp->exp_env->e_id, e_addr->e_addr, path);
-                return (ADDRESS_EXCLUDE);
-
-            case ADDRESS_NOT_FOUND:
-                simta_debuglog(1, "Expand.alias env <%s>: <%s>: not in DB %s",
-                        exp->exp_env->e_id, e_addr->e_addr, path);
-                continue;
-
-            case ADDRESS_SYSERROR:
-                return (ADDRESS_SYSERROR);
-
-            default:
-                panic("address_expand default alias switch");
+            if (strcasecmp(type, "alias") == 0) {
+                src = ucl_object_tostring(
+                        ucl_object_lookup_path(rule, "alias.path"));
+                rc = alias_expand(exp, e_addr, rule);
             }
-        }
 #endif /* HAVE_LMDB */
 
-        if (strcasecmp(type, "password") == 0) {
-            path = ucl_object_tostring(
-                    ucl_object_lookup_path(rule, "password.path"));
-            switch (password_expand(exp, e_addr, rule)) {
-            case ADDRESS_EXCLUDE:
-                simta_debuglog(1,
-                        "Expand.password env <%s>: <%s>: found in file %s",
-                        exp->exp_env->e_id, e_addr->e_addr, path);
-                return (ADDRESS_EXCLUDE);
-
-            case ADDRESS_FINAL:
-                simta_debuglog(1,
-                        "Expand.password env <%s>: <%s>: terminal in file %s",
-                        exp->exp_env->e_id, e_addr->e_addr, path);
-                return (ADDRESS_FINAL);
-
-            case ADDRESS_NOT_FOUND:
-                simta_debuglog(1,
-                        "Expand.password env <%s>: <%s>: not in file %s",
-                        exp->exp_env->e_id, e_addr->e_addr, path);
-                continue;
-
-            case ADDRESS_SYSERROR:
-                return (ADDRESS_SYSERROR);
-
-            default:
-                panic("address_expand default password switch");
+            if (strcasecmp(type, "password") == 0) {
+                src = ucl_object_tostring(
+                        ucl_object_lookup_path(rule, "password.path"));
+                rc = password_expand(exp, e_addr, rule);
             }
-        }
 
-        if (strcasecmp(type, "srs") == 0) {
-            switch (srs_expand(exp, e_addr, rule)) {
-            case ADDRESS_EXCLUDE:
-                simta_debuglog(1, "Expand.SRS env <%s>: <%s>: valid",
-                        exp->exp_env->e_id, e_addr->e_addr);
-                return (ADDRESS_EXCLUDE);
-
-            case ADDRESS_NOT_FOUND:
-                simta_debuglog(1, "Expand.SRS env <%s>: <%s>: not valid",
-                        exp->exp_env->e_id, e_addr->e_addr);
-                continue;
-
-            case ADDRESS_SYSERROR:
-                return (ADDRESS_SYSERROR);
-
-            default:
-                panic("address_expand srs_expand out of range");
+            if (strcasecmp(type, "srs") == 0) {
+                src = "SRS";
+                rc = srs_expand(exp, e_addr, rule);
             }
-        }
 
 #ifdef HAVE_LDAP
-        if (strcasecmp(type, "ldap") == 0) {
-            switch (simta_ldap_expand(rule, exp, e_addr)) {
-            case ADDRESS_EXCLUDE:
-                simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: expanded",
-                        exp->exp_env->e_id, e_addr->e_addr);
-                return (ADDRESS_EXCLUDE);
+            if (strcasecmp(type, "ldap") == 0) {
+                src = ucl_object_tostring(
+                        ucl_object_lookup_path(rule, "ldap.uri"));
+                rc = simta_ldap_expand(rule, exp, e_addr);
+            }
+#endif /* HAVE_LDAP */
 
-            case ADDRESS_FINAL:
-                simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: terminal",
-                        exp->exp_env->e_id, e_addr->e_addr);
-                return (ADDRESS_FINAL);
-
-            case ADDRESS_NOT_FOUND:
-                simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: not found",
-                        exp->exp_env->e_id, e_addr->e_addr);
-                continue;
-
-            case ADDRESS_SYSERROR:
-                return (ADDRESS_SYSERROR);
-
-            default:
-                panic("address_expand ldap_expand out of range");
+            if (rc != ADDRESS_NOT_FOUND) {
+                break;
             }
         }
-#endif /* HAVE_LDAP */
     }
 
-#ifdef HAVE_LDAP
-not_found:
-#endif /* HAVE_LDAP */
+    switch (rc) {
+    case ADDRESS_SYSERROR:
+        status = "error";
+        break;
+
+    case ADDRESS_OK:
+    case ADDRESS_OK_SPAM:
+        status = "terminal";
+        break;
+
+    case ADDRESS_EXCLUDE:
+        status = "found";
+        break;
+
+    case ADDRESS_NOT_FOUND:
+        status = "not found";
+        break;
+    }
+
+    simta_debuglog(1, "Expand.%s env <%s>: <%s>: %s in %s", type,
+            exp->exp_env->e_id, e_addr->e_addr, status, src);
+
+    if (rc != ADDRESS_NOT_FOUND) {
+        return rc;
+    }
 
     /* If we can't resolve postmaster, add it to the dead queue. */
     if (strncasecmp(e_addr->e_addr, "postmaster@", strlen("postmaster@")) ==
@@ -501,7 +424,7 @@ not_found:
                     "Expand env <%s>: <%s>: can't resolve postmaster, "
                     "expanding to dead queue",
                     exp->exp_env->e_id, e_addr->e_addr);
-            return (ADDRESS_FINAL);
+            return ADDRESS_OK;
         }
     }
 
@@ -511,10 +434,10 @@ not_found:
     if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
                 "address not found: ", e_addr->e_addr, NULL) != 0) {
         /* bounce_text syslogs errors */
-        return (ADDRESS_SYSERROR);
+        return ADDRESS_SYSERROR;
     }
 
-    return (ADDRESS_EXCLUDE);
+    return ADDRESS_EXCLUDE;
 }
 
 
@@ -640,7 +563,7 @@ password_expand(
         syslog(LOG_INFO,
                 "Expand.password env <%s>: <%s>: expanded to /dev/null",
                 exp->exp_env->e_id, e_addr->e_addr);
-        return (ADDRESS_FINAL);
+        return (ADDRESS_OK);
     }
 
     /* Check password file */
@@ -655,7 +578,7 @@ password_expand(
         return (ADDRESS_NOT_FOUND);
     }
 
-    ret = ADDRESS_FINAL;
+    ret = ADDRESS_OK;
 
     /* Check .forward */
     fname = yaslcat(yaslauto(passwd->pw_dir), "/.forward");
@@ -663,7 +586,7 @@ password_expand(
     if (access(fname, F_OK) != 0) {
         simta_debuglog(2, "Expand.password env <%s>: <%s>: no .forward",
                 exp->exp_env->e_id, e_addr->e_addr);
-        return (ADDRESS_FINAL);
+        return (ADDRESS_OK);
     }
 
     buf = simta_slurp(fname);
