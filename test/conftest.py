@@ -283,3 +283,14 @@ def testmsg(request):
     msg['From'] = 'testsender@example.com'
     msg['To'] = 'testrcpt@example.com'
     return msg
+
+
+@pytest.fixture
+def run_simsrs(simta_config, tool_path):
+    def _run_simsrs(address):
+        return subprocess.check_output([
+            tool_path('simsrs'),
+            '-f', simta_config,
+            address,
+        ]).rstrip()
+    return _run_simsrs

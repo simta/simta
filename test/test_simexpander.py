@@ -65,7 +65,14 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                     'type': 'alias',
                 }
             ]
-        }
+        },
+        'srs.example.com': {
+            'rule': [
+                {
+                    'type': 'srs',
+                }
+            ]
+        },
     }
 
     config['defaults'] = {
@@ -526,7 +533,10 @@ def test_expand_ldap_group_associated_domain(run_simexpander, req_ldapserver):
 
 #LDAP rfc822mail tests
 
-#test_expand_srs
-#test_expand_srs_reforwarded
-#test_expand_srs_expired
-#test_expand_srs_invalid
+
+def test_expand_srs(run_simexpander, run_simsrs):
+    addr = 'testsender@example.edu'
+    srs = run_simsrs(addr)
+    res = run_simexpander(srs)
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [ 'testsender@example.edu' ]

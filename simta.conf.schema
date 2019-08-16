@@ -170,7 +170,7 @@ definitions {
             }
             type {
                 type: string
-                enum [ accept, alias, ldap, password ]
+                enum [ accept, alias, ldap, password, srs ]
             }
             associated_domain {
                 allOf [

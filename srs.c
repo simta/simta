@@ -157,7 +157,8 @@ srs_reverse(const char *addr, char **newaddr, const char *secret) {
     char *p;
 
     if (secret == NULL) {
-        return (SRS_INVALID);
+        simta_debuglog(1, "SRS %s: no secret", addr);
+        return SRS_INVALID;
     }
 
     a = yaslauto(addr);
@@ -170,6 +171,7 @@ srs_reverse(const char *addr, char **newaddr, const char *secret) {
     }
 
     if ((p = strrchr(a, '@')) == NULL) {
+        simta_debuglog(1, "SRS %s: invalid address, no @");
         goto error;
     }
 
@@ -247,12 +249,16 @@ error:
 simta_address_status
 srs_expand(
         struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
-    char *newaddr;
-    int   rc;
+    char *      newaddr;
+    int         rc;
+    const char *secret;
 
-    if ((rc = srs_reverse(e_addr->e_addr, &newaddr,
-                 ucl_object_tostring(ucl_object_lookup(rule, "secret")))) ==
-            SRS_OK) {
+    if ((secret = ucl_object_tostring(
+                 ucl_object_lookup_path(rule, "srs.secret"))) == NULL) {
+        secret = simta_config_str("receive.srs.secret");
+    }
+
+    if ((rc = srs_reverse(e_addr->e_addr, &newaddr, secret)) == SRS_OK) {
         if (add_address(exp, newaddr, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
                     e_addr->e_addr_from) != 0) {
             free(newaddr);
