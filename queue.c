@@ -40,6 +40,7 @@
 #include "line_file.h"
 #include "ml.h"
 #include "red.h"
+#include "simta_ldap.h"
 #include "smtp.h"
 #include "wildcard.h"
 
@@ -504,7 +505,7 @@ q_runner_done:
     }
 
 #ifdef HAVE_LDAP
-    red_close_ldap_dbs();
+    simta_ldap_reset();
 #endif /* HAVE_LDAP */
 
     if (simta_fast_files != 0) {

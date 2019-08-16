@@ -33,14 +33,6 @@
 #endif /* HAVE_LDAP */
 
 
-#ifdef HAVE_LDAP
-void
-red_close_ldap_dbs(void) {
-    /* FIXME */
-    return;
-}
-#endif /* HAVE_LDAP */
-
 void
 red_host_insert(const char *hostname, ucl_object_t *config) {
     ucl_object_t *obj = NULL;

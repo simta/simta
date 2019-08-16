@@ -24,9 +24,6 @@ void red_action_stdout(void);
 int alias_expand(struct expand *, struct exp_addr *, const ucl_object_t *);
 #endif /* HAVE_LMDB */
 int password_expand(struct expand *, struct exp_addr *, const ucl_object_t *);
-#ifdef HAVE_LDAP
-void red_close_ldap_dbs(void);
-#endif /* HAVE_LDAP */
 
 #endif /* SIMTA_RED_H */
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

@@ -311,6 +311,7 @@ simta_ld_init(struct simta_ldap *ld, const yastr key) {
 
 void
 simta_ldap_reset(void) {
+    /* FIXME: should probably close connections gracefully */
     ucl_object_unref(ldap_connections);
     ucl_object_unref(ldap_configs);
     ldap_connections = ucl_object_new();
