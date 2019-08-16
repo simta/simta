@@ -79,7 +79,6 @@ struct host_q {
     int               hq_jail_envs;
     ucl_object_t *    hq_red;
     struct host_q *   hq_deliver;
-    struct host_q *   hq_next;
     struct host_q *   hq_deliver_prev;
     struct host_q *   hq_deliver_next;
     yastr             hq_hostname;

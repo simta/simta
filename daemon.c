@@ -1290,7 +1290,6 @@ simta_child_receive(struct simta_socket *ss) {
         simta_host_q = NULL;
         if (simta_unexpanded_q != NULL) {
             simta_unexpanded_q->hq_env_head = NULL;
-            simta_unexpanded_q->hq_next = NULL;
             simta_unexpanded_q->hq_entries = 0;
         }
         for (s = simta_listen_sockets; s != NULL; s = s->ss_next) {
@@ -1377,7 +1376,6 @@ simta_child_q_runner(struct host_q *hq) {
 
         if (simta_unexpanded_q != NULL) {
             simta_unexpanded_q->hq_env_head = NULL;
-            simta_unexpanded_q->hq_next = NULL;
             simta_unexpanded_q->hq_entries = 0;
         }
 
@@ -1386,10 +1384,12 @@ simta_child_q_runner(struct host_q *hq) {
             exit(q_runner_dir(simta_dir_local));
 
         } else {
-            simta_host_q = hq;
-            hq->hq_next = NULL;
             hq->hq_primary = 1;
             simta_process_type = PROCESS_Q_SLOW;
+            simta_host_q = ucl_object_new();
+            ucl_object_insert_key(simta_host_q,
+                    ucl_object_new_userdata(NULL, NULL, hq), hq->hq_hostname, 0,
+                    true);
             exit(q_runner());
         }
 

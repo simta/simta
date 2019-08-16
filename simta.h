@@ -143,7 +143,7 @@ extern struct timeval       simta_log_tv;
 extern struct host_q *      simta_deliver_q;
 extern struct host_q *      simta_unexpanded_q;
 extern struct host_q *      simta_punt_q;
-extern struct host_q *      simta_host_q;
+extern ucl_object_t *       simta_host_q;
 extern struct envelope *    simta_env_queue;
 extern struct proc_type *   simta_proc_stab;
 extern int                  simta_submission_mode;

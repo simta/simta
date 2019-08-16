@@ -62,20 +62,20 @@ void                    prune_messages(struct host_q *hq);
 
 struct host_q *
 host_q_lookup(char *hostname) {
-    struct host_q *hq;
+    const ucl_object_t *obj;
 
-    /* FIXME: sort this list */
-    for (hq = simta_host_q; hq != NULL; hq = hq->hq_next) {
-        if (strcasecmp(hq->hq_hostname, hostname) == 0) {
-            break;
-        }
+    if (simta_host_q == NULL) {
+        simta_host_q = ucl_object_new();
+        return NULL;
     }
 
-    return (hq);
+    if ((obj = ucl_object_lookup(simta_host_q, hostname)) != NULL) {
+        return obj->value.ud;
+    }
+
+    return NULL;
 }
 
-
-/* look up a given host in the host_q.  if not found, create */
 
 struct host_q *
 host_q_create_or_lookup(char *hostname) {
@@ -133,9 +133,9 @@ host_q_create_or_lookup(char *hostname) {
             }
         }
 
-        /* add this host to the host_q_head */
-        hq->hq_next = simta_host_q;
-        simta_host_q = hq;
+        ucl_object_insert_key(simta_host_q,
+                ucl_object_new_userdata(NULL, NULL, hq), hq->hq_hostname,
+                yasllen(hq->hq_hostname), true);
     }
 
     return (hq);
@@ -258,22 +258,24 @@ queue_time_order(struct host_q *hq) {
 
 int
 q_runner(void) {
-    SNET *           snet_dfile;
-    struct host_q *  hq;
-    struct host_q *  deliver_q;
-    struct host_q ** dq;
-    struct envelope *env_bounce;
-    struct envelope *env_punt;
-    struct envelope *unexpanded;
-    int              dfile_fd;
-    int              expanded;
-    char             dfile_fname[ MAXPATHLEN ];
-    struct timeval   tv_start;
-    struct timeval   tv_end;
-    int              day;
-    int              hour;
-    int              min;
-    int              sec;
+    SNET *              snet_dfile;
+    ucl_object_iter_t   iter;
+    const ucl_object_t *obj;
+    struct host_q *     hq;
+    struct host_q *     deliver_q;
+    struct host_q **    dq;
+    struct envelope *   env_bounce;
+    struct envelope *   env_punt;
+    struct envelope *   unexpanded;
+    int                 dfile_fd;
+    int                 expanded;
+    char                dfile_fname[ MAXPATHLEN ];
+    struct timeval      tv_start;
+    struct timeval      tv_end;
+    int                 day;
+    int                 hour;
+    int                 min;
+    int                 sec;
 
     assert(simta_fast_files >= 0);
 
@@ -284,8 +286,9 @@ q_runner(void) {
 
     queue_time_order(simta_unexpanded_q);
 
-    for (hq = simta_host_q; hq != NULL; hq = hq->hq_next) {
-        queue_time_order(hq);
+    iter = ucl_object_iterate_new(simta_host_q);
+    while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+        queue_time_order(obj->value.ud);
     }
 
     if (simta_gettimeofday(&tv_start) != 0) {
@@ -296,7 +299,9 @@ q_runner(void) {
         /* build the deliver_q by number of messages */
         deliver_q = NULL;
 
-        for (hq = simta_host_q; hq != NULL; hq = hq->hq_next) {
+        ucl_object_iterate_reset(iter, simta_host_q);
+        while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+            hq = obj->value.ud;
             hq->hq_deliver = NULL;
 
             if (hq->hq_env_head == NULL) {
@@ -463,6 +468,8 @@ q_runner(void) {
     }
 
 q_runner_done:
+    ucl_object_iterate_free(iter);
+
     /* get end time for metrics */
     if (simta_gettimeofday(&tv_end) == 0) {
         tv_end.tv_sec -= tv_start.tv_sec;
@@ -738,10 +745,12 @@ int
 q_read_dir(struct simta_dirp *sd) {
     struct dirent *entry;
 
-    struct envelope *last_read = NULL;
-    struct envelope *env;
-    struct host_q ** hq;
-    struct host_q *  h_free;
+    struct envelope *   last_read = NULL;
+    struct envelope *   env;
+    struct host_q *     hq;
+    struct host_q *     h_free;
+    ucl_object_iter_t   iter;
+    const ucl_object_t *obj;
 
     /* metrics */
     struct timeval tv_stop;
@@ -793,45 +802,44 @@ q_read_dir(struct simta_dirp *sd) {
                     simta_unexpanded_q->hq_jail_envs);
         }
 
-        hq = &simta_host_q;
-        while (*hq != NULL) {
-            prune_messages(*hq);
+        iter = ucl_object_iterate_new(simta_host_q);
+        while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+            hq = obj->value.ud;
 
-            total += (*hq)->hq_entries;
-            new += (*hq)->hq_entries_new;
-            removed += (*hq)->hq_entries_removed;
-            (*hq)->hq_entries_new = 0;
-            (*hq)->hq_entries_removed = 0;
+            prune_messages(hq);
+
+            total += hq->hq_entries;
+            new += hq->hq_entries_new;
+            removed += hq->hq_entries_removed;
+            hq->hq_entries_new = 0;
+            hq->hq_entries_removed = 0;
 
             /* remove any empty host queues */
-            if ((*hq)->hq_env_head == NULL) {
-                h_free = *hq;
+            if (hq->hq_env_head == NULL) {
                 simta_debuglog(2, "Queue.manage %s: 0 entries, removing",
-                        h_free->hq_hostname);
-                /* delete this host */
-                *hq = (*hq)->hq_next;
-                hq_free(h_free);
+                        hq->hq_hostname);
+                hq_free(hq);
+                ucl_object_delete_key(simta_host_q, ucl_object_key(obj));
                 continue;
             } else {
                 simta_debuglog(2,
                         "Queue Metrics %s: entries %d, jail_entries %d",
-                        (*hq)->hq_hostname, (*hq)->hq_entries,
-                        (*hq)->hq_jail_envs);
+                        hq->hq_hostname, hq->hq_entries, hq->hq_jail_envs);
             }
 
             /* add new host queues to the deliver queue */
             remain_hq++;
 
-            if ((*hq)->hq_next_launch.tv_sec == 0) {
+            if (hq->hq_next_launch.tv_sec == 0) {
                 syslog(LOG_INFO, "Queue.manage %s: %d entries, adding",
-                        (*hq)->hq_hostname, (*hq)->hq_entries);
-                if (hq_deliver_push(*hq, &tv_stop, NULL) != 0) {
+                        hq->hq_hostname, hq->hq_entries);
+                if (hq_deliver_push(hq, &tv_stop, NULL) != 0) {
                     return (1);
                 }
             }
-
-            hq = &((*hq)->hq_next);
         }
+
+        ucl_object_iterate_free(iter);
 
         syslog(LOG_INFO,
                 "Queue Metrics: cycle %d messages %d "

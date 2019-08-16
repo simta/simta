@@ -68,7 +68,7 @@ struct dll_entry *   simta_env_list = NULL;
 struct timeval       simta_tv_now = {0, 0};
 struct timeval       simta_log_tv;
 struct envelope *    simta_env_queue = NULL;
-struct host_q *      simta_host_q = NULL;
+ucl_object_t *       simta_host_q = NULL;
 struct host_q *      simta_deliver_q = NULL;
 struct host_q *      simta_unexpanded_q = NULL;
 struct host_q *      simta_punt_q = NULL;
