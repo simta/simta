@@ -2210,10 +2210,12 @@ f_data( struct receive_data *r )
 #ifdef HAVE_LIBOPENARC
     if ( simta_arc && ( arc_result == ARC_STAT_OK )) {
         arc_result = arc_eom( arc );
+        arc_err = arc_geterror( arc );
         simta_debuglog( 1,
-                "Receive [%s] %s: env <%s>: ARC verify result: %s (%d)",
+                "Receive [%s] %s: env <%s>: ARC verify result: %s (%d / %s)",
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                arc_chain_status_str( arc ), arc_result );
+                arc_chain_status_str( arc ), arc_result,
+                arc_err ? arc_err : "no error" );
         if ( simta_auth_results ) {
             authresults = yaslcatprintf( authresults,
                     ";\n\tarc=%s", arc_chain_status_str( arc ));
