@@ -1,3 +1,9 @@
+1.4.1 (2019-08-29)
+    - improved ARC logging
+    - fixed some spurious log messages
+    - added regeneration of invalid From headers in MSA mode
+    - removed deprecated RECEIVE_QUEUE_STRATEGY PUNT
+
 1.4.0 (2018-10-07)
     - fixed a crash in MAX_FAILED_SENDERS
     - fixed charset detection for some UTF-8 codepoints
