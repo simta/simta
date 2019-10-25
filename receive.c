@@ -2438,18 +2438,28 @@ done:
                         arc_result );
             }
 
+            authresults_tmp = yaslempty( );
             if ( arc_result == ARC_STAT_OK ) {
-                yaslclear( authresults );
                 for ( ; arc_seal; arc_seal = arc_hdr_next( arc_seal )) {
-                    if ( yasllen( authresults ) > 0 ) {
-                        authresults = yaslcat( authresults, "\n" );
+                    if ( yasllen( authresults_tmp ) > 0 ) {
+                        authresults_tmp = yaslcat( authresults_tmp, "\n" );
                     }
                     /* Despite the name, arc_hdr_name returns the entire header. */
-                    authresults = yaslcat( authresults, (char *)arc_hdr_name(
+                    authresults_tmp = yaslcat( authresults_tmp, (char *)arc_hdr_name(
                             arc_seal, NULL ));
                 }
-                yaslstrip( authresults, "\r" );
+                yaslstrip( authresults_tmp, "\r" );
+            }
+
+            /* OpenARC may or may not have returned some headers, depending on
+             * whether the ARC chain was already failed when we received the
+             * message.
+             */
+            if ( yasllen( authresults_tmp ) > 0 ) {
+                yaslfree( authresults );
+                authresults = authresults_tmp;
             } else {
+                yaslfree( authresults_tmp );
                 /* Fall back to adding Authentication-Results. */
                 authresults_plain = 1;
             }
