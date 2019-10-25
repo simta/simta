@@ -1,3 +1,6 @@
+1.4.2 (2019-10-24)
+    - fixed adding authentication results to messages with failed ARC chains
+
 1.4.1 (2019-08-29)
     - improved ARC logging
     - fixed some spurious log messages
