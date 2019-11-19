@@ -1425,6 +1425,17 @@ message_cleanup:
                 env_clear_errors( env_deliver );
                 env_deliver->e_flags |= ENV_FLAG_PUNT;
                 queue_envelope( env_deliver );
+            } else if (
+                    ( d->d_n_rcpt_tempfailed > 0 ) &&
+                    ( d->d_n_rcpt_accepted > 0 ) &&
+                    ( d->d_delivered )) {
+                /* The message was accepted for some recipients, so we should
+                 * requeue it and retry delivery for the tempfailed rcpts.
+                 */
+                /* FIXME: should this be configurable? */
+                queue_envelope(env_deliver);
+                env_deliver = NULL;
+                d->d_env = NULL;
             } else {
                 if (( simta_punt_q != NULL ) && ( deliver_q != simta_punt_q )) {
                     syslog( LOG_INFO, "Deliver env <%s>: not puntable",
