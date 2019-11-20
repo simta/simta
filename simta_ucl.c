@@ -40,7 +40,12 @@ simta_ucl_toggle(const ucl_object_t *base, const char *path, const char *key,
     const ucl_object_t *path_const;
     ucl_object_t *      path_obj;
 
-    path_const = ucl_object_lookup(base, path);
+    if (path == NULL) {
+        path_const = base;
+    } else {
+        path_const = ucl_object_lookup(base, path);
+    }
+
     if (ucl_object_toboolean(ucl_object_lookup(path_const, key)) != value) {
         path_obj = ucl_object_ref(path_const);
         ucl_object_replace_key(

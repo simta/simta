@@ -79,7 +79,6 @@ int                  simta_jail_seconds = 14400;
 int                  simta_submission_mode = SUBMISSION_MODE_MTA;
 int                  simta_command_read_entries = 10;
 int                  simta_disk_read_entries = 10;
-int                  simta_aggressive_delivery = 1;
 int                  simta_aggressive_expansion = 1;
 int                  simta_aggressive_receipt_max = 50;
 int                  simta_leaky_queue = 0;

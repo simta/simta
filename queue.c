@@ -44,20 +44,17 @@
 #include "smtp.h"
 #include "wildcard.h"
 
-static int  deliver_checksockaddr(struct deliver *, struct host_q *);
-static void real_q_deliver(struct deliver *, struct host_q *);
-void        q_deliver(struct host_q *);
-void        deliver_local(struct deliver *d);
-void        deliver_remote(struct deliver *d, struct host_q *);
-void        hq_clear_errors(struct host_q *);
-int         next_dnsr_host(struct deliver *, struct host_q *);
-int         next_dnsr_host_lookup(struct deliver *, struct host_q *);
-void        hq_free(struct host_q *);
-void        connection_data_free(struct deliver *, struct connection_data *);
-int         get_outbound_dns(struct deliver *, struct host_q *);
-struct connection_data *connection_data_create(struct deliver *);
-void                    queue_time_order(struct host_q *);
-void                    prune_messages(struct host_q *hq);
+static simta_result deliver_checksockaddr(struct deliver *, struct host_q *);
+static void         real_q_deliver(struct deliver *, struct host_q *);
+void                q_deliver(struct host_q *);
+void                deliver_local(struct deliver *d);
+void                deliver_remote(struct deliver *d, struct host_q *);
+void                hq_clear_errors(struct host_q *);
+simta_dns_result    next_dnsr_host(struct deliver *, struct host_q *);
+void                hq_free(struct host_q *);
+simta_result        get_outbound_dns(struct deliver *, struct host_q *);
+void                queue_time_order(struct host_q *);
+void                prune_messages(struct host_q *hq);
 
 
 struct host_q *
@@ -1177,7 +1174,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         }
 
         /* check to see if this is the primary queue, and if it has leaked */
-        if ((deliver_q->hq_primary) && (d->d_queue_movement != 0)) {
+        if (deliver_q->hq_primary && d->d_queue_movement) {
             simta_leaky_queue = 1;
         }
 
@@ -1441,12 +1438,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         if (snet_close(d->d_snet_smtp) != 0) {
             syslog(LOG_ERR, "Liberror: q_deliver snet_close: %m");
         }
-        if (d->d_dnsr_result_ip) {
-            dnsr_free_result(d->d_dnsr_result_ip);
-        }
-        if (d->d_dnsr_result_ip6) {
-            dnsr_free_result(d->d_dnsr_result_ip6);
-        }
+        /* FIXME: free other things? */
         dnsr_free_result(d->d_dnsr_result);
     }
 
@@ -1532,7 +1524,7 @@ void
 deliver_remote(struct deliver *d, struct host_q *hq) {
     int            r_smtp;
     int            s;
-    int            env_movement = 0;
+    bool           env_movement = false;
     struct timeval tv_start;
     struct timeval tv_stop;
 
@@ -1561,7 +1553,7 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
         if (d->d_snet_smtp == NULL) {
             d->d_connection_msg_total = 0;
             /* need to build SMTP connection */
-            if (next_dnsr_host_lookup(d, hq) != 0) {
+            if (next_dnsr_host_lookup(d, hq) != SIMTA_OK) {
                 return;
             }
 
@@ -1631,9 +1623,14 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
 
         r_smtp = smtp_send(hq, d);
 
+        /* If we got any responses to RCPT the host is up. */
+        if (d->d_n_rcpt_accepted || d->d_n_rcpt_tempfailed ||
+                d->d_n_rcpt_failed) {
+            d->d_queue_movement = true;
+            env_movement = true;
+        }
+
         if ((d->d_n_rcpt_failed) || (d->d_delivered && d->d_n_rcpt_accepted)) {
-            d->d_queue_movement = 1;
-            env_movement = 1;
             simta_smtp_outbound_delivered++;
             simta_gettimeofday(&tv_stop);
             simta_debuglog(1,
@@ -1681,20 +1678,14 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
             hq_clear_errors(hq);
 
         } else if (hq->hq_status == HOST_BOUNCE) {
-            dll_free(d->d_ip_list);
-            if (d->d_dnsr_result_ip) {
-                dnsr_free_result(d->d_dnsr_result_ip);
-            }
-            if (d->d_dnsr_result_ip6) {
-                dnsr_free_result(d->d_dnsr_result_ip6);
-            }
             if (d->d_dnsr_result) {
                 dnsr_free_result(d->d_dnsr_result);
             }
+            /* FIXME: free other things? */
             return;
 
         } else if (hq->hq_status == HOST_DOWN) {
-            if (env_movement != 0) {
+            if (env_movement) {
                 hq->hq_status = HOST_MX;
                 return;
             }
@@ -1703,25 +1694,23 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
 }
 
 
-int
+simta_result
 next_dnsr_host_lookup(struct deliver *d, struct host_q *hq) {
-    if (next_dnsr_host(d, hq) == 0) {
-        d->d_queue_movement = 0;
-        return (0);
-    }
-
-    if (d->d_dnsr_result) {
-        dnsr_free_result(d->d_dnsr_result);
-        d->d_dnsr_result = NULL;
+    simta_dns_result rc;
+    while ((rc = next_dnsr_host(d, hq)) == SIMTA_DNS_AGAIN)
+        ;
+    if (rc == SIMTA_DNS_OK) {
+        d->d_queue_movement = false;
+        return SIMTA_OK;
     }
 
     syslog(LOG_INFO, "DNS %s: DNS exhausted", hq->hq_hostname);
 
-    return (1);
+    return SIMTA_ERR;
 }
 
 
-int
+simta_result
 get_outbound_dns(struct deliver *d, struct host_q *hq) {
     int                 i;
     const ucl_object_t *red;
@@ -1760,15 +1749,16 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
     /* The lookup first attempts to locate an MX record associated with the
      * name.
      */
+    d->d_mx_cname_ok = false;
     if ((d->d_dnsr_result = get_mx(hq->hq_hostname)) == NULL) {
         simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
         syslog(LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
                 hq->hq_hostname);
-        return (1);
+        return SIMTA_ERR;
     }
 
     /* Check to make sure the MX entry doesn't have 0 entries, and
-     * that it doesn't conatin a single CNAME entry only */
+     * that it doesn't contain a single CNAME entry only */
     if ((d->d_dnsr_result->r_ancount != 0) &&
             ((d->d_dnsr_result->r_ancount != 1) ||
                     (d->d_dnsr_result->r_answer[ 0 ].rr_type !=
@@ -1779,7 +1769,7 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
          * and we only try remote delivery to mx entries that have a
          * lower mx_preference than for what was matched.
          */
-        syslog(LOG_INFO, "DNS %s: %d MX Record Entries", hq->hq_hostname,
+        syslog(LOG_INFO, "DNS %s: %d MX record entries", hq->hq_hostname,
                 d->d_dnsr_result->r_ancount);
 
         for (i = 0; i < d->d_dnsr_result->r_ancount; i++) {
@@ -1791,428 +1781,272 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
                 continue;
             }
 
-            /* set mx pref cutoff if we are listed in the MX record */
-            if ((strcasecmp(simta_hostname,
-                        d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange)) ==
-                    0) {
+            /* Cut off processing and disable punting if we are listed as an MX */
+            if (strcasecmp(d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange,
+                        simta_hostname) == 0) {
                 simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
-                d->d_mx_preference_set = 1;
-                d->d_mx_preference_cutoff =
-                        d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
                 syslog(LOG_ERR,
-                        "DNS %s: Entry %d: MX Record lists "
+                        "DNS %s: Entry %d: MX record lists "
                         "localhost at precedence %d, Punting disabled",
-                        hq->hq_hostname, i, d->d_mx_preference_cutoff);
-                break;
+                        hq->hq_hostname, i,
+                        d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference);
+                return SIMTA_OK;
             }
 
-            /* set mx pref cutoff if we are listed under a secondary name */
+            /* Cut off processing if we are listed under a secondary name */
             red = red_host_lookup(
                     d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange, false);
             if (red && ucl_object_toboolean(ucl_object_lookup_path(
                                red, "deliver.secondary_mx"))) {
                 simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
-                d->d_mx_preference_set = 1;
-                d->d_mx_preference_cutoff =
-                        d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference;
                 syslog(LOG_ERR,
                         "DNS %s: Entry %d: MX Record lists "
                         "secondary MX %s at precedence %d, "
                         "Punting disabled",
                         hq->hq_hostname, i,
                         d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange,
-                        d->d_mx_preference_cutoff);
-                break;
+                        d->d_dnsr_result->r_answer[ i ].rr_mx.mx_preference);
+                return SIMTA_OK;
             }
+            ucl_array_append(d->d_mx_list,
+                    ucl_object_fromstring(
+                            d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange));
         }
-
-    } else {
-        if (d->d_dnsr_result->r_ancount == 0) {
-            /* If an empty list of MXs is returned, the address is
-             * treated as if it was associated with an implicit MX
-             * RR, with a preference of 0, pointing to that host.
-             */
-            syslog(LOG_INFO,
-                    "DNS %s: MX record has 0 entries, "
-                    "getting address record",
-                    hq->hq_hostname);
-        } else {
-            /* If a CNAME record is found, the resulting name is processed as
-             * if it were the initial name.
-             */
-            syslog(LOG_INFO,
-                    "DNS %s: MX record is a single CNAME, "
-                    "getting address record",
-                    hq->hq_hostname);
-        }
-        dnsr_free_result(d->d_dnsr_result);
-
-        if (ucl_object_toboolean(ucl_object_lookup_path(hq->hq_red, "ipv6"))) {
-            if ((d->d_dnsr_result = get_aaaa(hq->hq_hostname)) == NULL) {
-                syslog(LOG_INFO, "DNS %s: AAAA record lookup failed",
-                        hq->hq_hostname);
-                if (!ucl_object_toboolean(
-                            ucl_object_lookup_path(hq->hq_red, "ipv4"))) {
-                    return (1);
-                }
-            } else if (d->d_dnsr_result->r_ancount > 0) {
-                syslog(LOG_INFO, "DNS %s: %d AAAA record entries",
-                        hq->hq_hostname, d->d_dnsr_result->r_ancount);
-                return (0);
-            }
-            dnsr_free_result(d->d_dnsr_result);
-            d->d_dnsr_result = NULL;
-        }
-
-        if (ucl_object_toboolean(ucl_object_lookup_path(hq->hq_red, "ipv4"))) {
-            if ((d->d_dnsr_result = get_a(hq->hq_hostname)) == NULL) {
-                syslog(LOG_INFO, "DNS %s: A record lookup failed",
-                        hq->hq_hostname);
-                return (1);
-            }
-            if (d->d_dnsr_result->r_ancount > 0) {
-                syslog(LOG_INFO, "DNS %s: %d A record entries", hq->hq_hostname,
-                        d->d_dnsr_result->r_ancount);
-                return (0);
-            }
-            dnsr_free_result(d->d_dnsr_result);
-            d->d_dnsr_result = NULL;
-        }
-
-        /* If MX records are present, but none of them are usable,
-         * or the implicit MX is unusable, this situation MUST be
-         * reported as an error.
-         */
-        syslog(LOG_INFO, "DNS %s: address record missing, bouncing mail",
-                hq->hq_hostname);
-        if (hq->hq_err_text == NULL) {
-            if ((hq->hq_err_text = line_file_create()) == NULL) {
-                syslog(LOG_ERR,
-                        "Syserror: get_outbound_dns line_file_create: %m");
-                return (1);
-            }
-        }
-        if (line_append(hq->hq_err_text, "Host does not exist", COPY) == NULL) {
-            syslog(LOG_ERR, "Syserror: get_outbound_dns line_append: %m");
-            return (1);
-        }
-        hq->hq_status = HOST_BOUNCE;
-        d->d_env->e_flags |= ENV_FLAG_BOUNCE;
-        return (1);
     }
-
-    return (0);
+    return SIMTA_OK;
 }
 
-int
+simta_dns_result
 next_dnsr_host(struct deliver *d, struct host_q *hq) {
-    struct connection_data *cd;
-    struct dnsr_rr *        rr;
-    struct dnsr_result *    dnsr_result_ip;
-    struct sockaddr_in *    sin;
-    struct sockaddr_in6 *   sin6;
+    struct dnsr_rr *         rr;
+    struct sockaddr_in *     sin;
+    struct sockaddr_in6 *    sin6;
+    struct sockaddr_storage *addr;
+    int                      cur_dnsr_result;
+    ucl_object_iter_t        iter;
+    const ucl_object_t *     obj;
+    ucl_object_t *           ref;
+
+    if (d->d_mx_list == NULL) {
+        d->d_mx_list = ucl_object_typed_new(UCL_ARRAY);
+
+        if (hq->hq_status != HOST_PUNT_DOWN) {
+            if (get_outbound_dns(d, hq) != SIMTA_OK) {
+                return SIMTA_DNS_EOF;
+            }
+        }
+
+        if (d->d_dnsr_result) {
+            dnsr_free_result(d->d_dnsr_result);
+            d->d_dnsr_result = NULL;
+        }
+
+        /* Fall back to the implicit MX */
+        if (ucl_array_size(d->d_mx_list) == 0) {
+            ucl_array_append(
+                    d->d_mx_list, ucl_object_fromstring(hq->hq_hostname));
+            d->d_mx_cname_ok = true;
+        }
+        d->d_mx_current = ucl_array_pop_first(d->d_mx_list);
+        d->d_mx_check_ipv6 = ucl_object_toboolean(
+                ucl_object_lookup_path(hq->hq_red, "deliver.ipv6"));
+        d->d_mx_check_ipv4 = ucl_object_toboolean(
+                ucl_object_lookup_path(hq->hq_red, "deliver.ipv4"));
+    }
+
+    /* This is an independent block so that it applies to both initial
+     * attempts and retried IPs.
+     */
+    if (d->d_retry_current) {
+        if (!d->d_queue_movement) {
+            /* No transaction progress was made, mark the IP as down */
+            simta_ucl_toggle(d->d_retry_current, NULL, "up", false);
+        }
+        ucl_object_unref(d->d_retry_current);
+        d->d_retry_current = NULL;
+    }
+
+    if (d->d_mx_current == NULL) {
+        if (d->d_retry_list == NULL) {
+            if (hq->hq_status == HOST_DOWN) {
+                /* If MX records are present, but none of them are usable,
+                 * or the implicit MX is unusable, this situation MUST be
+                 * reported as an error.
+                 */
+                syslog(LOG_INFO,
+                        "DNS %s: address record missing, bouncing mail",
+                        hq->hq_hostname);
+                if (hq->hq_err_text == NULL) {
+                    if ((hq->hq_err_text = line_file_create()) == NULL) {
+                        syslog(LOG_ERR,
+                                "Syserror: get_outbound_dns line_file_create: "
+                                "%m");
+                        return SIMTA_DNS_EOF;
+                    }
+                }
+                if (line_append(hq->hq_err_text, "Host does not exist", COPY) ==
+                        NULL) {
+                    syslog(LOG_ERR,
+                            "Syserror: get_outbound_dns line_append: %m");
+                    return SIMTA_DNS_EOF;
+                }
+                hq->hq_status = HOST_BOUNCE;
+                d->d_env->e_flags |= ENV_FLAG_BOUNCE;
+            }
+            return SIMTA_DNS_EOF;
+        }
+
+        iter = ucl_object_iterate_new(d->d_retry_list);
+        while ((obj = ucl_object_iterate_safe(iter, true)) != NULL) {
+            if (ucl_object_toboolean(ucl_object_lookup(obj, "up")) &&
+                    (strcmp(d->d_env->e_id,
+                             ucl_object_tostring(ucl_object_lookup(
+                                     obj, "last_envelope"))) != 0)) {
+                ref = ucl_object_ref(obj);
+                ucl_object_replace_key(ref,
+                        ucl_object_fromstring(d->d_env->e_id), "last_envelope",
+                        0, false);
+                d->d_retry_current = ref;
+                /* FIXME: can we do less juggling here? */
+                strncpy(d->d_ip,
+                        ucl_object_tostring(ucl_object_lookup(obj, "ip")),
+                        sizeof(d->d_ip));
+                memcpy(&(d->d_sa), ucl_object_lookup(obj, "address")->value.ud,
+                        sizeof(struct sockaddr_storage));
+                simta_debuglog(1, "DNS %s: Retrying address: %s",
+                        hq->hq_hostname, d->d_ip);
+                return SIMTA_DNS_OK;
+            }
+        }
+        ucl_object_iterate_free(iter);
+
+        return SIMTA_DNS_EOF;
+    }
 
     if (d->d_dnsr_result == NULL) {
-        d->d_mx_preference_set = 0;
         d->d_cur_dnsr_result = 0;
-
-        /* if the host is a regular MX host, try to get a valid MX record.
-         * failing that, try to get an A record.
-         *
-         * if the host is a punt host, just try to get the A record
-         */
-
-        switch (hq->hq_status) {
-        case HOST_DOWN:
-            if (get_outbound_dns(d, hq) != 0) {
-                return (1);
-            }
-            break; /* case HOST_DOWN */
-
-        case HOST_PUNT_DOWN:
-            if (ucl_object_toboolean(
-                        ucl_object_lookup_path(hq->hq_red, "ipv6"))) {
-                if ((d->d_dnsr_result = get_aaaa(simta_punt_host)) == NULL) {
-                    syslog(LOG_WARNING,
-                            "DNS %s: punt host AAAA record lookup failed",
-                            simta_punt_host);
-                    if (!ucl_object_toboolean(
-                                ucl_object_lookup_path(hq->hq_red, "ipv4"))) {
-                        return (1);
-                    }
-                } else if (d->d_dnsr_result->r_ancount == 0) {
-                    dnsr_free_result(d->d_dnsr_result);
-                    d->d_dnsr_result = NULL;
-                }
+        if (d->d_mx_check_ipv4 || d->d_mx_check_ipv6) {
+            if (d->d_mx_check_ipv6) {
+                d->d_cur_mx_lookup_type = "AAAA";
+                d->d_dnsr_result =
+                        get_aaaa(ucl_object_tostring(d->d_mx_current));
+                d->d_mx_check_ipv6 = false;
+            } else {
+                d->d_cur_mx_lookup_type = "A";
+                d->d_dnsr_result = get_a(ucl_object_tostring(d->d_mx_current));
+                d->d_mx_check_ipv4 = false;
             }
 
-            if (ucl_object_toboolean(
-                        ucl_object_lookup_path(hq->hq_red, "ipv4")) &&
-                    (d->d_dnsr_result == NULL)) {
-                if ((d->d_dnsr_result = get_a(simta_punt_host)) == NULL) {
-                    syslog(LOG_WARNING,
-                            "DNS %s: punt host A record lookup failed",
-                            simta_punt_host);
-                    return (1);
-                }
+            if (d->d_dnsr_result) {
                 if (d->d_dnsr_result->r_ancount == 0) {
                     dnsr_free_result(d->d_dnsr_result);
                     d->d_dnsr_result = NULL;
+                } else if (!d->d_mx_cname_ok &&
+                           dnsr_result_is_cname(d->d_dnsr_result)) {
+                    syslog(LOG_INFO,
+                            "DNS %s: Entry %d: suppressing CNAME record %s",
+                            hq->hq_hostname, d->d_cur_mx_lookup,
+                            ucl_object_tostring(d->d_mx_current));
+                    dnsr_free_result(d->d_dnsr_result);
+                    d->d_dnsr_result = NULL;
+                    d->d_mx_check_ipv6 = false;
+                    d->d_mx_check_ipv4 = false;
                 }
             }
 
             if (d->d_dnsr_result == NULL) {
-                syslog(LOG_WARNING, "DNS %s: punt host address record missing",
-                        simta_punt_host);
-                return (1);
+                simta_debuglog(1, "DNS %s: Entry %d: no %s record: %s",
+                        hq->hq_hostname, d->d_cur_mx_lookup,
+                        d->d_cur_mx_lookup_type,
+                        ucl_object_tostring(d->d_mx_current));
+                return SIMTA_DNS_AGAIN;
             }
-            break; /* case HOST_PUNT_DOWN */
-
-        default:
-            panic("next_dnsr_host: variable out of range");
-        }
-        d->d_cur_dnsr_result = -1;
-    }
-
-    /* the retry list is used for aggressive delivery.  a host gets on the
-     * list when it allows queue movement, and falls off the list when it
-     * fails to do so again.
-     */
-    if (d->d_retry_cur != NULL) {
-        if (d->d_queue_movement == 0) {
-            /* there was no queue movement on this host, we remove it */
-            cd = d->d_retry_cur;
-            d->d_retry_cur = d->d_retry_cur->c_next;
-            syslog(LOG_INFO, "DNS %s: removed %s from retry list",
-                    hq->hq_hostname, cd->c_ip);
-            connection_data_free(d, cd);
-
-            if (d->d_retry_cur == NULL) {
-                if (d->d_retry_list != NULL) {
-                    d->d_retry_cur = d->d_retry_list;
-                    simta_debuglog(
-                            1, "DNS %s: Retry list restarted", hq->hq_hostname);
-                } else {
-                    /* we've removed our last item from the retry list */
-                    syslog(LOG_INFO, "DNS %s: Retry list exhausted",
-                            hq->hq_hostname);
-                    return (1);
-                }
-            }
-
         } else {
-            /* there was queue movement on this host, iterate */
-            if ((d->d_retry_cur = d->d_retry_cur->c_next) == NULL) {
-                /* start the list over if we're at the end */
-                d->d_retry_cur = d->d_retry_list;
-                simta_debuglog(
-                        1, "DNS %s: Retry list restarted", hq->hq_hostname);
-            }
-        }
-
-    retry:
-        memcpy(&(d->d_sa), &(d->d_retry_cur->c_sa),
-                sizeof(struct sockaddr_storage));
-        memcpy(d->d_ip, d->d_retry_cur->c_ip, sizeof(d->d_ip));
-        syslog(LOG_INFO, "DNS %s: Retry %s", hq->hq_hostname, d->d_ip);
-        return (0);
-    }
-
-    /* see if we need to preserve the connection data for retry later */
-    if ((simta_aggressive_delivery != 0) && (d->d_queue_movement != 0)) {
-        if ((cd = connection_data_create(d)) != NULL) {
-            syslog(LOG_INFO, "DNS %s: Added %s to Retry", hq->hq_hostname,
-                    d->d_ip);
+            d->d_cur_mx_lookup++;
+            ucl_object_unref(d->d_mx_current);
+            d->d_mx_current = ucl_array_pop_first(d->d_mx_list);
+            d->d_mx_check_ipv6 = ucl_object_toboolean(
+                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv6"));
+            d->d_mx_check_ipv4 = ucl_object_toboolean(
+                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv4"));
+            return SIMTA_DNS_AGAIN;
         }
     }
 
-start:
-    memset(&(d->d_sa), 0, sizeof(struct sockaddr_storage));
-
-    while (d->d_dnsr_result_additional) {
-        d->d_cur_dnsr_result_ip = -3;
-        memcpy(&(d->d_sa), &(d->d_dnsr_result_additional->ip_sa),
-                sizeof(struct sockaddr_storage));
-        d->d_dnsr_result_additional = d->d_dnsr_result_additional->ip_next;
-        if ((!ucl_object_toboolean(
-                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv6"))) &&
-                (d->d_sa.ss_family == AF_INET6)) {
-            continue;
-        } else if ((!ucl_object_toboolean(ucl_object_lookup_path(
-                           hq->hq_red, "deliver.ipv4"))) &&
-                   (d->d_sa.ss_family == AF_INET)) {
-            continue;
-        }
-        if (deliver_checksockaddr(d, hq) == 0) {
-            syslog(LOG_INFO, "DNS %s: Entry %d: Trying additional record: %s",
-                    hq->hq_hostname, d->d_cur_dnsr_result, d->d_ip);
-            return (0);
-        }
+    if (d->d_dnsr_result == NULL) {
+        return SIMTA_DNS_AGAIN;
     }
 
-    if (d->d_cur_dnsr_result_ip < -1) {
-        rr = d->d_dnsr_result->r_answer + d->d_cur_dnsr_result;
-
-        if (ucl_object_toboolean(
-                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv6")) &&
-                (d->d_cur_dnsr_result_ip == -3)) {
-            if ((d->d_dnsr_result_ip6 = get_aaaa(rr->rr_mx.mx_exchange))) {
-                if (d->d_dnsr_result_ip6->r_ancount > 0) {
-                    syslog(LOG_INFO,
-                            "DNS %s: Entry %d: MX AAAA record found: %s",
-                            hq->hq_hostname, d->d_cur_dnsr_result,
-                            rr->rr_mx.mx_exchange);
-                    d->d_cur_dnsr_result_ip = -1;
-                    goto start;
-                }
-                dnsr_free_result(d->d_dnsr_result_ip6);
-                d->d_dnsr_result_ip6 = NULL;
-            }
-            syslog(LOG_INFO, "DNS %s: Entry %d: MX AAAA record not found: %s",
-                    hq->hq_hostname, d->d_cur_dnsr_result,
-                    rr->rr_mx.mx_exchange);
-        }
-
-        d->d_cur_dnsr_result_ip = -1;
-
-        if (!ucl_object_toboolean(
-                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv4"))) {
-            goto start;
-        }
-
-        if ((d->d_dnsr_result_ip = get_a(rr->rr_mx.mx_exchange)) != NULL) {
-            if (d->d_dnsr_result_ip->r_ancount > 0) {
-                syslog(LOG_INFO, "DNS %s: Entry %d: MX A record found: %s",
-                        hq->hq_hostname, d->d_cur_dnsr_result,
-                        rr->rr_mx.mx_exchange);
-                goto start;
-            }
-            dnsr_free_result(d->d_dnsr_result_ip);
-            d->d_dnsr_result_ip = NULL;
-        }
-        syslog(LOG_INFO, "DNS %s: Entry %d: MX A record not found: %s",
-                hq->hq_hostname, d->d_cur_dnsr_result, rr->rr_mx.mx_exchange);
+    if (d->d_cur_dnsr_result >= d->d_dnsr_result->r_ancount) {
+        dnsr_free_result(d->d_dnsr_result);
+        d->d_dnsr_result = NULL;
+        return SIMTA_DNS_AGAIN;
     }
 
-    dnsr_result_ip =
-            d->d_dnsr_result_ip6 ? d->d_dnsr_result_ip6 : d->d_dnsr_result_ip;
+    cur_dnsr_result = d->d_cur_dnsr_result;
+    d->d_cur_dnsr_result++;
+    rr = d->d_dnsr_result->r_answer + cur_dnsr_result;
 
-    while (dnsr_result_ip) {
-        for (d->d_cur_dnsr_result_ip++;
-                d->d_cur_dnsr_result_ip < dnsr_result_ip->r_ancount;
-                d->d_cur_dnsr_result_ip++) {
-            rr = dnsr_result_ip->r_answer + d->d_cur_dnsr_result_ip;
-            if (rr->rr_type == DNSR_TYPE_AAAA) {
-                sin6 = (struct sockaddr_in6 *)&(d->d_sa);
-                sin6->sin6_family = AF_INET6;
-                memcpy(&(sin6->sin6_addr), &(rr->rr_aaaa.aaaa_address),
-                        sizeof(struct in6_addr));
-            } else if (rr->rr_type == DNSR_TYPE_A) {
-                sin = (struct sockaddr_in *)&(d->d_sa);
-                sin->sin_family = AF_INET;
-                memcpy(&(sin->sin_addr), &(rr->rr_a.a_address),
-                        sizeof(struct in_addr));
-            } else {
+    if (rr->rr_type == DNSR_TYPE_AAAA) {
+        sin6 = (struct sockaddr_in6 *)&(d->d_sa);
+        sin6->sin6_family = AF_INET6;
+        memcpy(&(sin6->sin6_addr), &(rr->rr_aaaa.aaaa_address),
+                sizeof(struct in6_addr));
+    } else if (rr->rr_type == DNSR_TYPE_A) {
+        sin = (struct sockaddr_in *)&(d->d_sa);
+        sin->sin_family = AF_INET;
+        memcpy(&(sin->sin_addr), &(rr->rr_a.a_address), sizeof(struct in_addr));
+    } else {
+        simta_debuglog(1,
+                "DNS %s: Entry %d.%s.%d: "
+                "uninteresting dnsr rr type %s: %d",
+                hq->hq_hostname, d->d_cur_mx_lookup, d->d_cur_mx_lookup_type,
+                cur_dnsr_result, rr->rr_name, rr->rr_type);
+        return SIMTA_DNS_AGAIN;
+    }
+
+    if (deliver_checksockaddr(d, hq) == SIMTA_OK) {
+        if (d->d_retry_list == NULL) {
+            d->d_retry_list = ucl_object_typed_new(UCL_ARRAY);
+        }
+        iter = ucl_object_iterate_new(d->d_retry_list);
+        while ((obj = ucl_object_iterate_safe(iter, true)) != NULL) {
+            if (strcmp(d->d_ip, ucl_object_tostring(
+                                        ucl_object_lookup(obj, "ip"))) == 0) {
                 simta_debuglog(1,
-                        "DNS %s: Entry %d.%d: "
-                        "uninteresting dnsr rr type %s: %d",
-                        hq->hq_hostname, d->d_cur_dnsr_result,
-                        d->d_cur_dnsr_result_ip, rr->rr_name, rr->rr_type);
-                continue;
+                        "DNS %s: Entry %d.%s.%d: suppressing previously seen "
+                        "IP: %s",
+                        hq->hq_hostname, d->d_cur_mx_lookup,
+                        d->d_cur_mx_lookup_type, cur_dnsr_result, d->d_ip);
+                ucl_object_iterate_free(iter);
+                return SIMTA_DNS_AGAIN;
             }
-
-            if (deliver_checksockaddr(d, hq) != 0) {
-                continue;
-            }
-
-            syslog(LOG_INFO, "DNS %s: Entry %d.%d: Trying address record: %s",
-                    hq->hq_hostname, d->d_cur_dnsr_result,
-                    d->d_cur_dnsr_result_ip, d->d_ip);
-            return (0);
         }
-        dnsr_result_ip = NULL;
-        if (d->d_dnsr_result_ip6) {
-            dnsr_free_result(d->d_dnsr_result_ip6);
-            d->d_dnsr_result_ip6 = NULL;
-            d->d_cur_dnsr_result_ip = -2;
-            goto start;
-        }
-        dnsr_free_result(d->d_dnsr_result_ip);
-        d->d_dnsr_result_ip = NULL;
+        ucl_object_iterate_free(iter);
+
+        ref = ucl_object_new();
+        ucl_object_insert_key(
+                ref, ucl_object_fromstring(d->d_ip), "ip", 0, false);
+        addr = malloc(sizeof(struct sockaddr_storage));
+        memcpy(addr, &(d->d_sa), sizeof(struct sockaddr_storage));
+        ucl_object_insert_key(ref, ucl_object_new_userdata(NULL, NULL, addr),
+                "address", 0, false);
+        ucl_object_insert_key(ref, ucl_object_fromstring(d->d_env->e_id),
+                "last_envelope", 0, false);
+        ucl_object_insert_key(ref, ucl_object_frombool(true), "up", 0, false);
+        ucl_array_append(d->d_retry_list, ref);
+        d->d_retry_current = ucl_object_ref(ref);
+
+        syslog(LOG_INFO, "DNS %s: Entry %d.%s.%d: Trying address record: %s",
+                hq->hq_hostname, d->d_cur_mx_lookup, d->d_cur_mx_lookup_type,
+                cur_dnsr_result, d->d_ip);
+        return SIMTA_DNS_OK;
     }
 
-    for (d->d_cur_dnsr_result++;
-            d->d_cur_dnsr_result < d->d_dnsr_result->r_ancount;
-            d->d_cur_dnsr_result++) {
-        rr = d->d_dnsr_result->r_answer + d->d_cur_dnsr_result;
-        /* if the entry is an address record, use the associated IP info */
-        if (ucl_object_toboolean(
-                    ucl_object_lookup(hq->hq_red, "deliver.ipv6")) &&
-                (rr->rr_type == DNSR_TYPE_AAAA)) {
-            sin6 = (struct sockaddr_in6 *)&(d->d_sa);
-            sin6->sin6_family = AF_INET6;
-            memcpy(&(sin6->sin6_addr), &(rr->rr_aaaa.aaaa_address),
-                    sizeof(struct in6_addr));
-            if (deliver_checksockaddr(d, hq) == 0) {
-                syslog(LOG_INFO, "DNS %s: Entry %d: Trying AAAA record: %s",
-                        hq->hq_hostname, d->d_cur_dnsr_result, d->d_ip);
-                return (0);
-            }
-            continue;
-
-        } else if (ucl_object_toboolean(
-                           ucl_object_lookup(hq->hq_red, "deliver.ipv4")) &&
-                   (rr->rr_type == DNSR_TYPE_A)) {
-            sin = (struct sockaddr_in *)&(d->d_sa);
-            sin->sin_family = AF_INET;
-            memcpy(&(sin->sin_addr), &(rr->rr_a.a_address),
-                    sizeof(struct in_addr));
-            if (deliver_checksockaddr(d, hq) == 0) {
-                syslog(LOG_INFO, "DNS %s: Entry %d: Trying A record: %s",
-                        hq->hq_hostname, d->d_cur_dnsr_result, d->d_ip);
-                return (0);
-            }
-            continue;
-
-        } else if ((rr->rr_type != DNSR_TYPE_MX) ||
-                   (hq->hq_status != HOST_DOWN)) {
-            simta_debuglog(1,
-                    "DNS %s: Entry %d: uninteresting dnsr rr type %s: %d",
-                    hq->hq_hostname, d->d_cur_dnsr_result, rr->rr_name,
-                    rr->rr_type);
-            continue;
-        }
-
-        /* Stop checking hosts if we know the local hostname is in
-         * the mx record and we've reached its preference level.
-         */
-        if ((d->d_mx_preference_set != 0) &&
-                (rr->rr_mx.mx_preference >= d->d_mx_preference_cutoff)) {
-            syslog(LOG_INFO, "DNS %s: Entry %d: MX preference %d: cutoff",
-                    hq->hq_hostname, d->d_cur_dnsr_result,
-                    rr->rr_mx.mx_preference);
-            break;
-        }
-
-        d->d_cur_dnsr_result_ip = -3;
-        d->d_dnsr_result_additional = rr->rr_ip;
-        goto start;
-    }
-
-    /* No more DNS data, start retrying */
-    dll_free(d->d_ip_list);
-    d->d_ip_list = NULL;
-
-    if (d->d_retry_list != NULL) {
-        d->d_retry_cur = d->d_retry_list;
-        syslog(LOG_INFO, "DNS %s: Retry list start", hq->hq_hostname);
-        goto retry;
-    }
-
-    return (1);
+    return SIMTA_DNS_AGAIN;
 }
 
-static int
+static simta_result
 deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
     int               rc;
     struct dll_entry *l;
@@ -2223,7 +2057,7 @@ deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
                  d->d_ip, sizeof(d->d_ip), NULL, 0, NI_NUMERICHOST)) != 0) {
         syslog(LOG_ERR, "Syserror: deliver_checksockaddr getnameinfo: %s",
                 gai_strerror(rc));
-        return (1);
+        return SIMTA_ERR;
     }
 
     /* Reject loopback addresses, non-routable meta addresses, and
@@ -2237,16 +2071,7 @@ deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
                             (strncmp(d->d_ip, "fe80:", 5) == 0)))) {
         syslog(LOG_INFO, "DNS %s: suppressing bad address: %s", hq->hq_hostname,
                 d->d_ip);
-        return (1);
-    }
-
-    l = dll_lookup_or_create(&d->d_ip_list, d->d_ip);
-    if (l->dll_data == NULL) {
-        l->dll_data = "SEEN";
-    } else {
-        simta_debuglog(1, "DNS %s: suppressing previously tried address: %s",
-                hq->hq_hostname, d->d_ip);
-        return (1);
+        return SIMTA_ERR;
     }
 
     /* Set the port */
@@ -2256,50 +2081,8 @@ deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
         ((struct sockaddr_in *)&(d->d_sa))->sin_port = htons(SIMTA_SMTP_PORT);
     }
 
-    return (0);
+    return SIMTA_OK;
 }
-
-struct connection_data *
-connection_data_create(struct deliver *d) {
-    struct connection_data *cd;
-
-    cd = calloc(1, sizeof(struct connection_data));
-    memcpy(&(cd->c_sa), &(d->d_sa), sizeof(struct sockaddr_storage));
-    memcpy(cd->c_ip, d->d_ip, sizeof(cd->c_ip));
-
-    if (d->d_retry_list_end == NULL) {
-        d->d_retry_list = cd;
-        d->d_retry_list_end = cd;
-
-    } else {
-        d->d_retry_list_end->c_next = cd;
-        cd->c_prev = d->d_retry_list_end;
-        d->d_retry_list_end = cd;
-    }
-
-    return (cd);
-}
-
-
-void
-connection_data_free(struct deliver *d, struct connection_data *cd) {
-    if (cd->c_prev != NULL) {
-        cd->c_prev->c_next = cd->c_next;
-    } else {
-        d->d_retry_list = cd->c_next;
-    }
-
-    if (cd->c_next != NULL) {
-        cd->c_next->c_prev = cd->c_prev;
-        d->d_retry_cur = cd->c_next;
-    } else {
-        d->d_retry_list_end = cd->c_prev;
-        d->d_retry_cur = d->d_retry_list;
-    }
-
-    free(cd);
-}
-
 
 void
 queue_log_metrics(struct host_q *hq_schedule) {

@@ -22,6 +22,13 @@
 #define NOPUNT_MX 1
 #define NOPUNT_CONFIG 2
 
+typedef enum {
+    SIMTA_DNS_OK,
+    SIMTA_DNS_EOF,
+    SIMTA_DNS_AGAIN,
+} simta_dns_result;
+
+
 struct connection_data {
     struct connection_data *c_prev;
     struct connection_data *c_next;
@@ -50,23 +57,22 @@ struct deliver {
 
     /* SMTP connection variables */
     int                     d_connection_msg_total;
-    int                     d_queue_movement;
+    bool                    d_queue_movement;
     SNET *                  d_snet_smtp;
     SNET *                  d_snet_dfile;
-    struct connection_data *d_retry_list;
-    struct connection_data *d_retry_list_end;
-    struct connection_data *d_retry_cur;
+    ucl_object_t *          d_mx_list;
+    ucl_object_t *          d_mx_current;
+    ucl_object_t *          d_retry_list;
+    ucl_object_t *          d_retry_current;
     struct dnsr_result *    d_dnsr_result;
-    struct dnsr_result *    d_dnsr_result_ip;
-    struct dnsr_result *    d_dnsr_result_ip6;
-    struct ip_info *        d_dnsr_result_additional;
-    struct dll_entry *      d_ip_list;
+    const char *            d_cur_mx_lookup_type;
     struct sockaddr_storage d_sa;
     char                    d_ip[ INET6_ADDRSTRLEN ];
-    uint16_t                d_mx_preference_cutoff;
-    int                     d_mx_preference_set;
+    bool                    d_mx_check_ipv4;
+    bool                    d_mx_check_ipv6;
+    bool                    d_mx_cname_ok;
+    int                     d_cur_mx_lookup;
     int                     d_cur_dnsr_result;
-    int                     d_cur_dnsr_result_ip;
     int                     d_esmtp_8bitmime;
     int                     d_esmtp_size;
     int                     d_esmtp_starttls;
@@ -110,6 +116,7 @@ int            queue_envelope(struct envelope *);
 int            q_single(struct host_q *);
 void           hq_deliver_pop(struct host_q *);
 void           queue_log_metrics(struct host_q *);
+simta_result   next_dnsr_host_lookup(struct deliver *, struct host_q *);
 
 int q_read_dir(struct simta_dirp *);
 int hq_deliver_push(struct host_q *, struct timeval *, struct timeval *);

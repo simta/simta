@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,27 +33,57 @@
 
 const char *simta_progname = "simconnect";
 
-int next_dnsr_host_lookup(struct deliver *, struct host_q *);
-
 int
-main(int ac, char *av[]) {
+main(int argc, char *argv[]) {
     int            s, r;
+    int            c;
+    const char *   conf_file = NULL;
+    const char *   extra_conf = NULL;
     char *         hostname;
+    ucl_object_t * obj;
     struct host_q *hq;
     struct deliver d;
+    bool           test_connect = true;
+    bool           error = false;
 
-    if (ac != 2) {
-        fprintf(stderr, "Usage:\t\t%s hostname\n", av[ 0 ]);
+    while ((c = getopt(argc, argv, "f:lU:")) != EOF) {
+        switch (c) {
+        case 'f':
+            conf_file = optarg;
+            break;
+        case 'l':
+            test_connect = false;
+            break;
+        case 'U':
+            extra_conf = optarg;
+            break;
+        default:
+            error = true;
+            break;
+        }
+    }
+
+    if (error || (optind == argc)) {
+        fprintf(stderr,
+                "Usage:\t\t%s [ -f conf_file ] [ -U extra_conf ] "
+                "[ -l ] hostname\n",
+                argv[ 0 ]);
         exit(1);
     }
 
-    if (simta_read_config(NULL, NULL) < 0) {
+    if (simta_read_config(conf_file, extra_conf) < 0) {
         exit(1);
     }
 
     simta_openlog(0, LOG_PERROR);
 
-    hostname = av[ 1 ];
+    hostname = argv[ optind ];
+
+    /* FIXME: unify with code in daemon.c? */
+    obj = ucl_object_ref(simta_config_obj("defaults.red.deliver"));
+    ucl_object_replace_key(obj, ucl_object_frombool(true), "ipv4", 0, false);
+    ucl_object_replace_key(obj, ucl_object_frombool(true), "ipv6", 0, false);
+    ucl_object_unref(obj);
 
     hq = host_q_create_or_lookup(hostname);
     memset(&d, 0, sizeof(struct deliver));
@@ -62,8 +93,12 @@ main(int ac, char *av[]) {
     d.d_env = env_create(NULL, hostname, "simta@umich.edu", NULL);
 
     for (;;) {
-        if (next_dnsr_host_lookup(&d, hq) != 0) {
+        if (next_dnsr_host_lookup(&d, hq) != SIMTA_OK) {
             exit(0);
+        }
+
+        if (!test_connect) {
+            continue;
         }
 
     retry:

@@ -45,6 +45,7 @@ struct dnsr_result *get_txt(const char *);
 yastr               simta_dnsr_str(const struct dnsr_string *);
 int                 check_reverse(char *, const struct sockaddr *);
 int                 check_hostname(const char *);
+bool                dnsr_result_is_cname(struct dnsr_result *);
 struct dnsl_result *dnsl_check(
         const char *, const struct sockaddr *, const char *);
 void dnsl_result_free(struct dnsl_result *);

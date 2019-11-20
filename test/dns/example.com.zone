@@ -11,3 +11,24 @@ $ORIGIN example.com.
                     NS  localhost.test.
 
                     A   127.0.0.1
+
+ipv4                A       172.24.0.1
+ipv6                AAAA    0100::1
+mixed               A       172.24.0.2
+mixed               AAAA    0100::2
+real                MX      10  ipv4
+real                MX      20  ipv6
+real                MX      30  mixed
+mx-redirect         CNAME   real
+mx-chain            CNAME   mx-redirect
+addr-redirect       CNAME   mixed
+addr-chain          CNAME   addr-redirect
+dangling            CNAME   nonexistent
+bad-mx              MX      10  nonexist
+bad-mx              A       172.24.0.3
+bad-mx-cname        MX      10  addr-redirect
+bad-mx-cname        A       172.24.0.3
+mixed-mx            MX      15  ipv4
+mixed-mx            MX      10  nonexist
+mixed-mx            MX      10  addr-redirect
+mixed-mx            A       172.24.0.3

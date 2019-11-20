@@ -303,6 +303,18 @@ check_hostname(const char *hostname) {
     return (1);
 }
 
+bool
+dnsr_result_is_cname(struct dnsr_result *r) {
+    if (r) {
+        for (int i = 0; i < r->r_ancount; i++) {
+            if (r->r_answer[ i ].rr_type == DNSR_TYPE_CNAME) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 struct dnsl_result *
 dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
     const ucl_object_t *chain_obj;

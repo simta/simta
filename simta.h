@@ -149,7 +149,6 @@ extern struct proc_type *   simta_proc_stab;
 extern int                  simta_submission_mode;
 extern int                  simta_command_read_entries;
 extern int                  simta_disk_read_entries;
-extern int                  simta_aggressive_delivery;
 extern int                  simta_aggressive_expansion;
 extern int                  simta_aggressive_receipt_max;
 extern int                  simta_punt_policy;
