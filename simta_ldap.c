@@ -558,10 +558,12 @@ simta_ldap_is_objectclass(
                 if ((values[ idx ]->bv_len == strlen(buf)) &&
                         strncasecmp(values[ idx ]->bv_val, buf,
                                 values[ idx ]->bv_len) == 0) {
+                    ucl_object_iterate_free(iter);
                     ldap_value_free_len(values);
                     return (true);
                 }
             }
+            ucl_object_iterate_free(iter);
         }
         ldap_value_free_len(values);
     }
