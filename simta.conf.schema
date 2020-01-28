@@ -437,7 +437,6 @@ properties {
             smtp {
                 type: object
                 properties {
-                    strict { type: boolean }
                     mode {
                         type: string
                         enum [ msa, mta, mta_strict ]

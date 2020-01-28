@@ -634,6 +634,10 @@ smtp_write_banner(struct receive_data *r, int reply_code, const char *msg,
     case 554:
         boilerplate = "Transaction failed";
         break;
+
+    case 555:
+        boilerplate = "Command parameter not recognized or not implemented";
+        break;
     }
 
     if (hostname) {
@@ -848,9 +852,8 @@ f_mail(struct receive_data *r) {
         return (f_mail_usage(r));
     }
 
-    if ((!simta_strict_smtp_syntax) && (r->r_ac >= 3) &&
-            (strcasecmp(r->r_av[ 1 ], "FROM:") == 0)) {
-        /* r->r_av[ 1 ] = "FROM:", r->r_av[ 2 ] = "<ADDRESS>" */
+    if ((r->r_ac >= 3) && (strcasecmp(r->r_av[ 1 ], "FROM:") == 0)) {
+        /* Incorrect, but people are bad at standards: "MAIL FROM: <foo>" */
         if (parse_emailaddr(RFC_821_MAIL_FROM, r->r_av[ 2 ], &addr, &domain) !=
                 0) {
             return (f_mail_usage(r));
@@ -862,7 +865,7 @@ f_mail(struct receive_data *r) {
             return (f_mail_usage(r));
         }
 
-        /* r->r_av[ 1 ] = "FROM:<ADDRESS>" */
+        /* Correct: "MAIL FROM:<foo>" */
         if (parse_emailaddr(RFC_821_MAIL_FROM, r->r_av[ 1 ] + strlen("FROM:"),
                     &addr, &domain) != 0) {
             return (f_mail_usage(r));
@@ -987,10 +990,7 @@ f_mail(struct receive_data *r) {
                     "unsupported SMTP extension: %s",
                     r->r_ip, r->r_remote_hostname, r->r_smtp_command);
 
-            return (smtp_write_banner(r, 501,
-                    "Syntax Error: "
-                    "unsupported SMTP service extension",
-                    r->r_av[ i ]));
+            return smtp_write_banner(r, 555, NULL, r->r_av[ i ]);
         }
     }
 
@@ -1151,6 +1151,7 @@ f_rcpt_usage(struct receive_data *r) {
 static int
 f_rcpt(struct receive_data *r) {
     int                 rc;
+    int                 parameters;
     char *              addr;
     char *              domain;
     const ucl_object_t *red;
@@ -1164,28 +1165,41 @@ f_rcpt(struct receive_data *r) {
         return (f_bad_sequence(r));
     }
 
-    if (r->r_ac == 2) {
-        if (strncasecmp(r->r_av[ 1 ], "TO:", 3) != 0) {
-            return (f_rcpt_usage(r));
-        }
+    if (r->r_ac < 2) {
+        return f_rcpt_usage(r);
+    }
 
-        if (parse_emailaddr(
-                    RFC_821_RCPT_TO, r->r_av[ 1 ] + 3, &addr, &domain) != 0) {
-            return (f_rcpt_usage(r));
-        }
-
-    } else if ((simta_strict_smtp_syntax == 0) && (r->r_ac == 3)) {
-        if (strcasecmp(r->r_av[ 1 ], "TO:") != 0) {
-            return (f_rcpt_usage(r));
-        }
-
+    if ((r->r_ac >= 3) && (strcasecmp(r->r_av[ 1 ], "TO:") == 0)) {
+        /* Technically incorrect: "RCPT TO: <foo>" */
         if (parse_emailaddr(RFC_821_RCPT_TO, r->r_av[ 2 ], &addr, &domain) !=
                 0) {
-            return (f_rcpt_usage(r));
+            return f_rcpt_usage(r);
         }
 
+        parameters = 3;
+
     } else {
-        return (f_rcpt_usage(r));
+        if (strncasecmp(r->r_av[ 1 ], "TO:", strlen("TO:")) != 0) {
+            return (f_mail_usage(r));
+        }
+
+        /* Correct: "RCPT TO:<foo>" */
+        if (parse_emailaddr(RFC_821_RCPT_TO, r->r_av[ 1 ] + strlen("TO:"),
+                    &addr, &domain) != 0) {
+            return f_rcpt_usage(r);
+        }
+
+        parameters = 2;
+    }
+
+    /* We do not currently implement any RCPT parameters */
+    if (parameters < r->r_ac) {
+        syslog(LOG_INFO,
+                "Receive [%s] %s: "
+                "unsupported SMTP extension: %s",
+                r->r_ip, r->r_remote_hostname, r->r_smtp_command);
+
+        return smtp_write_banner(r, 555, NULL, r->r_av[ parameters ]);
     }
 
     /* RFC 5321 3.6.1 Source Routes and Relaying

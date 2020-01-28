@@ -15,6 +15,7 @@
       (e.g. due to a particular mailbox being throttled) would cause all of
       that domain's MXes to be marked as down. simta would then skip delivery of
       any remaining messages in that host queue.
+    - corrected the error code returned for unsupported MAIL/RCPT extensions
 
 1.5.0 (2020-11-30)
     - fixed crash from bad bugfix

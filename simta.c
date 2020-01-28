@@ -107,7 +107,6 @@ int                  simta_filesystem_cleanup = 0;
 int                  simta_smtp_extension = 0;
 int                  simta_smtp_rcvbuf_min = 0;
 int                  simta_smtp_rcvbuf_max;
-int                  simta_strict_smtp_syntax = 0;
 int                  simta_sync = 1;
 int                  simta_max_received_headers = 100;
 int                  simta_max_bounce_size = 524288;
