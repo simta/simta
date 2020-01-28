@@ -537,7 +537,6 @@ properties {
                     authz {
                         type: object
                         properties {
-                            default { "$ref": "#/definitions/dns_list_action" }
                             dns_lists {
                                 type: array
                                 items { "$ref": "#/definitions/dns_list" }

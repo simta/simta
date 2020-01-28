@@ -219,8 +219,6 @@ extern yastr             simta_hostname;
 extern yastr             simta_punt_host;
 extern yastr             simta_jail_host;
 extern char *            simta_jail_bounce_address;
-extern struct dll_entry *simta_dnsl_chains;
-extern int               simta_authz_default;
 extern char *            simta_queue_filter;
 extern char *            simta_default_alias_db;
 extern char *            simta_default_alias_file;

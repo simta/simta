@@ -2915,16 +2915,8 @@ f_auth(struct receive_data *r) {
     /* authn was successful, now we need to check authz */
     if ((authz_result = dnsl_check(
                  "receive.auth.authz.dns_lists", NULL, r->r_auth_id)) == NULL) {
-        if (simta_authz_default != DNSL_BLOCK) {
-            syslog(LOG_INFO, "Auth [%s] %s: %s allowed by default", r->r_ip,
-                    r->r_remote_hostname, r->r_auth_id);
-        } else {
-            r->r_failedauth++;
-            syslog(LOG_INFO, "Auth [%s] %s: %s denied by default", r->r_ip,
-                    r->r_remote_hostname, r->r_auth_id);
-            rc = smtp_write_banner(r, 535, NULL, NULL);
-            return ((r->r_failedauth < 3) ? rc : RECEIVE_CLOSECONNECTION);
-        }
+        syslog(LOG_INFO, "Auth [%s] %s: %s allowed by default", r->r_ip,
+                r->r_remote_hostname, r->r_auth_id);
     } else {
         if (strcmp(authz_result->dnsl_action, "block") == 0) {
             r->r_failedauth++;
