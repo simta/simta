@@ -3096,6 +3096,9 @@ f_auth( struct receive_data *r )
 
     /* Handle failed authn */
     if ( rc != 235 ) {
+        syslog( LOG_INFO, "Auth [%s] %s: %s failed to authenticate",
+            r->r_ip, r->r_remote_hostname, r->r_sasl->s_auth_id );
+
         if ( rc == 535 ) {
             r->r_failedauth++;
         }
