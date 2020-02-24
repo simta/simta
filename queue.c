@@ -1086,17 +1086,15 @@ real_q_deliver( struct deliver *d, struct host_q *deliver_q )
         syslog( LOG_INFO, "Deliver env <%s>: Attempting delivery",
                 env_deliver->e_id );
 
-        if ( env_deliver->e_rcpt == NULL ) {
-            /* lock & read envelope to deliver */
-            if ( env_read( READ_DELIVER_INFO, env_deliver, &snet_lock ) != 0 ) {
-                /* envelope not valid.  disregard */
-                env_free( env_deliver );
-                env_deliver = NULL;
-                continue;
-            }
+        /* clear any existing recipients */
+        env_rcpt_free( env_deliver );
 
-        } else {
-            snet_lock = NULL;
+        /* lock & read envelope to deliver */
+        if ( env_read( READ_DELIVER_INFO, env_deliver, &snet_lock ) != 0 ) {
+            /* envelope not valid.  disregard */
+            env_free( env_deliver );
+            env_deliver = NULL;
+            continue;
         }
 
         /* don't memset entire structure because we reuse connection data */
