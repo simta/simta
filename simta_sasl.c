@@ -107,6 +107,7 @@ simta_sasl_server_auth( struct simta_sasl *s, const char *mech,
     unsigned int    buflen = 0;
     const char      *out;
     unsigned int    outlen;
+    char            *p;
 
     yaslclear( s->s_response );
 
@@ -150,6 +151,14 @@ simta_sasl_server_auth( struct simta_sasl *s, const char *mech,
             return( 454 );
         }
         sasl_getprop( s->s_conn, SASL_MECHNAME, (const void**) &s->s_mech );
+
+        /* If the user specified a realm it might be included in the returned
+         * username.
+         */
+        if ((p = strrchr(s->s_auth_id, '@')) != NULL) {
+            *p = '\0';
+        }
+
         return( 235 );
 
     case SASL_CONTINUE:
