@@ -1,3 +1,7 @@
+1.4.4 (2020-03-03)
+    - fixed issue where messages weren't always locked while delivery was occurring
+    - added authenticated user canonicalization
+
 1.4.3 (2020-02-06)
     - fixed lack of aggression on initial delivery of messages with many recpients
     - improved authentication failure logging
