@@ -14,54 +14,55 @@ from email.mime.text import MIMEText
 
 
 def pytest_collect_file(parent, path):
-    if os.access(str(path), os.X_OK):
-        if path.basename.startswith('int_'):
-            return ExternalFile(path, parent)
-        if path.basename.startswith('cmocka_'):
-            return CMockaFile(path, parent)
+    if os.access(str(path), os.X_OK) and path.basename.startswith('cmocka_'):
+        return CMockaFile.from_parent(parent, fspath=path)
 
 
 class CMockaFile(pytest.File):
     def collect(self):
-        os.environ['CMOCKA_MESSAGE_OUTPUT'] = 'TAP'
-        try:
-            out = subprocess.check_output(str(self.fspath))
-        except:
-            # This is inefficient and will run the test twice, but eh.
-            yield ExternalItem(self.fspath.basename, self, str(self.fspath))
-        else:
-            for line in out.split('\n'):
-                if not line.startswith('ok'):
-                    continue
-                yield CMockaItem(self, line)
+        out = subprocess.run(
+            str(self.fspath),
+            env={
+                'CMOCKA_MESSAGE_OUTPUT': 'TAP',
+            },
+            capture_output=True,
+            encoding='utf-8',
+        )
+        lines = out.stdout.splitlines()
+        plan = lines[0].split('..')
+        if len(plan) != 2:
+            yield(CMockaItem.from_parent(self, line='not ok - cmocka', output=out.stdout))
+            plan = ('', '0')
+
+        count = 0
+        for line in lines[1:]:
+            if not line.startswith('ok') and not line.startswith('not ok'):
+                continue
+            count += 1
+            yield CMockaItem.from_parent(self, line=line, output=out.stdout)
+
+        if count != int(plan[1]):
+            yield(CMockaItem.from_parent(self, line='not ok - cmocka_tap_plan', output=out.stdout))
 
 
 class CMockaItem(pytest.Item):
-    def __init__(self, parent, line):
+    def __init__(self, parent, line, output=None):
         name = line.split(' - ')[1]
         super(CMockaItem, self).__init__(name, parent)
         self.line = line
+        self.output = output
 
     def runtest(self):
-        pass
-
-
-class ExternalFile(pytest.File):
-    def collect(self):
-        yield ExternalItem(self.fspath.basename, self, str(self.fspath))
-
-
-class ExternalItem(pytest.Item):
-    def __init__(self, name, parent, execpath):
-        super(ExternalItem, self).__init__(name, parent)
-        self.execpath = execpath
-
-    def runtest(self):
-        subprocess.check_output(self.execpath)
+        if self.line.startswith('not ok'):
+            raise CMockaException(self)
 
     def repr_failure(self, excinfo):
-        if isinstance(excinfo.value, subprocess.CalledProcessError):
-            return excinfo.value.output
+        if isinstance(excinfo.value, CMockaException):
+            return self.output
+
+
+class CMockaException(Exception):
+    """ custom exception """
 
 
 def openport(port):

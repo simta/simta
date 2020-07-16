@@ -15,6 +15,7 @@ COMMON_LIBS = \
 	@EXTRALIBS@
 
 AM_CPPFLAGS = \
+	@CMOCKA_CFLAGS@ \
 	@DENSER_CFLAGS@ \
 	@JEMALLOC_CFLAGS@ \
 	@LDAP_CPPFLAGS@ \
@@ -86,9 +87,20 @@ simck_SOURCES = simck.c md.c md.h
 simck_LDADD = $(COMMON_LIBS)
 endif
 
+if BUILD_CMOCKA
+check_PROGRAMS = test/cmocka_dmarc test/cmocka_header test/cmocka_md
+test_cmocka_dmarc_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
+test_cmocka_dmarc_SOURCES = test/unit_dmarc.c dmarc.c dmarc.h $(COMMON_FILES)
+test_cmocka_header_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
+test_cmocka_header_SOURCES = test/unit_header.c $(COMMON_FILES)
+test_cmocka_md_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
+test_cmocka_md_SOURCES = test/unit_md.c $(COMMON_FILES)
+endif
+
 BUILT_SOURCES = embedded_config.h embedded_schema.h
 
 genimbed_SOURCES = genimbed.c
+genimbed_LDADD = $(COMMON_LIBS)
 simalias_SOURCES = simalias.c $(COMMON_FILES)
 simalias_LDADD = $(COMMON_LIBS)
 simc_SOURCES = simc.c $(COMMON_FILES)
