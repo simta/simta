@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 import os
 import subprocess
@@ -7,7 +9,7 @@ import pytest
 
 def parse_connect_output(output):
     parsed = []
-    for line in output.split('\n'):
+    for line in output.splitlines():
         if 'Trying address record' not in line:
             continue
         parsed.append(line.split(': ')[-1])
@@ -36,7 +38,7 @@ def run_simconnect(tool_path, dnsserver, req_dnsserver):
             '-l', hostname
         ]
 
-        return parse_connect_output(subprocess.check_output(args, stderr=subprocess.STDOUT))
+        return parse_connect_output(subprocess.run(args, check=True, capture_output=True, text=True).stderr)
     return _run_simconnect
 
 
@@ -126,6 +128,6 @@ def test_connect_nobounce_timeout(tool_path):
         '-l', 'nonexist.example.com',
     ]
 
-    res = parse_connect_output(subprocess.check_output(args, stderr=subprocess.STDOUT))
+    res = parse_connect_output(subprocess.run(args, check=True, capture_output=True, text=True).stderr)
     assert len(res['parsed']) == 0
     assert 'address record missing, bouncing mail' not in res['output']

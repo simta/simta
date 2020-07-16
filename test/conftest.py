@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import errno
 import json
 import os
@@ -26,7 +28,7 @@ class CMockaFile(pytest.File):
                 'CMOCKA_MESSAGE_OUTPUT': 'TAP',
             },
             capture_output=True,
-            encoding='utf-8',
+            text=True,
         )
         lines = out.stdout.splitlines()
         plan = lines[0].split('..')
@@ -289,9 +291,15 @@ def testmsg(request):
 @pytest.fixture
 def run_simsrs(simta_config, tool_path):
     def _run_simsrs(address):
-        return subprocess.check_output([
-            tool_path('simsrs'),
-            '-f', simta_config,
-            address,
-        ]).rstrip()
+        res = subprocess.run(
+            [
+                tool_path('simsrs'),
+                '-f', simta_config,
+                address,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return res.stdout.rstrip()
     return _run_simsrs

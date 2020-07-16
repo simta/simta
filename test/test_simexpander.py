@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 import os
 import subprocess
@@ -161,7 +163,7 @@ def parse_expander_output(output):
     parsed = []
     unparsed = []
     cur_obj = None
-    for line in output.split('\n'):
+    for line in output.splitlines():
         if cur_obj == None:
             if line == '{':
                 cur_obj = line
@@ -181,10 +183,13 @@ def parse_expander_output(output):
 @pytest.fixture
 def run_simexpander(expansion_config, tool_path):
     def _run_simexpander(addresses):
-        subprocess.check_output([
-            tool_path('simalias'),
-            '-f', expansion_config,
-        ])
+        subprocess.run(
+            [
+                tool_path('simalias'),
+                '-f', expansion_config,
+            ],
+            check=True,
+        )
 
         args = [
             tool_path('simexpander'),
@@ -195,7 +200,7 @@ def run_simexpander(expansion_config, tool_path):
         else:
             args.append(addresses)
 
-        return parse_expander_output(subprocess.check_output(args))
+        return parse_expander_output(subprocess.run(args, check=True, capture_output=True, text=True).stdout)
     return _run_simexpander
 
 
@@ -486,7 +491,7 @@ def test_expand_ldap_group_member_nomfa_suppress(run_simexpander, req_ldapserver
         '"testgroup alias"@ldap.example.com',
         '"testgroup.alias"@ldap.example.com',
         '"testgroup"@ldap.example.com',
-        '"testgroup\ alias"@ldap.example.com',
+        '"testgroup\\ alias"@ldap.example.com',
     ]
 )
 def test_expand_ldap_quotedlocalpart(run_simexpander, req_ldapserver, target):

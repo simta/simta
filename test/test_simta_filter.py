@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+
 import os
 
 import pytest
+
 
 def test_filter(tmp_path, smtp, testmsg):
     smtp.sendmail(
