@@ -1,3 +1,6 @@
+1.4.5 (2020-08-14)
+    - fixed minor issue with generated message IDs
+
 1.4.4 (2020-03-03)
     - fixed issue where messages weren't always locked while delivery was occurring
     - added authenticated user canonicalization
