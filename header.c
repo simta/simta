@@ -693,10 +693,11 @@ header_check(struct receive_headers *rh, int read_headers) {
             rh->r_headers = line_file_create();
         }
         yaslclear(buf);
-        buf = yaslcatprintf(
-                buf, "Message-ID: <%s@%s>", rh->r_env->e_id, simta_hostname);
-        line_prepend(rh->r_headers, buf, COPY);
+        buf = yaslcatprintf(buf, "%s@%s", rh->r_env->e_id, simta_hostname);
         rh->r_env->e_mid = strdup(buf);
+        yaslclear(buf);
+        buf = yaslcatprintf(buf, "Message-ID: <%s>", rh->r_env->e_mid);
+        line_prepend(rh->r_headers, buf, COPY);
     }
 
     /* To: */
