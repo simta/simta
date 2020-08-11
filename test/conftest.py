@@ -147,7 +147,7 @@ def req_dnsserver(dnsserver):
         pytest.skip(dnsserver['skip_reason'])
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def ldapserver():
     server = os.environ.get('LDAP_SERVER')
     if server:
