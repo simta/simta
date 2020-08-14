@@ -17,6 +17,7 @@
       that domain's MXes to be marked as down. simta would then skip delivery of
       any remaining messages in that host queue.
     - corrected the error code returned for unsupported MAIL/RCPT extensions
+    - separated delivery timeouts for the fast queue and other queues
 
 1.5.0 (2020-11-30)
     - fixed crash from bad bugfix

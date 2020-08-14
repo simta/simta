@@ -678,6 +678,19 @@ properties {
                 }
                 additionalProperties: false
             }
+            timeout {
+                type: object
+                properties {
+                    command { type: number }
+                    data_line { type: number }
+                    data_session { type: number }
+                    fast_data_line { type: number }
+                    fast_data_session { type: number }
+                    tls { type: number }
+                }
+                required [ command, data_line, data_session, fast_data_line, fast_data_session, tls ]
+                additionalProperties: false
+            }
         }
         additionalProperties: false
     }

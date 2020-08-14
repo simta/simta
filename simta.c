@@ -133,26 +133,26 @@ yastr simta_sasl_domain = NULL;
 char *simta_checksum_algorithm = NULL;
 int   simta_checksum_body = 1;
 #endif /* HAVE_LIBSSL */
-int               simta_max_message_size = 0;
-int               simta_outbound_connection_msg_max = 0;
-char *            simta_data_url = NULL;
-char *            simta_libwrap_url = NULL;
-yastr             simta_punt_host = NULL;
-yastr             simta_jail_host = NULL;
-char *            simta_jail_bounce_address = NULL;
-yastr             simta_postmaster = NULL;
-char *            simta_queue_filter = NULL;
-yastr             simta_dir_dead = NULL;
-yastr             simta_dir_local = NULL;
-yastr             simta_dir_slow = NULL;
-yastr             simta_dir_fast = NULL;
-yastr             simta_dir_command = NULL;
-yastr             simta_hostname;
-char              simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
-DNSR *            simta_dnsr = NULL;
-char *            simta_default_alias_db = SIMTA_ALIAS_DB;
-char *            simta_default_alias_file = "/etc/aliases";
-char *            simta_default_passwd_file = "/etc/passwd";
+int   simta_max_message_size = 0;
+int   simta_outbound_connection_msg_max = 0;
+char *simta_data_url = NULL;
+char *simta_libwrap_url = NULL;
+yastr simta_punt_host = NULL;
+yastr simta_jail_host = NULL;
+char *simta_jail_bounce_address = NULL;
+yastr simta_postmaster = NULL;
+char *simta_queue_filter = NULL;
+yastr simta_dir_dead = NULL;
+yastr simta_dir_local = NULL;
+yastr simta_dir_slow = NULL;
+yastr simta_dir_fast = NULL;
+yastr simta_dir_command = NULL;
+yastr simta_hostname;
+char  simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
+DNSR *simta_dnsr = NULL;
+char *simta_default_alias_db = SIMTA_ALIAS_DB;
+char *simta_default_alias_file = "/etc/aliases";
+char *simta_default_passwd_file = "/etc/passwd";
 #ifdef HAVE_LIBSSL
 char *simta_tls_ciphers = NULL;
 char *simta_tls_ciphers_outbound = NULL;
@@ -173,12 +173,6 @@ int simta_inbound_data_line_timer = 300;
 int simta_inbound_data_session_timer = 3600;
 #ifdef HAVE_LIBSSL
 int simta_inbound_ssl_accept_timer = 300;
-#endif /* HAVE_LIBSSL */
-int simta_outbound_command_line_timer = 300;
-int simta_outbound_data_line_timer = 300;
-int simta_outbound_data_session_timer = 0;
-#ifdef HAVE_LIBSSL
-int simta_outbound_ssl_connect_timer = 300;
 #endif /* HAVE_LIBSSL */
 
 struct simta_statsd *simta_statsd_handle = NULL;

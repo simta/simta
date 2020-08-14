@@ -635,14 +635,15 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
     const SSL_CIPHER *ssl_cipher;
 #endif /* HAVE_LIBSSL */
 
-    tv_wait.tv_sec = simta_outbound_command_line_timer;
-    tv_wait.tv_usec = 0;
+    simta_ucl_object_totimeval(
+            simta_config_obj("deliver.timeout.command"), &tv_wait);
     snet_timeout(
             d->d_snet_smtp, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait);
 
 #ifdef HAVE_LIBSSL
-    if (simta_outbound_ssl_connect_timer != 0) {
-        tv_wait.tv_sec = simta_outbound_ssl_connect_timer;
+    simta_ucl_object_totimeval(
+            simta_config_obj("deliver.timeout.tls"), &tv_wait);
+    if (tv_wait.tv_sec != 0) {
         snet_timeout(d->d_snet_smtp, SNET_SSL_CONNECT_TIMEOUT, &tv_wait);
     }
 #endif /* HAVE_LIBSSL */
@@ -815,11 +816,13 @@ smtp_send(struct host_q *hq, struct deliver *d) {
     char *         line;
     char *         timer_type;
     struct timeval tv_session = {0, 0};
+    struct timeval tv_session_timeout;
+    struct timeval tv_line_timeout;
     struct timeval tv_now;
     struct timeval tv_wait;
 
-    tv_wait.tv_sec = simta_outbound_command_line_timer;
-    tv_wait.tv_usec = 0;
+    simta_ucl_object_totimeval(
+            simta_config_obj("deliver.timeout.command"), &tv_wait);
     snet_timeout(
             d->d_snet_smtp, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait);
 
@@ -986,32 +989,45 @@ smtp_send(struct host_q *hq, struct deliver *d) {
         }
     }
 
+    if (strcmp(d->d_env->e_dir, simta_dir_fast) == 0) {
+        simta_ucl_object_totimeval(
+                simta_config_obj("deliver.timeout.fast_data_session"),
+                &tv_session_timeout);
+        simta_ucl_object_totimeval(
+                simta_config_obj("deliver.timeout.fast_data_line"),
+                &tv_line_timeout);
+    } else {
+        simta_ucl_object_totimeval(
+                simta_config_obj("deliver.timeout.data_session"),
+                &tv_session_timeout);
+        simta_ucl_object_totimeval(
+                simta_config_obj("deliver.timeout.data_line"),
+                &tv_line_timeout);
+    }
+
     for (;;) {
-        /* compute timeout */
-        if (simta_outbound_data_session_timer > 0) {
+        if (tv_session_timeout.tv_sec > 0) {
             if (simta_gettimeofday(&tv_now) != 0) {
                 return (SMTP_ERROR);
             }
             if (tv_session.tv_sec == 0) {
-                tv_session.tv_sec =
-                        tv_now.tv_sec + simta_outbound_data_session_timer;
+                tv_session.tv_sec = tv_now.tv_sec + tv_session_timeout.tv_sec;
             }
             if (tv_now.tv_sec >= tv_session.tv_sec) {
                 syslog(LOG_NOTICE, "Deliver.SMTP env <%s>: Message: Timeout %s",
                         d->d_env->e_id, S_DATA_SESSION);
                 return (SMTP_BAD_CONNECTION);
             }
-            if (simta_outbound_data_line_timer >
-                    (tv_session.tv_sec - tv_now.tv_sec)) {
+            if (tv_line_timeout.tv_sec > (tv_session.tv_sec - tv_now.tv_sec)) {
                 timer_type = S_DATA_SESSION;
                 tv_wait.tv_sec = tv_session.tv_sec - tv_now.tv_sec;
             } else {
                 timer_type = S_DATA_LINE;
-                tv_wait.tv_sec = simta_outbound_data_line_timer;
+                tv_wait.tv_sec = tv_line_timeout.tv_sec;
             }
         } else {
             timer_type = S_DATA_LINE;
-            tv_wait.tv_sec = simta_outbound_data_line_timer;
+            tv_wait.tv_sec = tv_line_timeout.tv_sec;
         }
         tv_wait.tv_usec = 0;
         snet_timeout(d->d_snet_smtp, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT,
@@ -1066,8 +1082,8 @@ int
 smtp_rset(struct host_q *hq, struct deliver *d) {
     struct timeval tv_wait;
 
-    tv_wait.tv_sec = simta_outbound_command_line_timer;
-    tv_wait.tv_usec = 0;
+    simta_ucl_object_totimeval(
+            simta_config_obj("deliver.timeout.command"), &tv_wait);
     snet_timeout(
             d->d_snet_smtp, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait);
 
@@ -1086,8 +1102,8 @@ void
 smtp_quit(struct host_q *hq, struct deliver *d) {
     struct timeval tv_wait;
 
-    tv_wait.tv_sec = simta_outbound_command_line_timer;
-    tv_wait.tv_usec = 0;
+    simta_ucl_object_totimeval(
+            simta_config_obj("deliver.timeout.command"), &tv_wait);
     snet_timeout(
             d->d_snet_smtp, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait);
 
