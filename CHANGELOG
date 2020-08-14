@@ -1,6 +1,7 @@
 2.0.0 (2021-??-??)
     - brand new UCL configuration system
     - added -U flag to specify arbitrary configuration on the command line
+    - removed support for DNS-based autoconfiguration
     - added support for statsd metric gathering
     - updated build system
     - updated LDAP code to use non-deprecated APIs
