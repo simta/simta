@@ -815,6 +815,9 @@ f_mail(struct receive_data *r) {
 
     r->r_mail_attempt++;
 
+    syslog(LOG_INFO, "Receive [%s] %s: start of mail transaction", r->r_ip,
+            r->r_remote_hostname);
+
     if (r->r_smtp_mode == SMTP_MODE_OFF) {
         syslog(LOG_INFO, "Receive [%s] %s: SMTP_Off: %s", r->r_ip,
                 r->r_remote_hostname, r->r_smtp_command);
