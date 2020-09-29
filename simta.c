@@ -76,7 +76,6 @@ struct proc_type *   simta_proc_stab = NULL;
 ucl_object_t *       simta_config = NULL;
 int                  simta_bounce_seconds = 259200;
 int                  simta_jail_seconds = 14400;
-int                  simta_submission_mode = SUBMISSION_MODE_MTA;
 int                  simta_command_read_entries = 10;
 int                  simta_disk_read_entries = 10;
 int                  simta_aggressive_expansion = 1;

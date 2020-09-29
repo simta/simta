@@ -1018,7 +1018,8 @@ f_mail(struct receive_data *r) {
         }
     }
 
-    if ((domain != NULL) && (simta_submission_mode != SUBMISSION_MODE_MSA)) {
+    if ((domain != NULL) &&
+            (strcasecmp(simta_config_str("core.smtp.mode"), "MSA") != 0)) {
         rc = check_hostname(domain);
 
         if (rc < 0) {
@@ -1769,7 +1770,8 @@ f_data(struct receive_data *r) {
             } else if (f_result < 0) {
                 read_err = SYSTEM_ERROR;
             } else if ((line_no == 1) &&
-                       (simta_submission_mode != SUBMISSION_MODE_MSA)) {
+                       (strcasecmp(simta_config_str("core.smtp.mode"), "MSA") !=
+                               0)) {
                 /* Continue reading lines, but reject the message */
                 syslog(LOG_INFO,
                         "Receive [%s] %s: env <%s>: no message headers",
@@ -1790,7 +1792,8 @@ f_data(struct receive_data *r) {
                             "Receive [%s] %s: env <%s>: "
                             "header_check failed",
                             r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-                    if (simta_submission_mode == SUBMISSION_MODE_MTA_STRICT) {
+                    if (strcasecmp(simta_config_str("core.smtp.mode"),
+                                "strict") == 0) {
                         /* Continue reading lines, but reject the message */
                         system_message = "Message is not RFC 5322 compliant";
                         message_banner = MESSAGE_REJECT;

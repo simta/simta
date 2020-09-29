@@ -439,7 +439,7 @@ properties {
                 properties {
                     mode {
                         type: string
-                        enum [ msa, mta, mta_strict ]
+                        enum [ msa, mta, strict ]
                     }
                     tarpit { type: number }
                 }

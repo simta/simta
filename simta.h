@@ -64,12 +64,6 @@ enum simta_proc_type {
 #define TEXT_WARNING 0
 #define TEXT_ERROR 1
 
-/* Message checking */
-#define SUBMISSION_MODE_MTA 0
-#define SUBMISSION_MODE_MSA 1
-#define SUBMISSION_MODE_SIMSEND 2
-#define SUBMISSION_MODE_MTA_STRICT 3
-
 #ifdef HAVE_LIBSSL
 #define SIMTA_SOCKET_TLS (1 << 0)
 #endif /* HAVE_LIBSSL */
@@ -146,7 +140,6 @@ extern struct host_q *      simta_punt_q;
 extern ucl_object_t *       simta_host_q;
 extern struct envelope *    simta_env_queue;
 extern struct proc_type *   simta_proc_stab;
-extern int                  simta_submission_mode;
 extern int                  simta_command_read_entries;
 extern int                  simta_disk_read_entries;
 extern int                  simta_aggressive_expansion;
