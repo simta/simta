@@ -1,3 +1,7 @@
+1.4.6 (2020-10-19)
+    - fixed crash when a block DNSL did not have a default reason set
+    - added a standard log line at the start of each mail transaction
+
 1.4.5 (2020-08-14)
     - fixed minor issue with generated message IDs
 
