@@ -530,7 +530,7 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
                 if (list->dnsl_default_reason) {
                     reason = yasldup(list->dnsl_default_reason);
                 } else {
-                    reason = yasldup("local policy");
+                    reason = yaslauto("local policy");
                 }
             }
 
