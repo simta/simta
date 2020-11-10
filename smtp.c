@@ -867,6 +867,7 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
 int
 smtp_send(struct host_q *hq, struct deliver *d) {
     int            smtp_result, rc;
+    int            rcpts_attempted = 0;
     char *         line;
     char *         timer_type;
     struct timeval tv_session = {0, 0};
@@ -950,6 +951,25 @@ smtp_send(struct host_q *hq, struct deliver *d) {
 
     for (d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
             d->d_rcpt = d->d_rcpt->r_next) {
+        /* If we've already tried the maximum number of message recipients for
+         * this domain, skip trying this recipient.
+         */
+        if (hq->hq_red != NULL) {
+            if ((hq->hq_red->red_max_rcpts > 0) &&
+                    (rcpts_attempted >= hq->hq_red->red_max_rcpts)) {
+                d->d_rcpt->r_status = R_TEMPFAIL;
+                d->d_n_rcpt_tempfailed++;
+                syslog(LOG_INFO,
+                        "Deliver.SMTP env <%s>: To <%s> From <%s> Skipped: "
+                        "reached max recipients: %d",
+                        d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
+                        hq->hq_red->red_max_rcpts);
+
+                continue;
+            }
+        }
+        rcpts_attempted++;
+
         if (*(d->d_rcpt->r_rcpt) != '\0') {
             rc = snet_writef(
                     d->d_snet_smtp, "RCPT TO:<%s>\r\n", d->d_rcpt->r_rcpt);

@@ -622,6 +622,24 @@ simta_read_config(const char *fname) {
 
                 red->red_deliver_type = RED_DELIVER_BINARY;
 
+            } else if (strcasecmp(av[ 2 ], "MAX_RCPTS") == 0) {
+                /* @DOMAIN D MAX_RCPTS max */
+                if ((ac == 4) && (red_code == RED_CODE_D)) {
+                    errno = 0;
+                    red->red_max_rcpts = strtol(av[ 3 ], &endptr, 10);
+                    if (errno == 0) {
+                        simta_debuglog(2, "MAX RCPTS for %s: %d %d", domain,
+                                red->red_max_rcpts);
+                        continue;
+                    }
+                }
+
+                fprintf(stderr,
+                        "%s: line %d: usage: "
+                        "@domain D MAX_RCPTS <max>\n",
+                        fname, lineno);
+                goto error;
+
             } else if (strcasecmp(av[ 2 ], "PASSWORD") == 0) {
                 if (ac == 3) {
                     f_arg = simta_default_passwd_file;

@@ -34,6 +34,7 @@ struct simta_red {
     int               red_wait_set;
     int               red_wait_min;
     int               red_wait_max;
+    int               red_max_rcpts;
     int               red_policy_punting;
     int               red_policy_tls;
     int               red_policy_tls_cert;
