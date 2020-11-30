@@ -1,3 +1,7 @@
+1.5.0 (2020-11-30)
+    - fixed crash from bad bugfix
+    - added per-domain limits on recipients per message delivery attempt
+
 1.4.6 (2020-10-19)
     - fixed crash when a block DNSL did not have a default reason set
     - added a standard log line at the start of each mail transaction
