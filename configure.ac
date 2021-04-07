@@ -1,10 +1,11 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_INIT(simta, m4_esyscmd([sh version.sh]), simta@umich.edu)
+AM_INIT_AUTOMAKE([foreign no-dist-gzip dist-xz])
 
 AC_PREREQ(2.63)
 AC_CONFIG_HEADER(config.h)
-AC_COPYRIGHT([Copyright (c) 1998-2016 Regents of The University of Michigan])
+AC_COPYRIGHT([Copyright (c) 1998-2019 Regents of The University of Michigan])
 
 # Set up local variables
 AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-aliasdb=DB], [default alias db]), [], with_aliasdb="/etc/alias.db" )
@@ -17,15 +18,12 @@ AC_ARG_WITH(maxconnections, AC_HELP_STRING([--with-maxconnections=MAX], [maximum
 AC_DEFINE_UNQUOTED(SIMTA_MAXCONNECTIONS, [$with_maxconnections], [default maximum number of client connections])
 
 AC_ARG_ENABLE(chown, AC_HELP_STRING([--disable-chown], [do not set ownership of setuid binaries during installation]), [], enable_chown="yes")
-AS_IF([test "x$enable_chown" = "xyes"], [AC_SUBST(SUID_OWNER, "-o simta -g simta")], [AC_SUBST(SUID_OWNER, "")])
-
-# Local Stuff
-AC_PREFIX_DEFAULT(/usr/local)
 
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CC_C99
 AC_PROG_INSTALL
+AC_PROG_LN_S
 
 # Checks for functions
 AC_FUNC_MALLOC
@@ -46,16 +44,10 @@ AC_SUBST(EXTRALIBS, [])
 AC_SUBST(JEMALLOC_CFLAGS, [])
 AC_SUBST(JEMALLOC_LIBS, [])
 AC_SUBST(LDAP_SRC, [])
-AC_SUBST(LDAP_OBJ, [])
 AC_SUBST(LMDB_SRC, [])
-AC_SUBST(LMDB_OBJ, [])
-AC_SUBST(SRS_SRC, [])
-AC_SUBST(SRS_OBJ, [])
 AC_SUBST(SSL_SRC, [])
-AC_SUBST(SSL_OBJ, [])
-AC_SUBST(YASL_CFLAGS, [])
-AC_SUBST(YASL_LIBS, [])
-AC_SUBST(YASL_OBJ, [])
+
+AC_DEFINE([LIBEXECDIR], ["${libexecdir}/simta"], [Install location for support binaries])
 
 # Check for libraries
 AC_CHECK_LIB([nsl], [inet_ntoa])
@@ -87,7 +79,7 @@ AS_IF(
     [test "x$with_ssl" != "xno"],
     [PKG_CHECK_MODULES([LIBSSL], [openssl], [AC_DEFINE([HAVE_LIBSSL], [1], [Define to 1 if LIBSSL is found])])])
 
-AC_ARG_WITH([libidn], AC_HELP_STRING([--with-libidn2], [Build with IDNA support]))
+AC_ARG_WITH([libidn2], AC_HELP_STRING([--with-libidn2], [Build with IDNA support]))
 AS_IF(
     [test "x$with_libidn2" != "xno"],
     [PKG_CHECK_MODULES([LIBIDN2], [libidn2],  [AC_DEFINE([HAVE_LIBIDN2], [1], [Define to 1 if LIBIDN2 is available])])])
@@ -97,31 +89,15 @@ AS_IF(
     [test "x$with_jemalloc" != "xno"],
     [PKG_CHECK_MODULES([JEMALLOC], [jemalloc], [AC_DEFINE([HAVE_JEMALLOC], [1], [Define to 1 if JEMALLOC is available])])])
 
-AC_ARG_WITH([libyasl], AC_HELP_STRING([--with-libyasl], [Link against the yasl library]))
-AS_IF(
-    [test "x$with_libyasl" = "xyes"],
-    [PKG_CHECK_MODULES([YASL], [libyasl])],
-    [YASL_OBJ="yasl.o"])
-
 # Packages without pkgconfig files
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
 AX_WITH_LIBRARY([libwrap], [LIBWRAP], [tcpd.h], [wrap])
 AX_WITH_LIBRARY([lmdb], [LMDB], [lmdb.h], [lmdb])
 
-if test x"$ax_cv_have_LDAP" = xyes; then
-    LDAP_SRC="simta_ldap.c dn.c"
-    LDAP_OBJ="simta_ldap.o dn.o"
-fi
-
-if test x"$ax_cv_have_LMDB" = xyes; then
-    LMDB_SRC="simta_lmdb.c"
-    LMDB_OBJ="simta_lmdb.o"
-fi
-
-if test x"$with_ssl" != xno; then
-    SSL_SRC="md.c tls.c"
-    SSL_OBJ="md.o tls.o"
-fi
+AM_CONDITIONAL(BUILD_LDAP, [test x"$ax_cv_have_LDAP" = xyes])
+AM_CONDITIONAL(BUILD_LMDB, [test x"$ax_cv_have_LMDB" = xyes])
+AM_CONDITIONAL(BUILD_SSL, [test x"$with_ssl" != xno])
+AM_CONDITIONAL(CHOWN_FILES, [test "x$enable_chown" = "xyes"])
 
 AC_CONFIG_FILES([ Makefile packaging/rpm/simta.spec ])
 AC_OUTPUT
