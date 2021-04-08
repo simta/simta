@@ -21,7 +21,7 @@ def parse_connect_output(output):
 
 
 @pytest.fixture
-def run_simconnect(tool_path, dnsserver, req_dnsserver):
+def run_simconnect(tool_path, simta_config, dnsserver, req_dnsserver):
     def _run_simconnect(hostname):
         dns_config = {
             'core': {
@@ -34,6 +34,7 @@ def run_simconnect(tool_path, dnsserver, req_dnsserver):
         }
         args = [
             tool_path('simconnect'),
+            '-f', simta_config,
             '-U', json.dumps(dns_config),
             '-l', hostname
         ]
@@ -112,7 +113,7 @@ def test_connect_nobounce(domain, run_simconnect):
     assert 'address record missing, bouncing mail' not in res['output']
 
 
-def test_connect_nobounce_timeout(tool_path):
+def test_connect_nobounce_timeout(tool_path, simta_config):
     dns_config = {
         'core': {
             'dns': {
@@ -124,6 +125,7 @@ def test_connect_nobounce_timeout(tool_path):
     }
     args = [
         tool_path('simconnect'),
+        '-f', simta_config,
         '-U', json.dumps(dns_config),
         '-l', 'nonexist.example.com',
     ]
