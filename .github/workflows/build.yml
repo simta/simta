@@ -1,0 +1,98 @@
+name: build
+on:
+  push:
+  pull_request:
+
+jobs:
+  clang_format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Lint code formatting
+        run: |
+          clang-format -i *.c *.h
+          git diff
+          git status --porcelain | grep -q '^ M' && exit 1 || exit 0
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          path: simta
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: sudo apt install libbsd-dev libmilter-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libcmocka-dev yadifa slapd ldap-utils
+
+      - name: Configure slapd
+        run: |
+          sudo systemctl start slapd
+          sudo ldapadd -H ldapi:/// -Y EXTERNAL -f ${{ github.workspace }}/simta/test/ldap/local.ldif
+          sudo ldapmodify -H ldapi:/// -Y EXTERNAL -f ${{ github.workspace }}/simta/test/ldap/config-ubuntu.ldif
+          ldapadd -w DrowsyPapa -D "cn=Manager,dc=example,dc=com" -f ${{ github.workspace }}/simta/test/ldap/data.ldif
+
+      - name: Install Python dependencies
+        run: sudo pip install pytest
+
+      - name: Cache built dependencies
+        uses: actions/cache@v2
+        id: cache-deps
+        with:
+          path: ${{ github.workspace }}/.deps
+          key: deps-${{ hashFiles('simta/.github/workflows/**') }}
+
+      - name: Install fpm
+        run: sudo gem install --no-document fpm
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build denser
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: https://github.com/simta/denser
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build libsnet
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: https://github.com/simta/libsnet
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build libucl
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: -b 0.8.1 https://github.com/vstakhov/libucl
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build OpenARC
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: https://github.com/flowerysong/OpenARC
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Install built dependencies
+        run: sudo dpkg -R -i ${{ github.workspace }}/.deps
+
+      - name: Build simta
+        run: |
+          autoreconf -fiv
+          CFLAGS='-Wall -Werror' ./configure --with-cmocka
+          make -j4
+        working-directory: ${{ github.workspace }}/simta
+
+      - name: Test simta
+        run: make check
+        working-directory: ${{ github.workspace }}/simta
+        env:
+          LDAP_SERVER: ldap://localhost/
+
+      - name: Build simta with clang
+        run: |
+          make distclean
+          CC=clang CFLAGS='-Wall -Werror' ./configure
+          make -j4
+        working-directory: ${{ github.workspace }}/simta
