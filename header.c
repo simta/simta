@@ -523,7 +523,8 @@ header_remove(struct dll_entry *dentry, struct receive_headers *rh) {
 }
 
 int
-header_check(struct receive_headers *rh, bool read_headers, bool correct_headers, bool simsend) {
+header_check(struct receive_headers *rh, bool read_headers,
+        bool correct_headers, bool simsend) {
     struct stab_entry *   s;
     struct line *         l;
     struct rfc822_header *mh;
@@ -602,8 +603,7 @@ header_check(struct receive_headers *rh, bool read_headers, bool correct_headers
         }
 
         if (split == NULL) {
-            if (correct_headers &&
-                    strlen(rh->r_env->e_mail)) {
+            if (correct_headers && strlen(rh->r_env->e_mail)) {
                 /* Bad From:, we should regenerate it. */
                 header_remove(dentry, rh);
                 dentry = NULL;

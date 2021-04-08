@@ -14,8 +14,8 @@
 #include <sasl/saslutil.h>
 
 #include "simta.h"
-#include "simta_sasl.h"
 #include "simta_malloc.h"
+#include "simta_sasl.h"
 
 static int simta_sasl_log(void *, int, const char *);
 

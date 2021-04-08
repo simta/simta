@@ -72,7 +72,7 @@ main(int argc, char *argv[]) {
     int                    ret = EX_TEMPFAIL;
     int                    message_size = 0;
     FILE *                 dfile = NULL;
-    bool                    read_headers = false;
+    bool                   read_headers = false;
     uid_t                  uid;
     struct recipient *     r;
     struct passwd *        passwd;

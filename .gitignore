@@ -14,12 +14,15 @@
 .libs
 .project
 .settings/
+.venv
 Makefile
 Makefile.bak
 Makefile.in
 VERSION
 aclocal.m4
+ar-lib
 autom4te.cache
+compile
 config.guess
 config.h
 config.h.in
@@ -37,7 +40,7 @@ genimbed
 install-sh
 lib*.a
 libtool
-ltmain.s
+ltmain.sh
 missing
 packaging/rpm/simta.spec
 q_runner
