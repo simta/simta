@@ -3,11 +3,10 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
 #include <syslog.h>
@@ -26,6 +25,7 @@
 #include "envelope.h"
 #include "expand.h"
 #include "simta.h"
+#include "simta_malloc.h"
 
 const char *simta_progname = "simexpander";
 
@@ -50,7 +50,7 @@ main(int argc, char *argv[]) {
             break;
 
         case 'F':
-            sender = strdup(optarg);
+            sender = simta_strdup(optarg);
             break;
 
         case 'U':

@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -12,7 +12,6 @@
 #include <fcntl.h>
 #include <pwd.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -34,6 +33,7 @@
 
 #include "header.h"
 #include "simta.h"
+#include "simta_malloc.h"
 #include "srs.h"
 
 #ifdef HAVE_LDAP
@@ -195,7 +195,7 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
     }
 
     if (e == NULL) {
-        e = calloc(1, sizeof(struct exp_addr));
+        e = simta_calloc(1, sizeof(struct exp_addr));
 
         e->e_addr_errors = error_env;
         e->e_addr_type = addr_type;
@@ -203,11 +203,11 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
         exp->exp_entries++;
 
         if ((addr[ 0 ] == '\0') || (strcasecmp(addr, "postmaster") == 0)) {
-            e->e_addr = strdup(simta_postmaster);
+            e->e_addr = simta_strdup(simta_postmaster);
         } else {
-            e->e_addr = strdup(addr);
+            e->e_addr = simta_strdup(addr);
         }
-        e->e_addr_from = strdup(from);
+        e->e_addr_from = simta_strdup(from);
 
         /* do syntax checking and special processing */
         if (addr_type == ADDRESS_TYPE_EMAIL) {
@@ -743,11 +743,11 @@ alias_expand(
             ret = ADDRESS_SYSERROR;
             goto done;
         }
-        e_addr->e_addr_from = strdup(owner);
+        e_addr->e_addr_from = simta_strdup(owner);
     }
 
     for (;;) {
-        alias_addr = strdup(value);
+        alias_addr = simta_strdup(value);
 
         switch (correct_emailaddr(&alias_addr)) {
         case -1:
@@ -814,7 +814,7 @@ exp_addr_link(struct exp_link **links, struct exp_addr *add) {
         }
     }
 
-    link = calloc(1, sizeof(struct exp_link));
+    link = simta_calloc(1, sizeof(struct exp_link));
 
     link->el_exp_addr = add;
     link->el_next = *links;

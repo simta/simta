@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <assert.h>
 #include <ctype.h>
@@ -22,10 +22,6 @@
 #include <sys/wait.h>
 #include <syslog.h>
 #include <unistd.h>
-
-#ifdef HAVE_JEMALLOC
-#include <jemalloc/jemalloc.h>
-#endif /* HAVE_JEMALLOC */
 
 #ifdef HAVE_LDAP
 #include <ldap.h>
@@ -59,10 +55,6 @@ static simta_result simta_read_publicsuffix(const char *);
 
 
 /* global variables */
-#if defined(HAVE_JEMALLOC) || defined(__FreeBSD__)
-const char *malloc_conf = "xmalloc:true";
-#endif /* HAVE_JEMALLOC */
-
 struct dll_entry *   simta_sender_list = NULL;
 struct dll_entry *   simta_env_list = NULL;
 struct timeval       simta_tv_now = {0, 0};

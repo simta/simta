@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -15,7 +15,6 @@
 #include <errno.h>
 #include <netdb.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -58,6 +57,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY | LIBWRAP_DENY_SEVERITY;
 #include "dns.h"
 #include "header.h"
 #include "queue.h"
+#include "simta_malloc.h"
 #include "simta_statsd.h"
 #include "spf.h"
 #include "srs.h"
@@ -484,7 +484,7 @@ hello(struct receive_data *r, char *hostname) {
      * We don't verify.
      */
 
-    r->r_hello = strdup(hostname);
+    r->r_hello = simta_strdup(hostname);
     return (RECEIVE_OK);
 }
 
@@ -1508,7 +1508,7 @@ f_data(struct receive_data *r) {
             }
             goto error;
         }
-        rh = calloc(1, sizeof(struct receive_headers));
+        rh = simta_calloc(1, sizeof(struct receive_headers));
         rh->r_env = r->r_env;
 
         if (simta_config_bool("receive.auth.results.enabled")) {
@@ -1784,7 +1784,7 @@ f_data(struct receive_data *r) {
                 header = 0;
                 r->r_bad_headers = 0;
                 /* Check and (maybe) correct headers */
-                if ((rc = header_check(rh, 0)) < 0) {
+                if ((rc = header_check(rh, false, (strcasecmp(simta_config_str("core.smtp.mode"), "MSA") == 0), false)) < 0) {
                     ret_code = RECEIVE_CLOSECONNECTION;
                     goto error;
                 } else if (rc > 0) {
@@ -1942,7 +1942,7 @@ f_data(struct receive_data *r) {
 
         if ((read_err == NO_ERROR) && rh->r_seen_before) {
             system_message = "Seen Before";
-            filter_message = strdup(rh->r_seen_before);
+            filter_message = simta_strdup(rh->r_seen_before);
             message_banner = MESSAGE_DELETE;
             read_err = PROTOCOL_ERROR;
         }
@@ -3150,9 +3150,9 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                 r.r_remote_hostname);
 
         if (*hostname == '\0') {
-            ctl_hostname = strdup(STRING_UNKNOWN);
+            ctl_hostname = simta_strdup(STRING_UNKNOWN);
         } else {
-            ctl_hostname = strdup(hostname);
+            ctl_hostname = simta_strdup(hostname);
         }
 
         /* first STRING_UNKNOWN should be domain name of incoming host */
@@ -3391,7 +3391,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             r.r_smtp_command = NULL;
         }
 
-        r.r_smtp_command = strdup(line);
+        r.r_smtp_command = simta_strdup(line);
         statsd_counter("receive.smtp_command", "total", 1);
 
         if ((r.r_ac = acav_parse2821(acav, line, &(r.r_av))) < 0) {
@@ -4131,7 +4131,7 @@ content_filter(
 
         /* Set the default message */
         if (*smtp_message == NULL) {
-            *smtp_message = strdup(
+            *smtp_message = simta_strdup(
                     simta_config_str("receive.data.content_filter.message"));
         }
     }
@@ -4207,7 +4207,7 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
             exit(MESSAGE_TEMPFAIL);
         }
 
-        filter_argv[ 0 ] = strdup(mail_filter);
+        filter_argv[ 0 ] = simta_strdup(mail_filter);
         if (strrchr(mail_filter, '/')) {
             filter_argv[ 0 ] = strrchr(filter_argv[ 0 ], '/') + 1;
         }
@@ -4355,7 +4355,7 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
                 syslog(LOG_INFO, "Filter [%s] %s: %s: %s", r->r_ip,
                         r->r_remote_hostname, r->r_env->e_id, line);
                 if (*smtp_message == NULL) {
-                    *smtp_message = strdup(line);
+                    *smtp_message = simta_strdup(line);
                 }
                 continue;
             }

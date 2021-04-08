@@ -29,13 +29,13 @@ In order to build simta, you will need the following:
 There are also a number of optional dependencies (listed more-or-less in
 decreasing order of importance):
 
-* [jemalloc](http://jemalloc.net/)
 * [OpenSSL](https://openssl.org/) or a compatible replacement such as
   [LibreSSL](https://www.libressl.org/)
-* [LMDB](https://symas.com/lightning-memory-mapped-database/)
-* [OpenLDAP](https://www.openldap.org/)
 * [OpenDKIM](http://www.opendkim.org/)
 * [OpenARC](https://github.com/trusteddomainproject/OpenARC)
+* [jemalloc](http://jemalloc.net/)
+* [LMDB](https://symas.com/lightning-memory-mapped-database/)
+* [OpenLDAP](https://www.openldap.org/)
 * [Libidn2](https://gitlab.com/libidn/libidn2)
 * [Cyrus SASL](https://www.cyrusimap.org/sasl/)
 * tcp_wrappers

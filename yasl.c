@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "simta_malloc.h"
 #include "yasl.h"
 
 
@@ -27,9 +28,9 @@ yaslnew(const void * init, size_t initlen) {
 	struct yastrhdr * hdr;
 
 	if (init) {
-		hdr = malloc(sizeof(struct yastrhdr) + initlen + 1);
+		hdr = simta_malloc(sizeof(struct yastrhdr) + initlen + 1);
 	} else {
-		hdr = calloc(sizeof(struct yastrhdr) + initlen + 1, 1);
+		hdr = simta_calloc(sizeof(struct yastrhdr) + initlen + 1, 1);
 	}
 	if (!hdr) { return NULL; }
 
@@ -416,7 +417,7 @@ yaslsplitargs(const char * line, int * argc) {
 			}
 			/* add the token to the vector */
 
-			char ** tmp = realloc(vector, (unsigned long)((*argc) + 1) * (sizeof (char *)));
+			char ** tmp = simta_realloc(vector, (unsigned long)((*argc) + 1) * (sizeof (char *)));
 			if (!tmp) {
 				goto err;
 			}
@@ -427,7 +428,7 @@ yaslsplitargs(const char * line, int * argc) {
 			current = NULL;
 		} else {
 			/* Even on empty input string return something not NULL. */
-			if (!vector) { vector = malloc(sizeof(void*)); }
+			if (!vector) { vector = simta_malloc(sizeof(void*)); }
 			return vector;
 		}
 	}
@@ -452,7 +453,7 @@ yaslsplitlen(const char * str, size_t len, const char * sep, size_t seplen, size
 
 	if (seplen < 1) { return NULL; }
 
-	tokens = malloc(sizeof(yastr)*slots);
+	tokens = simta_malloc(sizeof(yastr)*slots);
 	if (!tokens) { return NULL; }
 
 	if (len == 0) {
@@ -465,7 +466,7 @@ yaslsplitlen(const char * str, size_t len, const char * sep, size_t seplen, size
 			yastr * newtokens;
 
 			slots *= 2;
-			newtokens = realloc(tokens, sizeof(yastr) * slots);
+			newtokens = simta_realloc(tokens, sizeof(yastr) * slots);
 			if (!newtokens) { goto cleanup; }
 			tokens = newtokens;
 		}
@@ -576,7 +577,7 @@ yaslcatvprintf(yastr str, const char * fmt, va_list ap) {
 	size_t buflen = 16;
 
 	while(1) {
-		buf = malloc(buflen);
+		buf = simta_malloc(buflen);
 		if (!buf) { return NULL; }
 		buf[buflen - 2] = '\0';
 		va_copy(cpy, ap);
@@ -685,7 +686,7 @@ yaslMakeRoomFor(yastr str, size_t addlen) {
 	} else {
 		newlen += YASL_MAX_PREALLOC;
 	}
-	newhdr = realloc(hdr, sizeof(struct yastrhdr) + newlen + 1);
+	newhdr = simta_realloc(hdr, sizeof(struct yastrhdr) + newlen + 1);
 	if (!newhdr) { return NULL; }
 
 	newhdr->free = newlen - len;
@@ -701,7 +702,7 @@ yaslRemoveFreeSpace(yastr str) {
 
 	struct yastrhdr * hdr = yaslheader(str);
 
-	struct yastrhdr * tmp = realloc(hdr, sizeof(struct yastrhdr) + hdr->len + 1);
+	struct yastrhdr * tmp = simta_realloc(hdr, sizeof(struct yastrhdr) + hdr->len + 1);
 	if (tmp) {
 		hdr = tmp;
 		hdr->free = 0;

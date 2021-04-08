@@ -7,13 +7,14 @@
  * Return parsed argc/argv.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include "argcargv.h"
+#include "simta_malloc.h"
 
 #define ACV_ARGC 10
 #define ACV_WHITE 0
@@ -27,8 +28,8 @@ ACAV *
 acav_alloc(void) {
     ACAV *acav;
 
-    acav = malloc(sizeof(ACAV));
-    acav->acv_argv = malloc(sizeof(char *) * (ACV_ARGC));
+    acav = simta_malloc(sizeof(ACAV));
+    acav->acv_argv = simta_malloc(sizeof(char *) * (ACV_ARGC));
     acav->acv_argc = ACV_ARGC;
 
     return (acav);
@@ -81,7 +82,7 @@ acav_parse2821(ACAV *acav, char *line, char **argv[]) {
             if (state == ACV_WHITE) {
                 acav->acv_argv[ ac++ ] = line;
                 if (ac >= acav->acv_argc) {
-                    acav->acv_argv = (char **)realloc(acav->acv_argv,
+                    acav->acv_argv = (char **)simta_realloc(acav->acv_argv,
                             sizeof(char *) * (acav->acv_argc + ACV_ARGC));
                     acav->acv_argc += ACV_ARGC;
                 }
@@ -154,8 +155,8 @@ acav_parse(ACAV *acav, char *line, char **argv[]) {
             if (state == ACV_WHITE) {
                 acav->acv_argv[ ac++ ] = line;
                 if (ac >= acav->acv_argc) {
-                    /* realloc */
-                    acav->acv_argv = realloc(acav->acv_argv,
+                    /* simta_realloc */
+                    acav->acv_argv = simta_realloc(acav->acv_argv,
                             sizeof(char *) * (acav->acv_argc + ACV_ARGC));
                     acav->acv_argc += ACV_ARGC;
                 }

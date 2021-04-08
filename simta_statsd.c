@@ -3,11 +3,10 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <errno.h>
 #include <netdb.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
@@ -20,8 +19,8 @@
 
 #include "simta.h"
 
+#include "simta_malloc.h"
 #include "simta_statsd.h"
-
 
 simta_result
 simta_statsd_init(struct simta_statsd **s) {
@@ -59,7 +58,7 @@ simta_statsd_init(struct simta_statsd **s) {
         goto error;
     }
 
-    *s = calloc(1, sizeof(struct simta_statsd));
+    *s = simta_calloc(1, sizeof(struct simta_statsd));
     (*s)->fd = fd;
     retval = true;
 

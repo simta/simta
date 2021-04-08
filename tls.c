@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <syslog.h>
 

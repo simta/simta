@@ -3,22 +3,20 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
-#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 
 #include "line_file.h"
+#include "simta_malloc.h"
 
-
-/* return a line_file */
 
 struct line_file *
 line_file_create(void) {
     struct line_file *lf;
 
-    lf = calloc(1, sizeof(struct line_file));
+    lf = simta_calloc(1, sizeof(struct line_file));
 
     return (lf);
 }
@@ -51,10 +49,10 @@ line_append(struct line_file *lf, char *data, int copy) {
         return (NULL);
     }
 
-    l = calloc(1, sizeof(struct line));
+    l = simta_calloc(1, sizeof(struct line));
 
     if (copy != 0) {
-        l->line_data = strdup(data);
+        l->line_data = simta_strdup(data);
     } else {
         l->line_data = data;
     }
@@ -87,10 +85,10 @@ line_prepend(struct line_file *lf, char *data, int copy) {
         return (NULL);
     }
 
-    l = calloc(1, sizeof(struct line));
+    l = simta_calloc(1, sizeof(struct line));
 
     if (copy != 0) {
-        l->line_data = strdup(data);
+        l->line_data = simta_strdup(data);
     } else {
         l->line_data = data;
     }

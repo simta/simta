@@ -3,13 +3,12 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -28,6 +27,7 @@
 #include "header.h"
 #include "queue.h"
 #include "red.h"
+#include "simta_malloc.h"
 #include "smtp.h"
 
 #ifdef HAVE_LIBSSL
@@ -305,14 +305,14 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
 
                 old = *c;
                 *c = '\0';
-                if ((hq->hq_smtp_hostname = strdup(line + 4)) == NULL) {
-                    syslog(LOG_ERR, "Syserror: smtp_reply strdup: %m");
+                if ((hq->hq_smtp_hostname = simta_strdup(line + 4)) == NULL) {
+                    syslog(LOG_ERR, "Syserror: smtp_reply simta_strdup: %m");
                     return (SMTP_ERROR);
                 }
                 *c = old;
-            } else if ((hq->hq_smtp_hostname = strdup(S_UNKNOWN_HOST)) ==
+            } else if ((hq->hq_smtp_hostname = simta_strdup(S_UNKNOWN_HOST)) ==
                        NULL) {
-                syslog(LOG_ERR, "Syserror: smtp_reply strdup: %m");
+                syslog(LOG_ERR, "Syserror: smtp_reply simta_strdup: %m");
                 return (SMTP_ERROR);
             }
 

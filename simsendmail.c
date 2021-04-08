@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -12,7 +12,6 @@
 #include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
 #include <syslog.h>
@@ -31,6 +30,7 @@
 #include "envelope.h"
 #include "header.h"
 #include "simta.h"
+#include "simta_malloc.h"
 
 void catch_sigint(int) __attribute__((noreturn));
 
@@ -72,7 +72,7 @@ main(int argc, char *argv[]) {
     int                    ret = EX_TEMPFAIL;
     int                    message_size = 0;
     FILE *                 dfile = NULL;
-    int                    read_headers = 0;
+    bool                    read_headers = false;
     uid_t                  uid;
     struct recipient *     r;
     struct passwd *        passwd;
@@ -144,7 +144,7 @@ main(int argc, char *argv[]) {
 
         case 't':
             /* Read message headers for recipients */
-            read_headers = 1;
+            read_headers = true;
             break;
 
         default:
@@ -166,7 +166,7 @@ main(int argc, char *argv[]) {
         exit(EX_USAGE);
     }
 
-    if ((read_headers == 0) && (optind == argc)) {
+    if (read_headers && (optind == argc)) {
         fprintf(stderr, "%s: no recipients\n", argv[ 0 ]);
         exit(EX_USAGE);
     }
@@ -174,8 +174,6 @@ main(int argc, char *argv[]) {
     if (simta_read_config(NULL, NULL) < 0) {
         exit(EX_TEMPFAIL);
     }
-
-    simta_submission_mode = SUBMISSION_MODE_SIMSEND;
 
     simta_openlog(0, 0);
 
@@ -213,7 +211,7 @@ main(int argc, char *argv[]) {
 
     /* optind = first to-address */
     for (x = optind; x < argc; x++) {
-        addr = strdup(argv[ x ]);
+        addr = simta_strdup(argv[ x ]);
 
         if (correct_emailaddr(&addr) == 0) {
             fprintf(stderr, "Invalid email address: %s\n", addr);
@@ -284,7 +282,7 @@ main(int argc, char *argv[]) {
         }
     }
 
-    if ((rc = header_check(&rh, read_headers)) != 0) {
+    if ((rc = header_check(&rh, read_headers, true, true)) != 0) {
         if (rc > 0) {
             ret = EX_DATAERR;
         } else {

@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -13,7 +13,6 @@
 
 #include <netdb.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -34,6 +33,7 @@
 #include "dns.h"
 #include "red.h"
 #include "simta.h"
+#include "simta_malloc.h"
 
 #ifdef HAVE_LIBSSL
 #include "md.h"
@@ -480,7 +480,7 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
                     reason ? reason : "Unknown");
 
             if (strcasecmp(dnsl_action, "log_only") != 0) {
-                ret = calloc(1, sizeof(struct dnsl_result));
+                ret = simta_calloc(1, sizeof(struct dnsl_result));
                 ret->dnsl_list = yaslauto(lookup_base);
                 ret->dnsl_action = yaslauto(dnsl_action);
                 ret->dnsl_reason = reason;

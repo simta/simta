@@ -3,13 +3,13 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <inttypes.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "simta_lmdb.h"
+#include "simta_malloc.h"
 
 static int simta_db_open(struct simta_dbh **, const char *, uint32_t, int);
 
@@ -19,7 +19,7 @@ simta_db_open(
     int      ret;
     MDB_env *dbp;
 
-    *dbh = calloc(1, sizeof(struct simta_dbh));
+    *dbh = simta_calloc(1, sizeof(struct simta_dbh));
 
     if ((ret = mdb_env_create(&dbp)) != 0) {
         return (ret);
@@ -164,7 +164,7 @@ simta_db_cursor_open(struct simta_dbh *dbh, struct simta_dbc **dbc) {
     MDB_cursor *dbcp;
     MDB_dbi     dbi;
 
-    *dbc = calloc(1, sizeof(struct simta_dbc));
+    *dbc = simta_calloc(1, sizeof(struct simta_dbc));
 
     if ((ret = mdb_txn_begin(dbh->h_env, NULL, MDB_RDONLY, &txn)) != 0) {
         return (ret);

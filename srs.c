@@ -3,12 +3,11 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <ctype.h>
 #include <ifaddrs.h>
 #include <net/if.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -17,6 +16,7 @@
 #include <yasl.h>
 
 #include "simta.h"
+#include "simta_malloc.h"
 #include "spf.h"
 #include "srs.h"
 
@@ -135,7 +135,7 @@ srs_forward(struct envelope *env) {
     rc = SRS_OK;
 
     env->e_mail_orig = env->e_mail;
-    env->e_mail = strdup(newaddr);
+    env->e_mail = simta_strdup(newaddr);
 
 error:
     spf_free(spf);
@@ -235,7 +235,7 @@ srs_reverse(const char *addr, char **newaddr, const char *secret) {
     n = yaslcat(n, "@");
     n = yaslcatlen(n, a, (p - a));
 
-    *newaddr = strdup(n);
+    *newaddr = simta_strdup(n);
     rc = SRS_OK;
 
 error:

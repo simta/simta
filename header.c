@@ -3,11 +3,10 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <ctype.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -27,6 +26,7 @@
 #include "envelope.h"
 #include "header.h"
 #include "queue.h"
+#include "simta_malloc.h"
 
 #define HEADER_MAILBOX_LIST 0
 #define HEADER_ADDRESS_LIST 1
@@ -441,7 +441,7 @@ header_text(int line_no, char *line, struct receive_headers *rh, char **msg) {
 
     if (dentry) {
         if ((h = dentry->dll_data) == NULL) {
-            h = calloc(1, sizeof(struct rfc822_header));
+            h = simta_calloc(1, sizeof(struct rfc822_header));
             dentry->dll_data = h;
         }
         h->h_count++;
@@ -477,7 +477,7 @@ header_masquerade(struct line *l) {
     yaslfreesplitres(split, tok_count);
 
     free(l->line_data);
-    l->line_data = strdup(outbuf);
+    l->line_data = simta_strdup(outbuf);
     yaslfree(outbuf);
 
     l = l->line_next;
@@ -523,7 +523,7 @@ header_remove(struct dll_entry *dentry, struct receive_headers *rh) {
 }
 
 int
-header_check(struct receive_headers *rh, int read_headers) {
+header_check(struct receive_headers *rh, bool read_headers, bool correct_headers, bool simsend) {
     struct stab_entry *   s;
     struct line *         l;
     struct rfc822_header *mh;
@@ -572,7 +572,7 @@ header_check(struct receive_headers *rh, int read_headers) {
     buf = yaslempty();
 
     /* check headers for known mail clients behaving badly */
-    if (simta_submission_mode == SUBMISSION_MODE_SIMSEND) {
+    if (simsend) {
         header_exceptions(rh->r_headers);
     }
 
@@ -587,8 +587,7 @@ header_check(struct receive_headers *rh, int read_headers) {
         ret += header_singleton("From", mh);
         tmp = header_string(mh->h_lines->st_data);
         split = parse_addr_list(tmp, &tok_count, HEADER_MAILBOX_LIST);
-        if ((split == NULL) &&
-                (simta_submission_mode == SUBMISSION_MODE_SIMSEND)) {
+        if ((split == NULL) && simsend) {
             yaslfree(tmp);
             header_masquerade(mh->h_lines->st_data);
             tmp = header_string(mh->h_lines->st_data);
@@ -603,7 +602,7 @@ header_check(struct receive_headers *rh, int read_headers) {
         }
 
         if (split == NULL) {
-            if ((simta_submission_mode == SUBMISSION_MODE_MSA) &&
+            if (correct_headers &&
                     strlen(rh->r_env->e_mail)) {
                 /* Bad From:, we should regenerate it. */
                 header_remove(dentry, rh);
@@ -612,7 +611,7 @@ header_check(struct receive_headers *rh, int read_headers) {
                 ret++;
             }
         } else {
-            rh->r_env->e_header_from = strdup(split[ 0 ]);
+            rh->r_env->e_header_from = simta_strdup(split[ 0 ]);
             yaslfreesplitres(split, tok_count);
         }
 
@@ -620,8 +619,7 @@ header_check(struct receive_headers *rh, int read_headers) {
     }
 
     if (dentry == NULL) {
-        if ((simta_submission_mode == SUBMISSION_MODE_SIMSEND) ||
-                (simta_submission_mode == SUBMISSION_MODE_MSA)) {
+        if (correct_headers) {
             syslog(LOG_INFO,
                     "header_check: generating new From header using "
                     "RFC5321.MailFrom");
@@ -647,8 +645,7 @@ header_check(struct receive_headers *rh, int read_headers) {
     if ((dentry = dll_lookup(rh->r_headers_index, "date")) != NULL) {
         mh = dentry->dll_data;
         ret += header_singleton("Date", mh);
-    } else if ((simta_submission_mode == SUBMISSION_MODE_SIMSEND) ||
-               (simta_submission_mode == SUBMISSION_MODE_MSA)) {
+    } else if (correct_headers) {
         /* generate Date: header */
         if (rfc822_timestamp(daytime) != 0) {
             ret = -1;
@@ -672,8 +669,7 @@ header_check(struct receive_headers *rh, int read_headers) {
         ret += header_singleton("Message-ID", mh);
         tmp = parse_mid(mh->h_lines->st_data);
         if (tmp == NULL) {
-            if ((simta_submission_mode == SUBMISSION_MODE_SIMSEND) ||
-                    (simta_submission_mode == SUBMISSION_MODE_MSA)) {
+            if (correct_headers) {
                 /* Bad Message-ID, we should regenerate it. */
                 header_remove(dentry, rh);
                 dentry = NULL;
@@ -681,21 +677,19 @@ header_check(struct receive_headers *rh, int read_headers) {
                 ret++;
             }
         } else {
-            rh->r_env->e_mid = strdup(tmp);
+            rh->r_env->e_mid = simta_strdup(tmp);
             yaslfree(tmp);
         }
     }
 
-    if ((dentry == NULL) &&
-            ((simta_submission_mode == SUBMISSION_MODE_SIMSEND) ||
-                    (simta_submission_mode == SUBMISSION_MODE_MSA))) {
+    if ((dentry == NULL) && correct_headers) {
         /* generate Message-ID: header */
         if (rh->r_headers == NULL) {
             rh->r_headers = line_file_create();
         }
         yaslclear(buf);
         buf = yaslcatprintf(buf, "%s@%s", rh->r_env->e_id, simta_hostname);
-        rh->r_env->e_mid = strdup(buf);
+        rh->r_env->e_mid = simta_strdup(buf);
         yaslclear(buf);
         buf = yaslcatprintf(buf, "Message-ID: <%s>", rh->r_env->e_mid);
         line_prepend(rh->r_headers, buf, COPY);
@@ -708,8 +702,7 @@ header_check(struct receive_headers *rh, int read_headers) {
         tmp = header_string(mh->h_lines->st_data);
         split = parse_addr_list(tmp, &tok_count, HEADER_ADDRESS_LIST);
 
-        if ((split == NULL) &&
-                (simta_submission_mode == SUBMISSION_MODE_SIMSEND)) {
+        if ((split == NULL) && simsend) {
             yaslfree(tmp);
             header_masquerade(mh->h_lines->st_data);
             tmp = header_string(mh->h_lines->st_data);
@@ -736,8 +729,7 @@ header_check(struct receive_headers *rh, int read_headers) {
         tmp = header_string(mh->h_lines->st_data);
         split = parse_addr_list(tmp, &tok_count, HEADER_ADDRESS_LIST);
 
-        if ((split == NULL) &&
-                (simta_submission_mode == SUBMISSION_MODE_SIMSEND)) {
+        if ((split == NULL) && simsend) {
             yaslfree(tmp);
             header_masquerade(mh->h_lines->st_data);
             tmp = header_string(mh->h_lines->st_data);
@@ -765,8 +757,7 @@ header_check(struct receive_headers *rh, int read_headers) {
         tmp = header_string(l);
         split = parse_addr_list(tmp, &tok_count, HEADER_ADDRESS_LIST);
 
-        if ((split == NULL) &&
-                (simta_submission_mode == SUBMISSION_MODE_SIMSEND)) {
+        if ((split == NULL) && simsend) {
             yaslfree(tmp);
             header_masquerade(mh->h_lines->st_data);
             tmp = header_string(mh->h_lines->st_data);
@@ -784,7 +775,7 @@ header_check(struct receive_headers *rh, int read_headers) {
             yaslfreesplitres(split, tok_count);
         }
 
-        if (simta_submission_mode == SUBMISSION_MODE_SIMSEND) {
+        if (simsend) {
             header_remove(dentry, rh);
         }
     }
@@ -800,7 +791,7 @@ header_check(struct receive_headers *rh, int read_headers) {
         ret += header_singleton("Subject", mh);
         tmp = header_string(mh->h_lines->st_data);
         yasltrim(tmp, " \t");
-        rh->r_env->e_subject = strdup(tmp);
+        rh->r_env->e_subject = simta_strdup(tmp);
         yaslfree(tmp);
     }
 
@@ -816,7 +807,7 @@ header_check(struct receive_headers *rh, int read_headers) {
             len = dot_atom_text_len(tmp);
             if ((len == yasllen(simta_seen_before_domain)) &&
                     (memcmp(tmp, simta_seen_before_domain, (size_t)len) == 0)) {
-                rh->r_seen_before = strdup(tmp);
+                rh->r_seen_before = simta_strdup(tmp);
             }
             yaslfree(tmp);
         }
@@ -1172,7 +1163,7 @@ correct_emailaddr(char **addr) {
         buf = yaslcatprintf(buf, "@%s", simta_config_str("core.masquerade"));
 
         free(*addr);
-        *addr = strdup(buf);
+        *addr = simta_strdup(buf);
         yaslfree(buf);
 
     } else {
@@ -1239,7 +1230,7 @@ parse_addr_list(yastr list, size_t *count, int mode) {
     int    len;
     size_t slots = 2;
 
-    mboxes = malloc(slots * sizeof(yastr));
+    mboxes = simta_malloc(slots * sizeof(yastr));
     *count = 0;
     l = list;
 
@@ -1327,7 +1318,7 @@ parse_addr_list(yastr list, size_t *count, int mode) {
         if (tmp) {
             if (*count >= slots) {
                 slots *= 2;
-                mboxes = realloc(mboxes, slots * sizeof(yastr));
+                mboxes = simta_realloc(mboxes, slots * sizeof(yastr));
             }
             mboxes[ *count ] = tmp;
             (*count)++;
@@ -1511,8 +1502,8 @@ struct string_address *
 string_address_init(char *string) {
     struct string_address *sa;
 
-    sa = calloc(1, sizeof(struct string_address));
-    sa->sa_string = strdup(string);
+    sa = simta_calloc(1, sizeof(struct string_address));
+    sa->sa_string = simta_strdup(string);
 
     return (sa);
 }

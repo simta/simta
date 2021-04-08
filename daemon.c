@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -25,7 +25,6 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -48,6 +47,7 @@
 #include "ll.h"
 #include "queue.h"
 #include "simta.h"
+#include "simta_malloc.h"
 
 #ifdef HAVE_LDAP
 #include "simta_ldap.h"
@@ -235,7 +235,7 @@ simta_listen_port(const char *port) {
             found_ipv4 = true;
         }
 
-        ss = calloc(1, sizeof(struct simta_socket));
+        ss = simta_calloc(1, sizeof(struct simta_socket));
 
         if ((rc = getnameinfo(ai->ai_addr, ai->ai_addrlen, host, sizeof(host),
                      service, sizeof(service), NI_NUMERICHOST)) != 0) {
@@ -244,7 +244,7 @@ simta_listen_port(const char *port) {
             fprintf(stderr, "getnameinfo: %s\n", gai_strerror(rc));
             return (NULL);
         }
-        ss->ss_service = strdup(service);
+        ss->ss_service = simta_strdup(service);
         ss->ss_next = simta_listen_sockets;
         simta_listen_sockets = ss;
 
@@ -1226,7 +1226,7 @@ simta_child_receive(struct simta_socket *ss) {
     }
 
     if (cinfo == NULL) {
-        cinfo = calloc(1, sizeof(struct connection_info));
+        cinfo = simta_calloc(1, sizeof(struct connection_info));
         memcpy(&(cinfo->c_sa), &sa, sizeof(struct sockaddr_storage));
 
         if ((rc = getnameinfo((struct sockaddr *)&sa,
@@ -1326,7 +1326,7 @@ simta_child_receive(struct simta_socket *ss) {
     p->p_ss->ss_count++;
     p->p_cinfo = cinfo;
 
-    p->p_host = strdup(cinfo->c_ip);
+    p->p_host = simta_strdup(cinfo->c_ip);
 
     syslog(LOG_NOTICE,
             "Child: launched %s receive process %d.%ld for %s "
@@ -1440,7 +1440,7 @@ simta_proc_q_runner(int pid, struct host_q *hq) {
         (*p->p_limit)++;
 
         if (hq->hq_hostname) {
-            p->p_host = strdup(hq->hq_hostname);
+            p->p_host = simta_strdup(hq->hq_hostname);
         }
 
         syslog(LOG_NOTICE,
@@ -1458,7 +1458,7 @@ struct proc_type *
 simta_proc_add(int process_type, int pid) {
     struct proc_type *p;
 
-    p = calloc(1, sizeof(struct proc_type));
+    p = simta_calloc(1, sizeof(struct proc_type));
 
     p->p_tv.tv_sec = simta_tv_now.tv_sec;
     p->p_id = pid;

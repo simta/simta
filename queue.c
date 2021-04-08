@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -18,7 +18,6 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
 #include <syslog.h>
@@ -41,6 +40,7 @@
 #include "ml.h"
 #include "red.h"
 #include "simta_ldap.h"
+#include "simta_malloc.h"
 #include "smtp.h"
 #include "wildcard.h"
 
@@ -82,14 +82,14 @@ host_q_create_or_lookup(char *hostname) {
      * have a NULL queue for error reporting.
      */
     if (simta_unexpanded_q == NULL) {
-        simta_unexpanded_q = calloc(1, sizeof(struct host_q));
+        simta_unexpanded_q = simta_calloc(1, sizeof(struct host_q));
 
         /* add this host to the host_q */
         simta_unexpanded_q->hq_hostname = S_UNEXPANDED;
         simta_unexpanded_q->hq_status = HOST_NULL;
 
         if (simta_punt_host != NULL) {
-            simta_punt_q = calloc(1, sizeof(struct host_q));
+            simta_punt_q = simta_calloc(1, sizeof(struct host_q));
 
             simta_punt_q->hq_hostname = simta_punt_host;
             simta_punt_q->hq_status = HOST_PUNT;
@@ -101,7 +101,7 @@ host_q_create_or_lookup(char *hostname) {
     }
 
     if ((hq = host_q_lookup(hostname)) == NULL) {
-        hq = calloc(1, sizeof(struct host_q));
+        hq = simta_calloc(1, sizeof(struct host_q));
         hq->hq_hostname = yaslauto(hostname);
         yasltolower(hq->hq_hostname);
 
@@ -2027,7 +2027,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
         ref = ucl_object_new();
         ucl_object_insert_key(
                 ref, ucl_object_fromstring(d->d_ip), "ip", 0, false);
-        addr = malloc(sizeof(struct sockaddr_storage));
+        addr = simta_malloc(sizeof(struct sockaddr_storage));
         memcpy(addr, &(d->d_sa), sizeof(struct sockaddr_storage));
         ucl_object_insert_key(ref, ucl_object_new_userdata(NULL, NULL, addr),
                 "address", 0, false);

@@ -12,7 +12,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <netdb.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -21,6 +20,7 @@
 
 #include "dns.h"
 #include "simta.h"
+#include "simta_malloc.h"
 #include "spf.h"
 
 int        spf_check_host(struct spf *, const yastr);
@@ -38,7 +38,7 @@ spf_lookup(const char *helo, const char *email, const struct sockaddr *addr) {
     char *      p;
     struct spf *s;
 
-    s = calloc(1, sizeof(struct spf));
+    s = simta_calloc(1, sizeof(struct spf));
     s->spf_queries = 0;
     s->spf_sockaddr = addr;
     s->spf_helo = yaslauto(helo);

@@ -3,14 +3,14 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <ctype.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "ll.h"
+#include "simta_malloc.h"
 
 
 /*****     ll_lookup     *****/
@@ -50,7 +50,7 @@ ll_insert(struct stab_entry **stab, char *key, void *data,
         ll_compare = ll_default_compare;
     }
 
-    st = calloc(1, sizeof(struct stab_entry));
+    st = simta_calloc(1, sizeof(struct stab_entry));
 
     st->st_key = key;
     st->st_data = data;
@@ -76,7 +76,7 @@ ll_insert_tail(struct stab_entry **stab, char *key, void *data) {
     struct stab_entry * st;
     struct stab_entry **i;
 
-    st = calloc(1, sizeof(struct stab_entry));
+    st = simta_calloc(1, sizeof(struct stab_entry));
 
     st->st_key = key;
     st->st_data = data;
@@ -149,7 +149,7 @@ ll_nokey_insert(struct stab_entry **stab, void *data,
     struct stab_entry * st;
     struct stab_entry **i;
 
-    st = calloc(1, sizeof(struct stab_entry));
+    st = simta_calloc(1, sizeof(struct stab_entry));
 
     st->st_data = data;
 
@@ -208,9 +208,9 @@ dll_lookup_or_create(struct dll_entry **dll_head, const char *key) {
         dll_last = dll;
     }
 
-    dll_new = calloc(1, sizeof(struct dll_entry));
+    dll_new = simta_calloc(1, sizeof(struct dll_entry));
 
-    dll_new->dll_key = strdup(key);
+    dll_new->dll_key = simta_strdup(key);
 
     if (dll_last == NULL) {
         /* head insert */

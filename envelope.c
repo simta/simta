@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -13,7 +13,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -37,6 +36,7 @@
 #include "envelope.h"
 #include "header.h"
 #include "queue.h"
+#include "simta_malloc.h"
 
 /* FIXME: this should be collapsed into env_jail_status */
 void
@@ -135,7 +135,7 @@ env_create(const char *dir, const char *id, const char *e_mail,
     /* way bigger than we should ever need */
     char buf[ 1024 ];
 
-    env = calloc(1, sizeof(struct envelope));
+    env = simta_calloc(1, sizeof(struct envelope));
 
     if ((id == NULL) || (*id == '\0')) {
         if (clock_gettime(CLOCK_REALTIME, &ts_now) != 0) {
@@ -155,7 +155,7 @@ env_create(const char *dir, const char *id, const char *e_mail,
         id = buf;
     }
 
-    env->e_id = strdup(id);
+    env->e_id = simta_strdup(id);
 
     if (e_mail != NULL) {
         env_sender(env, e_mail);
@@ -249,7 +249,7 @@ env_hostname(struct envelope *env, char *hostname) {
     }
 
     if ((hostname != NULL) && (*hostname != '\0')) {
-        env->e_hostname = strdup(hostname);
+        env->e_hostname = simta_strdup(hostname);
     }
 
     return (0);
@@ -264,7 +264,7 @@ env_sender(struct envelope *env, const char *e_mail) {
         return (1);
     }
 
-    env->e_mail = strdup(e_mail);
+    env->e_mail = simta_strdup(e_mail);
 
     return (0);
 }
@@ -360,12 +360,12 @@ int
 env_recipient(struct envelope *e, const char *addr) {
     struct recipient *r;
 
-    r = calloc(1, sizeof(struct recipient));
+    r = simta_calloc(1, sizeof(struct recipient));
 
     if ((addr == NULL) || (*addr == '\0')) {
-        r->r_rcpt = strdup("");
+        r->r_rcpt = simta_strdup("");
     } else {
-        r->r_rcpt = strdup(addr);
+        r->r_rcpt = simta_strdup(addr);
     }
 
     r->r_next = e->e_rcpt;
@@ -612,7 +612,7 @@ sender_list_add(struct envelope *e) {
     }
 
     if ((list = (struct sender_list *)sl_dll->dll_data) == NULL) {
-        list = calloc(1, sizeof(struct sender_list));
+        list = simta_calloc(1, sizeof(struct sender_list));
         list->sl_dll = sl_dll;
         sl_dll->dll_data = list;
     }
@@ -625,7 +625,7 @@ sender_list_add(struct envelope *e) {
         return (0);
     }
 
-    entry = calloc(1, sizeof(struct sender_entry));
+    entry = simta_calloc(1, sizeof(struct sender_entry));
     se_dll->dll_data = entry;
     e->e_sender_entry = entry;
     entry->se_env = e;

@@ -3,12 +3,11 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
@@ -33,6 +32,7 @@
 #include "header.h"
 #include "simta.h"
 #include "simta_ldap.h"
+#include "simta_malloc.h"
 #include "simta_statsd.h"
 #include "srs.h"
 
@@ -431,7 +431,7 @@ simta_ldap_init(struct simta_ldap *ld) {
     } else {
 #endif /* HAVE_LIBSASL */
         if (ld->ldap_bindpw) {
-            creds.bv_val = strdup(ld->ldap_bindpw);
+            creds.bv_val = simta_strdup(ld->ldap_bindpw);
             creds.bv_len = strlen(creds.bv_val);
         }
         if ((ldaprc = ldap_sasl_bind_s(ld->ldap_ld, ld->ldap_binddn,
@@ -1019,7 +1019,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
 
     if (e_addr->e_addr_dn == NULL) {
         dn_normalize_case(dn);
-        e_addr->e_addr_dn = strdup(dn);
+        e_addr->e_addr_dn = simta_strdup(dn);
     }
 
     if (simta_ldap_bool(ld, entry, "suppressnoemailerror")) {
@@ -1822,7 +1822,7 @@ simta_ldap_config(const ucl_object_t *rule) {
         return obj->value.ud;
     }
 
-    ld = calloc(1, sizeof(struct simta_ldap));
+    ld = simta_calloc(1, sizeof(struct simta_ldap));
     lds = &(ld->ldap_searches);
     ld->ldap_rule = ucl_object_ref(ucl_object_lookup(rule, "ldap"));
 
@@ -1853,7 +1853,7 @@ simta_ldap_config(const ucl_object_t *rule) {
             goto errexit;
         }
 
-        *lds = calloc(1, sizeof(struct ldap_search_list));
+        *lds = simta_calloc(1, sizeof(struct ldap_search_list));
         (*lds)->lds_string = buf;
         (*lds)->lds_plud = plud;
         (*lds)->lds_rdn_pref =
@@ -1881,11 +1881,11 @@ simta_ldap_config(const ucl_object_t *rule) {
 
     obj = ucl_object_lookup_path(ld->ldap_rule, "attributes.request");
     i = 0;
-    ld->ldap_attrs = calloc(ucl_array_size(obj) + 1, sizeof(char *));
+    ld->ldap_attrs = simta_calloc(ucl_array_size(obj) + 1, sizeof(char *));
     ucl_object_iterate_reset(iter, obj);
     while ((obj = ucl_object_iterate_safe(iter, true)) != NULL) {
         /* ldap_search_ext_s doesn't want const char * for some reason */
-        ld->ldap_attrs[ i++ ] = strdup(ucl_object_tostring(obj));
+        ld->ldap_attrs[ i++ ] = simta_strdup(ucl_object_tostring(obj));
     }
 
     ld->ldap_host =

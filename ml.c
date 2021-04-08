@@ -3,12 +3,11 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
 #include <syslog.h>
@@ -28,6 +27,7 @@
 #include "envelope.h"
 #include "line_file.h"
 #include "ml.h"
+#include "simta_malloc.h"
 
 
 /* return 0 on success
@@ -103,7 +103,7 @@ deliver_binary(struct deliver *d) {
         /* FIXME: if we use something other than acav_parse() we might could
          * do less copying.
          */
-        agent = strdup(d->d_deliver_agent);
+        agent = simta_strdup(d->d_deliver_agent);
         deliver_argc = acav_parse(acav, agent, &deliver_argv);
 
         recipient = d->d_rcpt->r_rcpt;

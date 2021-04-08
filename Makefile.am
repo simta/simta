@@ -63,6 +63,7 @@ COMMON_FILES = \
 	queue.c queue.h \
 	red.c red.h \
 	simta.c simta.h \
+	simta_malloc.c simta_malloc.h \
 	simta_sasl.c simta_sasl.h \
 	simta_statsd.c simta_statsd.h \
 	simta_ucl.c simta_ucl.h \

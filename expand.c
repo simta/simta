@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -11,7 +11,6 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -32,6 +31,7 @@
 #include "line_file.h"
 #include "queue.h"
 #include "red.h"
+#include "simta_malloc.h"
 
 #ifdef HAVE_LDAP
 #include "dn.h"
@@ -65,7 +65,7 @@ int
 eo_insert(struct expand_output **eo_list, struct envelope *env) {
     struct expand_output *e_new;
 
-    e_new = malloc(sizeof(struct expand_output));
+    e_new = simta_malloc(sizeof(struct expand_output));
 
     if ((e_new->eo_hostname = env->e_hostname) == NULL) {
         e_new->eo_hostname = "";

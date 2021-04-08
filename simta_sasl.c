@@ -3,10 +3,9 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 
@@ -16,6 +15,7 @@
 
 #include "simta.h"
 #include "simta_sasl.h"
+#include "simta_malloc.h"
 
 static int simta_sasl_log(void *, int, const char *);
 
@@ -74,7 +74,7 @@ simta_sasl_server_new(int tls) {
         goto error;
     }
 
-    ret = calloc(1, sizeof(struct simta_sasl));
+    ret = simta_calloc(1, sizeof(struct simta_sasl));
     ret->s_conn = conn;
     if (simta_sasl_reset(ret, tls) != 0) {
         sasl_dispose(&conn);

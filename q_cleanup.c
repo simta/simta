@@ -3,7 +3,7 @@
  * See COPYING.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -13,7 +13,6 @@
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
@@ -30,6 +29,7 @@
 
 #include "envelope.h"
 #include "simta.h"
+#include "simta_malloc.h"
 
 #define INCOMPLETE_T 1
 #define STRANDED_D 2
@@ -403,7 +403,7 @@ q_expansion_cleanup(struct envelope **fast) {
 
             } else {
                 /* insert into i stab */
-                i_add = calloc(1, sizeof(struct i_list));
+                i_add = simta_calloc(1, sizeof(struct i_list));
 
                 i_add->i_expanded_list = env;
                 i_add->i_dinode = env->e_dinode;
@@ -455,8 +455,8 @@ file_list_add(struct file_list **f_list, int mode, char *dir, char *f_id) {
         return (1);
     }
 
-    f = calloc(1, sizeof(struct file_list));
-    f->f_name = malloc(len);
+    f = simta_calloc(1, sizeof(struct file_list));
+    f->f_name = simta_malloc(len);
 
     switch (mode) {
     case STRANDED_D:

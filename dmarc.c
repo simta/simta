@@ -4,7 +4,6 @@
  */
 
 #include <errno.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <syslog.h>
@@ -12,6 +11,7 @@
 #include "dmarc.h"
 #include "dns.h"
 #include "simta.h"
+#include "simta_malloc.h"
 
 static bool dmarc_alignment(const char *, const char *, enum simta_dmarc_align);
 static struct dnsr_result *dmarc_lookup_record(const char *);
@@ -21,7 +21,7 @@ static void         dmarc_policy_reset(struct dmarc *);
 
 void
 dmarc_init(struct dmarc **d) {
-    *d = calloc(1, sizeof(struct dmarc));
+    *d = simta_calloc(1, sizeof(struct dmarc));
     dmarc_reset(*d);
 }
 
