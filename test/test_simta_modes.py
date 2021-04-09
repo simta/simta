@@ -89,6 +89,8 @@ def test_punishment_trigger_auth(smtp, testmsg):
     test_mode_tempfail(smtp)
 
 
+#FIXME: This is very unreliable
+@pytest.mark.xfail(reason='flaky', strict=False)
 def test_punishment_trigger_nobanner(simta, testmsg):
     smtp = smtplib.SMTP('localhost', simta['port'])
     test_mode_global_relay(smtp, testmsg)
