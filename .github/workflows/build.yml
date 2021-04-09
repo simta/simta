@@ -80,7 +80,7 @@ jobs:
       - name: Build simta
         run: |
           autoreconf -fiv
-          CFLAGS='-Wall -Werror' ./configure --with-cmocka
+          CFLAGS='-Wall -Werror -fprofile-arcs -ftest-coverage' ./configure --with-cmocka
           make -j4
         working-directory: ${{ github.workspace }}/simta
 
@@ -89,6 +89,16 @@ jobs:
         working-directory: ${{ github.workspace }}/simta
         env:
           LDAP_SERVER: ldap://localhost/
+
+      - name: Generate coverage reports
+        run: gcov *.c
+        working-directory: ${{ github.workspace }}/simta
+
+      - name: Save code coverage reports
+        uses: actions/upload-artifact@v2
+        with:
+          name: gcov
+          path: simta/*.gcov
 
       - name: Build simta with clang
         run: |
