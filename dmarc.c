@@ -222,6 +222,8 @@ dmarc_authresult_str(const enum simta_dmarc_result policy) {
     case DMARC_RESULT_QUARANTINE:
     case DMARC_RESULT_REJECT:
         return ("fail");
+    case DMARC_RESULT_SYSERROR:
+        return ("temperror");
     }
     return ("temperror");
 }
@@ -629,23 +631,20 @@ dmarc_parse_record(struct dmarc *d, yastr r) {
      * representative sample across a reporting period.
      */
     if ((d->pct < 100) && ((d->pct == 0) || ((random() % 100) >= d->pct))) {
-        switch (d->result) {
-        case DMARC_RESULT_QUARANTINE:
+        if (d->result == DMARC_RESULT_QUARANTINE) {
             /* RFC 7489 6.6.4 Message Sampling
              * If the email is not subject to the "quarantine" policy (due to
              * the "pct" tag), the Mail Receiver SHOULD apply local message
              * classification as normal.
              */
             d->result = DMARC_RESULT_NONE;
-            break;
-        case DMARC_RESULT_REJECT:
+        } else if (d->result == DMARC_RESULT_REJECT) {
             /* RFC 7489 6.6.4 Message Sampling
              * If the email is not subject to the "reject" policy (due to the
              * "pct" tag), the Mail Receiver SHOULD treat the email as though
              * the "quarantine" policy applies.
              */
             d->result = DMARC_RESULT_QUARANTINE;
-            break;
         }
     }
 

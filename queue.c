@@ -745,7 +745,6 @@ q_read_dir(struct simta_dirp *sd) {
     struct envelope *   last_read = NULL;
     struct envelope *   env;
     struct host_q *     hq;
-    struct host_q *     h_free;
     ucl_object_iter_t   iter;
     const ucl_object_t *obj;
 
@@ -2048,8 +2047,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
 
 static simta_result
 deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
-    int               rc;
-    struct dll_entry *l;
+    int rc;
 
     if ((rc = getnameinfo((struct sockaddr *)&(d->d_sa),
                  ((d->d_sa.ss_family == AF_INET6) ? sizeof(struct sockaddr_in6)
@@ -2086,8 +2084,8 @@ deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
 
 void
 queue_log_metrics(struct host_q *hq_schedule) {
-    char           filename[ MAXPATHLEN ];
-    char           linkname[ MAXPATHLEN ];
+    yastr          linkname = NULL;
+    yastr          filename = NULL;
     int            fd;
     FILE *         f;
     struct host_q *hq;
@@ -2098,18 +2096,20 @@ queue_log_metrics(struct host_q *hq_schedule) {
         return;
     }
 
-    sprintf(linkname, "%s/etc/queue_schedule",
-            simta_config_str("core.base_dir"));
-    sprintf(filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec);
+    linkname = yaslcat(
+            yaslauto(simta_config_str("core.base_dir")), "/etc/queue_schedule");
+    filename = yaslcatprintf(
+            yasldup(linkname), "%lX", (unsigned long)tv_now.tv_sec);
 
     if ((fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664)) < 0) {
         syslog(LOG_ERR, "Syserror: queue_log_metrics open: %m");
-        return;
+        goto error;
     }
 
     if ((f = fdopen(fd, "w")) == NULL) {
         syslog(LOG_ERR, "Syserror: queue_log_metrics fdopen: %m");
-        return;
+        close(fd);
+        goto error;
     }
 
     fprintf(f, "Disk Read:\t%d\n\n", simta_disk_cycle);
@@ -2134,6 +2134,10 @@ queue_log_metrics(struct host_q *hq_schedule) {
     } else if (link(filename, linkname) != 0) {
         syslog(LOG_ERR, "Syserror: queue_log_metrics link: %m");
     }
+
+error:
+    yaslfree(linkname);
+    yaslfree(filename);
 
     return;
 }

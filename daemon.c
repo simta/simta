@@ -1784,8 +1784,8 @@ error:
 
 void
 env_log_metrics(struct dll_entry *dll_head) {
-    char              filename[ MAXPATHLEN ];
-    char              linkname[ MAXPATHLEN ];
+    yastr             linkname = NULL;
+    yastr             filename = NULL;
     int               fd;
     FILE *            f;
     struct dll_entry *dll;
@@ -1797,18 +1797,21 @@ env_log_metrics(struct dll_entry *dll_head) {
         return;
     }
 
-    sprintf(linkname, "%s/etc/mid_list", simta_config_str("core.base_dir"));
-    sprintf(filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec);
+    linkname = yaslcat(
+            yaslauto(simta_config_str("core.base_dir")), "/etc/mid_list");
+    filename = yaslcatprintf(
+            yasldup(linkname), "%lX", (unsigned long)tv_now.tv_sec);
 
     if ((fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664)) < 0) {
         syslog(LOG_WARNING, "Syserror: env_log_metrics open %s: %m", filename);
-        return;
+        goto error;
     }
 
     if ((f = fdopen(fd, "w")) == NULL) {
         syslog(LOG_WARNING, "Syserror: env_log_metrics fdopen %s: %m",
                 filename);
-        return;
+        close(fd);
+        goto error;
     }
 
     fprintf(f, "MID List:\n\n");
@@ -1828,13 +1831,17 @@ env_log_metrics(struct dll_entry *dll_head) {
                 filename, linkname);
     }
 
+error:
+    yaslfree(linkname);
+    yaslfree(filename);
+
     return;
 }
 
 void
 sender_log_metrics(struct dll_entry *dll_head) {
-    char                filename[ MAXPATHLEN ];
-    char                linkname[ MAXPATHLEN ];
+    yastr               linkname = NULL;
+    yastr               filename = NULL;
     int                 fd;
     FILE *              f;
     struct dll_entry *  dll;
@@ -1846,19 +1853,22 @@ sender_log_metrics(struct dll_entry *dll_head) {
         return;
     }
 
-    sprintf(linkname, "%s/etc/sender_list", simta_config_str("core.base_dir"));
-    sprintf(filename, "%s.%lX", linkname, (unsigned long)tv_now.tv_sec);
+    linkname = yaslcat(
+            yaslauto(simta_config_str("core.base_dir")), "/etc/sender_list");
+    filename = yaslcatprintf(
+            yasldup(linkname), "%lX", (unsigned long)tv_now.tv_sec);
 
     if ((fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664)) < 0) {
         syslog(LOG_WARNING, "Syserror: sender_log_metrics open %s: %m",
                 filename);
-        return;
+        goto error;
     }
 
     if ((f = fdopen(fd, "w")) == NULL) {
         syslog(LOG_WARNING, "Syserror: sender_log_metrics fdopen %s: %m",
                 filename);
-        return;
+        close(fd);
+        goto error;
     }
 
     fprintf(f, "Sender List:\n\n");
@@ -1877,6 +1887,10 @@ sender_log_metrics(struct dll_entry *dll_head) {
         syslog(LOG_WARNING, "Syserror: sender_log_metrics link %s %s: %m",
                 filename, linkname);
     }
+
+error:
+    yaslfree(linkname);
+    yaslfree(filename);
 
     return;
 }
