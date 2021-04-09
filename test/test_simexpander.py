@@ -118,6 +118,11 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                                 'type': 'user',
                             },
                             {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s %25%25 %25h',
+                                'rdnpref': True,
+                                'type': 'all',
+                            },
+                            {
                                 'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
                                 'rdnpref': True,
                                 'type': 'all',
@@ -314,8 +319,21 @@ def test_expand_ldap_subaddress_nonexist(run_simexpander, req_ldapserver):
     assert_nonexist(run_simexpander('testuser_foo@alias.example.com'))
 
 
-def test_expand_ldap_group(run_simexpander, req_ldapserver):
-    res = run_simexpander('testgroup@ldap.example.com')
+@pytest.mark.parametrize('target', [
+    'testgroup@ldap.example.com',
+    'testgroup.alias@ldap.example.com',
+    'testgroup_alias@ldap.example.com',
+    'testgroup.*.!#$%&-/=?^_`{|}~\'+@ldap.example.com',
+    '"testgroup alias"@ldap.example.com',
+    '"testgroup.alias"@ldap.example.com',
+    '"testgroup_alias"@ldap.example.com',
+    '"testgroup"@ldap.example.com',
+    '"testgroup\\ alias"@ldap.example.com',
+    '"testgroup(*)"@ldap.example.com',
+    '"testgroup * (!#$%&-/=?^_`{|}~\'+)"@ldap.example.com',
+])
+def test_expand_ldap_group(run_simexpander, req_ldapserver, target):
+    res = run_simexpander(target)
     assert len(res['parsed']) == 1
     assert res['parsed'][0]['recipients'] == [ 'testuser@forwarded.example.com' ]
     assert res['parsed'][0]['sender'] == 'testgroup-errors@ldap.example.com'
@@ -452,8 +470,15 @@ def test_expand_ldap_group_moderated_membersonly(run_simexpander, req_ldapserver
     assert not any('Members only group conditions not met: ' in line for line in res['unparsed'])
 
 
+def test_expand_ldap_group_moderated_badmoderator(run_simexpander, req_ldapserver):
+    res = run_simexpander(['bad.moderated.group@ldap.example.com'])
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['bad.moderated.group-errors@ldap.example.com']
+    assert res['parsed'][0]['sender'] == ''
+    assert any('bad moderator' in line for line in res['unparsed'])
+
+
 #test_expand_ldap_group_moderated_membersonly_permitted
-#test_expand_ldap_group_moderated_badmoderator (unparsable address, somehow?)
 #test_expand_ldap_group_moderated_modloop
 #test_expand_ldap_group_moderated_subgroup
 #test_expand_ldap_group_moderated_nopermitsub
@@ -486,19 +511,16 @@ def test_expand_ldap_group_member_nomfa_suppress(run_simexpander, req_ldapserver
     assert res['parsed'] == []
 
 
-@pytest.mark.parametrize('target',
-    [
-        '"testgroup alias"@ldap.example.com',
-        '"testgroup.alias"@ldap.example.com',
-        '"testgroup"@ldap.example.com',
-        '"testgroup\\ alias"@ldap.example.com',
-    ]
-)
-def test_expand_ldap_quotedlocalpart(run_simexpander, req_ldapserver, target):
+@pytest.mark.parametrize('target', [
+    'flowerysong@ldap.example.com',
+    'gnosyrewolf@ldap.example.com',
+])
+def test_expand_ldap_nomfa(run_simexpander, req_ldapserver, target):
     res = run_simexpander(target)
     assert len(res['parsed']) == 1
-    assert res['parsed'][0]['recipients'] == [ 'testuser@forwarded.example.com' ]
-    assert res['parsed'][0]['sender'] == 'testgroup-errors@ldap.example.com'
+    assert res['parsed'][0]['recipients'] == [ 'sender@expansion.test' ]
+    assert res['parsed'][0]['sender'] == ''
+    assert "User has no email address registered" in ''.join(res['unparsed'])
 
 
 def test_expand_ldap_ambiguous(run_simexpander, req_ldapserver):
@@ -519,6 +541,12 @@ def test_expand_ldap_precedence(run_simexpander, req_ldapserver, target):
     res = run_simexpander(target)
     assert len(res['parsed']) == 1
     assert res['parsed'][0]['recipients'] == [ 'shadowuser@forwarded.example.com' ]
+
+
+def test_expand_ldap_weird_rule(run_simexpander, req_ldapserver):
+    res = run_simexpander('shadowish@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['simexpand@forwarded.example.com']
 
 
 def test_expand_ldap_danglingref(run_simexpander, req_ldapserver):

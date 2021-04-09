@@ -590,9 +590,11 @@ simta_ldap_string(char *filter, char *user, char *domain) {
                     case '(':
                     case ')':
                     case '*':
-                        buf = yaslcatlen(buf, "\\", 1);
-                        /* Fall through */
-
+                    case '\\':
+                        /* Filter metacharacters are escaped as hex */
+                        buf = yaslcatprintf(
+                                buf, "\\%02x", (unsigned char)*insert);
+                        break;
                     default:
                         buf = yaslcatlen(buf, insert, 1);
                     }
@@ -780,18 +782,16 @@ do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
                     NULL)) {
         if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR, "\t",
                     "No title or description registered", NULL) != 0) {
-            return;
+            goto error;
         }
 
     } else {
         for (int i = 0; vals[ i ]; i++) {
             yaslclear(buf);
-            yaslcatlen(buf, "\t", 1);
-            yaslcatlen(buf, vals[ i ]->bv_val, vals[ i ]->bv_len);
+            buf = yaslcatlen(buf, "\t", 1);
+            buf = yaslcatlen(buf, vals[ i ]->bv_val, vals[ i ]->bv_len);
             if (bounce_yastr(e_addr->e_addr_errors, TEXT_ERROR, buf) != 0) {
-                yaslfree(buf);
-                ldap_value_free_len(vals);
-                return;
+                goto error;
             }
         }
         ldap_value_free_len(vals);
@@ -802,8 +802,7 @@ do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
             NULL) {
         if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR, "\t",
                     "No postaladdress registered", NULL) != 0) {
-            ldap_value_free_len(vals);
-            return;
+            goto error;
         }
 
     } else {
@@ -815,8 +814,7 @@ do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
             buf = yaslcatyasl(buf, split[ i ]);
             if (bounce_yastr(e_addr->e_addr_errors, TEXT_ERROR, buf) != 0) {
                 yaslfreesplitres(split, tok_count);
-                ldap_value_free_len(vals);
-                return;
+                goto error;
             }
         }
 
@@ -829,8 +827,7 @@ do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
             NULL) {
         if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR, "\t",
                     "No phone number registered", NULL) != 0) {
-            ldap_value_free_len(vals);
-            return;
+            goto error;
         }
 
     } else {
@@ -839,14 +836,19 @@ do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
             buf = yaslcatlen(buf, "\t", 1);
             buf = yaslcatlen(buf, vals[ i ]->bv_val, vals[ i ]->bv_len);
             if (bounce_yastr(e_addr->e_addr_errors, TEXT_ERROR, buf) != 0) {
-                yaslfree(buf);
-                ldap_value_free_len(vals);
-                return;
+                goto error;
             }
         }
         ldap_value_free_len(vals);
+        vals = NULL;
     }
 
+
+error:
+    if (vals != NULL) {
+        ldap_value_free_len(vals);
+    }
+    yaslfree(buf);
     return;
 }
 

@@ -22,6 +22,19 @@ cn: a flowery song
 sn: marwnad
 mail: flowerysong@example.com
 uid: flowerysong
+title: Dogsbody
+title: Baldrick
+postaladdress: Information and Technology Services $ 4251 Plymouth Rd AL Bldg
+ 3 Rm 2320 $ Ann Arbor MI 48105-3640
+telephonenumber: 734-555-1234
+objectClass: umichPerson
+entityID: 1
+
+dn: uid=gnosyrewolf,ou=People,dc=example,dc=com
+cn: gnosyrewolf
+sn: marwnad
+mail: gnosyrewolf@example.com
+uid: gnosyrewolf
 objectClass: umichPerson
 entityID: 1
 
@@ -49,6 +62,7 @@ cn: Eunice Q Jones
 sn: Jones
 mail: eunicej@example.com
 uid: eunicej
+title: SVP
 objectClass: umichPerson
 entityID: 90001
 
@@ -106,6 +120,9 @@ entityID: 9001
 dn: cn=testgroup,ou=Groups,dc=example,dc=com
 cn: testgroup
 cn: testgroup alias
+cn: testgroup(*)
+cn: testgroup * !#$%&-/=?^ `{|}~'+
+cn: testgroup * (!#$%&-/=?^ `{|}~'+)
 member: uid=testuser,ou=People,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
@@ -202,6 +219,12 @@ owner: uid=flowerysong,ou=People,dc=example,dc=com
 moderator: simexpand@ldap.example.com
 membersonly: TRUE
 
+dn: cn=bad moderated group,ou=Groups,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+moderator: invalid
+
 dn: cn=vacation group,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com
@@ -231,8 +254,15 @@ objectClass: umichPerson
 entityID: 9001
 onVacation: FALSE
 
+dn: cn=shadowish % ldap.example.com,ou=Groups,dc=example,dc=com
+cn: shadowish % ldap.example.com
+member: uid=simexpand,ou=People,dc=example,dc=com
+owner: uid=simexpand,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+
 dn: cn=shadow,ou=Groups,dc=example,dc=com
 cn: shadowed alias
+cn: shadowish
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
 
