@@ -95,6 +95,7 @@ AX_WITH_LIBRARY([lmdb], [LMDB], [lmdb.h], [lmdb])
 AM_CONDITIONAL(BUILD_CMOCKA, [test x"$with_cmocka" = xyes])
 AM_CONDITIONAL(BUILD_LDAP, [test x"$ax_cv_have_LDAP" = xyes])
 AM_CONDITIONAL(BUILD_LMDB, [test x"$ax_cv_have_LMDB" = xyes])
+AM_CONDITIONAL(BUILD_SASL, [test x"$with_sasl" != xno])
 AM_CONDITIONAL(BUILD_SSL, [test x"$with_ssl" != xno])
 AM_CONDITIONAL(CHOWN_FILES, [test "x$enable_chown" = "xyes"])
 

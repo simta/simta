@@ -494,6 +494,15 @@ simta_config_str(const char *key) {
     return ucl_object_tostring_forced(val);
 }
 
+yastr
+simta_config_yastr(const char *key) {
+    const ucl_object_t *val;
+    if ((val = simta_config_obj(key)) == NULL) {
+        return NULL;
+    }
+    return yaslauto(ucl_object_tostring_forced(val));
+}
+
 enum simta_charset
 simta_check_charset(const char *str) {
     const unsigned char *c;

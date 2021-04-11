@@ -1403,7 +1403,6 @@ f_data(struct receive_data *r) {
     int                     calculate_timers = 1;
     int                     banner = 0;
     int                     dfile_fd = -1;
-    int                     i;
     int                     ret_code = RECEIVE_SYSERROR;
     int                     rc;
     int                     header_only = 0;
@@ -1447,9 +1446,14 @@ f_data(struct receive_data *r) {
     ARC_STAT             arc_result = ARC_STAT_INTERNAL;
     ARC_HDRFIELD *       arc_seal = NULL;
     yastr                arc_key = NULL;
-    const unsigned char *arc_err;
+    const char *         arc_err;
+    const unsigned char *arc_err_unsigned;
+    yastr                arc_authservid = NULL;
+    yastr                arc_selector = NULL;
+    yastr                arc_domain = NULL;
 #endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
+    int            i;
     DKIM *         dkim = NULL;
     DKIM_STAT      dkim_result;
     DKIM_SIGINFO **dkim_sigs;
@@ -1572,8 +1576,10 @@ f_data(struct receive_data *r) {
         if (simta_config_bool("receive.arc.enabled")) {
             if ((arc = arc_message(r->r_arc, ARC_CANON_RELAXED,
                          ARC_CANON_RELAXED, ARC_SIGN_RSASHA256,
-                         ARC_MODE_SIGN | ARC_MODE_VERIFY, &arc_err)) == NULL) {
-                syslog(LOG_ERR, "Liberror: f_data arc_message: %s", arc_err);
+                         ARC_MODE_SIGN | ARC_MODE_VERIFY, &arc_err_unsigned)) ==
+                    NULL) {
+                syslog(LOG_ERR, "Liberror: f_data arc_message: %s",
+                        arc_err_unsigned);
             }
         }
 #endif /* HAVE_LIBOPENARC */
@@ -2243,16 +2249,21 @@ done:
                              simta_config_str("receive.arc.key"))) == NULL) {
                     goto error;
                 }
-                arc_result = arc_getseal(arc, &arc_seal,
-                        simta_config_str("receive.auth.results.domain"),
-                        simta_config_str("receive.arc.selector"),
-                        simta_config_str("receive.arc.domain"),
-                        (unsigned char *)arc_key, yasllen(arc_key),
-                        (unsigned char *)authresults);
+                /* FIXME: WTF, openarc? */
+                arc_authservid =
+                        simta_config_yastr("receive.auth.results.domain");
+                arc_selector = simta_config_yastr("receive.arc.selector");
+                arc_domain = simta_config_yastr("receive.arc.domain");
+                arc_result = arc_getseal(arc, &arc_seal, arc_authservid,
+                        arc_selector, arc_domain, (unsigned char *)arc_key,
+                        yasllen(arc_key), (unsigned char *)authresults);
                 simta_debuglog(1,
                         "Receive [%s] %s: env <%s>: ARC sign result: %d",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                         arc_result);
+                yaslfree(arc_authservid);
+                yaslfree(arc_selector);
+                yaslfree(arc_domain);
             }
 
             authresults_tmp = yaslempty();

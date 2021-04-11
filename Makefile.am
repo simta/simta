@@ -64,7 +64,6 @@ COMMON_FILES = \
 	red.c red.h \
 	simta.c simta.h \
 	simta_malloc.c simta_malloc.h \
-	simta_sasl.c simta_sasl.h \
 	simta_statsd.c simta_statsd.h \
 	simta_ucl.c simta_ucl.h \
 	smtp.c smtp.h \
@@ -79,6 +78,10 @@ endif
 
 if BUILD_LMDB
 COMMON_FILES += simta_lmdb.c simta_lmdb.h
+endif
+
+if BUILD_SASL
+COMMON_FILES += simta_sasl.c simta_sasl.h
 endif
 
 if BUILD_SSL

@@ -379,7 +379,9 @@ env_recipient(struct envelope *e, const char *addr) {
 int
 env_outfile(struct envelope *env) {
     yastr headers;
+#ifdef HAVE_LIBOPENDKIM
     yastr tmp;
+#endif /* HAVE_LIBOPENDKIM */
 
     headers = env->e_extra_headers;
     env->e_extra_headers = NULL;

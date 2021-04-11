@@ -6,15 +6,15 @@
 #include <config.h>
 
 #include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-
+#include <errno.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <syslog.h>
 
 #ifdef HAVE_LIBIDN2
