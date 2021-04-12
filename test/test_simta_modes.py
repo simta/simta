@@ -24,7 +24,7 @@ def test_mode_normal(smtp, testmsg):
 
 def test_mode_disabled(simta):
     with pytest.raises(smtplib.SMTPConnectError) as e:
-        smtp = smtplib.SMTP('localhost', simta['port'])
+        smtplib.SMTP('localhost', simta['port'])
     assert e.value.smtp_code == 554
 
 
@@ -89,7 +89,7 @@ def test_punishment_trigger_auth(smtp, testmsg):
     test_mode_tempfail(smtp)
 
 
-#FIXME: This is very unreliable
+# FIXME: This is very unreliable
 @pytest.mark.xfail(reason='flaky', strict=False)
 def test_punishment_trigger_nobanner(simta, testmsg):
     smtp = smtplib.SMTP('localhost', simta['port'])
@@ -112,6 +112,7 @@ def test_punishment_trigger_nobanner(simta, testmsg):
     assert time.time() - startts > 1
     assert time.time() - startts < 3
 
+
 def test_punishment_mode_disabled(smtp_nocleanup, testmsg):
     smtp = smtp_nocleanup
     send_test(smtp, testmsg)
@@ -120,6 +121,7 @@ def test_punishment_mode_disabled(smtp_nocleanup, testmsg):
     assert res[0] == 421
     with pytest.raises(smtplib.SMTPServerDisconnected):
         res = smtp.docmd('RCPT TO:<badrcpt@example.edu>')
+
 
 def test_punishment_mode_tarpit(smtp, testmsg):
     send_test(smtp, testmsg)

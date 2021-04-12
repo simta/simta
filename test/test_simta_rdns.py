@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 
-import smtplib
 import socket
-
-import pytest
 
 
 def bad_rdns(simta):
@@ -25,6 +22,6 @@ def test_rdns_relaxed(simta):
     assert response[:3] == b'220'
 
 
-#FIXME: this only actually tests something when dnsserver is disabled
+# FIXME: this only actually tests something when dnsserver is disabled
 def test_rdns_chillaxed(smtp):
     smtp.ehlo()

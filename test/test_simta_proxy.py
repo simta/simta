@@ -42,7 +42,7 @@ def test_proxy_badheader(simta):
 def test_proxy_timeout(simta):
     startts = time.time()
     with pytest.raises(smtplib.SMTPConnectError) as e:
-        smtp = smtplib.SMTP('localhost', simta['port'])
+        smtplib.SMTP('localhost', simta['port'])
     duration = time.time() - startts
     assert e.value.smtp_code == 421
     assert b'Local error in processing' in e.value.smtp_error

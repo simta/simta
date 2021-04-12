@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 
-import json
-import os
 import subprocess
-
-import pytest
 
 
 def test_config(simta_config, tool_path):
     # This just tests the schema of the embedded config
-    res = subprocess.run(
+    subprocess.run(
         [
             tool_path('simta'),
             '-f', simta_config,

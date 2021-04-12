@@ -3,11 +3,9 @@
 import errno
 import json
 import os
-import signal
 import smtplib
 import socket
 import subprocess
-import tempfile
 import time
 
 import pytest
@@ -71,12 +69,12 @@ def openport(port):
     # Find a usable port by iterating until there's an unconnectable port
     while True:
         try:
-            conn = socket.create_connection(('localhost', port), 0.1)
+            socket.create_connection(('localhost', port), 0.1)
             port += 1
             if port > 65535:
                 raise ValueError("exhausted TCP port range without finding a free one")
         except socket.error:
-            return( port )
+            return(port)
 
 
 @pytest.fixture(scope="session")
@@ -84,7 +82,7 @@ def dnsserver(tmp_path_factory):
     port = openport(10053)
 
     tmpdir = str(tmp_path_factory.mktemp('yadifa'))
-    for subdir in [ 'keys', 'log', 'xfr' ]:
+    for subdir in ['keys', 'log', 'xfr']:
         os.mkdir(os.path.join(tmpdir, subdir))
 
     conf = os.path.join(tmpdir, 'yadifad.conf')
@@ -182,13 +180,12 @@ def simta_config(request, tmp_path):
     includes = []
     base_path = os.path.join(request.fspath.dirname, 'files')
     for candidate in [
-        request.fspath.basename, # test file
-        request.function.__name__, # test function
+        request.fspath.basename,    # test file
+        request.function.__name__,  # test function
     ]:
         fname = os.path.join(base_path, '.'.join([candidate, 'conf']))
         if os.path.isfile(fname):
             includes.append(fname)
-
 
     config_file = os.path.join(str(tmp_path), 'simta.conf')
 
@@ -227,12 +224,12 @@ def simta_config(request, tmp_path):
 def simta(request, dnsserver, simta_config, tmp_path, tool_path):
     port = openport(10025)
 
-    for spool in [ 'command', 'dead', 'etc', 'fast', 'local', 'slow' ]:
+    for spool in ['command', 'dead', 'etc', 'fast', 'local', 'slow']:
         os.mkdir(os.path.join(str(tmp_path), spool))
 
     daemon_config = {}
     daemon_config['receive'] = {
-        'ports': [ port ],
+        'ports': [port],
     }
 
     if dnsserver['enabled']:
@@ -256,14 +253,14 @@ def simta(request, dnsserver, simta_config, tmp_path, tool_path):
     while not running:
         i += 1
         try:
-            conn = socket.create_connection(('localhost', port), 0.1)
+            socket.create_connection(('localhost', port), 0.1)
             running = True
         except socket.error:
             if i > 20:
                 raise
             time.sleep(0.1)
 
-    yield( { 'port': port, 'tmpdir': str(tmp_path) } )
+    yield({'port': port, 'tmpdir': str(tmp_path)})
 
     simta_proc.terminate()
 

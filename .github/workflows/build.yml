@@ -17,6 +17,18 @@ jobs:
           git diff
           git status --porcelain | grep -q '^ M' && exit 1 || exit 0
 
+  flake8:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Install flake8
+        run: sudo pip install flake8
+
+      - name: Lint Python code
+        run: flake8 --max-line-length=160
+
   check:
     runs-on: ubuntu-latest
     steps:

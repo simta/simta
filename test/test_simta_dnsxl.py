@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 
 import smtplib
-import time
 
 import pytest
 
+
 def test_dnsbl(simta, req_dnsserver):
     with pytest.raises(smtplib.SMTPConnectError) as e:
-        smtp = smtplib.SMTP('localhost', simta['port'])
+        smtplib.SMTP('localhost', simta['port'])
     assert e.value.smtp_code == 554
     assert b'Access denied for IP 127.0.0.1: i see you' in e.value.smtp_error
 
 
 def test_dnsbl_nomessage(simta, req_dnsserver):
     with pytest.raises(smtplib.SMTPConnectError) as e:
-        smtp = smtplib.SMTP('localhost', simta['port'])
+        smtplib.SMTP('localhost', simta['port'])
     assert e.value.smtp_code == 554
     assert b'Access denied for IP 127.0.0.1: default message' in e.value.smtp_error
 
