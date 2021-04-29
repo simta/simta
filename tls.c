@@ -590,9 +590,15 @@ tls_server_setup(int authlevel, const char *caFile, const char *caDir,
         goto error;
     }
 
-    /* Disable SSLv2 and SSLv3, prefer server cipher ordering */
+    /* Disable old protocols, prefer server cipher ordering */
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
+    SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+#else
     SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+                                         SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 |
                                          SSL_OP_CIPHER_SERVER_PREFERENCE);
+#endif /* OpenSSL 1.1.0 */
 
     if (ciphers == NULL) {
         SSL_CTX_set_cipher_list(ssl_ctx,
