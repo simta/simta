@@ -87,6 +87,17 @@ int deny_severity = LIBWRAP_DENY_FACILITY | LIBWRAP_DENY_SEVERITY;
 
 extern char *version;
 
+enum smtp_mode {
+    SMTP_MODE_NORMAL,
+    SMTP_MODE_DISABLED,
+    SMTP_MODE_REFUSE,
+    SMTP_MODE_UNAUTHENTICATED,
+    SMTP_MODE_INSECURE,
+    SMTP_MODE_GLOBAL_RELAY,
+    SMTP_MODE_TEMPFAIL,
+    SMTP_MODE_TARPIT,
+};
+
 struct receive_data {
     SNET *                  r_snet;
     struct envelope *       r_env;
@@ -112,7 +123,7 @@ struct receive_data {
     const char *            r_remote_hostname;
     struct command *        r_commands;
     int                     r_ncommands;
-    yastr                   r_smtp_mode;
+    enum smtp_mode          r_smtp_mode;
     const char *            r_auth_id;
     struct timeval          r_tv_inactivity;
     struct timeval          r_tv_session;
@@ -199,6 +210,8 @@ static int                  f_quit(struct receive_data *);
 static int                  f_help(struct receive_data *);
 static int                  f_not_implemented(struct receive_data *);
 static int                  f_bad_sequence(struct receive_data *);
+static int                  f_disabled(struct receive_data *);
+static int                  f_insecure(struct receive_data *);
 static int                  f_off(struct receive_data *);
 static void set_smtp_mode(struct receive_data *, const char *, const char *);
 static void tarpit_sleep(struct receive_data *);
@@ -270,37 +283,37 @@ static struct command tempfail_commands[] = {
 };
 
 static struct command insecure_commands[] = {
-        {"HELO", f_off},
-        {"EHLO", f_off},
-        {"MAIL", f_off},
-        {"RCPT", f_off},
-        {"DATA", f_off},
-        {"RSET", f_off},
-        {"NOOP", f_off},
+        {"HELO", f_insecure},
+        {"EHLO", f_insecure},
+        {"MAIL", f_insecure},
+        {"RCPT", f_insecure},
+        {"DATA", f_insecure},
+        {"RSET", f_insecure},
+        {"NOOP", f_insecure},
         {"QUIT", f_quit},
-        {"HELP", f_off},
-        {"VRFY", f_off},
-        {"EXPN", f_off},
+        {"HELP", f_insecure},
+        {"VRFY", f_insecure},
+        {"EXPN", f_insecure},
         {"STARTTLS", f_bad_sequence},
-        {"AUTH", f_off},
+        {"AUTH", f_insecure},
 };
 
 static struct command off_commands[] = {
-        {"HELO", f_off},
-        {"EHLO", f_off},
-        {"MAIL", f_off},
-        {"RCPT", f_off},
-        {"DATA", f_off},
-        {"RSET", f_off},
-        {"NOOP", f_off},
+        {"HELO", f_disabled},
+        {"EHLO", f_disabled},
+        {"MAIL", f_disabled},
+        {"RCPT", f_disabled},
+        {"DATA", f_disabled},
+        {"RSET", f_disabled},
+        {"NOOP", f_disabled},
         {"QUIT", f_quit},
-        {"HELP", f_off},
-        {"VRFY", f_off},
-        {"EXPN", f_off},
+        {"HELP", f_disabled},
+        {"VRFY", f_disabled},
+        {"EXPN", f_disabled},
 #ifdef HAVE_LIBSSL
-        {"STARTTLS", f_off},
+        {"STARTTLS", f_disabled},
 #endif /* HAVE_LIBSSL */
-        {"AUTH", f_off},
+        {"AUTH", f_disabled},
 };
 
 static struct command unauth_commands[] = {
@@ -324,43 +337,59 @@ static struct command unauth_commands[] = {
 
 static void
 set_smtp_mode(struct receive_data *r, const char *mode, const char *msg) {
-    /* Do initial setup if this is the first call */
-    if (r->r_commands == NULL) {
-        r->r_commands = smtp_commands;
-        r->r_ncommands = sizeof(smtp_commands) / sizeof(smtp_commands[ 0 ]);
+    enum smtp_mode new_mode = SMTP_MODE_DISABLED;
+
+    if (strcmp(mode, "global_relay") == 0) {
+        new_mode = SMTP_MODE_GLOBAL_RELAY;
+    } else if (strcmp(mode, "insecure") == 0) {
+        new_mode = SMTP_MODE_INSECURE;
+    } else if (strcmp(mode, "normal") == 0) {
+        new_mode = SMTP_MODE_NORMAL;
+    } else if (strcmp(mode, "refuse") == 0) {
+        new_mode = SMTP_MODE_REFUSE;
+    } else if (strcmp(mode, "tarpit") == 0) {
+        new_mode = SMTP_MODE_TARPIT;
+    } else if (strcmp(mode, "tempfail") == 0) {
+        new_mode = SMTP_MODE_TEMPFAIL;
+    } else if (strcmp(mode, "unauthenticated") == 0) {
+        new_mode = SMTP_MODE_UNAUTHENTICATED;
     }
+    r->r_smtp_mode = new_mode;
 
-    if (r->r_smtp_mode && strcmp(r->r_smtp_mode, mode) == 0) {
-        syslog(LOG_INFO, "Receive [%s] %s: SMTP mode %s: %s", r->r_ip,
-                r->r_remote_hostname, mode, msg);
-        return;
-    }
+    syslog(LOG_INFO, "Receive [%s] %s: SMTP mode %s: %s", r->r_ip,
+            r->r_remote_hostname, mode, msg);
 
-    syslog(LOG_NOTICE,
-            "Receive [%s] %s: "
-            "switching SMTP mode from %s to %s: %s",
-            r->r_ip, r->r_remote_hostname, r->r_smtp_mode, mode, msg);
-
-    yaslfree(r->r_smtp_mode);
-    r->r_smtp_mode = yaslauto(mode);
-
-    if (strcmp(mode, "disabled") == 0) {
+    switch (r->r_smtp_mode) {
+    case SMTP_MODE_DISABLED:
         r->r_commands = off_commands;
         r->r_ncommands = sizeof(off_commands) / sizeof(off_commands[ 0 ]);
-    } else if (strcmp(mode, "insecure") == 0) {
+        break;
+    case SMTP_MODE_INSECURE:
         r->r_commands = insecure_commands;
         r->r_ncommands =
                 sizeof(insecure_commands) / sizeof(insecure_commands[ 0 ]);
-    } else if (strcmp(mode, "tarpit") == 0) {
+        break;
+    case SMTP_MODE_TARPIT:
         r->r_commands = tarpit_commands;
         r->r_ncommands = sizeof(tarpit_commands) / sizeof(tarpit_commands[ 0 ]);
-    } else if (strcmp(mode, "tempfail") == 0) {
+        simta_ucl_toggle(
+                simta_config, "receive.data.content_filter", "enabled", false);
+        break;
+    case SMTP_MODE_TEMPFAIL:
         r->r_commands = tempfail_commands;
         r->r_ncommands =
                 sizeof(tempfail_commands) / sizeof(tempfail_commands[ 0 ]);
-    } else if (strcmp(mode, "unauthenticated") == 0) {
+        simta_ucl_toggle(
+                simta_config, "receive.data.content_filter", "enabled", false);
+        break;
+    case SMTP_MODE_UNAUTHENTICATED:
         r->r_commands = unauth_commands;
         r->r_ncommands = sizeof(unauth_commands) / sizeof(unauth_commands[ 0 ]);
+        break;
+    default:
+        r->r_commands = smtp_commands;
+        r->r_ncommands = sizeof(smtp_commands) / sizeof(smtp_commands[ 0 ]);
+        break;
     }
 }
 
@@ -493,8 +522,8 @@ static void
 tarpit_sleep(struct receive_data *r) {
     struct timespec t;
 
-    if ((strcmp(r->r_smtp_mode, "tarpit") != 0) &&
-            (strcmp(r->r_smtp_mode, "tempfail") != 0)) {
+    if (r->r_smtp_mode != SMTP_MODE_TARPIT &&
+            r->r_smtp_mode != SMTP_MODE_TEMPFAIL) {
         return;
     }
 
@@ -1223,7 +1252,7 @@ f_rcpt(struct receive_data *r) {
      */
 
 
-    if (domain && (strcmp(r->r_smtp_mode, "normal") == 0)) {
+    if (domain && (r->r_smtp_mode == SMTP_MODE_NORMAL)) {
         /*
          * Here we do an initial lookup in our domain table.  This is
          * our best opportunity to decline recipients that are not
@@ -1257,7 +1286,7 @@ f_rcpt(struct receive_data *r) {
 
         if (((red = red_host_lookup(domain, false)) == NULL) ||
                 (!red_does_expansion(red))) {
-            if (strcmp(r->r_smtp_mode, "normal") == 0) {
+            if (r->r_smtp_mode == SMTP_MODE_NORMAL) {
                 syslog(LOG_INFO,
                         "Receive [%s] %s: env <%s>: "
                         "To <%s> From <%s>: Failed: Domain not local",
@@ -1492,8 +1521,8 @@ f_data(struct receive_data *r) {
         return (f_bad_sequence(r));
     }
 
-    if ((strcmp(r->r_smtp_mode, "tempfail") == 0) ||
-            (strcmp(r->r_smtp_mode, "tarpit") == 0)) {
+    if ((r->r_smtp_mode == SMTP_MODE_TEMPFAIL) ||
+            (r->r_smtp_mode == SMTP_MODE_TARPIT)) {
         /* Read the data and discard it */
         read_err = PROTOCOL_ERROR;
     } else {
@@ -2354,8 +2383,8 @@ done:
         failure_message = filter_message;
     } else if (system_message) {
         failure_message = system_message;
-    } else if ((strcmp(r->r_smtp_mode, "tarpit") == 0) ||
-               (strcmp(r->r_smtp_mode, "tempfail") == 0)) {
+    } else if ((r->r_smtp_mode == SMTP_MODE_TEMPFAIL) ||
+               (r->r_smtp_mode == SMTP_MODE_TARPIT)) {
         failure_message = NULL;
     } else if (simta_data_url) {
         failure_message = simta_data_url;
@@ -2596,19 +2625,20 @@ f_bad_sequence(struct receive_data *r) {
 
 
 static int
-f_off(struct receive_data *r) {
-    simta_debuglog(1, "Receive [%s] %s: SMTP mode %s: %s", r->r_ip,
-            r->r_remote_hostname, r->r_smtp_mode, r->r_smtp_command);
-
+f_disabled(struct receive_data *r) {
     tarpit_sleep(r);
-    if (strcmp(r->r_smtp_mode, "unauthenticated") == 0) {
-        return (smtp_write_banner(r, 451, S_451_DECLINE, NULL));
-    } else if (strcmp(r->r_smtp_mode, "insecure") == 0) {
-        return (smtp_write_banner(
-                r, 554, "Refused due to lack of security", NULL));
-    } else if (strcmp(r->r_smtp_mode, "disabled") == 0) {
-        return (smtp_write_banner(r, 421, S_421_DECLINE, NULL));
-    }
+
+    return smtp_write_banner(r, 421, S_421_DECLINE, NULL);
+}
+
+static int
+f_insecure(struct receive_data *r) {
+    return smtp_write_banner(r, 554, "Refused due to lack of security", NULL);
+}
+
+static int
+f_off(struct receive_data *r) {
+    tarpit_sleep(r);
 
     return (smtp_write_banner(r, 451, S_451_DECLINE, NULL));
 }
@@ -3082,7 +3112,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         goto closeconnection;
     }
 
-    if (strcmp(r.r_smtp_mode, "disabled") == 0) {
+    if (r.r_smtp_mode == SMTP_MODE_DISABLED) {
         /* RFC 5321 3.1 Session Initiation
          * The SMTP protocol allows a server to formally reject a transaction
          * while still allowing the initial connection as follows: a 554
@@ -3259,7 +3289,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         simta_debuglog(3, "Connect.in [%s] %s: sending banner", r.r_ip,
                 r.r_remote_hostname);
 
-        if (strcmp(r.r_smtp_mode, "refuse") == 0) {
+        if (r.r_smtp_mode == SMTP_MODE_REFUSE) {
             if (snet_writef(r.r_snet, "554 <%s> %s %s: %s\r\n", simta_hostname,
                         S_DENIED, r.r_ip,
                         r.r_dnsl_result ? (r.r_dnsl_result)->dnsl_reason
@@ -3430,8 +3460,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         }
 
         if ((r.r_ac == 0) || (i >= r.r_ncommands)) {
-            if (strcmp(r.r_smtp_mode, "disabled") == 0) {
-                f_off(&r);
+            if (r.r_smtp_mode == SMTP_MODE_DISABLED) {
+                f_disabled(&r);
                 goto closeconnection;
             }
 
@@ -3483,7 +3513,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             goto syserror;
         }
 
-        if ((strcmp(r.r_smtp_mode, "normal") == 0) &&
+        if ((r.r_smtp_mode == SMTP_MODE_NORMAL) &&
                 ((r.r_dnsl_result == NULL) ||
                         (strcmp((r.r_dnsl_result)->dnsl_action, "trust") !=
                                 0))) {
@@ -4101,11 +4131,6 @@ content_filter(
     int retval = MESSAGE_ACCEPT;
 
     if (!simta_config_bool("receive.data.content_filter.enabled")) {
-        return (MESSAGE_ACCEPT);
-    }
-
-    if ((strcmp(r->r_smtp_mode, "tarpit") == 0) ||
-            (strcmp(r->r_smtp_mode, "tempfail") == 0)) {
         return (MESSAGE_ACCEPT);
     }
 
