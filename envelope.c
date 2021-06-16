@@ -97,6 +97,7 @@ int
 env_is_old(struct envelope *env, int dfile_fd) {
     struct timeval tv_now;
     struct stat    sb;
+    int            bounce_seconds;
 
     if (env->e_age == ENV_AGE_UNKNOWN) {
         if (fstat(dfile_fd, &sb) != 0) {
@@ -109,8 +110,9 @@ env_is_old(struct envelope *env, int dfile_fd) {
             return (0);
         }
 
-        if (simta_bounce_seconds > 0) {
-            if ((tv_now.tv_sec - sb.st_mtime) > (simta_bounce_seconds)) {
+        bounce_seconds = simta_config_int("deliver.queue.bounce");
+        if (bounce_seconds > 0) {
+            if ((tv_now.tv_sec - sb.st_mtime) >= bounce_seconds) {
                 env->e_age = ENV_AGE_OLD;
             } else {
                 env->e_age = ENV_AGE_NOT_OLD;
