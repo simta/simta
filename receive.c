@@ -1629,19 +1629,6 @@ f_data(struct receive_data *r) {
             goto error;
         }
 
-        if (simta_smtp_rcvbuf_min != 0) {
-            if (setsockopt(snet_fd(r->r_snet), SOL_SOCKET, SO_RCVBUF,
-                        (void *)&simta_smtp_rcvbuf_max, sizeof(int)) < 0) {
-                syslog(LOG_ERR, "Syserror: f_data setsockopt: %m");
-                goto error;
-            }
-            simta_debuglog(1,
-                    "Receive [%s] %s: env <%s>: "
-                    "TCP window increased from %d to %d",
-                    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                    simta_smtp_rcvbuf_min, simta_smtp_rcvbuf_max);
-        }
-
         /*
          * At this point, we must have decided what we'll put in the Received:
          * header, since that is the first line in the file.  This is where

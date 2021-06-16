@@ -94,7 +94,6 @@ int                  simta_sigaction_reset(int);
 int                  simta_server(bool);
 int                  simta_daemonize_server(void);
 int                  simta_child_receive(struct simta_socket *);
-int                  set_rcvbuf(int);
 struct simta_socket *simta_listen_port(const char *);
 int                  simta_listen(void);
 struct proc_type *   simta_proc_add(int, int);
@@ -135,28 +134,6 @@ chld(int sig) {
     return;
 }
 
-
-int
-set_rcvbuf(int s) {
-    socklen_t len;
-
-    if (simta_smtp_rcvbuf_max == 0) {
-        len = sizeof(simta_smtp_rcvbuf_max);
-        if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, &simta_smtp_rcvbuf_max, &len) <
-                0) {
-            syslog(LOG_ERR, "Syserror: set_rcvbuf getsockopt: %m");
-            return (1);
-        }
-    }
-
-    if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (void *)&simta_smtp_rcvbuf_min,
-                sizeof(int)) < 0) {
-        syslog(LOG_ERR, "Syserror: set_rcvbuf setsockopt: %m");
-        return (1);
-    }
-
-    return (0);
-}
 
 int
 simta_listen(void) {
@@ -274,12 +251,6 @@ simta_listen_port(const char *port) {
                     service);
             perror("setsockopt");
             return (NULL);
-        }
-
-        if (simta_smtp_rcvbuf_min != 0) {
-            if (set_rcvbuf(ss->ss_socket) != 0) {
-                return (NULL);
-            }
         }
 
         if (bind(ss->ss_socket, ai->ai_addr, ai->ai_addrlen) < 0) {

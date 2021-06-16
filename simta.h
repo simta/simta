@@ -142,8 +142,6 @@ extern struct proc_type *   simta_proc_stab;
 extern int                  simta_aggressive_expansion;
 extern int                  simta_aggressive_receipt_max;
 extern int                  simta_punt_policy;
-extern int                  simta_smtp_rcvbuf_min;
-extern int                  simta_smtp_rcvbuf_max;
 extern int                  simta_leaky_queue;
 extern int                  simta_listen_backlog;
 extern int                  simta_disk_cycle;
