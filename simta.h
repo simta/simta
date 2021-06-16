@@ -172,7 +172,6 @@ extern int                  simta_exp_level_max;
 extern enum simta_proc_type simta_process_type;
 extern int                  simta_umich_imap_letters;
 extern int                  simta_filesystem_cleanup;
-extern int                  simta_sync;
 extern int                  simta_message_count;
 extern int                  simta_max_received_headers;
 extern int                  simta_max_bounce_size;

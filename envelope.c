@@ -777,14 +777,12 @@ env_efile(struct envelope *e) {
 
     e->e_etime.tv_sec = tv_now.tv_sec;
 
-    if (simta_sync) {
-        env_fsync(ef);
-        env_fsync(df);
-        /* fsync() does not ensure that the directory entries for the files
-         * have been synced, so we must explicitly sync the directory.
-         */
-        env_fsync(e->e_dir);
-    }
+    env_fsync(ef);
+    env_fsync(df);
+    /* fsync() does not ensure that the directory entries for the files
+     * have been synced, so we must explicitly sync the directory.
+     */
+    env_fsync(e->e_dir);
 
     if ((e_dll = dll_lookup_or_create(&simta_env_list, e->e_id)) == NULL) {
         return (1);
