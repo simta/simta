@@ -883,7 +883,7 @@ simta_server(bool daemon) {
                     goto error;
                 }
                 if (slow_dirp.sd_dirp == NULL) {
-                    tv_disk.tv_sec = tv_now.tv_sec + simta_min_work_time;
+                    tv_disk.tv_sec = tv_now.tv_sec + 60;
                     simta_debuglog(2, "Daemon: finished slow queue read");
                     break;
                 }
@@ -902,7 +902,7 @@ simta_server(bool daemon) {
         if ((simta_unexpanded_q != NULL) &&
                 (simta_unexpanded_q->hq_env_head != NULL)) {
             if (tv_now.tv_sec >= tv_unexpanded.tv_sec) {
-                tv_unexpanded.tv_sec = simta_unexpanded_time + tv_now.tv_sec;
+                tv_unexpanded.tv_sec = tv_now.tv_sec + 60;
                 simta_debuglog(2, "Daemon: launching unexpanded queue runner");
                 if (simta_child_q_runner(simta_unexpanded_q) != 0) {
                     goto error;

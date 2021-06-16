@@ -149,8 +149,6 @@ extern int                  simta_leaky_queue;
 extern int                  simta_listen_backlog;
 extern int                  simta_disk_cycle;
 extern int                  simta_launch_limit;
-extern int                  simta_min_work_time;
-extern int                  simta_unexpanded_time;
 extern int                  simta_global_connections_max;
 extern int                  simta_global_connections;
 extern int                  simta_global_throttle_max;
