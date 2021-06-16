@@ -8,9 +8,6 @@ AC_CONFIG_HEADER(config.h)
 AC_COPYRIGHT([Copyright (c) 1998-2019 Regents of The University of Michigan])
 
 # Set up local variables
-AC_ARG_WITH(aliasdb, AC_HELP_STRING([--with-aliasdb=DB], [default alias db]), [], with_aliasdb="/etc/alias.db" )
-AC_DEFINE_UNQUOTED(SIMTA_ALIAS_DB, ["$with_aliasdb"], [default alias db location])
-
 AC_ARG_WITH(logfacility, AC_HELP_STRING([--with-logfacility=facility], [syslog facility]), [], with_logfacility="LOG_MAIL")
 AC_DEFINE_UNQUOTED(LOG_SIMTA, [$with_logfacility], [syslog facility])
 

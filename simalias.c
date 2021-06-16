@@ -45,7 +45,7 @@
 const char *simta_progname = "simalias";
 
 static int simalias_dump(const char *);
-static int simalias_create(const char *, const char *);
+static int simalias_create(const char *);
 
 static int   verbose = 0;
 static char *progname;
@@ -56,13 +56,12 @@ main(int argc, char **argv) {
     bool                dump = false;
     extern char *       optarg;
     yastr               input = NULL;
-    char *              output = NULL;
     const char *        fname;
     const char *        conf_file = NULL;
     const char *        extra_conf = NULL;
-    struct dll_entry *  processed = NULL;
     const ucl_object_t *domain = NULL;
     const ucl_object_t *rule = NULL;
+    ucl_object_t *      processed = NULL;
     ucl_object_iter_t   i, j;
 
     if ((progname = strrchr(argv[ 0 ], '/')) == NULL) {
@@ -71,7 +70,7 @@ main(int argc, char **argv) {
         progname++;
     }
 
-    while ((c = getopt(argc, argv, "df:i:o:U:v")) != -1) {
+    while ((c = getopt(argc, argv, "df:i:U:v")) != -1) {
         switch (c) {
         case 'd':
             dump = true;
@@ -83,10 +82,6 @@ main(int argc, char **argv) {
 
         case 'i':
             input = optarg;
-            break;
-
-        case 'o':
-            output = optarg;
             break;
 
         case 'U':
@@ -104,9 +99,7 @@ main(int argc, char **argv) {
 
     if (err) {
         fprintf(stderr, "usage: %s ", progname);
-        fprintf(stderr,
-                "[ -d ] [ -f config_file ] [ -i input-file ] [ -o output-file "
-                "]");
+        fprintf(stderr, "[ -d ] [ -f config_file ] [ -i input-file ]");
         fprintf(stderr, "\n");
         exit(1);
     }
@@ -122,22 +115,18 @@ main(int argc, char **argv) {
 
     if (dump) {
         if (input == NULL) {
-            input = simta_default_alias_db;
+            fprintf(stderr, "no input file specified for dump\n");
+            exit(1);
         }
         exit(simalias_dump(input));
     }
 
     /* not dump */
-    if (input || output) {
-        if (input == NULL) {
-            input = simta_default_alias_file;
-        }
-        if (output == NULL) {
-            output = simta_default_alias_db;
-        }
-        exit(simalias_create(input, output));
+    if (input) {
+        exit(simalias_create(input));
     }
 
+    processed = ucl_object_new();
     i = ucl_object_iterate_new(simta_config_obj("domain"));
     while ((domain = ucl_object_iterate_safe(i, false)) != NULL) {
         j = ucl_object_iterate_new(ucl_object_lookup(domain, "rule"));
@@ -146,17 +135,11 @@ main(int argc, char **argv) {
                         "alias") == 0) {
                 fname = ucl_object_tostring(
                         ucl_object_lookup_path(rule, "alias.path"));
-                if (dll_lookup(processed, fname) == NULL) {
-                    if (strcmp(fname, simta_default_alias_db) == 0) {
-                        input = yaslauto(simta_default_alias_file);
-                    } else {
-                        input = yaslauto(fname);
-                        /* Trim off .db */
-                        yaslrange(input, 0, -4);
-                    }
-                    err += simalias_create(input, fname);
-                    dll_lookup_or_create(&processed, fname);
-                    yaslfree(input);
+                if (ucl_object_lookup(processed, fname) == NULL) {
+
+                    err += simalias_create(fname);
+                    ucl_object_insert_key(processed, ucl_object_frombool(true),
+                            fname, 0, true);
                 }
             }
         }
@@ -212,18 +195,20 @@ error:
 }
 
 static int
-simalias_create(const char *aliases, const char *db) {
+simalias_create(const char *aliases) {
     int   linenum = 0;
     int   count = 0;
     int   state = ALIAS_WHITE;
     char  rawline[ MAXPATHLEN ];
-    yastr line, key, value;
+    yastr db, line, key, value;
     char *p;
     FILE *finput;
 #ifdef HAVE_LMDB
     int               rc;
     struct simta_dbh *dbh = NULL;
 #endif /* HAVE_LMDB */
+
+    db = yaslcat(yaslauto(aliases), ".db");
 
     unlink(db);
 
@@ -413,6 +398,7 @@ simalias_create(const char *aliases, const char *db) {
     if (fclose(finput) != 0) {
         perror("fclose");
     }
+    yaslfree(db);
     yaslfree(line);
     yaslfree(key);
     yaslfree(value);

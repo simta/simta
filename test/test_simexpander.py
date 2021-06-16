@@ -42,7 +42,6 @@ group2: group@alias.example.com
 def expansion_config(simta_config, request, tmp_path, ldapserver):
     passwd_file = os.path.join(str(tmp_path), 'passwd')
     alias_file = os.path.join(str(tmp_path), 'alias')
-    alias_db = os.path.join(str(tmp_path), 'alias.db')
     with open(passwd_file, 'w') as f:
         f.write(PASSWD_CONTENTS.format(tmp_path=tmp_path))
 
@@ -80,7 +79,7 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
     config['defaults'] = {
         'red_rule': {
             'alias': {
-                'path': alias_db,
+                'path': alias_file,
             },
             'password': {
                 'path': passwd_file,

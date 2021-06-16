@@ -133,9 +133,6 @@ yastr simta_dir_command = NULL;
 yastr simta_hostname;
 char  simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
 DNSR *simta_dnsr = NULL;
-char *simta_default_alias_db = SIMTA_ALIAS_DB;
-char *simta_default_alias_file = "/etc/aliases";
-char *simta_default_passwd_file = "/etc/passwd";
 #ifdef HAVE_LIBSSL
 char *simta_tls_ciphers = NULL;
 char *simta_tls_ciphers_outbound = NULL;

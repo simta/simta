@@ -636,6 +636,7 @@ int
 alias_expand(
         struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
     int               ret = ADDRESS_NOT_FOUND;
+    yastr             db_path = NULL;
     yastr             address = NULL;
     yastr             owner = NULL;
     yastr             owner_value = NULL;
@@ -643,11 +644,12 @@ alias_expand(
     char *            alias_addr;
     char *            paddr;
     const char *      subaddr_sep = NULL;
-    const char *      db_path;
     struct simta_dbc *dbcp = NULL, *owner_dbcp = NULL;
     struct simta_dbh *dbh = NULL;
 
-    db_path = ucl_object_tostring(ucl_object_lookup_path(rule, "alias.path"));
+    db_path = yaslauto(
+            ucl_object_tostring(ucl_object_lookup_path(rule, "alias.path")));
+    db_path = yaslcat(db_path, ".db");
 
     if (access(db_path, F_OK) != 0) {
         syslog(LOG_ERR, "Liberror: alias_expand access %s: %m", db_path);
@@ -792,6 +794,7 @@ alias_expand(
     }
 
 done:
+    yaslfree(db_path);
     yaslfree(address);
     yaslfree(owner);
     yaslfree(value);
