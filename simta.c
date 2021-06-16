@@ -66,7 +66,6 @@ struct host_q *      simta_unexpanded_q = NULL;
 struct host_q *      simta_punt_q = NULL;
 struct proc_type *   simta_proc_stab = NULL;
 ucl_object_t *       simta_config = NULL;
-int                  simta_jail_seconds = 14400;
 int                  simta_command_read_entries = 10;
 int                  simta_disk_read_entries = 10;
 int                  simta_aggressive_expansion = 1;

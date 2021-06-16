@@ -574,19 +574,19 @@ hq_deliver_push(
             }
         }
 
-        /* if we're a jail, does this queue have any active mail? */
     } else if ((strcasecmp(simta_config_str("receive.queue.strategy"),
                         "jail") == 0) &&
                (hq->hq_entries == hq->hq_jail_envs)) {
-        wait_last.tv_sec = simta_jail_seconds;
+        /* jail with no active mail */
+        wait_last.tv_sec = hq->hq_wait_min;
         if (hq->hq_last_launch.tv_sec == 0) {
-            next_launch.tv_sec = random() % simta_jail_seconds + tv_now->tv_sec;
+            next_launch.tv_sec = random() % hq->hq_wait_min + tv_now->tv_sec;
         } else {
-            next_launch.tv_sec = tv_now->tv_sec + simta_jail_seconds;
+            next_launch.tv_sec = tv_now->tv_sec + hq->hq_wait_min;
         }
 
-        /* have we never launched this queue? */
     } else if (hq->hq_wait_last.tv_sec == 0) {
+        /* new queue */
         wait_last.tv_sec = hq->hq_wait_min;
         if (strcasecmp(simta_config_str("receive.queue.strategy"), "fast") ==
                 0) {
@@ -595,7 +595,6 @@ hq_deliver_push(
             next_launch.tv_sec = tv_now->tv_sec;
         }
 
-        /* is the queue leaky? */
     } else if (hq->hq_leaky != 0) {
         hq->hq_leaky = 0;
         wait_last.tv_sec = hq->hq_wait_min;

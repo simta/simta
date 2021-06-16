@@ -166,7 +166,6 @@ extern int                  simta_q_runner_local_max;
 extern int                  simta_q_runner_slow;
 extern int                  simta_q_runner_slow_max;
 extern int                  simta_q_runner_receive_max;
-extern int                  simta_jail_seconds;
 extern int                  simta_exp_level_max;
 extern enum simta_proc_type simta_process_type;
 extern int                  simta_filesystem_cleanup;
