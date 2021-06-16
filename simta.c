@@ -90,7 +90,6 @@ int                  simta_exp_level_max = 5;
 enum simta_proc_type simta_process_type = PROCESS_DEFAULT;
 int                  simta_filesystem_cleanup = 0;
 int                  simta_smtp_extension = 0;
-int                  simta_max_received_headers = 100;
 int                  simta_max_bounce_size = 524288;
 int                  simta_message_count = 0;
 int                  simta_smtp_outbound_attempts = 0;

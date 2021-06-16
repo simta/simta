@@ -1955,7 +1955,9 @@ f_data(struct receive_data *r) {
         }
 
         if ((read_err == NO_ERROR) &&
-                (rh->r_received_count > simta_max_received_headers)) {
+                (rh->r_received_count >
+                        simta_config_int(
+                                "receive.data.limits.received_headers"))) {
             syslog(LOG_NOTICE,
                     "Receive [%s] %s: env <%s>: Message Failed: "
                     "Too many Received headers",
