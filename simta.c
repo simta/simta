@@ -104,13 +104,6 @@ int                  simta_message_count = 0;
 int                  simta_smtp_outbound_attempts = 0;
 int                  simta_smtp_outbound_delivered = 0;
 int                  simta_fast_files = 0;
-int                  simta_from_checking = 1;
-int                  simta_smtp_tarpit_default = 120;
-int                  simta_smtp_tarpit_connect = 0;
-int                  simta_smtp_tarpit_mail = 0;
-int                  simta_smtp_tarpit_rcpt = 0;
-int                  simta_smtp_tarpit_data = 0;
-int                  simta_smtp_tarpit_data_eof = 0;
 int                  simta_debug = 1;
 int                  simta_child_signal = 0;
 #ifdef HAVE_LIBSSL
