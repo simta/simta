@@ -140,8 +140,6 @@ extern struct host_q *      simta_punt_q;
 extern ucl_object_t *       simta_host_q;
 extern struct envelope *    simta_env_queue;
 extern struct proc_type *   simta_proc_stab;
-extern int                  simta_command_read_entries;
-extern int                  simta_disk_read_entries;
 extern int                  simta_aggressive_expansion;
 extern int                  simta_aggressive_receipt_max;
 extern int                  simta_punt_policy;

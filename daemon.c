@@ -865,8 +865,7 @@ simta_server(bool daemon) {
                     simta_debuglog(2, "Daemon.command: finished read");
                     break;
                 }
-                if ((simta_command_read_entries > 0) &&
-                        (entries >= simta_command_read_entries)) {
+                if (entries > 10) {
                     break;
                 }
             }
@@ -888,8 +887,7 @@ simta_server(bool daemon) {
                     simta_debuglog(2, "Daemon: finished slow queue read");
                     break;
                 }
-                if ((simta_disk_read_entries > 0) &&
-                        (entries >= simta_disk_read_entries)) {
+                if (entries > 10) {
                     break;
                 }
             }
