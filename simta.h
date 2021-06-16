@@ -32,7 +32,6 @@
 #define S_UNEXPANDED "unexpanded"
 #define S_UNKNOWN_HOST "Unknown host"
 
-#define SIMTA_LOG_ID_LEN 80
 #define SIMTA_EFILE_VERSION 5
 #define SIMTA_MAX_HOST_NAME_LEN 256
 
@@ -203,7 +202,6 @@ extern char *        simta_file_ca;
 extern char *        simta_dir_ca;
 extern char *        simta_file_cert;
 extern char *        simta_file_private_key;
-extern char          simta_log_id[];
 extern yastr         simta_postmaster;
 extern DNSR *        simta_dnsr;
 extern yastr         simta_seen_before_domain;
@@ -230,7 +228,7 @@ int64_t             simta_config_int(const char *);
 const char *        simta_config_str(const char *);
 yastr               simta_config_yastr(const char *);
 void                simta_dump_config(void);
-void                simta_openlog(int, int);
+void                simta_openlog(bool, int);
 void                simta_debuglog(int, const char *, ...);
 simta_result        simta_gettimeofday(struct timeval *);
 enum simta_charset  simta_check_charset(const char *);

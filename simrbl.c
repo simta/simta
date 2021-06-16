@@ -147,7 +147,7 @@ main(int argc, char *argv[]) {
     if (log) {
         /* call simta_gettimeofday() to initialize simta_tv_now */
         simta_gettimeofday(&tv_now);
-        simta_openlog(0, 0);
+        simta_openlog(false, 0);
     }
 
     if (ucl_array_size(config) == 0) {

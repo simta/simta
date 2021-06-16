@@ -109,7 +109,7 @@ main(int argc, char *argv[]) {
         exit(EX_TEMPFAIL);
     }
 
-    simta_openlog(0, 0);
+    simta_openlog(false, 0);
 
     if ((pid = getpid()) < 0) {
         syslog(LOG_ERR, "env_id getpid: %m");

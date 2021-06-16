@@ -175,7 +175,7 @@ main(int argc, char *argv[]) {
         exit(EX_TEMPFAIL);
     }
 
-    simta_openlog(0, 0);
+    simta_openlog(false, 0);
 
     uid = getuid();
     if ((passwd = getpwuid(uid)) == NULL) {

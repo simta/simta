@@ -75,7 +75,7 @@ main(int argc, char *argv[]) {
         exit(1);
     }
 
-    simta_openlog(0, LOG_PERROR);
+    simta_openlog(false, LOG_PERROR);
 
     hostname = argv[ optind ];
 

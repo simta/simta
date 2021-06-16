@@ -30,7 +30,7 @@ main(int ac, char *av[]) {
         exit(1);
     }
 
-    simta_openlog(0, LOG_PERROR);
+    simta_openlog(false, LOG_PERROR);
 
     dmarc_init(&d);
 

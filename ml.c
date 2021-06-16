@@ -69,7 +69,7 @@ deliver_binary(struct deliver *d) {
         return (EX_TEMPFAIL);
 
     case 0:
-        simta_openlog(1, 0);
+        simta_openlog(true, 0);
         /* use fd[ 0 ] to communicate with parent, parent uses fd[ 1 ] */
         if (close(fd[ 1 ]) < 0) {
             syslog(LOG_ERR, "Syserror: deliver_binary close: %m");

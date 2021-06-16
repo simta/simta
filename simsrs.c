@@ -49,13 +49,13 @@ main(int argc, char *argv[]) {
         exit(1);
     }
 
-    simta_openlog(0, LOG_PERROR);
+    simta_openlog(false, LOG_PERROR);
 
     if (simta_read_config(conf_file, extra_conf) < 0) {
         exit(1);
     }
 
-    simta_openlog(0, verbose ? LOG_PERROR : 0);
+    simta_openlog(false, verbose ? LOG_PERROR : 0);
 
     if ((p = strrchr(argv[ optind ], '@')) == NULL) {
         fprintf(stderr, "Bad address\n");

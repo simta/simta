@@ -125,7 +125,6 @@ yastr simta_dir_slow = NULL;
 yastr simta_dir_fast = NULL;
 yastr simta_dir_command = NULL;
 yastr simta_hostname;
-char  simta_log_id[ SIMTA_LOG_ID_LEN + 1 ] = "\0";
 DNSR *simta_dnsr = NULL;
 #ifdef HAVE_LIBSSL
 char *simta_tls_ciphers = NULL;
@@ -214,18 +213,21 @@ simta_gettimeofday(struct timeval *tv) {
 }
 
 void
-simta_openlog(int cl, int options) {
+simta_openlog(bool cl, int options) {
+    static yastr ident = NULL;
+
     if (cl) {
         closelog();
     }
 
+    if (ident) {
+        yaslfree(ident);
+    }
+
     simta_log_tv = simta_tv_now;
-
-    snprintf(simta_log_id, SIMTA_LOG_ID_LEN, "%s[%d.%ld]", simta_progname,
-            getpid(), simta_log_tv.tv_sec);
-
-    /* openlog now, as some support functions require it. */
-    openlog(simta_log_id, LOG_NOWAIT | options, LOG_SIMTA);
+    ident = yaslcatprintf(yaslauto(simta_progname), "[%d.%ld]", getpid(),
+            simta_log_tv.tv_sec);
+    openlog(ident, LOG_NOWAIT | options, LOG_SIMTA);
 
     return;
 }

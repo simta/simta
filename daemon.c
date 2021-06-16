@@ -419,7 +419,7 @@ main(int ac, char **av) {
         exit(SIMTA_EXIT_ERROR);
     }
 
-    simta_openlog(0, LOG_PERROR);
+    simta_openlog(false, LOG_PERROR);
 
     if (simta_read_config(config_fname, config_extra) < 0) {
         exit(SIMTA_EXIT_ERROR);
@@ -620,7 +620,7 @@ main(int ac, char **av) {
     }
 
     if (daemonize) {
-        simta_openlog(0, 0);
+        simta_openlog(false, 0);
     }
 
     /* catch SIGHUP */
@@ -679,7 +679,7 @@ simta_daemonize_server(void) {
     switch (pid = fork()) {
     case 0:
         /* Fall through */
-        simta_openlog(1, 0);
+        simta_openlog(true, 0);
         return (simta_server(true));
 
     case -1:
@@ -1099,7 +1099,7 @@ simta_wait_for_child(int child_type) {
         return (1);
 
     case 0:
-        simta_openlog(1, 0);
+        simta_openlog(true, 0);
         switch (child_type) {
         case PROCESS_CLEANUP:
             exit(q_cleanup());
@@ -1283,7 +1283,7 @@ simta_child_receive(struct simta_socket *ss) {
 
     switch (pid = fork()) {
     case 0:
-        simta_openlog(1, 0);
+        simta_openlog(true, 0);
         simta_process_type = PROCESS_RECEIVE;
         simta_host_q = NULL;
         if (simta_unexpanded_q != NULL) {
@@ -1351,7 +1351,7 @@ simta_child_q_runner(struct host_q *hq) {
 
     switch (pid = fork()) {
     case 0:
-        simta_openlog(1, 0);
+        simta_openlog(true, 0);
         simta_sigaction_reset(0);
         close(simta_pidfd);
         simta_host_q = NULL;
