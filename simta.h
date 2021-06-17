@@ -179,7 +179,6 @@ extern yastr         simta_dir_slow;
 extern yastr         simta_dir_dead;
 extern yastr         simta_dir_local;
 extern yastr         simta_dir_command;
-extern char *        simta_libwrap_url;
 extern yastr         simta_hostname;
 extern yastr         simta_punt_host;
 extern yastr         simta_jail_host;

@@ -3184,7 +3184,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         if (hosts_ctl("simta", ctl_hostname, r.r_ip, STRING_UNKNOWN) == 0) {
             syslog(LOG_INFO, "Connect.in [%s] %s: Failed: access denied",
                     r.r_ip, r.r_remote_hostname);
-            smtp_write_banner(&r, 421, S_421_DECLINE, simta_libwrap_url);
+            smtp_write_banner(&r, 421, S_421_DECLINE,
+                    simta_config_str("receive.connection.libwrap.message"));
             free(ctl_hostname);
             goto closeconnection;
         }

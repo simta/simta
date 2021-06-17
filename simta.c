@@ -103,7 +103,6 @@ int   simta_checksum_body = 1;
 #endif /* HAVE_LIBSSL */
 int   simta_max_message_size = 0;
 int   simta_outbound_connection_msg_max = 0;
-char *simta_libwrap_url = NULL;
 yastr simta_punt_host = NULL;
 yastr simta_jail_host = NULL;
 char *simta_jail_bounce_address = NULL;
