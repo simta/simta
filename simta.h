@@ -171,9 +171,6 @@ extern int                  simta_expand_debug;
 extern int                  simta_child_signal;
 extern int                  simta_fast_files;
 extern int                  simta_tls;
-#ifdef HAVE_LIBSASL
-extern yastr simta_sasl_domain;
-#endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBSSL
 extern char *simta_checksum_algorithm;
 extern int   simta_checksum_body;

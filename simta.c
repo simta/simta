@@ -100,9 +100,6 @@ int                  simta_child_signal = 0;
 #ifdef HAVE_LIBSSL
 int simta_tls = 0;
 #endif /* HAVE_LIBSSL */
-#ifdef HAVE_LIBSASL
-yastr simta_sasl_domain = NULL;
-#endif /* HAVE_LIBSASL */
 #ifdef HAVE_LIBSSL
 char *simta_checksum_algorithm = NULL;
 int   simta_checksum_body = 1;

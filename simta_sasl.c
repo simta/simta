@@ -67,8 +67,9 @@ simta_sasl_server_new(int tls) {
     sasl_conn_t *      conn;
     struct simta_sasl *ret = NULL;
 
-    if ((rc = sasl_server_new("smtp", simta_sasl_domain, NULL, NULL, NULL, NULL,
-                 0, &conn)) != SASL_OK) {
+    if ((rc = sasl_server_new("smtp",
+                 simta_config_str("receive.auth.authn.domain"), NULL, NULL,
+                 NULL, NULL, 0, &conn)) != SASL_OK) {
         syslog(LOG_ERR, "Liberror: sasl_server_new: %s",
                 sasl_errstring(rc, NULL, NULL));
         goto error;
