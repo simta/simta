@@ -145,8 +145,6 @@ int simta_inbound_data_session_timer = 3600;
 int simta_inbound_ssl_accept_timer = 300;
 #endif /* HAVE_LIBSSL */
 
-struct simta_statsd *simta_statsd_handle = NULL;
-
 
 void
 panic(const char *message) {

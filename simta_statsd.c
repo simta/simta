@@ -23,14 +23,14 @@
 #include "simta_statsd.h"
 
 simta_result
-simta_statsd_init(struct simta_statsd **s) {
+simta_statsd_init(int *fd_out) {
     const char *     host;
     const char *     port;
     struct addrinfo  hints;
     struct addrinfo *ai = NULL;
     int              rc;
     int              fd;
-    bool             retval = false;
+    simta_result     retval = SIMTA_ERR;
 
     host = simta_config_str("core.statsd.server");
     port = simta_config_str("core.statsd.port");
@@ -58,26 +58,18 @@ simta_statsd_init(struct simta_statsd **s) {
         goto error;
     }
 
-    *s = simta_calloc(1, sizeof(struct simta_statsd));
-    (*s)->fd = fd;
-    retval = true;
+    *fd_out = fd;
+    retval = SIMTA_OK;
 
 error:
     freeaddrinfo(ai);
-    return (retval);
-}
-
-void
-simta_statsd_free(struct simta_statsd *s) {
-    if (s) {
-        close(s->fd);
-        free(s);
-    }
+    return retval;
 }
 
 simta_result
 simta_statsd_send(
         const char *ns, const char *name, const char *type, yastr value) {
+    static int   fd = -1;
     yastr        buf = NULL;
     int          rc;
     simta_result retval = SIMTA_ERR;
@@ -86,8 +78,8 @@ simta_statsd_send(
         goto error;
     }
 
-    if (simta_statsd_handle == NULL) {
-        if (!simta_statsd_init(&simta_statsd_handle)) {
+    if (fd == -1) {
+        if (simta_statsd_init(&fd) != SIMTA_OK) {
             goto error;
         }
     }
@@ -103,7 +95,7 @@ simta_statsd_send(
     buf = yaslcatlen(buf, "|", 1);
     buf = yaslcat(buf, type);
 
-    rc = send(simta_statsd_handle->fd, buf, yasllen(buf), 0);
+    rc = send(fd, buf, yasllen(buf), 0);
     yaslfree(buf);
     if (rc == -1) {
         syslog(LOG_ERR, "Syserror simta_statsd_send send: %s", strerror(errno));
@@ -114,7 +106,7 @@ simta_statsd_send(
 error:
     yaslfree(buf);
     yaslfree(value);
-    return (retval);
+    return retval;
 }
 
 /* Counters accumulate until they are flushed */
