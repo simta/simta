@@ -397,7 +397,7 @@ q_runner(void) {
             if (expand(unexpanded) == 0) {
                 env_free(unexpanded);
                 expanded++;
-                if (simta_aggressive_expansion == 0) {
+                if (!simta_config_bool("expand.aggressive")) {
                     /* Try delivering mail */
                     break;
                 }

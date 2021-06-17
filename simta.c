@@ -66,7 +66,6 @@ struct host_q *      simta_unexpanded_q = NULL;
 struct host_q *      simta_punt_q = NULL;
 struct proc_type *   simta_proc_stab = NULL;
 ucl_object_t *       simta_config = NULL;
-int                  simta_aggressive_expansion = 1;
 int                  simta_aggressive_receipt_max = 50;
 int                  simta_leaky_queue = 0;
 int                  simta_listen_backlog = 64;
