@@ -424,8 +424,9 @@ deliver_accepted(struct receive_data *r, int force) {
     if (force ||
             (strcasecmp(simta_config_str("receive.queue.strategy"), "slow") ==
                     0) ||
-            ((simta_aggressive_receipt_max > 0) &&
-                    (simta_fast_files >= simta_aggressive_receipt_max))) {
+            ((simta_config_int("receive.queue.aggression") > 0) &&
+                    (simta_fast_files >=
+                            simta_config_int("receive.queue.aggression")))) {
         if ((simta_q_runner_receive_max == 0) ||
                 ((r->r_snet == NULL) && (simta_proc_stab == NULL))) {
             /* not allowed to have deliver children, or do not have
