@@ -2368,18 +2368,9 @@ done:
 
     tarpit_sleep(r);
 
-    /* FIXME: rationalize filter_message, right now it's always set */
-    if (filter_message) {
-        failure_message = filter_message;
-    } else if (system_message) {
+    failure_message = filter_message;
+    if (failure_message == NULL) {
         failure_message = system_message;
-    } else if ((r->r_smtp_mode == SMTP_MODE_TEMPFAIL) ||
-               (r->r_smtp_mode == SMTP_MODE_TARPIT)) {
-        failure_message = NULL;
-    } else if (simta_data_url) {
-        failure_message = simta_data_url;
-    } else {
-        failure_message = NULL;
     }
 
     banner++;
@@ -4121,7 +4112,7 @@ content_filter(
     int retval = MESSAGE_ACCEPT;
 
     if (!simta_config_bool("receive.data.content_filter.enabled")) {
-        return (MESSAGE_ACCEPT);
+        return MESSAGE_ACCEPT;
     }
 
     if (r->r_dnsl_result &&
@@ -4132,17 +4123,17 @@ content_filter(
                     "Receive [%s] %s: env <%s>: "
                     "content filter skipped for trusted host",
                     r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-            return (MESSAGE_ACCEPT);
+            return MESSAGE_ACCEPT;
         }
     }
 
     if (r->r_env->e_flags & ENV_FLAG_DFILE) {
         if (env_tfile(r->r_env) != 0) {
-            return (MESSAGE_TEMPFAIL);
+            return MESSAGE_TEMPFAIL;
         }
 
         if (simta_gettimeofday(tv) == SIMTA_ERR) {
-            return (MESSAGE_TEMPFAIL);
+            return MESSAGE_TEMPFAIL;
         }
 
         retval = run_content_filter(r, smtp_message);
@@ -4159,13 +4150,13 @@ content_filter(
         }
 
         /* Set the default message */
-        if (*smtp_message == NULL) {
+        if ((retval != MESSAGE_ACCEPT) && (*smtp_message == NULL)) {
             *smtp_message = simta_strdup(
                     simta_config_str("receive.data.content_filter.message"));
         }
     }
 
-    return (retval);
+    return retval;
 }
 
 static int
