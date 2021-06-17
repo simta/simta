@@ -56,6 +56,7 @@ simta_result        get_outbound_dns(struct deliver *, struct host_q *);
 void                queue_time_order(struct host_q *);
 void                prune_messages(struct host_q *hq);
 
+bool simta_leaky_queue = false;
 
 struct host_q *
 host_q_lookup(char *hostname) {
@@ -1173,7 +1174,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
 
         /* check to see if this is the primary queue, and if it has leaked */
         if (deliver_q->hq_primary && d->d_queue_movement) {
-            simta_leaky_queue = 1;
+            simta_leaky_queue = true;
         }
 
         if (d->d_delivered != 0) {
