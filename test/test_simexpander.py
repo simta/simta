@@ -399,6 +399,10 @@ def test_expand_ldap_group_membersonly_permitted(run_simexpander, req_ldapserver
     assert res['parsed'][0]['recipients'] == ['testuser@forwarded.example.com']
 
 
+# FIXME: if a subgroup is private, no membersonly bounce should be created
+# if membership is public, the bounce should go to the owners of the containing
+# group.
+
 def test_expand_ldap_group_nested(run_simexpander, req_ldapserver):
     res = run_simexpander('nested.group.1@ldap.example.com')
     assert len(res['parsed']) == 1

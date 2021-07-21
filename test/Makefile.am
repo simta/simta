@@ -1,4 +1,4 @@
-EXTRA_DIST = public_suffix_list.dat pytest.ini conftest.py test_simta_modes.py int_config conf
+EXTRA_DIST = public_suffix_list.dat pytest.ini *.py dns files ldap
 
 check:
 	pytest -x --verbose
