@@ -76,10 +76,10 @@ const char *            version = PACKAGE_VERSION;
 struct simta_socket *   simta_listen_sockets = NULL;
 
 
-int daemon_local(void);
-int hq_launch(void);
-int sender_promote(char *);
-int mid_promote(char *);
+int          daemon_local(void);
+int          hq_launch(void);
+simta_result sender_promote(char *);
+simta_result mid_promote(char *);
 
 void                 env_log_metrics(struct dll_entry *);
 void                 sender_log_metrics(struct dll_entry *);
@@ -1439,7 +1439,7 @@ simta_proc_add(int process_type, int pid) {
 }
 
 
-int
+simta_result
 mid_promote(char *mid) {
     struct dll_entry *dll;
     struct envelope * e;
@@ -1448,10 +1448,13 @@ mid_promote(char *mid) {
     if ((dll = dll_lookup(simta_env_list, mid)) != NULL) {
         e = (struct envelope *)dll->dll_data;
 
-        if (!env_jail_status(e, ENV_JAIL_FREE)) {
-            syslog(LOG_NOTICE, "Command: env <%s>: env_jail_status failed",
-                    mid);
-            return (1);
+        if (e->e_jailed) {
+            e->e_jailed = false;
+            if (env_outfile(e) != SIMTA_OK) {
+                syslog(LOG_NOTICE,
+                        "Command: env <%s>: changing jail status failed", mid);
+                return SIMTA_ERR;
+            }
         }
 
         if (e->e_hq != NULL) {
@@ -1469,11 +1472,11 @@ mid_promote(char *mid) {
         simta_debuglog(1, "Command: env <%s>: not found", mid);
     }
 
-    return (0);
+    return SIMTA_OK;
 }
 
 
-int
+simta_result
 sender_promote(char *sender) {
     struct dll_entry *   dll;
     struct sender_list * sl;
@@ -1488,20 +1491,25 @@ sender_promote(char *sender) {
         for (dll_se = sl->sl_entries; dll_se != NULL;
                 dll_se = dll_se->dll_next) {
             se = (struct sender_entry *)dll_se->dll_data;
-            if (!env_jail_status(se->se_env, ENV_JAIL_FREE)) {
-                syslog(LOG_NOTICE,
-                        "Command: Sender %s: env_jail_status failed for %s",
-                        sender, se->se_env->e_id);
+            if (se->se_env->e_jailed) {
+                se->se_env->e_jailed = false;
+                if (env_outfile(se->se_env) != SIMTA_OK) {
+                    syslog(LOG_NOTICE,
+                            "Command: Sender %s: changing jail status "
+                            "failed for %s",
+                            sender, se->se_env->e_id);
+                }
             }
-
             /* re-queue queue */
             if (se->se_env->e_hq != NULL) {
                 /* se->se_env->e_hq->hq_priority++; */
                 hq_deliver_pop(se->se_env->e_hq);
                 if (hq_deliver_push(se->se_env->e_hq, NULL, &tv_nowait) != 0) {
                     syslog(LOG_NOTICE,
-                            "Command: Sender %s: hq_deliver_push failed for %s",
+                            "Command: Sender %s: hq_deliver_push "
+                            "failed for %s",
                             sender, se->se_env->e_hq->hq_hostname);
+                    return SIMTA_ERR;
                 } else {
                     simta_debuglog(3, "Command: Sender %s: promoted queue %s",
                             sender, se->se_env->e_hq->hq_hostname);
@@ -1510,7 +1518,7 @@ sender_promote(char *sender) {
         }
     }
 
-    return (0);
+    return SIMTA_OK;
 }
 
 
@@ -1643,7 +1651,7 @@ daemon_commands(struct simta_dirp *sd) {
 
         } else if (ac == 2) {
             simta_debuglog(2, "Command %s: Message %s", entry->d_name, av[ 1 ]);
-            if (mid_promote(av[ 1 ]) != 0) {
+            if (mid_promote(av[ 1 ]) != SIMTA_OK) {
                 ret = 1;
             }
 
@@ -1661,7 +1669,7 @@ daemon_commands(struct simta_dirp *sd) {
         } else if (ac == 2) {
             simta_debuglog(2, "Command %s: Sender %s", entry->d_name, av[ 1 ]);
             /* JAIL-ADD promote sender's mail */
-            if (sender_promote(av[ 1 ]) != 0) {
+            if (sender_promote(av[ 1 ]) != SIMTA_OK) {
                 ret++;
             }
         } else {
@@ -1680,18 +1688,23 @@ daemon_commands(struct simta_dirp *sd) {
                 /* hq->hq_priority++; */
                 /* promote all the envs in the queue */
                 for (e = hq->hq_env_head; e != NULL; e = e->e_hq_next) {
-                    if (!env_jail_status(e, ENV_JAIL_FREE)) {
-                        ret++;
-                        syslog(LOG_NOTICE,
-                                "Command %s: Queue %s: "
-                                "env_jail_status failed for %s",
-                                entry->d_name, av[ 1 ], e->e_id);
+                    if (e->e_jailed) {
+                        e->e_jailed = false;
+                        if (env_outfile(e) != SIMTA_OK) {
+                            ret++;
+                            syslog(LOG_NOTICE,
+                                    "Command %s: Queue %s: "
+                                    "changing jail status failed for "
+                                    "%s",
+                                    entry->d_name, av[ 1 ], e->e_id);
+                        }
                     }
                 }
 
                 if (hq_deliver_push(hq, NULL, &tv_nowait) != 0) {
                     syslog(LOG_NOTICE,
-                            "Command %s: Queue %s: hq_deliver_push failed",
+                            "Command %s: Queue %s: hq_deliver_push "
+                            "failed",
                             entry->d_name, av[ 1 ]);
                     ret = 1;
                 } else {

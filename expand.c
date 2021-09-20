@@ -268,8 +268,7 @@ expand(struct envelope *unexpanded_env) {
             continue;
         }
         if (e_addr->e_addr_env_gmailfwd != NULL) {
-            e_addr->e_addr_env_gmailfwd->e_attributes =
-                    unexpanded_env->e_attributes | ENV_ATTR_ARCHIVE_ONLY;
+            e_addr->e_addr_env_gmailfwd->e_archive_only = true;
 
             if (simta_expand_debug != 0) {
                 printf("Group mail forwarding: %s\n", e_addr->e_addr);
@@ -317,7 +316,7 @@ expand(struct envelope *unexpanded_env) {
                     unexpanded_env->e_id, e_addr->e_addr_env_gmailfwd->e_id,
                     n_rcpts);
 
-            if (env_outfile(e_addr->e_addr_env_gmailfwd) != 0) {
+            if (env_outfile(e_addr->e_addr_env_gmailfwd) != SIMTA_OK) {
                 /* env_outfile syslogs errors */
                 if (unlink(d_out) != 0) {
                     syslog(LOG_ERR, "Syserror: expand unlink %s: %m", d_out);
@@ -330,9 +329,6 @@ expand(struct envelope *unexpanded_env) {
         }
 
         if (e_addr->e_addr_env_moderated != NULL) {
-            e_addr->e_addr_env_moderated->e_attributes =
-                    unexpanded_env->e_attributes;
-
             if (simta_expand_debug != 0) {
                 printf("Moderated: %s\n", e_addr->e_addr);
                 env_stdout(e_addr->e_addr_env_moderated);
@@ -378,7 +374,7 @@ expand(struct envelope *unexpanded_env) {
                     unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
                     n_rcpts);
 
-            if (env_outfile(e_addr->e_addr_env_moderated) != 0) {
+            if (env_outfile(e_addr->e_addr_env_moderated) != SIMTA_OK) {
                 /* env_outfile syslogs errors */
                 if (unlink(d_out) != 0) {
                     syslog(LOG_ERR, "expand unlink %s: %m", d_out);
@@ -474,12 +470,8 @@ expand(struct envelope *unexpanded_env) {
                     unexpanded_env->e_id, env->e_id, (int)env->e_dinode);
 
             /* fill in env */
-            env->e_attributes = unexpanded_env->e_attributes;
             if (domain != NULL) {
-                if (env_hostname(env, domain) != 0) {
-                    env_free(env);
-                    goto cleanup3;
-                }
+                env_hostname(env, domain);
             } else {
                 env_dead = env;
             }
@@ -567,7 +559,7 @@ expand(struct envelope *unexpanded_env) {
             syslog(LOG_NOTICE, "Expand env <%s>: %s: writing Efile for %s",
                     unexpanded_env->e_id, env->e_id,
                     env->e_hostname ? env->e_hostname : "NULL");
-            if (env_outfile(env) != 0) {
+            if (env_outfile(env) != SIMTA_OK) {
                 /* env_outfile syslogs errors */
                 if (unlink(d_out) != 0) {
                     syslog(LOG_ERR, "Syserror: expand unlink %s: %m", d_out);
@@ -632,7 +624,7 @@ expand(struct envelope *unexpanded_env) {
                 env->e_err_text = NULL;
                 env->e_error = 0;
 
-                if (env_outfile(env) != 0) {
+                if (env_outfile(env) != SIMTA_OK) {
                     /* env_outfile syslogs errors */
                     sprintf(d_out, "%s/D%s", env->e_dir, env->e_id);
                     if (unlink(d_out) != 0) {

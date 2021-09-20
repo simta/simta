@@ -1084,7 +1084,7 @@ f_mail(struct receive_data *r) {
     }
 
     if (eightbit) {
-        r->r_env->e_attributes |= ENV_ATTR_8BITMIME;
+        r->r_env->e_8bitmime = true;
     }
 
 #ifdef HAVE_LIBOPENDKIM
@@ -2219,14 +2219,13 @@ done:
             if (env_tfile_unlink(r->r_env) != 0) {
                 goto error;
             }
-            if (env_hostname(r->r_env, simta_jail_host) != 0) {
-                goto error;
-            }
+            env_hostname(r->r_env, simta_jail_host);
 
             /* Somewhat perversely, a message jailed by the content filter
              * should be free so that it can be delivered to the next jail.
              */
-            env_jail_set(r->r_env, ENV_JAIL_FREE);
+            r->r_env->e_jailed = false;
+            r->r_env->e_puntable = false;
 
             syslog(LOG_NOTICE,
                     "Receive [%s] %s: env <%s>: "
@@ -2339,7 +2338,7 @@ done:
             authresults = NULL;
         }
 
-        if (env_outfile(r->r_env) != 0) {
+        if (env_outfile(r->r_env) != SIMTA_OK) {
             goto error;
         }
 
@@ -4129,7 +4128,7 @@ content_filter(
     }
 
     if (r->r_env->e_flags & ENV_FLAG_DFILE) {
-        if (env_tfile(r->r_env) != 0) {
+        if (env_tfile(r->r_env) != SIMTA_OK) {
             return MESSAGE_TEMPFAIL;
         }
 

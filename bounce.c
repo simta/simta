@@ -249,7 +249,7 @@ bounce(struct envelope *env, int body, const char *err) {
 
 static char *
 old_or_jailed(struct envelope *env) {
-    if (env->e_jail == ENV_JAIL_PRISONER) {
+    if (env->e_jailed) {
         return ("quarantined");
     }
     return ("undeliverable");
@@ -271,7 +271,7 @@ bounce_snet(
     }
 
     /* bounces must be able to get out of jail */
-    env_jail_set(bounce_env, ENV_JAIL_FREE);
+    bounce_env->e_jailed = false;
 
     /* if the postmaster is a failed recipient,
      * we need to put the bounce in the dead queue.
@@ -285,7 +285,7 @@ bounce_snet(
         }
     }
 
-    if (env->e_jail == ENV_JAIL_PRISONER) {
+    if (env->e_jailed) {
         return_address = simta_config_str("deliver.queue.parole_officer");
     }
 
@@ -311,7 +311,7 @@ bounce_snet(
         line_append(bounce_env->e_err_text, buf, COPY);
     }
 
-    if (env->e_jail == ENV_JAIL_PRISONER) {
+    if (env->e_jailed) {
         /* Nothing */
     } else if (hq == NULL) {
         if (err == NULL) {
@@ -384,7 +384,7 @@ bounce_snet(
         goto cleanup2;
     }
 
-    if (env_outfile(bounce_env) != 0) {
+    if (env_outfile(bounce_env) != SIMTA_OK) {
         goto cleanup2;
     }
 

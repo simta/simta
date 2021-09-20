@@ -505,8 +505,8 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
     case '5':
         switch (smtp_command) {
         case SMTP_CONNECT:
-            if (hq->hq_status == HOST_DOWN) {
-                hq->hq_status = HOST_BOUNCE;
+            if (hq->hq_status == SIMTA_HOST_DOWN) {
+                hq->hq_status = SIMTA_HOST_BOUNCE;
                 syslog(LOG_NOTICE,
                         "Connect.out [%s] %s: Failed: SMTP banner: %s", d->d_ip,
                         hq->hq_hostname, line);
@@ -557,8 +557,15 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
                     "Bad SMTP MAIL FROM reply"));
 
         case SMTP_RCPT:
-            d->d_rcpt->r_status = R_FAILED;
-            d->d_n_rcpt_failed++;
+            if (d->d_env->e_bounceable) {
+                d->d_rcpt->r_status = R_FAILED;
+                d->d_n_rcpt_failed++;
+            } else {
+                /* demote it to a tempfail, unbounceable hosts aren't
+                 * allowed to bounce mail. */
+                d->d_rcpt->r_status = R_TEMPFAIL;
+                d->d_n_rcpt_tempfailed++;
+            }
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: To <%s> From <%s> Failed: %s",
                     d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail, line);
@@ -867,7 +874,7 @@ smtp_send(struct host_q *hq, struct deliver *d) {
      *  body-value = "7BIT" / "8BITMIME"
      */
 
-    if (d->d_esmtp_8bitmime && (d->d_env->e_attributes & ENV_ATTR_8BITMIME)) {
+    if (d->d_esmtp_8bitmime && d->d_env->e_8bitmime) {
         simta_debuglog(1, "Deliver.SMTP env <%s>: Delivering as 8BITMIME",
                 d->d_env->e_id);
         rc = snet_writef(d->d_snet_smtp, "MAIL FROM:<%s> BODY=8BITMIME\r\n",
@@ -935,15 +942,6 @@ smtp_send(struct host_q *hq, struct deliver *d) {
         if ((smtp_result = smtp_reply(SMTP_RCPT, hq, d)) != SMTP_OK) {
             return (smtp_result);
         }
-
-        if ((hq->hq_status == HOST_PUNT_DOWN) &&
-                (d->d_rcpt->r_status != R_ACCEPTED)) {
-            /* punt hosts must accept all rcpts */
-            syslog(LOG_WARNING,
-                    "Deliver.SMTP env <%s>: punt host refused address %s",
-                    d->d_env->e_id, d->d_rcpt->r_rcpt);
-            return (SMTP_OK);
-        }
     }
 
     if (d->d_n_rcpt_accepted == 0) {
@@ -973,7 +971,7 @@ smtp_send(struct host_q *hq, struct deliver *d) {
         return (SMTP_OK);
     }
 
-    if ((d->d_env->e_attributes & ENV_ATTR_ARCHIVE_ONLY)) {
+    if (d->d_env->e_archive_only) {
         /* send SIMTA-Seen-Before trace header for poison pill */
         /* FIXME: is this really where we should do this? */
         if ((rc = snet_writef(d->d_snet_smtp,

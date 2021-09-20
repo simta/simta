@@ -4,8 +4,7 @@
 #include <stdbool.h>
 #include <sys/stat.h>
 
-#include <snet.h>
-#include <yasl.h>
+#include "simta.h"
 
 #define R_TEMPFAIL 0
 #define R_ACCEPTED 1
@@ -14,11 +13,6 @@
 #define READ_QUEUE_INFO 1
 #define READ_DELIVER_INFO 2
 #define READ_JAIL_INFO 3
-
-enum simta_jail_status {
-    ENV_JAIL_FREE = 0,
-    ENV_JAIL_PRISONER = 2,
-};
 
 struct sender_list {
     struct dll_entry *sl_dll;
@@ -40,36 +34,39 @@ struct recipient {
 };
 
 struct envelope {
-    struct envelope *      e_next;
-    struct envelope *      e_list_next;
-    struct envelope *      e_list_prev;
-    struct envelope *      e_hq_next;
-    struct envelope *      e_hq_prev;
-    struct envelope *      e_expanded_next;
-    struct recipient *     e_rcpt;
-    struct sender_entry *  e_sender_entry;
-    struct dll_entry *     e_env_list_entry;
-    struct host_q *        e_hq;
-    const char *           e_dir;
-    char *                 e_id;
-    char *                 e_hostname;
-    char *                 e_mail;
-    char *                 e_mail_orig;
-    char *                 e_mid;
-    char *                 e_header_from;
-    char *                 e_subject;
-    yastr                  e_extra_headers;
-    struct line_file *     e_err_text;
-    int                    e_error;
-    int                    e_n_rcpt;
-    int                    e_n_exp_level;
-    int                    e_cycle;
-    int                    e_age;
-    int                    e_flags;
-    int                    e_attributes;
-    enum simta_jail_status e_jail;
-    ino_t                  e_dinode;
-    struct timeval         e_etime;
+    struct envelope *    e_next;
+    struct envelope *    e_list_next;
+    struct envelope *    e_list_prev;
+    struct envelope *    e_hq_next;
+    struct envelope *    e_hq_prev;
+    struct envelope *    e_expanded_next;
+    struct recipient *   e_rcpt;
+    struct sender_entry *e_sender_entry;
+    struct dll_entry *   e_env_list_entry;
+    struct host_q *      e_hq;
+    const char *         e_dir;
+    char *               e_id;
+    yastr                e_hostname;
+    char *               e_mail;
+    char *               e_mail_orig;
+    char *               e_mid;
+    char *               e_header_from;
+    char *               e_subject;
+    yastr                e_extra_headers;
+    struct line_file *   e_err_text;
+    int                  e_error;
+    int                  e_n_rcpt;
+    int                  e_n_exp_level;
+    int                  e_cycle;
+    int                  e_age;
+    int                  e_flags;
+    ino_t                e_dinode;
+    struct timeval       e_etime;
+    bool                 e_8bitmime;
+    bool                 e_archive_only;
+    bool                 e_bounceable;
+    bool                 e_jailed;
+    bool                 e_puntable;
 };
 
 #define ENV_AGE_UNKNOWN 0
@@ -81,13 +78,9 @@ struct envelope {
 #define ENV_FLAG_DFILE (1 << 2)
 #define ENV_FLAG_BOUNCE (1 << 3)
 #define ENV_FLAG_TEMPFAIL (1 << 4)
-#define ENV_FLAG_PUNT (1 << 5)
-#define ENV_FLAG_DELETE (1 << 6)
-#define ENV_FLAG_SUPPRESS_NO_EMAIL (1 << 7)
-#define ENV_FLAG_DKIMSIGN (1 << 8)
-
-#define ENV_ATTR_ARCHIVE_ONLY (1 << 0)
-#define ENV_ATTR_8BITMIME (1 << 1)
+#define ENV_FLAG_DELETE (1 << 5)
+#define ENV_FLAG_SUPPRESS_NO_EMAIL (1 << 6)
+#define ENV_FLAG_DKIMSIGN (1 << 7)
 
 /* Efile syntax, by minimum version number:
  *
@@ -104,34 +97,33 @@ struct envelope {
 
 struct envelope *env_create(
         const char *, const char *, const char *, const struct envelope *);
-void  env_rcpt_free(struct envelope *);
-void  env_free(struct envelope *);
-void  rcpt_free(struct recipient *);
-void  env_clear_errors(struct envelope *);
-int   env_clear(struct envelope *);
-bool  env_jail_status(struct envelope *, enum simta_jail_status);
-int   env_is_old(struct envelope *, int);
-int   env_set_id(struct envelope *, char *);
-int   env_recipient(struct envelope *, const char *);
-int   env_sender(struct envelope *, const char *);
-int   env_hostname(struct envelope *, char *);
-int   env_outfile(struct envelope *);
-int   env_efile(struct envelope *);
-int   env_tfile(struct envelope *);
-int   env_tfile_unlink(struct envelope *);
-int   env_dfile_unlink(struct envelope *);
-int   env_touch(struct envelope *);
-int   env_move(struct envelope *, char *);
-int   env_unlink(struct envelope *);
-int   env_read(int, struct envelope *, SNET **);
-int   env_fsync(const char *);
-ino_t env_dfile_copy(struct envelope *, char *, char *);
-int   env_truncate_and_unlink(struct envelope *, SNET *);
-int   env_string_recipients(struct envelope *, char *);
-int   sender_list_add(struct envelope *);
-yastr env_dkim_sign(struct envelope *);
-void  env_jail_set(struct envelope *, enum simta_jail_status);
-int   env_dfile_open(struct envelope *);
+ucl_object_t *env_repr(struct envelope *);
+void          env_rcpt_free(struct envelope *);
+void          env_free(struct envelope *);
+void          rcpt_free(struct recipient *);
+void          env_clear_errors(struct envelope *);
+int           env_clear(struct envelope *);
+int           env_is_old(struct envelope *, int);
+int           env_set_id(struct envelope *, char *);
+int           env_recipient(struct envelope *, const char *);
+int           env_sender(struct envelope *, const char *);
+void          env_hostname(struct envelope *, const char *);
+simta_result  env_outfile(struct envelope *);
+int           env_efile(struct envelope *);
+simta_result  env_tfile(struct envelope *);
+int           env_tfile_unlink(struct envelope *);
+int           env_dfile_unlink(struct envelope *);
+int           env_touch(struct envelope *);
+int           env_move(struct envelope *, char *);
+int           env_unlink(struct envelope *);
+simta_result  env_read(bool, struct envelope *, SNET **);
+int           env_fsync(const char *);
+ino_t         env_dfile_copy(struct envelope *, char *, char *);
+int           env_truncate_and_unlink(struct envelope *, SNET *);
+int           env_string_recipients(struct envelope *, char *);
+int           sender_list_add(struct envelope *);
+yastr         env_dkim_sign(struct envelope *);
+int           env_dfile_open(struct envelope *);
 
 /* debugging  functions */
 void env_stdout(struct envelope *);

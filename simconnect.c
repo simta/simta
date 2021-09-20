@@ -89,7 +89,7 @@ main(int argc, char *argv[]) {
     memset(&d, 0, sizeof(struct deliver));
 
     /* Dummy up some values so we don't crash */
-    hq->hq_status = HOST_DOWN;
+    hq->hq_status = SIMTA_HOST_DOWN;
     d.d_env = env_create(NULL, hostname, "simta@umich.edu", NULL);
 
     for (;;) {

@@ -87,14 +87,7 @@ host_q_create_or_lookup(char *hostname) {
 
         /* add this host to the host_q */
         simta_unexpanded_q->hq_hostname = S_UNEXPANDED;
-        simta_unexpanded_q->hq_status = HOST_NULL;
-
-        if (simta_punt_host != NULL) {
-            simta_punt_q = simta_calloc(1, sizeof(struct host_q));
-
-            simta_punt_q->hq_hostname = simta_punt_host;
-            simta_punt_q->hq_status = HOST_PUNT;
-        }
+        simta_unexpanded_q->hq_status = SIMTA_HOST_NULL;
     }
 
     if ((hostname == NULL) || (*hostname == '\0')) {
@@ -107,29 +100,6 @@ host_q_create_or_lookup(char *hostname) {
         yasltolower(hq->hq_hostname);
 
         hq->hq_red = ucl_object_ref(red_host_lookup(hostname, true));
-
-        if (ucl_object_toboolean(ucl_object_lookup_path(
-                    hq->hq_red, "deliver.bitbucket.enabled"))) {
-            hq->hq_status = HOST_BITBUCKET;
-        } else if (ucl_object_toboolean(ucl_object_lookup_path(
-                           hq->hq_red, "deliver.local.enabled"))) {
-            hq->hq_status = HOST_LOCAL;
-        }
-
-        if (hq->hq_status == HOST_UNKNOWN) {
-            if (ucl_object_toboolean(ucl_object_lookup_path(
-                        hq->hq_red, "deliver.punt.always")) &&
-                    ucl_object_toboolean(ucl_object_lookup_path(
-                            hq->hq_red, "deliver.punt.enabled"))) {
-                hq->hq_status = HOST_SUPPRESSED;
-            } else if ((strcasecmp(simta_config_str("receive.queue.strategy"),
-                                "slow") == 0) &&
-                       (simta_process_type == PROCESS_RECEIVE)) {
-                hq->hq_status = HOST_SUPPRESSED;
-                /* Suppress punting so that it will go to the slow queue */
-                simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
-            }
-        }
 
         ucl_object_insert_key(simta_host_q,
                 ucl_object_new_userdata(NULL, NULL, hq), hq->hq_hostname,
@@ -149,50 +119,43 @@ hq_clear_errors(struct host_q *hq) {
 }
 
 
-int
+simta_result
 queue_envelope(struct envelope *env) {
     struct envelope **ep;
     struct host_q *   hq;
 
     /* don't queue it if it's going in the dead queue */
     if (env->e_dir == simta_dir_dead) {
-        return (0);
+        return SIMTA_OK;
     }
 
     /* check to see if it's already already queued */
-    if (env->e_hq == NULL) {
-        /* find the appropriate hq */
-        if (env->e_flags & ENV_FLAG_PUNT) {
-            hq = simta_punt_q;
+    if (env->e_hq) {
+        return SIMTA_OK;
+    }
 
-        } else if ((hq = host_q_create_or_lookup(env->e_hostname)) == NULL) {
-            return (1);
-        }
+    if ((hq = host_q_create_or_lookup(env->e_hostname)) == NULL) {
+        return SIMTA_ERR;
+    }
 
-        /* sort queued envelopes by priority and access time */
-        for (ep = &(hq->hq_env_head); *ep != NULL; ep = &((*ep)->e_hq_next)) {
-            /*
-            if ( env->e_priority > (*ep)->e_priority ) {
-                break;
-            }
-            */
+    if (!ucl_object_toboolean(
+                ucl_object_lookup_path(hq->hq_red, "deliver.punt.enabled"))) {
+        env->e_puntable = false;
+    }
 
-            if (env->e_etime.tv_sec < (*ep)->e_etime.tv_sec) {
-                break;
-            }
-        }
-
-        env->e_hq_next = *ep;
-        *ep = env;
-        env->e_hq = hq;
-        hq->hq_entries++;
-
-        if (env->e_jail == ENV_JAIL_PRISONER) {
-            hq->hq_jail_envs++;
+    /* sort queued envelopes by access time */
+    for (ep = &(hq->hq_env_head); *ep != NULL; ep = &((*ep)->e_hq_next)) {
+        if (env->e_etime.tv_sec < (*ep)->e_etime.tv_sec) {
+            break;
         }
     }
 
-    return (0);
+    env->e_hq_next = *ep;
+    *ep = env;
+    env->e_hq = hq;
+    hq->hq_entries++;
+
+    return SIMTA_OK;
 }
 
 
@@ -208,9 +171,6 @@ queue_remove_envelope(struct envelope *env) {
         *ep = env->e_hq_next;
 
         env->e_hq->hq_entries--;
-        if (env->e_jail == ENV_JAIL_PRISONER) {
-            env->e_hq->hq_jail_envs--;
-        }
         env->e_hq = NULL;
         env->e_hq_next = NULL;
     }
@@ -230,7 +190,6 @@ queue_time_order(struct host_q *hq) {
         /* sort the envs based on etime */
         envs = hq->hq_env_head;
         hq->hq_entries = 0;
-        hq->hq_jail_envs = 0;
         hq->hq_env_head = NULL;
         while (envs != NULL) {
             sort = envs;
@@ -263,7 +222,6 @@ q_runner(void) {
     struct host_q *     deliver_q;
     struct host_q **    dq;
     struct envelope *   env_bounce;
-    struct envelope *   env_punt;
     struct envelope *   unexpanded;
     int                 dfile_fd;
     int                 expanded;
@@ -306,52 +264,31 @@ q_runner(void) {
                 continue;
             }
 
-            switch (hq->hq_status) {
-            case HOST_UNKNOWN:
-            case HOST_LOCAL:
-            case HOST_MX:
-            case HOST_BITBUCKET:
-                /*
-                 * we're going to try to deliver this messages in this host
-                 * queue, so put it in the delivery queue.
-                 *
-                 * sort mail queues by number of messages with non-generated
-                 * From addresses first, then by overall number of messages in
-                 * the queue.
-                 */
+            /*
+             * we're going to try to deliver the messages in this host
+             * queue, so put it in the delivery queue.
+             *
+             * sort mail queues by number of messages in the queue.
+             */
 
-                simta_debuglog(1,
-                        "Queue %s: %d entries, adding to deliver queue",
-                        hq->hq_hostname, hq->hq_entries);
+            simta_debuglog(1, "Queue %s: %d entries, adding to deliver queue",
+                    hq->hq_hostname, hq->hq_entries);
 
-                for (dq = &deliver_q; *dq != NULL; dq = &((*dq)->hq_deliver)) {
-                    if (hq->hq_entries >= ((*dq)->hq_entries)) {
-                        simta_debuglog(2, "Queue %s: insert before %s (%d)",
-                                hq->hq_hostname, ((*dq)->hq_hostname),
-                                ((*dq)->hq_entries));
-                        break;
-                    }
-
-                    simta_debuglog(3, "Queue %s: insert after %s (%d)",
+            for (dq = &deliver_q; *dq != NULL; dq = &((*dq)->hq_deliver)) {
+                if (hq->hq_entries >= ((*dq)->hq_entries)) {
+                    simta_debuglog(2, "Queue %s: insert before %s (%d)",
                             hq->hq_hostname, ((*dq)->hq_hostname),
                             ((*dq)->hq_entries));
+                    break;
                 }
 
-                hq->hq_deliver = *dq;
-                *dq = hq;
-                break;
-
-            case HOST_SUPPRESSED:
-            case HOST_DOWN:
-            case HOST_BOUNCE:
-                q_deliver(hq);
-                break;
-
-            default:
-                syslog(LOG_ERR, "Queue %s: bad host type %d", hq->hq_hostname,
-                        hq->hq_status);
-                return (1);
+                simta_debuglog(3, "Queue %s: insert after %s (%d)",
+                        hq->hq_hostname, ((*dq)->hq_hostname),
+                        ((*dq)->hq_entries));
             }
+
+            hq->hq_deliver = *dq;
+            *dq = hq;
         }
 
         /* deliver all mail in every expanded queue */
@@ -359,13 +296,6 @@ q_runner(void) {
             syslog(LOG_INFO, "Queue %s: Delivering mail",
                     deliver_q->hq_hostname);
             q_deliver(deliver_q);
-        }
-
-        /* punt any undelivered mail, if possible */
-        if ((simta_punt_q != NULL) && (simta_punt_q->hq_env_head != NULL)) {
-            syslog(LOG_INFO, "Queue %s: Punting undelivered mail to %s",
-                    simta_punt_host, simta_punt_host);
-            q_deliver(simta_punt_q);
         }
 
         /* EXPAND MESSAGES */
@@ -388,7 +318,7 @@ q_runner(void) {
                     goto unexpanded_clean_up;
                 }
 
-                if (env_read(READ_DELIVER_INFO, unexpanded, NULL) != 0) {
+                if (env_read(READ_DELIVER_INFO, unexpanded, NULL) != SIMTA_OK) {
                     goto unexpanded_clean_up;
                 }
             } else {
@@ -500,15 +430,6 @@ q_runner_done:
         }
     }
 
-    /* move any unpuntable message to the slow queue */
-    if (simta_punt_q != NULL) {
-        while ((env_punt = simta_punt_q->hq_env_head) != NULL) {
-            queue_remove_envelope(env_punt);
-            env_move(env_punt, simta_dir_slow);
-            env_free(env_punt);
-        }
-    }
-
 #ifdef HAVE_LDAP
     simta_ldap_reset();
 #endif /* HAVE_LDAP */
@@ -575,17 +496,6 @@ hq_deliver_push(
             }
         }
 
-    } else if ((strcasecmp(simta_config_str("receive.queue.strategy"),
-                        "jail") == 0) &&
-               (hq->hq_entries == hq->hq_jail_envs)) {
-        /* jail with no active mail */
-        wait_last.tv_sec = hq->hq_wait_min;
-        if (hq->hq_last_launch.tv_sec == 0) {
-            next_launch.tv_sec = random() % hq->hq_wait_min + tv_now->tv_sec;
-        } else {
-            next_launch.tv_sec = tv_now->tv_sec + hq->hq_wait_min;
-        }
-
     } else if (hq->hq_wait_last.tv_sec == 0) {
         /* new queue */
         wait_last.tv_sec = hq->hq_wait_min;
@@ -596,8 +506,8 @@ hq_deliver_push(
             next_launch.tv_sec = tv_now->tv_sec;
         }
 
-    } else if (hq->hq_leaky != 0) {
-        hq->hq_leaky = 0;
+    } else if (hq->hq_leaky) {
+        hq->hq_leaky = false;
         wait_last.tv_sec = hq->hq_wait_min;
         next_launch.tv_sec = random() % hq->hq_wait_min + tv_now->tv_sec;
 
@@ -701,7 +611,6 @@ prune_messages(struct host_q *hq) {
     hq->hq_entries = 0;
     hq->hq_entries_new = 0;
     hq->hq_entries_removed = 0;
-    hq->hq_jail_envs = 0;
 
     /* make sure that all envs in all host queues are up to date */
     while (*e != NULL) {
@@ -727,9 +636,6 @@ prune_messages(struct host_q *hq) {
 
         } else {
             hq->hq_entries++;
-            if ((*e)->e_jail == ENV_JAIL_PRISONER) {
-                hq->hq_jail_envs++;
-            }
             e = &((*e)->e_hq_next);
         }
     }
@@ -792,10 +698,8 @@ q_read_dir(struct simta_dirp *sd) {
         /* post disk-read queue management */
         if (simta_unexpanded_q != NULL) {
             prune_messages(simta_unexpanded_q);
-            simta_debuglog(2,
-                    "Queue Metrics [Unexpanded]: entries %d, jail_entries %d",
-                    simta_unexpanded_q->hq_entries,
-                    simta_unexpanded_q->hq_jail_envs);
+            simta_debuglog(2, "Queue Metrics [Unexpanded]: entries %d",
+                    simta_unexpanded_q->hq_entries);
         }
 
         iter = ucl_object_iterate_new(simta_host_q);
@@ -818,9 +722,8 @@ q_read_dir(struct simta_dirp *sd) {
                 ucl_object_delete_key(simta_host_q, ucl_object_key(obj));
                 continue;
             } else {
-                simta_debuglog(2,
-                        "Queue Metrics %s: entries %d, jail_entries %d",
-                        hq->hq_hostname, hq->hq_entries, hq->hq_jail_envs);
+                simta_debuglog(2, "Queue Metrics %s: entries %d",
+                        hq->hq_hostname, hq->hq_entries);
             }
 
             /* add new host queues to the deliver queue */
@@ -912,7 +815,7 @@ q_read_dir(struct simta_dirp *sd) {
         return (1);
     }
 
-    if (env_read(READ_QUEUE_INFO, env, NULL) != 0) {
+    if (env_read(READ_QUEUE_INFO, env, NULL) != SIMTA_OK) {
         env_free(env);
         return (0);
     }
@@ -927,8 +830,8 @@ q_read_dir(struct simta_dirp *sd) {
         }
     }
 
-    if (queue_envelope(env) != 0) {
-        return (1);
+    if (queue_envelope(env) != SIMTA_OK) {
+        return 1;
     }
 
     env->e_cycle = simta_disk_cycle;
@@ -1021,22 +924,13 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
     /* determine if the host we are delivering to is a local host or a
      * remote host if we have not done so already.
      */
-    if (deliver_q->hq_status == HOST_UNKNOWN) {
+    if (deliver_q->hq_status == SIMTA_HOST_UNKNOWN) {
         if (ucl_object_toboolean(ucl_object_lookup_path(
                     deliver_q->hq_red, "deliver.local.enabled"))) {
-            deliver_q->hq_status = HOST_LOCAL;
-        } else if (ucl_object_toboolean(ucl_object_lookup_path(
-                           deliver_q->hq_red, "deliver.secondary_mx"))) {
-            /* FIXME: is this logic actually right? */
-            deliver_q->hq_status = HOST_DOWN;
+            deliver_q->hq_status = SIMTA_HOST_LOCAL;
         } else {
-            deliver_q->hq_status = HOST_MX;
+            deliver_q->hq_status = SIMTA_HOST_MX;
         }
-    }
-
-    /* always try to punt the mail */
-    if (deliver_q->hq_status == HOST_PUNT_DOWN) {
-        deliver_q->hq_status = HOST_PUNT;
     }
 
     /* process each envelope in the queue */
@@ -1061,7 +955,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         env_rcpt_free(env_deliver);
 
         /* lock & read envelope to deliver */
-        if (env_read(READ_DELIVER_INFO, env_deliver, &snet_lock) != 0) {
+        if (env_read(READ_DELIVER_INFO, env_deliver, &snet_lock) != SIMTA_OK) {
             /* envelope not valid.  disregard */
             env_free(env_deliver);
             env_deliver = NULL;
@@ -1096,85 +990,68 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
 
         d->d_size = sbuf.st_size;
 
-        switch (deliver_q->hq_status) {
-        case HOST_LOCAL:
-            if (env_deliver->e_jail == ENV_JAIL_PRISONER) {
-                syslog(LOG_INFO, "Deliver.remote env <%s>: jail",
-                        d->d_env->e_id);
-                break;
-            }
-            if (ucl_object_toboolean(ucl_object_lookup_path(
-                        deliver_q->hq_red, "deliver.local.enabled"))) {
-                d->d_deliver_agent = ucl_object_tostring(ucl_object_lookup_path(
-                        deliver_q->hq_red, "deliver.local.agent"));
-            }
-            deliver_local(d);
-            break;
-
-        case HOST_MX:
-        case HOST_PUNT:
-            if (env_deliver->e_jail == ENV_JAIL_PRISONER) {
-                syslog(LOG_INFO, "Deliver.remote env <%s>: jail",
-                        d->d_env->e_id);
-                break;
-            }
-            if ((snet_dfile = snet_attach(dfile_fd, 1024 * 1024)) == NULL) {
-                syslog(LOG_ERR, "Liberror: q_deliver snet_attach: %m");
-                goto message_cleanup;
-            }
-            d->d_snet_dfile = snet_dfile;
-            deliver_remote(d, deliver_q);
-
-            /* return if smtp transaction to the punt host failed */
-            if (deliver_q->hq_status == HOST_PUNT_DOWN) {
-                snet_close(snet_dfile);
-                if (snet_lock != NULL) {
-                    snet_close(snet_lock);
+        if (env_deliver->e_jailed) {
+            syslog(LOG_INFO, "Deliver.remote env <%s>: jail",
+                    env_deliver->e_id);
+        } else {
+            switch (deliver_q->hq_status) {
+            case SIMTA_HOST_LOCAL:
+                if (ucl_object_toboolean(ucl_object_lookup_path(
+                            deliver_q->hq_red, "deliver.local.enabled"))) {
+                    d->d_deliver_agent =
+                            ucl_object_tostring(ucl_object_lookup_path(
+                                    deliver_q->hq_red, "deliver.local.agent"));
                 }
-                /* requeue env_deliver */
-                env_clear_errors(env_deliver);
-                env_deliver->e_flags |= ENV_FLAG_PUNT;
-                queue_envelope(env_deliver);
-                return;
+                deliver_local(d);
+                break;
+
+            case SIMTA_HOST_MX:
+                if ((snet_dfile = snet_attach(dfile_fd, 1024 * 1024)) == NULL) {
+                    syslog(LOG_ERR, "Liberror: q_deliver snet_attach: %m");
+                    goto message_cleanup;
+                }
+                d->d_snet_dfile = snet_dfile;
+                deliver_remote(d, deliver_q);
+                break;
+
+            case SIMTA_HOST_DOWN:
+                syslog(LOG_NOTICE, "Deliver.remote env <%s>: host %s down",
+                        d->d_env->e_id, deliver_q->hq_hostname);
+                break;
+
+            case SIMTA_HOST_BOUNCE:
+                syslog(LOG_NOTICE,
+                        "Deliver.remote env <%s>: host %s bouncing mail",
+                        d->d_env->e_id, deliver_q->hq_hostname);
+                env_deliver->e_flags |= ENV_FLAG_BOUNCE;
+                break;
+
+            case SIMTA_HOST_BITBUCKET:
+                simta_ucl_object_totimespec(
+                        ucl_object_lookup_path(
+                                deliver_q->hq_red, "deliver.bitbucket.delay"),
+                        &ts);
+                syslog(LOG_WARNING,
+                        "Deliver.remote env <%s>: bitbucket in %ld.%06ld "
+                        "seconds",
+                        env_deliver->e_id, ts.tv_sec, ts.tv_nsec / 1000);
+                nanosleep(&ts, NULL);
+                d->d_delivered = 1;
+                d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
+                break;
+
+            default:
+                panic("q_deliver host_status out of range");
             }
-            break;
-
-        case HOST_SUPPRESSED:
-            syslog(LOG_NOTICE, "Deliver.remote env <%s>: host %s suppressed",
-                    d->d_env->e_id, deliver_q->hq_hostname);
-            break;
-
-        case HOST_DOWN:
-            syslog(LOG_NOTICE, "Deliver.remote env <%s>: host %s down",
-                    d->d_env->e_id, deliver_q->hq_hostname);
-            break;
-
-        case HOST_BOUNCE:
-            syslog(LOG_NOTICE, "Deliver.remote env <%s>: host %s bouncing mail",
-                    d->d_env->e_id, deliver_q->hq_hostname);
-            env_deliver->e_flags |= ENV_FLAG_BOUNCE;
-            break;
-
-        case HOST_BITBUCKET:
-            simta_ucl_object_totimespec(
-                    ucl_object_lookup_path(
-                            deliver_q->hq_red, "deliver.bitbucket.delay"),
-                    &ts);
-            syslog(LOG_WARNING,
-                    "Deliver.remote env <%s>: bitbucket in %ld.%06ld seconds",
-                    env_deliver->e_id, ts.tv_sec, ts.tv_nsec / 1000);
-            nanosleep(&ts, NULL);
-            d->d_delivered = 1;
-            d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
-            break;
-
-        default:
-            panic("q_deliver host_status out of range");
         }
 
         /* check to see if this is the primary queue, and if it has leaked */
         if (deliver_q->hq_primary && d->d_queue_movement) {
             simta_leaky_queue = true;
+        }
+
+        if (!env_deliver->e_bounceable) {
+            env_clear_errors(env_deliver);
         }
 
         if (d->d_delivered != 0) {
@@ -1216,8 +1093,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                     env_deliver->e_id);
         }
 
-        /* bounce the message if the message is bad, or
-         * if some recipients are bad.
+        /* bounce the message if the message is bad, or if some recipients are bad.
          */
         if ((env_deliver->e_flags & ENV_FLAG_BOUNCE) || d->d_n_rcpt_failed) {
             simta_debuglog(
@@ -1313,7 +1189,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
 
             assert(env_deliver->e_n_rcpt > 0);
 
-            if (env_outfile(env_deliver) == 0) {
+            if (env_outfile(env_deliver) == SIMTA_OK) {
                 syslog(LOG_INFO, "Deliver env <%s>: Rewrote %d recipients",
                         env_deliver->e_id, env_deliver->e_n_rcpt);
             } else {
@@ -1377,26 +1253,36 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         }
 
         if (d->d_unlinked == 0) {
-            if ((simta_punt_q != NULL) && (deliver_q != simta_punt_q) &&
-                    (deliver_q->hq_no_punt == 0)) {
-                syslog(LOG_INFO, "Deliver env <%s>: queueing for punt",
-                        env_deliver->e_id);
-                env_clear_errors(env_deliver);
-                env_deliver->e_flags |= ENV_FLAG_PUNT;
-                queue_envelope(env_deliver);
-            } else if ((d->d_n_rcpt_tempfailed > 0) &&
-                       (d->d_n_rcpt_accepted > 0) && (d->d_delivered)) {
+            if (deliver_q->hq_primary && env_deliver->e_jailed) {
+                /* active jailed message */
+                simta_leaky_queue = true;
+            }
+            if (ucl_object_toboolean(ucl_object_lookup_path(
+                        deliver_q->hq_red, "deliver.connection.aggressive")) &&
+                    (d->d_n_rcpt_tempfailed > 0) &&
+                    (d->d_n_rcpt_accepted > 0) && (d->d_delivered)) {
                 /* The message was accepted for some recipients, so we should
                  * requeue it and retry delivery for the tempfailed rcpts.
                  */
-                /* FIXME: should this be configurable? */
                 queue_envelope(env_deliver);
                 env_deliver = NULL;
                 d->d_env = NULL;
+            } else if (env_deliver->e_puntable) {
+                syslog(LOG_INFO, "Deliver env <%s>: queueing for punt",
+                        env_deliver->e_id);
+                env_clear_errors(env_deliver);
+                /* Messages that we are punting cannot be punted or bounced */
+                env_deliver->e_puntable = false;
+                env_deliver->e_bounceable = false;
+                env_hostname(env_deliver,
+                        (ucl_object_tostring(ucl_object_lookup_path(
+                                deliver_q->hq_red, "deliver.punt.host"))));
+                queue_envelope(env_deliver);
             } else {
-                if ((simta_punt_q != NULL) && (deliver_q != simta_punt_q)) {
+                if (!env_deliver->e_puntable) {
                     syslog(LOG_INFO, "Deliver env <%s>: not puntable",
                             env_deliver->e_id);
+                    env_outfile(env_deliver);
                 }
                 env_move(env_deliver, simta_dir_slow);
                 env_free(env_deliver);
@@ -1531,22 +1417,9 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
         return;
     }
 
-    switch (hq->hq_status) {
-    case HOST_MX:
-        syslog(LOG_NOTICE, "Deliver.remote env <%s>: host %s", d->d_env->e_id,
-                hq->hq_hostname);
-        hq->hq_status = HOST_DOWN;
-        break;
-
-    case HOST_PUNT:
-        syslog(LOG_NOTICE, "Deliver.remote env <%s>: punt %s", d->d_env->e_id,
-                hq->hq_hostname);
-        hq->hq_status = HOST_PUNT_DOWN;
-        break;
-
-    default:
-        panic("deliver_remote: status out of range");
-    }
+    syslog(LOG_NOTICE, "Deliver.remote env <%s>: host %s", d->d_env->e_id,
+            hq->hq_hostname);
+    hq->hq_status = SIMTA_HOST_DOWN;
 
     for (;;) {
         if (d->d_snet_smtp == NULL) {
@@ -1651,13 +1524,8 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
                 d->d_snet_smtp = NULL;
             }
             switch (hq->hq_status) {
-            case HOST_DOWN:
-                hq->hq_status = HOST_MX;
-                return;
-
-            case HOST_PUNT_DOWN:
-                env_clear_errors(d->d_env);
-                hq->hq_status = HOST_PUNT;
+            case SIMTA_HOST_DOWN:
+                hq->hq_status = SIMTA_HOST_MX;
                 return;
 
             default:
@@ -1673,19 +1541,16 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
         snet_close(d->d_snet_smtp);
         d->d_snet_smtp = NULL;
 
-        if (hq->hq_status == HOST_PUNT_DOWN) {
-            hq_clear_errors(hq);
-
-        } else if (hq->hq_status == HOST_BOUNCE) {
+        if (hq->hq_status == SIMTA_HOST_BOUNCE) {
             if (d->d_dnsr_result) {
                 dnsr_free_result(d->d_dnsr_result);
             }
             /* FIXME: free other things? */
             return;
 
-        } else if (hq->hq_status == HOST_DOWN) {
+        } else if (hq->hq_status == SIMTA_HOST_DOWN) {
             if (env_movement) {
-                hq->hq_status = HOST_MX;
+                hq->hq_status = SIMTA_HOST_MX;
                 return;
             }
         }
@@ -1829,10 +1694,8 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
     if (d->d_mx_list == NULL) {
         d->d_mx_list = ucl_object_typed_new(UCL_ARRAY);
 
-        if (hq->hq_status != HOST_PUNT_DOWN) {
-            if (get_outbound_dns(d, hq) != SIMTA_OK) {
-                return SIMTA_DNS_EOF;
-            }
+        if (get_outbound_dns(d, hq) != SIMTA_OK) {
+            return SIMTA_DNS_EOF;
         }
 
         if (d->d_dnsr_result) {
@@ -1867,7 +1730,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
 
     if (d->d_mx_current == NULL) {
         if (d->d_retry_list == NULL) {
-            if (hq->hq_status == HOST_DOWN) {
+            if (hq->hq_status == SIMTA_HOST_DOWN) {
                 /* If MX records are present, but none of them are usable,
                  * or the implicit MX is unusable, this situation MUST be
                  * reported as an error.
@@ -1889,7 +1752,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
                             "Syserror: get_outbound_dns line_append: %m");
                     return SIMTA_DNS_EOF;
                 }
-                hq->hq_status = HOST_BOUNCE;
+                hq->hq_status = SIMTA_HOST_BOUNCE;
                 d->d_env->e_flags |= ENV_FLAG_BOUNCE;
             }
             return SIMTA_DNS_EOF;

@@ -63,7 +63,6 @@ struct envelope *    simta_env_queue = NULL;
 ucl_object_t *       simta_host_q = NULL;
 struct host_q *      simta_deliver_q = NULL;
 struct host_q *      simta_unexpanded_q = NULL;
-struct host_q *      simta_punt_q = NULL;
 struct proc_type *   simta_proc_stab = NULL;
 ucl_object_t *       simta_config = NULL;
 int                  simta_listen_backlog = 64;
@@ -673,7 +672,7 @@ simta_waitpid(pid_t child, int *childstatus, int options) {
 
                     /* remote host activity, requeue to encourage it */
                     if ((hq = host_q_lookup(p_remove->p_host)) != NULL) {
-                        hq->hq_leaky = 1;
+                        hq->hq_leaky = true;
                         hq_deliver_pop(hq);
 
                         if (hq_deliver_push(hq, &tv_now, NULL) != 0) {

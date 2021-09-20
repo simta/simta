@@ -38,60 +38,7 @@
 #include "queue.h"
 #include "simta_malloc.h"
 
-/* FIXME: this should be collapsed into env_jail_status */
-void
-env_jail_set(struct envelope *e, enum simta_jail_status val) {
-    simta_debuglog(3, "Jail %s: value %d", e->e_id, val);
-    e->e_jail = val;
-}
-
-bool
-env_jail_status(struct envelope *env, enum simta_jail_status jail) {
-    SNET *snet_lock;
-    int   rc;
-
-    if (env == NULL) {
-        return (true);
-    }
-
-    if (env->e_jail == jail) {
-        return (true);
-    }
-
-    if (env->e_hq != NULL) {
-        /* FIXME: this accounting looks hinky */
-        if (jail == ENV_JAIL_PRISONER) {
-            env->e_hq->hq_jail_envs--;
-        } else {
-            env->e_hq->hq_jail_envs++;
-        }
-    }
-
-    if (env_read(READ_JAIL_INFO, env, &snet_lock) != 0) {
-        return (true);
-    }
-
-    env_jail_set(env, jail);
-
-    rc = env_outfile(env);
-
-    if (snet_close(snet_lock) < 0) {
-        syslog(LOG_ERR, "Liberror: env_jail_status snet_close: %m");
-    }
-
-    if (rc != 0) {
-        return (false);
-    }
-
-    env_rcpt_free(env);
-
-    syslog(LOG_INFO, "Envelope.jail %s: %s", env->e_id,
-            (jail == ENV_JAIL_PRISONER) ? "immured in durance vile"
-                                        : "paroled");
-
-    return (true);
-}
-
+simta_result env_read_old(const char *, ucl_object_t *, SNET *);
 
 int
 env_is_old(struct envelope *env, int dfile_fd) {
@@ -158,6 +105,8 @@ env_create(const char *dir, const char *id, const char *e_mail,
     }
 
     env->e_id = simta_strdup(id);
+    env->e_bounceable = true;
+    env->e_puntable = true;
 
     if (e_mail != NULL) {
         env_sender(env, e_mail);
@@ -166,10 +115,14 @@ env_create(const char *dir, const char *id, const char *e_mail,
     if (parent) {
         env->e_dinode = parent->e_dinode;
         env->e_n_exp_level = parent->e_n_exp_level + 1;
-        env_jail_set(env, parent->e_jail);
+        env->e_8bitmime = parent->e_8bitmime;
+        env->e_archive_only = parent->e_archive_only;
+        env->e_bounceable = parent->e_bounceable;
+        env->e_jailed = parent->e_jailed;
+        env->e_puntable = parent->e_puntable;
     } else if (strcasecmp(simta_config_str("receive.queue.strategy"), "jail") ==
                0) {
-        env_jail_set(env, ENV_JAIL_PRISONER);
+        env->e_jailed = true;
     }
 
     env->e_dir = dir;
@@ -239,22 +192,25 @@ env_clear_errors(struct envelope *env) {
 }
 
 
-int
-env_hostname(struct envelope *env, char *hostname) {
-    if (env->e_hostname != NULL) {
-        if (strcasecmp(env->e_hostname, hostname) != 0) {
-            syslog(LOG_WARNING,
-                    "Envelope env <%s>: can't reassign hostname from %s to %s",
-                    env->e_id, env->e_hostname, hostname);
-        }
-        return (0);
+void
+env_hostname(struct envelope *env, const char *hostname) {
+    if (env->e_hostname && (strcasecmp(env->e_hostname, hostname) == 0)) {
+        return;
     }
 
-    if ((hostname != NULL) && (*hostname != '\0')) {
-        env->e_hostname = simta_strdup(hostname);
+
+    if ((hostname == NULL) || (*hostname == '\0')) {
+        yaslfree(env->e_hostname);
+        env->e_hostname = NULL;
+        return;
     }
 
-    return (0);
+    if (env->e_hostname) {
+        yaslclear(env->e_hostname);
+    } else {
+        env->e_hostname = yaslempty();
+    }
+    env->e_hostname = yaslcat(env->e_hostname, hostname);
 }
 
 
@@ -315,7 +271,7 @@ env_free(struct envelope *env) {
     }
 
     if (env->e_hostname != NULL) {
-        free(env->e_hostname);
+        yaslfree(env->e_hostname);
     }
 
     if (env->e_id != NULL) {
@@ -331,8 +287,8 @@ env_free(struct envelope *env) {
 }
 
 
-void
-env_stdout(struct envelope *e) {
+ucl_object_t *
+env_repr(struct envelope *e) {
     struct recipient *r;
     ucl_object_t *    repr;
     ucl_object_t *    rcpts;
@@ -342,11 +298,21 @@ env_stdout(struct envelope *e) {
     ucl_object_insert_key(
             repr, ucl_object_fromstring(e->e_id), "envelope_id", 0, false);
     ucl_object_insert_key(
+            repr, ucl_object_fromint(e->e_dinode), "body_inode", 0, false);
+    ucl_object_insert_key(
             repr, ucl_object_fromstring(e->e_hostname), "hostname", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_fromstring(e->e_mail), "sender", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_fromstring(e->e_dir), "directory", 0, false);
+    ucl_object_insert_key(
+            repr, ucl_object_frombool(e->e_8bitmime), "8bitmime", 0, false);
+    ucl_object_insert_key(repr, ucl_object_frombool(e->e_archive_only),
+            "archive_only", 0, false);
+    ucl_object_insert_key(
+            repr, ucl_object_frombool(e->e_jailed), "jailed", 0, false);
+    ucl_object_insert_key(
+            repr, ucl_object_frombool(e->e_puntable), "puntable", 0, false);
 
     rcpts = ucl_object_typed_new(UCL_ARRAY);
     ucl_object_insert_key(repr, rcpts, "recipients", 0, false);
@@ -354,7 +320,13 @@ env_stdout(struct envelope *e) {
         ucl_array_append(rcpts, ucl_object_fromstring(r->r_rcpt));
     }
 
-    printf("%s\n", ucl_object_emit(repr, UCL_EMIT_JSON));
+    return repr;
+}
+
+
+void
+env_stdout(struct envelope *e) {
+    printf("%s\n", ucl_object_emit(env_repr(e), UCL_EMIT_JSON));
 }
 
 
@@ -378,7 +350,7 @@ env_recipient(struct envelope *e, const char *addr) {
 }
 
 
-int
+simta_result
 env_outfile(struct envelope *env) {
     yastr headers;
 #ifdef HAVE_LIBOPENDKIM
@@ -406,16 +378,16 @@ env_outfile(struct envelope *env) {
     }
 
     if ((env->e_flags & ENV_FLAG_TFILE) == 0) {
-        if (env_tfile(env) != 0) {
-            return (1);
+        if (env_tfile(env) != SIMTA_OK) {
+            return SIMTA_ERR;
         }
     }
 
     if (env_efile(env) != 0) {
-        return (1);
+        return SIMTA_ERR;
     }
 
-    return (0);
+    return SIMTA_OK;
 }
 
 
@@ -468,138 +440,64 @@ env_tfile_unlink(struct envelope *e) {
 }
 
 
-int
+simta_result
 env_tfile(struct envelope *e) {
-    int               fd;
-    struct recipient *r;
-    FILE *            tff;
-    char              tf[ MAXPATHLEN + 1 ];
-    int               version_to_write;
+    int           fd;
+    FILE *        tff = NULL;
+    char          tf[ MAXPATHLEN + 1 ];
+    ucl_object_t *repr = NULL;
+    simta_result  ret = SIMTA_ERR;
 
     assert(e->e_dir != NULL);
     assert(e->e_id != NULL);
+
+    if (e->e_rcpt == NULL) {
+        syslog(LOG_ERR, "Envelope env <%s>: no recipients while writing tfile",
+                e->e_id);
+        return SIMTA_ERR;
+    }
 
     sprintf(tf, "%s/t%s", e->e_dir, e->e_id);
 
     /* make tfile */
     if ((fd = open(tf, O_WRONLY | O_CREAT | O_EXCL, 0664)) < 0) {
         syslog(LOG_ERR, "Syserror: env_tfile open %s: %m", tf);
-        return (-1);
+        return SIMTA_ERR;
     }
 
     if ((tff = fdopen(fd, "w")) == NULL) {
         close(fd);
         syslog(LOG_ERR, "Syserror: env_tfile fdopen: %m");
-        unlink(tf);
-        return (-1);
+        goto cleanup;
     }
 
-    /* VSIMTA_EFILE_VERSION */
-    version_to_write = SIMTA_EFILE_VERSION;
-#if 0
-    if (( !e->e_attributes ) && ( !e->e_jail )) {
-        version_to_write = 3;
-    }
-#endif
-
-    if (fprintf(tff, "V%d\n", version_to_write) < 0) {
+    /* FIXME: should there be more error checking for libucl? */
+    repr = env_repr(e);
+    if (fprintf(tff, "%s\n", ucl_object_emit(repr, UCL_EMIT_JSON)) < 0) {
         syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
         goto cleanup;
-    }
-
-    /* Emessage-id */
-    if (fprintf(tff, "E%s\n", e->e_id) < 0) {
-        syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-        goto cleanup;
-    }
-
-    /* Idinode */
-    if (e->e_dinode <= 0) {
-        panic("env_tfile: bad dinode");
-    }
-    if (fprintf(tff, "I%lu\n", e->e_dinode) < 0) {
-        syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-        goto cleanup;
-    }
-
-    simta_debuglog(3, "env_tfile %s: Dinode %d", e->e_id, (int)e->e_dinode);
-
-    /* Xpansion Level */
-    if (fprintf(tff, "X%d\n", e->e_n_exp_level) < 0) {
-        syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-        goto cleanup;
-    }
-
-    /* Jail Level */
-    if ((version_to_write < 5)) {
-    } else if (fprintf(tff, "J%d\n", e->e_jail) < 0) {
-        syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-        goto cleanup;
-    }
-
-    /* Hdestination-host */
-    if ((e->e_hostname != NULL) && (e->e_dir != simta_dir_dead)) {
-        if (fprintf(tff, "H%s\n", e->e_hostname) < 0) {
-            syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-            goto cleanup;
-        }
-
-    } else {
-        if (fprintf(tff, "H\n") < 0) {
-            syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-            goto cleanup;
-        }
-    }
-
-    if ((version_to_write < 4)) {
-    } else if (fprintf(tff, "D%u\n", e->e_attributes) < 0) {
-        syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-        goto cleanup;
-    }
-
-    /* Ffrom-addr@sender.com */
-    if (e->e_mail != NULL) {
-        if (fprintf(tff, "F%s\n", e->e_mail) < 0) {
-            syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-            goto cleanup;
-        }
-
-    } else {
-        if (fprintf(tff, "F\n") < 0) {
-            syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-            goto cleanup;
-        }
-    }
-
-    /* Rto-addr@recipient.com */
-    if (e->e_rcpt != NULL) {
-        for (r = e->e_rcpt; r != NULL; r = r->r_next) {
-            if (fprintf(tff, "R%s\n", r->r_rcpt) < 0) {
-                syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
-                goto cleanup;
-            }
-        }
-
-    } else {
-        syslog(LOG_ERR, "Envelope env <%s>: no recipients while writing tfile",
-                e->e_id);
-        goto cleanup;
-    }
-
-    if (fclose(tff) != 0) {
-        syslog(LOG_ERR, "Syserror: env_tfile fclose: %m");
-        unlink(tf);
-        return (-1);
     }
 
     e->e_flags |= ENV_FLAG_TFILE;
-
-    return (0);
+    ret = SIMTA_OK;
 
 cleanup:
-    fclose(tff);
-    unlink(tf);
-    return (-1);
+    if (repr) {
+        ucl_object_unref(repr);
+    }
+
+    if (tff) {
+        if (fclose(tff) != 0) {
+            syslog(LOG_ERR, "Syserror: env_tfile fclose: %m");
+            ret = SIMTA_ERR;
+        }
+    }
+
+    if (ret != SIMTA_OK) {
+        unlink(tf);
+    }
+
+    return ret;
 }
 
 
@@ -854,377 +752,149 @@ env_touch(struct envelope *env) {
 }
 
 
-/* Version
-     * Emessage-id
-     * [ Mid ]
-     * Inode
-     * Xpansion level
-     * Jail
-     * From
-     * Recipients
-     */
+simta_result
+env_read(bool initial, struct envelope *env, SNET **s_lock) {
+    simta_result        ret = SIMTA_ERR;
+    yastr               filename = NULL;
+    yastr               unparsed = NULL;
+    SNET *              snet = NULL;
+    const char *        data;
+    struct ucl_parser * parser = NULL;
+    ucl_object_t *      env_data = NULL;
+    ucl_object_iter_t   iter = NULL;
+    const ucl_object_t *rcpt = NULL;
+    struct dll_entry *  e_dll;
 
-int
-env_read(int mode, struct envelope *env, SNET **s_lock) {
-    char *            line;
-    SNET *            snet;
-    char              filename[ MAXPATHLEN + 1 ];
-    char *            hostname;
-    int               ret = 1;
-    ino_t             dinode;
-    int               version;
-    int               exp_level;
-    int               jail;
-    int               line_no = 1;
-    struct dll_entry *e_dll;
-
-    switch (mode) {
-    default:
-        syslog(LOG_ERR, "Envelope.read unknown mode: %d", mode);
-        return (1);
-
-    case READ_QUEUE_INFO:
-        if (s_lock != NULL) {
-            syslog(LOG_ERR,
-                    "Envelope.read no lock allowed in READ_QUEUE_INFO mode");
-            return (1);
-        }
-        break;
-
-    case READ_DELIVER_INFO:
-    case READ_JAIL_INFO:
-        break;
+    if (initial && (s_lock != NULL)) {
+        syslog(LOG_ERR, "Envelope.read no lock allowed during initial read");
+        return SIMTA_ERR;
     }
 
-    sprintf(filename, "%s/E%s", env->e_dir, env->e_id);
+    filename = yaslcatprintf(yaslauto(env->e_dir), "/E%s", env->e_id);
 
     if ((snet = snet_open(filename, O_RDWR, 0, 1024 * 1024)) == NULL) {
         if (errno != ENOENT) {
             syslog(LOG_ERR, "Syserror: env_read snet_open %s: %m", filename);
         }
-        return (1);
+        return SIMTA_ERR;
     }
 
-    switch (mode) {
-    default:
-        syslog(LOG_ERR, "Envelope.read invalid mode change: %d", mode);
-        goto cleanup;
-
-    case READ_QUEUE_INFO:
+    if (initial) {
         /* test to see if env is locked by a q_runner */
         if (lockf(snet_fd(snet), F_TEST, 0) != 0) {
             syslog(LOG_ERR, "Syserror: env_read lockf %s: %m", filename);
             goto cleanup;
         }
-        break;
+    } else if (s_lock != NULL) {
+        *s_lock = snet;
 
-    case READ_DELIVER_INFO:
-    case READ_JAIL_INFO:
-        if (s_lock != NULL) {
-            *s_lock = snet;
+        /* lock envelope fd */
+        if (lockf(snet_fd(snet), F_TLOCK, 0) != 0) {
+            if (errno != EAGAIN) {
+                /* file not locked by a diferent process */
+                syslog(LOG_ERR, "Syserror: env_read lockf %s: %m", filename);
+            }
+            goto cleanup;
+        }
+    }
 
-            /* lock envelope fd */
-            if (lockf(snet_fd(snet), F_TLOCK, 0) != 0) {
-                if (errno != EAGAIN) {
-                    /* file not locked by a diferent process */
-                    syslog(LOG_ERR, "Syserror: env_read lockf %s: %m",
-                            filename);
-                }
+    /* Check if this is an old-style file */
+    data = snet_getline(snet, NULL);
+    if (data == NULL) {
+        syslog(LOG_ERR, "Envelope.read %s: expected non-empty file", filename);
+        goto cleanup;
+    } else if (*data == 'V') {
+        if (strtol(data + 1, NULL, 10) != 5) {
+            syslog(LOG_ERR, "Envelope.read %s: unsupported old file version %s",
+                    filename, data + 1);
+            goto cleanup;
+        }
+        env_data = ucl_object_new();
+        ret = env_read_old(filename, env_data, snet);
+    } else {
+        unparsed = yaslauto(data);
+        while ((data = snet_getline(snet, NULL)) != NULL) {
+            unparsed = yaslcat(unparsed, "\n");
+            unparsed = yaslcat(unparsed, data);
+        }
+        parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+        if (!ucl_parser_add_string(parser, unparsed, yasllen(unparsed))) {
+            syslog(LOG_ERR, "Envelope.read %s: parsing failed: %s", filename,
+                    ucl_parser_get_error(parser));
+            goto cleanup;
+        }
+        env_data = ucl_parser_get_object(parser);
+    }
+
+    data = ucl_object_tostring(ucl_object_lookup(env_data, "envelope_id"));
+    if (strcmp(env->e_id, data) != 0) {
+        syslog(LOG_WARNING, "Envelope.read %s: envelope id mismatch: %s",
+                filename, data);
+        goto cleanup;
+    }
+
+    if (initial) {
+        env->e_dinode =
+                ucl_object_toint(ucl_object_lookup(env_data, "body_inode"));
+        if (env->e_dinode == 0) {
+            syslog(LOG_WARNING, "Envelope.read %s: body_inode is 0", filename);
+        }
+
+        env->e_n_exp_level = ucl_object_toint(
+                ucl_object_lookup(env_data, "expansion_level"));
+
+        env->e_jailed =
+                ucl_object_toboolean(ucl_object_lookup(env_data, "jailed"));
+        env_hostname(env,
+                ucl_object_tostring(ucl_object_lookup(env_data, "hostname")));
+        env->e_8bitmime =
+                ucl_object_toboolean(ucl_object_lookup(env_data, "8bitmime"));
+        env->e_archive_only = ucl_object_toboolean(
+                ucl_object_lookup(env_data, "archive_only"));
+        env_sender(env,
+                ucl_object_tostring(ucl_object_lookup(env_data, "sender")));
+    } else {
+        /* FIXME: check metadata consistency */
+        iter = ucl_object_iterate_new(
+                ucl_object_lookup(env_data, "recipients"));
+        while ((rcpt = ucl_object_iterate_safe(iter, false)) != NULL) {
+            if (env_recipient(env, ucl_object_tostring(rcpt)) != 0) {
                 goto cleanup;
             }
         }
-        break;
-    }
 
-    /* Vsimta-version */
-    if (((line = snet_getline(snet, NULL)) == NULL) || (*line != 'V')) {
-        syslog(LOG_ERR, "Envelope.read %s %d: expected version syntax",
-                filename, line_no);
-        goto cleanup;
-    }
-    sscanf(line + 1, "%d", &version);
-    if ((version < 1) || (version > SIMTA_EFILE_VERSION)) {
-        syslog(LOG_ERR, "Envelope.read %s %d: unsupported efile version %d",
-                filename, line_no, version);
-        goto cleanup;
-    }
-
-    if (version >= 2) {
-        /* Emessage-id */
-        line_no++;
-        if (((line = snet_getline(snet, NULL)) == NULL) || (*line != 'E')) {
-            syslog(LOG_ERR, "Envelope.read %s %d: expected Equeue-id syntax",
-                    filename, line_no);
-            goto cleanup;
-        }
-        if (strcmp(line + 1, env->e_id) != 0) {
-            syslog(LOG_WARNING, "Envelope.read %s %d: queue-id mismatch: %s",
-                    filename, line_no, line + 1);
+        if (env->e_rcpt == NULL) {
+            syslog(LOG_ERR, "Envelope.read %s: no recipients", filename);
             goto cleanup;
         }
     }
 
-    line_no++;
-    if ((line = snet_getline(snet, NULL)) == NULL) {
-        syslog(LOG_ERR, "Envelope.read %s %d: expected Dinode syntax", filename,
-                line_no);
-        goto cleanup;
+    ret = SIMTA_OK;
+
+cleanup:
+    yaslfree(unparsed);
+    if (parser != NULL) {
+        ucl_parser_free(parser);
     }
-
-    /* ignore optional M for now */
-    if (*line == 'M') {
-        line_no++;
-        if ((line = snet_getline(snet, NULL)) == NULL) {
-            syslog(LOG_ERR, "Envelope.read %s %d: expected Dinode syntax",
-                    filename, line_no);
-            goto cleanup;
-        }
+    if (iter != NULL) {
+        ucl_object_iterate_free(iter);
     }
-
-    /* Dinode info */
-    if (*line != 'I') {
-        syslog(LOG_ERR, "Envelope.read %s %d: expected Dinode syntax", filename,
-                line_no);
-        goto cleanup;
-    }
-
-    sscanf(line + 1, "%lu", &dinode);
-
-    switch (mode) {
-    default:
-        syslog(LOG_ERR, "Envelope.read invalid mode change: %d", mode);
-        goto cleanup;
-
-    case READ_JAIL_INFO:
-    case READ_DELIVER_INFO:
-        if (dinode != env->e_dinode) {
-            syslog(LOG_WARNING,
-                    "Envelope.read %s %d: Dinode reread mismatch: "
-                    "old %d new %d, ignoring",
-                    filename, line_no, (int)env->e_dinode, (int)dinode);
-        }
-        break;
-
-    case READ_QUEUE_INFO:
-        if (dinode == 0) {
-            syslog(LOG_WARNING, "Envelope.read %s %d: Dinode is 0", filename,
-                    line_no);
-        }
-        env->e_dinode = dinode;
-        break;
-    }
-
-    /* expansion info */
-    if (version >= 3) {
-        line_no++;
-        if (((line = snet_getline(snet, NULL)) == NULL) || (*line != 'X')) {
-            syslog(LOG_ERR, "Envelope.read %s %d: expected Xpansion syntax",
-                    filename, line_no);
-            goto cleanup;
-        }
-
-        if (sscanf(line + 1, "%d", &exp_level) != 1) {
-            syslog(LOG_ERR, "Envelope.read %s %d: bad Xpansion syntax",
-                    filename, line_no);
-            goto cleanup;
-        }
-
-        switch (mode) {
-        default:
-            syslog(LOG_ERR, "Envelope.read: invalid mode change: %d", mode);
-            goto cleanup;
-
-        case READ_DELIVER_INFO:
-        case READ_JAIL_INFO:
-            if (exp_level == env->e_n_exp_level) {
-                break;
-            }
-            syslog(LOG_WARNING,
-                    "Envelope.read %s %d: Xpansion mismatch: "
-                    "old %d new %d, ignoring",
-                    filename, line_no, env->e_n_exp_level, exp_level);
-            break;
-
-        case READ_QUEUE_INFO:
-            env->e_n_exp_level = exp_level;
-            break;
-        }
-    }
-
-    /* Jail info */
-    if (version >= 5) {
-        line_no++;
-        if (((line = snet_getline(snet, NULL)) == NULL) || (*line != 'J')) {
-            syslog(LOG_ERR, "Envelope.read %s %d: expected Jail syntax",
-                    filename, line_no);
-            goto cleanup;
-        }
-
-        if (sscanf(line + 1, "%d", &jail) != 1) {
-            syslog(LOG_ERR, "Envelope.read %s %d: bad Jail syntax", filename,
-                    line_no);
-            goto cleanup;
-        }
-
-        switch (mode) {
-        default:
-            syslog(LOG_ERR, "Envelope.read: invalid mode change: %d", mode);
-            goto cleanup;
-
-        case READ_JAIL_INFO:
-        case READ_DELIVER_INFO:
-            if (env->e_jail == jail) {
-                break;
-            }
-            syslog(LOG_WARNING,
-                    "Envelope.read %s %d: Jail mismatch: "
-                    "old %d new %d, ignoring",
-                    filename, line_no, env->e_jail, jail);
-            break;
-
-        case READ_QUEUE_INFO:
-            if (jail == ENV_JAIL_PRISONER) {
-                env_jail_set(env, ENV_JAIL_PRISONER);
-            }
-            break;
-        }
-    }
-
-    line_no++;
-    if (((line = snet_getline(snet, NULL)) == NULL) || (*line != 'H')) {
-        syslog(LOG_ERR, "Envelope.read %s %d: expected host syntax", filename,
-                line_no);
-        goto cleanup;
-    }
-
-    hostname = line + 1;
-
-    switch (mode) {
-    default:
-        syslog(LOG_ERR, "Envelope.read: invalid mode change: %d", mode);
-        goto cleanup;
-
-    case READ_DELIVER_INFO:
-    case READ_JAIL_INFO:
-        if (env->e_hostname == NULL) {
-            if (*hostname != '\0') {
-                syslog(LOG_ERR,
-                        "Envelope.read %s %d: hostname reread mismatch, "
-                        "old \"\" new \"%s\"",
-                        filename, line_no, hostname);
-                goto cleanup;
-            }
-        } else if (strcasecmp(hostname, env->e_hostname) != 0) {
-            syslog(LOG_ERR,
-                    "Envelope.read %s %d: hostname reread mismatch, "
-                    "old \"%s\" new \"%s\"",
-                    filename, line_no, env->e_hostname, hostname);
-            goto cleanup;
-        }
-        break;
-
-    case READ_QUEUE_INFO:
-        if (env_hostname(env, hostname) != 0) {
-            goto cleanup;
-        }
-        break;
-    }
-
-    /* Dattributes */
-    if (version >= 4) {
-        line_no++;
-        if ((line = snet_getline(snet, NULL)) == NULL) {
-            syslog(LOG_ERR, "Envelope.read %s: unexpected EOF", filename);
-            goto cleanup;
-        }
-
-        if (*line != 'D') {
-            syslog(LOG_ERR, "Envelope.read %s: expected Dattributes syntax",
-                    filename);
-            goto cleanup;
-        }
-
-        if (sscanf(line + 1, "%d", &exp_level) != 1) {
-            syslog(LOG_ERR, "Envelope.read %s: bad Dattributes syntax",
-                    filename);
-            goto cleanup;
-        }
-
-        if (mode == READ_QUEUE_INFO) {
-            env->e_attributes = exp_level;
-        } else if (exp_level != env->e_attributes) {
-            syslog(LOG_WARNING,
-                    "Envelope.read %s: "
-                    "Dattributes reread mismatch old %d new %d",
-                    filename, env->e_attributes, exp_level);
-        }
-    }
-
-    /* Ffrom-address */
-    line_no++;
-    if (((line = snet_getline(snet, NULL)) == NULL) || (*line != 'F')) {
-        syslog(LOG_ERR, "Envelope.read %s %d: expected Ffrom syntax", filename,
-                line_no);
-        goto cleanup;
-    }
-
-    switch (mode) {
-    default:
-        syslog(LOG_ERR, "Envelope.read: invalid mode change: %d", mode);
-        goto cleanup;
-
-    case READ_QUEUE_INFO:
-        if (env_sender(env, line + 1) == 0) {
-            ret = 0;
-        }
-        goto cleanup;
-
-    case READ_JAIL_INFO:
-    case READ_DELIVER_INFO:
-        if (strcmp(env->e_mail, line + 1) != 0) {
-            syslog(LOG_ERR,
-                    "Envelope.read %s %d: bad sender re-read: "
-                    "old <%s> new <%s>",
-                    filename, line_no, env->e_mail, line + 1);
-            goto cleanup;
-        }
-        break;
-    }
-
-    /* Rto-addresses */
-    for (line_no++; (line = snet_getline(snet, NULL)) != NULL; line_no++) {
-        if (*line != 'R') {
-            syslog(LOG_ERR, "Envelope.read %s %d: expected Recipient syntax",
-                    filename, line_no);
-            goto cleanup;
-        }
-
-        if (env_recipient(env, line + 1) != 0) {
-            goto cleanup;
-        }
-    }
-
-    if (env->e_rcpt == NULL) {
-        syslog(LOG_ERR, "Envelope.read %s %d: no recipients", filename,
-                line_no);
-        goto cleanup;
-    }
-
-    ret = 0;
 
     /* close snet if no need to maintain lock */
-    if (s_lock == NULL) {
-    cleanup:
+    if ((snet != NULL) && (s_lock == NULL || ret != SIMTA_OK)) {
         if (snet_close(snet) < 0) {
             syslog(LOG_ERR, "Liberror: env_read snet_close %s: %m", filename);
             ret = 1;
         }
     }
 
-    if (ret == 0) {
+    yaslfree(filename);
+    filename = NULL;
+
+    if (ret == SIMTA_OK) {
         if ((e_dll = dll_lookup_or_create(&simta_env_list, env->e_id)) ==
                 NULL) {
-            return (1);
+            return SIMTA_ERR;
         }
 
         if (e_dll->dll_data == NULL) {
@@ -1233,11 +903,85 @@ env_read(int mode, struct envelope *env, SNET **s_lock) {
         }
 
         if (sender_list_add(env) != 0) {
-            return (1);
+            return SIMTA_ERR;
         }
     }
 
-    return (ret);
+    return ret;
+}
+
+
+simta_result
+env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
+    ucl_object_t *rcpts;
+    char *        line;
+    int           attrs;
+    int           line_no = 2;
+
+    rcpts = ucl_object_typed_new(UCL_ARRAY);
+    ucl_object_insert_key(env_data, rcpts, "recipients", 0, false);
+
+    /* Emessage-id */
+    while ((line = snet_getline(snet, NULL)) != NULL) {
+        line_no++;
+        switch (*line) {
+        case 'M':
+            /* never implemented */
+            break;
+        case 'E':
+            ucl_object_insert_key(env_data, ucl_object_fromstring(line + 1),
+                    "envelope_id", 0, false);
+            break;
+        case 'I':
+            ucl_object_insert_key(env_data,
+                    ucl_object_fromstring_common(
+                            line + 1, 0, UCL_STRING_PARSE_INT),
+                    "body_inode", 0, false);
+            break;
+
+        case 'X':
+            ucl_object_insert_key(env_data,
+                    ucl_object_fromstring_common(
+                            line + 1, 0, UCL_STRING_PARSE_INT),
+                    "expansion_level", 0, false);
+            break;
+
+        case 'J':
+            ucl_object_insert_key(env_data,
+                    ucl_object_frombool(*(line + 1) == '2'), "jailed", 0,
+                    false);
+            break;
+
+        case 'H':
+            ucl_object_insert_key(env_data, ucl_object_fromstring(line + 1),
+                    "hostname", 0, false);
+            break;
+
+        case 'D':
+            attrs = strtol(line + 1, NULL, 10);
+            ucl_object_insert_key(env_data, ucl_object_frombool(attrs & 0x01),
+                    "archive_only", 0, false);
+            ucl_object_insert_key(env_data, ucl_object_frombool(attrs & 0x02),
+                    "8bitmime", 0, false);
+            break;
+
+        case 'F':
+            ucl_object_insert_key(env_data, ucl_object_fromstring(line + 1),
+                    "sender", 0, false);
+            break;
+
+        case 'R':
+            ucl_array_append(rcpts, ucl_object_fromstring(line + 1));
+            break;
+
+        default:
+            syslog(LOG_WARNING, "Envelope read %s %d: unparsable line %s",
+                    filename, line_no, line);
+            return SIMTA_ERR;
+        }
+    }
+
+    return SIMTA_OK;
 }
 
 ino_t

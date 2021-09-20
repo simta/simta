@@ -7,20 +7,15 @@
 #include "simta.h"
 
 /* states for host_q->hq_status */
-#define HOST_UNKNOWN 0
-#define HOST_NULL 1
-#define HOST_LOCAL 2
-#define HOST_MX 3
-#define HOST_BOUNCE 4
-#define HOST_DOWN 5
-#define HOST_PUNT 6
-#define HOST_PUNT_DOWN 7
-#define HOST_SUPPRESSED 8
-#define HOST_BITBUCKET 9
-
-/* bits for host_q->hq_no_punt */
-#define NOPUNT_MX 1
-#define NOPUNT_CONFIG 2
+typedef enum {
+    SIMTA_HOST_UNKNOWN,
+    SIMTA_HOST_NULL,
+    SIMTA_HOST_LOCAL,
+    SIMTA_HOST_MX,
+    SIMTA_HOST_BOUNCE,
+    SIMTA_HOST_DOWN,
+    SIMTA_HOST_BITBUCKET,
+} simta_host_status;
 
 typedef enum {
     SIMTA_DNS_OK,
@@ -82,7 +77,6 @@ struct host_q {
     int               hq_entries;
     int               hq_entries_new;
     int               hq_entries_removed;
-    int               hq_jail_envs;
     ucl_object_t *    hq_red;
     struct host_q *   hq_deliver;
     struct host_q *   hq_deliver_prev;
@@ -90,13 +84,12 @@ struct host_q {
     yastr             hq_hostname;
     char *            hq_smtp_hostname;
     int               hq_primary;
-    int               hq_status;
-    int               hq_no_punt;
+    simta_host_status hq_status;
     int               hq_wait_min;
     int               hq_wait_max;
     int               hq_launches;
     int               hq_delay;
-    int               hq_leaky;
+    bool              hq_leaky;
     struct envelope * hq_env_head;
     struct line_file *hq_err_text;
     struct timeval    hq_last_launch;
@@ -112,7 +105,7 @@ struct host_q *host_q_lookup(char *);
 struct host_q *host_q_create_or_lookup(char *);
 int            q_runner(void);
 void           queue_remove_envelope(struct envelope *);
-int            queue_envelope(struct envelope *);
+simta_result   queue_envelope(struct envelope *);
 int            q_single(struct host_q *);
 void           hq_deliver_pop(struct host_q *);
 void           queue_log_metrics(struct host_q *);

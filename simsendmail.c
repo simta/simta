@@ -204,7 +204,7 @@ main(int argc, char *argv[]) {
 #endif /* HAVE_LIBOPENDKIM */
 
     /* Local messages should never be jailed. */
-    env_jail_set(env, ENV_JAIL_FREE);
+    env->e_jailed = false;
 
     memset(&rh, 0, sizeof(struct receive_headers));
     rh.r_env = env;
@@ -364,7 +364,7 @@ done:
     }
 
     /* store Efile */
-    if (env_outfile(env) != 0) {
+    if (env_outfile(env) != SIMTA_OK) {
         syslog(LOG_INFO, "Local %s: Message Aborted", env->e_id);
         perror("env_outfile");
         goto error;

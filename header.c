@@ -782,7 +782,7 @@ header_check(struct receive_headers *rh, bool read_headers,
 
     /* Mime-Version: */
     if (dll_lookup(rh->r_headers_index, "mime-version")) {
-        rh->r_env->e_attributes |= ENV_ATTR_8BITMIME;
+        rh->r_env->e_8bitmime = true;
     }
 
     /* Subject: */

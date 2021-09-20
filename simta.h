@@ -32,7 +32,6 @@
 #define S_UNEXPANDED "unexpanded"
 #define S_UNKNOWN_HOST "Unknown host"
 
-#define SIMTA_EFILE_VERSION 5
 #define SIMTA_MAX_HOST_NAME_LEN 256
 
 #define EXIT_OK 0
@@ -135,7 +134,6 @@ extern struct timeval       simta_tv_now;
 extern struct timeval       simta_log_tv;
 extern struct host_q *      simta_deliver_q;
 extern struct host_q *      simta_unexpanded_q;
-extern struct host_q *      simta_punt_q;
 extern ucl_object_t *       simta_host_q;
 extern struct envelope *    simta_env_queue;
 extern struct proc_type *   simta_proc_stab;
