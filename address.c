@@ -379,6 +379,7 @@ address_expand(struct expand *exp) {
                 break;
             }
         }
+        ucl_object_iterate_free(iter);
     }
 
     switch (rc) {
