@@ -442,11 +442,12 @@ env_tfile_unlink(struct envelope *e) {
 
 simta_result
 env_tfile(struct envelope *e) {
-    int           fd;
-    FILE *        tff = NULL;
-    char          tf[ MAXPATHLEN + 1 ];
-    ucl_object_t *repr = NULL;
-    simta_result  ret = SIMTA_ERR;
+    int            fd;
+    FILE *         tff = NULL;
+    char           tf[ MAXPATHLEN + 1 ];
+    ucl_object_t * repr = NULL;
+    unsigned char *buf = NULL;
+    simta_result   ret = SIMTA_ERR;
 
     assert(e->e_dir != NULL);
     assert(e->e_id != NULL);
@@ -473,7 +474,8 @@ env_tfile(struct envelope *e) {
 
     /* FIXME: should there be more error checking for libucl? */
     repr = env_repr(e);
-    if (fprintf(tff, "%s\n", ucl_object_emit(repr, UCL_EMIT_JSON)) < 0) {
+    buf = ucl_object_emit(repr, UCL_EMIT_JSON);
+    if (fprintf(tff, "%s\n", buf) < 0) {
         syslog(LOG_ERR, "Syserror: env_tfile fprintf: %m");
         goto cleanup;
     }
@@ -484,6 +486,10 @@ env_tfile(struct envelope *e) {
 cleanup:
     if (repr) {
         ucl_object_unref(repr);
+    }
+
+    if (buf) {
+        free(buf);
     }
 
     if (tff) {
@@ -854,7 +860,29 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
         env_sender(env,
                 ucl_object_tostring(ucl_object_lookup(env_data, "sender")));
     } else {
-        /* FIXME: check metadata consistency */
+        if (env->e_dinode != ucl_object_toint(ucl_object_lookup(
+                                     env_data, "body_inode")) ||
+                env->e_n_exp_level != ucl_object_toint(ucl_object_lookup(
+                                              env_data, "expansion_level")) ||
+                env->e_jailed != ucl_object_toboolean(ucl_object_lookup(
+                                         env_data, "jailed")) ||
+                (strcasecmp(env->e_hostname,
+                         ucl_object_tostring(ucl_object_lookup(
+                                 env_data, "hostname"))) != 0) ||
+                env->e_8bitmime != ucl_object_toboolean(ucl_object_lookup(
+                                           env_data, "8bitmime")) ||
+                env->e_archive_only != ucl_object_toboolean(ucl_object_lookup(
+                                               env_data, "archive_only")) ||
+                (strcasecmp(env->e_mail, ucl_object_tostring(ucl_object_lookup(
+                                                 env_data, "sender"))) != 0)) {
+            syslog(LOG_ERR,
+                    "Envelope.read %s: inconsistent metadata: %s does not "
+                    "match in-memory %s",
+                    filename, ucl_object_emit(env_data, UCL_EMIT_JSON_COMPACT),
+                    ucl_object_emit(env_repr(env), UCL_EMIT_JSON_COMPACT));
+            goto cleanup;
+        }
+
         iter = ucl_object_iterate_new(
                 ucl_object_lookup(env_data, "recipients"));
         while ((rcpt = ucl_object_iterate_safe(iter, false)) != NULL) {
