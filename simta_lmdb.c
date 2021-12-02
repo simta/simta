@@ -22,20 +22,21 @@ simta_db_open(
     *dbh = simta_calloc(1, sizeof(struct simta_dbh));
 
     if ((ret = mdb_env_create(&dbp)) != 0) {
-        return (ret);
+        return ret;
     }
 
     if ((ret = mdb_env_set_mapsize(dbp, 104857600)) != 0) {
-        return (ret);
+        return ret;
     }
 
     if ((ret = mdb_env_open(dbp, file, flags, 0664)) != 0) {
         mdb_env_close(dbp);
+        return ret;
     } else {
         (*dbh)->h_env = dbp;
     }
 
-    return (SIMTA_DB_OK);
+    return SIMTA_DB_OK;
 }
 
 char *
