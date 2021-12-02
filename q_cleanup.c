@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <sysexits.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -28,6 +29,7 @@
 #endif /* HAVE_LIBSSL */
 
 #include "envelope.h"
+#include "q_cleanup.h"
 #include "simta.h"
 #include "simta_malloc.h"
 
@@ -50,7 +52,6 @@ struct i_list {
     struct envelope *i_unexpanded;
 };
 
-int q_cleanup(void);
 int q_dir_startup(char *, int, struct envelope **);
 int q_expansion_cleanup(struct envelope **);
 int q_move_to_slow(struct envelope **, struct envelope **);
@@ -59,46 +60,48 @@ int file_list_add(struct file_list **, int, char *, char *);
 
 int
 q_cleanup(void) {
+    int              ret;
     struct envelope *slow = NULL;
     struct envelope *fast = NULL;
     struct envelope *local = NULL;
 
-    if (q_dir_startup(simta_dir_dead, Q_DIR_EXIST, NULL)) {
-        return (1);
+    if ((ret = q_dir_startup(simta_dir_dead, Q_DIR_EXIST, NULL)) != EX_OK) {
+        return ret;
     }
 
-    if (q_dir_startup(simta_dir_slow, Q_DIR_CLEAN, &slow)) {
-        return (1);
+    if ((ret = q_dir_startup(simta_dir_slow, Q_DIR_CLEAN, &slow)) != EX_OK) {
+        return ret;
     }
 
     if (simta_filesystem_cleanup) {
-        if (q_dir_startup(simta_dir_fast, Q_DIR_CLEAN, &fast)) {
-            return (1);
+        if ((ret = q_dir_startup(simta_dir_fast, Q_DIR_CLEAN, &fast)) !=
+                EX_OK) {
+            return ret;
         }
 
         if (q_expansion_cleanup(&fast)) {
-            return (1);
+            return EX_DATAERR;
         }
 
         if (q_move_to_slow(&slow, &fast) != 0) {
-            return (1);
+            return EX_IOERR;
         }
 
     } else {
-        if (q_dir_startup(simta_dir_fast, Q_DIR_EMPTY, NULL)) {
-            return (1);
+        if ((ret = q_dir_startup(simta_dir_fast, Q_DIR_EMPTY, NULL)) != EX_OK) {
+            return ret;
         }
     }
 
-    if (q_dir_startup(simta_dir_local, Q_DIR_CLEAN, &local)) {
-        return (1);
+    if ((ret = q_dir_startup(simta_dir_local, Q_DIR_CLEAN, &local)) != EX_OK) {
+        return ret;
     }
 
     if (q_move_to_slow(&slow, &local) != 0) {
-        return (1);
+        return EX_IOERR;
     }
 
-    return (0);
+    return EX_OK;
 }
 
 
@@ -164,21 +167,21 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
     struct envelope * env;
     struct envelope **env_p;
     int               result;
-    int               bad_filesystem = 0;
+    bool              bad_filesystem = false;
     struct file_list *f_list = NULL;
     struct file_list *f;
 
     if ((dirp = opendir(dir)) == NULL) {
         syslog(LOG_ERR, "Syserror: q_dir_startup opendir %s: %m", dir);
-        return (1);
+        return EX_NOINPUT;
     }
 
     if (action == Q_DIR_EXIST) {
         if (closedir(dirp) != 0) {
             syslog(LOG_ERR, "Syserror: q_dir_startup closedir %s: %m", dir);
-            return (1);
+            return EX_IOERR;
         }
-        return (0);
+        return EX_OK;
     }
 
     /* clear errno before trying to read */
@@ -204,8 +207,8 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
         if (action == Q_DIR_EMPTY) {
             syslog(LOG_NOTICE, "Queue %s/%s: Directory not empty", dir,
                     entry->d_name);
-            bad_filesystem = 1;
-            continue;
+            closedir(dirp);
+            return EX_DATAERR;
         }
 
         if ((*entry->d_name == 'E') || (*entry->d_name == 'D')) {
@@ -219,7 +222,8 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
             if ((*env_p == NULL) || (result != 0)) {
                 if ((env = env_create(dir, entry->d_name + 1, NULL, NULL)) ==
                         NULL) {
-                    return (1);
+                    return EX_UNAVAILABLE;
+                    ;
                 }
 
                 env->e_next = *env_p;
@@ -245,17 +249,17 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
                     /* Keep track of stranded t files */
                     if (file_list_add(
                                 &f_list, INCOMPLETE_T, dir, entry->d_name)) {
-                        return (1);
+                        return EX_UNAVAILABLE;
                     }
                 }
             } else {
                 /* illegal stranded t */
-                bad_filesystem = 1;
+                bad_filesystem = true;
             }
 
         } else {
             /* unknown file */
-            bad_filesystem = 1;
+            bad_filesystem = true;
             syslog(LOG_WARNING, "Queue %s/%s: unknown file", dir,
                     entry->d_name);
         }
@@ -264,16 +268,21 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
     /* did readdir finish, or encounter an error? */
     if (errno != 0) {
         syslog(LOG_ERR, "Syserror: q_dir_startup readdir %s: %m", dir);
-        bad_filesystem = 1;
+        closedir(dirp);
+        return EX_IOERR;
     }
 
     if (closedir(dirp) != 0) {
         syslog(LOG_ERR, "Syserror: q_dir_startup closedir %s: %m", dir);
-        return (1);
+        return EX_IOERR;
     }
 
-    if ((bad_filesystem) || (action == Q_DIR_EMPTY)) {
-        return (bad_filesystem);
+    if (action == Q_DIR_EMPTY) {
+        return EX_OK;
+    }
+
+    if (bad_filesystem) {
+        return EX_DATAERR;
     }
 
     for (env_p = messages; *env_p != NULL;) {
@@ -281,7 +290,7 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
 
         if ((env->e_flags & ENV_FLAG_DFILE) == 0) {
             syslog(LOG_ERR, "Queue %s/E%s: missing Dfile", dir, env->e_id);
-            bad_filesystem = 1;
+            bad_filesystem = true;
             *env_p = env->e_next;
             env_free(env);
 
@@ -291,10 +300,10 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
                 /* Nada. */
             } else if ((simta_filesystem_cleanup) && (!bad_filesystem)) {
                 if (file_list_add(&f_list, STRANDED_D, dir, env->e_id)) {
-                    return (1);
+                    return EX_UNAVAILABLE;
                 }
             } else {
-                bad_filesystem = 1;
+                bad_filesystem = true;
             }
 
             *env_p = env->e_next;
@@ -313,7 +322,7 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
             if (unlink(f->f_name) != 0) {
                 syslog(LOG_ERR, "Syserror: q_dir_startup unlink %s: %m",
                         f->f_name);
-                return (1);
+                return EX_UNAVAILABLE;
             }
             syslog(LOG_INFO, "Queue %s: unlinked", f->f_name);
         }
@@ -322,7 +331,7 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
         free(f);
     }
 
-    return (bad_filesystem);
+    return bad_filesystem ? EX_DATAERR : EX_OK;
 }
 
 

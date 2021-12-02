@@ -59,7 +59,6 @@ COMMON_FILES = \
 	line_file.c line_file.h \
 	ll.c ll.h \
 	ml.c ml.h \
-	q_cleanup.c \
 	queue.c queue.h \
 	red.c red.h \
 	simta.c simta.h \
@@ -127,7 +126,7 @@ simspf_SOURCES = simspf.c $(COMMON_FILES)
 simspf_LDADD = $(COMMON_LIBS)
 simsrs_SOURCES = simsrs.c $(COMMON_FILES)
 simsrs_LDADD = $(COMMON_LIBS)
-simta_SOURCES = daemon.c dmarc.c dmarc.h receive.c $(COMMON_FILES)
+simta_SOURCES = daemon.c dmarc.c dmarc.h q_cleanup.c q_cleanup.h receive.c $(COMMON_FILES)
 simta_LDADD = $(COMMON_LIBS)
 
 dist_man_MANS = simsendmail.1 simc.8 simta.8

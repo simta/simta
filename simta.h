@@ -202,7 +202,6 @@ extern int simta_inbound_data_line_timer;
 extern int simta_inbound_data_session_timer;
 extern int simta_inbound_ssl_accept_timer;
 
-int   q_cleanup(void);
 int   smtp_receive(int, struct connection_info *, struct simta_socket *);
 void  panic(const char *);
 char *simta_resolvconf(void);

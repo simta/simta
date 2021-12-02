@@ -45,6 +45,7 @@
 #include "argcargv.h"
 #include "envelope.h"
 #include "ll.h"
+#include "q_cleanup.h"
 #include "queue.h"
 #include "simta.h"
 #include "simta_malloc.h"
