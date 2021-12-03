@@ -311,7 +311,17 @@ simta_ld_init(struct simta_ldap *ld, const yastr key) {
 
 void
 simta_ldap_reset(void) {
-    /* FIXME: should probably close connections gracefully */
+    ucl_object_iter_t   iter;
+    const ucl_object_t *obj;
+
+    iter = ucl_object_iterate_new(ldap_connections);
+    while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+        simta_debuglog(
+                1, "LDAP: closing connection to %s", ucl_object_key(obj));
+        ldap_unbind_ext(obj->value.ud, NULL, NULL);
+    }
+    ucl_object_iterate_free(iter);
+
     ucl_object_unref(ldap_connections);
     ucl_object_unref(ldap_configs);
     ldap_connections = ucl_object_new();
