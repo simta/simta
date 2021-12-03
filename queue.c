@@ -45,6 +45,7 @@
 #include "wildcard.h"
 
 static simta_result deliver_checksockaddr(struct deliver *, struct host_q *);
+static void         free_dns_results(struct deliver *);
 static void         real_q_deliver(struct deliver *, struct host_q *);
 void                q_deliver(struct host_q *);
 void                deliver_local(struct deliver *d);
@@ -1323,9 +1324,8 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         if (snet_close(d->d_snet_smtp) != 0) {
             syslog(LOG_ERR, "Liberror: q_deliver snet_close: %m");
         }
-        /* FIXME: free other things? */
-        dnsr_free_result(d->d_dnsr_result);
     }
+    free_dns_results(d);
 
     return;
 }
@@ -1542,10 +1542,7 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
         d->d_snet_smtp = NULL;
 
         if (hq->hq_status == SIMTA_HOST_BOUNCE) {
-            if (d->d_dnsr_result) {
-                dnsr_free_result(d->d_dnsr_result);
-            }
-            /* FIXME: free other things? */
+            free_dns_results(d);
             return;
 
         } else if (hq->hq_status == SIMTA_HOST_DOWN) {
@@ -1907,6 +1904,32 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
 
     return SIMTA_DNS_AGAIN;
 }
+
+
+static void
+free_dns_results(struct deliver *d) {
+    if (d->d_dnsr_result) {
+        dnsr_free_result(d->d_dnsr_result);
+        d->d_dnsr_result = NULL;
+    }
+    if (d->d_mx_list) {
+        ucl_object_unref(d->d_mx_list);
+        d->d_mx_list = NULL;
+    }
+    if (d->d_mx_current) {
+        ucl_object_unref(d->d_mx_current);
+        d->d_mx_current = NULL;
+    }
+    if (d->d_retry_list) {
+        ucl_object_unref(d->d_retry_list);
+        d->d_retry_list = NULL;
+    }
+    if (d->d_retry_current) {
+        ucl_object_unref(d->d_retry_current);
+        d->d_retry_current = NULL;
+    }
+}
+
 
 static simta_result
 deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
