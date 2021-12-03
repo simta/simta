@@ -115,13 +115,13 @@ jobs:
       - name: Build simta with clang
         run: |
           make distclean
-          CC=clang CFLAGS='-Wall -Werror' ./configure --with-arc
-          make -j4
+          CC=clang ./configure --with-arc
+          make -j4 CFLAGS='-Wall -Werror'
         working-directory: ${{ github.workspace }}/simta
 
       - name: Build minimal simta
         run: |
           make distclean
-          CC=clang CFLAGS='-Wall -Werror' ./configure --without-dkim --without-arc --without-sasl --without-ssl --without-libidn2 --without-jemalloc --without-ldap --without-libwrap --without-lmdb
-          make -j4
+          CC=clang ./configure --without-dkim --without-arc --without-sasl --without-ssl --without-libidn2 --without-jemalloc --without-ldap --without-libwrap --without-lmdb
+          make -j4 CFLAGS='-Wall -Werror'
         working-directory: ${{ github.workspace }}/simta
