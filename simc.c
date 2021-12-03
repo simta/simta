@@ -105,7 +105,7 @@ main(int argc, char *argv[]) {
         exit(EX_USAGE);
     }
 
-    if (simta_read_config(config_fname, NULL) < 0) {
+    if (simta_read_config(config_fname, NULL) != SIMTA_OK) {
         exit(EX_TEMPFAIL);
     }
 

@@ -26,7 +26,7 @@ main(int ac, char *av[]) {
         exit(1);
     }
 
-    if (simta_read_config(NULL, NULL) < 0) {
+    if (simta_read_config(NULL, NULL) != SIMTA_OK) {
         exit(1);
     }
 

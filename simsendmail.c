@@ -171,7 +171,7 @@ main(int argc, char *argv[]) {
         exit(EX_USAGE);
     }
 
-    if (simta_read_config(NULL, NULL) < 0) {
+    if (simta_read_config(NULL, NULL) != SIMTA_OK) {
         exit(EX_TEMPFAIL);
     }
 

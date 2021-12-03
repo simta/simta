@@ -231,7 +231,7 @@ simta_debuglog(int level, const char *format, ...) {
 }
 
 
-int
+simta_result
 simta_read_config(const char *fname, const char *extra) {
     char                    hostname[ DNSR_MAX_HOSTNAME + 1 ];
     struct ucl_parser *     parser;
@@ -257,7 +257,7 @@ simta_read_config(const char *fname, const char *extra) {
         if ((err = ucl_parser_get_error(parser)) != NULL) {
             syslog(LOG_ERR, "simta_read_config: libucl error: %s", err);
         }
-        return (-1);
+        return SIMTA_ERR;
     }
 
     simta_config = ucl_parser_get_object(parser);
@@ -267,7 +267,7 @@ simta_read_config(const char *fname, const char *extra) {
     /* Set dynamic defaults */
     if (gethostname(hostname, DNSR_MAX_HOSTNAME) != 0) {
         perror("gethostname");
-        return (-1);
+        return SIMTA_ERR;
     }
     simta_hostname = yaslauto(hostname);
     yasltolower(simta_hostname);
@@ -300,7 +300,7 @@ simta_read_config(const char *fname, const char *extra) {
             if ((err = ucl_parser_get_error(parser)) != NULL) {
                 syslog(LOG_ERR, "simta_read_config: libucl error: %s", err);
             }
-            return (-1);
+            return SIMTA_ERR;
         }
 
         ucl_object_merge(simta_config, ucl_parser_get_object(parser), false);
@@ -315,7 +315,7 @@ simta_read_config(const char *fname, const char *extra) {
         if (!ucl_parser_add_string(parser, extra, 0)) {
             syslog(LOG_ERR, "simta_read_config: extra UCL parsing failed: %s",
                     ucl_parser_get_error(parser));
-            return (-1);
+            return SIMTA_ERR;
         }
         ucl_object_merge(simta_config, ucl_parser_get_object(parser), false);
         ucl_parser_free(parser);
@@ -375,11 +375,11 @@ simta_read_config(const char *fname, const char *extra) {
     parser = ucl_parser_new(UCL_PARSER_DEFAULT);
     if (!ucl_parser_add_string(parser, SIMTA_CONFIG_SCHEMA, 0)) {
         syslog(LOG_ERR, "simta_read_config: schema UCL parsing failed");
-        return (-1);
+        return SIMTA_ERR;
     }
     if ((err = ucl_parser_get_error(parser)) != NULL) {
         syslog(LOG_ERR, "simta_read_config: libucl error: %s", err);
-        return (-1);
+        return SIMTA_ERR;
     }
 
     if (!ucl_object_validate(
@@ -387,17 +387,34 @@ simta_read_config(const char *fname, const char *extra) {
         syslog(LOG_ERR, "Config: schema validation failed on %s",
                 ucl_object_emit(schema_err.obj, UCL_EMIT_JSON_COMPACT));
         syslog(LOG_ERR, "Config: validation failure: %s", schema_err.msg);
-        return (-1);
+        return SIMTA_ERR;
     }
 
     syslog(LOG_INFO, "Config: successfully validated config");
 
     ucl_parser_free(parser);
 
-    /* FIXME: should generate/check LDAP configs now */
+#ifdef HAVE_LDAP
+    /* Generate and check LDAP configs */
+    i = ucl_object_iterate_new(simta_config_obj("domain"));
+    while ((i_obj = ucl_object_iterate_safe(i, false)) != NULL) {
+        if ((buf = ucl_object_tostring(ucl_object_lookup(i_obj, "type"))) !=
+                NULL) {
+            if (strcmp(buf, "ldap") == 0) {
+                if (simta_ldap_config(i_obj) == NULL) {
+                    syslog(LOG_ERR,
+                            "Config: LDAP config validation failed on %s",
+                            ucl_object_emit(i_obj, UCL_EMIT_JSON_COMPACT));
+                    return SIMTA_ERR;
+                }
+            }
+        }
+    }
+    ucl_object_iterate_free(i);
+#endif /* HAVE_LDAP */
 
     if (simta_gettimeofday(&tv_now) != 0) {
-        return (-1);
+        return SIMTA_ERR;
     }
 
     srandom(tv_now.tv_usec * tv_now.tv_sec * getpid());
@@ -423,10 +440,12 @@ simta_read_config(const char *fname, const char *extra) {
     if (simta_config_bool("receive.dmarc.enabled") &&
             ((buf = simta_config_str("receive.dmarc.public_suffix_file")) !=
                     NULL)) {
-        simta_read_publicsuffix(buf);
+        if (simta_read_publicsuffix(buf) != SIMTA_OK) {
+            return SIMTA_ERR;
+        }
     }
 
-    return (0);
+    return SIMTA_OK;
 }
 
 void

@@ -28,3 +28,5 @@ def test_config_invalid(simta_config, tool_path):
     )
     assert res.returncode != 0
     assert "validation failure: object has non-allowed property foo" in res.stderr
+
+# FIXME: test LDAP configs

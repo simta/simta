@@ -83,7 +83,7 @@ main(int argc, char *argv[]) {
 
     simta_openlog(false, LOG_PERROR);
 
-    if (simta_read_config(conf_file, extra_conf) < 0) {
+    if (simta_read_config(conf_file, extra_conf) != SIMTA_OK) {
         exit(EX_DATAERR);
     }
 

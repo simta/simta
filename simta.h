@@ -202,11 +202,11 @@ extern int simta_inbound_data_line_timer;
 extern int simta_inbound_data_session_timer;
 extern int simta_inbound_ssl_accept_timer;
 
-int   smtp_receive(int, struct connection_info *, struct simta_socket *);
-void  panic(const char *);
-char *simta_resolvconf(void);
-int   simta_init_hosts(void);
-int   simta_read_config(const char *, const char *);
+int          smtp_receive(int, struct connection_info *, struct simta_socket *);
+void         panic(const char *);
+char *       simta_resolvconf(void);
+int          simta_init_hosts(void);
+simta_result simta_read_config(const char *, const char *);
 const ucl_object_t *simta_config_obj(const char *);
 bool                simta_config_bool(const char *);
 int64_t             simta_config_int(const char *);

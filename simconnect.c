@@ -71,7 +71,7 @@ main(int argc, char *argv[]) {
         exit(1);
     }
 
-    if (simta_read_config(conf_file, extra_conf) < 0) {
+    if (simta_read_config(conf_file, extra_conf) != SIMTA_OK) {
         exit(1);
     }
 

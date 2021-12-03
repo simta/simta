@@ -393,7 +393,7 @@ main(int ac, char **av) {
 
     simta_openlog(false, LOG_PERROR);
 
-    if (simta_read_config(config_fname, config_extra) < 0) {
+    if (simta_read_config(config_fname, config_extra) != SIMTA_OK) {
         exit(SIMTA_EXIT_ERROR);
     }
 
