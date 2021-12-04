@@ -93,13 +93,6 @@ definitions {
                         required [ enabled, always ]
                         additionalProperties: false
                     }
-                    jail {
-                        type: object
-                        properties {
-                            host { "$ref": "#/definitions/hostname" }
-                        }
-                        additionalProperties: false
-                    }
                     local {
                         type: object
                         properties {
@@ -131,7 +124,7 @@ definitions {
                         additionalProperties: false
                     }
                 }
-                required [ bitbucket, connection, jail, local, punt, queue, secondary_mx, tls ]
+                required [ bitbucket, connection, local, punt, queue, secondary_mx, tls ]
                 additionalProperties: false
             }
             rule {
@@ -663,6 +656,14 @@ properties {
     deliver {
         type: object
         properties {
+            jail {
+                type: object
+                properties {
+                    host { "$ref": "#/definitions/hostname" }
+                    parole_officer { type: string }
+                }
+                additionalProperties: false
+            }
             dkim {
                 type: object
                 properties {
@@ -680,7 +681,6 @@ properties {
                 properties {
                     bounce { type: number }
                     bounce_size { type: number }
-                    parole_officer { type: string }
                 }
                 additionalProperties: false
             }

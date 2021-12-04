@@ -60,7 +60,7 @@ void                prune_messages(struct host_q *hq);
 bool simta_leaky_queue = false;
 
 struct host_q *
-host_q_lookup(char *hostname) {
+host_q_lookup(const char *hostname) {
     const ucl_object_t *obj;
 
     if (simta_host_q == NULL) {

@@ -407,7 +407,9 @@ deliver_accepted(struct receive_data *r, int force) {
     }
 
     /* FIXME: kludge to avoid a bad interaction with aggressive receipt */
-    if (simta_jail_host && ((hq = host_q_lookup(simta_jail_host)) != NULL)) {
+    const char *jail_host = NULL;
+    if (((jail_host = simta_config_str("deliver.jail.host")) != NULL) &&
+            ((hq = host_q_lookup(jail_host)) != NULL)) {
         while ((e = hq->hq_env_head) != NULL) {
             queue_remove_envelope(e);
             env_move(e, simta_dir_slow);
@@ -1439,6 +1441,7 @@ f_data(struct receive_data *r) {
     size_t                  line_len;
     char *                  line;
     char *                  msg;
+    const char *            jail_host = NULL;
     const char *            failure_message = NULL;
     char *                  filter_message = NULL;
     const char *            system_message = NULL;
@@ -2203,18 +2206,19 @@ done:
                     r->r_env->e_mid ? r->r_env->e_mid : "NULL", data_read,
                     system_message ? system_message : "no system message",
                     filter_message ? filter_message : "no filter message");
-        } else if (simta_jail_host == NULL) {
+        } else if ((jail_host = simta_config_str("deliver.jail.host")) ==
+                   NULL) {
             syslog(LOG_WARNING,
                     "Receive [%s] %s: env <%s>: "
                     "content filter returned MESSAGE_JAIL and "
-                    "no JAIL_HOST is configured",
+                    "no jail host is configured",
                     r->r_ip, r->r_remote_hostname, r->r_env->e_id);
         } else {
             /* remove tfile because we're going to change the hostname */
             if (env_tfile_unlink(r->r_env) != 0) {
                 goto error;
             }
-            env_hostname(r->r_env, simta_jail_host);
+            env_hostname(r->r_env, jail_host);
 
             /* Somewhat perversely, a message jailed by the content filter
              * should be free so that it can be delivered to the next jail.

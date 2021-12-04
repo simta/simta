@@ -44,10 +44,8 @@ red_host_insert(const char *hostname, ucl_object_t *config) {
 
 const ucl_object_t *
 red_host_lookup(const char *hostname, bool create) {
-    ucl_object_t *      res = NULL;
-    const ucl_object_t *jail = NULL;
-    yastr               key = NULL;
-    const char *        buf = NULL;
+    ucl_object_t *res = NULL;
+    yastr         key = NULL;
 
     key = yaslauto(hostname);
     yasltolower(key);
@@ -64,19 +62,6 @@ red_host_lookup(const char *hostname, bool create) {
                 ucl_object_copy(simta_config_obj("defaults.red.receive")),
                 "receive", 0, false);
         red_host_insert(key, res);
-    }
-
-    if (res) {
-        buf = ucl_object_tostring(
-                ucl_object_lookup_path(res, "deliver.jail.host"));
-        if (buf && (strlen(buf) > 0) && (strcasecmp(buf, hostname) != 0)) {
-            jail = red_host_lookup(buf, true);
-            if (simta_ucl_toggle(jail, "deliver.punt", "enabled", false)) {
-                simta_debuglog(1, "Config: disabled punting for jail host %s",
-                        ucl_object_key(jail));
-            }
-            simta_ucl_toggle(jail, "deliver", "is_jail", true);
-        }
     }
 
     yaslfree(key);

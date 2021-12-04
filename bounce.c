@@ -286,7 +286,7 @@ bounce_snet(
     }
 
     if (env->e_jailed) {
-        return_address = simta_config_str("deliver.queue.parole_officer");
+        return_address = simta_config_str("deliver.jail.parole_officer");
     }
 
     if (return_address == NULL) {
