@@ -148,7 +148,7 @@ bounce_dfile_out(struct envelope *bounce_env, SNET *message) {
             goto cleanup;
         }
 
-        if (sbuf.st_size < simta_max_bounce_size) {
+        if (sbuf.st_size < simta_config_int("deliver.queue.bounce_size")) {
             write_body = 1;
         }
     }
