@@ -467,6 +467,21 @@ properties {
                 additionalProperties: false
             }
 
+            timeout {
+                type: object
+                properties {
+                    command { type: number }
+                    data { type: number }
+                    data_line { type: number }
+                    inactivity { type: number }
+                    session { type: number }
+                    tls { type: number }
+                    write { type: number }
+                }
+                required [ command, data, data_line, inactivity, session, tls, write ]
+                additionalProperties: false
+            }
+
             srs {
                 type: object
                 properties {
@@ -628,7 +643,7 @@ properties {
                         enum [ fast, slow, jail ]
                     }
                     aggression { type: integer }
-                    timer { type: integer }
+                    timer { type: number }
                 }
                 additionalProperties: false
             }

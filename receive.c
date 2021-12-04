@@ -459,12 +459,10 @@ deliver_accepted(struct receive_data *r, int force) {
                     "MAX_Q_RUNNERS_RECEIVE met, deferring launch",
                     r->r_ip, r->r_remote_hostname, simta_fast_files);
 
-            if (simta_inbound_accepted_message_timer >= 0) {
-                if (simta_gettimeofday(&tv_now) == SIMTA_OK) {
-                    tv_add.tv_sec = simta_inbound_accepted_message_timer;
-                    tv_add.tv_usec = 0;
-                    timeradd(&tv_now, &tv_add, &r->r_tv_accepted);
-                }
+            if (simta_gettimeofday(&tv_now) == SIMTA_OK) {
+                simta_ucl_object_totimeval(
+                        simta_config_obj("receive.queue.timer"), &tv_add);
+                timeradd(&tv_now, &tv_add, &r->r_tv_accepted);
             }
         }
     }
@@ -1696,17 +1694,13 @@ f_data(struct receive_data *r) {
     }
 
     /* smtp data session timer */
-    if (simta_inbound_data_session_timer != 0) {
-        tv_add.tv_sec = simta_inbound_data_session_timer;
-        timeradd(&tv_add, &tv_now, &tv_data_session);
-        if ((tv_session == NULL) ||
-                (timercmp(&tv_data_session, tv_session, <))) {
-            session_timer = S_DATA_SESSION;
-            tv_session = &tv_data_session;
-        }
+    simta_ucl_object_totimeval(
+            simta_config_obj("receive.timeout.data"), &tv_add);
+    timeradd(&tv_add, &tv_now, &tv_data_session);
+    if ((tv_session == NULL) || (timercmp(&tv_data_session, tv_session, <))) {
+        session_timer = S_DATA_SESSION;
+        tv_session = &tv_data_session;
     }
-
-    tv_add.tv_usec = 0;
 
     for (;;) {
         if (simta_child_signal != 0) {
@@ -1722,7 +1716,8 @@ f_data(struct receive_data *r) {
         if (calculate_timers == 0) {
             calculate_timers = 1;
         } else {
-            tv_add.tv_sec = simta_inbound_data_line_timer;
+            simta_ucl_object_totimeval(
+                    simta_config_obj("receive.timeout.data_line"), &tv_add);
             timeradd(&tv_add, &tv_now, &tv_line);
 
             /* use the session timer or the line timer */
@@ -2195,10 +2190,10 @@ done:
                 data_read,
                 system_message ? system_message : "no system message",
                 filter_message, env_bounce->e_id);
-        if (simta_inbound_accepted_message_timer >= 0) {
-            tv_add.tv_sec = simta_inbound_accepted_message_timer;
-            timeradd(&tv_add, &tv_now, &r->r_tv_accepted);
-        }
+
+        simta_ucl_object_totimeval(
+                simta_config_obj("receive.queue.timer"), &tv_add);
+        timeradd(&tv_add, &tv_now, &r->r_tv_accepted);
     }
 
     if (filter_result & MESSAGE_JAIL) {
@@ -2345,10 +2340,9 @@ done:
             goto error;
         }
 
-        if (simta_inbound_accepted_message_timer >= 0) {
-            tv_add.tv_sec = simta_inbound_accepted_message_timer;
-            timeradd(&tv_add, &tv_now, &r->r_tv_accepted);
-        }
+        simta_ucl_object_totimeval(
+                simta_config_obj("receive.queue.timer"), &tv_add);
+        timeradd(&tv_add, &tv_now, &r->r_tv_accepted);
 
         r->r_data_success++;
 
@@ -2726,11 +2720,9 @@ start_tls(struct receive_data *r, SSL_CTX *ssl_ctx) {
 
     simta_debuglog(3, "TLS: start_tls snet_starttls");
 
-    if (simta_inbound_ssl_accept_timer != 0) {
-        tv_wait.tv_usec = 0;
-        tv_wait.tv_sec = simta_inbound_ssl_accept_timer;
-        snet_timeout(r->r_snet, SNET_SSL_ACCEPT_TIMEOUT, &tv_wait);
-    }
+    simta_ucl_object_totimeval(
+            simta_config_obj("receive.timeout.tls"), &tv_wait);
+    snet_timeout(r->r_snet, SNET_SSL_ACCEPT_TIMEOUT, &tv_wait);
 
     if ((rc = snet_starttls(r->r_snet, ssl_ctx, 1)) != 1) {
         syslog(LOG_ERR, "Liberror: start_tls snet_starttls: %s",
@@ -2807,8 +2799,8 @@ f_auth(struct receive_data *r) {
                 if (smtp_write_banner(r, 334, NULL, NULL) != RECEIVE_OK) {
                     return (RECEIVE_CLOSECONNECTION);
                 }
-                tv.tv_sec = simta_inbound_command_line_timer;
-                tv.tv_usec = 0;
+                simta_ucl_object_totimeval(
+                        simta_config_obj("receive.timeout.command"), &tv);
                 if ((clientin = snet_getline(r->r_snet, &tv)) == NULL) {
                     syslog(LOG_ERR, "Auth.fake [%s] %s: snet_getline failed",
                             r->r_ip, r->r_remote_hostname);
@@ -2822,8 +2814,8 @@ f_auth(struct receive_data *r) {
                     RECEIVE_OK) {
                 return (RECEIVE_CLOSECONNECTION);
             }
-            tv.tv_sec = simta_inbound_command_line_timer;
-            tv.tv_usec = 0;
+            simta_ucl_object_totimeval(
+                    simta_config_obj("receive.timeout.command"), &tv);
             if ((clientin = snet_getline(r->r_snet, &tv)) == NULL) {
                 syslog(LOG_ERR, "Auth.fake [%s] %s: snet_getline failed",
                         r->r_ip, r->r_remote_hostname);
@@ -2834,8 +2826,8 @@ f_auth(struct receive_data *r) {
             if (smtp_write_banner(r, 334, "UGFzc3dvcmQA", NULL) != RECEIVE_OK) {
                 return (RECEIVE_CLOSECONNECTION);
             }
-            tv.tv_sec = simta_inbound_command_line_timer;
-            tv.tv_usec = 0;
+            simta_ucl_object_totimeval(
+                    simta_config_obj("receive.timeout.command"), &tv);
             if ((clientin = snet_getline(r->r_snet, &tv)) == NULL) {
                 syslog(LOG_ERR, "Auth.fake [%s] %s: snet_getline failed",
                         r->r_ip, r->r_remote_hostname);
@@ -2890,8 +2882,8 @@ f_auth(struct receive_data *r) {
         }
 
         /* Get response from the client */
-        tv.tv_sec = simta_inbound_command_line_timer;
-        tv.tv_usec = 0;
+        simta_ucl_object_totimeval(
+                simta_config_obj("receive.timeout.command"), &tv);
         if ((clientin = snet_getline(r->r_snet, &tv)) == NULL) {
             if (snet_eof(r->r_snet)) {
                 syslog(LOG_ERR, "Auth [%s] %s: %s: unexpected EOF", r->r_ip,
@@ -3062,10 +3054,12 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         }
     }
 
-    tv_wait.tv_sec = simta_inbound_command_line_timer;
-    tv_wait.tv_usec = 0;
-    /* FIXME: expose SNET_WRITE_TIMEOUT in simta.conf */
-    snet_timeout(r.r_snet, SNET_WRITE_TIMEOUT | SNET_READ_TIMEOUT, &tv_wait);
+    simta_ucl_object_totimeval(
+            simta_config_obj("receive.timeout.command"), &tv_wait);
+    snet_timeout(r.r_snet, SNET_READ_TIMEOUT, &tv_wait);
+    simta_ucl_object_totimeval(
+            simta_config_obj("receive.timeout.write"), &tv_wait);
+    snet_timeout(r.r_snet, SNET_WRITE_TIMEOUT, &tv_wait);
 
     if (reset(&r) != RECEIVE_OK) {
         goto syserror;
@@ -3335,33 +3329,33 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         /* see if we need to calculate the timers */
         if (calculate_timers == 1) {
             /* command line timer */
-            tv_add.tv_sec = simta_inbound_command_line_timer;
+            simta_ucl_object_totimeval(
+                    simta_config_obj("receive.timeout.command"), &tv_add);
             timeradd(&tv_add, &tv_now, &tv_line);
             tv_timeout = &tv_line;
             timer_type = S_COMMAND_LINE;
 
             /* global session timer */
-            if (simta_inbound_global_session_timer != 0) {
-                if (r.r_tv_session.tv_sec == 0) {
-                    tv_add.tv_sec = simta_inbound_global_session_timer;
-                    timeradd(&tv_add, &tv_now, &r.r_tv_session);
-                }
-                if (timercmp(tv_timeout, &(r.r_tv_session), >)) {
-                    tv_timeout = &r.r_tv_session;
-                    timer_type = S_GLOBAL_SESSION;
-                }
+            if (r.r_tv_session.tv_sec == 0) {
+                simta_ucl_object_totimeval(
+                        simta_config_obj("receive.timeout.session"), &tv_add);
+                timeradd(&tv_add, &tv_now, &r.r_tv_session);
+            }
+            if (timercmp(tv_timeout, &(r.r_tv_session), >)) {
+                tv_timeout = &r.r_tv_session;
+                timer_type = S_GLOBAL_SESSION;
             }
 
             /* inactivity timer */
-            if (simta_inbound_command_inactivity_timer > 0) {
-                if (r.r_tv_inactivity.tv_sec == 0) {
-                    tv_add.tv_sec = simta_inbound_command_inactivity_timer;
-                    timeradd(&tv_add, &tv_now, &r.r_tv_inactivity);
-                }
-                if (timercmp(tv_timeout, &r.r_tv_inactivity, >)) {
-                    tv_timeout = &r.r_tv_inactivity;
-                    timer_type = S_INACTIVITY;
-                }
+            if (r.r_tv_inactivity.tv_sec == 0) {
+                simta_ucl_object_totimeval(
+                        simta_config_obj("receive.timeout.inactivity"),
+                        &tv_add);
+                timeradd(&tv_add, &tv_now, &r.r_tv_inactivity);
+            }
+            if (timercmp(tv_timeout, &r.r_tv_inactivity, >)) {
+                tv_timeout = &r.r_tv_inactivity;
+                timer_type = S_INACTIVITY;
             }
 
             /* message send timer - must calculate last */

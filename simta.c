@@ -111,17 +111,6 @@ DNSR *               simta_dnsr = NULL;
 yastr                simta_seen_before_domain = NULL;
 ucl_object_t *       simta_publicsuffix_list = NULL;
 
-/* SMTP RECEIVE & DELIVER TIMERS */
-int simta_inbound_accepted_message_timer = -1;
-int simta_inbound_global_session_timer = 0;
-int simta_inbound_command_inactivity_timer = 3600;
-int simta_inbound_command_line_timer = 600;
-int simta_inbound_data_line_timer = 300;
-int simta_inbound_data_session_timer = 3600;
-#ifdef HAVE_LIBSSL
-int simta_inbound_ssl_accept_timer = 300;
-#endif /* HAVE_LIBSSL */
-
 
 void
 panic(const char *message) {

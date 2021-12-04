@@ -182,14 +182,6 @@ extern DNSR *               simta_dnsr;
 extern yastr                simta_seen_before_domain;
 extern ucl_object_t *       simta_publicsuffix_list;
 
-/* SMTP INBOUND & OUTBOUND TIMERS */
-extern int simta_inbound_accepted_message_timer;
-extern int simta_inbound_global_session_timer;
-extern int simta_inbound_command_line_timer;
-extern int simta_inbound_command_inactivity_timer;
-extern int simta_inbound_data_line_timer;
-extern int simta_inbound_data_session_timer;
-extern int simta_inbound_ssl_accept_timer;
 
 int          smtp_receive(int, struct connection_info *, struct simta_socket *);
 void         panic(const char *);
