@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install dependencies
-        run: sudo apt install libbsd-dev libmilter-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libcmocka-dev yadifa slapd ldap-utils
+        run: sudo apt install libbsd-dev libmilter-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libcmocka-dev yadifa slapd ldap-utils lcov
 
       - name: Configure slapd
         run: |
@@ -103,14 +103,23 @@ jobs:
           LDAP_SERVER: ldap://localhost/
 
       - name: Generate coverage reports
-        run: gcov *.c
+        run: |
+          lcov -c -d ${{ github.workspace }}/simta -o lcov.info
+          gcov *.c
+          genhtml lcov.info -o ${{ github.workspace }}/lcov
         working-directory: ${{ github.workspace }}/simta
 
-      - name: Save code coverage reports
+      - name: Save gcov output
         uses: actions/upload-artifact@v2
         with:
           name: gcov
           path: simta/*.gcov
+
+      - name: Save lcov output
+        uses: actions/upload-artifact@v2
+        with:
+          name: lcov
+          path: lcov
 
       - name: Build simta with clang
         run: |
