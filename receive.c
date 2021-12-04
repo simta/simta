@@ -780,13 +780,11 @@ f_ehlo(struct receive_data *r) {
         syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
         return (RECEIVE_CLOSECONNECTION);
     }
-    if (simta_max_message_size > 0) {
-        if (snet_writef(r->r_snet, "%d%sSIZE %d\r\n", 250,
-                    extension_count-- ? "-" : " ",
-                    simta_max_message_size) < 0) {
-            syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
-            return (RECEIVE_CLOSECONNECTION);
-        }
+    if (snet_writef(r->r_snet, "%d%sSIZE %d\r\n", 250,
+                extension_count-- ? "-" : " ",
+                simta_config_int("receive.data.limits.message_size")) < 0) {
+        syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
+        return (RECEIVE_CLOSECONNECTION);
     }
 
     if (simta_config_bool("receive.auth.authn.enabled")) {
@@ -924,29 +922,27 @@ f_mail(struct receive_data *r) {
                         r, 501, NULL, "invalid SIZE command"));
             }
 
-            if (simta_max_message_size > 0) {
-                message_size =
-                        strtol(r->r_av[ i ] + strlen("SIZE="), &endptr, 10);
+            message_size = strtol(r->r_av[ i ] + strlen("SIZE="), &endptr, 10);
 
-                if ((*(r->r_av[ i ] + strlen("SIZE=")) == '\0') ||
-                        (*endptr != '\0') || (message_size == LONG_MIN) ||
-                        (message_size == LONG_MAX) || (message_size < 0)) {
-                    syslog(LOG_INFO,
-                            "Receive [%s] %s: "
-                            "invalid SIZE parameter: %s",
-                            r->r_ip, r->r_remote_hostname, r->r_smtp_command);
-                    return (smtp_write_banner(r, 501,
-                            "Syntax Error: invalid SIZE parameter",
-                            r->r_av[ i ] + strlen("SIZE=")));
-                }
+            if ((*(r->r_av[ i ] + strlen("SIZE=")) == '\0') ||
+                    (*endptr != '\0') || (message_size == LONG_MIN) ||
+                    (message_size == LONG_MAX) || (message_size < 0)) {
+                syslog(LOG_INFO,
+                        "Receive [%s] %s: "
+                        "invalid SIZE parameter: %s",
+                        r->r_ip, r->r_remote_hostname, r->r_smtp_command);
+                return (smtp_write_banner(r, 501,
+                        "Syntax Error: invalid SIZE parameter",
+                        r->r_av[ i ] + strlen("SIZE=")));
+            }
 
-                if (message_size > simta_max_message_size) {
-                    syslog(LOG_INFO,
-                            "Receive [%s] %s: "
-                            "message SIZE too large: %s",
-                            r->r_ip, r->r_remote_hostname, r->r_smtp_command);
-                    return (smtp_write_banner(r, 552, NULL, NULL));
-                }
+            if (message_size >
+                    simta_config_int("receive.data.limits.message_size")) {
+                syslog(LOG_INFO,
+                        "Receive [%s] %s: "
+                        "message SIZE too large: %s",
+                        r->r_ip, r->r_remote_hostname, r->r_smtp_command);
+                return (smtp_write_banner(r, 552, NULL, NULL));
             }
 
             /* RFC 4954 5 The AUTH Parameter to the MAIL FROM command
@@ -1938,8 +1934,9 @@ f_data(struct receive_data *r) {
             }
         }
 
-        if ((read_err == NO_ERROR) && (simta_max_message_size > 0) &&
-                ((data_wrote + line_len + 1) > simta_max_message_size)) {
+        if ((read_err == NO_ERROR) &&
+                ((data_wrote + line_len + 1) >
+                        simta_config_int("receive.data.limits.message_size"))) {
             /* If we're going to reach max size, continue reading lines
              * until the '.' otherwise, check message size.
              */

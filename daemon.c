@@ -425,10 +425,6 @@ main(int ac, char **av) {
         simta_smtp_extension++;
     }
 
-    if (simta_max_message_size > 0) {
-        simta_smtp_extension++;
-    }
-
     if (dontrun) {
         simta_dump_config();
         exit(SIMTA_EXIT_OK);
