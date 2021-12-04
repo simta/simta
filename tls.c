@@ -24,11 +24,11 @@
 #include <sasl/sasl.h>
 #endif /* HAVE_LIBSASL */
 
+#include "simta.h"
 #include "tls.h"
 
 SSL_CTX *
-tls_server_setup(int authlevel, const char *caFile, const char *caDir,
-        const char *cert, const char *privatekey, const char *ciphers) {
+tls_server_setup(void) {
     SSL_CTX *            ssl_ctx;
     int                  ssl_mode = 0;
     static unsigned char dh4096_p[] = {
@@ -600,27 +600,24 @@ tls_server_setup(int authlevel, const char *caFile, const char *caDir,
                                          SSL_OP_CIPHER_SERVER_PREFERENCE);
 #endif /* OpenSSL 1.1.0 */
 
-    if (ciphers == NULL) {
-        SSL_CTX_set_cipher_list(ssl_ctx,
-                "EECDH+CHACHA20:EECDH+AES128:RSA+AES128:EECDH+AES256:"
-                "RSA+AES256:DH+CHACHA20:DH+AES128:DH+AES256:!MD5");
-    } else {
-        SSL_CTX_set_cipher_list(ssl_ctx, ciphers);
-    }
+    SSL_CTX_set_cipher_list(ssl_ctx, simta_config_str("receive.tls.ciphers"));
 
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx, privatekey, SSL_FILETYPE_PEM) !=
-            1) {
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx,
+                simta_config_str("receive.tls.key"), SSL_FILETYPE_PEM) != 1) {
         syslog(LOG_ERR,
                 "Liberror: tls_server_setup "
                 "SSL_CTX_use_PrivateKey_file: %s: %s",
-                privatekey, ERR_error_string(ERR_get_error(), NULL));
+                simta_config_str("receive.tls.key"),
+                ERR_error_string(ERR_get_error(), NULL));
         goto error;
     }
-    if (SSL_CTX_use_certificate_chain_file(ssl_ctx, cert) != 1) {
+    if (SSL_CTX_use_certificate_chain_file(
+                ssl_ctx, simta_config_str("receive.tls.certificate")) != 1) {
         syslog(LOG_ERR,
                 "Liberror: tls_server_setup "
                 "SSL_CTX_use_certificate_chain_file: %s: %s",
-                cert, ERR_error_string(ERR_get_error(), NULL));
+                simta_config_str("receive.tls.certificate"),
+                ERR_error_string(ERR_get_error(), NULL));
         goto error;
     }
     /* Verify that private key matches cert */
@@ -633,31 +630,23 @@ tls_server_setup(int authlevel, const char *caFile, const char *caDir,
     }
 
     /* Load CA */
-    if (caFile != NULL) {
-        if (SSL_CTX_load_verify_locations(ssl_ctx, caFile, NULL) != 1) {
-            syslog(LOG_ERR,
-                    "Liberror: tls_server_setup "
-                    "SSL_CTX_load_verify_locations: %s: %s",
-                    caFile, ERR_error_string(ERR_get_error(), NULL));
-            goto error;
-        }
-    }
-    if (caDir != NULL) {
-        if (SSL_CTX_load_verify_locations(ssl_ctx, NULL, caDir) != 1) {
-            syslog(LOG_ERR,
-                    "Liberror: tls_server_setup "
-                    "SSL_CTX_load_verify_locations: %s: %s",
-                    caDir, ERR_error_string(ERR_get_error(), NULL));
-            goto error;
-        }
+    if (SSL_CTX_load_verify_locations(ssl_ctx,
+                simta_config_str("core.tls.ca_file"),
+                simta_config_str("core.tls.ca_directory")) != 1) {
+        syslog(LOG_ERR,
+                "Liberror: tls_server_setup "
+                "SSL_CTX_load_verify_locations: %s / %s: %s",
+                simta_config_str("core.tls.ca_file"),
+                simta_config_str("core.tls.ca_directory"),
+                ERR_error_string(ERR_get_error(), NULL));
+        goto error;
     }
 
     /* Set level of security expecations */
-    if (authlevel <= 1) {
-        ssl_mode = SSL_VERIFY_NONE;
-    } else {
-        /* authlevel == 2 */
+    if (simta_config_bool("receive.tls.client_cert")) {
         ssl_mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+    } else {
+        ssl_mode = SSL_VERIFY_NONE;
     }
     SSL_CTX_set_verify(ssl_ctx, ssl_mode, NULL);
 
@@ -691,20 +680,19 @@ tls_server_setup(int authlevel, const char *caFile, const char *caDir,
 #endif /* openssl 1.0 - 1.0.1 */
 #endif /* OPENSSL_NO_ECDH */
 
-    return (ssl_ctx);
+    return ssl_ctx;
 
 error:
     SSL_CTX_free(ssl_ctx);
     if (dh != NULL) {
         DH_free(dh);
     }
-    return (NULL);
+    return NULL;
 }
 
 
 SSL_CTX *
-tls_client_setup(int authlevel, const char *caFile, const char *caDir,
-        const char *cert, const char *privatekey, const char *ciphers) {
+tls_client_setup(const char *ciphers) {
     SSL_CTX *ssl_ctx;
     int      ssl_mode = 0;
 
@@ -717,74 +705,36 @@ tls_client_setup(int authlevel, const char *caFile, const char *caDir,
     if ((ssl_ctx = SSL_CTX_new(SSLv23_client_method())) == NULL) {
         syslog(LOG_ERR, "Liberror: tls_client_setup SSL_CTX_new: %s",
                 ERR_error_string(ERR_get_error(), NULL));
-        return (NULL);
+        return NULL;
     }
 
     /* Disable SSLv2 and SSLv3 */
     SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
 
-    if (ciphers == NULL) {
-        SSL_CTX_set_cipher_list(ssl_ctx,
-                "EECDH+CHACHA20:EECDH+AES128:RSA+AES128:EECDH+AES256:"
-                "RSA+AES256:!MD5");
-    } else {
-        SSL_CTX_set_cipher_list(ssl_ctx, ciphers);
-    }
-
-    if (authlevel == 2) {
-        if (SSL_CTX_use_PrivateKey_file(
-                    ssl_ctx, privatekey, SSL_FILETYPE_PEM) != 1) {
-            syslog(LOG_ERR,
-                    "Liberror: tls_client_setup "
-                    "SSL_CTX_use_PrivateKey_file: %s: %s",
-                    privatekey, ERR_error_string(ERR_get_error(), NULL));
-            goto error;
-        }
-        if (SSL_CTX_use_certificate_chain_file(ssl_ctx, cert) != 1) {
-            syslog(LOG_ERR,
-                    "Liberror: tls_client_setup "
-                    "SSL_CTX_use_certificate_chain_file: %s: %s",
-                    cert, ERR_error_string(ERR_get_error(), NULL));
-            goto error;
-        }
-        /* Verify that private key matches cert */
-        if (SSL_CTX_check_private_key(ssl_ctx) != 1) {
-            syslog(LOG_ERR,
-                    "Liberror: tls_client_setup "
-                    "SSL_CTX_check_private_key: %s",
-                    ERR_error_string(ERR_get_error(), NULL));
-            goto error;
-        }
-    }
+    SSL_CTX_set_cipher_list(ssl_ctx, ciphers);
 
     /* Load CA */
-    if (caFile != NULL) {
-        if (SSL_CTX_load_verify_locations(ssl_ctx, caFile, NULL) != 1) {
-            syslog(LOG_ERR,
-                    "Liberror: tls_client_setup "
-                    "SSL_CTX_load_verify_locations: %s: %s\n",
-                    caFile, ERR_error_string(ERR_get_error(), NULL));
-            goto error;
-        }
-    }
-    if (caDir != NULL) {
-        if (SSL_CTX_load_verify_locations(ssl_ctx, NULL, caDir) != 1) {
-            syslog(LOG_ERR,
-                    "Liberror: tls_client_setup "
-                    "SSL_CTX_load_verify_locations: %s: %s\n",
-                    caDir, ERR_error_string(ERR_get_error(), NULL));
-            goto error;
-        }
+    if (SSL_CTX_load_verify_locations(ssl_ctx,
+                simta_config_str("core.tls.ca_file"),
+                simta_config_str("core.tls.ca_directory")) != 1) {
+        syslog(LOG_ERR,
+                "Liberror: tls_client_setup "
+                "SSL_CTX_load_verify_locations: %s / %s: %s",
+                simta_config_str("core.tls.ca_file"),
+                simta_config_str("core.tls.ca_directory"),
+                ERR_error_string(ERR_get_error(), NULL));
+        goto error;
     }
 
-    /* Set level of security expecations */
+    /* Set level of security expectations */
+    /* FIXME: implement rule.tls.verify */
     ssl_mode = SSL_VERIFY_NONE;
     SSL_CTX_set_verify(ssl_ctx, ssl_mode, NULL);
-    return (ssl_ctx);
+    return ssl_ctx;
 
 error:
     SSL_CTX_free(ssl_ctx);
-    return (NULL);
+    return NULL;
 }
 
 int

@@ -716,8 +716,7 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
         ciphers = ucl_object_tostring(
                 ucl_object_lookup_path(hq->hq_red, "deliver.tls.ciphers"));
 
-        if ((ssl_ctx = tls_client_setup(0, simta_file_ca, simta_dir_ca, NULL,
-                     NULL, ciphers)) == NULL) {
+        if ((ssl_ctx = tls_client_setup(ciphers)) == NULL) {
             syslog(LOG_ERR, "Liberror: smtp_connect tls_client_setup: %s",
                     ERR_error_string(ERR_get_error(), NULL));
             if (tls_required > 0) {

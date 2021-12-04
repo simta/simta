@@ -58,10 +58,6 @@
 #include "simta_sasl.h"
 #endif /* HAVE_LIBSASL */
 
-#ifdef HAVE_LIBSSL
-#include "tls.h"
-#endif /* HAVE_LIBSSL */
-
 const char *simta_progname = "simta";
 
 struct connection_info *cinfo_stab = NULL;
@@ -309,9 +305,6 @@ main(int ac, char **av) {
 #ifdef HAVE_LIBSASL
     int rc;
 #endif /* HAVE_LIBSASL */
-#ifdef HAVE_LIBSSL
-    SSL_CTX *ssl_ctx = NULL;
-#endif /* HAVE_LIBSSL */
 
     if ((prog = strrchr(av[ 0 ], '/')) == NULL) {
         prog = av[ 0 ];
@@ -414,19 +407,6 @@ main(int ac, char **av) {
 #ifndef Q_SIMULATION
 #ifdef HAVE_LIBSSL
     if (simta_config_bool("receive.tls.enabled")) {
-        /* Test whether our SSL config is usable */
-        if ((ssl_ctx = tls_server_setup(0, simta_file_ca, simta_dir_ca,
-                     simta_file_cert, simta_file_private_key,
-                     simta_tls_ciphers)) == NULL) {
-            syslog(LOG_ERR, "Liberror: tls_server_setup: %s",
-                    ERR_error_string(ERR_get_error(), NULL));
-            exit(SIMTA_EXIT_ERROR);
-        }
-        SSL_CTX_free(ssl_ctx);
-        simta_tls = 1;
-    }
-
-    if (simta_tls) {
         simta_smtp_extension++;
     }
 #endif /* HAVE_LIBSSL */

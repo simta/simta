@@ -36,6 +36,7 @@
 #endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
+#include "tls.h"
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
@@ -93,37 +94,22 @@ int                  simta_smtp_outbound_delivered = 0;
 int                  simta_fast_files = 0;
 int                  simta_debug = 1;
 int                  simta_child_signal = 0;
-#ifdef HAVE_LIBSSL
-int simta_tls = 0;
-#endif /* HAVE_LIBSSL */
-#ifdef HAVE_LIBSSL
-char *simta_checksum_algorithm = NULL;
-int   simta_checksum_body = 1;
-#endif /* HAVE_LIBSSL */
-int   simta_max_message_size = 0;
-int   simta_outbound_connection_msg_max = 0;
-yastr simta_punt_host = NULL;
-yastr simta_jail_host = NULL;
-char *simta_jail_bounce_address = NULL;
-yastr simta_postmaster = NULL;
-char *simta_queue_filter = NULL;
-yastr simta_dir_dead = NULL;
-yastr simta_dir_local = NULL;
-yastr simta_dir_slow = NULL;
-yastr simta_dir_fast = NULL;
-yastr simta_dir_command = NULL;
-yastr simta_hostname;
-DNSR *simta_dnsr = NULL;
-#ifdef HAVE_LIBSSL
-char *simta_tls_ciphers = NULL;
-char *simta_tls_ciphers_outbound = NULL;
-char *simta_file_ca = NULL;
-char *simta_dir_ca = NULL;
-char *simta_file_cert = "cert/cert.pem";
-char *simta_file_private_key = "cert/cert.pem";
-#endif /* HAVE_LIBSSL */
-yastr         simta_seen_before_domain = NULL;
-ucl_object_t *simta_publicsuffix_list = NULL;
+int                  simta_max_message_size = 0;
+int                  simta_outbound_connection_msg_max = 0;
+yastr                simta_punt_host = NULL;
+yastr                simta_jail_host = NULL;
+char *               simta_jail_bounce_address = NULL;
+yastr                simta_postmaster = NULL;
+char *               simta_queue_filter = NULL;
+yastr                simta_dir_dead = NULL;
+yastr                simta_dir_local = NULL;
+yastr                simta_dir_slow = NULL;
+yastr                simta_dir_fast = NULL;
+yastr                simta_dir_command = NULL;
+yastr                simta_hostname;
+DNSR *               simta_dnsr = NULL;
+yastr                simta_seen_before_domain = NULL;
+ucl_object_t *       simta_publicsuffix_list = NULL;
 
 /* SMTP RECEIVE & DELIVER TIMERS */
 int simta_inbound_accepted_message_timer = -1;
@@ -245,6 +231,9 @@ simta_read_config(const char *fname, const char *extra) {
     const char *            buf;
     yastr                   path;
     struct timeval          tv_now;
+#ifdef HAVE_LIBSSL
+    SSL_CTX *ssl_ctx = NULL;
+#endif /* HAVE_LIBSSL */
 
     /* Parse the hard-coded defaults */
     simta_debuglog(2, "simta_read_config: reading embedded base config");
@@ -412,6 +401,18 @@ simta_read_config(const char *fname, const char *extra) {
     }
     ucl_object_iterate_free(i);
 #endif /* HAVE_LDAP */
+
+#ifdef HAVE_LIBSSL
+    if (simta_config_bool("receive.tls.enabled")) {
+        /* Test whether our SSL config is usable */
+        if ((ssl_ctx = tls_server_setup()) == NULL) {
+            syslog(LOG_ERR, "Liberror: tls_server_setup: %s",
+                    ERR_error_string(ERR_get_error(), NULL));
+            exit(SIMTA_EXIT_ERROR);
+        }
+        SSL_CTX_free(ssl_ctx);
+    }
+#endif /* HAVE_LIBSSL */
 
     if (simta_gettimeofday(&tv_now) != 0) {
         return SIMTA_ERR;

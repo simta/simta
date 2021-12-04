@@ -594,7 +594,6 @@ properties {
                         type: object
                         properties {
                             enabled { type: boolean }
-                            body { type: boolean }
                             algorithm { type: string }
                         }
                         additionalProperties: false

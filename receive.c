@@ -818,7 +818,7 @@ f_ehlo(struct receive_data *r) {
      * A server MUST NOT return the STARTTLS extension in response to an
      * EHLO command received after a TLS handshake has completed.
      */
-    if (simta_tls && !r->r_tls) {
+    if (simta_config_bool("receive.tls.enabled") && !r->r_tls) {
         if (snet_writef(r->r_snet, "%d%sSTARTTLS\r\n", 250,
                     extension_count-- ? "-" : " ") < 0) {
             syslog(LOG_ERR, "Syserror: f_ehlo snet_writef: %m");
@@ -1095,8 +1095,8 @@ f_mail(struct receive_data *r) {
 #endif /* HAVE_LIBOPENDKIM */
 
 #ifdef HAVE_LIBSSL
-    if (simta_checksum_algorithm != NULL) {
-        md_reset(&r->r_md, simta_checksum_algorithm);
+    if (simta_config_bool("receive.data.checksum.enabled")) {
+        md_reset(&r->r_md, simta_config_str("receive.data.checksum.algorithm"));
     }
 #endif /* HAVE_LIBSSL */
 
@@ -1263,7 +1263,7 @@ f_rcpt(struct receive_data *r) {
         if ((rc = check_hostname(domain)) != 0) {
             if (rc < 0) {
 #ifdef HAVE_LIBSSL
-                if (simta_checksum_algorithm != NULL) {
+                if (simta_config_bool("receive.data.checksum.enabled")) {
                     md_update(&r->r_md, addr, strlen(addr));
                 }
 #endif /* HAVE_LIBSSL */
@@ -1340,7 +1340,7 @@ f_rcpt(struct receive_data *r) {
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr);
 
 #ifdef HAVE_LIBSSL
-                if (simta_checksum_algorithm != NULL) {
+                if (simta_config_bool("receive.data.checksum.enabled")) {
                     md_update(&r->r_md, addr, strlen(addr));
                 }
 #endif /* HAVE_LIBSSL */
@@ -1417,7 +1417,7 @@ f_rcpt(struct receive_data *r) {
             r->r_env->e_rcpt->r_rcpt, r->r_env->e_mail);
 
 #ifdef HAVE_LIBSSL
-    if (simta_checksum_algorithm != NULL) {
+    if (simta_config_bool("receive.data.checksum.enabled")) {
         md_update(&r->r_md, addr, strlen(addr));
     }
 #endif /* HAVE_LIBSSL */
@@ -1930,8 +1930,10 @@ f_data(struct receive_data *r) {
                 }
 
 #ifdef HAVE_LIBSSL
-                if (simta_checksum_algorithm != NULL) {
-                    md_reset(&r->r_md_body, simta_checksum_algorithm);
+                if (simta_config_bool("receive.data.checksum.enabled")) {
+                    md_reset(&r->r_md_body,
+                            simta_config_str(
+                                    "receive.data.checksum.algorithm"));
                 }
 #endif /* HAVE_LIBSSL */
 
@@ -2007,7 +2009,8 @@ f_data(struct receive_data *r) {
         }
 
 #ifdef HAVE_LIBSSL
-        if ((read_err == NO_ERROR) && (simta_checksum_algorithm != NULL)) {
+        if ((read_err == NO_ERROR) &&
+                simta_config_bool("receive.data.checksum.enabled")) {
             /* Only add basic RFC5322 headers to the checksum. */
             if ((header == 0) || (strncasecmp(line, "Date:", 5) == 0) ||
                     (strncasecmp(line, "From:", 5) == 0) ||
@@ -2022,7 +2025,7 @@ f_data(struct receive_data *r) {
                     (strncasecmp(line, "Subject:", 8) == 0)) {
                 md_update(&r->r_md, line, line_len);
             }
-            if ((header == 0) && (simta_checksum_body == 1)) {
+            if (header == 0) {
                 md_update(&r->r_md_body, line, line_len);
             }
         }
@@ -2054,7 +2057,7 @@ f_data(struct receive_data *r) {
 
 #ifdef HAVE_LIBSSL
     if (r->r_env->e_flags & ENV_FLAG_DFILE) {
-        if (simta_checksum_algorithm != NULL) {
+        if (simta_config_bool("receive.data.checksum.enabled")) {
             md_finalize(&r->r_md);
             md_finalize(&r->r_md_body);
             syslog(LOG_INFO,
@@ -2629,7 +2632,7 @@ f_starttls(struct receive_data *r) {
     int      rc;
     SSL_CTX *ssl_ctx;
 
-    if (!simta_tls) {
+    if (!simta_config_bool("receive.tls.enabled")) {
         return (f_not_implemented(r));
     }
 
@@ -2650,9 +2653,7 @@ f_starttls(struct receive_data *r) {
         return (smtp_write_banner(r, 501, NULL, "no parameters allowed"));
     }
 
-    if ((ssl_ctx = tls_server_setup(0, simta_file_ca, simta_dir_ca,
-                 simta_file_cert, simta_file_private_key, simta_tls_ciphers)) ==
-            NULL) {
+    if ((ssl_ctx = tls_server_setup()) == NULL) {
         syslog(LOG_ERR, "Liberror: f_starttls tls_server_setup: %s",
                 ERR_error_string(ERR_get_error(), NULL));
         rc = smtp_write_banner(
@@ -3834,9 +3835,7 @@ auth_init(struct receive_data *r, struct simta_socket *ss) {
 
 #ifdef HAVE_LIBSSL
     if (ss->ss_flags & SIMTA_SOCKET_TLS) {
-        if ((ssl_ctx = tls_server_setup(0, simta_file_ca, simta_dir_ca,
-                     simta_file_cert, simta_file_private_key,
-                     simta_tls_ciphers)) == NULL) {
+        if ((ssl_ctx = tls_server_setup()) == NULL) {
             syslog(LOG_ERR, "Liberror: auth_init tls_server_setup: %s",
                     ERR_error_string(ERR_get_error(), NULL));
             smtp_write_banner(r, 554, NULL, "SSL didn't work!");
@@ -4334,7 +4333,7 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
         }
 
 #ifdef HAVE_LIBSSL
-        if (simta_checksum_algorithm != NULL) {
+        if (simta_config_bool("receive.data.checksum.enabled")) {
             filter_envp[ filter_envc++ ] =
                     env_string("SIMTA_CHECKSUM_SIZE", r->r_md.md_bytes);
 

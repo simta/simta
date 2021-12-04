@@ -3,10 +3,8 @@
 
 #include <openssl/ssl.h>
 
-SSL_CTX *tls_server_setup(int, const char *, const char *, const char *,
-        const char *, const char *);
-SSL_CTX *tls_client_setup(int, const char *, const char *, const char *,
-        const char *, const char *);
+SSL_CTX *tls_server_setup(void);
+SSL_CTX *tls_client_setup(const char *);
 int      tls_client_cert(const char *, const SSL *);
 
 #endif /* SIMTA_TLS_H */
