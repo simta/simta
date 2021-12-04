@@ -257,7 +257,7 @@ simta_listen_port(const char *port) {
             return (NULL);
         }
 
-        if (listen(ss->ss_socket, simta_listen_backlog) < 0) {
+        if (listen(ss->ss_socket, 4096) < 0) {
             syslog(LOG_ERR, "Syserror: simta_listen listen %s:%s: %m", host,
                     service);
             perror("listen");

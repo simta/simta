@@ -137,7 +137,6 @@ extern struct host_q *      simta_unexpanded_q;
 extern ucl_object_t *       simta_host_q;
 extern struct envelope *    simta_env_queue;
 extern struct proc_type *   simta_proc_stab;
-extern int                  simta_listen_backlog;
 extern int                  simta_disk_cycle;
 extern int                  simta_launch_limit;
 extern int                  simta_global_connections_max;

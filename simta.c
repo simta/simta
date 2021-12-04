@@ -66,7 +66,6 @@ struct host_q *      simta_deliver_q = NULL;
 struct host_q *      simta_unexpanded_q = NULL;
 struct proc_type *   simta_proc_stab = NULL;
 ucl_object_t *       simta_config = NULL;
-int                  simta_listen_backlog = 64;
 int                  simta_disk_cycle = 0;
 int                  simta_global_connections_max = SIMTA_MAXCONNECTIONS;
 int                  simta_global_connections = 0;
