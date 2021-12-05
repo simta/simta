@@ -3068,8 +3068,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
     acav = acav_alloc();
 
-    if ((simta_global_connections_max != 0) &&
-            (simta_global_connections > simta_global_connections_max)) {
+    if (simta_global_connections >
+            simta_config_int("receive.connection.limits.global")) {
         syslog(LOG_WARNING,
                 "Connect.in [%s] %s: connection refused: "
                 "global maximum exceeded: %d",
@@ -3078,8 +3078,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         goto closeconnection;
     }
 
-    if ((simta_global_throttle_max != 0) &&
-            (simta_global_throttle_connections > simta_global_throttle_max)) {
+    if (simta_global_throttle_connections >
+            simta_config_int("receive.connection.limits.throttle")) {
         syslog(LOG_WARNING,
                 "Connect.in [%s] %s: connection refused: "
                 "global throttle exceeded: %d",
@@ -3211,8 +3211,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                 ((strcmp((r.r_dnsl_result)->dnsl_action, "accept") != 0) &&
                         (strcmp((r.r_dnsl_result)->dnsl_action, "trust") !=
                                 0))) {
-            if ((simta_local_connections_max != 0) &&
-                    (c->c_proc_total > simta_local_connections_max)) {
+            if (c->c_proc_total >
+                    simta_config_int("receive.connection.limits.per_host")) {
                 syslog(LOG_WARNING,
                         "Connect.in [%s] %s: connection refused: "
                         "local maximum exceeded: %d",
@@ -3221,8 +3221,9 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                 goto closeconnection;
             }
 
-            if ((simta_local_throttle_max != 0) &&
-                    (c->c_proc_throttle > simta_local_throttle_max)) {
+            if (c->c_proc_throttle >
+                    simta_config_int(
+                            "receive.connection.limits.per_host_throttle")) {
                 syslog(LOG_WARNING,
                         "Connect.in [%s] %s: connection refused: "
                         "connection per interval exceeded %d",

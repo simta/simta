@@ -984,8 +984,7 @@ simta_server(bool daemon) {
 
         for (c = &cinfo_stab; *c != NULL;) {
             if (((*c)->c_proc_total == 0) &&
-                    ((*c)->c_tv.tv_sec + simta_local_throttle_sec <
-                            tv_now.tv_sec)) {
+                    timercmp(&((*c)->c_tv), &tv_now, <)) {
                 remove = *c;
                 *c = (*c)->c_next;
                 free(remove);
@@ -1138,10 +1137,12 @@ simta_sigaction_reset(int retain_chld) {
 
 int
 simta_child_receive(struct simta_socket *ss) {
+    static struct timeval   tv_throttle = {0, 0};
     struct proc_type *      p;
     struct simta_socket *   s;
     struct connection_info *cinfo = NULL;
     struct sockaddr_storage sa;
+    struct timeval          tv_add;
     int                     pid;
     int                     fd;
     int                     rc;
@@ -1195,31 +1196,24 @@ simta_child_receive(struct simta_socket *ss) {
         return (1);
     }
 
-    if (simta_local_throttle_max > 0) {
-        if ((cinfo->c_tv.tv_sec + simta_local_throttle_sec <
-                    simta_tv_now.tv_sec) ||
-                ((cinfo->c_tv.tv_sec + simta_local_throttle_sec ==
-                         simta_tv_now.tv_sec) &&
-                        (cinfo->c_tv.tv_usec <= simta_tv_now.tv_usec))) {
-            cinfo->c_tv = simta_tv_now;
-            cinfo->c_proc_throttle = 1;
-        } else {
-            cinfo->c_proc_throttle++;
-        }
+    if (timercmp(&(cinfo->c_tv), &simta_tv_now, <)) {
+        simta_ucl_object_totimeval(
+                simta_config_obj("receive.connection.limits.throttle_interval"),
+                &tv_add);
+        timeradd(&simta_tv_now, &tv_add, &(cinfo->c_tv));
+        cinfo->c_proc_throttle = 1;
+    } else {
+        cinfo->c_proc_throttle++;
     }
 
-    if (simta_global_throttle_max > 0) {
-        if ((simta_global_throttle_tv.tv_sec + simta_global_throttle_sec <
-                    simta_tv_now.tv_sec) ||
-                ((simta_global_throttle_tv.tv_sec + simta_global_throttle_sec ==
-                         simta_tv_now.tv_sec) &&
-                        (simta_global_throttle_tv.tv_usec <=
-                                simta_tv_now.tv_usec))) {
-            simta_global_throttle_tv = simta_tv_now;
-            simta_global_throttle_connections = 1;
-        } else {
-            simta_global_throttle_connections++;
-        }
+    if (timercmp(&tv_throttle, &simta_tv_now, <)) {
+        simta_ucl_object_totimeval(
+                simta_config_obj("receive.connection.limits.throttle_interval"),
+                &tv_add);
+        timeradd(&simta_tv_now, &tv_add, &tv_throttle);
+        simta_global_throttle_connections = 1;
+    } else {
+        simta_global_throttle_connections++;
     }
 
     simta_debuglog(1,

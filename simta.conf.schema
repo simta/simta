@@ -356,27 +356,13 @@ properties {
                     limits {
                         type: object
                         properties {
-                            global {
-                                type: object
-                                properties: {
-                                    connections { type: integer }
-                                    throttle { type: integer }
-                                }
-                                required [ connections, throttle ]
-                                additionalProperties: false
-                            }
-                            per_host {
-                                type: object
-                                properties: {
-                                    connections { type: integer }
-                                    throttle { type: integer }
-                                }
-                                required [ connections, throttle ]
-                                additionalProperties: false
-                            }
+                            global { type: integer }
+                            throttle { type: integer }
+                            per_host { type: integer }
+                            per_host_throttle { type: integer }
                             throttle_interval { type: number }
                         }
-                        required [ global, per_host, throttle_interval ]
+                        required [ global, throttle, per_host, per_host_throttle, throttle_interval ]
                         additionalProperties: false
                     }
 
