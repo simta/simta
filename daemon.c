@@ -87,7 +87,7 @@ void                 hup(int);
 void                 chld(int);
 int                  main(int, char *av[]);
 int                  simta_wait_for_child(int);
-int                  simta_sigaction_reset(int);
+int                  simta_sigaction_reset(bool);
 int                  simta_server(bool);
 int                  simta_daemonize_server(void);
 int                  simta_child_receive(struct simta_socket *);
@@ -780,7 +780,8 @@ simta_server(bool daemon) {
         sleep_reason = "Unset";
 
         if (simsendmail_signal != 0) {
-            if (simta_q_runner_local < simta_q_runner_local_max) {
+            if (simta_q_runner_local <
+                    simta_config_int("deliver.limits.local_runners")) {
                 simta_debuglog(2, "Daemon: launching local queue runner");
                 simsendmail_signal = 0;
 
@@ -790,7 +791,7 @@ simta_server(bool daemon) {
             } else {
                 syslog(LOG_WARNING,
                         "Daemon: Received signal from simsendmail "
-                        "but MAX_Q_RUNNERS_LOCAL met, deferring launch");
+                        "with no room for more runners, deferring launch");
             }
         }
 
@@ -891,12 +892,12 @@ simta_server(bool daemon) {
                 break;
             }
 
-            if ((simta_q_runner_slow_max != 0) &&
-                    (simta_q_runner_slow >= simta_q_runner_slow_max)) {
+            if (simta_q_runner_slow >=
+                    simta_config_int("deliver.limits.slow_runners")) {
                 /* queues need to launch but process limit met */
                 syslog(LOG_NOTICE,
-                        "Daemon: Queue %s is ready but "
-                        "MAX_Q_RUNNERS_SLOW met, deferring launch",
+                        "Daemon: Queue %s ready with no room for more runners, "
+                        "deferring launch",
                         simta_deliver_q->hq_hostname);
                 break;
             }
@@ -923,7 +924,8 @@ simta_server(bool daemon) {
         }
 
         if ((simsendmail_signal != 0) &&
-                (simta_q_runner_local < simta_q_runner_local_max)) {
+                (simta_q_runner_local <
+                        simta_config_int("deliver.limits.local_runners"))) {
             simta_debuglog(2, "Daemon: simsendmail signal");
             sleep_time = 0;
             sleep_reason = "simsendmail signal";
@@ -1110,9 +1112,9 @@ simta_wait_for_child(int child_type) {
 
 
 int
-simta_sigaction_reset(int retain_chld) {
+simta_sigaction_reset(bool retain_chld) {
     /* reset USR1, CHLD and HUP */
-    if (retain_chld == 0) {
+    if (!retain_chld) {
         if (sigaction(SIGCHLD, &osachld, 0) < 0) {
             syslog(LOG_ERR, "Syserror: simta_sigaction_reset sigaction: %m");
             return (1);
@@ -1238,7 +1240,7 @@ simta_child_receive(struct simta_socket *ss) {
             }
         }
         /* smtp receive children may spawn children */
-        simta_sigaction_reset(simta_q_runner_receive_max);
+        simta_sigaction_reset(true);
         simta_proc_stab = NULL;
         simta_q_runner_slow = 0;
         exit(smtp_receive(fd, cinfo, ss));
@@ -1294,7 +1296,7 @@ simta_child_q_runner(struct host_q *hq) {
     switch (pid = fork()) {
     case 0:
         simta_openlog(true, 0);
-        simta_sigaction_reset(0);
+        simta_sigaction_reset(false);
         close(simta_pidfd);
         simta_host_q = NULL;
 

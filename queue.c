@@ -1516,9 +1516,9 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
         if (r_smtp == SMTP_OK) {
             /* Close the connection if we've hit the per-connection
              * message limit. */
-            if (simta_outbound_connection_msg_max > 0 &&
-                    d->d_connection_msg_total >=
-                            simta_outbound_connection_msg_max) {
+            if (d->d_connection_msg_total >=
+                    ucl_object_toint(ucl_object_lookup_path(
+                            hq->hq_red, "deliver.connection.max_messages"))) {
                 smtp_quit(hq, d);
                 snet_close(d->d_snet_smtp);
                 d->d_snet_smtp = NULL;

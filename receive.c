@@ -429,21 +429,22 @@ deliver_accepted(struct receive_data *r, int force) {
             ((simta_config_int("receive.queue.aggression") > 0) &&
                     (simta_fast_files >=
                             simta_config_int("receive.queue.aggression")))) {
-        if ((simta_q_runner_receive_max == 0) ||
-                ((r->r_snet == NULL) && (simta_proc_stab == NULL))) {
-            /* not allowed to have deliver children, or do not have
-            * connection and have no outstanding children
-            */
+        if ((r->r_snet == NULL) && (simta_proc_stab == NULL)) {
+            /* no connection and no outstanding children, run the queue */
             timerclear(&r->r_tv_accepted);
             if (q_runner() != 0) {
                 return (RECEIVE_SYSERROR);
             }
 
-        } else if (simta_q_runner_slow < simta_q_runner_receive_max) {
+        } else if (simta_q_runner_slow <
+                   simta_config_int("receive.queue.max_runners")) {
             timerclear(&r->r_tv_accepted);
             if (simta_child_q_runner(simta_unexpanded_q) != 0) {
+                statsd_counter("receive.q_runners", "errored", 1);
                 return (RECEIVE_SYSERROR);
             }
+            statsd_counter("receive.q_runners", "launched", 1);
+
             /* clean mailbag */
             while (simta_unexpanded_q->hq_env_head != NULL) {
                 e = simta_unexpanded_q->hq_env_head;
@@ -457,9 +458,10 @@ deliver_accepted(struct receive_data *r, int force) {
 
         } else {
             syslog(LOG_NOTICE,
-                    "Receive [%s] %s: %d messages queued but "
-                    "MAX_Q_RUNNERS_RECEIVE met, deferring launch",
+                    "Receive [%s] %s: %d messages queued with no room for more "
+                    "children, deferring launch",
                     r->r_ip, r->r_remote_hostname, simta_fast_files);
+            statsd_counter("receive.q_runners", "deferred", 1);
 
             if (simta_gettimeofday(&tv_now) == SIMTA_OK) {
                 simta_ucl_object_totimeval(

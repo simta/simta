@@ -623,6 +623,7 @@ properties {
                     }
                     aggression { type: integer }
                     timer { type: number }
+                    max_runners { type: integer }
                 }
                 additionalProperties: false
             }
@@ -642,6 +643,15 @@ properties {
     deliver {
         type: object
         properties {
+            limits {
+                type: object
+                properties {
+                    slow_runners { type: integer }
+                    local_runners { type: integer }
+                }
+                required [ slow_runners, local_runners ]
+                additionalProperties: false
+            }
             jail {
                 type: object
                 properties {
