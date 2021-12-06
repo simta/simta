@@ -908,11 +908,10 @@ simta_server(bool daemon) {
                 goto error;
             }
 
-            if ((simta_launch_limit > 0) &&
-                    ((launched % simta_launch_limit) == 0)) {
+            if (launched % 10 == 0) {
                 syslog(LOG_WARNING,
-                        "Daemon: MAX_Q_RUNNERS_LAUNCH met: "
-                        "sleeping for 1 second");
+                        "Daemon: launched 10 queue runners, sleeping for 1 "
+                        "second");
                 tv_launch_limiter.tv_sec = tv_now.tv_sec + 1;
             }
         }

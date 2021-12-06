@@ -137,7 +137,6 @@ extern ucl_object_t *       simta_host_q;
 extern struct envelope *    simta_env_queue;
 extern struct proc_type *   simta_proc_stab;
 extern int                  simta_disk_cycle;
-extern int                  simta_launch_limit;
 extern int                  simta_global_connections;
 extern int                  simta_global_throttle_connections;
 extern int                  simta_q_runner_local;

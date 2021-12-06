@@ -69,7 +69,6 @@ ucl_object_t *       simta_config = NULL;
 int                  simta_disk_cycle = 0;
 int                  simta_global_connections = 0;
 int                  simta_global_throttle_connections = 0;
-int                  simta_launch_limit = 10;
 int                  simta_q_runner_local = 0;
 int                  simta_q_runner_slow = 0;
 int                  simta_exp_level_max = 5;
