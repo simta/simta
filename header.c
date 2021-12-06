@@ -796,17 +796,16 @@ header_check(struct receive_headers *rh, bool read_headers,
     }
 
     /* SIMTA-Seen-Before: */
-    if ((dentry = dll_lookup(rh->r_headers_index, STRING_SEEN_BEFORE)) !=
-            NULL) {
+    if (((dentry = dll_lookup(rh->r_headers_index, STRING_SEEN_BEFORE)) !=
+                NULL) &&
+            simta_config_bool("core.poison.enabled")) {
         mh = dentry->dll_data;
         for (s = mh->h_lines; s != NULL; s = s->st_next) {
             tmp = header_string(s->st_data);
             if ((len = cfws_len(tmp)) > 0) {
                 yaslrange(tmp, len, -1);
             }
-            len = dot_atom_text_len(tmp);
-            if ((len == yasllen(simta_seen_before_domain)) &&
-                    (memcmp(tmp, simta_seen_before_domain, (size_t)len) == 0)) {
+            if (strcmp(tmp, simta_config_str("core.poison.slug")) == 0) {
                 rh->r_seen_before = simta_strdup(tmp);
             }
             yaslfree(tmp);

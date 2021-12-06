@@ -324,6 +324,15 @@ properties {
                 required [ enabled, host, port, prefix ]
                 additionalProperties: false
             }
+            poison {
+                type: object
+                properties {
+                    enabled { type: boolean }
+                    slug { type: string }
+                }
+                required [ enabled ]
+                additionalProperties: false
+            }
         }
         required [ base_dir, debug_level, masquerade, pid_file, statsd ]
         additionalProperties: false
@@ -677,14 +686,6 @@ properties {
                 properties {
                     bounce { type: number }
                     bounce_size { type: number }
-                }
-                additionalProperties: false
-            }
-            poison {
-                type: object
-                properties {
-                    enabled { type: boolean }
-                    slug { type: string }
                 }
                 additionalProperties: false
             }

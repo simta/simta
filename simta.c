@@ -91,7 +91,6 @@ yastr                simta_dir_fast = NULL;
 yastr                simta_dir_command = NULL;
 yastr                simta_hostname;
 DNSR *               simta_dnsr = NULL;
-yastr                simta_seen_before_domain = NULL;
 ucl_object_t *       simta_publicsuffix_list = NULL;
 
 
@@ -330,7 +329,7 @@ simta_read_config(const char *fname, const char *extra) {
     simta_ucl_default("receive.auth.results.domain", "core.masquerade");
     simta_ucl_default("deliver.dkim.domain", "core.masquerade");
     simta_ucl_default("receive.arc.domain", "deliver.dkim.domain");
-    simta_ucl_default("deliver.poison.slug", "core.masquerade");
+    simta_ucl_default("core.poison.slug", "core.masquerade");
 
     /* Validate the config */
     parser = ucl_parser_new(UCL_PARSER_DEFAULT);

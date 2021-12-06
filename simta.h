@@ -162,7 +162,6 @@ extern yastr                simta_hostname;
 extern char *               simta_queue_filter;
 extern yastr                simta_postmaster;
 extern DNSR *               simta_dnsr;
-extern yastr                simta_seen_before_domain;
 extern ucl_object_t *       simta_publicsuffix_list;
 
 

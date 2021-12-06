@@ -976,7 +976,7 @@ smtp_send(struct host_q *hq, struct deliver *d) {
         if ((rc = snet_writef(d->d_snet_smtp,
                      "%s: %s id=%s origin=%s destination=%s "
                      "smtp_destination=%s\r\n",
-                     STRING_SEEN_BEFORE, simta_seen_before_domain,
+                     STRING_SEEN_BEFORE, simta_config_str("core.poison.slug"),
                      d->d_env->e_id, simta_hostname, hq->hq_hostname,
                      hq->hq_smtp_hostname)) < 0) {
             syslog(LOG_ERR,
