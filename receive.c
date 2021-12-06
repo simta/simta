@@ -124,6 +124,7 @@ struct receive_data {
     struct command *        r_commands;
     int                     r_ncommands;
     enum smtp_mode          r_smtp_mode;
+    ucl_object_t *          r_smtp_extensions;
     const char *            r_auth_id;
     struct timeval          r_tv_inactivity;
     struct timeval          r_tv_session;
@@ -222,6 +223,10 @@ static int  smtp_write_banner(
 #ifdef HAVE_LIBOPENDKIM
 static const char *simta_dkim_authresult_str(DKIM_SIGERROR);
 #endif /* HAVE_LIBOPENDKIM */
+
+#ifdef HAVE_LIBSASL
+static void update_sasl_extension(struct receive_data *);
+#endif /* HAVE_LIBSASL */
 
 #ifdef HAVE_LIBSSL
 static int f_starttls(struct receive_data *);
@@ -728,13 +733,9 @@ f_helo(struct receive_data *r) {
 
 static int
 f_ehlo(struct receive_data *r) {
-    extern int simta_smtp_extension;
-    int        extension_count;
-#ifdef HAVE_LIBSASL
-    const char *mechlist;
-#endif /* HAVE_LIBSASL */
-
-    extension_count = simta_smtp_extension;
+    yastr               buf = NULL;
+    ucl_object_iter_t   iter = NULL;
+    const ucl_object_t *obj;
 
     tarpit_sleep(r);
 
@@ -746,8 +747,8 @@ f_ehlo(struct receive_data *r) {
      */
     if (r->r_ac != 2) {
         log_bad_syntax(r);
-        return (smtp_write_banner(r, 501, NULL,
-                "RFC 5321 section 4.1.1.1: \"EHLO\" SP Domain CRLF"));
+        return smtp_write_banner(r, 501, NULL,
+                "RFC 5321 section 4.1.1.1: \"EHLO\" SP Domain CRLF");
     }
 
     /* RFC 5321 4.1.4 Order of Commands
@@ -760,7 +761,7 @@ f_ehlo(struct receive_data *r) {
      * commands.
      */
     if (reset(r) != RECEIVE_OK) {
-        return (RECEIVE_SYSERROR);
+        return RECEIVE_SYSERROR;
     }
 
     /* RFC 5321 2.3.5 Domain Names
@@ -771,67 +772,39 @@ f_ehlo(struct receive_data *r) {
      */
 
     if (hello(r, r->r_av[ 1 ]) != RECEIVE_OK) {
-        return (RECEIVE_SYSERROR);
+        return RECEIVE_SYSERROR;
     }
 
     if (snet_writef(r->r_snet, "%d-%s Hello %s\r\n", 250, simta_hostname,
                 r->r_av[ 1 ]) < 0) {
         syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
-        return (RECEIVE_CLOSECONNECTION);
-    }
-    if (snet_writef(r->r_snet, "%d%s8BITMIME\r\n", 250,
-                extension_count-- ? "-" : " ") < 0) {
-        syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
-        return (RECEIVE_CLOSECONNECTION);
-    }
-    if (snet_writef(r->r_snet, "%d%sSIZE %d\r\n", 250,
-                extension_count-- ? "-" : " ",
-                simta_config_int("receive.data.limits.message_size")) < 0) {
-        syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
-        return (RECEIVE_CLOSECONNECTION);
+        return RECEIVE_CLOSECONNECTION;
     }
 
-    if (simta_config_bool("receive.auth.authn.enabled")) {
-        if (simta_config_bool("receive.auth.authn.honeypot")) {
-            /* Falsely advertise auth support */
-            if (snet_writef(r->r_snet, "250%sAUTH LOGIN PLAIN\r\n",
-                        extension_count-- ? "-" : " ") < 0) {
-                syslog(LOG_ERR, "Syserror: f_ehlo snet_writef: %m");
-                return (RECEIVE_CLOSECONNECTION);
-            }
-        } else {
-#ifdef HAVE_LIBSASL
-            if (simta_sasl_mechlist(r->r_sasl, &mechlist) != 0) {
-                return (RECEIVE_SYSERROR);
-            }
-            if (snet_writef(r->r_snet, "250%sAUTH %s\r\n",
-                        extension_count-- ? "-" : " ", mechlist) < 0) {
-                syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
-                return (RECEIVE_CLOSECONNECTION);
-            }
-#endif /* HAVE_LIBSASL */
+    iter = ucl_object_iterate_new(r->r_smtp_extensions);
+    buf = yaslempty();
+    obj = ucl_object_iterate_safe(iter, false);
+    while (obj != NULL) {
+        yaslclear(buf);
+        buf = yaslcat(buf, ucl_object_key(obj));
+        if (ucl_object_type(obj) != UCL_NULL) {
+            buf = yaslcatprintf(buf, " %s", ucl_object_tostring_forced(obj));
+        }
+        obj = ucl_object_iterate_safe(iter, false);
+        if (snet_writef(r->r_snet, "%d%s%s\r\n", 250, obj ? "-" : " ", buf) <
+                0) {
+            syslog(LOG_ERR, "Liberror: f_ehlo snet_writef: %m");
+            return RECEIVE_CLOSECONNECTION;
         }
     }
-
-#ifdef HAVE_LIBSSL
-    /* RFC 3207 4.2 Result of the STARTTLS Command
-     * A server MUST NOT return the STARTTLS extension in response to an
-     * EHLO command received after a TLS handshake has completed.
-     */
-    if (simta_config_bool("receive.tls.enabled") && !r->r_tls) {
-        if (snet_writef(r->r_snet, "%d%sSTARTTLS\r\n", 250,
-                    extension_count-- ? "-" : " ") < 0) {
-            syslog(LOG_ERR, "Syserror: f_ehlo snet_writef: %m");
-            return (RECEIVE_CLOSECONNECTION);
-        }
-    }
-#endif /* HAVE_LIBSSL */
+    yaslfree(buf);
+    ucl_object_iterate_free(iter);
 
     r->r_esmtp = 1;
     simta_debuglog(1, "Receive [%s] %s: %s", r->r_ip, r->r_remote_hostname,
             r->r_smtp_command);
 
-    return (RECEIVE_OK);
+    return RECEIVE_OK;
 }
 
 
@@ -2709,6 +2682,7 @@ f_starttls(struct receive_data *r) {
         if (simta_sasl_reset(r->r_sasl, r->r_tls) != 0) {
             return (RECEIVE_SYSERROR);
         }
+        update_sasl_extension(r);
     }
 #endif /* HAVE_LIBSASL */
 
@@ -2751,7 +2725,11 @@ start_tls(struct receive_data *r, SSL_CTX *ssl_ctx) {
         }
     }
 
-    simta_smtp_extension--;
+    /* RFC 3207 4.2 Result of the STARTTLS Command
+     * A server MUST NOT return the STARTTLS extension in response to an
+     * EHLO command received after a TLS handshake has completed.
+     */
+    ucl_object_delete_key(r->r_smtp_extensions, "STARTTLS");
 
     /* CVE-2011-0411: discard pending data from libsnet */
     snet_flush(r->r_snet);
@@ -2912,6 +2890,7 @@ f_auth(struct receive_data *r) {
             if ((r->r_sasl = simta_sasl_server_new(r->r_tls)) == NULL) {
                 return (RECEIVE_CLOSECONNECTION);
             }
+            update_sasl_extension(r);
             return (smtp_write_banner(
                     r, 501, NULL, "client canceled authentication"));
         }
@@ -3288,6 +3267,28 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         syslog(LOG_INFO, "Connect.in [%s] %s: Accepted", r.r_ip,
                 r.r_remote_hostname);
     }
+
+    /* Set up extensions */
+    r.r_smtp_extensions = ucl_object_new();
+    ucl_object_insert_key(
+            r.r_smtp_extensions, ucl_object_new(), "8BITMIME", 0, false);
+    ucl_object_insert_key(r.r_smtp_extensions,
+            ucl_object_copy(
+                    simta_config_obj("receive.data.limits.message_size")),
+            "SIZE", 0, false);
+
+    if (simta_config_bool("receive.auth.authn.enabled") &&
+            simta_config_bool("receive.auth.authn.honeypot")) {
+        ucl_object_insert_key(r.r_smtp_extensions,
+                ucl_object_fromstring("LOGIN PLAIN"), "AUTH", 0, false);
+    }
+
+#ifdef HAVE_LIBSSL
+    if (simta_config_bool("receive.tls.enabled")) {
+        ucl_object_insert_key(
+                r.r_smtp_extensions, ucl_object_new(), "STARTTLS", 0, false);
+    }
+#endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBOPENARC
     if (simta_config_bool("receive.arc.enabled")) {
@@ -3860,6 +3861,7 @@ auth_init(struct receive_data *r, struct simta_socket *ss) {
         if ((r->r_sasl = simta_sasl_server_new(r->r_tls)) == NULL) {
             return (-1);
         }
+        update_sasl_extension(r);
     }
 #endif /* HAVE_LIBSASL */
 
@@ -3867,6 +3869,19 @@ auth_init(struct receive_data *r, struct simta_socket *ss) {
 
     return (0);
 }
+
+
+#ifdef HAVE_LIBSASL
+static void
+update_sasl_extension(struct receive_data *r) {
+    const char *mechlist;
+    if (simta_sasl_mechlist(r->r_sasl, &mechlist) != 0) {
+        return;
+    }
+    ucl_object_replace_key(r->r_smtp_extensions,
+            ucl_object_fromstring(mechlist), "AUTH", 0, false);
+}
+#endif /* HAVE_LIBSASL */
 
 
 static simta_address_status

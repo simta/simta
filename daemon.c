@@ -302,9 +302,6 @@ main(int ac, char **av) {
     const char *         config_extra = NULL;
     const char *         simta_pwd;
     const char *         simta_file_pid;
-#ifdef HAVE_LIBSASL
-    int rc;
-#endif /* HAVE_LIBSASL */
 
     if ((prog = strrchr(av[ 0 ], '/')) == NULL) {
         prog = av[ 0 ];
@@ -405,26 +402,6 @@ main(int ac, char **av) {
     }
 
 #ifndef Q_SIMULATION
-#ifdef HAVE_LIBSSL
-    if (simta_config_bool("receive.tls.enabled")) {
-        simta_smtp_extension++;
-    }
-#endif /* HAVE_LIBSSL */
-
-    if (simta_config_bool("receive.auth.authn.enabled")) {
-        if (!simta_config_bool("receive.auth.authn.honeypot")) {
-#ifdef HAVE_LIBSASL
-            if ((rc = simta_sasl_init()) != 0) {
-                exit(SIMTA_EXIT_ERROR);
-            }
-#else
-            syslog(LOG_ERR, "Liberror: SASL auth support not available");
-            exit(SIMTA_EXIT_ERROR);
-#endif /* HAVE_LIBSASL */
-        }
-        simta_smtp_extension++;
-    }
-
     if (dontrun) {
         simta_dump_config();
         exit(SIMTA_EXIT_OK);

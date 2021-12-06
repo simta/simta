@@ -74,7 +74,6 @@ int                  simta_q_runner_slow = 0;
 int                  simta_exp_level_max = 5;
 enum simta_proc_type simta_process_type = PROCESS_DEFAULT;
 int                  simta_filesystem_cleanup = 0;
-int                  simta_smtp_extension = 1;
 int                  simta_message_count = 0;
 int                  simta_smtp_outbound_attempts = 0;
 int                  simta_smtp_outbound_delivered = 0;
@@ -383,6 +382,9 @@ simta_read_config(const char *fname, const char *extra) {
         SSL_CTX_free(ssl_ctx);
     }
 #endif /* HAVE_LIBSSL */
+
+    /* FIXME: Test SASL config */
+    /* if ((rc = simta_sasl_init()) != 0) */
 
     if (simta_gettimeofday(&tv_now) != 0) {
         return SIMTA_ERR;

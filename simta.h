@@ -151,7 +151,6 @@ extern int                  simta_debug;
 extern int                  simta_expand_debug;
 extern int                  simta_child_signal;
 extern int                  simta_fast_files;
-extern int                  simta_smtp_extension;
 extern yastr                simta_dir_fast;
 extern yastr                simta_dir_slow;
 extern yastr                simta_dir_dead;
