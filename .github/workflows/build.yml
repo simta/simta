@@ -109,12 +109,6 @@ jobs:
           genhtml lcov.info -o ${{ github.workspace }}/lcov
         working-directory: ${{ github.workspace }}/simta
 
-      - name: Save gcov output
-        uses: actions/upload-artifact@v2
-        with:
-          name: gcov
-          path: simta/*.gcov
-
       - name: Save lcov output
         uses: actions/upload-artifact@v2
         with:
