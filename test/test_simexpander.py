@@ -91,6 +91,10 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
         config['defaults']['red_rule']['expand'] = {
             'subaddress_separators': '+=',
         }
+    else:
+        config['defaults']['red_rule']['expand'] = {
+            'subaddress_separators': '',
+        }
 
     if ldapserver['enabled']:
         config['domain']['ldap.example.com'] = {
