@@ -42,7 +42,6 @@
 #include "simta_ldap.h"
 #include "simta_malloc.h"
 #include "smtp.h"
-#include "wildcard.h"
 
 static simta_result deliver_checksockaddr(struct deliver *, struct host_q *);
 static void         free_dns_results(struct deliver *);
@@ -819,16 +818,6 @@ q_read_dir(struct simta_dirp *sd) {
     if (env_read(READ_QUEUE_INFO, env, NULL) != SIMTA_OK) {
         env_free(env);
         return (0);
-    }
-
-    /* only stand-alone queue runners should do this */
-    if (simta_queue_filter != NULL) {
-        /* check to see if we should skip this message */
-        if ((env->e_hostname == NULL) ||
-                (wildcard(simta_queue_filter, env->e_hostname, 0) == 0)) {
-            env_free(env);
-            return (0);
-        }
     }
 
     if (queue_envelope(env) != SIMTA_OK) {

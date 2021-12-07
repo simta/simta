@@ -81,7 +81,6 @@ int                  simta_fast_files = 0;
 int                  simta_debug = 1;
 int                  simta_child_signal = 0;
 yastr                simta_postmaster = NULL;
-char *               simta_queue_filter = NULL;
 yastr                simta_dir_dead = NULL;
 yastr                simta_dir_local = NULL;
 yastr                simta_dir_slow = NULL;

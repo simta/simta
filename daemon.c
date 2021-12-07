@@ -100,18 +100,14 @@ int                  set_sleep_time(int *, int);
 
 void
 usr1(int sig) {
-#ifndef Q_SIMULATION
     simsendmail_signal = 1;
-#endif /* Q_SIMULATION */
     return;
 }
 
 
 void
 usr2(int sig) {
-#ifndef Q_SIMULATION
     command_signal = 1;
-#endif /* Q_SIMULATION */
     return;
 }
 
@@ -125,9 +121,7 @@ hup(int sig) {
 
 void
 chld(int sig) {
-#ifndef Q_SIMULATION
     simta_child_signal = 1;
-#endif /* Q_SIMULATION */
     return;
 }
 
@@ -291,7 +285,6 @@ main(int ac, char **av) {
     int                  c, err = 0;
     bool                 dontrun = false;
     bool                 daemonize = true;
-    int                  q_run = 0;
     char *               prog;
     extern int           optind;
     extern char *        optarg;
@@ -309,7 +302,7 @@ main(int ac, char **av) {
         prog++;
     }
 
-    while ((c = getopt(ac, av, "cCDf:qQ:u:U:V")) != -1) {
+    while ((c = getopt(ac, av, "cCDf:u:U:V")) != -1) {
         switch (c) {
         case 'c': /* check config files */
             dontrun = true;
@@ -325,17 +318,6 @@ main(int ac, char **av) {
 
         case 'f':
             config_fname = optarg;
-            break;
-
-        case 'q':
-            /* q_runner option: run slow queue */
-            q_run++;
-            break;
-
-        case 'Q':
-            /* q_runner option: run specific slow queue */
-            q_run++;
-            simta_queue_filter = optarg;
             break;
 
         case 'u':
@@ -355,24 +337,12 @@ main(int ac, char **av) {
         }
     }
 
-    if (q_run > 1) {
-        fprintf(stderr, "simta: only one -q or -Q option can be specified\n");
-        exit(SIMTA_EXIT_ERROR);
-    }
-
-    if (q_run && simta_filesystem_cleanup) {
-        fprintf(stderr, "simta: -C and %s are mutually exclusive\n",
-                simta_queue_filter ? "-Q" : "-q");
-        exit(SIMTA_EXIT_ERROR);
-    }
-
     if (err || optind != ac) {
         fprintf(stderr, "Usage:\t%s", prog);
         fprintf(stderr, " [ -cCdV ]");
         fprintf(stderr, " [ -f config-file ]");
         fprintf(stderr, " [ -u user ]");
         fprintf(stderr, " [ -U ucl-config-string ]");
-        fprintf(stderr, " [ -q | -Q filter ]");
         fprintf(stderr, "\n");
         exit(SIMTA_EXIT_ERROR);
     }
@@ -401,20 +371,19 @@ main(int ac, char **av) {
         exit(SIMTA_EXIT_ERROR);
     }
 
-#ifndef Q_SIMULATION
     if (dontrun) {
         simta_dump_config();
         exit(SIMTA_EXIT_OK);
     }
 
-    /* if we're not a q_runner or filesystem cleaner, open smtp service */
-    if ((q_run == 0) && (simta_filesystem_cleanup == 0)) {
+    /* if we're not a filesystem cleaner, open smtp service */
+    if (simta_filesystem_cleanup == 0) {
         if (simta_listen() != 0) {
             exit(SIMTA_EXIT_ERROR);
         }
     }
 
-    if (q_run == 0 && daemonize) {
+    if (daemonize) {
         simta_file_pid = simta_config_str("core.pid_file");
         /* open and truncate the pid file */
         if ((simta_pidfd = open(simta_file_pid, O_CREAT | O_WRONLY, 0644)) <
@@ -444,7 +413,6 @@ main(int ac, char **av) {
             exit(SIMTA_EXIT_ERROR);
         }
     }
-#endif /* Q_SIMULATION */
 
     if (simta_uname == NULL) {
         simta_uname = simta_config_str("core.user");
@@ -485,16 +453,12 @@ main(int ac, char **av) {
 #endif /* __linux__ */
     }
 
-#ifndef Q_SIMULATION
-    if (q_run) {
-        exit(simta_wait_for_child(PROCESS_Q_SLOW));
-    } else if (simta_filesystem_cleanup) {
+    if (simta_filesystem_cleanup) {
         exit(simta_wait_for_child(PROCESS_CLEANUP));
     } else if (simta_wait_for_child(PROCESS_CLEANUP) != 0) {
         fprintf(stderr, "simta cleanup error, please check the log\n");
         exit(SIMTA_EXIT_ERROR);
     }
-#endif /* Q_SIMULATION */
 
     /*
      * Disassociate from controlling tty.
@@ -508,7 +472,6 @@ main(int ac, char **av) {
                 perror("setsid");
                 exit(SIMTA_EXIT_ERROR);
             }
-#ifndef Q_SIMULATION
             int i, dt = getdtablesize();
             for (i = 0; i < dt; i++) {
                 /* keep sockets & simta_pidfd open */
@@ -525,7 +488,6 @@ main(int ac, char **av) {
                 }
                 close(i);
             }
-#endif /* Q_SIMULATION */
             if ((i = open("/", O_RDONLY, 0)) == 0) {
                 dup2(i, 1);
                 dup2(i, 2);
@@ -720,7 +682,6 @@ simta_server(bool daemon) {
     memset(&slow_dirp, 0, sizeof(struct simta_dirp));
     slow_dirp.sd_dir = simta_dir_slow;
 
-#ifndef Q_SIMULATION
     if (daemon) {
         if ((pf = fdopen(simta_pidfd, "w")) == NULL) {
             syslog(LOG_ERR, "Syserror: simta_server fdopen: %m");
@@ -732,7 +693,6 @@ simta_server(bool daemon) {
             exit(SIMTA_EXIT_ERROR);
         }
     }
-#endif /* Q_SIMULATION */
 
     simta_process_type = PROCESS_SERVER;
 
@@ -1259,11 +1219,6 @@ simta_child_receive(struct simta_socket *ss) {
 int
 simta_child_q_runner(struct host_q *hq) {
     int pid;
-
-#ifdef Q_SIMULATION
-    assert(hq != NULL);
-    return (0);
-#endif /* Q_SIMULATION */
 
     if (simta_gettimeofday(NULL) == SIMTA_ERR) {
         return (1);

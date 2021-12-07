@@ -157,7 +157,6 @@ extern yastr                simta_dir_dead;
 extern yastr                simta_dir_local;
 extern yastr                simta_dir_command;
 extern yastr                simta_hostname;
-extern char *               simta_queue_filter;
 extern yastr                simta_postmaster;
 extern DNSR *               simta_dnsr;
 extern ucl_object_t *       simta_publicsuffix_list;

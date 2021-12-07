@@ -68,7 +68,6 @@ COMMON_FILES = \
 	smtp.c smtp.h \
 	srs.c srs.h \
 	spf.c spf.h \
-	wildcard.c wildcard.h \
 	yasl.c yasl.h
 
 if BUILD_LDAP
