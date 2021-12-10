@@ -1003,7 +1003,7 @@ f_mail(struct receive_data *r) {
 
     if (*addr != '\0') {
         if ((dnsl_result = dnsl_check(
-                     "receive.mail_from.dns_lists", NULL, addr)) != NULL) {
+                     "receive.mail_from.dns_list", NULL, addr)) != NULL) {
             if (strcmp(dnsl_result->dnsl_action, "block") == 0) {
                 syslog(LOG_NOTICE,
                         "Receive [%s] %s: From <%s>: "
@@ -1321,7 +1321,7 @@ f_rcpt(struct receive_data *r) {
             case ADDRESS_OK:
                 if (!r->r_dnsl_checked) {
                     r->r_dnsl_result = dnsl_check(
-                            "receive.rcpt_to.dns_lists", r->r_sa, NULL);
+                            "receive.rcpt_to.dns_list", r->r_sa, NULL);
                     r->r_dnsl_checked = 1;
                 }
 
@@ -1812,7 +1812,7 @@ f_data(struct receive_data *r) {
                                              ? r->r_env->e_mail_orig
                                              : r->r_env->e_mail) != 0)) {
                         if ((dnsl_result = dnsl_check(
-                                     "receive.mail_from.dns_lists", NULL,
+                                     "receive.mail_from.dns_list", NULL,
                                      r->r_env->e_header_from)) != NULL) {
                             if (strcmp(dnsl_result->dnsl_action, "block") ==
                                     0) {
@@ -2916,7 +2916,7 @@ f_auth(struct receive_data *r) {
 
     /* authn was successful, now we need to check authz */
     if ((authz_result = dnsl_check(
-                 "receive.auth.authz.dns_lists", NULL, r->r_auth_id)) == NULL) {
+                 "receive.auth.authz.dns_list", NULL, r->r_auth_id)) == NULL) {
         syslog(LOG_INFO, "Auth [%s] %s: %s allowed by default", r->r_ip,
                 r->r_remote_hostname, r->r_auth_id);
     } else {
@@ -3173,7 +3173,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                 r.r_remote_hostname);
 
         r.r_dnsl_result =
-                dnsl_check("receive.connection.dns_lists", r.r_sa, NULL);
+                dnsl_check("receive.connection.dns_list", r.r_sa, NULL);
 
         if (r.r_dnsl_result) {
             r.r_dnsl_checked = 1;

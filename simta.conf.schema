@@ -405,7 +405,7 @@ properties {
                         additionalProperties: false
                     }
 
-                    dns_lists {
+                    dns_list {
                         type: array
                         items: { "$ref": "#/definitions/dns_list" }
                     }
@@ -540,7 +540,7 @@ properties {
                     authz {
                         type: object
                         properties {
-                            dns_lists {
+                            dns_list {
                                 type: array
                                 items { "$ref": "#/definitions/dns_list" }
                             }
@@ -562,7 +562,7 @@ properties {
                 type: object
                 properties {
                     max_failures { type: integer }
-                    dns_lists {
+                    dns_list {
                         type: array
                         items { "$ref": "#/definitions/dns_list" }
                     }
@@ -574,7 +574,7 @@ properties {
                 type: object
                 properties {
                     max_failures { type: integer }
-                    dns_lists {
+                    dns_list {
                         type: array
                         items { "$ref": "#/definitions/dns_list" }
                     }
@@ -611,7 +611,7 @@ properties {
                                 enum [ always, untrusted ]
                             }
                             message { type: string }
-                            dns_lists {
+                            dns_list {
                                 type: array
                                 items { "$ref": "#/definitions/dns_list" }
                             }
