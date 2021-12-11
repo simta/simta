@@ -96,7 +96,6 @@ simta_statsd_send(
     buf = yaslcat(buf, type);
 
     rc = send(fd, buf, yasllen(buf), 0);
-    yaslfree(buf);
     if (rc == -1) {
         syslog(LOG_ERR, "Syserror simta_statsd_send send: %s", strerror(errno));
     } else {
