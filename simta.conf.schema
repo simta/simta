@@ -228,7 +228,7 @@ definitions {
                                 type { type: string, enum [ all, group, user ] }
                                 uri { type: string }
                             }
-                            required [ type, uri ]
+                            required [ uri ]
                             additionalProperties: false
                         }
                     }

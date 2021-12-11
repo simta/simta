@@ -1819,6 +1819,7 @@ simta_ldap_config(const ucl_object_t *rule) {
     const char *              buf;
     int                       i;
     const ucl_object_t *      obj;
+    const ucl_object_t *      c_obj;
     ucl_object_iter_t         iter = NULL;
     LDAPURLDesc *             plud;   /* a parsed ldapurl */
     int                       ldaprc; /* ldap return code */
@@ -1868,23 +1869,31 @@ simta_ldap_config(const ucl_object_t *rule) {
         *lds = simta_calloc(1, sizeof(struct ldap_search_list));
         (*lds)->lds_string = buf;
         (*lds)->lds_plud = plud;
-        (*lds)->lds_rdn_pref =
-                ucl_object_toboolean(ucl_object_lookup(obj, "rdnpref"));
 
-        buf = ucl_object_tostring(ucl_object_lookup(obj, "type"));
-        if (strcasecmp(buf, "all") == 0) {
-            (*lds)->lds_search_type = LDS_ALL;
-        } else if (strcasecmp(buf, "group") == 0) {
-            (*lds)->lds_search_type = LDS_GROUP;
-        } else if (strcasecmp(buf, "user") == 0) {
-            (*lds)->lds_search_type = LDS_USER;
+        if ((c_obj = ucl_object_lookup(obj, "rdnpref")) != NULL) {
+            (*lds)->lds_rdn_pref = ucl_object_toboolean(c_obj);
         } else {
-            ldap_free_urldesc(plud);
-            free(*lds);
-            *lds = NULL;
-            syslog(LOG_ERR, "Config.LDAP %s: Unknown search type: %s",
-                    ld->ldap_associated_domain, buf);
-            goto errexit;
+            (*lds)->lds_rdn_pref = true;
+        }
+
+        if ((c_obj = ucl_object_lookup(obj, "type")) != NULL) {
+            buf = ucl_object_tostring(c_obj);
+            if (strcasecmp(buf, "all") == 0) {
+                (*lds)->lds_search_type = LDS_ALL;
+            } else if (strcasecmp(buf, "group") == 0) {
+                (*lds)->lds_search_type = LDS_GROUP;
+            } else if (strcasecmp(buf, "user") == 0) {
+                (*lds)->lds_search_type = LDS_USER;
+            } else {
+                ldap_free_urldesc(plud);
+                free(*lds);
+                *lds = NULL;
+                syslog(LOG_ERR, "Config.LDAP %s: Unknown search type: %s",
+                        ld->ldap_associated_domain, buf);
+                goto errexit;
+            }
+        } else {
+            (*lds)->lds_search_type = LDS_ALL;
         }
 
         (*lds)->lds_next = NULL;
