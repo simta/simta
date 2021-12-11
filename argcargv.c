@@ -107,22 +107,6 @@ acav_parse2821(ACAV *acav, char *line, char **argv[]) {
     return (ac);
 }
 
-#ifdef notdef
-main(int ac, char *av[]) {
-    char **nav;
-    int    nac, i;
-
-    printf("av: %s\n", av[ 1 ]);
-
-    nac = acav_parse2821(NULL, av[ 1 ], &nav);
-
-    for (i = 0; i < nac; i++) {
-        printf("nav[ %d ] = %s\n", i, nav[ i ]);
-    }
-    exit(0);
-}
-#endif // notdef
-
 /*
  * acav->acv_argv = **argv[] if passed an ACAV
  */
