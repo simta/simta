@@ -57,58 +57,6 @@ simta_ucl_toggle(const ucl_object_t *base, const char *path, const char *key,
     return (false);
 }
 
-bool
-simta_ucl_default(const char *preferred, const char *fallback) {
-    bool                retval = false;
-    const ucl_object_t *path_obj;
-    const ucl_object_t *def_obj;
-    ucl_object_t *      ref;
-    char *              p;
-    yastr               path, key;
-
-    path = yaslauto(preferred);
-
-    if ((p = strrchr(path, '.')) == NULL) {
-        path_obj = simta_config;
-        key = path;
-        path = NULL;
-    } else {
-        key = yaslauto(p + 1);
-        yaslrange(path, 0, p - path);
-        path_obj = simta_config_obj(path);
-        if (path_obj == NULL) {
-            simta_debuglog(1,
-                    "Config.default: "
-                    "%s (parent of %s) missing, can't set a default",
-                    path, preferred);
-            goto error;
-        }
-    }
-
-    if (ucl_object_lookup(path_obj, key) != NULL) {
-        goto error;
-    }
-
-    if ((def_obj = simta_config_obj(fallback)) == NULL) {
-        simta_debuglog(1,
-                "Config.default: "
-                "%s missing, can't use it as the default",
-                fallback);
-        goto error;
-    }
-
-    ref = ucl_object_ref(path_obj);
-    ucl_object_insert_key(
-            ref, ucl_object_copy(def_obj), key, yasllen(key), true);
-    ucl_object_unref(ref);
-    retval = true;
-
-error:
-    yaslfree(path);
-    yaslfree(key);
-    return (retval);
-}
-
 void
 simta_ucl_object_totimeval(const ucl_object_t *obj, struct timeval *tv) {
     double val;

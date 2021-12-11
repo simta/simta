@@ -52,7 +52,8 @@
 #include "embedded_config.h"
 #include "embedded_schema.h"
 
-static simta_result simta_read_publicsuffix(const char *);
+static simta_result       simta_read_publicsuffix(const char *);
+static struct ucl_parser *simta_ucl_parser(void);
 
 
 /* global variables */
@@ -184,6 +185,18 @@ simta_debuglog(int level, const char *format, ...) {
     va_end(vl);
 }
 
+static struct ucl_parser *
+simta_ucl_parser(void) {
+    struct ucl_parser *parser;
+
+    parser = ucl_parser_new(
+            UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
+
+    ucl_parser_register_variable(parser, "HOSTNAME", simta_hostname);
+
+    return parser;
+}
+
 
 simta_result
 simta_read_config(const char *fname, const char *extra) {
@@ -203,11 +216,19 @@ simta_read_config(const char *fname, const char *extra) {
     SSL_CTX *ssl_ctx = NULL;
 #endif /* HAVE_LIBSSL */
 
+    if (gethostname(hostname, DNSR_MAX_HOSTNAME) != 0) {
+        perror("gethostname");
+        return SIMTA_ERR;
+    }
+
+    simta_hostname = yaslauto(hostname);
+    yasltolower(simta_hostname);
+    yasltrim(simta_hostname, ".");
+
     /* Parse the hard-coded defaults */
     simta_debuglog(2, "simta_read_config: reading embedded base config");
 
-    parser = ucl_parser_new(
-            UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
+    parser = simta_ucl_parser();
 
     if (!ucl_parser_add_string(parser, SIMTA_CONFIG_BASE, 0)) {
         syslog(LOG_ERR, "simta_read_config: base UCL parsing failed");
@@ -220,20 +241,6 @@ simta_read_config(const char *fname, const char *extra) {
     simta_config = ucl_parser_get_object(parser);
 
     ucl_parser_free(parser);
-
-    /* Set dynamic defaults */
-    if (gethostname(hostname, DNSR_MAX_HOSTNAME) != 0) {
-        perror("gethostname");
-        return SIMTA_ERR;
-    }
-    simta_hostname = yaslauto(hostname);
-    yasltolower(simta_hostname);
-    yasltrim(simta_hostname, ".");
-
-    obj = ucl_object_ref(simta_config_obj("core"));
-    ucl_object_insert_key(
-            obj, ucl_object_fromstring(simta_hostname), "masquerade", 0, false);
-    ucl_object_unref(obj);
 
     if (fname == NULL) {
         fname = "/etc/simta.conf";
@@ -248,10 +255,7 @@ simta_read_config(const char *fname, const char *extra) {
 
     /* Parse the config file */
     if (fname) {
-        parser = ucl_parser_new(
-                UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
-
-        ucl_parser_set_filevars(parser, fname, false);
+        parser = simta_ucl_parser();
         if (!ucl_parser_add_file(parser, fname)) {
             syslog(LOG_ERR, "simta_read_config: UCL parsing failed");
             if ((err = ucl_parser_get_error(parser)) != NULL) {
@@ -267,8 +271,7 @@ simta_read_config(const char *fname, const char *extra) {
     /* Add extra config */
     if (extra) {
         simta_debuglog(1, "Parsing extra config from string: %s", extra);
-        parser = ucl_parser_new(
-                UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
+        parser = simta_ucl_parser();
         if (!ucl_parser_add_string(parser, extra, 0)) {
             syslog(LOG_ERR, "simta_read_config: extra UCL parsing failed: %s",
                     ucl_parser_get_error(parser));
@@ -320,13 +323,6 @@ simta_read_config(const char *fname, const char *extra) {
         ucl_object_iterate_free(j);
     }
     ucl_object_iterate_free(i);
-
-    /* Set up simpler defaults */
-    simta_ucl_default("receive.srs.domain", "core.masquerade");
-    simta_ucl_default("receive.auth.results.domain", "core.masquerade");
-    simta_ucl_default("deliver.dkim.domain", "core.masquerade");
-    simta_ucl_default("receive.arc.domain", "deliver.dkim.domain");
-    simta_ucl_default("core.poison.slug", "core.masquerade");
 
     /* Validate the config */
     parser = ucl_parser_new(UCL_PARSER_DEFAULT);
