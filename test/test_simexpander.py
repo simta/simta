@@ -298,6 +298,24 @@ def test_expand_alias_group_errorsto(run_simexpander):
     assert res['parsed'][1]['sender'] == 'group2-errors@alias.example.com'
 
 
+@pytest.mark.parametrize(
+    'target',
+    [
+        'group2-errors@alias.example.com',
+        'owner-group2@alias.example.com',
+        'group2-owners@alias.example.com',
+        'group2-error@alias.example.com',
+        'group2-requests@alias.example.com',
+        'group2-errors@alias.example.com',
+    ],
+)
+def test_expand_alias_group_errors(run_simexpander, target):
+    res = run_simexpander(target)
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['anotheruser@masquerade.example.com']
+    assert res['parsed'][0]['sender'] == 'sender@expansion.test'
+
+
 def test_expand_ldap_user_nonexist(run_simexpander, req_ldapserver):
     assert_nonexist(run_simexpander('baduser@ldap.example.com'))
 
