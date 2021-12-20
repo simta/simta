@@ -34,6 +34,27 @@ simta_ucl_merge_defaults(
     ucl_object_unref(ref);
 }
 
+void
+simta_ucl_ensure_array(const ucl_object_t *obj, const char *key) {
+    const ucl_object_t *elt;
+    ucl_object_t *      ref;
+    ucl_object_t *      arr;
+
+    elt = ucl_object_lookup_path(obj, key);
+    if (ucl_object_type(elt) == UCL_ARRAY) {
+        /* Already an array */
+        return;
+    }
+
+    ref = ucl_object_ref(obj);
+    arr = ucl_object_typed_new(UCL_ARRAY);
+    if (elt != NULL) {
+        ucl_array_append(arr, ucl_object_ref(elt));
+    }
+    ucl_object_replace_key(ref, arr, key, 0, false);
+    ucl_object_unref(ref);
+}
+
 bool
 simta_ucl_toggle(const ucl_object_t *base, const char *path, const char *key,
         bool value) {

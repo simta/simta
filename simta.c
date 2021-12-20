@@ -281,6 +281,12 @@ simta_read_config(const char *fname, const char *extra) {
         ucl_parser_free(parser);
     }
 
+    /* Preprocess some things that should be lists */
+    simta_ucl_ensure_array(simta_config_obj("receive.connection"), "dns_list");
+    simta_ucl_ensure_array(simta_config_obj("receive.auth.authz"), "dns_list");
+    simta_ucl_ensure_array(simta_config_obj("receive.mail_from"), "dns_list");
+    simta_ucl_ensure_array(simta_config_obj("receive.rcpt_to"), "dns_list");
+
     /* Set up localhost */
     if (red_host_lookup(simta_hostname, false) == NULL) {
         /* No explicit config, check the placeholder */
@@ -304,6 +310,7 @@ simta_read_config(const char *fname, const char *extra) {
         simta_ucl_merge_defaults(i_obj, "defaults.red", "receive");
         simta_ucl_merge_defaults(i_obj, "defaults.red", "deliver");
 
+        simta_ucl_ensure_array(i_obj, "rule");
         j = ucl_object_iterate_new(ucl_object_lookup(i_obj, "rule"));
         while ((j_obj = ucl_object_iterate_safe(j, false)) != NULL) {
             if ((buf = ucl_object_tostring(ucl_object_lookup(j_obj, "type"))) !=
@@ -317,6 +324,10 @@ simta_read_config(const char *fname, const char *extra) {
                             ucl_object_fromstring(ucl_object_key(i_obj)),
                             "associated_domain", 0, false);
                     ucl_object_unref(obj);
+                }
+                if (strcmp(buf, "ldap") == 0) {
+                    simta_ucl_ensure_array(
+                            ucl_object_lookup(j_obj, "ldap"), "search");
                 }
             }
         }
@@ -351,17 +362,21 @@ simta_read_config(const char *fname, const char *extra) {
     /* Generate and check LDAP configs */
     i = ucl_object_iterate_new(simta_config_obj("domain"));
     while ((i_obj = ucl_object_iterate_safe(i, false)) != NULL) {
-        if ((buf = ucl_object_tostring(ucl_object_lookup(i_obj, "type"))) !=
-                NULL) {
-            if (strcmp(buf, "ldap") == 0) {
-                if (simta_ldap_config(i_obj) == NULL) {
-                    syslog(LOG_ERR,
-                            "Config: LDAP config validation failed on %s",
-                            ucl_object_emit(i_obj, UCL_EMIT_JSON_COMPACT));
-                    return SIMTA_ERR;
+        j = ucl_object_iterate_new(ucl_object_lookup(i_obj, "rule"));
+        while ((j_obj = ucl_object_iterate_safe(j, false)) != NULL) {
+            if ((buf = ucl_object_tostring(ucl_object_lookup(j_obj, "type"))) !=
+                    NULL) {
+                if (strcmp(buf, "ldap") == 0) {
+                    if (simta_ldap_config(j_obj) == NULL) {
+                        syslog(LOG_ERR,
+                                "Config: LDAP config validation failed on %s",
+                                ucl_object_emit(i_obj, UCL_EMIT_JSON_COMPACT));
+                        return SIMTA_ERR;
+                    }
                 }
             }
         }
+        ucl_object_iterate_free(j);
     }
     ucl_object_iterate_free(i);
 #endif /* HAVE_LDAP */

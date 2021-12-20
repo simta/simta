@@ -7,6 +7,7 @@
 #include <ucl.h>
 
 void simta_ucl_merge_defaults(const ucl_object_t *, const char *, const char *);
+void simta_ucl_ensure_array(const ucl_object_t *, const char *);
 bool simta_ucl_toggle(
         const ucl_object_t *, const char *, const char *, bool value);
 void simta_ucl_object_totimeval(const ucl_object_t *, struct timeval *);
