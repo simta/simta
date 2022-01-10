@@ -77,7 +77,7 @@ jobs:
       - name: Build libucl
         uses: flowerysong/gh-build-deb@v1
         with:
-          src: -b 0.8.1 https://github.com/vstakhov/libucl
+          src: https://github.com/vstakhov/libucl
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
       - name: Build OpenARC
