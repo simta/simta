@@ -31,18 +31,6 @@
 #include <idn2.h>
 #endif /* HAVE_LIBIDN2 */
 
-#ifdef HAVE_LIBSASL
-#include <sasl/sasl.h>
-#endif /* HAVE_LIBSASL */
-
-#ifdef HAVE_LIBSSL
-#include "tls.h"
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/rand.h>
-#include <openssl/ssl.h>
-#endif /* HAVE_LIBSSL */
-
 #include "argcargv.h"
 #include "dns.h"
 #include "ml.h"
@@ -212,9 +200,6 @@ simta_read_config(const char *fname, const char *extra) {
     const char *            buf;
     yastr                   path;
     struct timeval          tv_now;
-#ifdef HAVE_LIBSSL
-    SSL_CTX *ssl_ctx = NULL;
-#endif /* HAVE_LIBSSL */
 
     if (gethostname(hostname, DNSR_MAX_HOSTNAME) != 0) {
         perror("gethostname");
@@ -380,21 +365,6 @@ simta_read_config(const char *fname, const char *extra) {
     }
     ucl_object_iterate_free(i);
 #endif /* HAVE_LDAP */
-
-#ifdef HAVE_LIBSSL
-    if (simta_config_bool("receive.tls.enabled")) {
-        /* Test whether our SSL config is usable */
-        if ((ssl_ctx = tls_server_setup()) == NULL) {
-            syslog(LOG_ERR, "Liberror: tls_server_setup: %s",
-                    ERR_error_string(ERR_get_error(), NULL));
-            exit(SIMTA_EXIT_ERROR);
-        }
-        SSL_CTX_free(ssl_ctx);
-    }
-#endif /* HAVE_LIBSSL */
-
-    /* FIXME: Test SASL config */
-    /* if ((rc = simta_sasl_init()) != 0) */
 
     if (simta_gettimeofday(&tv_now) != 0) {
         return SIMTA_ERR;

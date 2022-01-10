@@ -35,6 +35,7 @@
 #endif /* __linux__ */
 
 #ifdef HAVE_LIBSSL
+#include "tls.h"
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
@@ -295,6 +296,9 @@ main(int ac, char **av) {
     const char *         config_extra = NULL;
     const char *         simta_pwd;
     const char *         simta_file_pid;
+#ifdef HAVE_LIBSSL
+    SSL_CTX *ssl_ctx = NULL;
+#endif /* HAVE_LIBSSL */
 
     if ((prog = strrchr(av[ 0 ], '/')) == NULL) {
         prog = av[ 0 ];
@@ -356,6 +360,21 @@ main(int ac, char **av) {
     if (simta_read_config(config_fname, config_extra) != SIMTA_OK) {
         exit(SIMTA_EXIT_ERROR);
     }
+
+#ifdef HAVE_LIBSSL
+    if (simta_config_bool("receive.tls.enabled")) {
+        /* Test whether our SSL config is usable */
+        if ((ssl_ctx = tls_server_setup()) == NULL) {
+            syslog(LOG_ERR, "Liberror: tls_server_setup: %s",
+                    ERR_error_string(ERR_get_error(), NULL));
+            exit(SIMTA_EXIT_ERROR);
+        }
+        SSL_CTX_free(ssl_ctx);
+    }
+#endif /* HAVE_LIBSSL */
+
+    /* FIXME: Test SASL config */
+    /* if ((rc = simta_sasl_init()) != 0) */
 
     /* ignore SIGPIPE */
     memset(&sa, 0, sizeof(struct sigaction));
