@@ -126,7 +126,6 @@ cn: testgroup * (!#$%&-/=?^ `{|}~'+)
 member: uid=testuser,ou=People,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
-onVacation: FALSE
 
 dn: cn=testgroup nonowner,ou=Groups,dc=example,dc=com
 member: uid=testuser,ou=People,dc=example,dc=com
@@ -228,7 +227,7 @@ moderator: invalid
 dn: cn=vacation group,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com
-onVacation: TRUE
+umichAutoReplyStart: 20220101223344Z
 
 dn: cn=nomfa,ou=Groups,dc=example,dc=com
 member: uid=flowerysong,ou=People,dc=example,dc=com

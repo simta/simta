@@ -184,14 +184,29 @@ olcAttributeTypes: {62}( 1.3.6.1.4.1.250.1.100 NAME 'umichDisabledTimestamp'
 olcAttributeTypes: {63}( 1.3.6.1.4.1.250.1.101 NAME 'umichPurgeTimestamp' DE
  SC 'purge date timestring' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreIA5
  SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+olcAttributeTypes: {64}( 1.3.6.1.4.1.250.1.865 NAME 'umichAutoReplyStart' EQ
+ UALITY caseIgnoreIA5Match SUBSTR caseIgnoreIA5SubstringsMatch SYNTAX 1.3.6.
+ 1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+olcAttributeTypes: {65}( 1.3.6.1.4.1.250.1.866 NAME 'umichAutoReplyEnd' EQUA
+ LITY caseIgnoreIA5Match SUBSTR caseIgnoreIA5SubstringsMatch SYNTAX 1.3.6.1.
+ 4.1.1466.115.121.1.26 SINGLE-VALUE )
+olcAttributeTypes: {66}( 1.3.6.1.4.1.250.1.867 NAME 'umichAutoReply' EQUALIT
+ Y caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+olcAttributeTypes: {67}( 1.3.6.1.4.1.250.1.868 NAME 'umichPermittedSenders' 
+ EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: {68}( 1.3.6.1.4.1.250.1.869 NAME 'umichPermittedSendersDo
+ mains' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: {69}( 1.3.6.1.4.1.250.1.870 NAME 'umichReceiveDisallowedM
+ essages' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
 olcObjectClasses: {0}( 1.3.6.1.4.1.250.3.2 NAME 'rfc822MailGroup' DESC 'RFC8
  22 Mail Group' SUP top STRUCTURAL MUST ( objectclass $ owner $ cn ) MAY ( a
  ssociateddomain $ description $ errorsto $ facsimiletelephonenumber $ joina
  ble $ krbname $ labeleduri $ member $ Membersonly $ moderator $ multilinede
- scription $ notice $ onvacation $ permittedgroup $ postaladdress $ Realtime
- BlockList $ requeststo $ rfc822errorsto $ rfc822Mail $ rfc822Private $ rfc8
- 22requeststo $ seealso $ streetAddress $ suppressnoemailerror $ telephonenu
- mber $ vacationmessage ) )
+ scription $ notice $ permittedgroup $ postaladdress $ RealtimeBlockList $ r
+ equeststo $ rfc822errorsto $ rfc822Mail $ rfc822Private $ rfc822requeststo 
+ $ seealso $ streetAddress $ suppressnoemailerror $ telephonenumber $ umichA
+ utoReplyStart $ umichAutoReplyEnd $ umichAutoReply $ umichPermittedSenders 
+ $ umichPermittedSendersDomains $ umichReceiveDisallowedMessages ) )
 olcObjectClasses: {1}( 1.3.6.1.4.1.250.3.1 NAME 'umichPerson' DESC 'Universi
  ty of Michigan person ObjectClass' SUP inetorgperson STRUCTURAL MUST ( obje
  ctclass $ sn $ cn $ entityid ) MAY ( audio $ businesscategory $ campus $ ca
@@ -212,7 +227,8 @@ olcObjectClasses: {1}( 1.3.6.1.4.1.250.3.1 NAME 'umichPerson' DESC 'Universi
  tle $ uid $ updatesource $ usercertificate $ userclass $ userpassword $ use
  rpkcs12 $ usersmimecertificate $ vacationmessage $ x121address $ x500unique
  identifier $ umichlegalnameofrecord $ umichpreferrednameofrecord $ umichrem
- ovelegalnameofrecord $ associatedDomain $ disableddomain ) )
+ ovelegalnameofrecord $ associatedDomain $ disableddomain $ umichAutoReplySt
+ art $ umichAutoReplyEnd ) )
 olcObjectClasses: {2}( 1.3.6.1.4.1.5923.1.1.2 NAME 'eduPerson' DESC 'EduPers
  on ObjectClass Version 1.5' SUP top AUXILIARY MAY ( eduPersonAffiliation $ 
  eduPersonNickname $ eduPersonOrgDn $ eduPersonOrgUnitDn $ eduPersonPrimaryA
