@@ -299,6 +299,8 @@ env_repr(struct envelope *e) {
             repr, ucl_object_fromstring(e->e_id), "envelope_id", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_fromint(e->e_dinode), "body_inode", 0, false);
+    ucl_object_insert_key(repr, ucl_object_fromint(e->e_n_exp_level),
+            "expansion_level", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_fromstring(e->e_hostname), "hostname", 0, false);
     ucl_object_insert_key(
