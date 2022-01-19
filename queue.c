@@ -318,7 +318,7 @@ q_runner(void) {
                     goto unexpanded_clean_up;
                 }
 
-                if (env_read(READ_DELIVER_INFO, unexpanded, NULL) != SIMTA_OK) {
+                if (env_read(false, unexpanded, NULL) != SIMTA_OK) {
                     goto unexpanded_clean_up;
                 }
             } else {
@@ -815,7 +815,7 @@ q_read_dir(struct simta_dirp *sd) {
         return (1);
     }
 
-    if (env_read(READ_QUEUE_INFO, env, NULL) != SIMTA_OK) {
+    if (env_read(true, env, NULL) != SIMTA_OK) {
         env_free(env);
         return (0);
     }
@@ -945,7 +945,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         env_rcpt_free(env_deliver);
 
         /* lock & read envelope to deliver */
-        if (env_read(READ_DELIVER_INFO, env_deliver, &snet_lock) != SIMTA_OK) {
+        if (env_read(false, env_deliver, &snet_lock) != SIMTA_OK) {
             /* envelope not valid.  disregard */
             env_free(env_deliver);
             env_deliver = NULL;

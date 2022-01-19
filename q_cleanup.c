@@ -360,7 +360,7 @@ q_expansion_cleanup(struct envelope **fast) {
         /* if the link count >1 it could be part of an expansion */
         if (sb.st_nlink > 1) {
             /* build a linked list of all shared Dfiles */
-            if (env_read(READ_QUEUE_INFO, env, NULL) != SIMTA_OK) {
+            if (env_read(true, env, NULL) != SIMTA_OK) {
                 return 1;
             }
 

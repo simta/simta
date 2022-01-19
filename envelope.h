@@ -10,10 +10,6 @@
 #define R_ACCEPTED 1
 #define R_FAILED 2
 
-#define READ_QUEUE_INFO 1
-#define READ_DELIVER_INFO 2
-#define READ_JAIL_INFO 3
-
 struct sender_list {
     struct dll_entry *sl_dll;
     struct dll_entry *sl_entries;
