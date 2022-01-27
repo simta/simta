@@ -169,14 +169,11 @@ struct simta_socket *
 simta_listen_port(const char *port) {
     int                  sockopt;
     int                  rc;
-    bool                 found_ipv4 = false;
-    bool                 found_ipv6 = false;
     char                 host[ NI_MAXHOST ];
     char                 service[ NI_MAXSERV ];
     struct addrinfo      hints;
     struct addrinfo *    ai, *air;
     struct simta_socket *ss = NULL;
-    ucl_object_t *       obj;
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
@@ -195,13 +192,10 @@ simta_listen_port(const char *port) {
             if (!simta_config_bool("receive.ipv6")) {
                 continue;
             }
-            found_ipv6 = true;
-
         } else {
             if (!simta_config_bool("receive.ipv4")) {
                 continue;
             }
-            found_ipv4 = true;
         }
 
         ss = simta_calloc(1, sizeof(struct simta_socket));
@@ -259,22 +253,6 @@ simta_listen_port(const char *port) {
             return (NULL);
         }
     }
-
-    /* Update receive settings */
-    obj = ucl_object_ref(simta_config_obj("receive"));
-    ucl_object_replace_key(
-            obj, ucl_object_frombool(found_ipv4), "ipv4", 0, false);
-    ucl_object_replace_key(
-            obj, ucl_object_frombool(found_ipv6), "ipv6", 0, false);
-    ucl_object_unref(obj);
-
-    /* Update default deliver settings */
-    obj = ucl_object_ref(simta_config_obj("defaults.red.deliver"));
-    ucl_object_replace_key(
-            obj, ucl_object_frombool(found_ipv4), "ipv4", 0, false);
-    ucl_object_replace_key(
-            obj, ucl_object_frombool(found_ipv6), "ipv6", 0, false);
-    ucl_object_unref(obj);
 
     freeaddrinfo(air);
     return (ss);

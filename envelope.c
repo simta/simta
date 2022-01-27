@@ -1163,7 +1163,7 @@ env_unlink(struct envelope *env) {
     env_dfile_unlink(env);
 
     simta_debuglog(
-            2, "env_unlink env <%s> %s: unlinked", env->e_dir, env->e_id);
+            2, "env_unlink env <%s> %s: unlinked", env->e_id, env->e_dir);
 
     return (0);
 }

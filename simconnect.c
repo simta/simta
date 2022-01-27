@@ -40,7 +40,6 @@ main(int argc, char *argv[]) {
     const char *   conf_file = NULL;
     const char *   extra_conf = NULL;
     char *         hostname;
-    ucl_object_t * obj;
     struct host_q *hq;
     struct deliver d;
     bool           test_connect = true;
@@ -78,12 +77,6 @@ main(int argc, char *argv[]) {
     simta_openlog(false, LOG_PERROR);
 
     hostname = argv[ optind ];
-
-    /* FIXME: unify with code in daemon.c? */
-    obj = ucl_object_ref(simta_config_obj("defaults.red.deliver"));
-    ucl_object_replace_key(obj, ucl_object_frombool(true), "ipv4", 0, false);
-    ucl_object_replace_key(obj, ucl_object_frombool(true), "ipv6", 0, false);
-    ucl_object_unref(obj);
 
     hq = host_q_create_or_lookup(hostname);
     memset(&d, 0, sizeof(struct deliver));

@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
 
+import datetime
 import errno
 import json
 import os
 import smtplib
 import socket
 import subprocess
+import sys
 import time
 
 import pytest
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 
 from email.mime.text import MIMEText
 
@@ -81,11 +90,11 @@ def openport(port):
 def dnsserver(tmp_path_factory):
     port = openport(10053)
 
-    tmpdir = str(tmp_path_factory.mktemp('yadifa'))
+    tmpdir = tmp_path_factory.mktemp('yadifa')
     for subdir in ['keys', 'log', 'xfr']:
-        os.mkdir(os.path.join(tmpdir, subdir))
+        tmpdir.joinpath(subdir).mkdir()
 
-    conf = os.path.join(tmpdir, 'yadifad.conf')
+    conf = str(tmpdir.joinpath('yadifad.conf'))
     datadir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dns')
 
     with open(conf, 'w') as f:
@@ -187,7 +196,7 @@ def simta_config(request, tmp_path):
         if os.path.isfile(fname):
             includes.append(fname)
 
-    config_file = os.path.join(str(tmp_path), 'simta.conf')
+    config_file = str(tmp_path.joinpath('simta.conf'))
 
     base_config = {
         'core': {
@@ -221,15 +230,28 @@ def simta_config(request, tmp_path):
 
 
 @pytest.fixture
-def simta(request, dnsserver, simta_config, tmp_path, tool_path):
+def simta(dnsserver, aiosmtpd, simta_config, tmp_path, tool_path, tls_cert):
     port = openport(10025)
 
     for spool in ['command', 'dead', 'etc', 'fast', 'local', 'slow']:
-        os.mkdir(os.path.join(str(tmp_path), spool))
+        tmp_path.joinpath(spool).mkdir()
 
     daemon_config = {}
     daemon_config['receive'] = {
         'ports': [port],
+        'tls': {
+            'certificate': tls_cert['certificate'],
+            'key': tls_cert['key'],
+        }
+    }
+    daemon_config['defaults'] = {
+        'red': {
+            'deliver': {
+                'connection': {
+                    'port': aiosmtpd['port'],
+                }
+            }
+        }
     }
 
     if dnsserver['enabled']:
@@ -263,6 +285,97 @@ def simta(request, dnsserver, simta_config, tmp_path, tool_path):
     yield({'port': port, 'tmpdir': str(tmp_path)})
 
     simta_proc.terminate()
+
+
+@pytest.fixture
+def tls_cert(tmp_path):
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+        backend=default_backend(),
+    )
+
+    public_key = private_key.public_key()
+
+    builder = x509.CertificateBuilder(
+        ).subject_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u'localhost')])
+        ).issuer_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u'localhost')])
+        ).not_valid_before(
+            datetime.datetime.today() - datetime.timedelta(days=1)
+        ).not_valid_after(
+            datetime.datetime.today() + datetime.timedelta(days=1)
+        ).serial_number(
+            x509.random_serial_number()
+        ).public_key(
+            public_key
+        ).add_extension(
+            x509.BasicConstraints(ca=True, path_length=None),
+            critical=True,
+        ).add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(u'localhost')]),
+            critical=False,
+        )
+
+    cert = builder.sign(
+        private_key=private_key,
+        algorithm=hashes.SHA256(),
+        backend=default_backend(),
+    )
+
+    key_path = str(tmp_path.joinpath('cert.key'))
+    cert_path = str(tmp_path.joinpath('cert.crt'))
+
+    with open(key_path, 'wb') as f:
+        f.write(private_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption()
+        ))
+    with open(cert_path, 'wb') as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+
+    return({
+        'key': key_path,
+        'certificate': cert_path,
+    })
+
+
+@pytest.fixture
+def aiosmtpd(request, tmp_path, tls_cert):
+    port = openport(10125)
+    spooldir = str(tmp_path.joinpath('aiosmtpd'))
+
+    binargs = [
+        sys.executable,
+        '-m', 'aiosmtpd',
+        '-n',
+        '-l', ':{}'.format(port),
+        '-c', 'aiosmtpd.handlers.Mailbox', spooldir,
+        '--tlscert', tls_cert['certificate'],
+        '--tlskey', tls_cert['key'],
+    ]
+
+    if 'badtls' in request.function.__name__:
+        binargs.append('--no-requiretls')
+
+    smtpd_proc = subprocess.Popen(binargs)
+    running = False
+    i = 0
+    while not running:
+        i += 1
+        try:
+            socket.create_connection(('localhost', port), 0.1)
+            running = True
+        except socket.error:
+            if i > 20:
+                raise
+            time.sleep(0.1)
+
+    yield({'port': port, 'spooldir': spooldir})
+
+    smtpd_proc.terminate()
 
 
 @pytest.fixture

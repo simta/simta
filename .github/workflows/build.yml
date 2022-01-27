@@ -49,7 +49,7 @@ jobs:
           ldapadd -w DrowsyPapa -D "cn=Manager,dc=example,dc=com" -f ${{ github.workspace }}/simta/test/ldap/data.ldif
 
       - name: Install Python dependencies
-        run: sudo pip install pytest
+        run: sudo pip install aiosmtpd cryptography pytest
 
       - name: Cache built dependencies
         uses: actions/cache@v2
@@ -101,6 +101,22 @@ jobs:
         working-directory: ${{ github.workspace }}/simta
         env:
           LDAP_SERVER: ldap://localhost/
+
+      - name: Compress test artifacts
+        run: |
+          tar -caf ${{ github.workspace }}/pytest.tar.zst --ignore-failed-read -C /tmp/pytest-of-runner/pytest-current/ .
+          zstd /var/log/mail.log -o ${{ github.workspace }}/mail.log.zst
+        if: always()
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: pytest
+          path: |
+            ${{ github.workspace }}/pytest.tar.zst
+            ${{ github.workspace }}/mail.log.zst
+          retention-days: 7
+        if: always()
 
       - name: Generate coverage reports
         run: |

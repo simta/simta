@@ -61,19 +61,22 @@ Run `autoreconf -fi` to regenerate the build system, then proceed as normal.
 Testing
 -------
 
-Tests can be run with `make check`. simta's test suite requires
-[pytest](https://pytest.org) >= 3.9 and Python >= 3.7; you may also
-want to install [cmocka](https://cmocka.org/) and pass `--with-cmocka`
-to the `configure` script to enable additional unit tests.
+Tests can be run with `make check`. simta's test suite
+requires Python >= 3.7, [pytest](https://pytest.org) >=
+3.9, [aiosmtpd](https://pypi.org/project/aiosmtpd/), and
+[pyca/cryptography](https://pypi.org/project/cryptography/). You
+may also want to install [cmocka](https://cmocka.org/) and pass
+`--with-cmocka` to the `configure` script to enable additional unit
+tests.
 
 Some tests rely on spawning [YADIFA](https://www.yadifa.eu/) to
-provide predictable DNS responses; if it's not available these tests
+provide predictable DNS responses. If it is not available these tests
 will be skipped.
 
 Some tests require an LDAP server with [a specific set of
-data](test/ldap/README.md); if the LDAP_SERVER environment variable
-is not set these tests will be skipped. If you haven't set up LDAP
-correctly, these tests will fail.
+data](test/ldap/README.md). If the `LDAP_SERVER` environment variable
+is not set these tests will be skipped. If LDAP is not set up
+correctly these tests will fail.
 
 
 Contact Us

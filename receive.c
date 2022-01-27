@@ -1256,8 +1256,7 @@ f_rcpt(struct receive_data *r) {
             return (smtp_write_banner(r, 550, S_UNKNOWN_HOST, domain));
         }
 
-        if (((red = red_host_lookup(domain, false)) == NULL) ||
-                (!red_does_expansion(red))) {
+        if (((red = red_host_lookup(domain, false)) == NULL)) {
             if (r->r_smtp_mode == SMTP_MODE_NORMAL) {
                 syslog(LOG_INFO,
                         "Receive [%s] %s: env <%s>: "

@@ -1697,9 +1697,9 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
         }
         d->d_mx_current = ucl_array_pop_first(d->d_mx_list);
         d->d_mx_check_ipv6 = ucl_object_toboolean(
-                ucl_object_lookup_path(hq->hq_red, "deliver.ipv6"));
+                ucl_object_lookup_path(hq->hq_red, "deliver.connection.ipv6"));
         d->d_mx_check_ipv4 = ucl_object_toboolean(
-                ucl_object_lookup_path(hq->hq_red, "deliver.ipv4"));
+                ucl_object_lookup_path(hq->hq_red, "deliver.connection.ipv4"));
     }
 
     /* This is an independent block so that it applies to both initial
@@ -1813,10 +1813,10 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
             d->d_cur_mx_lookup++;
             ucl_object_unref(d->d_mx_current);
             d->d_mx_current = ucl_array_pop_first(d->d_mx_list);
-            d->d_mx_check_ipv6 = ucl_object_toboolean(
-                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv6"));
-            d->d_mx_check_ipv4 = ucl_object_toboolean(
-                    ucl_object_lookup_path(hq->hq_red, "deliver.ipv4"));
+            d->d_mx_check_ipv6 = ucl_object_toboolean(ucl_object_lookup_path(
+                    hq->hq_red, "deliver.connection.ipv6"));
+            d->d_mx_check_ipv4 = ucl_object_toboolean(ucl_object_lookup_path(
+                    hq->hq_red, "deliver.connection.ipv4"));
             return SIMTA_DNS_AGAIN;
         }
     }
@@ -1923,6 +1923,7 @@ free_dns_results(struct deliver *d) {
 static simta_result
 deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
     int rc;
+    int port;
 
     if ((rc = getnameinfo((struct sockaddr *)&(d->d_sa),
                  ((d->d_sa.ss_family == AF_INET6) ? sizeof(struct sockaddr_in6)
@@ -1933,25 +1934,24 @@ deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
         return SIMTA_ERR;
     }
 
-    /* Reject loopback addresses, non-routable meta addresses, and
-     * link-local addresses */
+    /* Reject non-routable meta addresses and link-local addresses */
     if (((d->d_sa.ss_family == AF_INET) &&
-                ((strncmp(d->d_ip, "127.", 4) == 0) ||
-                        (strcmp(d->d_ip, "0.0.0.0") == 0) ||
+                ((strcmp(d->d_ip, "0.0.0.0") == 0) ||
                         (strncmp(d->d_ip, "169.254.", 8) == 0))) ||
             ((d->d_sa.ss_family == AF_INET6) &&
-                    ((strcmp(d->d_ip, "::1") == 0) ||
-                            (strncmp(d->d_ip, "fe80:", 5) == 0)))) {
+                    ((strncmp(d->d_ip, "fe80:", 5) == 0)))) {
         syslog(LOG_INFO, "DNS %s: suppressing bad address: %s", hq->hq_hostname,
                 d->d_ip);
         return SIMTA_ERR;
     }
 
     /* Set the port */
+    port = ucl_object_toint(
+            ucl_object_lookup_path(hq->hq_red, "deliver.connection.port"));
     if (d->d_sa.ss_family == AF_INET6) {
-        ((struct sockaddr_in6 *)&(d->d_sa))->sin6_port = htons(SIMTA_SMTP_PORT);
+        ((struct sockaddr_in6 *)&(d->d_sa))->sin6_port = htons(port);
     } else {
-        ((struct sockaddr_in *)&(d->d_sa))->sin_port = htons(SIMTA_SMTP_PORT);
+        ((struct sockaddr_in *)&(d->d_sa))->sin_port = htons(port);
     }
 
     return SIMTA_OK;

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import json
-import os
 import subprocess
 
 import pytest
@@ -40,12 +39,12 @@ group2: group@alias.example.com
 
 @pytest.fixture
 def expansion_config(simta_config, request, tmp_path, ldapserver):
-    passwd_file = os.path.join(str(tmp_path), 'passwd')
-    alias_file = os.path.join(str(tmp_path), 'alias')
+    passwd_file = str(tmp_path.joinpath('passwd'))
+    alias_file = str(tmp_path.joinpath('alias'))
     with open(passwd_file, 'w') as f:
         f.write(PASSWD_CONTENTS.format(tmp_path=tmp_path))
 
-    with open(os.path.join(str(tmp_path), '.forward'), 'w') as f:
+    with open(str(tmp_path.joinpath('.forward')), 'w') as f:
         f.write(FORWARD_CONTENTS)
 
     with open(alias_file, 'w') as f:
@@ -160,7 +159,7 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
             ],
         }
 
-    with open(os.path.join(str(tmp_path), 'dynamic.conf'), 'w') as f:
+    with open(str(tmp_path.joinpath('dynamic.conf')), 'w') as f:
         f.write(json.dumps(config)[1:-1])
 
     return simta_config

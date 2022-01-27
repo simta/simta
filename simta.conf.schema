@@ -57,10 +57,13 @@ definitions {
                         type: object
                         properties {
                             aggressive { type: boolean }
+                            ipv4 { type: boolean }
+                            ipv6 { type: boolean }
                             max_messages { type: integer }
                             max_rcpts { type: integer }
+                            port { type: integer }
                         }
-                        required [ aggressive, max_messages, max_rcpts ]
+                        required [ aggressive, ipv4, ipv6, max_messages, max_rcpts, port ]
                         additionalProperties: false
                     }
                     queue {

@@ -32,3 +32,4 @@ mixed-mx            MX      15  ipv4
 mixed-mx            MX      10  nonexist
 mixed-mx            MX      10  addr-redirect
 mixed-mx            A       172.24.0.3
+smtpd               A       127.0.0.1

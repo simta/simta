@@ -27,6 +27,38 @@
 #include "simta.h"
 #include "tls.h"
 
+
+static simta_result tls_ca_setup(SSL_CTX *);
+
+
+static simta_result
+tls_ca_setup(SSL_CTX *ctx) {
+    if ((simta_config_str("core.tls.ca_file") != NULL) ||
+            (simta_config_str("core.tls.ca_directory") != NULL)) {
+        if (SSL_CTX_load_verify_locations(ctx,
+                    simta_config_str("core.tls.ca_file"),
+                    simta_config_str("core.tls.ca_directory")) != 1) {
+            syslog(LOG_ERR,
+                    "Liberror: tls_ca_setup "
+                    "SSL_CTX_load_verify_locations: %s / %s: %s",
+                    simta_config_str("core.tls.ca_file"),
+                    simta_config_str("core.tls.ca_directory"),
+                    ERR_error_string(ERR_get_error(), NULL));
+            return SIMTA_ERR;
+        }
+    } else {
+        if (SSL_CTX_set_default_verify_paths(ctx) != 1) {
+            syslog(LOG_ERR,
+                    "Liberror: tls_ca_setup "
+                    "SSL_CTX_set_default_verify_paths: %s",
+                    ERR_error_string(ERR_get_error(), NULL));
+            return SIMTA_ERR;
+        }
+    }
+
+    return SIMTA_OK;
+}
+
 SSL_CTX *
 tls_server_setup(void) {
     SSL_CTX *            ssl_ctx;
@@ -630,15 +662,7 @@ tls_server_setup(void) {
     }
 
     /* Load CA */
-    if (SSL_CTX_load_verify_locations(ssl_ctx,
-                simta_config_str("core.tls.ca_file"),
-                simta_config_str("core.tls.ca_directory")) != 1) {
-        syslog(LOG_ERR,
-                "Liberror: tls_server_setup "
-                "SSL_CTX_load_verify_locations: %s / %s: %s",
-                simta_config_str("core.tls.ca_file"),
-                simta_config_str("core.tls.ca_directory"),
-                ERR_error_string(ERR_get_error(), NULL));
+    if (tls_ca_setup(ssl_ctx) != SIMTA_OK) {
         goto error;
     }
 
@@ -714,15 +738,7 @@ tls_client_setup(const char *ciphers) {
     SSL_CTX_set_cipher_list(ssl_ctx, ciphers);
 
     /* Load CA */
-    if (SSL_CTX_load_verify_locations(ssl_ctx,
-                simta_config_str("core.tls.ca_file"),
-                simta_config_str("core.tls.ca_directory")) != 1) {
-        syslog(LOG_ERR,
-                "Liberror: tls_client_setup "
-                "SSL_CTX_load_verify_locations: %s / %s: %s",
-                simta_config_str("core.tls.ca_file"),
-                simta_config_str("core.tls.ca_directory"),
-                ERR_error_string(ERR_get_error(), NULL));
+    if (tls_ca_setup(ssl_ctx) != SIMTA_OK) {
         goto error;
     }
 
