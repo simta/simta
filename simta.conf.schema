@@ -527,8 +527,13 @@ properties {
                     authn {
                         type: object
                         properties {
+                            domain { type: string }
                             enabled { type: boolean }
                             honeypot { type: boolean }
+                            sasl {
+                                type: object
+                                additionalProperties: true
+                            }
                         }
                         additionalProperties: false
                     }

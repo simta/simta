@@ -242,7 +242,14 @@ def simta(dnsserver, aiosmtpd, simta_config, tmp_path, tool_path, tls_cert):
         'tls': {
             'certificate': tls_cert['certificate'],
             'key': tls_cert['key'],
-        }
+        },
+        'auth': {
+            'authn': {
+                'sasl': {
+                    'sasldb_path': str(tmp_path.joinpath('sasldb')),
+                }
+            }
+        },
     }
     daemon_config['defaults'] = {
         'red': {

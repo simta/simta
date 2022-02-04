@@ -17,11 +17,38 @@
 #include "simta_malloc.h"
 #include "simta_sasl.h"
 
+static int simta_sasl_getopt(
+        void *, const char *, const char *, const char **, unsigned *);
 static int simta_sasl_log(void *, int, const char *);
 
 static sasl_callback_t server_callbacks[] = {
+        {SASL_CB_GETOPT, (sasl_callback_ft)&simta_sasl_getopt, NULL},
         {SASL_CB_LOG, (sasl_callback_ft)&simta_sasl_log, NULL},
         {SASL_CB_LIST_END, NULL, NULL}};
+
+
+int
+simta_sasl_getopt(void *context __attribute__((unused)),
+        const char *plugin_name, const char *option, const char **result,
+        unsigned *len) {
+    const ucl_object_t *obj;
+
+    simta_debuglog(2, "SASL: request for option %s from plugin %s", option,
+            plugin_name);
+
+    obj = simta_config_obj("receive.auth.authn.sasl");
+    if ((obj = ucl_object_lookup(obj, option)) != NULL) {
+        *result = ucl_object_tostring_forced(obj);
+        simta_debuglog(2, "SASL: found option value: %s", *result);
+        if (len) {
+            *len = (unsigned)strlen(*result);
+        }
+        return SASL_OK;
+    }
+
+    return SASL_FAIL;
+}
+
 
 int
 simta_sasl_log(void *context __attribute__((unused)), int priority,
@@ -46,19 +73,19 @@ simta_sasl_log(void *context __attribute__((unused)), int priority,
 
     syslog(LOG_ERR, "SASL %s: %s", label, message);
 
-    return (SASL_OK);
+    return SASL_OK;
 }
 
-int
+simta_result
 simta_sasl_init(void) {
     int rc;
 
     if ((rc = sasl_server_init(server_callbacks, "simta")) != SASL_OK) {
         syslog(LOG_ERR, "Liberror: sasl_server_init: %s",
                 sasl_errstring(rc, NULL, NULL));
-        return (1);
+        return SIMTA_ERR;
     }
-    return (0);
+    return SIMTA_OK;
 }
 
 struct simta_sasl *

@@ -3,6 +3,7 @@
     - added -U flag to specify arbitrary configuration on the command line
     - changed the on-disk format of E files to JSON
     - removed support for DNS-based autoconfiguration
+    - added support for setting SASL options directly in the simta configuration
     - added support for statsd metric gathering
     - updated build system
     - updated LDAP code to use non-deprecated APIs

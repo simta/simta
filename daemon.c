@@ -351,8 +351,14 @@ main(int ac, char **av) {
     }
 #endif /* HAVE_LIBSSL */
 
-    /* FIXME: Test SASL config */
-    /* if ((rc = simta_sasl_init()) != 0) */
+#ifdef HAVE_LIBSASL
+    if (simta_config_bool("receive.auth.authn.enabled") &&
+            !simta_config_bool("receive.auth.authn.honeypot")) {
+        if (simta_sasl_init() != SIMTA_OK) {
+            exit(SIMTA_EXIT_ERROR);
+        }
+    }
+#endif /* HAVE_LIBSASL */
 
     /* ignore SIGPIPE */
     memset(&sa, 0, sizeof(struct sigaction));
