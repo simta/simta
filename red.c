@@ -58,9 +58,6 @@ red_host_lookup(const char *hostname, bool create) {
         ucl_object_insert_key(res,
                 ucl_object_copy(simta_config_obj("defaults.red.deliver")),
                 "deliver", 0, false);
-        ucl_object_insert_key(res,
-                ucl_object_copy(simta_config_obj("defaults.red.receive")),
-                "receive", 0, false);
         red_host_insert(key, res);
     }
 

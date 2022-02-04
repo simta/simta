@@ -35,14 +35,6 @@ definitions {
     red_host {
         type: object
         properties {
-            receive {
-                type: object
-                properties {
-                    user_not_found { type: string }
-                }
-                required [ user_not_found ]
-                additionalProperties: false
-            }
             expand {
                 type: object
                 properties {
@@ -135,7 +127,7 @@ definitions {
                 items: { "$ref": "#/definitions/red_rule" }
             }
         }
-        required [ deliver, receive ]
+        required [ deliver ]
         additionalProperties: false
     }
 

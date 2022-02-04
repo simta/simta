@@ -1300,9 +1300,7 @@ f_rcpt(struct receive_data *r) {
                         "To <%s> From <%s>: Failed: User not local",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
                         r->r_env->e_mail);
-                return (smtp_write_banner(r, 550, NULL,
-                        ucl_object_tostring(ucl_object_lookup_path(
-                                red, "receive.user_not_found"))));
+                return (smtp_write_banner(r, 550, NULL, "User not found"));
 
             case ADDRESS_SYSERROR:
                 syslog(LOG_ERR,
