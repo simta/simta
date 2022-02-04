@@ -1,7 +1,7 @@
-2.0.0 (2021-??-??)
+2.0.0 (2022-??-??)
     - brand new UCL configuration system
     - added -U flag to specify arbitrary configuration on the command line
-    - changed the on-disk format of E files
+    - changed the on-disk format of E files to JSON
     - removed support for DNS-based autoconfiguration
     - added support for statsd metric gathering
     - updated build system
@@ -10,6 +10,7 @@
     - added associated domain support to alias expansion
     - removed compile-time procmail dependency
     - added support for DNS lists with multiple entry types
+    - improved LDAP address comparison logic
     - improved CLI tool interface consistency
     - added support for multiple subaddress separators
     - improved handling of required "Postmaster" mailbox
