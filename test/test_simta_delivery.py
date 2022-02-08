@@ -1,8 +1,23 @@
 #!/usr/bin/env python3
 
 import time
+import os
 
 from mailbox import Maildir
+
+
+def test_binary(smtp_nocleanup, testmsg, simta):
+    # FIXME: it would be better to actually deliver and check the content
+    # that is delivered.
+    smtp_nocleanup.sendmail(
+        'testsender@example.com',
+        'testrcpt@binary.example.com',
+        testmsg.as_string(),
+    )
+    smtp_nocleanup.quit()
+    time.sleep(2)
+    for q in ['dead', 'fast', 'slow']:
+        assert len(os.listdir(os.path.join(simta['tmpdir'], q))) == 0
 
 
 def test_smtp(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
