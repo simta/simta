@@ -348,6 +348,10 @@ address_expand(struct expand *exp) {
 
             type = ucl_object_tostring(ucl_object_lookup(rule, "type"));
 
+            if (strcasecmp(type, "accept") == 0) {
+                rc = ADDRESS_OK;
+            }
+
 #ifdef HAVE_LMDB
             if (strcasecmp(type, "alias") == 0) {
                 src = ucl_object_tostring(
