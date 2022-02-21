@@ -74,7 +74,7 @@ main(int argc, char *argv[]) {
     }
     if (error || (optind == argc)) {
         fprintf(stderr,
-                "Usage: %s [ -f conf_file ] [ -U extra_conf ] "
+                "Usage: %s [ -v ] [ -f conf_file ] [ -U extra_conf ] "
                 "[ -x level ] [ -F sender ] "
                 "address\n",
                 argv[ 0 ]);
