@@ -96,6 +96,33 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
         }
 
     if ldapserver['enabled']:
+        # FIXME: should actually test with multiple LDAP domains, right now
+        # this is just here to guard against a regression in the LDAP object
+        # caching.
+        config['domain']['ldap2.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'ldap': {
+                        'uri': ldapserver['uri'],
+                        'attributes': {
+                            'forwarding': 'mailForwardingAddress',
+                            'vacation': 'onVacation',
+                        },
+                        'search': [
+                            {
+                                'uri': 'ldap:///ou=Nothing,dc=example,dc=com?*?sub?cn=%25s',
+                                'rdnpref': True,
+                                'type': 'all',
+                            },
+                        ],
+                        'vacation': {
+                            'host': 'notvacation.mail.example.com',
+                        },
+                    },
+                }
+            ]
+        }
         config['domain']['ldap.example.com'] = {
             'expand': {
                 'permit_subdomains': True,

@@ -56,8 +56,6 @@ struct simta_ldap {
     ucl_object_t *           ldap_rule;
     struct ldap_search_list *ldap_searches;
     LDAP *                   ldap_ld;
-    const char *             ldap_host;
-    int                      ldap_port;
     int                      ldap_starttls;
     int                      ldap_bind;
     char **                  ldap_attrs;
@@ -346,10 +344,10 @@ simta_ldap_init(struct simta_ldap *ld) {
     }
 
     if (ld->ldap_ld == NULL) {
-        key = yaslauto(ld->ldap_host);
-        key = yaslcatprintf(key, ":%i:%s", ld->ldap_port,
-                ld->ldap_binddn ? ld->ldap_binddn : "ANON");
-
+        key = yaslauto(
+                ucl_object_tostring(ucl_object_lookup(ld->ldap_rule, "uri")));
+        key = yaslcatprintf(
+                key, ":%s", ld->ldap_binddn ? ld->ldap_binddn : "ANON");
 
         if ((obj = ucl_object_lookup(ldap_connections, key)) != NULL) {
             ld->ldap_ld = (LDAP *)(obj->value.ud);
@@ -395,70 +393,69 @@ simta_ldap_init(struct simta_ldap *ld) {
                     goto done;
                 }
             }
-        }
-#endif /* HAVE_LIBSSL */
-    }
 
-#ifdef HAVE_LIBSSL
-    if (ld->ldap_starttls) {
-        if ((ldaprc = ldap_start_tls_s(ld->ldap_ld, NULL, NULL)) !=
-                LDAP_SUCCESS) {
-            syslog(LOG_ERR, "Liberror: simta_ldap_init ldap_start_tls_s: %s",
-                    ldap_err2string(ldaprc));
-            if (ld->ldap_starttls == 2) {
-                goto done;
-            }
-            if (ld->ldap_tls_cert) {
-                ld->ldap_tls_cert = NULL;
-            }
+            if ((ldaprc = ldap_start_tls_s(ld->ldap_ld, NULL, NULL)) !=
+                    LDAP_SUCCESS) {
+                syslog(LOG_ERR,
+                        "Liberror: simta_ldap_init ldap_start_tls_s: %s",
+                        ldap_err2string(ldaprc));
+                if (ld->ldap_starttls == 2) {
+                    goto done;
+                }
+                if (ld->ldap_tls_cert) {
+                    ld->ldap_tls_cert = NULL;
+                }
 
-            if (simta_ldap_retry(ld) != 0) {
-                goto done;
+                if (simta_ldap_retry(ld) != 0) {
+                    goto done;
+                }
             }
         }
-    }
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBSASL
-    if (ld->ldap_bind == BINDSASL) {
-        if ((ldaprc = ldap_sasl_interactive_bind_s(ld->ldap_ld, ld->ldap_binddn,
-                     NULL, NULL, NULL, LDAP_SASL_QUIET,
-                     simta_ldap_sasl_interact, NULL)) != LDAP_SUCCESS) {
-            syslog(LOG_ERR,
-                    "Liberror: simta_ldap_init "
-                    "ldap_sasl_interactive_bind_s: %s",
-                    ldap_err2string(ldaprc));
-            goto done;
-        }
+        if (ld->ldap_bind == BINDSASL) {
+            if ((ldaprc = ldap_sasl_interactive_bind_s(ld->ldap_ld,
+                         ld->ldap_binddn, NULL, NULL, NULL, LDAP_SASL_QUIET,
+                         simta_ldap_sasl_interact, NULL)) != LDAP_SUCCESS) {
+                syslog(LOG_ERR,
+                        "Liberror: simta_ldap_init "
+                        "ldap_sasl_interactive_bind_s: %s",
+                        ldap_err2string(ldaprc));
+                goto done;
+            }
 
-        /* If a client-side cert specified,  then do a SASL EXTERNAL bind */
-    } else if (ld->ldap_tls_cert) {
-        if ((ldaprc = ldap_sasl_interactive_bind_s(ld->ldap_ld, ld->ldap_binddn,
-                     "EXTERNAL", NULL, NULL, LDAP_SASL_QUIET,
-                     simta_ldap_sasl_interact, NULL)) != LDAP_SUCCESS) {
-            syslog(LOG_ERR,
-                    "Liberror: simta_ldap_init "
-                    "ldap_sasl_interactive_bind_s: %s",
-                    ldap_err2string(ldaprc));
-            goto done;
-        }
+            /* If a client-side cert specified,  then do a SASL EXTERNAL bind */
+        } else if (ld->ldap_tls_cert) {
+            if ((ldaprc = ldap_sasl_interactive_bind_s(ld->ldap_ld,
+                         ld->ldap_binddn, "EXTERNAL", NULL, NULL,
+                         LDAP_SASL_QUIET, simta_ldap_sasl_interact, NULL)) !=
+                    LDAP_SUCCESS) {
+                syslog(LOG_ERR,
+                        "Liberror: simta_ldap_init "
+                        "ldap_sasl_interactive_bind_s: %s",
+                        ldap_err2string(ldaprc));
+                goto done;
+            }
 
-    } else {
+        } else {
 #endif /* HAVE_LIBSASL */
-        if (ld->ldap_bindpw) {
-            creds.bv_val = simta_strdup(ld->ldap_bindpw);
-            creds.bv_len = strlen(creds.bv_val);
-        }
-        if ((ldaprc = ldap_sasl_bind_s(ld->ldap_ld, ld->ldap_binddn,
-                     LDAP_SASL_SIMPLE, &creds, NULL, NULL, NULL)) !=
-                LDAP_SUCCESS) {
-            syslog(LOG_ERR, "Liberror: simta_ldap_init ldap_sasl_bind_s: %s",
-                    ldap_err2string(ldaprc));
-            goto done;
-        }
+            if (ld->ldap_bindpw) {
+                creds.bv_val = simta_strdup(ld->ldap_bindpw);
+                creds.bv_len = strlen(creds.bv_val);
+            }
+            if ((ldaprc = ldap_sasl_bind_s(ld->ldap_ld, ld->ldap_binddn,
+                         LDAP_SASL_SIMPLE, &creds, NULL, NULL, NULL)) !=
+                    LDAP_SUCCESS) {
+                syslog(LOG_ERR,
+                        "Liberror: simta_ldap_init ldap_sasl_bind_s: %s",
+                        ldap_err2string(ldaprc));
+                goto done;
+            }
 #ifdef HAVE_LIBSASL
-    }
+        }
 #endif /* HAVE_LIBSASL */
+    }
 
     retval = SIMTA_OK;
 
@@ -881,8 +878,8 @@ simta_ldap_unbind(struct simta_ldap *ld) {
         iter = ucl_object_iterate_new(ldap_connections);
         while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
             if (obj->value.ud == ld->ldap_ld) {
-                simta_debuglog(1, "LDAP: closing connection to %s:%i",
-                        ld->ldap_host, ld->ldap_port);
+                simta_debuglog(1, "LDAP: closing connection to %s",
+                        ucl_object_key(obj));
                 ldap_unbind_ext(ld->ldap_ld, NULL, NULL);
                 ucl_object_delete_key(ldap_connections, ucl_object_key(obj));
                 ld->ldap_ld = NULL;
@@ -1611,7 +1608,7 @@ simta_ldap_dn_expand(
     if ((rc = simta_ldap_search(ld, search_dn, LDAP_SCOPE_BASE,
                  "(objectclass=*)", &res)) != ADDRESS_OK) {
         ldap_msgfree(res);
-        return (rc);
+        return rc;
     }
 
     match = ldap_count_entries(ld->ldap_ld, res);
@@ -1622,7 +1619,7 @@ simta_ldap_dn_expand(
                 "Error parsing result from server for dn: %s",
                 exp->exp_env->e_id, e_addr->e_addr, search_dn);
         ldap_msgfree(res);
-        return (ADDRESS_SYSERROR);
+        return ADDRESS_SYSERROR;
     }
 
     if (match == 0) {
@@ -1634,9 +1631,9 @@ simta_ldap_dn_expand(
                     "Expand.LDAP env <%s>: <%s>: "
                     "Failed building no member bounce message: %s",
                     exp->exp_env->e_id, e_addr->e_addr, search_dn);
-            return (ADDRESS_SYSERROR);
+            return ADDRESS_SYSERROR;
         }
-        return (ADDRESS_EXCLUDE); /* no entries found */
+        return ADDRESS_EXCLUDE; /* no entries found */
     }
 
     if ((entry = ldap_first_entry(ld->ldap_ld, res)) == NULL) {
@@ -1651,19 +1648,18 @@ simta_ldap_dn_expand(
     rc = simta_ldap_process_entry(ld, exp, e_addr, LDS_USER, entry, search_dn);
 
     ldap_msgfree(res);
-    return (rc);
+    return rc;
 }
 
 
 /* this function should return:
+     *     ADDRESS_OK if addr is terminal
      *     ADDRESS_NOT_FOUND if addr is not found in the database
-     *     LDAP_FINAL if addr is a terminal expansion
-     *     ADDRESS_EXCLUDE if addr is an error, and/or expands to other addrs.
+     *     ADDRESS_EXCLUDE if addr is an error or expands to other addrs.
      *     ADDRESS_SYSERROR if there is a system error
      *
      * expansion (not system) errors should be reported back to the sender
      * using bounce_text(...);
-     *
      */
 
 int
@@ -1676,16 +1672,15 @@ simta_ldap_expand(
     struct simta_ldap *ld;
 
     if ((ld = simta_ldap_config(rule)) == NULL) {
-        return (ADDRESS_SYSERROR);
+        return ADDRESS_SYSERROR;
     }
 
-    if ((rc = simta_ldap_init(ld)) != 0) {
-        return (rc);
+    if ((rc = simta_ldap_init(ld)) != SIMTA_OK) {
+        return ADDRESS_SYSERROR;
     }
 
     if (e_addr->e_addr_type == ADDRESS_TYPE_LDAP) {
-        rc = simta_ldap_dn_expand(ld, exp, e_addr);
-        return (rc);
+        return simta_ldap_dn_expand(ld, exp, e_addr);
     }
 
     assert(e_addr->e_addr_at != NULL);
@@ -1702,7 +1697,7 @@ simta_ldap_expand(
     nametype = simta_address_type(name, rule);
     rc = simta_ldap_name_search(ld, exp, e_addr, name, domain, nametype);
     yaslfree(name);
-    return (rc);
+    return rc;
 }
 
 
@@ -1820,7 +1815,7 @@ simta_mbx_compare(const char *addr1, const char *addr2) {
 struct simta_ldap *
 simta_ldap_config(const ucl_object_t *rule) {
     struct ldap_search_list **lds;
-    const char *              key;
+    yastr                     key = NULL;
     const char *              buf;
     int                       i;
     const ucl_object_t *      obj;
@@ -1834,9 +1829,10 @@ simta_ldap_config(const ucl_object_t *rule) {
         ldap_configs = ucl_object_new();
     }
 
-    key = ucl_object_tostring_forced(rule);
+    key = yaslcatprintf(yaslempty(), "%p", (void *)rule);
 
     if ((obj = ucl_object_lookup(ldap_configs, key)) != NULL) {
+        yaslfree(key);
         return obj->value.ud;
     }
 
@@ -1914,10 +1910,6 @@ simta_ldap_config(const ucl_object_t *rule) {
         ld->ldap_attrs[ i++ ] = simta_strdup(ucl_object_tostring(obj));
     }
 
-    ld->ldap_host =
-            ucl_object_tostring(ucl_object_lookup(ld->ldap_rule, "host"));
-    ld->ldap_port = ucl_object_toint(ucl_object_lookup(ld->ldap_rule, "port"));
-
     ldapdebug = ucl_object_toboolean(ucl_object_lookup(ld->ldap_rule, "debug"));
 
     buf = ucl_object_tostring(
@@ -1991,13 +1983,15 @@ simta_ldap_config(const ucl_object_t *rule) {
 
     ucl_object_insert_key(ldap_configs, ucl_object_new_userdata(NULL, NULL, ld),
             key, 0, true);
-    return (ld);
+    yaslfree(key);
+    return ld;
 
 errexit:
     free(ld);
     ucl_object_iterate_free(iter);
+    yaslfree(key);
 
-    return (NULL);
+    return NULL;
 }
 
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
