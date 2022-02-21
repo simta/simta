@@ -32,7 +32,7 @@ simta_statsd_init(int *fd_out) {
     int              fd;
     simta_result     retval = SIMTA_ERR;
 
-    host = simta_config_str("core.statsd.server");
+    host = simta_config_str("core.statsd.host");
     port = simta_config_str("core.statsd.port");
 
     memset(&hints, 0, sizeof(struct addrinfo));
