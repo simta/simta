@@ -312,6 +312,8 @@ env_repr(struct envelope *e) {
     ucl_object_insert_key(
             repr, ucl_object_frombool(e->e_jailed), "jailed", 0, false);
     ucl_object_insert_key(
+            repr, ucl_object_frombool(e->e_bounceable), "bounceable", 0, false);
+    ucl_object_insert_key(
             repr, ucl_object_frombool(e->e_puntable), "puntable", 0, false);
 
     rcpts = ucl_object_typed_new(UCL_ARRAY);
@@ -848,9 +850,12 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
 
         env->e_n_exp_level = ucl_object_toint(
                 ucl_object_lookup(env_data, "expansion_level"));
-
         env->e_jailed =
                 ucl_object_toboolean(ucl_object_lookup(env_data, "jailed"));
+        env->e_bounceable =
+                ucl_object_toboolean(ucl_object_lookup(env_data, "bounceable"));
+        env->e_puntable =
+                ucl_object_toboolean(ucl_object_lookup(env_data, "puntable"));
         env_hostname(env,
                 ucl_object_tostring(ucl_object_lookup(env_data, "hostname")));
         env->e_8bitmime =
@@ -866,6 +871,10 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
                                               env_data, "expansion_level")) ||
                 env->e_jailed != ucl_object_toboolean(ucl_object_lookup(
                                          env_data, "jailed")) ||
+                env->e_bounceable != ucl_object_toboolean(ucl_object_lookup(
+                                             env_data, "bounceable")) ||
+                env->e_puntable != ucl_object_toboolean(ucl_object_lookup(
+                                           env_data, "puntable")) ||
                 (strcasecmp(env->e_hostname,
                          ucl_object_tostring(ucl_object_lookup(
                                  env_data, "hostname"))) != 0) ||
@@ -948,6 +957,10 @@ env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
 
     rcpts = ucl_object_typed_new(UCL_ARRAY);
     ucl_object_insert_key(env_data, rcpts, "recipients", 0, false);
+    ucl_object_insert_key(
+            env_data, ucl_object_frombool(true), "puntable", 0, false);
+    ucl_object_insert_key(
+            env_data, ucl_object_frombool(true), "bounceable", 0, false);
 
     /* Emessage-id */
     while ((line = snet_getline(snet, NULL)) != NULL) {

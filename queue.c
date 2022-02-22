@@ -43,6 +43,7 @@
 #include "simta_malloc.h"
 #include "smtp.h"
 
+static void         deliver_q_queue(struct host_q *, struct host_q *);
 static simta_result deliver_checksockaddr(struct deliver *, struct host_q *);
 static void         free_dns_results(struct deliver *);
 static void         real_q_deliver(struct deliver *, struct host_q *);
@@ -57,6 +58,23 @@ void                queue_time_order(struct host_q *);
 void                prune_messages(struct host_q *hq);
 
 bool simta_leaky_queue = false;
+
+
+void
+deliver_q_queue(struct host_q *deliver_q, struct host_q *q) {
+    struct host_q *last_q;
+
+    while (deliver_q != NULL) {
+        if (deliver_q == q) {
+            return;
+        }
+        last_q = deliver_q;
+        deliver_q = deliver_q->hq_deliver;
+    }
+    /* If we made it here, q isn't already queued. */
+    last_q->hq_deliver = q;
+    q->hq_deliver = NULL;
+}
 
 struct host_q *
 host_q_lookup(const char *hostname) {
@@ -78,6 +96,7 @@ host_q_lookup(const char *hostname) {
 struct host_q *
 host_q_create_or_lookup(char *hostname) {
     struct host_q *hq;
+    struct timeval tv;
 
     /* create NULL host queue for unexpanded messages.  we always need to
      * have a NULL queue for error reporting.
@@ -100,6 +119,15 @@ host_q_create_or_lookup(char *hostname) {
         yasltolower(hq->hq_hostname);
 
         hq->hq_red = ucl_object_ref(red_host_lookup(hostname, true));
+
+        simta_ucl_object_totimeval(
+                ucl_object_lookup_path(hq->hq_red, "deliver.queue.wait.min"),
+                &tv);
+        hq->hq_wait_min = tv.tv_sec;
+        simta_ucl_object_totimeval(
+                ucl_object_lookup_path(hq->hq_red, "deliver.queue.wait.max"),
+                &tv);
+        hq->hq_wait_max = tv.tv_sec;
 
         ucl_object_insert_key(simta_host_q,
                 ucl_object_new_userdata(NULL, NULL, hq), hq->hq_hostname,
@@ -136,11 +164,6 @@ queue_envelope(struct envelope *env) {
 
     if ((hq = host_q_create_or_lookup(env->e_hostname)) == NULL) {
         return SIMTA_ERR;
-    }
-
-    if (!ucl_object_toboolean(
-                ucl_object_lookup_path(hq->hq_red, "deliver.punt.enabled"))) {
-        env->e_puntable = false;
     }
 
     /* sort queued envelopes by access time */
@@ -983,6 +1006,13 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         if (env_deliver->e_jailed) {
             syslog(LOG_INFO, "Deliver.remote env <%s>: jail",
                     env_deliver->e_id);
+        } else if (env_deliver->e_puntable &&
+                   ucl_object_toboolean(ucl_object_lookup_path(
+                           deliver_q->hq_red, "deliver.punt.enabled")) &&
+                   ucl_object_toboolean(ucl_object_lookup_path(
+                           deliver_q->hq_red, "deliver.punt.always"))) {
+            syslog(LOG_INFO, "Deliver.remote env <%s>: punt",
+                    env_deliver->e_id);
         } else {
             switch (deliver_q->hq_status) {
             case SIMTA_HOST_LOCAL:
@@ -1257,7 +1287,9 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                 queue_envelope(env_deliver);
                 env_deliver = NULL;
                 d->d_env = NULL;
-            } else if (env_deliver->e_puntable) {
+            } else if (env_deliver->e_puntable &&
+                       ucl_object_toboolean(ucl_object_lookup_path(
+                               deliver_q->hq_red, "deliver.punt.enabled"))) {
                 syslog(LOG_INFO, "Deliver env <%s>: queueing for punt",
                         env_deliver->e_id);
                 env_clear_errors(env_deliver);
@@ -1268,6 +1300,15 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                         (ucl_object_tostring(ucl_object_lookup_path(
                                 deliver_q->hq_red, "deliver.punt.host"))));
                 queue_envelope(env_deliver);
+                deliver_q_queue(deliver_q, env_deliver->e_hq);
+                env_outfile(env_deliver);
+                if (env_deliver->e_dir == simta_dir_fast) {
+                    /* overwrote a file, didn't create a new one */
+                    simta_fast_files--;
+                    simta_debuglog(2,
+                            "Deliver env <%s>: fast_files decrement %d",
+                            env_deliver->e_id, simta_fast_files);
+                }
             } else {
                 if (!env_deliver->e_puntable) {
                     syslog(LOG_INFO, "Deliver env <%s>: not puntable",
