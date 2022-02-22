@@ -1,3 +1,26 @@
 #!/bin/bash
 
-env > $(dirname $SIMTA_TFILE )/../filterenv
+MESSAGE_ACCEPT=0
+MESSAGE_TEMPFAIL=1
+MESSAGE_REJECT=2
+MESSAGE_DELETE=4
+MESSAGE_DISCONNECT=8
+MESSAGE_TARPIT=16
+MESSAGE_JAIL=32
+MESSAGE_BOUNCE=64
+
+env > $(dirname $SIMTA_TFILE)/../filterenv
+
+if grep -q tempfail $SIMTA_DFILE; then
+    if ! grep -q quiet $SIMTA_DFILE; then
+        echo "tempfailing message"
+    fi
+    exit $MESSAGE_TEMPFAIL
+fi
+
+if grep -q reject $SIMTA_DFILE; then
+    if ! grep -q quiet $SIMTA_DFILE; then
+        echo "rejecting message"
+    fi
+    exit $MESSAGE_REJECT
+fi

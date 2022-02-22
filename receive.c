@@ -1406,8 +1406,7 @@ f_data(struct receive_data *r) {
     int                     header_only = 0;
     int                     header = 1;
     int                     line_no = 0;
-    int                     message_banner = MESSAGE_TEMPFAIL;
-    int                     filter_result = MESSAGE_ACCEPT;
+    int                     filter_result = MESSAGE_TEMPFAIL;
     int                     f_result;
     int                     read_err = NO_ERROR;
     size_t                  line_len;
@@ -1736,7 +1735,7 @@ f_data(struct receive_data *r) {
                                 "Receive [%s] %s: env <%s>: empty message",
                                 r->r_ip, r->r_remote_hostname, r->r_env->e_id);
                         system_message = "No mail data";
-                        message_banner = MESSAGE_REJECT;
+                        filter_result = MESSAGE_REJECT;
                         read_err = PROTOCOL_ERROR;
                         break;
                     }
@@ -1766,7 +1765,7 @@ f_data(struct receive_data *r) {
                         "Receive [%s] %s: env <%s>: no message headers",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id);
                 system_message = "Message is not RFC 5322 compliant";
-                message_banner = MESSAGE_REJECT;
+                filter_result = MESSAGE_REJECT;
                 read_err = PROTOCOL_ERROR;
                 header = 0;
             } else {
@@ -1788,7 +1787,7 @@ f_data(struct receive_data *r) {
                                 "strict") == 0) {
                         /* Continue reading lines, but reject the message */
                         system_message = "Message is not RFC 5322 compliant";
-                        message_banner = MESSAGE_REJECT;
+                        filter_result = MESSAGE_REJECT;
                         read_err = PROTOCOL_ERROR;
                     }
                     r->r_bad_headers = 1;
@@ -1821,7 +1820,7 @@ f_data(struct receive_data *r) {
                                         dnsl_result->dnsl_result,
                                         dnsl_result->dnsl_reason);
                                 system_message = dnsl_result->dnsl_reason;
-                                message_banner = MESSAGE_REJECT;
+                                filter_result = MESSAGE_REJECT;
                                 read_err = PROTOCOL_ERROR;
                             }
                         }
@@ -1920,7 +1919,7 @@ f_data(struct receive_data *r) {
                     "Message too large",
                     r->r_ip, r->r_remote_hostname, r->r_env->e_id);
             system_message = "Message too large";
-            message_banner = MESSAGE_REJECT;
+            filter_result = MESSAGE_REJECT;
             read_err = PROTOCOL_ERROR;
         }
 
@@ -1933,14 +1932,14 @@ f_data(struct receive_data *r) {
                     "Too many Received headers",
                     r->r_ip, r->r_remote_hostname, r->r_env->e_id);
             system_message = "Too many Received headers";
-            message_banner = MESSAGE_REJECT;
+            filter_result = MESSAGE_REJECT;
             read_err = PROTOCOL_ERROR;
         }
 
         if ((read_err == NO_ERROR) && rh->r_seen_before) {
             system_message = "Seen Before";
             filter_message = simta_strdup(rh->r_seen_before);
-            message_banner = MESSAGE_DELETE;
+            filter_result = MESSAGE_DELETE;
             read_err = PROTOCOL_ERROR;
         }
 
@@ -2010,7 +2009,7 @@ f_data(struct receive_data *r) {
         }
 
         if (read_err == NO_ERROR) {
-            message_banner = MESSAGE_ACCEPT;
+            filter_result = MESSAGE_ACCEPT;
         } else {
             if (env_dfile_unlink(r->r_env) != 0) {
                 read_err = SYSTEM_ERROR;
@@ -2127,11 +2126,11 @@ f_data(struct receive_data *r) {
 
     if ((r->r_dmarc_result == DMARC_RESULT_REJECT) &&
             simta_config_bool("receive.dmarc.strict")) {
-        message_banner = MESSAGE_REJECT;
+        filter_result = MESSAGE_REJECT;
         system_message = "rejected by DMARC policy";
     }
 
-    if (message_banner == MESSAGE_ACCEPT) {
+    if (filter_result == MESSAGE_ACCEPT) {
         filter_result = content_filter(r, &filter_message, &tv_filter);
     }
 
@@ -2206,8 +2205,8 @@ done:
         }
 
         /* see if we need to delete the message */
-    } else if ((message_banner == MESSAGE_TEMPFAIL) ||
-               (message_banner == MESSAGE_REJECT) ||
+    } else if ((filter_result & MESSAGE_TEMPFAIL) ||
+               (filter_result & MESSAGE_REJECT) ||
                (filter_result & MESSAGE_DELETE) ||
                (filter_result & MESSAGE_BOUNCE)) {
         if ((filter_result & MESSAGE_DELETE) &&
@@ -2345,7 +2344,7 @@ done:
     banner++;
 
     /* TEMPFAIL has precedence over REJECT */
-    if (message_banner == MESSAGE_TEMPFAIL) {
+    if (filter_result & MESSAGE_TEMPFAIL) {
         syslog(LOG_INFO,
                 "Receive [%s] %s: env <%s>: Tempfail Banner: "
                 "MID <%s> size %d: %s, %s",
@@ -2359,7 +2358,7 @@ done:
             goto error;
         }
 
-    } else if (message_banner == MESSAGE_REJECT) {
+    } else if (filter_result & MESSAGE_REJECT) {
         syslog(LOG_INFO,
                 "Receive [%s] %s: env <%s>: Failed Banner: "
                 "MID <%s> size %d: %s, %s",
