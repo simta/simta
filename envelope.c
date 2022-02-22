@@ -306,8 +306,6 @@ env_repr(struct envelope *e) {
     ucl_object_insert_key(
             repr, ucl_object_fromstring(e->e_mail), "sender", 0, false);
     ucl_object_insert_key(
-            repr, ucl_object_fromstring(e->e_dir), "directory", 0, false);
-    ucl_object_insert_key(
             repr, ucl_object_frombool(e->e_8bitmime), "8bitmime", 0, false);
     ucl_object_insert_key(repr, ucl_object_frombool(e->e_archive_only),
             "archive_only", 0, false);
