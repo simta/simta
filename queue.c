@@ -1115,7 +1115,9 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
 
         /* bounce the message if the message is bad, or if some recipients are bad.
          */
-        if ((env_deliver->e_flags & ENV_FLAG_BOUNCE) || d->d_n_rcpt_failed) {
+        if (env_deliver->e_bounceable &&
+                ((env_deliver->e_flags & ENV_FLAG_BOUNCE) ||
+                        d->d_n_rcpt_failed)) {
             simta_debuglog(
                     1, "Deliver env <%s>: creating bounce", env_deliver->e_id);
             if (lseek(dfile_fd, (off_t)0, SEEK_SET) != 0) {
@@ -1151,7 +1153,8 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
          * a bounce for the entire message, or if we've successfully
          * delivered the message and no recipients tempfailed.
          */
-        if ((env_deliver->e_flags & ENV_FLAG_BOUNCE) ||
+        if ((env_deliver->e_bounceable &&
+                    (env_deliver->e_flags & ENV_FLAG_BOUNCE)) ||
                 (n_rcpt_remove == env_deliver->e_n_rcpt)) {
             if (env_truncate_and_unlink(env_deliver, snet_lock) != 0) {
                 goto message_cleanup;
