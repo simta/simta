@@ -447,6 +447,16 @@ def test_expand_ldap_group_membersonly_permitted(run_simexpander, req_ldapserver
     assert res['parsed'][0]['recipients'] == ['testuser@forwarded.example.com']
 
 
+def test_expand_ldap_group_membersonly_recursive(run_simexpander, req_ldapserver):
+    res = run_simexpander([
+        '-F', 'simexpand@ldap.example.com',
+        'membersonly.recurse@ldap.example.com',
+    ])
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['simexpand@forwarded.example.com']
+    assert res['parsed'][0]['sender'] == 'membersonly.recurse.subgroup-errors@ldap.example.com'
+
+
 # FIXME: if a subgroup is private, no membersonly bounce should be created
 # if membership is public, the bounce should go to the owners of the containing
 # group.

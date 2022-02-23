@@ -148,6 +148,17 @@ membersonly: TRUE
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
 
+dn: cn=membersonly recurse subgroup,ou=Groups,dc=example,dc=com
+member: uid=simexpand,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=membersonly recurse,ou=Groups,dc=example,dc=com
+member: cn=membersonly recurse subgroup,ou=Groups,dc=example,dc=com
+membersonly: TRUE
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
 dn: cn=membersonly subgroup,ou=Groups,dc=example,dc=com
 member: uid=testuser,ou=People,dc=example,dc=com
 membersonly: TRUE
