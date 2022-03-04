@@ -123,10 +123,12 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                 }
             ]
         }
-        config['domain']['ldap.example.com'] = {
+        config['domain']['example.com'] = {
             'expand': {
                 'permit_subdomains': True,
-            },
+            }
+        }
+        config['domain']['ldap.example.com'] = {
             'rule': [
                 {
                     'type': 'ldap',
@@ -418,7 +420,19 @@ def test_expand_ldap_group_FOOto(run_simexpander, req_ldapserver, slug):
 
 @pytest.mark.parametrize('sender', [
     'simexpand@ldap.example.com',
+    'SIMEXPAND@LDAP.EXAMPLE.COM',
+    'SIMEXPAND@EXAMPLE.COM',
+    'SIMEXPAND@P.EXAMPLE.COM'
+    'simexpand@example.com',
+    'simexpand@dap.example.com',
+    'simexpand@p.example.com',
+    'simexpand@notldap.example.com',
+    'simexpand@nomatch.example.com',
     'simexpand@subdomain.ldap.example.com',
+    'simexpand@subdomain.dap.example.com',
+    'simexpand@subdomain.p.example.com',
+    'simexpand@subdomain.notldap.example.com',
+    'simexpand@subdomain.nomatch.example.com',
     'prvs=4068eb2540=simexpand@ldap.example.com',       # BATV
     'btv1==068a4973b3a==simexpand@ldap.example.com',    # Barracuda
     # FIXME: SRS? subaddressing?
@@ -431,6 +445,36 @@ def test_expand_ldap_group_membersonly(run_simexpander, req_ldapserver, sender):
     assert len(res['parsed']) == 1
     assert res['parsed'][0]['recipients'] == ['simexpand@forwarded.example.com']
     assert res['parsed'][0]['sender'] == 'membersonly.succeed-errors@ldap.example.com'
+
+
+@pytest.mark.parametrize('sender', [
+    'simexpant@ldap.example.com',
+    'timexpand@ldap.example.com',
+    'simexpander@ldap.example.com',
+    'expand@ldap.example.com',
+    'd@ldap.example.com',
+    'ssimexpand@ldap.example.com',
+    'simexpand@dexample.com',
+    'simexpand@xample.com',
+    'simexpand@s.xample.com',
+    'simexpand@s.ample.com',
+    'simexpand@e.com',
+    'simexpand@s.e.com',
+    'simexpand@notexample.com',
+    'simexpand@nomatch.com',
+    'simexpand@example.edu',
+    'prvs=4068eb2540=simexpand@example.edu',
+    'btv1==068a4973b3a==simexpand@notexample.com',
+])
+def test_expand_ldap_group_membersonly_nonmember(run_simexpander, req_ldapserver, sender):
+    res = run_simexpander([
+        '-F', sender,
+        'membersonly.succeed@ldap.example.com'
+    ])
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [sender]
+    assert res['parsed'][0]['sender'] == ''
+    assert any('Members only group conditions not met: ' in line for line in res['unparsed'])
 
 
 def test_expand_ldap_group_membersonly_no(run_simexpander, req_ldapserver):
@@ -476,8 +520,15 @@ def test_expand_ldap_group_recursive(run_simexpander, req_ldapserver):
 
 
 @pytest.mark.parametrize('sender', [
+    'simexpand@example.com',
     'simexpand@ldap.example.com',
+    'simexpand@dap.example.com',
+    'simexpand@notldap.example.com',
+    'simexpand@nomatch.example.com',
     'simexpand@subdomain.ldap.example.com',
+    'simexpand@subdomain.dap.example.com',
+    'simexpand@subdomain.notldap.example.com',
+    'simexpand@subdomain.nomatch.example.com',
     'prvs=4068eb2540=simexpand@ldap.example.com',       # BATV
     'btv1==068a4973b3a==simexpand@ldap.example.com',    # Barracuda
     # FIXME: SRS?
@@ -495,8 +546,17 @@ def test_expand_ldap_group_moderated(run_simexpander, req_ldapserver, sender):
 @pytest.mark.parametrize(
     'sender',
     [
-        'simexpand@example.com',
-        'simexpand@notldap.example.com',
+        'simexpan@ldap.example.com',
+        'simexpander@ldap.example.com',
+        'notsimexpand@ldap.example.com',
+        'nomatch@ldap.example.com',
+        'simexpan@example.com',
+        'simexpander@example.com',
+        'notsimexpand@example.com',
+        'nomatch@example.com',
+        'simexpand@xample.com',
+        'simexpand@notexample.com',
+        'simexpand@nomatch.com',
         'simexpand@example.edu',
     ],
 )
@@ -522,6 +582,10 @@ def test_expand_ldap_group_moderated_nonmod(run_simexpander, req_ldapserver, sen
     [
         'simexpand@ldap.example.com',               # moderator
         'simexpand@subdomain.ldap.example.com',     # mod permitted subdomain match
+        'simexpand@example.com',                    # mod permitted subdomain match
+        'simexpand@notldap.example.com',            # mod permitted subdomain match
+        'simexpand@nomatch.example.com',            # mod permitted subdomain match
+        'simexpand@subdomain.notldap.example.com',  # mod permitted subdomain match
         'testuser@ldap.example.com',                # member email
         'testuser@forwarded.example.com',           # member forwarding address
         'testuser@subdomain.ldap.example.com',      # member permitted subdomain match

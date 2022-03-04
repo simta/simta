@@ -1714,6 +1714,12 @@ simta_addr_demangle(const char *address) {
         u = yaslauto(address);
     }
 
+    /* Strictly speaking we aren't allowed to assume that case doesn't matter
+     * in the localpart, but in the real world most systems are
+     * case-insensitive.
+     */
+    yasltolower(u);
+
     /* Bounce Address Tag Validation (BATV) defines a method for including
      * tagging information in the local-part of the RFC5321.MailFrom address,
      * allowing senders to tag all outgoing mail and reject bounces that aren't
@@ -1728,16 +1734,14 @@ simta_addr_demangle(const char *address) {
      * does more extensive transformation and is therefore incompatible with
      * this canonicalisation method.
      */
-    if ((strncasecmp(u, "prvs=", 5) == 0) &&
-            ((p = strchr(u + 5, '=')) != NULL)) {
+    if ((strncmp(u, "prvs=", 5) == 0) && ((p = strchr(u + 5, '=')) != NULL)) {
         yaslrange(u, p - u + 1, -1);
     }
 
     /* Barracuda do their own special version of BATV, which is incompatible
      * with the BATV draft because it uses '==' as the delimiter.
      */
-    if ((strncasecmp(u, "btv1==", 6) == 0) &&
-            ((p = strstr(u + 6, "==")) != NULL)) {
+    if ((strncmp(u, "btv1==", 6) == 0) && ((p = strstr(u + 6, "==")) != NULL)) {
         yaslrange(u, p - u + 2, -1);
     }
 
@@ -1766,10 +1770,11 @@ simta_mbx_compare(const char *addr1, const char *addr2) {
     addr1_copy = simta_addr_demangle(addr1);
     addr2_copy = simta_addr_demangle(addr2);
 
-    rc = strcasecmp(addr1_copy, addr2_copy);
+    rc = strcmp(addr1_copy, addr2_copy);
 
-    if ((rc != 0) && (strncasecmp(addr1_copy, addr2_copy,
-                              (strrchr(addr1_copy, '@') - addr1_copy)) == 0)) {
+    if ((rc != 0) &&
+            (strncmp(addr1_copy, addr2_copy,
+                     (strrchr(addr1_copy, '@') - addr1_copy + 1)) == 0)) {
         /* Local parts match, check for subdomain match */
         p1 = addr1_copy + yasllen(addr1_copy);
         p2 = addr2_copy + yasllen(addr2_copy);
@@ -1787,19 +1792,34 @@ simta_mbx_compare(const char *addr1, const char *addr2) {
                 p1++;
                 p2++;
             }
+            while (*p2 != '@' && *p2 != '.') {
+                /* The non-matching character in p1 might have been @ or ., e.g.
+                 * p1 =  a@b.example.com
+                 * p2 - a@ab.example.com
+                 * In that case we have more rewinding to do.
+                 */
+                p2++;
+            }
 
             /* FIXME: this is cleaner than the hardcoded "only two domain
              * components matter", but membersonly processing is still kind
              * of kludgy and full of assumptions.
              */
 
-            /* make sure both domains are on a component boundary */
-            if ((*p1 == '@' || *p1 == '.') && (*p2 == '@' || *p2 == '.')) {
-                p1++;
-                if ((red = red_host_lookup(p1, false)) != NULL) {
+            p2++;
+            /* Check to see if the common parent or any ancestor has
+             * `permit_subdomains` enabled.
+             */
+            while (rc != 0 && p2) {
+                if ((red = red_host_lookup(p2, false)) != NULL) {
                     if (ucl_object_toboolean(ucl_object_lookup_path(
                                 red, "expand.permit_subdomains"))) {
                         rc = 0;
+                    }
+                }
+                if (rc != 0) {
+                    if ((p2 = strchr(p2, '.')) != NULL) {
+                        p2++;
                     }
                 }
             }
