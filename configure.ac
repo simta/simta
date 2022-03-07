@@ -19,9 +19,12 @@ AC_PROG_CC_C99
 AC_PROG_INSTALL
 AC_PROG_LN_S
 
+AC_USE_SYSTEM_EXTENSIONS
+
 # Checks for functions
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
+AC_FUNC_MKTIME
 
 if test x_$GCC = x_yes; then
     OPTOPTS=${OPTOPTS:-"-Wall -Wmissing-prototypes"}

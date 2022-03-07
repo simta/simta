@@ -128,6 +128,75 @@ onvacation: TRUE
 objectClass: umichPerson
 entityID: 9001
 
+dn: uid=autoreply,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: autoreply
+mail: autoreply@example.com
+mailForwardingAddress: autoreply@forwarded.example.com
+umichAutoReplyStart: 20220101223344Z
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=autoreplypast,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: autoreplypast
+mail: autoreplypast@example.com
+mailForwardingAddress: autoreply@forwarded.example.com
+umichAutoReplyStart: 20220101223344Z
+umichAutoReplyEnd: 20220115223344Z
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=autoreplyend,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: autoreplyend
+mail: autoreplyend@example.com
+mailForwardingAddress: autoreply@forwarded.example.com
+umichAutoReplyStart: 20220101223344Z
+umichAutoReplyEnd: 21220101223344Z
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=autoreplynostart,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: autoreplynostart
+mail: autoreplynostart@example.com
+mailForwardingAddress: autoreply@forwarded.example.com
+umichAutoReplyEnd: 21220101223344Z
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=autoreplyfuturestart,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: autoreplyfuturestart
+mail: autoreplyfuturestart@example.com
+mailForwardingAddress: autoreply@forwarded.example.com
+umichAutoReplyStart: 21220101223344Z
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=autoreplyfuture,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: autoreplyfuture
+mail: autoreplyfuture@example.com
+mailForwardingAddress: autoreply@forwarded.example.com
+umichAutoReplyStart: 21220101223344Z
+umichAutoReplyEnd: 21220115223344Z
+objectClass: umichPerson
+entityID: 9001
+
 dn: cn=testgroup,ou=Groups,dc=example,dc=com
 cn: testgroup
 cn: testgroup alias

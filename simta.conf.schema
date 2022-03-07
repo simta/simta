@@ -188,9 +188,19 @@ definitions {
                             group_forwarding { type: string }
                             mail { type: string }
                             request { type: array, items: { type: string }}
-                            vacation { type: string }
+                            vacation { type: string } # DEPRECATED
+                            autoreply { type: string }
+                            autoreply_start { type: string }
+                            autoreply_end { type: string }
                         }
                         required [ forwarding, mail ]
+                    }
+                    autoreply {
+                        type: object
+                        properties {
+                            host { "$ref": "#/definitions/hostname" }
+                        }
+                        additionalProperties: false
                     }
                     bind {
                         type: object
@@ -243,6 +253,7 @@ definitions {
                         pattern: "^[lL][dD][aA][pP][sS]{0,1}://([a-zA-Z0-9_]+\.)+([a-zA-Z0-9_])(:[0-9]{1,5}){0,1}/{0,1}$"
                     }
                     vacation {
+                        # DEPRECATED
                         type: object
                         properties {
                             host { "$ref": "#/definitions/hostname" }

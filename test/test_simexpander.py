@@ -107,7 +107,7 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                         'uri': ldapserver['uri'],
                         'attributes': {
                             'forwarding': 'mailForwardingAddress',
-                            'vacation': 'onVacation',
+                            'autoreply': 'onVacation',
                         },
                         'search': [
                             {
@@ -116,7 +116,7 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                                 'type': 'all',
                             },
                         ],
-                        'vacation': {
+                        'autoreply': {
                             'host': 'notvacation.mail.example.com',
                         },
                     },
@@ -672,11 +672,49 @@ def test_expand_ldap_user_vacation(run_simexpander, req_ldapserver):
     assert res['parsed'][1]['recipients'] == ['onvacation@vacation.mail.example.com']
 
 
-# def test_expand_ldap_group_vacation(run_simexpander, req_ldapserver):
-#     res = run_simexpander('vacation.group@ldap.example.com')
-#     assert len(res['parsed']) == 1
-#     assert res['parsed'][0]['recipients'] == ['vacation.group@vacation.mail.example.com']
-#     assert res['parsed'][0]['sender'] == 'sender@expansion.test'
+def test_expand_ldap_user_autoreply(run_simexpander, req_ldapserver):
+    res = run_simexpander('autoreply@ldap.example.com')
+    assert len(res['parsed']) == 2
+    assert res['parsed'][0]['recipients'] == ['autoreply@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['autoreply@vacation.mail.example.com']
+
+
+def test_expand_ldap_user_autoreply_past(run_simexpander, req_ldapserver):
+    res = run_simexpander('autoreplypast@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['autoreply@forwarded.example.com']
+
+
+def test_expand_ldap_user_autoreply_future_end(run_simexpander, req_ldapserver):
+    res = run_simexpander('autoreplyend@ldap.example.com')
+    assert len(res['parsed']) == 2
+    assert res['parsed'][0]['recipients'] == ['autoreply@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['autoreplyend@vacation.mail.example.com']
+
+
+def test_expand_ldap_user_autoreply_no_start(run_simexpander, req_ldapserver):
+    res = run_simexpander('autoreplynostart@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['autoreply@forwarded.example.com']
+
+
+def test_expand_ldap_user_autoreply_future_start(run_simexpander, req_ldapserver):
+    res = run_simexpander('autoreplyfuturestart@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['autoreply@forwarded.example.com']
+
+
+def test_expand_ldap_user_autoreply_future(run_simexpander, req_ldapserver):
+    res = run_simexpander('autoreplyfuture@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['autoreply@forwarded.example.com']
+
+
+def test_expand_ldap_group_autoreply(run_simexpander, req_ldapserver):
+    res = run_simexpander('vacation.group@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['vacation.group@vacation.mail.example.com']
+    assert res['parsed'][0]['sender'] == 'sender@expansion.test'
 
 
 def test_expand_ldap_group_member_nomfa(run_simexpander, req_ldapserver):

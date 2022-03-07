@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <syslog.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <ldap.h>
@@ -64,8 +65,10 @@ struct simta_ldap {
     const char *             ldap_tls_cacert;
     const char *             ldap_binddn;
     const char *             ldap_bindpw;
-    const char *             ldap_vacationhost;
-    const char *             ldap_vacationattr;
+    const char *             ldap_autoreply_host;
+    const char *             ldap_autoreply_attr;
+    const char *             ldap_autoreply_start_attr;
+    const char *             ldap_autoreply_end_attr;
     const char *             ldap_mailfwdattr;
     const char *             ldap_gmailfwdattr;
     const char *             ldap_mailattr;
@@ -85,7 +88,10 @@ static simta_result         simta_ldap_retry(struct simta_ldap *);
 static yastr                simta_addr_demangle(const char *);
 static simta_address_status simta_ldap_search(
         struct simta_ldap *, char *, int, char *, LDAPMessage **);
-static bool simta_ldap_bool(struct simta_ldap *, LDAPMessage *, const char *);
+static bool  simta_ldap_bool(struct simta_ldap *, LDAPMessage *, const char *);
+static yastr simta_ldap_yastr(struct simta_ldap *, LDAPMessage *, const char *);
+static time_t simta_ldap_time_t(
+        struct simta_ldap *, LDAPMessage *, const char *);
 static bool simta_ldap_is_objectclass(
         struct simta_ldap *, LDAPMessage *, const char *);
 static yastr simta_ldap_dn_name(struct simta_ldap *, LDAPMessage *);
@@ -98,10 +104,11 @@ static void  do_noemail(
          struct simta_ldap *, struct exp_addr *, char *, LDAPMessage *);
 static void do_ambiguous(
         struct simta_ldap *, struct exp_addr *, char *, LDAPMessage *);
-static int simta_ldap_process_entry(struct simta_ldap *, struct expand *,
-        struct exp_addr *, int, LDAPMessage *, char *);
-static int simta_ldap_dn_expand(
-        struct simta_ldap *, struct expand *, struct exp_addr *);
+static bool simta_ldap_check_autoreply(struct simta_ldap *, LDAPMessage *);
+static int  simta_ldap_process_entry(struct simta_ldap *, struct expand *,
+         struct exp_addr *, int, LDAPMessage *, char *);
+static int  simta_ldap_dn_expand(
+         struct simta_ldap *, struct expand *, struct exp_addr *);
 
 
 #ifdef SIMTA_LDAP_DEBUG
@@ -554,6 +561,64 @@ simta_ldap_bool(
     }
     return (retval);
 }
+
+
+static yastr
+simta_ldap_yastr(
+        struct simta_ldap *ld, LDAPMessage *entry, const char *attribute) {
+    struct berval **values;
+    yastr           buf = NULL;
+
+    if ((values = ldap_get_values_len(ld->ldap_ld, entry, attribute)) != NULL) {
+        buf = yaslnew(values[ 0 ]->bv_val, values[ 0 ]->bv_len);
+        ldap_value_free_len(values);
+    }
+    return buf;
+}
+
+
+static time_t
+simta_ldap_time_t(
+        struct simta_ldap *ld, LDAPMessage *entry, const char *attribute) {
+    yastr     buf = NULL;
+    time_t    retval = 0;
+    struct tm tm_time;
+    char *    tz;
+
+    memset(&tm_time, 0, sizeof(struct tm));
+    if ((buf = simta_ldap_yastr(ld, entry, attribute)) == NULL) {
+        return retval;
+    }
+
+    /* RFC 4517 Generalized Time makes everything after the hour optional */
+
+    if ((strptime(buf, "%Y%m%d%H%M%S", &tm_time) != NULL) ||
+            (strptime(buf, "%Y%m%d%H%M", &tm_time) != NULL) ||
+            (strptime(buf, "%Y%m%d%H", &tm_time) != NULL)) {
+        /* We're going to assume that everything is UTC as the gods intended */
+        if ((tz = getenv("TZ")) != NULL) {
+            tz = strdup(tz);
+        }
+        setenv("TZ", "", 1);
+        tzset();
+        retval = mktime(&tm_time);
+        if (tz) {
+            setenv("TZ", tz, 1);
+            free(tz);
+        } else {
+            unsetenv("TZ");
+        }
+        tzset();
+    } else {
+        syslog(LOG_NOTICE,
+                "Liberror: simta_ldap_time_t strptime: unable to parse %s",
+                buf);
+    }
+
+    yaslfree(buf);
+    return retval;
+}
+
 
 static bool
 simta_ldap_is_objectclass(
@@ -1114,11 +1179,10 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
         errmsg = NULL;
 
         /* check for group autoreply */
-        if (ld->ldap_vacationhost && ld->ldap_vacationattr &&
-                simta_ldap_bool(ld, entry, ld->ldap_vacationattr)) {
+        if (simta_ldap_check_autoreply(ld, entry)) {
             yaslclear(buf);
             buf = yaslcatprintf(
-                    buf, "%s@%s", group_name, ld->ldap_vacationhost);
+                    buf, "%s@%s", group_name, ld->ldap_autoreply_host);
             yaslmapchars(buf, " ", ".", 1);
             if (add_address(exp, buf, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
                         e_addr->e_addr_from) != 0) {
@@ -1344,6 +1408,56 @@ error:
     return (retval);
 }
 
+
+static bool
+simta_ldap_check_autoreply(struct simta_ldap *ld, LDAPMessage *entry) {
+    bool            retval = false;
+    time_t          entry_time;
+    struct timespec ts_now;
+#ifdef CLOCK_REALTIME_COARSE
+    clockid_t clock = CLOCK_REALTIME_COARSE;
+#else
+    clockid_t clock = CLOCK_REALTIME;
+#endif /* CLOCK_REALTIME_COARSE */
+
+    /* If we don't do autoreplies at all, we don't need to do this one. */
+    if (ld->ldap_autoreply_host == NULL) {
+        return false;
+    }
+
+    /* Check the static flag. */
+    if (ld->ldap_autoreply_attr) {
+        retval = simta_ldap_bool(ld, entry, ld->ldap_autoreply_attr);
+    }
+
+    if (clock_gettime(clock, &ts_now) != 0) {
+        syslog(LOG_ERR, "Syserror: simta_ldap_doautoreply clock_gettime: %s",
+                strerror(errno));
+        return false;
+    }
+
+    /* If the static flag isn't set, check for a dynamic start time. */
+    if (!retval && ld->ldap_autoreply_start_attr) {
+        entry_time =
+                simta_ldap_time_t(ld, entry, ld->ldap_autoreply_start_attr);
+        if (entry_time > 0 && ts_now.tv_sec > entry_time) {
+            retval = true;
+        }
+    }
+
+    /* If the end time is in the past we want to disable replies, regardless of
+     * whether it's from the static flag or a dynamic start time.
+     */
+    if (retval && ld->ldap_autoreply_end_attr) {
+        entry_time = simta_ldap_time_t(ld, entry, ld->ldap_autoreply_end_attr);
+        if (entry_time > 0 && ts_now.tv_sec > entry_time) {
+            retval = false;
+        }
+    }
+
+    return retval;
+}
+
 static int
 simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
         struct exp_addr *e_addr, int type, LDAPMessage *entry, char *addr) {
@@ -1416,24 +1530,22 @@ simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
             * the vacationhost (specified in the config file) and
             * the uid.
             */
-            if ((ld->ldap_vacationhost != NULL) &&
-                    (ld->ldap_vacationattr != NULL) &&
-                    simta_ldap_bool(ld, entry, ld->ldap_vacationattr)) {
+            if (simta_ldap_check_autoreply(ld, entry)) {
                 if ((uid = ldap_get_values_len(ld->ldap_ld, entry, "uid")) !=
                         NULL) {
                     buf = yaslnew(uid[ 0 ]->bv_val, uid[ 0 ]->bv_len);
-                    buf = yaslcatprintf(buf, "@%s", ld->ldap_vacationhost);
+                    buf = yaslcatprintf(buf, "@%s", ld->ldap_autoreply_host);
                     if (add_address(exp, buf, e_addr->e_addr_errors,
                                 ADDRESS_TYPE_EMAIL, e_addr->e_addr_from) != 0) {
                         syslog(LOG_ERR,
                                 "Expand.LDAP env <%s>: <%s>:"
-                                "failed adding vacation address: %s",
+                                "failed adding autoreply address: %s",
                                 exp->exp_env->e_id, e_addr->e_addr, buf);
                     }
                 } else {
                     syslog(LOG_ERR,
                             "Expand.LDAP env <%s>: <%s>: user %s "
-                            "is on vacation but doesn't have a uid",
+                            "has autoreplies enabled but doesn't have a uid",
                             exp->exp_env->e_id, e_addr->e_addr, addr);
                 }
             }
@@ -1981,11 +2093,29 @@ simta_ldap_config(const ucl_object_t *rule) {
     ld->ldap_gmailfwdattr = ucl_object_tostring(ucl_object_lookup_path(
             ld->ldap_rule, "attributes.group_forwarding"));
 
-    ld->ldap_vacationhost = ucl_object_tostring(
-            ucl_object_lookup_path(ld->ldap_rule, "vacation.host"));
+    ld->ldap_autoreply_host = ucl_object_tostring(
+            ucl_object_lookup_path(ld->ldap_rule, "autoreply.host"));
 
-    ld->ldap_vacationattr = ucl_object_tostring(
-            ucl_object_lookup_path(ld->ldap_rule, "attributes.vacation"));
+    if (!ld->ldap_autoreply_host) {
+        /* DEPRECATED */
+        ld->ldap_autoreply_host = ucl_object_tostring(
+                ucl_object_lookup_path(ld->ldap_rule, "vacation.host"));
+    }
+
+    ld->ldap_autoreply_attr = ucl_object_tostring(
+            ucl_object_lookup_path(ld->ldap_rule, "attributes.autoreply"));
+
+    if (!ld->ldap_autoreply_attr) {
+        /* DEPRECATED */
+        ld->ldap_autoreply_attr = ucl_object_tostring(
+                ucl_object_lookup_path(ld->ldap_rule, "attributes.vacation"));
+    }
+
+    ld->ldap_autoreply_start_attr = ucl_object_tostring(ucl_object_lookup_path(
+            ld->ldap_rule, "attributes.autoreply_start"));
+
+    ld->ldap_autoreply_end_attr = ucl_object_tostring(
+            ucl_object_lookup_path(ld->ldap_rule, "attributes.autoreply_end"));
 
     /* check to see that ldap is configured correctly */
 
