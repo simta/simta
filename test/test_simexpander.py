@@ -610,10 +610,49 @@ def test_expand_ldap_group_moderated_badmoderator(run_simexpander, req_ldapserve
     assert any('bad moderator' in line for line in res['unparsed'])
 
 
-# test_expand_ldap_group_moderated_membersonly_permitted
-# test_expand_ldap_group_moderated_modloop
-# test_expand_ldap_group_moderated_subgroup
-# test_expand_ldap_group_moderated_nopermitsub
+@pytest.mark.parametrize(
+    'sender',
+    [
+        'testuser@ldap.example.com',    # subgroup member
+        'sender@expansion.test',        # random non-member
+        'simexpand@ldap.example.com',   # subgroup moderator
+    ],
+)
+def test_expand_ldap_group_moderated_membersonly_permitted(run_simexpander, req_ldapserver, sender):
+    res = run_simexpander([
+        '-F', sender,
+        'mo.moderated.public.supergroup@ldap.example.com'
+    ])
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['testuser@forwarded.example.com']
+    assert res['parsed'][0]['sender'] == 'mo.moderated.subgroup-errors@ldap.example.com'
+
+
+@pytest.mark.parametrize(
+    'sender',
+    [
+        'testuser@ldap.example.com',    # subgroup member
+        'simexpand@ldap.example.com',   # subgroup moderator
+    ],
+)
+def test_expand_ldap_group_moderated_membersonly_nonpermitted_succeed(run_simexpander, req_ldapserver, sender):
+    res = run_simexpander([
+        '-F', sender,
+        'mo.moderated.public.nonpermitted@ldap.example.com'
+    ])
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['testuser@forwarded.example.com']
+    assert res['parsed'][0]['sender'] == 'mo.moderated.subgroup-errors@ldap.example.com'
+
+
+def test_expand_ldap_group_moderated_membersonly_nonpermitted(run_simexpander, req_ldapserver):
+    res = run_simexpander('mo.moderated.public.nonpermitted@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['simexpand@ldap.example.com']
+    assert res['parsed'][0]['sender'] == 'sender@expansion.test'
+
+
+# FIXME: test_expand_ldap_group_moderated_modloop
 
 
 def test_expand_ldap_user_vacation(run_simexpander, req_ldapserver):
@@ -700,7 +739,26 @@ def test_expand_ldap_group_associated_domain(run_simexpander, req_ldapserver):
     assert res['parsed'][0]['sender'] == 'testgroup-errors@ldap.example.com'
 
 
-# LDAP rfc822mail tests
+def test_expand_ldap_group_complex(run_simexpander, req_ldapserver):
+    res = run_simexpander('complex.group@ldap.example.com')
+    assert len(res['parsed']) == 5
+    # moderator copy
+    assert res['parsed'][0]['recipients'] == ['simexpand@ldap.example.com']
+    assert res['parsed'][0]['sender'] == 'sender@expansion.test'
+    # valid LDAP members
+    assert res['parsed'][1]['hostname'] == 'forwarded.example.com'
+    assert res['parsed'][1]['recipients'] == ['eunicex@forwarded.example.com']
+    assert res['parsed'][1]['sender'] == 'complex.group-errors@ldap.example.com'
+    # external member
+    assert res['parsed'][2]['hostname'] == 'example.org'
+    assert res['parsed'][2]['recipients'] == ['testuser2@example.org']
+    assert res['parsed'][2]['sender'] == 'complex.group-errors@ldap.example.com'
+    # external members
+    assert res['parsed'][3]['hostname'] == 'example.edu'
+    assert res['parsed'][3]['recipients'] == ['testuser1@example.edu', 'testuser3@example.edu']
+    assert res['parsed'][3]['sender'] == 'complex.group-errors@ldap.example.com'    # bounce for invalid LDAP member
+    assert res['parsed'][4]['recipients'] == ['complex.group-errors@ldap.example.com']
+    assert res['parsed'][4]['sender'] == ''
 
 
 def test_expand_srs(run_simexpander, run_simsrs):

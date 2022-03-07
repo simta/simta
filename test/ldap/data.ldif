@@ -66,6 +66,17 @@ title: SVP
 objectClass: umichPerson
 entityID: 90001
 
+dn: uid=eunicex,ou=People,dc=example,dc=com
+cn: Eunice Jones
+cn: Eunice X Jones
+sn: Jones
+mail: eunicex@example.com
+uid: eunicex
+mailForwardingAddress: eunicex@forwarded.example.com
+title: SVP
+objectClass: umichPerson
+entityID: 90001
+
 dn: uid=testuser,ou=People,dc=example,dc=com
 cn: Test User
 givenName: Testament
@@ -235,6 +246,24 @@ objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com
 moderator: invalid
 
+dn: cn=mo moderated subgroup,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+moderator: simexpand@ldap.example.com
+membersonly: TRUE
+permittedGroup: cn=mo moderated public supergroup,ou=Groups,dc=example,dc=com
+
+dn: cn=mo moderated public supergroup,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+member: cn=mo moderated subgroup,ou=Groups,dc=example,dc=com
+
+dn: cn=mo moderated public nonpermitted,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+member: cn=mo moderated subgroup,ou=Groups,dc=example,dc=com
+
 dn: cn=vacation group,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com
@@ -280,3 +309,14 @@ dn: cn=dangle,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
 member: uid=notarealuser,ou=People,dc=example,dc=com
+
+dn: cn=complex group,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+member: uid=eunicej,ou=People,dc=example,dc=com
+member: uid=eunicex,ou=People,dc=example,dc=com
+member: cn=membersonly fail,ou=Groups,dc=example,dc=com
+member: cn=moderated group,ou=Groups,dc=example,dc=com
+rfc822mail: testuser1@example.edu
+rfc822mail: testuser2@example.org
+rfc822mail: Test User <testuser3@example.edu>
