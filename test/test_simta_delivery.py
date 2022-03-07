@@ -6,7 +6,7 @@ import os
 from mailbox import Maildir
 
 
-def test_binary(smtp_nocleanup, testmsg, simta):
+def test_binary(smtp_nocleanup, testmsg, req_dnsserver, simta):
     # FIXME: it would be better to actually deliver and check the content
     # that is delivered.
     smtp_nocleanup.sendmail(
