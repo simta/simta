@@ -22,9 +22,9 @@ from cryptography.x509.oid import NameOID
 from email.mime.text import MIMEText
 
 
-def pytest_collect_file(parent, path):
-    if os.access(str(path), os.X_OK) and path.basename.startswith('cmocka_'):
-        return CMockaFile.from_parent(parent, fspath=path)
+def pytest_collect_file(parent, file_path):
+    if os.access(str(file_path), os.X_OK) and file_path.name.startswith('cmocka_'):
+        return CMockaFile.from_parent(parent, path=file_path)
 
 
 class CMockaFile(pytest.File):
@@ -55,9 +55,9 @@ class CMockaFile(pytest.File):
 
 
 class CMockaItem(pytest.Item):
-    def __init__(self, parent, line, output=None):
+    def __init__(self, *, line, output=None, **kwargs):
         name = line.split(' - ')[1]
-        super(CMockaItem, self).__init__(name, parent)
+        super(CMockaItem, self).__init__(name, **kwargs)
         self.line = line
         self.output = output
 
