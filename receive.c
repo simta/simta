@@ -3893,7 +3893,7 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
     yastr             key;
     yastr             value = NULL;
     struct simta_dbh *dbh = NULL;
-    const char *      fname = NULL;
+    yastr             fname = NULL;
 #endif /* HAVE_LMDB */
 
     if ((at = strchr(addr, '@')) == NULL) {
@@ -3931,14 +3931,18 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
 
 #ifdef HAVE_LMDB
         } else if (strcasecmp(type, "alias") == 0) {
-            fname = ucl_object_tostring(ucl_object_lookup(rule, "path"));
+            fname = yaslauto(ucl_object_tostring(
+                    ucl_object_lookup_path(rule, "alias.path")));
+            fname = yaslcat(fname, ".db");
             if ((rc = simta_db_open_r(&dbh, fname)) != 0) {
                 dbh = NULL;
                 syslog(LOG_ERR,
                         "Liberror: local_address simta_db_open_r %s: %s", fname,
                         simta_db_strerror(rc));
+                yaslfree(fname);
                 break;
             }
+            yaslfree(fname);
 
             if ((key = yaslnew(addr, (size_t)(at - addr))) == NULL) {
                 return ADDRESS_SYSERROR;
