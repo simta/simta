@@ -175,7 +175,7 @@ main(int argc, char *argv[]) {
         exit(EX_TEMPFAIL);
     }
 
-    if (simta_signal_server(SIGUSR2) != 0) {
+    if (simta_signal_server(SIGUSR2) != SIMTA_OK) {
         exit(EX_TEMPFAIL);
     }
 

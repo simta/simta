@@ -731,29 +731,33 @@ simta_waitpid(pid_t child, int *childstatus, int options) {
     return (retval);
 }
 
-int
+simta_result
 simta_signal_server(int signal) {
     const char *pid_file;
     yastr       pid_string;
     int         pid;
 
     pid_file = ucl_object_tostring(simta_config_obj("core.pid_file"));
-    pid_string = simta_slurp(pid_file);
+    if ((pid_string = simta_slurp(pid_file)) == NULL) {
+        syslog(LOG_NOTICE, "simta_signal_server: failed to read pid file %s",
+                pid_file);
+        return SIMTA_ERR;
+    }
     sscanf(pid_string, "%d\n", &pid);
 
     if (pid <= 0) {
         syslog(LOG_NOTICE, "simta_signal_server: illegal pid %d in %s", pid,
                 pid_file);
-        return (1);
+        return SIMTA_ERR;
     }
 
     if (kill(pid, signal) < 0) {
         syslog(LOG_NOTICE, "Syserror: simta_signal_server %d %d: %m", signal,
                 pid);
-        return (1);
+        return SIMTA_ERR;
     }
 
-    return (0);
+    return SIMTA_OK;
 }
 
 yastr
