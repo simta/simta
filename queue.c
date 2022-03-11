@@ -727,6 +727,12 @@ q_read_dir(struct simta_dirp *sd) {
 
         iter = ucl_object_iterate_new(simta_host_q);
         while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+            if (ucl_object_type(obj) == UCL_NULL) {
+                /* iterating over a NULL object will return the object, instead
+                 * of not iterating at all.
+                 */
+                continue;
+            }
             hq = obj->value.ud;
 
             prune_messages(hq);
