@@ -875,9 +875,10 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
                                              env_data, "bounceable")) ||
                 env->e_puntable != ucl_object_toboolean(ucl_object_lookup(
                                            env_data, "puntable")) ||
-                (strcasecmp(env->e_hostname,
-                         ucl_object_tostring(ucl_object_lookup(
-                                 env_data, "hostname"))) != 0) ||
+                (env->e_hostname &&
+                        (strcasecmp(env->e_hostname,
+                                 ucl_object_tostring(ucl_object_lookup(
+                                         env_data, "hostname"))) != 0)) ||
                 env->e_8bitmime != ucl_object_toboolean(ucl_object_lookup(
                                            env_data, "8bitmime")) ||
                 env->e_archive_only != ucl_object_toboolean(ucl_object_lookup(
