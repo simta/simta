@@ -625,10 +625,10 @@ tls_server_setup(void) {
     /* Disable old protocols, prefer server cipher ordering */
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
     SSL_CTX_set_options(ssl_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
-    SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+    /* FIXME: we want to make the minimum 1.2 when that's a viable choice. */
+    SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_VERSION);
 #else
     SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
-                                         SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 |
                                          SSL_OP_CIPHER_SERVER_PREFERENCE);
 #endif /* OpenSSL 1.1.0 */
 

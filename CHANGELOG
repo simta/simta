@@ -1,3 +1,6 @@
+2.0.1 (2022-??-??)
+    - reenabled TLS v1.0 and v1.1
+
 2.0.0 (2022-03-11)
     - brand new UCL configuration system
     - added -U flag to specify arbitrary configuration on the command line
