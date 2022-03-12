@@ -1,6 +1,8 @@
 simta
 =====
 
+[![build](https://github.com/simta/simta/actions/workflows/build.yml/badge.svg)](https://github.com/simta/simta/actions/workflows/build.yml)
+
 Background
 ----------
 
