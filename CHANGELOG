@@ -1,4 +1,4 @@
-2.0.0 (2022-??-??)
+2.0.0 (2022-03-11)
     - brand new UCL configuration system
     - added -U flag to specify arbitrary configuration on the command line
     - changed the on-disk format of E files to JSON
