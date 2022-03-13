@@ -581,7 +581,7 @@ simta_daemonize_server(void) {
             return (1);
         }
         syslog(LOG_NOTICE, "Child: launched daemon %d.%ld", pid,
-                simta_tv_now.tv_sec);
+                simta_log_ts.tv_sec);
         return (0);
     }
 }
@@ -674,7 +674,6 @@ simta_server(bool daemon) {
     struct simta_dirp        slow_dirp;
     int                      fd_max;
     fd_set                   fdset;
-    struct proc_type *       p;
     struct simta_socket *    ss;
     struct connection_info **c;
     struct connection_info * remove;
@@ -952,19 +951,6 @@ simta_server(bool daemon) {
     }
 
 error:
-    /* Kill queue scheduler */
-    for (p = simta_proc_stab; p != NULL; p = p->p_next) {
-        /*
-        if ( p->p_type == PROCESS_Q_SCHEDULER ) {
-            if ( kill( p->p_id, SIGKILL ) != 0 ) {
-                syslog( LOG_ERR, "Syserror: simta_smtp_server kill %d.%ld: %m",
-                        p->p_id, p->p_tv.tv_sec );
-            }
-            break;
-        }
-        */
-    }
-
     syslog(LOG_NOTICE, "Daemon: Shutdown %s", error_msg ? error_msg : "");
 
     return (1);
@@ -1017,13 +1003,12 @@ simta_wait_for_child(int child_type) {
             break;
 
         default:
-            syslog(LOG_ERR, "Child: %d.%ld: start type %d out of range", pid,
-                    simta_tv_now.tv_sec, child_type);
+            syslog(LOG_ERR, "Child: %d: start type %d out of range", pid,
+                    child_type);
             return (1);
         }
 
-        syslog(LOG_NOTICE, "Child: launched %s %d.%ld", p_name, pid,
-                simta_tv_now.tv_sec);
+        syslog(LOG_NOTICE, "Child: launched %s %d", p_name, pid);
 
         if (simta_waitpid(pid, &status, 0) < 0) {
             syslog(LOG_ERR, "Syserror: wait_for_child simta_waitpid %d: %m",
@@ -1032,18 +1017,17 @@ simta_wait_for_child(int child_type) {
         }
 
         if (WIFEXITED(status)) {
-            syslog(LOG_NOTICE, "Child: %s %d.%ld exited %d", p_name, pid,
-                    simta_tv_now.tv_sec, WEXITSTATUS(status));
+            syslog(LOG_NOTICE, "Child: %s %d exited %d", p_name, pid,
+                    WEXITSTATUS(status));
             return (WEXITSTATUS(status));
 
         } else if (WIFSIGNALED(status)) {
-            syslog(LOG_ERR, "Child: %s %d.%ld: died with signal %d", p_name,
-                    pid, simta_tv_now.tv_sec, WTERMSIG(status));
+            syslog(LOG_ERR, "Child: %s %d died with signal %d", p_name, pid,
+                    WTERMSIG(status));
             return (1);
 
         } else {
-            syslog(LOG_ERR, "Child: %s %d.%ld died", p_name, pid,
-                    simta_tv_now.tv_sec);
+            syslog(LOG_ERR, "Child: %s %d died", p_name, pid);
             return (1);
         }
     }
@@ -1210,10 +1194,10 @@ simta_child_receive(struct simta_socket *ss) {
     p->p_host = simta_strdup(cinfo->c_ip);
 
     syslog(LOG_NOTICE,
-            "Child: launched %s receive process %d.%ld for %s "
+            "Child: launched %s receive process %d for %s "
             "(%d total, %d %s)",
-            p->p_ss->ss_service, p->p_id, p->p_tv.tv_sec, p->p_host,
-            *p->p_limit, p->p_ss->ss_count, p->p_ss->ss_service);
+            p->p_ss->ss_service, p->p_id, p->p_host, *p->p_limit,
+            p->p_ss->ss_count, p->p_ss->ss_service);
 
     return (0);
 }
@@ -1308,8 +1292,8 @@ simta_proc_q_runner(int pid, struct host_q *hq) {
         p->p_limit = &simta_q_runner_local;
         (*p->p_limit)++;
 
-        syslog(LOG_NOTICE, "Child: launched local runner %d.%ld (%d total)",
-                pid, p->p_tv.tv_sec, *p->p_limit);
+        syslog(LOG_NOTICE, "Child: launched local runner %d (%d total)", pid,
+                *p->p_limit);
 
     } else {
         p->p_limit = &simta_q_runner_slow;
@@ -1319,11 +1303,9 @@ simta_proc_q_runner(int pid, struct host_q *hq) {
             p->p_host = simta_strdup(hq->hq_hostname);
         }
 
-        syslog(LOG_NOTICE,
-                "Child: launched queue runner %d.%ld for %s "
-                "(%d total)",
-                pid, p->p_tv.tv_sec,
-                hq->hq_hostname ? hq->hq_hostname : S_UNEXPANDED, *p->p_limit);
+        syslog(LOG_NOTICE, "Child: launched queue runner %d for %s (%d total)",
+                pid, hq->hq_hostname ? hq->hq_hostname : S_UNEXPANDED,
+                *p->p_limit);
     }
 
     return (0);

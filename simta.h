@@ -130,7 +130,7 @@ extern ucl_object_t *       simta_config;
 extern struct dll_entry *   simta_env_list;
 extern struct dll_entry *   simta_sender_list;
 extern struct timeval       simta_tv_now;
-extern struct timeval       simta_log_tv;
+extern struct timespec      simta_log_ts;
 extern struct host_q *      simta_deliver_q;
 extern struct host_q *      simta_unexpanded_q;
 extern ucl_object_t *       simta_host_q;

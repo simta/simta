@@ -48,7 +48,7 @@ static struct ucl_parser *simta_ucl_parser(void);
 struct dll_entry *   simta_sender_list = NULL;
 struct dll_entry *   simta_env_list = NULL;
 struct timeval       simta_tv_now = {0, 0};
-struct timeval       simta_log_tv;
+struct timespec      simta_log_ts;
 struct envelope *    simta_env_queue = NULL;
 ucl_object_t *       simta_host_q = NULL;
 struct host_q *      simta_deliver_q = NULL;
@@ -89,16 +89,13 @@ panic(const char *message) {
 
 simta_result
 simta_gettimeofday(struct timeval *tv) {
-#if _POSIX_TIMERS > 0
     struct timespec ts_now;
 #ifdef CLOCK_MONOTONIC_COARSE
     clockid_t clock = CLOCK_MONOTONIC_COARSE;
 #elif defined(CLOCK_MONOTONIC_FAST)
     clockid_t clock = CLOCK_MONOTONIC_FAST;
-#elif _POSIX_MONOTONIC_CLOCK > 0
-    clockid_t clock = CLOCK_MONOTONIC;
 #else
-    clockid_t clock = CLOCK_REALTIME;
+    clockid_t clock = CLOCK_MONOTONIC;
 #endif /* CLOCK_MONOTONIC_COARSE */
     if (clock_gettime(clock, &ts_now) != 0) {
         syslog(LOG_ERR, "Syserror: simta_gettimeofday clock_gettime: %s",
@@ -109,36 +106,11 @@ simta_gettimeofday(struct timeval *tv) {
     simta_tv_now.tv_sec = ts_now.tv_sec;
     simta_tv_now.tv_usec = (ts_now.tv_nsec + 500) / 1000;
 
-#else  /* _POSIX_TIMERS */
-    struct timeval tv_now;
-
-    if (gettimeofday(&tv_now, NULL) != 0) {
-        syslog(LOG_ERR, "Syserror: simta_gettimeofday gettimeofday: %m");
-        return (SIMTA_ERR);
-    }
-
-    /* did gettimeofday() return a unique timestamp not in the past? */
-    if ((tv_now.tv_sec < simta_tv_now.tv_sec) ||
-            ((tv_now.tv_sec == simta_tv_now.tv_sec) &&
-                    (tv_now.tv_usec <= simta_tv_now.tv_usec))) {
-        tv_now.tv_usec = simta_tv_now.tv_usec + 1;
-        if (tv_now.tv_usec <= simta_tv_now.tv_usec) {
-            tv_now.tv_usec = 0;
-            tv_now.tv_sec = simta_tv_now.tv_sec + 1;
-        } else {
-            tv_now.tv_sec = simta_tv_now.tv_sec;
-        }
-    }
-
-    simta_tv_now.tv_usec = tv_now.tv_usec;
-    simta_tv_now.tv_sec = tv_now.tv_sec;
-#endif /* _POSIX_TIMERS */
-
     if (tv) {
         memcpy(tv, &simta_tv_now, sizeof(struct timeval));
     }
 
-    return (SIMTA_OK);
+    return SIMTA_OK;
 }
 
 void
@@ -153,9 +125,10 @@ simta_openlog(bool cl, int options) {
         yaslfree(ident);
     }
 
-    simta_log_tv = simta_tv_now;
+    clock_gettime(CLOCK_REALTIME, &simta_log_ts);
+
     ident = yaslcatprintf(yaslauto(simta_progname), "[%d.%ld]", getpid(),
-            simta_log_tv.tv_sec);
+            simta_log_ts.tv_sec);
     openlog(ident, LOG_NOWAIT | options, LOG_SIMTA);
 
     return;
@@ -665,17 +638,16 @@ simta_waitpid(pid_t child, int *childstatus, int options) {
             switch (p_remove->p_type) {
             case PROCESS_Q_LOCAL:
                 syslog(ll,
-                        "Child: local runner %d.%ld exited %d "
+                        "Child: local runner %d exited %d "
                         "(%ld milliseconds, %d siblings remaining)",
-                        pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds,
-                        *p_remove->p_limit);
+                        pid, exitstatus, milliseconds, *p_remove->p_limit);
                 break;
 
             case PROCESS_Q_SLOW:
                 syslog(ll,
-                        "Child: queue runner %d.%ld for %s exited %d "
+                        "Child: queue runner %d for %s exited %d "
                         "(%ld milliseconds, %d siblings remaining)",
-                        pid, p_remove->p_tv.tv_sec,
+                        pid,
                         *(p_remove->p_host) ? p_remove->p_host : S_UNEXPANDED,
                         exitstatus, milliseconds, *p_remove->p_limit);
                 break;
@@ -685,33 +657,32 @@ simta_waitpid(pid_t child, int *childstatus, int options) {
                 p_remove->p_cinfo->c_proc_total--;
 
                 syslog(ll,
-                        "Child: %s receive process %d.%ld for %s exited %d "
+                        "Child: %s receive process %d for %s exited %d "
                         "(%ld milliseconds, %d siblings remaining, %d %s)",
-                        p_remove->p_ss->ss_service, pid, p_remove->p_tv.tv_sec,
-                        p_remove->p_host, exitstatus, milliseconds,
-                        *p_remove->p_limit, p_remove->p_ss->ss_count,
-                        p_remove->p_ss->ss_service);
+                        p_remove->p_ss->ss_service, pid, p_remove->p_host,
+                        exitstatus, milliseconds, *p_remove->p_limit,
+                        p_remove->p_ss->ss_count, p_remove->p_ss->ss_service);
                 break;
 
             default:
                 retval--;
                 syslog(LOG_ERR,
-                        "Child: unknown process %d.%ld exited %d "
+                        "Child: unknown process %d exited %d "
                         "(%ld milliseconds)",
-                        pid, p_remove->p_tv.tv_sec, exitstatus, milliseconds);
+                        pid, exitstatus, milliseconds);
                 break;
             }
 
         } else if (WIFSIGNALED(status)) {
             syslog(LOG_ERR,
-                    "Child: %d.%ld died with signal %d "
+                    "Child: %d died with signal %d "
                     "(%ld milliseconds)",
-                    pid, p_remove->p_tv.tv_sec, WTERMSIG(status), milliseconds);
+                    pid, WTERMSIG(status), milliseconds);
             retval--;
 
         } else {
-            syslog(LOG_ERR, "Child: %d.%ld died (%ld milliseconds)", pid,
-                    p_remove->p_tv.tv_sec, milliseconds);
+            syslog(LOG_ERR, "Child: %d died (%ld milliseconds)", pid,
+                    milliseconds);
             retval--;
         }
 

@@ -4173,19 +4173,19 @@ content_filter(
 
 static int
 run_content_filter(struct receive_data *r, char **smtp_message) {
-    int            fd[ 2 ];
-    pid_t          pid;
-    int            status;
-    pid_t          rc;
-    int            filter_envc = 0;
-    SNET *         snet;
-    const char *   mail_filter = NULL;
-    char *         line;
-    char *         filter_argv[] = {0, 0};
-    char *         filter_envp[ 22 ];
-    char           fname[ MAXPATHLEN + 1 ];
-    char           buf[ 256 ];
-    struct timeval log_tv;
+    int             fd[ 2 ];
+    pid_t           pid;
+    int             status;
+    pid_t           rc;
+    int             filter_envc = 0;
+    SNET *          snet;
+    const char *    mail_filter = NULL;
+    char *          line;
+    char *          filter_argv[] = {0, 0};
+    char *          filter_envp[ 22 ];
+    char            fname[ MAXPATHLEN + 1 ];
+    char            buf[ 256 ];
+    struct timespec log_ts;
 #ifdef HAVE_LIBOPENDKIM
     struct dll_entry *dkim_domain;
     yastr             dkim_domains;
@@ -4208,7 +4208,7 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
         return (MESSAGE_TEMPFAIL);
 
     case 0:
-        log_tv = simta_log_tv;
+        log_ts = simta_log_ts;
         simta_openlog(true, 0);
         /* use fd[ 1 ] to communicate with parent, parent uses fd[ 0 ] */
         if (close(fd[ 0 ]) < 0) {
@@ -4310,7 +4310,7 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
         sprintf(buf, "%d", getpid());
         filter_envp[ filter_envc++ ] = env_string("SIMTA_PID", buf);
 
-        sprintf(buf, "%ld", log_tv.tv_sec);
+        sprintf(buf, "%ld", log_ts.tv_sec);
         filter_envp[ filter_envc++ ] = env_string("SIMTA_CID", buf);
 
 #ifdef HAVE_LIBOPENDKIM
