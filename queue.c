@@ -79,13 +79,19 @@ deliver_q_queue(struct host_q *deliver_q, struct host_q *q) {
 struct host_q *
 host_q_lookup(const char *hostname) {
     const ucl_object_t *obj;
+    yastr               buf = NULL;
 
     if (simta_host_q == NULL) {
         simta_host_q = ucl_object_new();
         return NULL;
     }
 
-    if ((obj = ucl_object_lookup(simta_host_q, hostname)) != NULL) {
+    buf = yaslauto(hostname);
+    yasltolower(buf);
+    obj = ucl_object_lookup(simta_host_q, buf);
+    yaslfree(buf);
+
+    if (obj != NULL) {
         return obj->value.ud;
     }
 
@@ -118,7 +124,7 @@ host_q_create_or_lookup(char *hostname) {
         hq->hq_hostname = yaslauto(hostname);
         yasltolower(hq->hq_hostname);
 
-        hq->hq_red = ucl_object_ref(red_host_lookup(hostname, true));
+        hq->hq_red = ucl_object_ref(red_host_lookup(hq->hq_hostname, true));
 
         simta_ucl_object_totimeval(
                 ucl_object_lookup_path(hq->hq_red, "deliver.queue.wait.min"),
@@ -134,7 +140,7 @@ host_q_create_or_lookup(char *hostname) {
                 yasllen(hq->hq_hostname), true);
     }
 
-    return (hq);
+    return hq;
 }
 
 

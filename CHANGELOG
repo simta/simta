@@ -1,6 +1,8 @@
 2.0.1 (2022-??-??)
     - reenabled TLS v1.0 and v1.1
     - fixed unique PIDs
+    - fixed bug that would create multiple host queues for hostnames that
+      differed only in case, then drop all but one on the floor
 
 2.0.0 (2022-03-11)
     - brand new UCL configuration system

@@ -211,6 +211,7 @@ env_hostname(struct envelope *env, const char *hostname) {
         env->e_hostname = yaslempty();
     }
     env->e_hostname = yaslcat(env->e_hostname, hostname);
+    yasltolower(env->e_hostname);
 }
 
 
