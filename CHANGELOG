@@ -3,6 +3,7 @@
     - fixed unique PIDs
     - fixed bug that would create multiple host queues for hostnames that
       differed only in case, then drop all but one on the floor
+    - fixed SRS address checking during receive
 
 2.0.0 (2022-03-11)
     - brand new UCL configuration system

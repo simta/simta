@@ -3989,9 +3989,9 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
             }
 
         } else if (strcasecmp(type, "srs") == 0) {
-            if ((rc = srs_valid(addr, ucl_object_tostring(ucl_object_lookup(
-                                              rule, "secret")))) ==
-                    ADDRESS_OK) {
+            if ((rc = srs_valid(
+                         addr, ucl_object_tostring(ucl_object_lookup_path(
+                                       rule, "srs.secret")))) == ADDRESS_OK) {
                 if (ucl_object_toboolean(ucl_object_lookup_path(
                             rule, "receive.sufficient"))) {
                     return ADDRESS_OK;
