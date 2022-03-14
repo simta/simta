@@ -72,6 +72,9 @@ struct simta_ldap {
     const char *             ldap_mailfwdattr;
     const char *             ldap_gmailfwdattr;
     const char *             ldap_mailattr;
+    const char *             ldap_moderators_attr;
+    const char *             ldap_permitted_groups_attr;
+    const char *             ldap_permitted_senders_attr;
     const char *             ldap_associated_domain;
 };
 
@@ -97,11 +100,13 @@ static bool simta_ldap_is_objectclass(
 static yastr simta_ldap_dn_name(struct simta_ldap *, LDAPMessage *);
 static int   simta_ldap_name_search(struct simta_ldap *, struct expand *,
           struct exp_addr *, char *, char *, int);
-static int   simta_ldap_permitted_create(struct exp_addr *, struct berval **);
-static int   simta_ldap_expand_group(struct simta_ldap *, struct expand *,
-          struct exp_addr *, int, LDAPMessage *);
-static void  do_noemail(
-         struct simta_ldap *, struct exp_addr *, char *, LDAPMessage *);
+static struct envelope *simta_ldap_envelope_from_attr(struct simta_ldap *,
+        LDAPMessage *, struct envelope *, const char *, const char *);
+static int  simta_ldap_permitted_create(struct exp_addr *, struct berval **);
+static int  simta_ldap_expand_group(struct simta_ldap *, struct expand *,
+         struct exp_addr *, int, LDAPMessage *);
+static void do_noemail(
+        struct simta_ldap *, struct exp_addr *, char *, LDAPMessage *);
 static void do_ambiguous(
         struct simta_ldap *, struct exp_addr *, char *, LDAPMessage *);
 static bool simta_ldap_check_autoreply(struct simta_ldap *, LDAPMessage *);
@@ -1068,27 +1073,62 @@ simta_ldap_permitted_create(struct exp_addr *e, struct berval **list) {
     return (0);
 }
 
+static struct envelope *
+simta_ldap_envelope_from_attr(struct simta_ldap *ld, LDAPMessage *entry,
+        struct envelope *parent, const char *sender, const char *attr) {
+    struct berval ** attr_values = NULL;
+    struct envelope *env = NULL;
+    yastr            buf = NULL;
+
+    buf = yaslempty();
+    if ((attr_values = ldap_get_values_len(ld->ldap_ld, entry, attr)) != NULL) {
+        if (parent->e_n_exp_level < simta_exp_level_max) {
+            buf = yaslempty();
+
+            if ((env = env_create(simta_dir_fast, NULL, sender, parent)) ==
+                    NULL) {
+                goto error;
+            }
+
+            for (int i = 0; attr_values[ i ]; i++) {
+                yaslclear(buf);
+                buf = yaslcatlen(buf, attr_values[ i ]->bv_val,
+                        attr_values[ i ]->bv_len);
+                if (env_string_recipients(env, buf) != 0) {
+                    env_rcpt_free(env);
+                    goto error;
+                }
+            }
+        }
+    }
+
+error:
+    yaslfree(buf);
+    ldap_value_free_len(attr_values);
+    return env;
+}
+
 static int
 simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
         struct exp_addr *e_addr, int type, LDAPMessage *entry) {
-    int             retval = ADDRESS_SYSERROR;
-    int             valfound = 0;
-    int             moderator_error = 0;
-    struct berval **dnvals = NULL;
-    struct berval **mailvals = NULL;
-    char *          dn = NULL;
-    yastr           group_name = NULL;
-    char *          errmsg = NULL;
-    struct berval **moderator = NULL; /* Moderator attribute values */
-    struct berval **permitted = NULL; /* permittedgroup attribute values */
-    char *          ndn = NULL;       /* a "normalized dn" */
-    yastr           buf = NULL;
-    int             rc;
-    yastr           senderbuf = NULL;
-    int             suppressnoemail = 0;
-    struct berval **senderlist = NULL;
-
+    int               retval = ADDRESS_SYSERROR;
+    int               valfound = 0;
+    struct berval **  dnvals = NULL;
+    struct berval **  mailvals = NULL;
+    char *            dn = NULL;
+    yastr             group_name = NULL;
+    yastr             group_email = NULL;
+    char *            errmsg = NULL;
+    struct berval **  permitted_domains = NULL;
+    struct berval **  permitted_groups = NULL;
+    char *            ndn = NULL; /* a "normalized dn" */
+    yastr             buf = NULL;
+    int               rc;
+    yastr             senderbuf = NULL;
+    int               suppressnoemail = 0;
+    struct berval **  senderlist = NULL;
     struct recipient *r = NULL;
+    struct envelope * permitted_env = NULL;
 
     if ((dn = ldap_get_dn(ld->ldap_ld, entry)) == NULL) {
         syslog(LOG_ERR,
@@ -1108,7 +1148,11 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
     }
 
     group_name = simta_ldap_dn_name(ld, entry);
+    e_addr->e_addr_group_name = yasldup(group_name);
     yasltolower(group_name);
+    group_email = yaslcatprintf(
+            yasldup(group_name), "@%s", ld->ldap_associated_domain);
+    yaslmapchars(group_email, " ", ".", 1);
 
     e_addr->e_addr_owner = yaslcatprintf(
             yasldup(group_name), "-owner@%s", ld->ldap_associated_domain);
@@ -1184,7 +1228,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
                     buf, "%s@%s", group_name, ld->ldap_autoreply_host);
             yaslmapchars(buf, " ", ".", 1);
             if (add_address(exp, buf, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
-                        e_addr->e_addr_from) != 0) {
+                        e_addr->e_addr_from, true) != SIMTA_OK) {
                 syslog(LOG_ERR,
                         "Expand.LDAP env <%s>: <%s>: "
                         "failed adding autoreply address: %s",
@@ -1237,90 +1281,129 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
             }
         }
 
-        if ((moderator = ldap_get_values_len(
-                     ld->ldap_ld, entry, "moderator")) != NULL) {
-            if (exp->exp_env->e_n_exp_level < simta_exp_level_max) {
-                if ((e_addr->e_addr_env_moderated = env_create(simta_dir_fast,
-                             NULL, exp->exp_env->e_mail, exp->exp_env)) ==
-                        NULL) {
-                    goto error;
-                }
+        if ((permitted_env = simta_ldap_envelope_from_attr(ld, entry,
+                     exp->exp_env, exp->exp_env->e_mail,
+                     ucl_object_tostring(ucl_object_lookup_path(ld->ldap_rule,
+                             "attributes.permitted_senders")))) != NULL) {
+            e_addr->e_addr_requires_permission = true;
 
-                for (int i = 0; moderator[ i ]; i++) {
-                    yaslclear(buf);
-                    buf = yaslcatlen(buf, moderator[ i ]->bv_val,
-                            moderator[ i ]->bv_len);
-                    if (env_string_recipients(
-                                e_addr->e_addr_env_moderated, buf) != 0) {
-                        env_free(e_addr->e_addr_env_moderated);
-                        e_addr->e_addr_env_moderated = NULL;
-                        goto error;
-                    }
-                }
-
-                if ((r = e_addr->e_addr_env_moderated->e_rcpt) == NULL) {
-                    /* no valid email addresses */
-                    env_free(e_addr->e_addr_env_moderated);
-                    e_addr->e_addr_env_moderated = NULL;
-                    moderator_error = 1;
-                    bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
-                            "bad moderator: ", dn, NULL);
-                }
-
+            if ((r = permitted_env->e_rcpt) == NULL) {
+                /* no valid email addresses */
+                bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
+                        "bad permitted senders: ", dn, NULL);
+            } else {
                 for (; r != NULL; r = r->r_next) {
                     if (simta_mbx_compare(r->r_rcpt, exp->exp_env->e_mail) ==
                             0) {
-                        /* sender matches moderator in moderator env */
+                        /* sender matches permitted sender */
                         syslog(LOG_INFO,
-                                "Expand.LDAP env <%s>: <%s>: "
-                                "Moderator match %s %s",
+                                "Expand.LDAP env <%s>: <%s>: permitted sender "
+                                "match %s %s",
                                 exp->exp_env->e_id, e_addr->e_addr, r->r_rcpt,
                                 exp->exp_env->e_mail);
+                        e_addr->e_addr_has_permission = true;
                         break;
                     }
                 }
-
-                syslog(LOG_INFO,
-                        "Expand.LDAP env <%s>: <%s>: no moderator match",
-                        exp->exp_env->e_id, e_addr->e_addr);
-
-            } else {
-                bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
-                        "moderator mail loop: ", dn, NULL);
-                break;
             }
+
+            env_free(permitted_env);
+            permitted_env = NULL;
         }
 
-        if (r != NULL) {
-            /* sender matches moderator in moderator env */
-            env_free(e_addr->e_addr_env_moderated);
-            e_addr->e_addr_env_moderated = NULL;
-
-        } else if (simta_ldap_bool(ld, entry, "membersonly")) {
-            e_addr->e_addr_ldap_flags |= STATUS_LDAP_MEMONLY;
-
-            if (simta_ldap_bool(ld, entry, "rfc822private")) {
-                e_addr->e_addr_ldap_flags |= STATUS_LDAP_PRIVATE;
-            }
-
-            if (exp_addr_link(&(exp->exp_memonly), e_addr) != 0) {
-                goto error;
-            }
-
-            if ((permitted = ldap_get_values_len(
-                         ld->ldap_ld, entry, "permittedgroup")) != NULL) {
-                if (simta_ldap_permitted_create(e_addr, permitted) != 0) {
-                    goto error;
+        if ((permitted_domains = ldap_get_values_len(ld->ldap_ld, entry,
+                     ucl_object_tostring(ucl_object_lookup_path(ld->ldap_rule,
+                             "attributes.permitted_domains")))) != NULL) {
+            e_addr->e_addr_requires_permission = true;
+            for (int i = 0; permitted_domains[ i ]; i++) {
+                yaslclear(buf);
+                buf = yaslcatlen(buf, permitted_domains[ i ]->bv_val,
+                        permitted_domains[ i ]->bv_len);
+                if (simta_domain_check(exp->exp_env->e_mail, buf)) {
+                    syslog(LOG_INFO,
+                            "Expand.LDAP env <%s>: <%s>: permitted sender "
+                            "domain match %s %s",
+                            exp->exp_env->e_id, e_addr->e_addr, buf,
+                            exp->exp_env->e_mail);
+                    e_addr->e_addr_has_permission = true;
+                    break;
                 }
             }
         }
 
-        if (((e_addr->e_addr_env_moderated == NULL) &&
-                    (moderator_error == 0)) ||
-                (e_addr->e_addr_ldap_flags & STATUS_LDAP_MEMONLY)) {
-            dnvals = ldap_get_values_len(ld->ldap_ld, entry, "member");
-            mailvals = ldap_get_values_len(ld->ldap_ld, entry, "rfc822mail");
+        if (e_addr->e_addr_requires_permission &&
+                !e_addr->e_addr_has_permission) {
+            syslog(LOG_INFO,
+                    "Expand.LDAP env <%s>: <%s>: no permitted sender match",
+                    exp->exp_env->e_id, e_addr->e_addr);
         }
+
+        if (simta_ldap_bool(ld, entry, "membersonly")) {
+            e_addr->e_addr_requires_permission = true;
+            e_addr->e_addr_permit_members = true;
+        }
+
+        e_addr->e_addr_private = simta_ldap_bool(ld, entry, "rfc822private");
+
+        if (e_addr->e_addr_requires_permission &&
+                !e_addr->e_addr_has_permission) {
+            /* Store the permitted groups, if any. */
+            if ((permitted_groups = ldap_get_values_len(
+                         ld->ldap_ld, entry, "permittedgroup")) != NULL) {
+                if (simta_ldap_permitted_create(e_addr, permitted_groups) !=
+                        0) {
+                    goto error;
+                }
+            }
+
+            /* Store the moderators, if any. */
+            e_addr->e_addr_env_moderators = simta_ldap_envelope_from_attr(ld,
+                    entry, exp->exp_env, senderbuf,
+                    ucl_object_tostring(ucl_object_lookup_path(
+                            ld->ldap_rule, "attributes.moderators")));
+
+            if (e_addr->e_addr_env_moderators != NULL) {
+                if (e_addr->e_addr_env_moderators->e_rcpt == NULL) {
+                    /* no valid email addresses */
+                    bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
+                            "bad moderators: ", dn, NULL);
+                    env_free(e_addr->e_addr_env_moderators);
+                    e_addr->e_addr_env_moderators = NULL;
+                } else {
+                    if (ucl_object_toboolean(ucl_object_lookup_path(
+                                ld->ldap_rule, "permit_moderators"))) {
+                        /* Moderators are allowed to email the group. */
+                        for (r = e_addr->e_addr_env_moderators->e_rcpt;
+                                r != NULL; r = r->r_next) {
+                            if (simta_mbx_compare(
+                                        r->r_rcpt, exp->exp_env->e_mail) == 0) {
+                                /* sender matches moderator */
+                                syslog(LOG_INFO,
+                                        "Expand.LDAP env <%s>: <%s>: moderator "
+                                        "match %s %s",
+                                        exp->exp_env->e_id, e_addr->e_addr,
+                                        r->r_rcpt, exp->exp_env->e_mail);
+                                e_addr->e_addr_has_permission = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (e_addr->e_addr_env_moderators->e_header_from) {
+                        yaslfree(e_addr->e_addr_env_moderators->e_header_from);
+                    }
+                    e_addr->e_addr_env_moderators->e_header_from =
+                            yasldup(group_email);
+
+                    e_addr->e_addr_preface =
+                            simta_ucl_object_toyastr(ucl_object_lookup_path(
+                                    ld->ldap_rule, "moderation_preface"));
+                }
+            }
+        }
+
+        dnvals = ldap_get_values_len(ld->ldap_ld, entry, "member");
+        mailvals = ldap_get_values_len(ld->ldap_ld, entry, "rfc822mail");
 
         if (suppressnoemail) {
             e_addr->e_addr_errors->e_flags |= ENV_FLAG_SUPPRESS_NO_EMAIL;
@@ -1342,12 +1425,12 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
             */
             if ((type == LDS_GROUP_MEMBERS) || (type == LDS_USER)) {
                 rc = add_address(exp, ndn, e_addr->e_addr_errors,
-                        ADDRESS_TYPE_LDAP, senderbuf);
+                        ADDRESS_TYPE_LDAP, senderbuf, false);
             } else {
                 rc = add_address(exp, ndn, e_addr->e_addr_errors,
-                        ADDRESS_TYPE_LDAP, e_addr->e_addr_from);
+                        ADDRESS_TYPE_LDAP, e_addr->e_addr_from, false);
             }
-            if (rc != 0) {
+            if (rc != SIMTA_OK) {
                 syslog(LOG_ERR,
                         "Expand.LDAP env <%s>: <%s>: %s failed adding %s",
                         exp->exp_env->e_id, e_addr->e_addr, dn, buf);
@@ -1389,18 +1472,18 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
         bounce_text(e_addr->e_addr_errors, TEXT_ERROR, dn, errmsg, NULL);
     }
 
-
     retval = ADDRESS_EXCLUDE;
 
 error:
     yaslfree(group_name);
+    yaslfree(group_email);
     yaslfree(buf);
     yaslfree(senderbuf);
 
     ldap_value_free_len(dnvals);
     ldap_value_free_len(mailvals);
-    ldap_value_free_len(moderator);
-    ldap_value_free_len(permitted);
+    ldap_value_free_len(permitted_domains);
+    ldap_value_free_len(permitted_groups);
     ldap_value_free_len(senderlist);
     ldap_memfree(dn);
 
@@ -1535,7 +1618,8 @@ simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
                     buf = yaslnew(uid[ 0 ]->bv_val, uid[ 0 ]->bv_len);
                     buf = yaslcatprintf(buf, "@%s", ld->ldap_autoreply_host);
                     if (add_address(exp, buf, e_addr->e_addr_errors,
-                                ADDRESS_TYPE_EMAIL, e_addr->e_addr_from) != 0) {
+                                ADDRESS_TYPE_EMAIL, e_addr->e_addr_from,
+                                false) != SIMTA_OK) {
                         syslog(LOG_ERR,
                                 "Expand.LDAP env <%s>: <%s>:"
                                 "failed adding autoreply address: %s",
@@ -1887,8 +1971,8 @@ simta_mbx_compare(const char *addr1, const char *addr2) {
     rc = strcmp(addr1_copy, addr2_copy);
 
     if ((rc != 0) &&
-            (strncmp(addr1_copy, addr2_copy,
-                     (strrchr(addr1_copy, '@') - addr1_copy + 1)) == 0)) {
+            strncmp(addr1_copy, addr2_copy,
+                    (strrchr(addr1_copy, '@') - addr1_copy + 1)) == 0) {
         /* Local parts match, check for subdomain match */
         p1 = addr1_copy + yasllen(addr1_copy);
         p2 = addr2_copy + yasllen(addr2_copy);
@@ -1943,7 +2027,34 @@ simta_mbx_compare(const char *addr1, const char *addr2) {
     yaslfree(addr1_copy);
     yaslfree(addr2_copy);
 
-    return (rc);
+    return rc;
+}
+
+bool
+simta_domain_check(const char *addr, const char *domain) {
+    yastr addr_copy = NULL;
+    char *p;
+    bool  ret = false;
+
+    if (strrchr(addr, '@') == NULL) {
+        return false;
+    }
+
+    addr_copy = simta_addr_demangle(addr);
+    yaslrange(addr_copy, strrchr(addr_copy, '@') - addr_copy + 1, -1);
+    while (!ret && addr_copy) {
+        if (strcasecmp(domain, addr_copy) == 0) {
+            ret = true;
+        } else if ((p = strchr(addr_copy, '.')) != NULL) {
+            yaslrange(addr_copy, p - addr_copy + 1, -1);
+        } else {
+            yaslfree(addr_copy);
+            addr_copy = NULL;
+        }
+    }
+
+    yaslfree(addr_copy);
+    return ret;
 }
 
 struct simta_ldap *

@@ -277,28 +277,28 @@ header_string(struct line *l) {
  * %T and %z are defined in ISO C99; C89 compilers might
  * not support them.
  */
-int
-rfc822_timestamp(char *daytime) {
+yastr
+rfc5322_timestamp() {
     time_t     clock;
     struct tm *tm;
+    yastr      retval = NULL;
 
     if (time(&clock) < 0) {
-        syslog(LOG_ERR, "Syserror: rfc822_timestamp time: %m");
-        return (1);
+        syslog(LOG_ERR, "Syserror: rfc5322_timestamp time: %m");
+    } else if ((tm = localtime(&clock)) == NULL) {
+        syslog(LOG_ERR, "Syserror: rfc5322_timestamp localtime: %m");
+    } else {
+        /* timestamps are at most 31 characters long. */
+        retval = yaslMakeRoomFor(yaslempty(), 32);
+        if (strftime(retval, 32, "%a, %d %b %Y %T %z", tm) == 0) {
+            syslog(LOG_ERR, "Syserror: rfc5322_timestamp strftime: %m");
+            yaslfree(retval);
+            retval = NULL;
+        }
+        yaslupdatelen(retval);
     }
 
-    if ((tm = localtime(&clock)) == NULL) {
-        syslog(LOG_ERR, "Syserror: rfc822_timestamp localtime: %m");
-        return (1);
-    }
-
-    if (strftime(daytime, RFC822_TIMESTAMP_LEN, "%a, %d %b %Y %T %z", tm) ==
-            0) {
-        syslog(LOG_ERR, "Syserror: rfc822_timestamp strftime: %m");
-        return (1);
-    }
-
-    return (0);
+    return retval;
 }
 
 static yastr
@@ -536,7 +536,7 @@ header_check(struct receive_headers *rh, bool read_headers,
     yastr                 buf = NULL;
     yastr                 tmp;
     yastr *               split;
-    char                  daytime[ RFC822_TIMESTAMP_LEN ];
+    yastr                 daytime = NULL;
 
     /* RFC 5322 3.6 Field definitions
  *  Field           Min number      Max number      Notes
@@ -647,7 +647,7 @@ header_check(struct receive_headers *rh, bool read_headers,
         ret += header_singleton("Date", mh);
     } else if (correct_headers) {
         /* generate Date: header */
-        if (rfc822_timestamp(daytime) != 0) {
+        if ((daytime = rfc5322_timestamp()) == NULL) {
             ret = -1;
             goto error;
         }
@@ -656,6 +656,8 @@ header_check(struct receive_headers *rh, bool read_headers,
         }
         yaslclear(buf);
         buf = yaslcatprintf(buf, "Date: %s", daytime);
+        yaslfree(daytime);
+        daytime = NULL;
         line_prepend(rh->r_headers, buf, COPY);
     } else {
         syslog(LOG_INFO, "header_check: missing Date header");

@@ -118,4 +118,15 @@ simta_ucl_object_totimespec(const ucl_object_t *obj, struct timespec *ts) {
     ts->tv_nsec = (val - (time_t)val) * 1000000000;
 }
 
+yastr
+simta_ucl_object_toyastr(const ucl_object_t *obj) {
+    const char *buf;
+
+    if ((buf = ucl_object_tostring(obj)) == NULL) {
+        return NULL;
+    }
+
+    return yaslauto(buf);
+}
+
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

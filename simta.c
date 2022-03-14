@@ -738,4 +738,22 @@ simta_slurp(const char *path) {
     return (contents);
 }
 
+yastr
+simta_url_escape(const yastr src) {
+    char *c;
+    yastr retval;
+
+    /* Preallocate room for ~50% of the original string to need escaping. */
+    retval = yaslMakeRoomFor(yaslempty(), yasllen(src) * 2);
+
+    for (c = src; *c != '\0'; c++) {
+        if (isalnum(*c) || *c == '-' || *c == '.' || *c == '_' || *c == '~') {
+            retval = yaslcatlen(retval, c, 1);
+        } else {
+            retval = yaslcatprintf(retval, "%%%02X", *c);
+        }
+    }
+
+    return retval;
+}
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

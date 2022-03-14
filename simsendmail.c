@@ -57,7 +57,7 @@ main(int argc, char *argv[]) {
     SNET *                 snet_stdin;
     char *                 sender = NULL;
     char *                 addr;
-    char                   daytime[ RFC822_TIMESTAMP_LEN ];
+    yastr                  daytime = NULL;
     char *                 line = NULL;
     yastr                  buf;
     struct receive_headers rh;
@@ -256,7 +256,7 @@ main(int argc, char *argv[]) {
         goto error;
     }
 
-    rfc822_timestamp(daytime);
+    daytime = rfc5322_timestamp();
     buf = yaslempty();
     buf = yaslcatprintf(buf,
             "Received: from %s (UID %d)\n\tby %s (simsendmail) id %s;\n\t%s",

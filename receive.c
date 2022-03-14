@@ -1416,7 +1416,7 @@ f_data(struct receive_data *r) {
     struct timeval          tv_add = {0, 0};
     struct timeval          tv_filter = {0, 0};
     struct timeval          tv_now = {0, 0};
-    char                    daytime[ RFC822_TIMESTAMP_LEN ];
+    yastr                   daytime = NULL;
     struct receive_headers *rh = NULL;
     unsigned int            data_wrote = 0;
     unsigned int            data_read = 0;
@@ -1587,7 +1587,7 @@ f_data(struct receive_data *r) {
         }
 #endif /* HAVE_LIBOPENDKIM */
 
-        if (rfc822_timestamp(daytime) != 0) {
+        if ((daytime = rfc5322_timestamp()) == NULL) {
             goto error;
         }
 
@@ -2448,8 +2448,9 @@ error:
         free(filter_message);
     }
 
-
+    yaslfree(daytime);
     yaslfree(dkim_buf);
+
 #ifdef HAVE_LIBOPENARC
     yaslfree(arc_key);
     if (arc) {

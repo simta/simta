@@ -4,10 +4,11 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <yasl.h>
+
 #include "line_file.h"
 #include "ll.h"
 
-#define RFC822_TIMESTAMP_LEN 32
 #define STRING_SEEN_BEFORE "SIMTA-Seen-Before"
 
 /* for struct receive_headers->r_state */
@@ -48,7 +49,7 @@ int   header_check(struct receive_headers *, bool, bool, bool);
 int   header_file_out(struct line_file *, FILE *);
 bool  is_emailaddr(char *);
 int   correct_emailaddr(char **);
-int   rfc822_timestamp(char *);
+yastr rfc5322_timestamp();
 struct string_address *string_address_init(char *);
 void                   string_address_free(struct string_address *);
 char *                 string_address_parse(struct string_address *);

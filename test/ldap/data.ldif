@@ -389,3 +389,1493 @@ member: cn=moderated group,ou=Groups,dc=example,dc=com
 rfc822mail: testuser1@example.edu
 rfc822mail: testuser2@example.org
 rfc822mail: Test User <testuser3@example.edu>
+
+dn: cn=permitted domain,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+umichPermittedSendersDomains: example.edu
+
+dn: uid=perm-mod-pm-pd-psowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-ps owner
+sn: owner
+mail: perm-mod-pm-pd-psowner@example.com
+uid: perm-mod-pm-pd-psowner
+mailForwardingAddress: perm-mod-pm-pd-psowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pd-psmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-ps member0
+sn: member0
+mail: perm-mod-pm-pd-psmember0@example.com
+uid: perm-mod-pm-pd-psmember0
+mailForwardingAddress: perm-mod-pm-pd-psmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pd-psmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-ps member1
+sn: member1
+mail: perm-mod-pm-pd-psmember1@example.com
+uid: perm-mod-pm-pd-psmember1
+mailForwardingAddress: perm-mod-pm-pd-psmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm pd ps,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm mod pm pd ps pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-mod-pm-pd-psowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pd-psmember0,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pd-psmember1,ou=People,dc=example,dc=com
+umichReceiveDisallowedMessages: perm.moderator@example.com
+membersOnly: TRUE
+umichPermittedSendersDomains: example.com
+umichPermittedSenders: perm.ps@ldap.example.com
+umichPermittedSenders: perm.mod.pm.pd.ps@example.com
+umichReceiveDisallowedMessages: perm.mod.pm.pd.ps@example.com
+
+dn: uid=perm-mod-pm-pd-ps-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-ps-pgp owner
+sn: owner
+mail: perm-mod-pm-pd-ps-pgpowner@example.com
+uid: perm-mod-pm-pd-ps-pgpowner
+mailForwardingAddress: perm-mod-pm-pd-ps-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pd-ps-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-ps-pgp member
+sn: member
+mail: perm-mod-pm-pd-ps-pgpmember@example.com
+uid: perm-mod-pm-pd-ps-pgpmember
+mailForwardingAddress: perm-mod-pm-pd-ps-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm pd ps pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pm-pd-ps-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pd-ps-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pm pd ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pm-pd-ps-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-ps-pgnp owner
+sn: owner
+mail: perm-mod-pm-pd-ps-pgnpowner@example.com
+uid: perm-mod-pm-pd-ps-pgnpowner
+mailForwardingAddress: perm-mod-pm-pd-ps-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pd-ps-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-ps-pgnp member
+sn: member
+mail: perm-mod-pm-pd-ps-pgnpmember@example.com
+uid: perm-mod-pm-pd-ps-pgnpmember
+mailForwardingAddress: perm-mod-pm-pd-ps-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm pd ps pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pm-pd-ps-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pd-ps-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pm pd ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pm-pd-psowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-ps owner
+sn: owner
+mail: perm-pm-pd-psowner@example.com
+uid: perm-pm-pd-psowner
+mailForwardingAddress: perm-pm-pd-psowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pd-psmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-ps member0
+sn: member0
+mail: perm-pm-pd-psmember0@example.com
+uid: perm-pm-pd-psmember0
+mailForwardingAddress: perm-pm-pd-psmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pd-psmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-ps member1
+sn: member1
+mail: perm-pm-pd-psmember1@example.com
+uid: perm-pm-pd-psmember1
+mailForwardingAddress: perm-pm-pd-psmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm pd ps,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm pm pd ps pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-pm-pd-psowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-pd-psmember0,ou=People,dc=example,dc=com
+member: uid=perm-pm-pd-psmember1,ou=People,dc=example,dc=com
+membersOnly: TRUE
+umichPermittedSendersDomains: example.com
+umichPermittedSenders: perm.ps@ldap.example.com
+umichPermittedSenders: perm.pm.pd.ps@example.com
+
+dn: uid=perm-pm-pd-ps-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-ps-pgp owner
+sn: owner
+mail: perm-pm-pd-ps-pgpowner@example.com
+uid: perm-pm-pd-ps-pgpowner
+mailForwardingAddress: perm-pm-pd-ps-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pd-ps-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-ps-pgp member
+sn: member
+mail: perm-pm-pd-ps-pgpmember@example.com
+uid: perm-pm-pd-ps-pgpmember
+mailForwardingAddress: perm-pm-pd-ps-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm pd ps pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pm-pd-ps-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-pd-ps-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm pm pd ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pm-pd-ps-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-ps-pgnp owner
+sn: owner
+mail: perm-pm-pd-ps-pgnpowner@example.com
+uid: perm-pm-pd-ps-pgnpowner
+mailForwardingAddress: perm-pm-pd-ps-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pd-ps-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-ps-pgnp member
+sn: member
+mail: perm-pm-pd-ps-pgnpmember@example.com
+uid: perm-pm-pd-ps-pgnpmember
+mailForwardingAddress: perm-pm-pd-ps-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm pd ps pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pm-pd-ps-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-pd-ps-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm pm pd ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pm-psowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-ps owner
+sn: owner
+mail: perm-mod-pm-psowner@example.com
+uid: perm-mod-pm-psowner
+mailForwardingAddress: perm-mod-pm-psowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-psmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-ps member0
+sn: member0
+mail: perm-mod-pm-psmember0@example.com
+uid: perm-mod-pm-psmember0
+mailForwardingAddress: perm-mod-pm-psmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-psmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-ps member1
+sn: member1
+mail: perm-mod-pm-psmember1@example.com
+uid: perm-mod-pm-psmember1
+mailForwardingAddress: perm-mod-pm-psmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm ps,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm mod pm ps pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-mod-pm-psowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-psmember0,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-psmember1,ou=People,dc=example,dc=com
+umichReceiveDisallowedMessages: perm.moderator@example.com
+membersOnly: TRUE
+umichPermittedSenders: perm.ps@ldap.example.com
+umichPermittedSenders: perm.mod.pm.ps@example.com
+umichReceiveDisallowedMessages: perm.mod.pm.ps@example.com
+
+dn: uid=perm-mod-pm-ps-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-ps-pgp owner
+sn: owner
+mail: perm-mod-pm-ps-pgpowner@example.com
+uid: perm-mod-pm-ps-pgpowner
+mailForwardingAddress: perm-mod-pm-ps-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-ps-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-ps-pgp member
+sn: member
+mail: perm-mod-pm-ps-pgpmember@example.com
+uid: perm-mod-pm-ps-pgpmember
+mailForwardingAddress: perm-mod-pm-ps-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm ps pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pm-ps-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-ps-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pm ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pm-ps-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-ps-pgnp owner
+sn: owner
+mail: perm-mod-pm-ps-pgnpowner@example.com
+uid: perm-mod-pm-ps-pgnpowner
+mailForwardingAddress: perm-mod-pm-ps-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-ps-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-ps-pgnp member
+sn: member
+mail: perm-mod-pm-ps-pgnpmember@example.com
+uid: perm-mod-pm-ps-pgnpmember
+mailForwardingAddress: perm-mod-pm-ps-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm ps pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pm-ps-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-ps-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pm ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pm-psowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-ps owner
+sn: owner
+mail: perm-pm-psowner@example.com
+uid: perm-pm-psowner
+mailForwardingAddress: perm-pm-psowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-psmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-ps member0
+sn: member0
+mail: perm-pm-psmember0@example.com
+uid: perm-pm-psmember0
+mailForwardingAddress: perm-pm-psmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-psmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-ps member1
+sn: member1
+mail: perm-pm-psmember1@example.com
+uid: perm-pm-psmember1
+mailForwardingAddress: perm-pm-psmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm ps,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm pm ps pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-pm-psowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-psmember0,ou=People,dc=example,dc=com
+member: uid=perm-pm-psmember1,ou=People,dc=example,dc=com
+membersOnly: TRUE
+umichPermittedSenders: perm.ps@ldap.example.com
+umichPermittedSenders: perm.pm.ps@example.com
+
+dn: uid=perm-pm-ps-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-ps-pgp owner
+sn: owner
+mail: perm-pm-ps-pgpowner@example.com
+uid: perm-pm-ps-pgpowner
+mailForwardingAddress: perm-pm-ps-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-ps-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-ps-pgp member
+sn: member
+mail: perm-pm-ps-pgpmember@example.com
+uid: perm-pm-ps-pgpmember
+mailForwardingAddress: perm-pm-ps-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm ps pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pm-ps-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-ps-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm pm ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pm-ps-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-ps-pgnp owner
+sn: owner
+mail: perm-pm-ps-pgnpowner@example.com
+uid: perm-pm-ps-pgnpowner
+mailForwardingAddress: perm-pm-ps-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-ps-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-ps-pgnp member
+sn: member
+mail: perm-pm-ps-pgnpmember@example.com
+uid: perm-pm-ps-pgnpmember
+mailForwardingAddress: perm-pm-ps-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm ps pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pm-ps-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-ps-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm pm ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pm-pdowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd owner
+sn: owner
+mail: perm-mod-pm-pdowner@example.com
+uid: perm-mod-pm-pdowner
+mailForwardingAddress: perm-mod-pm-pdowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pdmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd member0
+sn: member0
+mail: perm-mod-pm-pdmember0@example.com
+uid: perm-mod-pm-pdmember0
+mailForwardingAddress: perm-mod-pm-pdmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pdmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd member1
+sn: member1
+mail: perm-mod-pm-pdmember1@example.com
+uid: perm-mod-pm-pdmember1
+mailForwardingAddress: perm-mod-pm-pdmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm pd,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm mod pm pd pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-mod-pm-pdowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pdmember0,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pdmember1,ou=People,dc=example,dc=com
+umichReceiveDisallowedMessages: perm.moderator@example.com
+membersOnly: TRUE
+umichPermittedSendersDomains: example.com
+
+dn: uid=perm-mod-pm-pd-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-pgp owner
+sn: owner
+mail: perm-mod-pm-pd-pgpowner@example.com
+uid: perm-mod-pm-pd-pgpowner
+mailForwardingAddress: perm-mod-pm-pd-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pd-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-pgp member
+sn: member
+mail: perm-mod-pm-pd-pgpmember@example.com
+uid: perm-mod-pm-pd-pgpmember
+mailForwardingAddress: perm-mod-pm-pd-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm pd pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pm-pd-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pd-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pm pd,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pm-pd-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-pgnp owner
+sn: owner
+mail: perm-mod-pm-pd-pgnpowner@example.com
+uid: perm-mod-pm-pd-pgnpowner
+mailForwardingAddress: perm-mod-pm-pd-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pd-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pd-pgnp member
+sn: member
+mail: perm-mod-pm-pd-pgnpmember@example.com
+uid: perm-mod-pm-pd-pgnpmember
+mailForwardingAddress: perm-mod-pm-pd-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm pd pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pm-pd-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pd-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pm pd,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pm-pdowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd owner
+sn: owner
+mail: perm-pm-pdowner@example.com
+uid: perm-pm-pdowner
+mailForwardingAddress: perm-pm-pdowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pdmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd member0
+sn: member0
+mail: perm-pm-pdmember0@example.com
+uid: perm-pm-pdmember0
+mailForwardingAddress: perm-pm-pdmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pdmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd member1
+sn: member1
+mail: perm-pm-pdmember1@example.com
+uid: perm-pm-pdmember1
+mailForwardingAddress: perm-pm-pdmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm pd,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm pm pd pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-pm-pdowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-pdmember0,ou=People,dc=example,dc=com
+member: uid=perm-pm-pdmember1,ou=People,dc=example,dc=com
+membersOnly: TRUE
+umichPermittedSendersDomains: example.com
+
+dn: uid=perm-pm-pd-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-pgp owner
+sn: owner
+mail: perm-pm-pd-pgpowner@example.com
+uid: perm-pm-pd-pgpowner
+mailForwardingAddress: perm-pm-pd-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pd-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-pgp member
+sn: member
+mail: perm-pm-pd-pgpmember@example.com
+uid: perm-pm-pd-pgpmember
+mailForwardingAddress: perm-pm-pd-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm pd pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pm-pd-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-pd-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm pm pd,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pm-pd-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-pgnp owner
+sn: owner
+mail: perm-pm-pd-pgnpowner@example.com
+uid: perm-pm-pd-pgnpowner
+mailForwardingAddress: perm-pm-pd-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pd-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pd-pgnp member
+sn: member
+mail: perm-pm-pd-pgnpmember@example.com
+uid: perm-pm-pd-pgnpmember
+mailForwardingAddress: perm-pm-pd-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm pd pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pm-pd-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-pd-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm pm pd,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pmowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm owner
+sn: owner
+mail: perm-mod-pmowner@example.com
+uid: perm-mod-pmowner
+mailForwardingAddress: perm-mod-pmowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pmmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm member0
+sn: member0
+mail: perm-mod-pmmember0@example.com
+uid: perm-mod-pmmember0
+mailForwardingAddress: perm-mod-pmmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pmmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm member1
+sn: member1
+mail: perm-mod-pmmember1@example.com
+uid: perm-mod-pmmember1
+mailForwardingAddress: perm-mod-pmmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm mod pm pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-mod-pmowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pmmember0,ou=People,dc=example,dc=com
+member: uid=perm-mod-pmmember1,ou=People,dc=example,dc=com
+umichReceiveDisallowedMessages: perm.moderator@example.com
+membersOnly: TRUE
+
+dn: uid=perm-mod-pm-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pgp owner
+sn: owner
+mail: perm-mod-pm-pgpowner@example.com
+uid: perm-mod-pm-pgpowner
+mailForwardingAddress: perm-mod-pm-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pgp member
+sn: member
+mail: perm-mod-pm-pgpmember@example.com
+uid: perm-mod-pm-pgpmember
+mailForwardingAddress: perm-mod-pm-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pm-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pm,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pm-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pgnp owner
+sn: owner
+mail: perm-mod-pm-pgnpowner@example.com
+uid: perm-mod-pm-pgnpowner
+mailForwardingAddress: perm-mod-pm-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pm-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pm-pgnp member
+sn: member
+mail: perm-mod-pm-pgnpmember@example.com
+uid: perm-mod-pm-pgnpmember
+mailForwardingAddress: perm-mod-pm-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pm pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pm-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pm-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pm,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pmowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm owner
+sn: owner
+mail: perm-pmowner@example.com
+uid: perm-pmowner
+mailForwardingAddress: perm-pmowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pmmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm member0
+sn: member0
+mail: perm-pmmember0@example.com
+uid: perm-pmmember0
+mailForwardingAddress: perm-pmmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pmmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm member1
+sn: member1
+mail: perm-pmmember1@example.com
+uid: perm-pmmember1
+mailForwardingAddress: perm-pmmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm pm pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-pmowner,ou=People,dc=example,dc=com
+member: uid=perm-pmmember0,ou=People,dc=example,dc=com
+member: uid=perm-pmmember1,ou=People,dc=example,dc=com
+membersOnly: TRUE
+
+dn: uid=perm-pm-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pgp owner
+sn: owner
+mail: perm-pm-pgpowner@example.com
+uid: perm-pm-pgpowner
+mailForwardingAddress: perm-pm-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pgp member
+sn: member
+mail: perm-pm-pgpmember@example.com
+uid: perm-pm-pgpmember
+mailForwardingAddress: perm-pm-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pm-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm pm,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pm-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pgnp owner
+sn: owner
+mail: perm-pm-pgnpowner@example.com
+uid: perm-pm-pgnpowner
+mailForwardingAddress: perm-pm-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pm-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pm-pgnp member
+sn: member
+mail: perm-pm-pgnpmember@example.com
+uid: perm-pm-pgnpmember
+mailForwardingAddress: perm-pm-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pm pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pm-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-pm-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm pm,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pd-psowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-ps owner
+sn: owner
+mail: perm-mod-pd-psowner@example.com
+uid: perm-mod-pd-psowner
+mailForwardingAddress: perm-mod-pd-psowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pd-psmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-ps member0
+sn: member0
+mail: perm-mod-pd-psmember0@example.com
+uid: perm-mod-pd-psmember0
+mailForwardingAddress: perm-mod-pd-psmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pd-psmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-ps member1
+sn: member1
+mail: perm-mod-pd-psmember1@example.com
+uid: perm-mod-pd-psmember1
+mailForwardingAddress: perm-mod-pd-psmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pd ps,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm mod pd ps pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-mod-pd-psowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pd-psmember0,ou=People,dc=example,dc=com
+member: uid=perm-mod-pd-psmember1,ou=People,dc=example,dc=com
+umichReceiveDisallowedMessages: perm.moderator@example.com
+umichPermittedSendersDomains: example.com
+umichPermittedSenders: perm.ps@ldap.example.com
+umichPermittedSenders: perm.mod.pd.ps@example.com
+umichReceiveDisallowedMessages: perm.mod.pd.ps@example.com
+
+dn: uid=perm-mod-pd-ps-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-ps-pgp owner
+sn: owner
+mail: perm-mod-pd-ps-pgpowner@example.com
+uid: perm-mod-pd-ps-pgpowner
+mailForwardingAddress: perm-mod-pd-ps-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pd-ps-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-ps-pgp member
+sn: member
+mail: perm-mod-pd-ps-pgpmember@example.com
+uid: perm-mod-pd-ps-pgpmember
+mailForwardingAddress: perm-mod-pd-ps-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pd ps pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pd-ps-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pd-ps-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pd ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pd-ps-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-ps-pgnp owner
+sn: owner
+mail: perm-mod-pd-ps-pgnpowner@example.com
+uid: perm-mod-pd-ps-pgnpowner
+mailForwardingAddress: perm-mod-pd-ps-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pd-ps-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-ps-pgnp member
+sn: member
+mail: perm-mod-pd-ps-pgnpmember@example.com
+uid: perm-mod-pd-ps-pgnpmember
+mailForwardingAddress: perm-mod-pd-ps-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pd ps pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pd-ps-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pd-ps-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pd ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pd-psowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-ps owner
+sn: owner
+mail: perm-pd-psowner@example.com
+uid: perm-pd-psowner
+mailForwardingAddress: perm-pd-psowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pd-psmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-ps member0
+sn: member0
+mail: perm-pd-psmember0@example.com
+uid: perm-pd-psmember0
+mailForwardingAddress: perm-pd-psmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pd-psmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-ps member1
+sn: member1
+mail: perm-pd-psmember1@example.com
+uid: perm-pd-psmember1
+mailForwardingAddress: perm-pd-psmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pd ps,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm pd ps pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-pd-psowner,ou=People,dc=example,dc=com
+member: uid=perm-pd-psmember0,ou=People,dc=example,dc=com
+member: uid=perm-pd-psmember1,ou=People,dc=example,dc=com
+umichPermittedSendersDomains: example.com
+umichPermittedSenders: perm.ps@ldap.example.com
+umichPermittedSenders: perm.pd.ps@example.com
+
+dn: uid=perm-pd-ps-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-ps-pgp owner
+sn: owner
+mail: perm-pd-ps-pgpowner@example.com
+uid: perm-pd-ps-pgpowner
+mailForwardingAddress: perm-pd-ps-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pd-ps-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-ps-pgp member
+sn: member
+mail: perm-pd-ps-pgpmember@example.com
+uid: perm-pd-ps-pgpmember
+mailForwardingAddress: perm-pd-ps-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pd ps pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pd-ps-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-pd-ps-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm pd ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pd-ps-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-ps-pgnp owner
+sn: owner
+mail: perm-pd-ps-pgnpowner@example.com
+uid: perm-pd-ps-pgnpowner
+mailForwardingAddress: perm-pd-ps-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pd-ps-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-ps-pgnp member
+sn: member
+mail: perm-pd-ps-pgnpmember@example.com
+uid: perm-pd-ps-pgnpmember
+mailForwardingAddress: perm-pd-ps-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pd ps pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pd-ps-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-pd-ps-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm pd ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-psowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-ps owner
+sn: owner
+mail: perm-mod-psowner@example.com
+uid: perm-mod-psowner
+mailForwardingAddress: perm-mod-psowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-psmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-ps member0
+sn: member0
+mail: perm-mod-psmember0@example.com
+uid: perm-mod-psmember0
+mailForwardingAddress: perm-mod-psmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-psmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-ps member1
+sn: member1
+mail: perm-mod-psmember1@example.com
+uid: perm-mod-psmember1
+mailForwardingAddress: perm-mod-psmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod ps,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm mod ps pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-mod-psowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-psmember0,ou=People,dc=example,dc=com
+member: uid=perm-mod-psmember1,ou=People,dc=example,dc=com
+umichReceiveDisallowedMessages: perm.moderator@example.com
+umichPermittedSenders: perm.ps@ldap.example.com
+umichPermittedSenders: perm.mod.ps@example.com
+umichReceiveDisallowedMessages: perm.mod.ps@example.com
+
+dn: uid=perm-mod-ps-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-ps-pgp owner
+sn: owner
+mail: perm-mod-ps-pgpowner@example.com
+uid: perm-mod-ps-pgpowner
+mailForwardingAddress: perm-mod-ps-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-ps-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-ps-pgp member
+sn: member
+mail: perm-mod-ps-pgpmember@example.com
+uid: perm-mod-ps-pgpmember
+mailForwardingAddress: perm-mod-ps-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod ps pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-ps-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-ps-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm mod ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-ps-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-ps-pgnp owner
+sn: owner
+mail: perm-mod-ps-pgnpowner@example.com
+uid: perm-mod-ps-pgnpowner
+mailForwardingAddress: perm-mod-ps-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-ps-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-ps-pgnp member
+sn: member
+mail: perm-mod-ps-pgnpmember@example.com
+uid: perm-mod-ps-pgnpmember
+mailForwardingAddress: perm-mod-ps-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod ps pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-ps-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-ps-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm mod ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-psowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-ps owner
+sn: owner
+mail: perm-psowner@example.com
+uid: perm-psowner
+mailForwardingAddress: perm-psowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-psmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-ps member0
+sn: member0
+mail: perm-psmember0@example.com
+uid: perm-psmember0
+mailForwardingAddress: perm-psmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-psmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-ps member1
+sn: member1
+mail: perm-psmember1@example.com
+uid: perm-psmember1
+mailForwardingAddress: perm-psmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm ps,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm ps pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-psowner,ou=People,dc=example,dc=com
+member: uid=perm-psmember0,ou=People,dc=example,dc=com
+member: uid=perm-psmember1,ou=People,dc=example,dc=com
+umichPermittedSenders: perm.ps@ldap.example.com
+umichPermittedSenders: perm.ps@example.com
+
+dn: uid=perm-ps-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-ps-pgp owner
+sn: owner
+mail: perm-ps-pgpowner@example.com
+uid: perm-ps-pgpowner
+mailForwardingAddress: perm-ps-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-ps-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-ps-pgp member
+sn: member
+mail: perm-ps-pgpmember@example.com
+uid: perm-ps-pgpmember
+mailForwardingAddress: perm-ps-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm ps pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-ps-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-ps-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-ps-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-ps-pgnp owner
+sn: owner
+mail: perm-ps-pgnpowner@example.com
+uid: perm-ps-pgnpowner
+mailForwardingAddress: perm-ps-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-ps-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-ps-pgnp member
+sn: member
+mail: perm-ps-pgnpmember@example.com
+uid: perm-ps-pgnpmember
+mailForwardingAddress: perm-ps-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm ps pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-ps-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-ps-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm ps,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pdowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd owner
+sn: owner
+mail: perm-mod-pdowner@example.com
+uid: perm-mod-pdowner
+mailForwardingAddress: perm-mod-pdowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pdmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd member0
+sn: member0
+mail: perm-mod-pdmember0@example.com
+uid: perm-mod-pdmember0
+mailForwardingAddress: perm-mod-pdmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pdmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd member1
+sn: member1
+mail: perm-mod-pdmember1@example.com
+uid: perm-mod-pdmember1
+mailForwardingAddress: perm-mod-pdmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pd,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm mod pd pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-mod-pdowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pdmember0,ou=People,dc=example,dc=com
+member: uid=perm-mod-pdmember1,ou=People,dc=example,dc=com
+umichReceiveDisallowedMessages: perm.moderator@example.com
+umichPermittedSendersDomains: example.com
+
+dn: uid=perm-mod-pd-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-pgp owner
+sn: owner
+mail: perm-mod-pd-pgpowner@example.com
+uid: perm-mod-pd-pgpowner
+mailForwardingAddress: perm-mod-pd-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pd-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-pgp member
+sn: member
+mail: perm-mod-pd-pgpmember@example.com
+uid: perm-mod-pd-pgpmember
+mailForwardingAddress: perm-mod-pd-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pd pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pd-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pd-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pd,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pd-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-pgnp owner
+sn: owner
+mail: perm-mod-pd-pgnpowner@example.com
+uid: perm-mod-pd-pgnpowner
+mailForwardingAddress: perm-mod-pd-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pd-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pd-pgnp member
+sn: member
+mail: perm-mod-pd-pgnpmember@example.com
+uid: perm-mod-pd-pgnpmember
+mailForwardingAddress: perm-mod-pd-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pd pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pd-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pd-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm mod pd,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pdowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd owner
+sn: owner
+mail: perm-pdowner@example.com
+uid: perm-pdowner
+mailForwardingAddress: perm-pdowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pdmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd member0
+sn: member0
+mail: perm-pdmember0@example.com
+uid: perm-pdmember0
+mailForwardingAddress: perm-pdmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pdmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd member1
+sn: member1
+mail: perm-pdmember1@example.com
+uid: perm-pdmember1
+mailForwardingAddress: perm-pdmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pd,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm pd pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-pdowner,ou=People,dc=example,dc=com
+member: uid=perm-pdmember0,ou=People,dc=example,dc=com
+member: uid=perm-pdmember1,ou=People,dc=example,dc=com
+umichPermittedSendersDomains: example.com
+
+dn: uid=perm-pd-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-pgp owner
+sn: owner
+mail: perm-pd-pgpowner@example.com
+uid: perm-pd-pgpowner
+mailForwardingAddress: perm-pd-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pd-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-pgp member
+sn: member
+mail: perm-pd-pgpmember@example.com
+uid: perm-pd-pgpmember
+mailForwardingAddress: perm-pd-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pd pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pd-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-pd-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm pd,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-pd-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-pgnp owner
+sn: owner
+mail: perm-pd-pgnpowner@example.com
+uid: perm-pd-pgnpowner
+mailForwardingAddress: perm-pd-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-pd-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-pd-pgnp member
+sn: member
+mail: perm-pd-pgnpmember@example.com
+uid: perm-pd-pgnpmember
+mailForwardingAddress: perm-pd-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm pd pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-pd-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-pd-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm pd,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-modowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod owner
+sn: owner
+mail: perm-modowner@example.com
+uid: perm-modowner
+mailForwardingAddress: perm-modowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-modmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod member0
+sn: member0
+mail: perm-modmember0@example.com
+uid: perm-modmember0
+mailForwardingAddress: perm-modmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-modmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod member1
+sn: member1
+mail: perm-modmember1@example.com
+uid: perm-modmember1
+mailForwardingAddress: perm-modmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+permittedGroup: cn=perm mod pgp,ou=Groups,dc=example,dc=com
+owner: uid=perm-modowner,ou=People,dc=example,dc=com
+member: uid=perm-modmember0,ou=People,dc=example,dc=com
+member: uid=perm-modmember1,ou=People,dc=example,dc=com
+umichReceiveDisallowedMessages: perm.moderator@example.com
+
+dn: uid=perm-mod-pgpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pgp owner
+sn: owner
+mail: perm-mod-pgpowner@example.com
+uid: perm-mod-pgpowner
+mailForwardingAddress: perm-mod-pgpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pgpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pgp member
+sn: member
+mail: perm-mod-pgpmember@example.com
+uid: perm-mod-pgpmember
+mailForwardingAddress: perm-mod-pgpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pgp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pgpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pgpmember,ou=People,dc=example,dc=com
+member: cn=perm mod,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-mod-pgnpowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pgnp owner
+sn: owner
+mail: perm-mod-pgnpowner@example.com
+uid: perm-mod-pgnpowner
+mailForwardingAddress: perm-mod-pgnpowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-pgnpmember,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-pgnp member
+sn: member
+mail: perm-mod-pgnpmember@example.com
+uid: perm-mod-pgnpmember
+mailForwardingAddress: perm-mod-pgnpmember@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod pgnp,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=perm-mod-pgnpowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-pgnpmember,ou=People,dc=example,dc=com
+member: cn=perm mod,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-dupe-memberowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-dupe-member owner
+sn: owner
+mail: perm-dupe-memberowner@example.com
+uid: perm-dupe-memberowner
+mailForwardingAddress: perm-dupe-memberowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-dupe-membermember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-dupe-member member0
+sn: member0
+mail: perm-dupe-membermember0@example.com
+uid: perm-dupe-membermember0
+mailForwardingAddress: perm-dupe-membermember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-dupe-membermember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-dupe-member member1
+sn: member1
+mail: perm-dupe-membermember1@example.com
+uid: perm-dupe-membermember1
+mailForwardingAddress: perm-dupe-membermember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm dupe member,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+membersOnly: TRUE
+owner: uid=perm-dupe-memberowner,ou=People,dc=example,dc=com
+member: uid=perm-dupe-membermember0,ou=People,dc=example,dc=com
+member: uid=perm-dupe-membermember1,ou=People,dc=example,dc=com
+
+dn: uid=perm-dupe-member-pgowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-dupe-member-pg owner
+sn: owner
+mail: perm-dupe-member-pgowner@example.com
+uid: perm-dupe-member-pgowner
+mailForwardingAddress: perm-dupe-member-pgowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-dupe-member-pgmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-dupe-member-pg member0
+sn: member0
+mail: perm-dupe-member-pgmember0@example.com
+uid: perm-dupe-member-pgmember0
+mailForwardingAddress: perm-dupe-member-pgmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-dupe-member-pgmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-dupe-member-pg member1
+sn: member1
+mail: perm-dupe-member-pgmember1@example.com
+uid: perm-dupe-member-pgmember1
+mailForwardingAddress: perm-dupe-member-pgmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm dupe member pg,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+membersOnly: TRUE
+owner: uid=perm-dupe-member-pgowner,ou=People,dc=example,dc=com
+member: uid=perm-dupe-member-pgmember0,ou=People,dc=example,dc=com
+member: uid=perm-dupe-member-pgmember1,ou=People,dc=example,dc=com
+member: uid=perm-dupe-membermember1,ou=People,dc=example,dc=com
+member: cn=perm dupe member,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-full-expansionowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-full-expansion owner
+sn: owner
+mail: perm-full-expansionowner@example.com
+uid: perm-full-expansionowner
+mailForwardingAddress: perm-full-expansionowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-full-expansionmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-full-expansion member0
+sn: member0
+mail: perm-full-expansionmember0@example.com
+uid: perm-full-expansionmember0
+mailForwardingAddress: perm-full-expansionmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-full-expansionmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-full-expansion member1
+sn: member1
+mail: perm-full-expansionmember1@example.com
+uid: perm-full-expansionmember1
+mailForwardingAddress: perm-full-expansionmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm full expansion,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+umichPermittedSenders: perm-full-expansionowner@example.com
+owner: uid=perm-full-expansionowner,ou=People,dc=example,dc=com
+member: uid=perm-full-expansionmember0,ou=People,dc=example,dc=com
+member: uid=perm-full-expansionmember1,ou=People,dc=example,dc=com
+
+dn: uid=perm-full-expansion-pgowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-full-expansion-pg owner
+sn: owner
+mail: perm-full-expansion-pgowner@example.com
+uid: perm-full-expansion-pgowner
+mailForwardingAddress: perm-full-expansion-pgowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-full-expansion-pgmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-full-expansion-pg member0
+sn: member0
+mail: perm-full-expansion-pgmember0@example.com
+uid: perm-full-expansion-pgmember0
+mailForwardingAddress: perm-full-expansion-pgmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-full-expansion-pgmember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-full-expansion-pg member1
+sn: member1
+mail: perm-full-expansion-pgmember1@example.com
+uid: perm-full-expansion-pgmember1
+mailForwardingAddress: perm-full-expansion-pgmember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm full expansion pg,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+membersOnly: TRUE
+owner: uid=perm-full-expansion-pgowner,ou=People,dc=example,dc=com
+member: uid=perm-full-expansion-pgmember0,ou=People,dc=example,dc=com
+member: uid=perm-full-expansion-pgmember1,ou=People,dc=example,dc=com
+member: cn=perm full expansion,ou=Groups,dc=example,dc=com
+
+dn: uid=perm-autoreplyowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-autoreply owner
+sn: owner
+mail: perm-autoreplyowner@example.com
+uid: perm-autoreplyowner
+mailForwardingAddress: perm-autoreplyowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-autoreplymember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-autoreply member0
+sn: member0
+mail: perm-autoreplymember0@example.com
+uid: perm-autoreplymember0
+mailForwardingAddress: perm-autoreplymember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-autoreplymember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-autoreply member1
+sn: member1
+mail: perm-autoreplymember1@example.com
+uid: perm-autoreplymember1
+mailForwardingAddress: perm-autoreplymember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm autoreply,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+umichPermittedSenders: perm-autoreplyowner@example.com
+umichAutoReplyStart: 20220101223344Z
+owner: uid=perm-autoreplyowner,ou=People,dc=example,dc=com
+member: uid=perm-autoreplymember0,ou=People,dc=example,dc=com
+member: uid=perm-autoreplymember1,ou=People,dc=example,dc=com
+
+dn: uid=perm-mod-autoreplyowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-autoreply owner
+sn: owner
+mail: perm-mod-autoreplyowner@example.com
+uid: perm-mod-autoreplyowner
+mailForwardingAddress: perm-mod-autoreplyowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-autoreplymember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-autoreply member0
+sn: member0
+mail: perm-mod-autoreplymember0@example.com
+uid: perm-mod-autoreplymember0
+mailForwardingAddress: perm-mod-autoreplymember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-mod-autoreplymember1,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-mod-autoreply member1
+sn: member1
+mail: perm-mod-autoreplymember1@example.com
+uid: perm-mod-autoreplymember1
+mailForwardingAddress: perm-mod-autoreplymember1@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm mod autoreply,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+umichPermittedSenders: perm-mod-autoreplyowner@example.com
+umichReceiveDisallowedMessages: perm-mod-autoreplyowner@example.com
+umichAutoReplyStart: 20220101223344Z
+owner: uid=perm-mod-autoreplyowner,ou=People,dc=example,dc=com
+member: uid=perm-mod-autoreplymember0,ou=People,dc=example,dc=com
+member: uid=perm-mod-autoreplymember1,ou=People,dc=example,dc=com

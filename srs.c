@@ -261,7 +261,7 @@ srs_expand(
 
     if ((rc = srs_reverse(e_addr->e_addr, &newaddr, secret)) == SRS_OK) {
         if (add_address(exp, newaddr, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
-                    e_addr->e_addr_from) != 0) {
+                    e_addr->e_addr_from, false) != SIMTA_OK) {
             free(newaddr);
             return ADDRESS_SYSERROR;
         }

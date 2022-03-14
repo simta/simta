@@ -187,13 +187,16 @@ definitions {
                             forwarding { type: string }
                             group_forwarding { type: string }
                             mail { type: string }
+                            moderators { type: string }
+                            permitted_domains { type: string }
+                            permitted_senders { type: string }
                             request { type: array, items: { type: string }}
                             vacation { type: string } # DEPRECATED
                             autoreply { type: string }
                             autoreply_start { type: string }
                             autoreply_end { type: string }
                         }
-                        required [ forwarding, mail ]
+                        required [ forwarding, mail, moderators, permitted_domains, permitted_senders ]
                     }
                     autoreply {
                         type: object
@@ -215,6 +218,7 @@ definitions {
                         required [ method ]
                     }
                     debug { type: boolean }
+                    moderation_preface: { type: string }
                     objectclasses {
                         type: object
                         properties {
@@ -223,6 +227,7 @@ definitions {
                         }
                         required [ group, person ]
                     }
+                    permit_moderators { type: boolean }
                     retries { type: integer }
                     search {
                         type: array
@@ -261,7 +266,7 @@ definitions {
                         additionalProperties: false
                     }
                 }
-                required [ attributes, bind ]
+                required [ attributes, bind, moderation_preface ]
                 additionalProperties: false
             }
             password {
@@ -657,6 +662,7 @@ properties {
         properties {
             aggressive { type: boolean }
         }
+        required [ aggressive ]
         additionalProperties: false
     }
 

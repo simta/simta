@@ -118,7 +118,7 @@ expand(struct envelope *unexpanded_env) {
     struct expand         exp;
     struct envelope *     base_error_env;
     struct envelope *     env_dead = NULL;
-    struct envelope *     env;
+    struct envelope *     env = NULL;
     struct envelope **    env_p;
     struct recipient *    rcpt;
     struct expand_output *host_stab = NULL;
@@ -127,7 +127,7 @@ expand(struct envelope *unexpanded_env) {
     struct exp_addr *     e_addr;
     struct exp_addr *     next_e_addr;
     const ucl_object_t *  hq_red;
-    char *                domain;
+    char *                domain = NULL;
     SNET *                snet = NULL;
     int                   n_rcpts;
     int                   return_value = 1;
@@ -143,9 +143,9 @@ expand(struct envelope *unexpanded_env) {
      */
     char header[ 270 ];
 #ifdef HAVE_LDAP
+    yastr            buf = NULL;
     char *           p;
     int              loop_color = 1;
-    struct exp_link *memonly;
     struct exp_link *parent;
 #endif /* HAVE_LDAP */
 
@@ -187,7 +187,7 @@ expand(struct envelope *unexpanded_env) {
     /* add all of the original recipients to the expansion list */
     for (rcpt = unexpanded_env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next) {
         if (add_address(&exp, rcpt->r_rcpt, base_error_env, ADDRESS_TYPE_EMAIL,
-                    exp.exp_env->e_mail) != 0) {
+                    exp.exp_env->e_mail, false) != SIMTA_OK) {
             /* add_address syslogs errors */
             goto cleanup1;
         }
@@ -215,40 +215,41 @@ expand(struct envelope *unexpanded_env) {
     }
 
 #ifdef HAVE_LDAP
-    /* Members-only processing */
-    for (memonly = exp.exp_memonly; memonly != NULL;
-            memonly = memonly->el_next) {
-        bool permitted = false;
-
-        if ((p = exp_addr_parent_permitted(memonly->el_exp_addr)) != NULL) {
-            permitted = true;
-
-            simta_debuglog(1,
-                    "Expand env <%s>: members-only group %s OK: "
-                    "parent %s permitted",
-                    unexpanded_env->e_id, memonly->el_exp_addr->e_addr, p);
-        } else if (sender_is_child(memonly->el_exp_addr->e_addr_children,
-                           loop_color++)) {
-            permitted = true;
-            simta_debuglog(1,
-                    "Expand env <%s>: members-only group %s OK: "
-                    "sender is child",
-                    unexpanded_env->e_id, memonly->el_exp_addr->e_addr);
+    for (e_addr = exp.exp_addr_head; e_addr != NULL;
+            e_addr = e_addr->e_addr_next) {
+        if (!e_addr->e_addr_requires_permission) {
+            continue;
         }
 
-        if (permitted) {
-            memonly->el_exp_addr->e_addr_ldap_flags &= (~STATUS_LDAP_MEMONLY);
-            if (memonly->el_exp_addr->e_addr_env_moderated != NULL) {
-                env_free(memonly->el_exp_addr->e_addr_env_moderated);
-                memonly->el_exp_addr->e_addr_env_moderated = NULL;
+        if (!e_addr->e_addr_has_permission) {
+            /* Check permissions that require full expansion information. */
+            if ((p = exp_addr_parent_permitted(e_addr)) != NULL) {
+                e_addr->e_addr_has_permission = true;
+                simta_debuglog(1,
+                        "Expand env <%s>: group %s OK: parent %s permitted",
+                        unexpanded_env->e_id, e_addr->e_addr, p);
+            } else if (e_addr->e_addr_permit_members &&
+                       sender_is_child(e_addr->e_addr_children, loop_color++)) {
+                e_addr->e_addr_has_permission = true;
+                simta_debuglog(1,
+                        "Expand env <%s>: members-only group %s OK: "
+                        "sender is child",
+                        unexpanded_env->e_id, e_addr->e_addr);
+            }
+        }
+
+        if (e_addr->e_addr_has_permission) {
+            if (e_addr->e_addr_env_moderators != NULL) {
+                env_free(e_addr->e_addr_env_moderators);
+                e_addr->e_addr_env_moderators = NULL;
             }
 
         } else {
-            syslog(LOG_INFO,
-                    "Expand env <%s>: members-only group %s suppressed",
-                    unexpanded_env->e_id, memonly->el_exp_addr->e_addr);
-            memonly->el_exp_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPPRESSOR;
-            suppress_addrs(memonly->el_exp_addr->e_addr_children, loop_color++);
+            syslog(LOG_INFO, "Expand env <%s>: unpermitted group %s suppressed",
+                    unexpanded_env->e_id, e_addr->e_addr);
+            /* FIXME: should this flag be more generic? */
+            e_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPPRESSOR;
+            suppress_addrs(e_addr->e_addr_children, loop_color++);
         }
     }
 #endif /* HAVE_LDAP */
@@ -328,53 +329,81 @@ expand(struct envelope *unexpanded_env) {
             continue;
         }
 
-        if (e_addr->e_addr_env_moderated != NULL) {
+        if (e_addr->e_addr_requires_permission &&
+                !e_addr->e_addr_has_permission &&
+                e_addr->e_addr_env_moderators != NULL) {
             if (simta_expand_debug != 0) {
                 printf("Moderated: %s\n", e_addr->e_addr);
-                env_stdout(e_addr->e_addr_env_moderated);
+                env_stdout(e_addr->e_addr_env_moderators);
                 continue;
             }
 
-            sprintf(d_out, "%s/D%s", e_addr->e_addr_env_moderated->e_dir,
-                    e_addr->e_addr_env_moderated->e_id);
-            if (env_dfile_copy(
-                        e_addr->e_addr_env_moderated, d_original, NULL) == 0) {
-                syslog(LOG_ERR, "Expand env <%s>: %s: env_dfile_copy failed",
+            sprintf(d_out, "%s/D%s", e_addr->e_addr_env_moderators->e_dir,
+                    e_addr->e_addr_env_moderators->e_id);
+
+            /* Format the prefatory material */
+            for (p = e_addr->e_addr_preface; *p != '\0'; p++) {
+                if (*p == '$') {
+                    switch (*(p + 1)) {
+                    case 'n':
+                        buf = simta_url_escape(e_addr->e_addr_group_name);
+                        break;
+                    case 'N':
+                        buf = yasldup(e_addr->e_addr_group_name);
+                        break;
+                    case 'O':
+                        buf = yasldup(e_addr->e_addr_owner);
+                        break;
+                    case 'S':
+                        buf = yasldup(
+                                e_addr->e_addr_env_moderators->e_mail_orig);
+                        break;
+                    case '$':
+                        buf = yaslauto("$");
+                        break;
+                    default:
+                        continue;
+                    }
+                    buf = yaslcat(buf, p + 2);
+                    yaslrange(e_addr->e_addr_preface, 0,
+                            p - e_addr->e_addr_preface - 1);
+                    e_addr->e_addr_preface =
+                            yaslcatyasl(e_addr->e_addr_preface, buf);
+                    /* Reset the pointer */
+                    p = e_addr->e_addr_preface +
+                        yasllen(e_addr->e_addr_preface) - yasllen(buf);
+                    yaslfree(buf);
+                    buf = NULL;
+                }
+            }
+
+            if (env_dfile_wrap(e_addr->e_addr_env_moderators, d_original,
+                        e_addr->e_addr_preface) == 0) {
+                syslog(LOG_ERR, "Expand env <%s>: %s: env_dfile_wrap failed",
                         unexpanded_env->e_id,
-                        e_addr->e_addr_env_moderated->e_id);
+                        e_addr->e_addr_env_moderators->e_id);
                 goto cleanup3;
             }
 
             simta_debuglog(2, "Expand env <%s>: %s: moderation env dinode %d",
-                    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
-                    (int)e_addr->e_addr_env_moderated->e_dinode);
-
-            sendermatch = !strcasecmp(unexpanded_env->e_mail,
-                    e_addr->e_addr_env_moderated->e_mail);
+                    unexpanded_env->e_id, e_addr->e_addr_env_moderators->e_id,
+                    (int)e_addr->e_addr_env_moderators->e_dinode);
 
             n_rcpts = 0;
-            for (rcpt = e_addr->e_addr_env_moderated->e_rcpt; rcpt != NULL;
+            for (rcpt = e_addr->e_addr_env_moderators->e_rcpt; rcpt != NULL;
                     rcpt = rcpt->r_next) {
                 n_rcpts++;
-                if (sendermatch) {
-                    syslog(LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s>",
-                            unexpanded_env->e_id,
-                            e_addr->e_addr_env_moderated->e_id, rcpt->r_rcpt,
-                            e_addr->e_addr_env_moderated->e_mail);
-                } else {
-                    syslog(LOG_INFO,
-                            "Expand env <%s>: %s: To <%s> From <%s> (%s)",
-                            unexpanded_env->e_id,
-                            e_addr->e_addr_env_moderated->e_id, rcpt->r_rcpt,
-                            e_addr->e_addr_env_moderated->e_mail,
-                            unexpanded_env->e_mail);
-                }
+                syslog(LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s> (%s)",
+                        unexpanded_env->e_id,
+                        e_addr->e_addr_env_moderators->e_id, rcpt->r_rcpt,
+                        e_addr->e_addr_env_moderators->e_mail,
+                        unexpanded_env->e_mail);
             }
             syslog(LOG_INFO, "Expand env <%s>: %s: Expanded %d moderators",
-                    unexpanded_env->e_id, e_addr->e_addr_env_moderated->e_id,
+                    unexpanded_env->e_id, e_addr->e_addr_env_moderators->e_id,
                     n_rcpts);
 
-            if (env_outfile(e_addr->e_addr_env_moderated) != SIMTA_OK) {
+            if (env_outfile(e_addr->e_addr_env_moderators) != SIMTA_OK) {
                 /* env_outfile syslogs errors */
                 if (unlink(d_out) != 0) {
                     syslog(LOG_ERR, "expand unlink %s: %m", d_out);
@@ -382,7 +411,7 @@ expand(struct envelope *unexpanded_env) {
                 goto cleanup3;
             }
             env_out++;
-            queue_envelope(e_addr->e_addr_env_moderated);
+            queue_envelope(e_addr->e_addr_env_moderators);
             continue;
 
         } else if (e_addr->e_addr_ldap_flags & STATUS_LDAP_SUPPRESSOR) {
@@ -390,7 +419,7 @@ expand(struct envelope *unexpanded_env) {
                     parent = parent->el_next) {
                 if (parent->el_exp_addr == NULL) {
                     if (bounce_text(base_error_env, TEXT_ERROR,
-                                "Members only group conditions not met: ",
+                                "Group permission conditions not met: ",
                                 e_addr->e_addr, NULL) != 0) {
                         goto cleanup3;
                     }
@@ -402,11 +431,10 @@ expand(struct envelope *unexpanded_env) {
                         goto cleanup3;
                     }
 
-                } else if ((e_addr->e_addr_ldap_flags & STATUS_LDAP_PRIVATE) ==
-                           0) {
+                } else if (!e_addr->e_addr_private) {
                     if (bounce_text(parent->el_exp_addr->e_addr_errors,
                                 TEXT_ERROR,
-                                "Members only group conditions not met: ",
+                                "Group permission conditions not met: ",
                                 e_addr->e_addr, NULL) != 0) {
                         goto cleanup3;
                     }
@@ -751,14 +779,17 @@ cleanup4:
 
 cleanup3:
 #ifdef HAVE_LDAP
-    for (memonly = exp.exp_memonly; memonly != NULL;
-            memonly = memonly->el_next) {
-        if ((memonly->el_exp_addr->e_addr_env_moderated != NULL) &&
-                ((memonly->el_exp_addr->e_addr_env_moderated->e_flags &
-                         ENV_FLAG_EFILE) != 0)) {
-            env_unlink(memonly->el_exp_addr->e_addr_env_moderated);
-            env_free(memonly->el_exp_addr->e_addr_env_moderated);
-            memonly->el_exp_addr->e_addr_env_moderated = NULL;
+    /* FIXME: this feels weirdly duplicative, but is probably necessary for the
+     * fast file check.
+     */
+    for (e_addr = exp.exp_addr_head; e_addr != NULL;
+            e_addr = e_addr->e_addr_next) {
+        if ((e_addr->e_addr_env_moderators != NULL) &&
+                ((e_addr->e_addr_env_moderators->e_flags & ENV_FLAG_EFILE) !=
+                        0)) {
+            env_unlink(e_addr->e_addr_env_moderators);
+            env_free(e_addr->e_addr_env_moderators);
+            e_addr->e_addr_env_moderators = NULL;
         }
     }
 #endif /* HAVE_LDAP */
@@ -779,10 +810,6 @@ cleanup2:
     }
 
 cleanup1:
-#ifdef HAVE_LDAP
-    exp_addr_link_free(exp.exp_memonly);
-#endif /* HAVE_LDAP */
-
     /* free the expansion list */
     for (e_addr = exp.exp_addr_head; e_addr != NULL; e_addr = next_e_addr) {
         next_e_addr = e_addr->e_addr_next;
@@ -791,15 +818,15 @@ cleanup1:
         exp_addr_link_free(e_addr->e_addr_parents);
         exp_addr_link_free(e_addr->e_addr_children);
         exp_addr_permitted_destroy(e_addr);
-        if ((e_addr->e_addr_env_moderated != NULL) &&
-                ((e_addr->e_addr_env_moderated->e_flags & ENV_FLAG_EFILE) ==
+        if ((e_addr->e_addr_env_moderators != NULL) &&
+                ((e_addr->e_addr_env_moderators->e_flags & ENV_FLAG_EFILE) ==
                         0)) {
-            env_free(e_addr->e_addr_env_moderated);
+            env_free(e_addr->e_addr_env_moderators);
         }
 
-        if (e_addr->e_addr_owner) {
-            yaslfree(e_addr->e_addr_owner);
-        }
+        yaslfree(e_addr->e_addr_owner);
+        yaslfree(e_addr->e_addr_group_name);
+        yaslfree(e_addr->e_addr_preface);
 
         if (e_addr->e_addr_dn) {
             free(e_addr->e_addr_dn);
@@ -827,8 +854,6 @@ suppress_addrs(struct exp_link *list, int color) {
     struct exp_link *el;
 
     for (el = list; el != NULL; el = el->el_next) {
-        assert((el->el_exp_addr->e_addr_ldap_flags & STATUS_EMAIL_SENDER) == 0);
-
         if (el->el_exp_addr->e_addr_anti_loop == color) {
             continue;
         }
@@ -847,7 +872,7 @@ suppress_addrs(struct exp_link *list, int color) {
 }
 
 
-int
+bool
 sender_is_child(struct exp_link *el, int color) {
     struct exp_addr *e;
 
@@ -860,7 +885,7 @@ sender_is_child(struct exp_link *el, int color) {
         e->e_addr_anti_loop = color;
 
         if ((e->e_addr_ldap_flags & STATUS_EMAIL_SENDER) != 0) {
-            return (1);
+            return true;
         }
 
         if ((e->e_addr_ldap_flags & STATUS_NO_EMAIL_SENDER) != 0) {
@@ -869,47 +894,47 @@ sender_is_child(struct exp_link *el, int color) {
 
         if (sender_is_child(e->e_addr_children, color)) {
             e->e_addr_ldap_flags |= STATUS_EMAIL_SENDER;
-            return (1);
+            return true;
         }
 
         e->e_addr_ldap_flags |= STATUS_NO_EMAIL_SENDER;
     }
 
-    return (0);
+    return false;
 }
 
 
-int
+bool
 unblocked_path_to_root(struct exp_addr *e, int color) {
     struct exp_link *el;
 
     if (e->e_addr_anti_loop == color) {
-        return (0);
+        return false;
     }
     e->e_addr_anti_loop = color;
 
-    if ((e->e_addr_ldap_flags & STATUS_LDAP_MEMONLY) != 0) {
-        return (0);
+    if (e->e_addr_requires_permission && !e->e_addr_has_permission) {
+        return false;
     }
 
     if ((e->e_addr_ldap_flags & STATUS_NO_ROOT_PATH) != 0) {
-        return (0);
+        return false;
     }
 
     if ((e->e_addr_ldap_flags & STATUS_ROOT_PATH) != 0) {
-        return (1);
+        return true;
     }
 
     for (el = e->e_addr_parents; el != NULL; el = el->el_next) {
         if ((el->el_exp_addr == NULL) ||
                 (unblocked_path_to_root(el->el_exp_addr, color))) {
             e->e_addr_ldap_flags |= STATUS_ROOT_PATH;
-            return (1);
+            return true;
         }
     }
 
     e->e_addr_ldap_flags |= STATUS_NO_ROOT_PATH;
-    return (0);
+    return false;
 }
 
 

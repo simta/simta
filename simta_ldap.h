@@ -25,6 +25,7 @@
 #define SUPPRESSNOEMAILERROR (1 << 0)
 
 /* Public functions */
+bool               simta_domain_check(const char *, const char *);
 struct simta_ldap *simta_ldap_config(const ucl_object_t *);
 void               simta_ldap_reset(void);
 int simta_ldap_expand(const ucl_object_t *, struct expand *, struct exp_addr *);

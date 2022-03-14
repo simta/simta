@@ -77,8 +77,10 @@ bounce_text(struct envelope *bounce_env, int mode, const char *t1,
 
 void
 bounce_stdout(struct envelope *bounce_env) {
-    struct line *     l;
-    struct recipient *r;
+    struct line * l;
+    yastr         buf = NULL;
+    ucl_object_t *repr;
+    ucl_object_t *b_obj;
 
     if ((bounce_env->e_err_text == NULL) ||
             ((l = bounce_env->e_err_text->l_first) == NULL) ||
@@ -86,25 +88,23 @@ bounce_stdout(struct envelope *bounce_env) {
         return;
     }
 
-    printf("\n***   Bounce Message %s  ***\n", bounce_env->e_id);
-    env_stdout(bounce_env);
-    printf("Message Text:\n");
+    repr = env_repr(bounce_env);
 
-    /* dfile message headers */
-    printf("From: <mailer-daemon@%s>\n", simta_hostname);
-    for (r = bounce_env->e_rcpt; r != NULL; r = r->r_next) {
-        if (*r->r_rcpt == '\0') {
-            printf("To: <%s>\n", simta_postmaster);
-        } else {
-            printf("To: <%s>\n", r->r_rcpt);
-        }
-    }
-    printf("\n");
+    buf = yaslauto("mailer-daemon@");
+    buf = yaslcatyasl(buf, simta_hostname);
+    ucl_object_replace_key(
+            repr, simta_ucl_object_fromyastr(buf), "header_from", 0, false);
+    yaslfree(buf);
+    buf = NULL;
 
+    b_obj = ucl_object_typed_new(UCL_ARRAY);
+    ucl_object_insert_key(repr, b_obj, "bounce_lines", 0, false);
     while (l != NULL) {
-        printf("%s\n", l->line_data);
+        ucl_array_append(b_obj, simta_ucl_object_fromstring(l->line_data));
         l = l->line_next;
     }
+
+    printf("%s\n", ucl_object_emit(repr, UCL_EMIT_JSON));
 }
 
 
@@ -117,7 +117,7 @@ bounce_dfile_out(struct envelope *bounce_env, SNET *message) {
     FILE *            dfile;
     struct line *     l;
     char *            line;
-    char              daytime[ RFC822_TIMESTAMP_LEN ];
+    yastr             daytime = NULL;
     struct stat       sbuf;
     struct recipient *r;
 
@@ -154,7 +154,7 @@ bounce_dfile_out(struct envelope *bounce_env, SNET *message) {
         }
     }
 
-    if (rfc822_timestamp(daytime) != 0) {
+    if ((daytime = rfc5322_timestamp()) == NULL) {
         goto cleanup;
     }
 
@@ -205,6 +205,8 @@ cleanup:
     }
 
 error:
+    yaslfree(daytime);
+
     if (ret != 0) {
         return (bounce_env->e_dinode);
     }

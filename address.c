@@ -101,7 +101,7 @@ address_string_recipients(
 
                 if (is_emailaddr(email_start)) {
                     if (add_address(exp, email_start, e_addr->e_addr_errors,
-                                ADDRESS_TYPE_EMAIL, from) != 0) {
+                                ADDRESS_TYPE_EMAIL, from, false) != SIMTA_OK) {
                         *end = swap;
                         return (1);
                     }
@@ -157,7 +157,7 @@ address_string_recipients(
 
         if (is_emailaddr(email_start)) {
             if (add_address(exp, email_start, e_addr->e_addr_errors,
-                        ADDRESS_TYPE_EMAIL, from) != 0) {
+                        ADDRESS_TYPE_EMAIL, from, false) != SIMTA_OK) {
                 *end = '>';
                 return (1);
             }
@@ -182,11 +182,14 @@ address_string_recipients(
 }
 
 
-int
+simta_result
 add_address(struct expand *exp, char *addr, struct envelope *error_env,
-        int addr_type, char *from) {
+        int addr_type, char *from, bool force_root) {
     struct exp_addr *e;
     char *           at;
+#ifdef HAVE_LDAP
+    struct exp_addr *cursor = NULL;
+#endif /* HAVE_LDAP */
 
     for (e = exp->exp_addr_head; e != NULL; e = e->e_addr_next) {
         if (strcasecmp(addr, e->e_addr) == 0) {
@@ -199,7 +202,9 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
 
         e->e_addr_errors = error_env;
         e->e_addr_type = addr_type;
-        e->e_addr_parent_rule = exp->exp_current_rule;
+        if (!force_root) {
+            e->e_addr_parent_rule = exp->exp_current_rule;
+        }
         exp->exp_entries++;
 
         if ((addr[ 0 ] == '\0') || (strcasecmp(addr, "postmaster") == 0)) {
@@ -267,30 +272,34 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
     }
 
 #ifdef HAVE_LDAP
-    /* add links */
-    if (exp_addr_link(&(e->e_addr_parents), exp->exp_addr_cursor) != 0) {
-        return (1);
+    if (!force_root) {
+        cursor = exp->exp_addr_cursor;
     }
 
-    if (exp->exp_addr_cursor != NULL) {
-        e->e_addr_max_level = exp->exp_addr_cursor->e_addr_max_level + 1;
+    /* add links */
+    if (exp_addr_link(&(e->e_addr_parents), cursor) != 0) {
+        return SIMTA_ERR;
+    }
+
+    if (cursor != NULL) {
+        e->e_addr_max_level = cursor->e_addr_max_level + 1;
         if (exp->exp_max_level < e->e_addr_max_level) {
             exp->exp_max_level = e->e_addr_max_level;
         }
 
-        if (exp_addr_link(&(exp->exp_addr_cursor->e_addr_children), e) != 0) {
-            return (1);
+        if (exp_addr_link(&(cursor->e_addr_children), e) != 0) {
+            return SIMTA_ERR;
         }
     }
 #endif /* HAVE_LDAP */
 
-    return (0);
+    return SIMTA_OK;
 
 error:
     free(e->e_addr);
     free(e->e_addr_from);
     free(e);
-    return (1);
+    return SIMTA_ERR;
 }
 
 
@@ -418,7 +427,8 @@ address_expand(struct expand *exp) {
         if (strcasecmp(e_addr->e_addr, simta_postmaster) != 0) {
             /* Redirect to local postmaster */
             if (add_address(exp, simta_postmaster, e_addr->e_addr_errors,
-                        ADDRESS_TYPE_EMAIL, e_addr->e_addr_from) != 0) {
+                        ADDRESS_TYPE_EMAIL, e_addr->e_addr_from,
+                        false) != SIMTA_OK) {
                 return ADDRESS_SYSERROR;
             }
             return ADDRESS_EXCLUDE;
@@ -770,7 +780,8 @@ alias_expand(
 
         case 1:
             if (add_address(exp, alias_addr, e_addr->e_addr_errors,
-                        ADDRESS_TYPE_EMAIL, e_addr->e_addr_from) != 0) {
+                        ADDRESS_TYPE_EMAIL, e_addr->e_addr_from,
+                        false) != SIMTA_OK) {
                 /* add_address syslogs errors */
                 ret = ADDRESS_SYSERROR;
                 goto done;

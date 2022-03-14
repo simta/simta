@@ -1,4 +1,8 @@
-2.0.5 (????-??-??)
+2.1.0 (????-??-??)
+    - added support for separation of moderators and permitted senders
+    - added permitted domains for groups
+    - added message wrapping for moderated messages
+    - unified permission logic into a single flow to smoothe out inconsistencies
     - disabled sender checking in global_relay mode
     - added more statsd metrics
     - fixed old message check

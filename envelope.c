@@ -81,8 +81,6 @@ env_create(const char *dir, const char *id, const char *e_mail,
     struct envelope *env;
     struct timespec  ts_now;
     int              pid;
-    /* way bigger than we should ever need */
-    char buf[ 1024 ];
 
     env = simta_calloc(1, sizeof(struct envelope));
 
@@ -98,13 +96,13 @@ env_create(const char *dir, const char *id, const char *e_mail,
             return (NULL);
         }
 
-        snprintf(buf, 1023, "%lX.%lX.%lX.%d", (unsigned long)ts_now.tv_sec,
-                (unsigned long)ts_now.tv_nsec, (unsigned long)random(), pid);
-
-        id = buf;
+        env->e_id = yaslcatprintf(yaslempty(), "%lX.%lX.%lX.%d",
+                (unsigned long)ts_now.tv_sec, (unsigned long)ts_now.tv_nsec,
+                (unsigned long)random(), pid);
+    } else {
+        env->e_id = yaslauto(id);
     }
 
-    env->e_id = yaslauto(id);
     env->e_bounceable = true;
     env->e_puntable = true;
 
@@ -119,7 +117,18 @@ env_create(const char *dir, const char *id, const char *e_mail,
         env->e_archive_only = parent->e_archive_only;
         env->e_bounceable = parent->e_bounceable;
         env->e_jailed = parent->e_jailed;
+        if (parent->e_mid) {
+            env->e_mid = yasldup(parent->e_mid);
+        }
         env->e_puntable = parent->e_puntable;
+        if (parent->e_subject) {
+            env->e_subject = yasldup(parent->e_subject);
+        }
+        if (parent->e_mail_orig) {
+            env->e_mail_orig = yasldup(parent->e_mail_orig);
+        } else if (parent->e_mail) {
+            env->e_mail_orig = yasldup(parent->e_mail);
+        }
     } else if (strcasecmp(simta_config_str("receive.queue.strategy"), "jail") ==
                0) {
         env->e_jailed = true;
@@ -127,7 +136,7 @@ env_create(const char *dir, const char *id, const char *e_mail,
 
     env->e_dir = dir;
 
-    return (env);
+    return env;
 }
 
 
@@ -296,6 +305,14 @@ env_repr(struct envelope *e) {
             repr, ucl_object_frombool(e->e_bounceable), "bounceable", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_frombool(e->e_puntable), "puntable", 0, false);
+    ucl_object_insert_key(repr, simta_ucl_object_fromyastr(e->e_mail_orig),
+            "original_sender", 0, false);
+    ucl_object_insert_key(repr, simta_ucl_object_fromyastr(e->e_header_from),
+            "header_from", 0, false);
+    ucl_object_insert_key(repr, simta_ucl_object_fromyastr(e->e_subject),
+            "subject", 0, false);
+    ucl_object_insert_key(
+            repr, simta_ucl_object_fromyastr(e->e_mid), "message_id", 0, false);
 
     rcpts = ucl_object_typed_new(UCL_ARRAY);
     ucl_object_insert_key(repr, rcpts, "recipients", 0, false);
@@ -823,20 +840,29 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
             syslog(LOG_WARNING, "Envelope.read %s: body_inode is 0", filename);
         }
 
-        env->e_n_exp_level = ucl_object_toint(
-                ucl_object_lookup(env_data, "expansion_level"));
-        env->e_jailed =
-                ucl_object_toboolean(ucl_object_lookup(env_data, "jailed"));
-        env->e_bounceable =
-                ucl_object_toboolean(ucl_object_lookup(env_data, "bounceable"));
-        env->e_puntable =
-                ucl_object_toboolean(ucl_object_lookup(env_data, "puntable"));
-        env_hostname(env,
-                ucl_object_tostring(ucl_object_lookup(env_data, "hostname")));
         env->e_8bitmime =
                 ucl_object_toboolean(ucl_object_lookup(env_data, "8bitmime"));
         env->e_archive_only = ucl_object_toboolean(
                 ucl_object_lookup(env_data, "archive_only"));
+        env->e_bounceable =
+                ucl_object_toboolean(ucl_object_lookup(env_data, "bounceable"));
+        env->e_header_from = simta_ucl_object_toyastr(
+                ucl_object_lookup(env_data, "header_from"));
+        env->e_jailed =
+                ucl_object_toboolean(ucl_object_lookup(env_data, "jailed"));
+        env->e_mail_orig = simta_ucl_object_toyastr(
+                ucl_object_lookup(env_data, "original_sender"));
+        env->e_mid = simta_ucl_object_toyastr(
+                ucl_object_lookup(env_data, "message_id"));
+        env->e_n_exp_level = ucl_object_toint(
+                ucl_object_lookup(env_data, "expansion_level"));
+        env->e_puntable =
+                ucl_object_toboolean(ucl_object_lookup(env_data, "puntable"));
+        env->e_subject = simta_ucl_object_toyastr(
+                ucl_object_lookup(env_data, "subject"));
+
+        env_hostname(env,
+                ucl_object_tostring(ucl_object_lookup(env_data, "hostname")));
         env_sender(env,
                 ucl_object_tostring(ucl_object_lookup(env_data, "sender")));
     } else {
@@ -1006,7 +1032,7 @@ env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
 }
 
 ino_t
-env_dfile_copy(struct envelope *env, char *source, char *header) {
+env_dfile_copy(struct envelope *env, const char *source, const char *header) {
     int         dfile_fd = -1;
     ino_t       retval = 0;
     FILE *      dfile = NULL;
@@ -1025,7 +1051,7 @@ env_dfile_copy(struct envelope *env, char *source, char *header) {
     if (source == NULL) {
         if (!(env->e_flags & ENV_FLAG_DFILE)) {
             syslog(LOG_ERR, "env_dfile_copy: no source");
-            return (0);
+            return 0;
         }
 
         sprintf(df, "%s/D%s", env->e_dir, env->e_id);
@@ -1041,7 +1067,7 @@ env_dfile_copy(struct envelope *env, char *source, char *header) {
 
     if (snet == NULL) {
         syslog(LOG_ERR, "Liberror: env_dfile_copy snet_open: %m");
-        return (0);
+        return 0;
     }
 
     if ((dfile_fd = env_dfile_open(env)) < 0) {
@@ -1089,7 +1115,132 @@ error:
         env_dfile_unlink(env);
     }
 
-    return (retval);
+    return retval;
+}
+
+ino_t
+env_dfile_wrap(struct envelope *env, const char *source, const char *preface) {
+    int         dfile_fd = -1;
+    ino_t       retval = 0;
+    FILE *      dfile = NULL;
+    struct stat sbuf;
+    SNET *      snet = NULL;
+    char *      line;
+    yastr       daytime = NULL;
+    yastr       boundary = NULL;
+    yastr       buf = NULL;
+
+    /* If the tfile has already been written it has incorrect
+     * information.
+     */
+    if (env->e_flags & ENV_FLAG_TFILE) {
+        env_tfile_unlink(env);
+    }
+
+    snet = snet_open(source, O_RDONLY, 0, 1024 * 1024);
+
+    if (snet == NULL) {
+        syslog(LOG_ERR, "Liberror: env_dfile_wrap snet_open: %m");
+        return 0;
+    }
+
+    if ((dfile_fd = env_dfile_open(env)) < 0) {
+        goto error;
+    }
+
+    if ((dfile = fdopen(dfile_fd, "w")) == NULL) {
+        syslog(LOG_ERR, "Syserror: env_dfile_wrap fdopen: %m");
+        if (close(dfile_fd) != 0) {
+            syslog(LOG_ERR, "Syserror: env_dfile_wrap close: %m");
+        }
+        goto error;
+    }
+
+    if ((daytime = rfc5322_timestamp()) == NULL) {
+        goto error;
+    }
+
+    env->e_8bitmime = true;
+
+    /* Regenerate the Message-ID */
+    if (env->e_mid) {
+        yaslclear(env->e_mid);
+    } else {
+        env->e_mid = yaslempty();
+    }
+    env->e_mid = yaslcatprintf(env->e_mid, "%s@%s", env->e_id,
+            simta_config_str("core.masquerade"));
+
+    /* Rewrite the Subject */
+    if (yasllen(env->e_subject) > 0) {
+        buf = env->e_subject;
+    } else {
+        yaslfree(env->e_subject);
+        buf = yaslauto("[no subject]");
+    }
+    env->e_subject = yaslcatyasl(yaslauto("[Disallowed] "), buf);
+    yaslfree(buf);
+    buf = NULL;
+
+    /* Generate a unique MIME boundary marker */
+    boundary = yaslcatprintf(
+            yasldup(env->e_id), "/%s", simta_config_str("core.masquerade"));
+
+    fprintf(dfile, "From: <%s>\n", env->e_header_from);
+    fprintf(dfile, "To: group-moderators:;\n");
+    fprintf(dfile, "Reply-To: <%s>\n", env->e_mail_orig);
+    fprintf(dfile, "Date: %s\n", daytime);
+    fprintf(dfile, "Subject: %s\n", env->e_subject);
+    fprintf(dfile, "Message-ID: <%s>\n", env->e_mid);
+    fprintf(dfile, "Auto-Submitted: auto-replied\n");
+    fprintf(dfile, "MIME-Version: 1.0\n");
+    fprintf(dfile, "Content-Type: multipart/mixed; boundary=\"%s\";\n\n",
+            boundary);
+    fprintf(dfile, "Content-Transfer-Encoding: 8bit\n");
+    fprintf(dfile, "--%s\n", boundary);
+    fprintf(dfile, "Content-Type: text/plain; charset=UTF-8\n\n");
+    fprintf(dfile, "%s\n\n", preface);
+    fprintf(dfile, "--%s\n", boundary);
+    fprintf(dfile, "Content-Type: message/rfc822\n\n");
+
+    while ((line = snet_getline(snet, NULL)) != NULL) {
+        if (fprintf(dfile, "%s\n", line) < 0) {
+            syslog(LOG_ERR, "Syserror: env_dfile_wrap fprintf: %m");
+            goto error;
+        }
+    }
+
+    fprintf(dfile, "\n--%s--\n", boundary);
+
+    if (fstat(dfile_fd, &sbuf) == 0) {
+        retval = sbuf.st_ino;
+    } else {
+        syslog(LOG_ERR, "Syserror: env_dfile_wrap fstat: %m");
+    }
+
+#ifdef HAVE_LIBOPENDKIM
+    if (retval != 0 && simta_config_bool("deliver.dkim.enabled")) {
+        env->e_flags |= ENV_FLAG_DKIMSIGN;
+    }
+#endif /* HAVE_LIBOPENDKIM */
+
+error:
+    if (dfile != NULL && (fclose(dfile) != 0)) {
+        syslog(LOG_ERR, "Syserror: env_dfile_wrap fclose: %m");
+    }
+
+    if (snet != NULL && (snet_close(snet) != 0)) {
+        syslog(LOG_ERR, "Liberror: env_dfile_copy snet_close: %m");
+    }
+
+    if (retval == 0) {
+        env_dfile_unlink(env);
+    }
+
+    yaslfree(boundary);
+    yaslfree(daytime);
+
+    return retval;
 }
 
 int

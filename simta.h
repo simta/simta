@@ -176,6 +176,7 @@ void                simta_openlog(bool, int);
 void                simta_debuglog(int, const char *, ...);
 simta_result        simta_gettimeofday(struct timeval *);
 enum simta_charset  simta_check_charset(const char *);
+yastr               simta_url_escape(const yastr);
 pid_t               simta_waitpid(pid_t, int *, int);
 simta_result        simta_signal_server(int);
 yastr               simta_slurp(const char *);

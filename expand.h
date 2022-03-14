@@ -3,6 +3,8 @@
 
 #include <ucl.h>
 
+#include "simta.h"
+
 /* expansion types */
 #define EXPANSION_TYPE_PASSWORD 1
 #define EXPANSION_TYPE_ALIAS 2
@@ -32,8 +34,6 @@ typedef enum {
 #endif /* HAVE_LDAP */
 
 #ifdef HAVE_LDAP
-#define STATUS_LDAP_MEMONLY (1 << 0)
-#define STATUS_LDAP_PRIVATE (1 << 1)
 #define STATUS_LDAP_SUPPRESSOR (1 << 2)
 #define STATUS_LDAP_SUPPRESSED (1 << 3)
 #define STATUS_EMAIL_SENDER (1 << 4)
@@ -56,7 +56,6 @@ struct expand {
     struct exp_addr *exp_addr_cursor; /* cursor */
     struct envelope *exp_errors;      /* error envelope list */
 #ifdef HAVE_LDAP
-    struct exp_link *exp_memonly;
     struct envelope *exp_gmailfwding;
 #endif /* HAVE_LDAP */
     const ucl_object_t *exp_current_rule;
@@ -84,10 +83,16 @@ struct exp_addr {
 #ifdef HAVE_LDAP
     int                e_addr_ldap_flags;
     int                e_addr_anti_loop;
+    bool               e_addr_requires_permission;
+    bool               e_addr_has_permission;
+    bool               e_addr_permit_members;
+    bool               e_addr_private;
     char *             e_addr_dn;
     yastr              e_addr_owner;
+    yastr              e_addr_group_name;
+    yastr              e_addr_preface;
     struct stab_entry *e_addr_ok;
-    struct envelope *  e_addr_env_moderated;
+    struct envelope *  e_addr_env_moderators;
     struct envelope *  e_addr_env_gmailfwd;
     struct exp_link *  e_addr_parents;
     struct exp_link *  e_addr_children;
@@ -103,7 +108,8 @@ int              eo_insert(struct expand_output **, struct envelope *);
 struct passwd *simta_getpwnam(const char *, const char *);
 int            address_error(struct envelope *, char *, char *, char *);
 void           expansion_stab_stdout(void *);
-int add_address(struct expand *, char *, struct envelope *, int, char *);
+simta_result   add_address(
+          struct expand *, char *, struct envelope *, int, char *, bool);
 struct envelope *    address_bounce_create(struct expand *);
 simta_address_status address_expand(struct expand *);
 void                 expand_tree_stdout(struct exp_addr *, int);
@@ -113,9 +119,8 @@ int                  address_string_recipients(
 #ifdef HAVE_LDAP
 int   exp_addr_link(struct exp_link **, struct exp_addr *);
 void  exp_addr_link_free(struct exp_link *);
-int   unblocked_path_to_root(struct exp_addr *, int);
-int   sender_is_child(struct exp_link *, int);
-int   sender_is_moderator(char *, struct exp_addr *);
+bool  unblocked_path_to_root(struct exp_addr *, int);
+bool  sender_is_child(struct exp_link *, int);
 void  suppress_addrs(struct exp_link *, int);
 int   exp_addr_permitted_add(struct exp_addr *, yastr);
 void  exp_addr_permitted_destroy(struct exp_addr *);
