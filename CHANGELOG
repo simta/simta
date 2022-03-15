@@ -1,4 +1,4 @@
-2.0.1 (2022-??-??)
+2.0.1 (2022-03-15)
     - reenabled TLS v1.0 and v1.1
     - fixed unique PIDs
     - fixed bug that would create multiple host queues for hostnames that
