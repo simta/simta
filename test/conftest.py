@@ -12,14 +12,24 @@ import time
 
 import pytest
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID
-
 from email.mime.text import MIMEText
+
+try:
+    import aiosmtpd     # noqa: F401
+    HAS_AIOSMTPD = True
+except ImportError:
+    HAS_AIOSMTPD = False
+
+try:
+    from cryptography import x509
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+    HAS_CRYPTOGRAPHY = True
+except ImportError:
+    HAS_CRYPTOGRAPHY = False
 
 
 def pytest_collect_file(parent, file_path):
@@ -230,7 +240,7 @@ def simta_config(request, tmp_path):
 
 
 @pytest.fixture
-def simta(dnsserver, aiosmtpd, simta_config, tmp_path, tool_path, tls_cert):
+def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cert):
     port = openport(10025)
 
     for spool in ['command', 'dead', 'etc', 'fast', 'local', 'slow']:
@@ -255,7 +265,7 @@ def simta(dnsserver, aiosmtpd, simta_config, tmp_path, tool_path, tls_cert):
         'red': {
             'deliver': {
                 'connection': {
-                    'port': aiosmtpd['port'],
+                    'port': aiosmtpd_server['port'],
                 }
             }
         }
@@ -296,6 +306,10 @@ def simta(dnsserver, aiosmtpd, simta_config, tmp_path, tool_path, tls_cert):
 
 @pytest.fixture
 def tls_cert(tmp_path):
+    if not HAS_CRYPTOGRAPHY:
+        pytest.skip('cryptography not installed')
+        return
+
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
@@ -350,7 +364,11 @@ def tls_cert(tmp_path):
 
 
 @pytest.fixture
-def aiosmtpd(request, tmp_path, tls_cert):
+def aiosmtpd_server(request, tmp_path, tls_cert):
+    if not HAS_AIOSMTPD:
+        pytest.skip('aiosmtpd not available')
+        return
+
     port = openport(10125)
     spooldir = str(tmp_path.joinpath('aiosmtpd'))
 

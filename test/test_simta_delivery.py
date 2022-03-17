@@ -20,7 +20,7 @@ def test_binary(smtp_nocleanup, testmsg, req_dnsserver, simta):
         assert len(os.listdir(os.path.join(simta['tmpdir'], q))) == 0
 
 
-def test_smtp(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
+def test_smtp(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):
     smtp_nocleanup.sendmail(
         'testsender@example.com',
         'testrcpt@smtpd.example.com',
@@ -28,7 +28,7 @@ def test_smtp(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
     )
     smtp_nocleanup.quit()
 
-    md = Maildir(aiosmtpd['spooldir'])
+    md = Maildir(aiosmtpd_server['spooldir'])
     count = 0
     while len(md) == 0:
         count += 1
@@ -42,14 +42,14 @@ def test_smtp(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
     assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
 
 
-def test_smtp_noquit(smtp, testmsg, req_dnsserver, aiosmtpd):
+def test_smtp_noquit(smtp, testmsg, req_dnsserver, aiosmtpd_server):
     smtp.sendmail(
         'testsender@example.com',
         'testrcpt@smtpd.example.com',
         testmsg.as_string(),
     )
 
-    md = Maildir(aiosmtpd['spooldir'])
+    md = Maildir(aiosmtpd_server['spooldir'])
     count = 0
     while len(md) == 0:
         count += 1
@@ -63,7 +63,7 @@ def test_smtp_noquit(smtp, testmsg, req_dnsserver, aiosmtpd):
     assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
 
 
-def test_smtp_badtls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
+def test_smtp_badtls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):
     smtp_nocleanup.sendmail(
         'testsender@example.com',
         'testrcpt@smtpd.example.com',
@@ -71,7 +71,7 @@ def test_smtp_badtls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
     )
     smtp_nocleanup.quit()
 
-    md = Maildir(aiosmtpd['spooldir'])
+    md = Maildir(aiosmtpd_server['spooldir'])
     count = 0
     while len(md) == 0:
         count += 1
@@ -85,7 +85,7 @@ def test_smtp_badtls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
     assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
 
 
-def test_smtp_starttls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
+def test_smtp_starttls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):
     smtp_nocleanup.starttls()
     smtp_nocleanup.sendmail(
         'testsender@example.com',
@@ -94,7 +94,7 @@ def test_smtp_starttls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd):
     )
     smtp_nocleanup.quit()
 
-    md = Maildir(aiosmtpd['spooldir'])
+    md = Maildir(aiosmtpd_server['spooldir'])
     count = 0
     while len(md) == 0:
         count += 1
