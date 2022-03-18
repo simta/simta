@@ -279,7 +279,7 @@ simta_read_config(const char *fname, const char *extra) {
                 if (ucl_object_lookup(j_obj, "associated_domain") == NULL) {
                     obj = ucl_object_ref(j_obj);
                     ucl_object_insert_key(obj,
-                            ucl_object_fromstring(ucl_object_key(i_obj)),
+                            simta_ucl_object_fromstring(ucl_object_key(i_obj)),
                             "associated_domain", 0, false);
                     ucl_object_unref(obj);
                 }

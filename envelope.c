@@ -296,16 +296,16 @@ env_repr(struct envelope *e) {
 
     /* Build the output object */
     repr = ucl_object_new();
-    ucl_object_insert_key(
-            repr, ucl_object_fromstring(e->e_id), "envelope_id", 0, false);
+    ucl_object_insert_key(repr, simta_ucl_object_fromstring(e->e_id),
+            "envelope_id", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_fromint(e->e_dinode), "body_inode", 0, false);
     ucl_object_insert_key(repr, ucl_object_fromint(e->e_n_exp_level),
             "expansion_level", 0, false);
+    ucl_object_insert_key(repr, simta_ucl_object_fromyastr(e->e_hostname),
+            "hostname", 0, false);
     ucl_object_insert_key(
-            repr, ucl_object_fromstring(e->e_hostname), "hostname", 0, false);
-    ucl_object_insert_key(
-            repr, ucl_object_fromstring(e->e_mail), "sender", 0, false);
+            repr, simta_ucl_object_fromstring(e->e_mail), "sender", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_frombool(e->e_8bitmime), "8bitmime", 0, false);
     ucl_object_insert_key(repr, ucl_object_frombool(e->e_archive_only),
@@ -320,7 +320,7 @@ env_repr(struct envelope *e) {
     rcpts = ucl_object_typed_new(UCL_ARRAY);
     ucl_object_insert_key(repr, rcpts, "recipients", 0, false);
     for (r = e->e_rcpt; r != NULL; r = r->r_next) {
-        ucl_array_append(rcpts, ucl_object_fromstring(r->r_rcpt));
+        ucl_array_append(rcpts, simta_ucl_object_fromstring(r->r_rcpt));
     }
 
     return repr;
@@ -972,8 +972,9 @@ env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
             /* never implemented */
             break;
         case 'E':
-            ucl_object_insert_key(env_data, ucl_object_fromstring(line + 1),
-                    "envelope_id", 0, false);
+            ucl_object_insert_key(env_data,
+                    simta_ucl_object_fromstring(line + 1), "envelope_id", 0,
+                    false);
             break;
         case 'I':
             ucl_object_insert_key(env_data,
@@ -996,8 +997,9 @@ env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
             break;
 
         case 'H':
-            ucl_object_insert_key(env_data, ucl_object_fromstring(line + 1),
-                    "hostname", 0, false);
+            ucl_object_insert_key(env_data,
+                    simta_ucl_object_fromstring(line + 1), "hostname", 0,
+                    false);
             break;
 
         case 'D':
@@ -1009,12 +1011,12 @@ env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
             break;
 
         case 'F':
-            ucl_object_insert_key(env_data, ucl_object_fromstring(line + 1),
-                    "sender", 0, false);
+            ucl_object_insert_key(env_data,
+                    simta_ucl_object_fromstring(line + 1), "sender", 0, false);
             break;
 
         case 'R':
-            ucl_array_append(rcpts, ucl_object_fromstring(line + 1));
+            ucl_array_append(rcpts, simta_ucl_object_fromstring(line + 1));
             break;
 
         default:

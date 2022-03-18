@@ -78,6 +78,16 @@ simta_ucl_toggle(const ucl_object_t *base, const char *path, const char *key,
     return (false);
 }
 
+ucl_object_t *
+simta_ucl_object_fromstring(const char *str) {
+    return ucl_object_fromstring_common(str, 0, UCL_STRING_RAW);
+}
+
+ucl_object_t *
+simta_ucl_object_fromyastr(const yastr str) {
+    return ucl_object_fromstring_common(str, yasllen(str), UCL_STRING_RAW);
+}
+
 void
 simta_ucl_object_totimeval(const ucl_object_t *obj, struct timeval *tv) {
     double val;

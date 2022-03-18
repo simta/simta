@@ -3276,7 +3276,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     if (simta_config_bool("receive.auth.authn.enabled") &&
             simta_config_bool("receive.auth.authn.honeypot")) {
         ucl_object_insert_key(r.r_smtp_extensions,
-                ucl_object_fromstring("LOGIN PLAIN"), "AUTH", 0, false);
+                simta_ucl_object_fromstring("LOGIN PLAIN"), "AUTH", 0, false);
     }
 
 #ifdef HAVE_LIBSSL
@@ -3875,7 +3875,7 @@ update_sasl_extension(struct receive_data *r) {
         return;
     }
     ucl_object_replace_key(r->r_smtp_extensions,
-            ucl_object_fromstring(mechlist), "AUTH", 0, false);
+            simta_ucl_object_fromstring(mechlist), "AUTH", 0, false);
 }
 #endif /* HAVE_LIBSASL */
 

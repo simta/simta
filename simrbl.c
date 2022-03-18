@@ -79,10 +79,10 @@ main(int argc, char *argv[]) {
 
         case 'l':
             list_config = ucl_object_new();
-            ucl_object_insert_key(list_config, ucl_object_fromstring(optarg),
-                    "list", 0, false);
-            ucl_object_insert_key(list_config, ucl_object_fromstring("report"),
-                    "action", 0, false);
+            ucl_object_insert_key(list_config,
+                    simta_ucl_object_fromstring(optarg), "list", 0, false);
+            ucl_object_insert_key(list_config,
+                    simta_ucl_object_fromstring("report"), "action", 0, false);
             ucl_array_append(config, list_config);
             break;
 
@@ -153,9 +153,9 @@ main(int argc, char *argv[]) {
     if (ucl_array_size(config) == 0) {
         list_config = ucl_object_new();
         ucl_object_insert_key(list_config,
-                ucl_object_fromstring("mx-deny.dnsbl"), "list", 0, false);
-        ucl_object_insert_key(list_config, ucl_object_fromstring("report"),
-                "action", 0, false);
+                simta_ucl_object_fromstring("mx-deny.dnsbl"), "list", 0, false);
+        ucl_object_insert_key(list_config,
+                simta_ucl_object_fromstring("report"), "action", 0, false);
         ucl_array_append(config, list_config);
     }
 

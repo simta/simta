@@ -1715,7 +1715,7 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
                 return SIMTA_OK;
             }
             ucl_array_append(d->d_mx_list,
-                    ucl_object_fromstring(
+                    simta_ucl_object_fromstring(
                             d->d_dnsr_result->r_answer[ i ].rr_mx.mx_exchange));
         }
     }
@@ -1748,7 +1748,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
         /* Fall back to the implicit MX */
         if (ucl_array_size(d->d_mx_list) == 0) {
             ucl_array_append(
-                    d->d_mx_list, ucl_object_fromstring(hq->hq_hostname));
+                    d->d_mx_list, simta_ucl_object_fromyastr(hq->hq_hostname));
             d->d_mx_cname_ok = true;
         }
         d->d_mx_current = ucl_array_pop_first(d->d_mx_list);
@@ -1808,8 +1808,8 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
                                      obj, "last_envelope"))) != 0)) {
                 ref = ucl_object_ref(obj);
                 ucl_object_replace_key(ref,
-                        ucl_object_fromstring(d->d_env->e_id), "last_envelope",
-                        0, false);
+                        simta_ucl_object_fromstring(d->d_env->e_id),
+                        "last_envelope", 0, false);
                 d->d_retry_current = ref;
                 /* FIXME: can we do less juggling here? */
                 strncpy(d->d_ip,
@@ -1930,12 +1930,12 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
 
         ref = ucl_object_new();
         ucl_object_insert_key(
-                ref, ucl_object_fromstring(d->d_ip), "ip", 0, false);
+                ref, simta_ucl_object_fromstring(d->d_ip), "ip", 0, false);
         addr = simta_malloc(sizeof(struct sockaddr_storage));
         memcpy(addr, &(d->d_sa), sizeof(struct sockaddr_storage));
         ucl_object_insert_key(ref, ucl_object_new_userdata(NULL, NULL, addr),
                 "address", 0, false);
-        ucl_object_insert_key(ref, ucl_object_fromstring(d->d_env->e_id),
+        ucl_object_insert_key(ref, simta_ucl_object_fromstring(d->d_env->e_id),
                 "last_envelope", 0, false);
         ucl_object_insert_key(ref, ucl_object_frombool(true), "up", 0, false);
         ucl_array_append(d->d_retry_list, ref);

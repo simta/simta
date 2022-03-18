@@ -245,6 +245,16 @@ def test_expand_none(run_simexpander):
     assert res['parsed'][0]['recipients'] == ['testuser@none.example.com']
 
 
+def test_expand_quotes(run_simexpander):
+    res = run_simexpander([
+        '-F', '"."@example.com',
+        '"testuser with spaces"@none.example.com',
+    ])
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['"testuser with spaces"@none.example.com']
+    assert res['parsed'][0]['sender'] == '"."@example.com'
+
+
 def test_expand_password(run_simexpander):
     res = run_simexpander('testuser@password.example.com')
     assert len(res['parsed']) == 1
