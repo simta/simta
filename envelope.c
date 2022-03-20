@@ -104,7 +104,7 @@ env_create(const char *dir, const char *id, const char *e_mail,
         id = buf;
     }
 
-    env->e_id = simta_strdup(id);
+    env->e_id = yaslauto(id);
     env->e_bounceable = true;
     env->e_puntable = true;
 
@@ -215,17 +215,17 @@ env_hostname(struct envelope *env, const char *hostname) {
 }
 
 
-int
+simta_result
 env_sender(struct envelope *env, const char *e_mail) {
     if (env->e_mail != NULL) {
         syslog(LOG_ERR, "Envelope env <%s>: env already has a sender",
                 env->e_id);
-        return (1);
+        return SIMTA_ERR;
     }
 
-    env->e_mail = simta_strdup(e_mail);
+    env->e_mail = yaslauto(e_mail);
 
-    return (0);
+    return SIMTA_OK;
 }
 
 
@@ -235,28 +235,16 @@ env_free(struct envelope *env) {
         return;
     }
 
-    if (env->e_mid != NULL) {
-        free(env->e_mid);
-    }
-
-    if (env->e_subject != NULL) {
-        free(env->e_subject);
-    }
-
-    if (env->e_header_from != NULL) {
-        free(env->e_header_from);
-    }
+    yaslfree(env->e_header_from);
+    yaslfree(env->e_hostname);
+    yaslfree(env->e_id);
+    yaslfree(env->e_mail);
+    yaslfree(env->e_mail_orig);
+    yaslfree(env->e_mid);
+    yaslfree(env->e_subject);
 
     if (env->e_env_list_entry != NULL) {
         dll_remove_entry(&simta_env_list, env->e_env_list_entry);
-    }
-
-    if (env->e_mail != NULL) {
-        free(env->e_mail);
-    }
-
-    if (env->e_mail_orig != NULL) {
-        free(env->e_mail_orig);
     }
 
     if (env->e_sender_entry != NULL) {
@@ -269,14 +257,6 @@ env_free(struct envelope *env) {
             free(env->e_sender_entry->se_list);
         }
         free(env->e_sender_entry);
-    }
-
-    if (env->e_hostname != NULL) {
-        yaslfree(env->e_hostname);
-    }
-
-    if (env->e_id != NULL) {
-        free(env->e_id);
     }
 
     env_rcpt_free(env);
@@ -296,8 +276,8 @@ env_repr(struct envelope *e) {
 
     /* Build the output object */
     repr = ucl_object_new();
-    ucl_object_insert_key(repr, simta_ucl_object_fromstring(e->e_id),
-            "envelope_id", 0, false);
+    ucl_object_insert_key(
+            repr, simta_ucl_object_fromyastr(e->e_id), "envelope_id", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_fromint(e->e_dinode), "body_inode", 0, false);
     ucl_object_insert_key(repr, ucl_object_fromint(e->e_n_exp_level),
@@ -305,7 +285,7 @@ env_repr(struct envelope *e) {
     ucl_object_insert_key(repr, simta_ucl_object_fromyastr(e->e_hostname),
             "hostname", 0, false);
     ucl_object_insert_key(
-            repr, simta_ucl_object_fromstring(e->e_mail), "sender", 0, false);
+            repr, simta_ucl_object_fromyastr(e->e_mail), "sender", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_frombool(e->e_8bitmime), "8bitmime", 0, false);
     ucl_object_insert_key(repr, ucl_object_frombool(e->e_archive_only),

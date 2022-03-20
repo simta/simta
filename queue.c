@@ -1808,7 +1808,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
                                      obj, "last_envelope"))) != 0)) {
                 ref = ucl_object_ref(obj);
                 ucl_object_replace_key(ref,
-                        simta_ucl_object_fromstring(d->d_env->e_id),
+                        simta_ucl_object_fromyastr(d->d_env->e_id),
                         "last_envelope", 0, false);
                 d->d_retry_current = ref;
                 /* FIXME: can we do less juggling here? */
@@ -1935,7 +1935,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
         memcpy(addr, &(d->d_sa), sizeof(struct sockaddr_storage));
         ucl_object_insert_key(ref, ucl_object_new_userdata(NULL, NULL, addr),
                 "address", 0, false);
-        ucl_object_insert_key(ref, simta_ucl_object_fromstring(d->d_env->e_id),
+        ucl_object_insert_key(ref, simta_ucl_object_fromyastr(d->d_env->e_id),
                 "last_envelope", 0, false);
         ucl_object_insert_key(ref, ucl_object_frombool(true), "up", 0, false);
         ucl_array_append(d->d_retry_list, ref);

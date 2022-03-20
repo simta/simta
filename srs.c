@@ -135,7 +135,8 @@ srs_forward(struct envelope *env) {
     rc = SRS_OK;
 
     env->e_mail_orig = env->e_mail;
-    env->e_mail = simta_strdup(newaddr);
+    env->e_mail = newaddr;
+    newaddr = NULL;
 
 error:
     spf_free(spf);

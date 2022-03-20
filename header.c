@@ -611,7 +611,7 @@ header_check(struct receive_headers *rh, bool read_headers,
                 ret++;
             }
         } else {
-            rh->r_env->e_header_from = simta_strdup(split[ 0 ]);
+            rh->r_env->e_header_from = yasldup(split[ 0 ]);
             yaslfreesplitres(split, tok_count);
         }
 
@@ -677,8 +677,8 @@ header_check(struct receive_headers *rh, bool read_headers,
                 ret++;
             }
         } else {
-            rh->r_env->e_mid = simta_strdup(tmp);
-            yaslfree(tmp);
+            rh->r_env->e_mid = tmp;
+            tmp = NULL;
         }
     }
 
@@ -689,7 +689,7 @@ header_check(struct receive_headers *rh, bool read_headers,
         }
         yaslclear(buf);
         buf = yaslcatprintf(buf, "%s@%s", rh->r_env->e_id, simta_hostname);
-        rh->r_env->e_mid = simta_strdup(buf);
+        rh->r_env->e_mid = yasldup(buf);
         yaslclear(buf);
         buf = yaslcatprintf(buf, "Message-ID: <%s>", rh->r_env->e_mid);
         line_prepend(rh->r_headers, buf, COPY);
@@ -791,8 +791,8 @@ header_check(struct receive_headers *rh, bool read_headers,
         ret += header_singleton("Subject", mh);
         tmp = header_string(mh->h_lines->st_data);
         yasltrim(tmp, " \t");
-        rh->r_env->e_subject = simta_strdup(tmp);
-        yaslfree(tmp);
+        rh->r_env->e_subject = tmp;
+        tmp = NULL;
     }
 
     /* SIMTA-Seen-Before: */
