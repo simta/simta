@@ -149,11 +149,11 @@ dmarc_result(struct dmarc *d) {
 
     if (d->domain == NULL) {
         syslog(LOG_ERR, "DMARC: no DMARC domain set");
-        return (DMARC_RESULT_NORECORD);
+        return DMARC_RESULT_NORECORD;
     }
 
     if (d->spf_domain != NULL) {
-        if (dmarc_alignment(d->domain, d->spf_domain, d->spf_alignment) == 0) {
+        if (dmarc_alignment(d->domain, d->spf_domain, d->spf_alignment)) {
             d->result = (d->policy == DMARC_RESULT_NORECORD)
                                 ? DMARC_RESULT_BESTGUESSPASS
                                 : DMARC_RESULT_PASS;
@@ -164,7 +164,7 @@ dmarc_result(struct dmarc *d) {
     for (dkim_domain = d->dkim_domain_list; dkim_domain != NULL;
             dkim_domain = dkim_domain->dll_next) {
         if (dmarc_alignment(
-                    d->domain, dkim_domain->dll_key, d->dkim_alignment) == 0) {
+                    d->domain, dkim_domain->dll_key, d->dkim_alignment)) {
             d->result = (d->policy == DMARC_RESULT_NORECORD)
                                 ? DMARC_RESULT_BESTGUESSPASS
                                 : DMARC_RESULT_PASS;
@@ -173,7 +173,7 @@ dmarc_result(struct dmarc *d) {
     }
 
 done:
-    return (d->result);
+    return d->result;
 }
 
 void
@@ -190,21 +190,21 @@ dmarc_result_str(const enum simta_dmarc_result policy) {
     switch (policy) {
     case DMARC_RESULT_NORECORD:
     case DMARC_RESULT_ORGDOMAIN:
-        return ("absent");
+        return "absent";
     case DMARC_RESULT_NONE:
-        return ("none");
+        return "none";
     case DMARC_RESULT_REJECT:
-        return ("reject");
+        return "reject";
     case DMARC_RESULT_QUARANTINE:
-        return ("quarantine");
+        return "quarantine";
     case DMARC_RESULT_PASS:
-        return ("pass");
+        return "pass";
     case DMARC_RESULT_BESTGUESSPASS:
-        return ("bestguesspass");
+        return "bestguesspass";
     case DMARC_RESULT_SYSERROR:
-        return ("syserror");
+        return "syserror";
     }
-    return ("INVALID");
+    return "INVALID";
 }
 
 const char *
@@ -213,30 +213,30 @@ dmarc_authresult_str(const enum simta_dmarc_result policy) {
     switch (policy) {
     case DMARC_RESULT_NORECORD:
     case DMARC_RESULT_ORGDOMAIN:
-        return ("none");
+        return "none";
     case DMARC_RESULT_PASS:
-        return ("pass");
+        return "pass";
     case DMARC_RESULT_BESTGUESSPASS:
-        return ("bestguesspass");
+        return "bestguesspass";
     case DMARC_RESULT_NONE:
     case DMARC_RESULT_QUARANTINE:
     case DMARC_RESULT_REJECT:
-        return ("fail");
+        return "fail";
     case DMARC_RESULT_SYSERROR:
-        return ("temperror");
+        return "temperror";
     }
-    return ("temperror");
+    return "temperror";
 }
 
 simta_result
 dmarc_spf_result(struct dmarc *d, char *domain) {
     if (d->spf_domain != NULL) {
         syslog(LOG_WARNING, "DMARC: already had an SPF result");
-        return (SIMTA_ERR);
+        return SIMTA_ERR;
     }
 
     d->spf_domain = yaslauto(domain);
-    return (SIMTA_OK);
+    return SIMTA_OK;
 }
 
 static bool
@@ -246,11 +246,11 @@ dmarc_alignment(const char *domain1, const char *domain2,
     int   a;
 
     if (strcasecmp(domain1, domain2) == 0) {
-        return (true);
+        return true;
     }
 
     if (apolicy == DMARC_ALIGNMENT_STRICT) {
-        return (false);
+        return false;
     }
 
     orgdomain1 = dmarc_orgdomain(domain1);
@@ -261,10 +261,10 @@ dmarc_alignment(const char *domain1, const char *domain2,
     yaslfree(orgdomain2);
 
     if (a == 0) {
-        return (true);
+        return true;
     }
 
-    return (false);
+    return false;
 }
 
 static struct dnsr_result *
@@ -282,7 +282,7 @@ dmarc_lookup_record(const char *domain) {
     lookup_domain = yaslcat(lookup_domain, domain);
     res = get_txt(lookup_domain);
     yaslfree(lookup_domain);
-    return (res);
+    return res;
 }
 
 yastr
@@ -361,7 +361,7 @@ dmarc_orgdomain(const char *domain) {
 
     yaslfreesplitres(split, tok_count);
     yaslfree(buf);
-    return (orgdomain);
+    return orgdomain;
 }
 
 simta_result

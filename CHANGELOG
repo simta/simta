@@ -1,6 +1,8 @@
 2.0.2 (2022-??-??)
     - fixed double escaping of strings in generated JSON, which could cause
-      issues during expansion and delivery.
+      issues during expansion and delivery
+    - fixed DMARC alignment checks
+    - added standard config flags to simdmarc
 
 2.0.1 (2022-03-15)
     - reenabled TLS v1.0 and v1.1
