@@ -1329,6 +1329,13 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                     syslog(LOG_INFO, "Deliver env <%s>: not puntable",
                             env_deliver->e_id);
                     env_outfile(env_deliver);
+                    if (env_deliver->e_dir == simta_dir_fast) {
+                        /* overwrote a file, didn't create a new one */
+                        simta_fast_files--;
+                        simta_debuglog(2,
+                                "Deliver env <%s>: fast_files decrement %d",
+                                env_deliver->e_id, simta_fast_files);
+                    }
                 }
                 env_move(env_deliver, simta_dir_slow);
                 env_free(env_deliver);

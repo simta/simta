@@ -4,6 +4,7 @@
     - fixed DMARC alignment checks
     - added standard config flags to simdmarc
     - fixed crash during LDAP connection reset with no open LDAP connections
+    - fixed fast file accounting for unpuntable messages
 
 2.0.1 (2022-03-15)
     - reenabled TLS v1.0 and v1.1
