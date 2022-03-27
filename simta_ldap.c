@@ -315,6 +315,9 @@ simta_ldap_reset(void) {
     if (ldap_connections != NULL) {
         iter = ucl_object_iterate_new(ldap_connections);
         while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+            if (obj->value.ud == NULL) {
+                continue;
+            }
             simta_debuglog(
                     1, "LDAP: closing connection to %s", ucl_object_key(obj));
             ldap_unbind_ext(obj->value.ud, NULL, NULL);
