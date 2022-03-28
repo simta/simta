@@ -1,12 +1,22 @@
 import json
+import os
 import subprocess
 
 import pytest
 
 
+EQUIV_DOMAINS = [
+    'example.com',
+    'EXAMPLE.COM',
+    'sub.example.com',
+    'example.example.com',
+]
+
+
 @pytest.fixture
 def run_simdmarc(simta_config, tool_path, dnsserver, req_dnsserver):
     def _run_simdmarc(domains):
+        psl = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'public_suffix_list.dat')
         dns_config = {
             'core': {
                 'dns': {
@@ -14,7 +24,12 @@ def run_simdmarc(simta_config, tool_path, dnsserver, req_dnsserver):
                     'port': dnsserver['port'],
                     'timeout': 2,
                 }
-            }
+            },
+            'receive': {
+                'dmarc': {
+                    'public_suffix_file': psl,
+                },
+            },
         }
 
         args = [
@@ -29,7 +44,7 @@ def run_simdmarc(simta_config, tool_path, dnsserver, req_dnsserver):
             args.append(domains)
 
         res = subprocess.run(
-            args,
+            [x for x in args if x is not None],
             check=True,
             capture_output=True,
             text=True,
@@ -39,15 +54,39 @@ def run_simdmarc(simta_config, tool_path, dnsserver, req_dnsserver):
     return _run_simdmarc
 
 
-def test_dmarc_pass(run_simdmarc):
-    dmarc = run_simdmarc(['example.com', 'example.com'])
+@pytest.mark.parametrize('dkim', [
+    None,
+    'example.edu',
+    'example.com',
+])
+@pytest.mark.parametrize('spf', EQUIV_DOMAINS)
+@pytest.mark.parametrize('hfrom', EQUIV_DOMAINS)
+def test_dmarc_pass(run_simdmarc, hfrom, spf, dkim):
+    dmarc = run_simdmarc([hfrom, spf, dkim])
     assert dmarc[0] == 'DMARC lookup result: policy reject, percent 100, result reject'
-    assert dmarc[1] == 'DMARC policy result for example.com/example.com: pass'
+    assert dmarc[1].startswith('DMARC policy result')
+    assert dmarc[1].endswith(': pass')
 
 
-def test_dmarc_fail(run_simdmarc):
-    dmarc = run_simdmarc('example.com')
+@pytest.mark.parametrize('dkim', [
+    None,
+    'example.edu',
+])
+@pytest.mark.parametrize('spf', [
+    None,
+    'example.edu',
+    'notexample.com',
+    'nexample.com',
+    'xample.com',
+    'e.xample.com',
+    'example.com.example.edu',
+])
+@pytest.mark.parametrize('hfrom', EQUIV_DOMAINS)
+def test_dmarc_fail(run_simdmarc, hfrom, spf, dkim):
+    dmarc = run_simdmarc([hfrom, spf, dkim])
     assert dmarc[0] == 'DMARC lookup result: policy reject, percent 100, result reject'
-    assert dmarc[1] == 'DMARC policy result for example.com: reject'
+    assert dmarc[1].startswith('DMARC policy result')
+    assert dmarc[1].endswith(': reject')
 
-# FIXME: test more complex scenarios, orgdomain
+
+# FIXME: test sp, subdomains with conflicting policies, etc.
