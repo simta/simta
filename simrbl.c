@@ -59,7 +59,7 @@ main(int argc, char *argv[]) {
     struct timeval      tv_now;
 
     /* Skip normal config parsing, we're just knocking up a list. */
-    simta_config = ucl_object_new();
+    simta_config = ucl_object_typed_new(UCL_OBJECT);
     config = ucl_object_typed_new(UCL_ARRAY);
     ucl_object_insert_key(simta_config, config, simta_progname, 0, false);
 
@@ -78,7 +78,7 @@ main(int argc, char *argv[]) {
             break;
 
         case 'l':
-            list_config = ucl_object_new();
+            list_config = ucl_object_typed_new(UCL_OBJECT);
             ucl_object_insert_key(list_config,
                     simta_ucl_object_fromstring(optarg), "list", 0, false);
             ucl_object_insert_key(list_config,
@@ -151,7 +151,7 @@ main(int argc, char *argv[]) {
     }
 
     if (ucl_array_size(config) == 0) {
-        list_config = ucl_object_new();
+        list_config = ucl_object_typed_new(UCL_OBJECT);
         ucl_object_insert_key(list_config,
                 simta_ucl_object_fromstring("mx-deny.dnsbl"), "list", 0, false);
         ucl_object_insert_key(list_config,

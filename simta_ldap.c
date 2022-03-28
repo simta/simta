@@ -325,12 +325,12 @@ simta_ldap_reset(void) {
         ucl_object_iterate_free(iter);
 
         ucl_object_unref(ldap_connections);
-        ldap_connections = ucl_object_new();
+        ldap_connections = ucl_object_typed_new(UCL_OBJECT);
     }
 
     if (ldap_configs != NULL) {
         ucl_object_unref(ldap_configs);
-        ldap_configs = ucl_object_new();
+        ldap_configs = ucl_object_typed_new(UCL_OBJECT);
     }
 }
 
@@ -343,7 +343,7 @@ simta_ldap_init(struct simta_ldap *ld) {
     yastr               key = NULL;
 
     if (ldap_connections == NULL) {
-        ldap_connections = ucl_object_new();
+        ldap_connections = ucl_object_typed_new(UCL_OBJECT);
     }
 
     if (ld->ldap_ld == NULL) {
@@ -1849,7 +1849,7 @@ simta_ldap_config(const ucl_object_t *rule) {
     struct simta_ldap *       ld = NULL;
 
     if (ldap_configs == NULL) {
-        ldap_configs = ucl_object_new();
+        ldap_configs = ucl_object_typed_new(UCL_OBJECT);
     }
 
     key = yaslcatprintf(yaslempty(), "%p", (void *)rule);

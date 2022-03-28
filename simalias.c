@@ -126,7 +126,7 @@ main(int argc, char **argv) {
         exit(simalias_create(input));
     }
 
-    processed = ucl_object_new();
+    processed = ucl_object_typed_new(UCL_OBJECT);
     i = ucl_object_iterate_new(simta_config_obj("domain"));
     while ((domain = ucl_object_iterate_safe(i, false)) != NULL) {
         j = ucl_object_iterate_new(ucl_object_lookup(domain, "rule"));

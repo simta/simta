@@ -275,7 +275,7 @@ env_repr(struct envelope *e) {
     ucl_object_t *    rcpts;
 
     /* Build the output object */
-    repr = ucl_object_new();
+    repr = ucl_object_typed_new(UCL_OBJECT);
     ucl_object_insert_key(
             repr, simta_ucl_object_fromyastr(e->e_id), "envelope_id", 0, false);
     ucl_object_insert_key(
@@ -798,7 +798,7 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
                     filename, data + 1);
             goto cleanup;
         }
-        env_data = ucl_object_new();
+        env_data = ucl_object_typed_new(UCL_OBJECT);
         ret = env_read_old(filename, env_data, snet);
     } else {
         unparsed = yaslauto(data);

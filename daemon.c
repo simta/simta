@@ -1246,7 +1246,7 @@ simta_child_q_runner(struct host_q *hq) {
         } else {
             hq->hq_primary = 1;
             simta_process_type = PROCESS_Q_SLOW;
-            simta_host_q = ucl_object_new();
+            simta_host_q = ucl_object_typed_new(UCL_OBJECT);
             ucl_object_insert_key(simta_host_q,
                     ucl_object_new_userdata(NULL, NULL, hq), hq->hq_hostname, 0,
                     true);

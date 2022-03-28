@@ -3265,9 +3265,9 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     }
 
     /* Set up extensions */
-    r.r_smtp_extensions = ucl_object_new();
-    ucl_object_insert_key(
-            r.r_smtp_extensions, ucl_object_new(), "8BITMIME", 0, false);
+    r.r_smtp_extensions = ucl_object_typed_new(UCL_OBJECT);
+    ucl_object_insert_key(r.r_smtp_extensions, ucl_object_typed_new(UCL_NULL),
+            "8BITMIME", 0, false);
     ucl_object_insert_key(r.r_smtp_extensions,
             ucl_object_copy(
                     simta_config_obj("receive.data.limits.message_size")),
@@ -3281,8 +3281,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
 #ifdef HAVE_LIBSSL
     if (simta_config_bool("receive.tls.enabled")) {
-        ucl_object_insert_key(
-                r.r_smtp_extensions, ucl_object_new(), "STARTTLS", 0, false);
+        ucl_object_insert_key(r.r_smtp_extensions,
+                ucl_object_typed_new(UCL_NULL), "STARTTLS", 0, false);
     }
 #endif /* HAVE_LIBSSL */
 

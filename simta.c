@@ -491,12 +491,12 @@ simta_read_publicsuffix(const char *fname) {
         return SIMTA_ERR;
     }
 
-    simta_publicsuffix_list = ucl_object_new();
+    simta_publicsuffix_list = ucl_object_typed_new(UCL_OBJECT);
     /* Formal algorithm from https://publicsuffix.org/list/
      * If no rules match, the prevailing rule is "*".
      */
-    ucl_object_insert_key(
-            simta_publicsuffix_list, ucl_object_new(), "*", 1, true);
+    ucl_object_insert_key(simta_publicsuffix_list,
+            ucl_object_typed_new(UCL_OBJECT), "*", 1, true);
 
     while ((line = snet_getline(snet, NULL)) != NULL) {
         /* Each line is only read up to the first whitespace; entire
@@ -531,7 +531,7 @@ simta_read_publicsuffix(const char *fname) {
 
             obj = ucl_object_lookup(parent, p);
             if (obj == NULL) {
-                newobj = ucl_object_new();
+                newobj = ucl_object_typed_new(UCL_OBJECT);
                 ref = ucl_object_ref(parent);
                 ucl_object_insert_key(ref, newobj, p, 0, true);
                 ucl_object_unref(ref);

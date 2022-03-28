@@ -82,7 +82,7 @@ host_q_lookup(const char *hostname) {
     yastr               buf = NULL;
 
     if (simta_host_q == NULL) {
-        simta_host_q = ucl_object_new();
+        simta_host_q = ucl_object_typed_new(UCL_OBJECT);
         return NULL;
     }
 
@@ -1935,7 +1935,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
         }
         ucl_object_iterate_free(iter);
 
-        ref = ucl_object_new();
+        ref = ucl_object_typed_new(UCL_OBJECT);
         ucl_object_insert_key(
                 ref, simta_ucl_object_fromstring(d->d_ip), "ip", 0, false);
         addr = simta_malloc(sizeof(struct sockaddr_storage));

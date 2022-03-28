@@ -54,7 +54,7 @@ red_host_lookup(const char *hostname, bool create) {
     res = ucl_object_ref(ucl_object_lookup(simta_config_obj("domain"), key));
 
     if ((res == NULL) && create) {
-        res = ucl_object_new();
+        res = ucl_object_typed_new(UCL_OBJECT);
         ucl_object_insert_key(res,
                 ucl_object_copy(simta_config_obj("defaults.red.deliver")),
                 "deliver", 0, false);
