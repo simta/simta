@@ -1,4 +1,4 @@
-2.0.2 (2022-??-??)
+2.0.2 (2022-04-05)
     - fixed double escaping of strings in generated JSON, which could cause
       issues during expansion and delivery
     - fixed DMARC alignment checks
