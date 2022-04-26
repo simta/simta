@@ -89,8 +89,6 @@ def test_punishment_trigger_auth(smtp, testmsg):
     test_mode_tempfail(smtp)
 
 
-# FIXME: This is very unreliable
-@pytest.mark.xfail(reason='flaky', strict=False)
 def test_punishment_trigger_nobanner(simta, testmsg):
     smtp = smtplib.SMTP('localhost', simta['port'])
     test_mode_global_relay(smtp, testmsg)
@@ -100,15 +98,21 @@ def test_punishment_trigger_nobanner(simta, testmsg):
     conn = socket.create_connection(('localhost', simta['port']))
     conn.settimeout(5)
     conn.sendall(b'EHLO itsanevilclient\n')
-    response = conn.recv(4096)
-    assert response[:3] == b'220'
-    response = conn.recv(4096)
+    response = conn.recv(4096).splitlines()
+    assert response[0][:3] == b'220'
+    # Sometimes the first recv will get both the banner and the EHLO response.
+    # Sometimes it won't.
+    if len(response) == 1:
+        response = conn.recv(4096)
+    else:
+        response = response[1]
     assert response[:3] == b'421'
     conn.sendall(b'MAIL FROM:<eviluser@example.com>\n')
     with pytest.raises(socket.error) as e:
-        response = conn.recv(4096)
-        response = conn.recv(4096)
-    assert e.value.errno == errno.ECONNRESET
+        while True:
+            conn.sendall(b'MAIL FROM:<eviluser@example.com>\n')
+            response = conn.recv(4096)
+    assert e.value.errno in [errno.ECONNRESET, errno.EPIPE]
     assert time.time() - startts > 1
     assert time.time() - startts < 3
 
