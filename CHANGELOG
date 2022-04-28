@@ -1,4 +1,5 @@
 2.x.x (2022-??-??)
+    - fixed crash during LDAP retries when reconnect fails
     - added support for autoreply date ranges
 
 2.0.2 (2022-04-05)

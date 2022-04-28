@@ -412,13 +412,6 @@ simta_ldap_init(struct simta_ldap *ld) {
                 if (ld->ldap_starttls == 2) {
                     goto done;
                 }
-                if (ld->ldap_tls_cert) {
-                    ld->ldap_tls_cert = NULL;
-                }
-
-                if (simta_ldap_retry(ld) != 0) {
-                    goto done;
-                }
             }
         }
 #endif /* HAVE_LIBSSL */
@@ -501,14 +494,19 @@ simta_ldap_search(struct simta_ldap *ld, char *base, int scope, char *filter,
     }
 
     for (; (rc == LDAP_SERVER_DOWN) && (retries > 0); retries--) {
-        simta_gettimeofday(&tv_start);
+        /* only do the search if we successfully connected */
+        if (ld->ldap_ld) {
+            simta_gettimeofday(&tv_start);
 
-        rc = ldap_search_ext_s(ld->ldap_ld, base, scope, filter, ld->ldap_attrs,
-                0, NULL, NULL, &tv_timeout, LDAP_NO_LIMIT, res);
+            rc = ldap_search_ext_s(ld->ldap_ld, base, scope, filter,
+                    ld->ldap_attrs, 0, NULL, NULL, &tv_timeout, LDAP_NO_LIMIT,
+                    res);
 
-        simta_gettimeofday(&tv_now);
-        statsd_timer("ldap", "query", SIMTA_ELAPSED_MSEC(tv_start, tv_now));
+            simta_gettimeofday(&tv_now);
+            statsd_timer("ldap", "query", SIMTA_ELAPSED_MSEC(tv_start, tv_now));
+        }
 
+        /* if the server went down or we failed to connect, reconnect */
         if ((rc == LDAP_SERVER_DOWN) && retries > 1) {
             statsd_counter("ldap", "retry", 1);
             ldap_msgfree(*res);
