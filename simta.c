@@ -40,8 +40,7 @@
 #include "embedded_config.h"
 #include "embedded_schema.h"
 
-static simta_result       simta_read_publicsuffix(const char *);
-static struct ucl_parser *simta_ucl_parser(void);
+static simta_result simta_read_publicsuffix(const char *);
 
 
 /* global variables */
@@ -144,18 +143,6 @@ simta_debuglog(int level, const char *format, ...) {
         vsyslog(LOG_DEBUG, format, vl);
     }
     va_end(vl);
-}
-
-static struct ucl_parser *
-simta_ucl_parser(void) {
-    struct ucl_parser *parser;
-
-    parser = ucl_parser_new(
-            UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
-
-    ucl_parser_register_variable(parser, "HOSTNAME", simta_hostname);
-
-    return parser;
 }
 
 

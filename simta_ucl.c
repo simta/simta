@@ -11,6 +11,18 @@
 #include "simta_ucl.h"
 
 
+struct ucl_parser *
+simta_ucl_parser(void) {
+    struct ucl_parser *parser;
+
+    parser = ucl_parser_new(
+            UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
+
+    ucl_parser_register_variable(parser, "HOSTNAME", simta_hostname);
+
+    return parser;
+}
+
 void
 simta_ucl_merge_defaults(
         const ucl_object_t *obj, const char *basepath, const char *path) {

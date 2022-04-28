@@ -6,6 +6,7 @@
 
 #include <ucl.h>
 
+struct ucl_parser *simta_ucl_parser(void);
 void simta_ucl_merge_defaults(const ucl_object_t *, const char *, const char *);
 void simta_ucl_ensure_array(const ucl_object_t *, const char *);
 bool simta_ucl_toggle(const ucl_object_t *, const char *, const char *, bool);

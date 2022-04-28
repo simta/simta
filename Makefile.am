@@ -90,11 +90,14 @@ simck_LDADD = $(COMMON_LIBS)
 endif
 
 if BUILD_CMOCKA
-check_PROGRAMS = test/cmocka_dmarc test/cmocka_header test/cmocka_md
+check_PROGRAMS = test/cmocka_dmarc test/cmocka_header test/cmocka_ldap test/cmocka_md
 test_cmocka_dmarc_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
 test_cmocka_dmarc_SOURCES = test/unit_dmarc.c dmarc.c dmarc.h $(COMMON_FILES)
 test_cmocka_header_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
 test_cmocka_header_SOURCES = test/unit_header.c $(COMMON_FILES)
+test_cmocka_ldap_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
+test_cmocka_ldap_LDFLAGS = -Wl,--wrap=ldap_count_entries -Wl,--wrap=ldap_initialize -Wl,--wrap=ldap_is_ldap_url -Wl,--wrap=ldap_msgfree -Wl,--wrap=ldap_sasl_bind_s -Wl,--wrap=ldap_search_ext_s -Wl,--wrap=ldap_set_option -Wl,--wrap=ldap_unbind_ext -Wl,--wrap=ldap_url_parse
+test_cmocka_ldap_SOURCES = test/unit_ldap.c $(COMMON_FILES)
 test_cmocka_md_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
 test_cmocka_md_SOURCES = test/unit_md.c $(COMMON_FILES)
 endif
