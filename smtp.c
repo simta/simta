@@ -28,6 +28,7 @@
 #include "queue.h"
 #include "red.h"
 #include "simta_malloc.h"
+#include "simta_statsd.h"
 #include "smtp.h"
 
 #ifdef HAVE_LIBSSL
@@ -241,6 +242,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
     switch (*line) {
     /* 2xx responses indicate success */
     case '2':
+        statsd_counter("deliver.smtp_response", "2xx", 1);
         switch (smtp_command) {
         case SMTP_CONNECT:
             /* Loop detection
@@ -396,6 +398,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
      * fall through to case default for all other commands
      */
     case '3':
+        statsd_counter("deliver.smtp_response", "3xx", 1);
         if (smtp_command == SMTP_DATA) {
             /* consume success banner */
             return (smtp_consume_banner(NULL, d, line, NULL));
@@ -406,6 +409,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
 
     /* 4xx responses indicate temporary failure */
     case '4':
+        statsd_counter("deliver.smtp_response", "4xx", 1);
         switch (smtp_command) {
         case SMTP_CONNECT:
             syslog(LOG_NOTICE,
@@ -503,6 +507,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
 
     /* all other responses are hard failures */
     case '5':
+        statsd_counter("deliver.smtp_response", "5xx", 1);
         switch (smtp_command) {
         case SMTP_CONNECT:
             if (hq->hq_status == SIMTA_HOST_DOWN) {

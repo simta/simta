@@ -489,7 +489,7 @@ reset(struct receive_data *r) {
     if (r->r_env != NULL) {
         syslog(LOG_INFO, "Receive [%s] %s: env <%s>: Message Failed: Abandoned",
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-        statsd_counter("receive.messages", "abandoned", 1);
+        statsd_counter("receive.message", "abandoned", 1);
         env_free(r->r_env);
         r->r_env = NULL;
     }
@@ -549,7 +549,7 @@ tarpit_sleep(struct receive_data *r) {
 
 static void
 log_bad_syntax(struct receive_data *r) {
-    statsd_counter("receive.smtp_commands", "badsyntax", 1);
+    statsd_counter("receive.smtp_command", "badsyntax", 1);
     simta_debuglog(1, "Receive [%s] %s: Bad syntax: %s", r->r_ip,
             r->r_remote_hostname, r->r_smtp_command);
     return;
@@ -563,6 +563,15 @@ smtp_write_banner(struct receive_data *r, int reply_code, const char *msg,
     int         ret = RECEIVE_OK;
     int         rc;
     int         hostname = 0;
+    yastr       reply_code_str;
+
+    statsd_counter("receive.smtp_response", "total", 1);
+    reply_code_str = yaslfromlonglong(reply_code);
+    yaslrange(reply_code_str, 0, 1);
+    reply_code_str = yaslcat(reply_code_str, "xx");
+    statsd_counter("receive.smtp_response", reply_code_str, 1);
+    yaslfree(reply_code_str);
+    reply_code_str = NULL;
 
     switch (reply_code) {
     case 211:
@@ -2352,6 +2361,7 @@ done:
                 r->r_env->e_mid ? r->r_env->e_mid : "NULL", data_read,
                 system_message ? system_message : "no system message",
                 filter_message ? filter_message : "no filter message");
+        statsd_counter("receive.message", "tempfailed", 1);
         if (smtp_write_banner(r, 451, S_451_MESSAGE, failure_message) !=
                 RECEIVE_OK) {
             ret_code = RECEIVE_CLOSECONNECTION;
@@ -2366,6 +2376,7 @@ done:
                 r->r_env->e_mid ? r->r_env->e_mid : "NULL", data_read,
                 system_message ? system_message : "no system message",
                 filter_message ? filter_message : "no filter message");
+        statsd_counter("receive.message", "failed", 1);
         if (smtp_write_banner(r, 554, S_554_MESSAGE, failure_message) !=
                 RECEIVE_OK) {
             ret_code = RECEIVE_CLOSECONNECTION;
@@ -2380,6 +2391,7 @@ done:
                 r->r_env->e_mid ? r->r_env->e_mid : "NULL", data_read,
                 system_message ? system_message : "no system message",
                 filter_message ? filter_message : "no filter message");
+        statsd_counter("receive.message", "accepted", 1);
         if (filter_message != NULL) {
             if (snet_writef(r->r_snet, "250 Accepted: (%s): %s\r\n",
                         r->r_env->e_id, filter_message) < 0) {

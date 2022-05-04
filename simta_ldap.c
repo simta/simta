@@ -521,12 +521,13 @@ simta_ldap_search(struct simta_ldap *ld, char *base, int scope, char *filter,
         if ((count = ldap_count_entries(ld->ldap_ld, *res)) > 0) {
             retval = ADDRESS_OK;
         } else if (count == 0) {
+            statsd_counter("ldap.query_result", "not_found", 1);
             retval = ADDRESS_NOT_FOUND;
         }
         break;
     case LDAP_FILTER_ERROR:
     case LDAP_NO_SUCH_OBJECT:
-        statsd_counter("ldap.query_result", "not_found", 1);
+        statsd_counter("ldap.query_result", "error", 1);
         retval = ADDRESS_NOT_FOUND;
         break;
     case LDAP_SIZELIMIT_EXCEEDED:

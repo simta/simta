@@ -34,6 +34,7 @@
 #include "red.h"
 #include "simta.h"
 #include "simta_malloc.h"
+#include "simta_statsd.h"
 
 #ifdef HAVE_LIBSSL
 #include "md.h"
@@ -330,6 +331,7 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
     char                sa_ip[ INET6_ADDRSTRLEN ];
     yastr               ip = NULL;
     yastr               reason = NULL;
+    yastr               statsd_name = NULL;
     const char *        dnsl_action;
     struct dnsr_result *result;
     struct sockaddr_in  sin;
@@ -491,11 +493,17 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
         yaslfree(lookup);
 
         if (ret) {
+            statsd_name = yaslcatprintf(
+                    yaslmapchars(yaslauto(lookup_base), ".", "_", 1), ".%s",
+                    ret->dnsl_action);
+            statsd_counter("dnsl", statsd_name, 1);
+            yaslfree(statsd_name);
+            statsd_name = NULL;
             ucl_object_iterate_free(iter);
 #ifdef HAVE_LIBSSL
             md_cleanup(&md);
 #endif /* HAVE_LIBSSL */
-            return (ret);
+            return ret;
         }
 
         simta_debuglog(1, "DNS List [%s]: Unlisted in list %s",
@@ -516,7 +524,7 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
     md_cleanup(&md);
 #endif /* HAVE_LIBSSL */
 
-    return (NULL);
+    return NULL;
 }
 
 void
