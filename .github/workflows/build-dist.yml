@@ -1,0 +1,62 @@
+name: build-dist
+on:
+  push:
+    tags:
+      - simta-*
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          path: simta
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: sudo apt install libbsd-dev libmilter-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libsasl2-modules-db sasl2-bin libcmocka-dev yadifa slapd ldap-utils lcov
+
+      - name: Cache built dependencies
+        uses: actions/cache@v2
+        id: cache-deps
+        with:
+          path: ${{ github.workspace }}/.deps
+          key: deps-${{ hashFiles('simta/.github/workflows/**') }}
+
+      - name: Install fpm
+        run: sudo gem install --no-document fpm
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build denser
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: https://github.com/simta/denser
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build libsnet
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: https://github.com/simta/libsnet
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build libucl
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: https://github.com/vstakhov/libucl
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Install built dependencies
+        run: sudo dpkg -R -i ${{ github.workspace }}/.deps
+
+      - name: Build dist tarball
+        run: |
+          autoreconf -fiv
+          ./configure
+          make dist
+        working-directory: ${{ github.workspace }}/simta
+
+      - name: Save dist tarball
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: ${{ github.workspace }}/simta/simta-*.tar.xz
