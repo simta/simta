@@ -1338,6 +1338,7 @@ mid_promote(char *mid) {
         e = (struct envelope *)dll->dll_data;
 
         if (e->e_jailed) {
+            env_read(false, e, NULL);
             e->e_jailed = false;
             if (env_outfile(e) != SIMTA_OK) {
                 syslog(LOG_NOTICE,
@@ -1381,6 +1382,7 @@ sender_promote(char *sender) {
                 dll_se = dll_se->dll_next) {
             se = (struct sender_entry *)dll_se->dll_data;
             if (se->se_env->e_jailed) {
+                env_read(false, se->se_env, NULL);
                 se->se_env->e_jailed = false;
                 if (env_outfile(se->se_env) != SIMTA_OK) {
                     syslog(LOG_NOTICE,
@@ -1578,6 +1580,7 @@ daemon_commands(struct simta_dirp *sd) {
                 /* promote all the envs in the queue */
                 for (e = hq->hq_env_head; e != NULL; e = e->e_hq_next) {
                     if (e->e_jailed) {
+                        env_read(false, e, NULL);
                         e->e_jailed = false;
                         if (env_outfile(e) != SIMTA_OK) {
                             ret++;
