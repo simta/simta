@@ -116,6 +116,7 @@ simta_result  env_read(bool, struct envelope *, SNET **);
 int           env_fsync(const char *);
 ino_t         env_dfile_copy(struct envelope *, char *, char *);
 int           env_truncate_and_unlink(struct envelope *, SNET *);
+simta_result  env_parole(struct envelope *);
 int           env_string_recipients(struct envelope *, char *);
 int           sender_list_add(struct envelope *);
 yastr         env_dkim_sign(struct envelope *);

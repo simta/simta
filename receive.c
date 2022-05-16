@@ -2207,8 +2207,7 @@ done:
             r->r_env->e_puntable = false;
 
             syslog(LOG_NOTICE,
-                    "Receive [%s] %s: env <%s>: "
-                    "sending to JAIL_HOST %s",
+                    "Receive [%s] %s: env <%s>: sending to jail host %s",
                     r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                     r->r_env->e_hostname);
         }

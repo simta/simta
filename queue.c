@@ -561,10 +561,8 @@ hq_deliver_push(
     }
 
     /* add to launch queue sorted on priority and launch time */
-    if ((simta_deliver_q == NULL) ||
-            /* ( simta_deliver_q->hq_priority < hq->hq_priority ) || */
-            (simta_deliver_q->hq_next_launch.tv_sec >=
-                    hq->hq_next_launch.tv_sec)) {
+    if ((simta_deliver_q == NULL) || (simta_deliver_q->hq_next_launch.tv_sec >=
+                                             hq->hq_next_launch.tv_sec)) {
         if ((hq->hq_deliver_next = simta_deliver_q) != NULL) {
             simta_deliver_q->hq_deliver_prev = hq;
         }
@@ -574,7 +572,6 @@ hq_deliver_push(
     } else {
         for (insert = simta_deliver_q, order = 2;
                 ((insert->hq_deliver_next != NULL) &&
-                        /* ( insert->hq_priority > hq->hq_priority ) && */
                         (insert->hq_deliver_next->hq_next_launch.tv_sec <=
                                 hq->hq_next_launch.tv_sec));
                 insert = insert->hq_deliver_next, order++)
@@ -1328,14 +1325,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                 if (!env_deliver->e_puntable) {
                     syslog(LOG_INFO, "Deliver env <%s>: not puntable",
                             env_deliver->e_id);
-                    env_outfile(env_deliver);
-                    if (env_deliver->e_dir == simta_dir_fast) {
-                        /* overwrote a file, didn't create a new one */
-                        simta_fast_files--;
-                        simta_debuglog(2,
-                                "Deliver env <%s>: fast_files decrement %d",
-                                env_deliver->e_id, simta_fast_files);
-                    }
                 }
                 env_move(env_deliver, simta_dir_slow);
                 env_free(env_deliver);

@@ -1337,18 +1337,11 @@ mid_promote(char *mid) {
     if ((dll = dll_lookup(simta_env_list, mid)) != NULL) {
         e = (struct envelope *)dll->dll_data;
 
-        if (e->e_jailed) {
-            env_read(false, e, NULL);
-            e->e_jailed = false;
-            if (env_outfile(e) != SIMTA_OK) {
-                syslog(LOG_NOTICE,
-                        "Command: env <%s>: changing jail status failed", mid);
-                return SIMTA_ERR;
-            }
+        if (env_parole(e) != SIMTA_OK) {
+            return SIMTA_ERR;
         }
 
         if (e->e_hq != NULL) {
-            /* e->e_hq->hq_priority++; */
             hq_deliver_pop(e->e_hq);
             if (hq_deliver_push(e->e_hq, NULL, &tv_nowait) != 0) {
                 return (1);
@@ -1381,19 +1374,9 @@ sender_promote(char *sender) {
         for (dll_se = sl->sl_entries; dll_se != NULL;
                 dll_se = dll_se->dll_next) {
             se = (struct sender_entry *)dll_se->dll_data;
-            if (se->se_env->e_jailed) {
-                env_read(false, se->se_env, NULL);
-                se->se_env->e_jailed = false;
-                if (env_outfile(se->se_env) != SIMTA_OK) {
-                    syslog(LOG_NOTICE,
-                            "Command: Sender %s: changing jail status "
-                            "failed for %s",
-                            sender, se->se_env->e_id);
-                }
-            }
+            env_parole(se->se_env);
             /* re-queue queue */
             if (se->se_env->e_hq != NULL) {
-                /* se->se_env->e_hq->hq_priority++; */
                 hq_deliver_pop(se->se_env->e_hq);
                 if (hq_deliver_push(se->se_env->e_hq, NULL, &tv_nowait) != 0) {
                     syslog(LOG_NOTICE,
@@ -1576,21 +1559,9 @@ daemon_commands(struct simta_dirp *sd) {
             simta_debuglog(2, "Command %s: Queue %s", entry->d_name, av[ 1 ]);
             if ((hq = host_q_lookup(av[ 1 ])) != NULL) {
                 hq_deliver_pop(hq);
-                /* hq->hq_priority++; */
                 /* promote all the envs in the queue */
                 for (e = hq->hq_env_head; e != NULL; e = e->e_hq_next) {
-                    if (e->e_jailed) {
-                        env_read(false, e, NULL);
-                        e->e_jailed = false;
-                        if (env_outfile(e) != SIMTA_OK) {
-                            ret++;
-                            syslog(LOG_NOTICE,
-                                    "Command %s: Queue %s: "
-                                    "changing jail status failed for "
-                                    "%s",
-                                    entry->d_name, av[ 1 ], e->e_id);
-                        }
-                    }
+                    env_parole(e);
                 }
 
                 if (hq_deliver_push(hq, NULL, &tv_nowait) != 0) {

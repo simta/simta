@@ -1230,6 +1230,32 @@ env_move(struct envelope *env, char *target_dir) {
 }
 
 
+simta_result
+env_parole(struct envelope *env) {
+    SNET *       snet_lock;
+    simta_result ret = SIMTA_ERR;
+
+    if (!env->e_jailed) {
+        return SIMTA_OK;
+    }
+
+    if (env_read(false, env, &snet_lock) == SIMTA_OK) {
+        ret = env_outfile(env);
+        if (snet_close(snet_lock) != 0) {
+            syslog(LOG_ERR, "Liberror: env_parole snet_close: %m");
+        }
+    }
+
+    if (ret != SIMTA_OK) {
+        syslog(LOG_NOTICE, "Envelope env <%s>: parole failed", env->e_id);
+    } else {
+        syslog(LOG_INFO, "Envelope env <%s>: paroled message", env->e_id);
+    }
+
+    return ret;
+}
+
+
 int
 env_string_recipients(struct envelope *env, char *line) {
     struct string_address *sa;
