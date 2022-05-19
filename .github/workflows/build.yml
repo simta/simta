@@ -38,6 +38,9 @@ jobs:
           path: simta
           fetch-depth: 0
 
+      - name: apt update
+        run: sudo apt update
+
       - name: Install dependencies
         run: sudo apt install libbsd-dev libmilter-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libsasl2-modules-db sasl2-bin libcmocka-dev yadifa slapd ldap-utils lcov
 
