@@ -44,6 +44,7 @@ test_md_reset(void **state) {
     struct message_digest md;
 
     md_init(&md);
+    md_finalize(&md);   /* Really just for coverage */
     md_reset(&md, "sha1");
     md_update(&md, "blackholesun", 12);
     md_reset(&md, "sha256");
