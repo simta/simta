@@ -3076,6 +3076,28 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         goto closeconnection;
     }
 
+    /* Set up extensions */
+    r.r_smtp_extensions = ucl_object_typed_new(UCL_OBJECT);
+    ucl_object_insert_key(r.r_smtp_extensions, ucl_object_typed_new(UCL_NULL),
+            "8BITMIME", 0, false);
+    ucl_object_insert_key(r.r_smtp_extensions,
+            ucl_object_copy(
+                    simta_config_obj("receive.data.limits.message_size")),
+            "SIZE", 0, false);
+
+    if (simta_config_bool("receive.auth.authn.enabled") &&
+            simta_config_bool("receive.auth.authn.honeypot")) {
+        ucl_object_insert_key(r.r_smtp_extensions,
+                simta_ucl_object_fromstring("LOGIN PLAIN"), "AUTH", 0, false);
+    }
+
+#ifdef HAVE_LIBSSL
+    if (simta_config_bool("receive.tls.enabled")) {
+        ucl_object_insert_key(r.r_smtp_extensions,
+                ucl_object_typed_new(UCL_NULL), "STARTTLS", 0, false);
+    }
+#endif /* HAVE_LIBSSL */
+
     if (r.r_smtp_mode == SMTP_MODE_DISABLED) {
         /* RFC 5321 3.1 Session Initiation
          * The SMTP protocol allows a server to formally reject a transaction
@@ -3274,28 +3296,6 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         syslog(LOG_INFO, "Connect.in [%s] %s: Accepted", r.r_ip,
                 r.r_remote_hostname);
     }
-
-    /* Set up extensions */
-    r.r_smtp_extensions = ucl_object_typed_new(UCL_OBJECT);
-    ucl_object_insert_key(r.r_smtp_extensions, ucl_object_typed_new(UCL_NULL),
-            "8BITMIME", 0, false);
-    ucl_object_insert_key(r.r_smtp_extensions,
-            ucl_object_copy(
-                    simta_config_obj("receive.data.limits.message_size")),
-            "SIZE", 0, false);
-
-    if (simta_config_bool("receive.auth.authn.enabled") &&
-            simta_config_bool("receive.auth.authn.honeypot")) {
-        ucl_object_insert_key(r.r_smtp_extensions,
-                simta_ucl_object_fromstring("LOGIN PLAIN"), "AUTH", 0, false);
-    }
-
-#ifdef HAVE_LIBSSL
-    if (simta_config_bool("receive.tls.enabled")) {
-        ucl_object_insert_key(r.r_smtp_extensions,
-                ucl_object_typed_new(UCL_NULL), "STARTTLS", 0, false);
-    }
-#endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_LIBOPENARC
     if (simta_config_bool("receive.arc.enabled")) {
@@ -3885,8 +3885,12 @@ update_sasl_extension(struct receive_data *r) {
     if (simta_sasl_mechlist(r->r_sasl, &mechlist) != 0) {
         return;
     }
-    ucl_object_replace_key(r->r_smtp_extensions,
-            simta_ucl_object_fromstring(mechlist), "AUTH", 0, false);
+    if (mechlist[ 0 ] != '\0') {
+        ucl_object_replace_key(r->r_smtp_extensions,
+                simta_ucl_object_fromstring(mechlist), "AUTH", 0, false);
+    } else {
+        ucl_object_delete_key(r->r_smtp_extensions, "AUTH");
+    }
 }
 #endif /* HAVE_LIBSASL */
 
