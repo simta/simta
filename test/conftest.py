@@ -242,6 +242,7 @@ def simta_config(request, tmp_path):
 @pytest.fixture
 def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cert):
     port = openport(10025)
+    legacy_port = openport(10465)
 
     for spool in ['command', 'dead', 'etc', 'fast', 'local', 'slow']:
         tmp_path.joinpath(spool).mkdir()
@@ -252,6 +253,7 @@ def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cer
         'tls': {
             'certificate': tls_cert['certificate'],
             'key': tls_cert['key'],
+            'ports': [legacy_port],
         },
         'auth': {
             'authn': {
@@ -299,7 +301,7 @@ def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cer
                 raise
             time.sleep(0.1)
 
-    yield({'port': port, 'tmpdir': str(tmp_path)})
+    yield({'port': port, 'legacy_port': legacy_port, 'tmpdir': str(tmp_path)})
 
     simta_proc.terminate()
 
