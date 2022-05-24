@@ -1242,6 +1242,7 @@ env_parole(struct envelope *env) {
     }
 
     if (env_read(false, env, &snet_lock) == SIMTA_OK) {
+        env->e_jailed = false;
         ret = env_outfile(env);
         if (snet_close(snet_lock) != 0) {
             syslog(LOG_ERR, "Liberror: env_parole snet_close: %m");
