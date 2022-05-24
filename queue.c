@@ -948,7 +948,10 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
      */
     if (deliver_q->hq_status == SIMTA_HOST_UNKNOWN) {
         if (ucl_object_toboolean(ucl_object_lookup_path(
-                    deliver_q->hq_red, "deliver.local.enabled"))) {
+                    deliver_q->hq_red, "deliver.bitbucket.enabled"))) {
+            deliver_q->hq_status = SIMTA_HOST_BITBUCKET;
+        } else if (ucl_object_toboolean(ucl_object_lookup_path(
+                           deliver_q->hq_red, "deliver.local.enabled"))) {
             deliver_q->hq_status = SIMTA_HOST_LOCAL;
         } else {
             deliver_q->hq_status = SIMTA_HOST_MX;
