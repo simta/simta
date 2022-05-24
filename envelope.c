@@ -874,6 +874,8 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
             goto cleanup;
         }
 
+        /* Clear any existing recipients. */
+        env_rcpt_free(env);
         iter = ucl_object_iterate_new(
                 ucl_object_lookup(env_data, "recipients"));
         while ((rcpt = ucl_object_iterate_safe(iter, false)) != NULL) {

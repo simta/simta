@@ -973,9 +973,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         syslog(LOG_INFO, "Deliver env <%s>: Attempting delivery",
                 env_deliver->e_id);
 
-        /* clear any existing recipients */
-        env_rcpt_free(env_deliver);
-
         /* lock & read envelope to deliver */
         if (env_read(false, env_deliver, &snet_lock) != SIMTA_OK) {
             /* envelope not valid.  disregard */
