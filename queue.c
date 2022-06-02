@@ -262,11 +262,9 @@ q_runner(void) {
     int                 min;
     int                 sec;
 
-    assert(simta_fast_files >= 0);
-
     if ((simta_host_q == NULL) && (simta_unexpanded_q == NULL)) {
         syslog(LOG_ERR, "Queue.manage: no host_q");
-        return (simta_fast_files);
+        return 0;
     }
 
     queue_time_order(simta_unexpanded_q);
@@ -277,7 +275,7 @@ q_runner(void) {
     }
 
     if (simta_gettimeofday(&tv_start) != 0) {
-        return (simta_fast_files);
+        return fast_q_total();
     }
 
     for (;;) {
@@ -463,15 +461,89 @@ q_runner_done:
     simta_ldap_reset();
 #endif /* HAVE_LDAP */
 
-    if (simta_fast_files != 0) {
+    if (fast_q_total() != 0) {
         syslog(LOG_ERR, "Queue.manage: exiting with %d fast_files",
-                simta_fast_files);
-        return (SIMTA_EXIT_ERROR);
+                fast_q_total());
+        return SIMTA_EXIT_ERROR;
     } else if (simta_leaky_queue) {
-        return (SIMTA_EXIT_OK_LEAKY);
+        return SIMTA_EXIT_OK_LEAKY;
     }
 
-    return (SIMTA_EXIT_OK);
+    return SIMTA_EXIT_OK;
+}
+
+
+int
+fast_q_count(struct host_q *hq) {
+    int              retval = 0;
+    struct envelope *e;
+
+    if (hq) {
+        e = hq->hq_env_head;
+        while (e) {
+            if (e->e_dir == simta_dir_fast) {
+                retval++;
+            }
+            e = e->e_next;
+        }
+    }
+
+    return retval;
+}
+
+
+int
+fast_q_total(void) {
+    ucl_object_iter_t   iter;
+    const ucl_object_t *obj;
+    int                 retval;
+
+    retval = fast_q_count(simta_unexpanded_q);
+
+    if (simta_host_q) {
+        iter = ucl_object_iterate_new(simta_host_q);
+        while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+            retval += fast_q_count(obj->value.ud);
+        }
+        ucl_object_iterate_free(iter);
+    }
+
+    return retval;
+}
+
+
+void
+q_clear(struct host_q *hq) {
+    struct envelope *e;
+
+    if (hq == NULL) {
+        return;
+    }
+
+    while (hq->hq_env_head != NULL) {
+        e = hq->hq_env_head;
+        hq->hq_env_head = e->e_next;
+        simta_debuglog(3, "q_clear: freeing env <%s>", e->e_id);
+        env_free(e);
+    }
+    hq->hq_entries = 0;
+}
+
+
+void
+q_clear_all(void) {
+    ucl_object_iter_t   iter;
+    const ucl_object_t *obj;
+
+    q_clear(simta_unexpanded_q);
+
+    if (simta_host_q) {
+        iter = ucl_object_iterate_new(simta_host_q);
+        while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+            q_clear(obj->value.ud);
+        }
+        ucl_object_iterate_free(iter);
+    }
 }
 
 
@@ -1232,15 +1304,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                 goto message_cleanup;
             }
 
-            if (env_deliver->e_dir == simta_dir_fast) {
-                /* overwrote fast file, not created a new one */
-                simta_fast_files--;
-                simta_debuglog(2, "Deliver env <%s>: fast_files decrement %d",
-                        env_deliver->e_id, simta_fast_files);
-            }
-
-            assert(simta_fast_files >= 0);
-
             /* else we need to touch the envelope if we started an attempt
          * deliver the message, but it was unsuccessful.  Note that we
          * need to have a positive or negitive rcpt reply to prevent the
@@ -1314,13 +1377,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                 queue_envelope(env_deliver);
                 deliver_q_queue(deliver_q, env_deliver->e_hq);
                 env_outfile(env_deliver);
-                if (env_deliver->e_dir == simta_dir_fast) {
-                    /* overwrote a file, didn't create a new one */
-                    simta_fast_files--;
-                    simta_debuglog(2,
-                            "Deliver env <%s>: fast_files decrement %d",
-                            env_deliver->e_id, simta_fast_files);
-                }
             } else {
                 if (!env_deliver->e_puntable) {
                     syslog(LOG_INFO, "Deliver env <%s>: not puntable",

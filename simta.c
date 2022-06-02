@@ -65,7 +65,6 @@ int                  simta_filesystem_cleanup = 0;
 int                  simta_message_count = 0;
 int                  simta_smtp_outbound_attempts = 0;
 int                  simta_smtp_outbound_delivered = 0;
-int                  simta_fast_files = 0;
 int                  simta_debug = 1;
 int                  simta_child_signal = 0;
 yastr                simta_postmaster = NULL;

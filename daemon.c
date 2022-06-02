@@ -1216,7 +1216,13 @@ simta_child_q_runner(struct host_q *hq) {
         simta_openlog(true, 0);
         simta_sigaction_reset(false);
         close(simta_pidfd);
-        simta_host_q = NULL;
+
+        /* delivery children of receive processes should run all queues, so
+         * we don't clear this for them.
+         */
+        if (simta_process_type != PROCESS_RECEIVE) {
+            simta_host_q = NULL;
+        }
 
         /* Stop using the parent's dnsr object, if it has one */
         if (simta_dnsr) {

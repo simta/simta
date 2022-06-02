@@ -158,7 +158,7 @@ expand(struct envelope *unexpanded_env) {
 
     memset(&exp, 0, sizeof(struct expand));
     exp.exp_env = unexpanded_env;
-    fast_file_start = simta_fast_files;
+    fast_file_start = fast_q_total();
 
     /* call address_expand on each address in the expansion list.
      *
@@ -763,7 +763,7 @@ cleanup3:
     }
 #endif /* HAVE_LDAP */
 
-    if (simta_fast_files != fast_file_start) {
+    if (fast_q_total() != fast_file_start) {
         syslog(LOG_ERR, "Expand env <%s>: could not unwind expansion",
                 unexpanded_env->e_id);
         return_value = 1;

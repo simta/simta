@@ -3,6 +3,8 @@
     - fixed race when releasing messages from jail
     - fixed config validation failures on hostnames with `-`
     - fixed bitbucketing
+    - removed forcible skipping of initial delivery attempts of messages
+      destined for jail
 
 2.0.3 (2022-05-09)
     - fixed releasing messages from jail via simc

@@ -401,38 +401,26 @@ set_smtp_mode(struct receive_data *r, const char *mode, const char *msg) {
 
 int
 deliver_accepted(struct receive_data *r, int force) {
-    struct envelope *e;
-    struct host_q *  hq;
-    struct timeval   tv_add;
-    struct timeval   tv_now;
+    struct timeval tv_add;
+    struct timeval tv_now;
+    int            fast_files;
 
     if ((r->r_env) && (r->r_env->e_flags & ENV_FLAG_EFILE)) {
         queue_envelope(r->r_env);
         r->r_env = NULL;
     }
 
-    /* FIXME: kludge to avoid a bad interaction with aggressive receipt */
-    const char *jail_host = NULL;
-    if (((jail_host = simta_config_str("deliver.jail.host")) != NULL) &&
-            ((hq = host_q_lookup(jail_host)) != NULL)) {
-        while ((e = hq->hq_env_head) != NULL) {
-            queue_remove_envelope(e);
-            env_move(e, simta_dir_slow);
-            env_free(e);
-        }
-    }
-
-    /* If the queue is empty we don't need to process it. */
-    if ((simta_unexpanded_q == NULL) ||
-            (simta_unexpanded_q->hq_env_head == NULL)) {
-        return (RECEIVE_OK);
+    /* If the queues are empty we don't need to process them. */
+    fast_files = fast_q_total();
+    if (fast_files == 0) {
+        return RECEIVE_OK;
     }
 
     if (force ||
             (strcasecmp(simta_config_str("receive.queue.strategy"), "slow") ==
                     0) ||
             ((simta_config_int("receive.queue.aggression") > 0) &&
-                    (simta_fast_files >=
+                    (fast_files >=
                             simta_config_int("receive.queue.aggression")))) {
         if ((r->r_snet == NULL) && (simta_proc_stab == NULL)) {
             /* no connection and no outstanding children, run the queue */
@@ -450,22 +438,12 @@ deliver_accepted(struct receive_data *r, int force) {
             }
             statsd_counter("receive.q_runners", "launched", 1);
 
-            /* clean mailbag */
-            while (simta_unexpanded_q->hq_env_head != NULL) {
-                e = simta_unexpanded_q->hq_env_head;
-                simta_debuglog(
-                        3, "deliver_accepted: freeing env <%s>", e->e_id);
-                simta_unexpanded_q->hq_env_head = e->e_next;
-                env_free(e);
-            }
-            simta_unexpanded_q->hq_entries = 0;
-            simta_fast_files = 0;
-
+            q_clear_all();
         } else {
             syslog(LOG_NOTICE,
                     "Receive [%s] %s: %d messages queued with no room for more "
                     "children, deferring launch",
-                    r->r_ip, r->r_remote_hostname, simta_fast_files);
+                    r->r_ip, r->r_remote_hostname, fast_files);
             statsd_counter("receive.q_runners", "deferred", 1);
 
             if (simta_gettimeofday(&tv_now) == SIMTA_OK) {
@@ -3578,8 +3556,8 @@ closeconnection:
         return (RECEIVE_SYSERROR);
     }
 
-    while ((simta_fast_files > 0) || (simta_proc_stab != NULL)) {
-        if (simta_fast_files > 0) {
+    while ((fast_q_total() > 0) || (simta_proc_stab != NULL)) {
+        if (fast_q_total() > 0) {
             /* if we have mail, try to deliver it */
             if (deliver_accepted(&r, 1) != RECEIVE_OK) {
                 return (RECEIVE_SYSERROR);
@@ -3619,7 +3597,7 @@ closeconnection:
 
     spf_free(r.r_spf);
 
-    return (simta_fast_files);
+    return fast_q_total();
 }
 
 static int
