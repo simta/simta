@@ -36,6 +36,7 @@
 #endif /* HAVE_LIBSSL */
 
 #define S_8BITMIME "8BITMIME"
+#define S_AUTH "AUTH"
 #define S_SIZE "SIZE"
 #define S_STARTTLS "STARTTLS"
 
@@ -136,6 +137,15 @@ smtp_parse_ehlo_banner(struct deliver *d, yastr *lines, size_t count) {
                 simta_debuglog(2, "Deliver.SMTP env <%s>: 8BITMIME supported",
                         d->d_env->e_id);
                 d->d_esmtp_8bitmime = true;
+            }
+        } else if (strncasecmp(S_AUTH, c, strlen(S_AUTH)) == 0) {
+            c += strlen(S_AUTH);
+            if (isspace(*c) || (*c == '\0')) {
+                for (; isspace(*c); c++)
+                    ;
+                simta_debuglog(2, "Deliver.SMTP env <%s>: AUTH supported: %s",
+                        d->d_env->e_id, c);
+                d->d_esmtp_auth = true;
             }
         } else if ((strncasecmp(S_SIZE, c, strlen(S_SIZE)) == 0)) {
             for (c += strlen(S_SIZE); isspace(*c); c++)
@@ -550,6 +560,7 @@ int
 smtp_ehlo(struct host_q *hq, struct deliver *d) {
     /* Reset state */
     d->d_esmtp_8bitmime = false;
+    d->d_esmtp_auth = false;
     d->d_esmtp_size = 0;
     d->d_esmtp_starttls = false;
 
@@ -712,6 +723,16 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
             return retval;
         }
 #endif /* HAVE_LIBSSL */
+
+#ifdef HAVE_LIBSASL
+        if (ucl_object_toboolean(ucl_object_lookup_path(hq->hq_red, "deliver.auth.enabled"))) {
+            if (!d->d_esmtp_auth) {
+                syslog(LOG_ERR, "Deliver.SMTP env <%s>: AUTH not supported", d->d_env->e_id);
+                return SMTP_ERROR;
+            }
+            FIXME;
+        }
+#endif /* HAVE_LIBSASL */
         break;
 
     case SMTP_ERROR:

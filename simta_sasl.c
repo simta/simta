@@ -17,26 +17,53 @@
 #include "simta_malloc.h"
 #include "simta_sasl.h"
 
+
+static int simta_sasl_encode(struct simta_sasl *, const char *, unsigned int);
+
+static int simta_sasl_authname(void *, int, const char **, unsigned int *);
 static int simta_sasl_getopt(
+        const char *, const char *, const char **, unsigned *, const char *);
+static int simta_sasl_getopt_c(
+        void *, const char *, const char *, const char **, unsigned *);
+static int simta_sasl_getopt_s(
         void *, const char *, const char *, const char **, unsigned *);
 static int simta_sasl_log(void *, int, const char *);
+static int simta_sasl_pass(sasl_conn_t *, void *, int, sasl_secret_t **);
 
 static sasl_callback_t server_callbacks[] = {
-        {SASL_CB_GETOPT, (sasl_callback_ft)&simta_sasl_getopt, NULL},
+        {SASL_CB_GETOPT, (sasl_callback_ft)&simta_sasl_getopt_s, NULL},
         {SASL_CB_LOG, (sasl_callback_ft)&simta_sasl_log, NULL},
+        {SASL_CB_LIST_END, NULL, NULL}};
+
+static sasl_callback_t client_callbacks[] = {
+        {SASL_CB_GETOPT, (sasl_callback_ft)&simta_sasl_getopt_c, NULL},
+        {SASL_CB_LOG, (sasl_callback_ft)&simta_sasl_log, NULL},
+        {SASL_CB_AUTHNAME, (sasl_callback_ft)&simta_sasl_authname, NULL},
+        {SASL_CB_PASS, (sasl_callback_ft)&simta_sasl_pass, NULL},
         {SASL_CB_LIST_END, NULL, NULL}};
 
 
 int
-simta_sasl_getopt(void *context __attribute__((unused)),
-        const char *plugin_name, const char *option, const char **result,
-        unsigned *len) {
+simta_sasl_authname(
+        void *context, int id, const char **result, unsigned int *len) {
+    if (id != SASL_CB_AUTHNAME) {
+        return SASL_FAIL;
+    }
+    *result = "USERNAME";
+    *len = strlen("USERNAME");
+    return SASL_OK;
+}
+
+
+int
+simta_sasl_getopt(const char *plugin_name, const char *option,
+        const char **result, unsigned *len, const char *src) {
     const ucl_object_t *obj;
 
     simta_debuglog(2, "SASL: request for option %s from plugin %s", option,
             plugin_name);
 
-    obj = simta_config_obj("receive.auth.authn.sasl");
+    obj = simta_config_obj(src);
     if ((obj = ucl_object_lookup(obj, option)) != NULL) {
         *result = ucl_object_tostring_forced(obj);
         simta_debuglog(2, "SASL: found option value: %s", *result);
@@ -47,6 +74,26 @@ simta_sasl_getopt(void *context __attribute__((unused)),
     }
 
     return SASL_FAIL;
+}
+
+
+int
+simta_sasl_getopt_c(void *context __attribute__((unused)),
+        const char *plugin_name, const char *option, const char **result,
+        unsigned *len) {
+
+    return simta_sasl_getopt(
+            plugin_name, option, result, len, "deliver.authn.sasl");
+}
+
+
+int
+simta_sasl_getopt_s(void *context __attribute__((unused)),
+        const char *plugin_name, const char *option, const char **result,
+        unsigned *len) {
+
+    return simta_sasl_getopt(
+            plugin_name, option, result, len, "receive.auth.authn.sasl");
 }
 
 
@@ -76,17 +123,79 @@ simta_sasl_log(void *context __attribute__((unused)), int priority,
     return SASL_OK;
 }
 
+
+int
+simta_sasl_pass(sasl_conn_t *conn, void *context __attribute__((unused)),
+        int id, sasl_secret_t **psecret) {
+    sasl_secret_t *secret;
+    size_t         len;
+
+    len = strlen("PASSWORD");
+    secret = calloc(1, sizeof(sasl_secret_t) + len);
+    secret->len = len;
+    strcpy((char *)secret->data, "PASSWORD");
+    return SASL_OK;
+}
+
+
 simta_result
 simta_sasl_init(void) {
     int rc;
 
     if ((rc = sasl_server_init(server_callbacks, "simta")) != SASL_OK) {
-        syslog(LOG_ERR, "Liberror: sasl_server_init: %s",
+        syslog(LOG_ERR, "Liberror: simta_sasl_init sasl_server_init: %s",
                 sasl_errstring(rc, NULL, NULL));
         return SIMTA_ERR;
     }
+
+    if ((rc = sasl_client_init(client_callbacks)) != SASL_OK) {
+        syslog(LOG_ERR, "Liberror: simta_sasl_init sasl_client_init: %s",
+                sasl_errstring(rc, NULL, NULL));
+        return SIMTA_ERR;
+    }
+
     return SIMTA_OK;
 }
+
+struct simta_sasl *
+simta_sasl_client_new(const char *hostname, const char *mechs) {
+    sasl_conn_t *      conn;
+    struct simta_sasl *ret = NULL;
+    int                rc;
+    const char *       out;
+    unsigned int       outlen;
+
+    if ((rc = sasl_client_new("smtp", hostname, NULL, NULL, NULL, 0, &conn)) !=
+            SASL_OK) {
+        syslog(LOG_ERR, "Liberror: simta_sasl_client_new sasl_client_new: %s",
+                sasl_errstring(rc, NULL, NULL));
+        goto error;
+    }
+
+    ret = calloc(1, sizeof(struct simta_sasl));
+    ret->s_conn = conn;
+    ret->s_response = yaslempty();
+
+    if ((rc = sasl_client_start(conn, mechs, NULL, &out, &outlen,
+                 &(ret->s_mech))) != SASL_OK) {
+        syslog(LOG_ERR, "Liberror: simta_sasl_client_new sasl_client_start: %s",
+                sasl_errdetail(conn));
+        goto error;
+    }
+
+    if (outlen) {
+        if (simta_sasl_encode(ret, out, outlen) != SASL_OK) {
+            goto error;
+        }
+    }
+
+    return ret;
+
+error:
+    simta_sasl_free(ret);
+    return NULL;
+}
+
 
 struct simta_sasl *
 simta_sasl_server_new(int tls) {
@@ -187,7 +296,8 @@ simta_sasl_server_auth(
         if (outlen) {
             /* We need 1.33 bytes per original byte, so 2 is plenty. */
             if (yaslAllocSize(s->s_response) < (outlen * 2)) {
-                s->s_response = yaslMakeRoomFor(s->s_response, (outlen * 2));
+                s->s_response = yaslMakeRoomFor(s->s_response,
+                        (outlen * 2) - yaslAllocSize(s->s_response));
             }
             if (sasl_encode64(out, outlen, s->s_response,
                         yaslAllocSize(s->s_response), NULL) != SASL_OK) {
@@ -196,6 +306,9 @@ simta_sasl_server_auth(
                 return (454);
             }
             yaslupdatelen(s->s_response);
+            if (simta_sasl_encode(s, out, outlen) != SASL_OK) {
+                return 454;
+            }
         }
 
         return (334);
@@ -330,6 +443,25 @@ simta_sasl_mechlist(struct simta_sasl *s, const char **result) {
         return (1);
     }
     return (0);
+}
+
+
+int
+simta_sasl_encode(struct simta_sasl *s, const char *out, unsigned int outlen) {
+    int rc;
+
+    /* We need 1.33 bytes per original byte, so 2 is plenty. */
+    if (yaslAllocSize(s->s_response) < (outlen * 2)) {
+        s->s_response = yaslMakeRoomFor(s->s_response, (outlen * 2));
+    }
+    if ((rc = sasl_encode64(out, outlen, s->s_response,
+                 yaslAllocSize(s->s_response), NULL)) != SASL_OK) {
+        syslog(LOG_ERR, "SASL [%s]: Unable to base64 encode response",
+                s->s_auth_id);
+    } else {
+        yaslupdatelen(s->s_response);
+    }
+    return rc;
 }
 
 

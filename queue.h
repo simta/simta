@@ -65,6 +65,7 @@ struct deliver {
     int                     d_cur_mx_lookup;
     int                     d_cur_dnsr_result;
     bool                    d_esmtp_8bitmime;
+    bool                    d_esmtp_auth;
     int                     d_esmtp_size;
     bool                    d_esmtp_starttls;
 };

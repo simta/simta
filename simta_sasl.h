@@ -13,6 +13,7 @@ struct simta_sasl {
 };
 
 simta_result       simta_sasl_init(void);
+struct simta_sasl *simta_sasl_client_new(const char *, const char *);
 struct simta_sasl *simta_sasl_server_new(int);
 int  simta_sasl_server_auth(struct simta_sasl *, const char *, const char *);
 void simta_sasl_free(struct simta_sasl *);
