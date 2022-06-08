@@ -484,7 +484,7 @@ fast_q_count(struct host_q *hq) {
             if (e->e_dir == simta_dir_fast) {
                 retval++;
             }
-            e = e->e_next;
+            e = e->e_hq_next;
         }
     }
 
@@ -522,7 +522,7 @@ q_clear(struct host_q *hq) {
 
     while (hq->hq_env_head != NULL) {
         e = hq->hq_env_head;
-        hq->hq_env_head = e->e_next;
+        hq->hq_env_head = e->e_hq_next;
         simta_debuglog(3, "q_clear: freeing env <%s>", e->e_id);
         env_free(e);
     }
