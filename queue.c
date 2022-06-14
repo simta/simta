@@ -112,7 +112,6 @@ host_q_create_or_lookup(char *hostname) {
 
         /* add this host to the host_q */
         simta_unexpanded_q->hq_hostname = S_UNEXPANDED;
-        simta_unexpanded_q->hq_status = SIMTA_HOST_NULL;
     }
 
     if ((hostname == NULL) || (*hostname == '\0')) {
@@ -1015,21 +1014,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
     syslog(LOG_INFO, "Queue %s: delivering %d messages", deliver_q->hq_hostname,
             deliver_q->hq_entries);
 
-    /* determine if the host we are delivering to is a local host or a
-     * remote host if we have not done so already.
-     */
-    if (deliver_q->hq_status == SIMTA_HOST_UNKNOWN) {
-        if (ucl_object_toboolean(ucl_object_lookup_path(
-                    deliver_q->hq_red, "deliver.bitbucket.enabled"))) {
-            deliver_q->hq_status = SIMTA_HOST_BITBUCKET;
-        } else if (ucl_object_toboolean(ucl_object_lookup_path(
-                           deliver_q->hq_red, "deliver.local.enabled"))) {
-            deliver_q->hq_status = SIMTA_HOST_LOCAL;
-        } else {
-            deliver_q->hq_status = SIMTA_HOST_MX;
-        }
-    }
-
     /* process each envelope in the queue */
     while (deliver_q->hq_env_head != NULL) {
         env_deliver = deliver_q->hq_env_head;
@@ -1087,6 +1071,23 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         if (env_deliver->e_jailed) {
             syslog(LOG_INFO, "Deliver.remote env <%s>: jail",
                     env_deliver->e_id);
+        } else if (ucl_object_toboolean(ucl_object_lookup_path(
+                           deliver_q->hq_red, "deliver.bitbucket.enabled"))) {
+            simta_ucl_object_totimespec(
+                    ucl_object_lookup_path(
+                            deliver_q->hq_red, "deliver.bitbucket.delay"),
+                    &ts);
+            syslog(LOG_WARNING,
+                    "Deliver.remote env <%s>: bitbucket in %ld.%06ld seconds",
+                    env_deliver->e_id, ts.tv_sec, ts.tv_nsec / 1000);
+            nanosleep(&ts, NULL);
+            d->d_delivered = 1;
+            d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
+        } else if (ucl_object_toboolean(ucl_object_lookup_path(
+                           deliver_q->hq_red, "deliver.local.enabled"))) {
+            d->d_deliver_agent = ucl_object_tostring(ucl_object_lookup_path(
+                    deliver_q->hq_red, "deliver.local.agent"));
+            deliver_local(d);
         } else if (env_deliver->e_puntable &&
                    ucl_object_toboolean(ucl_object_lookup_path(
                            deliver_q->hq_red, "deliver.punt.enabled")) &&
@@ -1096,17 +1097,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                     env_deliver->e_id);
         } else {
             switch (deliver_q->hq_status) {
-            case SIMTA_HOST_LOCAL:
-                if (ucl_object_toboolean(ucl_object_lookup_path(
-                            deliver_q->hq_red, "deliver.local.enabled"))) {
-                    d->d_deliver_agent =
-                            ucl_object_tostring(ucl_object_lookup_path(
-                                    deliver_q->hq_red, "deliver.local.agent"));
-                }
-                deliver_local(d);
-                break;
-
-            case SIMTA_HOST_MX:
+            case SIMTA_HOST_OK:
                 if ((snet_dfile = snet_attach(dfile_fd, 1024 * 1024)) == NULL) {
                     syslog(LOG_ERR, "Liberror: q_deliver snet_attach: %m");
                     goto message_cleanup;
@@ -1125,20 +1116,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                         "Deliver.remote env <%s>: host %s bouncing mail",
                         d->d_env->e_id, deliver_q->hq_hostname);
                 env_deliver->e_flags |= ENV_FLAG_BOUNCE;
-                break;
-
-            case SIMTA_HOST_BITBUCKET:
-                simta_ucl_object_totimespec(
-                        ucl_object_lookup_path(
-                                deliver_q->hq_red, "deliver.bitbucket.delay"),
-                        &ts);
-                syslog(LOG_WARNING,
-                        "Deliver.remote env <%s>: bitbucket in %ld.%06ld "
-                        "seconds",
-                        env_deliver->e_id, ts.tv_sec, ts.tv_nsec / 1000);
-                nanosleep(&ts, NULL);
-                d->d_delivered = 1;
-                d->d_n_rcpt_accepted = env_deliver->e_n_rcpt;
                 break;
 
             default:
@@ -1303,13 +1280,6 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                         env_deliver->e_id);
                 goto message_cleanup;
             }
-
-            /* else we need to touch the envelope if we started an attempt
-         * deliver the message, but it was unsuccessful.  Note that we
-         * need to have a positive or negitive rcpt reply to prevent the
-         * queue from preserving order in the case of a perm tempfail
-         * situation.
-         */
         } else if (d->d_n_rcpt_accepted) {
             touch++;
         }
@@ -1620,14 +1590,8 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
                 snet_close(d->d_snet_smtp);
                 d->d_snet_smtp = NULL;
             }
-            switch (hq->hq_status) {
-            case SIMTA_HOST_DOWN:
-                hq->hq_status = SIMTA_HOST_MX;
-                return;
 
-            default:
-                panic("deliver_remote: status out of range");
-            }
+            hq->hq_status = SIMTA_HOST_OK;
         }
 
     smtp_cleanup:
@@ -1644,7 +1608,7 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
 
         } else if (hq->hq_status == SIMTA_HOST_DOWN) {
             if (env_movement) {
-                hq->hq_status = SIMTA_HOST_MX;
+                hq->hq_status = SIMTA_HOST_OK;
                 return;
             }
         }

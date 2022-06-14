@@ -6,6 +6,7 @@
     - removed forcible skipping of initial delivery attempts of messages
       destined for jail
     - enabled local delivery in default localhost config
+    - fixed relative priority of deliver.punt.always and local deliveries
     - added more statsd metrics
 
 2.0.3 (2022-05-09)

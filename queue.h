@@ -8,13 +8,9 @@
 
 /* states for host_q->hq_status */
 typedef enum {
-    SIMTA_HOST_UNKNOWN,
-    SIMTA_HOST_NULL,
-    SIMTA_HOST_LOCAL,
-    SIMTA_HOST_MX,
+    SIMTA_HOST_OK,
     SIMTA_HOST_BOUNCE,
     SIMTA_HOST_DOWN,
-    SIMTA_HOST_BITBUCKET,
 } simta_host_status;
 
 typedef enum {
