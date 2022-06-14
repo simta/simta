@@ -508,8 +508,9 @@ static void
 tarpit_sleep(struct receive_data *r) {
     struct timespec t;
 
-    if (r->r_smtp_mode != SMTP_MODE_TARPIT &&
-            r->r_smtp_mode != SMTP_MODE_TEMPFAIL) {
+    if (r->r_smtp_mode == SMTP_MODE_TARPIT) {
+        statsd_counter("receive.punishment", "tarpit", 1);
+    } else if (r->r_smtp_mode != SMTP_MODE_TEMPFAIL) {
         return;
     }
 
@@ -1477,8 +1478,11 @@ f_data(struct receive_data *r) {
         return (f_bad_sequence(r));
     }
 
-    if ((r->r_smtp_mode == SMTP_MODE_TEMPFAIL) ||
-            (r->r_smtp_mode == SMTP_MODE_TARPIT)) {
+    if (r->r_smtp_mode == SMTP_MODE_TEMPFAIL) {
+        statsd_counter("receive.punishment", "tempfail", 1);
+        /* Read the data and discard it */
+        read_err = PROTOCOL_ERROR;
+    } else if (r->r_smtp_mode == SMTP_MODE_TARPIT) {
         /* Read the data and discard it */
         read_err = PROTOCOL_ERROR;
     } else {
@@ -2133,6 +2137,7 @@ done:
     statsd_counter("receive", "message_data", data_read);
 
     if (filter_result & MESSAGE_BOUNCE) {
+        statsd_counter("receive.content_filter", "bounce", 1);
         if ((env_bounce = bounce(r->r_env,
                      ((r->r_env->e_flags & ENV_FLAG_DFILE) &&
                              ((filter_result & MESSAGE_DELETE) == 0)),
@@ -2155,6 +2160,7 @@ done:
     }
 
     if (filter_result & MESSAGE_JAIL) {
+        statsd_counter("receive.content_filter", "jail", 1);
         if ((r->r_env->e_flags & ENV_FLAG_DFILE) == 0) {
             syslog(LOG_ERR,
                     "Receive [%s] %s: env <%s>: "
@@ -2197,6 +2203,7 @@ done:
                (filter_result & MESSAGE_BOUNCE)) {
         if ((filter_result & MESSAGE_DELETE) &&
                 ((filter_result & MESSAGE_BOUNCE) == 0)) {
+            statsd_counter("receive.content_filter", "delete", 1);
             syslog(LOG_NOTICE,
                     "Receive [%s] %s: env <%s>: "
                     "Message Deleted by content filter: "
@@ -2315,8 +2322,10 @@ done:
     }
 
     if (filter_result & MESSAGE_DISCONNECT) {
+        statsd_counter("receive.content_filter", "disconnect", 1);
         set_smtp_mode(r, "disabled", "filter");
     } else if (filter_result & MESSAGE_TARPIT) {
+        statsd_counter("receive.content_filter", "tarpit", 1);
         set_smtp_mode(r, "tarpit", "filter");
     }
 
@@ -2331,6 +2340,7 @@ done:
 
     /* TEMPFAIL has precedence over REJECT */
     if (filter_result & MESSAGE_TEMPFAIL) {
+        statsd_counter("receive.content_filter", "tempfail", 1);
         syslog(LOG_INFO,
                 "Receive [%s] %s: env <%s>: Tempfail Banner: "
                 "MID <%s> size %d: %s, %s",
@@ -2346,6 +2356,7 @@ done:
         }
 
     } else if (filter_result & MESSAGE_REJECT) {
+        statsd_counter("receive.content_filter", "reject", 1);
         syslog(LOG_INFO,
                 "Receive [%s] %s: env <%s>: Failed Banner: "
                 "MID <%s> size %d: %s, %s",
@@ -2577,6 +2588,10 @@ f_insecure(struct receive_data *r) {
 static int
 f_off(struct receive_data *r) {
     tarpit_sleep(r);
+
+    if (r->r_smtp_mode == SMTP_MODE_TEMPFAIL) {
+        statsd_counter("receive.punishment", "tempfail", 1);
+    }
 
     return (smtp_write_banner(r, 451, S_451_DECLINE, NULL));
 }
@@ -2816,6 +2831,7 @@ f_auth(struct receive_data *r) {
                 return (RECEIVE_CLOSECONNECTION);
             }
         }
+        statsd_counter("receive.connection", "honeypot_auth", 1);
         set_smtp_mode(
                 r, simta_config_str("receive.punishment"), "Honeypot AUTH");
         return (RECEIVE_OK);
@@ -3001,6 +3017,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 #endif /* HAVE_LIBSSL */
     set_smtp_mode(&r, simta_config_str("receive.mode"), "Default");
 
+    statsd_counter("receive.connection", "attempted", 1);
+
     if (simta_config_bool("receive.dmarc.enabled")) {
         dmarc_init(&r.r_dmarc);
     }
@@ -3036,6 +3054,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
     if (simta_global_connections >
             simta_config_int("receive.connection.limits.global")) {
+        statsd_counter("receive.connection.throttle", "global", 1);
         syslog(LOG_WARNING,
                 "Connect.in [%s] %s: connection refused: "
                 "global maximum exceeded: %d",
@@ -3046,6 +3065,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
     if (simta_global_throttle_connections >
             simta_config_int("receive.connection.limits.throttle")) {
+        statsd_counter("receive.connection.throttle", "global", 1);
         syslog(LOG_WARNING,
                 "Connect.in [%s] %s: connection refused: "
                 "global throttle exceeded: %d",
@@ -3117,6 +3137,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                     r.r_ip);
             /* fall through to REVERSE_ERROR */
         case REVERSE_ERROR:
+            statsd_counter("receive.rdns", "error", 1);
             r.r_remote_hostname = S_UNKNOWN;
             syslog(LOG_INFO, "Connect.in [%s] %s: reverse address error: %s",
                     r.r_ip, r.r_remote_hostname,
@@ -3130,6 +3151,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             break;
 
         case REVERSE_MATCH:
+            statsd_counter("receive.rdns", "match", 1);
             r.r_remote_hostname = hostname;
             break;
 
@@ -3137,8 +3159,10 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         case REVERSE_MISMATCH:
             /* invalid reverse */
             if (r.r_dns_match == REVERSE_MISMATCH) {
+                statsd_counter("receive.rdns", "mismatch", 1);
                 r.r_remote_hostname = S_MISMATCH;
             } else {
+                statsd_counter("receive.rdns", "unknown", 1);
                 r.r_remote_hostname = S_UNKNOWN;
             }
 
@@ -3165,6 +3189,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
         /* first STRING_UNKNOWN should be domain name of incoming host */
         if (hosts_ctl("simta", ctl_hostname, r.r_ip, STRING_UNKNOWN) == 0) {
+            statsd_counter("receive.connection", "no_acl", 1);
             syslog(LOG_INFO, "Connect.in [%s] %s: Failed: access denied",
                     r.r_ip, r.r_remote_hostname);
             smtp_write_banner(&r, 421, S_421_DECLINE,
@@ -3185,6 +3210,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         if (r.r_dnsl_result) {
             r.r_dnsl_checked = 1;
             if (strcmp((r.r_dnsl_result)->dnsl_action, "block") == 0) {
+                statsd_counter("receive.connection", "dnsbl", 1);
                 syslog(LOG_INFO,
                         "Connect.in [%s] %s: DNS list %s: Blocked: %s (%s)",
                         r.r_ip, r.r_remote_hostname,
@@ -3201,6 +3227,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                                 0))) {
             if (c->c_proc_total >
                     simta_config_int("receive.connection.limits.per_host")) {
+                statsd_counter("receive.connection.throttle", "per_host", 1);
                 syslog(LOG_WARNING,
                         "Connect.in [%s] %s: connection refused: "
                         "local maximum exceeded: %d",
@@ -3212,6 +3239,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             if (c->c_proc_throttle >
                     simta_config_int(
                             "receive.connection.limits.per_host_throttle")) {
+                statsd_counter("receive.connection.throttle", "per_host", 1);
                 syslog(LOG_WARNING,
                         "Connect.in [%s] %s: connection refused: "
                         "connection per interval exceeded %d",
@@ -3243,6 +3271,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                         r.r_ip, r.r_remote_hostname);
                 if (simta_config_bool(
                             "receive.connection.banner.punish_writes")) {
+                    statsd_counter(
+                            "receive.connection", "write_before_banner", 1);
                     set_smtp_mode(&r, simta_config_str("receive.punishment"),
                             "Write before banner");
                     sleep(1);
@@ -3274,6 +3304,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         syslog(LOG_INFO, "Connect.in [%s] %s: Accepted", r.r_ip,
                 r.r_remote_hostname);
     }
+
+    statsd_counter("receive.connection", "accepted", 1);
 
 #ifdef HAVE_LIBOPENARC
     if (simta_config_bool("receive.arc.enabled")) {
@@ -3486,6 +3518,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             if ((simta_config_int("receive.rcpt_to.max_failures") > 0) &&
                     ((r.r_rcpt_attempt - r.r_rcpt_success) >=
                             simta_config_int("receive.rcpt_to.max_failures"))) {
+                statsd_counter("receive.connection", "max_failed_rcpt", 1);
                 syslog(LOG_NOTICE,
                         "Receive [%s] %s: Too many failed recipients", r.r_ip,
                         r.r_remote_hostname);
@@ -3496,6 +3529,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                     ((r.r_mail_attempt - r.r_mail_success) >=
                             simta_config_int(
                                     "receive.mail_from.max_failures"))) {
+                statsd_counter("receive.connection", "max_failed_sender", 1);
                 syslog(LOG_NOTICE, "Receive [%s] %s: Too many failed senders",
                         r.r_ip, r.r_remote_hostname);
                 set_smtp_mode(&r, simta_config_str("receive.punishment"),

@@ -27,6 +27,7 @@
 #include "envelope.h"
 #include "header.h"
 #include "queue.h"
+#include "simta_statsd.h"
 
 
 int
@@ -387,6 +388,9 @@ bounce_snet(
     if (env_outfile(bounce_env) != SIMTA_OK) {
         goto cleanup2;
     }
+
+    statsd_counter("bounce", "messages", 1);
+    statsd_counter("bounce", "addresses", n_bounces);
 
     syslog(LOG_INFO, "Bounce env <%s>: %s: Bounced %d addresses", env->e_id,
             bounce_env->e_id, n_bounces);
