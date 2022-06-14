@@ -545,7 +545,7 @@ smtp_write_banner(struct receive_data *r, int reply_code, const char *msg,
 
     statsd_counter("receive.smtp_response", "total", 1);
     reply_code_str = yaslfromlonglong(reply_code);
-    yaslrange(reply_code_str, 0, 1);
+    yaslrange(reply_code_str, 0, 0);
     reply_code_str = yaslcat(reply_code_str, "xx");
     statsd_counter("receive.smtp_response", reply_code_str, 1);
     yaslfree(reply_code_str);
