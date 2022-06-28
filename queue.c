@@ -1592,6 +1592,7 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
             }
 
             hq->hq_status = SIMTA_HOST_OK;
+            return;
         }
 
     smtp_cleanup:
@@ -1605,12 +1606,11 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
         if (hq->hq_status == SIMTA_HOST_BOUNCE) {
             free_dns_results(d);
             return;
+        }
 
-        } else if (hq->hq_status == SIMTA_HOST_DOWN) {
-            if (env_movement) {
-                hq->hq_status = SIMTA_HOST_OK;
-                return;
-            }
+        if (env_movement) {
+            hq->hq_status = SIMTA_HOST_OK;
+            return;
         }
     }
 }
