@@ -1008,7 +1008,9 @@ f_mail(struct receive_data *r) {
     }
 
     if ((domain != NULL) &&
-            (strcasecmp(simta_config_str("receive.smtp.mode"), "MSA") != 0)) {
+            (strcasecmp(simta_config_str("receive.mode"), "global_relay") !=
+                    0) &&
+            (strcasecmp(simta_config_str("receive.smtp.mode"), "msa") != 0)) {
         rc = check_hostname(domain);
 
         if (rc < 0) {
