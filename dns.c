@@ -354,6 +354,8 @@ dnsl_check(const char *chain, const struct sockaddr *sa, const char *text) {
         return (NULL);
     }
 
+    statsd_counter("dnsl_chain", chain, 1);
+
 #ifdef HAVE_LIBSSL
     md_init(&md);
 #endif /* HAVE_LIBSSL */
