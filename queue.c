@@ -372,7 +372,7 @@ q_runner(void) {
                     goto unexpanded_clean_up;
                 }
 
-                if (env_is_old(unexpanded, dfile_fd)) {
+                if (!env_is_old(unexpanded, dfile_fd)) {
                     /* not old */
                     close(dfile_fd);
 
