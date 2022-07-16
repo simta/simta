@@ -1,6 +1,7 @@
 2.0.5 (????-??-??)
     - disabled sender checking in global_relay mode
     - added more statsd metrics
+    - fixed old message check
 
 2.0.4 (2022-06-30)
     - fixed extensions advertised on the legacy TLS port

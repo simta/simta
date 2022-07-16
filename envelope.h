@@ -99,7 +99,7 @@ void          env_free(struct envelope *);
 void          rcpt_free(struct recipient *);
 void          env_clear_errors(struct envelope *);
 int           env_clear(struct envelope *);
-int           env_is_old(struct envelope *, int);
+bool          env_is_old(struct envelope *, int);
 int           env_set_id(struct envelope *, char *);
 int           env_recipient(struct envelope *, const char *);
 simta_result  env_sender(struct envelope *, const char *);

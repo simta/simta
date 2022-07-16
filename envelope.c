@@ -40,26 +40,26 @@
 
 simta_result env_read_old(const char *, ucl_object_t *, SNET *);
 
-int
+bool
 env_is_old(struct envelope *env, int dfile_fd) {
-    struct timeval tv_now;
-    struct stat    sb;
-    int            bounce_seconds;
+    struct timespec ts_now;
+    struct stat     sb;
+    int             bounce_seconds;
 
     if (env->e_age == ENV_AGE_UNKNOWN) {
         if (fstat(dfile_fd, &sb) != 0) {
             syslog(LOG_ERR, "Syserror: env_is_old fstat %s/D%s: %m", env->e_dir,
                     env->e_id);
-            return (0);
+            return false;
         }
 
-        if (simta_gettimeofday(&tv_now) != 0) {
-            return (0);
+        if (clock_gettime(CLOCK_REALTIME, &ts_now) != 0) {
+            return false;
         }
 
         bounce_seconds = simta_config_int("deliver.queue.bounce");
         if (bounce_seconds > 0) {
-            if ((tv_now.tv_sec - sb.st_mtime) >= bounce_seconds) {
+            if ((ts_now.tv_sec - sb.st_mtime) >= bounce_seconds) {
                 env->e_age = ENV_AGE_OLD;
             } else {
                 env->e_age = ENV_AGE_NOT_OLD;
@@ -68,10 +68,10 @@ env_is_old(struct envelope *env, int dfile_fd) {
     }
 
     if (env->e_age == ENV_AGE_OLD) {
-        return (1);
+        return true;
     }
 
-    return (0);
+    return false;
 }
 
 

@@ -372,7 +372,7 @@ q_runner(void) {
                     goto unexpanded_clean_up;
                 }
 
-                if (env_is_old(unexpanded, dfile_fd) == 0) {
+                if (env_is_old(unexpanded, dfile_fd)) {
                     /* not old */
                     close(dfile_fd);
 
@@ -1158,7 +1158,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
          * for bounce purposes when it is already slated for deletion.
          */
         if (n_rcpt_remove != env_deliver->e_n_rcpt) {
-            if (env_is_old(env_deliver, dfile_fd) != 0) {
+            if (env_is_old(env_deliver, dfile_fd)) {
                 syslog(LOG_NOTICE, "Deliver env <%s>: old message, bouncing",
                         env_deliver->e_id);
                 env_deliver->e_flags |= ENV_FLAG_BOUNCE;
