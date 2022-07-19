@@ -1,4 +1,4 @@
-2.1.0 (????-??-??)
+2.1.0 (2022-07-19)
     - added support for separation of moderators and permitted senders
     - added permitted domains for groups
     - added message wrapping for moderated messages
