@@ -50,7 +50,7 @@ class CMockaFile(pytest.File):
         lines = out.stdout.splitlines()
         plan = lines[0].split('..')
         if len(plan) != 2:
-            yield(CMockaItem.from_parent(self, line='not ok - cmocka', output=out.stdout))
+            yield CMockaItem.from_parent(self, line='not ok - cmocka', output=out.stdout)
             plan = ('', '0')
 
         count = 0
@@ -61,7 +61,7 @@ class CMockaFile(pytest.File):
             yield CMockaItem.from_parent(self, line=line, output=out.stdout)
 
         if count != int(plan[1]):
-            yield(CMockaItem.from_parent(self, line='not ok - cmocka_tap_plan', output=out.stdout))
+            yield CMockaItem.from_parent(self, line='not ok - cmocka_tap_plan', output=out.stdout)
 
 
 class CMockaItem(pytest.Item):
@@ -93,7 +93,7 @@ def openport(port):
             if port > 65535:
                 raise ValueError("exhausted TCP port range without finding a free one")
         except socket.error:
-            return(port)
+            return port
 
 
 @pytest.fixture(scope="session")
@@ -152,7 +152,7 @@ def dnsserver(tmp_path_factory):
         result['enabled'] = False
         result['skip_reason'] = 'yadifad not found'
 
-    yield(result)
+    yield result
 
     if dns_proc:
         dns_proc.terminate()
@@ -301,7 +301,7 @@ def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cer
                 raise
             time.sleep(0.1)
 
-    yield({'port': port, 'legacy_port': legacy_port, 'tmpdir': str(tmp_path)})
+    yield {'port': port, 'legacy_port': legacy_port, 'tmpdir': str(tmp_path)}
 
     simta_proc.terminate()
 
@@ -359,10 +359,10 @@ def tls_cert(tmp_path):
     with open(cert_path, 'wb') as f:
         f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-    return({
+    return {
         'key': key_path,
         'certificate': cert_path,
-    })
+    }
 
 
 @pytest.fixture
@@ -400,7 +400,7 @@ def aiosmtpd_server(request, tmp_path, tls_cert):
                 raise
             time.sleep(0.1)
 
-    yield({'port': port, 'spooldir': spooldir})
+    yield {'port': port, 'spooldir': spooldir}
 
     smtpd_proc.terminate()
 
