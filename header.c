@@ -28,23 +28,18 @@
 #include "queue.h"
 #include "simta_malloc.h"
 
-#define HEADER_MAILBOX_LIST 0
-#define HEADER_ADDRESS_LIST 1
-#define HEADER_MAILBOX_GROUP 2
-
-static int    cfws_len(const char *);
-static int    domain_literal_len(const char *);
-static int    dot_atom_text_len(const char *);
-static void   header_exceptions(struct line_file *);
-static void   header_masquerade(struct line *);
-static void   header_remove(struct dll_entry *, struct receive_headers *);
-static int    header_singleton(const char *, const struct rfc822_header *);
-static yastr  header_string(struct line *);
-static int    is_dot_atom_text(int);
-static yastr  parse_addr_spec(const char *, int *);
-static yastr *parse_addr_list(yastr, size_t *, int);
-static yastr  parse_mid(struct line *);
-static int    quoted_string_len(const char *);
+static int   cfws_len(const char *);
+static int   domain_literal_len(const char *);
+static int   dot_atom_text_len(const char *);
+static void  header_exceptions(struct line_file *);
+static void  header_masquerade(struct line *);
+static void  header_remove(struct dll_entry *, struct receive_headers *);
+static int   header_singleton(const char *, const struct rfc822_header *);
+static yastr header_string(struct line *);
+static int   is_dot_atom_text(int);
+static yastr parse_addr_spec(const char *, int *);
+static yastr parse_mid(struct line *);
+static int   quoted_string_len(const char *);
 
 
 static int
@@ -1223,8 +1218,8 @@ skip_cws(char *start) {
  * address-list    =   (address *("," address)) / obs-addr-list
  * group-list      =   mailbox-list / CFWS / obs-group-list
  */
-static yastr *
-parse_addr_list(yastr list, size_t *count, int mode) {
+yastr *
+parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
     yastr *mboxes, tmp = NULL;
     char * l;
     int    addr = 0;

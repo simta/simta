@@ -15,6 +15,12 @@
 #define R_HEADER_READ 0
 #define R_HEADER_END 1
 
+enum address_list_syntax {
+    HEADER_MAILBOX_LIST,
+    HEADER_ADDRESS_LIST,
+    HEADER_MAILBOX_GROUP,
+};
+
 struct rfc822_header {
     struct stab_entry *h_lines;
     int                h_count;
@@ -38,18 +44,19 @@ struct receive_headers {
 
 
 /* public */
-int   parse_emailaddr(int, char *, char **, char **);
-char *skip_cws(char *);
-char *token_domain_literal(char *);
-char *token_domain(char *);
-char *token_quoted_string(char *);
-char *token_dot_atom(char *);
-int   header_text(int, char *, struct receive_headers *, char **);
-int   header_check(struct receive_headers *, bool, bool, bool);
-int   header_file_out(struct line_file *, FILE *);
-bool  is_emailaddr(char *);
-int   correct_emailaddr(char **);
-yastr rfc5322_timestamp();
+int    parse_emailaddr(int, char *, char **, char **);
+yastr *parse_addr_list(yastr, size_t *, enum address_list_syntax);
+char * skip_cws(char *);
+char * token_domain_literal(char *);
+char * token_domain(char *);
+char * token_quoted_string(char *);
+char * token_dot_atom(char *);
+int    header_text(int, char *, struct receive_headers *, char **);
+int    header_check(struct receive_headers *, bool, bool, bool);
+int    header_file_out(struct line_file *, FILE *);
+bool   is_emailaddr(char *);
+int    correct_emailaddr(char **);
+yastr  rfc5322_timestamp();
 struct string_address *string_address_init(char *);
 void                   string_address_free(struct string_address *);
 char *                 string_address_parse(struct string_address *);

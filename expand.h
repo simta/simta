@@ -113,8 +113,8 @@ simta_result   add_address(
 struct envelope *    address_bounce_create(struct expand *);
 simta_address_status address_expand(struct expand *);
 void                 expand_tree_stdout(struct exp_addr *, int);
-int                  address_string_recipients(
-                         struct expand *, char *, struct exp_addr *, char *);
+simta_result         address_string_recipients(
+                struct expand *, char *, struct exp_addr *, char *);
 
 #ifdef HAVE_LDAP
 int   exp_addr_link(struct exp_link **, struct exp_addr *);

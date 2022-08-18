@@ -1879,3 +1879,21 @@ umichAutoReplyStart: 20220101223344Z
 owner: uid=perm-mod-autoreplyowner,ou=People,dc=example,dc=com
 member: uid=perm-mod-autoreplymember0,ou=People,dc=example,dc=com
 member: uid=perm-mod-autoreplymember1,ou=People,dc=example,dc=com
+
+dn: cn=external format,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+rfc822mail: testuser1@example.edu
+rfc822mail: "quoted text" <testuser2@example.edu>
+rfc822mail: dotatom <testuser3@example.edu>
+rfc822mail: testuser4@example.edu, "also me" <testuser5@example.edu>
+rfc822mail: dot.atom <testuser6@example.edu>
+rfc822mail: "quoted testuser1"@example.edu
+rfc822mail: "quoted display name" <"quoted testuser2"@example.edu>
+rfc822mail: !#$%&'*+ dot.atom -/=?^_`{|}~. <testuser7@example.edu>
+rfc822mail: "quoted bit"dot.atom"this is all a phrase"more atoms <testuser8@example.edu>
+
+dn: cn=external utf8,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+rfc6532mail:: Iu2VnOq4gCBpbiBxdW90ZWQgdGV4dCIgPHRlc3R1c2VyMUBleGFtcGxlLmVkdT4=

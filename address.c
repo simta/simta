@@ -61,124 +61,26 @@ address_bounce_create(struct expand *exp) {
 }
 
 
-int
+simta_result
 address_string_recipients(
         struct expand *exp, char *line, struct exp_addr *e_addr, char *from) {
-    char *start;
-    char *comma;
-    char *end;
-    char *email_start;
-    char  swap;
+    yastr *split;
+    size_t tok_count;
 
-    if ((start = skip_cws(line)) == NULL) {
-        return (0);
-    }
-
-    for (;;) {
-        if ((*start != '"') && (*start != '<')) {
-            if ((end = token_dot_atom(start)) == NULL) {
-                return (0);
-            }
-
-            if (*(end + 1) == '@') {
-                /* Consume sender@domain [,]*/
-                email_start = start;
-                start = end + 2;
-
-                if (*start == '[') {
-                    if ((end = token_domain_literal(start)) == NULL) {
-                        return (0);
-                    }
-                } else {
-                    if ((end = token_domain(start)) == NULL) {
-                        return (0);
-                    }
-                }
-
-                end++;
-                swap = *end;
-                *end = '\0';
-
-                if (is_emailaddr(email_start)) {
-                    if (add_address(exp, email_start, e_addr->e_addr_errors,
-                                ADDRESS_TYPE_EMAIL, from, false) != SIMTA_OK) {
-                        *end = swap;
-                        return (1);
-                    }
-                }
-
-                *end = swap;
-
-                if ((comma = skip_cws(end)) == NULL) {
-                    return (0);
-                }
-
-                if (*comma != ',') {
-                    return (0);
-                }
-
-                if ((start = skip_cws(comma + 1)) == NULL) {
-                    return (0);
-                }
-
-                continue;
-            }
-
-            if ((start = skip_cws(end + 1)) == NULL) {
-                return (0);
-            }
-        }
-
-        while (*start != '<') {
-            if (*start == '"') {
-                if ((end = token_quoted_string(start)) == NULL) {
-                    return (0);
-                }
-
-            } else {
-                if ((end = token_dot_atom(start)) == NULL) {
-                    return (0);
-                }
-            }
-
-            if ((start = skip_cws(end + 1)) == NULL) {
-                return (0);
-            }
-        }
-
-        email_start = start + 1;
-        for (end = start + 1; *end != '>'; end++) {
-            if (*end == '\0') {
-                return (0);
-            }
-        }
-
-        *end = '\0';
-
-        if (is_emailaddr(email_start)) {
-            if (add_address(exp, email_start, e_addr->e_addr_errors,
+    split = parse_addr_list(line, &tok_count, HEADER_MAILBOX_LIST);
+    if (split) {
+        for (int i = 0; i < tok_count; i++) {
+            if (add_address(exp, split[ i ], e_addr->e_addr_errors,
                         ADDRESS_TYPE_EMAIL, from, false) != SIMTA_OK) {
-                *end = '>';
-                return (1);
+                yaslfreesplitres(split, tok_count);
+                return SIMTA_ERR;
             }
         }
 
-        *end = '>';
-
-        if ((comma = skip_cws(end + 1)) == NULL) {
-            return (0);
-        }
-
-        if (*comma != ',') {
-            return (0);
-        }
-
-        if ((start = skip_cws(comma + 1)) == NULL) {
-            return (0);
-        }
+        yaslfreesplitres(split, tok_count);
     }
 
-    return (0);
+    return SIMTA_OK;
 }
 
 
@@ -628,7 +530,7 @@ password_expand(
         }
 
         if (address_string_recipients(
-                    exp, split[ i ], e_addr, e_addr->e_addr_from) != 0) {
+                    exp, split[ i ], e_addr, e_addr->e_addr_from) != SIMTA_OK) {
             /* add_address syslogs errors */
             ret = ADDRESS_SYSERROR;
             goto cleanup_forward;

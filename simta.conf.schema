@@ -184,6 +184,10 @@ definitions {
                     attributes {
                         type: object
                         properties {
+                            autoreply { type: string }
+                            autoreply_end { type: string }
+                            autoreply_start { type: string }
+                            external_address { type: string }
                             forwarding { type: string }
                             group_forwarding { type: string }
                             mail { type: string }
@@ -192,11 +196,8 @@ definitions {
                             permitted_senders { type: string }
                             request { type: array, items: { type: string }}
                             vacation { type: string } # DEPRECATED
-                            autoreply { type: string }
-                            autoreply_start { type: string }
-                            autoreply_end { type: string }
                         }
-                        required [ forwarding, mail, moderators, permitted_domains, permitted_senders ]
+                        required [ external_address, forwarding, mail, moderators, permitted_domains, permitted_senders ]
                     }
                     autoreply {
                         type: object

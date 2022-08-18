@@ -174,6 +174,9 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                     'type': 'ldap',
                     'ldap': {
                         'uri': ldapserver['uri'],
+                        'attributes': {
+                            'external_address': 'rfc6532mail',
+                        },
                         'search': [
                             {
                                 'uri': 'ldap:///ou=People,dc=example,dc=com?*?sub?uid=%25s',
@@ -1927,4 +1930,29 @@ def test_expand_ldap_group_perm_mod_autoreply_permitted(run_simexpander, req_lda
     assert res['parsed'][1]['recipients'] == [
         'perm-mod-autoreplymember0@forwarded.example.com',
         'perm-mod-autoreplymember1@forwarded.example.com',
+    ]
+
+
+def test_expand_ldap_group_external_format(run_simexpander, req_ldapserver):
+    res = run_simexpander('external.format@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [
+        'testuser1@example.edu',
+        'testuser2@example.edu',
+        'testuser3@example.edu',
+        'testuser4@example.edu',
+        'testuser5@example.edu',
+        'testuser6@example.edu',
+        '"quoted testuser1"@example.edu',
+        '"quoted testuser2"@example.edu',
+        'testuser7@example.edu',
+        'testuser8@example.edu',
+    ]
+
+
+def test_expand_ldap_group_external_utf8(run_simexpander, req_ldapserver):
+    res = run_simexpander('external.utf8@ldap-new.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [
+        'testuser1@example.edu',
     ]

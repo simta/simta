@@ -72,6 +72,7 @@ struct simta_ldap {
     const char *             ldap_mailfwdattr;
     const char *             ldap_gmailfwdattr;
     const char *             ldap_mailattr;
+    const char *             ldap_external_address_attr;
     const char *             ldap_moderators_attr;
     const char *             ldap_permitted_groups_attr;
     const char *             ldap_permitted_senders_attr;
@@ -1403,7 +1404,8 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
         }
 
         dnvals = ldap_get_values_len(ld->ldap_ld, entry, "member");
-        mailvals = ldap_get_values_len(ld->ldap_ld, entry, "rfc822mail");
+        mailvals = ldap_get_values_len(
+                ld->ldap_ld, entry, ld->ldap_external_address_attr);
 
         if (suppressnoemail) {
             e_addr->e_addr_errors->e_flags |= ENV_FLAG_SUPPRESS_NO_EMAIL;
@@ -1453,7 +1455,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
                             exp, buf, e_addr, e_addr->e_addr_from);
                 }
 
-                if (rc != 0) {
+                if (rc != SIMTA_OK) {
                     syslog(LOG_ERR,
                             "Expand.LDAP env <%s>: <%s>: %s failed adding %s",
                             exp->exp_env->e_id, e_addr->e_addr, dn, buf);
@@ -1583,8 +1585,8 @@ simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
             for (int i = 0; values[ i ] != NULL; i++) {
                 yaslclear(buf);
                 buf = yaslcatlen(buf, values[ i ]->bv_val, values[ i ]->bv_len);
-                if (address_string_recipients(
-                            exp, buf, e_addr, e_addr->e_addr_from) != 0) {
+                if (address_string_recipients(exp, buf, e_addr,
+                            e_addr->e_addr_from) != SIMTA_OK) {
                     syslog(LOG_ERR,
                             "Expand.LDAP env <%s>: <%s>"
                             "failed adding mailforwardingaddress %s",
@@ -2202,6 +2204,9 @@ simta_ldap_config(const ucl_object_t *rule) {
 
     ld->ldap_gmailfwdattr = ucl_object_tostring(ucl_object_lookup_path(
             ld->ldap_rule, "attributes.group_forwarding"));
+
+    ld->ldap_external_address_attr = ucl_object_tostring(ucl_object_lookup_path(
+            ld->ldap_rule, "attributes.external_address"));
 
     ld->ldap_autoreply_host = ucl_object_tostring(
             ucl_object_lookup_path(ld->ldap_rule, "autoreply.host"));
