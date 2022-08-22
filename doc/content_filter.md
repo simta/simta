@@ -3,6 +3,7 @@ message.
 
 # Environment variables provided to the content filter
 
+```
 SIMTA_DFILE                   path to message's Dfile
 SIMTA_TFILE                   path to message's tfile
 SIMTA_REMOTE_IP               IP address of remote host
@@ -29,6 +30,7 @@ SIMTA_BODY_CHECKSUM_SIZE      number of bytes that were checksummed
 SIMTA_BAD_HEADERS             result of cursory header validity check
 SIMTA_SPF_RESULT              result of SPF check
 SIMTA_DMARC_RESULT            result of DMARC check
+```
 
 # Data returned from the content filter
 
@@ -41,17 +43,24 @@ The content filter return code is a bitfield; not all combinations of bits
 make sense, but simta will always attempt to obey it as fully as possible.
 
 ## Result bits
+
+```
 0x0000 0000   MESSAGE_ACCEPT
 0x0000 0001   MESSAGE_TEMPFAIL
 0x0000 0010   MESSAGE_REJECT
+```
 
 ## Option bits
+
+```
 0x0000 0100   MESSAGE_DELETE
 0x0000 1000   MESSAGE_DISCONNECT
 0x0001 0000   MESSAGE_TARPIT
 0x0010 0000   MESSAGE_JAIL
 0x0100 0000   MESSAGE_BOUNCE
+```
 
 ## Default return
+
 If the content filter process is terminated abnormally, it should
 return MESSAGE_TEMPFAIL.
