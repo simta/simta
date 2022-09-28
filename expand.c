@@ -198,12 +198,12 @@ expand(struct envelope *unexpanded_env) {
             exp.exp_addr_cursor = exp.exp_addr_cursor->e_addr_next) {
         switch (address_expand(&exp)) {
         case ADDRESS_EXCLUDE:
-            exp.exp_addr_cursor->e_addr_terminal = 0;
+            exp.exp_addr_cursor->e_addr_terminal = false;
             /* the address is not a terminal local address */
             break;
 
         case ADDRESS_OK:
-            exp.exp_addr_cursor->e_addr_terminal = 1;
+            exp.exp_addr_cursor->e_addr_terminal = true;
             break;
 
         case ADDRESS_SYSERROR:
@@ -453,7 +453,7 @@ expand(struct envelope *unexpanded_env) {
         }
 #endif /* HAVE_LDAP */
 
-        if (e_addr->e_addr_terminal == 0) {
+        if (!e_addr->e_addr_terminal) {
             if (simta_expand_debug != 0) {
                 printf("Non-terminal: %s\n", e_addr->e_addr);
             }

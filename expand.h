@@ -78,7 +78,7 @@ struct exp_addr {
     struct envelope *   e_addr_errors; /* address error handle */
     const ucl_object_t *e_addr_parent_rule;
     int                 e_addr_type; /* address data type */
-    int                 e_addr_terminal;
+    bool                e_addr_terminal;
     int                 e_addr_max_level;
 #ifdef HAVE_LDAP
     int                e_addr_ldap_flags;
