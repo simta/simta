@@ -31,6 +31,7 @@
 
 #include "dns.h"
 #include "simta.h"
+#include "simta_acl.h"
 
 #define SIMRBL_EXIT_NOT_BLOCKED 0
 #define SIMRBL_EXIT_BLOCKED 1
@@ -40,33 +41,45 @@ const char *simta_progname = "simrbl";
 
 int
 main(int argc, char *argv[]) {
-    extern int          optind;
-    extern char *       optarg;
-    int                 c;
-    const char *        server = NULL;
-    const char *        port = "53";
-    int                 rc;
-    int                 err = 0;
-    bool                quiet = false;
-    bool                log = true;
-    int                 exclusive = 0;
-    int                 check_text = 0;
-    ucl_object_t *      config;
-    ucl_object_t *      list_config;
-    struct addrinfo     hints;
-    struct addrinfo *   ai;
-    struct dnsl_result *list = NULL;
-    struct timeval      tv_now;
+    extern int         optind;
+    extern char *      optarg;
+    int                c;
+    const char *       server = NULL;
+    const char *       port = "53";
+    int                rc;
+    int                err = 0;
+    bool               quiet = false;
+    bool               log = true;
+    int                exclusive = 0;
+    int                check_text = 0;
+    ucl_object_t *     config;
+    ucl_object_t *     list_config;
+    struct addrinfo    hints;
+    struct addrinfo *  ai;
+    struct acl_result *list = NULL;
+    struct timeval     tv_now;
 
     /* Skip normal config parsing, we're just knocking up a list. */
     simta_config = ucl_object_typed_new(UCL_OBJECT);
     config = ucl_object_typed_new(UCL_ARRAY);
     ucl_object_insert_key(simta_config, config, simta_progname, 0, false);
 
-    while ((c = getopt(argc, argv, "dil:np:s:tq")) != -1) {
+    while ((c = getopt(argc, argv, "dif:l:np:s:tq")) != -1) {
         switch (c) {
         case 'd':
             simta_debug++;
+            break;
+
+        case 'f':
+            list_config = ucl_object_typed_new(UCL_OBJECT);
+            ucl_object_insert_key(list_config,
+                    simta_ucl_object_fromstring(optarg), "list", 0, false);
+            ucl_object_insert_key(list_config,
+                    simta_ucl_object_fromstring("report"), "action", 0, false);
+            ucl_object_insert_key(list_config,
+                    simta_ucl_object_fromstring("file"), "type", 0, false);
+
+            ucl_array_append(config, list_config);
             break;
 
         case 'i':
@@ -83,6 +96,9 @@ main(int argc, char *argv[]) {
                     simta_ucl_object_fromstring(optarg), "list", 0, false);
             ucl_object_insert_key(list_config,
                     simta_ucl_object_fromstring("report"), "action", 0, false);
+            ucl_object_insert_key(list_config,
+                    simta_ucl_object_fromstring("dns"), "type", 0, false);
+
             ucl_array_append(config, list_config);
             break;
 
@@ -156,6 +172,8 @@ main(int argc, char *argv[]) {
                 simta_ucl_object_fromstring("mx-deny.dnsbl"), "list", 0, false);
         ucl_object_insert_key(list_config,
                 simta_ucl_object_fromstring("report"), "action", 0, false);
+        ucl_object_insert_key(list_config, simta_ucl_object_fromstring("dns"),
+                "type", 0, false);
         ucl_array_append(config, list_config);
     }
 
@@ -172,9 +190,9 @@ main(int argc, char *argv[]) {
                 exit(SIMRBL_EXIT_ERROR);
             }
 
-            list = dnsl_check(simta_progname, ai->ai_addr, NULL);
+            list = acl_check(simta_progname, ai->ai_addr, NULL);
         } else {
-            list = dnsl_check(simta_progname, NULL, argv[ optind ]);
+            list = acl_check(simta_progname, NULL, argv[ optind ]);
         }
         if (list == NULL) {
             optind++;
@@ -187,8 +205,8 @@ main(int argc, char *argv[]) {
         exit(SIMRBL_EXIT_NOT_BLOCKED);
     } else {
         if (!quiet)
-            printf("%s found in %s: %s (%s)\n", argv[ optind ], list->dnsl_list,
-                    list->dnsl_result, list->dnsl_reason);
+            printf("%s found in %s: %s (%s)\n", argv[ optind ], list->acl_list,
+                    list->acl_result, list->acl_reason);
         exit(SIMRBL_EXIT_BLOCKED);
     }
 }

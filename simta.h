@@ -181,6 +181,8 @@ pid_t               simta_waitpid(pid_t, int *, int);
 simta_result        simta_signal_server(int);
 yastr               simta_slurp(const char *);
 int                 simta_child_q_runner(struct host_q *);
+int                 simta_cidr_compare(unsigned long, const struct sockaddr *,
+                        const struct sockaddr *, const char *);
 
 #define SIMTA_ELAPSED_MSEC(a, b)                                               \
     (((((b).tv_sec * 1000)) + ((b).tv_usec / 1000)) -                          \

@@ -30,8 +30,7 @@ static yastr spf_macro_expand(struct spf *, const yastr, const yastr);
 static yastr spf_parse_domainspec(struct spf *, const yastr, yastr);
 static yastr spf_parse_domainspec_cidr(
         struct spf *, const yastr, yastr, unsigned long *, unsigned long *);
-static int simta_cidr_compare(unsigned long, const struct sockaddr *,
-        const struct sockaddr *, const char *);
+
 
 struct spf *
 spf_lookup(const char *helo, const char *email, const struct sockaddr *addr) {
@@ -924,65 +923,6 @@ spf_parse_domainspec_cidr(struct spf *s, yastr domain, yastr dsc,
     }
 
     return (domain_spec);
-}
-
-static int
-simta_cidr_compare(unsigned long netmask, const struct sockaddr *addr,
-        const struct sockaddr *addr2, const char *ip) {
-    int              rc;
-    int              ret = 1;
-    struct addrinfo *ip_ai = NULL;
-    struct addrinfo  hints;
-    struct in6_addr *addr_in6;
-    struct in6_addr *addr2_in6;
-
-    if (addr2 == NULL) {
-        memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = addr->sa_family;
-        hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
-
-        if ((rc = getaddrinfo(ip, NULL, &hints, &ip_ai)) != 0) {
-            syslog(LOG_INFO, "Syserror: simta_cidr_compare getaddrinfo: %s",
-                    gai_strerror(rc));
-            return (-1);
-        }
-
-        addr2 = ip_ai->ai_addr;
-    }
-
-    if (addr->sa_family != addr2->sa_family) {
-        /* no need to check anything */
-    } else if (netmask == 0) {
-        ret = 0;
-    } else if (addr->sa_family == AF_INET) {
-        if (!((((struct sockaddr_in *)addr)->sin_addr.s_addr ^
-                      ((struct sockaddr_in *)addr2)->sin_addr.s_addr) &
-                    htonl((0xFFFFFFFF << (32 - netmask))))) {
-            ret = 0;
-        }
-    } else {
-        addr_in6 = &(((struct sockaddr_in6 *)addr)->sin6_addr);
-        addr2_in6 = &(((struct sockaddr_in6 *)addr2)->sin6_addr);
-        /* compare whole bytes */
-        if (memcmp(addr_in6->s6_addr, addr2_in6->s6_addr, (netmask / 8)) == 0) {
-            /* compare a partial byte, if needed */
-            if ((netmask % 8) > 0) {
-                if (!((addr_in6->s6_addr[ netmask / 8 ] ^
-                              addr2_in6->s6_addr[ netmask / 8 ]) &
-                            (0xFF << (netmask % 8)))) {
-                    ret = 0;
-                }
-            } else {
-                ret = 0;
-            }
-        }
-    }
-
-    if (ip_ai != NULL) {
-        freeaddrinfo(ip_ai);
-    }
-
-    return (ret);
 }
 
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

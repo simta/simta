@@ -105,7 +105,7 @@ void
 yaslupdatelen(yastr str);
 
 yastr *
-yaslsplitargs(const char * line, int * argc);
+yaslsplitargs(const char * line, size_t * argc);
 
 yastr *
 yaslsplitlen(const char * str, size_t len, const char * sep, size_t seplen, size_t * count);

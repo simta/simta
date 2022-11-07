@@ -57,6 +57,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY | LIBWRAP_DENY_SEVERITY;
 #include "dns.h"
 #include "header.h"
 #include "queue.h"
+#include "simta_acl.h"
 #include "simta_malloc.h"
 #include "simta_statsd.h"
 #include "spf.h"
@@ -116,8 +117,8 @@ struct receive_data {
     int                     r_tls;
     int                     r_auth;
     int                     r_dns_match;
-    int                     r_dnsl_checked;
-    struct dnsl_result *    r_dnsl_result;
+    int                     r_acl_checked;
+    struct acl_result *     r_acl_result;
     char *                  r_hello;
     char *                  r_smtp_command;
     const char *            r_remote_hostname;
@@ -821,16 +822,16 @@ f_mail_usage(struct receive_data *r) {
 
 static int
 f_mail(struct receive_data *r) {
-    int                 rc;
-    int                 i;
-    int                 parameters;
-    int                 seen_extensions = 0;
-    int                 eightbit = 0;
-    long int            message_size;
-    char *              addr;
-    char *              domain;
-    char *              endptr;
-    struct dnsl_result *dnsl_result;
+    int                rc;
+    int                i;
+    int                parameters;
+    int                seen_extensions = 0;
+    int                eightbit = 0;
+    long int           message_size;
+    char *             addr;
+    char *             domain;
+    char *             endptr;
+    struct acl_result *acl_result;
 
     r->r_mail_attempt++;
 
@@ -990,20 +991,19 @@ f_mail(struct receive_data *r) {
      */
 
     if (*addr != '\0') {
-        if ((dnsl_result = dnsl_check(
-                     "receive.mail_from.dns_list", NULL, addr)) != NULL) {
-            if (strcmp(dnsl_result->dnsl_action, "block") == 0) {
+        if ((acl_result = acl_check("receive.mail_from.acl", NULL, addr)) !=
+                NULL) {
+            if (strcmp(acl_result->acl_action, "block") == 0) {
                 syslog(LOG_NOTICE,
-                        "Receive [%s] %s: From <%s>: "
-                        "DNS list %s: Blocked: %s (%s)",
+                        "Receive [%s] %s: From <%s>: ACL %s: Blocked: %s (%s)",
                         r->r_ip, r->r_remote_hostname, addr,
-                        dnsl_result->dnsl_list, dnsl_result->dnsl_result,
-                        dnsl_result->dnsl_reason);
-                rc = smtp_write_banner(r, 550, dnsl_result->dnsl_reason, addr);
-                dnsl_result_free(dnsl_result);
-                return (rc);
+                        acl_result->acl_list, acl_result->acl_result,
+                        acl_result->acl_reason);
+                rc = smtp_write_banner(r, 550, acl_result->acl_reason, addr);
+                acl_result_free(acl_result);
+                return rc;
             }
-            dnsl_result_free(dnsl_result);
+            acl_result_free(acl_result);
         }
     }
 
@@ -1306,34 +1306,33 @@ f_rcpt(struct receive_data *r) {
                 return (smtp_write_banner(r, 451, NULL, NULL));
 
             case ADDRESS_OK:
-                if (!r->r_dnsl_checked) {
-                    r->r_dnsl_result = dnsl_check(
-                            "receive.rcpt_to.dns_list", r->r_sa, NULL);
-                    r->r_dnsl_checked = 1;
+                if (!r->r_acl_checked) {
+                    r->r_acl_result =
+                            acl_check("receive.rcpt_to.acl", r->r_sa, NULL);
+                    r->r_acl_checked = 1;
                 }
 
-                if (r->r_dnsl_result == NULL) {
+                if (r->r_acl_result == NULL) {
                     syslog(LOG_INFO,
-                            "Receive [%s] %s: env <%s>: "
-                            "To <%s> From <%s>: "
-                            "not found on any DNS lists in the 'user' chain",
+                            "Receive [%s] %s: env <%s>: To <%s> From <%s>: not "
+                            "found on any ACLs in the 'user' chain",
                             r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
                             r->r_env->e_mail);
                     break;
                 }
 
-                if (strcmp(r->r_dnsl_result->dnsl_action, "block") == 0) {
+                if (strcmp(r->r_acl_result->acl_action, "block") == 0) {
                     syslog(LOG_NOTICE,
-                            "Receive [%s] %s: env <%s>: "
-                            "To <%s> From <%s>: DNS list %s: Blocked: %s (%s)",
+                            "Receive [%s] %s: env <%s>: To <%s> From <%s>: ACL "
+                            "%s: Blocked: %s (%s)",
                             r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-                            r->r_env->e_mail, r->r_dnsl_result->dnsl_list,
-                            r->r_dnsl_result->dnsl_result,
-                            r->r_dnsl_result->dnsl_reason);
+                            r->r_env->e_mail, r->r_acl_result->acl_list,
+                            r->r_acl_result->acl_result,
+                            r->r_acl_result->acl_reason);
                     if (snet_writef(r->r_snet, "550 <%s> %s %s: %s: %s\r\n",
                                 simta_hostname, S_DENIED, r->r_ip,
-                                r->r_dnsl_result->dnsl_list,
-                                r->r_dnsl_result->dnsl_reason) < 0) {
+                                r->r_acl_result->acl_list,
+                                r->r_acl_result->acl_reason) < 0) {
                         syslog(LOG_ERR,
                                 "Receive [%s] %s: env <%s>: "
                                 "f_rcpt snet_writef: %m",
@@ -1341,17 +1340,17 @@ f_rcpt(struct receive_data *r) {
                         return RECEIVE_CLOSECONNECTION;
                     }
                     return RECEIVE_OK;
-                } else if ((strcmp(r->r_dnsl_result->dnsl_action, "accept") ==
+                } else if ((strcmp(r->r_acl_result->acl_action, "accept") ==
                                    0) ||
-                           (strcmp(r->r_dnsl_result->dnsl_action, "trust") ==
+                           (strcmp(r->r_acl_result->acl_action, "trust") ==
                                    0)) {
                     syslog(LOG_INFO,
-                            "Receive [%s] %s: env <%s>: "
-                            "To <%s> From <%s>: DNS list %s: Accepted: %s (%s)",
+                            "Receive [%s] %s: env <%s>: To <%s> From <%s>: ACL "
+                            "%s: Accepted: %s (%s)",
                             r->r_ip, r->r_remote_hostname, r->r_env->e_id, addr,
-                            r->r_env->e_mail, r->r_dnsl_result->dnsl_list,
-                            r->r_dnsl_result->dnsl_result,
-                            r->r_dnsl_result->dnsl_reason);
+                            r->r_env->e_mail, r->r_acl_result->acl_list,
+                            r->r_acl_result->acl_result,
+                            r->r_acl_result->acl_reason);
                     break;
                 }
                 break;
@@ -1421,7 +1420,7 @@ f_data(struct receive_data *r) {
     unsigned int            data_wrote = 0;
     unsigned int            data_read = 0;
     struct envelope *       env_bounce;
-    struct dnsl_result *    dnsl_result = NULL;
+    struct acl_result *     acl_result = NULL;
     yastr                   authresults = NULL;
     yastr                   authresults_tmp = NULL;
     int          authresults_plain = !simta_config_bool("receive.arc.enabled");
@@ -1800,19 +1799,17 @@ f_data(struct receive_data *r) {
                                      r->r_env->e_mail_orig
                                              ? r->r_env->e_mail_orig
                                              : r->r_env->e_mail) != 0)) {
-                        if ((dnsl_result = dnsl_check(
-                                     "receive.mail_from.dns_list", NULL,
-                                     r->r_env->e_header_from)) != NULL) {
-                            if (strcmp(dnsl_result->dnsl_action, "block") ==
-                                    0) {
+                        if ((acl_result = acl_check("receive.mail_from.acl",
+                                     NULL, r->r_env->e_header_from)) != NULL) {
+                            if (strcmp(acl_result->acl_action, "block") == 0) {
                                 syslog(LOG_NOTICE,
-                                        "Receive [%s] %s: env <%s>: "
-                                        "DNS list %s: Blocked: %s (%s)",
+                                        "Receive [%s] %s: env <%s>: ACL %s: "
+                                        "Blocked: %s (%s)",
                                         r->r_ip, r->r_remote_hostname,
-                                        r->r_env->e_id, dnsl_result->dnsl_list,
-                                        dnsl_result->dnsl_result,
-                                        dnsl_result->dnsl_reason);
-                                system_message = dnsl_result->dnsl_reason;
+                                        r->r_env->e_id, acl_result->acl_list,
+                                        acl_result->acl_result,
+                                        acl_result->acl_reason);
+                                system_message = acl_result->acl_reason;
                                 filter_result = MESSAGE_REJECT;
                                 read_err = PROTOCOL_ERROR;
                             }
@@ -2408,7 +2405,7 @@ error:
     receive_headers_free(rh);
     yaslfree(authresults);
     yaslfree(with);
-    dnsl_result_free(dnsl_result);
+    acl_result_free(acl_result);
 
     /* if dff is still open, there was an error and we need to close it */
     if ((dff != NULL) && (fclose(dff) != 0)) {
@@ -2747,8 +2744,8 @@ f_auth(struct receive_data *r) {
     char *         clientin = NULL;
     struct timeval tv;
 #ifdef HAVE_LIBSASL
-    int                 rc;
-    struct dnsl_result *authz_result;
+    int                rc;
+    struct acl_result *authz_result;
 #endif /* HAVE_LIBSASL */
 
     if (!simta_config_bool("receive.auth.authn.enabled")) {
@@ -2919,24 +2916,33 @@ f_auth(struct receive_data *r) {
     r->r_auth_id = r->r_sasl->s_auth_id;
 
     /* authn was successful, now we need to check authz */
-    if ((authz_result = dnsl_check(
-                 "receive.auth.authz.dns_list", NULL, r->r_auth_id)) == NULL) {
-        syslog(LOG_INFO, "Auth [%s] %s: %s allowed by default", r->r_ip,
-                r->r_remote_hostname, r->r_auth_id);
-    } else {
-        if (strcmp(authz_result->dnsl_action, "block") == 0) {
+    if ((authz_result = acl_check(
+                 "receive.auth.authz.acl", NULL, r->r_auth_id)) == NULL) {
+        if (strcasecmp(simta_config_str("receive.auth.authz.default"),
+                    "block") == 0) {
             r->r_failedauth++;
-            syslog(LOG_INFO, "Auth [%s] %s: %s denied by DNS list %s: %s (%s)",
-                    r->r_ip, r->r_remote_hostname, r->r_auth_id,
-                    authz_result->dnsl_list, authz_result->dnsl_result,
-                    authz_result->dnsl_reason);
+            syslog(LOG_INFO, "Auth [%s] %s: %s denied by default", r->r_ip,
+                    r->r_remote_hostname, r->r_auth_id);
             rc = smtp_write_banner(r, 535, NULL, NULL);
-            return ((r->r_failedauth < 3) ? rc : RECEIVE_CLOSECONNECTION);
+            return (r->r_failedauth < 3) ? rc : RECEIVE_CLOSECONNECTION;
         } else {
-            syslog(LOG_INFO, "Auth [%s] %s: %s allowed by DNS list %s: %s (%s)",
+            syslog(LOG_INFO, "Auth [%s] %s: %s allowed by default", r->r_ip,
+                    r->r_remote_hostname, r->r_auth_id);
+        }
+    } else {
+        if (strcmp(authz_result->acl_action, "block") == 0) {
+            r->r_failedauth++;
+            syslog(LOG_INFO, "Auth [%s] %s: %s denied by ACL %s: %s (%s)",
                     r->r_ip, r->r_remote_hostname, r->r_auth_id,
-                    authz_result->dnsl_list, authz_result->dnsl_result,
-                    authz_result->dnsl_reason);
+                    authz_result->acl_list, authz_result->acl_result,
+                    authz_result->acl_reason);
+            rc = smtp_write_banner(r, 535, NULL, NULL);
+            return (r->r_failedauth < 3) ? rc : RECEIVE_CLOSECONNECTION;
+        } else {
+            syslog(LOG_INFO, "Auth [%s] %s: %s allowed by ACL %s: %s (%s)",
+                    r->r_ip, r->r_remote_hostname, r->r_auth_id,
+                    authz_result->acl_list, authz_result->acl_result,
+                    authz_result->acl_reason);
         }
     }
 
@@ -3204,30 +3210,26 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         free(ctl_hostname);
 #endif /* HAVE_LIBWRAP */
 
-        simta_debuglog(3, "Connect.in [%s] %s: checking DNS lists", r.r_ip,
+        simta_debuglog(3, "Connect.in [%s] %s: checking ACLs", r.r_ip,
                 r.r_remote_hostname);
 
-        r.r_dnsl_result =
-                dnsl_check("receive.connection.dns_list", r.r_sa, NULL);
+        r.r_acl_result = acl_check("receive.connection.acl", r.r_sa, NULL);
 
-        if (r.r_dnsl_result) {
-            r.r_dnsl_checked = 1;
-            if (strcmp((r.r_dnsl_result)->dnsl_action, "block") == 0) {
-                statsd_counter("receive.connection", "dnsbl", 1);
-                syslog(LOG_INFO,
-                        "Connect.in [%s] %s: DNS list %s: Blocked: %s (%s)",
-                        r.r_ip, r.r_remote_hostname,
-                        (r.r_dnsl_result)->dnsl_list,
-                        (r.r_dnsl_result)->dnsl_result,
-                        (r.r_dnsl_result)->dnsl_reason);
-                set_smtp_mode(&r, "refuse", (r.r_dnsl_result)->dnsl_reason);
+        if (r.r_acl_result) {
+            r.r_acl_checked = 1;
+            if (strcmp((r.r_acl_result)->acl_action, "block") == 0) {
+                statsd_counter("receive.connection", "no_acl", 1);
+                syslog(LOG_INFO, "Connect.in [%s] %s: ACL %s: Blocked: %s (%s)",
+                        r.r_ip, r.r_remote_hostname, (r.r_acl_result)->acl_list,
+                        (r.r_acl_result)->acl_result,
+                        (r.r_acl_result)->acl_reason);
+                set_smtp_mode(&r, "refuse", (r.r_acl_result)->acl_reason);
             }
         }
 
-        if ((r.r_dnsl_result == NULL) ||
-                ((strcmp((r.r_dnsl_result)->dnsl_action, "accept") != 0) &&
-                        (strcmp((r.r_dnsl_result)->dnsl_action, "trust") !=
-                                0))) {
+        if ((r.r_acl_result == NULL) ||
+                ((strcmp((r.r_acl_result)->acl_action, "accept") != 0) &&
+                        (strcmp((r.r_acl_result)->acl_action, "trust") != 0))) {
             if (c->c_proc_total >
                     simta_config_int("receive.connection.limits.per_host")) {
                 statsd_counter("receive.connection.throttle", "per_host", 1);
@@ -3258,8 +3260,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         /* Write before Banner check */
         FD_ZERO(&fdset);
         FD_SET(snet_fd(r.r_snet), &fdset);
-        if ((r.r_dnsl_result == NULL) ||
-                (strcmp((r.r_dnsl_result)->dnsl_action, "trust") != 0)) {
+        if ((r.r_acl_result == NULL) ||
+                (strcmp((r.r_acl_result)->acl_action, "trust") != 0)) {
             simta_ucl_object_totimeval(
                     simta_config_obj("receive.connection.banner.delay"),
                     &tv_wait);
@@ -3291,8 +3293,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         if (r.r_smtp_mode == SMTP_MODE_REFUSE) {
             if (snet_writef(r.r_snet, "554 <%s> %s %s: %s\r\n", simta_hostname,
                         S_DENIED, r.r_ip,
-                        r.r_dnsl_result ? (r.r_dnsl_result)->dnsl_reason
-                                        : "denied by local policy") < 0) {
+                        r.r_acl_result ? (r.r_acl_result)->acl_reason
+                                       : "denied by local policy") < 0) {
                 syslog(LOG_ERR, "Receive [%s] %s: smtp_receive snet_writef: %m",
                         r.r_ip, r.r_remote_hostname);
                 goto closeconnection;
@@ -3515,9 +3517,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         }
 
         if ((r.r_smtp_mode == SMTP_MODE_NORMAL) &&
-                ((r.r_dnsl_result == NULL) ||
-                        (strcmp((r.r_dnsl_result)->dnsl_action, "trust") !=
-                                0))) {
+                ((r.r_acl_result == NULL) ||
+                        (strcmp((r.r_acl_result)->acl_action, "trust") != 0))) {
             if ((simta_config_int("receive.rcpt_to.max_failures") > 0) &&
                     ((r.r_rcpt_attempt - r.r_rcpt_success) >=
                             simta_config_int("receive.rcpt_to.max_failures"))) {
@@ -4157,8 +4158,8 @@ content_filter(
         return MESSAGE_ACCEPT;
     }
 
-    if (r->r_dnsl_result &&
-            (strcmp(r->r_dnsl_result->dnsl_action, "trust") == 0)) {
+    if (r->r_acl_result &&
+            (strcmp(r->r_acl_result->acl_action, "trust") == 0)) {
         if (strcmp(simta_config_str("receive.data.content_filter.when"),
                     "untrusted") == 0) {
             syslog(LOG_INFO,
@@ -4300,9 +4301,12 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
         sprintf(buf, "%d", r->r_dns_match);
         filter_envp[ filter_envc++ ] = env_string("SIMTA_REVERSE_LOOKUP", buf);
 
-        if (r->r_dnsl_result) {
+        if (r->r_acl_result) {
+            /* FIXME: deprecated */
             filter_envp[ filter_envc++ ] = env_string(
-                    "SIMTA_DNSL_RESULT", r->r_dnsl_result->dnsl_action);
+                    "SIMTA_DNSL_RESULT", r->r_acl_result->acl_action);
+            filter_envp[ filter_envc++ ] =
+                    env_string("SIMTA_ACL_RESULT", r->r_acl_result->acl_action);
         }
 
         if (r->r_env->e_mail_orig) {

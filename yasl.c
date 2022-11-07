@@ -324,7 +324,7 @@ yaslupdatelen(yastr str) {
  * foo bar "newline are supported\n" and "\xff\x00otherstuff"
  */
 yastr *
-yaslsplitargs(const char * line, int * argc) {
+yaslsplitargs(const char * line, size_t * argc) {
 	if (!line || !argc) { return NULL; }
 
 	const char * p = line;

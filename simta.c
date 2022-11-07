@@ -5,10 +5,13 @@
 
 #include <config.h>
 
+#include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -16,6 +19,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/param.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -226,10 +230,10 @@ simta_read_config(const char *fname, const char *extra) {
     }
 
     /* Preprocess some things that should be lists */
-    simta_ucl_ensure_array(simta_config_obj("receive.connection"), "dns_list");
-    simta_ucl_ensure_array(simta_config_obj("receive.auth.authz"), "dns_list");
-    simta_ucl_ensure_array(simta_config_obj("receive.mail_from"), "dns_list");
-    simta_ucl_ensure_array(simta_config_obj("receive.rcpt_to"), "dns_list");
+    simta_ucl_ensure_array(simta_config_obj("receive.connection"), "acl");
+    simta_ucl_ensure_array(simta_config_obj("receive.auth.authz"), "acl");
+    simta_ucl_ensure_array(simta_config_obj("receive.mail_from"), "acl");
+    simta_ucl_ensure_array(simta_config_obj("receive.rcpt_to"), "acl");
 
     /* Set up localhost */
     if (red_host_lookup(simta_hostname, false) == NULL) {
@@ -756,4 +760,64 @@ simta_url_escape(const yastr src) {
 
     return retval;
 }
+
+int
+simta_cidr_compare(unsigned long netmask, const struct sockaddr *addr,
+        const struct sockaddr *addr2, const char *ip) {
+    int              rc;
+    int              ret = 1;
+    struct addrinfo *ip_ai = NULL;
+    struct addrinfo  hints;
+    struct in6_addr *addr_in6;
+    struct in6_addr *addr2_in6;
+
+    if (addr2 == NULL) {
+        memset(&hints, 0, sizeof(struct addrinfo));
+        hints.ai_family = addr->sa_family;
+        hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
+
+        if ((rc = getaddrinfo(ip, NULL, &hints, &ip_ai)) != 0) {
+            syslog(LOG_INFO, "Syserror: simta_cidr_compare getaddrinfo: %s",
+                    gai_strerror(rc));
+            return (-1);
+        }
+
+        addr2 = ip_ai->ai_addr;
+    }
+
+    if (addr->sa_family != addr2->sa_family) {
+        /* no need to check anything */
+    } else if (netmask == 0) {
+        ret = 0;
+    } else if (addr->sa_family == AF_INET) {
+        if (!((((struct sockaddr_in *)addr)->sin_addr.s_addr ^
+                      ((struct sockaddr_in *)addr2)->sin_addr.s_addr) &
+                    htonl((0xFFFFFFFF << (32 - netmask))))) {
+            ret = 0;
+        }
+    } else {
+        addr_in6 = &(((struct sockaddr_in6 *)addr)->sin6_addr);
+        addr2_in6 = &(((struct sockaddr_in6 *)addr2)->sin6_addr);
+        /* compare whole bytes */
+        if (memcmp(addr_in6->s6_addr, addr2_in6->s6_addr, (netmask / 8)) == 0) {
+            /* compare a partial byte, if needed */
+            if ((netmask % 8) > 0) {
+                if (!((addr_in6->s6_addr[ netmask / 8 ] ^
+                              addr2_in6->s6_addr[ netmask / 8 ]) &
+                            (0xFF << (netmask % 8)))) {
+                    ret = 0;
+                }
+            } else {
+                ret = 0;
+            }
+        }
+    }
+
+    if (ip_ai != NULL) {
+        freeaddrinfo(ip_ai);
+    }
+
+    return (ret);
+}
+
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
