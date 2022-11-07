@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Lint code formatting
         run: |
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install flake8
         run: sudo pip install flake8
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: simta
           fetch-depth: 0
@@ -55,7 +55,7 @@ jobs:
         run: sudo pip install aiosmtpd cryptography pytest
 
       - name: Cache built dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: cache-deps
         with:
           path: ${{ github.workspace }}/.deps
@@ -112,7 +112,7 @@ jobs:
         if: always()
 
       - name: Upload test artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: pytest
           path: |
@@ -129,7 +129,7 @@ jobs:
         working-directory: ${{ github.workspace }}/simta
 
       - name: Save lcov output
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: lcov
           path: lcov
