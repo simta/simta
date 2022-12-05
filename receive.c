@@ -2923,7 +2923,8 @@ f_auth(struct receive_data *r) {
             r->r_failedauth++;
             syslog(LOG_INFO, "Auth [%s] %s: %s denied by default", r->r_ip,
                     r->r_remote_hostname, r->r_auth_id);
-            rc = smtp_write_banner(r, 535, NULL, NULL);
+            rc = smtp_write_banner(r, 535,
+                    simta_config_str("receive.auth.authz.message"), NULL);
             return (r->r_failedauth < 3) ? rc : RECEIVE_CLOSECONNECTION;
         } else {
             syslog(LOG_INFO, "Auth [%s] %s: %s allowed by default", r->r_ip,
@@ -2936,7 +2937,7 @@ f_auth(struct receive_data *r) {
                     r->r_ip, r->r_remote_hostname, r->r_auth_id,
                     authz_result->acl_list, authz_result->acl_result,
                     authz_result->acl_reason);
-            rc = smtp_write_banner(r, 535, NULL, NULL);
+            rc = smtp_write_banner(r, 535, authz_result->acl_reason, NULL);
             return (r->r_failedauth < 3) ? rc : RECEIVE_CLOSECONNECTION;
         } else {
             syslog(LOG_INFO, "Auth [%s] %s: %s allowed by ACL %s: %s (%s)",

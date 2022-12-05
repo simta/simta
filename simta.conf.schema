@@ -569,6 +569,7 @@ properties {
                                 type: array
                                 items { "$ref": "#/definitions/acl" }
                             }
+                            message { type: string }
                         }
                         additionalProperties: false
                         required: [ default ]
