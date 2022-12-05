@@ -1687,6 +1687,8 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
         yaslfree(search_string);
 
         if (rc == ADDRESS_OK) {
+            simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: Matched using %s",
+                    exp->exp_env->e_id, e_addr->e_addr, lds->lds_string);
             break;
         }
 
