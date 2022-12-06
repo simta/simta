@@ -72,11 +72,18 @@ def test_connect_mx(domain, run_simconnect):
     assert res['parsed'] == ['172.24.0.1', '100::1', '100::2', '172.24.0.2']
 
 
+def test_connect_mixed_mx(run_simconnect):
+    res = run_simconnect('mixed-mx.example.com')
+    assert res['parsed'] == ['172.24.0.1']
+
+
 @pytest.mark.parametrize('domain', [
     'nonexist.example.com',
     'dangling.example.com',
     'bad-mx.example.com',
     'bad-mx-cname.example.com',
+    'mx-timeout.example.com',
+    'mx-timeout-solo.example.com',
 ])
 def test_connect_noserver(domain, run_simconnect):
     res = run_simconnect(domain)
@@ -106,6 +113,8 @@ def test_connect_bounce(domain, run_simconnect):
     'mx-chain.example.com',
     'mixed-mx.example.com',
     'timeout',
+    'mx-timeout.example.com',
+    'mx-timeout-solo.example.com',
 ])
 def test_connect_nobounce(domain, run_simconnect):
     res = run_simconnect(domain)

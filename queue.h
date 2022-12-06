@@ -59,6 +59,7 @@ struct deliver {
     const char             *d_cur_mx_lookup_type;
     struct sockaddr_storage d_sa;
     char                    d_ip[ INET6_ADDRSTRLEN ];
+    bool                    d_mx_dns_error;
     bool                    d_mx_check_ipv4;
     bool                    d_mx_check_ipv6;
     bool                    d_mx_cname_ok;

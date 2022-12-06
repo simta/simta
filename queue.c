@@ -1765,6 +1765,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
                     d->d_mx_list, simta_ucl_object_fromyastr(hq->hq_hostname));
             d->d_mx_cname_ok = true;
         }
+        d->d_mx_dns_error = false;
         d->d_mx_current = ucl_array_pop_first(d->d_mx_list);
         d->d_mx_check_ipv6 = ucl_object_toboolean(
                 ucl_object_lookup_path(hq->hq_red, "deliver.connection.ipv6"));
@@ -1786,7 +1787,7 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
 
     if (d->d_mx_current == NULL) {
         if (d->d_retry_list == NULL) {
-            if (hq->hq_status == SIMTA_HOST_DOWN) {
+            if ((hq->hq_status == SIMTA_HOST_DOWN) && !d->d_mx_dns_error) {
                 /* If MX records are present, but none of them are usable,
                  * or the implicit MX is unusable, this situation MUST be
                  * reported as an error.
@@ -1855,7 +1856,9 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
                 d->d_mx_check_ipv4 = false;
             }
 
-            if (d->d_dnsr_result) {
+            if (!d->d_dnsr_result) {
+                d->d_mx_dns_error = true;
+            } else {
                 if (d->d_dnsr_result->r_ancount == 0) {
                     dnsr_free_result(d->d_dnsr_result);
                     d->d_dnsr_result = NULL;

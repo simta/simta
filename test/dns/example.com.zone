@@ -30,8 +30,12 @@ bad-mx-cname        MX      10  addr-redirect
 bad-mx-cname        A       172.24.0.3
 mixed-mx            MX      15  ipv4
 mixed-mx            MX      10  nonexist
+mixed-mx            MX      10  nonexist.example.org.
 mixed-mx            MX      10  addr-redirect
 mixed-mx            A       172.24.0.3
+mx-timeout          MX      10  nonexist.example.org.
+mx-timeout          MX      10  nonexist
+mx-timeout-solo     MX      10  nonexist.example.org.
 smtpd               A       127.0.0.1
 binary              A       172.24.0.4
 _dmarc              TXT     "v=DMARC1; p=reject;"
