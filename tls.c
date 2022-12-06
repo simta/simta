@@ -61,8 +61,29 @@ tls_ca_setup(SSL_CTX *ctx) {
 
 SSL_CTX *
 tls_server_setup(void) {
-    SSL_CTX             *ssl_ctx;
-    int                  ssl_mode = 0;
+    SSL_CTX *ssl_ctx;
+    int      ssl_mode = 0;
+
+    /* OpenSSL 1.1.0 added auto-init */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+    SSL_load_error_strings();
+    SSL_library_init();
+#endif /* OpenSSL < 1.1.0 */
+
+    if ((ssl_ctx = SSL_CTX_new(SSLv23_server_method())) == NULL) {
+        syslog(LOG_ERR, "Liberror: tls_server_setup SSL_CTX_new: %s",
+                ERR_error_string(ERR_get_error(), NULL));
+        return NULL;
+    }
+
+/* OpenSSL 1.1.0 added auto mode for DH */
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
+    if (SSL_CTX_set_dh_auto(ssl_ctx, 1) != 1) {
+        syslog(LOG_ERR, "Liberror: tls_server_setup SSL_CTX_set_dh_auto: %s",
+                ERR_error_string(ERR_get_error(), NULL));
+    }
+#else
+    /* Manual setup */
     static unsigned char dh4096_p[] = {
             0x91,
             0x6B,
@@ -582,31 +603,12 @@ tls_server_setup(void) {
     };
     DH *dh = NULL;
 
-    /* OpenSSL 1.1.0 added auto-init */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
-    SSL_load_error_strings();
-    SSL_library_init();
-#endif /* OpenSSL < 1.1.0 */
-
-    if ((ssl_ctx = SSL_CTX_new(SSLv23_server_method())) == NULL) {
-        syslog(LOG_ERR, "Liberror: tls_server_setup SSL_CTX_new: %s",
-                ERR_error_string(ERR_get_error(), NULL));
-        return (NULL);
-    }
-
     if ((dh = DH_new()) == NULL) {
         syslog(LOG_ERR, "Liberror: tls_server_setup DH_new: %s",
                 ERR_error_string(ERR_get_error(), NULL));
         goto error;
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
-    if (DH_set0_pqg(dh, BN_bin2bn(dh4096_p, sizeof(dh4096_p), NULL), NULL,
-                BN_bin2bn(dh4096_g, sizeof(dh4096_g), NULL)) != 1) {
-        syslog(LOG_ERR, "Liberror: tls_server_setup DH_set0_pqg: %s",
-                ERR_error_string(ERR_get_error(), NULL));
-    }
-#else
     dh->p = BN_bin2bn(dh4096_p, sizeof(dh4096_p), NULL);
     dh->g = BN_bin2bn(dh4096_g, sizeof(dh4096_g), NULL);
     if ((dh->p == NULL) || (dh->g == NULL)) {
@@ -614,13 +616,13 @@ tls_server_setup(void) {
                 ERR_error_string(ERR_get_error(), NULL));
         goto error;
     }
-#endif /* OpenSSL 1.1.0 */
 
     if (SSL_CTX_set_tmp_dh(ssl_ctx, dh) != 1) {
         syslog(LOG_ERR, "Liberror: tls_server_setup SSL_CTX_set_tmp_dh: %s",
                 ERR_error_string(ERR_get_error(), NULL));
         goto error;
     }
+#endif /* OpenSSL 1.1.0 */
 
     /* Disable old protocols, prefer server cipher ordering */
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
@@ -708,9 +710,11 @@ tls_server_setup(void) {
 
 error:
     SSL_CTX_free(ssl_ctx);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
     if (dh != NULL) {
         DH_free(dh);
     }
+#endif /* OpenSSL < 1.1.0 */
     return NULL;
 }
 
