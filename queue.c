@@ -754,7 +754,6 @@ q_read_dir(struct simta_dirp *sd) {
     /* metrics */
     struct timeval tv_stop;
     int            remain_hq = 0;
-    int            total = 0;
     int new = 0;
     int removed = 0;
 
@@ -811,7 +810,6 @@ q_read_dir(struct simta_dirp *sd) {
 
             prune_messages(hq);
 
-            total += hq->hq_entries;
             new += hq->hq_entries_new;
             removed += hq->hq_entries_removed;
             hq->hq_entries_new = 0;
