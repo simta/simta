@@ -11,7 +11,7 @@
 #define MD_BYTE_LEN 10
 
 struct message_digest {
-    EVP_MD_CTX *  md_ctx;
+    EVP_MD_CTX   *md_ctx;
     int           md_ctx_status;
     unsigned int  md_ctx_bytes;
     unsigned int  md_len;

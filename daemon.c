@@ -70,8 +70,8 @@ struct sigaction        osahup;
 struct sigaction        osachld;
 struct sigaction        osausr1;
 struct sigaction        osausr2;
-const char *            version = PACKAGE_VERSION;
-struct simta_socket *   simta_listen_sockets = NULL;
+const char             *version = PACKAGE_VERSION;
+struct simta_socket    *simta_listen_sockets = NULL;
 
 
 int          daemon_local(void);
@@ -94,7 +94,7 @@ int                  simta_daemonize_server(void);
 int                  simta_child_receive(struct simta_socket *);
 struct simta_socket *simta_listen_port(const char *);
 int                  simta_listen(void);
-struct proc_type *   simta_proc_add(int, int);
+struct proc_type    *simta_proc_add(int, int);
 int                  simta_proc_q_runner(int, struct host_q *);
 int                  simta_read_command(struct simta_dirp *);
 int                  set_sleep_time(int *, int);
@@ -172,7 +172,7 @@ simta_listen_port(const char *port) {
     char                 host[ NI_MAXHOST ];
     char                 service[ NI_MAXSERV ];
     struct addrinfo      hints;
-    struct addrinfo *    ai, *air;
+    struct addrinfo     *ai, *air;
     struct simta_socket *ss = NULL;
 
     memset(&hints, 0, sizeof(struct addrinfo));
@@ -264,16 +264,16 @@ main(int ac, char **av) {
     int                  c, err = 0;
     bool                 dontrun = false;
     bool                 daemonize = true;
-    char *               prog;
+    char                *prog;
     extern int           optind;
-    extern char *        optarg;
+    extern char         *optarg;
     struct simta_socket *ss;
-    const char *         simta_uname = NULL;
-    struct passwd *      simta_pw;
-    const char *         config_fname = NULL;
-    const char *         config_extra = NULL;
-    const char *         simta_pwd;
-    const char *         simta_file_pid;
+    const char          *simta_uname = NULL;
+    struct passwd       *simta_pw;
+    const char          *config_fname = NULL;
+    const char          *config_extra = NULL;
+    const char          *simta_pwd;
+    const char          *simta_file_pid;
 #ifdef HAVE_LIBSSL
     SSL_CTX *ssl_ctx = NULL;
 #endif /* HAVE_LIBSSL */
@@ -663,20 +663,20 @@ simta_server(bool daemon) {
     struct timeval           tv_unexpanded = {0, 0};
     struct timeval           tv_sleep = {0, 0};
     struct timeval           tv_now;
-    const char *             sleep_reason;
-    char *                   error_msg = NULL;
+    const char              *sleep_reason;
+    char                    *error_msg = NULL;
     int                      entries;
     int                      ready;
     int                      sleep_time;
     int                      launched;
-    FILE *                   pf;
+    FILE                    *pf;
     struct simta_dirp        command_dirp;
     struct simta_dirp        slow_dirp;
     int                      fd_max;
     fd_set                   fdset;
-    struct simta_socket *    ss;
+    struct simta_socket     *ss;
     struct connection_info **c;
-    struct connection_info * remove;
+    struct connection_info  *remove;
 
     memset(&command_dirp, 0, sizeof(struct simta_dirp));
     command_dirp.sd_dir = simta_dir_command;
@@ -1063,8 +1063,8 @@ simta_sigaction_reset(bool retain_chld) {
 int
 simta_child_receive(struct simta_socket *ss) {
     static struct timeval   tv_throttle = {0, 0};
-    struct proc_type *      p;
-    struct simta_socket *   s;
+    struct proc_type       *p;
+    struct simta_socket    *s;
     struct connection_info *cinfo = NULL;
     struct sockaddr_storage sa;
     struct timeval          tv_add;
@@ -1337,7 +1337,7 @@ simta_proc_add(int process_type, int pid) {
 simta_result
 mid_promote(char *mid) {
     struct dll_entry *dll;
-    struct envelope * e;
+    struct envelope  *e;
     struct timeval    tv_nowait = {0, 0};
 
     if ((dll = dll_lookup(simta_env_list, mid)) != NULL) {
@@ -1367,10 +1367,10 @@ mid_promote(char *mid) {
 
 simta_result
 sender_promote(char *sender) {
-    struct dll_entry *   dll;
-    struct sender_list * sl;
+    struct dll_entry    *dll;
+    struct sender_list  *sl;
     struct sender_entry *se;
-    struct dll_entry *   dll_se;
+    struct dll_entry    *dll_se;
     struct timeval       tv_nowait = {0, 0};
 
     if ((dll = dll_lookup(simta_sender_list, sender)) != NULL) {
@@ -1404,18 +1404,18 @@ sender_promote(char *sender) {
 
 int
 daemon_commands(struct simta_dirp *sd) {
-    struct dirent *  entry;
+    struct dirent   *entry;
     struct timeval   tv_stop;
-    char *           line;
-    SNET *           snet;
+    char            *line;
+    SNET            *snet;
     char             fname[ MAXPATHLEN + 1 ];
     int              lineno = 1;
     int              ret = 0;
     int              ac;
     int              int_arg;
-    char **          av;
-    ACAV *           acav;
-    struct host_q *  hq;
+    char           **av;
+    ACAV            *acav;
+    struct host_q   *hq;
     struct timeval   tv_nowait = {0, 0};
     struct envelope *e;
 
@@ -1638,9 +1638,9 @@ env_log_metrics(struct dll_entry *dll_head) {
     yastr             linkname = NULL;
     yastr             filename = NULL;
     int               fd;
-    FILE *            f;
+    FILE             *f;
     struct dll_entry *dll;
-    struct envelope * env;
+    struct envelope  *env;
     struct timeval    tv_now;
     struct stat       st_file;
 
@@ -1694,8 +1694,8 @@ sender_log_metrics(struct dll_entry *dll_head) {
     yastr               linkname = NULL;
     yastr               filename = NULL;
     int                 fd;
-    FILE *              f;
-    struct dll_entry *  dll;
+    FILE               *f;
+    struct dll_entry   *dll;
     struct sender_list *sl;
     struct timeval      tv_now;
     struct stat         st_file;

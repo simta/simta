@@ -2,17 +2,17 @@
 #define SIMTA_LL_H
 
 struct stab_entry {
-    char *             st_key;
+    char              *st_key;
     struct stab_entry *st_next;
     struct stab_entry *st_prev;
-    void *             st_data;
+    void              *st_data;
 };
 
 struct dll_entry {
     struct dll_entry *dll_next;
     struct dll_entry *dll_prev;
-    char *            dll_key;
-    void *            dll_data;
+    char             *dll_key;
+    void             *dll_data;
 };
 
 struct dll_entry *dll_lookup_or_create(struct dll_entry **, const char *);

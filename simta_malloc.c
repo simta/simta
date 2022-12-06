@@ -49,7 +49,7 @@ simta_realloc(void *oldp, size_t size) {
 
 char *
 simta_strdup(const char *s) {
-    char * p;
+    char  *p;
     size_t len;
 
     len = strlen(s) + 1;

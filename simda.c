@@ -18,7 +18,7 @@
 int
 main(int argc, char **argv) {
     struct passwd *simta_pw;
-    char *         p;
+    char          *p;
     ssize_t        path_len;
     bool           ok = false;
 

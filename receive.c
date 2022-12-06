@@ -100,12 +100,12 @@ enum smtp_mode {
 };
 
 struct receive_data {
-    SNET *                  r_snet;
-    struct envelope *       r_env;
+    SNET                   *r_snet;
+    struct envelope        *r_env;
     int                     r_ac;
-    char **                 r_av;
-    struct sockaddr *       r_sa;
-    char *                  r_ip;
+    char                  **r_av;
+    struct sockaddr        *r_sa;
+    char                   *r_ip;
     int                     r_write_before_banner;
     int                     r_data_success;
     int                     r_data_attempt;
@@ -118,20 +118,20 @@ struct receive_data {
     int                     r_auth;
     int                     r_dns_match;
     int                     r_acl_checked;
-    struct acl_result *     r_acl_result;
-    char *                  r_hello;
-    char *                  r_smtp_command;
-    const char *            r_remote_hostname;
-    struct command *        r_commands;
+    struct acl_result      *r_acl_result;
+    char                   *r_hello;
+    char                   *r_smtp_command;
+    const char             *r_remote_hostname;
+    struct command         *r_commands;
     int                     r_ncommands;
     enum smtp_mode          r_smtp_mode;
-    ucl_object_t *          r_smtp_extensions;
-    const char *            r_auth_id;
+    ucl_object_t           *r_smtp_extensions;
+    const char             *r_auth_id;
     struct timeval          r_tv_inactivity;
     struct timeval          r_tv_session;
     struct timeval          r_tv_accepted;
-    struct spf *            r_spf;
-    struct dmarc *          r_dmarc;
+    struct spf             *r_spf;
+    struct dmarc           *r_dmarc;
     enum simta_dmarc_result r_dmarc_result;
     int                     r_bad_headers;
 
@@ -828,9 +828,9 @@ f_mail(struct receive_data *r) {
     int                seen_extensions = 0;
     int                eightbit = 0;
     long int           message_size;
-    char *             addr;
-    char *             domain;
-    char *             endptr;
+    char              *addr;
+    char              *domain;
+    char              *endptr;
     struct acl_result *acl_result;
 
     r->r_mail_attempt++;
@@ -1144,8 +1144,8 @@ static int
 f_rcpt(struct receive_data *r) {
     int                 rc;
     int                 parameters;
-    char *              addr;
-    char *              domain;
+    char               *addr;
+    char               *domain;
     const ucl_object_t *red;
 
     r->r_rcpt_attempt++;
@@ -1386,7 +1386,7 @@ f_rcpt(struct receive_data *r) {
 
 static int
 f_data(struct receive_data *r) {
-    FILE *                  dff = NULL;
+    FILE                   *dff = NULL;
     int                     calculate_timers = 1;
     int                     banner = 0;
     int                     dfile_fd = -1;
@@ -1399,18 +1399,18 @@ f_data(struct receive_data *r) {
     int                     f_result;
     int                     read_err = NO_ERROR;
     size_t                  line_len;
-    char *                  line;
-    char *                  msg;
-    const char *            jail_host = NULL;
-    const char *            failure_message = NULL;
-    char *                  filter_message = NULL;
-    const char *            system_message = NULL;
-    const char *            timer_type = NULL;
-    const char *            session_timer = NULL;
-    struct timeval *        tv_session = NULL;
+    char                   *line;
+    char                   *msg;
+    const char             *jail_host = NULL;
+    const char             *failure_message = NULL;
+    char                   *filter_message = NULL;
+    const char             *system_message = NULL;
+    const char             *timer_type = NULL;
+    const char             *session_timer = NULL;
+    struct timeval         *tv_session = NULL;
     struct timeval          tv_data_session;
     struct timeval          tv_wait;
-    struct timeval *        tv_timeout = NULL;
+    struct timeval         *tv_timeout = NULL;
     struct timeval          tv_line;
     struct timeval          tv_add = {0, 0};
     struct timeval          tv_filter = {0, 0};
@@ -1419,8 +1419,8 @@ f_data(struct receive_data *r) {
     struct receive_headers *rh = NULL;
     unsigned int            data_wrote = 0;
     unsigned int            data_read = 0;
-    struct envelope *       env_bounce;
-    struct acl_result *     acl_result = NULL;
+    struct envelope        *env_bounce;
+    struct acl_result      *acl_result = NULL;
     yastr                   authresults = NULL;
     yastr                   authresults_tmp = NULL;
     int          authresults_plain = !simta_config_bool("receive.arc.enabled");
@@ -1429,11 +1429,11 @@ f_data(struct receive_data *r) {
     yastr        dkim_buf = NULL;
     int          dkim_body_started = 0;
 #ifdef HAVE_LIBOPENARC
-    ARC_MESSAGE *        arc = NULL;
+    ARC_MESSAGE         *arc = NULL;
     ARC_STAT             arc_result = ARC_STAT_INTERNAL;
-    ARC_HDRFIELD *       arc_seal = NULL;
+    ARC_HDRFIELD        *arc_seal = NULL;
     yastr                arc_key = NULL;
-    const char *         arc_err;
+    const char          *arc_err;
     const unsigned char *arc_err_unsigned;
     yastr                arc_authservid = NULL;
     yastr                arc_selector = NULL;
@@ -1441,12 +1441,12 @@ f_data(struct receive_data *r) {
 #endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
     int            i;
-    DKIM *         dkim = NULL;
+    DKIM          *dkim = NULL;
     DKIM_STAT      dkim_result;
     DKIM_SIGINFO **dkim_sigs;
     DKIM_SIGERROR  dkim_error;
-    char *         dkim_domain = NULL;
-    char *         dkim_selector = NULL;
+    char          *dkim_domain = NULL;
+    char          *dkim_selector = NULL;
 #endif /* HAVE_LIBOPENDKIM */
 
     r->r_data_attempt++;
@@ -2741,7 +2741,7 @@ start_tls(struct receive_data *r, SSL_CTX *ssl_ctx) {
 
 int
 f_auth(struct receive_data *r) {
-    char *         clientin = NULL;
+    char          *clientin = NULL;
     struct timeval tv;
 #ifdef HAVE_LIBSASL
     int                rc;
@@ -2965,14 +2965,14 @@ f_auth(struct receive_data *r) {
 int
 smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     struct receive_data r;
-    ACAV *              acav = NULL;
+    ACAV               *acav = NULL;
     fd_set              fdset;
     int                 i = 0;
     int                 ret;
     int                 calculate_timers;
-    const char *        timer_type = NULL;
-    const char *        fallback_type = NULL;
-    char *              line;
+    const char         *timer_type = NULL;
+    const char         *fallback_type = NULL;
+    char               *line;
     char                hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval      tv_start = {0, 0};
     struct timeval      tv_stop = {0, 0};
@@ -2982,8 +2982,8 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     struct timeval      tv_add;
     struct timeval      tv_command_start;
     struct timeval      tv_command_now;
-    struct timeval *    tv_timeout = NULL;
-    struct timeval *    tv_fallback = NULL;
+    struct timeval     *tv_timeout = NULL;
+    struct timeval     *tv_fallback = NULL;
 #ifdef HAVE_LIBWRAP
     char *ctl_hostname;
 #endif /* HAVE_LIBWRAP */
@@ -3676,9 +3676,9 @@ proxy_accept(struct receive_data *r) {
     struct timeval   tv_wait;
     ssize_t          rlen;
     int              rc;
-    yastr *          split = NULL;
+    yastr           *split = NULL;
     size_t           tok_count = 0;
-    char *           p;
+    char            *p;
     struct addrinfo  hints;
     struct addrinfo *ai;
 
@@ -3916,11 +3916,11 @@ static simta_address_status
 local_address(char *addr, char *domain, const ucl_object_t *red) {
     int                 n_required_found = 0;
     int                 rc;
-    char *              at;
-    struct passwd *     passwd;
+    char               *at;
+    struct passwd      *passwd;
     ucl_object_iter_t   iter = NULL;
     const ucl_object_t *rule = NULL;
-    const char *        type = NULL;
+    const char         *type = NULL;
 #ifdef HAVE_LMDB
     yastr             key;
     yastr             value = NULL;
@@ -4210,11 +4210,11 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
     int             status;
     pid_t           rc;
     int             filter_envc = 0;
-    SNET *          snet;
-    const char *    mail_filter = NULL;
-    char *          line;
-    char *          filter_argv[] = {0, 0};
-    char *          filter_envp[ 22 ];
+    SNET           *snet;
+    const char     *mail_filter = NULL;
+    char           *line;
+    char           *filter_argv[] = {0, 0};
+    char           *filter_envp[ 22 ];
     char            fname[ MAXPATHLEN + 1 ];
     char            buf[ 256 ];
     struct timespec log_ts;

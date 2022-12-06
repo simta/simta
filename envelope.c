@@ -280,8 +280,8 @@ env_free(struct envelope *env) {
 ucl_object_t *
 env_repr(struct envelope *e) {
     struct recipient *r;
-    ucl_object_t *    repr;
-    ucl_object_t *    rcpts;
+    ucl_object_t     *repr;
+    ucl_object_t     *rcpts;
 
     /* Build the output object */
     repr = ucl_object_typed_new(UCL_OBJECT);
@@ -443,9 +443,9 @@ env_tfile_unlink(struct envelope *e) {
 simta_result
 env_tfile(struct envelope *e) {
     int            fd;
-    FILE *         tff = NULL;
+    FILE          *tff = NULL;
     char           tf[ MAXPATHLEN + 1 ];
-    ucl_object_t * repr = NULL;
+    ucl_object_t  *repr = NULL;
     unsigned char *buf = NULL;
     simta_result   ret = SIMTA_ERR;
 
@@ -509,9 +509,9 @@ cleanup:
 
 int
 sender_list_add(struct envelope *e) {
-    struct dll_entry *   sl_dll;
-    struct dll_entry *   se_dll;
-    struct sender_list * list;
+    struct dll_entry    *sl_dll;
+    struct dll_entry    *se_dll;
+    struct sender_list  *list;
     struct sender_entry *entry;
 
     if ((sl_dll = dll_lookup_or_create(&simta_sender_list, e->e_mail)) ==
@@ -548,15 +548,15 @@ sender_list_add(struct envelope *e) {
 yastr
 env_dkim_sign(struct envelope *env) {
     char           df[ MAXPATHLEN + 1 ];
-    DKIM_LIB *     libhandle;
+    DKIM_LIB      *libhandle;
     unsigned int   flags;
-    DKIM *         dkim = NULL;
+    DKIM          *dkim = NULL;
     DKIM_STAT      result;
     yastr          signature = NULL;
     yastr          key = NULL;
     char           buf[ 16384 ];
     unsigned char *dkim_header;
-    SNET *         snet;
+    SNET          *snet;
     ssize_t        chunk;
 
     sprintf(df, "%s/D%s", env->e_dir, env->e_id);
@@ -757,13 +757,13 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
     simta_result        ret = SIMTA_ERR;
     yastr               filename = NULL;
     yastr               unparsed = NULL;
-    SNET *              snet = NULL;
-    const char *        data;
-    struct ucl_parser * parser = NULL;
-    ucl_object_t *      env_data = NULL;
+    SNET               *snet = NULL;
+    const char         *data;
+    struct ucl_parser  *parser = NULL;
+    ucl_object_t       *env_data = NULL;
     ucl_object_iter_t   iter = NULL;
     const ucl_object_t *rcpt = NULL;
-    struct dll_entry *  e_dll;
+    struct dll_entry   *e_dll;
 
     if (initial && (s_lock != NULL)) {
         syslog(LOG_ERR, "Envelope.read no lock allowed during initial read");
@@ -955,7 +955,7 @@ cleanup:
 simta_result
 env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
     ucl_object_t *rcpts;
-    char *        line;
+    char         *line;
     int           attrs;
     int           line_no = 2;
 
@@ -1035,10 +1035,10 @@ ino_t
 env_dfile_copy(struct envelope *env, const char *source, const char *header) {
     int         dfile_fd = -1;
     ino_t       retval = 0;
-    FILE *      dfile = NULL;
+    FILE       *dfile = NULL;
     struct stat sbuf;
-    SNET *      snet = NULL;
-    char *      line;
+    SNET       *snet = NULL;
+    char       *line;
     char        df[ MAXPATHLEN + 1 ];
 
     /* If the tfile has already been written it has incorrect Dinode
@@ -1122,10 +1122,10 @@ ino_t
 env_dfile_wrap(struct envelope *env, const char *source, const char *preface) {
     int         dfile_fd = -1;
     ino_t       retval = 0;
-    FILE *      dfile = NULL;
+    FILE       *dfile = NULL;
     struct stat sbuf;
-    SNET *      snet = NULL;
-    char *      line;
+    SNET       *snet = NULL;
+    char       *line;
     yastr       daytime = NULL;
     yastr       boundary = NULL;
     yastr       buf = NULL;
@@ -1360,7 +1360,7 @@ env_move(struct envelope *env, char *target_dir) {
 
 simta_result
 env_parole(struct envelope *env) {
-    SNET *       snet_lock;
+    SNET        *snet_lock;
     simta_result ret = SIMTA_ERR;
 
     if (!env->e_jailed) {
@@ -1388,7 +1388,7 @@ env_parole(struct envelope *env) {
 int
 env_string_recipients(struct envelope *env, char *line) {
     struct string_address *sa;
-    char *                 addr;
+    char                  *addr;
 
     sa = string_address_init(line);
 

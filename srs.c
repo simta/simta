@@ -34,17 +34,17 @@ static int   srs_timestamp_validate(const char *);
 
 enum simta_srs_result
 srs_forward(struct envelope *env) {
-    const char *    srs_mode = NULL;
-    const char *    srs_domain = NULL;
+    const char     *srs_mode = NULL;
+    const char     *srs_domain = NULL;
     yastr           newaddr = NULL;
     yastr           localpart = NULL;
     yastr           hash = NULL;
-    char *          addr;
-    char *          p;
+    char           *addr;
+    char           *p;
     int             rc = SRS_SYSERROR;
     struct ifaddrs *ifaddrs;
     struct ifaddrs *ifa;
-    struct spf *    spf = NULL;
+    struct spf     *spf = NULL;
 
     if (strlen(env->e_mail) == 0) {
         /* Null return-path, don't need to do anything */
@@ -250,7 +250,7 @@ error:
 simta_address_status
 srs_expand(
         struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
-    char *      newaddr;
+    char       *newaddr;
     int         rc;
     const char *secret;
 
@@ -302,8 +302,8 @@ srs_hash(const char *str, const char *secret, size_t len) {
 #else  /* HAVE_LIBSSL */
     unsigned char mac[ EVP_MAX_MD_SIZE ];
     unsigned int  maclen;
-    BIO *         bmem;
-    BIO *         b64;
+    BIO          *bmem;
+    BIO          *b64;
     yastr         lc;
     yastr         hash = NULL;
 
@@ -346,7 +346,7 @@ error:
 static yastr
 srs_reforward(const char *addr) {
     yastr       local = NULL;
-    char *      p;
+    char       *p;
     const char *opaque;
 
     if (addr[ 3 ] == '1') {

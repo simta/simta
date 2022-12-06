@@ -54,14 +54,14 @@ int
 main(int argc, char **argv) {
     int                 c, err = 0;
     bool                dump = false;
-    extern char *       optarg;
+    extern char        *optarg;
     yastr               input = NULL;
-    const char *        fname;
-    const char *        conf_file = NULL;
-    const char *        extra_conf = NULL;
+    const char         *fname;
+    const char         *conf_file = NULL;
+    const char         *extra_conf = NULL;
     const ucl_object_t *domain = NULL;
     const ucl_object_t *rule = NULL;
-    ucl_object_t *      processed = NULL;
+    ucl_object_t       *processed = NULL;
     ucl_object_iter_t   i, j;
 
     if ((progname = strrchr(argv[ 0 ], '/')) == NULL) {

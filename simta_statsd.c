@@ -24,8 +24,8 @@
 
 simta_result
 simta_statsd_init(int *fd_out) {
-    const char *     host;
-    const char *     port;
+    const char      *host;
+    const char      *port;
     struct addrinfo  hints;
     struct addrinfo *ai = NULL;
     int              rc;

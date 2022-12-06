@@ -155,7 +155,7 @@ hq_clear_errors(struct host_q *hq) {
 simta_result
 queue_envelope(struct envelope *env) {
     struct envelope **ep;
-    struct host_q *   hq;
+    struct host_q    *hq;
 
     /* don't queue it if it's going in the dead queue */
     if (env->e_dir == simta_dir_dead) {
@@ -243,14 +243,14 @@ queue_time_order(struct host_q *hq) {
 
 int
 q_runner(void) {
-    SNET *              snet_dfile;
+    SNET               *snet_dfile;
     ucl_object_iter_t   iter;
     const ucl_object_t *obj;
-    struct host_q *     hq;
-    struct host_q *     deliver_q;
-    struct host_q **    dq;
-    struct envelope *   env_bounce;
-    struct envelope *   unexpanded;
+    struct host_q      *hq;
+    struct host_q      *deliver_q;
+    struct host_q     **dq;
+    struct envelope    *env_bounce;
+    struct envelope    *unexpanded;
     int                 dfile_fd;
     int                 expanded;
     char                dfile_fname[ MAXPATHLEN ];
@@ -701,7 +701,7 @@ hq_free(struct host_q *hq_free) {
 
 void
 prune_messages(struct host_q *hq) {
-    struct envelope * env;
+    struct envelope  *env;
     struct envelope **e;
 
     e = &(hq->hq_env_head);
@@ -745,9 +745,9 @@ int
 q_read_dir(struct simta_dirp *sd) {
     struct dirent *entry;
 
-    struct envelope *   last_read = NULL;
-    struct envelope *   env;
-    struct host_q *     hq;
+    struct envelope    *last_read = NULL;
+    struct envelope    *env;
+    struct host_q      *hq;
     ucl_object_iter_t   iter;
     const ucl_object_t *obj;
 
@@ -999,13 +999,13 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
     int                n_rcpt_remove;
     int                dfile_fd;
     int                shuffle;
-    SNET *             snet_dfile = NULL;
-    SNET *             snet_lock;
+    SNET              *snet_dfile = NULL;
+    SNET              *snet_lock;
     char               dfile_fname[ MAXPATHLEN ];
     struct recipient **r_sort;
-    struct recipient * remove;
-    struct envelope *  env_deliver;
-    struct envelope *  env_bounce = NULL;
+    struct recipient  *remove;
+    struct envelope   *env_deliver;
+    struct envelope   *env_bounce = NULL;
     struct stat        sbuf;
     struct timespec    ts;
 
@@ -1740,14 +1740,14 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
 
 simta_dns_result
 next_dnsr_host(struct deliver *d, struct host_q *hq) {
-    struct dnsr_rr *         rr;
-    struct sockaddr_in *     sin;
-    struct sockaddr_in6 *    sin6;
+    struct dnsr_rr          *rr;
+    struct sockaddr_in      *sin;
+    struct sockaddr_in6     *sin6;
     struct sockaddr_storage *addr;
     int                      cur_dnsr_result;
     ucl_object_iter_t        iter;
-    const ucl_object_t *     obj;
-    ucl_object_t *           ref;
+    const ucl_object_t      *obj;
+    ucl_object_t            *ref;
 
     if (d->d_mx_list == NULL) {
         d->d_mx_list = ucl_object_typed_new(UCL_ARRAY);
@@ -2034,7 +2034,7 @@ queue_log_metrics(struct host_q *hq_schedule) {
     yastr          linkname = NULL;
     yastr          filename = NULL;
     int            fd;
-    FILE *         f;
+    FILE          *f;
     struct host_q *hq;
     struct timeval tv_now;
     struct stat    st_file;

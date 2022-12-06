@@ -19,8 +19,8 @@ main(int argc, char *argv[]) {
     int           c;
     yastr         test_str;
     struct dmarc *d;
-    const char *  conf_file = NULL;
-    const char *  extra_conf = NULL;
+    const char   *conf_file = NULL;
+    const char   *extra_conf = NULL;
     bool          verbose = false;
     int           error = 0;
 

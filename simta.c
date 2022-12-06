@@ -48,16 +48,16 @@ static simta_result simta_read_publicsuffix(const char *);
 
 
 /* global variables */
-struct dll_entry *   simta_sender_list = NULL;
-struct dll_entry *   simta_env_list = NULL;
+struct dll_entry    *simta_sender_list = NULL;
+struct dll_entry    *simta_env_list = NULL;
 struct timeval       simta_tv_now = {0, 0};
 struct timespec      simta_log_ts;
-struct envelope *    simta_env_queue = NULL;
-ucl_object_t *       simta_host_q = NULL;
-struct host_q *      simta_deliver_q = NULL;
-struct host_q *      simta_unexpanded_q = NULL;
-struct proc_type *   simta_proc_stab = NULL;
-ucl_object_t *       simta_config = NULL;
+struct envelope     *simta_env_queue = NULL;
+ucl_object_t        *simta_host_q = NULL;
+struct host_q       *simta_deliver_q = NULL;
+struct host_q       *simta_unexpanded_q = NULL;
+struct proc_type    *simta_proc_stab = NULL;
+ucl_object_t        *simta_config = NULL;
 int                  simta_disk_cycle = 0;
 int                  simta_global_connections = 0;
 int                  simta_global_throttle_connections = 0;
@@ -78,8 +78,8 @@ yastr                simta_dir_slow = NULL;
 yastr                simta_dir_fast = NULL;
 yastr                simta_dir_command = NULL;
 yastr                simta_hostname;
-DNSR *               simta_dnsr = NULL;
-ucl_object_t *       simta_publicsuffix_list = NULL;
+DNSR                *simta_dnsr = NULL;
+ucl_object_t        *simta_publicsuffix_list = NULL;
 
 
 void
@@ -152,15 +152,15 @@ simta_debuglog(int level, const char *format, ...) {
 simta_result
 simta_read_config(const char *fname, const char *extra) {
     char                    hostname[ DNSR_MAX_HOSTNAME + 1 ];
-    struct ucl_parser *     parser;
-    ucl_object_t *          container;
-    ucl_object_t *          obj;
-    const ucl_object_t *    i_obj;
-    const ucl_object_t *    j_obj;
+    struct ucl_parser      *parser;
+    ucl_object_t           *container;
+    ucl_object_t           *obj;
+    const ucl_object_t     *i_obj;
+    const ucl_object_t     *j_obj;
     ucl_object_iter_t       i, j;
     struct ucl_schema_error schema_err;
-    const char *            err;
-    const char *            buf;
+    const char             *err;
+    const char             *buf;
     yastr                   path;
     struct timeval          tv_now;
 
@@ -464,12 +464,12 @@ simta_check_charset(const char *str) {
 
 static simta_result
 simta_read_publicsuffix(const char *fname) {
-    SNET *              snet = NULL;
-    char *              line, *p;
+    SNET               *snet = NULL;
+    char               *line, *p;
     const ucl_object_t *parent = NULL;
     const ucl_object_t *obj = NULL;
-    ucl_object_t *      ref;
-    ucl_object_t *      newobj;
+    ucl_object_t       *ref;
+    ucl_object_t       *newobj;
 #ifdef HAVE_LIBIDN2
     char *idna = NULL;
 #endif /* HAVE_LIBIDN2 */
@@ -557,9 +557,9 @@ simta_waitpid(pid_t child, int *childstatus, int options) {
     int                exitstatus;
     long               milliseconds;
     struct proc_type **p_search;
-    struct proc_type * p_remove;
+    struct proc_type  *p_remove;
     struct timeval     tv_now;
-    struct host_q *    hq;
+    struct host_q     *hq;
 
     if (simta_gettimeofday(&tv_now) != 0) {
         return (-1);
@@ -723,7 +723,7 @@ simta_signal_server(int signal) {
 
 yastr
 simta_slurp(const char *path) {
-    SNET *  snet;
+    SNET   *snet;
     yastr   contents;
     ssize_t chunk;
     char    buf[ 16384 ];

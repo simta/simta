@@ -43,9 +43,9 @@ typedef enum {
 #endif /* HAVE_LDAP */
 
 struct expand_output {
-    char *                eo_from;
-    char *                eo_hostname;
-    struct envelope *     eo_env;
+    char                 *eo_from;
+    char                 *eo_hostname;
+    struct envelope      *eo_env;
     struct expand_output *eo_next;
 };
 
@@ -71,11 +71,11 @@ struct exp_link {
 #endif /* HAVE_LDAP */
 
 struct exp_addr {
-    struct exp_addr *   e_addr_next;
-    char *              e_addr;    /* address string */
-    char *              e_addr_at; /* char the email addresses @ */
-    char *              e_addr_from;
-    struct envelope *   e_addr_errors; /* address error handle */
+    struct exp_addr    *e_addr_next;
+    char               *e_addr;    /* address string */
+    char               *e_addr_at; /* char the email addresses @ */
+    char               *e_addr_from;
+    struct envelope    *e_addr_errors; /* address error handle */
     const ucl_object_t *e_addr_parent_rule;
     int                 e_addr_type; /* address data type */
     bool                e_addr_terminal;
@@ -87,15 +87,15 @@ struct exp_addr {
     bool               e_addr_has_permission;
     bool               e_addr_permit_members;
     bool               e_addr_private;
-    char *             e_addr_dn;
+    char              *e_addr_dn;
     yastr              e_addr_owner;
     yastr              e_addr_group_name;
     yastr              e_addr_preface;
     struct stab_entry *e_addr_ok;
-    struct envelope *  e_addr_env_moderators;
-    struct envelope *  e_addr_env_gmailfwd;
-    struct exp_link *  e_addr_parents;
-    struct exp_link *  e_addr_children;
+    struct envelope   *e_addr_env_moderators;
+    struct envelope   *e_addr_env_gmailfwd;
+    struct exp_link   *e_addr_parents;
+    struct exp_link   *e_addr_children;
 #endif /* HAVE_LDAP */
 };
 
@@ -110,7 +110,7 @@ int            address_error(struct envelope *, char *, char *, char *);
 void           expansion_stab_stdout(void *);
 simta_result   add_address(
           struct expand *, char *, struct envelope *, int, char *, bool);
-struct envelope *    address_bounce_create(struct expand *);
+struct envelope     *address_bounce_create(struct expand *);
 simta_address_status address_expand(struct expand *);
 void                 expand_tree_stdout(struct exp_addr *, int);
 simta_result         address_string_recipients(

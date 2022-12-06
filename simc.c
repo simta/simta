@@ -37,15 +37,15 @@ main(int argc, char *argv[]) {
     int            usage = 0;
     int            c;
     int            pid;
-    const char *   config_fname = NULL;
+    const char    *config_fname = NULL;
     struct timeval tv_now;
 
     int         fd;
-    FILE *      tff;
+    FILE       *tff;
     char        tf[ MAXPATHLEN + 1 ];
     char        cf[ MAXPATHLEN + 1 ];
     const char *command = NULL;
-    char *      arg1 = NULL;
+    char       *arg1 = NULL;
 
     opterr = 0;
 

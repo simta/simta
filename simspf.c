@@ -24,8 +24,8 @@ int
 main(int ac, char *av[]) {
     struct addrinfo *addrinfo;
     struct addrinfo  hints;
-    const char *     addrlookup, *ehlo;
-    struct spf *     spf;
+    const char      *addrlookup, *ehlo;
+    struct spf      *spf;
 
     if (ac < 2) {
         fprintf(stderr, "Usage:\t\t%s <email> [ip]\n", av[ 0 ]);

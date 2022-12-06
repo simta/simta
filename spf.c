@@ -34,7 +34,7 @@ static yastr spf_parse_domainspec_cidr(
 
 struct spf *
 spf_lookup(const char *helo, const char *email, const struct sockaddr *addr) {
-    char *      p;
+    char       *p;
     struct spf *s;
 
     s = simta_calloc(1, sizeof(struct spf));
@@ -86,8 +86,8 @@ spf_check_host(struct spf *s, const yastr domain) {
     struct dnsr_string *txt;
     yastr               record = NULL, redirect = NULL, domain_spec, tmp;
     size_t              tok_count = 0;
-    yastr *             split = NULL;
-    char *              p;
+    yastr              *split = NULL;
+    char               *p;
     unsigned long       cidr, cidr6;
     int                 mech_queries;
 
@@ -638,7 +638,7 @@ static yastr
 spf_macro_expand(struct spf *s, const yastr domain, const yastr macro) {
     int    urlescape, rtransform;
     long   dtransform, i, j;
-    char * p, *pp;
+    char  *p, *pp;
     char   delim;
     yastr  expanded, tmp, escaped;
     yastr *split;

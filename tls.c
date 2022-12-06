@@ -61,7 +61,7 @@ tls_ca_setup(SSL_CTX *ctx) {
 
 SSL_CTX *
 tls_server_setup(void) {
-    SSL_CTX *            ssl_ctx;
+    SSL_CTX             *ssl_ctx;
     int                  ssl_mode = 0;
     static unsigned char dh4096_p[] = {
             0x91,

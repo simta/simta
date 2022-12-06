@@ -88,7 +88,7 @@ simta_result
 add_address(struct expand *exp, char *addr, struct envelope *error_env,
         int addr_type, char *from, bool force_root) {
     struct exp_addr *e;
-    char *           at;
+    char            *at;
 #ifdef HAVE_LDAP
     struct exp_addr *cursor = NULL;
 #endif /* HAVE_LDAP */
@@ -207,13 +207,13 @@ error:
 
 simta_address_status
 address_expand(struct expand *exp) {
-    struct exp_addr *    e_addr;
-    const ucl_object_t * red = NULL;
+    struct exp_addr     *e_addr;
+    const ucl_object_t  *red = NULL;
     ucl_object_iter_t    iter = NULL;
-    const ucl_object_t * rule = NULL;
-    const char *         type = NULL;
-    const char *         src = NULL;
-    const char *         status = NULL;
+    const ucl_object_t  *rule = NULL;
+    const char          *type = NULL;
+    const char          *src = NULL;
+    const char          *status = NULL;
     simta_address_status rc = ADDRESS_NOT_FOUND;
 
     e_addr = exp->exp_addr_cursor;
@@ -362,9 +362,9 @@ struct passwd *
 simta_getpwnam(const char *fname, const char *user) {
     static struct passwd pwent;
     static yastr         buf = NULL;
-    SNET *               snet;
-    char *               line;
-    char *               c;
+    SNET                *snet;
+    char                *line;
+    char                *c;
     size_t               userlen;
 
     if (strcmp(fname, "/etc/passwd") == 0) {
@@ -473,7 +473,7 @@ password_expand(
     yastr          fname = NULL;
     yastr          buf;
     size_t         tok_count;
-    yastr *        split;
+    yastr         *split;
 
     /* Special handling for /dev/null */
     if (strncasecmp(e_addr->e_addr, "/dev/null@", 10) == 0) {
@@ -558,9 +558,9 @@ alias_expand(
     yastr             owner = NULL;
     yastr             owner_value = NULL;
     yastr             value = NULL;
-    char *            alias_addr;
-    char *            paddr;
-    const char *      subaddr_sep = NULL;
+    char             *alias_addr;
+    char             *paddr;
+    const char       *subaddr_sep = NULL;
     struct simta_dbc *dbcp = NULL, *owner_dbcp = NULL;
     struct simta_dbh *dbh = NULL;
 

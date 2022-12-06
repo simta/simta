@@ -387,12 +387,12 @@ error:
  */
 int
 header_text(int line_no, char *line, struct receive_headers *rh, char **msg) {
-    char *                c;
+    char                 *c;
     yastr                 key;
     int                   len;
-    struct line *         l;
+    struct line          *l;
     struct rfc822_header *h;
-    struct dll_entry *    dentry = NULL;
+    struct dll_entry     *dentry = NULL;
 
     if (rh == NULL) {
         return (-1);
@@ -449,7 +449,7 @@ header_text(int line_no, char *line, struct receive_headers *rh, char **msg) {
 static void
 header_masquerade(struct line *l) {
     yastr        inbuf, outbuf;
-    yastr *      split;
+    yastr       *split;
     size_t       tok_count;
     int          i;
     struct line *next;
@@ -490,8 +490,8 @@ header_masquerade(struct line *l) {
 
 static void
 header_remove(struct dll_entry *dentry, struct receive_headers *rh) {
-    struct line *         l;
-    struct line **        lp;
+    struct line          *l;
+    struct line         **lp;
     struct rfc822_header *mh;
 
     /* Delete the line(s) belonging to this header */
@@ -520,17 +520,17 @@ header_remove(struct dll_entry *dentry, struct receive_headers *rh) {
 int
 header_check(struct receive_headers *rh, bool read_headers,
         bool correct_headers, bool simsend) {
-    struct stab_entry *   s;
-    struct line *         l;
+    struct stab_entry    *s;
+    struct line          *l;
     struct rfc822_header *mh;
-    struct dll_entry *    dentry;
+    struct dll_entry     *dentry;
     int                   ret = 0;
     int                   len;
     int                   i;
     size_t                tok_count;
     yastr                 buf = NULL;
     yastr                 tmp;
-    yastr *               split;
+    yastr                *split;
     yastr                 daytime = NULL;
 
     /* RFC 5322 3.6 Field definitions
@@ -1221,7 +1221,7 @@ skip_cws(char *start) {
 yastr *
 parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
     yastr *mboxes, tmp = NULL;
-    char * l;
+    char  *l;
     int    addr = 0;
     int    len;
     size_t slots = 2;
@@ -1620,7 +1620,7 @@ string_address_parse(struct string_address *sa) {
 
 void
 receive_headers_free(struct receive_headers *r) {
-    struct dll_entry *    d;
+    struct dll_entry     *d;
     struct rfc822_header *h;
 
     if (r == NULL) {

@@ -87,8 +87,8 @@ enum simta_charset {
 #define S_UNSET "Unset"
 
 struct simta_dirp {
-    DIR *          sd_dirp;
-    char *         sd_dir;
+    DIR           *sd_dirp;
+    char          *sd_dir;
     int            sd_cycle;
     int            sd_entries;
     struct timeval sd_tv_start;
@@ -96,14 +96,14 @@ struct simta_dirp {
 };
 
 struct proc_type {
-    struct proc_type *      p_next;
+    struct proc_type       *p_next;
     struct timeval          p_tv;
-    struct simta_socket *   p_ss;
+    struct simta_socket    *p_ss;
     struct connection_info *p_cinfo;
     pid_t                   p_id;
     int                     p_type;
-    char *                  p_host;
-    int *                   p_limit;
+    char                   *p_host;
+    int                    *p_limit;
 };
 
 struct connection_info {
@@ -117,7 +117,7 @@ struct connection_info {
 
 struct simta_socket {
     struct simta_socket *ss_next;
-    char *               ss_service;
+    char                *ss_service;
     int                  ss_socket;
     int                  ss_flags;
     int                  ss_count;
@@ -125,17 +125,17 @@ struct simta_socket {
 
 /* global variables */
 
-extern const char *         simta_progname;
-extern ucl_object_t *       simta_config;
-extern struct dll_entry *   simta_env_list;
-extern struct dll_entry *   simta_sender_list;
+extern const char          *simta_progname;
+extern ucl_object_t        *simta_config;
+extern struct dll_entry    *simta_env_list;
+extern struct dll_entry    *simta_sender_list;
 extern struct timeval       simta_tv_now;
 extern struct timespec      simta_log_ts;
-extern struct host_q *      simta_deliver_q;
-extern struct host_q *      simta_unexpanded_q;
-extern ucl_object_t *       simta_host_q;
-extern struct envelope *    simta_env_queue;
-extern struct proc_type *   simta_proc_stab;
+extern struct host_q       *simta_deliver_q;
+extern struct host_q       *simta_unexpanded_q;
+extern ucl_object_t        *simta_host_q;
+extern struct envelope     *simta_env_queue;
+extern struct proc_type    *simta_proc_stab;
 extern int                  simta_disk_cycle;
 extern int                  simta_global_connections;
 extern int                  simta_global_throttle_connections;
@@ -157,19 +157,19 @@ extern yastr                simta_dir_local;
 extern yastr                simta_dir_command;
 extern yastr                simta_hostname;
 extern yastr                simta_postmaster;
-extern DNSR *               simta_dnsr;
-extern ucl_object_t *       simta_publicsuffix_list;
+extern DNSR                *simta_dnsr;
+extern ucl_object_t        *simta_publicsuffix_list;
 
 
 int          smtp_receive(int, struct connection_info *, struct simta_socket *);
 void         panic(const char *);
-char *       simta_resolvconf(void);
+char        *simta_resolvconf(void);
 int          simta_init_hosts(void);
 simta_result simta_read_config(const char *, const char *);
 const ucl_object_t *simta_config_obj(const char *);
 bool                simta_config_bool(const char *);
 int64_t             simta_config_int(const char *);
-const char *        simta_config_str(const char *);
+const char         *simta_config_str(const char *);
 yastr               simta_config_yastr(const char *);
 void                simta_dump_config(void);
 void                simta_openlog(bool, int);

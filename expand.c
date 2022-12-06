@@ -116,19 +116,19 @@ cleanup_envelope_list(struct envelope **env_p) {
 int
 expand(struct envelope *unexpanded_env) {
     struct expand         exp;
-    struct envelope *     base_error_env;
-    struct envelope *     env_dead = NULL;
-    struct envelope *     env = NULL;
-    struct envelope **    env_p;
-    struct recipient *    rcpt;
+    struct envelope      *base_error_env;
+    struct envelope      *env_dead = NULL;
+    struct envelope      *env = NULL;
+    struct envelope     **env_p;
+    struct recipient     *rcpt;
     struct expand_output *host_stab = NULL;
     struct expand_output *eo;
     struct expand_output *eo_free;
-    struct exp_addr *     e_addr;
-    struct exp_addr *     next_e_addr;
-    const ucl_object_t *  hq_red;
-    char *                domain = NULL;
-    SNET *                snet = NULL;
+    struct exp_addr      *e_addr;
+    struct exp_addr      *next_e_addr;
+    const ucl_object_t   *hq_red;
+    char                 *domain = NULL;
+    SNET                 *snet = NULL;
     int                   n_rcpts;
     int                   return_value = 1;
     int                   env_out = 0;
@@ -144,7 +144,7 @@ expand(struct envelope *unexpanded_env) {
     char header[ 270 ];
 #ifdef HAVE_LDAP
     yastr            buf = NULL;
-    char *           p;
+    char            *p;
     int              loop_color = 1;
     struct exp_link *parent;
 #endif /* HAVE_LDAP */
@@ -966,7 +966,7 @@ exp_addr_permitted_destroy(struct exp_addr *e_addr) {
 
 char *
 exp_addr_parent_permitted(struct exp_addr *memonly) {
-    struct exp_link *  parent;
+    struct exp_link   *parent;
     struct stab_entry *ok;
 
     for (ok = memonly->e_addr_ok; ok != NULL; ok = ok->st_next) {

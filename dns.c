@@ -55,10 +55,10 @@ simta_dnsr_init(void) {
 static struct dnsr_result *
 get_address(const char *hostname, int qtype) {
     struct dnsr_result *result;
-    const char *        lookup_hostname;
+    const char         *lookup_hostname;
     int                 rc;
     const ucl_object_t *obj;
-    struct timeval *    timeout = NULL;
+    struct timeval     *timeout = NULL;
     struct timeval      tv_timeout;
 
 #ifdef HAVE_LIBIDN2
@@ -139,7 +139,7 @@ get_mx(const char *hostname) {
 struct dnsr_result *
 get_ptr(const struct sockaddr *sa) {
     struct dnsr_result *result = NULL;
-    char *              hostname;
+    char               *hostname;
 
     if (!simta_dnsr_init()) {
         return (NULL);

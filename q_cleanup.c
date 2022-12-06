@@ -42,12 +42,12 @@
 
 struct file_list {
     struct file_list *f_next;
-    char *            f_name;
+    char             *f_name;
 };
 
 struct i_list {
     ino_t            i_dinode;
-    struct i_list *  i_next;
+    struct i_list   *i_next;
     struct envelope *i_expanded_list;
     struct envelope *i_unexpanded;
 };
@@ -107,7 +107,7 @@ q_cleanup(void) {
 
 int
 q_move_to_slow(struct envelope **slow_q, struct envelope **other_q) {
-    struct envelope * move;
+    struct envelope  *move;
     struct envelope **slow;
     int               result;
     int               collisions = 0;
@@ -162,9 +162,9 @@ q_move_to_slow(struct envelope **slow_q, struct envelope **other_q) {
 
 int
 q_dir_startup(char *dir, int action, struct envelope **messages) {
-    DIR *             dirp;
-    struct dirent *   entry;
-    struct envelope * env;
+    DIR              *dirp;
+    struct dirent    *entry;
+    struct envelope  *env;
     struct envelope **env_p;
     int               result;
     bool              bad_filesystem = false;
@@ -338,11 +338,11 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
 int
 q_expansion_cleanup(struct envelope **fast) {
     struct envelope **e;
-    struct envelope * env;
+    struct envelope  *env;
     struct envelope *delete;
     struct i_list **i;
-    struct i_list * inode_list = NULL;
-    struct i_list * i_add;
+    struct i_list  *inode_list = NULL;
+    struct i_list  *i_add;
     struct stat     sb;
     char            fname[ MAXPATHLEN + 1 ];
 

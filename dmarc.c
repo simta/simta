@@ -291,7 +291,7 @@ dmarc_orgdomain(const char *domain) {
     const ucl_object_t *parent;
     const ucl_object_t *obj;
     size_t              tok_count;
-    yastr *             split, buf, orgdomain = NULL;
+    yastr              *split, buf, orgdomain = NULL;
 
     /* RFC 7489 3.2 Organizational Domain
      * The Organizational Domain is determined using the following
@@ -370,7 +370,7 @@ dmarc_parse_record(struct dmarc *d, yastr r) {
     simta_result      ret = SIMTA_ERR;
     struct dll_entry *keys = NULL, *entry;
     size_t            tok_count;
-    char *            p;
+    char             *p;
     yastr             k = NULL, v = NULL, *split;
 
     simta_debuglog(2, "DMARC %s: record: %s", d->domain, r);

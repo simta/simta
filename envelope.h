@@ -18,29 +18,29 @@ struct sender_list {
 
 struct sender_entry {
     struct sender_list *se_list;
-    struct envelope *   se_env;
-    struct dll_entry *  se_dll;
+    struct envelope    *se_env;
+    struct dll_entry   *se_dll;
 };
 
 struct recipient {
     struct recipient *r_next;
-    char *            r_rcpt;
+    char             *r_rcpt;
     struct line_file *r_err_text;
     int               r_status;
 };
 
 struct envelope {
-    struct envelope *    e_next;
-    struct envelope *    e_list_next;
-    struct envelope *    e_list_prev;
-    struct envelope *    e_hq_next;
-    struct envelope *    e_hq_prev;
-    struct envelope *    e_expanded_next;
-    struct recipient *   e_rcpt;
+    struct envelope     *e_next;
+    struct envelope     *e_list_next;
+    struct envelope     *e_list_prev;
+    struct envelope     *e_hq_next;
+    struct envelope     *e_hq_prev;
+    struct envelope     *e_expanded_next;
+    struct recipient    *e_rcpt;
     struct sender_entry *e_sender_entry;
-    struct dll_entry *   e_env_list_entry;
-    struct host_q *      e_hq;
-    const char *         e_dir;
+    struct dll_entry    *e_env_list_entry;
+    struct host_q       *e_hq;
+    const char          *e_dir;
     yastr                e_extra_headers;
     yastr                e_header_from;
     yastr                e_hostname;
@@ -49,7 +49,7 @@ struct envelope {
     yastr                e_mail_orig;
     yastr                e_mid;
     yastr                e_subject;
-    struct line_file *   e_err_text;
+    struct line_file    *e_err_text;
     int                  e_error;
     int                  e_n_rcpt;
     int                  e_n_exp_level;

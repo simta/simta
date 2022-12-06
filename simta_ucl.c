@@ -27,8 +27,8 @@ void
 simta_ucl_merge_defaults(
         const ucl_object_t *obj, const char *basepath, const char *path) {
     const ucl_object_t *src;
-    ucl_object_t *      copy;
-    ucl_object_t *      ref;
+    ucl_object_t       *copy;
+    ucl_object_t       *ref;
 
     if ((src = ucl_object_lookup(simta_config_obj(basepath), path)) == NULL) {
         /* No defaults to merge */
@@ -49,8 +49,8 @@ simta_ucl_merge_defaults(
 void
 simta_ucl_ensure_array(const ucl_object_t *obj, const char *key) {
     const ucl_object_t *elt;
-    ucl_object_t *      ref;
-    ucl_object_t *      arr;
+    ucl_object_t       *ref;
+    ucl_object_t       *arr;
 
     elt = ucl_object_lookup_path(obj, key);
     if (ucl_object_type(elt) == UCL_ARRAY) {
@@ -71,7 +71,7 @@ bool
 simta_ucl_toggle(const ucl_object_t *base, const char *path, const char *key,
         bool value) {
     const ucl_object_t *path_const;
-    ucl_object_t *      path_obj;
+    ucl_object_t       *path_obj;
 
     if (path == NULL) {
         path_const = base;

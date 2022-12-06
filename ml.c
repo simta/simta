@@ -44,15 +44,15 @@ deliver_binary(struct deliver *d) {
     pid_t  pid;
     int    status;
     pid_t  rc;
-    SNET * snet;
-    char * slash;
-    char * line;
-    char * recipient;
-    char * at;
-    char * binary;
-    char * domain = "NULL";
-    ACAV * acav;
-    char * agent;
+    SNET  *snet;
+    char  *slash;
+    char  *line;
+    char  *recipient;
+    char  *at;
+    char  *binary;
+    char  *domain = "NULL";
+    ACAV  *acav;
+    char  *agent;
     char **deliver_argv;
     int    deliver_argc;
 

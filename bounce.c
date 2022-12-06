@@ -77,7 +77,7 @@ bounce_text(struct envelope *bounce_env, int mode, const char *t1,
 
 void
 bounce_stdout(struct envelope *bounce_env) {
-    struct line * l;
+    struct line  *l;
     yastr         buf = NULL;
     ucl_object_t *repr;
     ucl_object_t *b_obj;
@@ -114,9 +114,9 @@ bounce_dfile_out(struct envelope *bounce_env, SNET *message) {
     char              dfile_fname[ MAXPATHLEN ];
     int               dfile_fd;
     int               write_body = 0;
-    FILE *            dfile;
-    struct line *     l;
-    char *            line;
+    FILE             *dfile;
+    struct line      *l;
+    char             *line;
     yastr             daytime = NULL;
     struct stat       sbuf;
     struct recipient *r;
@@ -222,7 +222,7 @@ bounce(struct envelope *env, int body, const char *err) {
     struct envelope *env_bounce;
     char             dfile_fname[ MAXPATHLEN ];
     int              dfile_fd;
-    SNET *           sn = NULL;
+    SNET            *sn = NULL;
 
     if (body == 1) {
         sprintf(dfile_fname, "%s/D%s", env->e_dir, env->e_id);
@@ -262,12 +262,12 @@ old_or_jailed(struct envelope *env) {
 struct envelope *
 bounce_snet(
         struct envelope *env, SNET *sn, struct host_q *hq, const char *err) {
-    struct envelope * bounce_env;
+    struct envelope  *bounce_env;
     int               n_bounces = 0;
     struct recipient *r;
-    struct line *     l;
+    struct line      *l;
     char              buf[ 1024 ];
-    const char *      return_address = NULL;
+    const char       *return_address = NULL;
 
     if ((bounce_env = env_create(simta_dir_fast, NULL, "", env)) == NULL) {
         return (NULL);

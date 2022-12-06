@@ -20,10 +20,10 @@ const char *simta_progname = "simsrs";
 int
 main(int argc, char *argv[]) {
     struct envelope *env;
-    char *           p;
+    char            *p;
     int              c;
-    const char *     conf_file = NULL;
-    const char *     extra_conf = NULL;
+    const char      *conf_file = NULL;
+    const char      *extra_conf = NULL;
     bool             verbose = false;
 
     while ((c = getopt(argc, argv, "f:U:v")) != EOF) {

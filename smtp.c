@@ -635,8 +635,8 @@ smtp_connect(struct host_q *hq, struct deliver *d) {
 #ifdef HAVE_LIBSSL
     int               rc;
     int               tls_required = 0;
-    const char *      ciphers;
-    SSL_CTX *         ssl_ctx = NULL;
+    const char       *ciphers;
+    SSL_CTX          *ssl_ctx = NULL;
     const SSL_CIPHER *ssl_cipher;
 #endif /* HAVE_LIBSSL */
 
@@ -817,8 +817,8 @@ smtp_send(struct host_q *hq, struct deliver *d) {
     int            smtp_result, rc;
     int            max_rcpts = 0;
     int            rcpts_attempted = 0;
-    char *         line;
-    char *         timer_type;
+    char          *line;
+    char          *timer_type;
     struct timeval tv_session = {0, 0};
     struct timeval tv_session_timeout;
     struct timeval tv_line_timeout;

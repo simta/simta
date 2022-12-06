@@ -37,9 +37,9 @@ int
 main(int argc, char *argv[]) {
     int            s, r;
     int            c;
-    const char *   conf_file = NULL;
-    const char *   extra_conf = NULL;
-    char *         hostname;
+    const char    *conf_file = NULL;
+    const char    *extra_conf = NULL;
+    char          *hostname;
     struct host_q *hq;
     struct deliver d;
     bool           test_connect = true;

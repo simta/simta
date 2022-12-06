@@ -161,7 +161,7 @@ cleanup:
 int
 simta_db_cursor_open(struct simta_dbh *dbh, struct simta_dbc **dbc) {
     int         ret;
-    MDB_txn *   txn;
+    MDB_txn    *txn;
     MDB_cursor *dbcp;
     MDB_dbi     dbi;
 

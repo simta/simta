@@ -44,7 +44,7 @@ acl_lookup_dns(
         struct acl_result *res, const char *domain, const struct sockaddr *sa) {
     struct dnsr_result *dns_result;
     struct sockaddr_in  sin;
-    char *              ptrbuf = NULL;
+    char               *ptrbuf = NULL;
     yastr               lookup = NULL;
 
     if (sa) {
@@ -135,9 +135,9 @@ acl_lookup_dns(
 static void
 acl_lookup_file(
         struct acl_result *res, const char *fname, const struct sockaddr *sa) {
-    SNET *      snet = NULL;
+    SNET       *snet = NULL;
     size_t      tok_count;
-    yastr *     split;
+    yastr      *split;
     const char *data;
     bool        matched = false;
 
@@ -189,13 +189,13 @@ acl_check(const char *chain, const struct sockaddr *sa, const char *text) {
 #ifdef HAVE_LIBSSL
     struct message_digest md;
 #endif /* HAVE_LIBSSL */
-    const char *       lookup_base;
+    const char        *lookup_base;
     yastr              lookup_text = NULL;
-    const char *       buf;
+    const char        *buf;
     char               sa_ip[ INET6_ADDRSTRLEN ];
-    const char *       acl_type;
+    const char        *acl_type;
     yastr              statsd_name = NULL;
-    const char *       acl_action = NULL;
+    const char        *acl_action = NULL;
     struct acl_result *ret = NULL;
 
     if (((chain_obj = simta_config_obj(chain)) == NULL) ||

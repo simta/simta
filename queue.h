@@ -28,9 +28,9 @@ struct connection_data {
 };
 
 struct deliver {
-    struct envelope * d_env;
+    struct envelope  *d_env;
     struct recipient *d_rcpt;
-    const char *      d_deliver_agent;
+    const char       *d_deliver_agent;
     off_t             d_size;
     off_t             d_sent;
     int               d_dfile_fd;
@@ -49,14 +49,14 @@ struct deliver {
     /* SMTP connection variables */
     int                     d_connection_msg_total;
     bool                    d_queue_movement;
-    SNET *                  d_snet_smtp;
-    SNET *                  d_snet_dfile;
-    ucl_object_t *          d_mx_list;
-    ucl_object_t *          d_mx_current;
-    ucl_object_t *          d_retry_list;
-    ucl_object_t *          d_retry_current;
-    struct dnsr_result *    d_dnsr_result;
-    const char *            d_cur_mx_lookup_type;
+    SNET                   *d_snet_smtp;
+    SNET                   *d_snet_dfile;
+    ucl_object_t           *d_mx_list;
+    ucl_object_t           *d_mx_current;
+    ucl_object_t           *d_retry_list;
+    ucl_object_t           *d_retry_current;
+    struct dnsr_result     *d_dnsr_result;
+    const char             *d_cur_mx_lookup_type;
     struct sockaddr_storage d_sa;
     char                    d_ip[ INET6_ADDRSTRLEN ];
     bool                    d_mx_check_ipv4;
@@ -73,12 +73,12 @@ struct host_q {
     int               hq_entries;
     int               hq_entries_new;
     int               hq_entries_removed;
-    ucl_object_t *    hq_red;
-    struct host_q *   hq_deliver;
-    struct host_q *   hq_deliver_prev;
-    struct host_q *   hq_deliver_next;
+    ucl_object_t     *hq_red;
+    struct host_q    *hq_deliver;
+    struct host_q    *hq_deliver_prev;
+    struct host_q    *hq_deliver_next;
     yastr             hq_hostname;
-    char *            hq_smtp_hostname;
+    char             *hq_smtp_hostname;
     int               hq_primary;
     simta_host_status hq_status;
     int               hq_wait_min;
@@ -86,7 +86,7 @@ struct host_q {
     int               hq_launches;
     int               hq_delay;
     bool              hq_leaky;
-    struct envelope * hq_env_head;
+    struct envelope  *hq_env_head;
     struct line_file *hq_err_text;
     struct timeval    hq_last_launch;
     struct timeval    hq_next_launch;

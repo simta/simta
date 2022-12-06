@@ -41,10 +41,10 @@
 ** ldap_search_list -- Contains a parsed uri from the config file.
 */
 struct ldap_search_list {
-    LDAPURLDesc *            lds_plud;        /* url parsed description */
+    LDAPURLDesc             *lds_plud;        /* url parsed description */
     int                      lds_rdn_pref;    /* TRUE / FALSE */
     int                      lds_search_type; /* one of USER, GROUP, ALL */
-    const char *             lds_string;      /* uri string */
+    const char              *lds_string;      /* uri string */
     struct ldap_search_list *lds_next;        /* next uri */
 };
 
@@ -54,29 +54,29 @@ struct ldap_search_list {
 #define BINDANON 0
 
 struct simta_ldap {
-    ucl_object_t *           ldap_rule;
+    ucl_object_t            *ldap_rule;
     struct ldap_search_list *ldap_searches;
-    LDAP *                   ldap_ld;
+    LDAP                    *ldap_ld;
     int                      ldap_starttls;
     int                      ldap_bind;
-    char **                  ldap_attrs;
-    const char *             ldap_tls_cert;
-    const char *             ldap_tls_key;
-    const char *             ldap_tls_cacert;
-    const char *             ldap_binddn;
-    const char *             ldap_bindpw;
-    const char *             ldap_autoreply_host;
-    const char *             ldap_autoreply_attr;
-    const char *             ldap_autoreply_start_attr;
-    const char *             ldap_autoreply_end_attr;
-    const char *             ldap_mailfwdattr;
-    const char *             ldap_gmailfwdattr;
-    const char *             ldap_mailattr;
-    const char *             ldap_external_address_attr;
-    const char *             ldap_moderators_attr;
-    const char *             ldap_permitted_groups_attr;
-    const char *             ldap_permitted_senders_attr;
-    const char *             ldap_associated_domain;
+    char                   **ldap_attrs;
+    const char              *ldap_tls_cert;
+    const char              *ldap_tls_key;
+    const char              *ldap_tls_cacert;
+    const char              *ldap_binddn;
+    const char              *ldap_bindpw;
+    const char              *ldap_autoreply_host;
+    const char              *ldap_autoreply_attr;
+    const char              *ldap_autoreply_start_attr;
+    const char              *ldap_autoreply_end_attr;
+    const char              *ldap_mailfwdattr;
+    const char              *ldap_gmailfwdattr;
+    const char              *ldap_mailattr;
+    const char              *ldap_external_address_attr;
+    const char              *ldap_moderators_attr;
+    const char              *ldap_permitted_groups_attr;
+    const char              *ldap_permitted_senders_attr;
+    const char              *ldap_associated_domain;
 };
 
 static int ldapdebug;
@@ -126,10 +126,10 @@ static int
 simta_ldap_message_stdout(struct simta_ldap *ld, LDAPMessage *m) {
     LDAPMessage *entry;
     LDAPMessage *message;
-    char *       dn;
-    char *       attribute;
-    BerElement * ber;
-    char **      values;
+    char        *dn;
+    char        *attribute;
+    BerElement  *ber;
+    char       **values;
     int          idx;
 
     if ((entry = ldap_first_entry(ld->ldap_ld, m)) == NULL) {
@@ -175,7 +175,7 @@ simta_ldap_message_stdout(struct simta_ldap *ld, LDAPMessage *m) {
 
 static yastr
 simta_ldap_dn_name(struct simta_ldap *ld, LDAPMessage *res) {
-    char * dn;
+    char  *dn;
     LDAPDN ldn = NULL;
     yastr  retval = NULL;
 
@@ -197,7 +197,7 @@ simta_ldap_dn_name(struct simta_ldap *ld, LDAPMessage *res) {
 
 void
 simta_ldap_unescape(yastr s) {
-    char * p;
+    char  *p;
     size_t i;
 
     /* Unescape quoted string */
@@ -246,7 +246,7 @@ simta_result
 simta_ld_init(struct simta_ldap *ld, const yastr key) {
     int         maxambiguous = 10;
     int         protocol = LDAP_VERSION3;
-    LDAP *      ldap_ld = NULL;
+    LDAP       *ldap_ld = NULL;
     int         rc;
     const char *uri;
 
@@ -588,7 +588,7 @@ simta_ldap_time_t(
     yastr     buf = NULL;
     time_t    retval = 0;
     struct tm tm_time;
-    char *    tz;
+    char     *tz;
 
     memset(&tm_time, 0, sizeof(struct tm));
     if ((buf = simta_ldap_yastr(ld, entry, attribute)) == NULL) {
@@ -629,10 +629,10 @@ static bool
 simta_ldap_is_objectclass(
         struct simta_ldap *ld, LDAPMessage *e, const char *type) {
     int                 idx;
-    struct berval **    values;
+    struct berval     **values;
     ucl_object_iter_t   iter;
     const ucl_object_t *obj;
-    const char *        buf;
+    const char         *buf;
 
     if ((values = ldap_get_values_len(ld->ldap_ld, e, "objectClass")) != NULL) {
         for (idx = 0; values[ idx ] != NULL; idx++) {
@@ -724,7 +724,7 @@ simta_ldap_string(char *filter, char *user, char *domain) {
 static int
 simta_address_type(char *address, const ucl_object_t *rule) {
     int         addrtype;
-    char *      paddr;
+    char       *paddr;
     const char *subaddr_sep;
 
     addrtype = LDS_USER; /* default */
@@ -768,7 +768,7 @@ do_ambiguous(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
     yastr           rdn;
     yastr           buf;
     struct berval **vals;
-    LDAPMessage *   e;
+    LDAPMessage    *e;
 
     if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR, addr, ": Ambiguous user",
                 NULL) != 0) {
@@ -830,7 +830,7 @@ do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
     yastr           rdn;
     struct berval **vals;
     yastr           buf;
-    yastr *         split;
+    yastr          *split;
     size_t          tok_count;
 
     if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR, addr,
@@ -980,10 +980,10 @@ simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
     simta_address_status     rc = ADDRESS_NOT_FOUND;
     yastr                    search_string;
     struct ldap_search_list *lds;
-    LDAPMessage *            res = NULL;
-    LDAPMessage *            entry;
-    struct berval **         vals;
-    struct simta_ldap *      ld;
+    LDAPMessage             *res = NULL;
+    LDAPMessage             *entry;
+    struct berval          **vals;
+    struct simta_ldap       *ld;
 
     if ((ld = simta_ldap_config(rule)) == NULL) {
         return ADDRESS_SYSERROR;
@@ -1077,7 +1077,7 @@ simta_ldap_permitted_create(struct exp_addr *e, struct berval **list) {
 static struct envelope *
 simta_ldap_envelope_from_attr(struct simta_ldap *ld, LDAPMessage *entry,
         struct envelope *parent, const char *sender, const char *attr) {
-    struct berval ** attr_values = NULL;
+    struct berval  **attr_values = NULL;
     struct envelope *env = NULL;
     yastr            buf = NULL;
 
@@ -1114,22 +1114,22 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
         struct exp_addr *e_addr, int type, LDAPMessage *entry) {
     int               retval = ADDRESS_SYSERROR;
     int               valfound = 0;
-    struct berval **  dnvals = NULL;
-    struct berval **  mailvals = NULL;
-    char *            dn = NULL;
+    struct berval   **dnvals = NULL;
+    struct berval   **mailvals = NULL;
+    char             *dn = NULL;
     yastr             group_name = NULL;
     yastr             group_email = NULL;
-    char *            errmsg = NULL;
-    struct berval **  permitted_domains = NULL;
-    struct berval **  permitted_groups = NULL;
-    char *            ndn = NULL; /* a "normalized dn" */
+    char             *errmsg = NULL;
+    struct berval   **permitted_domains = NULL;
+    struct berval   **permitted_groups = NULL;
+    char             *ndn = NULL; /* a "normalized dn" */
     yastr             buf = NULL;
     int               rc;
     yastr             senderbuf = NULL;
     int               suppressnoemail = 0;
-    struct berval **  senderlist = NULL;
+    struct berval   **senderlist = NULL;
     struct recipient *r = NULL;
-    struct envelope * permitted_env = NULL;
+    struct envelope  *permitted_env = NULL;
 
     if ((dn = ldap_get_dn(ld->ldap_ld, entry)) == NULL) {
         syslog(LOG_ERR,
@@ -1659,12 +1659,12 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
     int                      rc = ADDRESS_NOT_FOUND;
     int                      match = 0;
     yastr                    search_string;
-    LDAPMessage *            res;
-    LDAPMessage *            entry;
+    LDAPMessage             *res;
+    LDAPMessage             *entry;
     struct ldap_search_list *lds;
     yastr                    xdn;
-    LDAPMessage *            tmpres = NULL;
-    char *                   err;
+    LDAPMessage             *tmpres = NULL;
+    char                    *err;
 
     /* for each base string in ldap_searches:
      *    If this search string is of the specified addrtype:
@@ -1798,12 +1798,12 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
 static int
 simta_ldap_dn_expand(
         struct simta_ldap *ld, struct expand *exp, struct exp_addr *e_addr) {
-    char *       search_dn;
+    char        *search_dn;
     int          rc;
     int          match;
     LDAPMessage *res = NULL;
     LDAPMessage *entry;
-    char *       err;
+    char        *err;
 
     search_dn = e_addr->e_addr;
 
@@ -1867,7 +1867,7 @@ simta_ldap_dn_expand(
 int
 simta_ldap_expand(
         const ucl_object_t *rule, struct expand *exp, struct exp_addr *e_addr) {
-    char *             domain;   /* points to domain in address */
+    char              *domain;   /* points to domain in address */
     yastr              name;     /* clone of incoming name */
     int                nametype; /* Type of Groupname -- owner, member... */
     int                rc;       /* Universal return code */
@@ -1954,8 +1954,8 @@ int
 simta_mbx_compare(const char *addr1, const char *addr2) {
     yastr               addr1_copy = NULL;
     yastr               addr2_copy = NULL;
-    char *              p1;
-    char *              p2;
+    char               *p1;
+    char               *p2;
     int                 rc = -1;
     const ucl_object_t *red;
 
@@ -2065,14 +2065,14 @@ struct simta_ldap *
 simta_ldap_config(const ucl_object_t *rule) {
     struct ldap_search_list **lds;
     yastr                     key = NULL;
-    const char *              buf;
+    const char               *buf;
     int                       i;
-    const ucl_object_t *      obj;
-    const ucl_object_t *      c_obj;
+    const ucl_object_t       *obj;
+    const ucl_object_t       *c_obj;
     ucl_object_iter_t         iter = NULL;
-    LDAPURLDesc *             plud;   /* a parsed ldapurl */
+    LDAPURLDesc              *plud;   /* a parsed ldapurl */
     int                       ldaprc; /* ldap return code */
-    struct simta_ldap *       ld = NULL;
+    struct simta_ldap        *ld = NULL;
 
     if (ldap_configs == NULL) {
         ldap_configs = ucl_object_typed_new(UCL_OBJECT);

@@ -54,11 +54,11 @@ catch_sigint(int sigint __attribute__((unused))) {
 
 int
 main(int argc, char *argv[]) {
-    SNET *                 snet_stdin;
-    char *                 sender = NULL;
-    char *                 addr;
+    SNET                  *snet_stdin;
+    char                  *sender = NULL;
+    char                  *addr;
     yastr                  daytime = NULL;
-    char *                 line = NULL;
+    char                  *line = NULL;
     yastr                  buf;
     struct receive_headers rh;
     int                    usage = 0;
@@ -71,12 +71,12 @@ main(int argc, char *argv[]) {
     int                    rc;
     int                    ret = EX_TEMPFAIL;
     int                    message_size = 0;
-    FILE *                 dfile = NULL;
+    FILE                  *dfile = NULL;
     bool                   read_headers = false;
     uid_t                  uid;
-    struct recipient *     r;
-    struct passwd *        passwd;
-    const char *           pw_name;
+    struct recipient      *r;
+    struct passwd         *passwd;
+    const char            *pw_name;
 
     /* ignore a good many options */
     opterr = 0;

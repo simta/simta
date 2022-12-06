@@ -43,7 +43,7 @@ ll_default_compare(char *a, char *b) {
 int
 ll_insert(struct stab_entry **stab, char *key, void *data,
         int (*ll_compare)(char *, char *)) {
-    struct stab_entry * st;
+    struct stab_entry  *st;
     struct stab_entry **i;
 
     if (ll_compare == NULL) {
@@ -73,7 +73,7 @@ ll_insert(struct stab_entry **stab, char *key, void *data,
 
 int
 ll_insert_tail(struct stab_entry **stab, char *key, void *data) {
-    struct stab_entry * st;
+    struct stab_entry  *st;
     struct stab_entry **i;
 
     st = simta_calloc(1, sizeof(struct stab_entry));
@@ -97,9 +97,9 @@ ll_insert_tail(struct stab_entry **stab, char *key, void *data) {
 
 void *
 ll_remove(struct stab_entry **stab, char *key) {
-    struct stab_entry * st;
+    struct stab_entry  *st;
     struct stab_entry **i;
-    void *              data;
+    void               *data;
 
     for (i = stab; *i != NULL; i = &((*i)->st_next)) {
         if (strcmp(key, (*i)->st_key) == 0) {
@@ -146,7 +146,7 @@ ll_nokey_lookup(
 int
 ll_nokey_insert(struct stab_entry **stab, void *data,
         int (*ll_compare)(void *, void *)) {
-    struct stab_entry * st;
+    struct stab_entry  *st;
     struct stab_entry **i;
 
     st = simta_calloc(1, sizeof(struct stab_entry));

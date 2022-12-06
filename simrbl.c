@@ -42,20 +42,20 @@ const char *simta_progname = "simrbl";
 int
 main(int argc, char *argv[]) {
     extern int         optind;
-    extern char *      optarg;
+    extern char       *optarg;
     int                c;
-    const char *       server = NULL;
-    const char *       port = "53";
+    const char        *server = NULL;
+    const char        *port = "53";
     int                rc;
     int                err = 0;
     bool               quiet = false;
     bool               log = true;
     int                exclusive = 0;
     int                check_text = 0;
-    ucl_object_t *     config;
-    ucl_object_t *     list_config;
+    ucl_object_t      *config;
+    ucl_object_t      *list_config;
     struct addrinfo    hints;
-    struct addrinfo *  ai;
+    struct addrinfo   *ai;
     struct acl_result *list = NULL;
     struct timeval     tv_now;
 

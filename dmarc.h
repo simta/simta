@@ -29,9 +29,9 @@ struct dmarc {
     enum simta_dmarc_result result;
     enum simta_dmarc_align  dkim_alignment;
     enum simta_dmarc_align  spf_alignment;
-    char *                  domain;
-    char *                  spf_domain;
-    struct dll_entry *      dkim_domain_list;
+    char                   *domain;
+    char                   *spf_domain;
+    struct dll_entry       *dkim_domain_list;
 };
 
 yastr dmarc_orgdomain(const char *);
@@ -43,8 +43,8 @@ simta_result            dmarc_spf_result(struct dmarc *, char *);
 void                    dmarc_dkim_result(struct dmarc *, char *);
 simta_result            dmarc_lookup(struct dmarc *, const char *);
 enum simta_dmarc_result dmarc_result(struct dmarc *);
-const char *            dmarc_result_str(const enum simta_dmarc_result);
-const char *            dmarc_authresult_str(const enum simta_dmarc_result);
+const char             *dmarc_result_str(const enum simta_dmarc_result);
+const char             *dmarc_authresult_str(const enum simta_dmarc_result);
 
 #endif /* SIMTA_DMARC_H */
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

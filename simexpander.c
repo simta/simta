@@ -32,9 +32,9 @@ const char *simta_progname = "simexpander";
 int
 main(int argc, char *argv[]) {
     struct envelope *env;
-    const char *     conf_file = NULL;
-    const char *     extra_conf = NULL;
-    const char *     sender = "sender@expansion.test";
+    const char      *conf_file = NULL;
+    const char      *extra_conf = NULL;
+    const char      *sender = "sender@expansion.test";
     int              c;
     int              exp_level = 0;
     int              error = 0;

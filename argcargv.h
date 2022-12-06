@@ -4,7 +4,7 @@
 #define argcargv(X, Y) (acav_parse(NULL, X, Y))
 
 typedef struct {
-    char **  acv_argv;
+    char   **acv_argv;
     unsigned acv_argc;
 } ACAV;
 

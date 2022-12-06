@@ -20,10 +20,10 @@
 int
 main(int argc, char *argv[]) {
     int                   fd;
-    SNET *                snet;
-    char *                line;
+    SNET                 *snet;
+    char                 *line;
     u_int                 line_len;
-    const EVP_MD *        testdigest;
+    const EVP_MD         *testdigest;
     struct message_digest md;
 
     if (argc != 3) {

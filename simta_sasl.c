@@ -91,7 +91,7 @@ simta_sasl_init(void) {
 struct simta_sasl *
 simta_sasl_server_new(int tls) {
     int                rc;
-    sasl_conn_t *      conn;
+    sasl_conn_t       *conn;
     struct simta_sasl *ret = NULL;
 
     if ((rc = sasl_server_new("smtp",
@@ -123,9 +123,9 @@ simta_sasl_server_auth(
     int          proprc;
     yastr        buf = NULL;
     unsigned int buflen = 0;
-    const char * out;
+    const char  *out;
     unsigned int outlen;
-    char *       p;
+    char        *p;
 
     yaslclear(s->s_response);
 
