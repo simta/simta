@@ -251,7 +251,7 @@ simta_ld_init(struct simta_ldap *ld, const yastr key) {
     const char *uri;
 
     uri = ucl_object_tostring(ucl_object_lookup(ld->ldap_rule, "uri"));
-    simta_debuglog(1, "LDAP: opening connection to %s", uri);
+    simta_debuglog(2, "LDAP: opening connection to %s", uri);
     statsd_counter("ldap", "connection", 1);
 
     if ((rc = ldap_initialize(&ldap_ld, uri)) != 0) {
@@ -332,7 +332,7 @@ simta_ldap_reset(void) {
                 continue;
             }
             simta_debuglog(
-                    1, "LDAP: closing connection to %s", ucl_object_key(obj));
+                    2, "LDAP: closing connection to %s", ucl_object_key(obj));
             ldap_unbind_ext(obj->value.ud, NULL, NULL);
         }
         ucl_object_iterate_free(iter);
@@ -951,7 +951,7 @@ simta_ldap_unbind(struct simta_ldap *ld) {
         iter = ucl_object_iterate_new(ldap_connections);
         while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
             if (obj->value.ud == ld->ldap_ld) {
-                simta_debuglog(1, "LDAP: closing connection to %s",
+                simta_debuglog(2, "LDAP: closing connection to %s",
                         ucl_object_key(obj));
                 ldap_unbind_ext(ld->ldap_ld, NULL, NULL);
                 ucl_object_delete_key(ldap_connections, ucl_object_key(obj));

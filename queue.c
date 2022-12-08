@@ -1162,10 +1162,10 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
                 env_deliver->e_flags |= ENV_FLAG_BOUNCE;
             } else {
                 simta_debuglog(
-                        1, "Deliver env <%s>: not old", env_deliver->e_id);
+                        2, "Deliver env <%s>: not old", env_deliver->e_id);
             }
         } else {
-            simta_debuglog(1, "Deliver env <%s>: not checking age of message",
+            simta_debuglog(2, "Deliver env <%s>: not checking age of message",
                     env_deliver->e_id);
         }
 
