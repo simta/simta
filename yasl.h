@@ -18,6 +18,7 @@
 #define YASL_MAX_PREALLOC (1024 * 1024)
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 #include <sys/types.h>
@@ -79,6 +80,17 @@ void yasltolower(yastr str);
 void yasltoupper(yastr str);
 
 void yasltrim(yastr str, const char *cset);
+
+void yaslrangesep(
+        yastr str, char sep, bool sep_right, bool keep_right, bool keep_sep);
+
+void yaslrangesepleft(yastr str, char sep);
+
+void yaslrangesepright(yastr str, char sep);
+
+void yaslrangeseprleft(yastr str, char sep);
+
+void yaslrangeseprright(yastr str, char sep);
 
 void yaslupdatelen(yastr str);
 

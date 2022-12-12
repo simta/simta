@@ -90,7 +90,7 @@ simck_LDADD = $(COMMON_LIBS)
 endif
 
 if BUILD_CMOCKA
-check_PROGRAMS = test/cmocka_dmarc test/cmocka_header test/cmocka_ldap test/cmocka_md
+check_PROGRAMS = test/cmocka_dmarc test/cmocka_header test/cmocka_ldap test/cmocka_md test/cmocka_yasl
 test_cmocka_dmarc_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
 test_cmocka_dmarc_SOURCES = test/unit_dmarc.c dmarc.c dmarc.h $(COMMON_FILES)
 test_cmocka_header_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
@@ -100,6 +100,8 @@ test_cmocka_ldap_LDFLAGS = -Wl,--wrap=ldap_count_entries -Wl,--wrap=ldap_initial
 test_cmocka_ldap_SOURCES = test/unit_ldap.c $(COMMON_FILES)
 test_cmocka_md_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
 test_cmocka_md_SOURCES = test/unit_md.c $(COMMON_FILES)
+test_cmocka_yasl_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
+test_cmocka_yasl_SOURCES = test/unit_yasl.c $(COMMON_FILES)
 endif
 
 BUILT_SOURCES = embedded_config.h embedded_schema.h

@@ -364,6 +364,61 @@ yasltrim(yastr str, const char *cset) {
     hdr->len = len;
 }
 
+/* Remove parts of a string based on a delimiter character */
+void
+yaslrangesep(
+        yastr str, char sep, bool sep_right, bool keep_right, bool keep_sep) {
+    const char *c;
+    ptrdiff_t   start;
+    ptrdiff_t   end;
+
+    if (sep_right) {
+        c = strrchr(str, sep);
+    } else {
+        c = strchr(str, sep);
+    }
+    if (!c) {
+        return;
+    }
+
+    if (keep_right) {
+        start = c - str;
+        end = -1;
+        if (!keep_sep) {
+            start++;
+        }
+    } else {
+        start = 0;
+        end = c - str;
+        if (!keep_sep) {
+            end--;
+        }
+    }
+
+    yaslrange(str, start, end);
+}
+
+/* Convenience functions for common split operations */
+void
+yaslrangesepleft(yastr str, char sep) {
+    yaslrangesep(str, sep, false, false, false);
+}
+
+void
+yaslrangesepright(yastr str, char sep) {
+    yaslrangesep(str, sep, false, true, false);
+}
+
+void
+yaslrangeseprleft(yastr str, char sep) {
+    yaslrangesep(str, sep, true, false, false);
+}
+
+void
+yaslrangeseprright(yastr str, char sep) {
+    yaslrangesep(str, sep, true, true, false);
+}
+
 /* Set the yasl string length to the length as obtained with strlen(). */
 void
 yaslupdatelen(yastr str) {

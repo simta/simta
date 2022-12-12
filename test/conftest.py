@@ -214,6 +214,15 @@ def simta_config(request, tmp_path):
             'user': '',
             'debug_level': 7
         },
+        'defaults': {
+            'red': {
+                'deliver': {
+                    'local': {
+                        'agent': f'{os.path.join(base_path, "test_mda")} {tmp_path} $S $R $D $SR $ S -S $DR "" $DDD $$',
+                    }
+                }
+            }
+        }
     }
 
     if 'filter' in request.fspath.basename:

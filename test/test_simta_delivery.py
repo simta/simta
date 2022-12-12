@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import email
+import json
 import time
 import os
 
@@ -7,8 +9,6 @@ from mailbox import Maildir
 
 
 def test_binary(smtp_nocleanup, testmsg, req_dnsserver, simta):
-    # FIXME: it would be better to actually deliver and check the content
-    # that is delivered.
     smtp_nocleanup.sendmail(
         'testsender@example.com',
         'testrcpt@binary.example.com',
@@ -16,8 +16,35 @@ def test_binary(smtp_nocleanup, testmsg, req_dnsserver, simta):
     )
     smtp_nocleanup.quit()
     time.sleep(2)
+
     for q in ['dead', 'fast', 'slow']:
         assert len(os.listdir(os.path.join(simta['tmpdir'], q))) == 0
+
+    with open(os.path.join(simta['tmpdir'], 'mda_args'), 'r') as f:
+        mda_args = json.load(f)
+
+    assert mda_args[2:] == [
+        'testsender@example.com',
+        'testrcpt',
+        'binary.example.com',
+        '$SR',
+        '$',
+        'S',
+        '-S',
+        '$DR',
+        '',
+        '$DDD',
+        '$$',
+    ]
+
+    with open(os.path.join(simta['tmpdir'], 'mda_msg'), 'r') as f:
+        msg = email.message_from_file(f)
+
+    assert msg.get_payload() == 'test_binary\n'
+    assert msg['Subject'] == 'simta test message for test_binary'
+    assert msg['Return-Path'] == '<testsender@example.com>'
+    assert msg['From'] == 'testsender@example.com'
+    assert msg['To'] == 'testrcpt@example.com'
 
 
 def test_smtp(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):

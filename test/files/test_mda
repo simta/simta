@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+
+
+with open(os.path.join(sys.argv[1], 'mda_args'), 'w') as f:
+    f.write(json.dumps(sys.argv))
+
+with open(os.path.join(sys.argv[1], 'mda_msg'), 'w') as f:
+    for chunk in sys.stdin:
+        f.write(chunk)

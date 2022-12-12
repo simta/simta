@@ -39,22 +39,15 @@
 
 int
 deliver_binary(struct deliver *d) {
-    int    x;
     int    fd[ 2 ];
     pid_t  pid;
     int    status;
     pid_t  rc;
     SNET  *snet;
-    char  *slash;
     char  *line;
-    char  *recipient;
-    char  *at;
-    char  *binary;
-    char  *domain = "NULL";
-    ACAV  *acav;
-    char  *agent;
-    char **deliver_argv;
-    int    deliver_argc;
+    yastr  binary;
+    yastr *split;
+    size_t tok_count;
 
     if (pipe(fd) < 0) {
         syslog(LOG_ERR, "Syserror: deliver_binary pipe: %m");
@@ -99,46 +92,39 @@ deliver_binary(struct deliver *d) {
             exit(EX_TEMPFAIL);
         }
 
-        acav = acav_alloc();
-        /* FIXME: if we use something other than acav_parse() we might could
-         * do less copying.
-         */
-        agent = simta_strdup(d->d_deliver_agent);
-        deliver_argc = acav_parse(acav, agent, &deliver_argv);
+        split = yaslsplitargs(d->d_deliver_agent, &tok_count);
 
-        recipient = d->d_rcpt->r_rcpt;
+        /* Add terminating NULL */
+        split = simta_realloc(split, sizeof(yastr) * (tok_count + 1));
+        split[ tok_count ] = NULL;
 
-        at = strchr(recipient, '@');
-        *at = '\0';
-        domain = at + 1;
-
-        binary = deliver_argv[ 0 ];
-        if ((slash = strrchr(binary, '/')) != NULL) {
-            deliver_argv[ 0 ] = slash;
-        }
+        binary = yasldup(split[ 0 ]);
+        /* Make sure that argv[0] is just the executable, not the full path. */
+        yaslrangeseprright(split[ 0 ], '/');
 
         /* variable replacement on the args */
-        for (x = 1; x < deliver_argc; x++) {
-            if (*(deliver_argv[ x ]) == '$') {
-                switch (*(deliver_argv[ x ] + 1)) {
+        for (int i = 1; i < tok_count; i++) {
+            if ((yasllen(split[ i ]) == 2) && (*(split[ i ]) == '$')) {
+                switch (*(split[ i ] + 1)) {
                 /* $S Sender */
                 case 'S':
-                    if (*(deliver_argv[ x ] + 2) == '\0') {
-                        deliver_argv[ x ] = d->d_env->e_mail;
-                    }
+                    yaslclear(split[ i ]);
+                    split[ i ] = yaslcatyasl(split[ i ], d->d_env->e_mail);
                     break;
 
                 /* $R Recipient */
                 case 'R':
-                    if (*(deliver_argv[ x ] + 2) == '\0') {
-                        deliver_argv[ x ] = recipient;
-                    }
+                    yaslclear(split[ i ]);
+                    split[ i ] = yaslcat(split[ i ], d->d_rcpt->r_rcpt);
+                    yaslrangeseprleft(split[ i ], '@');
                     break;
 
                 /* $D Domain */
                 case 'D':
-                    if (*(deliver_argv[ x ] + 2) == '\0') {
-                        deliver_argv[ x ] = domain;
+                    yaslclear(split[ i ]);
+                    if (strchr(d->d_rcpt->r_rcpt, '@') != NULL) {
+                        split[ i ] = yaslcat(split[ i ], d->d_rcpt->r_rcpt);
+                        yaslrangeseprright(split[ i ], '@');
                     }
                     break;
 
@@ -149,7 +135,7 @@ deliver_binary(struct deliver *d) {
             }
         }
 
-        execv(binary, deliver_argv);
+        execv(binary, split);
         /* if we are here, there is an error */
         syslog(LOG_ERR, "Syserror: deliver_binary execv: %m");
         exit(EX_TEMPFAIL);
