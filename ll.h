@@ -20,17 +20,10 @@ void              dll_remove_entry(struct dll_entry **, struct dll_entry *);
 struct dll_entry *dll_lookup(struct dll_entry *, const char *);
 void              dll_free(struct dll_entry *);
 
-void *ll_lookup(struct stab_entry *, const char *);
-int   ll_insert(struct stab_entry **, char *, void *, int (*)(char *, char *));
-void *ll_remove(struct stab_entry **, char *);
-void  ll_walk(struct stab_entry *, void (*)(void *));
-
-int ll_insert_tail(struct stab_entry **stab, char *key, void *data);
-
-int   ll_default_compare(char *, char *);
-int   ll_nokey_insert(struct stab_entry **, void *, int (*)(void *, void *));
-void *ll_nokey_lookup(struct stab_entry *, void *, int (*)(void *, void *));
-void  ll_free(struct stab_entry *);
+int  ll_insert(struct stab_entry **, char *, void *, int (*)(char *, char *));
+int  ll_default_compare(char *, char *);
+int  ll_nokey_insert(struct stab_entry **, void *, int (*)(void *, void *));
+void ll_free(struct stab_entry *);
 
 #endif /* SIMTA_LL_H */
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
