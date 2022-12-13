@@ -232,10 +232,7 @@ acl_check(const char *chain, const struct sockaddr *sa, const char *text) {
         if (sa == NULL) {
             ret->acl_text_cooked = yaslauto(text);
             if (ucl_object_toboolean(ucl_object_lookup(list, "domain_only"))) {
-                yaslrange(ret->acl_text_cooked,
-                        strrchr(ret->acl_text_cooked, '@') -
-                                ret->acl_text_cooked + 1,
-                        -1);
+                yaslrangeseprright(ret->acl_text_cooked, '@');
             }
             yasltolower(ret->acl_text_cooked);
 

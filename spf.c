@@ -391,8 +391,8 @@ spf_check_host(struct spf *s, const yastr domain) {
                                 SPF_RESULT_PASS)) {
                     tmp = yaslauto(dnsr_res_mech->r_answer[ j ].rr_dn.dn_name);
                     while ((yasllen(tmp) > yasllen(domain_spec)) &&
-                            (p = strchr(tmp, '.'))) {
-                        yaslrange(tmp, (p - tmp + 1), -1);
+                            strchr(tmp, '.')) {
+                        yaslrangesepright(tmp, '.');
                     }
                     rc = strcasecmp(tmp, domain_spec);
                     yaslfree(tmp);
@@ -439,7 +439,7 @@ spf_check_host(struct spf *s, const yastr domain) {
                     ret = SPF_RESULT_PERMERROR;
                     goto cleanup;
                 }
-                yaslrange(split[ i ], 0, p - split[ i ] - 1);
+                yaslrangesepleft(split[ i ], '/');
             } else {
                 cidr = 32;
             }
@@ -479,7 +479,7 @@ spf_check_host(struct spf *s, const yastr domain) {
                     ret = SPF_RESULT_PERMERROR;
                     goto cleanup;
                 }
-                yaslrange(split[ i ], 0, p - split[ i ] - 1);
+                yaslrangesepleft(split[ i ], '/');
             } else {
                 cidr = 128;
             }

@@ -607,9 +607,7 @@ alias_expand(
     if ((subaddr_sep = ucl_object_tostring(ucl_object_lookup_path(
                  rule, "expand.subaddress_separators"))) != NULL) {
         for (int i = 0; i < strlen(subaddr_sep); i++) {
-            if ((paddr = strchr(address, subaddr_sep[ i ])) != NULL) {
-                yaslrange(address, 0, paddr - address - 1);
-            }
+            yaslrangesepleft(address, subaddr_sep[ i ]);
         }
     }
 

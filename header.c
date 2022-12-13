@@ -243,7 +243,7 @@ header_string(struct line *l) {
     yastr buf;
 
     buf = yaslauto(l->line_data);
-    yaslrange(buf, strchr(buf, ':') - buf + 1, -1);
+    yaslrangesepright(buf, ':');
     for (l = l->line_next; l != NULL; l = l->line_next) {
         if ((*(l->line_data) != ' ') && (*(l->line_data) != '\t')) {
             break;

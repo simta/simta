@@ -2047,7 +2047,6 @@ simta_mbx_compare(const char *addr1, const char *addr2) {
 bool
 simta_domain_check(const char *addr, const char *domain) {
     yastr addr_copy = NULL;
-    char *p;
     bool  ret = false;
 
     if (strrchr(addr, '@') == NULL) {
@@ -2055,12 +2054,12 @@ simta_domain_check(const char *addr, const char *domain) {
     }
 
     addr_copy = simta_addr_demangle(addr);
-    yaslrange(addr_copy, strrchr(addr_copy, '@') - addr_copy + 1, -1);
+    yaslrangeseprright(addr_copy, '@');
     while (!ret && addr_copy) {
         if (strcasecmp(domain, addr_copy) == 0) {
             ret = true;
-        } else if ((p = strchr(addr_copy, '.')) != NULL) {
-            yaslrange(addr_copy, p - addr_copy + 1, -1);
+        } else if (strchr(addr_copy, '.') != NULL) {
+            yaslrangesepright(addr_copy, '.');
         } else {
             yaslfree(addr_copy);
             addr_copy = NULL;
