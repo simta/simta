@@ -1,7 +1,7 @@
 #!/bin/bash
 
 hacking_dir=$(readlink -fn $(dirname "$BASH_SOURCE"))
-pip3 install --user pytest flake8 cryptography aiosmtpd
+pip3 install --user pytest flake8 cryptography aiosmtpd ruamel.yaml
 sudo yum install -y openldap-servers yadifa libcmocka-devel
 sudo systemctl start slapd
 sudo ldapadd -H ldapi:/// -Y EXTERNAL -f /etc/openldap/schema/cosine.ldif

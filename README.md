@@ -65,8 +65,9 @@ Testing
 
 Tests can be run with `make check`. simta's test suite
 requires Python >= 3.7, [pytest](https://pytest.org) >=
-3.9, [aiosmtpd](https://pypi.org/project/aiosmtpd/), and
-[pyca/cryptography](https://pypi.org/project/cryptography/). You
+3.9, [aiosmtpd](https://pypi.org/project/aiosmtpd/),
+[pyca/cryptography](https://pypi.org/project/cryptography/), and
+[ruamel.yaml](https://pypi.org/project/ruamel.yaml/). You
 may also want to install [cmocka](https://cmocka.org/) and pass
 `--with-cmocka` to the `configure` script to enable additional unit
 tests.

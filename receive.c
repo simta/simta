@@ -1098,6 +1098,12 @@ f_mail(struct receive_data *r) {
                 dmarc_spf_result(r->r_dmarc, r->r_spf->spf_domain);
             }
             break;
+        case SPF_RESULT_NONE:
+        case SPF_RESULT_PERMERROR:
+            /* We should not treat a broken record more harshly than a missing one. */
+        case SPF_RESULT_NEUTRAL:
+        case SPF_RESULT_SOFTFAIL:
+            break;
         }
     }
 

@@ -496,8 +496,11 @@ properties {
                 type: object
                 properties {
                     enabled { type: boolean }
+                    query_limit { type: integer }
                     strict { type: boolean }
+                    void_query_limit { type: integer }
                 }
+                required [ enabled, query_limit, strict, void_query_limit ]
                 additionalProperties: false
             }
 

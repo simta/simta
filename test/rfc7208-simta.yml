@@ -1,0 +1,53 @@
+description: Macro expansion rules
+tests:
+  p-macro-static:
+    description: In simta the p macro always expands to 'unknown'
+    helo: p-macro-static.example.com
+    host: 203.0.113.1
+    mailfrom: test@p-macro-static.example.com
+    result: pass
+  i-macro-ipv6:
+    description: The i macro expands to dot-separated hexadecimal nibbles for IPv6
+    helo: i-macro-ipv6.example.com
+    host: 2001:db8:1234::dead:60ff
+    mailfrom: test@i-macro.example.com
+    result: pass
+  i-macro-ipv4:
+    description: The i macro expands to dot-separated decimal octets for IPv4
+    helo: i-macro-ipv4.example.com
+    host: 203.0.113.1
+    mailfrom: test@i-macro.example.com
+    result: pass
+zonedata:
+  p-macro-static.example.com:
+    - SPF: v=spf1 exists:host-%{p}.example.com -all
+  host-unknown.example.com:
+    - A: 203.0.113.2
+  i-macro.example.com:
+    - SPF: v=spf1 exists:%{i}.%{v}.example.com -all
+  2.0.0.1.0.d.b.8.1.2.3.4.0.0.0.0.0.0.0.0.0.0.0.0.d.e.a.d.6.0.f.f.ip6.example.com:
+    - A: 203.0.113.2
+  203.0.113.1.in-addr.example.com:
+    - A: 203.0.113.2
+---
+description: Weird edge cases
+tests:
+  include-nonhost:
+    description: includes don't have to be a hostname, just a domain name
+    helo: include-nonhost.example.com
+    host: 203.0.113.1
+    mailfrom: test+foo@include-nonhost.example.com
+    result: pass
+  txt-concatenation:
+    description: Concatenation needs to happen before we check for v=spf1
+    helo: txt-concatenation.example.com
+    host: 203.0.113.1
+    mailfrom: test@txt-concatenation.example.com
+    result: none
+zonedata:
+  include-nonhost.example.com:
+    - TXT: v=spf1 include:%{l}.example.com -all
+  test+foo.example.com:
+    - TXT: v=spf1 ip4:203.0.113.1 -all
+  txt-concatenation.example.com:
+    - TXT: v=spf1" "garbage

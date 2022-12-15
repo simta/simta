@@ -1,3 +1,6 @@
+2.?.? (????-??-??)
+    - added SPF tests, improved RFC 7208 compliance
+
 2.3.1 (2023-04-14)
     - added support for a secondary search constraint on LDAP searches
     - unconditionally enabled rdnpref (disambiguation using the RDN) for LDAP

@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #include "simta.h"
 #include "spf.h"
@@ -21,35 +22,62 @@
 const char *simta_progname = "simspf";
 
 int
-main(int ac, char *av[]) {
+main(int argc, char *argv[]) {
+    int              c;
     struct addrinfo *addrinfo;
     struct addrinfo  hints;
-    const char      *addrlookup, *ehlo;
+    const char      *email;
+    const char      *addrlookup;
+    const char      *ehlo;
     struct spf      *spf;
+    const char      *conf_file = NULL;
+    const char      *extra_conf = NULL;
+    int              error = 0;
 
-    if (ac < 2) {
-        fprintf(stderr, "Usage:\t\t%s <email> [ip]\n", av[ 0 ]);
-        exit(1);
+    while ((c = getopt(argc, argv, "f:U:")) != EOF) {
+        switch (c) {
+        case 'f':
+            conf_file = optarg;
+            break;
+
+        case 'U':
+            extra_conf = optarg;
+            break;
+
+        default:
+            error++;
+            break;
+        }
     }
 
-    if (simta_read_config(NULL, NULL) != SIMTA_OK) {
+    if (error || (optind == argc)) {
+        fprintf(stderr,
+                "Usage:\t\t%s [ -f conf_file ] [ -U extra_conf ] "
+                "<email> [ip] [ehlo host]\n",
+                argv[ 0 ]);
         exit(1);
     }
 
     simta_openlog(false, LOG_PERROR);
 
-    simta_debug = 8;
-
-    if (ac < 3) {
-        addrlookup = "255.255.255.255";
-    } else {
-        addrlookup = av[ 2 ];
+    if (simta_read_config(conf_file, extra_conf) != SIMTA_OK) {
+        exit(1);
     }
 
-    if (ac < 4) {
-        ehlo = "tallis.marwnad.com";
+    simta_debug = 8;
+
+    /* Handle positional parameters */
+    email = argv[ optind++ ];
+    if (optind < argc) {
+        addrlookup = argv[ optind++ ];
     } else {
-        ehlo = av[ 3 ];
+        addrlookup = "203.0.113.1";
+    }
+
+    if (optind < argc) {
+        ehlo = argv[ optind++ ];
+    } else {
+        ehlo = "hostname.example.com";
     }
 
     memset(&hints, 0, sizeof(struct addrinfo));
@@ -57,7 +85,7 @@ main(int ac, char *av[]) {
     hints.ai_flags = AI_NUMERICSERV;
     getaddrinfo(addrlookup, NULL, &hints, &addrinfo);
 
-    spf = spf_lookup(ehlo, av[ 1 ], addrinfo->ai_addr);
+    spf = spf_lookup(ehlo, email, addrinfo->ai_addr);
     printf("SPF result: %s\n", spf_result_str(spf->spf_result));
 
     exit(0);
