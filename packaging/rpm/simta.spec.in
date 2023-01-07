@@ -85,20 +85,22 @@ export JEMALLOC_CFLAGS=-I/usr/include
         --with-aliasdb=%{_sysconfdir}/aliases.db \
         --disable-chown
 
-make %{?_smp_mflags}
+%make_build
 
 %install
-rm -rf %{buildroot}
-make DESTDIR=%{buildroot} INSTALL_OPTS='' install
-install -m 755 -d %{buildroot}%{_sysconfdir} %{buildroot}%{_unitdir}
-install -p -m 644 simta.conf %{buildroot}%{_sysconfdir}/simta.conf
-install -p -m 644 packaging/rpm/simta.service %{buildroot}%{_unitdir}/simta.service
+%make_install
+
+install -m 0755 -d %{buildroot}%{_sysconfdir} %{buildroot}%{_unitdir}
+install -p -m 0644 simta.conf %{buildroot}%{_sysconfdir}/simta.conf
+install -p -m 0644 packaging/rpm/simta.service %{buildroot}%{_unitdir}/simta.service
 touch %{buildroot}%{_sysconfdir}/aliases.db
 
 # rename files for alternative usage
 mv %{buildroot}%{_sbindir}/sendmail %{buildroot}%{_sbindir}/sendmail.simta
-mkdir -p %{buildroot}/usr/lib
-ln -s /usr/sbin/simsendmail %{buildroot}/usr/lib/sendmail.simta
+mkdir -p %{buildroot}%{_prefix}/lib
+ln -s %{_sbindir}/simsendmail %{buildroot}%{_prefix}/lib/sendmail.simta
+touch %{buildroot}%{_prefix}/lib/sendmail
+touch %{buildroot}%{_bindir}/newaliases
 
 %pre
 getent passwd simta >/dev/null || \
@@ -121,11 +123,11 @@ exit 0
 # Set up the alternatives files for MTAs.
 %{_sbindir}/alternatives --install %{_sbindir}/sendmail mta %{_sbindir}/sendmail.simta 90 \
 	--slave %{_bindir}/newaliases mta-newaliases %{_bindir}/simalias \
-	--slave /usr/lib/sendmail mta-sendmail /usr/lib/sendmail.simta \
+	--slave %{_prefix}/lib/sendmail mta-sendmail %{_prefix}/lib/sendmail.simta \
 
 # Rebuild maps
 {
-	/usr/bin/simalias -i /etc/aliases
+	%{_bindir}/simalias -i /etc/aliases
 } > /dev/null 2>&1
 
 exit 0
@@ -140,6 +142,8 @@ exit 0
 
 %files
 %defattr(-,root,root,-)
+%ghost %{_bindir}/newaliases
+%ghost %{_prefix}/lib/sendmail
 %{_sbindir}/simta
 %attr(6755,simta,mail) %{_sbindir}/simsendmail
 %attr(6755,simta,mail) %{_sbindir}/sendmail.simta
@@ -153,7 +157,7 @@ exit 0
 %{_bindir}/simreverse
 %{_bindir}/simspf
 %{_bindir}/simsrs
-/usr/lib/sendmail.simta
+%{_prefix}/lib/sendmail.simta
 
 %{_mandir}/man8/simc.8.gz
 %{_mandir}/man8/simta.8.gz
