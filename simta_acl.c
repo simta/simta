@@ -225,7 +225,6 @@ acl_check(const char *chain, const struct sockaddr *sa, const char *text) {
     md_init(&md);
 #endif /* HAVE_LIBSSL */
 
-    ret = simta_calloc(1, sizeof(struct acl_result));
     iter = ucl_object_iterate_new(chain_obj);
     while ((list = ucl_object_iterate_safe(iter, false)) != NULL) {
         lookup_base = ucl_object_tostring(ucl_object_lookup(list, "list"));
