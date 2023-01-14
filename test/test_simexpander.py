@@ -1956,3 +1956,12 @@ def test_expand_ldap_group_external_utf8(run_simexpander, req_ldapserver):
     assert res['parsed'][0]['recipients'] == [
         'testuser1@example.edu',
     ]
+
+
+def test_expand_ldap_user_badforward(run_simexpander, req_ldapserver):
+    res = run_simexpander('badforwardingaddr@ldap-new.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [
+        'badforwardingaddr1@forwarded.example.com',
+        'badforwardingaddr2@forwarded.example.com',
+    ]

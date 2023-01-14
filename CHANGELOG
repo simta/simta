@@ -1,5 +1,6 @@
 2.2.1 (????-??-??)
     - fixed memory leak and logging problem in ACL code
+    - fixed regression that added invalid addresses during expansion
 
 2.2.0 (2022-12-12)
     - fixed spurious bounces from transient DNS errors

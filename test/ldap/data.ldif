@@ -1897,3 +1897,14 @@ dn: cn=external utf8,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com
 rfc6532mail:: Iu2VnOq4gCBpbiBxdW90ZWQgdGV4dCIgPHRlc3R1c2VyMUBleGFtcGxlLmVkdT4=
+
+dn: uid=badforwardingaddr,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: badforwardingaddr
+sn: addr
+mail: badforwardingaddr@example.com
+uid: badforwardingaddr
+mailForwardingAddress: badforwardingaddr1@forwarded.example.com
+mailForwardingAddress: badforwardingaddr@forwarded/example.com
+mailForwardingAddress: badforwardingaddr2@forwarded.example.com
+entityID: 90001
