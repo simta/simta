@@ -1024,6 +1024,10 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
         }
 
     } else {
+        /* FIXME: this only checks whether all of the characters in the string
+         * are allowed in dot-string, but dot-string imposes other syntax requirements
+         * (mainly no '..').
+         */
         if ((end = token_dot_atom(u)) == NULL) {
             return (1);
         }

@@ -1118,6 +1118,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
     struct berval   **mailvals = NULL;
     char             *dn = NULL;
     yastr             group_name = NULL;
+    yastr             group_localpart = NULL;
     yastr             group_email = NULL;
     char             *errmsg = NULL;
     struct berval   **permitted_domains = NULL;
@@ -1150,23 +1151,32 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
 
     group_name = simta_ldap_dn_name(ld, entry);
     e_addr->e_addr_group_name = yasldup(group_name);
-    yasltolower(group_name);
+    group_localpart = yasldup(group_name);
+    yasltolower(group_localpart);
+    yaslmapchars(group_localpart, " ", ".", 1);
+    /* turn invalid '.' characters into '_' */
+    for (size_t i = 0; i < yasllen(group_localpart); i++) {
+        if (group_localpart[ i ] == '.') {
+            if (i == 0 || group_localpart[ i - 1 ] == '.' ||
+                    group_localpart[ i + 1 ] == '\0') {
+                group_localpart[ i ] = '_';
+            }
+        }
+    }
+
     group_email = yaslcatprintf(
-            yasldup(group_name), "@%s", ld->ldap_associated_domain);
-    yaslmapchars(group_email, " ", ".", 1);
+            yasldup(group_localpart), "@%s", ld->ldap_associated_domain);
 
     e_addr->e_addr_owner = yaslcatprintf(
-            yasldup(group_name), "-owner@%s", ld->ldap_associated_domain);
-    yaslmapchars(e_addr->e_addr_owner, " ", ".", 1);
+            yasldup(group_localpart), "-owner@%s", ld->ldap_associated_domain);
 
     senderbuf = yaslempty();
     if (*(e_addr->e_addr_from) != '\0') {
         /*
         * You can't send mail to groups that have no associatedDomain.
         */
-        senderbuf = yaslcatprintf(senderbuf, "%s-errors@%s", group_name,
+        senderbuf = yaslcatprintf(senderbuf, "%s-errors@%s", group_localpart,
                 ld->ldap_associated_domain);
-        yaslmapchars(senderbuf, " ", ".", 1);
 
         if ((e_addr->e_addr_errors = address_bounce_create(exp)) == NULL) {
             syslog(LOG_ERR,
@@ -1226,8 +1236,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
         if (simta_ldap_check_autoreply(ld, entry)) {
             yaslclear(buf);
             buf = yaslcatprintf(
-                    buf, "%s@%s", group_name, ld->ldap_autoreply_host);
-            yaslmapchars(buf, " ", ".", 1);
+                    buf, "%s@%s", group_localpart, ld->ldap_autoreply_host);
             if (add_address(exp, buf, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
                         e_addr->e_addr_from, true) != SIMTA_OK) {
                 syslog(LOG_ERR,
@@ -1478,6 +1487,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
 
 error:
     yaslfree(group_name);
+    yaslfree(group_localpart);
     yaslfree(group_email);
     yaslfree(buf);
     yaslfree(senderbuf);

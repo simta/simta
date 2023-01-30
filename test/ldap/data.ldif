@@ -207,6 +207,12 @@ member: uid=testuser,ou=People,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
 
+dn: cn=\ testgroup  weird   spacing    issue\ ,ou=Groups,dc=example,dc=com
+cn: \20testgroup  weird   spacing    issue\20
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
 dn: cn=testgroup nonowner,ou=Groups,dc=example,dc=com
 member: uid=testuser,ou=People,dc=example,dc=com
 objectClass: rfc822mailgroup

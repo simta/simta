@@ -475,6 +475,13 @@ def test_expand_ldap_group_FOOto(run_simexpander, req_ldapserver, slug):
     assert res['parsed'][1]['sender'] == 'sender@expansion.test'
 
 
+def test_expand_ldap_group_weird_spacing(run_simexpander, req_ldapserver):
+    res = run_simexpander('_testgroup__weird___spacing____issue_@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['testuser@forwarded.example.com']
+    assert res['parsed'][0]['sender'] == '_testgroup._weird._.spacing._._issue_-errors@ldap.example.com'
+
+
 @pytest.mark.parametrize('sender', [
     'simexpand@ldap.example.com',
     'SIMEXPAND@LDAP.EXAMPLE.COM',
