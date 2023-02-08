@@ -16,9 +16,9 @@ const char *simta_progname = "test_ldap";
 const char *TEST_LDAP_RULE = LONG_STRING_CONST(ldap {
     timeout = 5;
     retries = 3;
-    search = [{
+    search = [ {
         uri = "ldap:///ou=People,dc=example,dc=com?*?sub?uid=%25s";
-    }] attributes { request = *; } bind {
+    } ] attributes { request = *; } bind {
         method = simple;
     }
 });
@@ -82,7 +82,7 @@ __wrap_ldap_search_ext_s(LDAP *ld, char *base, int scope, char *filter,
 static void
 test_ldap_search_retry(void **state) {
     struct ucl_parser *parser;
-    ucl_object_t *     rule;
+    ucl_object_t      *rule;
 
     parser = simta_ucl_parser();
     ucl_parser_add_string(parser, TEST_LDAP_RULE, 0);
@@ -103,7 +103,7 @@ test_ldap_search_retry(void **state) {
 static void
 test_ldap_search_noretry(void **state) {
     struct ucl_parser *parser;
-    ucl_object_t *     rule;
+    ucl_object_t      *rule;
 
     parser = simta_ucl_parser();
     ucl_parser_add_string(parser, TEST_LDAP_RULE, 0);
