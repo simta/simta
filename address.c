@@ -92,7 +92,7 @@ simta_result
 add_address(struct expand *exp, char *addr, struct envelope *error_env,
         int addr_type, char *from, bool force_root) {
     struct exp_addr *e;
-    char            *at;
+    char            *domain = NULL;
 #ifdef HAVE_LDAP
     struct exp_addr *cursor = NULL;
 #endif /* HAVE_LDAP */
@@ -122,34 +122,15 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
 
         /* do syntax checking and special processing */
         if (addr_type == ADDRESS_TYPE_EMAIL) {
-            if (*(e->e_addr) == '"') {
-                if ((at = token_quoted_string(e->e_addr)) == NULL) {
-                    syslog(LOG_ERR,
-                            "add_address <%s>: bad address: "
-                            "bad quoted string",
-                            e->e_addr);
-                    goto error;
-                }
-
-            } else {
-                if ((at = token_dot_atom(e->e_addr)) == NULL) {
-                    syslog(LOG_ERR, "add_address <%s>: address missing",
-                            e->e_addr);
-                    goto error;
-                }
-            }
-
-            at++;
-
-            if (*at != '@') {
-                syslog(LOG_ERR,
-                        "add_address <%s>: bad address: "
-                        "'@' expected",
-                        e->e_addr);
+            if ((parse_emailaddr(EMAIL_ADDRESS_NORMAL, e->e_addr, NULL,
+                         &domain) != SIMTA_OK) ||
+                    (domain == NULL)) {
+                syslog(LOG_ERR, "add_address <%s>: bad address", e->e_addr);
                 goto error;
             }
 
-            e->e_addr_at = at;
+            e->e_addr_localpart = yaslnew(e->e_addr, domain - e->e_addr - 1);
+            e->e_addr_domain = yaslauto(domain);
 
 #ifdef HAVE_LDAP
             /* check to see if the address is the sender */
@@ -232,14 +213,14 @@ address_expand(struct expand *exp) {
 #endif /*  HAVE_LDAP */
 
     if (e_addr->e_addr_type == ADDRESS_TYPE_EMAIL) {
-        if (strlen(e_addr->e_addr_at + 1) > SIMTA_MAX_HOST_NAME_LEN) {
+        if (yasllen(e_addr->e_addr_domain) > SIMTA_MAX_HOST_NAME_LEN) {
             syslog(LOG_ERR, "Expand env <%s>: <%s>: domain too long",
                     exp->exp_env->e_id, e_addr->e_addr);
             return ADDRESS_SYSERROR;
         }
 
         /* Check to see if domain is off the local host */
-        red = red_host_lookup(e_addr->e_addr_at + 1, false);
+        red = red_host_lookup(e_addr->e_addr_domain, false);
 
         if ((red == NULL) || !red_does_expansion(red)) {
             simta_debuglog(1, "Expand env <%s>: <%s>: expansion complete",
@@ -488,11 +469,9 @@ password_expand(
     }
 
     /* Check password file */
-    *e_addr->e_addr_at = '\0';
     passwd = simta_getpwnam(
             ucl_object_tostring(ucl_object_lookup_path(rule, "password.path")),
-            e_addr->e_addr);
-    *e_addr->e_addr_at = '@';
+            e_addr->e_addr_localpart);
 
     if (passwd == NULL) {
         /* not in passwd file, try next expansion */
@@ -562,7 +541,7 @@ alias_expand(
     yastr             owner = NULL;
     yastr             owner_value = NULL;
     yastr             value = NULL;
-    char             *alias_addr;
+    yastr             alias_addr;
     char             *paddr;
     const char       *subaddr_sep = NULL;
     struct simta_dbc *dbcp = NULL, *owner_dbcp = NULL;
@@ -585,7 +564,7 @@ alias_expand(
         goto done;
     }
 
-    address = yaslnew(e_addr->e_addr, e_addr->e_addr_at - e_addr->e_addr);
+    address = yasldup(e_addr->e_addr_localpart);
 
     if (strncasecmp(address, "owner-", 6) == 0) {
         /* Canonicalise sendmail-style owner */
@@ -668,21 +647,14 @@ alias_expand(
     }
 
     for (;;) {
-        alias_addr = simta_strdup(value);
+        alias_addr = yaslauto(value);
 
-        switch (correct_emailaddr(&alias_addr)) {
-        case -1:
-            ret = ADDRESS_SYSERROR;
-            free(alias_addr);
-            goto done;
-
-        case 0:
+        if (correct_emailaddr(&alias_addr,
+                    simta_config_str("core.masquerade")) != SIMTA_OK) {
             syslog(LOG_INFO, "Expand.alias env <%s>: <%s>: bad expansion <%s>",
                     exp->exp_env->e_id, e_addr->e_addr, alias_addr);
-            free(alias_addr);
-            break;
-
-        case 1:
+            yaslfree(alias_addr);
+        } else {
             if (add_address(exp, alias_addr, e_addr->e_addr_errors,
                         ADDRESS_TYPE_EMAIL, e_addr->e_addr_from,
                         false) != SIMTA_OK) {
@@ -692,11 +664,7 @@ alias_expand(
             }
             simta_debuglog(1, "Expand.alias env <%s>: <%s>: expanded to <%s>",
                     exp->exp_env->e_id, e_addr->e_addr, alias_addr);
-            free(alias_addr);
-            break;
-
-        default:
-            panic("alias_expand: correct_emailaddr return out of range");
+            yaslfree(alias_addr);
         }
 
         /* Get next db result, if any */

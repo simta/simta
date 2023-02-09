@@ -30,7 +30,7 @@ struct simta_ldap *simta_ldap_config(const ucl_object_t *);
 void               simta_ldap_reset(void);
 int simta_ldap_expand(const ucl_object_t *, struct expand *, struct exp_addr *);
 simta_address_status simta_ldap_address_local(
-        const ucl_object_t *, char *, char *);
+        const ucl_object_t *, const char *, const char *);
 int  simta_mbx_compare(const char *, const char *);
 void simta_ldap_unbind(struct simta_ldap *);
 

@@ -36,7 +36,7 @@ static void  header_masquerade(struct line *);
 static void  header_remove(struct dll_entry *, struct receive_headers *);
 static int   header_singleton(const char *, const struct rfc822_header *);
 static yastr header_string(struct line *);
-static int   is_dot_atom_text(int);
+static bool  is_dot_atom_text(int);
 static yastr parse_addr_spec(const char *, int *);
 static yastr parse_mid(struct line *);
 static int   quoted_string_len(const char *);
@@ -900,25 +900,22 @@ header_singleton(const char *name, const struct rfc822_header *h) {
 
 
 /*
-     * ( dot-atom-text | quoted-string )
-     *
-     * ( dot-atom-text | quoted-string ) '@' ( dot-atom-text | domain-literal )
-     *
-     * return 0 if address is not syntactically correct
-     * return 1 if address was correct
-     */
+ * ( dot-atom-text | quoted-string )
+ *
+ * ( dot-atom-text | quoted-string ) '@' ( dot-atom-text | domain-literal )
+ */
 
 bool
 is_emailaddr(char *addr) {
-    if (parse_emailaddr(EMAIL_ADDRESS_NORMAL, addr, NULL, NULL) == 0) {
-        return (true);
+    if (parse_emailaddr(EMAIL_ADDRESS_NORMAL, addr, NULL, NULL) == SIMTA_OK) {
+        return true;
     }
 
-    return (false);
+    return false;
 }
 
 
-int
+simta_result
 parse_emailaddr(int mode, char *addr, char **user, char **domain) {
     char *u;
     char *d;
@@ -934,42 +931,42 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
         break;
 
     default:
-        return (1);
+        return SIMTA_ERR;
     }
 
     u = addr;
 
     if (u == NULL) {
-        return (1);
+        return SIMTA_ERR;
     }
 
     if (mode != EMAIL_ADDRESS_NORMAL) {
         if (*u != '<') {
-            return (1);
+            return SIMTA_ERR;
         }
         u++;
     }
 
     if (*u == '\0') {
         if (mode == EMAIL_ADDRESS_NORMAL) {
-            return (0);
+            return SIMTA_OK;
         }
-        return (1);
+        return SIMTA_ERR;
 
     } else if (*u == '@') {
         if (mode == EMAIL_ADDRESS_NORMAL) {
-            return (1);
+            return SIMTA_ERR;
         }
 
         /* do at-domain-literal - consume domain */
         u++;
         if (*u == '[') {
             if ((end = token_domain_literal(u)) == NULL) {
-                return (1);
+                return SIMTA_ERR;
             }
         } else {
             if ((end = token_domain(u)) == NULL) {
-                return (1);
+                return SIMTA_ERR;
             }
         }
         end++;
@@ -978,25 +975,25 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
             u = end + 1;
 
             if (*u != '@') {
-                return (1);
+                return SIMTA_ERR;
             }
 
             /* consume domain */
             u++;
             if (*u == '[') {
                 if ((end = token_domain_literal(u)) == NULL) {
-                    return (1);
+                    return SIMTA_ERR;
                 }
             } else {
                 if ((end = token_domain(u)) == NULL) {
-                    return (1);
+                    return SIMTA_ERR;
                 }
             }
             end++;
         }
 
         if (*end != ':') {
-            return (1);
+            return SIMTA_ERR;
         }
 
         u = end + 1;
@@ -1013,23 +1010,19 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
         if ((mode == RFC_821_MAIL_FROM) && (*(u + 1) == '\0')) {
             *u = '\0';
             *domain = NULL;
-            return (0);
+            return SIMTA_OK;
         }
 
-        return (1);
+        return SIMTA_ERR;
 
     } else if (*u == '"') {
         if ((end = token_quoted_string(u)) == NULL) {
-            return (1);
+            return SIMTA_ERR;
         }
 
     } else {
-        /* FIXME: this only checks whether all of the characters in the string
-         * are allowed in dot-string, but dot-string imposes other syntax requirements
-         * (mainly no '..').
-         */
-        if ((end = token_dot_atom(u)) == NULL) {
-            return (1);
+        if ((end = token_dot_atom_text(u)) == NULL) {
+            return SIMTA_ERR;
         }
     }
 
@@ -1044,18 +1037,18 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
     if (((*at == '\0') && (mode == EMAIL_ADDRESS_NORMAL)) ||
             ((*at == '>') && (mode == RFC_821_RCPT_TO))) {
         if (strncasecmp(u, "postmaster", strlen("postmaster")) != 0) {
-            return (1);
+            return SIMTA_ERR;
         }
 
         if (domain) {
             *domain = NULL;
         }
 
-        return (0);
+        return SIMTA_OK;
     }
 
     if (*at != '@') {
-        return (1);
+        return SIMTA_ERR;
     }
 
     /* consume the domain portion of the address */
@@ -1063,7 +1056,7 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
     d = at + 1;
 
     if (strlen(d) > SIMTA_MAX_HOST_NAME_LEN) {
-        return (1);
+        return SIMTA_ERR;
     }
 
     if (domain) {
@@ -1072,12 +1065,12 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
 
     if (*d == '[') {
         if ((end = token_domain_literal(d)) == NULL) {
-            return (1);
+            return SIMTA_ERR;
         }
 
     } else {
         if ((end = token_domain(d)) == NULL) {
-            return (1);
+            return SIMTA_ERR;
         }
     }
 
@@ -1085,92 +1078,67 @@ parse_emailaddr(int mode, char *addr, char **user, char **domain) {
 
     if (mode != EMAIL_ADDRESS_NORMAL) {
         if ((*eol != '>') || (*(eol + 1) != '\0')) {
-            return (1);
+            return SIMTA_ERR;
         }
 
         *eol = '\0';
 
     } else if (*eol != '\0') {
-        return (1);
+        return SIMTA_ERR;
     }
 
-    return (0);
+    return SIMTA_OK;
 }
 
 
-/*
-     * ( dot-atom-text | quoted-string )
-     *
-     * ( dot-atom-text | quoted-string ) '@' ( dot-atom-text | domain-literal )
-     *
-     * return -1 on syserror
-     * return 0 if address is not syntactically correct, or correctable
-     * return 1 if address was correct, or corrected
-     *
-     */
+simta_result
+correct_emailaddr(yastr *addr, const char *masquerade) {
+    char *c;
 
-int
-correct_emailaddr(char **addr) {
-    char *start;
-    char *end;
-    char *at;
-    char *eol;
-    yastr buf;
+    c = *addr;
 
-    /* find start and end of local part */
-
-    start = *addr;
-
-    if (*start == '"') {
-        if ((end = token_quoted_string(start)) == NULL) {
-            return (0);
+    /* consume localpart */
+    if (*c == '"') {
+        if ((c = token_quoted_string(c)) == NULL) {
+            return SIMTA_ERR;
         }
 
     } else {
-        if ((end = token_dot_atom(start)) == NULL) {
-            return (0);
+        if ((c = token_dot_atom_text(c)) == NULL) {
+            return SIMTA_ERR;
         }
     }
 
-    /* next token can be '@' followed by a domain, or '\0' and we'll
-     * append the masquerade domain. anything else return 0.
+    /* Next token can be '@' followed by a domain, or '\0' and we'll
+     * append the masquerade domain. Anything else is an error.
      */
 
-    at = end + 1;
+    c++;
+    if (*c == '@') {
+        c++;
 
-    if (*at == '@') {
-        start = at + 1;
-
-        if (*start == '[') {
-            if ((end = token_domain_literal(start)) == NULL) {
-                return (0);
+        if (*c == '[') {
+            if ((c = token_domain_literal(c)) == NULL) {
+                return SIMTA_ERR;
             }
 
         } else {
-            if ((end = token_dot_atom(start)) == NULL) {
-                return (0);
+            if ((c = token_domain(c)) == NULL) {
+                return SIMTA_ERR;
             }
         }
 
-        eol = end + 1;
-
-        if (*eol != '\0') {
-            return (0);
+        if (*(c + 1) != '\0') {
+            return SIMTA_ERR;
         }
 
-    } else if (*at == '\0') {
-        buf = yaslnew(start, end - start + 1);
-        buf = yaslcatprintf(buf, "@%s", simta_config_str("core.masquerade"));
-
-        free(*addr);
-        *addr = simta_strdup(buf);
-        yaslfree(buf);
-
+    } else if (*c == '\0') {
+        *addr = yaslcatprintf(*addr, "@%s", masquerade);
     } else {
-        return (0);
+        return SIMTA_ERR;
     }
 
-    return (1);
+    return SIMTA_OK;
 }
 
 
@@ -1421,14 +1389,14 @@ token_domain_literal(char *i) {
 }
 
 
-static int
+static bool
 is_dot_atom_text(int c) {
     if (isalpha(c) != 0) {
-        return (1);
+        return true;
     }
 
     if (isdigit(c) != 0) {
-        return (1);
+        return true;
     }
 
     switch (c) {
@@ -1453,10 +1421,10 @@ is_dot_atom_text(int c) {
     case '}':
     case '~':
     case '.':
-        return (1);
+        return true;
 
     default:
-        return (0);
+        return false;
     }
 }
 
@@ -1464,17 +1432,21 @@ is_dot_atom_text(int c) {
 char *
 token_domain(char *i) {
     if ((isalpha(*i) == 0) && (isdigit(*i) == 0)) {
-        return (NULL);
+        return NULL;
     }
 
     for (;;) {
         if ((*i == '.') && (*(i + 1) == '.')) {
-            return (NULL);
+            return NULL;
         }
 
         if ((isalpha(*(i + 1)) == 0) && (isdigit(*(i + 1)) == 0) &&
                 (*(i + 1) != '.') && (*(i + 1) != '-')) {
-            return (i);
+            /* rewind to the last letter or digit */
+            while (*i == '.' || *i == '-') {
+                i--;
+            }
+            return i;
         }
 
         i++;
@@ -1483,14 +1455,41 @@ token_domain(char *i) {
 
 
 char *
-token_dot_atom(char *start) {
-    if (is_dot_atom_text(*start) == 0) {
-        return (NULL);
+token_dot_atom_text(char *start) {
+    /* RFC 5322 3.2.3. Atom
+     *
+     *    dot-atom-text   =   1*atext *("." 1*atext)
+     *
+     * RFC 5321 4.1.2. Command Argument Syntax
+     *
+     *    Dot-string     = Atom *("."  Atom)
+     *    Atom           = 1*atext
+     */
+
+    char *ret = NULL;
+
+    if (!is_dot_atom_text(*start)) {
+        return NULL;
+    }
+
+    /* A dot-string cannot start with '.' */
+    if (*start == '.') {
+        return NULL;
     }
 
     for (;;) {
-        if (is_dot_atom_text(*(start + 1)) == 0) {
-            return (start);
+        /* A '.' on its own does not extend the dot-string. */
+        if (*start != '.') {
+            ret = start;
+        }
+
+        if (!is_dot_atom_text(*(start + 1))) {
+            return ret;
+        }
+
+        /* '.' must be followed by atext, not another '.' */
+        if (*start == '.' && *(start + 1) == '.') {
+            return ret;
         }
 
         start++;
@@ -1549,7 +1548,7 @@ string_address_parse(struct string_address *sa) {
 
     for (;;) {
         if ((*(sa->sa_start) != '"') && (*(sa->sa_start) != '<')) {
-            if ((end = token_dot_atom(sa->sa_start)) == NULL) {
+            if ((end = token_dot_atom_text(sa->sa_start)) == NULL) {
                 return (NULL);
             }
 
@@ -1592,7 +1591,7 @@ string_address_parse(struct string_address *sa) {
                 }
 
             } else {
-                if ((end = token_dot_atom(sa->sa_start)) == NULL) {
+                if ((end = token_dot_atom_text(sa->sa_start)) == NULL) {
                     return (NULL);
                 }
             }

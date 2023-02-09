@@ -847,7 +847,7 @@ f_mail(struct receive_data *r) {
     if ((r->r_ac >= 3) && (strcasecmp(r->r_av[ 1 ], "FROM:") == 0)) {
         /* Incorrect, but people are bad at standards: "MAIL FROM: <foo>" */
         if (parse_emailaddr(RFC_821_MAIL_FROM, r->r_av[ 2 ], &addr, &domain) !=
-                0) {
+                SIMTA_OK) {
             return (f_mail_usage(r));
         }
         parameters = 3;
@@ -859,7 +859,7 @@ f_mail(struct receive_data *r) {
 
         /* Correct: "MAIL FROM:<foo>" */
         if (parse_emailaddr(RFC_821_MAIL_FROM, r->r_av[ 1 ] + strlen("FROM:"),
-                    &addr, &domain) != 0) {
+                    &addr, &domain) != SIMTA_OK) {
             return (f_mail_usage(r));
         }
         parameters = 2;
@@ -1164,7 +1164,7 @@ f_rcpt(struct receive_data *r) {
     if ((r->r_ac >= 3) && (strcasecmp(r->r_av[ 1 ], "TO:") == 0)) {
         /* Technically incorrect: "RCPT TO: <foo>" */
         if (parse_emailaddr(RFC_821_RCPT_TO, r->r_av[ 2 ], &addr, &domain) !=
-                0) {
+                SIMTA_OK) {
             return f_rcpt_usage(r);
         }
 
@@ -1177,7 +1177,7 @@ f_rcpt(struct receive_data *r) {
 
         /* Correct: "RCPT TO:<foo>" */
         if (parse_emailaddr(RFC_821_RCPT_TO, r->r_av[ 1 ] + strlen("TO:"),
-                    &addr, &domain) != 0) {
+                    &addr, &domain) != SIMTA_OK) {
             return f_rcpt_usage(r);
         }
 

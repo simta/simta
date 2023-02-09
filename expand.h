@@ -72,8 +72,9 @@ struct exp_link {
 
 struct exp_addr {
     struct exp_addr    *e_addr_next;
-    char               *e_addr;    /* address string */
-    char               *e_addr_at; /* char the email addresses @ */
+    char               *e_addr; /* address string */
+    yastr               e_addr_localpart;
+    yastr               e_addr_domain;
     char               *e_addr_from;
     struct envelope    *e_addr_errors; /* address error handle */
     const ucl_object_t *e_addr_parent_rule;

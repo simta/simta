@@ -833,6 +833,8 @@ cleanup1:
         }
 #endif
 
+        yaslfree(e_addr->e_addr_localpart);
+        yaslfree(e_addr->e_addr_domain);
         free(e_addr->e_addr);
         free(e_addr->e_addr_from);
         free(e_addr);

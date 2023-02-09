@@ -8,6 +8,7 @@
 
 #include "line_file.h"
 #include "ll.h"
+#include "simta.h"
 
 #define STRING_SEEN_BEFORE "SIMTA-Seen-Before"
 
@@ -44,19 +45,19 @@ struct receive_headers {
 
 
 /* public */
-int    parse_emailaddr(int, char *, char **, char **);
-yastr *parse_addr_list(yastr, size_t *, enum address_list_syntax);
-char  *skip_cws(char *);
-char  *token_domain_literal(char *);
-char  *token_domain(char *);
-char  *token_quoted_string(char *);
-char  *token_dot_atom(char *);
-int    header_text(int, char *, struct receive_headers *, char **);
-int    header_check(struct receive_headers *, bool, bool, bool);
-int    header_file_out(struct line_file *, FILE *);
-bool   is_emailaddr(char *);
-int    correct_emailaddr(char **);
-yastr  rfc5322_timestamp();
+simta_result parse_emailaddr(int, char *, char **, char **);
+yastr       *parse_addr_list(yastr, size_t *, enum address_list_syntax);
+char        *skip_cws(char *);
+char        *token_domain_literal(char *);
+char        *token_domain(char *);
+char        *token_quoted_string(char *);
+char        *token_dot_atom_text(char *);
+int          header_text(int, char *, struct receive_headers *, char **);
+int          header_check(struct receive_headers *, bool, bool, bool);
+int          header_file_out(struct line_file *, FILE *);
+bool         is_emailaddr(char *);
+simta_result correct_emailaddr(yastr *, const char *);
+yastr        rfc5322_timestamp();
 struct string_address *string_address_init(char *);
 void                   string_address_free(struct string_address *);
 char                  *string_address_parse(struct string_address *);

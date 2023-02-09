@@ -56,7 +56,7 @@ int
 main(int argc, char *argv[]) {
     SNET                  *snet_stdin;
     char                  *sender = NULL;
-    char                  *addr;
+    yastr                  addr;
     yastr                  daytime = NULL;
     char                  *line = NULL;
     yastr                  buf;
@@ -211,16 +211,17 @@ main(int argc, char *argv[]) {
 
     /* optind = first to-address */
     for (x = optind; x < argc; x++) {
-        addr = simta_strdup(argv[ x ]);
+        addr = yaslauto(argv[ x ]);
 
-        if (correct_emailaddr(&addr) == 0) {
+        if (correct_emailaddr(&addr, simta_config_str("core.masquerade")) !=
+                SIMTA_OK) {
             fprintf(stderr, "Invalid email address: %s\n", addr);
             exit(EX_DATAERR);
         }
 
         env_recipient(env, addr);
 
-        free(addr);
+        yaslfree(addr);
     }
 
     /* need to read stdin in a line-oriented fashon */

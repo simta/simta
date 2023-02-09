@@ -100,19 +100,19 @@ static bool simta_ldap_is_objectclass(
         struct simta_ldap *, LDAPMessage *, const char *);
 static yastr simta_ldap_dn_name(struct simta_ldap *, LDAPMessage *);
 static int   simta_ldap_name_search(struct simta_ldap *, struct expand *,
-          struct exp_addr *, char *, char *, int);
+          struct exp_addr *, const char *, const char *, int);
 static struct envelope *simta_ldap_envelope_from_attr(struct simta_ldap *,
         LDAPMessage *, struct envelope *, const char *, const char *);
 static int  simta_ldap_permitted_create(struct exp_addr *, struct berval **);
 static int  simta_ldap_expand_group(struct simta_ldap *, struct expand *,
          struct exp_addr *, int, LDAPMessage *);
 static void do_noemail(
-        struct simta_ldap *, struct exp_addr *, char *, LDAPMessage *);
+        struct simta_ldap *, struct exp_addr *, const char *, LDAPMessage *);
 static void do_ambiguous(
-        struct simta_ldap *, struct exp_addr *, char *, LDAPMessage *);
+        struct simta_ldap *, struct exp_addr *, const char *, LDAPMessage *);
 static bool simta_ldap_check_autoreply(struct simta_ldap *, LDAPMessage *);
 static int  simta_ldap_process_entry(struct simta_ldap *, struct expand *,
-         struct exp_addr *, int, LDAPMessage *, char *);
+         struct exp_addr *, int, LDAPMessage *, const char *);
 static int  simta_ldap_dn_expand(
          struct simta_ldap *, struct expand *, struct exp_addr *);
 
@@ -656,10 +656,10 @@ simta_ldap_is_objectclass(
 }
 
 static yastr
-simta_ldap_string(char *filter, char *user, char *domain) {
-    yastr buf = NULL;
-    char *p;
-    char *insert;
+simta_ldap_string(char *filter, const char *user, const char *domain) {
+    yastr       buf = NULL;
+    char       *p;
+    const char *insert;
 
     buf = yaslMakeRoomFor(yaslempty(), strlen(filter));
     p = filter;
@@ -762,7 +762,7 @@ simta_address_type(char *address, const ucl_object_t *rule) {
 
 
 static void
-do_ambiguous(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
+do_ambiguous(struct simta_ldap *ld, struct exp_addr *e_addr, const char *addr,
         LDAPMessage *res) {
     int             idx;
     yastr           rdn;
@@ -825,7 +825,7 @@ do_ambiguous(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
 
 
 static void
-do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, char *addr,
+do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, const char *addr,
         LDAPMessage *res) {
     yastr           rdn;
     struct berval **vals;
@@ -975,7 +975,8 @@ simta_ldap_retry(struct simta_ldap *ld) {
 
 
 simta_address_status
-simta_ldap_address_local(const ucl_object_t *rule, char *name, char *domain) {
+simta_ldap_address_local(
+        const ucl_object_t *rule, const char *name, const char *domain) {
     yastr                    dup_name;
     simta_address_status     rc = ADDRESS_NOT_FOUND;
     yastr                    search_string;
@@ -1554,7 +1555,8 @@ simta_ldap_check_autoreply(struct simta_ldap *ld, LDAPMessage *entry) {
 
 static int
 simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
-        struct exp_addr *e_addr, int type, LDAPMessage *entry, char *addr) {
+        struct exp_addr *e_addr, int type, LDAPMessage *entry,
+        const char *addr) {
     struct berval **values = NULL;
     struct berval **uid = NULL;
     int             retval = ADDRESS_EXCLUDE;
@@ -1665,7 +1667,8 @@ error:
 
 static int
 simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
-        struct exp_addr *e_addr, char *addr, char *domain, int addrtype) {
+        struct exp_addr *e_addr, const char *addr, const char *domain,
+        int addrtype) {
     int                      rc = ADDRESS_NOT_FOUND;
     int                      match = 0;
     yastr                    search_string;
@@ -1877,7 +1880,6 @@ simta_ldap_dn_expand(
 int
 simta_ldap_expand(
         const ucl_object_t *rule, struct expand *exp, struct exp_addr *e_addr) {
-    char              *domain;   /* points to domain in address */
     yastr              name;     /* clone of incoming name */
     int                nametype; /* Type of Groupname -- owner, member... */
     int                rc;       /* Universal return code */
@@ -1895,11 +1897,7 @@ simta_ldap_expand(
         return simta_ldap_dn_expand(ld, exp, e_addr);
     }
 
-    assert(e_addr->e_addr_at != NULL);
-
-    name = yaslnew(e_addr->e_addr, e_addr->e_addr_at - e_addr->e_addr);
-    domain = e_addr->e_addr_at + 1;
-
+    name = yasldup(e_addr->e_addr_localpart);
     simta_ldap_unescape(name);
 
     /*
@@ -1907,7 +1905,8 @@ simta_ldap_expand(
     ** and search again
     */
     nametype = simta_address_type(name, rule);
-    rc = simta_ldap_name_search(ld, exp, e_addr, name, domain, nametype);
+    rc = simta_ldap_name_search(
+            ld, exp, e_addr, name, e_addr->e_addr_domain, nametype);
     yaslfree(name);
     return rc;
 }
