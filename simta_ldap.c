@@ -834,7 +834,8 @@ do_noemail(struct simta_ldap *ld, struct exp_addr *e_addr, const char *addr,
     size_t          tok_count;
 
     if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR, addr,
-                ": User has no email address registered.\n", NULL) != 0) {
+                ": User does not have a valid email forwarding address.\n",
+                NULL) != 0) {
         return;
     }
 
@@ -1040,8 +1041,9 @@ simta_ldap_address_local(
         }
 
         if (simta_ldap_is_objectclass(ld, entry, "person")) {
-            if ((vals = ldap_get_values_len(
-                         ld->ldap_ld, entry, ld->ldap_mailfwdattr)) == NULL) {
+            if (((vals = ldap_get_values_len(
+                          ld->ldap_ld, entry, ld->ldap_mailfwdattr)) == NULL) &&
+                    !simta_ldap_check_autoreply(ld, entry)) {
                 rc = ADDRESS_NOT_FOUND;
             } else {
                 ldap_value_free_len(vals);
@@ -1459,10 +1461,11 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
 
             if (strchr(buf, '@') != NULL) {
                 if ((type == LDS_GROUP_MEMBERS) || (type == LDS_USER)) {
-                    rc = address_string_recipients(exp, buf, e_addr, senderbuf);
+                    rc = address_string_recipients(
+                            exp, buf, e_addr, senderbuf, NULL);
                 } else {
                     rc = address_string_recipients(
-                            exp, buf, e_addr, e_addr->e_addr_from);
+                            exp, buf, e_addr, e_addr->e_addr_from, NULL);
                 }
 
                 if (rc != SIMTA_OK) {
@@ -1561,44 +1564,20 @@ simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
     struct berval **uid = NULL;
     int             retval = ADDRESS_EXCLUDE;
     yastr           buf = NULL;
+    int             address_count = 0;
 
     if (simta_ldap_is_objectclass(ld, entry, "group")) {
         return (simta_ldap_expand_group(ld, exp, e_addr, type, entry));
     } else if (simta_ldap_is_objectclass(ld, entry, "person")) {
         /* get individual's email address(es) */
         if ((values = ldap_get_values_len(
-                     ld->ldap_ld, entry, ld->ldap_mailfwdattr)) == NULL) {
-            /*
-            ** No mailforwardingaddress
-            ** Depending on if we're expanding a group
-            ** Bounce it with the appropriate message.
-            */
-            if (e_addr->e_addr_type != ADDRESS_TYPE_LDAP) {
-                do_noemail(ld, e_addr, addr, entry);
-            } else {
-                if ((e_addr->e_addr_errors->e_flags &
-                            ENV_FLAG_SUPPRESS_NO_EMAIL) == 0) {
-                    if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR, addr,
-                                " : Group member exists but does not have an "
-                                "email address",
-                                "\n") != 0) {
-                        syslog(LOG_ERR,
-                                "Expand.LDAP env <%s>: <%s> "
-                                "Failed building bounce message: no email",
-                                exp->exp_env->e_id, e_addr->e_addr);
-                        retval = ADDRESS_SYSERROR;
-                        goto error;
-                    }
-                }
-            }
-
-        } else {
+                     ld->ldap_ld, entry, ld->ldap_mailfwdattr)) != NULL) {
             buf = yaslempty();
             for (int i = 0; values[ i ] != NULL; i++) {
                 yaslclear(buf);
                 buf = yaslcatlen(buf, values[ i ]->bv_val, values[ i ]->bv_len);
                 if (address_string_recipients(exp, buf, e_addr,
-                            e_addr->e_addr_from) != SIMTA_OK) {
+                            e_addr->e_addr_from, &address_count) != SIMTA_OK) {
                     syslog(LOG_ERR,
                             "Expand.LDAP env <%s>: <%s>"
                             "failed adding mailforwardingaddress %s",
@@ -1621,11 +1600,11 @@ simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
             }
 
             /*
-            * If the user is on vacation, send a copy of the mail to
-            * the vacation server.  The address is constructed from
-            * the vacationhost (specified in the config file) and
-            * the uid.
-            */
+             * If the user is on vacation, send a copy of the mail to
+             * the vacation server.  The address is constructed from
+             * the vacationhost (specified in the config file) and
+             * the uid.
+             */
             if (simta_ldap_check_autoreply(ld, entry)) {
                 if ((uid = ldap_get_values_len(ld->ldap_ld, entry, "uid")) !=
                         NULL) {
@@ -1633,7 +1612,10 @@ simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
                     buf = yaslcatprintf(buf, "@%s", ld->ldap_autoreply_host);
                     if (add_address(exp, buf, e_addr->e_addr_errors,
                                 ADDRESS_TYPE_EMAIL, e_addr->e_addr_from,
-                                false) != SIMTA_OK) {
+                                false) == SIMTA_OK) {
+                        /* working autoreply counts as a valid forward */
+                        address_count++;
+                    } else {
                         syslog(LOG_ERR,
                                 "Expand.LDAP env <%s>: <%s>:"
                                 "failed adding autoreply address: %s",
@@ -1647,6 +1629,28 @@ simta_ldap_process_entry(struct simta_ldap *ld, struct expand *exp,
                 }
             }
         }
+
+        if (address_count == 0) {
+            if (e_addr->e_addr_type != ADDRESS_TYPE_LDAP) {
+                do_noemail(ld, e_addr, addr, entry);
+            } else {
+                if ((e_addr->e_addr_errors->e_flags &
+                            ENV_FLAG_SUPPRESS_NO_EMAIL) == 0) {
+                    if (bounce_text(e_addr->e_addr_errors, TEXT_ERROR, addr,
+                                " : Group member exists but does not have a "
+                                "valid email forwarding address.\n",
+                                NULL) != 0) {
+                        syslog(LOG_ERR,
+                                "Expand.LDAP env <%s>: <%s> "
+                                "Failed building bounce message: no email",
+                                exp->exp_env->e_id, e_addr->e_addr);
+                        retval = ADDRESS_SYSERROR;
+                        goto error;
+                    }
+                }
+            }
+        }
+
     } else {
         /* Neither a group nor a person */
         syslog(LOG_ERR,

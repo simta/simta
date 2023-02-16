@@ -356,6 +356,53 @@ objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
 suppressnoemailerror: TRUE
 
+dn: uid=invalidmfasingle,ou=People,dc=example,dc=com
+cn: bad mfa
+givenName: Testament
+sn: User
+uid: invalidmfasingle
+mail: invalidmfasingle@ldap.example.com
+mailForwardingAddress: invalidmfa@forwarded.example.com.
+objectClass: umichPerson
+entityID: 9001
+onVacation: FALSE
+
+dn: uid=invalidmfa,ou=People,dc=example,dc=com
+cn: bad mfa
+givenName: Testament
+sn: User
+uid: invalidmfa
+mail: invalidmfa@ldap.example.com
+mailForwardingAddress: invalidmfa@forwarded.example.com.
+mailForwardingAddress: invalidmfa.@forwarded.example.com
+mailForwardingAddress: invalidmfa@forwarded..example.com
+objectClass: umichPerson
+entityID: 9001
+onVacation: FALSE
+
+dn: cn=invalidmfa group,ou=Groups,dc=example,dc=com
+member: uid=invalidmfa,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+suppressnoemailerror: FALSE
+
+dn: cn=invalidmfa suppress,ou=Groups,dc=example,dc=com
+member: uid=invalidmfa,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+suppressnoemailerror: TRUE
+
+dn: uid=invalidmfavac,ou=People,dc=example,dc=com
+cn: bad mfa good vac
+givenName: Testament
+sn: User
+uid: invalidmfavac
+mail: invalidmfavac@ldap.example.com
+mailForwardingAddress: invalidmfa@forwarded.example.com.
+objectClass: umichPerson
+entityID: 9001
+onVacation: TRUE
+
 dn: uid=shadow,ou=People,dc=example,dc=com
 cn: Test User
 cn: shadowed alias

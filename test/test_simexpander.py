@@ -819,11 +819,26 @@ def test_expand_ldap_group_member_nomfa(run_simexpander, req_ldapserver):
     assert len(res['parsed']) == 1
     assert res['parsed'][0]['recipients'] == ['nomfa-errors@ldap.example.com']
     assert res['parsed'][0]['sender'] == ''
-    assert 'Group member exists but does not have an email address' in ''.join(res['parsed'][0]['bounce_lines'])
+    assert 'Group member exists but does not have a valid email forwarding address.' in ''.join(res['parsed'][0]['bounce_lines'])
 
 
-def test_expand_ldap_group_member_nomfa_suppress(run_simexpander, req_ldapserver):
-    res = run_simexpander('nomfa.suppress@ldap.example.com')
+def test_expand_ldap_group_member_invalidmfa(run_simexpander, req_ldapserver):
+    res = run_simexpander('invalidmfa.group@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['invalidmfa.group-errors@ldap.example.com']
+    assert res['parsed'][0]['sender'] == ''
+    assert 'Group member exists but does not have a valid email forwarding address.' in ''.join(res['parsed'][0]['bounce_lines'])
+
+
+@pytest.mark.parametrize(
+    'target',
+    [
+        'nomfa.suppress@ldap.example.com',
+        'invalidmfa.suppress@ldap.example.com',
+    ]
+)
+def test_expand_ldap_group_member_nomfa_suppress(run_simexpander, req_ldapserver, target):
+    res = run_simexpander(target)
     assert res['parsed'] == []
 
 
@@ -832,6 +847,8 @@ def test_expand_ldap_group_member_nomfa_suppress(run_simexpander, req_ldapserver
     [
         'flowerysong@ldap.example.com',
         'gnosyrewolf@ldap.example.com',
+        'invalidmfa@ldap.example.com',
+        'invalidmfasingle@ldap.example.com',
     ],
 )
 def test_expand_ldap_nomfa(run_simexpander, req_ldapserver, target):
@@ -839,7 +856,13 @@ def test_expand_ldap_nomfa(run_simexpander, req_ldapserver, target):
     assert len(res['parsed']) == 1
     assert res['parsed'][0]['recipients'] == ['sender@expansion.test']
     assert res['parsed'][0]['sender'] == ''
-    assert "User has no email address registered" in ''.join(res['parsed'][0]['bounce_lines'])
+    assert 'User does not have a valid email forwarding address.' in ''.join(res['parsed'][0]['bounce_lines'])
+
+
+def test_expand_ldap_nomfa_onvacation(run_simexpander, req_ldapserver):
+    res = run_simexpander('invalidmfavac@ldap.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == ['invalidmfavac@vacation.mail.example.com']
 
 
 def test_expand_ldap_ambiguous(run_simexpander, req_ldapserver):

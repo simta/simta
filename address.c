@@ -62,8 +62,8 @@ address_bounce_create(struct expand *exp) {
 
 
 simta_result
-address_string_recipients(
-        struct expand *exp, char *line, struct exp_addr *e_addr, char *from) {
+address_string_recipients(struct expand *exp, char *line,
+        struct exp_addr *e_addr, char *from, int *count) {
     yastr *split;
     size_t tok_count;
 
@@ -78,6 +78,9 @@ address_string_recipients(
                         ADDRESS_TYPE_EMAIL, from, false) != SIMTA_OK) {
                 yaslfreesplitres(split, tok_count);
                 return SIMTA_ERR;
+            }
+            if (count) {
+                (*count)++;
             }
         }
 
@@ -512,8 +515,8 @@ password_expand(
             continue;
         }
 
-        if (address_string_recipients(
-                    exp, split[ i ], e_addr, e_addr->e_addr_from) != SIMTA_OK) {
+        if (address_string_recipients(exp, split[ i ], e_addr,
+                    e_addr->e_addr_from, NULL) != SIMTA_OK) {
             /* add_address syslogs errors */
             ret = ADDRESS_SYSERROR;
             goto cleanup_forward;
