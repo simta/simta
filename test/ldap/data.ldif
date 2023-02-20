@@ -1933,6 +1933,40 @@ owner: uid=perm-mod-autoreplyowner,ou=People,dc=example,dc=com
 member: uid=perm-mod-autoreplymember0,ou=People,dc=example,dc=com
 member: uid=perm-mod-autoreplymember1,ou=People,dc=example,dc=com
 
+dn: uid=perm-formatowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-format owner
+sn: owner
+mail: perm-formatowner@example.com
+uid: perm-formatowner
+mailForwardingAddress: perm-formatowner@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-formatmember0,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-format member0
+sn: member0
+mail: perm-formatmember0@example.com
+uid: perm-formatmember0
+mailForwardingAddress: perm-formatmember0@forwarded.example.com
+entityID: 90001
+
+dn: uid=perm-formatnonowner,ou=People,dc=example,dc=com
+objectClass: umichPerson
+cn: perm-format nonowner
+sn: nonowner
+mail: perm-formatnonowner@example.com
+uid: perm-formatnonowner
+mailForwardingAddress: perm-formatnonowner@forwarded.example.com
+entityID: 90001
+
+dn: cn=perm format,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+umichPermittedSenders: "mbox list" <perm-formatnonowner@example.com>
+umichReceiveDisallowedMessages: "mbox list" <perm-formatnonowner@example.com>
+owner: uid=perm-formatowner,ou=People,dc=example,dc=com
+member: uid=perm-formatmember0,ou=People,dc=example,dc=com
+
 dn: cn=external format,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com

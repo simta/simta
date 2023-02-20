@@ -1963,6 +1963,23 @@ def test_expand_ldap_group_perm_mod_autoreply_permitted(run_simexpander, req_lda
     ]
 
 
+def test_expand_ldap_group_mod_format(run_simexpander, req_ldapserver):
+    res = run_simexpander('perm.format@ldap-new.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['sender'] == 'perm.format-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-formatnonowner@example.com']
+
+
+def test_expand_ldap_group_permitted_format(run_simexpander, req_ldapserver):
+    res = run_simexpander([
+        '-F', 'perm-formatnonowner@example.com',
+        'perm.format@ldap-new.example.com',
+    ])
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['sender'] == 'perm.format-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-formatmember0@forwarded.example.com']
+
+
 def test_expand_ldap_group_external_format(run_simexpander, req_ldapserver):
     res = run_simexpander('external.format@ldap.example.com')
     assert len(res['parsed']) == 1
