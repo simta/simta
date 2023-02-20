@@ -118,7 +118,7 @@ ino_t         env_dfile_copy(struct envelope *, const char *, const char *);
 ino_t         env_dfile_wrap(struct envelope *, const char *, const char *);
 int           env_truncate_and_unlink(struct envelope *, SNET *);
 simta_result  env_parole(struct envelope *);
-int           env_string_recipients(struct envelope *, char *);
+simta_result  env_string_recipients(struct envelope *, char *);
 int           sender_list_add(struct envelope *);
 yastr         env_dkim_sign(struct envelope *);
 int           env_dfile_open(struct envelope *);

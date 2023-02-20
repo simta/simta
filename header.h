@@ -27,13 +27,6 @@ struct rfc822_header {
     int                h_count;
 };
 
-struct string_address {
-    char *sa_string;
-    char *sa_start;
-    int   sa_swap;
-    char  sa_swap_char;
-};
-
 struct receive_headers {
     int               r_state;
     int               r_received_count;
@@ -58,10 +51,7 @@ int          header_file_out(struct line_file *, FILE *);
 bool         is_emailaddr(char *);
 simta_result correct_emailaddr(yastr *, const char *);
 yastr        rfc5322_timestamp();
-struct string_address *string_address_init(char *);
-void                   string_address_free(struct string_address *);
-char                  *string_address_parse(struct string_address *);
-void                   receive_headers_free(struct receive_headers *);
+void         receive_headers_free(struct receive_headers *);
 
 #endif /* SIMTA_HEADER_H */
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

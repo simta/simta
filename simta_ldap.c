@@ -1098,7 +1098,7 @@ simta_ldap_envelope_from_attr(struct simta_ldap *ld, LDAPMessage *entry,
                 yaslclear(buf);
                 buf = yaslcatlen(buf, attr_values[ i ]->bv_val,
                         attr_values[ i ]->bv_len);
-                if (env_string_recipients(env, buf) != 0) {
+                if (env_string_recipients(env, buf) != SIMTA_OK) {
                     env_rcpt_free(env);
                     goto error;
                 }
@@ -1265,7 +1265,7 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
                     buf = yaslcatlen(
                             buf, mailvals[ i ]->bv_val, mailvals[ i ]->bv_len);
                     if (env_string_recipients(
-                                e_addr->e_addr_env_gmailfwd, buf) != 0) {
+                                e_addr->e_addr_env_gmailfwd, buf) != SIMTA_OK) {
                         env_free(e_addr->e_addr_env_gmailfwd);
                         e_addr->e_addr_env_gmailfwd = NULL;
                         goto error;

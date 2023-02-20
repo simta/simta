@@ -1385,22 +1385,27 @@ env_parole(struct envelope *env) {
 }
 
 
-int
+simta_result
 env_string_recipients(struct envelope *env, char *line) {
-    struct string_address *sa;
-    char                  *addr;
+    yastr *split;
+    size_t tok_count;
 
-    sa = string_address_init(line);
-
-    while ((addr = string_address_parse(sa)) != NULL) {
-        if (env_recipient(env, addr) != 0) {
-            string_address_free(sa);
-            return (1);
+    split = parse_addr_list(line, &tok_count, HEADER_MAILBOX_LIST);
+    if (split) {
+        for (int i = 0; i < tok_count; i++) {
+            /* parse_addr_list doesn't guarantee that it returns valid addresses */
+            if (!is_emailaddr(split[ i ])) {
+                continue;
+            }
+            if (env_recipient(env, split[ i ]) != 0) {
+                yaslfreesplitres(split, tok_count);
+                return SIMTA_ERR;
+            }
         }
     }
 
-    string_address_free(sa);
-
-    return (0);
+    yaslfreesplitres(split, tok_count);
+    return SIMTA_OK;
 }
+
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
