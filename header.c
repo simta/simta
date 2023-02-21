@@ -1204,7 +1204,7 @@ parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
 
     while (*l != '\0') {
         if ((len = cfws_len(l)) < 0) {
-            syslog(LOG_INFO, "parse_addr_list: cfws_len failed: %s", l);
+            simta_debuglog(1, "parse_addr_list: cfws_len failed: %s", l);
             goto error;
         } else {
             l += len;
@@ -1214,13 +1214,13 @@ parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
             addr++;
             l++;
             if ((tmp = parse_addr_spec(l, &len)) == NULL) {
-                syslog(LOG_INFO, "parse_addr_list: parse_addr_spec failed: %s",
-                        l);
+                simta_debuglog(
+                        1, "parse_addr_list: parse_addr_spec failed: %s", l);
                 goto error;
             }
             l += len;
             if (*l != '>') {
-                syslog(LOG_INFO, "parse_addr_list: expected >: %s", l);
+                simta_debuglog(1, "parse_addr_list: expected >: %s", l);
                 goto error;
             }
             l++;
@@ -1231,7 +1231,7 @@ parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
              */
             if (*(l + len) == '@') {
                 if ((tmp = parse_addr_spec(l, &len)) == NULL) {
-                    syslog(LOG_INFO,
+                    simta_debuglog(1,
                             "parse_addr_list: parse_addr_spec failed: %s", l);
                     /* This might just be a stupid client using an
                      * unquoted quoted-string as the display name, so we
@@ -1249,13 +1249,14 @@ parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
                  * is invalid but distressingly common.
                  */
                 if ((len = cfws_len(l)) < 0) {
-                    syslog(LOG_INFO, "parse_addr_list: cfws_len failed: %s", l);
+                    simta_debuglog(
+                            1, "parse_addr_list: cfws_len failed: %s", l);
                     goto error;
                 } else {
                     l += len;
                 }
                 if ((*l != ',') && (*l != '\0')) {
-                    syslog(LOG_INFO,
+                    simta_debuglog(1,
                             "parse_addr_list: discarding "
                             "address-like string %s from %s",
                             tmp, list);
@@ -1266,7 +1267,7 @@ parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
             }
         } else if (*l == ',') {
             if (addr != 1) {
-                syslog(LOG_INFO, "parse_addr_list: bad list: %s", l);
+                simta_debuglog(1, "parse_addr_list: bad list: %s", l);
                 goto error;
             }
             addr = 0;
@@ -1279,32 +1280,37 @@ parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
             mode = HEADER_ADDRESS_LIST;
             l++;
         } else if (*l != '\0') {
-            syslog(LOG_INFO, "parse_addr_list: unexpected char: %s", l);
+            simta_debuglog(1, "parse_addr_list: unexpected char: %s", l);
             goto error;
         }
 
         if (tmp) {
-            if (*count >= slots) {
-                slots *= 2;
-                mboxes = simta_realloc(mboxes, slots * sizeof(yastr));
+            if (!is_emailaddr(tmp)) {
+                simta_debuglog(1, "parse_addr_list: bad address %s", tmp);
+                yaslfree(tmp);
+            } else {
+                if (*count >= slots) {
+                    slots *= 2;
+                    mboxes = simta_realloc(mboxes, slots * sizeof(yastr));
+                }
+                mboxes[ *count ] = tmp;
+                (*count)++;
             }
-            mboxes[ *count ] = tmp;
-            (*count)++;
             tmp = NULL;
         }
     }
 
     if (addr != 1) {
-        syslog(LOG_INFO, "parse_addr_list: bad list");
+        simta_debuglog(1, "parse_addr_list: bad list");
         goto error;
     }
 
     if (*count > 0) {
-        return (mboxes);
+        return mboxes;
     }
 
     free(mboxes);
-    return (NULL);
+    return NULL;
 
 error:
     syslog(LOG_INFO, "parse_addr_list: error parsing %s", list);
@@ -1314,7 +1320,7 @@ error:
 
     yaslfreesplitres(mboxes, *count);
 
-    return (NULL);
+    return NULL;
 }
 
 char *

@@ -1393,10 +1393,6 @@ env_string_recipients(struct envelope *env, char *line) {
     split = parse_addr_list(line, &tok_count, HEADER_MAILBOX_LIST);
     if (split) {
         for (int i = 0; i < tok_count; i++) {
-            /* parse_addr_list doesn't guarantee that it returns valid addresses */
-            if (!is_emailaddr(split[ i ])) {
-                continue;
-            }
             if (env_recipient(env, split[ i ]) != 0) {
                 yaslfreesplitres(split, tok_count);
                 return SIMTA_ERR;

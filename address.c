@@ -70,10 +70,6 @@ address_string_recipients(struct expand *exp, char *line,
     split = parse_addr_list(line, &tok_count, HEADER_MAILBOX_LIST);
     if (split) {
         for (int i = 0; i < tok_count; i++) {
-            /* parse_addr_list doesn't guarantee that it returns valid addresses */
-            if (!is_emailaddr(split[ i ])) {
-                continue;
-            }
             if (add_address(exp, split[ i ], e_addr->e_addr_errors,
                         ADDRESS_TYPE_EMAIL, from, false) != SIMTA_OK) {
                 yaslfreesplitres(split, tok_count);
