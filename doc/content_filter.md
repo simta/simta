@@ -4,32 +4,56 @@ message.
 # Environment variables provided to the content filter
 
 ```
-SIMTA_DFILE                   path to message's Dfile
-SIMTA_TFILE                   path to message's tfile
-SIMTA_REMOTE_IP               IP address of remote host
-SIMTA_REMOTE_HOSTNAME         hostname of remote host
-SIMTA_REVERSE_LOOKUP          forward-confirmed reverse DNS status
-      REVERSE_MATCH               0
-      REVERSE_ERROR               1
-      REVERSE_UNKNOWN             2
-      REVERSE_MISMATCH            3
-      REVERSE_UNRESOLVED          4
-SIMTA_SMTP_MAIL_FROM          message's RFC5321.MailFrom
-SIMTA_SMTP_HELO               HELO/EHLO hostname given by remote host
-SIMTA_HEADER_FROM             message's RFC5322.From
-SIMTA_MID                     message's RFC5322.Message-ID
-SIMTA_UID                     message UID assigned by simta
-SIMTA_PID                     calling process's PID
-SIMTA_CID                     calling process's Connection ID
-SIMTA_WRITE_BEFORE_BANNER     whether the client wrote before the SMTP banner
-SIMTA_AUTH_ID                 authenticated identity, if any
-SIMTA_CHECKSUM                message checksum
-SIMTA_CHECKSUM_SIZE           number of bytes that were checksummed
-SIMTA_BODY_CHECKSUM           message body checksum
-SIMTA_BODY_CHECKSUM_SIZE      number of bytes that were checksummed
-SIMTA_BAD_HEADERS             result of cursory header validity check
-SIMTA_SPF_RESULT              result of SPF check
-SIMTA_DMARC_RESULT            result of DMARC check
+SIMTA_DFILE                 path to message's Dfile
+SIMTA_TFILE                 path to message's tfile
+SIMTA_REMOTE_IP             IP address of remote host
+SIMTA_REMOTE_HOSTNAME       hostname of remote host
+SIMTA_REVERSE_LOOKUP        forward-confirmed reverse DNS status
+    "0"                     REVERSE_MATCH
+    "1"                     REVERSE_ERROR
+    "2"                     REVERSE_UNKNOWN
+    "3"                     REVERSE_MISMATCH
+    "4"                     REVERSE_UNRESOLVED
+SIMTA_ACL_RESULT            result from the receive.connection.acl chain, if any
+    "accept"
+    "trust"
+SIMTA_SMTP_MAIL_FROM        message's RFC5321.MailFrom
+SIMTA_SMTP_HELO             AAHELO/EHLO hostname given by remote host
+SIMTA_HEADER_FROM           message's RFC5322.From
+SIMTA_MID                   message's RFC5322.Message-ID
+SIMTA_UID                   message UID assigned by simta
+SIMTA_PID                   calling process's PID
+SIMTA_CID                   calling process's Connection ID
+SIMTA_WRITE_BEFORE_BANNER   whether the client wrote before the SMTP banner
+    "0"                     no write
+    "1"                     write
+SIMTA_AUTH_ID               authenticated identity, if any
+SIMTA_CHECKSUM              message checksum
+SIMTA_CHECKSUM_SIZE         number of bytes that were checksummed
+SIMTA_BODY_CHECKSUM         message body checksum
+SIMTA_BODY_CHECKSUM_SIZE    number of body bytes that were checksummed
+SIMTA_BAD_HEADERS           result of cursory header validity check
+    "0"                     no bad headers
+    "1"                     header check failed
+SIMTA_SPF_RESULT            result of SPF check
+    "pass"
+    "fail"
+    "softfail"
+    "neutral"
+    "none"
+    "temperror"
+    "permerror"
+SIMTA_SPF_DOMAIN            RFC7208.MAILFROM (often RFC5321.MailFrom, but not always)
+SIMTA_DMARC_RESULT          result of DMARC check
+    "absent"
+    "none"
+    "reject"
+    "quarantine"
+    "pass"
+    "bestguesspass"
+    "syserror"
+SIMTA_DMARC_DOMAIN          domain used for DMARC check
+SIMTA_DKIM_DOMAINS          space-separated list of domains with valid DKIM signatures
 ```
 
 # Data returned from the content filter
