@@ -1,7 +1,12 @@
-2.2.1 (????-??-??)
+2.3.0 (2023-03-21)
     - fixed memory leak and logging problem in ACL code
     - fixed regression that added invalid addresses during expansion
-    - improved the algorithm that generates email addresses from LDAP group names
+    - improved the algorithm that generates email addresses from LDAP group
+      names
+    - improved RFC compliance of email address validation
+    - fixed LDAP bug where entries with no valid mail forwarding attributes
+      were not treated as entries with no mail forwarding, so mail was silently
+      dropped instead of bounced.
 
 2.2.0 (2022-12-12)
     - fixed spurious bounces from transient DNS errors
