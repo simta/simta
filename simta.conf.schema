@@ -630,10 +630,6 @@ properties {
                                 enum [ always, untrusted ]
                             }
                             message { type: string }
-                            acl {
-                                type: array
-                                items { "$ref": "#/definitions/acl" }
-                            }
                         }
                         required [ message ]
                         additionalProperties: false
