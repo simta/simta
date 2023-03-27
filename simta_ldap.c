@@ -65,6 +65,7 @@ struct simta_ldap {
     const char              *ldap_tls_cacert;
     const char              *ldap_binddn;
     const char              *ldap_bindpw;
+    const char              *ldap_acl_attr;
     const char              *ldap_autoreply_host;
     const char              *ldap_autoreply_attr;
     const char              *ldap_autoreply_start_attr;
@@ -1034,9 +1035,10 @@ simta_ldap_address_local(
     if (rc != ADDRESS_NOT_FOUND) {
         entry = ldap_first_entry(ld->ldap_ld, res);
 
-        /* FIXME: this should be configurable. */
-        if (!simta_ldap_bool(ld, entry, "realtimeblocklist")) {
-            rc = ADDRESS_OK_SPAM;
+        if (ld->ldap_acl_attr) {
+            if (!simta_ldap_bool(ld, entry, ld->ldap_acl_attr)) {
+                rc = ADDRESS_OK_SPAM;
+            }
         }
 
         if (simta_ldap_is_objectclass(ld, entry, "person")) {
@@ -2249,6 +2251,9 @@ simta_ldap_config(const ucl_object_t *rule) {
 
     ld->ldap_autoreply_end_attr = ucl_object_tostring(
             ucl_object_lookup_path(ld->ldap_rule, "attributes.autoreply_end"));
+
+    ld->ldap_acl_attr = ucl_object_tostring(ucl_object_lookup_path(
+            ld->ldap_rule, "attributes.additional_acls_flag"));
 
     /* check to see that ldap is configured correctly */
 

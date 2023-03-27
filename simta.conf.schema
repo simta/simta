@@ -188,6 +188,7 @@ definitions {
                     attributes {
                         type: object
                         properties {
+                            additional_acls_flag { type: string }
                             autoreply { type: string }
                             autoreply_end { type: string }
                             autoreply_start { type: string }
