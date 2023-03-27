@@ -247,7 +247,6 @@ expand(struct envelope *unexpanded_env) {
         } else {
             syslog(LOG_INFO, "Expand env <%s>: unpermitted group %s suppressed",
                     unexpanded_env->e_id, e_addr->e_addr);
-            /* FIXME: should this flag be more generic? */
             e_addr->e_addr_ldap_flags |= STATUS_LDAP_SUPPRESSOR;
             suppress_addrs(e_addr->e_addr_children, loop_color++);
         }
