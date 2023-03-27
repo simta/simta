@@ -59,7 +59,6 @@ struct envelope {
     ino_t                e_dinode;
     struct timeval       e_etime;
     bool                 e_8bitmime;
-    bool                 e_archive_only;
     bool                 e_bounceable;
     bool                 e_jailed;
     bool                 e_puntable;

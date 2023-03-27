@@ -2,6 +2,7 @@
     - added support for a secondary search constraint on LDAP searches
     - unconditionally enabled rdnpref (disambiguation using the RDN) for LDAP
       searches
+    - removed ancient, unused group forwarding experiment
 
 2.3.0 (2023-03-21)
     - fixed memory leak and logging problem in ACL code

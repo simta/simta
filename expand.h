@@ -50,14 +50,11 @@ struct expand_output {
 };
 
 struct expand {
-    struct envelope *exp_env;       /* original envelope */
-    struct exp_addr *exp_addr_head; /* list of expanded addresses */
-    struct exp_addr *exp_addr_tail;
-    struct exp_addr *exp_addr_cursor; /* cursor */
-    struct envelope *exp_errors;      /* error envelope list */
-#ifdef HAVE_LDAP
-    struct envelope *exp_gmailfwding;
-#endif /* HAVE_LDAP */
+    struct envelope    *exp_env;       /* original envelope */
+    struct exp_addr    *exp_addr_head; /* list of expanded addresses */
+    struct exp_addr    *exp_addr_tail;
+    struct exp_addr    *exp_addr_cursor; /* cursor */
+    struct envelope    *exp_errors;      /* error envelope list */
     const ucl_object_t *exp_current_rule;
     int                 exp_max_level;
     int                 exp_entries;
@@ -94,7 +91,6 @@ struct exp_addr {
     yastr              e_addr_preface;
     struct stab_entry *e_addr_ok;
     struct envelope   *e_addr_env_moderators;
-    struct envelope   *e_addr_env_gmailfwd;
     struct exp_link   *e_addr_parents;
     struct exp_link   *e_addr_children;
 #endif /* HAVE_LDAP */

@@ -268,66 +268,6 @@ expand(struct envelope *unexpanded_env) {
             }
             continue;
         }
-        if (e_addr->e_addr_env_gmailfwd != NULL) {
-            e_addr->e_addr_env_gmailfwd->e_archive_only = true;
-
-            if (simta_expand_debug != 0) {
-                printf("Group mail forwarding: %s\n", e_addr->e_addr);
-                env_stdout(e_addr->e_addr_env_gmailfwd);
-                continue;
-            }
-
-            sprintf(d_out, "%s/D%s", e_addr->e_addr_env_gmailfwd->e_dir,
-                    e_addr->e_addr_env_gmailfwd->e_id);
-            if (env_dfile_copy(e_addr->e_addr_env_gmailfwd, d_original, NULL) ==
-                    0) {
-                syslog(LOG_ERR, "Expand env <%s>: %s: env_dfile_copy failed",
-                        unexpanded_env->e_id,
-                        e_addr->e_addr_env_gmailfwd->e_id);
-                goto cleanup3;
-            }
-
-            simta_debuglog(2, "Expand env <%s>: group mail env %s dinode %d",
-                    unexpanded_env->e_id, e_addr->e_addr_env_gmailfwd->e_id,
-                    (int)e_addr->e_addr_env_gmailfwd->e_dinode);
-
-            sendermatch = !strcasecmp(unexpanded_env->e_mail,
-                    e_addr->e_addr_env_gmailfwd->e_mail);
-
-            n_rcpts = 0;
-            for (rcpt = e_addr->e_addr_env_gmailfwd->e_rcpt; rcpt != NULL;
-                    rcpt = rcpt->r_next) {
-                n_rcpts++;
-                if (sendermatch) {
-                    syslog(LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s>",
-                            unexpanded_env->e_id,
-                            e_addr->e_addr_env_gmailfwd->e_id, rcpt->r_rcpt,
-                            e_addr->e_addr_env_gmailfwd->e_mail);
-                } else {
-                    syslog(LOG_INFO,
-                            "Expand env <%s>: %s: To <%s> From <%s> (%s)",
-                            unexpanded_env->e_id,
-                            e_addr->e_addr_env_gmailfwd->e_id, rcpt->r_rcpt,
-                            e_addr->e_addr_env_gmailfwd->e_mail,
-                            unexpanded_env->e_mail);
-                }
-            }
-            syslog(LOG_INFO,
-                    "Expand env <%s>: %s: Expanded %d group mail forwarders",
-                    unexpanded_env->e_id, e_addr->e_addr_env_gmailfwd->e_id,
-                    n_rcpts);
-
-            if (env_outfile(e_addr->e_addr_env_gmailfwd) != SIMTA_OK) {
-                /* env_outfile syslogs errors */
-                if (unlink(d_out) != 0) {
-                    syslog(LOG_ERR, "Syserror: expand unlink %s: %m", d_out);
-                }
-                goto cleanup3;
-            }
-            env_out++;
-            queue_envelope(e_addr->e_addr_env_gmailfwd);
-            continue;
-        }
 
         if (e_addr->e_addr_requires_permission &&
                 !e_addr->e_addr_has_permission &&
@@ -750,9 +690,6 @@ expand(struct envelope *unexpanded_env) {
 
 cleanup5:
     cleanup_envelope_list(&exp.exp_errors);
-#ifdef HAVE_LDAP
-    cleanup_envelope_list(&exp.exp_gmailfwding);
-#endif /* HAVE_LDAP */
 
 cleanup4:
     for (eo = host_stab; eo != NULL; eo = eo->eo_next) {

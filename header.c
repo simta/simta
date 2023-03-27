@@ -520,12 +520,10 @@ header_remove(struct dll_entry *dentry, struct receive_headers *rh) {
 int
 header_check(struct receive_headers *rh, bool read_headers,
         bool correct_headers, bool simsend) {
-    struct stab_entry    *s;
     struct line          *l;
     struct rfc822_header *mh;
     struct dll_entry     *dentry;
     int                   ret = 0;
-    int                   len;
     int                   i;
     size_t                tok_count;
     yastr                 buf = NULL;
@@ -790,23 +788,6 @@ header_check(struct receive_headers *rh, bool read_headers,
         yasltrim(tmp, " \t");
         rh->r_env->e_subject = tmp;
         tmp = NULL;
-    }
-
-    /* SIMTA-Seen-Before: */
-    if (((dentry = dll_lookup(rh->r_headers_index, STRING_SEEN_BEFORE)) !=
-                NULL) &&
-            simta_config_bool("core.poison.enabled")) {
-        mh = dentry->dll_data;
-        for (s = mh->h_lines; s != NULL; s = s->st_next) {
-            tmp = header_string(s->st_data);
-            if ((len = cfws_len(tmp)) > 0) {
-                yaslrange(tmp, len, -1);
-            }
-            if (strcmp(tmp, simta_config_str("core.poison.slug")) == 0) {
-                rh->r_seen_before = simta_strdup(tmp);
-            }
-            yaslfree(tmp);
-        }
     }
 
 error:

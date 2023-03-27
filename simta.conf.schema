@@ -193,7 +193,6 @@ definitions {
                             autoreply_start { type: string }
                             external_address { type: string }
                             forwarding { type: string }
-                            group_forwarding { type: string }
                             mail { type: string }
                             moderators { type: string }
                             permitted_domains { type: string }

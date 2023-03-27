@@ -968,22 +968,6 @@ smtp_send(struct host_q *hq, struct deliver *d) {
         return (SMTP_OK);
     }
 
-    if (d->d_env->e_archive_only) {
-        /* send SIMTA-Seen-Before trace header for poison pill */
-        /* FIXME: is this really where we should do this? */
-        if ((rc = snet_writef(d->d_snet_smtp,
-                     "%s: %s id=%s origin=%s destination=%s "
-                     "smtp_destination=%s\r\n",
-                     STRING_SEEN_BEFORE, simta_config_str("core.poison.slug"),
-                     d->d_env->e_id, simta_hostname, hq->hq_hostname,
-                     hq->hq_smtp_hostname)) < 0) {
-            syslog(LOG_ERR,
-                    "Deliver.SMTP env <%s>: seen: snet_writef failed: %m",
-                    d->d_env->e_id);
-            return (SMTP_BAD_CONNECTION);
-        }
-    }
-
     if (strcmp(d->d_env->e_dir, simta_dir_fast) == 0) {
         simta_ucl_object_totimeval(
                 simta_config_obj("deliver.timeout.fast_data_session"),

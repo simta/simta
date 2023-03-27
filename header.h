@@ -10,8 +10,6 @@
 #include "ll.h"
 #include "simta.h"
 
-#define STRING_SEEN_BEFORE "SIMTA-Seen-Before"
-
 /* for struct receive_headers->r_state */
 #define R_HEADER_READ 0
 #define R_HEADER_END 1

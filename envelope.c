@@ -114,7 +114,6 @@ env_create(const char *dir, const char *id, const char *e_mail,
         env->e_dinode = parent->e_dinode;
         env->e_n_exp_level = parent->e_n_exp_level + 1;
         env->e_8bitmime = parent->e_8bitmime;
-        env->e_archive_only = parent->e_archive_only;
         env->e_bounceable = parent->e_bounceable;
         env->e_jailed = parent->e_jailed;
         if (parent->e_mid) {
@@ -297,8 +296,6 @@ env_repr(struct envelope *e) {
             repr, simta_ucl_object_fromyastr(e->e_mail), "sender", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_frombool(e->e_8bitmime), "8bitmime", 0, false);
-    ucl_object_insert_key(repr, ucl_object_frombool(e->e_archive_only),
-            "archive_only", 0, false);
     ucl_object_insert_key(
             repr, ucl_object_frombool(e->e_jailed), "jailed", 0, false);
     ucl_object_insert_key(
@@ -842,8 +839,6 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
 
         env->e_8bitmime =
                 ucl_object_toboolean(ucl_object_lookup(env_data, "8bitmime"));
-        env->e_archive_only = ucl_object_toboolean(
-                ucl_object_lookup(env_data, "archive_only"));
         env->e_bounceable =
                 ucl_object_toboolean(ucl_object_lookup(env_data, "bounceable"));
         env->e_header_from = simta_ucl_object_toyastr(
@@ -882,8 +877,6 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
                                          env_data, "hostname"))) != 0)) ||
                 env->e_8bitmime != ucl_object_toboolean(ucl_object_lookup(
                                            env_data, "8bitmime")) ||
-                env->e_archive_only != ucl_object_toboolean(ucl_object_lookup(
-                                               env_data, "archive_only")) ||
                 (strcasecmp(env->e_mail, ucl_object_tostring(ucl_object_lookup(
                                                  env_data, "sender"))) != 0)) {
             syslog(LOG_ERR,
@@ -1006,8 +999,6 @@ env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
 
         case 'D':
             attrs = strtol(line + 1, NULL, 10);
-            ucl_object_insert_key(env_data, ucl_object_frombool(attrs & 0x01),
-                    "archive_only", 0, false);
             ucl_object_insert_key(env_data, ucl_object_frombool(attrs & 0x02),
                     "8bitmime", 0, false);
             break;

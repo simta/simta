@@ -70,7 +70,6 @@ struct simta_ldap {
     const char              *ldap_autoreply_start_attr;
     const char              *ldap_autoreply_end_attr;
     const char              *ldap_mailfwdattr;
-    const char              *ldap_gmailfwdattr;
     const char              *ldap_mailattr;
     const char              *ldap_external_address_attr;
     const char              *ldap_moderators_attr;
@@ -1249,51 +1248,6 @@ simta_ldap_expand_group(struct simta_ldap *ld, struct expand *exp,
             }
         }
 
-        /* check for group email forwarding */
-        if (ld->ldap_gmailfwdattr &&
-                (mailvals = ldap_get_values_len(
-                         ld->ldap_ld, entry, ld->ldap_gmailfwdattr)) != NULL) {
-            if (exp->exp_env->e_n_exp_level < simta_exp_level_max) {
-                if ((e_addr->e_addr_env_gmailfwd = env_create(simta_dir_fast,
-                             NULL, e_addr->e_addr_from, exp->exp_env)) ==
-                        NULL) {
-                    goto error;
-                }
-
-                for (int i = 0; mailvals[ i ]; i++) {
-                    yaslclear(buf);
-                    buf = yaslcatlen(
-                            buf, mailvals[ i ]->bv_val, mailvals[ i ]->bv_len);
-                    if (env_string_recipients(
-                                e_addr->e_addr_env_gmailfwd, buf) != SIMTA_OK) {
-                        env_free(e_addr->e_addr_env_gmailfwd);
-                        e_addr->e_addr_env_gmailfwd = NULL;
-                        goto error;
-                    }
-                }
-
-                ldap_value_free_len(mailvals);
-                mailvals = NULL;
-
-                if ((r = e_addr->e_addr_env_gmailfwd->e_rcpt) == NULL) {
-                    /* no valid email addresses */
-                    env_free(e_addr->e_addr_env_gmailfwd);
-                    e_addr->e_addr_env_gmailfwd = NULL;
-                    bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
-                            "bad group mail forwarding: ", dn, NULL);
-                } else {
-                    e_addr->e_addr_env_gmailfwd->e_next = exp->exp_gmailfwding;
-                    exp->exp_gmailfwding = e_addr->e_addr_env_gmailfwd;
-                }
-            } else {
-                ldap_value_free_len(mailvals);
-                mailvals = NULL;
-                bounce_text(e_addr->e_addr_errors, TEXT_ERROR,
-                        "group mail audit loop: ", dn, NULL);
-                break;
-            }
-        }
-
         if ((permitted_env = simta_ldap_envelope_from_attr(ld, entry,
                      exp->exp_env, exp->exp_env->e_mail,
                      ucl_object_tostring(ucl_object_lookup_path(ld->ldap_rule,
@@ -2280,9 +2234,6 @@ simta_ldap_config(const ucl_object_t *rule) {
 
     ld->ldap_mailfwdattr = ucl_object_tostring(
             ucl_object_lookup_path(ld->ldap_rule, "attributes.forwarding"));
-
-    ld->ldap_gmailfwdattr = ucl_object_tostring(ucl_object_lookup_path(
-            ld->ldap_rule, "attributes.group_forwarding"));
 
     ld->ldap_external_address_attr = ucl_object_tostring(ucl_object_lookup_path(
             ld->ldap_rule, "attributes.external_address"));
