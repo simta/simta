@@ -2241,20 +2241,8 @@ simta_ldap_config(const ucl_object_t *rule) {
     ld->ldap_autoreply_host = ucl_object_tostring(
             ucl_object_lookup_path(ld->ldap_rule, "autoreply.host"));
 
-    if (!ld->ldap_autoreply_host) {
-        /* DEPRECATED */
-        ld->ldap_autoreply_host = ucl_object_tostring(
-                ucl_object_lookup_path(ld->ldap_rule, "vacation.host"));
-    }
-
     ld->ldap_autoreply_attr = ucl_object_tostring(
             ucl_object_lookup_path(ld->ldap_rule, "attributes.autoreply"));
-
-    if (!ld->ldap_autoreply_attr) {
-        /* DEPRECATED */
-        ld->ldap_autoreply_attr = ucl_object_tostring(
-                ucl_object_lookup_path(ld->ldap_rule, "attributes.vacation"));
-    }
 
     ld->ldap_autoreply_start_attr = ucl_object_tostring(ucl_object_lookup_path(
             ld->ldap_rule, "attributes.autoreply_start"));

@@ -198,7 +198,6 @@ definitions {
                             permitted_domains { type: string }
                             permitted_senders { type: string }
                             request { type: array, items: { type: string }}
-                            vacation { type: string } # DEPRECATED
                         }
                         required [ external_address, forwarding, mail, moderators, permitted_domains, permitted_senders ]
                     }
@@ -261,14 +260,6 @@ definitions {
                     uri {
                         type: string
                         pattern: "^[lL][dD][aA][pP][sS]{0,1}://([a-zA-Z0-9_]+\.)+([a-zA-Z0-9_])(:[0-9]{1,5}){0,1}/{0,1}$"
-                    }
-                    vacation {
-                        # DEPRECATED
-                        type: object
-                        properties {
-                            host { "$ref": "#/definitions/hostname" }
-                        }
-                        additionalProperties: false
                     }
                 }
                 required [ attributes, bind, moderation_preface ]

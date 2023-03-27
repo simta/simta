@@ -3,6 +3,7 @@
     - unconditionally enabled rdnpref (disambiguation using the RDN) for LDAP
       searches
     - removed ancient, unused group forwarding experiment
+    - removed deprecated DNSL and vacation aliases
 
 2.3.0 (2023-03-21)
     - fixed memory leak and logging problem in ACL code

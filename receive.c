@@ -4303,9 +4303,6 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
         filter_envp[ filter_envc++ ] = env_string("SIMTA_REVERSE_LOOKUP", buf);
 
         if (r->r_acl_result) {
-            /* FIXME: deprecated */
-            filter_envp[ filter_envc++ ] = env_string(
-                    "SIMTA_DNSL_RESULT", r->r_acl_result->acl_action);
             filter_envp[ filter_envc++ ] =
                     env_string("SIMTA_ACL_RESULT", r->r_acl_result->acl_action);
         }

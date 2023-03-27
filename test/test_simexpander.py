@@ -155,7 +155,7 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                                 'type': 'all',
                             },
                         ],
-                        'vacation': {
+                        'autoreply': {
                             'host': 'vacation.mail.example.com',
                         },
                     },
@@ -192,7 +192,7 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                                 'type': 'all',
                             },
                         ],
-                        'vacation': {
+                        'autoreply': {
                             'host': 'vacation.mail.example.com',
                         },
                     },
