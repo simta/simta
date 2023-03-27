@@ -112,7 +112,6 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                         'search': [
                             {
                                 'uri': 'ldap:///ou=Nothing,dc=example,dc=com?*?sub?cn=%25s',
-                                'rdnpref': True,
                                 'type': 'all',
                             },
                         ],
@@ -149,12 +148,10 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                             },
                             {
                                 'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s %25%25 %25h',
-                                'rdnpref': True,
                                 'type': 'all',
                             },
                             {
                                 'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
-                                'rdnpref': True,
                                 'type': 'all',
                             },
                         ],
@@ -188,12 +185,10 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                             },
                             {
                                 'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s %25%25 %25h',
-                                'rdnpref': True,
                                 'type': 'all',
                             },
                             {
                                 'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
-                                'rdnpref': True,
                                 'type': 'all',
                             },
                         ],
@@ -218,7 +213,6 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                         'search': [
                             {
                                 'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
-                                'rdnpref': True,
                                 'type': 'all',
                             }
                         ],

@@ -42,7 +42,6 @@
 */
 struct ldap_search_list {
     LDAPURLDesc             *lds_plud;        /* url parsed description */
-    int                      lds_rdn_pref;    /* TRUE / FALSE */
     int                      lds_search_type; /* one of USER, GROUP, ALL */
     const char              *lds_string;      /* uri string */
     LDAPURLDesc             *lds_subsearch;   /* secondary search */
@@ -1718,12 +1717,12 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
         res = NULL;
 
         if (rc == ADDRESS_SYSERROR) {
-            return (rc);
+            return rc;
         }
     }
 
     if (rc == ADDRESS_NOT_FOUND) {
-        return (rc);
+        return rc;
     }
 
     if (ldap_count_entries(ld->ldap_ld, res) == -1) {
@@ -1793,24 +1792,12 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
                 "Expand.LDAP env <%s>: <%s>: Error parsing result from server",
                 exp->exp_env->e_id, e_addr->e_addr);
         ldap_msgfree(res);
-        return (ADDRESS_SYSERROR);
+        return ADDRESS_SYSERROR;
 
     default:
-        /*
-        ** More than one match -- if no rdn preference
-        ** then bounce w/ ambiguous user
-        */
-        if (!lds->lds_rdn_pref) {
-            do_ambiguous(ld, e_addr, addr, res);
-            ldap_msgfree(res);
-            return (ADDRESS_EXCLUDE);
-        }
-
-        /*
-         * giving rdn preference - see if any entries were matched
-         * because of their rdn.  If so, collect them to deal with
-         * later (== 1 we deliver, > 1 we bounce).
-        */
+        /* More than one match. See how many entries were matched because of
+         * their RDN.
+         */
         for (entry = ldap_first_entry(ld->ldap_ld, res); entry != NULL;
                 entry = ldap_next_entry(ld->ldap_ld, entry)) {
             xdn = simta_ldap_dn_name(ld, entry);
@@ -1822,50 +1809,42 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
             yaslfree(xdn);
         }
 
-        /* if nothing matched by rdn - go ahead and bounce */
-        if (tmpres == NULL) {
-            do_ambiguous(ld, e_addr, addr, res);
-            ldap_msgfree(res);
-            return (ADDRESS_EXCLUDE);
+        match = 0;
+        if (tmpres) {
+            match = ldap_count_entries(ld->ldap_ld, tmpres);
+        }
 
-            /* if more than one matched by rdn - bounce with rdn matches */
-        } else if ((match = ldap_count_entries(ld->ldap_ld, tmpres)) > 1) {
-            do_ambiguous(ld, e_addr, addr, res);
-            ldap_msgfree(res);
-            ldap_msgfree(tmpres);
-            return (ADDRESS_EXCLUDE);
-
-            /* trouble --  tmpres hosed? */
-        } else if (match < 0) {
+        if (match < 0) {
+            /* That's not supposed to happen. tmpres hosed? */
             syslog(LOG_ERR,
-                    "Expand.LDAP env <%s>: <%s>: "
-                    "Error parsing LDAP result",
+                    "Expand.LDAP env <%s>: <%s>: Error parsing LDAP result",
                     exp->exp_env->e_id, e_addr->e_addr);
             ldap_msgfree(res);
             ldap_msgfree(tmpres);
-            return (ADDRESS_SYSERROR);
+            return ADDRESS_SYSERROR;
         }
 
-        /* otherwise one matched by rdn - send to it */
+        if (match != 1) {
+            /* RDN didn't disambiguate. */
+            do_ambiguous(ld, e_addr, addr, res);
+            ldap_msgfree(res);
+            ldap_msgfree(tmpres);
+            return ADDRESS_EXCLUDE;
+        }
+
         ldap_msgfree(res);
         res = tmpres;
-        /*
-        ** we've sorted this ambiguity out,
-        ** so fall thru to next case and process this entry.
-        */
+        /* We're down to one entry, fall through to the next case. */
 
     case 1:
-        /*
-        ** One entry now that matches our address.
-        */
+        /* One entry matches our address. */
         if ((entry = ldap_first_entry(ld->ldap_ld, res)) == NULL) {
             ldap_parse_result(ld->ldap_ld, res, &rc, NULL, &err, NULL, NULL, 0);
             syslog(LOG_ERR,
-                    "Liberror: simta_ldap_name_search "
-                    "ldap_parse_result: %s",
+                    "Liberror: simta_ldap_name_search ldap_parse_result: %s",
                     err);
             ldap_memfree(err);
-            return (ADDRESS_SYSERROR);
+            return ADDRESS_SYSERROR;
         }
     }
 
@@ -1874,7 +1853,7 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
     if (res) {
         ldap_msgfree(res);
     }
-    return (rc);
+    return rc;
 }
 
 
@@ -2197,12 +2176,6 @@ simta_ldap_config(const ucl_object_t *rule) {
         *lds = simta_calloc(1, sizeof(struct ldap_search_list));
         (*lds)->lds_string = buf;
         (*lds)->lds_plud = plud;
-
-        if ((c_obj = ucl_object_lookup(obj, "rdnpref")) != NULL) {
-            (*lds)->lds_rdn_pref = ucl_object_toboolean(c_obj);
-        } else {
-            (*lds)->lds_rdn_pref = true;
-        }
 
         if ((c_obj = ucl_object_lookup(obj, "type")) != NULL) {
             buf = ucl_object_tostring(c_obj);

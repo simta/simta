@@ -239,7 +239,7 @@ definitions {
                         items {
                             type: object
                             properties {
-                                rdnpref { type: boolean }
+                                rdnpref { type: boolean } # DEPRECATED
                                 type { type: string, enum [ all, group, user ] }
                                 uri { type: string }
                                 subsearch { type: string }
