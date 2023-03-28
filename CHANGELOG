@@ -6,6 +6,7 @@
     - removed deprecated DNSL and vacation aliases
     - added configuration option for the LDAP attribute used to enable
       additional ACLs
+    - added CIDR netmask support to file-based IP ACLs
 
 2.3.0 (2023-03-21)
     - fixed memory leak and logging problem in ACL code

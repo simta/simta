@@ -6,5 +6,7 @@ Quux
 127.0.0.2
 127.0.0.3   bar
 127.0.0.4   bar foo
+127.0.1.0/24    baz
+127.0.2.1/255.255.255.255
 three   bar
 four    bar foo

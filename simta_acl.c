@@ -135,11 +135,13 @@ acl_lookup_dns(
 static void
 acl_lookup_file(
         struct acl_result *res, const char *fname, const struct sockaddr *sa) {
-    SNET       *snet = NULL;
-    size_t      tok_count;
-    yastr      *split;
-    const char *data;
-    bool        matched = false;
+    SNET         *snet = NULL;
+    size_t        tok_count;
+    yastr        *split;
+    const char   *data;
+    bool          matched = false;
+    unsigned long cidr;
+    char         *p;
 
     if ((snet = snet_open(fname, O_RDONLY, 0, 1024 * 1024)) == NULL) {
         syslog(LOG_ERR, "Liberror: acl_lookup_file snet_open %s: %m", fname);
@@ -151,9 +153,29 @@ acl_lookup_file(
         split = yaslsplitargs(data, &tok_count);
         if (tok_count > 0) {
             if (sa) {
-                /* FIXME: should we parse netmasks? */
-                if (simta_cidr_compare((sa->sa_family == AF_INET) ? 32 : 64, sa,
-                            NULL, split[ 0 ]) == 0) {
+                if ((p = strchr(split[ 0 ], '/')) != NULL) {
+                    /* Adjust the string to exclude the netmask. */
+                    *p = '\0';
+                    yaslupdatelen(split[ 0 ]);
+                    /* Parse the netmask. */
+                    errno = 0;
+                    cidr = strtoul(p + 1, NULL, 10);
+                    if (errno) {
+                        simta_debuglog(2,
+                                "Liberror: acl_lookup_file strtoul %s: %m",
+                                p + 1);
+                        cidr = 255;
+                    }
+                    if ((sa->sa_family == AF_INET) && cidr > 32) {
+                        cidr = 32;
+                    } else if ((sa->sa_family == AF_INET) && cidr > 128) {
+                        cidr = 128;
+                    }
+                } else {
+                    cidr = (sa->sa_family == AF_INET) ? 32 : 64;
+                }
+
+                if (simta_cidr_compare(cidr, sa, NULL, split[ 0 ]) == 0) {
                     matched = true;
                 }
             } else if (strcasecmp(split[ 0 ], res->acl_text_cooked) == 0) {
