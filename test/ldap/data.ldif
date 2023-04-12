@@ -1995,3 +1995,18 @@ mailForwardingAddress: badforwardingaddr1@forwarded.example.com
 mailForwardingAddress: badforwardingaddr@forwarded/example.com
 mailForwardingAddress: badforwardingaddr2@forwarded.example.com
 entityID: 90001
+
+dn: cn=control member,ou=Groups,dc=example,dc=com
+objectClass:  rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=control nonmember,ou=Groups,dc=example,dc=com
+objectClass:  rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+member: uid=testuser,ou=People,dc=example,dc=com
+
+dn: cn=control group,ou=Groups,dc=example,dc=com
+objectClass:  rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+member: cn=control member,ou=Groups,dc=example,dc=com

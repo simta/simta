@@ -227,6 +227,25 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
             ],
         }
 
+        config['domain']['control.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'associated_domain': 'ldap.example.com',
+                    'ldap': {
+                        'uri': ldapserver['uri'],
+                        'search': [
+                            {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=control %25s',
+                                'type': 'all',
+                                'subsearch': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?(&(cn=control group)(member=%25s))',
+                            }
+                        ],
+                    }
+                }
+            ]
+        }
+
     with open(str(tmp_path.joinpath('dynamic.conf')), 'w') as f:
         f.write(json.dumps(config)[1:-1])
 
@@ -2012,3 +2031,22 @@ def test_expand_ldap_user_badforward(run_simexpander, req_ldapserver):
         'badforwardingaddr1@forwarded.example.com',
         'badforwardingaddr2@forwarded.example.com',
     ]
+
+
+def test_expand_ldap_group_subsearch(run_simexpander, req_ldapserver):
+    res = run_simexpander('member@control.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [
+        'testuser@forwarded.example.com',
+    ]
+    assert res['parsed'][0]['sender'] == 'control.member-errors@ldap.example.com'
+
+
+def test_expand_ldap_group_subsearch_miss(run_simexpander, req_ldapserver):
+    res = run_simexpander('nonmember@control.example.com')
+    assert len(res['parsed']) == 1
+    assert res['parsed'][0]['recipients'] == [
+        'sender@expansion.test',
+    ]
+    assert res['parsed'][0]['sender'] == ''
+    assert 'address not found: ' in ''.join(res['parsed'][0]['bounce_lines'])

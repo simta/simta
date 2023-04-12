@@ -1,3 +1,6 @@
+2.3.1 (????-??-??)
+    - added support for a secondary search constraint on LDAP searches
+
 2.3.0 (2023-03-21)
     - fixed memory leak and logging problem in ACL code
     - fixed regression that added invalid addresses during expansion

@@ -45,6 +45,7 @@ struct ldap_search_list {
     int                      lds_rdn_pref;    /* TRUE / FALSE */
     int                      lds_search_type; /* one of USER, GROUP, ALL */
     const char              *lds_string;      /* uri string */
+    LDAPURLDesc             *lds_subsearch;   /* secondary search */
     struct ldap_search_list *lds_next;        /* next uri */
 };
 
@@ -689,7 +690,9 @@ simta_ldap_string(char *filter, const char *user, const char *domain) {
                 break;
 
             case 'h':
-                buf = yaslcat(buf, domain);
+                if (domain) {
+                    buf = yaslcat(buf, domain);
+                }
                 p += 2;
                 break;
 
@@ -1680,8 +1683,11 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
     LDAPMessage             *entry;
     struct ldap_search_list *lds;
     yastr                    xdn;
+    char                    *dn;
     LDAPMessage             *tmpres = NULL;
     char                    *err;
+    LDAPURLDesc             *subsearch = NULL;
+    LDAPMessage             *subres = NULL;
 
     /* for each base string in ldap_searches:
      *    If this search string is of the specified addrtype:
@@ -1706,6 +1712,7 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
         if (rc == ADDRESS_OK) {
             simta_debuglog(1, "Expand.LDAP env <%s>: <%s>: Matched using %s",
                     exp->exp_env->e_id, e_addr->e_addr, lds->lds_string);
+            subsearch = lds->lds_subsearch;
             break;
         }
 
@@ -1719,6 +1726,66 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
 
     if (rc == ADDRESS_NOT_FOUND) {
         return (rc);
+    }
+
+    if (ldap_count_entries(ld->ldap_ld, res) == -1) {
+        syslog(LOG_ERR,
+                "Expand.LDAP env <%s>: <%s>: Error parsing result from server",
+                exp->exp_env->e_id, e_addr->e_addr);
+        ldap_msgfree(res);
+        return ADDRESS_SYSERROR;
+    }
+
+    if (subsearch) {
+        for (entry = ldap_first_entry(ld->ldap_ld, res); entry != NULL;
+                entry = ldap_next_entry(ld->ldap_ld, entry)) {
+            dn = ldap_get_dn(ld->ldap_ld, entry);
+            search_string = simta_ldap_string(subsearch->lud_filter, dn, NULL);
+            rc = simta_ldap_search(ld, subsearch->lud_dn, subsearch->lud_scope,
+                    search_string, &subres);
+            yaslfree(search_string);
+
+            if (rc == ADDRESS_OK) {
+                simta_debuglog(1,
+                        "Expand.LDAP env <%s>: <%s>: subsearch for %s matched",
+                        exp->exp_env->e_id, e_addr->e_addr, dn);
+                ldap_delete_result_entry(&res, entry);
+                ldap_add_result_entry(&tmpres, entry);
+            }
+
+            ldap_memfree(dn);
+
+            if (ldap_count_entries(ld->ldap_ld, subres) == -1) {
+                syslog(LOG_ERR,
+                        "Expand.LDAP env <%s>: <%s>: Error parsing subsearch "
+                        "result from server",
+                        exp->exp_env->e_id, e_addr->e_addr);
+                rc = ADDRESS_SYSERROR;
+            }
+
+            ldap_msgfree(subres);
+
+            if (rc == ADDRESS_SYSERROR) {
+                ldap_msgfree(res);
+                if (tmpres) {
+                    ldap_msgfree(tmpres);
+                }
+                return ADDRESS_SYSERROR;
+            }
+        }
+
+        if (tmpres) {
+            ldap_msgfree(res);
+            res = tmpres;
+            tmpres = NULL;
+        } else {
+            /* no matches */
+            ldap_msgfree(res);
+            simta_debuglog(1,
+                    "Expand.LDAP env <%s>: <%s>: subsearch did not match",
+                    exp->exp_env->e_id, e_addr->e_addr);
+            return ADDRESS_NOT_FOUND;
+        }
     }
 
     switch (ldap_count_entries(ld->ldap_ld, res)) {
@@ -2156,6 +2223,32 @@ simta_ldap_config(const ucl_object_t *rule) {
             }
         } else {
             (*lds)->lds_search_type = LDS_ALL;
+        }
+
+        if ((c_obj = ucl_object_lookup(obj, "subsearch")) != NULL) {
+            buf = ucl_object_tostring(c_obj);
+            if (ldap_is_ldap_url(buf) == 0) {
+                syslog(LOG_ERR, "Config.LDAP %s: URI is not an LDAP URI: %s",
+                        ld->ldap_associated_domain, buf);
+                goto errexit;
+            }
+
+            /* Parse the URL */
+            if ((ldaprc = ldap_url_parse(buf, &plud)) != LDAP_URL_SUCCESS) {
+                syslog(LOG_ERR, "Config.LDAP %s: URI parse error %d: %s",
+                        ld->ldap_associated_domain, ldaprc, buf);
+                goto errexit;
+            }
+
+            if (plud->lud_filter == NULL) {
+                syslog(LOG_ERR,
+                        "Config.LDAP %s: URI %s "
+                        "doesn't appear to contain a filter",
+                        ld->ldap_associated_domain, buf);
+                goto errexit;
+            }
+
+            (*lds)->lds_subsearch = plud;
         }
 
         (*lds)->lds_next = NULL;

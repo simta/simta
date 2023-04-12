@@ -242,6 +242,7 @@ definitions {
                                 rdnpref { type: boolean }
                                 type { type: string, enum [ all, group, user ] }
                                 uri { type: string }
+                                subsearch { type: string }
                             }
                             required [ uri ]
                             additionalProperties: false
