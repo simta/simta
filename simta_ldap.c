@@ -690,9 +690,7 @@ simta_ldap_string(char *filter, const char *user, const char *domain) {
                 break;
 
             case 'h':
-                if (domain) {
-                    buf = yaslcat(buf, domain);
-                }
+                buf = yaslcat(buf, domain);
                 p += 2;
                 break;
 
@@ -1740,7 +1738,8 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
         for (entry = ldap_first_entry(ld->ldap_ld, res); entry != NULL;
                 entry = ldap_next_entry(ld->ldap_ld, entry)) {
             dn = ldap_get_dn(ld->ldap_ld, entry);
-            search_string = simta_ldap_string(subsearch->lud_filter, dn, NULL);
+            search_string =
+                    simta_ldap_string(subsearch->lud_filter, dn, domain);
             rc = simta_ldap_search(ld, subsearch->lud_dn, subsearch->lud_scope,
                     search_string, &subres);
             yaslfree(search_string);
