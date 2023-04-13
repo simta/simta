@@ -1705,6 +1705,11 @@ simta_ldap_name_search(struct simta_ldap *ld, struct expand *exp,
                         exp->exp_env->e_id, e_addr->e_addr, dn);
                 ldap_delete_result_entry(&res, entry);
                 ldap_add_result_entry(&tmpres, entry);
+            } else {
+                simta_debuglog(1,
+                        "Expand.LDAP env <%s>: <%s>: subsearch for %s did not "
+                        "match",
+                        exp->exp_env->e_id, e_addr->e_addr, dn);
             }
 
             ldap_memfree(dn);
