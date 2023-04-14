@@ -716,18 +716,17 @@ simta_ldap_string(char *filter, const char *user, const char *domain) {
 }
 
 
-/*
-** Looks at the incoming email address
-** looking for "-errors", "-requests", or "-owners"
-**
-*/
+/* Determines the address type by matching suffixes like "-owners",
+ * and strips off any part of the address that shouldn't be involved in the
+ * lookup (e.g. special address suffixes and subaddress strings.)
+ */
 static int
 simta_address_type(char *address, const ucl_object_t *rule) {
     int         addrtype;
     char       *paddr;
     const char *subaddr_sep;
 
-    addrtype = LDS_USER; /* default */
+    addrtype = LDS_USER;
 
     /* Strip off type indicators and record the type */
     if ((paddr = strrchr(address, '-')) != NULL) {
@@ -757,7 +756,7 @@ simta_address_type(char *address, const ucl_object_t *rule) {
         }
     }
 
-    return (addrtype);
+    return addrtype;
 }
 
 
