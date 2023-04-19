@@ -17,7 +17,6 @@
 #define ERRORS "errors"
 #define REQUEST "request"
 #define REQUESTS "requests"
-#define MEMBERS "members"
 #define OWNER "owner"
 #define OWNERS "owners"
 
