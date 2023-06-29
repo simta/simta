@@ -59,9 +59,6 @@ simta is used for mail routing and delivery.
 %setup -q
 
 %build
-export JEMALLOC_LIBS=-ljemalloc
-export JEMALLOC_CFLAGS=-I/usr/include
-
 %configure \
 %if "%{with_tls}" != "yes"
 	--with-ssl=no \
@@ -81,8 +78,6 @@ export JEMALLOC_CFLAGS=-I/usr/include
 %if "%{with_arc}" == "yes"
         --with-arc \
 %endif
-        --with-group=mail \
-        --with-aliasdb=%{_sysconfdir}/aliases.db \
         --disable-chown
 
 %make_build
