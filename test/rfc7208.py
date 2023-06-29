@@ -89,7 +89,7 @@ class SPFItem(pytest.Item):
         self.scenario = scenario
         self.case = case
         self.dns_proc = None
-        self.tmp_path = self.config._tmp_path_factory.mktemp(f'{self.parent.name[:-4]}-{self.name}')
+        self.tmp_path = self.config._tmp_path_factory.mktemp(f'{os.path.basename(self.parent.name)[:-4]}-{self.name}')
 
     def setup(self):
         self.dns_port = openport(10053)
