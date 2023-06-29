@@ -27,6 +27,10 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#ifdef HAVE_JEMALLOC
+#include <jemalloc/jemalloc.h>
+#endif /* HAVE_JEMALLOC */
+
 #ifdef HAVE_LDAP
 #include <ldap.h>
 #endif /* HAVE_LDAP */
@@ -360,6 +364,13 @@ simta_read_config(const char *fname, const char *extra) {
             return SIMTA_ERR;
         }
     }
+
+#ifdef HAVE_JEMALLOC
+    /* Explicitly use a jemalloc symbol to make sure that -Wl,--as-needed
+     * doesn't drop it.
+     */
+    simta_debuglog(2, "jemalloc config: %s", malloc_conf);
+#endif /* HAVE_JEMALLOC */
 
     return SIMTA_OK;
 }

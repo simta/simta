@@ -10,6 +10,10 @@
 
 #include "simta_malloc.h"
 
+#ifdef HAVE_JEMALLOC
+#include <jemalloc/jemalloc.h>
+#endif /* HAVE_JEMALLOC */
+
 
 void *
 simta_malloc(size_t size) {
