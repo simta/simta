@@ -4205,16 +4205,19 @@ content_filter(
 
 static int
 run_content_filter(struct receive_data *r, char **smtp_message) {
-    int             fd[ 2 ];
-    pid_t           pid;
-    int             status;
-    pid_t           rc;
-    int             filter_envc = 0;
-    SNET           *snet;
-    const char     *mail_filter = NULL;
-    char           *line;
-    char           *filter_argv[] = {0, 0};
-    char           *filter_envp[ 22 ];
+    int         fd[ 2 ];
+    pid_t       pid;
+    int         status;
+    pid_t       rc;
+    int         filter_envc = 0;
+    SNET       *snet;
+    const char *mail_filter = NULL;
+    char       *line;
+    char       *filter_argv[] = {0, 0};
+    /* FIXME: a statically allocated array is error-prone, we've already
+     * messed up once and forgotten to increase it.
+     */
+    char           *filter_envp[ 48 ];
     char            fname[ MAXPATHLEN + 1 ];
     char            buf[ 256 ];
     struct timespec log_ts;
