@@ -119,7 +119,7 @@ struct receive_data {
     int                     r_dns_match;
     int                     r_acl_checked;
     struct acl_result      *r_acl_result;
-    char                   *r_hello;
+    yastr                   r_hello;
     char                   *r_smtp_command;
     const char             *r_remote_hostname;
     struct command         *r_commands;
@@ -487,7 +487,7 @@ hello(struct receive_data *r, char *hostname) {
      * field.
      */
     if (r->r_hello != NULL) {
-        free(r->r_hello);
+        yaslfree(r->r_hello);
     }
 
     /*
@@ -500,8 +500,8 @@ hello(struct receive_data *r, char *hostname) {
      * We don't verify.
      */
 
-    r->r_hello = simta_strdup(hostname);
-    return (RECEIVE_OK);
+    r->r_hello = yaslauto(hostname);
+    return RECEIVE_OK;
 }
 
 
@@ -2678,7 +2678,7 @@ f_starttls(struct receive_data *r) {
     }
 
     if (r->r_hello != NULL) {
-        free(r->r_hello);
+        yaslfree(r->r_hello);
         r->r_hello = NULL;
     }
 
@@ -3568,7 +3568,7 @@ closeconnection:
     }
 
     if (r.r_hello != NULL) {
-        free(r.r_hello);
+        yaslfree(r.r_hello);
     }
 
     if (tv_start.tv_sec != 0) {
