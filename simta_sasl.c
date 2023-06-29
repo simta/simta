@@ -187,8 +187,7 @@ simta_sasl_server_auth(
         if (outlen) {
             /* We need 1.33 bytes per original byte, so 2 is plenty. */
             if (yaslAllocSize(s->s_response) < (outlen * 2)) {
-                s->s_response = yaslMakeRoomFor(s->s_response,
-                        (outlen * 2) - yaslAllocSize(s->s_response));
+                s->s_response = yaslMakeRoomFor(s->s_response, (outlen * 2));
             }
             if (sasl_encode64(out, outlen, s->s_response,
                         yaslAllocSize(s->s_response), NULL) != SASL_OK) {
