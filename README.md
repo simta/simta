@@ -31,8 +31,7 @@ In order to build simta, you will need the following:
 There are also a number of optional dependencies (listed more-or-less in
 decreasing order of importance):
 
-* [OpenSSL](https://openssl.org/) or a compatible replacement such as
-  [LibreSSL](https://www.libressl.org/)
+* [OpenSSL](https://openssl.org/) >= 1.0.2
 * [OpenDKIM](http://www.opendkim.org/)
 * [OpenARC](https://github.com/trusteddomainproject/OpenARC)
 * [jemalloc](http://jemalloc.net/)

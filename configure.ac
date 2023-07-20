@@ -62,7 +62,13 @@ AS_IF(
 AC_ARG_WITH([ssl], AC_HELP_STRING([--with-ssl], [Build with TLS support]))
 AS_IF(
     [test "x$with_ssl" != "xno"],
-    [PKG_CHECK_MODULES([LIBSSL], [openssl], [AC_DEFINE([HAVE_LIBSSL], [1], [Define to 1 if LIBSSL is found])])])
+    [
+        PKG_CHECK_MODULES([LIBSSL], [openssl >= 1.0.2], [AC_DEFINE([HAVE_LIBSSL], [1], [Define to 1 if LIBSSL is found])])
+        AC_SEARCH_LIBS([ERR_peek_error], [crypto], [], [AC_MSG_ERROR(['libcrypto linking failed'])])
+        AC_SEARCH_LIBS([SSL_new], [ssl], [], [AC_MSG_ERROR(['libssl linking failed'])])
+        AC_CHECK_FUNCS(ossl_ctx_legacy_digest_signatures_allowed_set, [AC_DEFINE([OSSL_IS_RHEL], [1], [Define to 1 if RedHat OpenSSL])])
+    ]
+)
 
 AC_ARG_WITH([libidn2], AC_HELP_STRING([--with-libidn2], [Build with IDNA support]))
 AS_IF(

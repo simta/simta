@@ -65,11 +65,22 @@ tls_server_setup(void) {
     int      ssl_mode = 0;
 
     /* OpenSSL 1.1.0 added auto-init */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if !OPENSSL_VERSION_PREREQ(1, 1)
     SSL_load_error_strings();
     SSL_library_init();
 #endif /* OpenSSL < 1.1.0 */
 
+#ifdef OSSL_IS_RHEL
+    /* RedHat-specific feature that forcibly disables SHA1 unless we jump
+     * through this hoop.
+     * FIXME: This is only to fix TLS < 1.2, we would rather get rid of that. */
+    OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_get0_global_default();
+    ossl_ctx_legacy_digest_signatures_allowed_set(libctx, 1, 0);
+#endif /* OSSL_IS_RHEL */
+
+    /* FIXME: Once we drop support for OpenSSL < 1.1.0 this can be changed to
+     * TLS_server_method()
+     */
     if ((ssl_ctx = SSL_CTX_new(SSLv23_server_method())) == NULL) {
         syslog(LOG_ERR, "Liberror: tls_server_setup SSL_CTX_new: %s",
                 ERR_error_string(ERR_get_error(), NULL));
@@ -77,7 +88,7 @@ tls_server_setup(void) {
     }
 
 /* OpenSSL 1.1.0 added auto mode for DH */
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_PREREQ(1, 1)
     if (SSL_CTX_set_dh_auto(ssl_ctx, 1) != 1) {
         syslog(LOG_ERR, "Liberror: tls_server_setup SSL_CTX_set_dh_auto: %s",
                 ERR_error_string(ERR_get_error(), NULL));
@@ -625,7 +636,7 @@ tls_server_setup(void) {
 #endif /* OpenSSL 1.1.0 */
 
     /* Disable old protocols, prefer server cipher ordering */
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#if OPENSSL_VERSION_PREREQ(1, 1)
     SSL_CTX_set_options(ssl_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
     /* FIXME: we want to make the minimum 1.2 when that's a viable choice. */
     SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_VERSION);
@@ -680,37 +691,21 @@ tls_server_setup(void) {
     /* Do not reuse the same ECDH key pair */
     SSL_CTX_set_options(ssl_ctx, SSL_OP_SINGLE_ECDH_USE);
 
-#if defined(OPENSSL_IS_BORINGSSL) ||                                           \
-        (OPENSSL_VERSION_NUMBER >= 0x10100000L &&                              \
-                !defined(LIBRESSL_VERSION_NUMBER))
+#if OPENSSL_VERSION_PREREQ(1, 1)
     /* OpenSSL >= 1.1.0 automatically enables automatic handling of parameter
      * selection and makes SSL_CTX_set_ecdh_auto a noop, so we don't want
      * to do anything.
      */
-#elif OPENSSL_VERSION_NUMBER >= 0x10002000L
-    /* OpenSSL >= 1.0.2 automatically handles parameter selection */
+#else
     SSL_CTX_set_ecdh_auto(ssl_ctx, 1);
-
-#elif OPENSSL_VERSION_NUMBER >= 0x10000000L
-    /* Manually select the curve. This selection is compliant with RFC 6460
-     * when AES-256 cipher suites are in use, but noncompliant when AES-128
-     * cipher suites are used. Oh, well. */
-    EC_KEY *ecdh;
-    if ((ecdh = EC_KEY_new_by_curve_name(NID_secp384r1)) != NULL) {
-        SSL_CTX_set_tmp_ecdh(ssl_ctx, ecdh);
-        EC_KEY_free(ecdh);
-    } else {
-        syslog(LOG_ERR, "Liberror: tls_server_setup EC_KEY_new failed: %s",
-                ERR_error_string(ERR_get_error(), NULL));
-    }
-#endif /* openssl 1.0 - 1.0.1 */
+#endif /* OpenSSL < 1.1.0 */
 #endif /* OPENSSL_NO_ECDH */
 
     return ssl_ctx;
 
 error:
     SSL_CTX_free(ssl_ctx);
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if !OPENSSL_VERSION_PREREQ(1, 1)
     if (dh != NULL) {
         DH_free(dh);
     }
@@ -725,7 +720,7 @@ tls_client_setup(const char *ciphers) {
     int      ssl_mode = 0;
 
     /* OpenSSL 1.1.0 added auto-init */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if !OPENSSL_VERSION_PREREQ(1, 1)
     SSL_load_error_strings();
     SSL_library_init();
 #endif /* OpenSSL < 1.1.0 */
@@ -736,8 +731,13 @@ tls_client_setup(const char *ciphers) {
         return NULL;
     }
 
-    /* Disable SSLv2 and SSLv3 */
-    SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+    /* Disable old protocols */
+#if OPENSSL_VERSION_PREREQ(1, 1)
+    SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+#else
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+                                         SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
+#endif /* OpenSSL 1.1.0 */
 
     SSL_CTX_set_cipher_list(ssl_ctx, ciphers);
 
@@ -765,7 +765,7 @@ tls_client_cert(const char *hostname, const SSL *ssl) {
 
     if (ssl == NULL) {
         syslog(LOG_ERR, "TLS %s: tls_client_cert: ssl is NULL", hostname);
-        return (1);
+        return 1;
     }
 
     if ((peer = SSL_get_peer_certificate(ssl)) == NULL) {
@@ -773,7 +773,7 @@ tls_client_cert(const char *hostname, const SSL *ssl) {
                 "Liberror: tls_client_cert "
                 "SSL_get_peer_certificate: %s",
                 ERR_error_string(ERR_get_error(), NULL));
-        return (1);
+        return 1;
     }
 
     syslog(LOG_INFO, "TLS %s: cert subject: %s", hostname,
@@ -784,9 +784,9 @@ tls_client_cert(const char *hostname, const SSL *ssl) {
     if ((rc = SSL_get_verify_result(ssl)) != X509_V_OK) {
         syslog(LOG_ERR, "TLS %s: verify failed: %s", hostname,
                 X509_verify_cert_error_string(rc));
-        return (1);
+        return 1;
     }
 
-    return (0);
+    return 0;
 }
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
