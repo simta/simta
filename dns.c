@@ -235,7 +235,7 @@ check_reverse(char *dn, const struct sockaddr *sa) {
                 if (ret == REVERSE_MATCH) {
                     if (dn) {
                         strncpy(dn, result_ptr->r_answer[ i ].rr_dn.dn_name,
-                                DNSR_MAX_NAME);
+                                DNSR_MAX_NAME + 1);
                     }
                     dnsr_free_result(result_a);
                     dnsr_free_result(result_ptr);
