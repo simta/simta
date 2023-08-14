@@ -1,5 +1,9 @@
-2.?.? (????-??-??)
+2.4.0 (2023-08-22)
     - added SPF tests, improved RFC 7208 compliance
+    - fixed some memory allocation bugs
+    - fixed linking with --as-needed
+    - disabled TLS < 1.2 for outbound connections
+    - added workaround for RedHat OpenSSL runtime errors
 
 2.3.1 (2023-04-14)
     - added support for a secondary search constraint on LDAP searches
