@@ -46,7 +46,7 @@ main(int argc, char *argv[]) {
     if (error || (optind == argc)) {
         fprintf(stderr,
                 "Usage: %s [ -v ] [ -f conf_file ] [ -U extra_conf ] "
-                "RFC5322.From domain [ SPF domain ] [ DKIM domain ]\n",
+                "RFC5322.From domain [ SPF domain ] [ DKIM domain ... ]\n",
                 argv[ 0 ]);
         exit(1);
     }
@@ -73,7 +73,7 @@ main(int argc, char *argv[]) {
         test_str = yaslcat(test_str, "/");
         test_str = yaslcat(test_str, argv[ optind++ ]);
     }
-    if (optind < argc) {
+    while (optind < argc) {
         dmarc_dkim_result(d, argv[ optind ]);
         test_str = yaslcat(test_str, "/");
         test_str = yaslcat(test_str, argv[ optind++ ]);

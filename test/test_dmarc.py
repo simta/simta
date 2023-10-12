@@ -89,4 +89,16 @@ def test_dmarc_fail(run_simdmarc, hfrom, spf, dkim):
     assert dmarc[1].endswith(': reject')
 
 
+@pytest.mark.parametrize('dkim', [
+    ['example.com', 'example.edu'],
+    ['example.edu', 'example.com'],
+    ['example.com', 'example.edu', 'example.com'],
+    ['example.edu', 'example.com', 'example.edu'],
+])
+def test_dmarc_multiple_dkim(run_simdmarc, dkim):
+    dmarc = run_simdmarc(['example.com', 'example.edu'] + dkim)
+    assert dmarc[1].startswith('DMARC policy result')
+    assert dmarc[1].endswith(': pass')
+
+
 # FIXME: test sp, subdomains with conflicting policies, etc.

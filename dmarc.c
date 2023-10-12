@@ -181,8 +181,7 @@ dmarc_dkim_result(struct dmarc *d, char *domain) {
     struct dll_entry *dkim_domain;
 
     dkim_domain = dll_lookup_or_create(&d->dkim_domain_list, domain);
-    /* This is really just to avoid a warning about unused-but-set-variable */
-    d->dkim_domain_list = dkim_domain;
+    simta_debuglog(2, "DMARC: added %s to DKIM results", dkim_domain->dll_key);
 }
 
 const char *
