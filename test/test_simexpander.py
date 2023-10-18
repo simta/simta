@@ -495,6 +495,11 @@ def test_expand_ldap_group_weird_spacing(run_simexpander, req_ldapserver):
     assert res['parsed'][0]['sender'] == '_testgroup._weird._.spacing._._issue_-errors@ldap.example.com'
 
 
+def test_expand_ldap_group_empty(run_simexpander, req_ldapserver):
+    res = run_simexpander('testgroup.empty@ldap.example.com')
+    assert len(res['parsed']) == 0
+
+
 @pytest.mark.parametrize('sender', [
     'simexpand@ldap.example.com',
     'SIMEXPAND@LDAP.EXAMPLE.COM',

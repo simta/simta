@@ -213,6 +213,11 @@ member: uid=testuser,ou=People,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=testuser,ou=People,dc=example,dc=com
 
+dn: cn=testgroup empty,ou=Groups,dc=example,dc=com
+cn: testgroup empty
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+
 dn: cn=testgroup nonowner,ou=Groups,dc=example,dc=com
 member: uid=testuser,ou=People,dc=example,dc=com
 objectClass: rfc822mailgroup
