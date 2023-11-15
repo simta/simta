@@ -25,6 +25,7 @@ try:
     from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
     HAS_CRYPTOGRAPHY = True
@@ -211,8 +212,14 @@ def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cer
     daemon_config['receive'] = {
         'ports': [port],
         'tls': {
-            'certificate': tls_cert['certificate'],
-            'key': tls_cert['key'],
+            'certificate': [
+                tls_cert['rsa_certificate'],
+                tls_cert['ec_certificate'],
+            ],
+            'key': [
+                tls_cert['ec_key'],
+                tls_cert['rsa_key'],
+            ],
             'ports': [legacy_port],
         },
         'auth': {
@@ -272,57 +279,64 @@ def tls_cert(tmp_path):
         pytest.skip('cryptography not installed')
         return
 
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-        backend=default_backend(),
-    )
+    keydata = {
+        'rsa': rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend(),
+        ),
+        'ec': ec.generate_private_key(ec.SECP384R1()),
+    }
 
-    public_key = private_key.public_key()
+    retval = {}
 
-    builder = x509.CertificateBuilder(
-        ).subject_name(
-            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u'localhost')])
-        ).issuer_name(
-            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u'localhost')])
-        ).not_valid_before(
-            datetime.datetime.today() - datetime.timedelta(days=1)
-        ).not_valid_after(
-            datetime.datetime.today() + datetime.timedelta(days=1)
-        ).serial_number(
-            x509.random_serial_number()
-        ).public_key(
-            public_key
-        ).add_extension(
-            x509.BasicConstraints(ca=True, path_length=None),
-            critical=True,
-        ).add_extension(
-            x509.SubjectAlternativeName([x509.DNSName(u'localhost')]),
-            critical=False,
+    for ctype in ['rsa', 'ec']:
+        private_key = keydata[ctype]
+        public_key = private_key.public_key()
+
+        builder = x509.CertificateBuilder(
+            ).subject_name(
+                x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u'localhost')])
+            ).issuer_name(
+                x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u'localhost')])
+            ).not_valid_before(
+                datetime.datetime.today() - datetime.timedelta(days=1)
+            ).not_valid_after(
+                datetime.datetime.today() + datetime.timedelta(days=1)
+            ).serial_number(
+                x509.random_serial_number()
+            ).public_key(
+                public_key
+            ).add_extension(
+                x509.BasicConstraints(ca=True, path_length=None),
+                critical=True,
+            ).add_extension(
+                x509.SubjectAlternativeName([x509.DNSName(u'localhost')]),
+                critical=False,
+            )
+
+        cert = builder.sign(
+            private_key=private_key,
+            algorithm=hashes.SHA256(),
+            backend=default_backend(),
         )
 
-    cert = builder.sign(
-        private_key=private_key,
-        algorithm=hashes.SHA256(),
-        backend=default_backend(),
-    )
+        key_path = str(tmp_path.joinpath(f'cert.{ctype}.key'))
+        cert_path = str(tmp_path.joinpath(f'cert.{ctype}.crt'))
 
-    key_path = str(tmp_path.joinpath('cert.key'))
-    cert_path = str(tmp_path.joinpath('cert.crt'))
+        with open(key_path, 'wb') as f:
+            f.write(private_key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.TraditionalOpenSSL,
+                serialization.NoEncryption()
+            ))
+        with open(cert_path, 'wb') as f:
+            f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-    with open(key_path, 'wb') as f:
-        f.write(private_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.TraditionalOpenSSL,
-            serialization.NoEncryption()
-        ))
-    with open(cert_path, 'wb') as f:
-        f.write(cert.public_bytes(serialization.Encoding.PEM))
+        retval[f'{ctype}_key'] = key_path
+        retval[f'{ctype}_certificate'] = cert_path
 
-    return {
-        'key': key_path,
-        'certificate': cert_path,
-    }
+    return retval
 
 
 @pytest.fixture
@@ -340,8 +354,8 @@ def aiosmtpd_server(request, tmp_path, tls_cert):
         '-n',
         '-l', ':{}'.format(port),
         '-c', 'aiosmtpd.handlers.Mailbox', spooldir,
-        '--tlscert', tls_cert['certificate'],
-        '--tlskey', tls_cert['key'],
+        '--tlscert', tls_cert['rsa_certificate'],
+        '--tlskey', tls_cert['rsa_key'],
     ]
 
     if 'badtls' in request.function.__name__:

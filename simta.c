@@ -238,6 +238,8 @@ simta_read_config(const char *fname, const char *extra) {
     simta_ucl_ensure_array(simta_config_obj("receive.auth.authz"), "acl");
     simta_ucl_ensure_array(simta_config_obj("receive.mail_from"), "acl");
     simta_ucl_ensure_array(simta_config_obj("receive.rcpt_to"), "acl");
+    simta_ucl_ensure_array(simta_config_obj("receive.tls"), "certificate");
+    simta_ucl_ensure_array(simta_config_obj("receive.tls"), "key");
 
     /* Set up localhost */
     if (red_host_lookup(simta_hostname, false) == NULL) {

@@ -1,3 +1,6 @@
+2.4.2 (????-??-??)
+    - added support for loading multiple TLS certificates
+
 2.4.1 (2023-10-12)
     - fixed DMARC processing of multiple DKIM signatures
 

@@ -61,8 +61,10 @@ tls_ca_setup(SSL_CTX *ctx) {
 
 SSL_CTX *
 tls_server_setup(void) {
-    SSL_CTX *ssl_ctx;
-    int      ssl_mode = 0;
+    SSL_CTX            *ssl_ctx;
+    int                 ssl_mode = 0;
+    ucl_object_iter_t   iter;
+    const ucl_object_t *obj;
 
     /* OpenSSL 1.1.0 added auto-init */
 #if !OPENSSL_VERSION_PREREQ(1, 1)
@@ -647,32 +649,43 @@ tls_server_setup(void) {
 
     SSL_CTX_set_cipher_list(ssl_ctx, simta_config_str("receive.tls.ciphers"));
 
-    if (SSL_CTX_use_PrivateKey_file(ssl_ctx,
-                simta_config_str("receive.tls.key"), SSL_FILETYPE_PEM) != 1) {
-        syslog(LOG_ERR,
-                "Liberror: tls_server_setup "
-                "SSL_CTX_use_PrivateKey_file: %s: %s",
-                simta_config_str("receive.tls.key"),
-                ERR_error_string(ERR_get_error(), NULL));
-        goto error;
+    iter = ucl_object_iterate_new(simta_config_obj("receive.tls.key"));
+    while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+        if (SSL_CTX_use_PrivateKey_file(
+                    ssl_ctx, ucl_object_tostring(obj), SSL_FILETYPE_PEM) != 1) {
+            syslog(LOG_ERR,
+                    "Liberror: tls_server_setup "
+                    "SSL_CTX_use_PrivateKey_file: %s: %s",
+                    ucl_object_tostring(obj),
+                    ERR_error_string(ERR_get_error(), NULL));
+            goto error;
+        }
     }
-    if (SSL_CTX_use_certificate_chain_file(
-                ssl_ctx, simta_config_str("receive.tls.certificate")) != 1) {
-        syslog(LOG_ERR,
-                "Liberror: tls_server_setup "
-                "SSL_CTX_use_certificate_chain_file: %s: %s",
-                simta_config_str("receive.tls.certificate"),
-                ERR_error_string(ERR_get_error(), NULL));
-        goto error;
+
+    ucl_object_iterate_reset(iter, simta_config_obj("receive.tls.certificate"));
+    while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
+        if (SSL_CTX_use_certificate_chain_file(
+                    ssl_ctx, ucl_object_tostring(obj)) != 1) {
+            syslog(LOG_ERR,
+                    "Liberror: tls_server_setup "
+                    "SSL_CTX_use_certificate_chain_file: %s: %s",
+                    ucl_object_tostring(obj),
+                    ERR_error_string(ERR_get_error(), NULL));
+            goto error;
+        }
+
+        /* Verify that private key matches cert */
+        if (SSL_CTX_check_private_key(ssl_ctx) != 1) {
+            syslog(LOG_ERR,
+                    "Liberror: tls_server_setup "
+                    "SSL_CTX_check_private_key: %s: %s",
+                    ucl_object_tostring(obj),
+                    ERR_error_string(ERR_get_error(), NULL));
+            goto error;
+        }
     }
-    /* Verify that private key matches cert */
-    if (SSL_CTX_check_private_key(ssl_ctx) != 1) {
-        syslog(LOG_ERR,
-                "Liberror: tls_server_setup "
-                "SSL_CTX_check_private_key: %s",
-                ERR_error_string(ERR_get_error(), NULL));
-        goto error;
-    }
+
+    ucl_object_iterate_free(iter);
 
     /* Load CA */
     if (tls_ca_setup(ssl_ctx) != SIMTA_OK) {
