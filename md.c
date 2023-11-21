@@ -23,11 +23,7 @@ void
 md_reset(struct message_digest *md, const char *digest) {
     if (md->md_ctx_status != MDCTX_READY) {
         if (md->md_ctx_status == MDCTX_UNINITIALIZED) {
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
             md->md_ctx = EVP_MD_CTX_new();
-#else
-            md->md_ctx = EVP_MD_CTX_create();
-#endif /* OpenSSL 1.1.0 */
         } else if (md->md_ctx_status == MDCTX_IN_USE) {
             EVP_DigestFinal_ex(md->md_ctx, md->md_value, &md->md_len);
         }
@@ -63,11 +59,7 @@ md_finalize(struct message_digest *md) {
 void
 md_cleanup(struct message_digest *md) {
     if (md->md_ctx_status != MDCTX_UNINITIALIZED) {
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
         EVP_MD_CTX_free(md->md_ctx);
-#else
-        EVP_MD_CTX_destroy(md->md_ctx);
-#endif /* OpenSSL 1.1.0 */
         md->md_ctx = NULL;
         md->md_ctx_status = MDCTX_UNINITIALIZED;
     }

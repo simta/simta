@@ -28,18 +28,14 @@ main(int argc, char *argv[]) {
 
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <checksum_algorithm> <file>\n", argv[ 0 ]);
-        return (1);
+        return 1;
     }
 
-    /* OpenSSL 1.1.0 added auto-init */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
-    OpenSSL_add_all_digests();
-#endif /* OpenSSL < 1.1.0 */
     testdigest = EVP_get_digestbyname((const char *)(argv[ 1 ]));
 
     if (testdigest == NULL) {
         fprintf(stderr, "%s: unknown checksum algorithm\n", argv[ 1 ]);
-        return (1);
+        return 1;
     }
 
     md_init(&md);
@@ -65,11 +61,11 @@ main(int argc, char *argv[]) {
 
     if (snet_close(snet) != 0) {
         perror("snet_close");
-        return (1);
+        return 1;
     }
 
     printf("\nChecksum: %s\n", md.md_b16);
 
-    return (0);
+    return 0;
 }
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

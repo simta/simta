@@ -58,10 +58,6 @@ test_md_reset(void **state) {
 
 int
 main(void) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
-    OpenSSL_add_all_digests();
-#endif /* OpenSSL < 1.1.0 */
-
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(test_md_sha1),
             cmocka_unit_test(test_md_sha256),

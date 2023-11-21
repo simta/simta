@@ -63,7 +63,7 @@ AC_ARG_WITH([ssl], AC_HELP_STRING([--with-ssl], [Build with TLS support]))
 AS_IF(
     [test "x$with_ssl" != "xno"],
     [
-        PKG_CHECK_MODULES([LIBSSL], [openssl >= 1.0.2], [AC_DEFINE([HAVE_LIBSSL], [1], [Define to 1 if LIBSSL is found])])
+        PKG_CHECK_MODULES([LIBSSL], [openssl >= 1.1.0], [AC_DEFINE([HAVE_LIBSSL], [1], [Define to 1 if LIBSSL is found])])
         AC_SEARCH_LIBS([ERR_peek_error], [crypto], [], [AC_MSG_ERROR(['libcrypto linking failed'])])
         AC_SEARCH_LIBS([SSL_new], [ssl], [], [AC_MSG_ERROR(['libssl linking failed'])])
         AC_CHECK_FUNCS(ossl_ctx_legacy_digest_signatures_allowed_set, [AC_DEFINE([OSSL_IS_RHEL], [1], [Define to 1 if RedHat OpenSSL])])
