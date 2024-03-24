@@ -4,7 +4,6 @@ AlignAfterOpenBracket: DontAlign
 AllowShortIfStatementsOnASingleLine: false
 AlwaysBreakAfterReturnType: AllDefinitions
 AlwaysBreakBeforeMultilineStrings: true
-BreakBeforeBraces: Linux
 BreakBeforeBinaryOperators: false
 BreakBeforeTernaryOperators: true
 BreakStringLiterals: true

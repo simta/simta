@@ -642,14 +642,13 @@ yaslsplitlen(const char *str, size_t len, const char *sep, size_t seplen,
     *count = elements;
     return tokens;
 
-cleanup : {
+cleanup:
     for (size_t i = 0; i < elements; i++) {
         yaslfree(tokens[ i ]);
     }
     free(tokens);
     *count = 0;
     return NULL;
-}
 }
 
 // Concatenation //
