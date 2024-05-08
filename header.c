@@ -1307,30 +1307,41 @@ error:
 char *
 token_quoted_string(char *start) {
     if (*start != '"') {
-        return (NULL);
+        return NULL;
     }
 
     for (;;) {
         start++;
 
+        /* Quoted strings can only contain printable characters */
+        if (!isprint(*start)) {
+            return NULL;
+        }
+
         switch (*start) {
 
         case '"':
             /* end of quoted string */
-            return (start);
+            return start;
 
         case '\\':
             start++;
 
-            if (*start == '\0') {
-                /* eol */
-                return (NULL);
+            /* RFC 5321 4.1.2 Command Argument Syntax
+             *
+             * quoted-pairSMTP  = %d92 %d32-126
+             *                  ; i.e., backslash followed by any ASCII
+             *                  ; graphic (including itself) or SPace
+             */
+            if (!isprint(*start)) {
+                /* not a valid escape */
+                return NULL;
             }
             break;
 
         case '\0':
             /* eol */
-            return (NULL);
+            return NULL;
 
         default:
             /* everything else */

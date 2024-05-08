@@ -114,6 +114,26 @@ test_is_emailaddr_invalid_12(void **state) {
     assert_false(is_emailaddr("localpart@example.com."));
 }
 
+static void
+test_is_emailaddr_invalid_13(void **state) {
+    assert_false(is_emailaddr("localpart\x7F@example.com"));
+}
+
+static void
+test_is_emailaddr_invalid_14(void **state) {
+    assert_false(is_emailaddr("\"localpart\x7F\"@example.com"));
+}
+
+static void
+test_is_emailaddr_invalid_15(void **state) {
+    assert_false(is_emailaddr("\x08localpart@example.com"));
+}
+
+static void
+test_is_emailaddr_invalid_16(void **state) {
+    assert_false(is_emailaddr("\"\x08localpart\"@example.com"));
+}
+
 static void test_correct_emailaddr_01(void **state) {
     yastr addr = yaslauto("localpart@example.com");
     assert_int_equal(correct_emailaddr(&addr, "example.com"), SIMTA_OK);
@@ -150,6 +170,10 @@ main(void) {
             cmocka_unit_test(test_is_emailaddr_invalid_10),
             cmocka_unit_test(test_is_emailaddr_invalid_11),
             cmocka_unit_test(test_is_emailaddr_invalid_12),
+            cmocka_unit_test(test_is_emailaddr_invalid_13),
+            cmocka_unit_test(test_is_emailaddr_invalid_14),
+            cmocka_unit_test(test_is_emailaddr_invalid_15),
+            cmocka_unit_test(test_is_emailaddr_invalid_16),
             cmocka_unit_test(test_correct_emailaddr_01),
             cmocka_unit_test(test_correct_emailaddr_02),
     };
