@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: simta
           fetch-depth: 0
@@ -20,7 +20,7 @@ jobs:
         run: sudo apt install libbsd-dev libmilter-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libsasl2-modules-db sasl2-bin libcmocka-dev yadifa slapd ldap-utils lcov
 
       - name: Cache built dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-deps
         with:
           path: ${{ github.workspace }}/.deps
@@ -59,7 +59,7 @@ jobs:
         working-directory: ${{ github.workspace }}/simta
 
       - name: Save dist tarball
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dist
           path: ${{ github.workspace }}/simta/simta-*.tar.xz
