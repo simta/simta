@@ -1,4 +1,6 @@
-2.4.2 (????-??-??)
+2.4.2 (2024-06-03)
+    - fixed bug that accepted some syntactically invalid email addresses
+    - removed support for OpenSSL versions prior to 1.1
     - added support for loading multiple TLS certificates
 
 2.4.1 (2023-10-12)
