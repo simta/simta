@@ -211,7 +211,7 @@ error:
         return (bounce_env->e_dinode);
     }
 
-    env_dfile_unlink(bounce_env);
+    env_file_unlink(bounce_env, ENV_FLAG_DFILE);
 
     return (0);
 }
