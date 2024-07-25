@@ -35,7 +35,10 @@ def test_authentication_mechlist(smtp, testmsg, sasldb):
     assert 'auth' not in smtp.esmtp_features
     smtp.starttls()
     smtp.ehlo()
-    assert smtp.esmtp_features['auth'] == ' LOGIN PLAIN'
+    # LOGIN is an obsolete draft mechanism that has been removed from
+    # the latest version of cyrus-sasl and may not always be built in older
+    # versions. This test should pass regardless of whether it's available.
+    assert smtp.esmtp_features['auth'] in (' LOGIN PLAIN', ' PLAIN')
 
 
 def test_authentication(smtp, testmsg, sasldb):
