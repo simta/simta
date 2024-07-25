@@ -15,5 +15,5 @@ def test_tls_legacy(simta):
     smtp = smtplib.SMTP_SSL('localhost', simta['legacy_port'])
     smtp.ehlo()
     assert 'starttls' not in smtp.esmtp_features
-    assert smtp.esmtp_features['auth'] == ' LOGIN PLAIN'
+    assert smtp.esmtp_features['auth'] == ' PLAIN'
     smtp.quit()
