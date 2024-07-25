@@ -2007,7 +2007,7 @@ f_data(struct receive_data *r) {
         if (read_err == NO_ERROR) {
             filter_result = MESSAGE_ACCEPT;
         } else {
-            if (env_dfile_unlink(r->r_env) != 0) {
+            if (env_file_unlink(r->r_env, ENV_FLAG_DFILE) != SIMTA_OK) {
                 read_err = SYSTEM_ERROR;
             }
         }
@@ -2184,7 +2184,7 @@ done:
                     r->r_ip, r->r_remote_hostname, r->r_env->e_id);
         } else {
             /* remove tfile because we're going to change the hostname */
-            if (env_tfile_unlink(r->r_env) != 0) {
+            if (env_file_unlink(r->r_env, ENV_FLAG_TFILE) != SIMTA_OK) {
                 goto error;
             }
             env_hostname(r->r_env, jail_host);
@@ -2219,10 +2219,8 @@ done:
                     filter_message ? filter_message : "no filter message");
         }
 
-        if ((r->r_env->e_flags & ENV_FLAG_DFILE)) {
-            if (env_dfile_unlink(r->r_env) != 0) {
-                goto error;
-            }
+        if (env_file_unlink(r->r_env, ENV_FLAG_DFILE) != SIMTA_OK) {
+            goto error;
         }
     }
 
@@ -2423,21 +2421,10 @@ error:
 
     /* if we didn't put a message on the disk, we need to clean up */
     if ((r->r_env->e_flags & ENV_FLAG_EFILE) == 0) {
-        /* Dfile no Efile */
-        if (r->r_env->e_flags & ENV_FLAG_DFILE) {
-            if (env_dfile_unlink(r->r_env) != 0) {
-                if (ret_code == RECEIVE_OK) {
-                    ret_code = RECEIVE_SYSERROR;
-                }
-            }
-        }
-
-        /* Tfile no Efile */
-        if (r->r_env->e_flags & ENV_FLAG_TFILE) {
-            if (env_tfile_unlink(r->r_env) != 0) {
-                if (ret_code == RECEIVE_OK) {
-                    ret_code = RECEIVE_SYSERROR;
-                }
+        if ((env_file_unlink(r->r_env, ENV_FLAG_DFILE) != SIMTA_OK) ||
+                (env_file_unlink(r->r_env, ENV_FLAG_TFILE) != SIMTA_OK)) {
+            if (ret_code == RECEIVE_OK) {
+                ret_code = RECEIVE_SYSERROR;
             }
         }
 

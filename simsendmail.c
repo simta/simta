@@ -45,7 +45,7 @@ static struct envelope *env;
 void
 catch_sigint(int sigint __attribute__((unused))) {
     if (dfile_fd) {
-        env_dfile_unlink(env);
+        env_file_unlink(env, ENV_FLAG_DFILE);
     }
 
     exit(EX_TEMPFAIL);
@@ -381,9 +381,7 @@ signal_server:
     return (EX_OK);
 
 error:
-    if (env->e_flags & ENV_FLAG_DFILE) {
-        env_dfile_unlink(env);
-    }
+    env_file_unlink(env, ENV_FLAG_DFILE);
 
     return (ret);
 }

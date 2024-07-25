@@ -140,7 +140,7 @@ q_move_to_slow(struct envelope **slow_q, struct envelope **other_q) {
                             "Queue %s/%s: collision with existing file in slow",
                             move->e_dir, move->e_id);
                     if (simta_filesystem_cleanup) {
-                        if (env_unlink(move) != 0) {
+                        if (env_unlink(move) != SIMTA_OK) {
                             return (1);
                         }
                     } else {
@@ -428,7 +428,7 @@ q_expansion_cleanup(struct envelope **fast) {
             env = *e;
             *e = env->e_next;
 
-            if (env_unlink(env) != 0) {
+            if (env_unlink(env) != SIMTA_OK) {
                 return (1);
             }
 
