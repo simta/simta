@@ -143,7 +143,7 @@ acl_lookup_file(
     unsigned long cidr;
     char         *p;
 
-    if ((snet = snet_open(fname, O_RDONLY, 0, 1024 * 1024)) == NULL) {
+    if ((snet = snet_open(fname, O_RDONLY, 0)) == NULL) {
         syslog(LOG_ERR, "Liberror: acl_lookup_file snet_open %s: %m", fname);
         return;
     }

@@ -41,7 +41,9 @@ sbin_PROGRAMS = \
 	simsendmail \
 	simta
 
-noinst_PROGRAMS = genimbed
+noinst_PROGRAMS = \
+	genimbed \
+	snetcat
 
 pkglibexec_PROGRAMS = simda
 
@@ -131,6 +133,8 @@ simsrs_SOURCES = simsrs.c $(COMMON_FILES)
 simsrs_LDADD = $(COMMON_LIBS)
 simta_SOURCES = daemon.c dmarc.c dmarc.h q_cleanup.c q_cleanup.h receive.c simta_acl.c simta_acl.h $(COMMON_FILES)
 simta_LDADD = $(COMMON_LIBS)
+snetcat_SOURCES = snetcat.c $(COMMON_FILES)
+snetcat_LDADD = $(COMMON_LIBS)
 
 dist_man_MANS = simsendmail.1 simc.8 simta.8
 

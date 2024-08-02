@@ -22,6 +22,7 @@ typedef struct {
     char          *sn_rbuf;
     char          *sn_rcur;
     yastr          sn_wbuf;
+    size_t         sn_buflen;
     size_t         sn_maxlen;
     struct timeval sn_read_timeout;
     struct timeval sn_write_timeout;
@@ -43,8 +44,8 @@ typedef struct {
 #define snet_flags(sn) ((sn)->sn_flag)
 
 int     snet_eof(SNET *);
-SNET   *snet_attach(int, size_t);
-SNET   *snet_open(const char *, int, int, size_t);
+SNET   *snet_attach(int);
+SNET   *snet_open(const char *, int, int);
 int     snet_close(SNET *);
 ssize_t snet_writef(SNET *, const char *, ...);
 char   *snet_getline(SNET *, struct timeval *);

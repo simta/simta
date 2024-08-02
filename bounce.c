@@ -231,7 +231,7 @@ bounce(struct envelope *env, int body, const char *err) {
             return (NULL);
         }
 
-        if ((sn = snet_attach(dfile_fd, 1024 * 1024)) == NULL) {
+        if ((sn = snet_attach(dfile_fd)) == NULL) {
             close(dfile_fd);
             return (NULL);
         }

@@ -24,8 +24,6 @@
 #include "simta_malloc.h"
 #include "simta_snet.h"
 
-#define SNET_BUFLEN 4096
-
 /*
  * BOL is beginning of line, FUZZY is after a CR but before a possible LF,
  * IN is past BOL, but before the end of a line.
@@ -46,15 +44,16 @@ snet_eof(SNET *sn) {
 }
 
 SNET *
-snet_attach(int fd, size_t max) {
+snet_attach(int fd) {
     SNET *sn;
 
     sn = simta_malloc(sizeof(SNET));
+    sn->sn_buflen = 4096;
+    sn->sn_maxlen = 1048576;
     sn->sn_fd = fd;
     sn->sn_rbuf = yaslempty();
     sn->sn_rstate = SNET_BOL;
     sn->sn_rcur = sn->sn_rbuf;
-    sn->sn_maxlen = max;
     sn->sn_wbuf = yaslempty();
 
     sn->sn_flag = 0;
@@ -63,13 +62,13 @@ snet_attach(int fd, size_t max) {
 }
 
 SNET *
-snet_open(const char *path, int flags, int mode, size_t max) {
+snet_open(const char *path, int flags, int mode) {
     int fd;
 
     if ((fd = open(path, flags, mode)) < 0) {
         return NULL;
     }
-    return snet_attach(fd, max);
+    return snet_attach(fd);
 }
 
 int
@@ -605,14 +604,14 @@ snet_getline(SNET *sn, struct timeval *tv) {
             }
 
             /* expand */
-            if (yaslavail(sn->sn_rbuf) < SNET_BUFLEN) {
+            if (yaslavail(sn->sn_rbuf) < sn->sn_buflen) {
                 if (sn->sn_maxlen != 0 &&
                         yasllen(sn->sn_rbuf) + yaslavail(sn->sn_rbuf) >=
                                 sn->sn_maxlen) {
                     errno = ENOMEM;
                     return NULL;
                 }
-                sn->sn_rbuf = yaslMakeRoomFor(sn->sn_rbuf, SNET_BUFLEN);
+                sn->sn_rbuf = yaslMakeRoomFor(sn->sn_rbuf, sn->sn_buflen);
                 eol = sn->sn_rbuf + yasllen(sn->sn_rbuf);
                 sn->sn_rcur = sn->sn_rbuf;
             }

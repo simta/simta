@@ -359,7 +359,7 @@ simta_getpwnam(const char *fname, const char *user) {
     }
 
     /* Otherwise, read and parse the passwd-like file ourselves. */
-    if ((snet = snet_open(fname, O_RDONLY, 0, 1024 * 1024)) == NULL) {
+    if ((snet = snet_open(fname, O_RDONLY, 0)) == NULL) {
         syslog(LOG_ERR, "Liberror: simta_getpwnam snet_open %s: %m", fname);
         return (NULL);
     }

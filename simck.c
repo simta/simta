@@ -47,7 +47,7 @@ main(int argc, char *argv[]) {
         exit(1);
     }
 
-    if ((snet = snet_attach(fd, 1024 * 1024)) == NULL) {
+    if ((snet = snet_attach(fd)) == NULL) {
         perror("snet_attach");
         exit(1);
     }

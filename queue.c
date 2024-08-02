@@ -379,8 +379,7 @@ q_runner(void) {
                 } else {
                     /* old unexpanded message, create bounce */
                     unexpanded->e_flags |= ENV_FLAG_BOUNCE;
-                    if ((snet_dfile = snet_attach(dfile_fd, 1024 * 1024)) ==
-                            NULL) {
+                    if ((snet_dfile = snet_attach(dfile_fd)) == NULL) {
                         close(dfile_fd);
                         goto unexpanded_clean_up;
                     }
@@ -1096,7 +1095,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         } else {
             switch (deliver_q->hq_status) {
             case SIMTA_HOST_OK:
-                if ((snet_dfile = snet_attach(dfile_fd, 1024 * 1024)) == NULL) {
+                if ((snet_dfile = snet_attach(dfile_fd)) == NULL) {
                     syslog(LOG_ERR, "Liberror: q_deliver snet_attach: %m");
                     goto message_cleanup;
                 }
@@ -1182,7 +1181,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
             }
 
             if (snet_dfile == NULL) {
-                if ((snet_dfile = snet_attach(dfile_fd, 1024 * 1024)) == NULL) {
+                if ((snet_dfile = snet_attach(dfile_fd)) == NULL) {
                     syslog(LOG_ERR, "Liberror: q_deliver snet_attach: %m");
                     /* fall through, just won't get to append dfile */
                 }
@@ -1514,7 +1513,7 @@ deliver_remote(struct deliver *d, struct host_q *hq) {
             syslog(LOG_INFO, "Connect.out [%s] %s: Success", d->d_ip,
                     hq->hq_hostname);
 
-            if ((d->d_snet_smtp = snet_attach(s, 1024 * 1024)) == NULL) {
+            if ((d->d_snet_smtp = snet_attach(s)) == NULL) {
                 syslog(LOG_ERR, "Liberror: deliver_remote snet_attach: %m");
                 close(s);
                 continue;

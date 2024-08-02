@@ -488,7 +488,7 @@ simta_read_publicsuffix(const char *fname) {
 #endif /* HAVE_LIBIDN2 */
 
     /* Set up public suffix list */
-    if ((snet = snet_open(fname, O_RDONLY, 0, 1024 * 1024)) == NULL) {
+    if ((snet = snet_open(fname, O_RDONLY, 0)) == NULL) {
         fprintf(stderr, "simta_read_publicsuffix: open %s: %s", fname,
                 strerror(errno));
         return SIMTA_ERR;
@@ -741,7 +741,7 @@ simta_slurp(const char *path) {
     ssize_t chunk;
     char    buf[ 16384 ];
 
-    if ((snet = snet_open(path, O_RDONLY, 0, 1024 * 1024)) == NULL) {
+    if ((snet = snet_open(path, O_RDONLY, 0)) == NULL) {
         syslog(LOG_ERR, "Liberror: simta_slurp snet_open %s: %m", path);
         return (NULL);
     }

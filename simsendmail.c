@@ -225,7 +225,7 @@ main(int argc, char *argv[]) {
     }
 
     /* need to read stdin in a line-oriented fashon */
-    if ((snet_stdin = snet_attach(0, 1024 * 1024)) == NULL) {
+    if ((snet_stdin = snet_attach(0)) == NULL) {
         perror("snet_attach");
         exit(EX_TEMPFAIL);
     }

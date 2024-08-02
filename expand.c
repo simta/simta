@@ -557,8 +557,7 @@ expand(struct envelope *unexpanded_env) {
                 env_p = &(env->e_next);
 
                 if (snet == NULL) {
-                    if ((snet = snet_open(d_original, O_RDONLY, 0,
-                                 1024 * 1024)) == NULL) {
+                    if ((snet = snet_open(d_original, O_RDONLY, 0)) == NULL) {
                         syslog(LOG_ERR, "Liberror: expand snet_open %s: %m",
                                 d_original);
                         goto cleanup5;

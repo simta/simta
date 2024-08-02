@@ -628,7 +628,7 @@ env_dkim_sign(struct envelope *env) {
         goto error;
     }
 
-    if ((snet = snet_open(df, O_RDONLY, 0, 1024 * 1024)) == NULL) {
+    if ((snet = snet_open(df, O_RDONLY, 0)) == NULL) {
         syslog(LOG_ERR, "Liberror: env_dkim_sign snet_open %s: %m", buf);
         goto error;
     }
@@ -800,7 +800,7 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
 
     filename = yaslcatprintf(yaslauto(env->e_dir), "/E%s", env->e_id);
 
-    if ((snet = snet_open(filename, O_RDWR, 0, 1024 * 1024)) == NULL) {
+    if ((snet = snet_open(filename, O_RDWR, 0)) == NULL) {
         if (errno != ENOENT) {
             syslog(LOG_ERR, "Syserror: env_read snet_open %s: %m", filename);
         }
@@ -1075,14 +1075,14 @@ env_dfile_copy(struct envelope *env, const char *source, const char *header) {
         }
 
         sprintf(df, "%s/D%s", env->e_dir, env->e_id);
-        if ((snet = snet_open(df, O_RDONLY, 0, 1024 * 1024)) != NULL) {
+        if ((snet = snet_open(df, O_RDONLY, 0)) != NULL) {
             if (unlink(df)) {
                 syslog(LOG_ERR, "Syserror: env_dfile_copy unlink %s: %m", df);
                 goto error;
             }
         }
     } else {
-        snet = snet_open(source, O_RDONLY, 0, 1024 * 1024);
+        snet = snet_open(source, O_RDONLY, 0);
     }
 
     if (snet == NULL) {
@@ -1155,7 +1155,7 @@ env_dfile_wrap(struct envelope *env, const char *source, const char *preface) {
      */
     env_file_unlink(env, ENV_FLAG_TFILE);
 
-    snet = snet_open(source, O_RDONLY, 0, 1024 * 1024);
+    snet = snet_open(source, O_RDONLY, 0);
 
     if (snet == NULL) {
         syslog(LOG_ERR, "Liberror: env_dfile_wrap snet_open: %m");

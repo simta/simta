@@ -147,7 +147,7 @@ deliver_binary(struct deliver *d) {
             return (EX_TEMPFAIL);
         }
 
-        if ((snet = snet_attach(fd[ 1 ], 1024 * 1024)) == NULL) {
+        if ((snet = snet_attach(fd[ 1 ])) == NULL) {
             syslog(LOG_ERR, "Liberror: deliver_binary snet_attach: %m");
             return (EX_TEMPFAIL);
         }

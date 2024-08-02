@@ -3031,7 +3031,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         tv_start.tv_usec = 0;
     }
 
-    if ((r.r_snet = snet_attach(fd, 1024 * 1024)) == NULL) {
+    if ((r.r_snet = snet_attach(fd)) == NULL) {
         syslog(LOG_ERR, "Liberror: smtp_receive snet_attach: %m");
         return (0);
     }
@@ -4403,7 +4403,7 @@ run_content_filter(struct receive_data *r, char **smtp_message) {
             return (MESSAGE_TEMPFAIL);
         }
 
-        if ((snet = snet_attach(fd[ 0 ], 1024 * 1024)) == NULL) {
+        if ((snet = snet_attach(fd[ 0 ])) == NULL) {
             syslog(LOG_ERR, "Liberror: content_filter snet_attach: %m");
             close(fd[ 0 ]);
             return (MESSAGE_TEMPFAIL);

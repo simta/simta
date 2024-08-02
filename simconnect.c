@@ -110,7 +110,7 @@ main(int argc, char *argv[]) {
 
         syslog(LOG_INFO, "[%s] %s: connect: Success", d.d_ip, hq->hq_hostname);
 
-        if ((d.d_snet_smtp = snet_attach(s, 1024 * 1024)) == NULL) {
+        if ((d.d_snet_smtp = snet_attach(s)) == NULL) {
             syslog(LOG_ERR, "[%s] %s: snet_attach: %m", d.d_ip,
                     hq->hq_hostname);
             close(s);

@@ -1496,7 +1496,7 @@ daemon_commands(struct simta_dirp *sd) {
 
     sprintf(fname, "%s/%s", sd->sd_dir, entry->d_name);
 
-    if ((snet = snet_open(fname, O_RDWR, 0, 1024 * 1024)) == NULL) {
+    if ((snet = snet_open(fname, O_RDWR, 0)) == NULL) {
         if (errno != ENOENT) {
             syslog(LOG_ERR, "Liberror: simta_read_command snet_open %s: %m",
                     fname);
