@@ -36,12 +36,6 @@ jobs:
           src: https://github.com/simta/denser
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
-      - name: Build libsnet
-        uses: flowerysong/gh-build-deb@v1
-        with:
-          src: https://github.com/simta/libsnet
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-
       - name: Build libucl
         uses: flowerysong/gh-build-deb@v1
         with:

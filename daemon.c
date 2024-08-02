@@ -41,8 +41,6 @@
 #include <openssl/ssl.h>
 #endif /* HAVE_LIBSSL */
 
-#include <snet.h>
-
 #include "argcargv.h"
 #include "envelope.h"
 #include "ll.h"

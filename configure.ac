@@ -40,7 +40,6 @@ AC_CHECK_LIB([crypt], [crypt])
 
 # Required packages
 PKG_CHECK_MODULES([DENSER], [denser >= 0.5.2])
-PKG_CHECK_MODULES([SNET], [libsnet])
 PKG_CHECK_MODULES([LIBUCL], [libucl >= 0.8.1])
 
 # Optional packages

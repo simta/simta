@@ -2,7 +2,6 @@
 #define SIMTA_QUEUE_H
 
 #include <netinet/in.h>
-#include <snet.h>
 
 #include "simta.h"
 

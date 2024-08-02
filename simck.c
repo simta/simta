@@ -13,9 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <snet.h>
-
 #include "md.h"
+#include "simta_snet.h"
 
 int
 main(int argc, char *argv[]) {

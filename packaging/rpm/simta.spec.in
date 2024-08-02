@@ -25,7 +25,6 @@ BuildRequires: setup
 BuildRequires: pkgconfig(denser)
 #BuildRequires: pkgconfig(jemalloc)
 BuildRequires: jemalloc-devel
-BuildRequires: pkgconfig(libsnet)
 %{?systemd_requires}
 BuildRequires: systemd
 %if "%{with_tls}" == "yes"

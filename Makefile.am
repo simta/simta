@@ -11,7 +11,6 @@ COMMON_LIBS = \
 	@LIBUCL_LIBS@ \
 	@OPENARC_LIBS@ \
 	@OPENDKIM_LIBS@ \
-	@SNET_LIBS@ \
 	@EXTRALIBS@
 
 AM_CPPFLAGS = \
@@ -25,8 +24,7 @@ AM_CPPFLAGS = \
 	@LIBUCL_CFLAGS@ \
 	@LIBWRAP_CPPFLAGS@ \
 	@OPENARC_CFLAGS@ \
-	@OPENDKIM_CFLAGS@ \
-	@SNET_CFLAGS@
+	@OPENDKIM_CFLAGS@
 
 bin_PROGRAMS = \
 	simalias \
@@ -63,6 +61,7 @@ COMMON_FILES = \
 	red.c red.h \
 	simta.c simta.h \
 	simta_malloc.c simta_malloc.h \
+	simta_snet.c simta_snet.h \
 	simta_statsd.c simta_statsd.h \
 	simta_ucl.c simta_ucl.h \
 	smtp.c smtp.h \
@@ -85,7 +84,7 @@ endif
 if BUILD_SSL
 COMMON_FILES += md.c md.h tls.c tls.h
 noinst_PROGRAMS += simck
-simck_SOURCES = simck.c md.c md.h
+simck_SOURCES = simck.c md.c md.h simta_snet.c simta_snet.h
 simck_LDADD = $(COMMON_LIBS)
 endif
 

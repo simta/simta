@@ -8,11 +8,11 @@
 #include <sys/types.h>
 
 #include <denser.h>
-#include <snet.h>
 #include <ucl.h>
 #include <yasl.h>
 
 #include "ll.h"
+#include "simta_snet.h"
 #include "simta_ucl.h"
 
 #define EMAIL_ADDRESS_NORMAL 0x0000
