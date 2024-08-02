@@ -9,6 +9,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+#include <yasl.h>
+
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #endif /* HAVE_LIBSSL */
@@ -20,10 +22,9 @@ typedef struct {
     char          *sn_rbuf;
     char          *sn_rend;
     char          *sn_rcur;
-    char          *sn_wbuf;
+    yastr          sn_wbuf;
     size_t         sn_maxlen;
     size_t         sn_rbuflen;
-    size_t         sn_wbuflen;
     struct timeval sn_read_timeout;
     struct timeval sn_write_timeout;
     struct timeval sn_ssl_connect_timeout;
