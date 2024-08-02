@@ -21,6 +21,7 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#include "simta_malloc.h"
 #include "simta_snet.h"
 
 #define SNET_BUFLEN 4096
@@ -48,24 +49,14 @@ SNET *
 snet_attach(int fd, size_t max) {
     SNET *sn;
 
-    if ((sn = malloc(sizeof(SNET))) == NULL) {
-        return NULL;
-    }
+    sn = simta_malloc(sizeof(SNET));
     sn->sn_fd = fd;
-    if ((sn->sn_rbuf = malloc(SNET_BUFLEN)) == NULL) {
-        free(sn);
-        return NULL;
-    }
+    sn->sn_rbuf = simta_malloc(SNET_BUFLEN);
     sn->sn_rbuflen = SNET_BUFLEN;
     sn->sn_rstate = SNET_BOL;
     sn->sn_rcur = sn->sn_rend = sn->sn_rbuf;
     sn->sn_maxlen = max;
-
-    if ((sn->sn_wbuf = malloc(SNET_BUFLEN)) == NULL) {
-        free(sn->sn_rbuf);
-        free(sn);
-        return NULL;
-    }
+    sn->sn_wbuf = simta_malloc(SNET_BUFLEN);
     sn->sn_wbuflen = SNET_BUFLEN;
 
     sn->sn_flag = 0;
@@ -248,7 +239,7 @@ snet_writef(SNET *sn, const char *format, ...) {
 
 #define SNET_WBUFGROW(x)                                                       \
     while (cur + (x) > end) {                                                  \
-        if ((sn->sn_wbuf = realloc(                                            \
+        if ((sn->sn_wbuf = simta_realloc(                                      \
                      sn->sn_wbuf, sn->sn_wbuflen + SNET_BUFLEN)) == NULL) {    \
             abort();                                                           \
         }                                                                      \
@@ -839,7 +830,7 @@ snet_getline(SNET *sn, struct timeval *tv) {
                     errno = ENOMEM;
                     return NULL;
                 }
-                if ((sn->sn_rbuf = realloc(sn->sn_rbuf,
+                if ((sn->sn_rbuf = simta_realloc(sn->sn_rbuf,
                              sn->sn_rbuflen + SNET_BUFLEN)) == NULL) {
                     exit(1);
                 }

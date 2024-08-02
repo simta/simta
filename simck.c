@@ -14,7 +14,9 @@
 #include <string.h>
 
 #include "md.h"
-#include "simta_snet.h"
+#include "simta.h"
+
+const char *simta_progname = "simck";
 
 int
 main(int argc, char *argv[]) {

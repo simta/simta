@@ -84,7 +84,7 @@ endif
 if BUILD_SSL
 COMMON_FILES += md.c md.h tls.c tls.h
 noinst_PROGRAMS += simck
-simck_SOURCES = simck.c md.c md.h simta_snet.c simta_snet.h
+simck_SOURCES = simck.c $(COMMON_FILES)
 simck_LDADD = $(COMMON_LIBS)
 endif
 
