@@ -51,10 +51,9 @@ snet_attach(int fd, size_t max) {
 
     sn = simta_malloc(sizeof(SNET));
     sn->sn_fd = fd;
-    sn->sn_rbuf = simta_malloc(SNET_BUFLEN);
-    sn->sn_rbuflen = SNET_BUFLEN;
+    sn->sn_rbuf = yaslempty();
     sn->sn_rstate = SNET_BOL;
-    sn->sn_rcur = sn->sn_rend = sn->sn_rbuf;
+    sn->sn_rcur = sn->sn_rbuf;
     sn->sn_maxlen = max;
     sn->sn_wbuf = yaslempty();
 
@@ -79,7 +78,7 @@ snet_close(SNET *sn) {
 
     fd = snet_fd(sn);
     yaslfree(sn->sn_wbuf);
-    free(sn->sn_rbuf);
+    yaslfree(sn->sn_rbuf);
     free(sn);
     if (close(fd) < 0) {
         return -1;
@@ -519,20 +518,20 @@ restoreblocking:
     return -1;
 }
 
-int
+bool
 snet_hasdata(SNET *sn) {
-    if (sn->sn_rcur < sn->sn_rend) {
+    if (sn->sn_rcur < sn->sn_rbuf + yasllen(sn->sn_rbuf)) {
         if (sn->sn_rstate == SNET_FUZZY) {
             if (*sn->sn_rcur == '\n') {
                 sn->sn_rcur++;
             }
             sn->sn_rstate = SNET_BOL;
         }
-        if (sn->sn_rcur < sn->sn_rend) {
-            return 1;
+        if (sn->sn_rcur < sn->sn_rbuf + yasllen(sn->sn_rbuf)) {
+            return true;
         }
     }
-    return 0;
+    return false;
 }
 
 /*
@@ -549,10 +548,10 @@ snet_read(SNET *sn, char *buf, size_t len, struct timeval *tv) {
      * Note that snet_getline() calls snet_read0().
      */
     if (snet_hasdata(sn)) {
-#ifndef min
-#define min(a, b) (((a) < (b)) ? (a) : (b))
-#endif /* min */
-        rc = min(sn->sn_rend - sn->sn_rcur, len);
+        rc = sn->sn_rbuf + yasllen(sn->sn_rbuf) - sn->sn_rcur;
+        if (rc > len) {
+            rc = len;
+        }
         memcpy(buf, sn->sn_rcur, rc);
         sn->sn_rcur += rc;
         return rc;
@@ -576,14 +575,11 @@ snet_read(SNET *sn, char *buf, size_t len, struct timeval *tv) {
 /*
  * Flush snet's internal buffer
  */
-ssize_t
+void
 snet_flush(SNET *sn) {
-    ssize_t rc;
-
-    rc = sn->sn_rend - sn->sn_rcur;
-    sn->sn_rcur = sn->sn_rend = sn->sn_rbuf;
+    yaslclear(sn->sn_rbuf);
+    sn->sn_rcur = sn->sn_rbuf;
     sn->sn_rstate = SNET_BOL;
-    return rc;
 }
 
 /*
@@ -598,35 +594,30 @@ snet_getline(SNET *sn, struct timeval *tv) {
     extern int errno;
 
     for (eol = sn->sn_rcur;; eol++) {
-        if (eol >= sn->sn_rend) { /* fill */
-            /* pullup */
+        if (eol >= sn->sn_rbuf + yasllen(sn->sn_rbuf)) {
+            /* out of data but not end of line */
+
+            /* shift unreturned data over */
             if (sn->sn_rcur > sn->sn_rbuf) {
-                if (sn->sn_rcur < sn->sn_rend) {
-                    memmove(sn->sn_rbuf, sn->sn_rcur,
-                            (unsigned)(sn->sn_rend - sn->sn_rcur));
-                }
-                eol = sn->sn_rend = sn->sn_rbuf + (sn->sn_rend - sn->sn_rcur);
+                yaslrange(sn->sn_rbuf, sn->sn_rcur - sn->sn_rbuf, -1);
+                eol = sn->sn_rbuf + yasllen(sn->sn_rbuf);
                 sn->sn_rcur = sn->sn_rbuf;
             }
 
             /* expand */
-            if (sn->sn_rend == sn->sn_rbuf + sn->sn_rbuflen) {
-                if (sn->sn_maxlen != 0 && sn->sn_rbuflen >= sn->sn_maxlen) {
+            if (yaslavail(sn->sn_rbuf) < SNET_BUFLEN) {
+                if (sn->sn_maxlen != 0 &&
+                        yasllen(sn->sn_rbuf) + yaslavail(sn->sn_rbuf) >=
+                                sn->sn_maxlen) {
                     errno = ENOMEM;
                     return NULL;
                 }
-                if ((sn->sn_rbuf = simta_realloc(sn->sn_rbuf,
-                             sn->sn_rbuflen + SNET_BUFLEN)) == NULL) {
-                    exit(1);
-                }
-                sn->sn_rbuflen += SNET_BUFLEN;
-                eol = sn->sn_rend = sn->sn_rbuf + (sn->sn_rend - sn->sn_rcur);
+                sn->sn_rbuf = yaslMakeRoomFor(sn->sn_rbuf, SNET_BUFLEN);
+                eol = sn->sn_rbuf + yasllen(sn->sn_rbuf);
                 sn->sn_rcur = sn->sn_rbuf;
             }
 
-            if ((rc = snet_read0(sn, sn->sn_rend,
-                         sn->sn_rbuflen - (sn->sn_rend - sn->sn_rbuf), tv)) <
-                    0) {
+            if ((rc = snet_read0(sn, eol, yaslavail(sn->sn_rbuf), tv)) < 0) {
                 return NULL;
             }
             if (rc == 0) { /* EOF */
@@ -635,12 +626,12 @@ snet_getline(SNET *sn, struct timeval *tv) {
 		 * read, so when we place the '\0' below, we have space
 		 * for that.
 		 */
-                if (sn->sn_rcur < sn->sn_rend) {
+                if (sn->sn_rcur < sn->sn_rbuf + yasllen(sn->sn_rbuf)) {
                     break;
                 }
                 return NULL;
             }
-            sn->sn_rend += rc;
+            yaslIncrLen(sn->sn_rbuf, rc);
         }
 
         if (*eol == '\r' || *eol == '\0') {

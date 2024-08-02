@@ -20,11 +20,9 @@ typedef struct {
     void *sn_ssl;
 #endif /* HAVE_LIBSSL */
     char          *sn_rbuf;
-    char          *sn_rend;
     char          *sn_rcur;
     yastr          sn_wbuf;
     size_t         sn_maxlen;
-    size_t         sn_rbuflen;
     struct timeval sn_read_timeout;
     struct timeval sn_write_timeout;
     struct timeval sn_ssl_connect_timeout;
@@ -52,8 +50,8 @@ ssize_t snet_writef(SNET *, const char *, ...);
 char   *snet_getline(SNET *, struct timeval *);
 char   *snet_getline_multi(SNET *, void (*)(char *), struct timeval *);
 void    snet_timeout(SNET *, int, struct timeval *);
-int     snet_hasdata(SNET *);
-ssize_t snet_flush(SNET *);
+bool    snet_hasdata(SNET *);
+void    snet_flush(SNET *);
 ssize_t snet_read(SNET *, char *, size_t, struct timeval *);
 ssize_t snet_write(SNET *, char *, size_t);
 int     snet_select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
