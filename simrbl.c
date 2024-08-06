@@ -41,8 +41,6 @@ const char *simta_progname = "simrbl";
 
 int
 main(int argc, char *argv[]) {
-    extern int         optind;
-    extern char       *optarg;
     int                c;
     const char        *server = NULL;
     const char        *port = "53";

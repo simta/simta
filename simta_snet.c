@@ -423,7 +423,6 @@ snet_read0(SNET *sn, char *buf, size_t len, struct timeval *tv) {
     fd_set         fds;
     ssize_t        rc;
     struct timeval default_tv;
-    extern int     errno;
     int            oflags = 0, dontblock = 0;
 
     if ((tv == NULL) && (sn->sn_flag & SNET_READ_TIMEOUT)) {
@@ -588,9 +587,8 @@ snet_flush(SNET *sn) {
  */
 char *
 snet_getline(SNET *sn, struct timeval *tv) {
-    char      *eol, *line;
-    ssize_t    rc;
-    extern int errno;
+    char   *eol, *line;
+    ssize_t rc;
 
     for (eol = sn->sn_rcur;; eol++) {
         if (eol >= sn->sn_rbuf + yasllen(sn->sn_rbuf)) {

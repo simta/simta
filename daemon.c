@@ -263,8 +263,6 @@ main(int ac, char **av) {
     bool                 dontrun = false;
     bool                 daemonize = true;
     char                *prog;
-    extern int           optind;
-    extern char         *optarg;
     struct simta_socket *ss;
     const char          *simta_uname = NULL;
     struct passwd       *simta_pw;
