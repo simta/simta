@@ -158,7 +158,7 @@ srs_reverse(const char *addr, char **newaddr, const char *secret) {
     char *p;
 
     if (secret == NULL) {
-        simta_debuglog(1, "SRS %s: no secret", addr);
+        simta_debuglog(2, "SRS %s: no secret", addr);
         return SRS_INVALID;
     }
 
