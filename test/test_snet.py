@@ -81,26 +81,31 @@ def test_snet_buffer_max(tool_path):
 
 
 @pytest.mark.parametrize(
-    'test_pair',
+    'test_data',
     [
-        # \r\n split by the boundary
-        (b'0123456\r\n78\r\n', b'0123456\r\n78\r\n'),
-        # \r\n after the boundary
-        (b'01234567\r\n8\r\n', b'01234567\r\n8\r\n'),
-        # \r\n before the boundary
-        (b'012345\r\n678\r\n', b'012345\r\n678\r\n'),
-        # \r\r split by the boundary
-        (b'0123456\r\r78\r\n', b'0123456\r\r78\r\n'),
-        # \n\n split by the boundary
-        (b'0123456\n\n78\r\n', b'0123456\n\n78\r\n'),
+        # \r\n split by the buffer boundary
+        b'0123456\r\n78\r\n',
+        # \r\n after the buffer boundary
+        b'01234567\r\n8\r\n',
+        # \r\n before the buffer boundary
+        b'012345\r\n678\r\n',
+        # \r\r split by the buffer boundary
+        b'0123456\r\r78\r\n',
+        # \n\n split by the buffer boundary
+        b'0123456\n\n78\r\n',
         # no terminal CRLF == not a line
-        (b'0123456\r\n78910123456789', b'0123456\r\n'),
+        [b'0123456\r\n78910123456789', b'0123456\r\n'],
         # just a lot of empty lines
-        (b'\r\n\r\n\r\n\r\n\r\n', b'\r\n\r\n\r\n\r\n\r\n'),
-        (b'\r\n', b'\r\n'),
+        b'\r\n\r\n\r\n\r\n\r\n',
+        b'\r\n',
+        # Null
+        b'n\0ull\r\n',
     ]
 )
-def test_snet_getline_safe(tool_path, test_pair):
+def test_snet_getline_safe(tool_path, test_data):
+    if not isinstance(test_data, list):
+        test_data = [test_data, test_data]
+
     res = subprocess.run(
         [
             tool_path('snetcat'),
@@ -110,10 +115,10 @@ def test_snet_getline_safe(tool_path, test_pair):
         ],
         check=True,
         capture_output=True,
-        input=test_pair[0],
+        input=test_data[0],
     )
 
-    assert res.stdout == test_pair[1]
+    assert res.stdout == test_data[1]
 
 
 def test_snet_getline_safe_buffer_max(tool_path):

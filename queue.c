@@ -1471,7 +1471,7 @@ deliver_local(struct deliver *d) {
 
 void
 deliver_remote(struct deliver *d, struct host_q *hq) {
-    int            r_smtp;
+    smtp_result    r_smtp;
     int            s;
     bool           env_movement = false;
     struct timeval tv_start;

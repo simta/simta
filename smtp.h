@@ -12,20 +12,17 @@
 #define SMTP_QUIT 9
 #define SMTP_STARTTLS 10
 
-#define SMTP_OK 0
-#define SMTP_ERROR 1
-#define SMTP_BAD_CONNECTION 2
-#define SMTP_BAD_TLS 3
+typedef enum {
+    SMTP_OK,
+    SMTP_ERROR,
+    SMTP_BAD_CONNECTION,
+    SMTP_BAD_TLS,
+} smtp_result;
 
-void stdout_logger(char *);
-int  smtp_reply(int, struct host_q *, struct deliver *);
-int  smtp_consume_banner(struct line_file **, struct deliver *, char *, char *);
-
-int  smtp_connect(struct host_q *, struct deliver *);
-int  smtp_parse_ehlo_banner(struct deliver *, char *);
-int  smtp_rset(struct host_q *, struct deliver *);
-int  smtp_send(struct host_q *, struct deliver *);
-void smtp_quit(struct host_q *, struct deliver *);
+smtp_result smtp_connect(struct host_q *, struct deliver *);
+smtp_result smtp_rset(struct host_q *, struct deliver *);
+smtp_result smtp_send(struct host_q *, struct deliver *);
+void        smtp_quit(struct host_q *, struct deliver *);
 
 #endif /* SIMTA_SMTP_H */
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

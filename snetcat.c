@@ -88,11 +88,15 @@ main(int argc, char *argv[]) {
     do {
         if (safe) {
             line = snet_getline_safe(snet, NULL);
+            if (line) {
+                snet_write(snet_out, line, yasllen(line));
+                snet_write(snet_out, "\r\n", 2);
+            }
         } else {
             line = snet_getline(snet, NULL);
-        }
-        if (line) {
-            snet_writef(snet_out, "%s\r\n", line);
+            if (line) {
+                snet_writef(snet_out, "%s\r\n", line);
+            }
         }
     } while (line);
 

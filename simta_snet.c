@@ -702,37 +702,3 @@ snet_getline(SNET *sn, struct timeval *tv) {
     sn->sn_rcur = eol + 1;
     return line;
 }
-
-char *
-snet_getline_multi(SNET *sn, void (*logger)(char *), struct timeval *tv) {
-    char *line;
-
-    do {
-        if ((line = snet_getline(sn, tv)) == NULL) {
-            return NULL;
-        }
-
-        if (logger != NULL) {
-            (*logger)(line);
-        }
-
-        if (strlen(line) < 3) {
-            errno = EINVAL;
-            return NULL;
-        }
-
-        if (!isdigit((int)line[ 0 ]) || !isdigit((int)line[ 1 ]) ||
-                !isdigit((int)line[ 2 ])) {
-            errno = EINVAL;
-            return NULL;
-        }
-
-        if (line[ 3 ] != '\0' && line[ 3 ] != ' ' && line[ 3 ] != '-') {
-            errno = EINVAL;
-            return NULL;
-        }
-
-    } while (line[ 3 ] == '-');
-
-    return line;
-}
