@@ -52,7 +52,6 @@ int allow_severity = LIBWRAP_ALLOW_FACILITY | LIBWRAP_ALLOW_SEVERITY;
 int deny_severity = LIBWRAP_DENY_FACILITY | LIBWRAP_DENY_SEVERITY;
 #endif /* HAVE_LIBWRAP */
 
-#include "argcargv.h"
 #include "dmarc.h"
 #include "dns.h"
 #include "header.h"
@@ -60,6 +59,7 @@ int deny_severity = LIBWRAP_DENY_FACILITY | LIBWRAP_DENY_SEVERITY;
 #include "simta_acl.h"
 #include "simta_malloc.h"
 #include "simta_statsd.h"
+#include "simta_util.h"
 #include "spf.h"
 #include "srs.h"
 
@@ -102,8 +102,8 @@ enum smtp_mode {
 struct receive_data {
     SNET                   *r_snet;
     struct envelope        *r_env;
-    int                     r_ac;
-    char                  **r_av;
+    size_t                  r_ac;
+    yastr                  *r_av;
     struct sockaddr        *r_sa;
     char                   *r_ip;
     int                     r_write_before_banner;
@@ -190,14 +190,12 @@ struct command {
     int (*c_func)(struct receive_data *);
 };
 
-static yastr       env_string(const char *, const char *);
 static const char *iprev_authresult_str(struct receive_data *);
 static int         proxy_accept(struct receive_data *);
 static int         auth_init(struct receive_data *, struct simta_socket *);
 static int content_filter(struct receive_data *, char **, struct timeval *);
 static int run_content_filter(struct receive_data *, char **);
 static simta_address_status local_address(char *, char *, const ucl_object_t *);
-static simta_result         validate_chars(const yastr);
 static int                  hello(struct receive_data *, char *);
 static int                  reset(struct receive_data *);
 static int                  deliver_accepted(struct receive_data *, int);
@@ -1726,7 +1724,7 @@ f_data(struct receive_data *r) {
         data_read += yasllen(line) + 2;
 
         /* First, check facial validity */
-        if (validate_chars(line) != SIMTA_OK) {
+        if (validate_smtp_chars(line) != SIMTA_OK) {
             syslog(LOG_INFO,
                     "Receive [%s] %s: env <%s>: invalid character in DATA",
                     r->r_ip, r->r_remote_hostname, r->r_env->e_id);
@@ -2985,7 +2983,6 @@ f_auth(struct receive_data *r) {
 int
 smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     struct receive_data r;
-    ACAV               *acav = NULL;
     fd_set              fdset;
     int                 i = 0;
     int                 ret;
@@ -3052,8 +3049,6 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     if (reset(&r) != RECEIVE_OK) {
         goto syserror;
     }
-
-    acav = acav_alloc();
 
     if (simta_global_connections >
             simta_config_int("receive.connection.limits.global")) {
@@ -3411,6 +3406,12 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         timersub(tv_timeout, &tv_now, &tv_wait);
 
         yaslfree(r.r_smtp_command);
+        if (r.r_av) {
+            yaslfreesplitres(r.r_av, r.r_ac);
+            r.r_av = NULL;
+            r.r_ac = 0;
+        }
+
         if ((r.r_smtp_command = snet_getline_safe(r.r_snet, &tv_wait)) ==
                 NULL) {
             if (snet_eof(r.r_snet)) {
@@ -3447,15 +3448,15 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                     "Receive [%s] %s: non-ASCII characters in command", r.r_ip,
                     r.r_remote_hostname);
             statsd_counter("receive.smtp_command", "nonascii", 1);
-        } else if (validate_chars(r.r_smtp_command) != SIMTA_OK) {
+        } else if (validate_smtp_chars(r.r_smtp_command) != SIMTA_OK) {
             system_message = "syntax error - invalid character";
             syslog(LOG_NOTICE,
                     "Receive [%s] %s: bad line or string ending in command",
                     r.r_ip, r.r_remote_hostname);
             statsd_counter("receive.smtp_command", "badascii", 1);
-        } else if ((r.r_ac = acav_parse2821(
-                            acav, r.r_smtp_command, &(r.r_av))) < 0) {
-            syslog(LOG_ERR, "Receive [%s] %s: acav_parse2821 failed: %m",
+        } else if ((r.r_av = split_smtp_command(r.r_smtp_command, &(r.r_ac))) ==
+                   NULL) {
+            syslog(LOG_ERR, "Receive [%s] %s: split_smtp_command failed: %m",
                     r.r_ip, r.r_remote_hostname);
             goto syserror;
         } else if (r.r_ac == 0) {
@@ -3633,7 +3634,7 @@ closeconnection:
     }
 #endif /* HAVE_LIBOPENDKIM */
 
-    acav_free(acav);
+    yaslfreesplitres(r.r_av, r.r_ac);
     yaslfree(r.r_smtp_command);
     yaslfree(r.r_hello);
     dmarc_free(r.r_dmarc);
@@ -4083,22 +4084,6 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
 }
 
 
-static simta_result
-validate_chars(const yastr line) {
-    if (yasllen(line) != strlen(line)) {
-        /* out-of-place NULL */
-        return SIMTA_ERR;
-    }
-
-    if (strchr(line, '\r') || strchr(line, '\n')) {
-        /* out-of-place CR or LF */
-        return SIMTA_ERR;
-    }
-
-    return SIMTA_OK;
-}
-
-
 #ifdef HAVE_LIBOPENDKIM
 static const char *
 simta_dkim_authresult_str(DKIM_SIGERROR dkim_error) {
@@ -4157,18 +4142,6 @@ iprev_authresult_str(struct receive_data *r) {
     return ("INVALID");
 }
 
-yastr
-env_string(const char *left, const char *right) {
-    yastr buf;
-
-    buf = yaslauto(left);
-    buf = yaslcatlen(buf, "=", 1);
-    if (right && (*right != '\0')) {
-        buf = yaslcat(buf, right);
-    }
-
-    return (buf);
-}
 
 static int
 content_filter(
