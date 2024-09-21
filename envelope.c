@@ -37,6 +37,8 @@
 #include "header.h"
 #include "queue.h"
 #include "simta_malloc.h"
+#include "simta_util.h"
+
 
 simta_result env_read_old(const char *, ucl_object_t *, SNET *);
 

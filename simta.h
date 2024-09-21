@@ -172,7 +172,6 @@ simta_result        simta_gettimeofday(struct timeval *);
 yastr               simta_url_escape(const yastr);
 pid_t               simta_waitpid(pid_t, int *, int);
 simta_result        simta_signal_server(int);
-yastr               simta_slurp(const char *);
 int                 simta_child_q_runner(struct host_q *);
 int                 simta_cidr_compare(unsigned long, const struct sockaddr *,
                         const struct sockaddr *, const char *);

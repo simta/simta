@@ -34,6 +34,7 @@
 #include "header.h"
 #include "simta.h"
 #include "simta_malloc.h"
+#include "simta_util.h"
 #include "srs.h"
 
 #ifdef HAVE_LDAP

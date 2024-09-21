@@ -143,6 +143,13 @@ test_simta_check_charset(void **state) {
 
 
 static void
+test_simta_slurp(void **state) {
+    assert_string_equal(simta_slurp("/dev/null"), "");
+    assert_null(simta_slurp("/foo/dead60ff"));
+}
+
+
+static void
 test_validate_smtp_chars(void **state) {
     yastr str = yaslauto(
             " !\"#$%&\'()*+,-./"
@@ -175,6 +182,7 @@ main(void) {
             cmocka_unit_test(test_split_smtp_command_09),
             cmocka_unit_test(test_split_smtp_command_10),
             cmocka_unit_test(test_simta_check_charset),
+            cmocka_unit_test(test_simta_slurp),
             cmocka_unit_test(test_validate_smtp_chars),
     };
 

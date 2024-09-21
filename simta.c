@@ -683,26 +683,6 @@ simta_signal_server(int signal) {
     return SIMTA_OK;
 }
 
-yastr
-simta_slurp(const char *path) {
-    SNET   *snet;
-    yastr   contents;
-    ssize_t chunk;
-    char    buf[ 16384 ];
-
-    if ((snet = snet_open(path, O_RDONLY, 0)) == NULL) {
-        syslog(LOG_ERR, "Liberror: simta_slurp snet_open %s: %m", path);
-        return (NULL);
-    }
-
-    contents = yaslempty();
-    while ((chunk = snet_read(snet, buf, 16384, NULL)) > 0) {
-        contents = yaslcatlen(contents, buf, chunk);
-    }
-
-    snet_close(snet);
-    return (contents);
-}
 
 yastr
 simta_url_escape(const yastr src) {

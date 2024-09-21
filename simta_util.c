@@ -5,6 +5,10 @@
 
 #include <config.h>
 
+#include <fcntl.h>
+#include <syslog.h>
+#include <unistd.h>
+
 #include "simta_malloc.h"
 #include "simta_util.h"
 
@@ -183,6 +187,28 @@ validate_smtp_chars(const yastr line) {
     }
 
     return SIMTA_OK;
+}
+
+
+yastr
+simta_slurp(const char *path) {
+    SNET   *snet;
+    yastr   contents;
+    ssize_t chunk;
+    char    buf[ 16384 ];
+
+    if ((snet = snet_open(path, O_RDONLY, 0)) == NULL) {
+        syslog(LOG_ERR, "Liberror: simta_slurp snet_open %s: %m", path);
+        return NULL;
+    }
+
+    contents = yaslempty();
+    while ((chunk = snet_read(snet, buf, 16384, NULL)) > 0) {
+        contents = yaslcatlen(contents, buf, chunk);
+    }
+
+    snet_close(snet);
+    return contents;
 }
 
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/
