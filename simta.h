@@ -66,12 +66,6 @@ enum simta_proc_type {
 #define SIMTA_SOCKET_TLS (1 << 0)
 #endif /* HAVE_LIBSSL */
 
-enum simta_charset {
-    SIMTA_CHARSET_ASCII,
-    SIMTA_CHARSET_UTF8,
-    SIMTA_CHARSET_INVALID,
-};
-
 #define S_ACCEPTED_MESSAGE "Accepted Message"
 #define S_COMMAND_LINE "Command Line"
 #define S_DATA_LINE "Data Line"
@@ -175,7 +169,6 @@ void                simta_dump_config(void);
 void                simta_openlog(bool, int);
 void                simta_debuglog(int, const char *, ...);
 simta_result        simta_gettimeofday(struct timeval *);
-enum simta_charset  simta_check_charset(const char *);
 yastr               simta_url_escape(const yastr);
 pid_t               simta_waitpid(pid_t, int *, int);
 simta_result        simta_signal_server(int);

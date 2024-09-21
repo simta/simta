@@ -116,6 +116,60 @@ split_smtp_command(const yastr str, size_t *len) {
 }
 
 
+simta_charset
+simta_check_charset(const char *str) {
+    const unsigned char *c;
+    size_t               charlen;
+    int                  i;
+    uint32_t             u;
+    uint8_t              mask;
+    simta_charset        ret = SIMTA_CHARSET_ASCII;
+
+    for (c = (unsigned char *)str; *c != '\0'; c++) {
+        if (*c < 0x80) {
+            continue;
+        }
+        ret = SIMTA_CHARSET_UTF8;
+        if ((*c & 0xe0) == 0xc0) {
+            charlen = 2;
+            mask = 0x1f;
+        } else if ((*c & 0xf0) == 0xe0) {
+            charlen = 3;
+            mask = 0x0f;
+        } else if ((*c & 0xf8) == 0xf0) {
+            charlen = 4;
+            mask = 0x07;
+        } else {
+            /* RFC 3629 limits UTF-8 to 21 bits (4 bytes), so
+             * anything else that has the high bit set is either an
+             * out-of-order continuation octet or completely invalid.
+             */
+            return SIMTA_CHARSET_INVALID;
+        }
+
+        u = *c & mask;
+        for (i = 1; i < charlen; i++) {
+            c++;
+            if ((*c & 0xc0) != 0x80) {
+                return SIMTA_CHARSET_INVALID;
+            }
+            u <<= 6;
+            u |= (*c & 0x3f);
+        }
+
+        /* Check that the codepoint used the shortest representation */
+        if ((u < 0x80) || ((u < 0x800) && (charlen > 2)) ||
+                ((u < 0x10000) && (charlen > 3))) {
+            return SIMTA_CHARSET_INVALID;
+        }
+
+        /* Check for invalid codepoints */
+    }
+
+    return ret;
+}
+
+
 simta_result
 validate_smtp_chars(const yastr line) {
     if (yasllen(line) != strlen(line)) {

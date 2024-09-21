@@ -129,6 +129,20 @@ test_split_smtp_command_10(void **state) {
 
 
 static void
+test_simta_check_charset(void **state) {
+    assert_int_equal(
+            simta_check_charset(" !\"#$%&\'()*+,-./"
+                                "0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ["
+                                "\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"),
+            SIMTA_CHARSET_ASCII);
+    assert_int_equal(simta_check_charset("😃Ḽơᶉëᶆ ȋṕšᶙṁ"), SIMTA_CHARSET_UTF8);
+    assert_int_equal(simta_check_charset("\xa0\xa1"), SIMTA_CHARSET_INVALID);
+    assert_int_equal(simta_check_charset("\xc3\x28"), SIMTA_CHARSET_INVALID);
+    assert_int_equal(simta_check_charset("\xc1\x81"), SIMTA_CHARSET_INVALID);
+}
+
+
+static void
 test_validate_smtp_chars(void **state) {
     yastr str = yaslauto(
             " !\"#$%&\'()*+,-./"
@@ -160,6 +174,7 @@ main(void) {
             cmocka_unit_test(test_split_smtp_command_08),
             cmocka_unit_test(test_split_smtp_command_09),
             cmocka_unit_test(test_split_smtp_command_10),
+            cmocka_unit_test(test_simta_check_charset),
             cmocka_unit_test(test_validate_smtp_chars),
     };
 

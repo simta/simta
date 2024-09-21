@@ -26,6 +26,8 @@
 #include "simta.h"
 #include "simta_malloc.h"
 #include "simta_statsd.h"
+#include "simta_util.h"
+
 
 static struct dnsr_result *get_address(const char *, int);
 

@@ -21,6 +21,7 @@
 #include "dns.h"
 #include "simta.h"
 #include "simta_malloc.h"
+#include "simta_util.h"
 #include "spf.h"
 
 
