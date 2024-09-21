@@ -49,6 +49,7 @@ SNET   *snet_open(const char *, int, int);
 int     snet_close(SNET *);
 ssize_t snet_writef(SNET *, const char *, ...);
 char   *snet_getline(SNET *, struct timeval *);
+yastr   snet_getline_safe(SNET *, struct timeval *);
 char   *snet_getline_multi(SNET *, void (*)(char *), struct timeval *);
 void    snet_timeout(SNET *, int, struct timeval *);
 bool    snet_hasdata(SNET *);

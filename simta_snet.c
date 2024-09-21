@@ -24,15 +24,14 @@
 #include "simta_malloc.h"
 #include "simta_snet.h"
 
-/*
- * BOL is beginning of line, FUZZY is after a CR but before a possible LF,
- * IN is past BOL, but before the end of a line.
- */
-#define SNET_BOL 0
-#define SNET_FUZZY 1
-#define SNET_IN 2
+enum simta_snet_rstate {
+    SNET_BOL,   /* beginning of line */
+    SNET_FUZZY, /* after a CR */
+    SNET_IN,    /* past BOL */
+};
 
 static ssize_t snet_read0(SNET *, char *, size_t, struct timeval *);
+static char   *snet_getline_shift(SNET *, char *);
 
 /*
  * This routine is necessary, since snet_getline() doesn't differentiate
@@ -556,15 +555,8 @@ snet_read(SNET *sn, char *buf, size_t len, struct timeval *tv) {
     }
 
     rc = snet_read0(sn, buf, len, tv);
-    if ((rc > 0) && (sn->sn_rstate == SNET_FUZZY)) {
+    if (rc > 0) {
         sn->sn_rstate = SNET_BOL;
-        if (*buf == '\n') {
-            if (--rc <= 0) {
-                rc = snet_read0(sn, buf, len, tv);
-            } else {
-                memmove(buf, buf + 1, rc);
-            }
-        }
     }
 
     return rc;
@@ -580,6 +572,80 @@ snet_flush(SNET *sn) {
     sn->sn_rstate = SNET_BOL;
 }
 
+
+static char *
+snet_getline_shift(SNET *sn, char *eol) {
+    /* shift unreturned data over */
+    if (sn->sn_rcur > sn->sn_rbuf) {
+        yaslrange(sn->sn_rbuf, sn->sn_rcur - sn->sn_rbuf, -1);
+        eol = sn->sn_rbuf + yasllen(sn->sn_rbuf);
+        sn->sn_rcur = sn->sn_rbuf;
+    }
+
+    /* expand */
+    if (yaslavail(sn->sn_rbuf) < sn->sn_buflen) {
+        if (sn->sn_maxlen != 0 &&
+                yasllen(sn->sn_rbuf) + yaslavail(sn->sn_rbuf) >=
+                        sn->sn_maxlen) {
+            errno = ENOMEM;
+            return NULL;
+        }
+        sn->sn_rbuf = yaslMakeRoomFor(sn->sn_rbuf, sn->sn_buflen);
+        eol = sn->sn_rbuf + yasllen(sn->sn_rbuf);
+        sn->sn_rcur = sn->sn_rbuf;
+    }
+
+    return eol;
+}
+
+
+/*
+ * Get a yastr containing a line of input.
+ */
+yastr
+snet_getline_safe(SNET *sn, struct timeval *tv) {
+    char   *eol;
+    yastr   line;
+    ssize_t rc;
+
+    for (eol = sn->sn_rcur;; eol++) {
+        if (eol >= sn->sn_rbuf + yasllen(sn->sn_rbuf)) {
+            if ((eol = snet_getline_shift(sn, eol)) == NULL) {
+                return NULL;
+            }
+
+            if ((rc = snet_read0(sn, eol, yaslavail(sn->sn_rbuf), tv)) < 0) {
+                return NULL;
+            } else if (rc == 0) { /* EOF */
+                /* lines are terminated by \r\n; even if we have more data
+                 * buffered it's not a line and should not be returned.
+                 */
+                return NULL;
+            }
+            yaslIncrLen(sn->sn_rbuf, rc);
+        }
+
+        if (*eol == '\r') {
+            sn->sn_rstate = SNET_FUZZY;
+        } else if ((*eol == '\n') && (sn->sn_rstate == SNET_FUZZY)) {
+            sn->sn_rstate = SNET_BOL;
+            break;
+        } else {
+            sn->sn_rstate = SNET_IN;
+        }
+    }
+
+    if (sn->sn_rstate != SNET_BOL) {
+        /* No line to return. */
+        return NULL;
+    }
+
+    line = yaslcpylen(yaslempty(), sn->sn_rcur, eol - sn->sn_rcur - 1);
+    sn->sn_rcur = eol + 1;
+    return line;
+}
+
+
 /*
  * Get a null-terminated line of input, handle CR/LF issues.
  * Note that snet_getline() returns information from a common area which
@@ -592,26 +658,8 @@ snet_getline(SNET *sn, struct timeval *tv) {
 
     for (eol = sn->sn_rcur;; eol++) {
         if (eol >= sn->sn_rbuf + yasllen(sn->sn_rbuf)) {
-            /* out of data but not end of line */
-
-            /* shift unreturned data over */
-            if (sn->sn_rcur > sn->sn_rbuf) {
-                yaslrange(sn->sn_rbuf, sn->sn_rcur - sn->sn_rbuf, -1);
-                eol = sn->sn_rbuf + yasllen(sn->sn_rbuf);
-                sn->sn_rcur = sn->sn_rbuf;
-            }
-
-            /* expand */
-            if (yaslavail(sn->sn_rbuf) < sn->sn_buflen) {
-                if (sn->sn_maxlen != 0 &&
-                        yasllen(sn->sn_rbuf) + yaslavail(sn->sn_rbuf) >=
-                                sn->sn_maxlen) {
-                    errno = ENOMEM;
-                    return NULL;
-                }
-                sn->sn_rbuf = yaslMakeRoomFor(sn->sn_rbuf, sn->sn_buflen);
-                eol = sn->sn_rbuf + yasllen(sn->sn_rbuf);
-                sn->sn_rcur = sn->sn_rbuf;
+            if ((eol = snet_getline_shift(sn, eol)) == NULL) {
+                return NULL;
             }
 
             if ((rc = snet_read0(sn, eol, yaslavail(sn->sn_rbuf), tv)) < 0) {
@@ -623,32 +671,34 @@ snet_getline(SNET *sn, struct timeval *tv) {
 		 * read, so when we place the '\0' below, we have space
 		 * for that.
 		 */
-                if (sn->sn_rcur < sn->sn_rbuf + yasllen(sn->sn_rbuf)) {
-                    break;
+                if (sn->sn_rstate == SNET_BOL) {
+                    return NULL;
                 }
-                return NULL;
+                break;
             }
             yaslIncrLen(sn->sn_rbuf, rc);
         }
 
-        if (*eol == '\r' || *eol == '\0') {
-            sn->sn_rstate = SNET_FUZZY;
+        if ((sn->sn_rstate == SNET_FUZZY) && (*eol != '\n')) {
+            eol--;
             break;
-        }
-        if (*eol == '\n') {
-            if (sn->sn_rstate == SNET_FUZZY) {
-                sn->sn_rstate = SNET_BOL;
-                sn->sn_rcur = eol + 1;
-                continue;
-            }
+        } else if (*eol == '\0') {
+            break;
+        } else if (*eol == '\r') {
+            sn->sn_rstate = SNET_FUZZY;
+            *eol = '\0';
+        } else if (*eol == '\n') {
             sn->sn_rstate = SNET_BOL;
             break;
+        } else {
+            sn->sn_rstate = SNET_IN;
         }
-        sn->sn_rstate = SNET_IN;
     }
 
     *eol = '\0';
+
     line = sn->sn_rcur;
+    sn->sn_rstate = SNET_BOL;
     sn->sn_rcur = eol + 1;
     return line;
 }

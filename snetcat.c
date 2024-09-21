@@ -27,8 +27,9 @@ main(int argc, char *argv[]) {
     SNET  *snet;
     SNET  *snet_out;
     char  *line;
+    bool   safe = false;
 
-    while ((c = getopt(argc, argv, "b:m:")) != EOF) {
+    while ((c = getopt(argc, argv, "b:m:s")) != EOF) {
         switch (c) {
         case 'b':
             if ((buflen = atoi(optarg)) == 0) {
@@ -39,6 +40,9 @@ main(int argc, char *argv[]) {
             if ((maxlen = atoi(optarg)) == 0) {
                 error = true;
             }
+            break;
+        case 's':
+            safe = true;
             break;
         default:
             error = true;
@@ -81,9 +85,16 @@ main(int argc, char *argv[]) {
         snet_out->sn_maxlen = maxlen;
     }
 
-    while ((line = snet_getline(snet, NULL)) != NULL) {
-        snet_writef(snet_out, "%s\r\n", line);
-    }
+    do {
+        if (safe) {
+            line = snet_getline_safe(snet, NULL);
+        } else {
+            line = snet_getline(snet, NULL);
+        }
+        if (line) {
+            snet_writef(snet_out, "%s\r\n", line);
+        }
+    } while (line);
 
     if (!snet_eof(snet)) {
         perror("snet_eof");

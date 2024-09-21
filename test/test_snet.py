@@ -78,3 +78,57 @@ def test_snet_buffer_max(tool_path):
     assert res.returncode == 1
     assert res.stdout == b'0123456\r\n'
     assert res.stderr == b'snet_eof: Cannot allocate memory\n'
+
+
+@pytest.mark.parametrize(
+    'test_pair',
+    [
+        # \r\n split by the boundary
+        (b'0123456\r\n78\r\n', b'0123456\r\n78\r\n'),
+        # \r\n after the boundary
+        (b'01234567\r\n8\r\n', b'01234567\r\n8\r\n'),
+        # \r\n before the boundary
+        (b'012345\r\n678\r\n', b'012345\r\n678\r\n'),
+        # \r\r split by the boundary
+        (b'0123456\r\r78\r\n', b'0123456\r\r78\r\n'),
+        # \n\n split by the boundary
+        (b'0123456\n\n78\r\n', b'0123456\n\n78\r\n'),
+        # no terminal CRLF == not a line
+        (b'0123456\r\n78910123456789', b'0123456\r\n'),
+        # just a lot of empty lines
+        (b'\r\n\r\n\r\n\r\n\r\n', b'\r\n\r\n\r\n\r\n\r\n'),
+        (b'\r\n', b'\r\n'),
+    ]
+)
+def test_snet_getline_safe(tool_path, test_pair):
+    res = subprocess.run(
+        [
+            tool_path('snetcat'),
+            '-s',
+            '-b', '4',  # initial yasl allocation will be double this
+            '-',
+        ],
+        check=True,
+        capture_output=True,
+        input=test_pair[0],
+    )
+
+    assert res.stdout == test_pair[1]
+
+
+def test_snet_getline_safe_buffer_max(tool_path):
+    res = subprocess.run(
+        [
+            tool_path('snetcat'),
+            '-s',
+            '-b', '4',
+            '-m', '8',
+            '-',
+        ],
+        capture_output=True,
+        input=b'012345\r\n012345678',
+    )
+
+    assert res.returncode == 1
+    assert res.stdout == b'012345\r\n'
+    assert res.stderr == b'snet_eof: Cannot allocate memory\n'
