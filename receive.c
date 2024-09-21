@@ -120,7 +120,7 @@ struct receive_data {
     int                     r_acl_checked;
     struct acl_result      *r_acl_result;
     yastr                   r_hello;
-    char                   *r_smtp_command;
+    yastr                   r_smtp_command;
     const char             *r_remote_hostname;
     struct command         *r_commands;
     int                     r_ncommands;
@@ -197,6 +197,7 @@ static int         auth_init(struct receive_data *, struct simta_socket *);
 static int content_filter(struct receive_data *, char **, struct timeval *);
 static int run_content_filter(struct receive_data *, char **);
 static simta_address_status local_address(char *, char *, const ucl_object_t *);
+static simta_result         validate_chars(const yastr);
 static int                  hello(struct receive_data *, char *);
 static int                  reset(struct receive_data *);
 static int                  deliver_accepted(struct receive_data *, int);
@@ -1404,8 +1405,7 @@ f_data(struct receive_data *r) {
     int                     filter_result = MESSAGE_TEMPFAIL;
     int                     f_result;
     int                     read_err = NO_ERROR;
-    size_t                  line_len;
-    char                   *line;
+    yastr                   line = NULL;
     char                   *msg;
     const char             *jail_host = NULL;
     const char             *failure_message = NULL;
@@ -1709,7 +1709,8 @@ f_data(struct receive_data *r) {
 
         timersub(tv_timeout, &tv_now, &tv_wait);
 
-        if ((line = snet_getline(r->r_snet, &tv_wait)) == NULL) {
+        yaslfree(line);
+        if ((line = snet_getline_safe(r->r_snet, &tv_wait)) == NULL) {
             if ((errno == EINTR) || (errno == ETIMEDOUT)) {
                 calculate_timers = 0;
                 continue;
@@ -1722,10 +1723,17 @@ f_data(struct receive_data *r) {
         }
 
         line_no++;
-        line_len = strlen(line);
-        data_read += line_len + 2;
+        data_read += yasllen(line) + 2;
 
-        if (*line == '.') {
+        /* First, check facial validity */
+        if (validate_chars(line) != SIMTA_OK) {
+            syslog(LOG_INFO,
+                    "Receive [%s] %s: env <%s>: invalid character in DATA",
+                    r->r_ip, r->r_remote_hostname, r->r_env->e_id);
+            system_message = "invalid character";
+            filter_result = MESSAGE_REJECT;
+            read_err = PROTOCOL_ERROR;
+        } else if (*line == '.') {
             if (strcmp(line, ".") == 0) {
                 if ((read_err == NO_ERROR) && (header == 1)) {
                     if (line_no == 1) {
@@ -1742,8 +1750,23 @@ f_data(struct receive_data *r) {
                     break;
                 }
             }
-            line++;
-            line_len--;
+            yaslrange(line, 1, -1);
+        }
+
+        if (yasllen(line) > 998) {
+            /* RFC 5322 2.1.1 Line Length Limits
+             * There are two limits that this specification places on the number
+             * of characters in a line. Each line of characters MUST be no more
+             * than 998 characters, and SHOULD be no more than 78 characters,
+             * excluding the CRLF.
+             */
+            syslog(LOG_INFO,
+                    "Receive [%s] %s: env <%s>: data line too long (%zu)",
+                    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
+                    yasllen(line));
+            system_message = "line too long";
+            filter_result = MESSAGE_REJECT;
+            read_err = PROTOCOL_ERROR;
         }
 
         if ((read_err == NO_ERROR) && (header == 1)) {
@@ -1904,8 +1927,11 @@ f_data(struct receive_data *r) {
             }
         }
 
+        /* FIXME: we store data on disk with UNIX line endings, should this
+         * limit be tracked differently?
+         */
         if ((read_err == NO_ERROR) &&
-                ((data_wrote + line_len + 1) >
+                ((data_wrote + yasllen(line) + 1) >
                         simta_config_int("receive.data.limits.message_size"))) {
             /* If we're going to reach max size, continue reading lines
              * until the '.' otherwise, check message size.
@@ -1944,7 +1970,7 @@ f_data(struct receive_data *r) {
                 syslog(LOG_ERR, "Syserror: f_data fprintf: %m");
                 read_err = SYSTEM_ERROR;
             } else {
-                data_wrote += line_len + 1;
+                data_wrote += yasllen(line) + 1;
             }
         }
 
@@ -1954,7 +1980,7 @@ f_data(struct receive_data *r) {
                  * which isn't part of the body. */
                 dkim_body_started = 1;
             } else {
-                dkim_buf = yaslcpylen(dkim_buf, line, line_len);
+                dkim_buf = yaslcatyasl(dkim_buf, line);
                 dkim_buf = yaslcatlen(dkim_buf, "\r\n", 2);
 #ifdef HAVE_LIBOPENARC
                 if (simta_config_bool("receive.arc.enabled")) {
@@ -1985,10 +2011,10 @@ f_data(struct receive_data *r) {
                     (strncasecmp(line, "In-Reply-To:", 12) == 0) ||
                     (strncasecmp(line, "References:", 11) == 0) ||
                     (strncasecmp(line, "Subject:", 8) == 0)) {
-                md_update(&r->r_md, line, line_len);
+                md_update(&r->r_md, line, yasllen(line));
             }
             if (header == 0) {
-                md_update(&r->r_md_body, line, line_len);
+                md_update(&r->r_md_body, line, yasllen(line));
             }
         }
 #endif /* HAVE_LIBSSL */
@@ -2407,6 +2433,7 @@ done:
 
 error:
     receive_headers_free(rh);
+    yaslfree(line);
     yaslfree(authresults);
     yaslfree(with);
     acl_result_free(acl_result);
@@ -2963,9 +2990,10 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     int                 i = 0;
     int                 ret;
     int                 calculate_timers;
+    bool                valid_command = false;
+    const char         *system_message = NULL;
     const char         *timer_type = NULL;
     const char         *fallback_type = NULL;
-    char               *line;
     char                hostname[ DNSR_MAX_NAME + 1 ];
     struct timeval      tv_start = {0, 0};
     struct timeval      tv_stop = {0, 0};
@@ -2980,34 +3008,6 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 #ifdef HAVE_LIBWRAP
     char *ctl_hostname;
 #endif /* HAVE_LIBWRAP */
-
-    /*
-     * global connections max
-     * auth init
-     * check DNS reverse
-     * TCP wrappers
-     * DNS lists
-     * if not DNSL_ACCEPT, local connections max
-     * write before banner check
-     * opening banner * command line loop
-     */
-
-    /*
-     * local variable init
-     * build snet connection
-     * dynamic memory init
-     * global connections max
-     * if SIMTA_MODE_REFUSE, give 554 banner and go to command line loop
-     * auth init
-     * check DNS reverse
-     * TCP wrappers
-     * DNS lists
-     * if not DNSL_ACCEPT, local connections max
-     * write before banner check
-     * tarpit sleep
-     * opening banner
-     * command line loop
-     */
 
     memset(&r, 0, sizeof(struct receive_data));
     r.r_sa = (struct sockaddr *)&c->c_sa;
@@ -3410,7 +3410,9 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
         timersub(tv_timeout, &tv_now, &tv_wait);
 
-        if ((line = snet_getline(r.r_snet, &tv_wait)) == NULL) {
+        yaslfree(r.r_smtp_command);
+        if ((r.r_smtp_command = snet_getline_safe(r.r_snet, &tv_wait)) ==
+                NULL) {
             if (snet_eof(r.r_snet)) {
                 syslog(LOG_ERR,
                         "Receive [%s] %s: Command: "
@@ -3420,25 +3422,48 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                 calculate_timers = 0;
                 continue;
             } else {
-                syslog(LOG_ERR, "Liberror: smtp_receive snet_getline: %m");
+                syslog(LOG_ERR, "Liberror: smtp_receive snet_getline_safe: %m");
             }
             goto closeconnection;
         }
 
         calculate_timers = 1;
 
-        if (r.r_smtp_command != NULL) {
-            free(r.r_smtp_command);
-            r.r_smtp_command = NULL;
-        }
-
-        r.r_smtp_command = simta_strdup(line);
         statsd_counter("receive.smtp_command", "total", 1);
 
-        if ((r.r_ac = acav_parse2821(acav, line, &(r.r_av))) < 0) {
+        valid_command = false;
+        system_message = NULL;
+
+        /* RFC 5321 2.4 General Syntax Principles and Transaction Model
+         * In the absence of a server-offered extension explicitly permitting
+         * it, a sending SMTP system is not permitted to send envelope commands
+         * in any character set other than US-ASCII. Receiving systems
+         * SHOULD reject such commands, normally using "500 syntax error
+         * - invalid character" replies.
+         */
+        if (simta_check_charset(r.r_smtp_command) != SIMTA_CHARSET_ASCII) {
+            system_message = "syntax error - invalid character";
+            syslog(LOG_NOTICE,
+                    "Receive [%s] %s: non-ASCII characters in command", r.r_ip,
+                    r.r_remote_hostname);
+            statsd_counter("receive.smtp_command", "nonascii", 1);
+        } else if (validate_chars(r.r_smtp_command) != SIMTA_OK) {
+            system_message = "syntax error - invalid character";
+            syslog(LOG_NOTICE,
+                    "Receive [%s] %s: bad line or string ending in command",
+                    r.r_ip, r.r_remote_hostname);
+            statsd_counter("receive.smtp_command", "badascii", 1);
+        } else if ((r.r_ac = acav_parse2821(
+                            acav, r.r_smtp_command, &(r.r_av))) < 0) {
             syslog(LOG_ERR, "Receive [%s] %s: acav_parse2821 failed: %m",
                     r.r_ip, r.r_remote_hostname);
             goto syserror;
+        } else if (r.r_ac == 0) {
+            syslog(LOG_NOTICE, "Receive [%s] %s: No Command", r.r_ip,
+                    r.r_remote_hostname);
+            statsd_counter("receive.smtp_command", "null", 1);
+        } else {
+            valid_command = true;
         }
 
         /* RFC 5321 2.4 General Syntax Principles and Transaction Model
@@ -3448,33 +3473,32 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
          * SHOULD reject such commands, normally using "500 syntax error
          * - invalid character" replies.
          */
-        if (r.r_ac != 0) {
+        if (valid_command) {
             for (i = 0; i < r.r_ncommands; i++) {
                 if (strcasecmp(r.r_av[ 0 ], r.r_commands[ i ].c_name) == 0) {
                     break;
                 }
             }
+
+            if (i >= r.r_ncommands) {
+                syslog(LOG_NOTICE, "Receive [%s] %s: Command unrecognized: %s",
+                        r.r_ip, r.r_remote_hostname, r.r_smtp_command);
+                statsd_counter("receive.smtp_command", "unknown", 1);
+                valid_command = false;
+            }
         }
 
-        if ((r.r_ac == 0) || (i >= r.r_ncommands)) {
+        /* Handle non-fatal errors by returning 500 */
+        if (!valid_command) {
             if (r.r_smtp_mode == SMTP_MODE_DISABLED) {
                 f_disabled(&r);
                 goto closeconnection;
             }
 
-            if (r.r_ac == 0) {
-                syslog(LOG_NOTICE, "Receive [%s] %s: No Command", r.r_ip,
-                        r.r_remote_hostname);
-                statsd_counter("receive.smtp_command", "null", 1);
-            } else {
-                syslog(LOG_NOTICE, "Receive [%s] %s: Command unrecognized: %s",
-                        r.r_ip, r.r_remote_hostname, r.r_smtp_command);
-                statsd_counter("receive.smtp_command", "unknown", 1);
-            }
-
             tarpit_sleep(&r);
 
-            if (smtp_write_banner(&r, 500, NULL, NULL) != RECEIVE_OK) {
+            if (smtp_write_banner(&r, 500, system_message, NULL) !=
+                    RECEIVE_OK) {
                 goto closeconnection;
             }
             continue;
@@ -3543,20 +3567,6 @@ closeconnection:
     if (snet_close(r.r_snet) != 0) {
         syslog(LOG_ERR, "Liberror: smtp_receive snet_close: %m");
     }
-    r.r_snet = NULL;
-
-    if (acav != NULL) {
-        acav_free(acav);
-    }
-
-    if (r.r_smtp_command != NULL) {
-        free(r.r_smtp_command);
-        r.r_smtp_command = NULL;
-    }
-
-    if (r.r_hello != NULL) {
-        yaslfree(r.r_hello);
-    }
 
     if (tv_start.tv_sec != 0) {
         if (simta_gettimeofday(&tv_stop) == SIMTA_ERR) {
@@ -3585,14 +3595,14 @@ closeconnection:
     }
 
     if (reset(&r) != 0) {
-        return (RECEIVE_SYSERROR);
+        return RECEIVE_SYSERROR;
     }
 
     while ((fast_q_total() > 0) || (simta_proc_stab != NULL)) {
         if (fast_q_total() > 0) {
             /* if we have mail, try to deliver it */
             if (deliver_accepted(&r, 1) != RECEIVE_OK) {
-                return (RECEIVE_SYSERROR);
+                return RECEIVE_SYSERROR;
             }
         }
 
@@ -3623,10 +3633,10 @@ closeconnection:
     }
 #endif /* HAVE_LIBOPENDKIM */
 
-    if (r.r_dmarc) {
-        dmarc_free(r.r_dmarc);
-    }
-
+    acav_free(acav);
+    yaslfree(r.r_smtp_command);
+    yaslfree(r.r_hello);
+    dmarc_free(r.r_dmarc);
     spf_free(r.r_spf);
 
     return fast_q_total();
@@ -4071,6 +4081,23 @@ local_address(char *addr, char *domain, const ucl_object_t *red) {
 
     return ADDRESS_NOT_FOUND;
 }
+
+
+static simta_result
+validate_chars(const yastr line) {
+    if (yasllen(line) != strlen(line)) {
+        /* out-of-place NULL */
+        return SIMTA_ERR;
+    }
+
+    if (strchr(line, '\r') || strchr(line, '\n')) {
+        /* out-of-place CR or LF */
+        return SIMTA_ERR;
+    }
+
+    return SIMTA_OK;
+}
+
 
 #ifdef HAVE_LIBOPENDKIM
 static const char *

@@ -97,7 +97,7 @@ def test_punishment_trigger_nobanner(simta, testmsg):
     startts = time.time()
     conn = socket.create_connection(('localhost', simta['port']))
     conn.settimeout(5)
-    conn.sendall(b'EHLO itsanevilclient\n')
+    conn.sendall(b'EHLO itsanevilclient\r\n')
     response = conn.recv(4096).splitlines()
     assert response[0][:3] == b'220'
     # Sometimes the first recv will get both the banner and the EHLO response.
@@ -107,10 +107,10 @@ def test_punishment_trigger_nobanner(simta, testmsg):
     else:
         response = response[1]
     assert response[:3] == b'421'
-    conn.sendall(b'MAIL FROM:<eviluser@example.com>\n')
+    conn.sendall(b'MAIL FROM:<eviluser@example.com>\r\n')
     with pytest.raises(socket.error) as e:
         while True:
-            conn.sendall(b'MAIL FROM:<eviluser@example.com>\n')
+            conn.sendall(b'MAIL FROM:<eviluser@example.com>\r\n')
             response = conn.recv(4096)
     assert e.value.errno in [errno.ECONNRESET, errno.EPIPE]
     assert time.time() - startts > 1
