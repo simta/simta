@@ -2113,7 +2113,7 @@ f_data(struct receive_data *r) {
                 r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                 arc_chain_status_str(arc), arc_result,
                 arc_err ? arc_err : "no error");
-        if (authresults) {
+        if (authresults && arc_result == ARC_STAT_OK) {
             authresults = yaslcatprintf(
                     authresults, ";\n\tarc=%s", arc_chain_status_str(arc));
         }
