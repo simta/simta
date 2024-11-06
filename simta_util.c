@@ -168,6 +168,25 @@ simta_check_charset(const char *str) {
         }
 
         /* Check for invalid codepoints */
+        /* surrogates */
+        if (u >= 0xd800 && u <= 0xdfff) {
+            return SIMTA_CHARSET_INVALID;
+        }
+
+        /* non-characters */
+        if ((u >= 0xfdd0 && u <= 0xfdef) || u == 0xfffe || u == 0xffff ||
+                u == 0x1fffe || u == 0x1ffff || u == 0x2fffe || u == 0x2ffff ||
+                u == 0x3fffe || u == 0x3ffff || u == 0x4fffe || u == 0x4ffff ||
+                u == 0x5fffe || u == 0x5ffff || u == 0x6fffe || u == 0x6ffff ||
+                u == 0x7fffe || u == 0x7ffff || u == 0x8fffe || u == 0x8ffff ||
+                u == 0x9fffe || u == 0x9ffff || u == 0x0afffe ||
+                u == 0x0affff || u == 0x0bfffe || u == 0x0bffff ||
+                u == 0x0cfffe || u == 0x0cffff || u == 0x0dfffe ||
+                u == 0x0dffff || u == 0x0efffe || u == 0x0effff ||
+                u == 0x0ffffe || u == 0x0fffff || u == 0x10fffe ||
+                u == 0x10ffff) {
+            return SIMTA_CHARSET_INVALID;
+        }
     }
 
     return ret;
