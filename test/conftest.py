@@ -136,8 +136,8 @@ def req_ldapserver(ldapserver):
         pytest.skip(ldapserver['skip_reason'])
 
 
-@pytest.fixture()
-def tool_path(scope='session'):
+@pytest.fixture(scope='session')
+def tool_path():
     def _tool_path(tool):
         binpath = os.path.dirname(os.path.realpath(__file__))
         binpath = os.path.join(binpath, '..', tool)
