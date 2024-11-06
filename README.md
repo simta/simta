@@ -32,7 +32,7 @@ decreasing order of importance):
 
 * [OpenSSL](https://openssl.org/) >= 1.1.0
 * [OpenDKIM](http://www.opendkim.org/)
-* [OpenARC](https://github.com/trusteddomainproject/OpenARC)
+* [OpenARC](https://github.com/flowerysong/OpenARC) >= 1.1.1
 * [jemalloc](http://jemalloc.net/)
 * [LMDB](https://symas.com/lightning-memory-mapped-database/)
 * [OpenLDAP](https://www.openldap.org/)

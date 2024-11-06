@@ -1433,15 +1433,11 @@ f_data(struct receive_data *r) {
     yastr        dkim_buf = NULL;
     int          dkim_body_started = 0;
 #ifdef HAVE_LIBOPENARC
-    ARC_MESSAGE         *arc = NULL;
-    ARC_STAT             arc_result = ARC_STAT_INTERNAL;
-    ARC_HDRFIELD        *arc_seal = NULL;
-    yastr                arc_key = NULL;
-    const char          *arc_err;
-    const unsigned char *arc_err_unsigned;
-    yastr                arc_authservid = NULL;
-    yastr                arc_selector = NULL;
-    yastr                arc_domain = NULL;
+    ARC_MESSAGE  *arc = NULL;
+    ARC_STAT      arc_result = ARC_STAT_INTERNAL;
+    ARC_HDRFIELD *arc_seal = NULL;
+    yastr         arc_key = NULL;
+    const char   *arc_err;
 #endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
     int            i;
@@ -1570,10 +1566,8 @@ f_data(struct receive_data *r) {
         if (simta_config_bool("receive.arc.enabled")) {
             if ((arc = arc_message(r->r_arc, ARC_CANON_RELAXED,
                          ARC_CANON_RELAXED, ARC_SIGN_RSASHA256,
-                         ARC_MODE_SIGN | ARC_MODE_VERIFY, &arc_err_unsigned)) ==
-                    NULL) {
-                syslog(LOG_ERR, "Liberror: f_data arc_message: %s",
-                        arc_err_unsigned);
+                         ARC_MODE_SIGN | ARC_MODE_VERIFY, &arc_err)) == NULL) {
+                syslog(LOG_ERR, "Liberror: f_data arc_message: %s", arc_err);
             }
         }
 #endif /* HAVE_LIBOPENARC */
@@ -1860,8 +1854,8 @@ f_data(struct receive_data *r) {
                                 (yasllen(dkim_buf) > 0)) {
 #ifdef HAVE_LIBOPENARC
                             if (simta_config_bool("receive.arc.enabled")) {
-                                arc_header_field(arc, (unsigned char *)dkim_buf,
-                                        yasllen(dkim_buf));
+                                arc_header_field(
+                                        arc, dkim_buf, yasllen(dkim_buf));
                             }
 #endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
@@ -1879,8 +1873,7 @@ f_data(struct receive_data *r) {
                     }
 #ifdef HAVE_LIBOPENARC
                     if (simta_config_bool("receive.arc.enabled")) {
-                        arc_header_field(arc, (unsigned char *)dkim_buf,
-                                yasllen(dkim_buf));
+                        arc_header_field(arc, dkim_buf, yasllen(dkim_buf));
                         arc_result = arc_eoh(arc);
                         simta_debuglog(1,
                                 "Receive [%s] %s: env <%s>: arc_eoh: %d",
@@ -2257,21 +2250,18 @@ done:
                              simta_config_str("receive.arc.key"))) == NULL) {
                     goto error;
                 }
-                /* FIXME: WTF, openarc? */
-                arc_authservid =
-                        simta_config_yastr("receive.auth.results.domain");
-                arc_selector = simta_config_yastr("receive.arc.selector");
-                arc_domain = simta_config_yastr("receive.arc.domain");
-                arc_result = arc_getseal(arc, &arc_seal, arc_authservid,
-                        arc_selector, arc_domain, (unsigned char *)arc_key,
-                        yasllen(arc_key), (unsigned char *)authresults);
+                arc_result = arc_getseal(arc, &arc_seal,
+                        simta_config_str("receive.auth.results.domain"),
+                        simta_config_str("receive.arc.selector"),
+                        simta_config_str("receive.arc.domain"),
+                        (unsigned char *)arc_key, yasllen(arc_key),
+                        authresults);
                 simta_debuglog(1,
                         "Receive [%s] %s: env <%s>: ARC sign result: %d",
                         r->r_ip, r->r_remote_hostname, r->r_env->e_id,
                         arc_result);
-                yaslfree(arc_authservid);
-                yaslfree(arc_selector);
-                yaslfree(arc_domain);
+                yaslfree(arc_key);
+                arc_key = NULL;
             }
 
             authresults_tmp = yaslempty();
@@ -2281,8 +2271,8 @@ done:
                         authresults_tmp = yaslcat(authresults_tmp, "\n");
                     }
                     /* Despite the name, arc_hdr_name returns the entire header. */
-                    authresults_tmp = yaslcat(authresults_tmp,
-                            (char *)arc_hdr_name(arc_seal, NULL));
+                    authresults_tmp = yaslcat(
+                            authresults_tmp, arc_hdr_name(arc_seal, NULL));
                 }
                 yaslstrip(authresults_tmp, "\r");
             }
@@ -2467,10 +2457,7 @@ error:
     yaslfree(dkim_buf);
 
 #ifdef HAVE_LIBOPENARC
-    yaslfree(arc_key);
-    if (arc) {
-        arc_free(arc);
-    }
+    arc_free(arc);
 #endif /* HAVE_LIBOPENARC */
 #ifdef HAVE_LIBOPENDKIM
     if (dkim != NULL) {

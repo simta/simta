@@ -51,7 +51,7 @@ AS_IF(
 AC_ARG_WITH([arc], AC_HELP_STRING([--with-arc], [Build with ARC support]))
 AS_IF(
     [test "x$with_arc" = "xyes"],
-    [PKG_CHECK_MODULES([OPENARC], [openarc],  [AC_DEFINE([HAVE_LIBOPENARC], [1], [Define to 1 if OPENARC is available])])])
+    [PKG_CHECK_MODULES([OPENARC], [openarc >= 1.1.1],  [AC_DEFINE([HAVE_LIBOPENARC], [1], [Define to 1 if OPENARC is available])])])
 
 AC_ARG_WITH([sasl], AC_HELP_STRING([--with-sasl], [Build with SASL support]))
 AS_IF(
