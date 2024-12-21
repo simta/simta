@@ -1971,6 +1971,7 @@ f_data(struct receive_data *r) {
                  * which isn't part of the body. */
                 dkim_body_started = 1;
             } else {
+                yaslclear(dkim_buf);
                 dkim_buf = yaslcatyasl(dkim_buf, line);
                 dkim_buf = yaslcatlen(dkim_buf, "\r\n", 2);
 #ifdef HAVE_LIBOPENARC
