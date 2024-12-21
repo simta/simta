@@ -89,8 +89,8 @@ jobs:
       - name: Build simta
         run: |
           autoreconf -fiv
-          CFLAGS='-Wall -Werror -fprofile-arcs -ftest-coverage' ./configure --with-arc --with-cmocka
-          make -j4
+          CFLAGS='-fprofile-arcs -ftest-coverage' ./configure --with-arc --with-cmocka
+          make -j4 CFLAGS='-Wall -Werror -fprofile-arcs -ftest-coverage'
         working-directory: ${{ github.workspace }}/simta
 
       - name: Test simta
