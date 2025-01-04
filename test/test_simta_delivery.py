@@ -8,7 +8,7 @@ import os
 from mailbox import Maildir
 
 
-def test_binary(smtp_nocleanup, testmsg, req_dnsserver, simta):
+def test_binary(smtp_nocleanup, testmsg, dnsserver, simta):
     smtp_nocleanup.sendmail(
         'testsender@example.com',
         'testrcpt@binary.example.com',
@@ -47,7 +47,7 @@ def test_binary(smtp_nocleanup, testmsg, req_dnsserver, simta):
     assert msg['To'] == 'testrcpt@example.com'
 
 
-def test_smtp(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):
+def test_smtp(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
     smtp_nocleanup.sendmail(
         'testsender@example.com',
         'testrcpt@smtpd.example.com',
@@ -69,7 +69,7 @@ def test_smtp(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):
     assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
 
 
-def test_smtp_noquit(smtp, testmsg, req_dnsserver, aiosmtpd_server):
+def test_smtp_noquit(smtp, testmsg, dnsserver, aiosmtpd_server):
     smtp.sendmail(
         'testsender@example.com',
         'testrcpt@smtpd.example.com',
@@ -90,7 +90,7 @@ def test_smtp_noquit(smtp, testmsg, req_dnsserver, aiosmtpd_server):
     assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
 
 
-def test_smtp_badtls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):
+def test_smtp_badtls(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
     smtp_nocleanup.sendmail(
         'testsender@example.com',
         'testrcpt@smtpd.example.com',
@@ -112,7 +112,7 @@ def test_smtp_badtls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):
     assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
 
 
-def test_smtp_starttls(smtp_nocleanup, testmsg, req_dnsserver, aiosmtpd_server):
+def test_smtp_starttls(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
     smtp_nocleanup.starttls()
     smtp_nocleanup.sendmail(
         'testsender@example.com',

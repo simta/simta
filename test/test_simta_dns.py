@@ -20,7 +20,7 @@ def parse_connect_output(output):
 
 
 @pytest.fixture
-def run_simconnect(tool_path, simta_config, dnsserver, req_dnsserver):
+def run_simconnect(tool_path, simta_config, dnsserver):
     def _run_simconnect(hostname):
         dns_config = {
             'core': {

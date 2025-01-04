@@ -42,7 +42,7 @@ jobs:
         run: sudo apt update
 
       - name: Install dependencies
-        run: sudo apt install libbsd-dev libmilter-dev libjansson-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libsasl2-modules-db sasl2-bin libcmocka-dev yadifa slapd ldap-utils lcov
+        run: sudo apt install libbsd-dev libmilter-dev libjansson-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libsasl2-modules-db sasl2-bin libcmocka-dev slapd ldap-utils lcov
 
       - name: Configure slapd
         run: |
@@ -52,7 +52,7 @@ jobs:
           ldapadd -w DrowsyPapa -D "cn=Manager,dc=example,dc=com" -f ${{ github.workspace }}/simta/test/ldap/data.ldif
 
       - name: Install Python dependencies
-        run: sudo pip install aiosmtpd cryptography pytest ruamel.yaml
+        run: sudo pip install aiosmtpd cryptography dnspython pytest ruamel.yaml
 
       - name: Cache built dependencies
         uses: actions/cache@v4

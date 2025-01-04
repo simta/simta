@@ -64,15 +64,12 @@ Testing
 Tests can be run with `make check`. simta's test suite
 requires Python >= 3.7, [pytest](https://pytest.org) >=
 3.9, [aiosmtpd](https://pypi.org/project/aiosmtpd/),
+[dnspython](https://www.dnspython.org/),
 [pyca/cryptography](https://pypi.org/project/cryptography/), and
 [ruamel.yaml](https://pypi.org/project/ruamel.yaml/). You
 may also want to install [cmocka](https://cmocka.org/) and pass
 `--with-cmocka` to the `configure` script to enable additional unit
 tests.
-
-Some tests rely on spawning [YADIFA](https://www.yadifa.eu/) to
-provide predictable DNS responses. If it is not available these tests
-will be skipped.
 
 Some tests require an LDAP server with [a specific set of
 data](test/ldap/README.md). If the `LDAP_SERVER` environment variable

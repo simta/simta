@@ -14,7 +14,7 @@ EQUIV_DOMAINS = [
 
 
 @pytest.fixture
-def run_simdmarc(simta_config, tool_path, dnsserver, req_dnsserver):
+def run_simdmarc(simta_config, tool_path, dnsserver):
     def _run_simdmarc(domains):
         psl = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'public_suffix_list.dat')
         dns_config = {

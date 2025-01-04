@@ -20,11 +20,11 @@ tests:
     result: pass
 zonedata:
   p-macro-static.example.com:
-    - SPF: v=spf1 exists:host-%{p}.example.com -all
+    - TXT: v=spf1 exists:host-%{p}.example.com -all
   host-unknown.example.com:
     - A: 203.0.113.2
   i-macro.example.com:
-    - SPF: v=spf1 exists:%{i}.%{v}.example.com -all
+    - TXT: v=spf1 exists:%{i}.%{v}.example.com -all
   2.0.0.1.0.d.b.8.1.2.3.4.0.0.0.0.0.0.0.0.0.0.0.0.d.e.a.d.6.0.f.f.ip6.example.com:
     - A: 203.0.113.2
   203.0.113.1.in-addr.example.com:

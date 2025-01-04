@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
-import errno
 import json
 import os
-import re
 import socket
 import subprocess
 import time
 import warnings
 
 import pytest
+
+from pathlib import Path
 
 try:
     from ruamel.yaml import YAML
@@ -25,17 +25,12 @@ DISABLED_TESTS = [
     'mx-colon-domain-ip4mapped',
     'ip4-mapped-ip6',
     'cidr6-ip4',
-    # require DNS data that is not supported by yadifa
+    # FIXME: possibly actually broken
     'a-colon-domain',
-    'a-colon-domain-ip4mapped',
     'mx-colon-domain',
-    'mx-colon-domain-ip4mapped',
     'macro-mania-in-domain',
-    # like the above, probably requires switching away from yadifa as
-    # the source of test data so that we can force a timeout.
-    'txttimeout',
-    'nospftxttimeout',
-    'alltimeout',
+    # TIMEOUT is not implemented in the test harness
+    'timeout',
     'include-temperror',
     'exists-dnserr',
     # denser returns a null-terminated string, so we can't distinguish between
@@ -94,99 +89,16 @@ class SPFItem(pytest.Item):
     def setup(self):
         self.dns_port = openport(10053)
 
-        tmpdir = self.tmp_path.joinpath('yadifa')
-        tmpdir.mkdir()
-        for subdir in ['keys', 'log', 'xfr', 'data']:
-            tmpdir.joinpath(subdir).mkdir()
-
-        conf = str(tmpdir.joinpath('yadifad.conf'))
-
-        zones = {}
-        for (host, values) in self.scenario['zonedata'].items():
-            # yadifa only supports a subset of technically valid DNS labels
-            if not re.fullmatch(r'[+\.a-zA-Z0-9_-]+', host):
-                continue
-
-            zone = '.'.join(host.split('.')[-2:])
-            if zone not in zones:
-                zones[zone] = {}
-
-            cooked = {}
-            for v in values:
-                if (v == 'TIMEOUT'):
-                    # FIXME
-                    continue
-
-                for (t, content) in v.items():
-                    if t not in cooked:
-                        cooked[t] = []
-                    if t in ['SPF', 'TXT']:
-                        # FIXME: should this be escaped?
-                        cooked[t].append(f'"{content}"')
-                    elif t == 'MX':
-                        cooked[t].append(f'{content[0]} {content[1]}.')
-                    elif t == 'PTR':
-                        cooked[t].append(f'{content}.')
-                    else:
-                        cooked[t].append(content)
-
-            # FIXME: The tests should move most data to TXT, not rely on
-            # duplicating SPF entries to TXT.
-
-            if cooked.get('SPF') == ['NONE']:
-                cooked.pop('SPF')
-
-            if 'SPF' in cooked and 'TXT' not in cooked:
-                cooked['TXT'] = cooked.pop('SPF')
-
-            if cooked.get('TXT') == ['NONE']:
-                cooked.pop('TXT')
-
-            zones[zone][f'{host}.'] = cooked
-
-        for (zone, entries) in zones.items():
-            zone_file = str(tmpdir.joinpath('data', f'{zone}.zone'))
-            with open(zone_file, 'w') as f:
-                f.write('$TTL    300\n\n')
-                f.write('@               IN  SOA localhost.test.     simta.test. (\n')
-                f.write('                            1\n')
-                f.write('                            300\n')
-                f.write('                            300\n')
-                f.write('                            6000\n')
-                f.write('                            30\n')
-                f.write('                            )\n')
-                f.write('                    NS  localhost.test.\n\n')
-                for (host, values) in entries.items():
-                    for (t, content) in values.items():
-                        for c in content:
-                            if content == 'NONE':
-                                continue
-                            f.write(f'{host} {t} {c}\n')
-
-        with open(conf, 'w') as f:
-            f.write('<main>\n')
-            f.write(f'    port {self.dns_port}\n')
-            f.write(f'    pidfile {os.path.join(tmpdir, "pid")}\n')
-            f.write(f'    datapath {os.path.join(tmpdir, "data")}\n')
-            f.write(f'    keyspath {os.path.join(tmpdir, "keys")}\n')
-            f.write(f'    logpath {os.path.join(tmpdir, "log")}\n')
-            f.write(f'    xfrpath {os.path.join(tmpdir, "xfr")}\n')
-            f.write('</main>\n')
-            for zone in zones:
-                f.write('<zone>\n')
-                f.write(f'    domain {zone}\n')
-                f.write(f'    file {zone}.zone\n')
-                f.write('    type master\n')
-                f.write('</zone>\n')
-
         devnull = open(os.devnull, 'w')
-        try:
-            self.dns_proc = subprocess.Popen(['yadifad', '-c', conf], stdout=devnull, stderr=devnull)
-        except OSError as e:
-            if e.errno != errno.ENOENT:
-                raise
-            pytest.skip('yadifad not found')
-            return
+        self.dns_proc = subprocess.Popen(
+            [
+                Path(__file__).parent / 'dns/dns_server.py',
+                '--port', str(self.dns_port),
+                '--zone-data', json.dumps(self.scenario['zonedata']),
+            ],
+            stdout=devnull,
+            stderr=devnull,
+        )
 
         # Wait for the DNS server to be available
         attempt = 0
