@@ -117,8 +117,8 @@ jobs:
 
       - name: Generate coverage reports
         run: |
-          lcov -c -d ${{ github.workspace }}/simta -o lcov.info
-          gcov *.c
+          lcov -c -d ${{ github.workspace }}/simta -o lcov.info --ignore-errors gcov,mismatch
+          gcov *.c || true
           genhtml lcov.info -o ${{ github.workspace }}/lcov
         working-directory: ${{ github.workspace }}/simta
 
