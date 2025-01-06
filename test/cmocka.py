@@ -23,6 +23,8 @@ class CMockaFile(pytest.File):
             text=True,
         )
         lines = out.stdout.splitlines()
+        if lines[0].startswith('TAP version'):
+            lines.pop(0)
         plan = lines[0].split('..')
         if len(plan) != 2:
             yield CMockaItem.from_parent(self, line='not ok - cmocka', output=out.stdout)
