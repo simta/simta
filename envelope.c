@@ -420,53 +420,22 @@ env_dfile_open(struct envelope *env) {
 }
 
 
-yastr
-env_file_name(struct envelope *env, int flag) {
-    const char *prefix;
+int
+env_tfile_unlink(struct envelope *e) {
+    char tf[ MAXPATHLEN + 1 ];
 
-    switch (flag) {
-    case ENV_FLAG_TFILE:
-        prefix = "t";
-        break;
-    case ENV_FLAG_EFILE:
-        prefix = "E";
-        break;
-    case ENV_FLAG_DFILE:
-        prefix = "D";
-        break;
-    default:
-        syslog(LOG_ERR, "env_file_name: flag out of range: %d", flag);
-        return NULL;
+    simta_debuglog(3, "env_tfile_unlink %s", e->e_id);
+
+    sprintf(tf, "%s/t%s", e->e_dir, e->e_id);
+
+    if (unlink(tf) != 0) {
+        syslog(LOG_ERR, "Syserror: env_tfile_unlink unlink %s: %m", tf);
+        return (-1);
     }
 
-    return yaslcatprintf(yaslauto(env->e_dir), "/%s%s", prefix, env->e_id);
-}
+    e->e_flags = (e->e_flags & (~ENV_FLAG_TFILE));
 
-
-simta_result
-env_file_unlink(struct envelope *env, int flag) {
-    yastr        fname;
-    simta_result retval = SIMTA_OK;
-
-    if (!(env->e_flags & flag)) {
-        return SIMTA_OK;
-    }
-
-    simta_debuglog(3, "env_file_unlink %d %s", flag, env->e_id);
-
-    if ((fname = env_file_name(env, flag)) == NULL) {
-        return SIMTA_ERR;
-    }
-
-    if (unlink(fname) != 0) {
-        retval = SIMTA_ERR;
-        syslog(LOG_ERR, "Syserror: env_file_unlink unlink %s: %m", fname);
-    } else {
-        env->e_flags &= ~flag;
-    }
-
-    yaslfree(fname);
-    return retval;
+    return (0);
 }
 
 
@@ -1068,7 +1037,9 @@ env_dfile_copy(struct envelope *env, const char *source, const char *header) {
     /* If the tfile has already been written it has incorrect Dinode
      * information.
      */
-    env_file_unlink(env, ENV_FLAG_TFILE);
+    if (env->e_flags & ENV_FLAG_TFILE) {
+        env_tfile_unlink(env);
+    }
 
     if (source == NULL) {
         if (!(env->e_flags & ENV_FLAG_DFILE)) {
@@ -1134,7 +1105,7 @@ error:
     }
 
     if (retval == 0) {
-        env_file_unlink(env, ENV_FLAG_DFILE);
+        env_dfile_unlink(env);
     }
 
     return retval;
@@ -1155,7 +1126,9 @@ env_dfile_wrap(struct envelope *env, const char *source, const char *preface) {
     /* If the tfile has already been written it has incorrect
      * information.
      */
-    env_file_unlink(env, ENV_FLAG_TFILE);
+    if (env->e_flags & ENV_FLAG_TFILE) {
+        env_tfile_unlink(env);
+    }
 
     snet = snet_open(source, O_RDONLY, 0);
 
@@ -1254,7 +1227,7 @@ error:
     }
 
     if (retval == 0) {
-        env_file_unlink(env, ENV_FLAG_DFILE);
+        env_dfile_unlink(env);
     }
 
     yaslfree(boundary);
@@ -1263,18 +1236,64 @@ error:
     return retval;
 }
 
+int
+env_truncate_and_unlink(struct envelope *env, SNET *snet_lock) {
+    char efile_fname[ MAXPATHLEN + 1 ];
 
-simta_result
+    if (snet_lock != NULL) {
+        if (ftruncate(snet_fd(snet_lock), (off_t)0) == 0) {
+            env_unlink(env);
+            return (0);
+        }
+
+        sprintf(efile_fname, "%s/E%s", env->e_dir, env->e_id);
+        syslog(LOG_ERR, "Syserror: env_truncate_and_unlink ftruncate %s: %m",
+                efile_fname);
+    }
+
+    return (env_unlink(env));
+}
+
+
+int
+env_dfile_unlink(struct envelope *e) {
+    char df[ MAXPATHLEN + 1 ];
+
+    simta_debuglog(3, "env_dfile_unlink env <%s>", e->e_id);
+
+    sprintf(df, "%s/D%s", e->e_dir, e->e_id);
+
+    if (unlink(df) != 0) {
+        syslog(LOG_ERR, "Syserror: env_dfile_unlink unlink %s: %m", df);
+        return (-1);
+    }
+
+    e->e_flags = (e->e_flags & (~ENV_FLAG_DFILE));
+
+    return (0);
+}
+
+
+/* truncate the efile before calling this function */
+
+int
 env_unlink(struct envelope *env) {
-    if (env_file_unlink(env, ENV_FLAG_EFILE) != SIMTA_OK) {
-        return SIMTA_ERR;
+    char efile_fname[ MAXPATHLEN + 1 ];
+
+    sprintf(efile_fname, "%s/E%s", env->e_dir, env->e_id);
+
+    if (unlink(efile_fname) != 0) {
+        syslog(LOG_ERR, "Syserror: env_unlink unlink %s: %m", efile_fname);
+        return (-1);
     }
 
-    if (env_file_unlink(env, ENV_FLAG_DFILE) != SIMTA_OK) {
-        return SIMTA_ERR;
-    }
+    env->e_flags = (env->e_flags & (~ENV_FLAG_EFILE));
+    env_dfile_unlink(env);
 
-    return SIMTA_OK;
+    simta_debuglog(
+            2, "env_unlink env <%s> %s: unlinked", env->e_id, env->e_dir);
+
+    return (0);
 }
 
 
@@ -1310,7 +1329,7 @@ env_move(struct envelope *env, char *target_dir) {
             return (-1);
         }
 
-        if (env_unlink(env) != SIMTA_OK) {
+        if (env_unlink(env) != 0) {
             if (unlink(efile_new) != 0) {
                 syslog(LOG_ERR, "env_move unlink %s: %m", efile_new);
             } else {

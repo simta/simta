@@ -89,7 +89,7 @@ cleanup_envelope_list(struct envelope **env_p) {
         /* unlink if written to disk */
         if ((env->e_flags & ENV_FLAG_EFILE) != 0) {
             queue_remove_envelope(env);
-            if (env_unlink(env) == SIMTA_OK) {
+            if (env_unlink(env) == 0) {
                 syslog(LOG_INFO,
                         "Expand env <%s>: Message Deleted: "
                         "System error, unwinding expansion",
@@ -134,6 +134,7 @@ expand(struct envelope *unexpanded_env) {
     int                   env_out = 0;
     int                   fast_file_start;
     int                   sendermatch;
+    char                  e_original[ MAXPATHLEN ];
     char                  d_original[ MAXPATHLEN ];
     char                  d_out[ MAXPATHLEN ];
     /* RFC 5321 4.5.3.1.3.  Path
@@ -661,8 +662,19 @@ expand(struct envelope *unexpanded_env) {
         goto cleanup5;
     }
 
+    if (unexpanded_env->e_dir != simta_dir_fast) {
+        /* truncate orignal Efile */
+        sprintf(e_original, "%s/E%s", unexpanded_env->e_dir,
+                unexpanded_env->e_id);
+
+        if (truncate(e_original, (off_t)0) != 0) {
+            syslog(LOG_ERR, "Syserror: expand truncate %s: %m", e_original);
+            goto cleanup5;
+        }
+    }
+
     /* delete original message */
-    if (env_unlink(unexpanded_env) != SIMTA_OK) {
+    if (env_unlink(unexpanded_env) != 0) {
         syslog(LOG_ERR,
                 "Expand env <%s>: Expansion complete, can't delete message",
                 unexpanded_env->e_id);
@@ -684,7 +696,7 @@ cleanup4:
 
         if ((env->e_flags & ENV_FLAG_EFILE) != 0) {
             queue_remove_envelope(env);
-            if (env_unlink(env) == SIMTA_OK) {
+            if (env_unlink(env) == 0) {
                 syslog(LOG_WARNING,
                         "Expand env <%s>: Message Deleted: "
                         "System error, unwinding expansion",

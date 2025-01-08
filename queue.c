@@ -390,14 +390,14 @@ q_runner(void) {
                         goto unexpanded_clean_up;
                     }
 
-                    if (env_unlink(unexpanded) == SIMTA_OK) {
+                    if (env_unlink(unexpanded) == 0) {
                         queue_envelope(env_bounce);
                         syslog(LOG_INFO,
                                 "Deliver env <%s>: Message Deleted: Bounced",
                                 unexpanded->e_id);
 
                     } else {
-                        if (env_unlink(env_bounce) != SIMTA_OK) {
+                        if (env_unlink(env_bounce) != 0) {
                             syslog(LOG_INFO,
                                     "Deliver env <%s>: System Error: "
                                     "Can't unwind bounce",
@@ -1211,7 +1211,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         if ((env_deliver->e_bounceable &&
                     (env_deliver->e_flags & ENV_FLAG_BOUNCE)) ||
                 (n_rcpt_remove == env_deliver->e_n_rcpt)) {
-            if (env_unlink(env_deliver) != SIMTA_OK) {
+            if (env_truncate_and_unlink(env_deliver, snet_lock) != 0) {
                 goto message_cleanup;
             }
 
@@ -1299,7 +1299,7 @@ real_q_deliver(struct deliver *d, struct host_q *deliver_q) {
         n_processed++;
 
         if (env_bounce != NULL) {
-            if (env_unlink(env_bounce) != SIMTA_OK) {
+            if (env_unlink(env_bounce) != 0) {
                 syslog(LOG_WARNING,
                         "Deliver env <%s>: System error, can't unwind bounce",
                         env_bounce->e_id);
