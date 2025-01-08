@@ -20,7 +20,6 @@ Provides: MTA smtpdaemon server(smtp)
 Provides: %{_sbindir}/sendmail %{_bindir}/newaliases
 BuildRequires: libucl-devel >= 0.8.1
 BuildRequires: lmdb-devel
-BuildRequires: tcp_wrappers-devel
 BuildRequires: setup
 BuildRequires: pkgconfig(denser)
 #BuildRequires: pkgconfig(jemalloc)
