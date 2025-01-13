@@ -1,3 +1,8 @@
+2.5.0 (2025-01-13)
+    - improved integration with OpenARC
+    - vendored libsnet for easier testing
+    - corrected handling of non-RFC-compliant line endings in SMTP sessions
+
 2.4.2 (2024-06-03)
     - fixed bug that accepted some syntactically invalid email addresses
     - removed support for OpenSSL versions prior to 1.1
