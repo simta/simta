@@ -3451,8 +3451,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
             statsd_counter("receive.smtp_command", "nonascii", 1);
         } else if (validate_smtp_chars(r.r_smtp_command) != SIMTA_OK) {
             system_message = "syntax error - invalid character";
-            syslog(LOG_NOTICE,
-                    "Receive [%s] %s: bad line or string ending in command",
+            syslog(LOG_NOTICE, "Receive [%s] %s: invalid character in command",
                     r.r_ip, r.r_remote_hostname);
             statsd_counter("receive.smtp_command", "badascii", 1);
         } else if ((r.r_av = split_smtp_command(r.r_smtp_command, &(r.r_ac))) ==
