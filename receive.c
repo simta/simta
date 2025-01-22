@@ -1717,16 +1717,9 @@ f_data(struct receive_data *r) {
         line_no++;
         data_read += yasllen(line) + 2;
 
-        /* First, check facial validity */
-        if (validate_smtp_chars(line) != SIMTA_OK) {
-            syslog(LOG_INFO,
-                    "Receive [%s] %s: env <%s>: invalid character in DATA",
-                    r->r_ip, r->r_remote_hostname, r->r_env->e_id);
-            system_message = "invalid character";
-            filter_result = MESSAGE_REJECT;
-            read_err = PROTOCOL_ERROR;
-        } else if (*line == '.') {
-            if (strcmp(line, ".") == 0) {
+        /* handle end of message or dot stuffing */
+        if (*line == '.') {
+            if (yasllen(line) == 1) {
                 if ((read_err == NO_ERROR) && (header == 1)) {
                     if (line_no == 1) {
                         syslog(LOG_INFO,
