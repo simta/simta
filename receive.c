@@ -1738,23 +1738,6 @@ f_data(struct receive_data *r) {
             yaslrange(line, 1, -1);
         }
 
-        if (yasllen(line) > 10000) {
-            /* RFC 5322 2.1.1 Line Length Limits
-             * There are two limits that this specification places on the number
-             * of characters in a line. Each line of characters MUST be no more
-             * than 998 characters, and SHOULD be no more than 78 characters,
-             * excluding the CRLF.
-             */
-            /* In practice a lot of valid mail sources are not respecting this limit, so we allow somewhat long lines. */
-            syslog(LOG_INFO,
-                    "Receive [%s] %s: env <%s>: data line too long (%zu)",
-                    r->r_ip, r->r_remote_hostname, r->r_env->e_id,
-                    yasllen(line));
-            system_message = "line too long";
-            filter_result = MESSAGE_REJECT;
-            read_err = PROTOCOL_ERROR;
-        }
-
         if ((read_err == NO_ERROR) && (header == 1)) {
             msg = NULL;
             if ((f_result = header_text(line_no, line, rh, &msg)) == 0) {
