@@ -252,7 +252,7 @@ simta_ld_init(struct simta_ldap *ld, const yastr key) {
 
     uri = ucl_object_tostring(ucl_object_lookup(ld->ldap_rule, "uri"));
     simta_debuglog(2, "LDAP: opening connection to %s", uri);
-    statsd_counter("ldap", "connection", 1);
+    statsd_counter("ldap.connection", "init", 1);
 
     if ((rc = ldap_initialize(&ldap_ld, uri)) != 0) {
         syslog(LOG_ERR, "Liberror: simta_ld_init ldap_initialize: %s",
@@ -467,11 +467,13 @@ simta_ldap_init(struct simta_ldap *ld) {
     }
 
     retval = SIMTA_OK;
+    statsd_counter("ldap.connection", "success", 1);
 
 done:
     yaslfree(key);
 
     if (retval != SIMTA_OK) {
+        statsd_counter("ldap.connection", "error", 1);
         simta_ldap_unbind(ld);
     }
     if (creds.bv_val) {
