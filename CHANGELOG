@@ -1,3 +1,9 @@
+2.5.1 (2025-05-14)
+    - relaxed line length limit
+    - relaxed invalid character checks
+    - reduced default TLS timeout
+    - added more statsd metrics
+
 2.5.0 (2025-01-13)
     - improved integration with OpenARC
     - vendored libsnet for easier testing
