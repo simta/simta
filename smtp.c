@@ -135,7 +135,7 @@ smtp_parse_ehlo_banner(struct deliver *d, yastr *lines, size_t count) {
             if (*c == '\0') {
                 simta_debuglog(2, "Deliver.SMTP env <%s>: 8BITMIME supported",
                         d->d_env->e_id);
-                d->d_esmtp_8bitmime = 1;
+                d->d_esmtp_8bitmime = true;
             }
         } else if ((strncasecmp(S_SIZE, c, strlen(S_SIZE)) == 0)) {
             for (c += strlen(S_SIZE); isspace(*c); c++)
@@ -169,7 +169,7 @@ smtp_parse_ehlo_banner(struct deliver *d, yastr *lines, size_t count) {
             if (*c == '\0') {
                 simta_debuglog(2, "Deliver.SMTP env <%s>: STARTTLS supported",
                         d->d_env->e_id);
-                d->d_esmtp_starttls = 1;
+                d->d_esmtp_starttls = true;
             }
         }
     }
@@ -549,9 +549,9 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
 int
 smtp_ehlo(struct host_q *hq, struct deliver *d) {
     /* Reset state */
-    d->d_esmtp_8bitmime = 0;
+    d->d_esmtp_8bitmime = false;
     d->d_esmtp_size = 0;
-    d->d_esmtp_starttls = 0;
+    d->d_esmtp_starttls = false;
 
     /* (Re)send EHLO */
     if (snet_writef(d->d_snet_smtp, "EHLO %s\r\n", simta_hostname) < 0) {

@@ -64,9 +64,9 @@ struct deliver {
     bool                    d_mx_cname_ok;
     int                     d_cur_mx_lookup;
     int                     d_cur_dnsr_result;
-    int                     d_esmtp_8bitmime;
+    bool                    d_esmtp_8bitmime;
     int                     d_esmtp_size;
-    int                     d_esmtp_starttls;
+    bool                    d_esmtp_starttls;
 };
 
 struct host_q {
