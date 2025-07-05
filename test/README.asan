@@ -1,0 +1,3 @@
+CFLAGS="-fsanitize=address -g" ./configure --without-jemalloc
+export ASAN_OPTIONS=detect_leaks=0:log_path=/var/tmp/asan
+
