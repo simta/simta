@@ -35,6 +35,14 @@ def test_r_alias(expansion_config, smtp):
     assert res[1] == b'Requested action failed: User not found'
 
 
+def test_r_alias_subaddress(expansion_config, smtp):
+    smtp.ehlo('localhost.test')
+    res = smtp.mail('')
+    assert res[0] == 250
+    res = smtp.rcpt('testuser+foo@alias.example.com')
+    assert res[0] == 250
+
+
 def test_r_ldap(req_ldapserver, expansion_config, smtp):
     smtp.ehlo('localhost.test')
     res = smtp.mail('')
@@ -44,3 +52,11 @@ def test_r_ldap(req_ldapserver, expansion_config, smtp):
     res = smtp.rcpt('baduser@ldap.example.com')
     assert res[0] == 550
     assert res[1] == b'Requested action failed: User not found'
+
+
+def test_r_ldap_subaddress(req_ldapserver, expansion_config, smtp):
+    smtp.ehlo('localhost.test')
+    res = smtp.mail('')
+    assert res[0] == 250
+    res = smtp.rcpt('testuser+foo@ldap.example.com')
+    assert res[0] == 250

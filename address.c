@@ -532,39 +532,10 @@ cleanup_forward:
 
 
 #ifdef HAVE_LMDB
-int
-alias_expand(
-        struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
-    int               ret = ADDRESS_NOT_FOUND;
-    yastr             db_path = NULL;
-    yastr             address = NULL;
-    yastr             owner = NULL;
-    yastr             owner_value = NULL;
-    yastr             value = NULL;
-    yastr             alias_addr;
-    char             *paddr;
-    const char       *subaddr_sep = NULL;
-    struct simta_dbc *dbcp = NULL, *owner_dbcp = NULL;
-    struct simta_dbh *dbh = NULL;
-
-    db_path = yaslauto(
-            ucl_object_tostring(ucl_object_lookup_path(rule, "alias.path")));
-    db_path = yaslcat(db_path, ".db");
-
-    if (access(db_path, F_OK) != 0) {
-        syslog(LOG_ERR, "Liberror: alias_expand access %s: %m", db_path);
-        ret = ADDRESS_NOT_FOUND;
-        goto done;
-    }
-
-    if ((ret = simta_db_open_r(&dbh, db_path)) != 0) {
-        syslog(LOG_ERR, "Liberror: alias_expand simta_db_open_r %s: %s",
-                db_path, simta_db_strerror(ret));
-        ret = ADDRESS_NOT_FOUND;
-        goto done;
-    }
-
-    address = yasldup(e_addr->e_addr_localpart);
+yastr
+simta_alias_key(const ucl_object_t *rule, yastr address) {
+    char       *paddr;
+    const char *subaddr_sep = NULL;
 
     if (strncasecmp(address, "owner-", 6) == 0) {
         /* Canonicalise sendmail-style owner */
@@ -589,6 +560,61 @@ alias_expand(
             yaslrangesepleft(address, subaddr_sep[ i ]);
         }
     }
+
+    return address;
+}
+
+
+int
+simta_alias_db_open(const ucl_object_t *rule, struct simta_dbh **dbh) {
+    yastr             db_path = NULL;
+    struct simta_dbh *new_dbh = NULL;
+    int               ret = SIMTA_DB_OK;
+
+    db_path = yaslauto(
+            ucl_object_tostring(ucl_object_lookup_path(rule, "alias.path")));
+    db_path = yaslcat(db_path, ".db");
+
+    if (access(db_path, F_OK) != 0) {
+        syslog(LOG_ERR, "Liberror: simta_alias_db_open access %s: %m", db_path);
+        ret = SIMTA_DB_NOTFOUND;
+        goto done;
+    }
+
+    if ((ret = simta_db_open_r(&new_dbh, db_path)) != SIMTA_DB_OK) {
+        syslog(LOG_ERR, "Liberror: simta_alias_db_open simta_db_open_r %s: %s",
+                db_path, simta_db_strerror(ret));
+        simta_db_close(new_dbh);
+        goto done;
+    }
+
+    *dbh = new_dbh;
+done:
+    yaslfree(db_path);
+    return ret;
+}
+
+
+int
+alias_expand(
+        struct expand *exp, struct exp_addr *e_addr, const ucl_object_t *rule) {
+    int               ret = ADDRESS_NOT_FOUND;
+    yastr             address = NULL;
+    yastr             owner = NULL;
+    yastr             owner_value = NULL;
+    yastr             value = NULL;
+    yastr             alias_addr;
+    struct simta_dbc *dbcp = NULL, *owner_dbcp = NULL;
+    struct simta_dbh *dbh = NULL;
+
+    if ((ret = simta_alias_db_open(rule, &dbh)) != 0) {
+        syslog(LOG_ERR, "Liberror: alias_expand simta_db_open_r: %s",
+                simta_db_strerror(ret));
+        ret = ADDRESS_NOT_FOUND;
+        goto done;
+    }
+
+    address = simta_alias_key(rule, yasldup(e_addr->e_addr_localpart));
 
     if ((ret = simta_db_cursor_open(dbh, &dbcp)) != 0) {
         syslog(LOG_ERR, "Liberror: alias_expand simta_db_cursor_open: %s",
@@ -682,7 +708,6 @@ alias_expand(
     }
 
 done:
-    yaslfree(db_path);
     yaslfree(address);
     yaslfree(owner);
     yaslfree(value);
@@ -690,7 +715,7 @@ done:
     simta_db_cursor_close(dbcp);
     simta_db_cursor_close(owner_dbcp);
     simta_db_close(dbh);
-    return (ret);
+    return ret;
 }
 #endif /* HAVE_LMDB */
 

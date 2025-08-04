@@ -21,7 +21,9 @@ void red_hosts_stdout(void);
 void red_action_stdout(void);
 
 #ifdef HAVE_LMDB
-int alias_expand(struct expand *, struct exp_addr *, const ucl_object_t *);
+yastr simta_alias_key(const ucl_object_t *, yastr);
+int   simta_alias_db_open(const ucl_object_t *, struct simta_dbh **);
+int   alias_expand(struct expand *, struct exp_addr *, const ucl_object_t *);
 #endif /* HAVE_LMDB */
 int password_expand(struct expand *, struct exp_addr *, const ucl_object_t *);
 
