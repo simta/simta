@@ -35,6 +35,27 @@ except ImportError:
 
 pytest_plugins = ['cmocka', 'rfc7208']
 
+PASSWD_CONTENTS = '''
+postmaster:x:999:999::{tmp_path}/postmaster:/sbin/nologin
+testuser:x:1000:1000::{tmp_path}/testuser:/sbin/nologin
+forwarduser:x:1001:1001::{tmp_path}:/sbin/nologin
+'''
+
+FORWARD_CONTENTS = '''
+user@example.com
+user@example.edu
+'''
+
+ALIAS_CONTENTS = '''
+testuser: anotheruser
+external: testuser@example.edu
+password: testuser@password.example.com
+chained: testuser@alias.example.com
+group: testuser@alias.example.com, groupuser@example.com
+group2-errors: anotheruser
+group2: group@alias.example.com
+'''
+
 
 def openport(port):
     # Find a usable port by iterating until there's an unconnectable port
@@ -160,6 +181,15 @@ def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cer
 
     for spool in ['command', 'dead', 'etc', 'fast', 'local', 'slow']:
         tmp_path.joinpath(spool).mkdir()
+
+    subprocess.run(
+        [
+            tool_path('simalias'),
+            '-f', simta_config,
+        ],
+        # FIXME: can we be smarter about when this runs instead of ignoring errors?
+        check=False,
+    )
 
     daemon_config = {}
     daemon_config['receive'] = {
@@ -369,3 +399,212 @@ def run_simsrs(simta_config, tool_path):
         )
         return res.stdout.rstrip()
     return _run_simsrs
+
+
+@pytest.fixture
+def expansion_config(simta_config, request, tmp_path, ldapserver):
+    passwd_file = str(tmp_path.joinpath('passwd'))
+    alias_file = str(tmp_path.joinpath('alias'))
+    with open(passwd_file, 'w') as f:
+        f.write(PASSWD_CONTENTS.format(tmp_path=tmp_path))
+
+    with open(str(tmp_path.joinpath('.forward')), 'w') as f:
+        f.write(FORWARD_CONTENTS)
+
+    with open(alias_file, 'w') as f:
+        f.write(ALIAS_CONTENTS)
+
+    config = {}
+    config['domain'] = {
+        'password.example.com': {
+            'rule': [
+                {
+                    'type': 'password',
+                },
+            ]
+        },
+        'alias.example.com': {
+            'rule': [
+                {
+                    'type': 'alias',
+                }
+            ]
+        },
+        'srs.example.com': {
+            'rule': [
+                {
+                    'type': 'srs',
+                }
+            ]
+        },
+    }
+
+    config['defaults'] = {
+        'red_rule': {
+            'alias': {
+                'path': alias_file,
+            },
+            'password': {
+                'path': passwd_file,
+            },
+        }
+    }
+
+    if 'subaddress' in request.function.__name__:
+        config['defaults']['red_rule']['expand'] = {
+            'subaddress_separators': '+=',
+        }
+    else:
+        config['defaults']['red_rule']['expand'] = {
+            'subaddress_separators': '',
+        }
+
+    if ldapserver['enabled']:
+        # This is here to guard against a regression in the LDAP object caching,
+        # so it deliberately uses a nonexistent search base and is not useful
+        # in tests.
+        config['domain']['unusedldap.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'ldap': {
+                        'uri': ldapserver['uri'],
+                        'attributes': {
+                            'forwarding': 'mailForwardingAddress',
+                            'autoreply': 'onVacation',
+                        },
+                        'search': [
+                            {
+                                'uri': 'ldap:///ou=Nothing,dc=example,dc=com?*?sub?cn=%25s',
+                                'type': 'all',
+                            },
+                        ],
+                        'autoreply': {
+                            'host': 'notvacation.mail.example.com',
+                        },
+                    },
+                }
+            ]
+        }
+        config['domain']['example.com'] = {
+            'expand': {
+                'permit_subdomains': True,
+            }
+        }
+        config['domain']['ldap.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'ldap': {
+                        'uri': ldapserver['uri'],
+                        'attributes': {
+                            'permitted_senders': 'moderator',
+                            'moderators': 'moderator',
+                        },
+                        'search': [
+                            {
+                                'uri': 'ldap:///ou=People,dc=example,dc=com?*?sub?uid=%25s',
+                                'type': 'user',
+                            },
+                            {
+                                'uri': 'ldap:///ou=People,dc=example,dc=com?*?sub?cn=%25s',
+                                'type': 'user',
+                            },
+                            {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s %25%25 %25h',
+                                'type': 'all',
+                            },
+                            {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
+                                'type': 'all',
+                            },
+                        ],
+                        'autoreply': {
+                            'host': 'vacation.mail.example.com',
+                        },
+                    },
+                }
+            ]
+        }
+
+        # Like ldap.example.com, but with default attributes for moderators
+        # and permitted senders
+        config['domain']['ldap-new.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'ldap': {
+                        'uri': ldapserver['uri'],
+                        'attributes': {
+                            'external_address': 'rfc6532mail',
+                        },
+                        'search': [
+                            {
+                                'uri': 'ldap:///ou=People,dc=example,dc=com?*?sub?uid=%25s',
+                                'type': 'user',
+                            },
+                            {
+                                'uri': 'ldap:///ou=People,dc=example,dc=com?*?sub?cn=%25s',
+                                'type': 'user',
+                            },
+                            {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s %25%25 %25h',
+                                'type': 'all',
+                            },
+                            {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
+                                'type': 'all',
+                            },
+                        ],
+                        'autoreply': {
+                            'host': 'vacation.mail.example.com',
+                        },
+                    },
+                }
+            ]
+        }
+
+        config['domain']['otherldap.domain.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'associated_domain': 'ldap.example.com',
+                    'ldap': {
+                        'uri': ldapserver['uri'],
+                        'attributes': {
+                            'forwarding': 'mailForwardingAddress',
+                        },
+                        'search': [
+                            {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=%25s',
+                                'type': 'all',
+                            }
+                        ],
+                    },
+                },
+            ],
+        }
+
+        config['domain']['control.example.com'] = {
+            'rule': [
+                {
+                    'type': 'ldap',
+                    'associated_domain': 'ldap.example.com',
+                    'ldap': {
+                        'uri': ldapserver['uri'],
+                        'search': [
+                            {
+                                'uri': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?cn=control %25s',
+                                'type': 'all',
+                                'subsearch': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?(&(cn=control group)(member=%25s))',
+                            }
+                        ],
+                    }
+                }
+            ]
+        }
+
+    with open(str(tmp_path.joinpath('dynamic.conf')), 'w') as f:
+        f.write(json.dumps(config)[1:-1])
+
+    return simta_config

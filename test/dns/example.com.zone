@@ -39,3 +39,7 @@ mx-timeout-solo     MX      10  nonexist.example.org.
 smtpd               A       127.0.0.1
 binary              A       172.24.0.4
 _dmarc              TXT     "v=DMARC1; p=reject;"
+alias               MX      10 ipv4
+ldap                MX      10 ipv4
+none                MX      10 ipv4
+password            MX      10 ipv4
