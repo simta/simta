@@ -204,6 +204,8 @@ def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cer
     binargs = [
         tool_path('simta'),
         '-D',
+        # change hostname to avoid loop detection when connecting to aiosmtpd
+        '-h', 'localhost.test',
         '-f', simta_config,
         '-U', json.dumps(daemon_config),
     ]

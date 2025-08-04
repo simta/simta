@@ -280,7 +280,7 @@ main(int ac, char **av) {
         prog++;
     }
 
-    while ((c = getopt(ac, av, "cCDf:u:U:V")) != -1) {
+    while ((c = getopt(ac, av, "cCDf:h:u:U:V")) != -1) {
         switch (c) {
         case 'c': /* check config files */
             dontrun = true;
@@ -296,6 +296,10 @@ main(int ac, char **av) {
 
         case 'f':
             config_fname = optarg;
+            break;
+
+        case 'h':
+            simta_hostname = yaslauto(optarg);
             break;
 
         case 'u':

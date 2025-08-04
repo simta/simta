@@ -82,7 +82,7 @@ yastr                simta_dir_local = NULL;
 yastr                simta_dir_slow = NULL;
 yastr                simta_dir_fast = NULL;
 yastr                simta_dir_command = NULL;
-yastr                simta_hostname;
+yastr                simta_hostname = NULL;
 DNSR                *simta_dnsr = NULL;
 ucl_object_t        *simta_publicsuffix_list = NULL;
 
@@ -169,12 +169,14 @@ simta_read_config(const char *fname, const char *extra) {
     yastr                   path;
     struct timeval          tv_now;
 
-    if (gethostname(hostname, DNSR_MAX_HOSTNAME) != 0) {
-        perror("gethostname");
-        return SIMTA_ERR;
-    }
+    if (simta_hostname == NULL) {
+        if (gethostname(hostname, DNSR_MAX_HOSTNAME) != 0) {
+            perror("gethostname");
+            return SIMTA_ERR;
+        }
 
-    simta_hostname = yaslauto(hostname);
+        simta_hostname = yaslauto(hostname);
+    }
     yasltolower(simta_hostname);
     yasltrim(simta_hostname, ".");
 
