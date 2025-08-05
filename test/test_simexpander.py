@@ -510,9 +510,6 @@ def test_expand_ldap_group_moderated_membersonly_nonpermitted(run_simexpander, r
     assert res['parsed'][0]['sender'] == 'mo.moderated.subgroup-errors@ldap.example.com'
 
 
-# FIXME: test_expand_ldap_group_moderated_modloop
-
-
 @pytest.mark.parametrize(
     'sender',
     [
