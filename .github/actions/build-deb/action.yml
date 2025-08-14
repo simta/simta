@@ -1,0 +1,13 @@
+inputs:
+  path:
+    description: Output path for package
+    required: true
+    default: ${{ github.workspace }}/.deps
+  src:
+    Description: Package source
+    required: true
+runs:
+  using: composite
+  steps:
+    - run: ${{ github.action_path }}/build.sh "${{ inputs.src }}" "${{ inputs.path }}"
+      shell: bash

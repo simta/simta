@@ -1,0 +1,150 @@
+name: build
+on:
+  push:
+  pull_request:
+
+jobs:
+  clang_format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: https://data.forgejo.org/actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y clang-format
+
+      - name: Lint code formatting
+        run: |
+          clang-format -i *.c *.h
+          git diff
+          git status --porcelain | grep -q '^ M' && exit 1 || exit 0
+
+  flake8:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: https://data.forgejo.org/actions/checkout@v4
+
+      - name: Install flake8
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y flake8
+
+      - name: Lint Python code
+        run: flake8 --max-line-length=160
+
+  check:
+    runs-on: ubuntu-latest
+    services:
+      ldap:
+        image: git.flowerysong.com/work/slapd-container:latest
+    steps:
+      - name: Check out code
+        uses: https://data.forgejo.org/actions/checkout@v4
+        with:
+          path: simta
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y clang libbsd-dev libmilter-dev libjansson-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libsasl2-modules libsasl2-modules-db sasl2-bin libcmocka-dev ldap-utils lcov ruby
+
+      - name: Configure slapd
+        run: ldapadd -H ldap://ldap/ -w DrowsyPapa -D "cn=Manager,dc=example,dc=com" -f ${{ github.workspace }}/simta/test/ldap/data.ldif
+
+      - name: Install Python dependencies
+        run: pip install --break-system-packages aiosmtpd cryptography dnspython pytest ruamel.yaml
+
+      - name: Cache built dependencies
+        uses: https://data.forgejo.org/actions/cache@v4
+        id: cache-deps
+        with:
+          path: ${{ github.workspace }}/.deps
+          key: deps-${{ hashFiles('simta/.github/workflows/**') }}
+
+      - name: Install fpm
+        run: gem install --no-document fpm
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build denser
+        uses: ./simta/.github/actions/build-deb
+        with:
+          src: https://github.com/simta/denser
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build libucl
+        uses: ./simta/.github/actions/build-deb
+        with:
+          src: https://github.com/vstakhov/libucl
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build OpenARC
+        uses: ./simta/.github/actions/build-deb
+        with:
+          src: https://github.com/flowerysong/OpenARC
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Install built dependencies
+        run: dpkg -R -i ${{ github.workspace }}/.deps
+
+      - name: Build simta
+        run: |
+          autoreconf -fiv
+          CFLAGS='-fprofile-arcs -ftest-coverage' ./configure --with-arc --with-cmocka
+          make -j4 CFLAGS='-Wall -Werror -fprofile-arcs -ftest-coverage'
+        working-directory: ${{ github.workspace }}/simta
+
+      - name: Test simta
+        run: make check
+        working-directory: ${{ github.workspace }}/simta
+        env:
+          LDAP_SERVER: ldap://ldap/
+
+      - name: Compress test artifacts
+        run: |
+          tar -caf ${{ github.workspace }}/pytest.tar.zst --ignore-failed-read -C /tmp/pytest-of-root/pytest-current/ .
+          #FIXME: zstd /var/log/mail.log -o ${{ github.workspace }}/mail.log.zst
+          ls -lh /var/log
+        if: always()
+
+      - name: Upload test artifacts
+        # FIXME: this is a "temporary" fork
+        uses: https://data.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: pytest
+          path: |
+            ${{ github.workspace }}/pytest.tar.zst
+#            ${{ github.workspace }}/mail.log.zst
+          retention-days: 7
+        if: always()
+
+      - name: Generate coverage reports
+        run: |
+          lcov -c -d ${{ github.workspace }}/simta -o lcov.info --ignore-errors gcov,mismatch
+          gcov *.c || true
+          genhtml lcov.info -o ${{ github.workspace }}/lcov
+        working-directory: ${{ github.workspace }}/simta
+
+      - name: Save lcov output
+        uses: https://data.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: lcov
+          path: lcov
+
+      - name: Build simta with clang
+        run: |
+          make distclean
+          CC=clang ./configure --with-arc
+          make -j4 CFLAGS='-Wall -Werror'
+        working-directory: ${{ github.workspace }}/simta
+
+      - name: Build minimal simta
+        run: |
+          make distclean
+          CC=clang ./configure --without-dkim --without-arc --without-sasl --without-ssl --without-libidn2 --without-jemalloc --without-ldap --without-libwrap --without-lmdb
+          make -j4 CFLAGS='-Wall -Werror'
+        working-directory: ${{ github.workspace }}/simta
