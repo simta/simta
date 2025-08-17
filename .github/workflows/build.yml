@@ -66,19 +66,19 @@ jobs:
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
       - name: Build denser
-        uses: flowerysong/gh-build-deb@v1
+        uses: ./simta/.github/actions/build-deb
         with:
           src: https://github.com/simta/denser
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
       - name: Build libucl
-        uses: flowerysong/gh-build-deb@v1
+        uses: ./simta/.github/actions/build-deb
         with:
           src: https://github.com/vstakhov/libucl
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
       - name: Build OpenARC
-        uses: flowerysong/gh-build-deb@v1
+        uses: ./simta/.github/actions/build-deb
         with:
           src: https://github.com/flowerysong/OpenARC
         if: steps.cache-deps.outputs.cache-hit != 'true'
