@@ -160,7 +160,7 @@ get_ptr(const struct sockaddr *sa) {
     }
 
     result = get_address(hostname, DNSR_TYPE_PTR);
-    free(hostname);
+    dnsr_free_val(hostname);
     return (result);
 }
 
