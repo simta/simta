@@ -2969,7 +2969,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
     const char         *system_message = NULL;
     const char         *timer_type = NULL;
     const char         *fallback_type = NULL;
-    char                hostname[ DNSR_MAX_NAME + 1 ];
+    yastr               hostname = NULL;
     struct timeval      tv_start = {0, 0};
     struct timeval      tv_stop = {0, 0};
     struct timeval      tv_now;
@@ -3105,8 +3105,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
         simta_debuglog(3, "Connect.in [%s]: checking reverse", r.r_ip);
 
-        *hostname = '\0';
-        switch (r.r_dns_match = check_reverse(hostname, r.r_sa)) {
+        switch (r.r_dns_match = check_reverse(&hostname, r.r_sa)) {
 
         default:
             syslog(LOG_ERR, "Connect.in [%s]: check_reverse out of range",
@@ -3128,7 +3127,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
 
         case REVERSE_MATCH:
             statsd_counter("receive.rdns", "match", 1);
-            r.r_remote_hostname = hostname;
+            r.r_remote_hostname = simta_strdup(hostname);
             break;
 
         case REVERSE_UNKNOWN:
@@ -3157,7 +3156,7 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
         simta_debuglog(3, "Connect.in [%s] %s: tcp_wrappers lookup", r.r_ip,
                 r.r_remote_hostname);
 
-        if (*hostname == '\0') {
+        if (hostname == NULL) {
             ctl_hostname = simta_strdup(STRING_UNKNOWN);
         } else {
             ctl_hostname = simta_strdup(hostname);
@@ -3611,6 +3610,7 @@ closeconnection:
     }
 #endif /* HAVE_LIBOPENDKIM */
 
+    yaslfree(hostname);
     yaslfreesplitres(r.r_av, r.r_ac);
     yaslfree(r.r_smtp_command);
     yaslfree(r.r_hello);

@@ -56,7 +56,7 @@ main(int argc, char *argv[]) {
         exit(SIMREVERSE_EXIT_ERROR);
     }
 
-    switch (check_reverse(argv[ 1 ], ai->ai_addr)) {
+    switch (check_reverse(NULL, ai->ai_addr)) {
     case REVERSE_MATCH:
         printf("valid reverse\n");
         exit(SIMREVERSE_EXIT_VALID);

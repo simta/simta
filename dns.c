@@ -184,7 +184,7 @@ simta_dnsr_str(const struct dnsr_string *data) {
 }
 
 int
-check_reverse(char *dn, const struct sockaddr *sa) {
+check_reverse(yastr *dn, const struct sockaddr *sa) {
     int                 i, j;
     int                 ret = REVERSE_UNKNOWN;
     struct dnsr_result *result_ptr = NULL, *result_a = NULL;
@@ -236,8 +236,7 @@ check_reverse(char *dn, const struct sockaddr *sa) {
 
                 if (ret == REVERSE_MATCH) {
                     if (dn) {
-                        strncpy(dn, result_ptr->r_answer[ i ].rr_dn.dn_name,
-                                DNSR_MAX_NAME + 1);
+                        *dn = yaslauto(result_ptr->r_answer[ i ].rr_dn.dn_name);
                     }
                     dnsr_free_result(result_a);
                     dnsr_free_result(result_ptr);

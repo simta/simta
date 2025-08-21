@@ -26,7 +26,7 @@ struct dnsr_result *get_mx(const char *);
 struct dnsr_result *get_ptr(const struct sockaddr *);
 struct dnsr_result *get_txt(const char *);
 yastr               simta_dnsr_str(const struct dnsr_string *);
-int                 check_reverse(char *, const struct sockaddr *);
+int                 check_reverse(yastr *, const struct sockaddr *);
 int                 check_hostname(const char *);
 bool                dnsr_result_is_cname(struct dnsr_result *);
 

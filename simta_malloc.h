@@ -29,4 +29,7 @@ char *simta_strdup(const char *) __attribute__((__nonnull__, __malloc__));
 #undef strcpy
 #define strcpy(x, y) BANNED(strcpy)
 
+#undef strncpy
+#define strncpy(x, y, z) BANNED(strncpy)
+
 #endif /* SIMTA_XMALLOC_H */

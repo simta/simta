@@ -1826,9 +1826,9 @@ next_dnsr_host(struct deliver *d, struct host_q *hq) {
                         "last_envelope", 0, false);
                 d->d_retry_current = ref;
                 /* FIXME: can we do less juggling here? */
-                strncpy(d->d_ip,
-                        ucl_object_tostring(ucl_object_lookup(obj, "ip")),
-                        sizeof(d->d_ip));
+                yaslfree(d->d_ip);
+                d->d_ip =
+                        simta_ucl_object_toyastr(ucl_object_lookup(obj, "ip"));
                 memcpy(&(d->d_sa), ucl_object_lookup(obj, "address")->value.ud,
                         sizeof(struct sockaddr_storage));
                 simta_debuglog(1, "DNS %s: Retrying address: %s",
@@ -1989,18 +1989,21 @@ free_dns_results(struct deliver *d) {
         ucl_object_unref(d->d_retry_current);
         d->d_retry_current = NULL;
     }
+    yaslfree(d->d_ip);
+    d->d_ip = NULL;
 }
 
 
 static simta_result
 deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
-    int rc;
-    int port;
+    int  rc;
+    int  port;
+    char ip[ INET6_ADDRSTRLEN ];
 
     if ((rc = getnameinfo((struct sockaddr *)&(d->d_sa),
                  ((d->d_sa.ss_family == AF_INET6) ? sizeof(struct sockaddr_in6)
                                                   : sizeof(struct sockaddr_in)),
-                 d->d_ip, sizeof(d->d_ip), NULL, 0, NI_NUMERICHOST)) != 0) {
+                 ip, sizeof(ip), NULL, 0, NI_NUMERICHOST)) != 0) {
         syslog(LOG_ERR, "Syserror: deliver_checksockaddr getnameinfo: %s",
                 gai_strerror(rc));
         return SIMTA_ERR;
@@ -2008,14 +2011,17 @@ deliver_checksockaddr(struct deliver *d, struct host_q *hq) {
 
     /* Reject non-routable meta addresses and link-local addresses */
     if (((d->d_sa.ss_family == AF_INET) &&
-                ((strcmp(d->d_ip, "0.0.0.0") == 0) ||
-                        (strncmp(d->d_ip, "169.254.", 8) == 0))) ||
+                ((strcmp(ip, "0.0.0.0") == 0) ||
+                        (strncmp(ip, "169.254.", 8) == 0))) ||
             ((d->d_sa.ss_family == AF_INET6) &&
-                    ((strncmp(d->d_ip, "fe80:", 5) == 0)))) {
+                    ((strncmp(ip, "fe80:", 5) == 0)))) {
         syslog(LOG_INFO, "DNS %s: suppressing bad address: %s", hq->hq_hostname,
-                d->d_ip);
+                ip);
         return SIMTA_ERR;
     }
+
+    yaslfree(d->d_ip);
+    d->d_ip = yaslauto(ip);
 
     /* Set the port */
     port = ucl_object_toint(
