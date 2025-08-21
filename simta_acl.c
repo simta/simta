@@ -234,11 +234,12 @@ acl_check(const char *chain, const struct sockaddr *sa, const char *text) {
         if (getnameinfo((struct sockaddr *)sa,
                     ((sa->sa_family == AF_INET6) ? sizeof(struct sockaddr_in6)
                                                  : sizeof(struct sockaddr_in)),
-                    sa_ip, INET6_ADDRSTRLEN, NULL, 0, NI_NUMERICHOST) != 0) {
+                    sa_ip, INET6_ADDRSTRLEN, NULL, 0, NI_NUMERICHOST) == 0) {
+            ret->acl_text_raw = yaslauto(sa_ip);
+        } else {
             syslog(LOG_ERR, "Syserror: acl_check getnameinfo: %m");
-            strcpy(sa_ip, "INVALID");
+            ret->acl_text_raw = yaslauto("INVALID");
         }
-        ret->acl_text_raw = yaslauto(sa_ip);
     } else {
         ret->acl_text_raw = yaslauto(text);
     }
