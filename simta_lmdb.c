@@ -241,7 +241,7 @@ simta_db_cursor_close(struct simta_dbc *dbc) {
     if (dbc->c_cursor != NULL) {
         mdb_txn_abort(mdb_cursor_txn(dbc->c_cursor));
     }
-    free(dbc);
+    simta_free(dbc);
 }
 
 void
@@ -253,7 +253,7 @@ simta_db_close(struct simta_dbh *dbh) {
         mdb_env_close(dbh->h_env);
         dbh->h_env = NULL;
     }
-    free(dbh);
+    simta_free(dbh);
 }
 
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

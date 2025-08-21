@@ -94,7 +94,7 @@ smtp_getlines(struct deliver *d, size_t *count) {
     return tokens;
 
 error:
-    free(tokens);
+    simta_free(tokens);
     *count = 0;
     return NULL;
 }
@@ -226,7 +226,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
              *                    ; See Section 4.1.3
              */
 
-            free(hq->hq_smtp_hostname);
+            simta_free(hq->hq_smtp_hostname);
 
             if (yasllen(lines[ 0 ]) > 4) {
                 c = lines[ 0 ] + 4;

@@ -106,7 +106,7 @@ simta_sasl_server_new(int tls) {
     ret->s_conn = conn;
     if (simta_sasl_reset(ret, tls) != 0) {
         sasl_dispose(&conn);
-        free(ret);
+        simta_free(ret);
         ret = NULL;
     } else {
         ret->s_response = yaslempty();
@@ -289,7 +289,7 @@ simta_sasl_free(struct simta_sasl *s) {
             sasl_dispose(&(s->s_conn));
         }
         yaslfree(s->s_response);
-        free(s);
+        simta_free(s);
     }
 }
 

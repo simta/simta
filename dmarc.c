@@ -74,7 +74,7 @@ dmarc_free(struct dmarc *d) {
         dll_free(d->dkim_domain_list);
     }
 
-    free(d);
+    simta_free(d);
 }
 
 simta_result

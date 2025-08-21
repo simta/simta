@@ -44,6 +44,7 @@
 #include "ml.h"
 #include "red.h"
 #include "simta_ldap.h"
+#include "simta_malloc.h"
 #include "simta_util.h"
 
 #include "embedded_config.h"
@@ -641,9 +642,9 @@ simta_waitpid(pid_t child, int *childstatus, int options) {
         }
 
         if (p_remove->p_host) {
-            free(p_remove->p_host);
+            simta_free(p_remove->p_host);
         }
-        free(p_remove);
+        simta_free(p_remove);
 
         if (options == 0) {
             /* We rely on the caller to loop as needed, since they might want

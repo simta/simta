@@ -927,7 +927,7 @@ simta_server(bool daemon) {
                     timercmp(&((*c)->c_tv), &tv_now, <)) {
                 remove = *c;
                 *c = (*c)->c_next;
-                free(remove);
+                simta_free(remove);
 
             } else {
                 c = &((*c)->c_next);

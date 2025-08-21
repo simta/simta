@@ -691,7 +691,7 @@ hq_free(struct host_q *hq_free) {
         hq_deliver_pop(hq_free);
         ucl_object_unref(hq_free->hq_red);
         yaslfree(hq_free->hq_hostname);
-        free(hq_free);
+        simta_free(hq_free);
     }
 
     return;

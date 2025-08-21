@@ -76,7 +76,7 @@ ll_free(struct stab_entry *stab) {
 
     for (; stab != NULL; stab = next) {
         next = stab->st_next;
-        free(stab);
+        simta_free(stab);
     }
 }
 
@@ -152,9 +152,9 @@ dll_remove_entry(struct dll_entry **head, struct dll_entry *dll) {
         *head = dll->dll_next;
     }
 
-    free(dll->dll_key);
+    simta_free(dll->dll_key);
 
-    free(dll);
+    simta_free(dll);
 
     return;
 }
@@ -164,8 +164,8 @@ dll_free(struct dll_entry *head) {
     struct dll_entry *next;
     for (; head != NULL; head = next) {
         next = head->dll_next;
-        free(head->dll_key);
-        free(head);
+        simta_free(head->dll_key);
+        simta_free(head);
     }
 }
 

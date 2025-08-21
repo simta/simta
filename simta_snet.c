@@ -77,7 +77,7 @@ snet_close(SNET *sn) {
     fd = snet_fd(sn);
     yaslfree(sn->sn_wbuf);
     yaslfree(sn->sn_rbuf);
-    free(sn);
+    simta_free(sn);
     if (close(fd) < 0) {
         return -1;
     }

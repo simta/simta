@@ -51,6 +51,12 @@ simta_realloc(void *oldp, size_t size) {
 }
 
 
+void
+simta_free(void *p) {
+    free(p);
+}
+
+
 char *
 simta_strdup(const char *s) {
     char  *p;

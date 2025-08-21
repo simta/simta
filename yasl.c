@@ -577,7 +577,7 @@ err:
     while ((*argc)--) {
         yaslfree(vector[ *argc ]);
     }
-    free(vector);
+    simta_free(vector);
     if (current) {
         yaslfree(current);
     }
@@ -646,7 +646,7 @@ cleanup:
     for (size_t i = 0; i < elements; i++) {
         yaslfree(tokens[ i ]);
     }
-    free(tokens);
+    simta_free(tokens);
     *count = 0;
     return NULL;
 }
@@ -762,14 +762,14 @@ yaslcatvprintf(yastr str, const char *fmt, va_list ap) {
         vsnprintf(buf, buflen, fmt, cpy);
         va_end(cpy);
         if (buf[ buflen - 2 ] != '\0') {
-            free(buf);
+            simta_free(buf);
             buflen *= 2;
             continue;
         }
         break;
     }
     t = yaslcat(str, buf);
-    free(buf);
+    simta_free(buf);
     return t;
 }
 #pragma GCC diagnostic warning "-Wformat-nonliteral"
@@ -797,7 +797,7 @@ yaslcatprintf(yastr str, const char *fmt, ...) {
 void
 yaslfree(yastr str) {
     if (str) {
-        free(yaslheader(str));
+        simta_free(yaslheader(str));
     }
 }
 
@@ -811,7 +811,7 @@ yaslfreesplitres(yastr *tokens, size_t count) {
     while (count--) {
         yaslfree(tokens[ count ]);
     }
-    free(tokens);
+    simta_free(tokens);
 }
 
 

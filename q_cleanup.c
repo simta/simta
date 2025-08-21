@@ -327,8 +327,8 @@ q_dir_startup(char *dir, int action, struct envelope **messages) {
             syslog(LOG_INFO, "Queue %s: unlinked", f->f_name);
         }
 
-        free(f->f_name);
-        free(f);
+        simta_free(f->f_name);
+        simta_free(f);
     }
 
     return bad_filesystem ? EX_DATAERR : EX_OK;

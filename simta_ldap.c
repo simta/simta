@@ -477,7 +477,7 @@ done:
         simta_ldap_unbind(ld);
     }
     if (creds.bv_val) {
-        free(creds.bv_val);
+        simta_free(creds.bv_val);
     }
 
     return retval;
@@ -611,7 +611,7 @@ simta_ldap_time_t(
         retval = mktime(&tm_time);
         if (tz) {
             setenv("TZ", tz, 1);
-            free(tz);
+            simta_free(tz);
         } else {
             unsetenv("TZ");
         }
@@ -1931,7 +1931,7 @@ simta_addr_demangle(const char *address) {
     if (srs_reverse(address, &p, simta_config_str("receive.srs.secret")) ==
             SRS_OK) {
         u = yaslauto(p);
-        free(p);
+        simta_free(p);
     } else {
         u = yaslauto(address);
     }
@@ -2149,7 +2149,7 @@ simta_ldap_config(const ucl_object_t *rule) {
                 (*lds)->lds_search_type = LDS_USER;
             } else {
                 ldap_free_urldesc(plud);
-                free(*lds);
+                simta_free(*lds);
                 *lds = NULL;
                 syslog(LOG_ERR, "Config.LDAP %s: Unknown search type: %s",
                         ld->ldap_associated_domain, buf);
@@ -2284,7 +2284,7 @@ simta_ldap_config(const ucl_object_t *rule) {
     return ld;
 
 errexit:
-    free(ld);
+    simta_free(ld);
     ucl_object_iterate_free(iter);
     yaslfree(key);
 

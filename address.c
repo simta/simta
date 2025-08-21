@@ -183,9 +183,9 @@ add_address(struct expand *exp, char *addr, struct envelope *error_env,
     return SIMTA_OK;
 
 error:
-    free(e->e_addr);
-    free(e->e_addr_from);
-    free(e);
+    simta_free(e->e_addr);
+    simta_free(e->e_addr_from);
+    simta_free(e);
     return SIMTA_ERR;
 }
 
@@ -746,7 +746,7 @@ exp_addr_link_free(struct exp_link *links) {
 
     while ((link = links) != NULL) {
         links = links->el_next;
-        free(link);
+        simta_free(link);
     }
 
     return;

@@ -471,7 +471,7 @@ header_masquerade(struct line *l) {
     outbuf = yaslcat(outbuf, yasljoinyasl(split, tok_count, ", ", 2));
     yaslfreesplitres(split, tok_count);
 
-    free(l->line_data);
+    simta_free(l->line_data);
     l->line_data = simta_strdup(outbuf);
     yaslfree(outbuf);
 
@@ -482,8 +482,8 @@ header_masquerade(struct line *l) {
         if (next) {
             next->line_prev = l->line_prev;
         }
-        free(l->line_data);
-        free(l);
+        simta_free(l->line_data);
+        simta_free(l);
         l = next;
     }
 }
@@ -1290,7 +1290,7 @@ parse_addr_list(yastr list, size_t *count, enum address_list_syntax mode) {
         return mboxes;
     }
 
-    free(mboxes);
+    simta_free(mboxes);
     return NULL;
 
 error:
@@ -1511,11 +1511,11 @@ receive_headers_free(struct receive_headers *r) {
     for (d = r->r_headers_index; d; d = d->dll_next) {
         h = d->dll_data;
         ll_free(h->h_lines);
-        free(h);
+        simta_free(h);
     }
 
     dll_free(r->r_headers_index);
 
-    free(r);
+    simta_free(r);
 }
 /* vim: set softtabstop=4 shiftwidth=4 expandtab :*/

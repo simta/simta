@@ -94,7 +94,7 @@ spf_free(struct spf *s) {
         yaslfree(s->spf_domain);
         yaslfree(s->spf_helo);
     }
-    free(s);
+    simta_free(s);
 }
 
 static simta_result
@@ -1366,7 +1366,7 @@ cleanup:
         while ((obj = ucl_object_iterate_safe(iter, false)) != NULL) {
             mech = obj->value.ud;
             yaslfree(mech->domain_spec);
-            free(mech);
+            simta_free(mech);
         }
         ucl_object_unref(mech_list);
     }

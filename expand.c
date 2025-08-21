@@ -741,7 +741,7 @@ cleanup2:
     while (eo != NULL) {
         eo_free = eo;
         eo = eo->eo_next;
-        free(eo_free);
+        simta_free(eo_free);
     }
 
 cleanup1:
@@ -764,15 +764,15 @@ cleanup1:
         yaslfree(e_addr->e_addr_preface);
 
         if (e_addr->e_addr_dn) {
-            free(e_addr->e_addr_dn);
+            simta_free(e_addr->e_addr_dn);
         }
 #endif
 
         yaslfree(e_addr->e_addr_localpart);
         yaslfree(e_addr->e_addr_domain);
-        free(e_addr->e_addr);
-        free(e_addr->e_addr_from);
-        free(e_addr);
+        simta_free(e_addr->e_addr);
+        simta_free(e_addr->e_addr_from);
+        simta_free(e_addr);
     }
 
 done:
@@ -895,7 +895,7 @@ exp_addr_permitted_destroy(struct exp_addr *e_addr) {
         nstab = pstab;
         pstab = pstab->st_next;
         yaslfree(nstab->st_key);
-        free(nstab);
+        simta_free(nstab);
     }
     return;
 }

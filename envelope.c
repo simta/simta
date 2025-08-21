@@ -145,7 +145,7 @@ void
 rcpt_free(struct recipient *r) {
     if (r != NULL) {
         if (r->r_rcpt != NULL) {
-            free(r->r_rcpt);
+            simta_free(r->r_rcpt);
             r->r_rcpt = NULL;
         }
 
@@ -155,7 +155,7 @@ rcpt_free(struct recipient *r) {
         }
 
         memset(r, 0, sizeof(struct recipient));
-        free(r);
+        simta_free(r);
     }
 }
 
@@ -264,15 +264,15 @@ env_free(struct envelope *env) {
         if (env->e_sender_entry->se_list->sl_entries == NULL) {
             dll_remove_entry(
                     &simta_sender_list, env->e_sender_entry->se_list->sl_dll);
-            free(env->e_sender_entry->se_list);
+            simta_free(env->e_sender_entry->se_list);
         }
-        free(env->e_sender_entry);
+        simta_free(env->e_sender_entry);
     }
 
     env_rcpt_free(env);
     env_clear_errors(env);
     memset(env, 0, sizeof(struct envelope));
-    free(env);
+    simta_free(env);
 
     return;
 }
@@ -488,6 +488,7 @@ cleanup:
     }
 
     if (buf) {
+        /* FIXME: can we always be sure this is the right allocator? */
         free(buf);
     }
 

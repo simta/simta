@@ -2441,7 +2441,7 @@ error:
     }
 
     if (filter_message != NULL) {
-        free(filter_message);
+        simta_free(filter_message);
     }
 
     yaslfree(daytime);
@@ -3170,11 +3170,11 @@ smtp_receive(int fd, struct connection_info *c, struct simta_socket *ss) {
                     r.r_ip, r.r_remote_hostname);
             smtp_write_banner(&r, 421, S_421_DECLINE,
                     simta_config_str("receive.connection.libwrap.message"));
-            free(ctl_hostname);
+            simta_free(ctl_hostname);
             goto closeconnection;
         }
 
-        free(ctl_hostname);
+        simta_free(ctl_hostname);
 #endif /* HAVE_LIBWRAP */
 
         simta_debuglog(3, "Connect.in [%s] %s: checking ACLs", r.r_ip,

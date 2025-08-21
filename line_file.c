@@ -29,11 +29,11 @@ line_file_free(struct line_file *lf) {
     if (lf != NULL) {
         while ((l = lf->l_first) != NULL) {
             lf->l_first = l->line_next;
-            free(l->line_data);
-            free(l);
+            simta_free(l->line_data);
+            simta_free(l);
         }
 
-        free(lf);
+        simta_free(lf);
     }
 }
 

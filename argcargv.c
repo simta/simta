@@ -85,8 +85,8 @@ acav_parse(ACAV *acav, char *line, char **argv[]) {
 int
 acav_free(ACAV *acav) {
     if (acav) {
-        free(acav->acv_argv);
-        free(acav);
+        simta_free(acav->acv_argv);
+        simta_free(acav);
     }
 
     return (0);

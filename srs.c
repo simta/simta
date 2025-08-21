@@ -262,12 +262,12 @@ srs_expand(
     if ((rc = srs_reverse(e_addr->e_addr, &newaddr, secret)) == SRS_OK) {
         if (add_address(exp, newaddr, e_addr->e_addr_errors, ADDRESS_TYPE_EMAIL,
                     e_addr->e_addr_from, false) != SIMTA_OK) {
-            free(newaddr);
+            simta_free(newaddr);
             return ADDRESS_SYSERROR;
         }
         simta_debuglog(1, "Expand.SRS env <%s>: <%s>: expanded to <%s>",
                 exp->exp_env->e_id, e_addr->e_addr, newaddr);
-        free(newaddr);
+        simta_free(newaddr);
         return ADDRESS_EXCLUDE;
     }
 
@@ -284,7 +284,7 @@ srs_valid(const char *addr, const char *secret) {
     int   rc;
 
     if ((rc = srs_reverse(addr, &newaddr, secret)) == SRS_OK) {
-        free(newaddr);
+        simta_free(newaddr);
         return ADDRESS_OK;
     }
 

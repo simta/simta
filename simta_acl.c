@@ -362,7 +362,7 @@ acl_result_free(struct acl_result *res) {
         yaslfree(res->acl_action);
         yaslfree(res->acl_reason);
         yaslfree(res->acl_result);
-        free(res);
+        simta_free(res);
     }
 }
 
