@@ -12,4 +12,15 @@ void *simta_realloc(void *, size_t)
 void  simta_free(void *);
 char *simta_strdup(const char *) __attribute__((__nonnull__, __malloc__));
 
+#define BANNED(func) sorry_##func##_is_a_banned_function
+
+#undef strndup
+#define strndup(x, y) BANNED(strndup)
+
+#undef strcat
+#define strcat(x, y) BANNED(strcat)
+
+#undef strncat
+#define strncat(x, y, z) BANNED(strncat)
+
 #endif /* SIMTA_XMALLOC_H */
