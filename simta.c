@@ -499,7 +499,7 @@ simta_read_publicsuffix(const char *fname) {
 
 #ifdef HAVE_LIBIDN2
         if (idna) {
-            free(idna);
+            idn2_free(idna);
             idna = NULL;
         }
 #endif /* HAVE_LIBIDN2 */

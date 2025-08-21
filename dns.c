@@ -88,7 +88,7 @@ get_address(const char *hostname, int qtype) {
     rc = dnsr_query(simta_dnsr, qtype, DNSR_CLASS_IN, lookup_hostname);
 
 #ifdef HAVE_LIBIDN2
-    free(idna);
+    idn2_free(idna);
 #endif /* HAVE_LIBIDN2 */
 
     if (rc < 0) {
