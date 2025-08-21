@@ -604,7 +604,7 @@ simta_ldap_time_t(
             (strptime(buf, "%Y%m%d%H", &tm_time) != NULL)) {
         /* We're going to assume that everything is UTC as the gods intended */
         if ((tz = getenv("TZ")) != NULL) {
-            tz = strdup(tz);
+            tz = simta_strdup(tz);
         }
         setenv("TZ", "", 1);
         tzset();

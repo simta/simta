@@ -14,6 +14,9 @@ char *simta_strdup(const char *) __attribute__((__nonnull__, __malloc__));
 
 #define BANNED(func) sorry_##func##_is_a_banned_function
 
+#undef strdup
+#define strdup(x) BANNED(strdup)
+
 #undef strndup
 #define strndup(x, y) BANNED(strndup)
 
