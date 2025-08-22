@@ -14,6 +14,10 @@
 #include <jemalloc/jemalloc.h>
 #endif /* HAVE_JEMALLOC */
 
+#ifdef HAVE_MIMALLOC
+#include <mimalloc-override.h>
+#endif /* HAVE_MIMALLOC */
+
 
 void *
 simta_malloc(size_t size) {

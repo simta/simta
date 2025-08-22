@@ -75,9 +75,19 @@ AS_IF(
     [PKG_CHECK_MODULES([LIBIDN2], [libidn2],  [AC_DEFINE([HAVE_LIBIDN2], [1], [Define to 1 if LIBIDN2 is available])])])
 
 AC_ARG_WITH([jemalloc], AC_HELP_STRING([--with-jemalloc], [Use the jemalloc allocator]))
+
+AC_ARG_WITH([mimalloc], AC_HELP_STRING([--with-mimalloc], [Use the mimalloc allocator]))
+
+AS_IF([test "x$with_jemalloc" = 'xyes' -a "x$with_mimalloc" = 'xyes'],
+    [AC_MSG_ERROR([--with-jemalloc and --with-mimalloc are mutually exclusive])])
+
 AS_IF(
-    [test "x$with_jemalloc" != "xno"],
+    [test "x$with_jemalloc" != 'xno' -a "x$with_mimalloc" != 'xyes'],
     [PKG_CHECK_MODULES([JEMALLOC], [jemalloc], [AC_DEFINE([HAVE_JEMALLOC], [1], [Define to 1 if JEMALLOC is available])])])
+
+AS_IF(
+    [test "x$with_mimalloc" = 'xyes'],
+    [PKG_CHECK_MODULES([MIMALLOC], [mimalloc], [AC_DEFINE([HAVE_MIMALLOC], [1], [Define to 1 if MIMALLOC is available])])])
 
 AC_ARG_WITH([cmocka], AC_HELP_STRING([--with-cmocka], [Build unit tests]))
 AS_IF(
