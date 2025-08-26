@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_INIT(simta, m4_esyscmd([sh version.sh]), simta@umich.edu)
-AM_INIT_AUTOMAKE([foreign subdir-objects no-dist-gzip dist-xz])
+AM_INIT_AUTOMAKE([foreign subdir-objects no-dist-gzip dist-zstd 1.16.2])
 
 AC_PREREQ(2.63)
 AC_CONFIG_HEADER(config.h)

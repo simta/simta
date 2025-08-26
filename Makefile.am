@@ -187,5 +187,5 @@ endif
 	chmod u+s $(DESTDIR)$(sbindir)/simc$(EXEEXT)
 	chmod u+s $(DESTDIR)$(sbindir)/simsendmail$(EXEEXT)
 
-rpm: dist-xz
-	rpmbuild -ta $(distdir).tar.xz
+rpm: dist-zstd
+	rpmbuild -ta $(distdir).tar.zst
