@@ -18,6 +18,7 @@ URL: http://rsug.itd.umich.edu/software/simta/
 Source0: %{name}-%{version}.tar.zst
 Provides: MTA smtpdaemon server(smtp)
 Provides: %{_sbindir}/sendmail %{_bindir}/newaliases
+BuildRequires: gcc
 BuildRequires: libucl-devel >= 0.8.1
 BuildRequires: lmdb-devel
 BuildRequires: setup
