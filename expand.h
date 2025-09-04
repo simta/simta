@@ -42,13 +42,6 @@ typedef enum {
 #define STATUS_NO_ROOT_PATH (1 << 7)
 #endif /* HAVE_LDAP */
 
-struct expand_output {
-    char                 *eo_from;
-    char                 *eo_hostname;
-    struct envelope      *eo_env;
-    struct expand_output *eo_next;
-};
-
 struct expand {
     struct envelope    *exp_env;       /* original envelope */
     struct exp_addr    *exp_addr_head; /* list of expanded addresses */
@@ -97,9 +90,7 @@ struct exp_addr {
 };
 
 /* expand.c */
-int              expand(struct envelope *);
-struct envelope *eo_lookup(struct expand_output *, char *, char *);
-int              eo_insert(struct expand_output **, struct envelope *);
+int expand(struct envelope *);
 
 /* address.c */
 struct passwd *simta_getpwnam(const char *, const char *);
