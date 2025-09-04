@@ -43,42 +43,6 @@ void cleanup_envelope_list(struct envelope **);
 int simta_expand_debug = 0;
 
 
-struct envelope *
-eo_lookup(struct expand_output *eo_list, char *hostname, char *from) {
-    struct expand_output *e;
-
-    for (e = eo_list; e != NULL; e = e->eo_next) {
-        if (strcasecmp(e->eo_hostname, hostname) != 0) {
-            continue;
-        }
-
-        if (strcasecmp(e->eo_from, from) == 0) {
-            return (e->eo_env);
-        }
-    }
-
-    return (NULL);
-}
-
-
-int
-eo_insert(struct expand_output **eo_list, struct envelope *env) {
-    struct expand_output *e_new;
-
-    e_new = simta_malloc(sizeof(struct expand_output));
-
-    if ((e_new->eo_hostname = env->e_hostname) == NULL) {
-        e_new->eo_hostname = "";
-    }
-
-    e_new->eo_from = env->e_mail;
-    e_new->eo_env = env;
-    e_new->eo_next = *eo_list;
-    *eo_list = e_new;
-
-    return (0);
-}
-
 void
 cleanup_envelope_list(struct envelope **env_p) {
     struct envelope *env;
@@ -115,28 +79,25 @@ cleanup_envelope_list(struct envelope **env_p) {
 
 int
 expand(struct envelope *unexpanded_env) {
-    struct expand         exp;
-    struct envelope      *base_error_env;
-    struct envelope      *env_dead = NULL;
-    struct envelope      *env = NULL;
-    struct envelope     **env_p;
-    struct recipient     *rcpt;
-    struct expand_output *host_stab = NULL;
-    struct expand_output *eo;
-    struct expand_output *eo_free;
-    struct exp_addr      *e_addr;
-    struct exp_addr      *next_e_addr;
-    const ucl_object_t   *hq_red;
-    char                 *domain = NULL;
-    SNET                 *snet = NULL;
-    int                   n_rcpts;
-    int                   return_value = 1;
-    int                   env_out = 0;
-    int                   fast_file_start;
-    int                   sendermatch;
-    char                  e_original[ MAXPATHLEN ];
-    char                  d_original[ MAXPATHLEN ];
-    char                  d_out[ MAXPATHLEN ];
+    struct expand       exp;
+    struct envelope    *base_error_env;
+    struct envelope    *env = NULL;
+    struct envelope   **env_p;
+    struct recipient   *rcpt;
+    struct envelope    *env_head = NULL;
+    struct exp_addr    *e_addr;
+    struct exp_addr    *next_e_addr;
+    const ucl_object_t *hq_red;
+    char               *domain = NULL;
+    SNET               *snet = NULL;
+    int                 n_rcpts;
+    int                 return_value = 1;
+    int                 env_out = 0;
+    int                 fast_file_start;
+    int                 sendermatch;
+    char                e_original[ MAXPATHLEN ];
+    char                d_original[ MAXPATHLEN ];
+    char                d_out[ MAXPATHLEN ];
     /* RFC 5321 4.5.3.1.3.  Path
      * The maximum total length of a reverse-path or forward-path is 256
      * octets (including the punctuation and element separators).
@@ -168,8 +129,8 @@ expand(struct envelope *unexpanded_env) {
      * included in the terminal expansion list.
      *
      * Any address in the expansion list whose st_data is not NULL is
-     * considered a terminal address and will be written out as one
-     * of the addresses in expanded envelope(s).
+     * considered a terminal address and will be written out in an
+     * expanded envelope.
      */
 
     if ((base_error_env = address_bounce_create(&exp)) == NULL) {
@@ -404,68 +365,45 @@ expand(struct envelope *unexpanded_env) {
             printf("Terminal: %s\n", e_addr->e_addr);
         }
 
-        switch (e_addr->e_addr_type) {
-        case ADDRESS_TYPE_EMAIL:
+        /* Create envelope and add it to list */
+        if ((env = env_create((e_addr->e_addr_type == ADDRESS_TYPE_DEAD)
+                                      ? simta_dir_dead
+                                      : simta_dir_fast,
+                     NULL, e_addr->e_addr_from, unexpanded_env)) == NULL) {
+            syslog(LOG_ERR, "Expand env <%s>: env_create: %m",
+                    unexpanded_env->e_id);
+            goto cleanup3;
+        }
+
+        simta_debuglog(2, "Expand env <%s>: %s: expansion env dinode %d",
+                unexpanded_env->e_id, env->e_id, (int)env->e_dinode);
+
+        /* fill in env */
+        if (e_addr->e_addr_type == ADDRESS_TYPE_EMAIL) {
             if ((domain = strchr(e_addr->e_addr, '@')) == NULL) {
                 syslog(LOG_ERR, "Expand env <%s>: strchr blivet",
                         unexpanded_env->e_id);
                 goto cleanup3;
             }
             domain++;
-            env = eo_lookup(host_stab, domain, e_addr->e_addr_from);
-            break;
-
-        case ADDRESS_TYPE_DEAD:
-            domain = NULL;
-            env = env_dead;
-            break;
-
-        default:
-            panic("expand: address type out of range");
+            env_hostname(env, domain);
         }
 
-        if (env == NULL) {
-            /* Create envelope and add it to list */
-            if ((env = env_create(domain ? simta_dir_fast : simta_dir_dead,
-                         NULL, e_addr->e_addr_from, unexpanded_env)) == NULL) {
-                syslog(LOG_ERR, "Expand env <%s>: env_create: %m",
-                        unexpanded_env->e_id);
-                goto cleanup3;
-            }
-
-            simta_debuglog(2, "Expand env <%s>: %s: expansion env dinode %d",
-                    unexpanded_env->e_id, env->e_id, (int)env->e_dinode);
-
-            /* fill in env */
-            if (domain != NULL) {
-                env_hostname(env, domain);
-            } else {
-                env_dead = env;
-            }
-
-            /* Add env to host_stab */
-            if (eo_insert(&host_stab, env) != 0) {
-                syslog(LOG_ERR, "Expand env <%s>: eo_insert %s failed: %m",
-                        unexpanded_env->e_id, env->e_id);
-                env_free(env);
-                goto cleanup3;
-            }
-        }
+        /* insert env */
+        env->e_next = env_head;
+        env_head = env;
 
         if (env_recipient(env, e_addr->e_addr) != 0) {
             goto cleanup3;
         }
 
         syslog(LOG_NOTICE,
-                "Expand env <%s>: %s: recipient <%s> added to env for host %s",
-                unexpanded_env->e_id, env->e_id, e_addr->e_addr,
-                env->e_hostname ? env->e_hostname : "NULL");
+                "Expand env <%s>: %s: env created for recipient <%s>",
+                unexpanded_env->e_id, env->e_id, e_addr->e_addr);
     }
 
-    /* Write out all expanded envelopes and place them in to the host_q */
-    for (eo = host_stab; eo != NULL; eo = eo->eo_next) {
-        env = eo->eo_env;
-
+    /* Write out all expanded envelopes and place them in the host_q */
+    for (env = env_head; env != NULL; env = env->e_next) {
         if (simta_expand_debug == 0) {
             sprintf(d_out, "%s/D%s", env->e_dir, env->e_id);
 
@@ -478,7 +416,7 @@ expand(struct envelope *unexpanded_env) {
              * Here, final delivery means the message has left the SMTP
              * environment.
              */
-            if (((hq_red = red_host_lookup(eo->eo_hostname, false)) != NULL) &&
+            if (((hq_red = red_host_lookup(env->e_hostname, false)) != NULL) &&
                     (ucl_object_toboolean(ucl_object_lookup_path(
                             hq_red, "deliver.local.enabled")))) {
                 if (snprintf(header, 270, "Return-Path: <%s>", env->e_mail) >=
@@ -502,30 +440,17 @@ expand(struct envelope *unexpanded_env) {
                 }
             }
 
-            sendermatch = !strcasecmp(unexpanded_env->e_mail, env->e_mail);
 
-            n_rcpts = 0;
-            for (rcpt = env->e_rcpt; rcpt != NULL; rcpt = rcpt->r_next) {
-                n_rcpts++;
-                if (sendermatch) {
-                    syslog(LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s>",
-                            unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
-                            env->e_mail);
-                } else {
-                    syslog(LOG_INFO,
-                            "Expand env <%s>: %s: To <%s> From <%s> (%s)",
-                            unexpanded_env->e_id, env->e_id, rcpt->r_rcpt,
-                            env->e_mail, unexpanded_env->e_mail);
-                }
+            if (strcasecmp(unexpanded_env->e_mail, env->e_mail) == 0) {
+                syslog(LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s>",
+                        unexpanded_env->e_id, env->e_id, env->e_rcpt->r_rcpt,
+                        env->e_mail);
+            } else {
+                syslog(LOG_INFO, "Expand env <%s>: %s: To <%s> From <%s> (%s)",
+                        unexpanded_env->e_id, env->e_id, env->e_rcpt->r_rcpt,
+                        env->e_mail, unexpanded_env->e_mail);
             }
 
-            syslog(LOG_INFO, "Expand env <%s>: %s: Expanded %d recipients",
-                    unexpanded_env->e_id, env->e_id, n_rcpts);
-
-            /* Efile: write env->e_dir/Enew_id for all recipients at host */
-            syslog(LOG_NOTICE, "Expand env <%s>: %s: writing Efile for %s",
-                    unexpanded_env->e_id, env->e_id,
-                    env->e_hostname ? env->e_hostname : "NULL");
             if (env_outfile(env) != SIMTA_OK) {
                 /* env_outfile syslogs errors */
                 if (unlink(d_out) != 0) {
@@ -536,7 +461,6 @@ expand(struct envelope *unexpanded_env) {
 
             env_out++;
             queue_envelope(env);
-
         } else {
             printf("\n");
             env_stdout(env);
@@ -690,27 +614,7 @@ cleanup5:
     cleanup_envelope_list(&exp.exp_errors);
 
 cleanup4:
-    for (eo = host_stab; eo != NULL; eo = eo->eo_next) {
-        env = eo->eo_env;
-        eo->eo_env = NULL;
-
-        if ((env->e_flags & ENV_FLAG_EFILE) != 0) {
-            queue_remove_envelope(env);
-            if (env_unlink(env) == 0) {
-                syslog(LOG_WARNING,
-                        "Expand env <%s>: Message Deleted: "
-                        "System error, unwinding expansion",
-                        env->e_id);
-            } else {
-                syslog(LOG_ERR,
-                        "Expand env <%s>: "
-                        "System error, can't unwind expansion",
-                        env->e_id);
-            }
-        }
-
-        env_free(env);
-    }
+    cleanup_envelope_list(&env_head);
 
 cleanup3:
 #ifdef HAVE_LDAP
@@ -736,12 +640,12 @@ cleanup3:
     }
 
 cleanup2:
-    /* free host_stab */
-    eo = host_stab;
-    while (eo != NULL) {
-        eo_free = eo;
-        eo = eo->eo_next;
-        simta_free(eo_free);
+    /* Dissociate.
+     * FIXME: this probably isn't necessary, it just feels cleaner. */
+    while (env_head != NULL) {
+        env = env_head;
+        env_head = env->e_next;
+        env->e_next = NULL;
     }
 
 cleanup1:
@@ -781,7 +685,7 @@ done:
                 unexpanded_env->e_id);
     }
 
-    return (return_value);
+    return return_value;
 }
 
 
