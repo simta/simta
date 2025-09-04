@@ -31,10 +31,24 @@ def parse_expander_output(output):
             if line == '}':
                 parsed.append(json.loads(cur_obj))
                 cur_obj = None
+
+    # Basic correctness check
+    for env in parsed:
+        if env.get('hostname'):
+            assert len(env['recipients']) == 1
+            assert env['recipients'][0].endswith(env['hostname'])
+
+    # output ordering is an implementation detail, sort so that tests have
+    # a stable view.
+    parsed = sorted(parsed, key=lambda x: (x['sender'], x['recipients']))
     return {
         'parsed': parsed,
         'unparsed': unparsed,
     }
+
+
+def assert_sender(res, sender='sender@expansion.test'):
+    assert all(x['sender'] == sender for x in res['parsed'])
 
 
 @pytest.fixture
@@ -143,18 +157,18 @@ def test_expand_alias_chained(run_simexpander):
 def test_expand_alias_group(run_simexpander):
     res = run_simexpander('group@alias.example.com')
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['recipients'] == ['groupuser@example.com']
+    assert res['parsed'][0]['recipients'] == ['anotheruser@masquerade.example.com']
     assert res['parsed'][0]['sender'] == 'sender@expansion.test'
-    assert res['parsed'][1]['recipients'] == ['anotheruser@masquerade.example.com']
+    assert res['parsed'][1]['recipients'] == ['groupuser@example.com']
     assert res['parsed'][1]['sender'] == 'sender@expansion.test'
 
 
 def test_expand_alias_group_errorsto(run_simexpander):
     res = run_simexpander('group2@alias.example.com')
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['recipients'] == ['groupuser@example.com']
+    assert res['parsed'][0]['recipients'] == ['anotheruser@masquerade.example.com']
     assert res['parsed'][0]['sender'] == 'group2-errors@alias.example.com'
-    assert res['parsed'][1]['recipients'] == ['anotheruser@masquerade.example.com']
+    assert res['parsed'][1]['recipients'] == ['groupuser@example.com']
     assert res['parsed'][1]['sender'] == 'group2-errors@alias.example.com'
 
 
@@ -252,10 +266,9 @@ def test_expand_ldap_group_owners(run_simexpander, req_ldapserver, slug):
 def test_expand_ldap_group_FOOto(run_simexpander, req_ldapserver, slug):
     res = run_simexpander('testgroup.nonowner-{}@ldap.example.com'.format(slug))
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['recipients'] == ['{}to@forwarded.example.com'.format(slug)]
-    assert res['parsed'][0]['sender'] == 'sender@expansion.test'
-    assert res['parsed'][1]['recipients'] == ['{}to@example.edu'.format(slug)]
-    assert res['parsed'][1]['sender'] == 'sender@expansion.test'
+    assert_sender(res)
+    assert res['parsed'][0]['recipients'] == ['{}to@example.edu'.format(slug)]
+    assert res['parsed'][1]['recipients'] == ['{}to@forwarded.example.com'.format(slug)]
 
 
 def test_expand_ldap_group_weird_spacing(run_simexpander, req_ldapserver):
@@ -694,24 +707,19 @@ def test_expand_ldap_group_associated_domain(run_simexpander, req_ldapserver):
 
 def test_expand_ldap_group_complex(run_simexpander, req_ldapserver):
     res = run_simexpander('complex.group@ldap.example.com')
-    assert len(res['parsed']) == 5
-    # moderator copy
-    assert res['parsed'][0]['recipients'] == ['simexpand@ldap.example.com']
-    assert res['parsed'][0]['sender'] == 'moderated.group-errors@ldap.example.com'
-    # valid LDAP members
-    assert res['parsed'][1]['hostname'] == 'forwarded.example.com'
+    assert len(res['parsed']) == 6
+    # bounce for invalid LDAP member
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['complex.group-errors@ldap.example.com']
+    # valid group members
+    assert all(x['sender'] == 'complex.group-errors@ldap.example.com' for x in res['parsed'][1:5])
     assert res['parsed'][1]['recipients'] == ['eunicex@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == 'complex.group-errors@ldap.example.com'
-    # external member
-    assert res['parsed'][2]['hostname'] == 'example.org'
-    assert res['parsed'][2]['recipients'] == ['testuser2@example.org']
-    assert res['parsed'][2]['sender'] == 'complex.group-errors@ldap.example.com'
-    # external members
-    assert res['parsed'][3]['hostname'] == 'example.edu'
-    assert res['parsed'][3]['recipients'] == ['testuser1@example.edu', 'testuser3@example.edu']
-    assert res['parsed'][3]['sender'] == 'complex.group-errors@ldap.example.com'    # bounce for invalid LDAP member
-    assert res['parsed'][4]['recipients'] == ['complex.group-errors@ldap.example.com']
-    assert res['parsed'][4]['sender'] == ''
+    assert res['parsed'][2]['recipients'] == ['testuser1@example.edu']
+    assert res['parsed'][3]['recipients'] == ['testuser2@example.org']
+    assert res['parsed'][4]['recipients'] == ['testuser3@example.edu']
+    # moderator copy
+    assert res['parsed'][5]['sender'] == 'moderated.group-errors@ldap.example.com'
+    assert res['parsed'][5]['recipients'] == ['simexpand@ldap.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_pd_ps(run_simexpander, req_ldapserver):
@@ -720,7 +728,7 @@ def test_expand_ldap_group_perm_mod_pm_pd_ps(run_simexpander, req_ldapserver):
         'perm.mod.pm.pd.ps@ldap-new.example.com'
     ])
     assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd.ps-errors@ldap-new.example.com'
+    assert_sender(res, 'perm.mod.pm.pd.ps-errors@ldap-new.example.com')
     assert res['parsed'][0]['recipients'] == [
         'perm.mod.pm.pd.ps@example.com',
         'perm.moderator@example.com',
@@ -732,14 +740,13 @@ def test_expand_ldap_group_perm_mod_pm_pd_ps_pgp(run_simexpander, req_ldapserver
         '-F', 'sender@expansion.test',
         'perm.mod.pm.pd.ps.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd.ps.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pd-ps-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd.ps-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pd-psmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.mod.pm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == [
-        'perm-mod-pm-pd-psmember0@forwarded.example.com',
-        'perm-mod-pm-pd-psmember1@forwarded.example.com',
-    ]
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-pd-psmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.mod.pm.pd.ps.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-mod-pm-pd-ps-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_pd_ps_pgnp(run_simexpander, req_ldapserver):
@@ -762,12 +769,10 @@ def test_expand_ldap_group_perm_mod_pm_pd_ps_member(run_simexpander, req_ldapser
         '-F', 'perm-mod-pm-pd-psmember0@ldap-new.example.com',
         'perm.mod.pm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == [
-        'perm-mod-pm-pd-psmember0@forwarded.example.com',
-        'perm-mod-pm-pd-psmember1@forwarded.example.com',
-    ]
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_pd_ps_domain(run_simexpander, req_ldapserver):
@@ -775,12 +780,10 @@ def test_expand_ldap_group_perm_mod_pm_pd_ps_domain(run_simexpander, req_ldapser
         '-F', 'randomuser@ldap-new.example.com',
         'perm.mod.pm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == [
-        'perm-mod-pm-pd-psmember0@forwarded.example.com',
-        'perm-mod-pm-pd-psmember1@forwarded.example.com',
-    ]
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_pd_ps_sender(run_simexpander, req_ldapserver):
@@ -788,12 +791,10 @@ def test_expand_ldap_group_perm_mod_pm_pd_ps_sender(run_simexpander, req_ldapser
         '-F', 'perm.mod.pm.pd.ps@example.com',
         'perm.mod.pm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == [
-        'perm-mod-pm-pd-psmember0@forwarded.example.com',
-        'perm-mod-pm-pd-psmember1@forwarded.example.com',
-    ]
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd_ps(run_simexpander, req_ldapserver):
@@ -812,14 +813,13 @@ def test_expand_ldap_group_perm_pm_pd_ps_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.pm.pd.ps.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd.ps.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-pd-ps-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.pm.pd.ps-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-pm-pd-psmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.pm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == [
-        'perm-pm-pd-psmember0@forwarded.example.com',
-        'perm-pm-pd-psmember1@forwarded.example.com',
-    ]
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pd-psmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.pm.pd.ps.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-pm-pd-ps-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd_ps_pgnp(run_simexpander, req_ldapserver):
@@ -828,11 +828,11 @@ def test_expand_ldap_group_perm_pm_pd_ps_pgnp(run_simexpander, req_ldapserver):
         'perm.pm.pd.ps.pgnp@ldap-new.example.com'
     ])
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd.ps.pgnp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-pd-ps-pgnpmember@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.pm.pd.ps.pgnp-errors@ldap-new.example.com']
-    assert 'Group permission conditions not met' in res['parsed'][1]['bounce_lines'][0]
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.pm.pd.ps.pgnp-errors@ldap-new.example.com']
+    assert 'Group permission conditions not met' in res['parsed'][0]['bounce_lines'][0]
+    assert res['parsed'][1]['sender'] == 'perm.pm.pd.ps.pgnp-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pd-ps-pgnpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd_ps_member(run_simexpander, req_ldapserver):
@@ -840,12 +840,10 @@ def test_expand_ldap_group_perm_pm_pd_ps_member(run_simexpander, req_ldapserver)
         '-F', 'perm-pm-pd-psmember0@ldap-new.example.com',
         'perm.pm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == [
-        'perm-pm-pd-psmember0@forwarded.example.com',
-        'perm-pm-pd-psmember1@forwarded.example.com',
-    ]
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd_ps_domain(run_simexpander, req_ldapserver):
@@ -853,12 +851,10 @@ def test_expand_ldap_group_perm_pm_pd_ps_domain(run_simexpander, req_ldapserver)
         '-F', 'randomuser@ldap-new.example.com',
         'perm.pm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == [
-        'perm-pm-pd-psmember0@forwarded.example.com',
-        'perm-pm-pd-psmember1@forwarded.example.com',
-    ]
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd_ps_sender(run_simexpander, req_ldapserver):
@@ -866,12 +862,10 @@ def test_expand_ldap_group_perm_pm_pd_ps_sender(run_simexpander, req_ldapserver)
         '-F', 'perm.pm.pd.ps@example.com',
         'perm.pm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == [
-        'perm-pm-pd-psmember0@forwarded.example.com',
-        'perm-pm-pd-psmember1@forwarded.example.com',
-    ]
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_ps(run_simexpander, req_ldapserver):
@@ -892,11 +886,13 @@ def test_expand_ldap_group_perm_mod_pm_ps_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.mod.pm.ps.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.ps.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-ps-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.mod.pm.ps-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-psmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.mod.pm.ps-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-psmember0@forwarded.example.com', 'perm-mod-pm-psmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-psmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.mod.pm.ps.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-mod-pm-ps-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_ps_pgnp(run_simexpander, req_ldapserver):
@@ -916,9 +912,10 @@ def test_expand_ldap_group_perm_mod_pm_ps_member(run_simexpander, req_ldapserver
         '-F', 'perm-mod-pm-psmember0@ldap-new.example.com',
         'perm.mod.pm.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-psmember0@forwarded.example.com', 'perm-mod-pm-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pm.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_ps_domain(run_simexpander, req_ldapserver):
@@ -936,9 +933,10 @@ def test_expand_ldap_group_perm_mod_pm_ps_sender(run_simexpander, req_ldapserver
         '-F', 'perm.mod.pm.ps@example.com',
         'perm.mod.pm.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-psmember0@forwarded.example.com', 'perm-mod-pm-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pm.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_ps(run_simexpander, req_ldapserver):
@@ -957,11 +955,13 @@ def test_expand_ldap_group_perm_pm_ps_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.pm.ps.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pm.ps.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-ps-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.pm.ps-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-pm-psmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.pm.ps-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-pm-psmember0@forwarded.example.com', 'perm-pm-psmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-psmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.pm.ps.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-pm-ps-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_ps_pgnp(run_simexpander, req_ldapserver):
@@ -970,11 +970,12 @@ def test_expand_ldap_group_perm_pm_ps_pgnp(run_simexpander, req_ldapserver):
         'perm.pm.ps.pgnp@ldap-new.example.com'
     ])
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pm.ps.pgnp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-ps-pgnpmember@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.pm.ps.pgnp-errors@ldap-new.example.com']
-    assert 'Group permission conditions not met' in res['parsed'][1]['bounce_lines'][0]
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.pm.ps.pgnp-errors@ldap-new.example.com']
+    assert 'Group permission conditions not met' in res['parsed'][0]['bounce_lines'][0]
+
+    assert res['parsed'][1]['sender'] == 'perm.pm.ps.pgnp-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-pm-ps-pgnpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_ps_member(run_simexpander, req_ldapserver):
@@ -982,9 +983,10 @@ def test_expand_ldap_group_perm_pm_ps_member(run_simexpander, req_ldapserver):
         '-F', 'perm-pm-psmember0@ldap-new.example.com',
         'perm.pm.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pm.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-psmember0@forwarded.example.com', 'perm-pm-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pm.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pm-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_ps_domain(run_simexpander, req_ldapserver):
@@ -1003,9 +1005,10 @@ def test_expand_ldap_group_perm_pm_ps_sender(run_simexpander, req_ldapserver):
         '-F', 'perm.pm.ps@example.com',
         'perm.pm.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pm.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-psmember0@forwarded.example.com', 'perm-pm-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pm.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pm-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_pd(run_simexpander, req_ldapserver):
@@ -1023,11 +1026,14 @@ def test_expand_ldap_group_perm_mod_pm_pd_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.mod.pm.pd.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pd-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pdmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.mod.pm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-pdmember0@forwarded.example.com', 'perm-mod-pm-pdmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-pdmember1@forwarded.example.com']
+
+    assert res['parsed'][2]['sender'] == 'perm.mod.pm.pd.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-mod-pm-pd-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_pd_pgnp(run_simexpander, req_ldapserver):
@@ -1047,9 +1053,10 @@ def test_expand_ldap_group_perm_mod_pm_pd_member(run_simexpander, req_ldapserver
         '-F', 'perm-mod-pm-pdmember0@ldap-new.example.com',
         'perm.mod.pm.pd@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pdmember0@forwarded.example.com', 'perm-mod-pm-pdmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pm.pd-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pdmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-pdmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_pd_domain(run_simexpander, req_ldapserver):
@@ -1057,9 +1064,10 @@ def test_expand_ldap_group_perm_mod_pm_pd_domain(run_simexpander, req_ldapserver
         '-F', 'randomuser@ldap-new.example.com',
         'perm.mod.pm.pd@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pdmember0@forwarded.example.com', 'perm-mod-pm-pdmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pm.pd-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pdmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pm-pdmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd(run_simexpander, req_ldapserver):
@@ -1078,11 +1086,13 @@ def test_expand_ldap_group_perm_pm_pd_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.pm.pd.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-pd-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.pm.pd-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-pm-pdmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.pm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-pm-pdmember0@forwarded.example.com', 'perm-pm-pdmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pdmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.pm.pd.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-pm-pd-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd_pgnp(run_simexpander, req_ldapserver):
@@ -1091,12 +1101,11 @@ def test_expand_ldap_group_perm_pm_pd_pgnp(run_simexpander, req_ldapserver):
         'perm.pm.pd.pgnp@ldap-new.example.com'
     ])
     assert len(res['parsed']) == 2
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd.pgnp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-pd-pgnpmember@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.pm.pd.pgnp-errors@ldap-new.example.com']
-    assert 'Group permission conditions not met' in res['parsed'][1]['bounce_lines'][0]
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.pm.pd.pgnp-errors@ldap-new.example.com']
+    assert 'Group permission conditions not met' in res['parsed'][0]['bounce_lines'][0]
+    assert res['parsed'][1]['sender'] == 'perm.pm.pd.pgnp-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pd-pgnpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd_member(run_simexpander, req_ldapserver):
@@ -1104,9 +1113,10 @@ def test_expand_ldap_group_perm_pm_pd_member(run_simexpander, req_ldapserver):
         '-F', 'perm-pm-pdmember0@ldap-new.example.com',
         'perm.pm.pd@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-pdmember0@forwarded.example.com', 'perm-pm-pdmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pm.pd-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pm-pdmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pdmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pd_domain(run_simexpander, req_ldapserver):
@@ -1114,9 +1124,10 @@ def test_expand_ldap_group_perm_pm_pd_domain(run_simexpander, req_ldapserver):
         '-F', 'randomuser@ldap-new.example.com',
         'perm.pm.pd@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-pdmember0@forwarded.example.com', 'perm-pm-pdmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pm.pd-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pm-pdmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pdmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm(run_simexpander, req_ldapserver):
@@ -1134,11 +1145,13 @@ def test_expand_ldap_group_perm_mod_pm_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.mod.pm.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pm-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.mod.pm-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pmmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.mod.pm-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-mod-pmmember0@forwarded.example.com', 'perm-mod-pmmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pmmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.mod.pm.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-mod-pm-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_pgnp(run_simexpander, req_ldapserver):
@@ -1158,9 +1171,10 @@ def test_expand_ldap_group_perm_mod_pm_member(run_simexpander, req_ldapserver):
         '-F', 'perm-mod-pmmember0@ldap-new.example.com',
         'perm.mod.pm@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pm-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pmmember0@forwarded.example.com', 'perm-mod-pmmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pm-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pmmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pmmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pm_domain(run_simexpander, req_ldapserver):
@@ -1189,11 +1203,13 @@ def test_expand_ldap_group_perm_pm_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.pm.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pm.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.pm-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-pmmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.pm-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-pmmember0@forwarded.example.com', 'perm-pmmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pmmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.pm.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-pm-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_pgnp(run_simexpander, req_ldapserver):
@@ -1202,11 +1218,11 @@ def test_expand_ldap_group_perm_pm_pgnp(run_simexpander, req_ldapserver):
         'perm.pm.pgnp@ldap-new.example.com'
     ])
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pm.pgnp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pm-pgnpmember@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.pm.pgnp-errors@ldap-new.example.com']
-    assert 'Group permission conditions not met' in res['parsed'][1]['bounce_lines'][0]
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.pm.pgnp-errors@ldap-new.example.com']
+    assert 'Group permission conditions not met' in res['parsed'][0]['bounce_lines'][0]
+    assert res['parsed'][1]['sender'] == 'perm.pm.pgnp-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-pm-pgnpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_member(run_simexpander, req_ldapserver):
@@ -1214,9 +1230,10 @@ def test_expand_ldap_group_perm_pm_member(run_simexpander, req_ldapserver):
         '-F', 'perm-pmmember0@ldap-new.example.com',
         'perm.pm@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pm-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pmmember0@forwarded.example.com', 'perm-pmmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pm-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pmmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pmmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pm_domain(run_simexpander, req_ldapserver):
@@ -1245,11 +1262,13 @@ def test_expand_ldap_group_perm_mod_pd_ps_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.mod.pd.ps.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.mod.pd.ps.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-ps-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.mod.pd.ps-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-psmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.mod.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-mod-pd-psmember0@forwarded.example.com', 'perm-mod-pd-psmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pd-psmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.mod.pd.ps.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-mod-pd-ps-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pd_ps_pgnp(run_simexpander, req_ldapserver):
@@ -1269,9 +1288,10 @@ def test_expand_ldap_group_perm_mod_pd_ps_member(run_simexpander, req_ldapserver
         '-F', 'perm-mod-pd-psmember0@ldap-new.example.com',
         'perm.mod.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-psmember0@forwarded.example.com', 'perm-mod-pd-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pd_ps_domain(run_simexpander, req_ldapserver):
@@ -1279,9 +1299,10 @@ def test_expand_ldap_group_perm_mod_pd_ps_domain(run_simexpander, req_ldapserver
         '-F', 'randomuser@ldap-new.example.com',
         'perm.mod.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-psmember0@forwarded.example.com', 'perm-mod-pd-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pd_ps_sender(run_simexpander, req_ldapserver):
@@ -1289,9 +1310,10 @@ def test_expand_ldap_group_perm_mod_pd_ps_sender(run_simexpander, req_ldapserver
         '-F', 'perm.mod.pd.ps@example.com',
         'perm.mod.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-psmember0@forwarded.example.com', 'perm-mod-pd-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd_ps(run_simexpander, req_ldapserver):
@@ -1310,11 +1332,13 @@ def test_expand_ldap_group_perm_pd_ps_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.pd.ps.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pd.ps.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pd-ps-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.pd.ps-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-pd-psmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-pd-psmember0@forwarded.example.com', 'perm-pd-psmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pd-psmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.pd.ps.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-pd-ps-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd_ps_pgnp(run_simexpander, req_ldapserver):
@@ -1323,11 +1347,11 @@ def test_expand_ldap_group_perm_pd_ps_pgnp(run_simexpander, req_ldapserver):
         'perm.pd.ps.pgnp@ldap-new.example.com'
     ])
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pd.ps.pgnp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pd-ps-pgnpmember@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.pd.ps.pgnp-errors@ldap-new.example.com']
-    assert 'Group permission conditions not met' in res['parsed'][1]['bounce_lines'][0]
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.pd.ps.pgnp-errors@ldap-new.example.com']
+    assert 'Group permission conditions not met' in res['parsed'][0]['bounce_lines'][0]
+    assert res['parsed'][1]['sender'] == 'perm.pd.ps.pgnp-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-pd-ps-pgnpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd_ps_member(run_simexpander, req_ldapserver):
@@ -1335,9 +1359,10 @@ def test_expand_ldap_group_perm_pd_ps_member(run_simexpander, req_ldapserver):
         '-F', 'perm-pd-psmember0@ldap-new.example.com',
         'perm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pd-psmember0@forwarded.example.com', 'perm-pd-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd_ps_domain(run_simexpander, req_ldapserver):
@@ -1345,9 +1370,10 @@ def test_expand_ldap_group_perm_pd_ps_domain(run_simexpander, req_ldapserver):
         '-F', 'randomuser@ldap-new.example.com',
         'perm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pd-psmember0@forwarded.example.com', 'perm-pd-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd_ps_sender(run_simexpander, req_ldapserver):
@@ -1355,9 +1381,10 @@ def test_expand_ldap_group_perm_pd_ps_sender(run_simexpander, req_ldapserver):
         '-F', 'perm.pd.ps@example.com',
         'perm.pd.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pd.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pd-psmember0@forwarded.example.com', 'perm-pd-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pd.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pd-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pd-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_ps(run_simexpander, req_ldapserver):
@@ -1375,11 +1402,13 @@ def test_expand_ldap_group_perm_mod_ps_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.mod.ps.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.mod.ps.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-ps-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.mod.ps-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-mod-psmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.mod.ps-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-mod-psmember0@forwarded.example.com', 'perm-mod-psmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-psmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.mod.ps.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-mod-ps-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_ps_pgnp(run_simexpander, req_ldapserver):
@@ -1419,9 +1448,10 @@ def test_expand_ldap_group_perm_mod_ps_sender(run_simexpander, req_ldapserver):
         '-F', 'perm.mod.ps@example.com',
         'perm.mod.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-psmember0@forwarded.example.com', 'perm-mod-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_ps(run_simexpander, req_ldapserver):
@@ -1440,11 +1470,13 @@ def test_expand_ldap_group_perm_ps_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.ps.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.ps.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-ps-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.ps-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-psmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.ps-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-psmember0@forwarded.example.com', 'perm-psmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-psmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.ps.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-ps-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_ps_pgnp(run_simexpander, req_ldapserver):
@@ -1453,10 +1485,10 @@ def test_expand_ldap_group_perm_ps_pgnp(run_simexpander, req_ldapserver):
         'perm.ps.pgnp@ldap-new.example.com'
     ])
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.ps.pgnp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-ps-pgnpmember@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.ps.pgnp-errors@ldap-new.example.com']
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.ps.pgnp-errors@ldap-new.example.com']
+    assert res['parsed'][1]['sender'] == 'perm.ps.pgnp-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-ps-pgnpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_ps_member(run_simexpander, req_ldapserver):
@@ -1486,9 +1518,10 @@ def test_expand_ldap_group_perm_ps_sender(run_simexpander, req_ldapserver):
         '-F', 'perm.ps@example.com',
         'perm.ps@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.ps-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-psmember0@forwarded.example.com', 'perm-psmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.ps-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-psmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-psmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pd(run_simexpander, req_ldapserver):
@@ -1506,11 +1539,13 @@ def test_expand_ldap_group_perm_mod_pd_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.mod.pd.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.mod.pd.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pd-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.mod.pd-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pdmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.mod.pd-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-mod-pdmember0@forwarded.example.com', 'perm-mod-pdmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pdmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.mod.pd.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-mod-pd-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pd_pgnp(run_simexpander, req_ldapserver):
@@ -1530,9 +1565,10 @@ def test_expand_ldap_group_perm_mod_pd_member(run_simexpander, req_ldapserver):
         '-F', 'perm-mod-pdmember0@ldap-new.example.com',
         'perm.mod.pd@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pd-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pdmember0@forwarded.example.com', 'perm-mod-pdmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pd-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pdmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pdmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_pd_domain(run_simexpander, req_ldapserver):
@@ -1540,9 +1576,10 @@ def test_expand_ldap_group_perm_mod_pd_domain(run_simexpander, req_ldapserver):
         '-F', 'randomuser@ldap-new.example.com',
         'perm.mod.pd@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod.pd-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-mod-pdmember0@forwarded.example.com', 'perm-mod-pdmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod.pd-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-mod-pdmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-mod-pdmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd(run_simexpander, req_ldapserver):
@@ -1561,11 +1598,13 @@ def test_expand_ldap_group_perm_pd_pgp(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.pd.pgp@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pd.pgp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pd-pgpmember@forwarded.example.com']
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == 'perm.pd-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-pdmember0@forwarded.example.com']
     assert res['parsed'][1]['sender'] == 'perm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-pdmember0@forwarded.example.com', 'perm-pdmember1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pdmember1@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.pd.pgp-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-pd-pgpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd_pgnp(run_simexpander, req_ldapserver):
@@ -1574,10 +1613,10 @@ def test_expand_ldap_group_perm_pd_pgnp(run_simexpander, req_ldapserver):
         'perm.pd.pgnp@ldap-new.example.com'
     ])
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.pd.pgnp-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pd-pgnpmember@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.pd.pgnp-errors@ldap-new.example.com']
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.pd.pgnp-errors@ldap-new.example.com']
+    assert res['parsed'][1]['sender'] == 'perm.pd.pgnp-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-pd-pgnpmember@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd_member(run_simexpander, req_ldapserver):
@@ -1585,9 +1624,10 @@ def test_expand_ldap_group_perm_pd_member(run_simexpander, req_ldapserver):
         '-F', 'perm-pdmember0@ldap-new.example.com',
         'perm.pd@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pdmember0@forwarded.example.com', 'perm-pdmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pd-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pdmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pdmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_pd_domain(run_simexpander, req_ldapserver):
@@ -1595,9 +1635,10 @@ def test_expand_ldap_group_perm_pd_domain(run_simexpander, req_ldapserver):
         '-F', 'randomuser@ldap-new.example.com',
         'perm.pd@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.pd-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-pdmember0@forwarded.example.com', 'perm-pdmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.pd-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-pdmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-pdmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod(run_simexpander, req_ldapserver):
@@ -1605,9 +1646,10 @@ def test_expand_ldap_group_perm_mod(run_simexpander, req_ldapserver):
         '-F', 'sender@expansion.test',
         'perm.mod@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-modmember0@forwarded.example.com', 'perm-modmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-modmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-modmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_member(run_simexpander, req_ldapserver):
@@ -1615,9 +1657,10 @@ def test_expand_ldap_group_perm_mod_member(run_simexpander, req_ldapserver):
         '-F', 'perm-modmember0@ldap-new.example.com',
         'perm.mod@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-modmember0@forwarded.example.com', 'perm-modmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-modmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-modmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_domain(run_simexpander, req_ldapserver):
@@ -1625,9 +1668,10 @@ def test_expand_ldap_group_perm_mod_domain(run_simexpander, req_ldapserver):
         '-F', 'randomuser@ldap-new.example.com',
         'perm.mod@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['sender'] == 'perm.mod-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-modmember0@forwarded.example.com', 'perm-modmember1@forwarded.example.com']
+    assert len(res['parsed']) == 2
+    assert_sender(res, 'perm.mod-errors@ldap-new.example.com')
+    assert res['parsed'][0]['recipients'] == ['perm-modmember0@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['perm-modmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_dupe_member(run_simexpander, req_ldapserver):
@@ -1635,18 +1679,18 @@ def test_expand_ldap_group_perm_dupe_member(run_simexpander, req_ldapserver):
         '-F', 'perm-dupe-member-pgmember0@ldap-new.example.com',
         'perm.dupe.member.pg@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.dupe.member.pg-errors@ldap-new.example.com'
+    assert len(res['parsed']) == 4
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.dupe.member.pg-errors@ldap-new.example.com']
+    assert 'Group permission conditions not met' in res['parsed'][0]['bounce_lines'][0]
     # The important bit: the member that is in both groups should still receive
     # the message.
-    assert res['parsed'][0]['recipients'] == [
-        'perm-dupe-member-pgmember0@forwarded.example.com',
-        'perm-dupe-member-pgmember1@forwarded.example.com',
-        'perm-dupe-membermember1@forwarded.example.com',
-    ]
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.dupe.member.pg-errors@ldap-new.example.com']
-    assert 'Group permission conditions not met' in res['parsed'][1]['bounce_lines'][0]
+    assert res['parsed'][1]['sender'] == 'perm.dupe.member.pg-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-dupe-member-pgmember0@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.dupe.member.pg-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-dupe-member-pgmember1@forwarded.example.com']
+    assert res['parsed'][3]['sender'] == 'perm.dupe.member.pg-errors@ldap-new.example.com'
+    assert res['parsed'][3]['recipients'] == ['perm-dupe-membermember1@forwarded.example.com']
 
 
 @pytest.mark.parametrize('sender', [
@@ -1660,15 +1704,15 @@ def test_expand_ldap_group_perm_dupe_member_permitted(run_simexpander, req_ldaps
         '-F', sender,
         'perm.dupe.member.pg@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.dupe.member.pg-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == [
-        'perm-dupe-member-pgmember0@forwarded.example.com',
-        'perm-dupe-member-pgmember1@forwarded.example.com',
-        'perm-dupe-membermember1@forwarded.example.com',
-    ]
-    assert res['parsed'][1]['sender'] == 'perm.dupe.member-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == ['perm-dupe-membermember0@forwarded.example.com']
+    assert len(res['parsed']) == 4
+    assert res['parsed'][0]['sender'] == 'perm.dupe.member-errors@ldap-new.example.com'
+    assert res['parsed'][0]['recipients'] == ['perm-dupe-membermember0@forwarded.example.com']
+    assert res['parsed'][1]['sender'] == 'perm.dupe.member.pg-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-dupe-member-pgmember0@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.dupe.member.pg-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-dupe-member-pgmember1@forwarded.example.com']
+    assert res['parsed'][3]['sender'] == 'perm.dupe.member.pg-errors@ldap-new.example.com'
+    assert res['parsed'][3]['recipients'] == ['perm-dupe-membermember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_full_expansion(run_simexpander, req_ldapserver):
@@ -1678,12 +1722,13 @@ def test_expand_ldap_group_perm_full_expansion(run_simexpander, req_ldapserver):
         '-F', 'perm-full-expansionmember0@ldap-new.example.com',
         'perm.full.expansion.pg@ldap-new.example.com'
     ])
-    assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'perm.full.expansion.pg-errors@ldap-new.example.com'
-    assert res['parsed'][0]['recipients'] == ['perm-full-expansion-pgmember0@forwarded.example.com', 'perm-full-expansion-pgmember1@forwarded.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['perm.full.expansion.pg-errors@ldap-new.example.com']
-    assert 'Group permission conditions not met' in res['parsed'][1]['bounce_lines'][0]
+    assert len(res['parsed']) == 3
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['perm.full.expansion.pg-errors@ldap-new.example.com']
+    assert 'Group permission conditions not met' in res['parsed'][0]['bounce_lines'][0]
+    assert res['parsed'][1]['sender'] == 'perm.full.expansion.pg-errors@ldap-new.example.com'
+    assert res['parsed'][1]['recipients'] == ['perm-full-expansion-pgmember0@forwarded.example.com']
+    assert res['parsed'][2]['recipients'] == ['perm-full-expansion-pgmember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_full_expansion_childps(run_simexpander, req_ldapserver):
@@ -1702,11 +1747,11 @@ def test_expand_ldap_group_perm_full_expansion_childps(run_simexpander, req_ldap
 def test_expand_ldap_group_perm_autoreply(run_simexpander, req_ldapserver):
     res = run_simexpander('perm.autoreply@ldap-new.example.com')
     assert len(res['parsed']) == 2
-    assert res['parsed'][0]['sender'] == 'sender@expansion.test'
-    assert res['parsed'][0]['recipients'] == ['perm.autoreply@vacation.mail.example.com']
-    assert res['parsed'][1]['sender'] == ''
-    assert res['parsed'][1]['recipients'] == ['sender@expansion.test']
-    assert 'Group permission conditions not met' in res['parsed'][1]['bounce_lines'][0]
+    assert res['parsed'][0]['sender'] == ''
+    assert res['parsed'][0]['recipients'] == ['sender@expansion.test']
+    assert 'Group permission conditions not met' in res['parsed'][0]['bounce_lines'][0]
+    assert res['parsed'][1]['sender'] == 'sender@expansion.test'
+    assert res['parsed'][1]['recipients'] == ['perm.autoreply@vacation.mail.example.com']
 
 
 def test_expand_ldap_group_perm_autoreply_permitted(run_simexpander, req_ldapserver):
@@ -1714,14 +1759,13 @@ def test_expand_ldap_group_perm_autoreply_permitted(run_simexpander, req_ldapser
         '-F', 'perm-autoreplyowner@example.com',
         'perm.autoreply@ldap-new.example.com',
     ])
-    assert len(res['parsed']) == 2
+    assert len(res['parsed']) == 3
     assert res['parsed'][0]['sender'] == 'perm-autoreplyowner@example.com'
     assert res['parsed'][0]['recipients'] == ['perm.autoreply@vacation.mail.example.com']
     assert res['parsed'][1]['sender'] == 'perm.autoreply-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == [
-        'perm-autoreplymember0@forwarded.example.com',
-        'perm-autoreplymember1@forwarded.example.com',
-    ]
+    assert res['parsed'][1]['recipients'] == ['perm-autoreplymember0@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.autoreply-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-autoreplymember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_perm_mod_autoreply(run_simexpander, req_ldapserver):
@@ -1738,14 +1782,13 @@ def test_expand_ldap_group_perm_mod_autoreply_permitted(run_simexpander, req_lda
         '-F', 'perm-mod-autoreplyowner@example.com',
         'perm.mod.autoreply@ldap-new.example.com',
     ])
-    assert len(res['parsed']) == 2
+    assert len(res['parsed']) == 3
     assert res['parsed'][0]['sender'] == 'perm-mod-autoreplyowner@example.com'
     assert res['parsed'][0]['recipients'] == ['perm.mod.autoreply@vacation.mail.example.com']
     assert res['parsed'][1]['sender'] == 'perm.mod.autoreply-errors@ldap-new.example.com'
-    assert res['parsed'][1]['recipients'] == [
-        'perm-mod-autoreplymember0@forwarded.example.com',
-        'perm-mod-autoreplymember1@forwarded.example.com',
-    ]
+    assert res['parsed'][1]['recipients'] == ['perm-mod-autoreplymember0@forwarded.example.com']
+    assert res['parsed'][2]['sender'] == 'perm.mod.autoreply-errors@ldap-new.example.com'
+    assert res['parsed'][2]['recipients'] == ['perm-mod-autoreplymember1@forwarded.example.com']
 
 
 def test_expand_ldap_group_mod_format(run_simexpander, req_ldapserver):
@@ -1767,19 +1810,17 @@ def test_expand_ldap_group_permitted_format(run_simexpander, req_ldapserver):
 
 def test_expand_ldap_group_external_format(run_simexpander, req_ldapserver):
     res = run_simexpander('external.format@ldap.example.com')
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['recipients'] == [
-        'testuser1@example.edu',
-        'testuser2@example.edu',
-        'testuser3@example.edu',
-        'testuser4@example.edu',
-        'testuser5@example.edu',
-        'testuser6@example.edu',
-        '"quoted testuser1"@example.edu',
-        '"quoted testuser2"@example.edu',
-        'testuser7@example.edu',
-        'testuser8@example.edu',
-    ]
+    assert len(res['parsed']) == 10
+    assert res['parsed'][0]['recipients'] == ['"quoted testuser1"@example.edu']
+    assert res['parsed'][1]['recipients'] == ['"quoted testuser2"@example.edu']
+    assert res['parsed'][2]['recipients'] == ['testuser1@example.edu']
+    assert res['parsed'][3]['recipients'] == ['testuser2@example.edu']
+    assert res['parsed'][4]['recipients'] == ['testuser3@example.edu']
+    assert res['parsed'][5]['recipients'] == ['testuser4@example.edu']
+    assert res['parsed'][6]['recipients'] == ['testuser5@example.edu']
+    assert res['parsed'][7]['recipients'] == ['testuser6@example.edu']
+    assert res['parsed'][8]['recipients'] == ['testuser7@example.edu']
+    assert res['parsed'][9]['recipients'] == ['testuser8@example.edu']
 
 
 def test_expand_ldap_group_external_utf8(run_simexpander, req_ldapserver):
@@ -1792,11 +1833,9 @@ def test_expand_ldap_group_external_utf8(run_simexpander, req_ldapserver):
 
 def test_expand_ldap_user_badforward(run_simexpander, req_ldapserver):
     res = run_simexpander('badforwardingaddr@ldap-new.example.com')
-    assert len(res['parsed']) == 1
-    assert res['parsed'][0]['recipients'] == [
-        'badforwardingaddr1@forwarded.example.com',
-        'badforwardingaddr2@forwarded.example.com',
-    ]
+    assert len(res['parsed']) == 2
+    assert res['parsed'][0]['recipients'] == ['badforwardingaddr1@forwarded.example.com']
+    assert res['parsed'][1]['recipients'] == ['badforwardingaddr2@forwarded.example.com']
 
 
 def test_expand_ldap_group_subsearch(run_simexpander, req_ldapserver):
