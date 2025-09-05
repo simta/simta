@@ -40,8 +40,6 @@
 #include "simta_util.h"
 
 
-simta_result env_read_old(const char *, ucl_object_t *, SNET *);
-
 bool
 env_is_old(struct envelope *env, int dfile_fd) {
     struct timespec ts_now;
@@ -798,33 +796,19 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
         }
     }
 
-    /* Check if this is an old-style file */
-    data = snet_getline(snet, NULL);
-    if (data == NULL) {
-        syslog(LOG_ERR, "Envelope.read %s: expected non-empty file", filename);
-        goto cleanup;
-    } else if (*data == 'V') {
-        if (strtol(data + 1, NULL, 10) != 5) {
-            syslog(LOG_ERR, "Envelope.read %s: unsupported old file version %s",
-                    filename, data + 1);
-            goto cleanup;
-        }
-        env_data = ucl_object_typed_new(UCL_OBJECT);
-        ret = env_read_old(filename, env_data, snet);
-    } else {
-        unparsed = yaslauto(data);
-        while ((data = snet_getline(snet, NULL)) != NULL) {
-            unparsed = yaslcat(unparsed, "\n");
-            unparsed = yaslcat(unparsed, data);
-        }
-        parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-        if (!ucl_parser_add_string(parser, unparsed, yasllen(unparsed))) {
-            syslog(LOG_ERR, "Envelope.read %s: parsing failed: %s", filename,
-                    ucl_parser_get_error(parser));
-            goto cleanup;
-        }
-        env_data = ucl_parser_get_object(parser);
+    unparsed = yaslempty();
+
+    while ((data = snet_getline(snet, NULL)) != NULL) {
+        unparsed = yaslcat(unparsed, "\n");
+        unparsed = yaslcat(unparsed, data);
     }
+    parser = ucl_parser_new(UCL_PARSER_DEFAULT);
+    if (!ucl_parser_add_string(parser, unparsed, yasllen(unparsed))) {
+        syslog(LOG_ERR, "Envelope.read %s: parsing failed: %s", filename,
+                ucl_parser_get_error(parser));
+        goto cleanup;
+    }
+    env_data = ucl_parser_get_object(parser);
 
     data = ucl_object_tostring(ucl_object_lookup(env_data, "envelope_id"));
     if (strcmp(env->e_id, data) != 0) {
@@ -947,83 +931,6 @@ cleanup:
     return ret;
 }
 
-
-simta_result
-env_read_old(const char *filename, ucl_object_t *env_data, SNET *snet) {
-    ucl_object_t *rcpts;
-    char         *line;
-    int           attrs;
-    int           line_no = 2;
-
-    rcpts = ucl_object_typed_new(UCL_ARRAY);
-    ucl_object_insert_key(env_data, rcpts, "recipients", 0, false);
-    ucl_object_insert_key(
-            env_data, ucl_object_frombool(true), "puntable", 0, false);
-    ucl_object_insert_key(
-            env_data, ucl_object_frombool(true), "bounceable", 0, false);
-
-    /* Emessage-id */
-    while ((line = snet_getline(snet, NULL)) != NULL) {
-        line_no++;
-        switch (*line) {
-        case 'M':
-            /* never implemented */
-            break;
-        case 'E':
-            ucl_object_insert_key(env_data,
-                    simta_ucl_object_fromstring(line + 1), "envelope_id", 0,
-                    false);
-            break;
-        case 'I':
-            ucl_object_insert_key(env_data,
-                    ucl_object_fromstring_common(
-                            line + 1, 0, UCL_STRING_PARSE_INT),
-                    "body_inode", 0, false);
-            break;
-
-        case 'X':
-            ucl_object_insert_key(env_data,
-                    ucl_object_fromstring_common(
-                            line + 1, 0, UCL_STRING_PARSE_INT),
-                    "expansion_level", 0, false);
-            break;
-
-        case 'J':
-            ucl_object_insert_key(env_data,
-                    ucl_object_frombool(*(line + 1) == '2'), "jailed", 0,
-                    false);
-            break;
-
-        case 'H':
-            ucl_object_insert_key(env_data,
-                    simta_ucl_object_fromstring(line + 1), "hostname", 0,
-                    false);
-            break;
-
-        case 'D':
-            attrs = strtol(line + 1, NULL, 10);
-            ucl_object_insert_key(env_data, ucl_object_frombool(attrs & 0x02),
-                    "8bitmime", 0, false);
-            break;
-
-        case 'F':
-            ucl_object_insert_key(env_data,
-                    simta_ucl_object_fromstring(line + 1), "sender", 0, false);
-            break;
-
-        case 'R':
-            ucl_array_append(rcpts, simta_ucl_object_fromstring(line + 1));
-            break;
-
-        default:
-            syslog(LOG_WARNING, "Envelope read %s %d: unparsable line %s",
-                    filename, line_no, line);
-            return SIMTA_ERR;
-        }
-    }
-
-    return SIMTA_OK;
-}
 
 ino_t
 env_dfile_copy(struct envelope *env, const char *source, const char *header) {
