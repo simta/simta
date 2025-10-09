@@ -1668,7 +1668,7 @@ get_outbound_dns(struct deliver *d, struct host_q *hq) {
     /* The lookup first attempts to locate an MX record associated with the
      * name.
      */
-    d->d_mx_cname_ok = false;
+    d->d_mx_cname_ok = simta_config_bool("deliver.dns.permit_mx_cnames");
     if ((d->d_dnsr_result = get_mx(hq->hq_hostname)) == NULL) {
         simta_ucl_toggle(hq->hq_red, "deliver.punt", "enabled", false);
         syslog(LOG_ERR, "DNS %s: MX lookup failure, Punting disabled",
