@@ -74,14 +74,18 @@ def test_connect_mx(domain, run_simconnect):
 
 def test_connect_mixed_mx(run_simconnect):
     res = run_simconnect('mixed-mx.example.com')
-    assert res['parsed'] == ['172.24.0.1']
+    assert res['parsed'] == ['100::2', '172.24.0.2', '172.24.0.1']
+
+
+def test_connect_bad_mx_cname(run_simconnect):
+    res = run_simconnect('bad-mx-cname.example.com')
+    assert res['parsed'] == ['100::2', '172.24.0.2']
 
 
 @pytest.mark.parametrize('domain', [
     'nonexist.example.com',
     'dangling.example.com',
     'bad-mx.example.com',
-    'bad-mx-cname.example.com',
     'mx-timeout.example.com',
     'mx-timeout-solo.example.com',
 ])
@@ -94,10 +98,15 @@ def test_connect_noserver(domain, run_simconnect):
     'nonexist.example.com',
     'dangling.example.com',
     'bad-mx.example.com',
-    'bad-mx-cname.example.com',
 ])
 def test_connect_bounce(domain, run_simconnect):
     res = run_simconnect(domain)
+    assert len(res['parsed']) == 0
+    assert 'address record missing, bouncing mail' in res['output']
+
+
+def test_connect_permit_mx_cnames_false(run_simconnect):
+    res = run_simconnect('bad-mx-cname.example.com')
     assert len(res['parsed']) == 0
     assert 'address record missing, bouncing mail' in res['output']
 

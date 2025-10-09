@@ -694,6 +694,13 @@ properties {
                 }
                 additionalProperties: false
             }
+            dns {
+                type: object
+                properties {
+                    permit_mx_cnames { type: boolean }
+                }
+                additionalProperties: false
+            }
             dkim {
                 type: object
                 properties {
