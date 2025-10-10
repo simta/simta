@@ -888,6 +888,18 @@ env_read(bool initial, struct envelope *env, SNET **s_lock) {
             syslog(LOG_ERR, "Envelope.read %s: no recipients", filename);
             goto cleanup;
         }
+
+        if (env->e_rcpt->r_next != NULL) {
+            /* this might be an old envelope that's no longer considered fully
+             * expanded, make sure it doesn't get queued for delivery without
+             * being expanded again.
+             *
+             * FIXME: this is not needed for normal operation, just to make
+             * sure upgrades go smoothly. It should be removed once that's no
+             * longer a concern.
+             */
+            env_hostname(env, NULL);
+        }
     }
 
     ret = SIMTA_OK;
