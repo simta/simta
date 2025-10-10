@@ -304,15 +304,13 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
         case SMTP_RCPT:
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: To <%s> From <%s> Accepted: %s",
-                    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
+                    d->d_env->e_id, d->d_env->e_rcpt->r_rcpt, d->d_env->e_mail,
                     lines[ 0 ]);
-            d->d_rcpt->r_status = R_ACCEPTED;
-            d->d_n_rcpt_accepted++;
             break;
 
         /* 2xx is actually an error for DATA */
         case SMTP_DATA:
-            d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
+            d->d_env->e_flags |= ENV_FLAG_TEMPFAIL;
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: Message Tempfailed: [%s] %s: %s",
                     d->d_env->e_id, d->d_ip, hq->hq_smtp_hostname, lines[ 0 ]);
@@ -388,7 +386,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
             return SMTP_ERROR;
 
         case SMTP_MAIL:
-            d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
+            d->d_env->e_flags |= ENV_FLAG_TEMPFAIL;
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: From <%s> Tempfailed: %s",
                     d->d_env->e_id, d->d_env->e_mail, lines[ 0 ]);
@@ -397,18 +395,17 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
             return SMTP_OK;
 
         case SMTP_RCPT:
-            d->d_rcpt->r_status = R_TEMPFAIL;
-            d->d_n_rcpt_tempfailed++;
+            d->d_env->e_flags |= ENV_FLAG_TEMPFAIL;
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: To <%s> From <%s> Tempfailed: %s",
-                    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
+                    d->d_env->e_id, d->d_env->e_rcpt->r_rcpt, d->d_env->e_mail,
                     lines[ 0 ]);
-            smtp_consume_response(&(d->d_rcpt->r_err_text), lines, count,
+            smtp_consume_response(&(d->d_env->e_err_text), lines, count,
                     "Bad SMTP RCPT TO reply");
             return SMTP_OK;
 
         case SMTP_DATA:
-            d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
+            d->d_env->e_flags |= ENV_FLAG_TEMPFAIL;
             syslog(LOG_NOTICE, "Deliver.SMTP env <%s>: Tempfailed %s [%s]: %s",
                     d->d_env->e_id, hq->hq_smtp_hostname, d->d_ip, lines[ 0 ]);
             smtp_consume_response(&(d->d_env->e_err_text), lines, count,
@@ -416,7 +413,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
             return SMTP_OK;
 
         case SMTP_DATA_EOF:
-            d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_TEMPFAIL;
+            d->d_env->e_flags |= ENV_FLAG_TEMPFAIL;
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: Tempfailed %s [%s]: "
                     "transmitted %ld/%ld: %s",
@@ -479,7 +476,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
             return SMTP_ERROR;
 
         case SMTP_MAIL:
-            d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
+            d->d_env->e_flags |= ENV_FLAG_BOUNCE;
             syslog(LOG_NOTICE, "Deliver.SMTP env <%s>: From <%s> Failed: %s",
                     d->d_env->e_id, d->d_env->e_mail, lines[ 0 ]);
             smtp_consume_response(&(d->d_env->e_err_text), lines, count,
@@ -488,24 +485,22 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
 
         case SMTP_RCPT:
             if (d->d_env->e_bounceable) {
-                d->d_rcpt->r_status = R_FAILED;
-                d->d_n_rcpt_failed++;
+                d->d_env->e_flags |= ENV_FLAG_BOUNCE;
             } else {
                 /* demote it to a tempfail, unbounceable hosts aren't
                  * allowed to bounce mail. */
-                d->d_rcpt->r_status = R_TEMPFAIL;
-                d->d_n_rcpt_tempfailed++;
+                d->d_env->e_flags |= ENV_FLAG_TEMPFAIL;
             }
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: To <%s> From <%s> Failed: %s",
-                    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
+                    d->d_env->e_id, d->d_env->e_rcpt->r_rcpt, d->d_env->e_mail,
                     lines[ 0 ]);
-            smtp_consume_response(&(d->d_rcpt->r_err_text), lines, count,
+            smtp_consume_response(&(d->d_env->e_err_text), lines, count,
                     "Bad SMTP RCPT TO reply");
             return SMTP_OK;
 
         case SMTP_DATA:
-            d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
+            d->d_env->e_flags |= ENV_FLAG_BOUNCE;
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: Message Failed: [%s] %s: %s",
                     d->d_env->e_id, d->d_ip, hq->hq_smtp_hostname, lines[ 0 ]);
@@ -514,7 +509,7 @@ smtp_reply(int smtp_command, struct host_q *hq, struct deliver *d) {
             return SMTP_OK;
 
         case SMTP_DATA_EOF:
-            d->d_env->e_flags = d->d_env->e_flags | ENV_FLAG_BOUNCE;
+            d->d_env->e_flags |= ENV_FLAG_BOUNCE;
             syslog(LOG_NOTICE,
                     "Deliver.SMTP env <%s>: Failed %s [%s]: "
                     "transmitted %ld/%ld: %s",
@@ -751,8 +746,6 @@ smtp_result
 smtp_send(struct host_q *hq, struct deliver *d) {
     int            rc;
     smtp_result    retval;
-    int            max_rcpts = 0;
-    int            rcpts_attempted = 0;
     char          *line;
     char          *timer_type;
     struct timeval tv_session = {0, 0};
@@ -833,55 +826,35 @@ smtp_send(struct host_q *hq, struct deliver *d) {
         return SMTP_OK;
     }
 
-    /* RCPT TOs: */
+    /* If we've made it here the host is up. */
+    d->d_live_host = true;
+
+    /* RCPT TO: */
     assert(d->d_env->e_rcpt != NULL);
 
-    if (hq->hq_red != NULL) {
-        max_rcpts = ucl_object_toint(ucl_object_lookup_path(
-                hq->hq_red, "deliver.connection.max_rcpts"));
+    if (d->d_env->e_rcpt->r_next != NULL) {
+        panic("envelope is not fully expanded");
     }
 
-    for (d->d_rcpt = d->d_env->e_rcpt; d->d_rcpt != NULL;
-            d->d_rcpt = d->d_rcpt->r_next) {
-        /* If we've already tried the maximum number of message recipients for
-         * this domain, skip trying this recipient.
-         */
-        if ((max_rcpts > 0) && (rcpts_attempted >= max_rcpts)) {
-            d->d_rcpt->r_status = R_TEMPFAIL;
-            d->d_n_rcpt_tempfailed++;
-            syslog(LOG_INFO,
-                    "Deliver.SMTP env <%s>: To <%s> From <%s> Skipped: "
-                    "reached max recipients: %d",
-                    d->d_env->e_id, d->d_rcpt->r_rcpt, d->d_env->e_mail,
-                    max_rcpts);
-
-            continue;
-        }
-        rcpts_attempted++;
-
-        if (*(d->d_rcpt->r_rcpt) != '\0') {
-            rc = snet_writef(
-                    d->d_snet_smtp, "RCPT TO:<%s>\r\n", d->d_rcpt->r_rcpt);
-        } else {
-            rc = snet_writef(d->d_snet_smtp, "RCPT TO:<postmaster>\r\n");
-        }
-        if (rc < 0) {
-            syslog(LOG_ERR,
-                    "Deliver.SMTP env <%s>: RCPT: snet_writef failed: %m",
-                    d->d_env->e_id);
-            return SMTP_BAD_CONNECTION;
-        }
-
-        if ((retval = smtp_reply(SMTP_RCPT, hq, d)) != SMTP_OK) {
-            return retval;
-        }
+    if (*(d->d_env->e_rcpt->r_rcpt) != '\0') {
+        rc = snet_writef(
+                d->d_snet_smtp, "RCPT TO:<%s>\r\n", d->d_env->e_rcpt->r_rcpt);
+    } else {
+        rc = snet_writef(d->d_snet_smtp, "RCPT TO:<postmaster>\r\n");
     }
-
-    if (d->d_n_rcpt_accepted == 0) {
-        /* no rcpts succeded */
-        d->d_delivered = 1;
-        syslog(LOG_NOTICE, "Deliver.SMTP env <%s>: no valid recipients",
+    if (rc < 0) {
+        syslog(LOG_ERR, "Deliver.SMTP env <%s>: RCPT: snet_writef failed: %m",
                 d->d_env->e_id);
+        return SMTP_BAD_CONNECTION;
+    }
+
+    if ((retval = smtp_reply(SMTP_RCPT, hq, d)) != SMTP_OK) {
+        return retval;
+    }
+
+    /* check to see if RCPT failed */
+    if ((d->d_env->e_flags & ENV_FLAG_BOUNCE) ||
+            (d->d_env->e_flags & ENV_FLAG_TEMPFAIL)) {
         return SMTP_OK;
     }
 

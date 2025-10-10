@@ -147,11 +147,6 @@ rcpt_free(struct recipient *r) {
             r->r_rcpt = NULL;
         }
 
-        if (r->r_err_text != NULL) {
-            line_file_free(r->r_err_text);
-            r->r_err_text = NULL;
-        }
-
         memset(r, 0, sizeof(struct recipient));
         simta_free(r);
     }
@@ -176,8 +171,6 @@ env_rcpt_free(struct envelope *env) {
 
 void
 env_clear_errors(struct envelope *env) {
-    struct recipient *r;
-
     env->e_error = 0;
 
     if (env->e_err_text != NULL) {
@@ -187,14 +180,6 @@ env_clear_errors(struct envelope *env) {
 
     env->e_flags = (env->e_flags & (~ENV_FLAG_BOUNCE));
     env->e_flags = (env->e_flags & (~ENV_FLAG_TEMPFAIL));
-
-    for (r = env->e_rcpt; r != NULL; r = r->r_next) {
-        if (r->r_err_text != NULL) {
-            line_file_free(r->r_err_text);
-            r->r_err_text = NULL;
-        }
-        r->r_status = 0;
-    }
 
     return;
 }
