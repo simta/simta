@@ -12,6 +12,10 @@ void *simta_realloc(void *, size_t)
 void  simta_free(void *);
 char *simta_strdup(const char *) __attribute__((__nonnull__, __malloc__));
 
+/* Banning these functions conflicts with fortifying them. This should be fine,
+ * since CI runs will ensure that we're not using them.
+ */
+#ifndef _FORTIFY_SOURCE
 #define BANNED(func) sorry_##func##_is_a_banned_function
 
 #undef strdup
@@ -31,5 +35,7 @@ char *simta_strdup(const char *) __attribute__((__nonnull__, __malloc__));
 
 #undef strncpy
 #define strncpy(x, y, z) BANNED(strncpy)
+
+#endif /* _FORTIFY_SOURCE */
 
 #endif /* SIMTA_XMALLOC_H */
