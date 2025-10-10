@@ -115,15 +115,16 @@ deliver_binary(struct deliver *d) {
                 /* $R Recipient */
                 case 'R':
                     yaslclear(split[ i ]);
-                    split[ i ] = yaslcat(split[ i ], d->d_rcpt->r_rcpt);
+                    split[ i ] = yaslcat(split[ i ], d->d_env->e_rcpt->r_rcpt);
                     yaslrangeseprleft(split[ i ], '@');
                     break;
 
                 /* $D Domain */
                 case 'D':
                     yaslclear(split[ i ]);
-                    if (strchr(d->d_rcpt->r_rcpt, '@') != NULL) {
-                        split[ i ] = yaslcat(split[ i ], d->d_rcpt->r_rcpt);
+                    if (strchr(d->d_env->e_rcpt->r_rcpt, '@') != NULL) {
+                        split[ i ] =
+                                yaslcat(split[ i ], d->d_env->e_rcpt->r_rcpt);
                         yaslrangeseprright(split[ i ], '@');
                     }
                     break;
@@ -156,8 +157,8 @@ deliver_binary(struct deliver *d) {
             syslog(LOG_INFO, "Deliver.binary env <%s>: %d: %s", d->d_env->e_id,
                     pid, line);
 
-            if (d->d_rcpt->r_err_text == NULL) {
-                if ((d->d_rcpt->r_err_text = line_file_create()) == NULL) {
+            if (d->d_env->e_err_text == NULL) {
+                if ((d->d_env->e_err_text = line_file_create()) == NULL) {
                     syslog(LOG_ERR,
                             "Syserror: deliver_binary line_file_create: %m");
                     snet_close(snet);
@@ -165,7 +166,7 @@ deliver_binary(struct deliver *d) {
                 }
             }
 
-            if (line_append(d->d_rcpt->r_err_text, line, COPY) == NULL) {
+            if (line_append(d->d_env->e_err_text, line, COPY) == NULL) {
                 syslog(LOG_ERR, "Syserror: deliver_binary line_append: %m");
                 snet_close(snet);
                 return (EX_TEMPFAIL);

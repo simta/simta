@@ -6,10 +6,6 @@
 
 #include "simta.h"
 
-#define R_TEMPFAIL 0
-#define R_ACCEPTED 1
-#define R_FAILED 2
-
 struct sender_list {
     struct dll_entry *sl_dll;
     struct dll_entry *sl_entries;
@@ -25,8 +21,6 @@ struct sender_entry {
 struct recipient {
     struct recipient *r_next;
     char             *r_rcpt;
-    struct line_file *r_err_text;
-    int               r_status;
 };
 
 struct envelope {
