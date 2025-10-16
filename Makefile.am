@@ -31,6 +31,7 @@ bin_PROGRAMS = \
 	simconnect \
 	simdmarc \
 	simexpander \
+	simorgdomain \
 	simrbl \
 	simreverse \
 	simspf \
@@ -131,6 +132,8 @@ simdmarc_SOURCES = simdmarc.c dmarc.c dmarc.h $(COMMON_FILES)
 simdmarc_LDADD = $(COMMON_LIBS)
 simexpander_SOURCES = simexpander.c $(COMMON_FILES)
 simexpander_LDADD = $(COMMON_LIBS)
+simorgdomain_SOURCES = simorgdomain.c dmarc.c dmarc.h $(COMMON_FILES)
+simorgdomain_LDADD = $(COMMON_LIBS)
 simrbl_SOURCES = simrbl.c simta_acl.c simta_acl.h $(COMMON_FILES)
 simrbl_LDADD = $(COMMON_LIBS)
 simreverse_SOURCES = simreverse.c $(COMMON_FILES)

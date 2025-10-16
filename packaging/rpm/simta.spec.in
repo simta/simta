@@ -146,6 +146,7 @@ exit 0
 %{_bindir}/simconnect
 %{_bindir}/simdmarc
 %{_bindir}/simexpander
+%{_bindir}/simorgdomain
 %{_bindir}/simrbl
 %{_bindir}/simreverse
 %{_bindir}/simspf
