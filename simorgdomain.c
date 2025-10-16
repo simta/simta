@@ -16,11 +16,12 @@ const char *simta_progname = "simorgdomain";
 
 int
 main(int argc, char *argv[]) {
-    int           c;
-    const char   *conf_file = NULL;
-    const char   *extra_conf = NULL;
-    bool          verbose = false;
-    int           error = 0;
+    int         c;
+    const char *conf_file = NULL;
+    const char *extra_conf = NULL;
+    bool        verbose = false;
+    int         error = 0;
+    yastr       orgdomain = NULL;
 
     while ((c = getopt(argc, argv, "f:U:v")) != EOF) {
         switch (c) {
@@ -49,15 +50,18 @@ main(int argc, char *argv[]) {
         exit(1);
     }
 
-    simta_openlog(false, LOG_PERROR);
+    simta_openlog(false, verbose ? LOG_PERROR : 0);
 
     if (simta_read_config(conf_file, extra_conf) != SIMTA_OK) {
         exit(1);
     }
 
-    simta_openlog(false, verbose ? LOG_PERROR : 0);
-
-    printf("%s\n", dmarc_orgdomain(argv[ optind ]));
+    orgdomain = dmarc_orgdomain(argv[ optind ]);
+    if (orgdomain != NULL) {
+        printf("%s\n", orgdomain);
+    } else {
+        printf("%s\n", argv[ optind ]);
+    }
 
     exit(0);
 }
