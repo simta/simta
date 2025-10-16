@@ -42,10 +42,10 @@ main(int argc, char *argv[]) {
             break;
         }
     }
-    if (error || (optind + 1 != argc)) {
+    if (error || (optind == argc)) {
         fprintf(stderr,
                 "Usage: %s [ -v ] [ -f conf_file ] [ -U extra_conf ] "
-                "domain\n",
+                "domain...\n",
                 argv[ 0 ]);
         exit(1);
     }
@@ -56,11 +56,13 @@ main(int argc, char *argv[]) {
         exit(1);
     }
 
-    orgdomain = dmarc_orgdomain(argv[ optind ]);
-    if (orgdomain != NULL) {
-        printf("%s\n", orgdomain);
-    } else {
-        printf("%s\n", argv[ optind ]);
+    while (optind < argc) {
+        orgdomain = dmarc_orgdomain(argv[ optind++ ]);
+        if (orgdomain != NULL) {
+            printf("%s\n", orgdomain);
+        } else {
+            printf("%s\n", argv[ optind ]);
+        }
     }
 
     exit(0);
