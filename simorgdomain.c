@@ -57,12 +57,13 @@ main(int argc, char *argv[]) {
     }
 
     while (optind < argc) {
-        orgdomain = dmarc_orgdomain(argv[ optind++ ]);
+        orgdomain = dmarc_orgdomain(argv[ optind ]);
         if (orgdomain != NULL) {
             printf("%s\n", orgdomain);
         } else {
             printf("%s\n", argv[ optind ]);
         }
+        optind++;
     }
 
     exit(0);
