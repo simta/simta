@@ -6,6 +6,8 @@ import time
 
 import pytest
 
+from inline_snapshot import snapshot
+
 
 def test_proxy_v1(simta):
     conn = socket.create_connection(('localhost', simta['port']))
@@ -13,8 +15,7 @@ def test_proxy_v1(simta):
     response = conn.recv(4096)
     conn.close()
     # 127.0.0.2 has invalid reverse DNS, so it should be denied
-    assert response[:3] == b'421'
-    assert b'denied by local policy' in response
+    assert response == snapshot(b'421 localhost.test Service not available: closing transmission channel: denied by local policy\r\n')
 
 
 def test_proxy_v2(simta):
@@ -23,8 +24,7 @@ def test_proxy_v2(simta):
     response = conn.recv(4096)
     conn.close()
     # 127.0.0.2 has invalid reverse DNS, so it should be denied
-    assert response[:3] == b'421'
-    assert b'denied by local policy' in response
+    assert response == snapshot(b'421 localhost.test Service not available: closing transmission channel: denied by local policy\r\n')
 
 
 def test_proxy_badheader(simta):
@@ -34,8 +34,7 @@ def test_proxy_badheader(simta):
     response = conn.recv(4096)
     conn.close()
     duration = time.time() - startts
-    assert response[:3] == b'421'
-    assert b'Local error in processing' in response
+    assert response == snapshot(b'421 localhost.test Local error in processing: closing transmission channel\r\n')
     assert duration < 1
 
 
@@ -44,7 +43,7 @@ def test_proxy_timeout(simta):
     with pytest.raises(smtplib.SMTPConnectError) as e:
         smtplib.SMTP('localhost', simta['port'])
     duration = time.time() - startts
-    assert e.value.smtp_code == 421
-    assert b'Local error in processing' in e.value.smtp_error
+    assert e.value.smtp_code == snapshot(421)
+    assert e.value.smtp_error == snapshot(b'localhost.test Local error in processing: closing transmission channel')
     assert duration > 1
     assert duration < 3

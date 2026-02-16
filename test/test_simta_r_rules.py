@@ -1,62 +1,60 @@
 #!/usr/bin/env python3
 
+from inline_snapshot import snapshot
+
 
 def test_r_none(expansion_config, smtp):
     smtp.ehlo('localhost.test')
     res = smtp.mail('')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
     res = smtp.rcpt('testuser@none.example.com')
-    assert res[0] == 551
-    assert res[1] == b'User not local to <localhost.test>: please try <none.example.com>'
+    assert res == snapshot((551, b'User not local to <localhost.test>: please try <none.example.com>'))
 
 
 def test_r_password(expansion_config, smtp):
     smtp.ehlo('localhost.test')
     res = smtp.mail('')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
     res = smtp.rcpt('testuser@password.example.com')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
 
     res = smtp.mail('baduser@password.example.com')
-    assert res[0] == 250  # sender is not checked for validity
+    assert res == snapshot((250, b'OK'))  # sender is not checked for validity
     res = smtp.rcpt('baduser@password.example.com')
-    assert res[0] == 550
-    assert res[1] == b'Requested action failed: User not found'
+    assert res == snapshot((550, b'Requested action failed: User not found'))
 
 
 def test_r_alias(expansion_config, smtp):
     smtp.ehlo('localhost.test')
     res = smtp.mail('')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
     res = smtp.rcpt('testuser@alias.example.com')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
     res = smtp.rcpt('baduser@alias.example.com')
-    assert res[0] == 550
-    assert res[1] == b'Requested action failed: User not found'
+    assert res == snapshot((550, b'Requested action failed: User not found'))
 
 
 def test_r_alias_subaddress(expansion_config, smtp):
     smtp.ehlo('localhost.test')
     res = smtp.mail('')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
     res = smtp.rcpt('testuser+foo@alias.example.com')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
 
 
 def test_r_ldap(req_ldapserver, expansion_config, smtp):
     smtp.ehlo('localhost.test')
     res = smtp.mail('')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
     res = smtp.rcpt('testuser@ldap.example.com')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
     res = smtp.rcpt('baduser@ldap.example.com')
-    assert res[0] == 550
-    assert res[1] == b'Requested action failed: User not found'
+    assert res == snapshot((550, b'Requested action failed: User not found'))
 
 
 def test_r_ldap_subaddress(req_ldapserver, expansion_config, smtp):
     smtp.ehlo('localhost.test')
     res = smtp.mail('')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))
     res = smtp.rcpt('testuser+foo@ldap.example.com')
-    assert res[0] == 250
+    assert res == snapshot((250, b'OK'))

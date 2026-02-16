@@ -61,13 +61,18 @@ Run `autoreconf -fi` to regenerate the build system, then proceed as normal.
 Testing
 -------
 
-Tests can be run with `make check`. simta's test suite
-requires Python >= 3.7, [pytest](https://pytest.org) >=
-3.9, [aiosmtpd](https://pypi.org/project/aiosmtpd/),
-[dnspython](https://www.dnspython.org/),
-[pyca/cryptography](https://pypi.org/project/cryptography/), and
-[ruamel.yaml](https://pypi.org/project/ruamel.yaml/). You
-may also want to install [cmocka](https://cmocka.org/) and pass
+Tests can be run with `make check`. simta's test suite requires:
+
+* Python >= 3.8
+* [pytest](https://pytest.org) >= 3.9
+* [aiosmtpd](https://pypi.org/project/aiosmtpd/)
+* [dirty-equals](https://github.com/samuelcolvin/dirty-equals)
+* [dnspython](https://www.dnspython.org/)
+* [inline-snapshot](https://github.com/15r10nk/inline-snapshot/)
+* [pyca/cryptography](https://pypi.org/project/cryptography/)
+* [ruamel.yaml](https://pypi.org/project/ruamel.yaml/)
+
+You may also want to install [cmocka](https://cmocka.org/) and pass
 `--with-cmocka` to the `configure` script to enable additional unit
 tests.
 

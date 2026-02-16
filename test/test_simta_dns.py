@@ -5,6 +5,8 @@ import subprocess
 
 import pytest
 
+from inline_snapshot import snapshot
+
 
 def parse_connect_output(output):
     parsed = []
@@ -40,12 +42,12 @@ def run_simconnect(tool_path, simta_config, dnsserver):
 
 def test_connect_a(run_simconnect):
     res = run_simconnect('ipv4.example.com')
-    assert res['parsed'] == ['172.24.0.1']
+    assert res['parsed'] == snapshot(['172.24.0.1'])
 
 
 def test_connect_aaaa(run_simconnect):
     res = run_simconnect('ipv6.example.com')
-    assert res['parsed'] == ['100::1']
+    assert res['parsed'] == snapshot(['100::1'])
 
 
 @pytest.mark.parametrize(
@@ -58,7 +60,7 @@ def test_connect_aaaa(run_simconnect):
 )
 def test_connect_address(domain, run_simconnect):
     res = run_simconnect(domain)
-    assert res['parsed'] == ['100::2', '172.24.0.2']
+    assert res['parsed'] == snapshot(['100::2', '172.24.0.2'])
 
 
 @pytest.mark.parametrize(
@@ -71,17 +73,17 @@ def test_connect_address(domain, run_simconnect):
 )
 def test_connect_mx(domain, run_simconnect):
     res = run_simconnect(domain)
-    assert res['parsed'] == ['172.24.0.1', '100::1', '100::2', '172.24.0.2']
+    assert res['parsed'] == snapshot(['172.24.0.1', '100::1', '100::2', '172.24.0.2'])
 
 
 def test_connect_mixed_mx(run_simconnect):
     res = run_simconnect('mixed-mx.example.com')
-    assert res['parsed'] == ['100::2', '172.24.0.2', '172.24.0.1']
+    assert res['parsed'] == snapshot(['100::2', '172.24.0.2', '172.24.0.1'])
 
 
 def test_connect_bad_mx_cname(run_simconnect):
     res = run_simconnect('bad-mx-cname.example.com')
-    assert res['parsed'] == ['100::2', '172.24.0.2']
+    assert res['parsed'] == snapshot(['100::2', '172.24.0.2'])
 
 
 @pytest.mark.parametrize(
@@ -96,7 +98,7 @@ def test_connect_bad_mx_cname(run_simconnect):
 )
 def test_connect_noserver(domain, run_simconnect):
     res = run_simconnect(domain)
-    assert len(res['parsed']) == 0
+    assert res['parsed'] == snapshot([])
 
 
 @pytest.mark.parametrize(
@@ -109,13 +111,13 @@ def test_connect_noserver(domain, run_simconnect):
 )
 def test_connect_bounce(domain, run_simconnect):
     res = run_simconnect(domain)
-    assert len(res['parsed']) == 0
+    assert res['parsed'] == snapshot([])
     assert 'address record missing, bouncing mail' in res['output']
 
 
 def test_connect_permit_mx_cnames_false(run_simconnect):
     res = run_simconnect('bad-mx-cname.example.com')
-    assert len(res['parsed']) == 0
+    assert res['parsed'] == snapshot([])
     assert 'address record missing, bouncing mail' in res['output']
 
 
@@ -162,5 +164,5 @@ def test_connect_nobounce_timeout(tool_path, simta_config):
     ]
 
     res = parse_connect_output(subprocess.run(args, check=True, capture_output=True, text=True).stderr)
-    assert len(res['parsed']) == 0
+    assert res['parsed'] == snapshot([])
     assert 'address record missing, bouncing mail' not in res['output']

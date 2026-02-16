@@ -5,6 +5,9 @@ import subprocess
 
 import pytest
 
+from dirty_equals import IsStr
+from inline_snapshot import snapshot
+
 
 @pytest.fixture
 def acl_file():
@@ -21,20 +24,19 @@ def run_simrbl(tool_path):
 
 
 @pytest.mark.parametrize(
-    'entry',
+    'entry,result',
     [
-        ('foo', 'bar'),
-        ('foO', 'bar'),
-        ('FOO', 'bar'),
-        ('baz', 'local policy'),
-        ('quux', 'local policy'),
+        ('foo', snapshot(['foo', 'found', 'in', IsStr, 'foo', '(bar)'])),
+        ('foO', snapshot(['foO', 'found', 'in', IsStr, 'foo', '(bar)'])),
+        ('FOO', snapshot(['FOO', 'found', 'in', IsStr, 'foo', '(bar)'])),
+        ('baz', snapshot(['baz', 'found', 'in', IsStr, 'BAZ', '(local', 'policy)'])),
+        ('quux', snapshot(['quux', 'found', 'in', IsStr, 'Quux', '(local', 'policy)'])),
     ],
 )
-def test_acl_file(run_simrbl, acl_file, entry):
-    res = run_simrbl(['-f', acl_file, '-t', entry[0]])
+def test_acl_file(run_simrbl, acl_file, entry, result):
+    res = run_simrbl(['-f', acl_file, '-t', entry])
     assert res.returncode == 1
-    assert res.stdout.startswith(f'{entry[0]} found in ')
-    assert res.stdout.endswith(f' ({entry[1]})\n')
+    assert res.stdout.split() == result
 
 
 @pytest.mark.parametrize(
@@ -53,21 +55,20 @@ def test_acl_file_miss(run_simrbl, acl_file, entry):
 
 
 @pytest.mark.parametrize(
-    'entry',
+    'ip,result',
     [
-        {'ip': '127.0.0.2', 'msg': 'local policy'},
-        {'ip': '127.0.0.3', 'msg': 'bar'},
-        {'ip': '127.0.0.4', 'msg': 'bar', 'result': 'foo'},
-        {'ip': '127.0.1.1', 'msg': 'baz', 'result': '127.0.1.0'},
-        {'ip': '127.0.1.254', 'msg': 'baz', 'result': '127.0.1.0'},
-        {'ip': '127.0.2.1', 'msg': 'local policy'},
+        ('127.0.0.2', snapshot(['127.0.0.2', 'found', 'in', IsStr, '127.0.0.2', '(local', 'policy)'])),
+        ('127.0.0.3', snapshot(['127.0.0.3', 'found', 'in', IsStr, '127.0.0.3', '(bar)'])),
+        ('127.0.0.4', snapshot(['127.0.0.4', 'found', 'in', IsStr, 'foo', '(bar)'])),
+        ('127.0.1.1', snapshot(['127.0.1.1', 'found', 'in', IsStr, '127.0.1.0', '(baz)'])),
+        ('127.0.1.254', snapshot(['127.0.1.254', 'found', 'in', IsStr, '127.0.1.0', '(baz)'])),
+        ('127.0.2.1', snapshot(['127.0.2.1', 'found', 'in', IsStr, '127.0.2.1', '(local', 'policy)'])),
     ],
 )
-def test_acl_file_ip(run_simrbl, acl_file, entry):
-    res = run_simrbl(['-f', acl_file, entry['ip']])
+def test_acl_file_ip(run_simrbl, acl_file, ip, result):
+    res = run_simrbl(['-f', acl_file, ip])
     assert res.returncode == 1
-    assert res.stdout.startswith(f'{entry["ip"]} found in ')
-    assert res.stdout.endswith(f' {entry.get("result", entry["ip"])} ({entry["msg"]})\n')
+    assert res.stdout.split() == result
 
 
 @pytest.mark.parametrize(

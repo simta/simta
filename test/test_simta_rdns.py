@@ -2,6 +2,8 @@
 
 import socket
 
+from inline_snapshot import snapshot
+
 
 def bad_rdns(simta):
     # Use the PROXY protocol so we don't have to try to break RDNS for 127.0.0.1
@@ -14,12 +16,12 @@ def bad_rdns(simta):
 
 def test_rdns_strict(simta):
     response = bad_rdns(simta)
-    assert response[:3] == b'421'
+    assert response == snapshot(b'421 localhost.test Service not available: closing transmission channel: denied by local policy\r\n')
 
 
 def test_rdns_relaxed(simta):
     response = bad_rdns(simta)
-    assert response[:3] == b'220'
+    assert response == snapshot(b'220 localhost.test Simple Internet Message Transfer Agent ready\r\n')
 
 
 # FIXME: this only actually tests something when dnsserver is disabled

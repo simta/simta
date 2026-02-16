@@ -1,8 +1,9 @@
 #!/bin/bash
 
 hacking_dir=$(readlink -fn $(dirname "$BASH_SOURCE"))
-pip3 install --user pytest flake8 cryptography aiosmtpd ruamel.yaml dnspython
-sudo yum install -y openldap-servers libcmocka-devel
+pip3 install --user pytest flake8 cryptography aiosmtpd ruamel.yaml dnspython inline-snapshot dirty-equals
+# FIXME: libcmocka-devel went away on RHEL9?
+sudo yum install -y openldap-servers
 sudo systemctl start slapd
 sudo ldapadd -H ldapi:/// -Y EXTERNAL -f /etc/openldap/schema/cosine.ldif
 sudo ldapadd -H ldapi:/// -Y EXTERNAL -f /etc/openldap/schema/inetorgperson.ldif
