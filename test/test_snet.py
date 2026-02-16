@@ -4,6 +4,8 @@ import subprocess
 
 import pytest
 
+from inline_snapshot import snapshot
+
 
 def test_snet_basic(tool_path):
     res = subprocess.run(
@@ -21,34 +23,34 @@ def test_snet_basic(tool_path):
 
 
 @pytest.mark.parametrize(
-    'test_pair',
+    'string,result',
     [
         # \r\n split by the buffer boundary
-        (b'0123456\r\n', b'0123456\r\n'),
-        (b'0123456\r\n78', b'0123456\r\n78\r\n'),
+        [b'0123456\r\n', snapshot(b'0123456\r\n')],
+        [b'0123456\r\n78', snapshot(b'0123456\r\n78\r\n')],
         # \r\n after the buffer boundary
-        (b'01234567\r\n8', b'01234567\r\n8\r\n'),
+        [b'01234567\r\n8', snapshot(b'01234567\r\n8\r\n')],
         # \r\n before the buffer boundary
-        (b'012345\r\n678', b'012345\r\n678\r\n'),
+        [b'012345\r\n678', snapshot(b'012345\r\n678\r\n')],
         # \r\r split by the buffer boundary
-        (b'0123456\r\r78', b'0123456\r\n\r\n78\r\n'),
+        [b'0123456\r\r78', snapshot(b'0123456\r\n\r\n78\r\n')],
         # \n\n split by the buffer boundary
-        (b'0123456\n\n78', b'0123456\r\n\r\n78\r\n'),
+        [b'0123456\n\n78', snapshot(b'0123456\r\n\r\n78\r\n')],
         # \0\0 split by the buffer boundary
-        (b'0123456\x00\x0078', b'0123456\r\n\r\n78\r\n'),
+        [b'0123456\x00\x0078', snapshot(b'0123456\r\n\r\n78\r\n')],
         # terminal newlines
-        (b'0\r\n', b'0\r\n'),
-        (b'0\r', b'0\r\n'),
-        (b'0\n', b'0\r\n'),
-        (b'0\0', b'0\r\n'),
+        [b'0\r\n', snapshot(b'0\r\n')],
+        [b'0\r', snapshot(b'0\r\n')],
+        [b'0\n', snapshot(b'0\r\n')],
+        [b'0\0', snapshot(b'0\r\n')],
         # initial newlines
-        (b'\r\n0', b'\r\n0\r\n'),
-        (b'\r0', b'\r\n0\r\n'),
-        (b'\n0', b'\r\n0\r\n'),
-        (b'\x000', b'\r\n0\r\n'),
+        [b'\r\n0', snapshot(b'\r\n0\r\n')],
+        [b'\r0', snapshot(b'\r\n0\r\n')],
+        [b'\n0', snapshot(b'\r\n0\r\n')],
+        [b'\x000', snapshot(b'\r\n0\r\n')],
     ],
 )
-def test_snet_boundary(tool_path, test_pair):
+def test_snet_boundary(tool_path, string, result):
     res = subprocess.run(
         [
             tool_path('snetcat'),
@@ -58,10 +60,10 @@ def test_snet_boundary(tool_path, test_pair):
         ],
         check=True,
         capture_output=True,
-        input=test_pair[0],
+        input=string,
     )
 
-    assert res.stdout == test_pair[1]
+    assert res.stdout == result
 
 
 def test_snet_buffer_max(tool_path):
@@ -79,36 +81,33 @@ def test_snet_buffer_max(tool_path):
     )
 
     assert res.returncode == 1
-    assert res.stdout == b'0123456\r\n'
-    assert res.stderr == b'snet_eof: Cannot allocate memory\n'
+    assert res.stdout == snapshot(b'0123456\r\n')
+    assert res.stderr == snapshot(b'snet_eof: Cannot allocate memory\n')
 
 
 @pytest.mark.parametrize(
-    'test_data',
+    'string,result',
     [
         # \r\n split by the buffer boundary
-        b'0123456\r\n78\r\n',
+        [b'0123456\r\n78\r\n', snapshot(b'0123456\r\n78\r\n')],
         # \r\n after the buffer boundary
-        b'01234567\r\n8\r\n',
+        [b'01234567\r\n8\r\n', snapshot(b'01234567\r\n8\r\n')],
         # \r\n before the buffer boundary
-        b'012345\r\n678\r\n',
+        [b'012345\r\n678\r\n', snapshot(b'012345\r\n678\r\n')],
         # \r\r split by the buffer boundary
-        b'0123456\r\r78\r\n',
+        [b'0123456\r\r78\r\n', snapshot(b'0123456\r\r78\r\n')],
         # \n\n split by the buffer boundary
-        b'0123456\n\n78\r\n',
+        [b'0123456\n\n78\r\n', snapshot(b'0123456\n\n78\r\n')],
         # no terminal CRLF == not a line
-        [b'0123456\r\n78910123456789', b'0123456\r\n'],
+        [b'0123456\r\n78910123456789', snapshot(b'0123456\r\n')],
         # just a lot of empty lines
-        b'\r\n\r\n\r\n\r\n\r\n',
-        b'\r\n',
+        [b'\r\n\r\n\r\n\r\n\r\n', snapshot(b'\r\n\r\n\r\n\r\n\r\n')],
+        [b'\r\n', snapshot(b'\r\n')],
         # Null
-        b'n\0ull\r\n',
+        [b'n\0ull\r\n', snapshot(b'n\x00ull\r\n')],
     ],
 )
-def test_snet_getline_safe(tool_path, test_data):
-    if not isinstance(test_data, list):
-        test_data = [test_data, test_data]
-
+def test_snet_getline_safe(tool_path, string, result):
     res = subprocess.run(
         [
             tool_path('snetcat'),
@@ -119,10 +118,10 @@ def test_snet_getline_safe(tool_path, test_data):
         ],
         check=True,
         capture_output=True,
-        input=test_data[0],
+        input=string,
     )
 
-    assert res.stdout == test_data[1]
+    assert res.stdout == result
 
 
 def test_snet_getline_safe_buffer_max(tool_path):
@@ -141,5 +140,5 @@ def test_snet_getline_safe_buffer_max(tool_path):
     )
 
     assert res.returncode == 1
-    assert res.stdout == b'012345\r\n'
-    assert res.stderr == b'snet_eof: Cannot allocate memory\n'
+    assert res.stdout == snapshot(b'012345\r\n')
+    assert res.stderr == snapshot(b'snet_eof: Cannot allocate memory\n')

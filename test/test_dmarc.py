@@ -4,6 +4,8 @@ import subprocess
 
 import pytest
 
+from inline_snapshot import snapshot
+
 
 EQUIV_DOMAINS = [
     'example.com',
@@ -102,18 +104,49 @@ def test_dmarc_fail(run_simdmarc, hfrom, spf, dkim):
 
 
 @pytest.mark.parametrize(
-    'dkim',
+    'dkim,result',
     [
-        ['example.com', 'example.edu'],
-        ['example.edu', 'example.com'],
-        ['example.com', 'example.edu', 'example.com'],
-        ['example.edu', 'example.com', 'example.edu'],
+        [
+            ['example.com', 'example.edu'],
+            snapshot(
+                [
+                    'DMARC lookup result: policy reject, percent 100, result reject',
+                    'DMARC policy result for example.com/example.edu/example.com/example.edu: pass',
+                ]
+            ),
+        ],
+        [
+            ['example.edu', 'example.com'],
+            snapshot(
+                [
+                    'DMARC lookup result: policy reject, percent 100, result reject',
+                    'DMARC policy result for example.com/example.edu/example.edu/example.com: pass',
+                ]
+            ),
+        ],
+        [
+            ['example.com', 'example.edu', 'example.com'],
+            snapshot(
+                [
+                    'DMARC lookup result: policy reject, percent 100, result reject',
+                    'DMARC policy result for example.com/example.edu/example.com/example.edu/example.com: pass',
+                ]
+            ),
+        ],
+        [
+            ['example.edu', 'example.com', 'example.edu'],
+            snapshot(
+                [
+                    'DMARC lookup result: policy reject, percent 100, result reject',
+                    'DMARC policy result for example.com/example.edu/example.edu/example.com/example.edu: pass',
+                ]
+            ),
+        ],
     ],
 )
-def test_dmarc_multiple_dkim(run_simdmarc, dkim):
+def test_dmarc_multiple_dkim(run_simdmarc, dkim, result):
     dmarc = run_simdmarc(['example.com', 'example.edu', *dkim])
-    assert dmarc[1].startswith('DMARC policy result')
-    assert dmarc[1].endswith(': pass')
+    assert dmarc == result
 
 
 # FIXME: test sp, subdomains with conflicting policies, etc.

@@ -5,6 +5,8 @@ import subprocess
 
 import pytest
 
+from inline_snapshot import snapshot
+
 
 @pytest.fixture
 def sasldb(tmp_path):
@@ -25,10 +27,10 @@ def sasldb(tmp_path):
 
 def test_authentication_mechlist(smtp, testmsg, sasldb):
     smtp.ehlo()
-    assert 'auth' not in smtp.esmtp_features
+    assert smtp.esmtp_features == snapshot({'8bitmime': '', 'size': '104857600', 'starttls': ''})
     smtp.starttls()
     smtp.ehlo()
-    assert smtp.esmtp_features['auth'] == ' PLAIN'
+    assert smtp.esmtp_features == snapshot({'8bitmime': '', 'size': '104857600', 'auth': ' PLAIN'})
 
 
 def test_authentication(smtp, testmsg, sasldb):

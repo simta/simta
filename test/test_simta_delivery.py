@@ -7,6 +7,9 @@ import os
 
 from mailbox import Maildir
 
+from dirty_equals import IsStr
+from inline_snapshot import snapshot
+
 
 def test_binary(smtp_nocleanup, testmsg, dnsserver, simta):
     smtp_nocleanup.sendmail(
@@ -23,28 +26,48 @@ def test_binary(smtp_nocleanup, testmsg, dnsserver, simta):
     with open(os.path.join(simta['tmpdir'], 'mda_args'), 'r') as f:
         mda_args = json.load(f)
 
-    assert mda_args[2:] == [
-        'testsender@example.com',
-        'testrcpt',
-        'binary.example.com',
-        '$SR',
-        '$',
-        'S',
-        '-S',
-        '$DR',
-        '',
-        '$DDD',
-        '$$',
-    ]
+    assert mda_args[2:] == snapshot(
+        [
+            'testsender@example.com',
+            'testrcpt',
+            'binary.example.com',
+            '$SR',
+            '$',
+            'S',
+            '-S',
+            '$DR',
+            '',
+            '$DDD',
+            '$$',
+        ]
+    )
 
     with open(os.path.join(simta['tmpdir'], 'mda_msg'), 'r') as f:
         msg = email.message_from_file(f)
 
-    assert msg.get_payload() == 'test_binary\n'
-    assert msg['Subject'] == 'simta test message for test_binary'
-    assert msg['Return-Path'] == '<testsender@example.com>'
-    assert msg['From'] == 'testsender@example.com'
-    assert msg['To'] == 'testrcpt@example.com'
+    assert msg.items() == snapshot(
+        [
+            ('Return-Path', '<testsender@example.com>'),
+            (
+                'Authentication-Results',
+                """\
+localhost.test; \n\
+	iprev=pass policy.iprev=127.0.0.1 (localhost.test);
+	spf=none smtp.mailfrom=testsender@example.com;
+	dkim=none;
+	dmarc=fail header.from=testsender@example.com\
+""",
+            ),
+            ('Received', IsStr),
+            ('Content-Type', 'text/plain; charset="us-ascii"'),
+            ('MIME-Version', '1.0'),
+            ('Content-Transfer-Encoding', '7bit'),
+            ('Subject', 'simta test message for test_binary'),
+            ('From', 'testsender@example.com'),
+            ('To', 'testrcpt@example.com'),
+        ]
+    )
+    assert msg.get_payload() == snapshot('test_binary\n')
 
 
 def test_smtp(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
@@ -64,9 +87,31 @@ def test_smtp(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
     assert len(md) == 1
 
     msg = md.get(md.keys()[0])
-    assert msg.get_payload() == 'test_smtp\n'
-    assert msg['X-MailFrom'] == 'testsender@example.com'
-    assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
+    assert msg.items() == snapshot(
+        [
+            (
+                'Authentication-Results',
+                """\
+localhost.test;
+	iprev=pass policy.iprev=127.0.0.1 (localhost.test);
+	spf=none smtp.mailfrom=testsender@example.com;
+	dkim=none;
+	dmarc=fail header.from=testsender@example.com\
+""",
+            ),
+            ('Received', IsStr),
+            ('Content-Type', 'text/plain; charset="us-ascii"'),
+            ('MIME-Version', '1.0'),
+            ('Content-Transfer-Encoding', '7bit'),
+            ('Subject', 'simta test message for test_smtp'),
+            ('From', 'testsender@example.com'),
+            ('To', 'testrcpt@example.com'),
+            ('X-Peer', IsStr),
+            ('X-MailFrom', 'testsender@example.com'),
+            ('X-RcptTo', 'testrcpt@smtpd.example.com'),
+        ]
+    )
+    assert msg.get_payload() == snapshot('test_smtp\n')
 
 
 def test_smtp_noquit(smtp, testmsg, dnsserver, aiosmtpd_server):
@@ -85,9 +130,31 @@ def test_smtp_noquit(smtp, testmsg, dnsserver, aiosmtpd_server):
     assert len(md) == 1
 
     msg = md.get(md.keys()[0])
-    assert msg.get_payload() == 'test_smtp_noquit\n'
-    assert msg['X-MailFrom'] == 'testsender@example.com'
-    assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
+    assert msg.items() == snapshot(
+        [
+            (
+                'Authentication-Results',
+                """\
+localhost.test;
+	iprev=pass policy.iprev=127.0.0.1 (localhost.test);
+	spf=none smtp.mailfrom=testsender@example.com;
+	dkim=none;
+	dmarc=fail header.from=testsender@example.com\
+""",
+            ),
+            ('Received', IsStr),
+            ('Content-Type', 'text/plain; charset="us-ascii"'),
+            ('MIME-Version', '1.0'),
+            ('Content-Transfer-Encoding', '7bit'),
+            ('Subject', 'simta test message for test_smtp_noquit'),
+            ('From', 'testsender@example.com'),
+            ('To', 'testrcpt@example.com'),
+            ('X-Peer', IsStr),
+            ('X-MailFrom', 'testsender@example.com'),
+            ('X-RcptTo', 'testrcpt@smtpd.example.com'),
+        ]
+    )
+    assert msg.get_payload() == snapshot('test_smtp_noquit\n')
 
 
 def test_smtp_badtls(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
@@ -107,9 +174,31 @@ def test_smtp_badtls(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
     assert len(md) == 1
 
     msg = md.get(md.keys()[0])
-    assert msg.get_payload() == 'test_smtp_badtls\n'
-    assert msg['X-MailFrom'] == 'testsender@example.com'
-    assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
+    assert msg.items() == snapshot(
+        [
+            (
+                'Authentication-Results',
+                """\
+localhost.test;
+	iprev=pass policy.iprev=127.0.0.1 (localhost.test);
+	spf=none smtp.mailfrom=testsender@example.com;
+	dkim=none;
+	dmarc=fail header.from=testsender@example.com\
+""",
+            ),
+            ('Received', IsStr),
+            ('Content-Type', 'text/plain; charset="us-ascii"'),
+            ('MIME-Version', '1.0'),
+            ('Content-Transfer-Encoding', '7bit'),
+            ('Subject', 'simta test message for test_smtp_badtls'),
+            ('From', 'testsender@example.com'),
+            ('To', 'testrcpt@example.com'),
+            ('X-Peer', IsStr),
+            ('X-MailFrom', 'testsender@example.com'),
+            ('X-RcptTo', 'testrcpt@smtpd.example.com'),
+        ]
+    )
+    assert msg.get_payload() == snapshot('test_smtp_badtls\n')
 
 
 def test_smtp_starttls(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
@@ -130,7 +219,29 @@ def test_smtp_starttls(smtp_nocleanup, testmsg, dnsserver, aiosmtpd_server):
     assert len(md) == 1
 
     msg = md.get(md.keys()[0])
-    assert msg.get_payload() == 'test_smtp_starttls\n'
-    assert msg['X-MailFrom'] == 'testsender@example.com'
-    assert msg['X-RcptTo'] == 'testrcpt@smtpd.example.com'
+    assert msg.items() == snapshot(
+        [
+            (
+                'Authentication-Results',
+                """\
+localhost.test;
+	iprev=pass policy.iprev=127.0.0.1 (localhost.test);
+	spf=none smtp.mailfrom=testsender@example.com;
+	dkim=none;
+	dmarc=fail header.from=testsender@example.com\
+""",
+            ),
+            ('Received', IsStr),
+            ('Content-Type', 'text/plain; charset="us-ascii"'),
+            ('MIME-Version', '1.0'),
+            ('Content-Transfer-Encoding', '7bit'),
+            ('Subject', 'simta test message for test_smtp_starttls'),
+            ('From', 'testsender@example.com'),
+            ('To', 'testrcpt@example.com'),
+            ('X-Peer', IsStr),
+            ('X-MailFrom', 'testsender@example.com'),
+            ('X-RcptTo', 'testrcpt@smtpd.example.com'),
+        ]
+    )
+    assert msg.get_payload() == snapshot('test_smtp_starttls\n')
     assert 'with ESMTPS' in msg['Received']

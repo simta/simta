@@ -7,6 +7,8 @@ import time
 
 import pytest
 
+from inline_snapshot import snapshot
+
 
 def send_test(smtp, testmsg):
     smtp.sendmail(
@@ -26,6 +28,7 @@ def test_mode_disabled(simta):
     with pytest.raises(smtplib.SMTPConnectError) as e:
         smtplib.SMTP('localhost', simta['port'])
     assert e.value.smtp_code == 554
+    assert e.value.smtp_error == snapshot(b'No SMTP service here')
 
 
 def test_mode_global_relay(smtp, testmsg):
@@ -37,6 +40,7 @@ def test_mode_tarpit(smtp, testmsg):
     with pytest.raises(smtplib.SMTPDataError) as e:
         send_test(smtp, testmsg)
     assert e.value.smtp_code == 451
+    assert e.value.smtp_error == snapshot(b'Message Tempfailed')
     assert time.time() - startts < 1
 
 
@@ -45,6 +49,7 @@ def test_mode_tarpit_timing(smtp, testmsg):
     with pytest.raises(smtplib.SMTPDataError) as e:
         send_test(smtp, testmsg)
     assert e.value.smtp_code == 451
+    assert e.value.smtp_error == snapshot(b'Message Tempfailed')
     assert time.time() - startts > 2.5
     assert time.time() - startts < 5
 
@@ -52,20 +57,20 @@ def test_mode_tarpit_timing(smtp, testmsg):
 def test_mode_tempfail(smtp):
     smtp.ehlo()
     res = smtp.docmd('MAIL FROM:<>')
-    assert res[0] == 451
+    assert list(res) == snapshot([451, b'Requested action aborted: service temporarily unavailable'])
     res = smtp.docmd('RCPT TO:<>')
-    assert res[0] == 451
+    assert list(res) == snapshot([451, b'Requested action aborted: service temporarily unavailable'])
     res = smtp.docmd('DATA')
-    assert res[0] == 503
+    assert list(res) == snapshot([503, b'Bad sequence of commands'])
 
 
 def trigger_punishment(smtp):
     res = smtp.docmd('MAIL FROM:<testsender@example.com>')
-    assert res[0] == 250
+    assert list(res) == snapshot([250, b'OK'])
     res = smtp.docmd('RCPT TO:<badrcpt@example.edu>')
-    assert res[0] == 551
+    assert list(res) == snapshot([551, b'User not local to <localhost.test>: please try <example.edu>'])
     res = smtp.docmd('RCPT TO:<badrcpt@example.edu>')
-    assert res[0] == 551
+    assert list(res) == snapshot([551, b'User not local to <localhost.test>: please try <example.edu>'])
 
 
 def test_punishment_mode_tempfail(smtp, testmsg):
@@ -77,9 +82,9 @@ def test_punishment_mode_tempfail(smtp, testmsg):
 def test_punishment_trigger_mailfrom(smtp, testmsg):
     send_test(smtp, testmsg)
     res = smtp.docmd('MAIL FROM:<me@baddomain.example.com>')
-    assert res[0] == 550
+    assert list(res) == snapshot([550, b'Unknown host: baddomain.example.com'])
     res = smtp.docmd('MAIL FROM:<me@baddomain.example.com>')
-    assert res[0] == 550
+    assert list(res) == snapshot([550, b'Unknown host: baddomain.example.com'])
     test_mode_tempfail(smtp)
 
 
@@ -122,7 +127,7 @@ def test_punishment_mode_disabled(smtp_nocleanup, testmsg):
     send_test(smtp, testmsg)
     trigger_punishment(smtp)
     res = smtp.docmd('RCPT TO:<badrcpt@example.edu>')
-    assert res[0] == 421
+    assert list(res) == snapshot([421, b'localhost.test Service not available: closing transmission channel'])
     with pytest.raises(smtplib.SMTPServerDisconnected):
         res = smtp.docmd('RCPT TO:<badrcpt@example.edu>')
 
