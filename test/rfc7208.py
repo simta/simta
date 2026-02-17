@@ -13,6 +13,7 @@ from pathlib import Path
 
 try:
     from ruamel.yaml import YAML
+
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
@@ -55,7 +56,7 @@ def openport(port):
             socket.create_connection(('localhost', port), 0.1)
             port += 1
             if port > 65535:
-                raise ValueError("exhausted TCP port range without finding a free one")
+                raise ValueError('exhausted TCP port range without finding a free one')
         except socket.error:
             return port
 
@@ -72,7 +73,7 @@ class SPFFile(pytest.File):
 
         idx = 0
         for scenario in YAML().load_all(self.path):
-            for (k, v) in scenario['tests'].items():
+            for k, v in scenario['tests'].items():
                 if k not in DISABLED_TESTS:
                     yield SPFItem.from_parent(self, name=f'{idx}_{k}', scenario=scenario, case=v)
             idx += 1
@@ -93,8 +94,10 @@ class SPFItem(pytest.Item):
         self.dns_proc = subprocess.Popen(
             [
                 Path(__file__).parent / 'dns/dns_server.py',
-                '--port', str(self.dns_port),
-                '--zone-data', json.dumps(self.scenario['zonedata']),
+                '--port',
+                str(self.dns_port),
+                '--zone-data',
+                json.dumps(self.scenario['zonedata']),
             ],
             stdout=devnull,
             stderr=devnull,
@@ -135,7 +138,8 @@ class SPFItem(pytest.Item):
         res = subprocess.run(
             [
                 binpath,
-                '-U', json.dumps(conf),
+                '-U',
+                json.dumps(conf),
                 self.case['mailfrom'],
                 self.case['host'],
                 self.case['helo'],

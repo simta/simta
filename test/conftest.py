@@ -15,7 +15,8 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 try:
-    import aiosmtpd     # noqa: F401
+    import aiosmtpd  # noqa: F401
+
     HAS_AIOSMTPD = True
 except ImportError:
     HAS_AIOSMTPD = False
@@ -28,6 +29,7 @@ try:
     from cryptography.hazmat.primitives.asymmetric import ec
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
+
     HAS_CRYPTOGRAPHY = True
 except ImportError:
     HAS_CRYPTOGRAPHY = False
@@ -35,18 +37,18 @@ except ImportError:
 
 pytest_plugins = ['cmocka', 'rfc7208']
 
-PASSWD_CONTENTS = '''
+PASSWD_CONTENTS = """
 postmaster:x:999:999::{tmp_path}/postmaster:/sbin/nologin
 testuser:x:1000:1000::{tmp_path}/testuser:/sbin/nologin
 forwarduser:x:1001:1001::{tmp_path}:/sbin/nologin
-'''
+"""
 
-FORWARD_CONTENTS = '''
+FORWARD_CONTENTS = """
 user@example.com
 user@example.edu
-'''
+"""
 
-ALIAS_CONTENTS = '''
+ALIAS_CONTENTS = """
 testuser: anotheruser
 external: testuser@example.edu
 password: testuser@password.example.com
@@ -54,7 +56,7 @@ chained: testuser@alias.example.com
 group: testuser@alias.example.com, groupuser@example.com
 group2-errors: anotheruser
 group2: group@alias.example.com
-'''
+"""
 
 
 def openport(port):
@@ -64,12 +66,12 @@ def openport(port):
             socket.create_connection(('localhost', port), 0.1)
             port += 1
             if port > 65535:
-                raise ValueError("exhausted TCP port range without finding a free one")
+                raise ValueError('exhausted TCP port range without finding a free one')
         except socket.error:
             return port
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def dnsserver():
     port = openport(10053)
 
@@ -116,6 +118,7 @@ def tool_path():
         binpath = os.path.dirname(os.path.realpath(__file__))
         binpath = os.path.join(binpath, '..', tool)
         return os.path.realpath(binpath)
+
     return _tool_path
 
 
@@ -125,7 +128,7 @@ def simta_config(request, tmp_path):
     includes = []
     base_path = os.path.join(request.fspath.dirname, 'files')
     for candidate in [
-        request.fspath.basename,    # test file
+        request.fspath.basename,  # test file
         request.function.__name__,  # test function
     ]:
         fname = os.path.join(base_path, '.'.join([candidate, 'conf']))
@@ -135,11 +138,7 @@ def simta_config(request, tmp_path):
     config_file = str(tmp_path.joinpath('simta.conf'))
 
     base_config = {
-        'core': {
-            'base_dir': str(tmp_path),
-            'user': '',
-            'debug_level': 7
-        },
+        'core': {'base_dir': str(tmp_path), 'user': '', 'debug_level': 7},
         'defaults': {
             'red': {
                 'deliver': {
@@ -148,7 +147,7 @@ def simta_config(request, tmp_path):
                     }
                 }
             }
-        }
+        },
     }
 
     if 'filter' in request.fspath.basename:
@@ -185,7 +184,8 @@ def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cer
     subprocess.run(
         [
             tool_path('simalias'),
-            '-f', simta_config,
+            '-f',
+            simta_config,
         ],
         # FIXME: can we be smarter about when this runs instead of ignoring errors?
         check=False,
@@ -235,9 +235,12 @@ def simta(dnsserver, aiosmtpd_server, simta_config, tmp_path, tool_path, tls_cer
         tool_path('simta'),
         '-D',
         # change hostname to avoid loop detection when connecting to aiosmtpd
-        '-h', 'localhost.test',
-        '-f', simta_config,
-        '-U', json.dumps(daemon_config),
+        '-h',
+        'localhost.test',
+        '-f',
+        simta_config,
+        '-U',
+        json.dumps(daemon_config),
     ]
 
     simta_proc = subprocess.Popen(binargs)
@@ -279,26 +282,23 @@ def tls_cert(tmp_path):
         private_key = keydata[ctype]
         public_key = private_key.public_key()
 
-        builder = x509.CertificateBuilder(
-            ).subject_name(
-                x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u'localhost')])
-            ).issuer_name(
-                x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u'localhost')])
-            ).not_valid_before(
-                datetime.datetime.today() - datetime.timedelta(days=1)
-            ).not_valid_after(
-                datetime.datetime.today() + datetime.timedelta(days=1)
-            ).serial_number(
-                x509.random_serial_number()
-            ).public_key(
-                public_key
-            ).add_extension(
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'localhost')]))
+            .issuer_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'localhost')]))
+            .not_valid_before(datetime.datetime.today() - datetime.timedelta(days=1))
+            .not_valid_after(datetime.datetime.today() + datetime.timedelta(days=1))
+            .serial_number(x509.random_serial_number())
+            .public_key(public_key)
+            .add_extension(
                 x509.BasicConstraints(ca=True, path_length=None),
                 critical=True,
-            ).add_extension(
-                x509.SubjectAlternativeName([x509.DNSName(u'localhost')]),
+            )
+            .add_extension(
+                x509.SubjectAlternativeName([x509.DNSName('localhost')]),
                 critical=False,
             )
+        )
 
         cert = builder.sign(
             private_key=private_key,
@@ -310,11 +310,7 @@ def tls_cert(tmp_path):
         cert_path = str(tmp_path.joinpath(f'cert.{ctype}.crt'))
 
         with open(key_path, 'wb') as f:
-            f.write(private_key.private_bytes(
-                serialization.Encoding.PEM,
-                serialization.PrivateFormat.TraditionalOpenSSL,
-                serialization.NoEncryption()
-            ))
+            f.write(private_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
         with open(cert_path, 'wb') as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
@@ -335,12 +331,18 @@ def aiosmtpd_server(request, tmp_path, tls_cert):
 
     binargs = [
         sys.executable,
-        '-m', 'aiosmtpd',
+        '-m',
+        'aiosmtpd',
         '-n',
-        '-l', ':{}'.format(port),
-        '-c', 'aiosmtpd.handlers.Mailbox', spooldir,
-        '--tlscert', tls_cert['rsa_certificate'],
-        '--tlskey', tls_cert['rsa_key'],
+        '-l',
+        ':{}'.format(port),
+        '-c',
+        'aiosmtpd.handlers.Mailbox',
+        spooldir,
+        '--tlscert',
+        tls_cert['rsa_certificate'],
+        '--tlskey',
+        tls_cert['rsa_key'],
     ]
 
     if 'badtls' in request.function.__name__:
@@ -390,7 +392,8 @@ def run_simsrs(simta_config, tool_path):
         res = subprocess.run(
             [
                 tool_path('simsrs'),
-                '-f', simta_config,
+                '-f',
+                simta_config,
                 address,
             ],
             check=True,
@@ -398,6 +401,7 @@ def run_simsrs(simta_config, tool_path):
             text=True,
         )
         return res.stdout.rstrip()
+
     return _run_simsrs
 
 
@@ -599,7 +603,7 @@ def expansion_config(simta_config, request, tmp_path, ldapserver):
                                 'subsearch': 'ldap:///ou=Groups,dc=example,dc=com?*?sub?(&(cn=control group)(member=%25s))',
                             }
                         ],
-                    }
+                    },
                 }
             ]
         }

@@ -46,13 +46,14 @@ def test_snet_basic(tool_path):
         (b'\r0', b'\r\n0\r\n'),
         (b'\n0', b'\r\n0\r\n'),
         (b'\x000', b'\r\n0\r\n'),
-    ]
+    ],
 )
 def test_snet_boundary(tool_path, test_pair):
     res = subprocess.run(
         [
             tool_path('snetcat'),
-            '-b', '4',  # initial yasl allocation will be double this
+            '-b',
+            '4',  # initial yasl allocation will be double this
             '-',
         ],
         check=True,
@@ -67,8 +68,10 @@ def test_snet_buffer_max(tool_path):
     res = subprocess.run(
         [
             tool_path('snetcat'),
-            '-b', '4',
-            '-m', '8',
+            '-b',
+            '4',
+            '-m',
+            '8',
             '-',
         ],
         capture_output=True,
@@ -100,7 +103,7 @@ def test_snet_buffer_max(tool_path):
         b'\r\n',
         # Null
         b'n\0ull\r\n',
-    ]
+    ],
 )
 def test_snet_getline_safe(tool_path, test_data):
     if not isinstance(test_data, list):
@@ -110,7 +113,8 @@ def test_snet_getline_safe(tool_path, test_data):
         [
             tool_path('snetcat'),
             '-s',
-            '-b', '4',  # initial yasl allocation will be double this
+            '-b',
+            '4',  # initial yasl allocation will be double this
             '-',
         ],
         check=True,
@@ -126,8 +130,10 @@ def test_snet_getline_safe_buffer_max(tool_path):
         [
             tool_path('snetcat'),
             '-s',
-            '-b', '4',
-            '-m', '8',
+            '-b',
+            '4',
+            '-m',
+            '8',
             '-',
         ],
         capture_output=True,

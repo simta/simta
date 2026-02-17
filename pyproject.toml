@@ -1,0 +1,18 @@
+[project]
+name = ''
+version = '0'
+requires-python = '>= 3.8'
+dependencies = [
+    'aiosmtpd',
+    'cryptography',
+    'dnspython',
+    'pytest',
+    'ruamel.yaml',
+    'ruff',
+]
+
+[tool.ruff]
+line-length = 160
+
+[tool.ruff.format]
+quote-style = 'single'

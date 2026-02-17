@@ -11,7 +11,7 @@ import pytest
         '',
         'NXCMD',
         'NXCMD with parameters',
-    ]
+    ],
 )
 def test_bad_command(smtp, cmd):
     res = smtp.docmd(cmd)
@@ -26,7 +26,7 @@ def test_bad_command(smtp, cmd):
         b'\xe5\xb9\xb4\r\n',
         b'MAIL FROM:<foo@example.edu>\0@example.com>\r\n',
         b'MAIL FROM:<foo@example.edu>\nRCPT TO:<foo@example.com>\r\n',
-    ]
+    ],
 )
 def test_bad_command_chars(simta, cmd):
     conn = socket.create_connection(('localhost', simta['port']))
@@ -43,7 +43,7 @@ def test_bad_command_chars(simta, cmd):
     [
         'VRFY foo@example.com',
         'EXPN group',
-    ]
+    ],
 )
 def test_unimplemented_command(smtp, cmd):
     res = smtp.docmd(cmd)

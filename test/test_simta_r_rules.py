@@ -18,7 +18,7 @@ def test_r_password(expansion_config, smtp):
     assert res[0] == 250
 
     res = smtp.mail('baduser@password.example.com')
-    assert res[0] == 250    # sender is not checked for validity
+    assert res[0] == 250  # sender is not checked for validity
     res = smtp.rcpt('baduser@password.example.com')
     assert res[0] == 550
     assert res[1] == b'Requested action failed: User not found'
