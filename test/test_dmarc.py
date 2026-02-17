@@ -111,7 +111,7 @@ def test_dmarc_fail(run_simdmarc, hfrom, spf, dkim):
     ],
 )
 def test_dmarc_multiple_dkim(run_simdmarc, dkim):
-    dmarc = run_simdmarc(['example.com', 'example.edu'] + dkim)
+    dmarc = run_simdmarc(['example.com', 'example.edu', *dkim])
     assert dmarc[1].startswith('DMARC policy result')
     assert dmarc[1].endswith(': pass')
 

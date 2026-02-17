@@ -1,5 +1,5 @@
 [project]
-name = ''
+name = 'simta'
 version = '0'
 requires-python = '>= 3.8'
 dependencies = [
@@ -16,3 +16,6 @@ line-length = 160
 
 [tool.ruff.format]
 quote-style = 'single'
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "B", "RUF"]

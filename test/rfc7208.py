@@ -155,7 +155,7 @@ class SPFItem(pytest.Item):
         if isinstance(expected, list):
             assert actual in expected
             if actual != expected[0]:
-                warnings.warn(f'{expected[0]} is preferred over {actual}')
+                warnings.warn(f'{expected[0]} is preferred over {actual}', stacklevel=1)
         else:
             assert actual == expected
 
