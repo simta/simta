@@ -287,7 +287,7 @@ def test_expand_ldap_group_empty(run_simexpander, req_ldapserver):
     'simexpand@ldap.example.com',
     'SIMEXPAND@LDAP.EXAMPLE.COM',
     'SIMEXPAND@EXAMPLE.COM',
-    'SIMEXPAND@P.EXAMPLE.COM'
+    'SIMEXPAND@P.EXAMPLE.COM',
     'simexpand@example.com',
     'simexpand@dap.example.com',
     'simexpand@p.example.com',
@@ -478,7 +478,7 @@ def test_expand_ldap_group_moderated_badmoderator(run_simexpander, req_ldapserve
     # Bounce to sender
     assert res['parsed'][1]['recipients'] == ['sender@expansion.test']
     assert res['parsed'][1]['sender'] == ''
-    assert 'Group permission conditions not met: ' ''.join(res['parsed'][1]['bounce_lines'])
+    assert 'Group permission conditions not met: ' in ''.join(res['parsed'][1]['bounce_lines'])
 
 
 @pytest.mark.parametrize(
