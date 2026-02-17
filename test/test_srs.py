@@ -7,7 +7,7 @@ import pytest
         'foo@example.edu',
         'SRS0=gfkgj=fp=subdomain.example.edu=foo@example.edu',
         'SRS0=thisisreallyanopaquestring@example.edu',
-    ]
+    ],
 )
 def test_srs(run_simsrs, addr):
     srs = run_simsrs(addr)

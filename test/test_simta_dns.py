@@ -31,14 +31,10 @@ def run_simconnect(tool_path, simta_config, dnsserver):
                 }
             }
         }
-        args = [
-            tool_path('simconnect'),
-            '-f', simta_config,
-            '-U', json.dumps(dns_config),
-            '-l', hostname
-        ]
+        args = [tool_path('simconnect'), '-f', simta_config, '-U', json.dumps(dns_config), '-l', hostname]
 
         return parse_connect_output(subprocess.run(args, check=True, capture_output=True, text=True).stderr)
+
     return _run_simconnect
 
 
@@ -52,21 +48,27 @@ def test_connect_aaaa(run_simconnect):
     assert res['parsed'] == ['100::1']
 
 
-@pytest.mark.parametrize('domain', [
-    'mixed.example.com',
-    'addr-redirect.example.com',
-    'addr-chain.example.com',
-])
+@pytest.mark.parametrize(
+    'domain',
+    [
+        'mixed.example.com',
+        'addr-redirect.example.com',
+        'addr-chain.example.com',
+    ],
+)
 def test_connect_address(domain, run_simconnect):
     res = run_simconnect(domain)
     assert res['parsed'] == ['100::2', '172.24.0.2']
 
 
-@pytest.mark.parametrize('domain', [
-    'real.example.com',
-    'mx-redirect.example.com',
-    'mx-chain.example.com',
-])
+@pytest.mark.parametrize(
+    'domain',
+    [
+        'real.example.com',
+        'mx-redirect.example.com',
+        'mx-chain.example.com',
+    ],
+)
 def test_connect_mx(domain, run_simconnect):
     res = run_simconnect(domain)
     assert res['parsed'] == ['172.24.0.1', '100::1', '100::2', '172.24.0.2']
@@ -82,23 +84,29 @@ def test_connect_bad_mx_cname(run_simconnect):
     assert res['parsed'] == ['100::2', '172.24.0.2']
 
 
-@pytest.mark.parametrize('domain', [
-    'nonexist.example.com',
-    'dangling.example.com',
-    'bad-mx.example.com',
-    'mx-timeout.example.com',
-    'mx-timeout-solo.example.com',
-])
+@pytest.mark.parametrize(
+    'domain',
+    [
+        'nonexist.example.com',
+        'dangling.example.com',
+        'bad-mx.example.com',
+        'mx-timeout.example.com',
+        'mx-timeout-solo.example.com',
+    ],
+)
 def test_connect_noserver(domain, run_simconnect):
     res = run_simconnect(domain)
     assert len(res['parsed']) == 0
 
 
-@pytest.mark.parametrize('domain', [
-    'nonexist.example.com',
-    'dangling.example.com',
-    'bad-mx.example.com',
-])
+@pytest.mark.parametrize(
+    'domain',
+    [
+        'nonexist.example.com',
+        'dangling.example.com',
+        'bad-mx.example.com',
+    ],
+)
 def test_connect_bounce(domain, run_simconnect):
     res = run_simconnect(domain)
     assert len(res['parsed']) == 0
@@ -111,20 +119,23 @@ def test_connect_permit_mx_cnames_false(run_simconnect):
     assert 'address record missing, bouncing mail' in res['output']
 
 
-@pytest.mark.parametrize('domain', [
-    'ipv4.example.com',
-    'ipv6.example.com',
-    'mixed.example.com',
-    'addr-redirect.example.com',
-    'addr-chain.example.com',
-    'real.example.com',
-    'mx-redirect.example.com',
-    'mx-chain.example.com',
-    'mixed-mx.example.com',
-    'timeout',
-    'mx-timeout.example.com',
-    'mx-timeout-solo.example.com',
-])
+@pytest.mark.parametrize(
+    'domain',
+    [
+        'ipv4.example.com',
+        'ipv6.example.com',
+        'mixed.example.com',
+        'addr-redirect.example.com',
+        'addr-chain.example.com',
+        'real.example.com',
+        'mx-redirect.example.com',
+        'mx-chain.example.com',
+        'mixed-mx.example.com',
+        'timeout',
+        'mx-timeout.example.com',
+        'mx-timeout-solo.example.com',
+    ],
+)
 def test_connect_nobounce(domain, run_simconnect):
     res = run_simconnect(domain)
     assert 'address record missing, bouncing mail' not in res['output']
@@ -142,9 +153,12 @@ def test_connect_nobounce_timeout(tool_path, simta_config):
     }
     args = [
         tool_path('simconnect'),
-        '-f', simta_config,
-        '-U', json.dumps(dns_config),
-        '-l', 'nonexist.example.com',
+        '-f',
+        simta_config,
+        '-U',
+        json.dumps(dns_config),
+        '-l',
+        'nonexist.example.com',
     ]
 
     res = parse_connect_output(subprocess.run(args, check=True, capture_output=True, text=True).stderr)

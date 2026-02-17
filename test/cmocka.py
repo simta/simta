@@ -58,4 +58,4 @@ class CMockaItem(pytest.Item):
 
 
 class CMockaException(Exception):
-    """ custom exception """
+    """custom exception"""

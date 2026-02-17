@@ -15,14 +15,7 @@ def sasldb(tmp_path):
     }
 
     subprocess.run(
-        [
-            'saslpasswd2',
-            '-f', res['file'],
-            '-p',
-            '-u', 'example.com',
-            '-c',
-            res['user']
-        ],
+        ['saslpasswd2', '-f', res['file'], '-p', '-u', 'example.com', '-c', res['user']],
         text=True,
         input=res['password'],
     )

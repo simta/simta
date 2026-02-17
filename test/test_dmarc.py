@@ -34,8 +34,10 @@ def run_simdmarc(simta_config, tool_path, dnsserver):
 
         args = [
             tool_path('simdmarc'),
-            '-f', simta_config,
-            '-U', json.dumps(dns_config),
+            '-f',
+            simta_config,
+            '-U',
+            json.dumps(dns_config),
         ]
 
         if isinstance(domains, list):
@@ -51,14 +53,18 @@ def run_simdmarc(simta_config, tool_path, dnsserver):
         )
 
         return res.stdout.splitlines()
+
     return _run_simdmarc
 
 
-@pytest.mark.parametrize('dkim', [
-    None,
-    'example.edu',
-    'example.com',
-])
+@pytest.mark.parametrize(
+    'dkim',
+    [
+        None,
+        'example.edu',
+        'example.com',
+    ],
+)
 @pytest.mark.parametrize('spf', EQUIV_DOMAINS)
 @pytest.mark.parametrize('hfrom', EQUIV_DOMAINS)
 def test_dmarc_pass(run_simdmarc, hfrom, spf, dkim):
@@ -68,19 +74,25 @@ def test_dmarc_pass(run_simdmarc, hfrom, spf, dkim):
     assert dmarc[1].endswith(': pass')
 
 
-@pytest.mark.parametrize('dkim', [
-    None,
-    'example.edu',
-])
-@pytest.mark.parametrize('spf', [
-    None,
-    'example.edu',
-    'notexample.com',
-    'nexample.com',
-    'xample.com',
-    'e.xample.com',
-    'example.com.example.edu',
-])
+@pytest.mark.parametrize(
+    'dkim',
+    [
+        None,
+        'example.edu',
+    ],
+)
+@pytest.mark.parametrize(
+    'spf',
+    [
+        None,
+        'example.edu',
+        'notexample.com',
+        'nexample.com',
+        'xample.com',
+        'e.xample.com',
+        'example.com.example.edu',
+    ],
+)
 @pytest.mark.parametrize('hfrom', EQUIV_DOMAINS)
 def test_dmarc_fail(run_simdmarc, hfrom, spf, dkim):
     dmarc = run_simdmarc([hfrom, spf, dkim])
@@ -89,12 +101,15 @@ def test_dmarc_fail(run_simdmarc, hfrom, spf, dkim):
     assert dmarc[1].endswith(': reject')
 
 
-@pytest.mark.parametrize('dkim', [
-    ['example.com', 'example.edu'],
-    ['example.edu', 'example.com'],
-    ['example.com', 'example.edu', 'example.com'],
-    ['example.edu', 'example.com', 'example.edu'],
-])
+@pytest.mark.parametrize(
+    'dkim',
+    [
+        ['example.com', 'example.edu'],
+        ['example.edu', 'example.com'],
+        ['example.com', 'example.edu', 'example.com'],
+        ['example.edu', 'example.com', 'example.edu'],
+    ],
+)
 def test_dmarc_multiple_dkim(run_simdmarc, dkim):
     dmarc = run_simdmarc(['example.com', 'example.edu'] + dkim)
     assert dmarc[1].startswith('DMARC policy result')

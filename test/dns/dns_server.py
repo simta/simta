@@ -34,7 +34,7 @@ class DNSQuery:
 
         if self.tcp:
             data_len = struct.unpack('!H', data[:2])
-            self.data = data[2:2 + data_len[0]]
+            self.data = data[2 : 2 + data_len[0]]
 
         try:
             self.message = dns.message.from_wire(self.data)
@@ -222,7 +222,7 @@ def load_zone(name, fname):
 def create_zones(data):
     logger.info('Creating zones from data...')
 
-    for (rname, values) in data.items():
+    for rname, values in data.items():
         zone_name = dns.name.from_text('.'.join(rname.split('.')[-2:]))
         if zone_name not in zones:
             zone = dns.zone.Zone(zone_name, relativize=False)
@@ -243,7 +243,7 @@ def create_zones(data):
                 # FIXME: implement
                 continue
 
-            for (rtype, content) in v.items():
+            for rtype, content in v.items():
                 if rtype == 'MX':
                     content = f'{content[0]} {content[1]}.'
                 elif rtype == 'TXT':
