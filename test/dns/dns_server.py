@@ -159,7 +159,7 @@ class DNSQuery:
     def lookup_name(self, zone, qname, sname, stype):
         node = zone.get_node(sname)
         if node is None:
-            wildcard_name = dns.name.Name((b'*',) + sname.labels[1:])
+            wildcard_name = dns.name.Name((b'*', *sname.labels[1:]))
             if zone.get_node(wildcard_name):
                 self.find_rrtype(zone, wildcard_name, stype, wildcard=sname)
                 return True

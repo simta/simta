@@ -14,7 +14,7 @@ def acl_file():
 @pytest.fixture
 def run_simrbl(tool_path):
     def _run_simrbl(args):
-        args = [tool_path('simrbl')] + args
+        args = [tool_path('simrbl'), *args]
         return subprocess.run(args, check=False, capture_output=True, text=True)
 
     return _run_simrbl

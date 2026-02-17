@@ -17,17 +17,23 @@ jobs:
           git diff
           git status --porcelain | grep -q '^ M' && exit 1 || exit 0
 
-  flake8:
+  ruff:
     runs-on: ubuntu-26.04
     steps:
       - name: Check out code
         uses: actions/checkout@v7
 
-      - name: Install flake8
-        run: sudo pip install flake8
+      - name: Install ruff
+        run: sudo pip install ruff
 
       - name: Lint Python code
-        run: flake8 --max-line-length=160
+        run: ruff check
+
+      - name: Lint Python code formatting
+        run: |
+          ruff format
+          git diff
+          git status --porcelain | grep -q '^ M' && exit 1 || exit 0
 
   check:
     runs-on: ubuntu-26.04
@@ -50,9 +56,6 @@ jobs:
           sudo ldapadd -H ldapi:/// -Y EXTERNAL -f ${{ github.workspace }}/simta/test/ldap/local.ldif
           sudo ldapmodify -H ldapi:/// -Y EXTERNAL -f ${{ github.workspace }}/simta/test/ldap/config-ubuntu.ldif
           ldapadd -w DrowsyPapa -D "cn=Manager,dc=example,dc=com" -f ${{ github.workspace }}/simta/test/ldap/data.ldif
-
-      - name: Install Python dependencies
-        run: sudo pip install aiosmtpd cryptography dnspython pytest ruamel.yaml
 
       - name: Cache built dependencies
         uses: actions/cache@v6
@@ -93,8 +96,11 @@ jobs:
           make -j4 CFLAGS='-Wall -Werror -fprofile-arcs -ftest-coverage'
         working-directory: ${{ github.workspace }}/simta
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@2bc602ff898ad0e7220b651a4a0f450b5ba2cd40
+
       - name: Test simta
-        run: make check
+        run: uv run make check
         working-directory: ${{ github.workspace }}/simta
         env:
           LDAP_SERVER: ldap://localhost/
