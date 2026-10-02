@@ -753,8 +753,8 @@ q_read_dir(struct simta_dirp *sd) {
     /* metrics */
     struct timeval tv_stop;
     int            remain_hq = 0;
-    int new = 0;
-    int removed = 0;
+    int            new = 0;
+    int            removed = 0;
 
     if (sd->sd_dirp == NULL) {
         if (simta_gettimeofday(&(sd->sd_tv_start)) != 0) {

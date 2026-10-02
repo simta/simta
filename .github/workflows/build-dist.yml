@@ -5,10 +5,10 @@ on:
       - simta-*
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: simta
           fetch-depth: 0
@@ -20,7 +20,7 @@ jobs:
         run: sudo apt install libbsd-dev libmilter-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libopendkim-dev libidn2-dev libsasl2-dev libsasl2-modules-db sasl2-bin
 
       - name: Cache built dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         id: cache-deps
         with:
           path: ${{ github.workspace }}/.deps

@@ -246,7 +246,7 @@ spf_macro_expand(
                     tmp = yaslgrowzero(tmp, INET_ADDRSTRLEN);
                     if (inet_ntop(s->spf_sockaddr->sa_family,
                                 &((struct sockaddr_in *)s->spf_sockaddr)
-                                         ->sin_addr,
+                                        ->sin_addr,
                                 tmp, (socklen_t)yasllen(tmp)) == NULL) {
                         goto error;
                     }

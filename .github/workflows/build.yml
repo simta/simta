@@ -6,10 +6,10 @@ on:
 jobs:
   clang_format:
     name: clang-format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Lint code formatting
         run: |
@@ -18,10 +18,10 @@ jobs:
           git status --porcelain | grep -q '^ M' && exit 1 || exit 0
 
   flake8:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install flake8
         run: sudo pip install flake8
@@ -30,10 +30,10 @@ jobs:
         run: flake8 --max-line-length=160
 
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: simta
           fetch-depth: 0
@@ -55,7 +55,7 @@ jobs:
         run: sudo pip install aiosmtpd cryptography dnspython pytest ruamel.yaml
 
       - name: Cache built dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         id: cache-deps
         with:
           path: ${{ github.workspace }}/.deps
@@ -117,9 +117,9 @@ jobs:
 
       - name: Generate coverage reports
         run: |
-          lcov -c -d ${{ github.workspace }}/simta -o lcov.info --ignore-errors gcov,mismatch
+          lcov -c -d ${{ github.workspace }}/simta -o lcov.info --ignore-errors gcov,inconsistent,mismatch
           gcov *.c || true
-          genhtml lcov.info -o ${{ github.workspace }}/lcov
+          genhtml lcov.info -o ${{ github.workspace }}/lcov --ignore-errors inconsistent
         working-directory: ${{ github.workspace }}/simta
 
       - name: Save lcov output

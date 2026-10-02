@@ -66,9 +66,9 @@ acl_lookup_dns(
         if ((ptrbuf = dnsr_ntoptr(simta_dnsr, sa->sa_family,
                      ((sa->sa_family == AF_INET)
                                      ? (void *)&(((struct sockaddr_in *)sa)
-                                                         ->sin_addr)
+                                                       ->sin_addr)
                                      : (void *)&(((struct sockaddr_in6 *)sa)
-                                                         ->sin6_addr)),
+                                                       ->sin6_addr)),
                      domain)) == NULL) {
             syslog(LOG_ERR, "DNS List [%s]: dnsr_ntoptr failed: %s",
                     res->acl_text_raw, domain);

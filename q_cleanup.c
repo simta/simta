@@ -339,12 +339,12 @@ int
 q_expansion_cleanup(struct envelope **fast) {
     struct envelope **e;
     struct envelope  *env;
-    struct envelope *delete;
-    struct i_list **i;
-    struct i_list  *inode_list = NULL;
-    struct i_list  *i_add;
-    struct stat     sb;
-    char            fname[ MAXPATHLEN + 1 ];
+    struct envelope  *delete;
+    struct i_list   **i;
+    struct i_list    *inode_list = NULL;
+    struct i_list    *i_add;
+    struct stat       sb;
+    char              fname[ MAXPATHLEN + 1 ];
 
     /* check for interrupted expansion, build list of messages to delete */
     for (env = *fast; env != NULL; env = env->e_next) {

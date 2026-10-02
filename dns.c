@@ -152,7 +152,7 @@ get_ptr(const struct sockaddr *sa) {
                                  ? (void *)&(
                                            ((struct sockaddr_in *)sa)->sin_addr)
                                  : (void *)&(((struct sockaddr_in6 *)sa)
-                                                     ->sin6_addr)),
+                                                   ->sin6_addr)),
                  NULL)) == NULL) {
         syslog(LOG_ERR, "Liberror: get_ptr dnsr_ntoptr: %s",
                 dnsr_err2string(dnsr_errno(simta_dnsr)));
