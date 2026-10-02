@@ -346,7 +346,7 @@ error:
 static yastr
 srs_reforward(const char *addr) {
     yastr       local = NULL;
-    char       *p;
+    const char *p;
     const char *opaque;
 
     if (addr[ 3 ] == '1') {

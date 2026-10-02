@@ -7,7 +7,7 @@
 
 struct simta_sasl {
     sasl_conn_t *s_conn;
-    const char  *s_auth_id;
+    char        *s_auth_id;
     const char  *s_mech;
     yastr        s_response;
 };

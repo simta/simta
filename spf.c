@@ -1383,7 +1383,7 @@ cleanup:
 
 struct spf *
 spf_lookup(const char *helo, const char *email, const struct sockaddr *addr) {
-    char       *p;
+    const char *p;
     struct spf *s;
 
     s = simta_calloc(1, sizeof(struct spf));
