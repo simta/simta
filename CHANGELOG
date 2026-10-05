@@ -1,3 +1,10 @@
+2.5.2 (2026-10-05)
+    - added simorgdomain
+    - fixed memory management bugs
+    - added experimental support for using mimalloc as the allocator
+    - removed support for parsing pre-2.0 envelopes
+    - added a config flag to enable delivery to an MX that is a CNAME
+
 2.5.1 (2025-05-14)
     - relaxed line length limit
     - relaxed invalid character checks
