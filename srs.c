@@ -172,7 +172,7 @@ srs_reverse(const char *addr, char **newaddr, const char *secret) {
     }
 
     if ((p = strrchr(a, '@')) == NULL) {
-        simta_debuglog(1, "SRS %s: invalid address, no @");
+        simta_debuglog(1, "SRS %s: invalid address, no @", addr);
         goto error;
     }
 
